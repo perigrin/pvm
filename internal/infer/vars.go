@@ -109,12 +109,12 @@ func (a *analysis) key(n *lower.Key) types.Type {
 // walkJoined keeps this from escaping a `&&`/`||`/`?:` arm it runs inside
 // of, the way it would if this wrote through unconditionally.
 //
-// Inside a loop (infer.go's loopDepth, set by flow.go's loop), the deref
-// only runs on an iteration that happens at all, so base's type from
-// before the loop must still be possible afterward too: joining it in,
-// rather than replacing it the way a straight-line deref does, is what
-// keeps `for my $i (1..$c) { $y->{k} }` from forcing $y to a ref when $c
-// is 0 and the body never ran at all (I4).
+// Inside a part of a loop that may run zero times, the deref only runs on
+// a pass that happens at all, so base's type from before the loop must
+// still be possible past it: markLoopDeref records it for flow.go's loop
+// to join back in at the loop's end, which keeps `for my $i (1..$c) {
+// $y->{k} }` from forcing $y to a ref when $c is 0 and the body never ran
+// at all (I4), while the rest of the pass still sees the ref.
 func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) {
 	if !arrow {
 		return
@@ -122,11 +122,8 @@ func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) 
 	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
 		name := "$" + v.Name
 		sym, _ := a.st.Lookup(name)
-		next := (sym.Type & types.Object) | ref
-		if a.loopDepth > 0 {
-			next = types.Join(sym.Type, next)
-		}
-		a.st.UpdateType(name, next)
+		a.st.UpdateType(name, (sym.Type&types.Object)|ref)
+		a.markLoopDeref(base, name)
 	}
 }
 

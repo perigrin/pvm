@@ -261,6 +261,59 @@ func (a *analysis) invalidateElementShadow(l lower.Node) {
 	}
 }
 
+// invalidateWrites drops whatever element guard shadow n may replace
+// without being an assignment (I5, V6): an increment or a decrement
+// writes its operand, and a call the arguments writtenArgs names; a
+// reference taken to an element or to the array may be written through
+// later; a method may write each argument through its @_; and a map or
+// grep block that writes $_ writes
+// through it to each element of its list. perl 5.42 dies "Can't bless
+// non-reference value" on `if (ref $r[0]) { $r[0]++; bless $r[0], "Foo" }`
+// with @r = ({}, undef), and on each of the other forms.
+func (a *analysis) invalidateWrites(n lower.Node) {
+	var targets []lower.Node
+	switch n := n.(type) {
+	case *lower.Unary:
+		if n.Op == "++" || n.Op == "--" {
+			targets = []lower.Node{n.Operand}
+		}
+	case *lower.Ref:
+		targets = []lower.Node{n.Operand}
+	case *lower.Call:
+		targets = writtenArgs(n)
+	case *lower.MethodCall:
+		targets = n.Args
+	case *lower.MapGrepSort:
+		if n.Op != "sort" && (bodyWritesAlias(n.Block, "$_") || bodyWritesAlias(n.FirstExpr, "$_")) {
+			for _, l := range n.List {
+				a.clearArraysIn(l)
+			}
+		}
+	}
+	for _, t := range targets {
+		a.invalidateElementShadow(t)
+	}
+}
+
+// writtenArgs is the arguments call n may write in place: each argument
+// of a sub of this file or a coderef, which @_ aliases (call, calls.go,
+// tells one from a builtin or a sub a declaration file types); undef's,
+// chop's and chomp's; and read's and sysread's buffer.
+func writtenArgs(n *lower.Call) []lower.Node {
+	name := coreName(n.Name)
+	user := n.Fn != nil || n.Ampersand || overridden(n) || len(parse.CoreBuiltin(name)) == 0
+	declared := n.Fn == nil && !n.Ampersand && len(n.Signatures) > 0
+	switch {
+	case user && !declared:
+		return n.Args
+	case name == "undef" || name == "chop" || name == "chomp":
+		return n.Args
+	case (name == "read" || name == "sysread") && len(n.Args) > 1:
+		return n.Args[1:2]
+	}
+	return nil
+}
+
 // narrow is assignment narrowing for v assigned init, whose
 // type is t, and returns the type v takes: t, unless that is Unknown.
 //
@@ -601,18 +654,15 @@ func (a *analysis) unary(n *lower.Unary) types.Type {
 // `(1 ? @a : 42) + 1` is 4 and `my $n = 1 ? @a : 42` is 3, while
 // `my @t = 1 ? @a : 42` is (7, 8, 9).
 //
-// The two logicalRight calls run in source order, one after the other, so
-// without this the else arm's own checks would see whatever the then
-// arm's processing already joined back in -- not the state the condition
-// itself left, which is what else actually runs from (S5): `my $v = "s";
-// my $r = $c ? ($v = undef) : ($v eq "x");` is silent on perl 5.42, since
-// $v is never undef on the path that reaches the else arm's `eq` at all.
-// Undoing whatever the then call touched, between the two calls, puts
-// the symbol table back to that shared starting point for the else call;
-// Join is idempotent, so folding the then arm's joined result back in a
-// second time, as the else call's own join does against that same
-// restored state, lands on the same answer the two arms' true,
-// exhaustive join would.
+// Exactly one arm runs, so each starts from the state the condition left
+// (S5): perl 5.42 -w is silent on `my $v = "s"; my $r = $c ? ($v = undef)
+// : ($v eq "x");`, since the else arm never sees the then arm's undef.
+// And past the ternary a variable holds what one arm or the other left
+// it, nothing else (V2): `my $y = {}; $c ? ($y = undef) : 0; bless $y`
+// dies "Can't bless non-reference value" when $c is true, and `my $y;
+// $c ? ($y = {}) : ($y = []); bless $y` never does. An arm that always
+// exits leaves nothing past the ternary, as a body that exits leaves
+// nothing past an if.
 func (a *analysis) ternary(n *lower.Ternary) types.Type {
 	ctx := a.evalCtx[n.ID]
 	for _, arm := range []lower.Node{n.Then, n.Else} {
@@ -622,30 +672,146 @@ func (a *analysis) ternary(n *lower.Ternary) types.Type {
 	}
 	a.condition(n.Cond)
 	a.operand(n.Cond)
-	a.st.PushFrame()
-	a.logicalRight("&&", n.Cond, n.Then)
-	touched := a.st.PopFrame()
-	for _, e := range touched {
-		e.undo()
-	}
-	a.logicalRight("||", n.Cond, n.Else)
-	// An element guard shadow (a "[" in the name, guardVarName's own
-	// shape) has no second join to reconverge on the way an ordinary
-	// variable's does -- the else call's own logicalRight, now running
-	// from the state just undone, folds a plain variable's two arms
-	// together correctly on its own. So once the else arm has had its
-	// turn seeing the shadow restored, drop it for good (I5): the then
-	// arm proved it stale, and nothing past the ternary may still trust
-	// it either.
-	for name := range touched {
-		if strings.Contains(name, "[") {
-			a.st.Delete(name)
+	guard := a.guard(n.Cond, true)
+	then := a.armFrame(n.Then, a.flatten(guard, false), true)
+	a.st.UndoFrame()
+	els := a.armFrame(n.Else, a.flatten(guard, true), false)
+
+	// The else arm's touches are kept, so the join is made inside its
+	// span, where each one already holds its value from before the
+	// ternary: a variable the else arm touched joins that with the then
+	// arm's, and one only the then arm touched joins the then arm's
+	// with what the else arm held it at.
+	join := func(v scopedName, before flowVar) {
+		sym, ok := v.scope.symbols[v.name]
+		if !ok {
+			return
+		}
+		now := flowVar{sym.Type, sym.PossibleUndef}
+		var ends []flowVar
+		if !then.exits {
+			ends = append(ends, then.at(v, before))
+		}
+		if !els.exits {
+			ends = append(ends, els.at(v, now))
+		}
+		if joined := joinFlow(before, ends, true); joined != now {
+			sym.Type, sym.PossibleUndef = joined.Type, joined.Undef
+			a.st.set(v, sym)
 		}
 	}
+	// An element guard shadow the else arm wrote stays written.
+	touched := a.st.Touched()
+	for v, before := range touched {
+		if a.st.inScope(v.scope) {
+			join(v, flowVar{before.Type, before.PossibleUndef})
+		}
+	}
+	for _, arm := range []armEnd{then, els} {
+		for v := range arm.end {
+			if _, done := touched[v]; done || v.scope == nil {
+				continue // or a guard's shadow of a name declared nowhere outside it
+			}
+			if strings.Contains(v.name, "[") {
+				// An element guard shadow the then arm wrote is stale
+				// past the ternary too, whichever arm ran (I5).
+				a.st.remove(v)
+				continue
+			}
+			sym := v.scope.symbols[v.name]
+			join(v, flowVar{sym.Type, sym.PossibleUndef})
+		}
+	}
+	a.st.PopFrame()
 	if n.Then == nil || n.Else == nil {
 		return types.Unknown
 	}
 	return types.Join(a.valueOf(n.Then), a.valueOf(n.Else))
+}
+
+// armEnd is what one arm of a ternary left: end, the value at the arm's
+// end of each variable it touched (all of them, or, for an arm whose
+// touches are kept, only those written through a guard's shadow, which
+// is gone past it); held, the value there of each variable the condition
+// guards in it, which the arm holds narrowed whether or not it wrote it;
+// and exits, whether the arm never returns, so that nothing it left
+// reaches past the ternary.
+type armEnd struct {
+	end, held map[scopedName]flowVar
+	exits     bool
+}
+
+// at is v's value at the arm's end: what the arm left it, or the
+// narrowed value its guard held it at, or otherwise unchanged from
+// start, its value where the arm began.
+func (e armEnd) at(v scopedName, start flowVar) flowVar {
+	if end, ok := e.end[v]; ok {
+		return end
+	}
+	if held, ok := e.held[v]; ok {
+		return held
+	}
+	return start
+}
+
+// armFrame walks arm, one arm of a ternary, under guards, the guards the
+// condition holds where it runs, in a PushFrame span it leaves open for
+// the caller to close, and returns what the arm left, as armEnd says;
+// all says whether end is to hold every touched variable. Each variable
+// is keyed by the scope that declares it, so the ternary joins it there
+// without a walk of the scope chain: a chain of ternaries nests a guard
+// scope at every level, and a walk per variable per level is what made a
+// long chain whose arms write cubic (V5).
+func (a *analysis) armFrame(arm lower.Node, guards []*guardResult, all bool) armEnd {
+	shadows, classNames := guardShadows(guards, a.st)
+	a.st.PushFrame()
+	if len(shadows) > 0 {
+		a.st.EnterScope("guard")
+		for name, typ := range shadows {
+			a.st.Define(Symbol{Name: name, Type: typ, ClassType: classNames[name], Kind: SymVariable, PossibleUndef: a.stillPossibleUndef(name)})
+		}
+	}
+	a.operand(arm)
+	guardScope := a.st.current
+	if len(shadows) > 0 {
+		a.st.ExitScope()
+	}
+	// A guarded variable's shadow lives in the guard scope, which is
+	// gone past the ternary: its value is the variable's own there.
+	inGuard := func(v scopedName) bool { return len(shadows) > 0 && v.scope == guardScope }
+	declared := func(v scopedName) scopedName {
+		if inGuard(v) {
+			return scopedName{a.st.scopeOf(v.name), v.name}
+		}
+		return v
+	}
+	out := armEnd{map[scopedName]flowVar{}, map[scopedName]flowVar{}, a.armExits(arm)}
+	for _, touched := range []map[scopedName]Symbol{a.st.Touched(), a.st.TouchedElems()} {
+		for v := range touched {
+			if inGuard(v) || (all && a.st.inScope(v.scope)) {
+				sym := v.scope.symbols[v.name]
+				out.end[declared(v)] = flowVar{sym.Type, sym.PossibleUndef}
+			}
+		}
+	}
+	for name := range shadows {
+		if strings.Contains(name, "[") {
+			continue // an element shadow is dropped past the ternary, never joined
+		}
+		sym := guardScope.symbols[name]
+		out.held[declared(scopedName{guardScope, name})] = flowVar{sym.Type, sym.PossibleUndef}
+	}
+	return out
+}
+
+// armExits reports whether a ternary's arm never returns: an exit itself,
+// as exits says, or a do block whose block always exits.
+func (a *analysis) armExits(arm lower.Node) bool {
+	if d, ok := arm.(*lower.DoBlock); ok {
+		b, ok := d.Body.(*lower.Block)
+		return ok && a.blockExits(b)
+	}
+	return arm != nil && a.exits(arm)
 }
 
 // valueOf is n's type as the value its context takes: an array, a hash or a

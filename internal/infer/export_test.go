@@ -44,3 +44,15 @@ func SortSelection(src string) types.Selection {
 	find(f)
 	return sel
 }
+
+// SetFlowTouches is how many names setFlow records as touched when it
+// sets name in st to typ, unmarked: what restoring or joining a variable
+// costs the frames open around it.
+func SetFlowTouches(st *SymbolTable, name string, typ types.Type) int {
+	a := &analysis{st: st}
+	st.PushFrame()
+	a.setFlow(name, flowVar{typ, false})
+	n := len(st.Touched())
+	st.PopFrame()
+	return n
+}

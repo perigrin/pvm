@@ -107,12 +107,10 @@ type analysis struct {
 	// type each variable a loop exit narrowed had where the exit leaves,
 	// keyed by the scope that declares it, as leaveLoop says.
 	loopExits []map[scopedName]types.Type
-	// loopDepth counts the while, foreach, C-style for, bare block and
-	// map/grep bodies currently being walked, flow.go's loop says: zero
-	// outside all of them. vars.go's narrowDerefBase reads it to keep a
-	// deref's forced ref type from replacing a loop body's own Undef
-	// outright, since the body may run zero times (I4).
-	loopDepth int
+	// loops is the loops being walked, innermost last, as flow.go's loop
+	// keeps it: vars.go's narrowDerefBase marks in them a deref in a part
+	// of a loop that may run zero times (I4).
+	loops []openLoop
 	// warningsOff is the warning categories a `no warnings` has turned
 	// off where the walk is, as useStmt and block keep it.
 	warningsOff warningsOff
@@ -222,17 +220,17 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.ifStmt(n)
 		t = types.Unknown
 	case *lower.WhileStmt:
-		a.loop(func() { a.whileStmt(n) })
+		a.loop(n, func() { a.whileStmt(n) })
 		t = types.Unknown
 	case *lower.ForeachStmt:
-		a.loop(func() { a.foreachStmt(n) })
+		a.loop(n, func() { a.foreachStmt(n) })
 		t = types.Unknown
 	case *lower.CForStmt:
 		a.condition(n.Cond)
-		a.loop(func() { a.walkChildren(n) })
+		a.loop(n, func() { a.walkChildren(n) })
 		t = types.Any
 	case *lower.BlockStmt:
-		a.loop(func() { a.walkChildren(n) })
+		a.loop(n, func() { a.walkChildren(n) })
 		t = types.Any
 	case *lower.UseStmt:
 		a.useStmt(n)
@@ -246,6 +244,7 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.walkChildren(n)
 		t = types.Any
 	}
+	a.invalidateWrites(n)
 	if t != types.Unknown {
 		a.annotations[n.Meta().ID] = t
 	}

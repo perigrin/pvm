@@ -59,7 +59,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 	// undoes each body's own touches before the next body runs from the
 	// same pre, so this is applied only once every body has run, past
 	// the join below.
-	dropped := map[string]frameEntry{}
+	dropped := map[string]bool{}
 
 	var ends []map[string]flowVar
 	primaryExits := false
@@ -107,7 +107,7 @@ func (a *analysis) ifStmt(n *lower.IfStmt) {
 // the conditional that collected it has run and been joined, at least
 // one of them proved it stale, so nothing past the whole conditional may
 // still trust it (I5, R6/S4).
-func (a *analysis) dropElementShadows(dropped map[string]frameEntry) {
+func (a *analysis) dropElementShadows(dropped map[string]bool) {
 	for name := range dropped {
 		a.st.Delete(name)
 	}
@@ -151,8 +151,7 @@ func (a *analysis) preBranchTypes(n lower.Node) map[string]flowVar {
 // restore sets each of pre's variables back to the type and mark pre holds.
 func (a *analysis) restore(pre map[string]flowVar) {
 	for name, fv := range pre {
-		a.st.UpdateType(name, fv.Type)
-		a.st.UpdatePossibleUndef(name, fv.Undef)
+		a.setFlow(name, fv)
 	}
 }
 
@@ -214,12 +213,13 @@ func (a *analysis) elsifPre(pre map[string]flowVar, guards []*guardResult) map[s
 // (ifStmt, elsif) runs next from the same pre; dropped collects the
 // element shadows among them, for the caller to delete for good only once
 // every body has had its turn (dropElementShadows).
-func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]flowVar, dropped map[string]frameEntry) map[string]flowVar {
+func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]flowVar, dropped map[string]bool) map[string]flowVar {
 	a.restore(pre)
 	a.st.PushFrame()
 	if a.blockExits(b) {
 		a.blockWithGuard(b, guards, nil)
-		a.undoTouched(a.st.PopFrame(), dropped)
+		a.undoTouched(a.st.TouchedElems(), dropped)
+		a.st.PopFrame()
 		return nil
 	}
 	end := make(map[string]flowVar, len(pre))
@@ -227,12 +227,13 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 		end[name] = flowVar{types.None, false}
 	}
 	a.blockWithGuard(b, guards, end)
-	a.undoTouched(a.st.PopFrame(), dropped)
+	a.undoTouched(a.st.TouchedElems(), dropped)
+	a.st.PopFrame()
 	return end
 }
 
-// undoTouched puts back whichever of the names PushFrame saw touched are
-// element guard shadows (a "[" in the name, guardVarName's own shape),
+// undoTouched puts back each element guard shadow (a "[" in the name,
+// guardVarName's own shape) a body touched, as TouchedElems holds them,
 // then merges them into dropped, for the caller to delete for good once
 // every body of the same conditional has run (I5, R6/S4). Any other
 // touched name is left exactly as the body left it: an ordinary
@@ -241,12 +242,10 @@ func (a *analysis) branch(b *lower.Block, guards []*guardResult, pre map[string]
 // EnterScope/ExitScope regardless -- undoing either here would discard
 // precision the body legitimately established, not protect a sibling
 // from anything.
-func (a *analysis) undoTouched(touched map[string]frameEntry, dropped map[string]frameEntry) {
-	for name, e := range touched {
-		if strings.Contains(name, "[") {
-			e.undo()
-			dropped[name] = e
-		}
+func (a *analysis) undoTouched(touched map[scopedName]Symbol, dropped map[string]bool) {
+	for n, before := range touched {
+		a.st.put(n, before)
+		dropped[n.name] = true
 	}
 }
 
@@ -263,28 +262,51 @@ func (a *analysis) undoTouched(touched map[string]frameEntry, dropped map[string
 // sibling body's Undef came from a declared call.
 func (a *analysis) joinBranches(pre map[string]flowVar, ends []map[string]flowVar, exhaustive bool) {
 	for name, before := range pre {
-		joined, reached := types.None, false
-		marked, any := true, false
-		consider := func(fv flowVar) {
-			joined, reached = types.Join(joined, fv.Type), true
-			if fv.Type&types.Undef != 0 {
-				any, marked = true, marked && fv.Undef
-			}
-		}
-		if !exhaustive {
-			consider(before)
-		}
+		var reached []flowVar
 		for _, end := range ends {
 			if end != nil {
-				consider(end[name])
+				reached = append(reached, end[name])
 			}
 		}
-		if !reached {
-			joined, any, marked = before.Type, before.Type&types.Undef != 0, before.Undef
-		}
-		a.st.UpdateType(name, joined)
-		a.st.UpdatePossibleUndef(name, any && marked)
+		a.setFlow(name, joinFlow(before, reached, exhaustive))
 	}
+}
+
+// joinFlow is the join joinBranches sets one variable to: of ends, the
+// values bodies that reached the join left it, and of before, its value
+// before the conditional, unless exhaustive says some body always runs.
+// With nothing to join, it is before.
+func joinFlow(before flowVar, ends []flowVar, exhaustive bool) flowVar {
+	if !exhaustive {
+		ends = append(ends, before)
+	}
+	if len(ends) == 0 {
+		return flowVar{before.Type, before.Type&types.Undef != 0 && before.Undef}
+	}
+	joined, marked, any := types.None, true, false
+	for _, fv := range ends {
+		joined = types.Join(joined, fv.Type)
+		if fv.Type&types.Undef != 0 {
+			any, marked = true, marked && fv.Undef
+		}
+	}
+	return flowVar{joined, any && marked}
+}
+
+// setFlow sets name's type and possible-undef mark to fv's, in one
+// write. A variable that already holds them is not touched at all, so restoring or joining the many variables a long elsif chain
+// names records nothing for the ones its bodies left alone (V5).
+func (a *analysis) setFlow(name string, fv flowVar) {
+	s := a.st.scopeOf(name)
+	if s == nil {
+		return
+	}
+	sym := s.symbols[name]
+	if sym.Type == fv.Type && sym.PossibleUndef == fv.Undef {
+		return
+	}
+	sym.Type, sym.PossibleUndef = fv.Type, fv.Undef
+	a.st.set(scopedName{s, name}, sym)
 }
 
 // modifierStmt walks a modifier form, `X if C` or `X unless C`, as `C && X`
@@ -362,30 +384,107 @@ type scopedName struct {
 	name  string
 }
 
-// loop walks a loop by walk, and after it joins each variable a loop
+// loop walks n, a loop, by walk, and after it joins each variable a loop
 // exit in it narrowed with the type the variable had where that exit
 // left, as leaveLoop recorded: the code after the loop runs on that path
 // too. A variable declared in the loop is gone by then, and is skipped.
 // A bare block is a loop that runs once.
 //
-// loopDepth (vars.go's narrowDerefBase) counts how many of these are
-// open: a while, foreach, C-style for or bare block may run its body zero
-// times, so a deref inside it only sometimes forces its base to a ref
-// (I4) -- `my $c=0; my $y=undef; for my $i (1..$c) { $y->{k} } bless $y,
-// 'Foo'` still dies "Can't bless non-reference value", as pu and perl
-// agree, since the loop never ran the deref that would have made $y one.
-func (a *analysis) loop(walk func()) {
+// A deref in a part of the loop that may run zero times -- a body, a
+// C-style for's step, a map, grep or sort block -- forces its base to a
+// ref only on a pass that runs at all (I4), so past the loop the base
+// also holds its type from before the loop: `my $c=0; my $y=undef; for
+// my $i (1..$c) { $y->{k} } bless $y, 'Foo'` dies "Can't bless
+// non-reference value" in perl 5.42. Inside the pass, what follows the
+// deref sees the ref, as a straight-line deref's does, and a condition,
+// list or initialiser, which runs at least once, joins nothing.
+func (a *analysis) loop(n lower.Node, walk func()) {
 	a.loopExits = append(a.loopExits, map[scopedName]types.Type{})
-	a.loopDepth++
+	a.loops = append(a.loops, openLoop{a.mayNotRun(n), map[scopedName]bool{}})
+	a.st.PushFrame()
 	walk()
-	a.loopDepth--
+	touched := a.st.Touched()
+	joined := map[scopedName]Symbol{}
+	for v := range a.loops[len(a.loops)-1].derefs {
+		if before, ok := touched[v]; ok && a.st.inScope(v.scope) {
+			if sym, ok := v.scope.symbols[v.name]; ok {
+				sym.Type = types.Join(sym.Type, before.Type)
+				joined[v] = sym
+			}
+		}
+	}
+	a.st.PopFrame()
+	a.loops = a.loops[:len(a.loops)-1]
+	for v, sym := range joined {
+		a.st.set(v, sym)
+	}
 	exits := a.loopExits[len(a.loopExits)-1]
 	a.loopExits = a.loopExits[:len(a.loopExits)-1]
 	for v, typ := range exits {
 		if a.st.inScope(v.scope) {
 			if sym, ok := v.scope.symbols[v.name]; ok {
 				sym.Type = types.Join(sym.Type, typ)
-				v.scope.symbols[v.name] = sym
+				a.st.put(v, sym)
+			}
+		}
+	}
+}
+
+// openLoop is a loop loop is walking: the source spans of its parts that
+// may run zero times, and each variable a deref in one of them forced to
+// a ref.
+type openLoop struct {
+	mayNotRun [][2]int
+	derefs    map[scopedName]bool
+}
+
+// mayNotRun is the source spans of n's parts that may run zero times: a
+// while's or foreach's body and continue block, a C-style for's body and
+// step, a map's, grep's or sort's block or expression. A do-while's body
+// and a bare block run at least once.
+func (a *analysis) mayNotRun(n lower.Node) [][2]int {
+	var parts []lower.Node
+	switch n := n.(type) {
+	case *lower.WhileStmt:
+		if !n.PostCond {
+			parts = []lower.Node{n.Body, n.Continue}
+		}
+	case *lower.ForeachStmt:
+		parts = []lower.Node{n.Body, n.Continue}
+	case *lower.CForStmt:
+		parts = []lower.Node{n.Body, n.Post}
+	case *lower.MapGrepSort:
+		parts = []lower.Node{n.Block, n.FirstExpr}
+	}
+	var spans [][2]int
+	for _, p := range parts {
+		if p == nil {
+			continue
+		}
+		if start, end, ok := a.pos.Span(p.Meta().ID); ok {
+			spans = append(spans, [2]int{start, end})
+		}
+	}
+	return spans
+}
+
+// markLoopDeref records, in each open loop with a part that may run zero
+// times around base, that a deref there forced name to a ref, for loop
+// to join its type from before the loop back in past it.
+func (a *analysis) markLoopDeref(base lower.Node, name string) {
+	if len(a.loops) == 0 {
+		return
+	}
+	start, _, ok := a.pos.Span(base.Meta().ID)
+	scope := a.st.scopeOf(name)
+	if !ok || scope == nil {
+		return
+	}
+	for _, l := range a.loops {
+		for _, s := range l.mayNotRun {
+			if start >= s[0] && start < s[1] {
+				l.derefs[scopedName{scope, name}] = true
+				break
 			}
 		}
 	}
@@ -453,7 +552,7 @@ func (a *analysis) before(x, y lower.Node) bool {
 // and whether the chain ends in an else. pre already holds every earlier
 // condition's failure narrowed in, as elsifPre says; a further elsif in the
 // chain gets this one's failure narrowed in too.
-func (a *analysis) elsif(n *lower.IfStmt, pre map[string]flowVar, dropped map[string]frameEntry) ([]map[string]flowVar, bool) {
+func (a *analysis) elsif(n *lower.IfStmt, pre map[string]flowVar, dropped map[string]bool) ([]map[string]flowVar, bool) {
 	a.restore(pre)
 	a.condition(n.Cond)
 	if n.Cond != nil {
@@ -526,8 +625,8 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 		// writes through the alias the same way the scoped form's
 		// write-back below does, so a guard's per-index shadow of the
 		// array is just as stale after it (I5).
-		if iter != nil && (iter.Sigil == "@" || iter.Sigil == "%") && bodyWritesAlias(n.Body, "$_") {
-			a.st.ClearElementShadows(iter.Name)
+		if bodyWritesAlias(n.Body, "$_") {
+			a.clearArraysIn(n.List)
 		}
 		return
 	}
@@ -549,9 +648,11 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	// A write through the alias reaches some element of the array
 	// whether or not it changes the alias's own type -- s/// and tr///
 	// never do -- so this cannot wait for final.Type's own change below
-	// to decide whether the array's element shadows are stale (I5).
-	if iter != nil && (iter.Sigil == "@" || iter.Sigil == "%") && bodyWritesAlias(body, name) {
-		a.st.ClearElementShadows(iter.Name)
+	// to decide whether the array's element shadows are stale (I5). The
+	// list may name the array any way that aliases its elements: whole,
+	// by element or slice, or through reverse or grep (V6).
+	if bodyWritesAlias(body, name) {
+		a.clearArraysIn(n.List)
 	}
 
 	if final.Type == types.Scalar || final.Type == types.Unknown || iter == nil {
@@ -569,15 +670,46 @@ func (a *analysis) foreachStmt(n *lower.ForeachStmt) {
 	}
 }
 
+// clearArraysIn drops the element guard shadows of each array n names
+// whole, by element or by slice: a write through an alias to one of
+// n's values may land on any of their elements.
+func (a *analysis) clearArraysIn(n lower.Node) {
+	if n == nil {
+		return
+	}
+	switch n := n.(type) {
+	case *lower.Var:
+		if n.Sigil == "@" {
+			a.st.ClearElementShadows(n.Name)
+		}
+	case *lower.Index:
+		if v, ok := n.Base.(*lower.Var); ok && !n.Arrow && v.Sigil == "$" {
+			a.st.ClearElementShadows(v.Name)
+		}
+	case *lower.Slice:
+		if v, ok := n.Base.(*lower.Var); ok {
+			a.st.ClearElementShadows(v.Name)
+		}
+	}
+	for _, c := range lower.Children(n) {
+		a.clearArraysIn(c)
+	}
+}
+
 // bodyWritesAlias reports whether a plain assignment, a substitution or
 // transliteration (not suffixed /r, which returns a modified copy
-// instead of writing through), an explicit `=~` binding, or chop or
-// chomp, writes through name (with its sigil, as guardVarName spells it)
-// anywhere under n: each mutates its target in place, the way a
-// foreach's alias write reaches whatever element of the array it is
-// bound to (I5) -- a modifier foreach's body, which is the write itself,
-// or a scoped or unscoped block form's.
+// instead of writing through), an explicit `=~` binding, a call that
+// writes it as writtenArgs (ops.go) says or a method call given it, an
+// increment or a decrement, or a reference taken to it, writes
+// through name (with its sigil, as guardVarName spells it) anywhere under
+// n, or may: each mutates its target in place, the way a foreach's alias
+// write reaches whatever element of the array it is bound to (I5, V6) --
+// a modifier foreach's body, which is the write itself, or a scoped or
+// unscoped block form's.
 func bodyWritesAlias(n lower.Node, name string) bool {
+	if n == nil {
+		return false
+	}
 	writes := func(target lower.Node) bool {
 		if target == nil {
 			return name == "$_"
@@ -594,15 +726,27 @@ func bodyWritesAlias(n lower.Node, name string) bool {
 		if (n.Op == "s" || n.Op == "tr" || n.Op == "y") && !strings.Contains(n.Flags, "r") && writes(n.Target) {
 			return true
 		}
+	case *lower.Unary:
+		if (n.Op == "++" || n.Op == "--") && n.Operand != nil && writes(n.Operand) {
+			return true
+		}
+	case *lower.Ref:
+		if n.Operand != nil && writes(n.Operand) {
+			return true
+		}
 	case *lower.Call:
-		if base := coreName(n.Name); base == "chop" || base == "chomp" {
-			if len(n.Args) == 0 && name == "$_" {
+		if base := coreName(n.Name); (base == "chop" || base == "chomp") && len(n.Args) == 0 && name == "$_" {
+			return true
+		}
+		for _, arg := range writtenArgs(n) {
+			if writes(arg) {
 				return true
 			}
-			for _, arg := range n.Args {
-				if writes(arg) {
-					return true
-				}
+		}
+	case *lower.MethodCall:
+		for _, arg := range n.Args {
+			if writes(arg) {
+				return true
 			}
 		}
 	}
@@ -831,19 +975,18 @@ func (a *analysis) logicalRight(op string, l, r lower.Node) {
 func (a *analysis) walkJoined(r lower.Node, skip map[string]bool) {
 	a.st.PushFrame()
 	a.operand(r)
-	touched := a.st.PopFrame()
+	touched := a.st.Touched()
 	pre := make(map[string]flowVar, len(touched))
 	end := make(map[string]flowVar, len(touched))
-	for name, e := range touched {
-		if skip[name] {
+	for n, before := range touched {
+		if skip[n.name] || !a.st.inScope(n.scope) {
 			continue
 		}
-		pre[name] = flowVar{e.before.Type, e.before.PossibleUndef}
-		end[name] = flowVar{types.None, false}
-		if sym, ok := a.st.Lookup(name); ok {
-			end[name] = flowVar{sym.Type, sym.PossibleUndef}
-		}
+		pre[n.name] = flowVar{before.Type, before.PossibleUndef}
+		sym := n.scope.symbols[n.name]
+		end[n.name] = flowVar{sym.Type, sym.PossibleUndef}
 	}
+	a.st.PopFrame()
 	a.joinBranches(pre, []map[string]flowVar{end}, false)
 }
 

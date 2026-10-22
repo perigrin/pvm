@@ -4,6 +4,8 @@
 package infer
 
 import (
+	"fmt"
+	"maps"
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
@@ -70,6 +72,11 @@ type Scope struct {
 	parent   *Scope
 	children []*Scope
 	symbols  map[string]Symbol
+	// open is whether the scope is on the current chain: entered or
+	// re-entered, and not yet exited; depth is its distance from the root
+	// there.
+	open  bool
+	depth int
 }
 
 // SymbolTable tracks the full lexical scope chain.  The current scope is the
@@ -81,53 +88,144 @@ type SymbolTable struct {
 	// block's id, which pass 2 re-enters as it walks the block.
 	blockScopes map[lower.ID]*Scope
 	// frames is a stack of open PushFrame spans. update, Delete and
-	// ClearElementShadows each record, into every frame open when they
-	// touch a name for the first time in that frame, how to undo the
-	// touch -- so PopFrame can hand back exactly the names a span
-	// mutated, without a Lookup sweep over every name it merely might
-	// have touched (the root cause of I10's cubic nested ternary: a
-	// preBranchTypes/joinBranches pair that scanned and re-looked-up
-	// every name in a chain's remaining subtree, at a scope depth that
-	// grew with the chain itself).
-	frames []map[string]frameEntry
+	// ClearElementShadows each record, in the innermost open frame, the
+	// first touch of each name -- so PopFrame can hand back exactly the
+	// names a span mutated, without a Lookup sweep over every name it
+	// merely might have touched (the root cause of I10's cubic nested
+	// ternary). PopFrame passes what it held on to the frame around it,
+	// so a touch costs the same however many frames are open (V5).
+	frames []frame
+	// holders is, for each name, the open scopes that hold it, outermost
+	// first, so the innermost is found without walking the chain: a chain
+	// of guards nests a scope at every level, and a walk per lookup per
+	// level made a long one quadratic (V5).
+	holders map[string][]*Scope
 }
 
-// frameEntry is one name a PushFrame span has touched: before is its
-// value at the moment of the first touch, for a caller (walkJoined,
-// flow.go) that wants to join the old and new type together, and undo
-// puts that value back where it came from, for a caller (ternary, ops.go,
-// and branch, flow.go) that wants to fully revert the touch instead.
-type frameEntry struct {
-	before Symbol
-	undo   func()
+// put writes sym as n's value in the scope n names, adding the scope to
+// the name's holders when it did not hold the name. It records no touch:
+// with a frame's before value, it is how a caller (UndoFrame, and branch,
+// flow.go) fully reverts a touch rather than joining the old and new
+// values the way walkJoined and loop (flow.go) do.
+func (st *SymbolTable) put(n scopedName, sym Symbol) {
+	if _, held := n.scope.symbols[n.name]; !held && n.scope.open {
+		h := st.holders[n.name]
+		i := len(h)
+		for i > 0 && h[i-1].depth > n.scope.depth {
+			i--
+		}
+		st.holders[n.name] = append(h[:i], append([]*Scope{n.scope}, h[i:]...)...)
+	}
+	n.scope.symbols[n.name] = sym
+}
+
+// drop deletes n from the scope n names, and the scope from the name's
+// holders.
+func (st *SymbolTable) drop(n scopedName) {
+	delete(n.scope.symbols, n.name)
+	h := st.holders[n.name]
+	for i := len(h) - 1; i >= 0; i-- {
+		if h[i] == n.scope {
+			st.holders[n.name] = append(h[:i], h[i+1:]...)
+			return
+		}
+	}
+}
+
+// frame is one open PushFrame span's touches: each name's value from
+// just before its first touch in the span, keyed by the scope that held
+// it. Element guard shadows ("$a[0]", flow.go's guardVarName) are kept
+// apart from every other name: callers drop them or put them back but
+// never join them, and a write that clears an array's shadows touches
+// one per guard around it, which a caller joining the rest should not
+// have to step over at every level of a chain (V5).
+type frame struct {
+	vars, elems map[scopedName]Symbol
 }
 
 // PushFrame starts recording every name an update, Delete or
 // ClearElementShadows call touches from here on, until the matching
 // PopFrame.
 func (st *SymbolTable) PushFrame() {
-	st.frames = append(st.frames, map[string]frameEntry{})
+	st.frames = append(st.frames, frame{map[scopedName]Symbol{}, map[scopedName]Symbol{}})
 }
 
-// PopFrame closes the span the matching PushFrame started and returns
-// every name touched during it, each mapped to its value from just
-// before that first touch and a func that puts it back.
-func (st *SymbolTable) PopFrame() map[string]frameEntry {
+// Touched is every name but an element guard shadow the innermost open
+// span has touched so far, keyed by the scope that held it, each mapped
+// to its value from just before that first touch. A caller reads it
+// before PopFrame, which may hand the map on to the span around it.
+func (st *SymbolTable) Touched() map[scopedName]Symbol {
+	return st.frames[len(st.frames)-1].vars
+}
+
+// TouchedElems is every element guard shadow the innermost open span has
+// touched so far, as Touched says.
+func (st *SymbolTable) TouchedElems() map[scopedName]Symbol {
+	return st.frames[len(st.frames)-1].elems
+}
+
+// PopFrame closes the span the matching PushFrame started. Each name it
+// touched is also a touch of the span around it, as merged says.
+func (st *SymbolTable) PopFrame() {
 	f := st.frames[len(st.frames)-1]
 	st.frames = st.frames[:len(st.frames)-1]
-	return f
+	if len(st.frames) == 0 {
+		return
+	}
+	parent := &st.frames[len(st.frames)-1]
+	parent.vars = merged(f.vars, parent.vars)
+	parent.elems = merged(f.elems, parent.elems)
 }
 
-// recordFrame notes, in every frame currently open, that name is about to
-// be changed from before by undo -- unless some earlier touch in that
+// merged is parent with child's touches added, keeping parent's own
+// earlier first touch of a name where it has one: nothing ran in it while
+// the child span was open. The smaller of the two maps is merged into the
+// larger, so a touch deep in a long chain of nested spans is copied a
+// logarithmic number of times on its way out, not once per span (V5).
+func merged(child, parent map[scopedName]Symbol) map[scopedName]Symbol {
+	if len(child) > len(parent) {
+		maps.Copy(child, parent)
+		return child
+	}
+	for n, before := range child {
+		if _, seen := parent[n]; !seen {
+			parent[n] = before
+		}
+	}
+	return parent
+}
+
+// UndoFrame closes the span the matching PushFrame started and puts back
+// every name touched during it. A span undone this way changed nothing,
+// so the span around it is not told of its touches: passing them on
+// would only grow every enclosing frame by touches that no longer matter
+// (V5).
+func (st *SymbolTable) UndoFrame() {
+	f := st.frames[len(st.frames)-1]
+	st.frames = st.frames[:len(st.frames)-1]
+	for _, touched := range []map[scopedName]Symbol{f.vars, f.elems} {
+		for n, before := range touched {
+			st.put(n, before)
+		}
+	}
+}
+
+// recordFrame notes, in the innermost open frame, that name in scope is
+// about to be changed from before -- unless some earlier touch in that
 // frame already recorded it, since a frame's value is what name held when
 // the frame started, not after whatever touched it most recently inside
 // it.
-func (st *SymbolTable) recordFrame(name string, before Symbol, undo func()) {
-	for _, f := range st.frames {
-		if _, seen := f[name]; !seen {
-			f[name] = frameEntry{before: before, undo: undo}
-		}
+func (st *SymbolTable) recordFrame(scope *Scope, name string, before Symbol) {
+	if len(st.frames) == 0 {
+		return
+	}
+	f := st.frames[len(st.frames)-1].vars
+	if strings.Contains(name, "[") {
+		f = st.frames[len(st.frames)-1].elems
+	}
+	n := scopedName{scope, name}
+	if _, seen := f[n]; !seen {
+		f[n] = before
 	}
 }
 
@@ -138,23 +236,22 @@ func NewSymbolTable() *SymbolTable {
 		Name:    "main",
 		parent:  nil,
 		symbols: make(map[string]Symbol),
+		open:    true,
 	}
-	return &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}}
+	return &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}, holders: map[string][]*Scope{}}
 }
 
 // Define adds sym to the current (innermost) scope, overwriting any
 // same-named symbol already in this scope.
 func (st *SymbolTable) Define(sym Symbol) {
-	st.current.symbols[sym.Name] = sym
+	st.put(scopedName{st.current, sym.Name}, sym)
 }
 
 // Lookup searches the current scope and each ancestor for name, returning the
 // first match found.  The inner-most definition wins (shadowing).
 func (st *SymbolTable) Lookup(name string) (Symbol, bool) {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			return sym, true
-		}
+	if s := st.scopeOf(name); s != nil {
+		return s.symbols[name], true
 	}
 	return Symbol{}, false
 }
@@ -167,6 +264,8 @@ func (st *SymbolTable) EnterScope(name string) {
 		Name:    name,
 		parent:  st.current,
 		symbols: make(map[string]Symbol),
+		open:    true,
+		depth:   st.current.depth + 1,
 	}
 	st.current.children = append(st.current.children, child)
 	st.current = child
@@ -178,35 +277,54 @@ func (st *SymbolTable) EnterScope(name string) {
 // enclose it. ExitScope leaves it.
 func (st *SymbolTable) Reenter(s *Scope) {
 	s.parent = st.current
+	s.open = true
+	s.depth = st.current.depth + 1
 	st.current = s
+	for name := range s.symbols {
+		st.holders[name] = append(st.holders[name], s)
+	}
 }
 
 // scopeOf is the innermost scope on the current chain that holds name,
 // or nil.
+//
+// An element guard shadow, `$r[0]` (flow.go's guardVarName), speaks for
+// the @r its scope sees: a `my @r` in a scope nested inside it declares
+// another array, whose elements the shadow says nothing of, so there it
+// is hidden. perl 5.42 dies "Can't bless non-reference value" on `my @r
+// = ({}); if (ref $r[0]) { my @r = (undef); bless $r[0], "Foo" }`.
 func (st *SymbolTable) scopeOf(name string) *Scope {
-	for s := st.current; s != nil; s = s.parent {
-		if _, ok := s.symbols[name]; ok {
-			return s
+	h := st.holders[name]
+	if len(h) == 0 {
+		return nil
+	}
+	s := h[len(h)-1]
+	if array, _, ok := strings.Cut(name, "["); ok && strings.HasPrefix(array, "$") {
+		if a := st.holders["@"+array[1:]]; len(a) > 0 && a[len(a)-1].depth > s.depth {
+			return nil
 		}
 	}
-	return nil
+	return s
 }
 
 // inScope reports whether s is on the current chain: the current scope or
 // one that encloses it.
 func (st *SymbolTable) inScope(s *Scope) bool {
-	for c := st.current; c != nil; c = c.parent {
-		if c == s {
-			return true
-		}
-	}
-	return false
+	return s.open
 }
 
 // ExitScope pops the current scope back to its parent.  Calling ExitScope on
 // the root scope is a no-op to avoid panics from unbalanced enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
+		for name := range st.current.symbols {
+			h := st.holders[name]
+			if len(h) == 0 || h[len(h)-1] != st.current {
+				panic(fmt.Sprintf("symbol table: the scope being exited holds %s, but is not the innermost scope its holders list", name))
+			}
+			st.holders[name] = h[:len(h)-1]
+		}
+		st.current.open = false
 		st.current = st.current.parent
 	}
 }
@@ -263,16 +381,31 @@ func (st *SymbolTable) LookupAll(name string) (Symbol, bool) {
 // with f setting the one field it owns. If no scope contains name, it
 // returns false and f never runs.
 func (st *SymbolTable) update(name string, f func(*Symbol)) bool {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			scope, before := s, sym
-			st.recordFrame(name, before, func() { scope.symbols[name] = before })
-			f(&sym)
-			s.symbols[name] = sym
-			return true
-		}
+	s := st.scopeOf(name)
+	if s == nil {
+		return false
 	}
-	return false
+	sym := s.symbols[name]
+	f(&sym)
+	st.set(scopedName{s, name}, sym)
+	return true
+}
+
+// set writes sym as n's value in the scope n names, recording the touch
+// as update does: for a caller that already holds the scope, and so need
+// not walk the chain to find it again.
+func (st *SymbolTable) set(n scopedName, sym Symbol) {
+	st.recordFrame(n.scope, n.name, n.scope.symbols[n.name])
+	st.put(n, sym)
+}
+
+// remove deletes n from the scope n names, recording the touch as Delete
+// does, for a caller that already holds the scope.
+func (st *SymbolTable) remove(n scopedName) {
+	if sym, ok := n.scope.symbols[n.name]; ok {
+		st.recordFrame(n.scope, n.name, sym)
+		st.drop(n)
+	}
 }
 
 // UpdateType walks the scope chain from the current scope to root, looking
@@ -346,13 +479,8 @@ func (st *SymbolTable) UpdatePossibleUndef(name string, v bool) bool {
 // Delete removes name from the first scope on the current chain that holds
 // it. A name no scope on the chain holds is a no-op.
 func (st *SymbolTable) Delete(name string) {
-	for s := st.current; s != nil; s = s.parent {
-		if sym, ok := s.symbols[name]; ok {
-			scope, before := s, sym
-			st.recordFrame(name, before, func() { scope.symbols[name] = before })
-			delete(s.symbols, name)
-			return
-		}
+	if s := st.scopeOf(name); s != nil {
+		st.remove(scopedName{s, name})
 	}
 }
 
@@ -366,9 +494,8 @@ func (st *SymbolTable) ClearElementShadows(name string) {
 	for s := st.current; s != nil; s = s.parent {
 		for k, sym := range s.symbols {
 			if strings.HasPrefix(k, prefix) {
-				scope, key, before := s, k, sym
-				st.recordFrame(key, before, func() { scope.symbols[key] = before })
-				delete(s.symbols, k)
+				st.recordFrame(s, k, sym)
+				st.drop(scopedName{s, k})
 			}
 		}
 	}
