@@ -3,8 +3,10 @@ title: Judge canon-added parens on operators against perl
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-22T23:46:34.2538574Z
-updated: 2026-10-22T23:46:34.2538574Z
+updated: 2026-10-22T23:47:05.338093483Z
 ---
 
 ## Context
