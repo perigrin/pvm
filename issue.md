@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-22T23:47:21.184360855Z
+updated: 2026-10-22T23:56:40.736128049Z
 ---
 
 ## Context
@@ -37,3 +37,15 @@ Named hashes and hash slices still hedge rv2hv. Done issue 01a0bae1 measured per
 - [ ] A named hash's rv2hv count follows its declaration as perl measures it (`go test ./internal/parse/ -run '^TestNamedHashRv2hvFollowsDeclaration$' -count=1 -v | grep -q '^--- PASS: TestNamedHashRv2hvFollowsDeclaration'`)
 - [ ] Every remaining rv2hv hedge names its reason (`go test ./internal/parse/ -run '^TestEveryRv2hvHedgeNamesItsReason$' -count=1 -v | grep -q '^--- PASS: TestEveryRv2hvHedgeNamesItsReason'`)
 - [ ] The site ratchet records the further-lowered rv2hv wider count (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestSiteRatchetCorpus'`)
+
+### Negative Scenarios
+
+- [ ] `state %h` is lexical and must not commit rv2hv. Re-measured on perl 5.42.0, `use feature "state"; state %h; my @k = keys %h` compiles to `padhv[%h:2,4] lRM` + `keys`, with 0 rv2hv, at file scope and inside a sub. That contradicts the 01a0bae1 table's "state 1"; the test holds perl's measurement (`go test ./internal/parse/ -run '^TestNamedHashStateIsPadhv$' -count=1 -v | grep -q '^--- PASS: TestNamedHashStateIsPadhv'`)
+- [ ] `delete local` follows the hash's scope, not a fixed count. perl compiles `our %h; delete local $h{a}` to `gv[*h]` + `rv2hv sKR` + `delete vK/LVINTRO`, but `my %h; delete local $h{a}` to `padhv sR` with 0 rv2hv (`go test ./internal/parse/ -run '^TestNamedHashDeleteLocalFollowsScope$' -count=1 -v | grep -q '^--- PASS: TestNamedHashDeleteLocalFollowsScope'`)
+- [ ] A declared package hash in a nested subscript chain folds. perl compiles `our %h; my $v = $h{a}{b}` to `multideref($h{"a"}{"b"})` with 0 rv2hv, so `our` alone does not commit an rv2hv (`go test ./internal/parse/ -run '^TestNamedHashOurChainFoldsToMultideref$' -count=1 -v | grep -q '^--- PASS: TestNamedHashOurChainFoldsToMultideref'`)
+- [ ] Shadowing resolves to the innermost declaration. In `our %h; { my %h; my @k = keys %h }`, perl compiles the inner `keys %h` to `padhv`, and a decision keyed on the first declaration seen commits WRONG (`go test ./internal/parse/ -run '^TestNamedHashInnerMyShadowsOur$' -count=1 -v | grep -q '^--- PASS: TestNamedHashInnerMyShadowsOur'`)
+- [ ] A use before the declaration is the package hash. perl compiles `my @k = keys %h; my %h; @k = keys %h` to `gv[*h]` + `rv2hv` for the first `keys` and `padhv` for the second, and a later `my` never decides an earlier use (`go test ./internal/parse/ -run '^TestNamedHashUseBeforeMyIsPackageHash$' -count=1 -v | grep -q '^--- PASS: TestNamedHashUseBeforeMyIsPackageHash'`)
+- [ ] A `my %h` in a block that has closed does not decide a later `%h` outside it (`go test ./internal/parse/ -run '^TestNamedHashClosedBlockMyDoesNotLeak$' -count=1 -v | grep -q '^--- PASS: TestNamedHashClosedBlockMyDoesNotLeak'`)
+- [ ] A slice mixing a `my` hash and an `our` hash in one statement counts each by its own scope (`go test ./internal/parse/ -run '^TestNamedHashMixedScopeSliceCountsEach$' -count=1 -v | grep -q '^--- PASS: TestNamedHashMixedScopeSliceCountsEach'`)
+- [ ] The declaration table in the test runs perl rather than copying the 01a0bae1 numbers, so a stale row fails (`go test ./internal/parse/ -run '^TestNamedHashRv2hvTableMatchesPerl$' -count=1 -v | grep -q '^--- PASS: TestNamedHashRv2hvTableMatchesPerl'`)
+- [ ] A hedge with no reason, or with a reason outside the closed set, fails; and a reason in the set that no fixture produces fails as dead (`go test ./internal/parse/ -run '^TestRv2hvHedgeReasonsAreClosedAndLive$' -count=1 -v | grep -q '^--- PASS: TestRv2hvHedgeReasonsAreClosedAndLive'`)
