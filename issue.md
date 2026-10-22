@@ -11,7 +11,7 @@ blocks:
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 - 01a16602-60e9-7343-a630-7a93da5ee389
 created: 2026-10-22T23:46:33.975890599Z
-updated: 2026-10-22T23:47:06.550203389Z
+updated: 2026-10-22T23:56:40.504770425Z
 ---
 
 ## Context
@@ -35,3 +35,12 @@ M3 sets re-emission at 100% of what parses. Files that parse and re-emit differe
 
 - [ ] Every defects row names a path, line, known cause class and reason (`go test ./internal/parse/ -run '^TestFaithfulDefectsRowsAreWellFormed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDefectsRowsAreWellFormed'`)
 - [ ] Every M3-dir file that parses is faithful or listed with its location (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3Dirs'`)
+
+### Negative Scenarios
+
+- [ ] The M3-dir walk fails unless it visits every M3-dir file outside `perlRejects` (347 files in the M3 dirs); a missing dir or unset corpus cannot pass against an empty defects list (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3DirsVisitsEveryFile$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3DirsVisitsEveryFile'`)
+- [ ] An M3-dir file that stops parsing (gains an Unknown) fails the check, rather than leaving the "files that parse" set unnoticed (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3DirsFailsOnUnparsedFile$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3DirsFailsOnUnparsedFile'`)
+- [ ] A defects row naming a file outside the M3 dirs, or a file that does not exist in the corpus, fails (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulDefectsRowsNameM3Files$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDefectsRowsNameM3Files'`)
+- [ ] Two rows for the same path fail, so a file cannot be parked under two classes (`go test ./internal/parse/ -run '^TestFaithfulDefectsRowsAreUnique$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDefectsRowsAreUnique'`)
+- [ ] A row whose line is not the file's first differing line fails, so a fix that moves the first difference later shows up as a changed row (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulDefectsLineIsFirstDifference$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDefectsLineIsFirstDifference'`)
+- [ ] A row with an empty reason, a zero line, or a class outside the four known classes is rejected (`go test ./internal/parse/ -run '^TestFaithfulDefectsRowsRejectMalformed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDefectsRowsRejectMalformed'`)
