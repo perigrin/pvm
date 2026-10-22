@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-22T23:47:11.481918828Z
+updated: 2026-10-22T23:56:40.313166219Z
 ---
 
 ## Context
@@ -39,3 +39,16 @@ Commit M3's oracle condition as a ratchet. TestSiteRatchetCorpus takes the repor
 - [ ] The CI sweep step runs the site ratchet (`grep -q TestSiteRatchetCorpus .github/workflows/parse-fidelity.yml`)
 - [ ] The CI gate still executes the sweep step (`go test ./internal/parseoracle/ -run '^TestCIGateRunsTheSweep$' -count=1 -v | grep -q '^--- PASS: TestCIGateRunsTheSweep'`)
 - [ ] The per-site ratchet matches sites.txt over the 620-file sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestSiteRatchetCorpus'`)
+
+### Negative Scenarios
+
+- [ ] The site comparison fails when sites.txt is missing or empty, rather than passing with nothing to compare (`go test ./internal/parseoracle/ -run '^TestSiteRatchetFailsWithoutBaselineFile$' -count=1 -v | grep -q '^--- PASS: TestSiteRatchetFailsWithoutBaselineFile'`)
+- [ ] The site comparison fails on an empty report (0 files or 0 sites), so a corpus that was never walked cannot match a zeroed file (`go test ./internal/parseoracle/ -run '^TestSiteRatchetRejectsEmptyReport$' -count=1 -v | grep -q '^--- PASS: TestSiteRatchetRejectsEmptyReport'`)
+- [ ] The floor fails when the M3 dirs have 0 sites; a 0/0 ratio is not >= 80% (`go test ./internal/parseoracle/ -run '^TestSiteFloorRejectsZeroSites$' -count=1 -v | grep -q '^--- PASS: TestSiteFloorRejectsZeroSites'`)
+- [ ] The floor's denominator includes no-answer and wider sites; 80 exact of 100 sites with 30 no-answer is not scored as 80/70 (`go test ./internal/parseoracle/ -run '^TestSiteFloorCountsNoAnswerInDenominator$' -count=1 -v | grep -q '^--- PASS: TestSiteFloorCountsNoAnswerInDenominator'`)
+- [ ] One WRONG site outside the M3 dirs fails the floor too; WRONG = 0 holds over the whole corpus (`go test ./internal/parseoracle/ -run '^TestSiteFloorRejectsWrongOutsideM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestSiteFloorRejectsWrongOutsideM3Dirs'`)
+- [ ] A swap fails the ratchet: one file's site moving exact->wider while another's moves wider->exact leaves the per-marker totals unchanged, and the comparison still reports both files (`go test ./internal/parseoracle/ -run '^TestSiteRatchetDetectsSwapAtEqualTotals$' -count=1 -v | grep -q '^--- PASS: TestSiteRatchetDetectsSwapAtEqualTotals'`)
+- [ ] A report missing files the per-file baseline lists (a sweep timeout or a dropped directory) fails, rather than shrinking the denominator (`go test ./internal/parseoracle/ -run '^TestSiteRatchetFailsOnDroppedFiles$' -count=1 -v | grep -q '^--- PASS: TestSiteRatchetFailsOnDroppedFiles'`)
+- [ ] The M3-dir subset matches only the five dirs `op mro uni lib test_pl` by path prefix, so a lookalike such as `opbasic/` (which starts with `op`) is not counted as an M3 dir (`go test ./internal/parseoracle/ -run '^TestM3DirSubsetMatchesExactDirs$' -count=1 -v | grep -q '^--- PASS: TestM3DirSubsetMatchesExactDirs'`)
+- [ ] CI never regenerates the ratchet it is checking, now that the sweep step also runs the site ratchet (`go test ./internal/parseoracle/ -run '^TestCINeverRebaselines$' -count=1 -v | grep -q '^--- PASS: TestCINeverRebaselines'`)
+- [ ] The CI workflow runs the oracle sweep in one invocation, not a second sweep for the site ratchet (`go test ./internal/parseoracle/ -run '^TestCIGateRunsOneSweep$' -count=1 -v | grep -q '^--- PASS: TestCIGateRunsOneSweep'`)
