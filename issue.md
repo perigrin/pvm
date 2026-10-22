@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-22T23:46:25.524606434Z
-updated: 2026-10-22T23:46:58.05321505Z
+updated: 2026-10-22T23:56:40.272836501Z
 ---
 
 ## Context
@@ -35,3 +35,13 @@ The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-sit
 - [ ] A marker perl did not answer yields one no-answer finding per line (`go test ./internal/parseoracle/ -run '^TestNoAnswerFindingsArePerLine$' -count=1 -v | grep -q '^--- PASS: TestNoAnswerFindingsArePerLine'`)
 - [ ] A whole-file no-answer counts every marker site in the file as no-answer (`go test ./internal/parseoracle/ -run '^TestWholeFileNoAnswerCountsEverySite$' -count=1 -v | grep -q '^--- PASS: TestWholeFileNoAnswerCountsEverySite'`)
 - [ ] Per-marker bucket counts sum to the file's fact sites (`go test ./internal/parseoracle/ -run '^TestSiteBucketsSumToFactSites$' -count=1 -v | grep -q '^--- PASS: TestSiteBucketsSumToFactSites'`)
+
+### Negative Scenarios
+
+- [ ] A whole-file no-answer never counts any of its sites as exact, even when the file has no findings at all (`go test ./internal/parseoracle/ -run '^TestWholeFileNoAnswerNeverCountsExact$' -count=1 -v | grep -q '^--- PASS: TestWholeFileNoAnswerNeverCountsExact'`)
+- [ ] A whole-file no-answer with zero marker sites adds zero sites to every bucket, not one phantom site (`go test ./internal/parseoracle/ -run '^TestWholeFileNoAnswerWithNoSitesAddsNothing$' -count=1 -v | grep -q '^--- PASS: TestWholeFileNoAnswerWithNoSitesAddsNothing'`)
+- [ ] A no-answer for one marker leaves the file's other, answered markers graded as exact/wider/WRONG, not swept into no-answer (`go test ./internal/parseoracle/ -run '^TestMarkerNoAnswerDoesNotSpreadToOtherMarkers$' -count=1 -v | grep -q '^--- PASS: TestMarkerNoAnswerDoesNotSpreadToOtherMarkers'`)
+- [ ] A no-answer marker with no fact sites in the file emits no findings, so it cannot drive exact below zero (`go test ./internal/parseoracle/ -run '^TestNoAnswerWithoutSitesEmitsNoFindings$' -count=1 -v | grep -q '^--- PASS: TestNoAnswerWithoutSitesEmitsNoFindings'`)
+- [ ] Findings that outnumber a marker's fact sites are an error from the counting helper, never a negative exact count (`go test ./internal/parseoracle/ -run '^TestFindingsExceedingSitesIsAnError$' -count=1 -v | grep -q '^--- PASS: TestFindingsExceedingSitesIsAnError'`)
+- [ ] Two findings on the same line and marker (for example wider and no-answer) count that site once, in one bucket (`go test ./internal/parseoracle/ -run '^TestSiteCountedInExactlyOneBucket$' -count=1 -v | grep -q '^--- PASS: TestSiteCountedInExactlyOneBucket'`)
+- [ ] Excluded and error files contribute no sites to any bucket, so they cannot pad the denominator as exact (`go test ./internal/parseoracle/ -run '^TestExcludedAndErrorFilesContributeNoSites$' -count=1 -v | grep -q '^--- PASS: TestExcludedAndErrorFilesContributeNoSites'`)
