@@ -1,0 +1,84 @@
+name: m3-oracle-at-scale
+due: 2026-11-30T00:00:00Z
+resolution: "sh -c 'P=docs/plans/2026-09-05-parser-conformance-plan.md; grep -q \"^#### Measured at the M3 gate\" $P && ! grep -qw 584 $P && grep -q \"^The M3 gate\" docs/specs/perl-parser/README.md && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestParseWithoutErrorOnCompiledCorpus$\" -count=1 -v | grep -q \"^--- PASS: TestParseWithoutErrorOnCompiledCorpus\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestPerlGitTFaithfulOnM3Dirs$\" -count=1 -v | grep -q \"^--- PASS: TestPerlGitTFaithfulOnM3Dirs\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run \"^TestOpcountFixturesHeldToPerl$\" -count=1 -v | grep -q \"^--- PASS: TestOpcountFixturesHeldToPerl\" && PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run \"^TestSiteRatchetCorpus$\" -parseoracle.corpus -count=1 -timeout 40m -v | grep -q \"^--- PASS: TestSiteRatchetCorpus\"'"
+created: 2026-10-22T23:28:45.090439958Z
+---
+
+Close the parser conformance plan's M3 gate (docs/plans/2026-09-05-parser-conformance-plan.md §5, "M3 -- The oracle turns on, at scale"; corpus perl5 `op mro uni lib test_pl`, 347 files). The measurements behind it mostly hold today. They are per-file proxies, scratch tests, or numbers in prose, and this milestone makes each one a committed test that fails in both directions. It builds five things. (1) A per-marker-site oracle ratchet. (2) A parse-without-error floor against the 593 files perl compiles. (3) Canonical re-emission (`Faithful`) run over perl.git t/, with the source parens the tree drops fixed. (4) At least 200 `perf/opcount.t` assertions mined into fixtures held to perl. (5) rv2hv reported exactly where perl emits it, so the rv2hv wider count falls from 389.
+
+Done when every issue here is done or cancelled with perigrin's recorded reason, `git zhi verify --timeout 900 m3-oracle-at-scale` passes, and the resolution command passes. The resolution command checks four things: the plan's M3 section and docs/specs/perl-parser/README.md's Status state the measured numbers, and the stale 584 is gone from the plan; TestParseWithoutErrorOnCompiledCorpus, TestPerlGitTFaithfulOnM3Dirs and TestOpcountFixturesHeldToPerl pass; and TestSiteRatchetCorpus passes over the 620-file sweep. Throughout: WRONG = 0 everywhere; T2 56/56; perl.git t/ 619/619; the T1, canon, fidelity, corpus and exact-match ratchets do not regress; TestInferencePrecision stays >= 65/76; make test passes; and CI is green on the PR, Windows and macOS included. The separate milestone m3-conformance-corpus is NOT part of this one.
+
+## Context
+
+**Measured 2026-10-22 at 054e75e6 (perl 5.42.0, perl5 corpus pinned at 94e50866).**
+
+- **Oracle, per file.** `internal/parseoracle/testdata/ratchet/baseline.txt` over 620 files: 489 exact, 84 wider, 20 no-answer, 26 excluded, 1 error -> 593 graded (perl compiles them). 10 of the 20 no-answers are whole-file no-answers, where perl "reported success but produced no optree" (comp/final_line_num.t, lib/cygwin.t, op/refstack.t, op/svleak.t, uni/greek.t, ...); each carries <= 1 marker site. Per-file exact on the M3 dirs is 278/346 (80.3%), dragged down by rv2hv hedges across 71 files.
+- **Oracle, per marker site.** Measured with a throwaway test that was never committed. It took the report from `corpusReport(t)` (internal/parseoracle/ratchet_test.go:43), summed `len(f.Facts.Sites[m])`, and subtracted `Verdict.Findings` by bucket. It needed one scratch change: `decideMarker`'s `!answered` branch emitted per-line `BucketNoAnswer` findings, and a whole-file no-answer (`Verdict.Marker == MarkerNone`) counted all of its sites as no-answer. The committed test needs the same change, made properly in verdict.go/findings.go.
+  - Whole corpus: 5340 sites, 4933 exact (92.4%), 400 wider, 7 no-answer, 0 WRONG. srefgen 1689/1678 exact (11 wider); rv2hv 540/151 (389 wider); match 1847/1844 (3 no-answer); readline 311/307 (4 no-answer); anonhash 953/953.
+  - M3 dirs: 3198 sites, 2896 exact (90.6%), 302 wider (rv2hv 427 sites, 133 exact, 294 wider; srefgen 8 wider), 0 no-answer, 0 WRONG. Condition (3)'s >= 80% already holds. The work is to commit it as a ratchet.
+- **Parse without error.** TestPerlGitTRatchet (internal/parse/perlgitt_test.go:114, testdata/perlgitt.ratchet) passes. perl.git t/ is 619/619 with 0 Unknown. A refusal in internal/parse IS an Unknown node, so "clean" means parsed without error. Crossed with the 593 graded oracle files: 592 are clean, plus comp/final_line_num.t, which perl rejects and internal/parse refuses on the same line (`perlRejects`). M3 dirs: 347 files, 346 graded, all 346 clean. The plan's "526 of 584" and internal/parseoracle/README.md:287's "584/620" are stale: a fuller shim now compiles 593.
+- **Canonical re-emission already exists. It has only ever run on T1.**
+  - `internal/parse/canon.go`: `Canon` writes the parens implied by binding power, never the source's. The one exception is a `List` with `Paren` set (canon.go:~344).
+  - `internal/parse/fidelity.go`: `Faithful` compares canon's significant tokens to the SOURCE's. It forgives exactly two differences: a parenless call acquiring parens, and a block's last statement acquiring `;`.
+  - Ratchets: TestCanonRatchet (fixpoint, t1canon.ratchet), TestCanonTokenIdentity, and TestCanonFidelityRatchet (Faithful over T1, t1fidelity.ratchet).
+  - A scratch sweep (`Session.ParseFileFrom` with `perlGitTRoots`, skipping `perlRejects`, as TestPerlGitTRatchet does) measured all of perl.git t/ at 342/619 faithful, and the M3 dirs at 178/347.
+- **Why the M3 dirs fail re-emission.** Of the 169 M3-dir failures, 117 are `source has "(", canon has <something else>`: a source paren that canon does not write. Read from the code, this is NOT the README's "`($x)` loses its Paren node (term.go:284-293)". That defect is stale as worded, because `finishList` (term.go:~723) now copies the node and sets `Paren`. The current cause is twofold:
+  - (a) canon writes a source paren only for a `List`. A single-element `(x)` with `Paren` set gets parens only when binding power demands them. Examples: `(shift)->SUPER::foo` (mro/basic_05_c3.t:32), `ok(($y eq '...'), ...)` (mro/c3_with_overload.t:40), `if (($Config{...} !~ /.../) )` (lib/commonsense.t:12).
+  - (b) `Paren` is a bool, so `((x))` keeps one pair.
+  - The remaining ~52 M3 failures are heterogeneous and need triage. canon writes a `(` the source lacks in op/not.t, op/negate.t, op/isa.t, op/undef.t, op/tr.t and others: a possible misgrouping or an unforgiven parenless call. canon writes `sub` where the source has `DESTROY` (op/hash.t, op/pos.t, op/ref.t, op/sub.t, op/substr.t). Heredoc bodies show up as tokens (op/debug.t, op/lc.t, op/threads.t, op/hook/require.t). Others are `;`/`}` placement (op/closure.t, op/goto.t, op/while.t, op/state.t) and a token-count mismatch (lib/universal.t). The scratch failure list is in the session scratchpad as faith.log; the committed test regenerates it.
+- **perf/opcount.t** ($HOME/dev/perl5/t/perf/opcount.t) holds 109 `test_opcount(` calls with 375 op=>count pairs, so >= 200 is reachable. Nothing in the repo mines it today.
+- **rv2hv hedges** live in internal/parse/sites.go.
+  - `hedgeDerefElement` (~183-205) handles `->{...}` chains under a dereference. Whether perl keeps rv2hv turns on its op_lvalue context: push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref.
+  - The `Index` case (~236+) handles named hashes and slices.
+  - Issue 01a12059-30a8-722e-bbc3-52066b8610cb, "Report a ->{...} hash read's rv2hv exactly when perl keeps it out of multideref", is pending in v0.1 and moves into this milestone.
+  - Done issue 01a0bae1 measured the named-hash rule: `my %h` keys -> 0 rv2hv (padhv); `our` 1; `state` 1; `local` 2; `delete local` 1; slice counts follow the scopes of the hashes sliced.
+  - Tests: internal/parse/hashhedge_test.go, arrowhashread_test.go, sites_decided_test.go.
+
+**Rules that bind every issue.**
+- Acceptance criteria are named single tests only, one command per line under a heading containing "criteria", with nothing after the criteria block. For example: `go test ./internal/parse/ -run '^TestX$' -count=1 -v | grep -q '^--- PASS: TestX'`. Never `go test ./...`, `make test`, or a whole-package run.
+- Verify with `git zhi verify --timeout 900 m3-oracle-at-scale`. Completion is `git zhi milestone edit m3-oracle-at-scale --state complete --timeout 900`.
+- Corpus tests need `PERL5_CORPUS=$HOME/dev/perl5`. The oracle sweep also needs `PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim`, `PARSEORACLE_TIMEOUT=8m` and the `-parseoracle.corpus` flag (with `-timeout 40m`), and takes about 8-9 minutes.
+- perl 5.42 (/home/perigrin/.local/bin/perl) is the judge: measure with perl before deciding semantics, and quote the measurement. Tests may run perl; production psc never does.
+- A ratchet fails in both directions; a gain is recorded by re-baselining in the same commit.
+- Strict TDD. Run make test before every commit, and never use --no-verify. New files start with two `// ABOUTME:` lines.
+- Every change to sites.go or the parser gets a per-fix review against perl. That review also writes NEW adversarial probes outside the existing corpus. In the core-module-types milestone, per-fix reviews that only re-checked the named finding passed regressions the next lens found.
+
+## File Structure
+
+- `internal/parseoracle/verdict.go`, `findings.go` -- per-line no-answer findings, and whole-file no-answer counted as no-answer at every site (modify).
+- `internal/parseoracle/sites_test.go` -- TestSiteRatchetCorpus, plus small fixture tests for the counting rules (new).
+- `internal/parseoracle/testdata/ratchet/sites.txt` -- per-marker x bucket site counts, whole corpus and M3 dirs (new, generated by `-parseoracle.update`).
+- `.github/workflows/parse-fidelity.yml` -- run TestSiteRatchetCorpus in the sweep step. TestCIGateRunsTheSweep executes that step, so share one sweep rather than run it twice (modify).
+- `internal/parse/compiled_test.go` -- TestParseWithoutErrorOnCompiledCorpus. It reads the graded set (status not excluded/error) from ../parseoracle/testdata/ratchet/baseline.txt, asserts it is 593 files, parses each through `ParseFileFrom`, and asserts >= 90% have 0 Unknown (new).
+- `internal/parse/canon.go`, `term.go`, `parse.go` -- canon writes the parens the tree records on a `Paren` node, including nesting depth (modify).
+- `internal/parse/perlgitt_faithful_test.go` -- TestPerlGitTFaithfulRatchet (per-file 0/1 over perl.git t/) and TestPerlGitTFaithfulOnM3Dirs (every M3-dir file that parses is faithful, or is listed as a defect) (new).
+- `internal/parse/testdata/perlgittfaithful.ratchet`, `testdata/faithful_defects.txt` (new). The defects file holds one `path:line reason` per row. The test fails on a listed file that has become faithful, and on a listed line that no longer fails.
+- `internal/parse/testdata/t1canon.ratchet`, `t1fidelity.ratchet` -- re-baselined where the Paren fix moves them (modify).
+- `internal/parseoracle/opcount_test.go` and `testdata/opcount/` -- TestOpcountFixturesHeldToPerl. Fixtures mined from perf/opcount.t, a readable text/Markdown format rather than JSON. The test asserts >= 200 op=>count assertions and runs perl to check each count (new).
+- `internal/parse/sites.go`, `hashhedge_test.go`, `arrowhashread_test.go`, `sites_decided_test.go` -- rv2hv decided from op_lvalue context and declarations. A test names each remaining hedge's reason (modify).
+- `docs/plans/2026-09-05-parser-conformance-plan.md` -- M3 table 584 -> 593, ladder summary, a new `#### Measured at the M3 gate` subsection (modify).
+- `docs/specs/perl-parser/README.md` -- Status gains a paragraph starting `The M3 gate`, and the stale `($x)` defect sentence is corrected (modify). `internal/parseoracle/README.md:287`'s 584/620 is updated too.
+
+## Design Rationale
+
+**Critical chain: site ratchet -> rv2hv -> docs.** TestSiteRatchetCorpus comes first. Condition (7)'s "wider falls from 389, with the new count recorded" is a number that test records: without it, every rv2hv change is judged by a scratch measurement again. The rv2hv work then re-baselines sites.txt, along with baseline.txt where whole files move, in the same commit as each fix. The docs issue comes last, because it states the final measured numbers.
+
+**Re-emission is the bulk of the work, and runs in parallel with that chain.** Start with the ratchet (TestPerlGitTFaithfulRatchet at today's 342/619), so each fix shows up as a gain. The Paren fix should account for most of the 117 dropped-paren failures. The recommended approach writes a `Paren` node's parens in canon, with a nesting count for `((x))`. That makes them the tree's own fact, as chapter 4 §4.10 says, and keeps `Faithful`'s quotient at its two forgiven differences. The paren is still written around the node the tree attached it to, so a misgrouped tree still emits a paren the source lacks; TestCanonCatchesMisgrouping and TestCanonQuotientIsNarrow must stay green to prove it. The rejected alternative is a third forgiven difference in `Faithful`, which widens the quotient. The T1 canon and fidelity ratchets will move, so re-baseline them in the same commit and explain each moved file. The remaining ~52 failures are triaged next. Each is fixed (with a per-fix review against perl), or recorded in faithful_defects.txt with its location. A canon-adds-paren case must be judged against perl (`perl -MO=Deparse,-p` or an op tree) before it is called a misgrouping.
+
+**Independent work.** The opcount mining shares no code with the rest. The parse-without-error floor is one small test, since the number already holds. Both can start immediately.
+
+**Recommended slicing (dependencies in brackets):**
+1. Per-site oracle counting: no-answer findings per line, whole-file no-answer at every site (fixture tests). []
+2. TestSiteRatchetCorpus + sites.txt + M3-dir >= 80% / WRONG = 0 floor, wired into the CI sweep. [1]
+3. TestParseWithoutErrorOnCompiledCorpus at 593. []
+4. TestPerlGitTFaithfulRatchet at 342/619. []
+5. canon writes `Paren` nodes' parens, with nesting; re-baseline the T1 and perl.git faithful ratchets. [4]
+6. Triage the remaining M3-dir re-emission failures (may split by cause: heredoc tokens, `sub DESTROY`, canon-added parens, `;`/`}`); then TestPerlGitTFaithfulOnM3Dirs + faithful_defects.txt. [5]
+7. Mine >= 200 perf/opcount.t assertions; TestOpcountFixturesHeldToPerl. []
+8. 01a12059-30a8 (moved here): `->{...}` rv2hv exactly per op_lvalue context. [2]
+9. Named-hash rv2hv from declaration (my padhv; our/state/local rv2hv; delete local; slices), hedging only when the declaration is not in the file; a test names each remaining hedge's reason; re-baseline sites.txt below 389 wider. [2; after 8, since both edit sites.go]
+10. Docs: plan M3 section (593, measured numbers, `#### Measured at the M3 gate`), ladder summary, README Status (`The M3 gate ...`, stale `($x)` sentence), parseoracle README 584. [2, 3, 6, 7, 9]
+
+Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge order, so the two run in sequence. Items 3, 4->5->6 and 7 run in parallel with 1->2->8->9.
+
+**Budget.** The resolution command runs the ~9-minute sweep inside `--timeout 900`. Keep the other tests it names fast, and do not add a second full sweep to it.
