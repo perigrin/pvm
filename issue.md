@@ -1,19 +1,73 @@
 ---
 title: "Round-3 flow regressions: a ternary's then-arm joins back, frame bookkeeping stays linear, element shadows end at every write, a loop deref no longer reintroduces pu's false positive"
-state: in-progress
+state: done
 urgency: normal
 milestone: core-module-types
 created: 2026-10-21T20:10:34.686320063Z
-updated: 2026-10-21T20:10:59.37611203Z
+updated: 2026-10-22T00:16:46.035523184Z
 sessions:
 - start_sha: 692a560c81fe680ed09244599f0e1bd216c5a075
-  end_sha: ""
-  commits: 0
+  end_sha: 7201d0dd9e957a1a4d25a3beabe1a801be8c04e2
+  commits: 6
   started_at: 2026-10-21T20:10:59.37611203Z
+  ended_at: 2026-10-22T00:16:46.035523184Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-21T20:10:59.37611203Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-22T00:16:46.035523184Z
+observed_paths:
+- docs/rfcs/0001-type-libraries.md
+- internal/infer/calls.go
+- internal/infer/calls_test.go
+- internal/infer/declared_test.go
+- internal/infer/dualvar_test.go
+- internal/infer/export_test.go
+- internal/infer/flow.go
+- internal/infer/flow_regressions_round3_test.go
+- internal/infer/infer.go
+- internal/infer/ops.go
+- internal/infer/precision_test.go
+- internal/infer/returntypes_test.go
+- internal/infer/special.go
+- internal/infer/symbols.go
+- internal/infer/symbols_test.go
+- internal/infer/testdata/observe_types.pl
+- internal/infer/testdata/oracle/Scalar-Util.pl
+- internal/infer/vars.go
+- internal/infer/warnpossibleundef_test.go
+- internal/parse/declarations.go
+- internal/parse/declarations/Cwd.tpm
+- internal/parse/declarations/DynaLoader.tpm
+- internal/parse/declarations/ExtUtils/Manifest.tpm
+- internal/parse/declarations/File/Basename.tpm
+- internal/parse/declarations/File/stat.tpm
+- internal/parse/declarations/FileHandle.tpm
+- internal/parse/declarations/IO/Socket.tpm
+- internal/parse/declarations/IO/Socket/IP.tpm
+- internal/parse/declarations/Moose.tpm
+- internal/parse/declarations/POSIX.tpm
+- internal/parse/declarations/Scalar/Util.tpm
+- internal/parse/declarations/Socket.tpm
+- internal/parse/declarations/Symbol.tpm
+- internal/parse/declarations/Time/HiRes.tpm
+- internal/parse/exportattr_test.go
+- internal/parse/heldtoperl_test.go
+- internal/parse/issue1959_test.go
+- internal/parse/pin_test.go
+- internal/parse/use.go
+- internal/perltest/fixture.go
+- internal/perltest/perl542_test.go
+- internal/perltest/perltest.go
+- internal/perltest/staleexempt.go
+- internal/perltest/staleexempt_test.go
+- internal/types/declared.go
+- internal/types/select.go
+- internal/types/select_test.go
+- test/e2e/psc_check_test.go
+- test/e2e/testdata/check/dualvar.pl
 ---
 
 crochet:review round 3 of PR #488 at 692a560c (2026-10-21). Quality report: scratchpad/review3-core-module-types-paad.md; probes scratchpad/r3probes/ (F-<lens>.md per specialist); rebuild head/r2(2db182e6)/cf(cf08c0ac)/pu psc as the report says. perigrin, 2026-10-21: round 4 runs with Opus workers, and every fix gets a mandatory independent review that runs pu, round 2 and head against perl 5.42 before it merges. A finding pu or round 2 gets right is a regression: fix it without trading it for a new one -- every probe in r2probes/ and r3probes/ that pu or r2 gets right must still be right.
