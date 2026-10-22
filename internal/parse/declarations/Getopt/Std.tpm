@@ -1,0 +1,19 @@
+# ABOUTME: Declares what `use Getopt::Std` exports: getopt and getopts, both bare.
+# ABOUTME: Measured on perl 5.42.0 with Getopt::Std 1.14: prototypes (;$$) and ($;$).
+package Getopt::Std;
+
+# getopt's last statement is `unless (ref $hash) { ...; Getopt::Std->
+# import }`: without a hashref it falls through that block, leaving a
+# Boolean; with one the block is skipped, so the sub's value is
+# whatever the statement last evaluated -- the skipped condition
+# itself, `ref $hash`, a Str naming the ref type. Measured on 5.42.0:
+# `getopt("b", \%h)` returns the Str "HASH" (is_bool 0). $hash is Any,
+# not Optional[Any]: Any is the permissive top and an Optional of it
+# still requires the argument (RFC 0001, "Any is the permissive top...
+# not a union that happens to hold Void"), so its own default is what
+# leaves it optional.
+sub getopt :export (Optional[Str] $switches, Any $hash = undef) Boolean|Str;
+# getopts ends `$errs == 0`, a Boolean: true unless an unrecognised
+# switch was seen (measured on 5.42.0, an unknown option still leaves a
+# Boolean, just a false one).
+sub getopts :export (Str $switches, Any $hash = undef) Boolean;

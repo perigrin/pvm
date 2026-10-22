@@ -1,0 +1,109 @@
+# ABOUTME: Declares what `use Data::Dumper` exports: Dumper is :export, DumperX is :export_ok,
+# ABOUTME: measured. Measured on perl 5.42.0 with Data::Dumper 2.192.
+
+package Data::Dumper;
+
+# Dumper and DumperX answer by context, measured on 5.42.0: `my $s =
+# Dumper(1, 2)` leaves one string holding both values ("$VAR1 = 1;
+# $VAR2 = 2;"), but `my @r = Dumper(1, 2)` leaves two strings, one per
+# argument. Neither has a prototype perl reports, and each is the
+# plain "@" skeletonParams would give a slurpy list, so neither needs
+# :listop or :prototype.
+multi sub Dumper :export (List @args) Str;
+multi sub Dumper :export (List @args) List[Str];
+multi sub DumperX :export_ok (List @args) Str;
+multi sub DumperX :export_ok (List @args) List[Str];
+
+# The documented OO interface (perldoc Data::Dumper, "METHODS"), not
+# declared before: only the two exports above were. Each method is
+# measured with the INSTANCE oracle (return_oracle.pl's own INSTANCE
+# key), a real `Data::Dumper->new([1,2],["a","b"])`, since several of
+# these dereference their invocant as a hashref and die against the
+# bare class name the oracle otherwise always passes.
+
+# new croaks without a defined ARRAYREF ("Usage: PACKAGE->new(ARRAYREF,
+# [ARRAYREF])"), measured, so $vals stays required; $names defaults to
+# [] when omitted or not a ref (measured, the source's own `$n = []
+# unless (defined($n) && (ref($n) eq 'ARRAY'))`).
+sub new (Str $class: ArrayRef $vals, Optional[ArrayRef] $names) Object;
+
+# Dump answers by context the same way Dumper does (measured);
+# perldoc's own class-method form, `PACKAGE->Dump(ARRAYREF,
+# [ARRAYREF])`, is not measured here -- the INSTANCE oracle calls it
+# only on a constructed instance, where any extra argument given is
+# ignored (measured: the source's own `$s = $s->new(@_) unless ref
+# $s` skips construction once $s is already a ref).
+multi sub Dump (Object $self:) Str;
+multi sub Dump (Object $self:) List[Str];
+
+# Seen, Values and Names each set-or-query, measured by the source's
+# own `@_ >= 2` arity check: a multi told apart by arity (RFC 0001,
+# "Multi declarations"). The getter's own `return @{$s->{...}}`
+# (Values, Names) and `return map { @$_ } ...` (Seen) hand the caller's
+# context to a list expression, measured giving a count, Int, in
+# scalar context (list context is not stated: the oracle's own
+# request is per NAME, not per candidate, so a list-context getter
+# candidate here would also be asked of the 1-argument setter case,
+# which never answers it). The setter returns $self for chaining, or
+# croaks given a defined non-ref argument (Values, Names: "Argument to
+# Values, if provided, must be array ref").
+multi sub Seen (Object $self:) Int;
+multi sub Seen (Object $self: HashRef $g) Object;
+multi sub Values (Object $self:) Int;
+multi sub Values (Object $self: ArrayRef $v) Object;
+multi sub Names (Object $self:) Int;
+multi sub Names (Object $self: ArrayRef $n) Object;
+
+# Reset always returns $self (measured): it only clears the seen cache.
+sub Reset (Object $self:) Object;
+
+# Indent, Trailingcomma, Pair, Pad, Varname, Purity, Useqq, Terse,
+# Freezer, Toaster, Deepcopy, Quotekeys, Bless, Maxdepth, Maxrecurse,
+# Useperl, Sortkeys, Deparse and Sparseseen are the documented config
+# accessors (perldoc Data::Dumper, "METHODS" and "Configuration
+# Variables"), each the same shape in the source: `@_ >= 2 ?
+# (($s->{x} = $v), return $s) : $s->{x}` -- queried with no argument,
+# it returns whatever Scalar was stored (an Int flag, a Str like
+# Varname's "VAR", or Sortkeys's own CodeRef filter), set with one, it
+# returns $self. Scalar, not a narrower type, since nothing here
+# validates what is stored -- the source assigns the raw argument
+# unchecked -- and Scalar is what every one of its own documented
+# defaults (Int flags, Str names, Sortkeys's CodeRef) already fits.
+multi sub Indent (Object $self:) Scalar;
+multi sub Indent (Object $self: Scalar $v) Object;
+multi sub Trailingcomma (Object $self:) Scalar;
+multi sub Trailingcomma (Object $self: Scalar $v) Object;
+multi sub Pair (Object $self:) Scalar;
+multi sub Pair (Object $self: Scalar $v) Object;
+multi sub Pad (Object $self:) Scalar;
+multi sub Pad (Object $self: Scalar $v) Object;
+multi sub Varname (Object $self:) Scalar;
+multi sub Varname (Object $self: Scalar $v) Object;
+multi sub Purity (Object $self:) Scalar;
+multi sub Purity (Object $self: Scalar $v) Object;
+multi sub Useqq (Object $self:) Scalar;
+multi sub Useqq (Object $self: Scalar $v) Object;
+multi sub Terse (Object $self:) Scalar;
+multi sub Terse (Object $self: Scalar $v) Object;
+multi sub Freezer (Object $self:) Scalar;
+multi sub Freezer (Object $self: Scalar $v) Object;
+multi sub Toaster (Object $self:) Scalar;
+multi sub Toaster (Object $self: Scalar $v) Object;
+multi sub Deepcopy (Object $self:) Scalar;
+multi sub Deepcopy (Object $self: Scalar $v) Object;
+multi sub Quotekeys (Object $self:) Scalar;
+multi sub Quotekeys (Object $self: Scalar $v) Object;
+multi sub Bless (Object $self:) Scalar;
+multi sub Bless (Object $self: Scalar $v) Object;
+multi sub Maxdepth (Object $self:) Scalar;
+multi sub Maxdepth (Object $self: Scalar $v) Object;
+multi sub Maxrecurse (Object $self:) Scalar;
+multi sub Maxrecurse (Object $self: Scalar $v) Object;
+multi sub Useperl (Object $self:) Scalar;
+multi sub Useperl (Object $self: Scalar $v) Object;
+multi sub Sortkeys (Object $self:) Scalar;
+multi sub Sortkeys (Object $self: Scalar $v) Object;
+multi sub Deparse (Object $self:) Scalar;
+multi sub Deparse (Object $self: Scalar $v) Object;
+multi sub Sparseseen (Object $self:) Scalar;
+multi sub Sparseseen (Object $self: Scalar $v) Object;

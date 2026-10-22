@@ -1,0 +1,47 @@
+# ABOUTME: Declares what `use ExtUtils::MakeMaker` installs: WriteMakefile and os_unsupported
+# ABOUTME: bare, the rest by name. Measured on perl 5.42.0 with ExtUtils::MakeMaker 7.76.
+
+package ExtUtils::MakeMaker;
+
+# Measured on 5.42.0: a bare `use ExtUtils::MakeMaker;` installs
+# WriteMakefile and os_unsupported; everything else below is in
+# @EXPORT_OK alone.
+our Int $Verbose :export;
+our Str $VERSION :export_ok;
+
+# WriteMakefile builds a real Makefile from a distribution's own
+# metadata, which the oracle's call cases cannot supply, and prompt
+# reads an answer from STDIN, blocking when none is piped in. Each is
+# held to its prototype and exports only (oracleExempt). prompt is in
+# @EXPORT, not @EXPORT_OK (measured): a bare `use` installs it.
+sub WriteMakefile :export (List @args) Object;
+sub prompt :export :prototype($;$) (Str $message, Str $default = undef) Str;
+
+# os_unsupported, mkbootstrap and mksymlists are each withdrawn:
+# measured on 5.42.0, every one dies unconditionally the moment it is
+# called, regardless of its arguments.
+sub os_unsupported :export (List @args) None;
+sub mkbootstrap :export_ok (List @args) None;
+sub mksymlists :export_ok (List @args) None;
+
+# WriteEmptyMakefile writes a stub Makefile under the caller's cwd and
+# ends on `close`'s Boolean (measured).
+sub WriteEmptyMakefile :export_ok (List @args) Boolean;
+# open_for_writing opens its file and returns the lexical filehandle
+# (measured: a GlobRef, as POSIX's opendir returns one), dying if the
+# open fails. write_file_via_tmp writes $contents (an arrayref of
+# lines) to a temp file and renames it into place, ending on a bare
+# `return;` (measured: undef in the scalar context the oracle calls it
+# in). neatvalue formats undef, a plain scalar, an array ref and a hash
+# ref into a Str, but its last statement, `return $v unless $t eq
+# 'HASH'`, runs after the array check, so any other reference -- a code
+# ref, a blessed object, a scalar ref -- comes back unformatted, the
+# reference itself (measured: neatvalue(sub{1}) is a CODE ref,
+# neatvalue(bless {}, "Foo") a Foo object, neatvalue(\"x") a SCALAR
+# ref). _sprintf562 is a pure formatter, always a Str. :listop on all
+# four: none has a prototype (measured), so their typed parameters
+# derive none either (RFC 0001, "Builtins with no prototype").
+sub open_for_writing :export_ok :listop (Str $file) GlobRef;
+sub write_file_via_tmp :export_ok :listop (Str $finalname, ArrayRef $contents) Void;
+sub neatvalue :export_ok :listop (Any $value) Str|Ref;
+sub _sprintf562 :export_ok :listop (Str $format, List @args) Str;

@@ -2,19 +2,34 @@
 # ABOUTME: Measured on perl 5.42.0 with Carp 1.54: no sub carries a prototype.
 package Carp;
 
-our @EXPORT = qw(confess croak carp);
-# verbose is no sub: Carp's @EXPORT_FAIL takes it as a flag that sets
-# $Carp::Verbose, measured on 5.42.0 with `use Carp qw(verbose)`.
-our @EXPORT_OK = qw(cluck verbose longmess shortmess);
+# verbose is no sub and is marked nowhere: Carp's @EXPORT_FAIL takes it as
+# a flag that sets $Carp::Verbose, and measured on 5.42.0, `use Carp
+# qw(verbose)` defines nothing in the caller: Exporter leaves an undefined
+# stub there, in a package with no AUTOLOAD, so no call reaches a sub.
 
 # croak and confess die with their message, as die does: measured on
 # 5.42.0, `eval { croak "x" }` leaves "x at -e line 1." in $@.
-sub croak (List[Str|Boolean|DualVar|Ref] @message) None;
-sub confess (List[Str|Boolean|DualVar|Ref] @message) None;
+sub croak :export (List[Str|Boolean|DualVar|Ref] @message) None;
+sub confess :export (List[Str|Boolean|DualVar|Ref] @message) None;
 # carp and cluck warn and return true, as warn does: measured on 5.42.0,
-# `my $r = carp("w")` leaves $r 1.
-sub carp (List[Str] @message) Boolean;
-sub cluck (List[Str] @message) Boolean;
-# longmess and shortmess return the message as croak would die with it.
-sub longmess (List[Str] @message) Str;
-sub shortmess (List[Str] @message) Str;
+# `my $r = carp("w")` leaves $r 1. Each takes croak's parameter type: with
+# a lone argument that is a reference, shortmess_heavy (Carp.pm:682,
+# `return @_ if ref $_[0]`) delivers that reference itself to
+# $SIG{__WARN__}, not a stringified form -- measured, `carp({c=>1})`
+# leaves a HASH reference in the handler's $_[0]. With more than one
+# argument, every argument stringifies into the warned message.
+sub carp :export (List[Str|Boolean|DualVar|Ref] @message) Boolean;
+sub cluck :export_ok (List[Str|Boolean|DualVar|Ref] @message) Boolean;
+# longmess and shortmess return the message as croak would die with it,
+# except that each takes croak's parameter type and passes a lone
+# reference through unstringified (longmess_heavy, Carp.pm:567, and
+# shortmess_heavy, Carp.pm:682: both `return wantarray ? @_ : $_[0]` or
+# `return @_` when `ref $_[0]`). Measured on 5.42.0: longmess({x=>1},'b')
+# is the hashref itself in scalar context and both arguments, the
+# hashref included, in list context; shortmess({x=>1},'b') is 2 (the
+# argument count, an Int, which Str admits) in scalar context and both
+# arguments in list context.
+multi sub longmess :export_ok (List[Str|Boolean|DualVar|Ref] @message) Str|Ref;
+multi sub longmess :export_ok (List[Str|Boolean|DualVar|Ref] @message) List[Str|Boolean|DualVar|Ref];
+multi sub shortmess :export_ok (List[Str|Boolean|DualVar|Ref] @message) Str;
+multi sub shortmess :export_ok (List[Str|Boolean|DualVar|Ref] @message) List[Str|Boolean|DualVar|Ref];

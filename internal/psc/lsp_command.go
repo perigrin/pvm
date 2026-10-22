@@ -12,7 +12,7 @@ import (
 )
 
 func newLSPCommand() *cobra.Command {
-	var strict, warnLossy bool
+	var strict, warnLossy, warnPossibleUndef, warnPossibleMismatch bool
 
 	cmd := &cobra.Command{
 		Use:   "lsp",
@@ -20,7 +20,7 @@ func newLSPCommand() *cobra.Command {
 		Long:  "Start a Language Server Protocol server on stdin/stdout. Provides diagnostics, hover, definition, and document symbols for Perl files.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			server := NewLSPServer()
-			server.Options = infer.Options{Strict: strict, WarnLossyCoercion: warnLossy}
+			server.Options = infer.Options{Strict: strict, WarnLossyCoercion: warnLossy, WarnPossibleUndef: warnPossibleUndef, WarnPossibleMismatch: warnPossibleMismatch}
 			tr := newTransport(cmd.InOrStdin(), cmd.OutOrStdout())
 			h := newHandler(server, tr)
 			h.exitFn = os.Exit
@@ -43,6 +43,10 @@ func newLSPCommand() *cobra.Command {
 		"report values whose type could not be inferred instead of accepting them")
 	cmd.Flags().BoolVar(&warnLossy, "warn-lossy-coercion", false,
 		"report coercions perl makes silently that lose the value, such as a reference printed as a string")
+	cmd.Flags().BoolVar(&warnPossibleUndef, "warn-possible-undef", false,
+		"report an undef from a declared call's return that the call's own arguments do not prove, left silent by default")
+	cmd.Flags().BoolVar(&warnPossibleMismatch, "warn-possible-mismatch", false,
+		"report an argument whose union type has a member that fits the parameter beside one that does not, left silent by default")
 
 	return cmd
 }

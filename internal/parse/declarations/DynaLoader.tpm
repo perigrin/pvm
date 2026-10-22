@@ -1,0 +1,69 @@
+# ABOUTME: Declares DynaLoader's subs: none is ever exported, so none carries a mark.
+# ABOUTME: Measured on perl 5.42.0 with DynaLoader 1.57: no sub here carries a prototype.
+package DynaLoader;
+
+# DynaLoader never calls Exporter -- measured on 5.42.0, it has no @ISA
+# or @EXPORT of its own -- so a module reaches it only by inheritance
+# (`our @ISA = (..., 'DynaLoader')`) or by qualified name, as
+# ExtUtils::Liblist::Kid's `DynaLoader::dl_load_file(...)` does. Nothing
+# here is marked :export or :export_ok.
+
+# croak always dies, as Carp's does: measured on 5.42.0, it is
+# `require Carp; Carp::croak(@_)`, so it takes croak's own parameter
+# type -- a lone reference reaches $@ itself, unstringified (measured:
+# `eval { DynaLoader::croak({x=>1}) }; ref $@` is HASH).
+sub croak (List[Str|Boolean|DualVar|Ref] @message) None;
+
+# dl_load_flags is a plain constant, measured 0 in both contexts, called
+# as a method ($module->dl_load_flags) or as a plain sub alike. :listop
+# says its empty parentheses are its real shape, not an empty prototype
+# -- measured, perl's prototype() for it is none. Its body is the bare
+# constant, so arguments, the method invocant among them, are ignored:
+# measured, `DynaLoader::dl_load_flags(1, 2)` runs silently under -w.
+sub dl_load_flags :listop (List @ignored) Int;
+
+# dl_findfile searches @dl_library_path and returns the paths it finds:
+# measured on 5.42.0, a name with no match returns () in list context
+# and undef in scalar, and a found one, `dl_findfile('-lc')`, returns a
+# one-element list of its path.
+multi sub dl_findfile (List[Str] @args) List[Str];
+multi sub dl_findfile (List[Str] @args) Str|Undef;
+
+# dl_expandspec is a no-op on this platform -- measured on 5.42.0, it
+# returns undef for a path that is not a plain file, and its own file's
+# path for one that is, in both contexts.
+multi sub dl_expandspec (List[Str] @args) List[Str|Undef];
+multi sub dl_expandspec (List[Str] @args) Str|Undef;
+
+# dl_find_symbol_anywhere searches @dl_librefs, empty until something
+# bootstraps: measured on 5.42.0, with nothing loaded it returns undef.
+multi sub dl_find_symbol_anywhere (List[Str] @args) List[Str|Undef];
+multi sub dl_find_symbol_anywhere (List[Str] @args) Str|Undef;
+
+# dl_undef_symbols and dl_error are the two XS primitives safe to call
+# with nothing loaded: measured on 5.42.0, the former returns () in list
+# context and undef in scalar, and the latter a one-element list holding
+# '' in list context and '' in scalar. :listop again: perl reports
+# neither a prototype.
+multi sub dl_undef_symbols :listop () List[Str];
+multi sub dl_undef_symbols :listop () Undef;
+multi sub dl_error :listop () List[Str];
+multi sub dl_error :listop () Str;
+
+# bootstrap and bootstrap_inherit end by loading a real shared object, so
+# what they return depends on one the return-type oracle's call cases
+# cannot safely supply -- a name that resolves to a real extension would
+# load it a second time, and one that does not dies with "Can't locate
+# loadable object", which is not evidence of what a real bootstrap
+# returns. Declared Any and exempt, with the four lower-level XS
+# primitives that only a real loaded library reference can exercise.
+sub bootstrap (List[Str] @args) Any;
+sub bootstrap_inherit (List[Str] @args) Any;
+
+# The four XS primitives below never run in the return-type oracle: each
+# needs a real shared object or library reference the oracle's call
+# cases cannot safely supply.
+sub dl_load_file (List[Str] @args) Any;
+sub dl_find_symbol (List[Str] @args) Any;
+sub dl_install_xsub (List[Str] @args) Any;
+sub dl_unload_file (List[Str] @args) Any;

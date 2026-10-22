@@ -129,6 +129,32 @@ func TestDeclaredKeywords(t *testing.T) {
 	}
 }
 
+// TestDeclaredSublikeBodyOptionalAndPkgName: Future::AsyncAwait.xs
+// registers async with XS_PARSE_SUBLIKE_FLAG_PREFIX|BODY_OPTIONAL|
+// ALLOW_PKGNAME (AsyncAwait.xs:2370), but Future/AsyncAwait.tpm and
+// readSyntaxAttribute's sublike case state only PREFIX -- an audit-E
+// finding (group E, #21) read as a possible declaration gap: a forward
+// declaration, `async sub f;`, or a package-qualified name, `async sub
+// Pkg::name {...}`, might go unstated. Withdrawn on re-measurement:
+// parsePrefixedSubDecl wraps the plain sub parser (parseSubDecl),
+// which already accepts a missing body and a qualified name for any
+// sub, async or not, so both forms already parse as an async
+// declaration with no unknown node. No :sublike flag is needed.
+func TestDeclaredSublikeBodyOptionalAndPkgName(t *testing.T) {
+	load := parse.DirLoader(t.TempDir())
+	use := "use Future::AsyncAwait; "
+	for _, src := range []string{"async sub f;", "async sub Pkg::name { 1 }"} {
+		n := parse.ParseWithLoader([]byte(use+src), load)
+		if bad := collectUnknownNodes(n); len(bad) > 0 {
+			t.Errorf("%q: refused; got %s", src, shape(n))
+		}
+		decl := firstOfKind(n, parse.Declaration)
+		if decl == nil || decl.Text != "async" || len(decl.Children) != 1 || decl.Children[0].Text != "sub" {
+			t.Errorf("%q: want async wrapping sub; got %s", src, shape(n))
+		}
+	}
+}
+
 // TestPrototypeAttribute: `:prototype(...)` is the prototype when a sub has a
 // signature, and the form CORE.tpm declares builtins in. A module declaring
 // `sub one :prototype($) ($x) { $x }` exports a named unary: measured on

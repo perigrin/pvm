@@ -1,0 +1,41 @@
+# ABOUTME: Declares Tie::Hash's methods; a bare `use Tie::Hash` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with Tie::Hash 1.06: no method carries a prototype.
+package Tie::Hash;
+
+# Every name below is a method, so each takes an invocant and nothing is
+# marked :export: measured on 5.42.0, `use Tie::Hash;` installs nothing
+# in the caller.
+#
+# Tie::Hash is an abstract base meant to be subclassed (perltie). EXISTS
+# is documented as "a stub that simply croaks", and measured to:
+# unconditionally, on Tie::Hash itself and on every subclass. new,
+# TIEHASH and CLEAR are different: each is written to work when reached
+# through a subclass that overrides its counterpart, not only to croak
+# (measured, scratchpad/audit-C.md finding 34) --
+#   - new calls $pkg->TIEHASH(@_), which a subclass defining only
+#     TIEHASH dispatches to its own override: My->new returns a blessed
+#     My, not a death, when My defines TIEHASH but not new.
+#   - TIEHASH itself falls back to $pkg->new(@_) when $pkg defines its
+#     own new (and is not Tie::Hash itself, which would recurse): N->TIEHASH
+#     returns a blessed N when N defines new but not TIEHASH.
+#   - CLEAR calls $self->FIRSTKEY/NEXTKEY/DELETE in a loop with no
+#     explicit return; on a subclass defining all three it completes and
+#     answers '' (measured), not a death.
+# Called directly on Tie::Hash itself, with no override anywhere in the
+# chain -- the only call the return-type oracle's generic bare-class
+# mechanism can make -- all three still croak; each is exempt from it
+# for that reason (ooExempt), and held instead by
+# TestTieHashInheritedMethodsReturn, which measures the subclass-dispatch
+# paths above directly.
+sub new (Str $class: List @args) Object;
+sub TIEHASH (Str $class: List @args) Object;
+# EXISTS and CLEAR are instance methods (perltie: "EXISTS this, key",
+# "CLEAR this"), not class ones.
+sub EXISTS (Object $self: Str $key) None;
+sub CLEAR (Object $self:) Any;
+
+# Tie::StdHash and Tie::ExtraHash (audit-C.md finding 35) are
+# separate packages in Tie/Hash.pm, not this one, and this declaration
+# format holds one package per file; declaring either needs its own
+# .tpm and a batch entry (perltest.OOModules or similar), which is
+# deferred rather than done as part of this fix.

@@ -1,0 +1,26 @@
+# ABOUTME: Declares what `use MIME::Base64` exports: encode_base64 and decode_base64 are :export,
+# ABOUTME: the rest :export_ok, measured. Measured on perl 5.42.0 with MIME::Base64 3.16_01.
+
+package MIME::Base64;
+
+# encode_base64 takes the line ending to use, defaulting to "\n":
+# measured on 5.42.0, `encode_base64("abc")` ends in "\n" and
+# `encode_base64("abc", "")` does not. decode_base64 on invalid input
+# returns the bytes its decoder produces rather than dying or
+# returning undef, measured on 5.42.0 with a string that is not valid
+# base64.
+sub encode_base64 :export :prototype($;$) (Str $data, Str $eol = "\n") Str;
+sub decode_base64 :export :prototype($) (Str $data) Str;
+
+# encode_base64url and decode_base64url are the URL-safe variant, with
+# no line-ending argument and no prototype perl reports, measured
+# `prototype(\&MIME::Base64::encode_base64url)` undef.
+sub encode_base64url :export_ok :listop (Str $data) Str;
+sub decode_base64url :export_ok :listop (Str $data) Str;
+
+# encoded_base64_length and decoded_base64_length report the length
+# the corresponding encode/decode would produce, without doing it;
+# encoded_base64_length takes the same line-ending argument as
+# encode_base64.
+sub encoded_base64_length :export_ok :prototype($;$) (Str $data, Str $eol = "\n") Int;
+sub decoded_base64_length :export_ok :prototype($) (Str $data) Int;

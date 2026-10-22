@@ -1,0 +1,51 @@
+# ABOUTME: Declares what `use File::stat` installs: stat and lstat bare, its thirteen
+# ABOUTME: fields by name or the FIELDS tag. Measured on perl 5.42.0 with File::stat 1.14.
+
+package File::stat;
+
+# All thirteen are in @EXPORT_OK, and the FIELDS tag holds them plus
+# stat and lstat (measured: %EXPORT_TAGS is `FIELDS => [ @fields,
+# @EXPORT ]`), so stat and lstat carry the tag too though a bare `use`
+# already installs them.
+our Int $st_dev :export_ok(FIELDS);
+our Int $st_ino :export_ok(FIELDS);
+our Int $st_mode :export_ok(FIELDS);
+our Int $st_nlink :export_ok(FIELDS);
+our Int $st_uid :export_ok(FIELDS);
+our Int $st_gid :export_ok(FIELDS);
+our Int $st_rdev :export_ok(FIELDS);
+our Int $st_size :export_ok(FIELDS);
+our Int $st_atime :export_ok(FIELDS);
+our Int $st_mtime :export_ok(FIELDS);
+our Int $st_ctime :export_ok(FIELDS);
+our Int $st_blksize :export_ok(FIELDS);
+our Int $st_blocks :export_ok(FIELDS);
+
+# stat calls CORE::stat on its argument, which preserves a filehandle
+# rather than stringifying it -- measured on 5.42.0, stat($lexical_fh),
+# stat(\*STDIN) and stat(*STDIN) each return a File::stat object, so
+# $file is Str|FileHandle, not only Str. lstat calls CORE::lstat, whose
+# own declaration (CORE.tpm) is the narrower Str|Glob: a lexical
+# filehandle there warns ("lstat() on filehandle") though it still
+# returns an object (measured), so lstat's own $file keeps CORE::lstat's
+# type rather than widening past it. lstat stringifies any other
+# reference as a path -- measured, `File::stat::lstat({})` is undef and
+# perl -w is silent -- so a Str candidate beside the Glob one takes
+# it, a lossy coercion. stat dereferences it as a glob and dies, "Not a
+# GLOB reference", so it keeps its one candidate. Each returns the object on
+# success, or -- measured on 5.42.0, calling either on a path that does
+# not exist -- nothing: the empty list in list context, undef in scalar.
+sub stat :export(FIELDS) :prototype($) (Str|FileHandle $file) Object|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Glob $file) Object|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
+# stat_cando is `cando`'s alias (measured: `*stat_cando = \&cando`),
+# which tests a stat object's mode bits and ends `return 1` or
+# `return ""`, a plain Int, not perl's own boolean (measured with
+# builtin::is_bool). Its POD says it "takes an arrayref containing the
+# return values of stat or lstat as its first argument", and cando
+# indexes that argument as a plain array, the type it actually uses:
+# measured on 5.42.0, stat_cando([CORE::stat "/etc/passwd"], S_IRUSR,
+# 1) returns 1, the same as the blessed object form. :listop: it has no
+# prototype (measured), so its typed parameters derive none either
+# (RFC 0001, "Builtins with no prototype").
+sub stat_cando :export_ok :listop (ArrayRef|Object $stat_object, Int $mode, Boolean $effective) Int;

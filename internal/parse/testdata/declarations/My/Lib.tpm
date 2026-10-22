@@ -2,33 +2,31 @@
 # ABOUTME: RFC 0001 "One language for every .tpm": a library's .tpm says what CORE.tpm can.
 package My::Lib;
 
-our @EXPORT = qw(join_all alias_all need pick when_ emit size fields);
-
 # A typed sub whose slurpy has a container type.
-sub join_all (Str $sep, List[Str] @parts) Str;
+sub join_all :export (Str $sep, List[Str] @parts) Str;
 
 # Aliased parameters, and perlref's list form last.
-sub alias_all (Scalar \$x, Array \@a, Code \&c, List[Str] \(@args)) Int;
+sub alias_all :export (Scalar \$x, Array \@a, Code \&c, List[Str] \(@args)) Int;
 
 # A required parameter, its default `die`.
-sub need (Str $name = die) Str;
+sub need :export (Str $name = die) Str;
 
 # A multi pair.
-multi sub pick (Int $i) Str;
-multi sub pick (Str $s) Int;
+multi sub pick :export (Int $i) Str;
+multi sub pick :export (Str $s) Int;
 
 # A context multi: a scalar return and a list return.
-multi sub when_ () Str;
-multi sub when_ () List[Str];
+multi sub when_ :export () Str;
+multi sub when_ :export () List[Str];
 
 # The invocant colon.
-sub emit (FileHandle $fh: List[Str] @args) Boolean;
+sub emit :export (FileHandle $fh: List[Str] @args) Boolean;
 
 # A named unary.
-sub size :unary (Scalar $x = $_) Int;
+sub size :export :unary (Scalar $x = $_) Int;
 
 # A list operator with typed positional parameters and no prototype.
-sub fields :listop (Str $sep = ' ', Str $line = $_) List;
+sub fields :export :listop (Str $sep = ' ', Str $line = $_) List;
 
 # An operator.
 sub plus :infix(ADD) (Num $x, Num $y) Num;

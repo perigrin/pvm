@@ -5,10 +5,11 @@ package conformance
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // measuredVersion is the $] every corpus expectation was taken from.
@@ -119,13 +120,12 @@ func findPerl() (string, error) {
 		measuredVersion, strings.Join(tried, ", "), pinnedPerlEnv)
 }
 
-// perlVersion runs one candidate and returns its $].
+// perlVersion runs one candidate and returns its $], the same way
+// internal/perltest's own perl-5.42 check does (perltest.PerlVersion),
+// so the two packages' searches can never disagree about what a given
+// path's perl reports.
 func perlVersion(path string) (string, error) {
-	out, err := exec.Command(expandHome(path), "-e", "print $]").Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+	return perltest.PerlVersion(expandHome(path))
 }
 
 // envPerl reads the PVM_PERL override.

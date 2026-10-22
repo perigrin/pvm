@@ -22,6 +22,11 @@ type Signature struct {
 	// see Answers.
 	Returns Type
 
+	// ReturnElement is the element type of a container return type, Int
+	// for `List[Int]`, Unknown when the return type names no element, as
+	// Param.Element is a parameter's.
+	ReturnElement Type
+
 	// Unary is whether the declaration states `:unary`, RFC 0001
 	// "Builtins with no prototype": a builtin with no prototype that perl
 	// reads as a named unary, so `defined $a, $b` is `(defined $a), $b`.
@@ -81,6 +86,15 @@ type Param struct {
 	// the word becomes. `=>`'s left operand is one, `foo => 1` passing
 	// "foo" (RFC 0001, "Operator declarations").
 	Bareword bool
+
+	// Named is whether the parameter is perl 5.44's named kind, `:$name`
+	// (perlsub "named parameters"), which perl matches by name among the
+	// caller's arguments rather than by position. Only the parser's
+	// ordering check reads it: arity and prototype derivation treat a
+	// named parameter as positional, and reading a declared import's
+	// keys by name waits on issue 01a15f6b (RFC 0001, "the signature
+	// names the keys").
+	Named bool
 }
 
 // Variable is the parameter's variable as a declaration writes it, with

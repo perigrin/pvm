@@ -1,0 +1,6 @@
+# ABOUTME: A declaration file marking untyped variables with :export and :export_ok, for typedour_test.go.
+# ABOUTME: An untyped `our` records no type, and its mark alone decides what `use` imports.
+package My::UntypedVars;
+
+our $x :export;
+our @y :export_ok(t);

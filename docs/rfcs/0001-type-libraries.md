@@ -57,17 +57,22 @@ reads:
 ```perl
 package Mojolicious::Lite;
 
-our @EXPORT = qw(any get post put ... group helper hook plugin under);
-
-sub get;
-sub group :prototype(&);
+sub get :export;
+sub group :export :prototype(&);
 ```
 
-`our @EXPORT` lists what a bare `use` imports. Each `sub` line declares
-one sub and its prototype. Every value is measured on perl 5.42.0 with
-the module installed, and the file's header names the module version.
+Each `sub` line declares one sub and its prototype, and `:export` marks
+a sub a bare `use` imports (`:export_ok`, one that must be asked for;
+see "Every exported name" under "Core-module libraries"). A `.tpm`
+carries no export lists: the parser refuses `our @EXPORT`, `@EXPORT_OK`
+and `%EXPORT_TAGS` in one as an error naming its line (perigrin,
+2026-10-16). Every value is measured on perl 5.42.0 with the module
+installed, and the file's header names the module version.
 
-Moose, Moose::Role and Mojolicious::Lite ship today.
+Moose, Moose::Role, Mojolicious::Lite and Future::AsyncAwait ship
+today, alongside `CORE.tpm` and the 50 core modules perl 5.42's own
+library imports most (`internal/parse/testdata/core_module_ranking.txt`
+pins the list; see "Core-module libraries").
 
 ### `M->import` in BEGIN is `use` (*Implemented*, a70a294e)
 
@@ -930,7 +935,7 @@ replacement. A default may also name a parameter declared after it:
 the list (`exec "ls"` compiles), so `sub exec (Str $program = $args[0]:
 List[Str] @args) Boolean;`.
 
-### Call sites (*Decided*)
+### Call sites (*Implemented*, 19f92556, 151a24dc, 87154b49, 73a6178e, 9ab6eda4)
 
 perigrin, 2026-10-02. "Multi declarations" and "Context selects by
 return type" cover
@@ -940,9 +945,255 @@ to a declared builtin or library sub by applying those rules at the call
 site -- the arguments' inferred types, the call's arity and its context
 -- and takes the selected candidate's return type. When the call site
 cannot decide between candidates it joins them; when the declarations
-rule the call out, it fails as "Multi declarations" says. It waits on
-`infer` running on `internal/parse` (milestone m2-lower-the-tree), which
-is why it is a section of its own.
+rule the call out, it fails as "Multi declarations" says.
+
+A call site hands selection what the call writes, not only its argument
+list: sort's comparison routine, `sort byname @x` or `sort $by @x`, is
+the invocant only the invocant candidates take, while `sort "byname",
+@x` makes the name data; delete's slice operand is `@`-shaped and its
+element `$`-shaped; the condition of `if`, `elsif`, `unless`, `while`,
+`until`, a C-style `for`, a statement modifier and a ternary, and the
+operand of `!` and `not`, is in scalar context, so `if ($s =~ /b/)` is
+a Boolean; and a plain expression statement that is not its block's or
+file's last is in void context, where a match is untyped and never an
+error. A last statement, which may be the value of the sub, `do` or
+`eval` it ends, is given no context, and neither is a statement
+modifier's body.
+
+### Possible undef unless proven (*Implemented*, 2aaa0d36, 026bb539, f53654ca)
+
+perigrin, 2026-10-20: "An Undef from a declared return is
+possible-undef unless the call's arguments prove that the
+Undef-returning candidate is selected." A declared call's return
+carries `Undef` three ways: a single candidate's own union return
+(`Scalar::Util::blessed`'s one candidate, `(Any $ref) Str|Undef`,
+answers every call this way regardless of argument), a multi's widest,
+catch-all candidate (`reftype`, `refaddr`), or a resolved candidate the
+call's own arguments force outright, with no other outcome left at all
+(`List::Util::sum`'s `()` candidate, the only one zero arguments
+admit). The first two are accepted by default, the same way an Unknown
+argument itself is, since the declaration decided the Undef, not the
+call; `psc check --warn-possible-undef` reports them instead, as an
+ordinary coercion mismatch. The third still reports either way --
+`sum()` -- since the call forced it (`internal/infer/calls.go`,
+`markPossibleUndef`; `internal/infer/infer.go`, `WarnPossibleUndef`;
+`internal/infer/warnpossibleundef_test.go`).
+
+### Possible mismatch beside a fitting member (*Implemented*, 7fc02ddf)
+
+perigrin, 2026-10-21: "An argument whose union type has at least one
+member that fits the parameter is a possible mismatch. It is silent by
+default and reported only under a flag. An argument with no fitting
+member is still a coercion-mismatch." Modelled on "Possible undef
+unless proven" above: a declared call's return can be a union psc
+cannot narrow further, and a union is judged member by member against
+the slot, Undef removed first and never itself a fitting member --
+Undef is possible-undef's own business, not this rule's, so a union
+whose only problem bit is Undef still reports unconditionally, as it
+always has. `Symbol::qualify`'s `Ref` candidate returns the reference
+it was given, unchanged (measured, `ref qualify({})` is `HASH`, not
+`GlobRef`), so `IO/Handle.pm:516`'s `tell qualify($_[0], caller) if
+ref($_[0])` sees a `Ref` -- `ScalarRef`, `ArrayRef`, `HashRef`,
+`CodeRef` and `Object` beside the one member, `GlobRef`, that `tell`'s
+`Glob`-only parameter takes -- though $_[0] is in fact always a
+`GlobRef` there. perl 5.42 -w is silent on it.
+
+**A new flag, not `--warn-lossy-coercion`.** The code already separates
+two classes of silence by what causes them, not by what they look
+like: `WarnLossyCoercion` is for a coercion perl actually PERFORMS at
+runtime and that loses the value -- a reference stringified, a string
+numified -- judged from the single, settled type the value has.
+`WarnPossibleUndef` is for a case psc cannot settle at all: the
+declaration states more than one outcome, and the call's own arguments
+do not choose between them. This rule is the second kind, not the
+first -- `qualify`'s `Ref` is not a coercion candidate GlobRef, it is
+one of several reference shapes the declaration itself cannot narrow
+to GlobRef specifically -- so it takes `WarnPossibleMismatch`, a sibling
+of `WarnPossibleUndef`, not a new case of `WarnLossyCoercion`
+(`internal/infer/calls.go`, `possibleMismatch`; `internal/infer/infer.go`,
+`WarnPossibleMismatch`; `internal/infer/warnpossiblemismatch_test.go`).
+
+### Core-module libraries (*Implemented*, 236f66e7, 3b04b021, c36ec181, eeb9dfa6, ac90b82c, 2d724aa2, d7e9819e, 6c1aa611)
+
+perigrin, 2026-10-16. The modules that ship with perl get declaration
+files, starting with the 50 that perl 5.42's own library imports most.
+`CORE.tpm` types the builtins; these types the names a `use` brings in,
+so a call to `croak` or `Scalar::Util::blessed` is typed as `print` is.
+
+**Which 50.** The ranking is measured, not chosen: each core module's
+imports over perl 5.42's library, counting only imports from outside
+the module's own namespace, so Test2 importing Test2 does not inflate
+it. The rule (perigrin, 2026-10-16):
+
+- A core module is any `.pm` under privlib, named with the arch
+  directory (archlib relative to privlib) stripped.
+- An import is a line matching `^\s*(use|require)\s+[A-Z][A-Za-z0-9_:]+`
+  in any `.pm` or `.pl` under privlib.
+- An import is not counted when the importing file's top-level path
+  component, with the arch directory stripped and `.pm`/`.pl` removed,
+  equals the module's first `::` component.
+- Only imports of core modules count.
+  Ties are broken by module name, ascending.
+
+A committed test recomputes the ranking from an installed perl and
+checks its top 50 against the list the declarations cover. Measured on
+2026-10-16: 128 modules are imported from outside their namespace,
+1,427 times; the top 50 account for 1,326 of those imports (93%).
+Ranks 45 to 51 tie at 3 imports, so the tie-break puts Net::Ping 50th
+and Params::Check 51st.
+
+**Every exported name.** A declaration file is read in place of the
+module's source, so a name it does not declare is a name the import
+loses. A declaration has no export lists. perigrin, 2026-10-16: "We
+don't need the @EXPORT in the .tpm since we have :export and
+:export_ok." Every exported name, sub or variable, carries an
+attribute: `:export` means a bare `use` brings it in, and `:export_ok`
+means it must be asked for. A tag is an attribute argument:
+`:export_ok(flock)` puts the name in the `:flock` tag, and
+`:export(tag, ...)` names several.
+
+    sub croak :export (List[Str|Boolean|DualVar|Ref] @message) None;
+    sub LOCK_EX :export_ok(flock) () Int;
+
+What is marked is what perl's `use` installs in a caller, measured with
+perl, not what the module's own lists say. A module whose own `import`
+installs names its lists do not hold is declared the same way.
+perigrin, 2026-10-16: "we should figure out as best we can what is
+exported (loc, loc_lang, etc.) and mark them as :export or :export_ok
+accordingly." Locale::Maketext::Simple's lists are empty, yet a bare
+`use` of it installs `loc` and `loc_lang`, so both are `:export`.
+
+The shipped declarations are converted to this form first, and the
+parser then refuses `our @EXPORT`, `@EXPORT_OK` and `%EXPORT_TAGS` in
+a `.tpm` as an error (perigrin, 2026-10-16: migrate, then remove).
+
+**A declared `import`'s parameters are the signature to `import()`.**
+perigrin, 2026-10-20: "The parameters are the signature to import()."
+Some modules' own `import` reads a `use` list as arguments, not export
+names: `use Test::More tests => 3;` plans the run rather than naming
+`tests` and `3` as subs to import, and
+`use Locale::Maketext::Simple (Style => 'gettext');` sets an option
+rather than asking for `Style` and `gettext`. A `.tpm` states this by
+declaring `import` itself, with `$class` as its invocant so the colon
+keeps the derived prototype none, matching perl's:
+
+    sub import (Str $class: List @plan) Void;
+
+A module whose `.tpm` declares `import` this way, and marks it neither
+`:export` nor `:export_ok`, does not read its use-list as names at all:
+calling `use` with any list, read or not, installs exactly what a bare
+`use` installs -- its `:export` marks, measured -- and `use M ();`, the
+explicit empty list, still calls no import, as it does for any module.
+There is no by-name case in module.go for this: declaring `import` is
+itself the signal. A declared `import` that IS itself exported keeps
+the ordinary name semantics instead: Exporter's own `import` aliases
+itself into the caller by name (`:export_ok`), so `use Exporter
+'import';` asks for the name `import`, not an argument to call it
+with.
+
+**The signature names the keys.** perigrin, 2026-10-20: "the signature
+names the keys." Some modules' own `import` branches on an argument's
+value, installing something other than the names below it in every
+other case: `use Locale::Maketext::Simple (Export=>"zz")` installs `zz`
+and `zz_lang`, not `loc`, and `use Test::More import => ["!is"],
+tests=>1` does not install `is`. Reading every other list as the
+bare-use names would claim a name that does not exist. The smallest
+syntax states the one key, measured, whose presence changes the
+install: the first optional scalar parameter after the invocant, named
+for it.
+
+    sub import (Str $class: ArrayRef $import = undef, List @plan) Void;  # Test::More
+    sub import (Str $class: Str $Export = undef, List @args) Void;       # Locale::Maketext::Simple
+
+A use-list naming that key, anywhere in it, claims no names and leaves
+the symbols open, since what it installs depends on the key's value in
+a way a `.tpm` does not evaluate; a use-list without the key installs
+the names below, as a bare use does.
+
+**The signature names the keys, written with perl 5.44's named
+parameters.** perigrin, 2026-10-21: "the signature names the keys,
+written with perl 5.44's named-parameter syntax (`:$name = default`,
+perlsub "named parameters")." A single optional scalar is the smallest
+syntax when a module's `import` reads one key, but Moose::Exporter
+reads three (`-traits`, `-metaclass`, `-meta_name`), each independent
+of the others, which the one-scalar heuristic cannot name. perl 5.44
+gives a signature's keys their own syntax: a named parameter, declared
+`:$name` after the positional ones and before a slurpy, matched by name
+rather than position.
+
+    sub import (Str $class: ArrayRef :$traits = [], Str :$metaclass = undef, Str :$meta_name = 'meta', List @names) Void;  # Moose
+
+Under this ruling each named parameter is to be consumed from the
+use-list wherever it falls, as Moose::Exporter's own `_strip_option`
+reads `-traits` and the rest "from anywhere in the list", and what
+remains installs the Exporter way. That part is not implemented. A `.tpm`
+parses `:$name` (686b146c, `TestDeclarationReadsNamedParameters`), but
+56ecfcff backed out the code that read the keys from a use-list, and
+Moose.tpm declares `sub import (Str $class: List @args) Void;`, so any
+non-empty list installs all 13 of Moose's names. Reading the keys waits
+on the export-syntax redesign, issue 01a15f6b. Until then nothing past
+the parser's own ordering check reads `Param.Named`: arity checking and
+prototype derivation treat a named parameter as a positional one, so no
+shipped `.tpm` declares one.
+
+**A declared import's named parameter also matches a dashed key**
+(*not implemented*; waits on 01a15f6b, as above). perigrin,
+2026-10-21: "a declared import's named parameter `:$traits` matches
+the use-list key `-traits` or `traits` (perl 5.44 itself
+matches only the exact name; this is a `.tpm` rule)." Perl's own named
+parameters match a use-list key by its bare name alone; real perl would
+refuse `foo(-traits => [])` against `sub foo (:$traits) {}` as an
+unrecognised named argument. Moose::Exporter's options are conventionally
+written with a leading dash, perl's own idiom for a bareword hash key
+(`-traits` is unary minus on the autoquoted word `traits`), so under
+this ruling a `.tpm`'s named parameter will match both spellings once
+01a15f6b lands: `-traits` and `traits` will both satisfy `:$traits`.
+
+**Typed variables.** Some modules export variables: Config's `%Config`
+on a bare `use`, Socket's `$CRLF` only when asked for. A declaration
+states one with its type before the variable and the export as an
+attribute, as Chalk and Bson spell it:
+
+    our Hash[Str|Undef] %Config :export;
+    our Str $CRLF :export_ok(crlf, all);
+
+`%Config` is `Hash[Str|Undef]` because 172 of its values are undef on
+perl 5.42.0 (perigrin, 2026-10-16). A typed `our` is typed Perl, so it
+is legal only in a declaration file, as a typed signature is; outside
+one, perl refuses `our Hash[Str|Undef] %Config :export;` at compile
+time ("No such class Hash ... syntax error", measured on 5.42.0), and
+the parser refuses the same line, as `TestTypedOurOnlyInDeclarations`
+measures. Two gaps remain: `psc check` still exits 0 on that line,
+issue 01a15ad0-13e2, and a use site does not yet see the declared
+type, issue 01a15ac0-c1d6.
+
+**Held to perl.** Every declaration is tested against an installed
+perl: declared prototypes equal `prototype()`; the `:export` and
+`:export_ok` marks equal what `use` installs in a caller, bare, by name
+and by tag; return types agree with what an oracle observes when perl
+calls the sub, and an observed value the declared type excludes fails.
+The oracle runs in a scratch directory and calls only subs a sub's own
+entry in the `oracleExempt` map (`internal/infer/returntypes_test.go`)
+does not rule out — network, fork/exec, signals, `_exit`, a mutation
+outside scratch, a block on a terminal; nothing sandboxes the process
+itself. A sub it cannot call is held to its prototype and its export
+membership. Tests run perl; psc never does. The same
+driver's `skeleton` mode prints a module's installable names as a .tpm
+skeleton, params derived from each sub's prototype, so a batch worker
+only decides a TODO return type and oracle cases rather than
+transcribing names by hand.
+
+**Infrastructure modules.** Exporter, XSLoader and DynaLoader are
+inherited from or called by many other modules, so a declaration that
+replaces their source could change how those modules' imports resolve.
+Each is written, then measured: it must keep every module that uses it
+resolving as before and hold the m1 gates, or it may not ship. These
+three are the only modules of the 50 that may not ship (perigrin,
+2026-10-16), and only perigrin cancels one: the measurement that would
+keep it out is put to him first, and the reason recorded is his.
+
+**Exits.** A sub that never returns is declared `None`, as `die` and
+`exit` are in `CORE.tpm`; a call to one ends its path, as a `die` does.
 
 ### Corpus runs share module reads (*Implemented*, 5374dda4)
 
@@ -992,15 +1243,21 @@ Separate from the paper:
     Perl's refaliasing has no glob form, so the backslash rule does not
     carry over; `lock`, `undef`, `tie`, `tied`, `untie` and `pos` stay
     untyped until this is settled.
+12. *(Resolved: see "Core-module libraries". `:export` means a bare
+    `use` brings the name in, `:export_ok` that it must be asked for,
+    and a tag is an attribute argument; a `.tpm` has no export lists.)*
 
 ## Rejected alternatives
 
-- **Generating declarations by running perl.** Reading a module's
-  symbol table means perl has already parsed it; a Perl parser that
-  must run Perl is circular. It also fails for uninstalled dependencies
-  and pins data to one machine's module versions. `CORE.tpm` is the
-  exception: the builtins have no source to read, and its generation
-  is checked against perl by a test.
+- **Generating declarations by running perl at analysis time.**
+  Reading a module's symbol table means perl has already parsed it; a
+  Perl parser that must run Perl is circular. It also fails for
+  uninstalled dependencies and pins data to one machine's module
+  versions. psc never runs perl. Tests and authoring tools may:
+  `CORE.tpm`'s generation is checked against perl by a test, since the
+  builtins have no source to read, and the held-to-perl driver's
+  `skeleton` mode prints a module's installable names as a `.tpm`
+  skeleton for an author to finish (see "Core-module libraries").
 - **Attribute before the name** (`sub :infix + (...)`). Perl rejects it.
 - **Typed Perl in ordinary source.** It is accepted only in `.tpm`
   files; elsewhere it would misread valid Perl (see above).

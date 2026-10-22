@@ -1,0 +1,47 @@
+# ABOUTME: Declares Exporter's own subs: only import is ever exported, and only by name.
+# ABOUTME: Measured on perl 5.42.0 with Exporter 5.79: no sub here carries a prototype.
+package Exporter;
+
+# import is the name Exporter's own `use` can install, and the only one:
+# measured on 5.42.0, a bare `use Exporter;` installs nothing (Exporter
+# carries no @EXPORT of its own), while `use Exporter 'import';` installs
+# import -- import() special-cases that one name, aliasing itself into the
+# caller rather than reading any export list (ruling 1, 2026-10-16: no list
+# in a .tpm, so this is marked on the sub, same as any other). Called
+# directly, measured on 5.42.0 through the return-type oracle:
+# `Exporter::import('Exporter','import')` returns () in list context and
+# undef in scalar; any other first argument (the caller package `use`
+# would pass as its own name) reaches the general path instead, whose
+# final statement -- an empty `foreach` modifier -- leaves perl's boolean
+# false, observed as Boolean rather than a plain Str.
+multi sub import :export_ok (List[Str] @args) List[Boolean];
+multi sub import :export_ok (List[Str] @args) Boolean|Undef;
+
+# export, export_to_level, export_tags and export_ok_tags are never
+# exported -- a module reaches them as inherited methods
+# (`our @ISA = qw(Exporter)`) or by qualified name, as File::Temp's
+# `Exporter::export_tags(...)` and IO::Socket's `Exporter::export_to_level`
+# do -- so each is declared here with no mark, to keep those calls' shape
+# known. Each is exempt from the return-type oracle
+# (TestReturnOracleNeverCallsAnExemptSub's mechanism): it installs symbols
+# into an arbitrary caller's package or mutates its @EXPORT/@EXPORT_OK
+# from a dynamic $pkg/$callpkg pair, which a direct call could collide
+# with the driver's own symbols or a later call in the same run, so its
+# return value is not measured and is declared Any rather than guessed.
+sub export (List[Str] @args) Any;
+sub export_to_level (List[Str] @args) Any;
+sub export_tags (List[Str] @args) Any;
+sub export_ok_tags (List[Str] @args) Any;
+
+# export_fail and require_version are documented, inherited methods
+# (POD, "Module Version Checking" and "Managing Unknown Symbols"), not
+# listed in any export array -- a module reaches them once it does
+# `our @ISA = ('Exporter')`, as every @EXPORT_FAIL check and `use Foo
+# 5.0` version check does. Measured on 5.42.0: Exporter->export_fail
+# ('x','y') returns its arguments unchanged, the list in list context
+# and the count (an Int) in scalar; Exporter->require_version($Exporter::VERSION)
+# returns $VERSION, and a $wanted greater than it dies "version N
+# required--this is only version M".
+multi sub export_fail (Str $class: List[Str] @syms) List[Str];
+multi sub export_fail (Str $class: List[Str] @syms) Int;
+sub require_version (Str $class: Str $wanted) Str;

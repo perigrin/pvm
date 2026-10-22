@@ -1,0 +1,56 @@
+# ABOUTME: Declares what `use IO::File` installs: Fcntl's O_* constants and IO::Seekable's SEEK_* ones, all bare.
+# ABOUTME: Measured on perl 5.42.0 with IO::File 1.55: 34 names, every value the same Fcntl.tpm already measures.
+package IO::File;
+
+# IO::File's @EXPORT is @IO::Seekable::EXPORT (the three SEEK_* names)
+# plus every name matching /^O_/ in @Fcntl::EXPORT; each value here is
+# the one Fcntl.tpm already measured for the same constant.
+sub O_ACCMODE :export () Int;
+sub O_ALIAS :export () None;
+sub O_APPEND :export () Int;
+sub O_ASYNC :export () Int;
+sub O_BINARY :export () Int;
+sub O_CREAT :export () Int;
+sub O_DEFER :export () None;
+sub O_DIRECT :export () Int;
+sub O_DIRECTORY :export () Int;
+sub O_DSYNC :export () Int;
+sub O_EXCL :export () Int;
+sub O_EXLOCK :export () None;
+sub O_LARGEFILE :export () Int;
+sub O_NDELAY :export () Int;
+sub O_NOCTTY :export () Int;
+sub O_NOFOLLOW :export () Int;
+sub O_NOINHERIT :export () None;
+sub O_NONBLOCK :export () Int;
+sub O_RANDOM :export () None;
+sub O_RAW :export () None;
+sub O_RDONLY :export () Int;
+sub O_RDWR :export () Int;
+sub O_RSRC :export () None;
+sub O_RSYNC :export () Int;
+sub O_SEQUENTIAL :export () None;
+sub O_SHLOCK :export () None;
+sub O_SYNC :export () Int;
+sub O_TEMPORARY :export () None;
+sub O_TEXT :export () Int;
+sub O_TRUNC :export () Int;
+sub O_WRONLY :export () Int;
+sub SEEK_CUR :export () Int;
+sub SEEK_END :export () Int;
+sub SEEK_SET :export () Int;
+
+# Methods beside the exports. Measured on 5.42.0: new() and
+# new_tmpfile() both work with the class name itself as their invocant,
+# as the return-type oracle calls them, and new() on a file that does
+# not exist returns undef rather than dying. open() always dies against
+# that same bare-string invocant -- "usage: $fh->open(...)" when its
+# arity is wrong, "Can't use string ... as a symbol ref" when it is
+# right -- because open() immediately dereferences its invocant as a
+# glob; it is declared and held to its prototype and exports only (see
+# oracleExempt). open() also runs on an unblessed handle, as IO::Handle's
+# instance methods do (IO/Handle.tpm): perl accepts a GLOB/bareword
+# invocant there too, so Object alone excludes a real, documented call.
+sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
+sub new_tmpfile (Str $class:) Object|Undef;
+sub open (Object|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;

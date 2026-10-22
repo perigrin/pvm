@@ -44,6 +44,21 @@ script.pl:3:22: warning: right operand of "+": expected Num, got Str [coercion-m
 reports values whose type it could not work out, instead of accepting
 them.
 
+Three more flags widen what `psc check` reports, each silent by
+default:
+
+- `--warn-lossy-coercion` reports a coercion perl makes silently but
+  that loses the value, such as a reference printed as a string.
+- `--warn-possible-undef` reports an `Undef` a declared call's return
+  may carry, when the call's own arguments do not prove it: `blessed($x)
+  eq 'Foo'` is silent by default, whatever `$x` is, since
+  `Scalar::Util::blessed` always returns `Str|Undef`. A call whose
+  arguments force the `Undef` outright, such as `sum()`, still reports
+  either way.
+- `--warn-possible-mismatch` reports an argument whose union type has a
+  member that fits the parameter beside one that does not, left silent
+  by default.
+
 ## Declaration Files
 
 Some modules define subs that their source never shows. Moose builds
@@ -57,6 +72,10 @@ extension (`Moose/Role.tpm` for Moose::Role), and PVM reads it in place
 of the module's source, whether or not the module is installed. PVM
 ships declarations for:
 
+- the 50 core modules perl 5.42's own library imports most, measured
+  (`Carp`, `Exporter`, `Scalar::Util`, `Config`, `File::Spec`, `POSIX`,
+  `List::Util` and 43 more; `internal/parse/testdata/core_module_ranking.txt`
+  pins the list)
 - Moose and Moose::Role
 - Mojolicious::Lite
 - Future::AsyncAwait
@@ -69,14 +88,12 @@ exports and each sub's prototype:
 ```perl
 package Mojolicious::Lite;
 
-our @EXPORT = qw(
-    any get options patch post put query websocket
-    new app del group helper hook plugin under
-);
-
-sub get;
-sub group :prototype(&);
+sub get :export;
+sub group :export :prototype(&);
 ```
+
+`:export` marks a sub a bare `use` imports, and `:export_ok` one that
+must be asked for by name. A declaration file has no `@EXPORT` list.
 
 `CORE.tpm` carries typed declarations: each parameter's type, and the
 type the builtin returns. The prototype comes from the types, so
@@ -85,6 +102,24 @@ type the builtin returns. The prototype comes from the types, so
 ```perl
 sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
 ```
+
+A library's declaration file is typed the same way, and `psc check`
+types a call to a sub it declares from that declaration: the call's
+arity, its arguments' types and its context choose the candidate, and
+the call has that candidate's return type. Carp's declares:
+
+```perl
+sub carp :export (List[Str] @message) Boolean;
+```
+
+so an argument `carp` would join as a string is checked as one:
+
+```
+declared_mismatch.pl:7:19: error: call to carp: argument 2 expects Str, got Undef [coercion-mismatch]
+```
+
+for `carp("no name: ", undef);`, where perl warns "Use of uninitialized
+value in join or string".
 
 Typed Perl is valid only in `.tpm` files, and you cannot yet add your
 own. The design, including the typed declarations still to come, is in

@@ -1,0 +1,139 @@
+// ABOUTME: Tests for Options.WarnPossibleUndef: a declared call's Undef is silent by default unless its own arguments prove it.
+// ABOUTME: Covers a single declared candidate (blessed), a multi's catch-all (refaddr), and a proven arity (sum()).
+
+package infer_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
+	"tamarou.com/pvm/internal/parse"
+)
+
+// diagsWithOptions is resolvedDiags (flow_test.go) with the given Options,
+// for WarnPossibleUndef, which the shared helper has no parameter for.
+func diagsWithOptions(src string, opts infer.Options) []infer.Diagnostic {
+	root := parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })
+	f := lower.Lower(root)
+	_, d, _ := infer.Analyze(f, lower.NewPositions(root, f), nil, opts)
+	return d
+}
+
+// TestWarnPossibleUndefSingleCandidate: Scalar::Util::blessed has one
+// declared candidate, `(Any $ref) Str|Undef` -- no sibling, no multi at
+// all -- yet perigrin's ruling (2026-10-20) covers it exactly the same
+// as a multi's catch-all: the call's own argument never proves whether
+// $x is a blessed reference, so blessed($x) is one of two outcomes the
+// declaration itself states, not one the call's arguments proved, and
+// its Undef is silent by default, reported only under the flag.
+func TestWarnPossibleUndefSingleCandidate(t *testing.T) {
+	const src = `use Scalar::Util qw(blessed);
+my ($x) = @_;
+my $same = (blessed($x) eq "Some::Class");
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
+}
+
+// TestWarnPossibleUndefCatchAllCandidate: Scalar::Util::refaddr is a
+// multi, and its widest, catch-all candidate, `(Any $ref) Int|Undef`,
+// selected over a Scalar argument never proven a Ref, is the same
+// shape: the declaration states two outcomes, and the call's own
+// argument does not rule either out.
+func TestWarnPossibleUndefCatchAllCandidate(t *testing.T) {
+	const src = `use Scalar::Util qw(refaddr);
+my ($x, $y) = @_;
+my $same = (refaddr($x) eq refaddr($y));
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 2) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[1].Code)
+	}
+}
+
+// TestWarnPossibleUndefProvenSelectionReports: List::Util::sum's own
+// `()` candidate, the only one zero arguments admit, answers nothing
+// but Undef -- perigrin's own example of arguments proving the
+// Undef-returning candidate selected, since sum()'s resolved return has
+// no other bit left to be silent about. It reports unconditionally,
+// flag or no flag.
+func TestWarnPossibleUndefProvenSelectionReports(t *testing.T) {
+	const src = `use List::Util qw(sum);
+my $same = (sum() eq "0");
+`
+	assert.Len(t, diagsWithOptions(src, infer.Options{}), 1)
+	assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1)
+}
+
+// TestEmptyMaxPlusOneReportedUnderFlag: S17, List::Util::max (and min,
+// maxstr, minstr) is declared to return plain Scalar, which carries the
+// Undef bit as one of its own (types.go, Scalar = Undef|Boolean|Str|
+// DualVar|Ref) rather than a narrower union naming it -- max() and
+// max(@empty) are both measured undef on 5.42.0. Scalar is also one of
+// types.go's polymorphicMasks, "a general container that could hold
+// any of its subtypes at runtime", which is why `max(@n) + 1` is silent
+// by default: the whole type, Undef included, might always be read as
+// a Num. Under --warn-possible-undef that ambient reading must not
+// stand in for the ordinary report once the flag means to see past it:
+// perl 5.42 -w warns "Use of uninitialized value in addition (+)" on
+// `max(@empty) + 1`.
+func TestEmptyMaxPlusOneReportedUnderFlag(t *testing.T) {
+	const src = `use List::Util qw(max);
+my @empty;
+my $x = max(@empty) + 1;
+`
+	assert.Empty(t, diagsWithOptions(src, infer.Options{}))
+	diags := diagsWithOptions(src, infer.Options{WarnPossibleUndef: true})
+	if assert.Len(t, diags, 1) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
+}
+
+// TestCheckArgPossibleUndefUnderFlag: S17 for a call's argument, as
+// TestEmptyMaxPlusOneReportedUnderFlag is for an operator's operand.
+// max and min of an empty list are undef, declared plain Scalar, which
+// fits a Num slot by default; under --warn-possible-undef that must not
+// stand in for the report. perl 5.42 -w warns "Use of uninitialized
+// value in abs" (in sqrt, and in subroutine entry for floor) on each.
+// first is declared Any, one value and not a list, and max is one
+// Scalar, so each is forced in a scalar slot and in print's slurpy slot
+// alike: perl 5.42 -w warns "Use of uninitialized value" in abs and in
+// print.
+func TestCheckArgPossibleUndefUnderFlag(t *testing.T) {
+	for _, src := range []string{
+		"use List::Util qw(max); my @e; my $x = abs(max(@e));",
+		"use List::Util qw(max); use POSIX qw(floor); my @e; my $x = floor(max(@e));",
+		"use List::Util qw(min); my @e; my $x = sqrt(min(@e));",
+		"use List::Util qw(max); my @e; my $m = max(@e); my $x = abs($m);",
+		"use List::Util qw(first); my @e; my $x = abs(first { $_ } @e);",
+		"use List::Util qw(max); my @e; print max(@e);",
+		"use List::Util qw(first); my @e; print first { $_ } @e;",
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+		assert.Len(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), 1, src)
+	}
+}
+
+// TestListIntoSlurpyNotPossibleUndef: a declared call that returns a
+// list carries the Undef bit only because a List holds any Scalar, so
+// WarnPossibleUndef does not force it as a report where a list slot
+// takes it. perl 5.42 -w is silent on each of these programs.
+func TestListIntoSlurpyNotPossibleUndef(t *testing.T) {
+	for _, src := range []string{
+		"use Data::Dumper; my $y = 1; print Dumper($y);",
+		"use List::Util qw(shuffle); my @r = (1, 2); print shuffle(@r);",
+		"use List::Util qw(uniq); my @r = (1, 2); print uniq(@r);",
+		"use List::Util qw(uniq); unlink(uniq(), ());",
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+		assert.Empty(t, diagsWithOptions(src, infer.Options{WarnPossibleUndef: true}), src)
+	}
+}

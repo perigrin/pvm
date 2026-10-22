@@ -1,0 +1,36 @@
+# ABOUTME: Call cases for Test::More's subs, which the return-type oracle calls to hold
+# ABOUTME: Test::More.tpm to perl. BAIL_OUT and plan are exempt (oracleExempt); see there.
+
+# new_ok's own `new` returns undef, so new_ok's second call case measures
+# new_ok's claim with a class whose new died: new_ok returns whatever its
+# own $obj holds, undef when the try failed.
+package Oracle::NewDies;
+sub new { return undef }
+
+package main;
+(
+    can_ok     => [ [ 'Test::More', 'ok' ] ],
+    cmp_ok     => [ [ 1, '==', 1, 'numbers match' ] ],
+    diag       => [ ['a diagnostic'] ],
+    done_testing => [ [] ],
+    eq_array   => [ [ [ 1, 2 ], [ 1, 2 ] ] ],
+    eq_hash    => [ [ { a => 1 }, { a => 1 } ] ],
+    eq_set     => [ [ [ 1, 2 ], [ 2, 1 ] ] ],
+    explain    => [ [ { a => 1 } ] ],
+    fail       => [ ['forced failure'] ],
+    is         => [ [ 1, 1, 'one is one' ] ],
+    is_deeply  => [ [ [1], [1], 'same shape' ] ],
+    isa_ok     => [ [ Test::Builder->new, 'Test::Builder', 'builder' ] ],
+    isnt       => [ [ 1, 2, 'one is not two' ] ],
+    like       => [ [ 'abc', qr/b/, 'matches' ] ],
+    new_ok     => [ ['Test::Builder'], ['Oracle::NewDies'] ],
+    note       => [ ['a note'] ],
+    ok         => [ [ 1, 'truthy' ] ],
+    pass       => [ ['forced pass'] ],
+    require_ok => [ ['Carp'] ],
+    skip       => [ [ 'no block in scope', 1 ] ],
+    subtest    => [ [ 'nested', sub { Test::More::ok( 1, 'inner' ) } ] ],
+    todo_skip  => [ [ 'no block in scope', 1 ] ],
+    unlike     => [ [ 'abc', qr/z/, 'does not match' ] ],
+    use_ok     => [ ['Carp'] ],
+);

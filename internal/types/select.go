@@ -40,12 +40,17 @@ type Selection struct {
 // 2026-10-02): the one whose parameters are all subtypes of every other's,
 // as multi dispatch does in Raku, CLOS and Julia. When the call site cannot decide
 // -- an argument of unknown type fits more than one candidate, or none is
-// most specific -- the call's type is the join of theirs. A call no
-// candidate takes fails, and is never joined.
+// most specific -- the call's type is the join of theirs. Argument types
+// only decide between candidates: a single candidate whose arity fits is
+// selected whatever its arguments' types, and an argument fitting none of
+// several leaves the call undecided. A call whose arity no candidate takes
+// fails, and is never joined.
 //
 // ctx is the context the call is in: ScalarCtx (BooleanCtx is the same),
-// ListCtx or VoidCtx. What a call whose context is undetermined passes is
-// RFC 0001 "Call sites"'s; no candidate takes UnknownCtx.
+// ListCtx or VoidCtx, or UnknownCtx when the call site has not determined
+// it. An undetermined context rules nothing out: the call is what each
+// determined context would select, and when they differ, the call site
+// cannot decide, so it is the join of theirs.
 func Select(cands []Signature, args []Type, ctx Context) Selection {
 	return SelectShaped(cands, args, "", ctx)
 }
@@ -60,11 +65,42 @@ func Select(cands []Signature, args []Type, ctx Context) Selection {
 // one as a scalar, before the most specific is sought. With no shapes
 // stated, as for a call to a sub, none is ruled out by shape.
 func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	if ctx == UnknownCtx {
+		return selectAnyContext(cands, args, shapes)
+	}
 	fit := Taking(cands, args, shapes, ctx)
+	if len(fit) == 0 {
+		// A parameter type is its argument's coercion target (RFC 0001,
+		// "What a parameter type means"), so argument types decide only
+		// between candidates and never rule a call out: when none fits,
+		// the call is taken as one whose argument types are unknown, and
+		// the call site reports the coercion. A backslashed container
+		// coerces nothing, so a mismatch there still rules a candidate out,
+		// before context chooses among those left.
+		//
+		// Only the arguments coercedArgs finds unfit for every coercing
+		// candidate are taken as Unknown: one that already fits some of
+		// them keeps its own type, so it can still decide most-specific
+		// below -- IO/Handle.pm's `qualify($_[0], caller)`, where $_[0] is
+		// proven a Ref and `caller`'s List fits neither candidate's
+		// `Optional[Str] $pkg`, still selects qualify's Ref candidate.
+		var kept []int
+		var coercing []Signature
+		for i, c := range cands {
+			if c.fitsContainers(args) {
+				kept, coercing = append(kept, i), append(coercing, c)
+			}
+		}
+		kept, coercing = coercibleTo(kept, coercing, args)
+		args = coercedArgs(coercing, args)
+		for _, j := range Taking(coercing, args, shapes, ctx) {
+			fit = append(fit, kept[j])
+		}
+	}
 	if len(fit) == 0 {
 		return Selection{Outcome: Failed, Candidate: -1}
 	}
-	if len(fit) == 1 || !slices.Contains(args, Unknown) {
+	if len(fit) == 1 || !unknownDiscriminates(cands, fit, args) {
 		if best, ok := mostSpecific(cands, fit, len(args)); ok {
 			return Selection{Outcome: Selected, Candidate: best, Returns: cands[best].Returns}
 		}
@@ -72,6 +108,139 @@ func SelectShaped(cands []Signature, args []Type, shapes string, ctx Context) Se
 	joined := Unknown
 	for _, i := range fit {
 		joined = Join(joined, cands[i].Returns)
+	}
+	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
+}
+
+// coercibleTo narrows the coercion retry's candidates, coercing at the
+// indexes kept, to those every misfit argument coerces to: an argument
+// that fits none of them is converted to the parameter that can take it,
+// so Cwd::chdir's `Optional[Str]` candidate takes a HashRef, which
+// stringifies, and its handle candidate does not. A union parameter
+// takes what coerces to any member that is a coercion target, as
+// coercesToMember says. When no candidate takes every misfit, every one
+// is kept.
+func coercibleTo(kept []int, coercing []Signature, args []Type) ([]int, []Signature) {
+	misfit := coercedArgs(coercing, args)
+	var keptTo []int
+	var to []Signature
+	for j, c := range coercing {
+		takes := c.accepts(len(args))
+		for i, a := range misfit {
+			takes = takes && (a != Unknown || args[i] == Unknown || coercesToMember(args[i], c.paramType(i)))
+		}
+		if takes {
+			keptTo, to = append(keptTo, kept[j]), append(to, c)
+		}
+	}
+	if len(to) == 0 {
+		return kept, coercing
+	}
+	return keptTo, to
+}
+
+// coercesToMember reports whether from coerces to to or to one of its
+// members that is a coercion target: Str|Undef takes a Scalar as Str
+// does, Str|FileHandle takes a HashRef as its Str, and FileHandle, with
+// no coercion target among its members, takes none.
+func coercesToMember(from, to Type) bool {
+	if IsCoercible(from, to) {
+		return true
+	}
+	for target, domain := range coercionTargets {
+		if to&target == target && IsSubtype(from, domain) {
+			return true
+		}
+	}
+	return false
+}
+
+// coercedArgs is args for the coercion retry: a position whose argument
+// already fits some candidate of coercing keeps that argument's own
+// type, and only a position fitting none of them is taken as Unknown.
+// A candidate coercedArgs reached only through fitsContainers's vacuous
+// "no aliased parameter to rule it out" -- a zero-parameter one beside
+// arguments its arity alone will exclude -- has no opinion on any
+// position, and is skipped rather than consulted. So is one whose arity
+// does not accept the call at all: paramType(i) clamps past its last
+// parameter, so a one-argument candidate would otherwise vouch for
+// position 1 of a two-argument call it cannot take (Socket's
+// `sockaddr_in`, a two-arg `(Int, Str)` beside a one-arg `(Str)`
+// overload for the packed form).
+func coercedArgs(coercing []Signature, args []Type) []Type {
+	out := slices.Clone(args)
+	for i, a := range out {
+		if a == Unknown {
+			continue
+		}
+		fits := false
+		for _, c := range coercing {
+			if len(c.Params) > 0 && c.accepts(len(args)) && IsSubtype(a, c.paramType(i)) {
+				fits = true
+				break
+			}
+		}
+		if !fits {
+			out[i] = Unknown
+		}
+	}
+	return out
+}
+
+// unknownDiscriminates reports whether args has an Unknown argument at a
+// position where fit's candidates' parameter types actually differ: only
+// there can the missing information change which candidate is most
+// specific. An Unknown at a position every fit candidate takes the same
+// way -- Encode::encode's $encoding, `Str|Object` on both candidates --
+// cannot: whichever type the argument turns out to be, every fit
+// candidate takes it identically, so it decides nothing between them.
+func unknownDiscriminates(cands []Signature, fit []int, args []Type) bool {
+	for i, a := range args {
+		if a != Unknown {
+			continue
+		}
+		first := cands[fit[0]].paramType(i)
+		for _, j := range fit[1:] {
+			if cands[j].paramType(i) != first {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SelectInvoked is SelectShaped for a call that writes an invocant, the
+// first of args: sort's comparison routine, `sort byname @x`. Only the
+// candidates that take an invocant take it, as byInvocant views them, and
+// Candidate indexes cands.
+func SelectInvoked(cands []Signature, args []Type, shapes string, ctx Context) Selection {
+	view, orig := byInvocant(cands, true)
+	sel := SelectShaped(view, args, shapes, ctx)
+	if sel.Outcome == Selected {
+		sel.Candidate = orig[sel.Candidate]
+	}
+	return sel
+}
+
+// selectAnyContext is SelectShaped in a context the call site has not
+// determined: the candidate every determined context selects, if they
+// agree, and otherwise the join of what each takes.
+func selectAnyContext(cands []Signature, args []Type, shapes string) Selection {
+	var taken []Selection
+	for _, ctx := range []Context{ScalarCtx, ListCtx, VoidCtx} {
+		if sel := SelectShaped(cands, args, shapes, ctx); sel.Outcome != Failed {
+			taken = append(taken, sel)
+		}
+	}
+	if len(taken) == 0 {
+		return Selection{Outcome: Failed, Candidate: -1}
+	}
+	if !slices.ContainsFunc(taken, func(sel Selection) bool { return sel != taken[0] }) && taken[0].Outcome == Selected {
+		return taken[0]
+	}
+	joined := Unknown
+	for _, sel := range taken {
+		joined = Join(joined, sel.Returns)
 	}
 	return Selection{Outcome: Undecided, Candidate: -1, Returns: joined}
 }
@@ -174,6 +343,22 @@ func (s Signature) asSpecific(o Signature, n int) bool {
 	return true
 }
 
+// Arity is the number of arguments s's own Params take: least is its
+// required parameter count, and unbounded is whether a slurpy parameter
+// admits any count past that. It excludes Invocant, as a call's
+// comma-separated arguments do.
+func (s Signature) Arity() (least int, unbounded bool) {
+	for _, p := range s.Params {
+		if p.Required {
+			least++
+		}
+		if p.Slurpy() {
+			unbounded = true
+		}
+	}
+	return least, unbounded
+}
+
 // accepts reports whether s takes n arguments: at least its required
 // parameters, and no more than it has unless one is a slurpy. A required
 // slurpy, `List @list = die`, takes at least one. The n arguments are a
@@ -183,13 +368,7 @@ func (s Signature) accepts(n int) bool {
 	if s.Invocant != nil && s.Invocant.Required {
 		return false
 	}
-	least, slurpy := 0, false
-	for _, p := range s.Params {
-		if p.Required {
-			least++
-		}
-		slurpy = slurpy || p.Slurpy()
-	}
+	least, slurpy := s.Arity()
 	return n >= least && (slurpy || n <= len(s.Params))
 }
 
@@ -213,6 +392,22 @@ func Accepts(cands []Signature, n int) bool {
 func (s Signature) fits(args []Type) bool {
 	for i, a := range args {
 		if a != Unknown && !IsSubtype(a, s.paramType(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// fitsContainers is fits over s's backslashed container parameters only,
+// `Hash \%h`: perl takes the container the caller writes and coerces
+// nothing, refusing `each $x` at compile time. A candidate with no
+// parameters has no container; its arity rules it out.
+func (s Signature) fitsContainers(args []Type) bool {
+	if len(s.Params) == 0 {
+		return true
+	}
+	for i, a := range args {
+		if s.Params[min(i, len(s.Params)-1)].Alias && a != Unknown && !IsSubtype(a, s.paramType(i)) {
 			return false
 		}
 	}

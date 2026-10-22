@@ -43,20 +43,27 @@ func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnaly
 // slice reports. A kind no rule handles is typed Any, raises no diagnostic,
 // and has its children walked.
 func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) (map[lower.ID]types.Type, []Diagnostic, *SymbolTable) {
-	a := &analysis{
-		pos:         pos,
-		idx:         idx,
-		opts:        opts,
-		st:          collectDeclarations(f, pos),
-		annotations: map[lower.ID]types.Type{},
-		diags:       []Diagnostic{},
-		subs:        fileSubs(f),
-		assigned:    assignedNames(f),
-		evalCtx:     map[lower.ID]types.Context{},
-		classTypes:  map[lower.ID]string{},
-	}
+	a := newAnalysis(f, pos, idx, opts)
 	a.walk(f)
 	return a.annotations, a.diags, a.st
+}
+
+// newAnalysis is pass 2's state for f, with pass 1's declarations
+// collected and nothing walked yet.
+func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
+	return &analysis{
+		pos:            pos,
+		idx:            idx,
+		opts:           opts,
+		st:             collectDeclarations(f, pos),
+		annotations:    map[lower.ID]types.Type{},
+		diags:          []Diagnostic{},
+		subs:           fileSubs(f),
+		assigned:       assignedNames(f),
+		evalCtx:        map[lower.ID]types.Context{},
+		classTypes:     map[lower.ID]string{},
+		undecidedUndef: map[lower.ID]bool{},
+	}
 }
 
 // analysis is pass 2's state, shared by every rule of the walk.
@@ -81,6 +88,18 @@ type analysis struct {
 	// classTypes is the class of the object a constructor call makes,
 	// keyed by the call's id, for the assignment that takes it.
 	classTypes map[lower.ID]string
+	// undecidedUndef marks a declared call's own id when its resolved
+	// return carries the Undef bit beside some other bit -- one outcome
+	// among several the declaration itself states, whether from a
+	// single candidate (Scalar::Util::blessed's `(Any $ref) Str|Undef`)
+	// or types.Select choosing or joining among several (markPossibleUndef,
+	// calls.go) -- rather than the call's own arguments proving the
+	// return could be nothing else. checkOperand and checkArg read this
+	// to apply WarnPossibleUndef's default silence to exactly that
+	// Undef, never to one a call's own arguments already proved
+	// (List::Util::sum's `()` candidate, resolved whole to Undef, has no
+	// other bit left to be silent about).
+	undecidedUndef map[lower.ID]bool
 	// modifier is the `if` modifier whose match guards the body being
 	// walked, which a capture in that body reads, or nil.
 	modifier *lower.IfStmt
@@ -88,6 +107,10 @@ type analysis struct {
 	// type each variable a loop exit narrowed had where the exit leaves,
 	// keyed by the scope that declares it, as leaveLoop says.
 	loopExits []map[scopedName]types.Type
+	// loops is the loops being walked, innermost last, as flow.go's loop
+	// keeps it: vars.go's narrowDerefBase marks in them a deref in a part
+	// of a loop that may run zero times (I4).
+	loops []openLoop
 	// warningsOff is the warning categories a `no warnings` has turned
 	// off where the walk is, as useStmt and block keep it.
 	warningsOff warningsOff
@@ -96,6 +119,9 @@ type analysis struct {
 // walk types n, children first, and records the type under n's id. Unknown
 // is not recorded: an absent annotation is how "no type" reads.
 func (a *analysis) walk(n lower.Node) types.Type {
+	if a.enterLoopPart(n) {
+		defer a.leaveLoopPart()
+	}
 	var t types.Type
 	switch n := n.(type) {
 	case *lower.Hole:
@@ -183,6 +209,10 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		t = types.Unknown
 	case *lower.Decl:
 		t = a.decl(n)
+	case *lower.File:
+		a.voidStatements(n.Stmts)
+		a.walkChildren(n)
+		t = types.Any
 	case *lower.Block:
 		a.block(n)
 		t = types.Any
@@ -193,13 +223,17 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.ifStmt(n)
 		t = types.Unknown
 	case *lower.WhileStmt:
-		a.loop(func() { a.whileStmt(n) })
+		a.loop(n, func() { a.whileStmt(n) })
 		t = types.Unknown
 	case *lower.ForeachStmt:
-		a.loop(func() { a.foreachStmt(n) })
+		a.loop(n, func() { a.foreachStmt(n) })
 		t = types.Unknown
-	case *lower.CForStmt, *lower.BlockStmt:
-		a.loop(func() { a.walkChildren(n) })
+	case *lower.CForStmt:
+		a.condition(n.Cond)
+		a.loop(n, func() { a.walkChildren(n) })
+		t = types.Any
+	case *lower.BlockStmt:
+		a.loop(n, func() { a.walkChildren(n) })
 		t = types.Any
 	case *lower.UseStmt:
 		a.useStmt(n)
@@ -213,6 +247,7 @@ func (a *analysis) walk(n lower.Node) types.Type {
 		a.walkChildren(n)
 		t = types.Any
 	}
+	a.invalidateWrites(n)
 	if t != types.Unknown {
 		a.annotations[n.Meta().ID] = t
 	}
@@ -226,15 +261,30 @@ func (a *analysis) walk(n lower.Node) types.Type {
 // A `no warnings` in b lasts to the end of b, as perl's lexical warnings
 // do.
 func (a *analysis) block(b *lower.Block) {
+	if a.enterLoopPart(b) {
+		defer a.leaveLoopPart()
+	}
 	if s := a.st.blockScopes[b.ID]; s != nil {
 		a.st.Reenter(s)
 	} else {
 		a.st.EnterScope("block")
 	}
 	off := a.warningsOff
+	a.voidStatements(b.Stmts)
 	a.walkChildren(b)
 	a.warningsOff = off
 	a.st.ExitScope()
+}
+
+// voidStatements puts the expression of each statement of stmts but the
+// last in void context, where its value is discarded. The last may be the
+// value of the sub, do or eval it ends, so its context is not known here.
+func (a *analysis) voidStatements(stmts []lower.Node) {
+	for _, s := range stmts[:max(len(stmts)-1, 0)] {
+		if es, ok := s.(*lower.ExprStmt); ok && es.X != nil {
+			a.evalCtx[es.X.Meta().ID] = types.VoidCtx
+		}
+	}
 }
 
 // walkChildren walks each of n's children.
@@ -254,6 +304,12 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 	case lower.DeclMy, lower.DeclOur, lower.DeclState, lower.DeclLocal:
 		for _, v := range d.Vars {
 			a.walk(v)
+			if d.Kind == lower.DeclLocal {
+				// local's own target, unlike my/our/state's, may be an
+				// element -- `local $r[0] = ...` -- whose guard shadow
+				// (flow.go's guardVarName) the localisation replaces.
+				a.invalidateElementShadow(v)
+			}
 		}
 		if d.Init == nil {
 			return types.Unknown
@@ -282,6 +338,7 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		for _, v := range d.Vars {
 			a.walk(v)
 		}
+		hoisted := a.st.Hoist()
 		if d.Init != nil {
 			a.st.EnterScope(subName(d))
 			widened := a.widenWritten(d.Init)
@@ -319,6 +376,7 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 			}
 			a.recordParamTypes(d)
 		}
+		hoisted()
 		return types.Code
 	}
 	// field, class and method: no rule types them yet, and no fixture
@@ -613,6 +671,44 @@ type Options struct {
 	// literal known not to be numeric is reported either way, as perl warns
 	// on `"abc" + 1`.
 	WarnLossyCoercion bool
+
+	// WarnPossibleUndef reports an Undef from a declared call's return
+	// that the call's own arguments do not prove (perigrin, 2026-10-20,
+	// "possible-undef unless proven"): any Undef a declaration states as
+	// one of several outcomes -- a single candidate's own union return
+	// (Scalar::Util::blessed's `(Any $ref) Str|Undef`, so `blessed($obj)
+	// eq 'Foo'` is silent by default whatever $obj is) exactly as a
+	// multi's widest, catch-all candidate (Scalar::Util::reftype,
+	// refaddr) -- is accepted rather than reported by default, the same
+	// way an Unknown argument itself is. Under WarnPossibleUndef it is
+	// reported as an ordinary coercion mismatch. Only a resolved return
+	// the call's own arguments force outright, with no other outcome
+	// left at all (List::Util::sum's `()` candidate, the only one zero
+	// arguments admit), is not this: it reports either way, as it
+	// always has, since the declaration alone did not decide it -- the
+	// call did.
+	WarnPossibleUndef bool
+
+	// WarnPossibleMismatch reports an argument whose union type has a
+	// member that fits the parameter, beside one that does not
+	// (perigrin, 2026-10-21): the same loss of precision
+	// WarnPossibleUndef forgives for a declared call's Undef, extended
+	// to a declared call's non-Undef union return. Symbol::qualify's
+	// Ref candidate returns the reference it was given, unchanged
+	// (ScalarRef, ArrayRef, HashRef, CodeRef or Object alongside
+	// GlobRef), so IO/Handle.pm:516's `tell qualify($_[0], caller) if
+	// ref($_[0])` sees a Ref where tell's Glob-only parameter wants a
+	// GlobRef -- psc knows only that the value is some reference, never
+	// which kind, though it is in fact always a GlobRef there. By
+	// default this is accepted, the same way an Unknown argument itself
+	// is; under WarnPossibleMismatch it is reported as an ordinary
+	// mismatch. An argument whose union has no fitting member at all is
+	// not this, and still reports either way, as it always has: Undef
+	// is never a fitting member on its own, so a union whose only
+	// problem bit is Undef is WarnPossibleUndef's business, not this
+	// one's -- Sys::Syslog.pm:562's Undef|Boolean argument, with Undef
+	// removed already a Boolean fitting Boolean|Int, still reports.
+	WarnPossibleMismatch bool
 }
 
 // satisfies reports whether actual satisfies required under opts.
@@ -1002,23 +1098,13 @@ func builtinMinArity(sigs []types.Signature) int {
 }
 
 // shapedCallReturns is a call's type in context ctx from the candidates sigs
-// that take arguments of the given shapes, one "$" or "@" each, falling back
-// to builtinReturns when none does.
-func shapedCallReturns(sigs []types.Signature, shapes string, ctx types.Context) types.Type {
-	ctxs := []types.Context{ctx}
-	if ctx == types.UnknownCtx {
-		ctxs = []types.Context{types.ScalarCtx, types.ListCtx, types.VoidCtx}
-	}
-	unknown := make([]types.Type, len(shapes))
+// that take arguments of types args and of the given shapes, one "$" or "@"
+// each, falling back to builtinReturns when none does. The arguments' types
+// choose between candidates and never rule one out, as types.Select says.
+func shapedCallReturns(sigs []types.Signature, args []types.Type, shapes string, ctx types.Context) types.Type {
 	for _, sh := range []string{shapes, ""} {
-		t, taken := types.Unknown, false
-		for _, x := range ctxs {
-			if sel := types.SelectShaped(sigs, unknown, sh, x); sel.Outcome != types.Failed {
-				t, taken = types.Join(t, sel.Returns), true
-			}
-		}
-		if taken {
-			return t
+		if sel := types.SelectShaped(sigs, args, sh, ctx); sel.Outcome != types.Failed {
+			return sel.Returns
 		}
 	}
 	return builtinReturns(sigs, ctx)
@@ -1217,9 +1303,17 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // type of one guard becomes the input type for the next), so that compound
 // conditions on the same variable (e.g. defined($x) && ref($x)) correctly
 // intersect their effects. A variable never declared is skipped, so no
-// phantom shadow is made for it, except under a referent guard: what
+// phantom shadow is made for it, except under a referent guard, where what
 // `ref \$v eq 'GLOB'` narrows $v to does not depend on how $v was typed,
-// and a variable a sub body declares is not found from the lowered walk.
+// and a variable a sub body declares is not found from the lowered walk, or
+// for an element guard var name (`$results[0]`), which guardVarName gives a
+// name for but which the symbol table never defines: index reads the same
+// name back (vars.go), so a guard on a named array's literal-index element
+// narrows just that read, perl 5.42 -w silent on JSON::PP's `if (@results
+// and ref $results[0]) { if (refaddr($obj) eq refaddr($results[0])) {...`.
+// $_, a grep or map block's topic, is the same story: no `my $_` ever
+// defines it, yet perl 5.42 -w is silent on `grep { ref($_) &&
+// reftype($_) eq 'CODE' } @list`.
 func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type, map[string]string) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -1236,8 +1330,13 @@ func guardShadows(guards []*guardResult, st *SymbolTable) (map[string]types.Type
 		currentType, seen := working[guard.VarName]
 		if !seen {
 			sym, found := st.Lookup(guard.VarName)
-			if !found && guard.Guard.Kind != types.GuardReferent {
-				// Variable was never declared — skip to avoid phantom shadows.
+			// A guard's VarName the symbol table never defines is still real:
+			// guardVarName's own shape for an element read with a literal
+			// index, `$arr[0]` (HasSuffix "]"), and $_, a grep or map block's
+			// topic -- neither is declared with `my`, yet perl 5.42 -w is
+			// silent narrowing either. Only a name genuinely never declared
+			// is skipped, to avoid a phantom shadow.
+			if !found && guard.Guard.Kind != types.GuardReferent && !strings.HasSuffix(guard.VarName, "]") && guard.VarName != "$_" {
 				continue
 			}
 			currentType = guardedType(sym.Type)

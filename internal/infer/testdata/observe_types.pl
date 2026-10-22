@@ -6,7 +6,7 @@ use strict;
 use warnings;
 no warnings 'experimental::builtin';
 use B ();
-use Scalar::Util qw(blessed reftype looks_like_number);
+use Scalar::Util qw(blessed reftype looks_like_number isdual);
 use builtin qw(is_bool);
 
 # WHAT THIS IS FOR.
@@ -43,8 +43,31 @@ sub observe ($v) {
         return 'ScalarRef';
     }
 
+    # A bare glob is not a reference, so ref() reports "" for it as for a
+    # plain string; a reference taken to it says GLOB.
+    return 'Glob' if ref(\$v) eq 'GLOB';
+
     # Boolean first: a marked boolean also looks like an integer.
     return 'Boolean' if is_bool($v);
+
+    # DualVar before the string/number tests: isdual alone is history, not
+    # membership -- Scalar::Util's own docs warn "almost any value could be
+    # considered as a dualvar ... through the course of normal operations"
+    # (a plain "10" numified by +0 reads dual too). The second test is
+    # membership: stringifying the numeric value and comparing it against
+    # the scalar's own string rules those ordinary values back out, and
+    # keeps a true dualvar -- $!, Socket::getaddrinfo's error -- where the
+    # two representations actually disagree.
+    if ( isdual($v) ) {
+        no warnings 'numeric';
+        return 'DualVar' if "$v" ne ( $v + 0 );
+    }
+
+    # Inf and NaN before Num: looks_like_number is true of both (measured:
+    # perl stringifies them as exactly "Inf", "-Inf" and "NaN"), but RFC
+    # 0001 makes them members of Str, not Num.
+    return 'Inf' if $v =~ /\A-?Inf\z/i;
+    return 'NaN' if $v =~ /\ANaN\z/i;
 
     # Int before Num, since every integer is also a number.
     return 'Int' if $v =~ /\A-?[0-9]+\z/;

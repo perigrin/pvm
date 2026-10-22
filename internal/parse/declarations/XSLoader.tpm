@@ -1,0 +1,21 @@
+# ABOUTME: Declares XSLoader's load and bootstrap_inherit: neither is ever exported.
+# ABOUTME: Measured on perl 5.42.0 with XSLoader 0.32: neither sub carries a prototype.
+package XSLoader;
+
+# XSLoader exports nothing of its own -- measured on 5.42.0, it never
+# calls Exporter and `use XSLoader;` installs no name, so `load()` called
+# bare never resolves to XSLoader::load; even `use XSLoader qw(load);`
+# installs nothing (measured: perl warns "Attempt to call undefined
+# import method" and continues, not dying, with load still undefined in
+# the caller). Every caller spells it out, `XSLoader::load(__PACKAGE__,
+# $VERSION)`.
+#
+# Both subs end in a `goto` to a real extension's bootstrap function, or
+# to DynaLoader's, so what they return depends on a compiled shared
+# object the return-type oracle's call cases cannot safely supply --
+# calling either with a name that resolves to a real extension would
+# bootstrap it a second time, and one that does not resolve dies with
+# "Can't locate loadable object", which is not evidence of the shape a
+# real bootstrap returns. Each is declared Any and exempt.
+sub load (List[Str] @args) Any;
+sub bootstrap_inherit (List[Str] @args) Any;

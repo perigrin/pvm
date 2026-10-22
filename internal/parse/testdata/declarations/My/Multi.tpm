@@ -1,0 +1,31 @@
+# ABOUTME: A declaration file of multis chosen at the call site, for infer's declared_test.go.
+# ABOUTME: RFC 0001 "Call sites": arity first, then argument types between same-arity candidates.
+package My::Multi;
+
+# Two candidates of one arity whose parameter types are disjoint: an Int
+# and a code reference.
+multi sub which :export (Int $n) Int;
+multi sub which :export (CodeRef $c) Str;
+
+# Two candidates of different arities.
+multi sub two :export (Int $a) Int;
+multi sub two :export (Int $a, Int $b) Str;
+
+# A single candidate, which a file may shadow with a sub of its own.
+sub lone :export (Int $n) Int;
+
+# Two candidates of backslashed parameters, each taking one container.
+multi sub box :export (Array \@a) Int;
+multi sub box :export (Array \@a, Array \@b) Str;
+
+# Two candidates of one arity that differ only in the container their
+# backslashed parameter takes, which derive the prototype `\[@%]`.
+multi sub bag :export (Array \@a) Int;
+multi sub bag :export (Hash \%h) Str;
+
+# Candidates that disagree on whether a position is backslashed, which
+# derive no prototype.
+multi sub d :export (Array \@a) Int;
+multi sub d :export (List @l) Str;
+multi sub e :export (Array \@a) Int;
+multi sub e :export (Int $a, Int $b, Int $c) Str;

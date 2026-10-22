@@ -1,0 +1,19 @@
+# ABOUTME: Declares what `use File::Path` exports: mkpath and rmtree bare, make_path and
+# ABOUTME: remove_tree by request. Measured on perl 5.42.0 with File::Path 2.18.
+package File::Path;
+
+# None of these four carries a prototype, so each takes a plain slurpy
+# list (RFC 0001, "No prototype is the default prototype").
+#
+# mkpath and make_path answer by context: measured on 5.42.0, list
+# context returns the directories newly created (none already existing),
+# scalar context the count of them.
+multi sub mkpath :export (List @args) List[Str];
+multi sub mkpath :export (List @args) Int;
+multi sub make_path :export_ok (List @args) List[Str];
+multi sub make_path :export_ok (List @args) Int;
+# rmtree and remove_tree always answer a count, in either context:
+# measured on 5.42.0, a list-context call still returns a plain Int, not
+# the files removed.
+sub rmtree :export (List @args) Int;
+sub remove_tree :export_ok (List @args) Int;

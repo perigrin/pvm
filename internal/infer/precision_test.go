@@ -48,7 +48,10 @@ type observation struct {
 // observedToLattice maps an observed type name to the PSC type it should be.
 var observedToLattice = map[string]types.Type{
 	"Undef":     types.Undef,
+	"Inf":       types.Inf,
+	"NaN":       types.NaN,
 	"Boolean":   types.Boolean,
+	"DualVar":   types.DualVar,
 	"Int":       types.Int,
 	"Num":       types.Num,
 	"Str":       types.Str,
@@ -57,6 +60,7 @@ var observedToLattice = map[string]types.Type{
 	"ArrayRef":  types.ArrayRef,
 	"HashRef":   types.HashRef,
 	"CodeRef":   types.CodeRef,
+	"Glob":      types.Glob,
 	"GlobRef":   types.GlobRef,
 	"Object":    types.Object,
 }
@@ -220,10 +224,10 @@ func TestInferencePrecision(t *testing.T) {
 	assert.NoError(t, checkPrecisionFloor(exact))
 }
 
-// precisionFloor is how many observed values PSC must type exactly: 62 of
+// precisionFloor is how many observed values PSC must type exactly: 65 of
 // the 76 were exact when the floor was set, and a change that loses one is
 // a regression even if nothing it says is wrong.
-const precisionFloor = 62
+const precisionFloor = 65
 
 // checkPrecisionFloor returns an error when exact is below precisionFloor.
 func checkPrecisionFloor(exact int) error {
@@ -236,6 +240,6 @@ func checkPrecisionFloor(exact int) error {
 // TestPrecisionFloorRejectsADrop holds the floor's check to its number: one
 // exact answer fewer than the floor fails it, and the floor itself passes.
 func TestPrecisionFloorRejectsADrop(t *testing.T) {
-	assert.Error(t, checkPrecisionFloor(61), "an exact count of 61 is below the floor")
-	assert.NoError(t, checkPrecisionFloor(62), "an exact count of 62 is the floor")
+	assert.Error(t, checkPrecisionFloor(64), "an exact count of 64 is below the floor")
+	assert.NoError(t, checkPrecisionFloor(65), "an exact count of 65 is the floor")
 }

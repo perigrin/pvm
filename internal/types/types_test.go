@@ -166,6 +166,30 @@ func TestTypeSatisfiesPolymorphic(t *testing.T) {
 		"Str does not satisfy Int (Str is not polymorphic w.r.t. Int)")
 }
 
+// TestTypeSatisfiesCodeAcceptsCodeRef: a `&`-sigil parameter's type is
+// always Code (slotHolds in internal/parse/decl.go refuses any other type
+// there), but RFC 0001's prototype table says `&` is "a block or a code
+// reference when first; elsewhere `sub {...}` or `\&name`" -- so a caller
+// who passes an existing coderef, not a literal block, must satisfy it
+// too. Measured on 5.42.0, `Scalar::Util::set_prototype(\&foo, '$$')`
+// (CORE/Memoize.pm's and Test2::Mock's calling convention) runs with no
+// warning.
+func TestTypeSatisfiesCodeAcceptsCodeRef(t *testing.T) {
+	assert.True(t, types.TypeSatisfies(types.CodeRef, types.Code),
+		"CodeRef satisfies Code (RFC 0001: `&` takes a code reference too)")
+}
+
+// TestCodeUnionAcceptsCodeRef: S7, the same rule holds when Code is only
+// part of a union, not the whole required type: sort's comparator slot
+// is typed Str|Code (a name or a routine), and prototype()'s argument is
+// Code|Str too. Measured on 5.42.0, `sort \&byname @list` and
+// `prototype(\&foo)` both run with no warning, a coderef satisfying the
+// Code half of the union exactly as it satisfies Code alone.
+func TestCodeUnionAcceptsCodeRef(t *testing.T) {
+	assert.True(t, types.TypeSatisfies(types.CodeRef, types.Str|types.Code),
+		"CodeRef satisfies Str|Code (the Code half of a union still takes a code reference)")
+}
+
 func TestTypeSatisfiesUnknown(t *testing.T) {
 	// Zero value (unknown type) passes permissively against any required type
 	var unknown types.Type

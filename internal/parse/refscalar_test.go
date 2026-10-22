@@ -112,7 +112,7 @@ func TestRefScalarSlotFromModuleSource(t *testing.T) {
 		{".pm", fstest.MapFS{}, func(name string) ([]byte, bool) {
 			return []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (\\$) { }\n1;\n"), name == "M"
 		}},
-		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte("package M;\nour @EXPORT = qw(sref);\nsub sref (Scalar \\$x);\n")}}, none},
+		{".tpm", fstest.MapFS{"declarations/M.tpm": {Data: []byte("package M;\nsub sref :export (Scalar \\$x);\n")}}, none},
 	} {
 		declarations = layeredFS{top: tc.decl, base: saved}
 		if got := refusalsIn(ParseWithLoader([]byte("use M; sref(1);\n"), tc.load)); len(got) != 1 || got[0] != RefScalarSlot {
@@ -348,4 +348,24 @@ func TestCompoundAssignmentRefusesConstant(t *testing.T) {
 		"my ($x, $y); ($x, $y) += 1;\n",
 		"my %h; $h{x} ||= 1;\n",
 	)
+}
+
+// TestSlotAt: measured on 5.42.0 with `sub f (PROTO) { scalar @_ } my @x
+// = (1, 2, 3); f(@x)`, every slot before the list takes `@x` as one
+// argument -- `\[@%]`, `$`, `_`, `*`, `+` and `;$` give 1 -- while `@`
+// and no prototype at all give 3.
+func TestSlotAt(t *testing.T) {
+	for _, c := range []struct {
+		proto string
+		i     int
+		want  bool
+	}{
+		{`(\[@%])`, 0, true}, {"($)", 0, true}, {"(_)", 0, true}, {"(*)", 0, true},
+		{"(+)", 0, true}, {"(;$)", 0, true}, {`(\@\@)`, 1, true},
+		{"($@)", 1, false}, {"(@)", 0, false}, {"", 0, false}, {"($)", 1, false},
+	} {
+		if got := SlotAt(c.proto, c.i); got != c.want {
+			t.Errorf("SlotAt(%q, %d) = %v, want %v", c.proto, c.i, got, c.want)
+		}
+	}
 }

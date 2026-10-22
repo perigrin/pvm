@@ -117,6 +117,10 @@ type moduleFacts struct {
 	// readDeclaration.
 	signatures map[string][]types.Signature
 	errs       []error
+	// variables are a declaration file's typed `our` variables, by name
+	// with its sigil, `%Config`: each one's sigil, type and element type
+	// (RFC 0001, "Typed variables"). Empty for a module's own source.
+	variables map[string]types.Param
 	// warns are what a declaration file states that is read, but read
 	// otherwise than it says. A warning drops nothing, as an error does.
 	warns []error
@@ -128,6 +132,12 @@ type moduleFacts struct {
 	// relations are the precedence relations its named operators state,
 	// each with fixity "named": goto's `:equiv(=)`.
 	relations []operatorDecl
+
+	// declared marks facts read from a declaration file, which states
+	// every name its module exports: a name it does not export is not
+	// imported, as Exporter refuses one -- measured on 5.42.0, `use M
+	// qw(h)` for an unexported h dies `"h" is not exported by the M module`.
+	declared bool
 
 	// globs are the names a literal glob assignment defines, `*run_perl =
 	// \&runperl` in t/test.pl: subs as real as a `sub NAME`, with no
@@ -290,6 +300,7 @@ func readExportAssignment(n *Node, facts *moduleFacts) {
 		facts.opaque = true
 		return
 	}
+	names = subNames(names)
 	facts.exports = append(facts.exports, names...)
 	if array == "@EXPORT" {
 		facts.defaults = append(facts.defaults, names...)
@@ -319,9 +330,18 @@ func readExportTags(n *Node, facts *moduleFacts) {
 			if facts.tags == nil {
 				facts.tags = map[string][]string{}
 			}
-			facts.tags[key] = names
+			facts.tags[key] = subNames(names)
 		}
 	}
+}
+
+// subNames is an export list's names with a sub's leading `&` dropped:
+// measured on 5.42.0, Exporter imports `f` for an @EXPORT of `&f`.
+func subNames(names []string) []string {
+	for i, name := range names {
+		names[i] = strings.TrimPrefix(name, "&")
+	}
+	return names
 }
 
 // tagBuiltList reads an export list whose elements are literal names or
@@ -521,6 +541,9 @@ func importsFrom(facts moduleFacts, list []string, listGiven bool) []Import {
 
 	out := make([]Import, 0, len(wanted))
 	for _, name := range wanted {
+		if facts.declared && !slices.Contains(facts.exports, name) {
+			continue
+		}
 		proto, known := facts.protos[name]
 		// Exported but never declared: the module builds it out of sight,
 		// as File::Spec::Functions assigns `*{$meth}` in a loop. A sub

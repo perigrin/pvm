@@ -1,0 +1,79 @@
+# ABOUTME: Declares what `use Compress::Raw::Zlib` exports: zlib's constants and the checksum functions.
+# ABOUTME: Measured on perl 5.42.0 with Compress::Raw::Zlib 2.213: every one of the 47 names is :export.
+package Compress::Raw::Zlib;
+
+# Every constant below measures with prototype() as "none" (not even an
+# empty "()"), so each is declared with a bare slurpy List parameter: a
+# derived `@` with no `:prototype` attribute is excluded from the
+# prototype hold (CORE.tpm's own note, "a derived `@` is no prototype"),
+# matching what perl reports. WANT_GZIP and WANT_GZIP_OR_ZLIB are the only
+# two of the 47 with a real, measured "()" prototype.
+
+# ZLIB_VERSION is the library's dotted version string; ZLIBNG_VERSION is
+# the same for zlib-ng, empty when the build does not use it (measured:
+# "" on this build, not undef).
+sub ZLIB_VERSION :export (List @args) Str;
+sub ZLIBNG_VERSION :export (List @args) Str;
+
+sub ZLIB_VERNUM :export (List @args) Int;
+sub OS_CODE :export (List @args) Int;
+sub MAX_MEM_LEVEL :export (List @args) Int;
+sub MAX_WBITS :export (List @args) Int;
+sub Z_ASCII :export (List @args) Int;
+sub Z_BEST_COMPRESSION :export(level) (List @args) Int;
+sub Z_BEST_SPEED :export(level) (List @args) Int;
+sub Z_BINARY :export (List @args) Int;
+sub Z_BLOCK :export(flush) (List @args) Int;
+sub Z_BUF_ERROR :export(status) (List @args) Int;
+sub Z_DATA_ERROR :export(status) (List @args) Int;
+sub Z_DEFAULT_COMPRESSION :export(level) (List @args) Int;
+sub Z_DEFAULT_STRATEGY :export(strategy) (List @args) Int;
+sub Z_DEFLATED :export (List @args) Int;
+sub Z_ERRNO :export(status) (List @args) Int;
+sub Z_FILTERED :export(strategy) (List @args) Int;
+sub Z_FIXED :export(strategy) (List @args) Int;
+sub Z_FINISH :export(flush) (List @args) Int;
+sub Z_FULL_FLUSH :export(flush) (List @args) Int;
+sub Z_HUFFMAN_ONLY :export(strategy) (List @args) Int;
+sub Z_MEM_ERROR :export(status) (List @args) Int;
+sub Z_NEED_DICT :export(status) (List @args) Int;
+sub Z_NO_COMPRESSION :export(level) (List @args) Int;
+sub Z_NO_FLUSH :export(flush) (List @args) Int;
+sub Z_NULL :export (List @args) Int;
+sub Z_OK :export(status) (List @args) Int;
+sub Z_PARTIAL_FLUSH :export(flush) (List @args) Int;
+sub Z_RLE :export(strategy) (List @args) Int;
+sub Z_STREAM_END :export(status) (List @args) Int;
+sub Z_STREAM_ERROR :export(status) (List @args) Int;
+sub Z_SYNC_FLUSH :export(flush) (List @args) Int;
+sub Z_TREES :export (List @args) Int;
+sub Z_UNKNOWN :export (List @args) Int;
+sub Z_VERSION_ERROR :export(status) (List @args) Int;
+sub ZLIBNG_VERNUM :export (List @args) Int;
+sub ZLIBNG_VER_MAJOR :export (List @args) Int;
+sub ZLIBNG_VER_MINOR :export (List @args) Int;
+sub ZLIBNG_VER_MODIFIED :export (List @args) Int;
+sub ZLIBNG_VER_REVISION :export (List @args) Int;
+sub ZLIBNG_VER_STATUS :export (List @args) Int;
+
+sub WANT_GZIP :export () Int;
+sub WANT_GZIP_OR_ZLIB :export () Int;
+
+# DEF_WBITS dies on this build ("Your vendor has not defined Zlib macro
+# DEF_WBITS", measured): it is exported and installed by a bare `use`,
+# but every call to it dies here.
+sub DEF_WBITS :export (List @args) None;
+
+# crc32/adler32 have no prototype either (measured "none"), so each is
+# :listop; a buffer of undef does not die (measured: adler32(undef) is
+# 1, the adler32 seed). (List @args) was too wide: measured, `crc32()`
+# dies "Usage: Compress::Raw::Zlib::crc32(buf, crc=CRZ_crcInitial,
+# offset=0)" and `crc32([1])` dies "buffer parameter is not a SCALAR
+# reference" -- values List admitted that perl has no coercion for and
+# dies on (RFC 0001, "What a parameter type means"). $buffer takes a
+# scalar or a scalar reference (perldoc: "The buffer parameters can
+# either be a scalar or a scalar reference"); $crc takes undef too,
+# documented to reset the running value ("If the $crc parameters is
+# undef, the crc value will be reset").
+sub adler32 :export :listop (Str|ScalarRef|Undef $buffer, Optional[Int|Undef] $crc, Optional[Int] $offset) Int;
+sub crc32 :export :listop (Str|ScalarRef|Undef $buffer, Optional[Int|Undef] $crc, Optional[Int] $offset) Int;

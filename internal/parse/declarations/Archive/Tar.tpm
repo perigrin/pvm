@@ -1,0 +1,102 @@
+# ABOUTME: Declares what `use Archive::Tar` installs: three compression-backend constants, every one a bare export.
+# ABOUTME: Measured on perl 5.42.0 with Archive::Tar 3.04: each constant takes a () prototype and names a backend module.
+package Archive::Tar;
+
+sub COMPRESS_GZIP :export () Int;
+sub COMPRESS_BZIP :export () Str;
+sub COMPRESS_XZ :export () Str;
+
+# The method interface (audit-C.md finding 18), measured on 5.42.0
+# against a real tar built in scratch (scratchpad/6ca2-scratch/archive-tar).
+# Every method below takes an invocant and nothing is marked :export:
+# `use Archive::Tar;` installs only the three constants above.
+
+# new calls read() when given arguments, and returns undef if that
+# read fails (source: `$obj->read(@_) or ... return;`).
+sub new (Str $class: Optional[Str|GlobRef] $file, Optional[Int] $compressed) Object|Undef;
+# read replaces the in-memory archive from a file or handle: list
+# context gives every Archive::Tar::File read, scalar context their
+# count (source: `return wantarray ? @$data : scalar @$data;`); undef
+# (or an empty list) on failure to open or parse.
+multi sub read (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) List[Object];
+multi sub read (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) Int|Undef;
+# contains_file does an exact `eq` lookup: 1 if found, undef (bare
+# `return;`) otherwise -- a plain Int, not a marked Boolean (measured).
+sub contains_file (Object $self: Str $filename) Int|Undef;
+# extract mirrors read's list/count split (`return @files;`, with
+# `return;`/`return $self->_error(...)` -- always undef -- on failure).
+multi sub extract (Object $self: List[Str|Object] @filenames) List[Object];
+multi sub extract (Object $self: List[Str|Object] @filenames) Int|Undef;
+# extract_file returns a plain Int flag (measured 1), undef on failure.
+sub extract_file (Object $self: Str|Object $file, Optional[Str] $extract_path) Int|Undef;
+# list_files, with no properties array (or just ['name']), gives
+# filenames; with other properties, hashrefs -- in scalar context,
+# map's own count (an Int), or undef if no data could be read
+# (measured both forms).
+multi sub list_files (Object $self: Optional[ArrayRef] $properties) List[Str|HashRef];
+multi sub list_files (Object $self: Optional[ArrayRef] $properties) Int|Undef;
+# get_files, like list_files, counts in scalar context (measured); it
+# has no documented failure path of its own.
+multi sub get_files (Object $self: List[Str|Object] @filenames) List[Object];
+multi sub get_files (Object $self: List[Str|Object] @filenames) Int;
+sub get_content (Object $self: Str $file) Str|Undef;
+# replace_content returns its entry's own status flag, a plain Int
+# (measured 1), not the content itself.
+sub replace_content (Object $self: Str $file, Str $content) Int|Undef;
+sub rename (Object $self: Str $file, Str $new_name) Int|Undef;
+sub chmod (Object $self: Str $file, Str $mode) Int|Undef;
+sub chown (Object $self: Str $file, Str $uname, Optional[Str] $gname) Int|Undef;
+# remove returns the survivors, counted in scalar context (measured).
+multi sub remove (Object $self: List[Str] @filenamelist) List[Object];
+multi sub remove (Object $self: List[Str] @filenamelist) Int;
+# clear always returns a bare 1 (measured; source: `return 1;`).
+sub clear (Object $self:) Int;
+# write with no arguments returns the archive as a Str; given a file
+# (or handle) it returns a plain Int success flag instead, undef on
+# failure (both measured).
+multi sub write (Object $self:) Str|Undef;
+multi sub write (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[Str] $prefix) Int|Undef;
+# add_files, like get_files, counts in scalar context (measured).
+multi sub add_files (Object $self: List[Str|Object] @filenamelist) List[Object];
+multi sub add_files (Object $self: List[Str|Object] @filenamelist) Int;
+sub add_data (Object $self: Str $filename, Str $data, Optional[HashRef] $opt) Object|Undef;
+# error returns the stored message or (with a true argument) its
+# Carp::longmess stacktrace, always a defined Str (measured; starts '').
+sub error (Object $self: Optional[Boolean] $longmess) Str;
+# setcwd's own body is a bare assignment, `$self->{cwd} = $cwd;`,
+# whose value is whatever $cwd was -- the Str passed, or Undef to
+# restore the default (both measured).
+sub setcwd (Object $self: Optional[Str] $cwd) Str|Undef;
+
+# Class methods (POD "Class Methods"), measured the same way.
+
+# create_archive delegates to write(file, compressed) once filled, so
+# it shares that candidate's Int|Undef; refusing an empty file list is
+# also an undef, through the same _error path (measured).
+sub create_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed, List[Str] @filelist) Int|Undef;
+# iter returns a closure that answers the next Archive::Tar::File, or
+# undef once exhausted (measured); the constructor itself answers
+# undef if the archive cannot be opened.
+sub iter (Str $class: Str $filename, Optional[Int] $compressed, Optional[HashRef] $opts) CodeRef|Undef;
+# list_archive delegates to a fresh instance's list_files, sharing its
+# list/count split (measured); it also answers undef if the archive
+# cannot be opened (`return unless $tar;`).
+multi sub list_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed, Optional[ArrayRef] $properties) List[Str|HashRef];
+multi sub list_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed, Optional[ArrayRef] $properties) Int|Undef;
+# extract_archive delegates to a fresh instance's read, but with
+# extract => 1: read's own POD says no Archive::Tar::File objects are
+# created that way, and measured, the list it gives back holds the
+# plain filenames instead (unlike read's own List[Object]).
+multi sub extract_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed) List[Str];
+multi sub extract_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed) Int|Undef;
+sub has_io_string (Str $class:) Int;
+# has_perlio's own value, $HAS_PERLIO, is measured to be the literal
+# string "define" on this build, not 0/1 -- Str joins Int here, unlike
+# every sibling has_* check (audit-C.md finding 18 measured this
+# directly; the POD's "$bool" is aspirational, not what the operation
+# gives).
+sub has_perlio (Str $class:) Str|Int;
+sub has_zlib_support (Str $class:) Int;
+sub has_bzip2_support (Str $class:) Int;
+sub has_xz_support (Str $class:) Int;
+sub can_handle_compressed_files (Str $class:) Int;

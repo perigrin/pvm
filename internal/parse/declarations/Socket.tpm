@@ -1,0 +1,388 @@
+# ABOUTME: Declares what `use Socket` installs: every exported name's :export/:export_ok
+# ABOUTME: mark, tags and prototype. Measured on perl 5.42.0 with Socket 2.038.
+#
+# 88 of the constants are macros this platform does not define: each
+# one's AUTOLOAD stub dies calling it (measured: "Your vendor has not
+# defined Socket macro ..."), so each is None, never returning, as
+# CORE.tpm types `die`. Four of those, the deprecated addrinfo constants
+# AI_IDN_ALLOW_UNASSIGNED, AI_IDN_USE_STD3_ASCII_RULES,
+# NI_IDN_ALLOW_UNASSIGNED and NI_IDN_USE_STD3_ASCII_RULES, have no
+# prototype perl can report (measured: prototype() is undef for each)
+# but die the same way, "The addrinfo constant ... is deprecated"
+# (measured), so each is None too.
+#
+# CR, LF and CRLF are each both a () sub and a scalar of the same name,
+# aliased to the sub's value (measured: `*CRLF = \CRLF()`); $CRLF is
+# RFC 0001's example of a typed variable with :export_ok. All six carry
+# the crlf tag along with all; bare `use Socket` installs none of them.
+#
+# Every other exported name with a () prototype is a constant, typed Int
+# where perl returns a plain integer, or Str where it returns a packed
+# byte string (measured: the four INADDR_* and two IN6ADDR_* constants).
+#
+# The rest -- pack/unpack/sockaddr_* for IPv4, IPv6 and Unix sockets,
+# inet_aton/ntoa/pton/ntop, sockaddr_family, getaddrinfo and
+# getnameinfo -- have no prototype perl can report and are typed by
+# calling each with real arguments and observing what perl returns in
+# both contexts (internal/infer/testdata/oracle/Socket.pl): several are
+# declared `multi`, one candidate for list context (RFC 0001, "Context
+# selects by return type") and one for scalar, since the same call
+# returns a different shape in each -- unpack_sockaddr_in in list
+# context is (port, addr); in scalar context, measured, it is the
+# packed call's own return, a single Str. inet_aton, inet_ntop and
+# inet_pton get a numeric address or a malformed one, never a hostname
+# needing resolution; getaddrinfo and getnameinfo get numeric addresses
+# and AI_NUMERICHOST/NI_NUMERICHOST, for the same reason.
+package Socket;
+sub AF_802 :export(all) () None;
+sub AF_AAL :export(all) () None;
+sub AF_APPLETALK :export(all) () Int;
+sub AF_CCITT :export(all) () None;
+sub AF_CHAOS :export(all) () None;
+sub AF_CTF :export(all) () None;
+sub AF_DATAKIT :export(all) () None;
+sub AF_DECnet :export(all) () Int;
+sub AF_DLI :export(all) () None;
+sub AF_ECMA :export(all) () None;
+sub AF_GOSIP :export(all) () None;
+sub AF_HYLINK :export(all) () None;
+sub AF_IMPLINK :export(all) () None;
+sub AF_INET :export(all) () Int;
+sub AF_INET6 :export(all) () Int;
+sub AF_ISO :export(all) () None;
+sub AF_KEY :export(all) () Int;
+sub AF_LAST :export(all) () None;
+sub AF_LAT :export(all) () None;
+sub AF_LINK :export(all) () None;
+sub AF_MAX :export(all) () Int;
+sub AF_NBS :export(all) () None;
+sub AF_NIT :export(all) () None;
+sub AF_NS :export(all) () None;
+sub AF_OSI :export(all) () None;
+sub AF_OSINET :export(all) () None;
+sub AF_PUP :export(all) () None;
+sub AF_ROUTE :export(all) () Int;
+sub AF_SNA :export(all) () Int;
+sub AF_UNIX :export(all) () Int;
+sub AF_UNSPEC :export(all) () Int;
+sub AF_USER :export(all) () None;
+sub AF_WAN :export(all) () None;
+sub AF_X25 :export(all) () Int;
+sub AI_ADDRCONFIG :export_ok(addrinfo,all) () Int;
+sub AI_ALL :export_ok(addrinfo,all) () Int;
+sub AI_CANONIDN :export_ok(addrinfo,all) () Int;
+sub AI_CANONNAME :export_ok(addrinfo,all) () Int;
+sub AI_IDN :export_ok(addrinfo,all) () Int;
+sub AI_IDN_ALLOW_UNASSIGNED :export_ok(addrinfo,all) :listop () None;
+sub AI_IDN_USE_STD3_ASCII_RULES :export_ok(addrinfo,all) :listop () None;
+sub AI_NUMERICHOST :export_ok(addrinfo,all) () Int;
+sub AI_NUMERICSERV :export_ok(addrinfo,all) () Int;
+sub AI_PASSIVE :export_ok(addrinfo,all) () Int;
+sub AI_V4MAPPED :export_ok(addrinfo,all) () Int;
+sub CR :export_ok(crlf,all) () Str;
+sub CRLF :export_ok(crlf,all) () Str;
+our Str $CR :export_ok(crlf,all);
+our Str $LF :export_ok(crlf,all);
+our Str $CRLF :export_ok(crlf,all);
+sub EAI_ADDRFAMILY :export_ok(addrinfo,all) () Int;
+sub EAI_AGAIN :export_ok(addrinfo,all) () Int;
+sub EAI_BADFLAGS :export_ok(addrinfo,all) () Int;
+sub EAI_BADHINTS :export_ok(addrinfo,all) () None;
+sub EAI_FAIL :export_ok(addrinfo,all) () Int;
+sub EAI_FAMILY :export_ok(addrinfo,all) () Int;
+sub EAI_NODATA :export_ok(addrinfo,all) () Int;
+sub EAI_NONAME :export_ok(addrinfo,all) () Int;
+sub EAI_PROTOCOL :export_ok(addrinfo,all) () None;
+sub EAI_SERVICE :export_ok(addrinfo,all) () Int;
+sub EAI_SOCKTYPE :export_ok(addrinfo,all) () Int;
+sub EAI_SYSTEM :export_ok(addrinfo,all) () Int;
+sub IN6ADDR_ANY :export_ok(all) () Str;
+sub IN6ADDR_LOOPBACK :export_ok(all) () Str;
+sub INADDR_ANY :export(all) () Str;
+sub INADDR_BROADCAST :export(all) () Str;
+sub INADDR_LOOPBACK :export(all) () Str;
+sub INADDR_NONE :export(all) () Str;
+sub IOV_MAX :export(all) () Int;
+sub IPPROTO_AH :export_ok(all) () Int;
+sub IPPROTO_ESP :export_ok(all) () Int;
+sub IPPROTO_GRE :export_ok(all) () Int;
+sub IPPROTO_ICMP :export_ok(all) () Int;
+sub IPPROTO_ICMPV6 :export_ok(all) () Int;
+sub IPPROTO_IGMP :export_ok(all) () Int;
+sub IPPROTO_IP :export_ok(all) () Int;
+sub IPPROTO_IPV6 :export_ok(all) () Int;
+sub IPPROTO_RAW :export_ok(all) () Int;
+sub IPPROTO_SCTP :export_ok(all) () Int;
+sub IPPROTO_TCP :export_ok(all) () Int;
+sub IPPROTO_UDP :export_ok(all) () Int;
+sub IPTOS_LOWDELAY :export_ok(all) () None;
+sub IPTOS_MINCOST :export_ok(all) () None;
+sub IPTOS_RELIABILITY :export_ok(all) () None;
+sub IPTOS_THROUGHPUT :export_ok(all) () None;
+sub IPV6_ADDRFROM :export_ok(all) () None;
+sub IPV6_ADD_MEMBERSHIP :export_ok(all) () Int;
+sub IPV6_DROP_MEMBERSHIP :export_ok(all) () Int;
+sub IPV6_JOIN_GROUP :export_ok(all) () Int;
+sub IPV6_LEAVE_GROUP :export_ok(all) () Int;
+sub IPV6_MTU :export_ok(all) () Int;
+sub IPV6_MTU_DISCOVER :export_ok(all) () Int;
+sub IPV6_MULTICAST_HOPS :export_ok(all) () Int;
+sub IPV6_MULTICAST_IF :export_ok(all) () Int;
+sub IPV6_MULTICAST_LOOP :export_ok(all) () Int;
+sub IPV6_RECVERR :export_ok(all) () Int;
+sub IPV6_ROUTER_ALERT :export_ok(all) () Int;
+sub IPV6_TCLASS :export_ok(all) () Int;
+sub IPV6_UNICAST_HOPS :export_ok(all) () Int;
+sub IPV6_V6ONLY :export_ok(all) () Int;
+sub IP_ADD_MEMBERSHIP :export_ok(all) () Int;
+sub IP_ADD_SOURCE_MEMBERSHIP :export_ok(all) () Int;
+sub IP_BIND_ADDRESS_NO_PORT :export_ok(all) () Int;
+sub IP_DROP_MEMBERSHIP :export_ok(all) () Int;
+sub IP_DROP_SOURCE_MEMBERSHIP :export_ok(all) () Int;
+sub IP_FREEBIND :export_ok(all) () Int;
+sub IP_HDRINCL :export(all) () Int;
+sub IP_MTU :export_ok(all) () Int;
+sub IP_MTU_DISCOVER :export_ok(all) () Int;
+sub IP_MULTICAST_ALL :export_ok(all) () Int;
+sub IP_MULTICAST_IF :export_ok(all) () Int;
+sub IP_MULTICAST_LOOP :export_ok(all) () Int;
+sub IP_MULTICAST_TTL :export_ok(all) () Int;
+sub IP_NODEFRAG :export_ok(all) () Int;
+sub IP_OPTIONS :export(all) () Int;
+sub IP_PMTUDISC_DO :export_ok(all) () Int;
+sub IP_PMTUDISC_DONT :export_ok(all) () Int;
+sub IP_PMTUDISC_PROBE :export_ok(all) () Int;
+sub IP_PMTUDISC_WANT :export_ok(all) () Int;
+sub IP_RECVERR :export_ok(all) () Int;
+sub IP_RECVOPTS :export(all) () Int;
+sub IP_RECVRETOPTS :export(all) () Int;
+sub IP_RETOPTS :export(all) () Int;
+sub IP_TOS :export(all) () Int;
+sub IP_TRANSPARENT :export_ok(all) () Int;
+sub IP_TTL :export(all) () Int;
+sub LF :export_ok(crlf,all) () Str;
+sub MSG_BCAST :export(all) () None;
+sub MSG_BTAG :export(all) () None;
+sub MSG_CTLFLAGS :export(all) () None;
+sub MSG_CTLIGNORE :export(all) () None;
+sub MSG_CTRUNC :export(all) () Int;
+sub MSG_DONTROUTE :export(all) () Int;
+sub MSG_DONTWAIT :export(all) () Int;
+sub MSG_EOF :export(all) () None;
+sub MSG_EOR :export(all) () Int;
+sub MSG_ERRQUEUE :export(all) () Int;
+sub MSG_ETAG :export(all) () None;
+sub MSG_FASTOPEN :export(all) () Int;
+sub MSG_FIN :export(all) () Int;
+sub MSG_MAXIOVLEN :export(all) () None;
+sub MSG_MCAST :export(all) () None;
+sub MSG_NOSIGNAL :export(all) () Int;
+sub MSG_OOB :export(all) () Int;
+sub MSG_PEEK :export(all) () Int;
+sub MSG_PROXY :export(all) () Int;
+sub MSG_RST :export(all) () Int;
+sub MSG_SYN :export(all) () Int;
+sub MSG_TRUNC :export(all) () Int;
+sub MSG_URG :export(all) () None;
+sub MSG_WAITALL :export(all) () Int;
+sub MSG_WIRE :export(all) () None;
+sub NI_DGRAM :export_ok(addrinfo,all) () Int;
+sub NI_IDN :export_ok(addrinfo,all) () Int;
+sub NI_IDN_ALLOW_UNASSIGNED :export_ok(addrinfo,all) :listop () None;
+sub NI_IDN_USE_STD3_ASCII_RULES :export_ok(addrinfo,all) :listop () None;
+sub NI_NAMEREQD :export_ok(addrinfo,all) () Int;
+sub NI_NOFQDN :export_ok(addrinfo,all) () Int;
+sub NI_NUMERICHOST :export_ok(addrinfo,all) () Int;
+sub NI_NUMERICSERV :export_ok(addrinfo,all) () Int;
+sub NIx_NOHOST :export_ok(addrinfo,all) () Int;
+sub NIx_NOSERV :export_ok(addrinfo,all) () Int;
+sub PF_802 :export(all) () None;
+sub PF_AAL :export(all) () None;
+sub PF_APPLETALK :export(all) () Int;
+sub PF_CCITT :export(all) () None;
+sub PF_CHAOS :export(all) () None;
+sub PF_CTF :export(all) () None;
+sub PF_DATAKIT :export(all) () None;
+sub PF_DECnet :export(all) () Int;
+sub PF_DLI :export(all) () None;
+sub PF_ECMA :export(all) () None;
+sub PF_GOSIP :export(all) () None;
+sub PF_HYLINK :export(all) () None;
+sub PF_IMPLINK :export(all) () None;
+sub PF_INET :export(all) () Int;
+sub PF_INET6 :export(all) () Int;
+sub PF_ISO :export(all) () None;
+sub PF_KEY :export(all) () Int;
+sub PF_LAST :export(all) () None;
+sub PF_LAT :export(all) () None;
+sub PF_LINK :export(all) () None;
+sub PF_MAX :export(all) () Int;
+sub PF_NBS :export(all) () None;
+sub PF_NIT :export(all) () None;
+sub PF_NS :export(all) () None;
+sub PF_OSI :export(all) () None;
+sub PF_OSINET :export(all) () None;
+sub PF_PUP :export(all) () None;
+sub PF_ROUTE :export(all) () Int;
+sub PF_SNA :export(all) () Int;
+sub PF_UNIX :export(all) () Int;
+sub PF_UNSPEC :export(all) () Int;
+sub PF_USER :export(all) () None;
+sub PF_WAN :export(all) () None;
+sub PF_X25 :export(all) () Int;
+sub SCM_CONNECT :export(all) () None;
+sub SCM_CREDENTIALS :export(all) () Int;
+sub SCM_CREDS :export(all) () None;
+sub SCM_RIGHTS :export(all) () Int;
+sub SCM_TIMESTAMP :export(all) () Int;
+sub SHUT_RD :export(all) () Int;
+sub SHUT_RDWR :export(all) () Int;
+sub SHUT_WR :export(all) () Int;
+sub SOCK_CLOEXEC :export_ok(all) () Int;
+sub SOCK_DGRAM :export(all) () Int;
+sub SOCK_NONBLOCK :export_ok(all) () Int;
+sub SOCK_RAW :export(all) () Int;
+sub SOCK_RDM :export(all) () Int;
+sub SOCK_SEQPACKET :export(all) () Int;
+sub SOCK_STREAM :export(all) () Int;
+sub SOL_SOCKET :export(all) () Int;
+sub SOMAXCONN :export(all) () Int;
+sub SO_ACCEPTCONN :export(all) () Int;
+sub SO_ATTACH_FILTER :export(all) () Int;
+sub SO_BACKLOG :export(all) () None;
+sub SO_BROADCAST :export(all) () Int;
+sub SO_CHAMELEON :export(all) () None;
+sub SO_DEBUG :export(all) () Int;
+sub SO_DETACH_FILTER :export(all) () Int;
+sub SO_DGRAM_ERRIND :export(all) () None;
+sub SO_DOMAIN :export(all) () Int;
+sub SO_DONTLINGER :export(all) () None;
+sub SO_DONTROUTE :export(all) () Int;
+sub SO_ERROR :export(all) () Int;
+sub SO_FAMILY :export(all) () None;
+sub SO_INCOMING_CPU :export_ok(all) () Int;
+sub SO_INCOMING_NAPI_ID :export_ok(all) () Int;
+sub SO_KEEPALIVE :export(all) () Int;
+sub SO_LINGER :export(all) () Int;
+sub SO_LOCK_FILTER :export_ok(all) () Int;
+sub SO_OOBINLINE :export(all) () Int;
+sub SO_PASSCRED :export(all) () Int;
+sub SO_PASSIFNAME :export(all) () None;
+sub SO_PEERCRED :export(all) () Int;
+sub SO_PROTOCOL :export(all) () Int;
+sub SO_PROTOTYPE :export(all) () None;
+sub SO_RCVBUF :export(all) () Int;
+sub SO_RCVBUFFORCE :export_ok(all) () Int;
+sub SO_RCVLOWAT :export(all) () Int;
+sub SO_RCVTIMEO :export(all) () Int;
+sub SO_REUSEADDR :export(all) () Int;
+sub SO_REUSEPORT :export(all) () Int;
+sub SO_SECURITY_AUTHENTICATION :export(all) () Int;
+sub SO_SECURITY_ENCRYPTION_NETWORK :export(all) () Int;
+sub SO_SECURITY_ENCRYPTION_TRANSPORT :export(all) () Int;
+sub SO_SNDBUF :export(all) () Int;
+sub SO_SNDBUFFORCE :export_ok(all) () Int;
+sub SO_SNDLOWAT :export(all) () Int;
+sub SO_SNDTIMEO :export(all) () Int;
+sub SO_STATE :export(all) () None;
+sub SO_TYPE :export(all) () Int;
+sub SO_USELOOPBACK :export(all) () None;
+sub SO_XOPEN :export(all) () None;
+sub SO_XSE :export(all) () None;
+sub TCP_CC_INFO :export_ok(all) () Int;
+sub TCP_CONGESTION :export_ok(all) () Int;
+sub TCP_CONNECTIONTIMEOUT :export_ok(all) () None;
+sub TCP_CORK :export_ok(all) () Int;
+sub TCP_DEFER_ACCEPT :export_ok(all) () Int;
+sub TCP_FASTOPEN :export_ok(all) () Int;
+sub TCP_FASTOPEN_CONNECT :export_ok(all) () Int;
+sub TCP_FASTOPEN_KEY :export_ok(all) () Int;
+sub TCP_FASTOPEN_NO_COOKIE :export_ok(all) () Int;
+sub TCP_INFO :export_ok(all) () Int;
+sub TCP_INIT_CWND :export_ok(all) () None;
+sub TCP_KEEPALIVE :export_ok(all) () None;
+sub TCP_KEEPCNT :export_ok(all) () Int;
+sub TCP_KEEPIDLE :export_ok(all) () Int;
+sub TCP_KEEPINTVL :export_ok(all) () Int;
+sub TCP_LINGER2 :export_ok(all) () Int;
+sub TCP_MAXRT :export_ok(all) () None;
+sub TCP_MAXSEG :export_ok(all) () Int;
+sub TCP_MD5SIG :export_ok(all) () Int;
+sub TCP_MD5SIG_EXT :export_ok(all) () Int;
+sub TCP_NODELAY :export_ok(all) () Int;
+sub TCP_NOOPT :export_ok(all) () None;
+sub TCP_NOPUSH :export_ok(all) () None;
+sub TCP_NOTSENT_LOWAT :export_ok(all) () Int;
+sub TCP_QUICKACK :export_ok(all) () Int;
+sub TCP_SACK_ENABLE :export_ok(all) () None;
+sub TCP_STDURG :export_ok(all) () None;
+sub TCP_SYNCNT :export_ok(all) () Int;
+sub TCP_TIMESTAMP :export_ok(all) () Int;
+sub TCP_TX_DELAY :export_ok(all) () Int;
+sub TCP_USER_TIMEOUT :export_ok(all) () Int;
+sub TCP_WINDOW_CLAMP :export_ok(all) () Int;
+sub UIO_MAXIOV :export(all) () Int;
+# getaddrinfo's and getnameinfo's error value is always a dualvar
+# (POD: "The error value will be a dualvar"), measured both on success
+# (isdual, "" / 0) and on failure (isdual, a message / a negative
+# code), in both list and scalar context; the return-type oracle's
+# observer (observe_types.pl) reports it as DualVar. getnameinfo's host
+# and service are Str. getaddrinfo's list also declares Str, which no
+# element it returns is: measured, its oracle cases pass with Str
+# removed (TestConstantExportersReturnTypes). Narrowing it is issue
+# 01a16049-17b1.
+# getaddrinfo's $host is also measured accepting undef, resolving a
+# service name alone (POD: "Given just a service name...").
+multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) List[Str|HashRef|DualVar];
+multi sub getaddrinfo :export_ok(addrinfo,all) :listop (Str|Undef $host, Str|Int|Undef $service = undef, HashRef $hints = undef) HashRef|Str|DualVar;
+multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) List[Str|Int|Undef|DualVar];
+multi sub getnameinfo :export_ok(addrinfo,all) :listop (Str $sockaddr, Int $flags = 0, Int $xflags = 0) Str|Int|Undef|DualVar;
+sub inet_aton :export(all) :listop (Str $hostname) Str|Undef;
+sub inet_ntoa :export(all) :listop (Str $addr) Str;
+sub inet_ntop :export_ok(all) :listop (Int $af, Str $addr) Str|Undef;
+sub inet_pton :export_ok(all) :listop (Int $af, Str $host) Str|Undef;
+# interface_addr is measured accepting an explicit undef silently, as
+# well as the default's packed zero address.
+sub pack_ip_mreq :export_ok(all) :listop (Str $mcast_addr, Str|Undef $interface_addr = "\0\0\0\0") Str;
+sub pack_ip_mreq_source :export_ok(all) :listop (Str $mcast_addr, Str $source_addr, Str|Undef $interface_addr = "\0\0\0\0") Str;
+sub pack_ipv6_mreq :export_ok(all) :listop (Str $addr, Int $interface) Str;
+# port is measured accepting an explicit undef silently, taken as zero
+# (POD: "An undefined $port argument is taken as zero").
+sub pack_sockaddr_in :export(all) :listop (Int|Undef $port, Str $addr) Str;
+sub pack_sockaddr_in6 :export(all) :listop (Int|Undef $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+sub pack_sockaddr_un :export(all) :listop (Str $path) Str;
+sub sockaddr_family :export(all) :listop (Str $sockaddr) Int;
+# sockaddr_in and sockaddr_in6 dispatch on wantarray AND arg count
+# together (measured: each croaks taking the other's arg count in the
+# other's context -- the pack arity in list context, the unpack arity in
+# scalar), which the return-type oracle cannot call both directions of
+# without that death; both are exempt there and held to their prototype
+# and exports only. sockaddr_in also has an undocumented, deprecated
+# 6-arg scalar form (measured: `sockaddr_in(AF_INET,80,127,0,0,1)` warns
+# "6-ARG sockaddr_in call is deprecated" and still returns a packed
+# sockaddr), deliberately left undeclared: no candidate here for an
+# undocumented, deprecated call shape.
+multi sub sockaddr_in :export(all) :listop (Int|Undef $port, Str $addr) Str;
+multi sub sockaddr_in :export(all) :listop (Str $sin) List[Int|Str];
+multi sub sockaddr_in6 :export(all) :listop (Int|Undef $port, Str $addr, Int $scope_id = 0, Int $flowinfo = 0) Str;
+multi sub sockaddr_in6 :export(all) :listop (Str $sin6) List[Int|Str];
+# sockaddr_un dispatches on wantarray alone (POD: "($path) = sockaddr_un
+# $sockaddr"), both forms taking exactly one Str argument, so there is
+# no arity to tell the pack and unpack directions apart; a path given in
+# list context dies the same way sockaddr_in's wrong-context call does
+# (measured: "Bad address family"), so it is exempt from the
+# return-type oracle the same way, held to its prototype and exports
+# only.
+multi sub sockaddr_un :export(all) :listop (Str $path) Str;
+multi sub sockaddr_un :export(all) :listop (Str $sun) List[Str];
+multi sub unpack_ip_mreq :export_ok(all) :listop (Str $mreq) List[Str];
+multi sub unpack_ip_mreq :export_ok(all) :listop (Str $mreq) Str;
+multi sub unpack_ip_mreq_source :export_ok(all) :listop (Str $mreq) List[Str];
+multi sub unpack_ip_mreq_source :export_ok(all) :listop (Str $mreq) Str;
+multi sub unpack_ipv6_mreq :export_ok(all) :listop (Str $mreq) List[Str|Int];
+multi sub unpack_ipv6_mreq :export_ok(all) :listop (Str $mreq) Int;
+multi sub unpack_sockaddr_in :export(all) :listop (Str $sin) List[Int|Str];
+multi sub unpack_sockaddr_in :export(all) :listop (Str $sin) Str;
+multi sub unpack_sockaddr_in6 :export(all) :listop (Str $sin6) List[Int|Str];
+multi sub unpack_sockaddr_in6 :export(all) :listop (Str $sin6) Str;
+sub unpack_sockaddr_un :export(all) :listop (Str $sun) Str;

@@ -1,0 +1,7 @@
+# ABOUTME: A declaration file stating typed variables with :export and :export_ok, for typedour_test.go.
+# ABOUTME: RFC 0001 "Typed variables": the type before the variable, the export as an attribute.
+package My::Vars;
+
+our Hash[Str|Undef] %Config :export;
+our Str $CRLF :export_ok;
+our Str $plain;

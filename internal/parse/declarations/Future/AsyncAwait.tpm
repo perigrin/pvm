@@ -2,8 +2,14 @@
 # ABOUTME: Read from its AsyncAwait.xs registrations, version 0.71; it exports no subs.
 package Future::AsyncAwait;
 
-# register_xs_parse_sublike("async"): XS_PARSE_SUBLIKE_FLAG_PREFIX, a prefix
-# on `sub`.
+# register_xs_parse_sublike("async"): XS_PARSE_SUBLIKE_FLAG_PREFIX,
+# BODY_OPTIONAL and ALLOW_PKGNAME alongside the prefix on `sub`
+# (AsyncAwait.xs:2370). Only PREFIX is stated here: a forward
+# declaration, `async sub f;`, and a package-qualified name, `async
+# sub Pkg::name {...}`, need no flag of their own, since
+# parsePrefixedSubDecl wraps the plain sub parser, which already
+# accepts a missing body and a qualified name for any sub (measured:
+# TestDeclaredSublikeBodyOptionalAndPkgName).
 sub async :sublike(PREFIX);
 
 # register_xs_parse_keyword("await"): one XPK_TERMEXPR_SCALARCTX, building an

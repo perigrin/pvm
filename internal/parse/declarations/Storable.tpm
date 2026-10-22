@@ -1,0 +1,70 @@
+# ABOUTME: Declares what `use Storable` exports: store and retrieve are :export, the rest
+# ABOUTME: :export_ok, measured. Measured on perl 5.42.0 with Storable 3.37.
+
+package Storable;
+
+# store, nstore, lock_store and lock_nstore write a structure to a
+# file and return a builtin boolean, measured on 5.42.0 with
+# `is_bool(store({a=>1}, "f"))` 1; a structure Storable cannot handle
+# dies rather than returning false. perldoc: "The routine returns
+# C<undef> for I/O problems or other internal error", and the source's
+# _store returns undef when close() fails or flock emulation is
+# broken, so Boolean alone misses the documented failure. None has a
+# prototype perl reports.
+sub store :export :listop (Ref $ref, Str $file) Boolean|Undef;
+sub nstore :export_ok :listop (Ref $ref, Str $file) Boolean|Undef;
+sub lock_store :export_ok :listop (Ref $ref, Str $file) Boolean|Undef;
+sub lock_nstore :export_ok :listop (Ref $ref, Str $file) Boolean|Undef;
+
+# store_fd and nstore_fd are the same, to an open filehandle rather
+# than a filename; FileHandle alone rejects a blessed handle like
+# IO::File, which the source dereferences the same way a bareword or
+# lexical one is (measured, `store_fd({a=>1}, IO::File->new(...))` is
+# a builtin true).
+sub store_fd :export_ok :listop (Ref $ref, FileHandle|Object $fh) Boolean|Undef;
+sub nstore_fd :export_ok :listop (Ref $ref, FileHandle|Object $fh) Boolean|Undef;
+
+# retrieve, lock_retrieve, retrieve_fd and fd_retrieve read back
+# whatever was stored, so each is polymorphic in what it returns.
+# Each also takes a documented second $flags argument the source reads
+# directly (`_retrieve($file,$use_locking,$flags)`, `fd_retrieve { my
+# ($file,$flags) }`), perldoc: "set the 2nd argument for thaw/retrieve
+# to 0"; FileHandle alone rejects a blessed handle, as store_fd above.
+sub retrieve :export :listop (Str $file, Optional[Int] $flags) Any;
+sub lock_retrieve :export_ok :listop (Str $file, Optional[Int] $flags) Any;
+sub retrieve_fd :export_ok :listop (FileHandle|Object $fh, Optional[Int] $flags) Any;
+sub fd_retrieve :export_ok :listop (FileHandle|Object $fh, Optional[Int] $flags) Any;
+
+# freeze and nfreeze serialize to a string rather than a file; thaw
+# and dclone reverse that -- thaw from the string, dclone from the
+# structure directly -- so both are polymorphic in what they return.
+# thaw takes the same documented $flags argument as retrieve, read
+# directly by the source (`thaw { my ($frozen,$flags) }`). dclone is
+# the one Storable function whose prototype perl reports, measured
+# `prototype(\&Storable::dclone)` is "$".
+sub freeze :export_ok :listop (Ref $ref) Str;
+sub nfreeze :export_ok :listop (Ref $ref) Str;
+sub thaw :export_ok :listop (Str $frozen, Optional[Int] $flags) Any;
+sub dclone :export_ok :prototype($) (Ref $ref) Any;
+
+# file_magic and read_magic report whether a file or a buffer looks
+# like Storable's own format, undef when it does not; file_magic
+# dies, rather than returning undef, when the file cannot be opened
+# at all. Measured on 5.42.0, `file_magic("plain.txt")` on a file that
+# opens but is not Storable's format is undef, as is
+# `read_magic($junk)`. read_magic also takes a documented second
+# argument, "=item $info = Storable::read_magic( $buffer, $must_be_file
+# )".
+sub file_magic :export_ok :listop (Str $file) HashRef|Undef;
+sub read_magic :export_ok :listop (Str $buffer, Optional[Boolean|Int] $must_be_file) HashRef|Undef;
+
+# BLESS_OK, TIE_OK and FLAGS_COMPAT are flag constants for the
+# advanced-hooks interface; stack_depth and stack_depth_hash report
+# the recursion limit Storable was built with. Each has perl's
+# measured empty prototype, (), not none: `defined
+# prototype(\&Storable::BLESS_OK)` is true where it is "".
+sub BLESS_OK :export_ok :prototype() () Int;
+sub TIE_OK :export_ok :prototype() () Int;
+sub FLAGS_COMPAT :export_ok :prototype() () Int;
+sub stack_depth :export_ok :prototype() () Int;
+sub stack_depth_hash :export_ok :prototype() () Int;

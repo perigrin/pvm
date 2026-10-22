@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
@@ -321,4 +323,238 @@ func TestArityCheckReachable(t *testing.T) {
 		}
 		wantCode(t, src, infer.CodeArityMismatch)
 	}
+}
+
+// TestSliceArgumentFlattens: I7, declaredCall must decide whether an
+// argument flattens from its own syntactic form, not its inferred
+// type -- a slice is untyped (vars.go's slice, "the slice itself is not
+// typed") and a call's type is whatever it returns in scalar context,
+// neither ever carrying the Array or Hash bit the old, type-based test
+// required. POSIX's strftime and mktime take fixed, typed Int
+// parameters with no prototype of their own (measured, `prototype(\&
+// POSIX::strftime)` is undef), so perl parses every argument position
+// as an ordinary list operator's: ambient list context, in which a
+// slice, a map, or a call flattens into however many values it holds.
+// perl 5.42 -w runs every one of these silently.
+func TestSliceArgumentFlattens(t *testing.T) {
+	for _, src := range []string{
+		`use POSIX qw(strftime); my $s = strftime("%Y", (localtime)[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $s = strftime("%Y", @lt[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $r = [@lt]; my $s = strftime("%Y", @$r[0..5]);`,
+		`use POSIX qw(strftime); my @lt = localtime; my $s = strftime("%Y", map { $_ } @lt);`,
+		`use POSIX qw(mktime); my @lt = localtime; my $t = mktime(@lt[0..5]);`,
+		`use POSIX qw(fmod); sub two { return (7, 3) } my $f = fmod(two());`,
+		`use POSIX qw(fmod); my $f = fmod(eval { (7, 3) });`,
+		`use POSIX qw(fmod); my $f = fmod(do { (7, 3) });`,
+	} {
+		wantSilentResolved(t, src)
+	}
+}
+
+// TestSumResultInArithmeticIsSilent: I8, List::Util::sum's declared
+// return, Num|Inf|NaN|Object joined with the empty candidate's Undef,
+// must not report in ordinary arithmetic: an addend overloading `+` or
+// `*` comes back unchanged (List/Util.tpm's own comment), so the
+// Object bit is as legitimate a number there as a plain Num, and the
+// Undef is the same possible-undef a declared call's own catch-all
+// candidate always carries. perl 5.42 -w runs every one of these
+// silently.
+func TestSumResultInArithmeticIsSilent(t *testing.T) {
+	for _, src := range []string{
+		`use List::Util qw(sum); my @n = (1, 2, 3); my $s = sum(@n) + 1;`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); print abs(sum(@n)), "\n";`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); print sqrt(sum(@n)), "\n";`,
+		`use List::Util qw(sum); use POSIX qw(floor); my @n = (1, 2, 3); my $f = floor(sum(@n));`,
+		`use List::Util qw(sum); my @n = (1, 2, 3); my $avg = sum(@n) / @n;`,
+	} {
+		wantSilentResolved(t, src)
+	}
+}
+
+// wantArity fails t unless src, analyzed with no options, gives exactly
+// one diagnostic, a call arity mismatch.
+func wantArity(t *testing.T, src string) {
+	t.Helper()
+	if diags := diagsWithOptions(src, infer.Options{}); len(diags) != 1 || diags[0].Code != infer.CodeArityMismatch {
+		t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeArityMismatch)
+	}
+}
+
+// TestScalarCallArgumentKeepsArity: a call flattens into a declared
+// call's arguments only when what it returns in list context is a list.
+// length, scalar, lc, join and abs return one value however they are
+// called, so fmod is still called with one argument: perl 5.42 -w dies
+// on each, "Usage: POSIX::fmod(x, y)".
+//
+// List::Util's first is declared to return Any, which carries the Array
+// and Hash bits but is one value: perl 5.42 -w dies the same way on
+// `fmod(first { 1 } @n)`.
+func TestScalarCallArgumentKeepsArity(t *testing.T) {
+	for _, arg := range []string{`length("abc")`, `scalar(@n)`, `lc("ab")`, `join(",", @n)`, `abs(2)`, `first { 1 } @n`} {
+		wantArity(t, "use POSIX qw(fmod); use List::Util qw(first); my @n = (1, 2, 3); my $f = fmod("+arg+");")
+	}
+}
+
+// TestListFormsFlatten: every argument form perl evaluates to a list in
+// an ordinary argument list flattens, so its count is not one argument:
+// a call whose list-context return is a list (localtime, reverse, a
+// method call, a sub of this file, a coderef, `&$c`), a ternary either of whose
+// arms flattens, a list repetition, a range, qw, a parenthesised list, a
+// list assignment, a readline and a glob, and a logical or's right
+// operand. Measured on 5.42.0, `sub cnt { scalar @_ }` counts 2 for
+// `cnt($o->two)`, `cnt(1 ? @a : @a)`, `cnt(0 ? 1 : @a)`, `cnt((7,3))`,
+// `cnt(my @q = (7,3))`, `cnt(my ($x, $y) = (7,3))` and `cnt(0 || @a)`,
+// 6 for `cnt((0) x 6)`, 3 for `cnt(7..9)` and `cnt(qw(a b c))`; and perl
+// 5.42 -w runs each program below silently. A readline yields a value
+// per line, so perl's own result there depends on its input: given
+// "7\n3\n" it runs `fmod(<STDIN>)` silently. A brace glob with no
+// wildcard yields each of its words, `<{7,3}>` the two.
+func TestListFormsFlatten(t *testing.T) {
+	const pre = "use POSIX qw(fmod strftime); package O { sub new { bless {}, shift } sub two { (7, 3) } } package main; my $o = O->new; my @a = (7, 3); my @lt = localtime; sub two { (7, 3) } my $c = \\&two; "
+	for _, call := range []string{
+		`strftime("%Y", localtime)`,
+		`fmod(reverse @a)`,
+		`fmod($o->two)`,
+		`fmod(O->two)`,
+		`fmod(two())`,
+		`fmod($c->())`,
+		`fmod(&$c)`,
+		`strftime("%Y", @ARGV ? @lt : @lt)`,
+		`fmod(@ARGV ? 1 : @a)`,
+		`fmod(@ARGV ? (7, 3) : (8, 3))`,
+		`strftime("%Y", (0) x 6)`,
+		`fmod(7..8)`,
+		`strftime("%Y", qw(0 0 0 1 0 100))`,
+		`fmod(qw(7 3))`,
+		`fmod((7, 3))`,
+		`fmod(my @q = (7, 3))`,
+		`fmod(my ($x, $y) = (7, 3))`,
+		`fmod(0 || @a)`,
+		`fmod(<STDIN>)`,
+		`fmod(<{7,3}>)`,
+		`fmod(glob("{7,3}"))`,
+		`fmod(eval "(7, 3)")`,
+		`fmod(do "./two.pl")`,
+		`fmod(@a = (7, 3))`,
+		`fmod(@ARGV ? @a : 1)`,
+	} {
+		wantSilentResolved(t, pre+"my $r = "+call+";")
+	}
+}
+
+// TestScalarCallArgumentStillChecked: an argument that is a call
+// returning one value leaves the call's arity known, so every argument
+// is still checked against the candidate it selects. perl 5.42 -w warns
+// "Use of uninitialized value in subroutine entry" on `fmod(undef,
+// abs(2))` and `fmod(max(@n), undef)`, and `Argument "abc" isn't
+// numeric` on `fmod(sum(@n), "abc")`.
+func TestScalarCallArgumentStillChecked(t *testing.T) {
+	for _, call := range []string{`fmod(undef, abs(2))`, `fmod(max(@n), undef)`, `fmod(sum(@n), "abc")`} {
+		src := "use POSIX qw(fmod); use List::Util qw(sum max); my @n = (1, 2, 3); my $f = " + call + ";"
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
+}
+
+// TestArgumentsBeforeAMethodCallAreChecked: a method call may return a
+// list, so it flattens, but every argument before it still stands at its
+// own position, and is checked against the parameter there. perl 5.42 -w
+// warns "Use of uninitialized value in subroutine entry" on `fmod(undef,
+// $o->one)` and `Argument "abc" isn't numeric` on `fmod("abc", $o->one)`,
+// and is silent on `fmod(7, $o->one)`.
+func TestArgumentsBeforeAMethodCallAreChecked(t *testing.T) {
+	const pre = "use POSIX qw(fmod); package O { sub new { bless {}, shift } sub one { 3 } } package main; my $o = O->new; "
+	for _, call := range []string{`fmod(undef, $o->one)`, `fmod("abc", $o->one)`, `fmod("abc", O->one)`} {
+		src := pre + "my $f = " + call + ";"
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch {
+			t.Errorf("%q: diagnostics %v, want one %s", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
+	for _, call := range []string{`fmod(7, $o->one)`, `fmod($o->one, "abc")`} {
+		src := pre + "my $f = " + call + ";"
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+	}
+}
+
+// TestCwdChdirRefArgumentNoError: Cwd::chdir takes a string or a handle,
+// and any other reference is stringified on its way to CORE::chdir:
+// perl 5.42 -w is silent on `Cwd::chdir({})`, which returns 0. Its
+// declaration says so with a handle candidate beside a string one, so a
+// reference selects the string candidate and is a lossy coercion,
+// reported only under WarnLossyCoercion, not a default error; a handle
+// is no coercion at all. POSIX::chdir, Time::HiRes's stat and lstat and
+// File::stat's lstat stringify a stray reference the same way, measured
+// silent under perl 5.42 -w.
+func TestCwdChdirRefArgumentNoError(t *testing.T) {
+	for _, ref := range []string{
+		"use Cwd (); my $h = {}; my $q = Cwd::chdir($h);",
+		"use POSIX (); my $q = POSIX::chdir({});",
+		"use Time::HiRes (); my @s = Time::HiRes::stat({});",
+		"use Time::HiRes (); my $s = Time::HiRes::lstat([]);",
+		"use File::stat (); my $s = File::stat::lstat({});",
+	} {
+		assert.Empty(t, diagsWithOptions(ref, infer.Options{}), ref)
+		diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true})
+		if assert.Len(t, diags, 1, ref) {
+			assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code, ref)
+		}
+	}
+	const handle = "use Cwd (); opendir(my $dh, '.') or die; my $q = Cwd::chdir($dh); my $r = Cwd::chdir(\\*STDIN);"
+	assert.Empty(t, diagsWithOptions(handle, infer.Options{WarnLossyCoercion: true}))
+}
+
+// TestGlobDerefParamStillReportsRef: whether a parameter stringifies a
+// stray reference belongs to each declaration, not to its type. File::stat's
+// stat and Symbol's qualify_to_ref dereference a reference as a glob, so
+// perl 5.42 -w dies "Not a GLOB reference" on each call below, and each
+// stays a coercion mismatch.
+func TestGlobDerefParamStillReportsRef(t *testing.T) {
+	for _, src := range []string{
+		"use File::stat (); my $s = File::stat::stat({});",
+		"use File::stat (); my $s = File::stat::stat([]);",
+		"use Symbol (); my $s = Symbol::qualify_to_ref({});",
+		"use Symbol (); my $s = Symbol::qualify_to_ref([]);",
+	} {
+		diags := diagsWithOptions(src, infer.Options{})
+		if len(diags) != 1 || diags[0].Code != infer.CodeCoercionMismatch || diags[0].Severity != infer.Error {
+			t.Errorf("%q: diagnostics %v, want one %s error", src, diags, infer.CodeCoercionMismatch)
+		}
+	}
+}
+
+// TestUndefUnionCoercesToItsMember: a parameter typed X|Undef takes what
+// perl coerces to X, as X itself does. Socket's sockaddr_in takes `Int|Undef
+// $port`, and perl 5.42 -w is silent on a string port, literal or held in a
+// variable; Time::HiRes::utime's `Num|Undef` times take "1.5" the same way.
+// A literal that is no number is still reported: perl warns `Argument "abc"
+// isn't numeric` on `sockaddr_in("abc", ...)`.
+func TestUndefUnionCoercesToItsMember(t *testing.T) {
+	for _, src := range []string{
+		`use Socket qw(sockaddr_in inet_aton); my $x = sockaddr_in("80", inet_aton("127.0.0.1"));`,
+		`use Socket qw(sockaddr_in inet_aton); my $a = inet_aton("127.0.0.1"); my $p = "80"; my $x = sockaddr_in($p, $a);`,
+		`use Time::HiRes (); my $n = Time::HiRes::utime("1.5", "1.5", "f.txt");`,
+	} {
+		assert.Empty(t, diagsWithOptions(src, infer.Options{}), src)
+	}
+	const abc = `use Socket qw(sockaddr_in inet_aton); my $x = sockaddr_in("abc", inet_aton("127.0.0.1"));`
+	if diags := diagsWithOptions(abc, infer.Options{}); assert.Len(t, diags, 1, abc) {
+		assert.Equal(t, infer.CodeCoercionMismatch, diags[0].Code)
+	}
+}
+
+// TestFileparseTakesItsPath: File::Basename::fileparse's path is a
+// required Str of its own, ahead of the suffixes. perl 5.42 -w is silent
+// on `fileparse({})`, which stringifies the reference, so it is a lossy
+// coercion, reported only under WarnLossyCoercion; and perl dies
+// "fileparse(): need a valid pathname" on `fileparse()`.
+func TestFileparseTakesItsPath(t *testing.T) {
+	const ref = "use File::Basename qw(fileparse); my @p = fileparse({});"
+	assert.Empty(t, diagsWithOptions(ref, infer.Options{}), ref)
+	if diags := diagsWithOptions(ref, infer.Options{WarnLossyCoercion: true}); assert.Len(t, diags, 1, ref) {
+		assert.Equal(t, infer.CodeLossyCoercion, diags[0].Code, ref)
+	}
+	wantArity(t, "use File::Basename qw(fileparse); my @p = fileparse();")
 }

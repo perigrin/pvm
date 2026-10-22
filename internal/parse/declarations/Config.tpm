@@ -1,0 +1,48 @@
+# ABOUTME: Declares what `use Config` installs: %Config on a bare use, its @EXPORT_OK
+# ABOUTME: subs only by name. Measured on perl 5.42.0 with Config's generated Config.pm.
+
+package Config;
+
+# %Config is generated when perl is built, so no source tree holds it
+# (module.go's noteImportKnowledge already special-cases Config for that
+# reason). 172 of its 1255 values are undef on this build (measured), so
+# Hash[Str] would fail where Hash[Str|Undef] holds (ruling 3).
+our Hash[Str|Undef] %Config :export;
+
+# Each of these is in @EXPORT_OK alone (measured): a bare `use Config;`
+# installs %Config and none of them. Each is a real array variable, so
+# -- measured on 5.42.0 -- scalar context gives its count, list context
+# its values.
+multi sub bincompat_options :export_ok (List @args) List[Str];
+multi sub bincompat_options :export_ok (List @args) Int;
+multi sub non_bincompat_options :export_ok (List @args) List[Str];
+multi sub non_bincompat_options :export_ok (List @args) Int;
+multi sub local_patches :export_ok (List @args) List[Str];
+multi sub local_patches :export_ok (List @args) Int;
+
+# header_files returns the list of C headers perl was built with in list
+# context, and -- measured on 5.42.0 -- a single header name (not a
+# count) in scalar context: it is built from a literal list, not an
+# array variable, so scalar context takes the comma operator's last
+# element.
+multi sub header_files :export_ok (List @args) List[Str];
+multi sub header_files :export_ok (List @args) Str;
+
+sub compile_date :export_ok (List @args) Str;
+sub myconfig :export_ok (List @args) Str;
+sub config_sh :export_ok (List @args) Str;
+# config_re greps %Config for keys matching its regex and formats each
+# as a "key='value'" line, answering by context like header_files does
+# (`return map {...} grep ..., split ...`, Config_heavy.pl:1498): the
+# matching lines in list context, their count in scalar context.
+# Measured on 5.42.0: config_re("ccflags.*") gives 3 lines in list
+# context and 3 (the count, an Int) in scalar context. :listop:
+# config_re has no prototype (measured), so its one typed parameter
+# derives none either (RFC 0001, "Builtins with no prototype").
+multi sub config_re :export_ok :listop (Str $pattern) List[Str];
+multi sub config_re :export_ok :listop (Str $pattern) Int;
+# config_vars prints "name='value'" to STDOUT for each name given (its
+# documented job, used by `perl -V:name`) and returns perl's own false
+# boolean (measured with builtin::is_bool), never dying on a name
+# %Config lacks.
+sub config_vars :export_ok (List @names) Boolean;

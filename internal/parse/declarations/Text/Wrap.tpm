@@ -1,0 +1,24 @@
+# ABOUTME: Declares what `use Text::Wrap` installs: wrap and fill bare, its three
+# ABOUTME: settings by name. Measured on perl 5.42.0 with Text::Wrap 2024.001.
+
+package Text::Wrap;
+
+# Measured on 5.42.0: all three are in @EXPORT_OK alone; a bare `use
+# Text::Wrap;` installs wrap and fill only.
+our Int $columns :export_ok;
+# $break defaults to a regex-shaped Str, measured on 5.42.0 as never a
+# Regexp ref -- but the POD documents setting it 'to a string such as
+# '[\s:]' ... or a pre-compiled regexp such as qr/[\s']/', and measured,
+# $Text::Wrap::break = qr/[\s:]/ breaks at the pattern exactly as the
+# equivalent string does.
+our Str|Regex $break :export_ok;
+# $huge selects 'wrap', 'die' or 'overflow' (measured, its default is
+# 'wrap').
+our Str $huge :export_ok;
+
+# wrap and fill each join their lines into one Str, measured on 5.42.0
+# in both contexts: neither returns a per-line list. :listop: neither
+# has a prototype (measured), so their typed parameters derive none
+# either (RFC 0001, "Builtins with no prototype").
+sub wrap :export :listop (Str $indent1, Str $indent2, List @lines) Str;
+sub fill :export :listop (Str $indent1, Str $indent2, List @lines) Str;

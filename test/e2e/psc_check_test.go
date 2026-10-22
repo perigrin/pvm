@@ -286,3 +286,78 @@ func TestPSCCheckCoercionDiagnostics(t *testing.T) {
 	assert.Contains(t, stderr, "lossy-coercion",
 		"stderr should contain lossy-coercion diagnostic codes under the opt-in")
 }
+
+// TestPSCCheckUsesDeclarations: Carp.tpm declares `sub carp :export
+// (List[Str] @message) Boolean`, so psc check reports the undef carp is
+// handed. Measured, perl 5.42 -w on declared_mismatch.pl warns "Use of
+// uninitialized value $error[1] in join or string at .../Carp.pm line
+// 588."
+func TestPSCCheckUsesDeclarations(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_mismatch.pl"))
+	assert.Error(t, err)
+	assert.Contains(t, stderr, "declared_mismatch.pl:7:")
+	assert.Contains(t, stderr, "call to carp")
+	assert.Contains(t, stderr, "coercion-mismatch")
+}
+
+// TestPSCCheckDeclarationsNoFalsePositive: calls whose arguments fit
+// Carp's declarations report nothing; perl 5.42 -w runs declared_fit.pl
+// with no warning of its own.
+func TestPSCCheckDeclarationsNoFalsePositive(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_fit.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+}
+
+// TestPSCCheckUndecidedCallReportsNothing: `return localtime($_[0])` is in
+// a context its call site cannot decide, so the call joins localtime's
+// candidates and nothing is reported. perl 5.42 -w runs undecided_call.pl
+// silently, in list and in scalar context. A library multi is joined the
+// same way: undecided_declared.pl returns the parse fixture My::Lib's
+// when_, Str in scalar context and List[Str] in list context, which perl
+// 5.42 -w runs silently with a My::Lib whose when_ answers wantarray.
+func TestPSCCheckUndecidedCallReportsNothing(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "undecided_call.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+
+	t.Cleanup(parse.OverlayDeclarations(os.DirFS(filepath.Join(testdataDir(t), "..", "..", "..", "..", "internal", "parse", "testdata"))))
+	_, stderr, err = runPSCCheck(t, filepath.Join(testdataDir(t), "undecided_declared.pl"))
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
+}
+
+// TestPSCCheckSingleCandidateMismatchIsCoercion: cluck has one declared
+// candidate, whose arity `cluck(undef)` fits, so the candidate is selected
+// and the undef is coerced to its Str: a coercion mismatch, not a call no
+// candidate accepts. perl 5.42 -w warns "Use of uninitialized value
+// $error[0] in join or string at .../Carp.pm line 588."
+func TestPSCCheckSingleCandidateMismatchIsCoercion(t *testing.T) {
+	_, stderr, err := runPSCCheck(t, filepath.Join(testdataDir(t), "declared_single.pl"))
+	assert.Error(t, err)
+	assert.Contains(t, stderr, "declared_single.pl:7:")
+	assert.Contains(t, stderr, "coercion-mismatch")
+	assert.NotContains(t, stderr, "arity-mismatch")
+	assert.NotContains(t, stderr, "no declared candidate")
+}
+
+// TestPSCCheckDualvarIsLossyCoercion: dualvar.pl uses a dualvar as a
+// number, as a string and as split's pattern, which perl 5.42 -w runs
+// silently, so psc check says nothing by default. Each use reads one of
+// the dualvar's values and drops the other -- `0 + "$d"` is 0 for
+// `dualvar(404, "Not Found")` -- so under --warn-lossy-coercion each is
+// a lossy coercion.
+func TestPSCCheckDualvarIsLossyCoercion(t *testing.T) {
+	dualvarFile := filepath.Join(testdataDir(t), "dualvar.pl")
+
+	_, stderr, err := runPSCCheck(t, dualvarFile)
+	assert.NoError(t, err, "a dualvar read as a number or a string is silent by default")
+	assert.Empty(t, stderr)
+
+	_, stderr, err = runPSCCheck(t, dualvarFile, "--warn-lossy-coercion")
+	assert.Error(t, err, "--warn-lossy-coercion reports each dualvar coercion")
+	for _, line := range []string{"dualvar.pl:8:", "dualvar.pl:9:", "dualvar.pl:10:"} {
+		assert.Contains(t, stderr, line)
+	}
+	assert.Contains(t, stderr, "lossy-coercion")
+}

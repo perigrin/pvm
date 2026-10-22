@@ -135,7 +135,8 @@ func (p *parser) overridden(name string) bool {
 // lc("A")` is "x". Signatures is the typed signatures a declaration file
 // gives the sub it calls, when that is a sub and not the builtin. A `.tpm`
 // is not marked: CORE.tpm is one, and reading it builds the candidates
-// this consults.
+// this consults. Prototype is that sub's prototype, which says how many
+// arguments an array or a hash among the call's is.
 func (p *parser) markResolution(n *Node) *Node {
 	if n == nil || n.Kind != Call || p.typed || n.Text != keywordName(n.Text) {
 		return n
@@ -148,7 +149,7 @@ func (p *parser) markResolution(n *Node) *Node {
 		n.Override = lexical || sub && !imp.Local || global || p.listed[n.Text]
 	}
 	if sub && (!builtin || n.Override) {
-		n.Signatures = imp.Signatures
+		n.Signatures, n.Prototype = imp.Signatures, imp.Prototype
 	}
 	return n
 }

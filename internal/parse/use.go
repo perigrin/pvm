@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // phasers are the compile-and-run-phase blocks.
@@ -110,6 +111,48 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 		}
 		module = term.Text
 		n.Children = append(n.Children, term)
+	}
+
+	// `use MODULE VERSION LIST`: VERSION is a bare, unparenthesised number
+	// standing between the module name and the list -- measured on
+	// 5.42.0, `use POSIX 1.0 qw(floor);` checks POSIX's version against
+	// 1.0 and imports floor alone (Deparse confirms the split: `use POSIX
+	// 1 ('floor')`). Read as one expression, "1.0 qw(floor)" is two terms
+	// with no operator between them, so the import-list parse below used
+	// to take only the number and leave the list to start a SECOND, bare
+	// statement -- measured, `use Test::More 1.0 (); ok();` parsed as
+	// `use Test::More 1.0` (which installed Test::More's defaults, as a
+	// list of one unmatched number does) followed by a stray `();`,
+	// giving `ok()` a false call_arity where perl's real empty list
+	// leaves it undefined entirely; `use POSIX 1.0 qw(floor); floor(1,2)`
+	// similarly lost `floor` to the opaque-list branch and reported
+	// nothing where perl's own `Usage: POSIX::floor(x)` does. A negated
+	// number is not a version -- measured, `use POSIX -1;` reads `(-1)`
+	// as the list and dies "not exported" -- so only a bare, unsigned
+	// Number counts.
+	//
+	// A COMMA right after the number is the one thing that rules this
+	// out: measured, `use POSIX 1.0, qw(floor);` deparses as `use POSIX
+	// (1.0, 'floor')` -- the number joined to the rest by a comma is the
+	// list's first element, not a VERSION standing alone before it.
+	// `use if COND, MODULE, LIST` always has one there, so a numeric
+	// COND -- `use if 1, 'Foo::Gen';` -- is read the same way: as `use if
+	// (1, 'Foo::Gen')`, a list, not `if` followed by a version. `if` is
+	// also excluded outright, since it is not a module with a version
+	// at all.
+	//
+	// A v-string VERSION -- `v1.0`, or a bare `1.2.3` -- is a Quote token
+	// (`scanVString`), and a VERSION as well: measured, `use POSIX v1.0
+	// qw(floor); floor(1,2)` dies "Usage: POSIX::floor(x)".
+	if module != "" && module != "if" && !isVersionPrefix(module) {
+		if v, ok := p.peekSignificant(); ok && (v.Kind == lexer.Number || v.Kind == lexer.Quote && isVString(p.text(v))) {
+			if next, ok := p.peekAfter(v); !ok || p.text(next) != "," {
+				p.advanceTo(v)
+				n.Children = append(n.Children, &Node{
+					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
+				})
+			}
+		}
 	}
 
 	// The import list, or a version. A version is now ONE Quote token
@@ -315,12 +358,12 @@ func (p *parser) resolveImports(module string, list *Node) {
 		if !strings.Contains(name, "::") {
 			q = module + "::" + name
 		}
-		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true}
+		p.moduleSubs[q] = Import{Name: q, Prototype: proto, PrototypeKnown: true, Signatures: facts.signatures[name]}
 	}
 
 	// Its declared syntax comes into scope with any import -- `use M ()`
 	// calls no import, and brings none.
-	if len(facts.syntax) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+	if len(facts.syntax) > 0 && (list == nil || !isEmptyParenList(list)) {
 		if p.syntax == nil {
 			p.syntax = map[string]declaredSyntax{}
 		}
@@ -338,7 +381,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 			ops = append(ops, op)
 		}
 	}
-	if len(ops) > 0 && (list == nil || !list.Paren || len(list.Children) > 0) {
+	if len(ops) > 0 && (list == nil || !isEmptyParenList(list)) {
 		inScope := slices.Concat(p.libraryOps, ops)
 		if powers, err := libraryInfix(inScope); err != nil {
 			p.res.declErrs = append(p.res.declErrs, fmt.Errorf("%s: %w", module, err))
@@ -358,6 +401,66 @@ func (p *parser) resolveImports(module string, list *Node) {
 		}
 		for _, imp := range importsFrom(facts, names, given) {
 			p.imports[p.subKey(imp.Name)] = imp
+		}
+		return
+	}
+
+	// A .tpm that declares `import`, and marks it neither :export nor
+	// :export_ok, states that a `use` list is import's argument list, not
+	// names to resolve against :export (perigrin's ruling, 2026-10-20:
+	// "the parameters are the signature to import()"). `use M ();` -- the
+	// explicit empty list -- still calls no import, as it does for any
+	// module; any other list, read or not, calls import with the same
+	// result: the module's :export marks are what a bare use installs,
+	// measured. A declared import that IS marked -- Exporter's own,
+	// :export_ok, aliasing itself into the caller by name -- keeps the
+	// ordinary name semantics instead: `use Exporter 'import';` asks for
+	// the name import, not an argument to call it with.
+	if sigs := facts.signatures["import"]; len(sigs) > 0 && !slices.Contains(facts.exports, "import") {
+		if isEmptyParenList(list) {
+			return
+		}
+		// `use M qw();` is also the explicit empty list: qw() is a Term,
+		// not a Paren with no children, but literalNameList still reads
+		// it as zero names (measured: perl imports nothing from either
+		// spelling).
+		if list != nil {
+			if names, ok := literalNameList(list); ok && len(names) == 0 {
+				return
+			}
+		}
+		// The signature names the keys (perigrin's ruling, 2026-10-20):
+		// its first optional scalar parameter, after the invocant, is
+		// named for the one key, measured, whose presence changes what
+		// import installs -- Test::More's `import => [...]`,
+		// Locale::Maketext::Simple's `Export => ...`. A use-list naming
+		// that key installs something this parser cannot predict without
+		// evaluating import itself (Test::More installs only the names
+		// under the key; Locale::Maketext::Simple installs names built
+		// from the key's value), so it claims none and leaves the
+		// symbols open rather than a wrong one.
+		if key, ok := alteringKey(sigs[0]); ok && listNamesKey(list, key) {
+			p.symbolsOpen = true
+			return
+		}
+		if p.imports == nil {
+			p.imports = map[string]Import{}
+		}
+		for _, imp := range importsFrom(facts, nil, false) {
+			p.imports[p.subKey(imp.Name)] = imp
+		}
+		// A module whose own import still forwards its list to Exporter
+		// alongside doing DSL work of its own -- Getopt::Long's `qw(
+		// GetOptionsFromArray)` installs GetOptionsFromArray by that name,
+		// an :export_ok name the defaults above never carry (measured;
+		// audit E, finding 9) -- resolves whatever the list names
+		// literally too, never fewer names than a bare use installs.
+		if list != nil {
+			if names, ok := literalNameList(list); ok {
+				for _, imp := range importsFrom(facts, names, true) {
+					p.imports[p.subKey(imp.Name)] = imp
+				}
+			}
 		}
 		return
 	}
@@ -465,6 +568,54 @@ func constantName(n *Node) (string, bool) {
 		return n.Text, true
 	}
 	return "", false
+}
+
+// alteringKey is the literal name of the key a declared import's own
+// use-list may carry to change what it installs (perigrin's ruling,
+// 2026-10-20: "the signature names the keys"): the first optional scalar
+// parameter after the invocant, its sigil marking it a single value
+// rather than the trailing slurpy that catches everything else.
+func alteringKey(sig types.Signature) (string, bool) {
+	for _, p := range sig.Params {
+		if p.Sigil == '$' && !p.Required {
+			return p.Name, true
+		}
+	}
+	return "", false
+}
+
+// isEmptyParenList reports whether list is the explicit empty list, `()`
+// with nothing between the parens: a List node, parenthesised, with no
+// children. A single parenthesised item, `('x')`, is NOT this --
+// finishList (term.go) copies that one item BY VALUE instead of wrapping
+// it in a List, so the copy keeps the item's own Kind -- a Term, a Call,
+// whatever it already was -- along with its own (zero) Children, and
+// `len(Children) == 0` alone cannot tell that Term from an empty list.
+// Measured on 5.42.0: `use Test::More ('no_plan')` installs the whole
+// default set, as a bare `use Test::More` does, not the nothing `use
+// Test::More ();` installs.
+func isEmptyParenList(list *Node) bool {
+	return list != nil && list.Kind == List && list.Paren && len(list.Children) == 0
+}
+
+// listNamesKey reports whether a use-list carries key as one of its
+// literal words -- `import => [...]`, `Export => 'zz'` -- wherever it
+// falls in the list. A bareword immediately before `=>` parses as a
+// zero-argument call rather than a Term, as constantName's matching
+// check already allows for.
+func listNamesKey(list *Node, key string) bool {
+	if list == nil {
+		return false
+	}
+	for _, item := range listItems(list) {
+		if names, ok := literalNameList(item); ok && len(names) == 1 && names[0] == key {
+			return true
+		}
+		if len(item.Children) == 0 && item.Text == key {
+			return true
+		}
+	}
+	return false
 }
 
 // builderImportList reads a Test::Builder::Module subclass's import list as
@@ -721,6 +872,14 @@ func isVersionPrefix(text string) bool {
 		}
 	}
 	return true
+}
+
+// isVString reports whether a Quote token's text is a v-string literal:
+// `v1.0` or a bare `1.2.3`. No other Quote begins with a digit, or with a
+// `v` and then a digit.
+func isVString(text string) bool {
+	text = strings.TrimPrefix(text, "v")
+	return text != "" && text[0] >= '0' && text[0] <= '9'
 }
 
 // parsePhaser: `BEGIN { ... }` and the other four.

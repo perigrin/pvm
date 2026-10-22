@@ -150,10 +150,10 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 					return fmt.Errorf(":unary takes at most one operand, the signature has %d", operands)
 				}
 				var err error
-				s.Returns, ret, err = p.returnType()
+				s.Returns, s.ReturnElement, ret, err = p.returnType()
 				return err
 			}
-			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil {
+			if ok && p.text(tok) == ":" && len(s.Params) == 0 && s.Invocant == nil && !namedParamColon(p, tok) {
 				return errors.New("invocant colon with no parameter before it")
 			}
 			// A List parameter takes every remaining argument, so nothing
@@ -171,6 +171,12 @@ func (p *parser) parseTypedSignature(n *Node) bool {
 			param, node, err := p.typedParam()
 			if err != nil {
 				return err
+			}
+			// Named parameters come after every positional one and before
+			// a slurpy (perlsub "named parameters"); perl refuses a
+			// positional after a named the same way.
+			if n := len(s.Params); n > 0 && s.Params[n-1].Named && !param.Named && !param.Slurpy() {
+				return fmt.Errorf("positional parameter %s follows named parameter %s", param.Variable(), s.Params[n-1].Variable())
 			}
 			// Everything after a prototype's `;` is optional, so a required
 			// parameter after an optional one has no prototype; perl 5.42
@@ -273,24 +279,25 @@ func refuseContext(n *Node) error {
 }
 
 // returnType reads the type a `.tpm` declaration states after its signature,
-// `) Object;`, where a definition would have its body. A declaration with no
-// type name there states none. The `;` is left for finishBodyOrSemicolon.
-func (p *parser) returnType() (types.Type, *Node, error) {
+// `) Object;`, where a definition would have its body, and its element type,
+// as typeExpr reads them. A declaration with no type name there states none.
+// The `;` is left for finishBodyOrSemicolon.
+func (p *parser) returnType() (types.Type, types.Type, *Node, error) {
 	if tok, ok := p.peekSignificant(); !ok || tok.Kind != lexer.Word {
-		return types.Unknown, nil, nil
+		return types.Unknown, types.Unknown, nil, nil
 	}
-	typ, _, node, err := p.typeExpr()
+	typ, elem, node, err := p.typeExpr()
 	if err != nil {
-		return types.Unknown, nil, err
+		return types.Unknown, types.Unknown, nil, err
 	}
 	end, ok := p.peekSignificant()
 	switch {
 	case !ok:
-		return types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
+		return types.Unknown, types.Unknown, nil, fmt.Errorf("return type %s not terminated", node.Text)
 	case end.Kind != lexer.Semicolon:
-		return types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
+		return types.Unknown, types.Unknown, nil, fmt.Errorf("return type %s is not followed by `;`", node.Text)
 	}
-	return typ, node, nil
+	return typ, elem, node, nil
 }
 
 // typeExpr reads a type expression into its Type, its element type, and a
@@ -394,6 +401,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if !ok {
 		return types.Param{}, nil, errors.New("signature not terminated")
 	}
+	start := tok.Start
+	// Perl 5.44's named parameter (perlsub "named parameters"): a `:`
+	// prefixed to the variable's sigil, with no type before it, `:$x`.
+	named := false
+	if namedParamColon(p, tok) {
+		p.advanceTo(tok)
+		named = true
+		if tok, ok = p.peekSignificant(); !ok {
+			return types.Param{}, nil, errors.New("signature not terminated")
+		}
+	}
 	// A scalar may be untyped as a slurpy may: RFC 0001 "Multi
 	// declarations" states `($r, $w, $e, Num $timeout)`.
 	typ, elem, tn := types.Unknown, types.Unknown, &Node{}
@@ -404,6 +422,11 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		var err error
 		if typ, elem, tn, err = p.typeExpr(); err != nil {
 			return types.Param{}, nil, err
+		}
+		// The same colon, after a type: `ArrayRef :$x`.
+		if next, ok := p.peekSignificant(); ok && namedParamColon(p, next) {
+			p.advanceTo(next)
+			named = true
 		}
 	}
 	v, ok := p.peekSignificant()
@@ -436,7 +459,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 		return types.Param{}, nil, fmt.Errorf("type %s names no variable", tn.Text)
 	}
 	p.advanceTo(last)
-	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each}
+	param := types.Param{Name: p.text(v)[1:], Sigil: p.src[v.Start], Type: typ, Element: elem, Alias: alias, AliasEach: each, Named: named}
 	slurpy := param.Slurpy()
 	// A parameter whose type includes Void may be absent, with no default
 	// (RFC 0001, "`Maybe[T]` is `Undef|T` and `Optional[T]` is `Void|T`"):
@@ -481,7 +504,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	if slurpy && typ != types.Unknown && !list {
 		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
 	}
-	node := &Node{Kind: Declaration, Text: tn.Text, Start: tok.Start, Children: []*Node{
+	node := &Node{Kind: Declaration, Text: tn.Text, Start: start, Children: []*Node{
 		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
 	}}
 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
@@ -529,6 +552,17 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
 	}
 	node.End = p.prevEnd()
 	return param, node, nil
+}
+
+// namedParamColon reports whether tok is the leading `:` of a perl 5.44
+// named parameter, perlsub "named parameters": a colon touching the
+// variable's sigil, with no type or space between them, `:$name`.
+func namedParamColon(p *parser, tok lexer.Token) bool {
+	if p.text(tok) != ":" {
+		return false
+	}
+	next, ok := p.peekAfter(tok)
+	return ok && next.Kind == lexer.Variable && next.Start == tok.End
 }
 
 // slotHolds says what a slot holds when typ does not fit it, and "" when
@@ -736,9 +770,25 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// branch takes a package name after `my`, `our` or `state` as the
 	// variable's class (find_in_my_stash) -- `local` takes none. Read as a
 	// call, the class split the statement: `my Foo();$f;`.
+	//
+	// A `.tpm`'s `our` takes a type expression there instead, `our
+	// Hash[Str|Undef] %Config :export;` (RFC 0001, "Typed variables"). A
+	// program never reads one: perl refuses it at compile time.
+	var typeName *Node
+	var typ, elem types.Type
 	switch keywordName(p.text(word)) {
 	case "my", "our", "state":
 		if class, ok := p.peekSignificant(); ok && class.Kind == lexer.Word {
+			if p.typed && keywordName(p.text(word)) == "our" {
+				save := p.pos
+				var err error
+				if typ, elem, typeName, err = p.typeExpr(); err == nil {
+					n.Children = append(n.Children, typeName)
+					break
+				}
+				p.typedErrs = append(p.typedErrs, fmt.Errorf("our: %w", err))
+				p.pos, typeName = save, nil
+			}
 			if next, ok := p.peekAfter(class); ok &&
 				(next.Kind == lexer.Variable || p.text(next) == "(") {
 				p.advanceTo(class)
@@ -781,6 +831,9 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		}
 		n.Children = append(n.Children, target)
 		p.parseAttributes(n)
+		if typeName != nil {
+			p.declareVariable(n, target.Text, typeName.Text, typ, elem)
+		}
 
 		// The initialiser, if there is one. ANY assignment operator, not just
 		// `=`: `local $ENV{PATH} .= $x` is valid perl, and accepting only `=`
@@ -848,7 +901,18 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// the shape is the scalar path's -- target, attributes, initialiser --
 	// which canon already writes. Measured on 5.42.0, Deparse keeps
 	// `my($c, @g, %b) :teapots = ('a', 'b', 'c')`.
+	beforeList := len(n.Children)
 	if d := p.listDeclWithAttributes(n); d != nil {
+		// A single name in parens -- `our Hash[Str] (%a) :export;` -- is one
+		// variable, grouping parens around it rather than a list of several
+		// (parseTerm already collapses them to the one Term, as it does for
+		// any parenthesised single expression): the type reads exactly as
+		// the unparenthesised form's does. Several names stay unrecorded,
+		// readExportMarks' "declare one variable per statement" refusal
+		// below.
+		if typeName != nil && len(d.Children) > beforeList && d.Children[beforeList].Kind == Term {
+			p.declareVariable(d, d.Children[beforeList].Text, typeName.Text, typ, elem)
+		}
 		return d
 	}
 
@@ -872,6 +936,40 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
+}
+
+// declareVariable records a `.tpm`'s typed `our`, the variable spelled name
+// with the type typ of element elem written as text, on p.variables, or its
+// fault on p.typedErrs. A hash or array is typed by its container, as a
+// slurpy is (RFC 0001, "A slurpy takes no bare element type"), a scalar by
+// what one holds, and its attributes are the export marks.
+func (p *parser) declareVariable(n *Node, name, text string, typ, elem types.Type) {
+	v := types.Param{Name: name[1:], Sigil: name[0], Type: typ, Element: elem}
+	holds := slotHolds('$', false, typ)
+	err := func() error {
+		switch {
+		case v.Sigil == '%' && typ != types.Hash:
+			return fmt.Errorf("%s has type %s; a hash is typed by its container, Hash[%s] %s", name, text, text, name)
+		case v.Sigil == '@' && typ != types.Array:
+			return fmt.Errorf("%s has type %s; an array is typed by its container, Array[%s] %s", name, text, text, name)
+		case v.Sigil == '$' && holds != "":
+			return fmt.Errorf("%s has type %s; a scalar holds %s", name, text, holds)
+		}
+		for _, c := range n.Children {
+			if _, _, ok := exportAttr(c); c.Kind == Attribute && !ok {
+				return fmt.Errorf("%s: unknown attribute %s; a typed our takes :export or :export_ok", name, c.Text)
+			}
+		}
+		return nil
+	}()
+	if err != nil {
+		p.typedErrs = append(p.typedErrs, fmt.Errorf("our %w", err))
+		return
+	}
+	if p.variables == nil {
+		p.variables = map[string]types.Param{}
+	}
+	p.variables[name] = v
 }
 
 // compoundOp is a Declaration's AssignOp for the assignment operator op:

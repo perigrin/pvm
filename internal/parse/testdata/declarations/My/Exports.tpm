@@ -1,0 +1,9 @@
+# ABOUTME: A declaration file marking each exported sub with :export or :export_ok, for exportattr_test.go.
+# ABOUTME: RFC 0001 "Every exported name": no export lists, and a tag is an attribute argument.
+package My::Exports;
+
+sub f :export () Int;
+sub g :export_ok () Int;
+sub h () Int;
+sub LOCK_EX :export_ok(flock) () Int;
+sub both :export(a, b) () Int;

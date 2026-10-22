@@ -118,6 +118,46 @@ func TestSymbolTableExitScope(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestLookupFindsInnermostThroughDeleteAndUndo: a lookup finds the
+// innermost open scope holding a name however that changes -- a Delete
+// uncovers the outer definition, undoing it covers it again, an
+// ExitScope uncovers it for good, and ClearElementShadows drops an
+// element shadow from every scope on the chain.
+func TestLookupFindsInnermostThroughDeleteAndUndo(t *testing.T) {
+	st := infer.NewSymbolTable()
+	typeOf := func(name string) types.Type {
+		sym, ok := st.Lookup(name)
+		if !ok {
+			return types.None
+		}
+		return sym.Type
+	}
+	st.Define(infer.Symbol{Name: "$x", Type: types.Int, Kind: infer.SymVariable})
+	st.Define(infer.Symbol{Name: "$a[0]", Type: types.HashRef, Kind: infer.SymVariable})
+	st.EnterScope("guard")
+	st.Define(infer.Symbol{Name: "$x", Type: types.Str, Kind: infer.SymVariable})
+	st.EnterScope("guard")
+	st.Define(infer.Symbol{Name: "$a[0]", Type: types.ArrayRef, Kind: infer.SymVariable})
+	assert.Equal(t, types.Str, typeOf("$x"))
+
+	st.PushFrame()
+	st.Delete("$x")
+	assert.Equal(t, types.Int, typeOf("$x"), "Delete uncovers the outer $x")
+	st.UndoFrame()
+	assert.Equal(t, types.Str, typeOf("$x"), "undoing the Delete covers it again")
+
+	st.PushFrame()
+	st.ClearElementShadows("a")
+	assert.Equal(t, types.None, typeOf("$a[0]"), "every scope's $a[0] is gone")
+	st.UndoFrame()
+	assert.Equal(t, types.ArrayRef, typeOf("$a[0]"), "undoing the clear puts the innermost back on top")
+
+	st.ExitScope()
+	assert.Equal(t, types.HashRef, typeOf("$a[0]"))
+	st.ExitScope()
+	assert.Equal(t, types.Int, typeOf("$x"))
+}
+
 // --- UpdateType tests ---
 
 func TestSymbolTableUpdateType(t *testing.T) {

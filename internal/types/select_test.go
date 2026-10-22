@@ -417,3 +417,237 @@ func TestAcceptsArity(t *testing.T) {
 		t.Errorf("system takes its program and any list after it")
 	}
 }
+
+// TestSignatureArity: Arity is accepts's own two fields, read directly --
+// a required parameter raises least, a slurpy one makes unbounded true,
+// and an invocant counts in neither, since it is not one of Params.
+func TestSignatureArity(t *testing.T) {
+	system := []Signature{{
+		Invocant: &Param{Name: "program", Sigil: '$', Type: Str, Required: true},
+		Params:   []Param{{Name: "args", Sigil: '@', Type: List}},
+		Returns:  Int,
+	}}
+	if least, unbounded := system[0].Arity(); least != 0 || !unbounded {
+		t.Errorf("system.Arity() = %d, %v, want 0, true", least, unbounded)
+	}
+	if least, unbounded := selectCandidates[2].Arity(); least != 4 || unbounded {
+		t.Errorf("select's 4-argument candidate Arity() = %d, %v, want 4, false", least, unbounded)
+	}
+}
+
+// wantUndecidedIn checks that args in context ctx decide no candidate, and
+// that the call's type is ret, the join of the candidates'.
+func wantUndecidedIn(t *testing.T, cands []Signature, ctx Context, args []Type, ret Type) {
+	t.Helper()
+	got := Select(cands, args, ctx)
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != ret {
+		t.Errorf("%v in %v: got %+v, want undecided, returning %v", args, ctx, got, ret)
+	}
+}
+
+// TestSelectSingleCandidateTakesMismatchedArgs: RFC 0001 "What a parameter
+// type means", a parameter type is its coercion target, so a single
+// candidate whose arity fits takes an argument whose type does not fit it:
+// `sqrt(Str)` is sqrt's call, and the call site reports coercion-mismatch.
+// Measured on 5.42.0, `sqrt("abc")` warns "isn't numeric" and is 0. Among
+// candidates of the same arity, argument types still decide.
+func TestSelectSingleCandidateTakesMismatchedArgs(t *testing.T) {
+	sqrt := []Signature{sig(Num, scalar("x", Num))}
+	wantSelected(t, sqrt, []Type{Str}, 0, Num)
+	wantSelected(t, eachCandidates, []Type{Hash}, 0, List)
+	wantSelected(t, eachCandidates, []Type{Array}, 1, List)
+}
+
+// TestSelectSingleCandidateWrongArityFails: RFC 0001 "Multi declarations",
+// only arity rules a call out, and a mismatched argument type never rescues
+// a wrong arity.
+func TestSelectSingleCandidateWrongArityFails(t *testing.T) {
+	sqrt := []Signature{sig(Num, scalar("x", Num))}
+	wantFailed(t, sqrt, []Type{Str, Str})
+	wantFailed(t, sqrt, []Type{Num, Num})
+	wantFailed(t, sqrt, nil)
+}
+
+// TestSelectArgFittingNoSameArityCandidateJoins: a type mismatch never
+// rules a call out, so an argument that fits none of several candidates of
+// its arity leaves the call undecided between them, the join of their
+// returns. Measured on 5.42.0, `"a" x *STDOUT` warns "isn't numeric" and
+// runs: perl coerces the argument, it refuses no call by its type.
+func TestSelectArgFittingNoSameArityCandidateJoins(t *testing.T) {
+	cands := []Signature{
+		sig(Int, scalar("x", Int)),
+		sig(Str, scalar("c", Code)),
+	}
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{FileHandle}, Int|Str)
+	// Int|Str is Str, so returns the lattice keeps apart show the join.
+	cands[1].Returns = ArrayRef
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{FileHandle}, Int|ArrayRef)
+}
+
+// TestSelectUnknownArgBetweenCandidatesJoins: RFC 0001 "Multi
+// declarations", an argument of unknown type fits both of `each`'s
+// candidates, so the call site cannot decide, and the call is the join of
+// their returns rather than the first candidate's.
+func TestSelectUnknownArgBetweenCandidatesJoins(t *testing.T) {
+	cands := []Signature{
+		sig(Int, scalar("x", Int)),
+		sig(Str, scalar("c", Code)),
+	}
+	wantUndecidedIn(t, cands, ScalarCtx, []Type{Unknown}, Int|Str)
+	// Nor is it the most specific candidate's: an unknown argument may be
+	// a Num, which the Int candidate does not take.
+	wantUndecidedIn(t, intOrNum, ScalarCtx, []Type{Unknown}, Str|Int)
+}
+
+// TestSelectEmptyCandidatesFails: a name with no candidates takes no call,
+// with or without arguments, in any context, and does not panic.
+func TestSelectEmptyCandidatesFails(t *testing.T) {
+	for _, ctx := range []Context{ScalarCtx, ListCtx, VoidCtx, UnknownCtx} {
+		wantFailedIn(t, nil, ctx, nil)
+		wantFailedIn(t, nil, ctx, []Type{Int})
+		wantFailedIn(t, []Signature{}, ctx, []Type{Unknown})
+	}
+}
+
+// TestSelectAliasedMismatchFails: a backslashed container parameter, `Hash
+// \%h`, takes the container the caller writes, so it coerces nothing, and
+// an argument whose type it does not take rules the candidate out.
+// Measured on 5.42.0, `each $x` and `keys $x` die "Experimental each on
+// scalar is now forbidden", and `push $x, 1` "Experimental push on scalar
+// is now forbidden".
+func TestSelectAliasedMismatchFails(t *testing.T) {
+	h := Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true}
+	a := Param{Name: "a", Sigil: '@', Type: Array, Alias: true, Required: true}
+	wantFailed(t, []Signature{sig(List, h), sig(List, a)}, []Type{Scalar})
+	push := []Signature{sig(Int, a, Param{Name: "list", Sigil: '@', Type: List})}
+	wantFailed(t, push, []Type{Scalar, Int})
+	// A value parameter beside it still coerces its own argument.
+	wantSelected(t, []Signature{sig(Int, a, scalar("n", Int))}, []Type{Array, Str}, 0, Int)
+}
+
+// TestSelectAliasedMismatchLeavesValueCandidate: a candidate ruled out by a
+// backslashed container is gone before context chooses, so it cannot crowd
+// out a value candidate that coerces. In list context the List candidate
+// would answer, but `Hash \%h` refuses a Str; perl runs the Num one, warning.
+func TestSelectAliasedMismatchLeavesValueCandidate(t *testing.T) {
+	h := Param{Name: "h", Sigil: '%', Type: Hash, Alias: true, Required: true}
+	cands := []Signature{sig(List, h), sig(Str, scalar("x", Num))}
+	wantSelectedIn(t, cands, ListCtx, []Type{Str}, 1, Str)
+}
+
+// TestSelectUnknownContextIsUndecided: RFC 0001 "Multi declarations", the
+// consumer joins when the call site cannot decide, and Failed means ruled
+// out. A context the call site has not determined rules nothing out, so
+// localtime there is the join of its scalar and list candidates.
+func TestSelectUnknownContextIsUndecided(t *testing.T) {
+	for _, args := range [][]Type{nil, {Int}} {
+		wantUndecidedIn(t, localtimeCandidates, UnknownCtx, args, Str|List)
+	}
+}
+
+// TestSelectUnknownContextSingleCandidate: with one candidate there is
+// nothing for a context to decide, so an undetermined one selects it.
+func TestSelectUnknownContextSingleCandidate(t *testing.T) {
+	wantSelectedIn(t, grepCandidates, UnknownCtx, []Type{Int, Int}, 0, List)
+	wantSelectedIn(t, []Signature{sig(Num, scalar("x", Num))}, UnknownCtx, []Type{Int}, 0, Num)
+}
+
+// TestSelectShapedUnknownContextIsUndecided: SelectShaped joins under an
+// undetermined context as Select does. `(1,2) x 2` is a list in list
+// context and `22` in scalar context, so with neither known it is both.
+func TestSelectShapedUnknownContextIsUndecided(t *testing.T) {
+	got := SelectShaped(repeatCandidates, []Type{Int, Int}, "@$", UnknownCtx)
+	if got.Outcome != Undecided || got.Candidate != -1 || got.Returns != List|Str {
+		t.Errorf("got %+v, want undecided, returning %v", got, List|Str)
+	}
+}
+
+// TestSelectParameterlessCandidateBesideArgs: a candidate with no
+// parameters, `select ()`, is weighed for a call with arguments when no
+// candidate fits their types, and is ruled out by its arity, not by a
+// container it does not have. CORE.tpm's select with four arguments, the
+// last a Str, selects the four-parameter candidate.
+func TestSelectParameterlessCandidateBesideArgs(t *testing.T) {
+	cands := []Signature{sig(Str), sig(List, scalar("a", Any), scalar("b", Any), scalar("c", Any), scalar("t", Num))}
+	wantSelected(t, cands, []Type{Undef, Undef, Undef, Str}, 1, List)
+}
+
+// optional is a scalar parameter of type t that need not be given,
+// `Optional[Str] $pkg`.
+func optional(name string, t Type) Param {
+	return Param{Name: name, Sigil: '$', Type: t}
+}
+
+// qualifyCandidates are Symbol::qualify's declared shape: a Ref argument
+// returns that Ref, a Str one a Str, both taking an optional second
+// argument neither discriminates on.
+var qualifyCandidates = []Signature{
+	sig(Ref, scalar("name", Ref), optional("pkg", Str)),
+	sig(Str, scalar("name", Str), optional("pkg", Str)),
+}
+
+// TestSelectCoercionRetryKeepsFittingArgs: issue 01a156e4's gate record,
+// "the Select gap". A call whose coercion retry (the `len(fit) == 0`
+// branch above) is reached because one argument fits no candidate must
+// not also forget an argument that already does: IO/Handle.pm:515's
+// `qualify($_[0], caller)` has $_[0] proven a Ref by its own `ref($_[0])`
+// guard, and `caller`'s declared List does not fit either candidate's
+// `Optional[Str] $pkg` (List is not List-via-Str the way a $ slot
+// otherwise reads an aggregate -- see calls.go's slotContext). Before
+// this, zeroing every argument for the retry zeroed $_[0] too, so the
+// call joined to Str|GlobRef instead of selecting the Ref candidate.
+func TestSelectCoercionRetryKeepsFittingArgs(t *testing.T) {
+	wantSelected(t, qualifyCandidates, []Type{Ref, List}, 0, Ref)
+}
+
+// TestCoercionRetryKeepsArity: I5, Socket's sockaddr_in, `(Int $port, Str
+// $addr)` beside a one-argument `(Str $sin)` overload for the packed
+// form. coercedArgs's "does some candidate's clamped paramType(i) accept
+// this" check must still mean a candidate that takes the call's arity:
+// the one-param candidate's clamp wrongly vouched for position 1 of a
+// two-argument call, which then made the two-arg candidate's own fits()
+// fail outright instead of retrying it as Unknown -- adding the
+// wrong-arity sibling turned a selection into a Failed one (unit probe,
+// probes-logic-a/probe_select_test.go: Select([B]) selects what
+// Select([A,B]) fails).
+func TestCoercionRetryKeepsArity(t *testing.T) {
+	a := sig(Str, scalar("sin", Int))
+	b := sig(Int, scalar("h1", HashRef), scalar("h2", HashRef))
+	wantSelected(t, []Signature{a, b}, []Type{HashRef, Int}, 1, Int)
+}
+
+// TestSelectUnknownAtNonDiscriminatingPositionDecides: issue 01a156e4's
+// gate record, "the Select gap", second half. An Unknown argument at a
+// position every still-fitting candidate takes the same way cannot
+// change which is most specific, so it must not force Undecided either:
+// Encode::encode's `encode($encoding, $text, $check)` has $text proven
+// Str (by `join("", @text)`, never undef) and selects the Str candidate
+// even though $encoding ($$self{ENCODING}, a hash element) is Unknown --
+// $encoding's own slot, `Str|Object`, is identical on both candidates,
+// so it never distinguishes them.
+func TestSelectUnknownAtNonDiscriminatingPositionDecides(t *testing.T) {
+	cands := []Signature{
+		sig(Str, scalar("encoding", Str|Object), scalar("string", Str), scalar("check", Int|CodeRef)),
+		sig(Str|Undef, scalar("encoding", Str|Object), scalar("string", Str|Undef), scalar("check", Int|CodeRef)),
+	}
+	wantSelected(t, cands, []Type{Unknown, Str, Code}, 0, Str)
+}
+
+// TestSelectMisfitCoercesToTheCandidateThatTakesIt: a parameter type is
+// its argument's coercion target, so an argument that fits no candidate
+// selects the one candidate it coerces to. Cwd::chdir is declared as a
+// handle candidate beside an `Optional[Str]` one, and a HashRef is no
+// handle but stringifies: perl 5.42 -w is silent on `Cwd::chdir({})`. A
+// List coerces to neither, so it still leaves the call undecided.
+func TestSelectMisfitCoercesToTheCandidateThatTakesIt(t *testing.T) {
+	optional := func(name string, t Type) Param { return Param{Name: name, Sigil: '$', Type: Void | t} }
+	chdir := []Signature{
+		sig(Int, optional("dir", FileHandle)),
+		sig(Int, optional("dir", Str)),
+	}
+	wantSelected(t, chdir, []Type{HashRef}, 1, Int)
+	wantSelected(t, chdir, []Type{GlobRef}, 0, Int)
+	if got := Select(chdir, []Type{List}, ScalarCtx); got.Outcome != Undecided {
+		t.Errorf("List: got %+v, want undecided", got)
+	}
+}

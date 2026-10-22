@@ -1,0 +1,66 @@
+# ABOUTME: Declares File::Spec::Unix's methods; a bare `use File::Spec::Unix` installs nothing.
+# ABOUTME: Measured on perl 5.42.0 with File::Spec::Unix 3.94: no method carries a prototype.
+package File::Spec::Unix;
+
+# Every name below is a class method (File::Spec::Unix->canonpath(...)), so
+# each takes an invocant and nothing is marked :export: measured on 5.42.0,
+# `use File::Spec::Unix;` installs nothing in the caller.
+
+# canonpath requires a defined path (it returns unless defined $path):
+# measured on 5.42.0, File::Spec::Unix->canonpath(undef) is undef, and any
+# defined string comes back cleaned up, always a Str.
+sub canonpath (Str $class: Str $path) Str;
+# catdir joins its arguments with '/' and runs the join through canonpath,
+# so it is always a defined Str, even with zero directories (measured:
+# File::Spec::Unix->catdir() is '').
+sub catdir (Str $class: List[Str] @dirs) Str;
+# catfile canonpaths its last argument and, with more before it, catdirs
+# them and appends the file: always a Str when given at least one part
+# (measured). With zero parts it pops undef and returns undef (measured;
+# audit-C.md finding 25).
+sub catfile (Str $class: List[Str] @parts) Str|Undef;
+# join is documented as "the same as catfile" and calls it directly.
+sub join (Str $class: List[Str] @parts) Str|Undef;
+# catpath concatenates directory and file, always a defined Str (measured).
+sub catpath (Str $class: Str $volume, Str $directory, Str $file) Str;
+sub curdir (Str $class:) Str;
+sub devnull (Str $class:) Str;
+sub rootdir (Str $class:) Str;
+sub updir (Str $class:) Str;
+# tmpdir always resolves to a defined directory string (measured: falls
+# back to curdir() when nothing in its list is writable).
+sub tmpdir (Str $class:) Str;
+# case_tolerant returns the bare constant 0 (measured: perl's builtin
+# is_bool is false of it, so it is an Int, not a marked Boolean).
+sub case_tolerant (Str $class:) Int;
+# file_name_is_absolute returns `scalar($file =~ m:^/:s)`, a match result
+# perl marks boolean (measured: builtin::is_bool is true of both '' and 1
+# it returns).
+sub file_name_is_absolute (Str $class: Str $file) Boolean;
+# path returns the PATH environment variable split on ':': in list
+# context the entries, each a Str; in scalar context, perl evaluates the
+# returned array in the caller's context and answers its count, an Int
+# (measured; this module's declaration assumes PATH is set, as it always
+# is in the oracle run -- unset, it is () in list context and undef in
+# scalar, a case not exercised here).
+multi sub path (Str $class:) List[Str];
+multi sub path (Str $class:) Int;
+# no_upwards filters '.' and '..' out of its argument list: in list
+# context the survivors, each a Str; in scalar context grep's count, an
+# Int (measured).
+multi sub no_upwards (Str $class: List[Str] @names) List[Str];
+multi sub no_upwards (Str $class: List[Str] @names) Int;
+# splitpath returns (volume, directory, file), each a defined Str: in
+# list context all three; in scalar context perl's comma operator yields
+# only the last, $file (measured).
+multi sub splitpath (Str $class: Str $path, Optional[Boolean] $no_file) List[Str];
+multi sub splitpath (Str $class: Str $path, Optional[Boolean] $no_file) Str;
+# splitdir splits the directory portion on '/': in list context the
+# fields, each a Str (possibly ''); in scalar context split's count, an
+# Int (measured).
+multi sub splitdir (Str $class: Str $directories) List[Str];
+multi sub splitdir (Str $class: Str $directories) Int;
+# abs2rel and rel2abs always resolve through canonpath, catpath, curdir
+# or rootdir, each a defined Str (measured).
+sub abs2rel (Str $class: Str $path, Optional[Str] $base) Str;
+sub rel2abs (Str $class: Str $path, Optional[Str] $base) Str;

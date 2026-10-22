@@ -1,0 +1,170 @@
+# ABOUTME: Declares what `use FileHandle` installs: Fcntl's default export list (constants), never its own methods.
+# ABOUTME: Measured on perl 5.42.0 with FileHandle 2.05: FileHandle::import always re-exports @Fcntl::EXPORT, so a bare `use` installs 71 names.
+package FileHandle;
+
+# FileHandle's own @EXPORT is only _IOFBF, _IOLBF and _IONBF; its
+# import() additionally calls Exporter::export('Fcntl', $callpkg) on
+# every use, bare or not, which installs every name in @Fcntl::EXPORT.
+# Each value here is the one Fcntl.tpm already measured for the same
+# constant.
+sub FD_CLOEXEC :export () Int;
+sub F_ALLOCSP :export () None;
+sub F_ALLOCSP64 :export () None;
+sub F_COMPAT :export () None;
+sub F_DUP2FD :export () None;
+sub F_DUPFD :export () Int;
+sub F_EXLCK :export () Int;
+sub F_FREESP :export () None;
+sub F_FREESP64 :export () None;
+sub F_FSYNC :export () None;
+sub F_FSYNC64 :export () None;
+sub F_GETFD :export () Int;
+sub F_GETFL :export () Int;
+sub F_GETLK :export () Int;
+sub F_GETLK64 :export () Int;
+sub F_GETOWN :export () Int;
+sub F_NODNY :export () None;
+sub F_POSIX :export () None;
+sub F_RDACC :export () None;
+sub F_RDDNY :export () None;
+sub F_RDLCK :export () Int;
+sub F_RWACC :export () None;
+sub F_RWDNY :export () None;
+sub F_SETFD :export () Int;
+sub F_SETFL :export () Int;
+sub F_SETLK :export () Int;
+sub F_SETLK64 :export () Int;
+sub F_SETLKW :export () Int;
+sub F_SETLKW64 :export () Int;
+sub F_SETOWN :export () Int;
+sub F_SHARE :export () None;
+sub F_SHLCK :export () Int;
+sub F_UNLCK :export () Int;
+sub F_UNSHARE :export () None;
+sub F_WRACC :export () None;
+sub F_WRDNY :export () None;
+sub F_WRLCK :export () Int;
+sub O_ACCMODE :export () Int;
+sub O_ALIAS :export () None;
+sub O_APPEND :export () Int;
+sub O_ASYNC :export () Int;
+sub O_BINARY :export () Int;
+sub O_CREAT :export () Int;
+sub O_DEFER :export () None;
+sub O_DIRECT :export () Int;
+sub O_DIRECTORY :export () Int;
+sub O_DSYNC :export () Int;
+sub O_EXCL :export () Int;
+sub O_EXLOCK :export () None;
+sub O_LARGEFILE :export () Int;
+sub O_NDELAY :export () Int;
+sub O_NOCTTY :export () Int;
+sub O_NOFOLLOW :export () Int;
+sub O_NOINHERIT :export () None;
+sub O_NONBLOCK :export () Int;
+sub O_RANDOM :export () None;
+sub O_RAW :export () None;
+sub O_RDONLY :export () Int;
+sub O_RDWR :export () Int;
+sub O_RSRC :export () None;
+sub O_RSYNC :export () Int;
+sub O_SEQUENTIAL :export () None;
+sub O_SHLOCK :export () None;
+sub O_SYNC :export () Int;
+sub O_TEMPORARY :export () None;
+sub O_TEXT :export () Int;
+sub O_TRUNC :export () Int;
+sub O_WRONLY :export () Int;
+# _IOFBF, _IOLBF and _IONBF are FileHandle's own @EXPORT, measured on
+# IO::Handle (where the values come from) to be 0, 1 and 2.
+sub _IOFBF :export () Int;
+sub _IOLBF :export () Int;
+sub _IONBF :export () Int;
+
+# @EXPORT_OK: the same IO::Handle methods IO::Handle.tpm declares,
+# re-exportable here under FileHandle's own name, plus pipe, the one
+# sub FileHandle defines itself.
+#
+# autoflush and the instance methods below it take Object|FileHandle,
+# not Object, and output_field_separator and its three siblings take
+# Str $class, not Object: the same invocant defect as IO::Handle's (see
+# IO/Handle.tpm), measured the same way since FileHandle aliases the
+# same code refs.
+#
+# autoflush assigns to $|, which perl coerces to an integer, not a
+# truth value (IO/Handle.tpm's autoflush comment measures this), so
+# Int is what it coerces to, not Boolean.
+sub autoflush :export_ok (Object|FileHandle $self: Int $on = 1) Int;
+sub format_formfeed :export_ok (Str $class: Optional[Str] $char) Str|Undef;
+sub format_line_break_characters :export_ok (Str $class: Optional[Str] $chars) Str|Undef;
+sub format_lines_left :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_lines_per_page :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub format_page_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int;
+sub format_top_name :export_ok (Object|FileHandle $self: Optional[Str] $name) Str|Undef;
+sub getline :export_ok (Object|FileHandle $self:) Str|Undef;
+sub getlines :export_ok (Object|FileHandle $self:) List[Str];
+sub input_line_number :export_ok (Object|FileHandle $self: Optional[Int] $n) Int|Undef;
+sub input_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub output_field_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+sub output_record_separator :export_ok (Str $class: Optional[Str] $sep) Str|Undef;
+# print and printf dereference the invocant as a glob before writing to
+# it, dying "Can't use string ... as a symbol ref" against the oracle's
+# bare class name, measured on 5.42.0, as IO::Handle's do; held to
+# their prototype and exports only (see oracleExempt).
+sub print :export_ok (Object|FileHandle $self: List @args) Boolean|Undef;
+sub printf :export_ok (Object|FileHandle $self: Str $format, List @args) Boolean|Undef;
+# pipe creates a connected pair of IO::Handle objects, returning them as
+# a two-element list, or undef (never a list) on failure; measured on
+# 5.42.0. Its body never reads @_, so arguments are ignored: measured,
+# `FileHandle::pipe(1, 2)` runs silently under perl -w.
+sub pipe :export_ok :listop (List @ignored) List[Object|Undef];
+
+# Methods beside the exports. FileHandle.pm aliases ~20 public methods
+# from IO::Handle, IO::Seekable and IO::File straight into FileHandle::
+# at require time, by literal code ref, so callers reach each through
+# `->` on any FileHandle (or a subclass's) instance, never through
+# import, and none carries an :export mark.
+#
+# new_from_fd, close, fileno, getc and eof are the same code as
+# IO::Handle's, held to the signatures IO/Handle.tpm already measured
+# with the bare class name as the invocant; new, new_tmpfile and open
+# are the same code as IO::File's, held to the signatures IO/File.tpm
+# already measured. flush is also IO::Handle's same code, held to the
+# same Num|Undef signature, but called on a constructed instance
+# instead (IO/Handle.tpm's comment explains why). seek and tell are
+# IO::Seekable's, measured here on 5.42.0 with FileHandle's own bare
+# class name as the invocant, as the return-type oracle calls them:
+# seek returns a defined Boolean, tell an Int. getpos and setpos are also
+# IO::Seekable's, but each dereferences the invocant as a glob (to call
+# C's fgetpos()/fsetpos()) and dies "Bad filehandle" that way, measured
+# the same way; held to their prototype and exports only (see
+# oracleExempt), as IO::File's open already is for the same reason.
+#
+# fdopen, ungetc, gets, error, clearerr, setbuf and setvbuf are also
+# aliased from IO::Handle; IO::Handle.tpm now declares most of these
+# (fdopen, ungetc, error and clearerr), called there on a constructed
+# instance, but they are left undeclared here, out of this fix's
+# findings 6-9. setbuf and setvbuf are left undeclared in both files,
+# measured to die "not implemented on this architecture" regardless of
+# invocant.
+#
+# new_from_fd's FD, like IO::Handle's own, is documented as "a file
+# handle name, an IO::Handle object, or a file descriptor number", not
+# only an Int (the same measurement as IO::Handle.tpm's).
+sub new_from_fd (Str $class: Str|FileHandle|Object $fd, Str $mode) Object|Undef;
+sub close (Object|FileHandle $self:) Boolean;
+sub fileno (Object|FileHandle $self:) Int|Undef;
+sub getc (Object|FileHandle $self:) Str|Undef;
+sub eof (Object|FileHandle $self:) Boolean;
+sub flush (Object|FileHandle $self:) Num|Undef;
+sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
+sub new_tmpfile (Str $class:) Object|Undef;
+sub open (Object|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;
+# seek numifies its position (measured): Int is what the operation
+# coerces to, so this is not one of the invocant/class-method
+# findings -- only the invocant below is.
+sub seek (Object|FileHandle $self: Int $pos, Int $whence) Boolean;
+sub tell (Object|FileHandle $self:) Int;
+sub getpos (Object|FileHandle $self:) Str|Undef;
+sub setpos (Object|FileHandle $self: Str $pos) Boolean|Undef;
