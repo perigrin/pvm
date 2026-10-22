@@ -2,9 +2,9 @@
 title: Report a ->{...} hash read's rv2hv exactly when perl keeps it out of multideref
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m3-oracle-at-scale
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-09T11:07:58.504119457Z
+updated: 2026-10-22T23:46:47.208621818Z
 ---
 
 ## Context
