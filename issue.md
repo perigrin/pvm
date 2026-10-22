@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-22T23:56:40.234796895Z
+updated: 2026-10-22T23:58:21.394278987Z
 ---
 
 ## Context
@@ -27,6 +27,7 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 - [ ] Re-baseline sites.txt (and baseline.txt where whole files move) with `-parseoracle.update` in the same commit. The commit message gives the new rv2hv wider count and names each file that moved. WRONG must stay 0.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the Concise measurements and writes NEW adversarial probes outside the corpus (e.g. `local $r->{k}`, `delete $r->{a}{b}`, `exists`, `\$r->{k}`, lvalue sub args, slices off an arrow). Re-checking only the named case is not enough.
 - [ ] Run `make test`, then commit.
+- [ ] Update docs/specs/perl-parser/00-findings.md §0.11 ("A `->{...}` read whose multideref folding is not in the text hedges its rv2hv"): replace "Sites now hedges rv2hv... The exact rule is issue 01a12059-30a8" with the decided rule
 
 ## Acceptance criteria
 
