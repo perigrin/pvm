@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.2538574Z
-updated: 2026-10-22T23:47:17.542175518Z
+updated: 2026-10-22T23:56:40.621779507Z
 ---
 
 ## Context
@@ -37,3 +37,12 @@ These are the `canon-adds-paren` rows of faithful_defects.txt, where canon write
 - [ ] canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 - [ ] The defects list and the M3-dir check agree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3Dirs'`)
 - [ ] The perl.git t/ faithful ratchet records the result (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] A named unary op's parens are never forgiven when they would regroup its operand. perl 5.42 Deparses `defined $x || $y` as `(defined($x) || $y)`, so a canon `defined($x || $y)` is a misgrouping and stays unfaithful (`go test ./internal/parse/ -run '^TestCanonAddedParenOnNamedUnaryRejectsRegrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnNamedUnaryRejectsRegrouping'`)
+- [ ] `not` keeps its low precedence. perl Deparses `my $v = not $x or 1` as `((my $v = (!$x)) or '???')`, so a canon that writes `not($x or 1)` is a misgrouping and stays unfaithful (`go test ./internal/parse/ -run '^TestCanonAddedParenOnNotKeepsLowPrecedence$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnNotKeepsLowPrecedence'`)
+- [ ] Unary minus binds looser than `**`. perl folds `-2 ** 2` to `-4.0`, so a canon `(-2) ** 2` is a misgrouping and stays unfaithful (`go test ./internal/parse/ -run '^TestCanonAddedParenOnNegateBindsLooserThanPow$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenOnNegateBindsLooserThanPow'`)
+- [ ] A paren canon adds after `\` is never forgiven. perl compiles `\(@a)` to `refgen` over a list and `\@a` to `srefgen`, so a canon `\(@a)` against source `\@a` is a different tree (`go test ./internal/parse/ -run '^TestCanonAddedParenAfterBackslashIsNotForgiven$' -count=1 -v | grep -q '^--- PASS: TestCanonAddedParenAfterBackslashIsNotForgiven'`)
+- [ ] The parenless-call rule is not widened to cover these rows; a case perl's Deparse,-p groups differently from the tree stays a difference, whichever rule is asked to forgive it (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
+- [ ] Every row kept in faithful_defects.txt for this class carries its Deparse,-p result in the reason, so no `canon-adds-paren` row is parked without a measurement (`go test ./internal/parse/ -run '^TestCanonAddsParenRowsQuoteDeparse$' -count=1 -v | grep -q '^--- PASS: TestCanonAddsParenRowsQuoteDeparse'`)
