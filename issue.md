@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-22T23:56:40.428599882Z
+updated: 2026-10-22T23:58:24.353971229Z
 ---
 
 ## Context
@@ -35,6 +35,7 @@ updated: 2026-10-22T23:56:40.428599882Z
 - [ ] Re-baseline t1canon.ratchet, t1fidelity.ratchet and perlgittfaithful.ratchet in the same commit. The message names each moved file and why it moved; a file going from faithful to unfaithful must be explained by a tree-defect fix or it blocks the commit.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the Concise measurements and writes NEW adversarial probes outside the corpus (e.g. `my ($a, $b) = ...` vs `my $a, $b`, `(@a) x 2`, `local ($_) = ...`, `return (1)`, `print ((1+2)*3)`, a paren around a ternary arm). Re-checking only the named case is not enough.
 - [ ] Run `make test`, then commit.
+- [ ] Update docs/specs/perl-parser/04-expressions.md §4.10: remove the stale "Measured 2026-09-17 at 3b9422eb ... `($x);` parses ... with no `Paren` node" claim (contradicted by §4.14.3's `Paren` row) and state perigrin's ruling: canon writes a `Paren` node's parens once, as perl keeps one OPf_PARENS bit per op, and `Faithful` forgives only extra nesting
 
 ## Acceptance criteria
 
