@@ -3,8 +3,10 @@ title: Count oracle verdicts per marker site, with a whole-file no-answer at eve
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-22T23:46:25.524606434Z
-updated: 2026-10-22T23:46:25.524606434Z
+updated: 2026-10-22T23:46:58.05321505Z
 ---
 
 ## Context
