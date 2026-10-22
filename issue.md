@@ -3,8 +3,10 @@ title: Hold psc's Paren flag to perl's OPf_PARENS bit, op by op
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5ebe-7169-b857-996ae2953394
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-22T23:46:33.882832365Z
+updated: 2026-10-22T23:47:00.491705172Z
 ---
 
 ## Context
