@@ -96,7 +96,7 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 	sigs := n.Signatures
 	a.args(n.Args, sigs)
 	args := a.argTypes(n.Args)
-	fixed := 0
+	fixed, placed := 0, len(n.Args)
 	for i, arg := range n.Args {
 		// An argument flattens into the call's arguments by its own
 		// syntactic form, not its inferred type (perigrin, 2026-10-21,
@@ -119,6 +119,8 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 		// of its form: `\@` passes the one container it is.
 		if !flattensArgument(arg) || parse.SlotAt(n.Prototype, i) {
 			fixed++
+		} else {
+			placed = min(placed, i)
 		}
 	}
 	flattens := fixed < len(args)
@@ -146,6 +148,16 @@ func (a *analysis) declaredCall(n *lower.Call) types.Type {
 		chosen := sigs[sel.Candidate : sel.Candidate+1]
 		for i, arg := range n.Args {
 			a.checkArg(n.Name, i, arg, builtinArgType(chosen, i), slotContext(chosen, i) == types.ListCtx, CodeCoercionMismatch)
+		}
+	case flattens:
+		// An argument before the first flattening one stands at its own
+		// position whatever the flattened list holds: perl 5.42 -w warns
+		// "Use of uninitialized value" on `fmod(undef, $o->one)`.
+		if c, ok := placedCandidate(sigs, args[:placed], fixed, a.evalCtx[n.ID]); ok {
+			chosen := sigs[c : c+1]
+			for i, arg := range n.Args[:placed] {
+				a.checkArg(n.Name, i, arg, builtinArgType(chosen, i), slotContext(chosen, i) == types.ListCtx, CodeCoercionMismatch)
+			}
 		}
 	}
 	a.markPossibleUndef(n, sel)
@@ -384,12 +396,8 @@ func (a *analysis) forcedUndef(n lower.Node, actual, expected types.Type) bool {
 // no count does. A slurpy takes any count past its parameters, so one past
 // the longest, or least if it is more, stands for them all.
 func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types.Selection {
-	most := 0
-	for _, s := range sigs {
-		most = max(most, len(s.Params))
-	}
 	joined, taken := types.Unknown, false
-	for count := least; count <= max(least, most+1); count++ {
+	for count := least; count <= flattenedMost(sigs, least); count++ {
 		if sel := types.Select(sigs, make([]types.Type, count), ctx); sel.Outcome != types.Failed {
 			joined, taken = types.Join(joined, sel.Returns), true
 		}
@@ -398,6 +406,39 @@ func flattenedSelect(sigs []types.Signature, least int, ctx types.Context) types
 		return types.Selection{Outcome: types.Failed, Candidate: -1}
 	}
 	return types.Selection{Outcome: types.Undecided, Candidate: -1, Returns: joined}
+}
+
+// flattenedMost is the largest count flattenedSelect tries for a call
+// with at least least arguments: one past the longest candidate, which
+// stands for every count a slurpy takes, or least if it is more.
+func flattenedMost(sigs []types.Signature, least int) int {
+	most := 0
+	for _, s := range sigs {
+		most = max(most, len(s.Params))
+	}
+	return max(least, most+1)
+}
+
+// placedCandidate is the one candidate a call with at least least
+// arguments selects at every count flattenedSelect tries, its leading
+// arguments of the types placed and the rest unknown; false when no
+// count selects one, or two counts select different ones, or a count
+// cannot decide.
+func placedCandidate(sigs []types.Signature, placed []types.Type, least int, ctx types.Context) (int, bool) {
+	chosen := -1
+	for count := least; count <= flattenedMost(sigs, least); count++ {
+		args := make([]types.Type, count)
+		copy(args, placed)
+		sel := types.Select(sigs, args, ctx)
+		switch {
+		case sel.Outcome == types.Failed:
+		case sel.Outcome == types.Undecided || chosen >= 0 && chosen != sel.Candidate:
+			return -1, false
+		default:
+			chosen = sel.Candidate
+		}
+	}
+	return chosen, chosen >= 0
 }
 
 // openedVar is the scalar variable an open opens a handle in, its first
@@ -516,10 +557,17 @@ func (a *analysis) userCall(n *lower.Call) types.Type {
 // chance, so a Hole's Any, which satisfies the slot as it is, is never
 // rewritten; one that fails both is reported as flattened. A declared
 // call's possible Undef under WarnPossibleUndef is reported whatever
-// would otherwise excuse it, as forcedUndef says.
+// would otherwise excuse it, as forcedUndef says, unless it is a list
+// into a slurpy slot.
 func (a *analysis) checkArg(name string, i int, arg lower.Node, expected types.Type, slurpy bool, code string) {
 	actual := builtinArgActual(name, a.typeOf(arg))
-	if !a.forcedUndef(arg, actual, expected) {
+	// A list into a slurpy slot is never forced: a List holds any Scalar,
+	// so its Undef bit says nothing of what the call returns, and perl
+	// 5.42 -w is silent on `print Dumper($y)` and `print shuffle(@r)`. A
+	// list is what callReturnsList says one is, so Any is not one: List::
+	// Util's first returns one value, undef when nothing matches.
+	listed := slurpy && actual&(types.Array|types.Hash) != 0 && types.IsSubtype(actual, types.List)
+	if listed || !a.forcedUndef(arg, actual, expected) {
 		if a.argSatisfies(actual, expected) || a.argSatisfies(a.succeeded(arg, actual), expected) {
 			return
 		}
