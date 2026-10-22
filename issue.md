@@ -3,8 +3,10 @@ title: Hold the parse-without-error floor on the 593 files perl compiles
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-22T23:46:33.601895885Z
+updated: 2026-10-22T23:47:12.705645096Z
 ---
 
 ## Context
