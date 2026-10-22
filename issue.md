@@ -3,8 +3,10 @@ title: Decide a named hash's rv2hv from its declaration
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-22T23:46:34.530218409Z
+updated: 2026-10-22T23:47:09.046406319Z
 ---
 
 ## Context
