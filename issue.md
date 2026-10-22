@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-22T23:47:12.705645096Z
+updated: 2026-10-22T23:56:40.353216281Z
 ---
 
 ## Context
@@ -29,3 +29,11 @@ M3's "parse without error" metric already holds: of the 593 files perl compiles,
 ### Positive Scenarios
 
 - [ ] At least 90% of the 593 perl-compiled files parse with 0 Unknown (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseWithoutErrorOnCompiledCorpus$' -count=1 -v | grep -q '^--- PASS: TestParseWithoutErrorOnCompiledCorpus'`)
+
+### Negative Scenarios
+
+- [ ] Reading the graded set fails when baseline.txt is missing, empty or unparseable, rather than yielding 0 files and a 0/0 pass (`go test ./internal/parse/ -run '^TestGradedSetFailsWithoutBaseline$' -count=1 -v | grep -q '^--- PASS: TestGradedSetFailsWithoutBaseline'`)
+- [ ] The graded-set reader keeps exact, wider and no-answer rows and drops only excluded and error rows, checked on a fixture baseline holding one row of each status (`go test ./internal/parse/ -run '^TestGradedSetExcludesOnlyExcludedAndError$' -count=1 -v | grep -q '^--- PASS: TestGradedSetExcludesOnlyExcludedAndError'`)
+- [ ] A graded file absent from PERL5_CORPUS (wrong pin, partial checkout) counts as unclean and is named, never skipped out of the 593 (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestCompiledCorpusMissingFileCountsAsUnclean$' -count=1 -v | grep -q '^--- PASS: TestCompiledCorpusMissingFileCountsAsUnclean'`)
+- [ ] The 90% floor cannot hide a swap or a slide from 592 to 534: the test pins the unclean set, failing when any file outside it (today only comp/final_line_num.t) has an Unknown, and when a listed file becomes clean (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseWithoutErrorPinsUncleanSet$' -count=1 -v | grep -q '^--- PASS: TestParseWithoutErrorPinsUncleanSet'`)
+- [ ] comp/final_line_num.t is refused on the line perl rejects; a refusal on any other line fails (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlRejectedFileRefusedOnPerlsLine$' -count=1 -v | grep -q '^--- PASS: TestPerlRejectedFileRefusedOnPerlsLine'`)
