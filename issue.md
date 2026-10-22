@@ -3,8 +3,10 @@ title: Report a ->{...} hash read's rv2hv exactly when perl keeps it out of mult
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-22T23:46:47.250837659Z
+updated: 2026-10-22T23:47:07.790256725Z
 ---
 
 ## Context
