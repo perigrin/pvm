@@ -32,7 +32,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
   - `hedgeDerefElement` (~183-205) handles `->{...}` chains under a dereference. Whether perl keeps rv2hv turns on its op_lvalue context: push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref.
   - The `Index` case (~236+) handles named hashes and slices.
   - Issue 01a12059-30a8-722e-bbc3-52066b8610cb, "Report a ->{...} hash read's rv2hv exactly when perl keeps it out of multideref", is pending in v0.1 and moves into this milestone.
-  - Done issue 01a0bae1 measured the named-hash rule: `my %h` keys -> 0 rv2hv (padhv); `our` 1; `state` 1; `local` 2; `delete local` 1; slice counts follow the scopes of the hashes sliced.
+  - Done issue 01a0bae1 measured the named-hash rule: `my %h` keys -> 0 rv2hv (padhv); `our` 1; `local` 2; slice counts follow the scopes of the hashes sliced. **Its `state` row is wrong, re-measured 2026-10-22 on 5.42.0:** with the feature on (`use feature "state"` or `use v5.10`+), `state %h; keys %h` is `padhv`, 0 rv2hv, at file scope and in a sub. 01a0bae1's "state 1" was measured without the feature, where `state %h` is not a declaration: perl warns "Ambiguous use of % resolved as operator %", reads `state % h`, and the later `%h` is a package hash (`gv[*h]` + rv2hv). So `state` is decided by whether the feature is on, which the file shows. `delete local $h{a}` follows the hash's scope: `our %h` 1 rv2hv, `my %h` 0. For `->{...}` chains: a deref chain as a sub argument keeps rv2hv (`foo(@{$r->{a}})` 1, `for (@{$r->{a}})` 1), a plain element read does not (`foo($r->{a})` 0, `my @x = @{$r->{a}}` 0); non-constant keys keep it (`$r->{"a$x"}`, `$r->{shift()}` 1 each).
   - Tests: internal/parse/hashhedge_test.go, arrowhashread_test.go, sites_decided_test.go.
 
 **Rules that bind every issue.**
@@ -78,7 +78,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 6. Triage the remaining M3-dir re-emission failures (may split by cause: heredoc tokens, `sub DESTROY`, canon-added parens, `;`/`}`); then TestPerlGitTFaithfulOnM3Dirs + faithful_defects.txt. [5]
 7. Mine >= 200 perf/opcount.t assertions; TestOpcountFixturesHeldToPerl. []
 8. 01a12059-30a8 (moved here): `->{...}` rv2hv exactly per op_lvalue context. [2]
-9. Named-hash rv2hv from declaration (my padhv; our/state/local rv2hv; delete local; slices), hedging only when the declaration is not in the file; a test names each remaining hedge's reason; re-baseline sites.txt below 389 wider. [2; after 8, since both edit sites.go]
+9. Named-hash rv2hv from declaration (my and featured state padhv; our/local rv2hv; delete local follows the hash's scope; slices), hedging only when the declaration is not in the file; a test names each remaining hedge's reason; re-baseline sites.txt below 389 wider. [2; after 8, since both edit sites.go]
 10. Docs: plan M3 section (593, measured numbers, `#### Measured at the M3 gate`), ladder summary, README Status (`The M3 gate ...`, stale `($x)` sentence), parseoracle README 584. [2, 3, 6, 7, 9]
 
 Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge order, so the two run in sequence. Items 3, 4->5->6 and 7 run in parallel with 1->2->8->9.
