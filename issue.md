@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-22T23:47:16.33239884Z
+updated: 2026-10-22T23:56:40.58117137Z
 ---
 
 ## Context
@@ -35,3 +35,11 @@ These are the `stmt-boundary` rows of faithful_defects.txt, 12 M3-dir files wher
 - [ ] Each reduced statement-boundary case re-emits faithfully or is pinned with its perl measurement (`go test ./internal/parse/ -run '^TestFaithfulStatementBoundaries$' -count=1 -v | grep -q '^--- PASS: TestFaithfulStatementBoundaries'`)
 - [ ] The defects list and the M3-dir check agree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulOnM3Dirs$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulOnM3Dirs'`)
 - [ ] The perl.git t/ faithful ratchet records the result (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+
+### Negative Scenarios
+
+- [ ] A block dereference's braces are forgiven only where they change no grouping. perl 5.42 Deparses `${$a->[0]}` as `${$a->[0];}` and `$$a->[0]` as `$$a->[0]`, which are different trees, so source `${$a->[0]}` against canon `$$a->[0]` stays unfaithful (`go test ./internal/parse/ -run '^TestFaithfulBlockDerefBracesKeptWhenGroupingChanges$' -count=1 -v | grep -q '^--- PASS: TestFaithfulBlockDerefBracesKeptWhenGroupingChanges'`)
+- [ ] A missing `;` between two statements is a difference; the existing forgiveness covers only a block's last statement (`go test ./internal/parse/ -run '^TestFaithfulDoesNotForgiveMissingInnerSemicolon$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDoesNotForgiveMissingInnerSemicolon'`)
+- [ ] A `}` placed so that a statement moves into or out of a block is a difference, even when the token multiset is unchanged (`go test ./internal/parse/ -run '^TestFaithfulDetectsStatementMovedAcrossBrace$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDetectsStatementMovedAcrossBrace'`)
+- [ ] A token-count mismatch, as in lib/universal.t (318 vs 369), is never resolved by truncating or skipping the longer side's tail (`go test ./internal/parse/ -run '^TestFaithfulTokenCountMismatchIsADifference$' -count=1 -v | grep -q '^--- PASS: TestFaithfulTokenCountMismatchIsADifference'`)
+- [ ] The statement-boundary fixes leave misgrouping detection whole (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
