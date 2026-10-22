@@ -398,44 +398,26 @@ type scopedName struct {
 // A deref in a part of the loop that may run zero times -- a body, a
 // C-style for's step, a map, grep or sort block -- forces its base to a
 // ref only on a pass that runs at all (I4), so past the loop the base
-// also holds its type from before the loop: `my $c=0; my $y=undef; for
-// my $i (1..$c) { $y->{k} } bless $y, 'Foo'` dies "Can't bless
-// non-reference value" in perl 5.42. Inside the pass, what follows the
-// deref sees the ref, as a straight-line deref's does, and a condition,
-// list or initialiser, which runs at least once, joins nothing.
-//
-// A deref of a guard's shadow -- in an if or else body, a modifier, a
-// ternary arm or a map block inside the loop -- is marked in the guard
-// scope, closed by the loop's end; the guard's join wrote what the shadow
-// became to the variable the guard narrowed, so that variable, the one
-// the name finds past the loop, is the one joined: perl 5.42 dies "Can't
-// bless non-reference value" on `my $y=undef; for my $i (1..$n) {
-// $y->{k}=1 unless defined $y } bless $y, 'Foo'` with $n 0.
+// also holds the type it had where the first such part began, past the
+// condition, list or initialiser, which runs at least once: `my $c=0; my
+// $y=undef; for my $i (1..$c) { $y->{k} } bless $y, 'Foo'` dies "Can't
+// bless non-reference value" in perl 5.42, and `for ($y = {}; $c; ) {
+// $y->{k} } bless $y, 'Foo'` does not. Inside the pass, what follows the
+// deref sees the ref, as a straight-line deref's does.
 func (a *analysis) loop(n lower.Node, walk func()) {
 	a.loopExits = append(a.loopExits, map[scopedName]types.Type{})
-	a.loops = append(a.loops, openLoop{a.mayNotRun(n), map[scopedName]bool{}})
-	a.st.PushFrame()
+	spans, parts := a.mayNotRun(n)
+	a.loops = append(a.loops, openLoop{a.st.current.depth, spans, parts, map[scopedName]bool{}, map[scopedName]Symbol{}})
 	walk()
-	touched := a.st.Touched()
-	joined := map[scopedName]Symbol{}
-	for v := range a.loops[len(a.loops)-1].derefs {
-		if v.scope.Name == "guard" && !a.st.inScope(v.scope) {
-			v.scope = a.st.scopeOf(v.name)
-			if v.scope == nil {
-				continue
-			}
-		}
-		if before, ok := touched[v]; ok && a.st.inScope(v.scope) {
+	l := a.loops[len(a.loops)-1]
+	a.loops = a.loops[:len(a.loops)-1]
+	for v := range l.derefs {
+		if before, ok := l.before[v]; ok && a.st.inScope(v.scope) {
 			if sym, ok := v.scope.symbols[v.name]; ok {
 				sym.Type = types.Join(sym.Type, before.Type)
-				joined[v] = sym
+				a.st.set(v, sym)
 			}
 		}
-	}
-	a.st.PopFrame()
-	a.loops = a.loops[:len(a.loops)-1]
-	for v, sym := range joined {
-		a.st.set(v, sym)
 	}
 	exits := a.loopExits[len(a.loopExits)-1]
 	a.loopExits = a.loopExits[:len(a.loopExits)-1]
@@ -449,19 +431,24 @@ func (a *analysis) loop(n lower.Node, walk func()) {
 	}
 }
 
-// openLoop is a loop loop is walking: the source spans of its parts that
-// may run zero times, and each variable a deref in one of them forced to
-// a ref.
+// openLoop is a loop loop is walking: the depth of the scope it opened
+// in; the source spans of its parts that may run zero times, and the ids
+// of those not yet walked; each variable a deref in one of them forced to
+// a ref; and each variable's value from where the first of them began,
+// the value it keeps past the loop when no pass runs.
 type openLoop struct {
+	depth     int
 	mayNotRun [][2]int
+	parts     []lower.ID
 	derefs    map[scopedName]bool
+	before    map[scopedName]Symbol
 }
 
-// mayNotRun is the source spans of n's parts that may run zero times: a
-// while's or foreach's body and continue block, a C-style for's body and
-// step, a map's, grep's or sort's block or expression. A do-while's body
-// and a bare block run at least once.
-func (a *analysis) mayNotRun(n lower.Node) [][2]int {
+// mayNotRun is the source spans and ids of n's parts that may run zero
+// times: a while's or foreach's body and continue block, a C-style for's
+// body and step, a map's, grep's or sort's block or expression. A
+// do-while's body and a bare block run at least once.
+func (a *analysis) mayNotRun(n lower.Node) ([][2]int, []lower.ID) {
 	var parts []lower.Node
 	switch n := n.(type) {
 	case *lower.WhileStmt:
@@ -476,33 +463,87 @@ func (a *analysis) mayNotRun(n lower.Node) [][2]int {
 		parts = []lower.Node{n.Block, n.FirstExpr}
 	}
 	var spans [][2]int
+	var ids []lower.ID
 	for _, p := range parts {
 		if p == nil {
 			continue
 		}
+		ids = append(ids, p.Meta().ID)
 		if start, end, ok := a.pos.Span(p.Meta().ID); ok {
 			spans = append(spans, [2]int{start, end})
 		}
 	}
-	return spans
+	return spans, ids
+}
+
+// enterLoopPart reports whether n is a part of the innermost open loop
+// that may run zero times, not walked yet, and if so opens a frame for
+// leaveLoopPart to read the values the part's derefs began from.
+func (a *analysis) enterLoopPart(n lower.Node) bool {
+	if len(a.loops) == 0 {
+		return false
+	}
+	l := &a.loops[len(a.loops)-1]
+	id := n.Meta().ID
+	for i, p := range l.parts {
+		if p == id {
+			l.parts = append(l.parts[:i:i], l.parts[i+1:]...)
+			a.st.PushFrame()
+			return true
+		}
+	}
+	return false
+}
+
+// leaveLoopPart closes the frame enterLoopPart opened, keeping, for each
+// variable a deref marked, its value from before its first touch in any
+// part: what it held where the first part began.
+func (a *analysis) leaveLoopPart() {
+	l := a.loops[len(a.loops)-1]
+	touched := a.st.Touched()
+	for v := range l.derefs {
+		if _, seen := l.before[v]; !seen {
+			if before, ok := touched[v]; ok {
+				l.before[v] = before
+			}
+		}
+	}
+	a.st.PopFrame()
 }
 
 // markLoopDeref records, in each open loop with a part that may run zero
 // times around base, that a deref there forced name to a ref, for loop
-// to join its type from before the loop back in past it.
+// to join its type from before the part back in past it.
+//
+// The variable marked is the one the deref narrows that is still in
+// scope past the loop: a guard's shadow -- in an if or else body, a
+// modifier, a ternary arm or a map block -- opened inside the loop is
+// gone by then, and the guard's join wrote what the shadow became to the
+// variable it narrowed, the holder beneath it. perl 5.42 dies "Can't
+// bless non-reference value" on `my $y=undef; for my $i (1..$n) {
+// $y->{k}=1 unless defined $y } bless $y, 'Foo'` with $n 0. A `my $y`
+// inside the loop is another variable, gone past the loop, and its mark
+// is skipped there.
 func (a *analysis) markLoopDeref(base lower.Node, name string) {
 	if len(a.loops) == 0 {
 		return
 	}
 	start, _, ok := a.pos.Span(base.Meta().ID)
-	scope := a.st.scopeOf(name)
-	if !ok || scope == nil {
+	if !ok {
 		return
 	}
+	holders := a.st.holders[name]
 	for _, l := range a.loops {
+		i := len(holders) - 1
+		for i >= 0 && holders[i].Name == "guard" && holders[i].depth > l.depth {
+			i--
+		}
+		if i < 0 {
+			continue
+		}
 		for _, s := range l.mayNotRun {
 			if start >= s[0] && start < s[1] {
-				l.derefs[scopedName{scope, name}] = true
+				l.derefs[scopedName{holders[i], name}] = true
 				break
 			}
 		}

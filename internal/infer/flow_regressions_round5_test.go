@@ -1,5 +1,5 @@
-// ABOUTME: Tests for the round-5 review's flow findings (A1 and the I4 residual):
-// ABOUTME: a guarded deref in a loop joins the zero-iteration path, and a deref past an exit narrows nothing.
+// ABOUTME: Tests for the round-5 review's flow findings (A1 and the I4 residual) and their review:
+// ABOUTME: a guarded deref in a loop joins the zero-pass path, and code past an exit narrows nothing but a named sub.
 package infer_test
 
 import "testing"
@@ -35,8 +35,8 @@ func TestLoopGuardedDerefJoinsZeroIterations(t *testing.T) {
 func TestDerefAfterDieNarrowsNothing(t *testing.T) {
 	for _, src := range []string{
 		"my $y = undef; eval { die 'x'; my $q = $y->{k} }; bless $y, 'Foo';\n",
-		"my $y = undef; eval { die 'x'; if (1) { my $q = $y->{k} } }; bless $y, 'Foo';\n",
-		"my $y = undef; sub f { return 1; my $q = $y->{k} } f(); bless $y, 'Foo';\n",
+		"my $y = undef; eval { die 'x'; { my $q = $y->{k} } }; bless $y, 'Foo';\n",
+		"my $y = undef; do { eval { return 1; my $q = $y->{k} } }; bless $y, 'Foo';\n",
 		"my $y = undef; eval { die 'x'; $y = {} }; bless $y, 'Foo';\n",
 	} {
 		if diags := diagsWithDefaults(src); len(diags) == 0 {
@@ -57,6 +57,39 @@ func TestDerefBeforeOrPastConditionalExitNarrows(t *testing.T) {
 		"my $c = 0; my $y = undef; eval { if ($c) { die 'x' } my $q = $y->{k} }; bless $y, 'Foo';\n",
 		"my $y = undef; exit main(); sub main { my $q = $y->{k}; bless $y, 'Foo'; return 0 }\n",
 		"sub f { die 'x'; my $h = undef; my $q = $h->{k}; bless $h, 'Foo' } 1;\n",
+	} {
+		if diags := diagsWithDefaults(src); len(diags) != 0 {
+			t.Errorf("%q: diagnostics %v, want none", src, diags)
+		}
+	}
+}
+
+// TestNamedSubAfterExitKeepsWrites (round-5 fix review, F1): perl
+// defines a named sub at compile time, so one written past an exit still
+// widens what it writes, as one anywhere else does. perl 5.42 prints ok;
+// pu, r2, h3 and h4 are silent.
+func TestNamedSubAfterExitKeepsWrites(t *testing.T) {
+	const src = `my $p = undef; eval { die "x"; sub w { $p = {} } }; w(); bless $p, "Foo";` + "\n"
+	if diags := diagsWithDefaults(src); len(diags) != 0 {
+		t.Errorf("%q: diagnostics %v, want none", src, diags)
+	}
+}
+
+// TestLoopDerefJoinsFromAfterAlwaysRunParts (round-5 fix review, F2):
+// when a loop runs no pass, the variable past it holds what the
+// condition, list or initialiser, which always run, left it, not its
+// value from before the loop; and a `my $y` inside the loop is not the
+// $y past it. perl 5.42 prints ok on each; pu, r2 and h3 are silent.
+func TestLoopDerefJoinsFromAfterAlwaysRunParts(t *testing.T) {
+	const pre = "my $y = undef; my $n = 0; "
+	for _, src := range []string{
+		pre + `for ($y = {}, my $i = 0; $i < $n; $i++) { my $y = $n ? {} : undef; $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
+		pre + `while (($y = {}) && $n) { my $y = $n ? {} : undef; $y->{k} = 1 unless defined $y; $n = 0 } bless $y, "Foo";` + "\n",
+		pre + `for my $i (($y = {}) ? (1..$n) : ()) { my $y = $n ? {} : undef; $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
+		pre + `for ($y = {}; $n; ) { $y->{k} = 1 } bless $y, "Foo";` + "\n",
+		pre + `for ($y = {}; $n; ) { $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
+		pre + `while (($y = {}) && $n) { $y->{k} = 1 } bless $y, "Foo";` + "\n",
+		pre + `while (($y = {}) && $n) { $y->{k} = 1 unless defined $y } bless $y, "Foo";` + "\n",
 	} {
 		if diags := diagsWithDefaults(src); len(diags) != 0 {
 			t.Errorf("%q: diagnostics %v, want none", src, diags)

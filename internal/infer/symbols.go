@@ -104,6 +104,11 @@ type SymbolTable struct {
 	// of guards nests a scope at every level, and a walk per lookup per
 	// level made a long one quadratic (V5).
 	holders map[string][]*Scope
+	// unreached counts the open scopes Unreached marked, and hoisted is
+	// what a named sub's declaration in one of them left each name it
+	// touched, as Hoist says.
+	unreached int
+	hoisted   map[scopedName]Symbol
 }
 
 // put writes sym as n's value in the scope n names, adding the scope to
@@ -326,18 +331,47 @@ func (st *SymbolTable) inScope(s *Scope) bool {
 func (st *SymbolTable) Unreached() {
 	if st.current.parent != nil && !st.current.unreached {
 		st.current.unreached = true
+		st.unreached++
 		st.PushFrame()
 	}
 }
 
+// Hoist starts a named sub's declaration and returns the func that ends
+// it. perl defines a named sub at compile time, wherever it is written,
+// so what its declaration does to a name around it -- the write-widening
+// and return type decl (infer.go) records -- survives an unreached
+// scope's undo: ExitScope puts it back. perl 5.42 prints ok for `my $p =
+// undef; eval { die "x"; sub w { $p = {} } }; w(); bless $p, "Foo";
+// print "ok\n"`.
+func (st *SymbolTable) Hoist() func() {
+	if st.unreached == 0 {
+		return func() {}
+	}
+	st.PushFrame()
+	return func() {
+		if st.hoisted == nil {
+			st.hoisted = map[scopedName]Symbol{}
+		}
+		for n := range st.Touched() {
+			if sym, ok := n.scope.symbols[n.name]; ok && n.scope.open {
+				st.hoisted[n] = sym
+			}
+		}
+		st.PopFrame()
+	}
+}
+
 // ExitScope pops the current scope back to its parent, undoing what the
-// scope changed past a statement that always exits, as Unreached says.
-// Calling ExitScope on the root scope is a no-op to avoid panics from
-// unbalanced enter/exit pairs.
+// scope changed past a statement that always exits, as Unreached says,
+// all but what a named sub's declaration did, as Hoist says. Calling
+// ExitScope on the root scope is a no-op to avoid panics from unbalanced
+// enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
-		if st.current.unreached {
+		undone := st.current.unreached
+		if undone {
 			st.current.unreached = false
+			st.unreached--
 			st.UndoFrame()
 		}
 		for name := range st.current.symbols {
@@ -349,6 +383,23 @@ func (st *SymbolTable) ExitScope() {
 		}
 		st.current.open = false
 		st.current = st.current.parent
+		if undone {
+			st.rehoist()
+		}
+	}
+}
+
+// rehoist puts back, past an unreached scope's undo, what each named
+// sub's declaration in one left a name still in scope, as Hoist says,
+// and forgets it all once no unreached scope is open.
+func (st *SymbolTable) rehoist() {
+	for n, sym := range st.hoisted {
+		if n.scope.open {
+			st.set(n, sym)
+		}
+	}
+	if st.unreached == 0 {
+		st.hoisted = nil
 	}
 }
 
