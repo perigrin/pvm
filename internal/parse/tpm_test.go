@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -613,11 +614,12 @@ func TestDeclarationWarningsReachTheRoot(t *testing.T) {
 // shippedDeclarationErrors reads every declaration file in fsys as the
 // resolver would -- CORE.tpm in CORE's language, every other file as a
 // library's -- and returns each error and warning with its file's name.
+// Only .tpm files are declarations; a README beside them is not read.
 func shippedDeclarationErrors(t *testing.T, fsys fs.FS) []string {
 	t.Helper()
 	var out []string
 	err := fs.WalkDir(fsys, "declarations", func(name string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil || d.IsDir() || path.Ext(name) != ".tpm" {
 			return err
 		}
 		src, err := fs.ReadFile(fsys, name)
