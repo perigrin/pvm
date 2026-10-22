@@ -3,8 +3,10 @@ title: Ratchet oracle agreement per marker site, with the M3 floor, in the CI sw
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-3e74-7a1a-b7bf-090cd8bceadd
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-22T23:46:33.509926758Z
+updated: 2026-10-22T23:46:58.049436074Z
 ---
 
 ## Context
