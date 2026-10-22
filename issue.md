@@ -1,10 +1,19 @@
 ---
 title: A guarded deref in a loop joins its zero-iteration path, and a deref after die narrows nothing
-state: pending
+state: in-progress
 urgency: normal
 milestone: core-module-types
 created: 2026-10-22T13:10:12.368955564Z
-updated: 2026-10-22T13:10:12.368955564Z
+updated: 2026-10-22T13:10:32.954984252Z
+sessions:
+- start_sha: b76b14ef3f216dc8cda8f72d7a2a89e65827baa2
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-22T13:10:32.954984252Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-22T13:10:32.954984252Z
 ---
 
 crochet:review round 5 of PR #488 at 7201d0dd (2026-10-22). Quality report: scratchpad/review5-core-module-types-paad.md; probes scratchpad/r5probes/ (RAW-FINDINGS.md), r4/p/, r3probes/, r2probes/. perigrin, 2026-10-22: one narrow round, then close -- fix only these, with Opus, each reviewed against pu, r2 (2db182e6), h3 (692a560c) and h4 (7201d0dd) with perl 5.42 before merge, then a final quality lens over this round's diff alone; every other finding is a follow-up. A probe pu, r2, h3 or h4 gets right must still be right.
