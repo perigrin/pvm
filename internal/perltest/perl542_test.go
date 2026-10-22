@@ -148,6 +148,31 @@ func TestPerl542HandlesASystemImportedInstallPath(t *testing.T) {
 	assert.True(t, p.FromPvm)
 }
 
+// TestPerl542MarksASystemImportAsNotFromPvm: a perl pvm's ImportSystemPerl
+// registered (Source "system") is not a build pvm made, so FromPvm is
+// false and a test pinned to pvm's own static-libperl build skips. CI on
+// 7201d0dd: a Windows runner's registry held the imported Strawberry perl,
+// and TestIsReferenceBuildOnPvmsOwnPerl asserted against it.
+func TestPerl542MarksASystemImportAsNotFromPvm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in perl is a shell script")
+	}
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0o755))
+	lib := filepath.Join(t.TempDir(), "privlib")
+	require.NoError(t, os.MkdirAll(lib, 0o755))
+	perl542StandIn(t, binDir, "5.042000", lib)
+
+	saved := perl.GetVersionInfo
+	t.Cleanup(func() { perl.GetVersionInfo = saved })
+	perl.GetVersionInfo = func(string) (*perl.VersionInfo, error) {
+		return &perl.VersionInfo{InstallPath: binDir, Source: "system"}, nil
+	}
+
+	assert.False(t, Perl542(t).FromPvm, "a system perl pvm imported is not pvm's own build")
+}
+
 func TestPerl542ReportsAnExistingPrivlib(t *testing.T) {
 	p := Perl542(t)
 	fi, err := os.Stat(p.Privlib)

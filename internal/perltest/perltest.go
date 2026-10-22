@@ -24,9 +24,11 @@ type Perl struct {
 	Privlib string
 	// Archlib is $Config{archlibexp}: the architecture-specific core library.
 	Archlib string
-	// FromPvm reports whether Path came from pvm's own perl registry, as
-	// opposed to the PATH fallback Perl542 uses where pvm has none
-	// installed (CI's actions-setup-perl, Windows's Strawberry perl). A
+	// FromPvm reports whether Path is a perl pvm built itself, as recorded
+	// in its registry (Source "pvm"), as opposed to the PATH fallback
+	// Perl542 uses where pvm has none installed (CI's actions-setup-perl,
+	// Windows's Strawberry perl) or a system perl pvm's ImportSystemPerl
+	// registered (Source "system", as a test on a CI runner may). A
 	// test pinned to pvm's own static-libperl build checks this before
 	// asserting, so it skips rather than fails on the PATH fallback.
 	FromPvm bool
@@ -49,7 +51,7 @@ func Perl542(t testing.TB) Perl {
 	t.Helper()
 	if info, err := perl.GetVersionInfo("5.42.0"); err == nil && info != nil {
 		p := locate(t, perlExecutable(info.InstallPath))
-		p.FromPvm = true
+		p.FromPvm = builtByPvm(info)
 		return p
 	}
 	if path, ok := perl542OnPath(); ok {
@@ -151,4 +153,11 @@ func (p Perl) Command(args ...string) *exec.Cmd {
 		cmd.Env = append(cmd.Env, kv)
 	}
 	return cmd
+}
+
+// builtByPvm reports whether a registry entry is a perl pvm built, not one
+// it imported from the system, plenv or perlbrew. An entry written before
+// Source was recorded carries none and was pvm's own.
+func builtByPvm(info *perl.VersionInfo) bool {
+	return info.Source == "pvm" || info.Source == ""
 }
