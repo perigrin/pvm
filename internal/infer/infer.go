@@ -119,6 +119,9 @@ type analysis struct {
 // walk types n, children first, and records the type under n's id. Unknown
 // is not recorded: an absent annotation is how "no type" reads.
 func (a *analysis) walk(n lower.Node) types.Type {
+	if a.enterLoopPart(n) {
+		defer a.leaveLoopPart()
+	}
 	var t types.Type
 	switch n := n.(type) {
 	case *lower.Hole:
@@ -258,6 +261,9 @@ func (a *analysis) walk(n lower.Node) types.Type {
 // A `no warnings` in b lasts to the end of b, as perl's lexical warnings
 // do.
 func (a *analysis) block(b *lower.Block) {
+	if a.enterLoopPart(b) {
+		defer a.leaveLoopPart()
+	}
 	if s := a.st.blockScopes[b.ID]; s != nil {
 		a.st.Reenter(s)
 	} else {
@@ -332,6 +338,7 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 		for _, v := range d.Vars {
 			a.walk(v)
 		}
+		hoisted := a.st.Hoist()
 		if d.Init != nil {
 			a.st.EnterScope(subName(d))
 			widened := a.widenWritten(d.Init)
@@ -369,6 +376,7 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 			}
 			a.recordParamTypes(d)
 		}
+		hoisted()
 		return types.Code
 	}
 	// field, class and method: no rule types them yet, and no fixture

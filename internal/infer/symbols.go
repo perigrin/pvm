@@ -77,6 +77,10 @@ type Scope struct {
 	// there.
 	open  bool
 	depth int
+	// unreached is whether a statement in the scope always exits, so the
+	// code past it never runs: Unreached opened a frame there, which
+	// ExitScope undoes.
+	unreached bool
 }
 
 // SymbolTable tracks the full lexical scope chain.  The current scope is the
@@ -100,6 +104,11 @@ type SymbolTable struct {
 	// of guards nests a scope at every level, and a walk per lookup per
 	// level made a long one quadratic (V5).
 	holders map[string][]*Scope
+	// unreached counts the open scopes Unreached marked, and hoisted is
+	// what a named sub's declaration in one of them left each name it
+	// touched, as Hoist says.
+	unreached int
+	hoisted   map[scopedName]Symbol
 }
 
 // put writes sym as n's value in the scope n names, adding the scope to
@@ -313,10 +322,58 @@ func (st *SymbolTable) inScope(s *Scope) bool {
 	return s.open
 }
 
-// ExitScope pops the current scope back to its parent.  Calling ExitScope on
-// the root scope is a no-op to avoid panics from unbalanced enter/exit pairs.
+// Unreached marks the rest of the current scope as code that never runs,
+// past a statement that always exits: what it changes is put back when
+// the scope is exited, for it never happens on a path that leaves the
+// scope. perl 5.42 dies "Can't bless non-reference value" on `my $y =
+// undef; eval { die 'x'; my $q = $y->{k} }; bless $y, 'Foo'`. Nothing
+// leaves the root scope, which is never exited, so it is not marked.
+func (st *SymbolTable) Unreached() {
+	if st.current.parent != nil && !st.current.unreached {
+		st.current.unreached = true
+		st.unreached++
+		st.PushFrame()
+	}
+}
+
+// Hoist starts a named sub's declaration and returns the func that ends
+// it. perl defines a named sub at compile time, wherever it is written,
+// so what its declaration does to a name around it -- the write-widening
+// and return type decl (infer.go) records -- survives an unreached
+// scope's undo: ExitScope puts it back. perl 5.42 prints ok for `my $p =
+// undef; eval { die "x"; sub w { $p = {} } }; w(); bless $p, "Foo";
+// print "ok\n"`.
+func (st *SymbolTable) Hoist() func() {
+	if st.unreached == 0 {
+		return func() {}
+	}
+	st.PushFrame()
+	return func() {
+		if st.hoisted == nil {
+			st.hoisted = map[scopedName]Symbol{}
+		}
+		for n := range st.Touched() {
+			if sym, ok := n.scope.symbols[n.name]; ok && n.scope.open {
+				st.hoisted[n] = sym
+			}
+		}
+		st.PopFrame()
+	}
+}
+
+// ExitScope pops the current scope back to its parent, undoing what the
+// scope changed past a statement that always exits, as Unreached says,
+// all but what a named sub's declaration did, as Hoist says. Calling
+// ExitScope on the root scope is a no-op to avoid panics from unbalanced
+// enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
+		undone := st.current.unreached
+		if undone {
+			st.current.unreached = false
+			st.unreached--
+			st.UndoFrame()
+		}
 		for name := range st.current.symbols {
 			h := st.holders[name]
 			if len(h) == 0 || h[len(h)-1] != st.current {
@@ -326,6 +383,23 @@ func (st *SymbolTable) ExitScope() {
 		}
 		st.current.open = false
 		st.current = st.current.parent
+		if undone {
+			st.rehoist()
+		}
+	}
+}
+
+// rehoist puts back, past an unreached scope's undo, what each named
+// sub's declaration in one left a name still in scope, as Hoist says,
+// and forgets it all once no unreached scope is open.
+func (st *SymbolTable) rehoist() {
+	for n, sym := range st.hoisted {
+		if n.scope.open {
+			st.set(n, sym)
+		}
+	}
+	if st.unreached == 0 {
+		st.hoisted = nil
 	}
 }
 
