@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-22T23:56:40.736128049Z
+updated: 2026-10-22T23:58:50.106997762Z
 ---
 
 ## Context
@@ -18,7 +18,7 @@ updated: 2026-10-22T23:56:40.736128049Z
 - commands: `go test ./internal/parse/ -run '^(TestNamedHashRv2hvFollowsDeclaration|TestEveryRv2hvHedgeNamesItsReason)$' -count=1 -v`
 - entrypoints: `internal/parse/sites.go` (`Index` case, `hedge`)
 
-Named hashes and hash slices still hedge rv2hv. Done issue 01a0bae1 measured perl's rule against the hash's declaration: `my %h` keys give 0 rv2hv (padhv); `our` gives 1; `state` 1; `local` 2; `delete local` 1; and a slice counts follow the scopes of the hashes sliced. This issue decides rv2hv from the declaration when the declaration is in the file. It hedges only when the declaration is not visible (a package variable from elsewhere, a string eval, a glob assignment). A test names the reason for every hedge that remains, so a hedge cannot survive without one. It edits sites.go after the arrow-read issue and re-baselines sites.txt below 389 rv2hv wider, from the lower count that issue recorded.
+Named hashes and hash slices still hedge rv2hv. Done issue 01a0bae1 measured perl's rule against the hash's declaration: `my %h` keys give 0 rv2hv (padhv); `our` gives 1; `local` 2; `delete local` follows the hash's scope (`our %h` 1, `my %h` 0); and `state` is padhv, 0 rv2hv, when the feature is on (re-measured 2026-10-22 -- 01a0bae1's "state 1" was measured without `use feature "state"`, where `state %h` is not a declaration: perl reads `state % h` as a modulus and the later `%h` is a package hash); and a slice counts follow the scopes of the hashes sliced. This issue decides rv2hv from the declaration when the declaration is in the file. It hedges only when the declaration is not visible (a package variable from elsewhere, a string eval, a glob assignment). A test names the reason for every hedge that remains, so a hedge cannot survive without one. It edits sites.go after the arrow-read issue and re-baselines sites.txt below 389 rv2hv wider, from the lower count that issue recorded.
 
 ## Steps
 
