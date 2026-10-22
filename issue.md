@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-22T23:56:40.699482045Z
+updated: 2026-10-22T23:58:27.322414243Z
 ---
 
 ## Context
@@ -26,6 +26,7 @@ M3 requires at least 200 `perf/opcount.t` assertions mined into fixtures. opcoun
 - [ ] RED: write TestOpcountFixturesHeldToPerl. It runs /home/perigrin/.local/bin/perl with B on each snippet, counting ops the way opcount.t does, and compares against the fixture. Flip one count by hand, watch the test fail, and restore it.
 - [ ] GREEN: run the test and watch every fixture pass. Drop a fixture perl disagrees with only after quoting perl's output in the commit message.
 - [ ] Run `make test`, then commit.
+- [ ] Add internal/parseoracle/testdata/opcount/README.md describing the fixture format (snippet, op=>count pairs, the opcount.t line each came from), like internal/infer/testdata/oracle/README.md
 
 ## Acceptance criteria
 
