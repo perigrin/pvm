@@ -14,7 +14,7 @@ blocked_by:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-22T23:47:21.180757775Z
+updated: 2026-10-22T23:56:40.77601534Z
 ---
 
 ## Context
@@ -44,3 +44,12 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 - [ ] The parseoracle README states 593 compiled files (`grep -q '593/620' internal/parseoracle/README.md`)
 - [ ] The parseoracle README no longer states 584/620 (`sh -c '! grep -q 584/620 internal/parseoracle/README.md'`)
 - [ ] The perl-parser README no longer cites term.go:284-293 for the dropped Paren (`sh -c '! grep -q term.go:284-293 docs/specs/perl-parser/README.md'`)
+
+### Negative Scenarios
+
+- [ ] The measured subsection's numbers are the committed ones, not a heading over stale prose. It states the whole-corpus and M3-dir site totals and the rv2hv wider count exactly as sites.txt records them, so editing either side alone fails (`go test ./internal/parseoracle/ -run '^TestPlanM3SectionQuotesSitesRatchet$' -count=1 -v | grep -q '^--- PASS: TestPlanM3SectionQuotesSitesRatchet'`)
+- [ ] The measured subsection states 593, so deleting the stale row cannot satisfy the "no 584" check (`sh -c 'sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -qw 593'`)
+- [ ] When faithful_defects.txt still holds rows, the measured subsection points to it, so remaining re-emission defects cannot read as 100% (`sh -c 'if [ -s internal/parse/testdata/faithful_defects.txt ]; then sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q faithful_defects.txt; fi'`)
+- [ ] The README's M3 gate paragraph states 593, not only the heading words (`sh -c 'grep "^The M3 gate" docs/specs/perl-parser/README.md | grep -qw 593'`)
+- [ ] The parseoracle README gives 593/620 with its correct percentage, 95.6%, not the stale 94.2% beside the new count (`sh -c 'grep -q "593/620 (95.6%)" internal/parseoracle/README.md && ! grep -q "94.2%" internal/parseoracle/README.md'`)
+- [ ] The corrected `($x)` sentence describes the extra-nesting ruling, not just a removed citation (`sh -c 'grep -qi "extra nesting" docs/specs/perl-parser/README.md'`)
