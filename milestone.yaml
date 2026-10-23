@@ -52,3 +52,4 @@ point rather than rewritten. Nothing in it is settled.
 ## Execute gates
 
 - [x] 01a0de11-954c (op budget and flags): merged 1580f669 on feat/m3-conformance-corpus, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: the change is documentation only (lintOps' docstring), with no code path, and its 3 criteria verify. Tier: none applied; it touches no parser, lexer, lower, sites, canon or fidelity code.
+- [x] 01a0df09-d616 (pinned corpus total): merged 62cf900f, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: a test-only change (TestCorpusHoldsAtLeastItsFloor, corpusFloor = 261), proved red by the worker three ways (a topic removed and re-baselined, every topic removed, the floor below the count); 4 criteria verify. The floor also fails on growth, so a case-adding issue raises it deliberately.
