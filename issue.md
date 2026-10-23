@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T13:24:36.843414308Z
-updated: 2026-10-23T16:20:47.531524902Z
+updated: 2026-10-23T23:40:18.421427514Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
   end_sha: 9c3e164290f60fe6c5c1625dbd8e15a2f8a4dc3f
@@ -109,8 +109,10 @@ where a control-flow or array finding reads as an OO finding.
   a move must edit all copies. `TestGlossaryMatchesCategories` and the tier
   tests read them.
 
+Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): criteria 1 and 2 passed at 054e75e6, before this milestone's work for the issue (`shift` was already tier 02's, from 6001ca7f). They now name what that work added: the `pop` and `splice` cases pass the ops lint at tier 02, and every tier-02 topic's restated Introduces line lists both.
+
 ## Acceptance criteria
 
-- [ ] `shift` on a plain array is legal at tier 02 (`go test ./internal/conformance/ -run 'TestMdtestTopicsMakeTheSameClaims' -count=1 | grep -q '^ok'`)
-- [ ] Every copy of the tier 02 introduces line agrees (`test $(grep -rc 'Introduces .aassign' conformance/mdtest/ | grep -v ':0' | wc -l) -gt 0`)
+- [ ] Plain array mutation is legal at tier 02: the `pop` and `splice` cases in aggregate-operators.md pass the ops lint (`test "$(go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -cE '^    --- PASS: TestCorpusLints/aggregate-operators.md/.(pop|splice).:')" -eq 2`)
+- [ ] Every copy of the tier 02 introduces line lists `pop` and `splice` (`for f in $(grep -l 'Tier 02 variables' conformance/mdtest/*.md); do perl -0ne 'my ($h) = /Tier 02 variables\.\*\*(.*?)Depends on/s; exit !($h and $h =~ /.pop./ and $h =~ /.splice./)' "$f" || exit 1; done`)
 - [ ] REGRESSION GUARD, passes today: the corpus ratchet holds (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
