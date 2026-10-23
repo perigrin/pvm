@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 created: 2026-10-23T08:21:55.619658958Z
-updated: 2026-10-23T12:56:02.206626939Z
+updated: 2026-10-23T13:55:21.622765398Z
 ---
 
 ## Context
@@ -17,7 +17,7 @@ updated: 2026-10-23T12:56:02.206626939Z
 - commands: `PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v`
 - entrypoints: `internal/parse/testdata/faithful_queue.txt`, `internal/parseoracle/parens_test.go` (TestParenFlagMatchesPerlOPfPARENS)
 
-Fix every `dropped-paren` row of the re-emission work queue: a source paren canon still does not write after the Paren-once change, because psc never set `Paren` on that node. The OPf_PARENS check from the issue that blocks this one judges each row. Split out of that issue (J4, chain-review round 5) so the check and the row-fixing are separate deliverables. Under perigrin's round-4 ruling the class must reach zero; an unfixable row is escalated to perigrin, never parked. Under the round-5 ruling `Faithful` is not changed; its forgiven set is closed. It runs first among the issues that write faithful_queue.txt, before the heredoc/sub-less triage issue, so the two never edit that file and the parser in parallel. **Why the sequence stays (A23, chain-review round 3):** the shared-generated-files rule lets parallel branches regenerate faithful_queue.txt and the ratchets. It does not cover canon.go, fidelity.go and fidelity_test.go, which are hand-written and edited by every one of these issues. Running them in sequence also gives 5f77's handover rule a defined order: a fix that moves a row into a class whose owner has closed is handled by the issue that moved it, which only works if owners close in a known order. The cost is a longer critical chain, accepted over hand-merging four sets of canon/fidelity changes. Dropped-paren fixes that expose a later difference re-classify the row for the triage issues that follow.
+Fix every `dropped-paren` row of the re-emission work queue: a source paren canon still does not write after the Paren-once change, because psc never set `Paren` on that node. The OPf_PARENS check from the issue that blocks this one judges each row. Split out of that issue (J4, chain-review round 5) so the check and the row-fixing are separate deliverables. Under perigrin's round-4 ruling the class must reach zero; an unfixable row is escalated to perigrin, never parked. Under the round-7 ruling `Faithful` is not changed; its forgiven set is closed at a block's last `;` and extra nesting. It runs first among the issues that write faithful_queue.txt, before the heredoc/sub-less triage issue, so the two never edit that file and the parser in parallel. **Why the sequence stays (A23, chain-review round 3):** the shared-generated-files rule lets parallel branches regenerate faithful_queue.txt and the ratchets. It does not cover canon.go, fidelity.go and fidelity_test.go, which are hand-written and edited by every one of these issues. Running them in sequence also gives 5f77's handover rule a defined order: a fix that moves a row into a class whose owner has closed is handled by the issue that moved it, which only works if owners close in a known order. The cost is a longer critical chain, accepted over hand-merging four sets of canon/fidelity changes. Dropped-paren fixes that expose a later difference re-classify the row for the triage issues that follow.
 
 ## Steps
 
@@ -41,7 +41,7 @@ Fix every `dropped-paren` row of the re-emission work queue: a source paren cano
 - [ ] The work queue still matches the tree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] psc's Paren flag still matches perl's OPf_PARENS bit on every fixture, the fixed rows' fixtures included (`go test ./internal/parseoracle/ -run '^TestParenFlagMatchesPerlOPfPARENS$' -count=1 -v | grep -q '^--- PASS: TestParenFlagMatchesPerlOPfPARENS'`)
 - [ ] The fixed rows are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/dropped-paren-rows.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
-- [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
+- [ ] Regression guard: the forgiven set is still exactly the two ruled differences, a block's last `;` and extra nesting (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 
 ### Negative Scenarios
 
