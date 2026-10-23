@@ -3,10 +3,12 @@ title: Commit a perl-judged probe corpus that every parser fix extends
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1664d-69f0-715c-b060-c8f648ddfcd3
 blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T01:09:02.569105612Z
+updated: 2026-10-23T01:09:05.012402728Z
 ---
 
 ## Context
