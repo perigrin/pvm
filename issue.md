@@ -1,19 +1,29 @@
 ---
 title: The corpus asserts local restores on block exit, never on call return
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T17:52:33.001336328Z
-updated: 2026-10-23T15:16:23.576324386Z
+updated: 2026-10-23T15:40:18.568412039Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
-  end_sha: ""
-  commits: 0
+  end_sha: 58b9d93efe068e8222e292e76272380827c4d10f
+  commits: 1
   started_at: 2026-10-23T15:16:23.576324386Z
+  ended_at: 2026-10-23T15:40:18.568412039Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T15:16:23.576324386Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T15:40:18.568412039Z
+observed_paths:
+- conformance/mdtest/dynamic-scope.md
+- conformance/mdtest/subroutines.md
+- conformance/mdtest/symbol-table.md
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
 ---
 
 The corpus asserts `local` restores on BLOCK EXIT and never asserts it restores
