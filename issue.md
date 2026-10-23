@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T23:49:20.285028918Z
-updated: 2026-10-23T23:49:20.285028918Z
+updated: 2026-10-23T23:56:39.139507359Z
 ---
 
 Found in the crochet:review of m3-conformance-corpus (round 1, 2026-10-23), by the ponytail lens and the fix-pass worker. Refactor e8ee9001 left this residue, and the milestone's diff did not create it.
@@ -22,9 +22,12 @@ Found in the crochet:review of m3-conformance-corpus (round 1, 2026-10-23), by t
 
    Renaming the file they mention would keep the false claims alive. They need rewriting, or deleting along with their dead code.
 
+3. **Stale names in live comments**, found in review round 2: tier04_test.go:716, tier11_test.go:468 and tier12_test.go:209 still name `00_adjacency.t`. tier01_test.go:199 and :222 do as well, inside or next to the dead regenerateNumbering.
+
 ## Acceptance criteria
 
 ### Positive Scenarios
 
 - `staticcheck -checks U1000 -tests ./internal/conformance/ 2>&1 | grep -c 'is unused' | grep -qx 0` (no unused symbols remain)
 - `! grep -rnE 'ONE REFUSING FILE|The fifth refusal|00_adjacency\.t., refuses' internal/conformance conformance/04_operators/README.md` (the false refusal claims are gone)
+- `! grep -rn '00_adjacency\.t' internal/conformance` (no live code or comment names the deleted file)
