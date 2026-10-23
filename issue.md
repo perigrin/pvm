@@ -1,6 +1,6 @@
 ---
 title: Hold the parse-without-error floor on the 593 files perl compiles
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-23T07:06:13.612997624Z
+updated: 2026-10-23T17:31:22.895105133Z
+sessions:
+- start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T17:31:22.895105133Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:31:22.895105133Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Hold the parse-without-error floor on the compiled set recorded at the 5.44.0 pin". The floor is over compiled.txt, not over 593 files; 593 was the 5.42 graded set (chain-review round 2, A3/A13).
