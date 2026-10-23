@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T01:09:09.926462557Z
+updated: 2026-10-23T01:10:54.403296432Z
 ---
 
 ## Context
@@ -25,7 +25,7 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 - [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Concise` on `->{...}` chains in each context: plain read, push, keys, foreach, assignment (both sides), sub argument, computed key, inside `@{...}`, and inside `$#{...}`. Quote the results in the test's comment.
 - [ ] RED: write TestArrowHashReadFollowsMultideref in arrowhashread_test.go, one case per measured context. Run it and watch it fail.
 - [ ] GREEN: decide rv2hv from op_lvalue context in `hedgeDerefElement`, hedging only the shapes the measurement cannot settle statically. Update or retire TestArrowHashReadHedgesRv2hv to match, and keep TestArrowHashReadStaysDecided green. Run the tests and watch them pass.
-- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] Record the new count as `rv2hv_wider_after_arrow` in m3start.txt. The commit message gives it and names each file that moved.
 - [ ] RED/GREEN TestRv2hvWiderFellFromM3Start in internal/parseoracle: it reads sites.txt's `all rv2hv wider` row and fails unless that count is below m3start.txt's `rv2hv_wider`. It also fails if either value is missing.
 - [ ] Add every measured context, with perl's facts, as probe file `internal/parse/testdata/m3probes/arrow-hash-read.txt`.
