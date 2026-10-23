@@ -29,3 +29,9 @@ m3_exact_pct = 89.51
 # sites, which had counted as no-answer. The arrow-read fix measures its
 # fall from here; rv2hv_wider stays as the pin recorded it.
 rv2hv_wider_after_magic = 416
+#
+# rv2hv_wider_after_arrow is sites.txt's `total all rv2hv wider` once
+# Sites counts a `->{...}` chain's rv2hv by perl's multideref rule
+# (01a12059-30a8): rv2hv_wider_after_magic less the arrow reads and
+# computed keys it now decides.
+rv2hv_wider_after_arrow = 399
