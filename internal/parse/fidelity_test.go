@@ -4,11 +4,16 @@
 package parse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // TestCanonFidelityCatchesMisgrouping: the fidelity comparison fails on a
@@ -125,4 +130,344 @@ func TestCanonFidelityRatchet(t *testing.T) {
 
 	checkRatchet(t, filepath.Join("testdata", "t1fidelity.ratchet"),
 		"Files whose canon emission does NOT say what the source says (1 = differs).\n"+t1CorpusNote, now)
+}
+
+// sigTokens is text's significant tokens, the kinds Faithful drops left out.
+func sigTokens(text string) []string {
+	var out []string
+	for _, tok := range lexer.Tokenize([]byte(text)) {
+		if !slices.Contains(parse.DroppedKinds, tok.Kind) {
+			out = append(out, text[tok.Start:tok.End])
+		}
+	}
+	return out
+}
+
+func asCanon(toks []string) []parse.CanonToken {
+	out := make([]parse.CanonToken, len(toks))
+	for i, s := range toks {
+		out[i] = parse.CanonToken{Text: s}
+	}
+	return out
+}
+
+func ruleNames(fs []parse.Forgiveness) []string {
+	out := []string{}
+	for _, f := range fs {
+		out = append(out, f.Rule)
+	}
+	return out
+}
+
+// faithfulTokensCases are Faithful's verdicts on the examples above, as
+// token sequences, each with the rule behind every difference it forgave.
+// A case with parsed set takes its canon from the source's own parse, so
+// Faithful's verdict on that parse is held to the same answer.
+var faithfulTokensCases = []struct {
+	name, src, canon string
+	parsed           bool
+	ok               bool
+	rules            []string
+}{
+	{"misgrouped tree", "print (1+2)*3;", "print((1 + 2) * 3);", false, false, []string{}},
+	{"correct parse", "print (1+2)*3;", "print(1 + 2) * 3;", true, true, []string{}},
+	{"parenless call", `print "x";`, `print("x");`, true, true, []string{"call-parens"}},
+	{"call with parens", `print("x");`, `print("x");`, true, true, []string{}},
+	{"parenless ok", `ok $x, 'n';`, `ok $x, 'n';`, true, true, []string{}},
+	{"grouping kept", `(1 + 2) * 3;`, `(1 + 2) * 3;`, true, true, []string{}},
+	{"grouping lost", `(1 + 2) * 3;`, `1 + 2 * 3;`, false, false, []string{}},
+	{"grouping added", `1 - 2 - 3;`, `1 - (2 - 3);`, false, false, []string{}},
+	{"block without last semicolon", `sub f { 1 }`, `sub f {1;} `, true, true, []string{"last-semicolon"}},
+	{"block with last semicolon", `sub f { 1; }`, `sub f {1;} `, true, true, []string{}},
+	{"block argument", `print {$fh} "x";`, `print({$fh;} "x");`, true, true, []string{"call-parens", "last-semicolon"}},
+	{"nested call parens", "package Foo; sub create { } package main; print create Foo sub { 1 };",
+		"package Foo;sub create {} package main;print(create Foo(sub {1;}));", true, true,
+		[]string{"call-parens", "call-parens", "last-semicolon"}},
+}
+
+// TestFaithfulTokens: the token-sequence comparator gives Faithful's
+// verdicts and names the rule behind each difference it forgives.
+func TestFaithfulTokens(t *testing.T) {
+	for _, tc := range faithfulTokensCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.parsed {
+				root := parse.Parse([]byte(tc.src))
+				if got := parse.Canon(root, []byte(tc.src)); got != tc.canon {
+					t.Fatalf("canon of %q is %q, the case says %q", tc.src, got, tc.canon)
+				}
+				if ok, why := parse.Faithful(root, []byte(tc.src)); ok != tc.ok {
+					t.Errorf("Faithful(%q) = %v (%s), want %v", tc.src, ok, why, tc.ok)
+				}
+			}
+			ok, forgiven, why := parse.FaithfulTokens(sigTokens(tc.src), asCanon(sigTokens(tc.canon)))
+			if ok != tc.ok {
+				t.Errorf("FaithfulTokens(%q, %q) = %v (%s), want %v", tc.src, tc.canon, ok, why, tc.ok)
+			}
+			if ok && !slices.Equal(ruleNames(forgiven), tc.rules) {
+				t.Errorf("FaithfulTokens(%q, %q) forgave %v, want %v", tc.src, tc.canon, ruleNames(forgiven), tc.rules)
+			}
+		})
+	}
+}
+
+// TestCanonMarksParenNodePairs: every `(`/`)` pair canon writes because a
+// node's Paren flag is set carries ParenNode, and no other pair does. Each
+// want is canon's significant tokens with a marked paren written `*(` or
+// `*)`.
+func TestCanonMarksParenNodePairs(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		// A parenthesised List writes its own pair.
+		{`my ($x) = @_;`, `my *( $x *) = @_ ;`},
+		// A parenthesised Term is written as its source text, parens and
+		// all; the pair its Paren flag stands for is the outermost one.
+		{`($x) x 3;`, `*( $x *) x 3 ;`},
+		{`my $z = (($x));`, `my $z = *( ( $x ) *) ;`},
+		// A call's argument list is not a Paren node's pair.
+		{`print("x");`, `print ( "x" ) ;`},
+		// Nor is a grouping canon writes from binding power.
+		{`(1 + 2) * 3;`, `( 1 + 2 ) * 3 ;`},
+		// A heredoc whose statement runs on past the opener's line is split
+		// around its body, and the marks on each side must survive the split.
+		{"my ($s) = first(<<END, ($u)) eq\nhello\nEND\nq(hello\n);\n",
+			"my *( $s *) = first ( <<END , *( $u *) ) eq q(hello\nhello\nEND\n) ;"},
+		{"my $s = first(<<END, 'u') eq\nhello\nEND\nq(hello\n) . ($x);\n",
+			"my $s = first ( <<END , 'u' ) eq q(hello\nhello\nEND\n) . *( $x *) ;"},
+	} {
+		var got []string
+		for _, tok := range parse.CanonTokens(parse.Parse([]byte(tc.src)), []byte(tc.src)) {
+			if tok.ParenNode {
+				got = append(got, "*"+tok.Text)
+				continue
+			}
+			got = append(got, tok.Text)
+		}
+		if g := strings.Join(got, " "); g != tc.want {
+			t.Errorf("canon tokens of %q are %q, want %q", tc.src, g, tc.want)
+		}
+	}
+}
+
+// forgivenRules is every rule faithfulTokens may forgive a difference by,
+// each with a fixture: two programs that differ by exactly that rewrite,
+// which the pinned perl runs to the same output.
+var forgivenRules = map[string]struct{ src, canon string }{
+	// `print "x"` and `print("x")` parse to the same tree.
+	"call-parens": {`print "x";`, `print("x");`},
+	// A block's last statement with and without its semicolon.
+	"last-semicolon": {`sub f { 1 } print f();`, `sub f { 1; } print f();`},
+}
+
+type comparator func([]string, []parse.CanonToken) (bool, []parse.Forgiveness, string)
+
+// unlistedRules is every rule compare forgave a pair by that forgivenRules
+// does not list, as "rule (source)".
+func unlistedRules(compare comparator, pairs [][2]string) []string {
+	var out []string
+	for _, p := range pairs {
+		_, forgiven, _ := compare(sigTokens(p[0]), asCanon(sigTokens(p[1])))
+		for _, f := range forgiven {
+			if _, ok := forgivenRules[f.Rule]; !ok {
+				out = append(out, fmt.Sprintf("%s (%q)", f.Rule, p[0]))
+			}
+		}
+	}
+	return out
+}
+
+// unreplayed reports whether undoing each recorded forgiveness in canon
+// fails to give src exactly, and how: a last-semicolon drops its `;`, a
+// call-parens drops its `(` and the `)` that closes it. A difference
+// faithfulTokens skips without recording one leaves a token behind here.
+func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgiveness) string {
+	drop := map[int]bool{}
+	for _, f := range forgiven {
+		drop[f.CanonIndex] = true
+		if f.Rule != "call-parens" {
+			continue
+		}
+		depth := 0
+		for i := f.CanonIndex; i < len(canon); i++ {
+			switch canon[i].Text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+			}
+			if depth == 0 {
+				drop[i] = true
+				break
+			}
+		}
+	}
+	var left []string
+	for i, c := range canon {
+		if !drop[i] {
+			left = append(left, c.Text)
+		}
+	}
+	if slices.Equal(left, src) {
+		return ""
+	}
+	return fmt.Sprintf("canon with its forgivenesses undone is %q, the source is %q", left, src)
+}
+
+// TestFaithfulForgivenessIsClosed: faithfulTokens forgives a difference by
+// the listed rules and no other. Each rule's fixture is forgiven by that
+// rule alone and measured equivalent by perl; the fixtures, the
+// TestFaithfulTokens cases and every T1 file report no unlisted rule; on
+// every faithful verdict, undoing the recorded forgivenesses gives the
+// source exactly, so no difference was forgiven unrecorded; and the token
+// kinds dropped before comparing are exactly the trivia.
+func TestFaithfulForgivenessIsClosed(t *testing.T) {
+	var pairs [][2]string
+	for rule, fx := range forgivenRules {
+		pairs = append(pairs, [2]string{fx.src, fx.canon})
+		ok, forgiven, why := parse.FaithfulTokens(sigTokens(fx.src), asCanon(sigTokens(fx.canon)))
+		if !ok || !slices.Equal(ruleNames(forgiven), []string{rule}) {
+			t.Errorf("%s: %q against %q gave %v %v (%s), want forgiven by %s alone",
+				rule, fx.src, fx.canon, ok, ruleNames(forgiven), why, rule)
+		}
+	}
+	for _, tc := range faithfulTokensCases {
+		pairs = append(pairs, [2]string{tc.src, tc.canon})
+	}
+	for _, p := range unlistedRules(parse.FaithfulTokens, pairs) {
+		t.Errorf("forgiven by a rule forgivenRules does not list: %s", p)
+	}
+	// Each pair as it is, and with one stray token inserted anywhere in its
+	// canon: a skip that fires only on a difference the corpus never shows
+	// is still caught, because the stray token survives the replay.
+	stray := []string{"+", "-", "!", "\\", "(", ")", "{", "}", "[", "]", ";", ",", "=>"}
+	for _, p := range pairs {
+		src, canon := sigTokens(p[0]), asCanon(sigTokens(p[1]))
+		variants := [][]parse.CanonToken{canon}
+		for i := 0; i <= len(canon); i++ {
+			for _, tok := range stray {
+				variants = append(variants, slices.Insert(slices.Clone(canon), i, parse.CanonToken{Text: tok}))
+			}
+		}
+		for _, c := range variants {
+			if ok, forgiven, _ := parse.FaithfulTokens(src, c); ok {
+				if why := unreplayed(src, c, forgiven); why != "" {
+					t.Errorf("%q: %s", p[0], why)
+				}
+			}
+		}
+	}
+
+	// Every T1 file, against its own parse's canon. A subtest, so a machine
+	// without the corpus skips this half alone.
+	t.Run("T1", func(t *testing.T) {
+		dir, files := t1Files(t)
+		for _, rel := range files {
+			src, err := os.ReadFile(filepath.Join(dir, rel))
+			if err != nil {
+				continue
+			}
+			want, canon := sigTokens(string(src)), parse.CanonTokens(parse.Parse(src), src)
+			ok, forgiven, _ := parse.FaithfulTokens(want, canon)
+			for _, f := range forgiven {
+				if _, listed := forgivenRules[f.Rule]; !listed {
+					t.Errorf("%s: forgiven by a rule forgivenRules does not list: %s", rel, f.Rule)
+				}
+			}
+			if !ok {
+				continue
+			}
+			if why := unreplayed(want, canon, forgiven); why != "" {
+				t.Errorf("%s: %s", rel, why)
+			}
+		}
+	})
+
+	want := []lexer.Kind{lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection}
+	if !slices.Equal(parse.DroppedKinds, want) {
+		t.Errorf("Faithful drops token kinds %v before comparing, want exactly %v", parse.DroppedKinds, want)
+	}
+
+	t.Run("perl", func(t *testing.T) {
+		perl := perltest.PinnedPerl(t)
+		for rule, fx := range forgivenRules {
+			a, errA := perl.Command("-e", fx.src).CombinedOutput()
+			b, errB := perl.Command("-e", fx.canon).CombinedOutput()
+			if errA != nil || errB != nil || string(a) != string(b) {
+				t.Errorf("%s: perl runs %q to %q (%v) and %q to %q (%v); the rule forgives only an equivalence",
+					rule, fx.src, a, errA, fx.canon, b, errB)
+			}
+		}
+	})
+}
+
+// TestFaithfulForgivenessIsClosedRejectsUnlistedRule: a comparator that
+// forgives by a rule the closed set does not list is caught.
+func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
+	invented := func([]string, []parse.CanonToken) (bool, []parse.Forgiveness, string) {
+		return true, []parse.Forgiveness{{Rule: "invented"}}, ""
+	}
+	got := unlistedRules(invented, [][2]string{{`print "x";`, `print("x");`}})
+	if want := []string{`invented ("print \"x\";")`}; !slices.Equal(got, want) {
+		t.Errorf("unlistedRules = %q, want %q", got, want)
+	}
+}
+
+// TestFaithfulTokensReportsForgivenessOnFailure: a rule that fired before
+// the mismatch is reported with the failing verdict, so the closed-set
+// check sees it on unfaithful files too.
+func TestFaithfulTokensReportsForgivenessOnFailure(t *testing.T) {
+	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`print "x"; 1 + 2;`), asCanon(sigTokens(`print("x"); 3;`)))
+	if ok || !slices.Equal(ruleNames(forgiven), []string{"call-parens"}) {
+		t.Errorf("got %v forgiven by %v, want false forgiven by [call-parens]", ok, ruleNames(forgiven))
+	}
+}
+
+// TestCanonMarksEveryParenNodePair: over T1, canon marks one pair for each
+// parenthesised List and each parenthesised Term it writes. A nested
+// emission copied into its parent without its marks -- WriteString where
+// writeFrom belongs -- loses pairs silently, and this count is what sees it.
+func TestCanonMarksEveryParenNodePair(t *testing.T) {
+	dir, files := t1Files(t)
+	for _, rel := range files {
+		src, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			continue
+		}
+		root := parse.Parse(src)
+		marked := 0
+		for _, tok := range parse.CanonTokens(root, src) {
+			if tok.ParenNode && tok.Text == "(" {
+				marked++
+			}
+		}
+		if want := parenNodes(root, src); marked != want {
+			t.Errorf("%s: canon marks %d pairs, the tree has %d parenthesised Lists and Terms", rel, marked, want)
+		}
+	}
+}
+
+// parenNodes counts the parenthesised Lists canon emits under n, and the
+// parenthesised Terms whose source text is wrapped in their parens. It does
+// not look inside a node canon writes as its source text rather than
+// emitting its children: an Unknown, or an Index, Binary or Ternary short
+// of its children -- `}=>->join->()()` reads the trailing `()` as an Index
+// holding only the empty List.
+func parenNodes(n *parse.Node, src []byte) int {
+	switch {
+	case n.Kind == parse.Unknown,
+		n.Kind == parse.Index && len(n.Children) != 2,
+		n.Kind == parse.Binary && len(n.Children) != 2,
+		n.Kind == parse.Ternary && len(n.Children) != 3:
+		return 0
+	}
+	count := 0
+	if n.Paren {
+		text := n.SourceText(src)
+		if n.Kind == parse.List ||
+			n.Kind == parse.Term && strings.HasPrefix(text, "(") && strings.HasSuffix(text, ")") {
+			count++
+		}
+	}
+	for _, c := range n.Children {
+		count += parenNodes(c, src)
+	}
+	return count
 }

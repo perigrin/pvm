@@ -23,14 +23,37 @@ import (
 // carry no grouping, so they cannot disagree with the tree. Callers compare
 // significant tokens, not bytes.
 func Canon(n *Node, src []byte) string {
-	var b strings.Builder
+	var b canonBuf
 	emit(&b, n, src, 0)
 	return b.String()
 }
 
+// canonBuf is canon's output, with the offset of each `(` and `)` it wrote
+// because a node's Paren flag is set. See CanonToken.
+type canonBuf struct {
+	strings.Builder
+	parenNode []int
+}
+
+// writeParenNode writes a paren a node's Paren flag stands for, and marks it.
+func (b *canonBuf) writeParenNode(c byte) {
+	b.parenNode = append(b.parenNode, b.Len())
+	b.WriteByte(c)
+}
+
+// writeFrom writes o's text from from to to, and the marks within it.
+func (b *canonBuf) writeFrom(o *canonBuf, from, to int) {
+	for _, at := range o.parenNode {
+		if at >= from && at < to {
+			b.parenNode = append(b.parenNode, b.Len()+at-from)
+		}
+	}
+	b.WriteString(o.String()[from:to])
+}
+
 // emit writes n, wrapping it in parentheses when its own binding power is
 // looser than outer -- the power its parent will read it at.
-func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// A parenthesised element with a trailing separator keeps its parens
 	// whatever its binding power, so the separator stays inside them:
 	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
@@ -52,7 +75,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		}
 
 	case Statement:
-		var stmt strings.Builder
+		var stmt canonBuf
 		for _, c := range n.Children {
 			if c.HeredocBody {
 				continue // after the terminator; see below
@@ -78,7 +101,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// re-parsed to ask, so the answer is the parser's own.
 		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && n.Children[0].Kind != Unknown &&
 			rereadsAsBlock(text) {
-			text = "+" + text
+			b.WriteByte('+')
 		}
 		// A NEWLINE ALREADY IN THE STATEMENT after its heredoc opener -- a
 		// quote that runs on, `... eq q(hello\n)` -- is where perl reads the
@@ -90,11 +113,11 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// "E21 content\n" . "single\nquoted".
 		if bodies := heredocBodies(n); len(bodies) > 0 {
 			if at := newlineAfterOpener(n, text); at >= 0 {
-				b.WriteString(text[:at+1])
+				b.writeFrom(&stmt, 0, at+1)
 				for _, c := range bodies {
 					b.WriteString(c.SourceText(src))
 				}
-				b.WriteString(text[at+1:])
+				b.writeFrom(&stmt, at+1, len(text))
 				if !blockForm(n) {
 					b.WriteByte(';')
 				} else {
@@ -103,7 +126,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				return
 			}
 		}
-		b.WriteString(text)
+		b.writeFrom(&stmt, 0, len(text))
 		// A HEREDOC BODY GOES AFTER THE TERMINATOR, ON ITS OWN LINE, and
 		// both halves of that are required rather than cosmetic. Perl reads
 		// a body from the line FOLLOWING the opener's line, so
@@ -286,7 +309,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			// refuses there; Deparse writes that one bare and so does not
 			// re-read, so this parenthesises it the same way.
 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
-				var operand strings.Builder
+				var operand canonBuf
 				emit(&operand, n.Children[0], src, prefix[op])
 				// The operand is emitted once and its text reused: emitting it
 				// again here doubles the work at every level of `!!!!$x`.
@@ -294,9 +317,11 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 				// a negated call and `-A()` is `-A $_`, measured on 5.42.0.
 				if text := operand.String(); strings.HasPrefix(text, joins) ||
 					op == "-" && joinsFiletest(text) {
-					b.WriteString("(" + text + ")")
+					b.WriteByte('(')
+					b.writeFrom(&operand, 0, len(text))
+					b.WriteByte(')')
 				} else {
-					b.WriteString(text)
+					b.writeFrom(&operand, 0, len(text))
 				}
 				break
 			}
@@ -342,11 +367,11 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		// (§4.12.2). This is the one place the source's paren is the tree's
 		// own fact rather than decoration.
 		if n.Paren {
-			b.WriteByte('(')
+			b.writeParenNode('(')
 		}
 		emitCommaSeparated(b, n, src)
 		if n.Paren {
-			b.WriteByte(')')
+			b.writeParenNode(')')
 		}
 
 	case AnonArray, AnonHash:
@@ -454,14 +479,14 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 			case (n.Text == "sub" || n.Text == "method") && c.Paren:
 				b.WriteByte(' ')
 				if c.Kind != List {
-					var sig strings.Builder
+					var sig canonBuf
 					emit(&sig, c, src, 0)
 					if !strings.HasPrefix(sig.String(), "(") {
 						b.WriteByte('(')
-						b.WriteString(sig.String())
+						b.writeFrom(&sig, 0, sig.Len())
 						b.WriteByte(')')
 					} else {
-						b.WriteString(sig.String())
+						b.writeFrom(&sig, 0, sig.Len())
 					}
 					continue
 				}
@@ -694,7 +719,17 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
 		emit(b, n.Children[1], src, r)
 
 	default:
-		b.WriteString(n.SourceText(src))
+		// A parenthesised Term's span covers its parens, so its source text
+		// writes them, and the outermost pair is the one its Paren flag
+		// stands for: `(($x))` keeps both, and only the outer is marked.
+		text := n.SourceText(src)
+		if n.Kind == Term && n.Paren && strings.HasPrefix(text, "(") && strings.HasSuffix(text, ")") {
+			b.writeParenNode('(')
+			b.WriteString(text[1 : len(text)-1])
+			b.writeParenNode(')')
+			break
+		}
+		b.WriteString(text)
 	}
 }
 
@@ -714,7 +749,7 @@ func writesParens(n *Node, outer int) bool {
 //
 // The bracketed forms hold their elements directly -- unlike a call, whose
 // arguments arrive as one Binary "," child that emits its own separator.
-func emitCommaSeparated(b *strings.Builder, n *Node, src []byte) {
+func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 	for i, c := range n.Children {
 		if i > 0 {
 			// Fat is set on the element BEFORE the `=>`, and the two commas
