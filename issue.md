@@ -1,6 +1,6 @@
 ---
 title: Mine at least 200 perf/opcount.t assertions into fixtures held to perl
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,16 +9,37 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-23T17:31:22.062437519Z
+updated: 2026-10-23T18:09:41.628188031Z
 sessions:
 - start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
-  end_sha: ""
-  commits: 0
+  end_sha: 9fda53a5b2ce81e419a525f3362c647afe4aafeb
+  commits: 4
   started_at: 2026-10-23T17:31:22.062437519Z
+  ended_at: 2026-10-23T18:09:41.628188031Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T17:31:22.062437519Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T18:09:41.628188031Z
+observed_paths:
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- internal/parse/compiled_test.go
+- internal/parse/compiledset_test.go
+- internal/parse/perlgitt_faithful_test.go
+- internal/parse/pin_test.go
+- internal/parse/probes_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/compiledclean.txt
+- internal/parse/testdata/m3probes/README.md
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parseoracle/opcount_test.go
+- internal/parseoracle/testdata/opcount/README.md
+- internal/parseoracle/testdata/opcount/opcount.md
+- internal/parseoracle/testdata/ratchet/m3start.txt
 ---
 
 ## Context
