@@ -1,6 +1,6 @@
 ---
 title: Find the oracle's pinned perl without PATH, and require it in CI
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
@@ -9,7 +9,16 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-69f0-715c-b060-c8f648ddfcd3
 created: 2026-10-23T01:36:02.587272751Z
-updated: 2026-10-23T12:55:56.345195573Z
+updated: 2026-10-23T14:44:59.756155711Z
+sessions:
+- start_sha: 56f5c8f664ddd85de4c34bed78394fd1db5a1778
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T14:44:59.756155711Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T14:44:59.756155711Z
 ---
 
 ## Context
