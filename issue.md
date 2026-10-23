@@ -14,7 +14,7 @@ blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-23T01:55:58.746869153Z
+updated: 2026-10-23T07:06:10.693944852Z
 ---
 
 ## Context
@@ -36,7 +36,7 @@ The CI gate (gate_test.go) runs the committed sweep step over a five-file fixtur
 - [ ] GREEN: implement the floor check. Run the test and watch it pass.
 - [ ] RED/GREEN: write TestCorpusReportComputesOnce, then memoise `corpusReport` with sync.Once (its error included).
 - [ ] RED: write TestSiteRatchetCorpus. Its counts come from the per-site helper. It compares them to sites.txt, honouring a `PARSEORACLE_SITES_BASELINE` override like the per-file `baselineEnv`, and fails on any difference, gain or loss. It regenerates the file under `-parseoracle.update`, and on a pass it adds the `sites` line to the receipt. Run it without sites.txt and watch it fail.
-- [ ] GREEN: generate sites.txt with `-parseoracle.update` at the 5.44.0 pin. Write `rv2hv_wider` and `m3_exact_pct` into m3start.txt from it. Run the sweep and watch both tests pass.
+- [ ] GREEN: generate sites.txt with `-parseoracle.update` at the 5.44.0 pin. Append `rv2hv_wider` and `m3_exact_pct` to m3start.txt from it, in the same commit as sites.txt (m3start.txt is append-only). Run the sweep and watch both tests pass.
 - [ ] TestCISweepRunsOracleOnce and TestCIGateRunsTheSweep execute the sweep step, so they call `perltest.PinnedPerl`, skip on the 5.42 jobs, and are in parse-fidelity.yml's 5.44-held step. They live in package parseoracle_test.
 - [ ] RED: write TestCISweepRunsOracleOnce. It runs the gate's sweep step and asserts from the receipt that parseoracle.Run walked each file once, and that the receipt carries the `sites` line. Change the sweep step's `-run TestRatchetCorpus` in `.github/workflows/parse-fidelity.yml` to a pattern running both tests, point the gate at a fixture sites.txt via the override, and require the receipt's `sites` line. Run TestCIGateRunsTheSweep and TestCISweepRunsOracleOnce, and watch them pass.
 - [ ] Run `make test`, then commit.
@@ -47,7 +47,7 @@ The CI gate (gate_test.go) runs the committed sweep step over a five-file fixtur
 
 - [ ] The floor rejects M3-dir exact below 80% and any WRONG site (`go test ./internal/parseoracle/ -run '^TestSiteFloorRejectsBelowEightyOrWrong$' -count=1 -v | grep -q '^--- PASS: TestSiteFloorRejectsBelowEightyOrWrong'`)
 - [ ] The corpus report is computed once per process (`go test ./internal/parseoracle/ -run '^TestCorpusReportComputesOnce$' -count=1 -v | grep -q '^--- PASS: TestCorpusReportComputesOnce'`)
-- [ ] The starting rv2hv wider count is recorded beside the pin (`grep -Eq '^rv2hv_wider = [0-9]+$' internal/parseoracle/testdata/ratchet/m3start.txt`)
+- [ ] The starting rv2hv wider count in m3start.txt equals sites.txt's `total all rv2hv wider` in the commit that recorded it, so a typed number cannot satisfy it (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider " -- $f/m3start.txt); [ -n "$c" ] || exit 1; a=$(git show $c:$f/m3start.txt | sed -n "s/^rv2hv_wider = \([0-9][0-9]*\)$/\1/p"); b=$(git show $c:$f/sites.txt | awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] && [ "$a" = "$b" ]'`)
 - [ ] Regression guard (passes today; the issue extends it): the CI gate executes the sweep step, site ratchet and receipt line included (`go test ./internal/parseoracle/ -run '^TestCIGateRunsTheSweep$' -count=1 -v | grep -q '^--- PASS: TestCIGateRunsTheSweep'`)
 - [ ] One CI sweep walks each file once for both ratchets, and its receipt carries the sites line (`go test ./internal/parseoracle/ -run '^TestCISweepRunsOracleOnce$' -count=1 -v | grep -q '^--- PASS: TestCISweepRunsOracleOnce'`)
 - [ ] Regression guard: CI never regenerates the ratchets it checks, now that the sweep step also runs the site ratchet (`go test ./internal/parseoracle/ -run '^TestCINeverRebaselines$' -count=1 -v | grep -q '^--- PASS: TestCINeverRebaselines'`)
