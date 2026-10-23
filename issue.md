@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-10-23T17:09:32.913065414Z
+updated: 2026-10-23T19:18:29.225995531Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   end_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
@@ -203,11 +203,13 @@ tier 13's heredocs refuse outright.
 
 Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files;  Left unchanged: `TestEveryTierHasAnAdjacencyFile`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestEveryTierHasAnAdjacencyFile` -> `TestEveryTierHasAnAdjacencyTopic` and `TestAdjacencyCoversItsTier`. These commands pass once branch ccx/adj merges.
+
 ## Acceptance criteria
 
 - [ ] The lint reads its per-tier INTRODUCES set from the READMEs rather than a hand-maintained Go table (`go test ./internal/conformance/ -run '^TestOpTableDerivedFromReadmes$' -count=1 -v | grep -q '^--- PASS: TestOpTableDerivedFromReadmes'`)
 - [ ] Every tier directory has a README stating what it introduces and what it depends on (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] A construct in a README that no file in that tier introduces is reported (`go test ./internal/conformance/ -run '^TestCorpusLints$' -count=1 -v | grep -q '^--- PASS: TestCorpusLints'`)
 - [ ] The spec's open-questions section is gone, both questions having been answered rather than merely asked (`! grep -q '^## Open questions' docs/plans/2026-09-21-graded-conformance-corpus.md`)
-- [ ] Every tier directory holds an adjacency file covering its full INTRODUCES set, checked generically so no tier can omit one (`go test ./internal/conformance/ -run '^TestEveryTierHasAnAdjacencyFile$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAnAdjacencyFile'`)
+- [ ] Every tier has an adjacency topic covering its full INTRODUCES set, checked generically so no tier can omit one (`go test ./internal/conformance/ -run '^(TestEveryTierHasAnAdjacencyTopic|TestAdjacencyCoversItsTier)$' -count=1 -v | grep -cE '^--- PASS: (TestEveryTierHasAnAdjacencyTopic|TestAdjacencyCoversItsTier) ' | grep -qx 2`)
 - [ ] A tier README declaring a prerequisite at a later tier number fails the lint, which is check 2 given teeth (`go test ./internal/conformance/ -run '^TestTierNecessityCheck$' -count=1 -v | grep -q '^--- PASS: TestTierNecessityCheck'`)
