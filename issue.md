@@ -2,9 +2,9 @@
 title: The tier-02 adjacency case omits shift, pop and splice
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m3-conformance-corpus
 created: 2026-10-23T15:43:24.426165882Z
-updated: 2026-10-23T15:43:24.426165882Z
+updated: 2026-10-23T19:00:45.426786262Z
 ---
 
 ## Context
