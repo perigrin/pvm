@@ -15,14 +15,14 @@ blocked_by:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-23T01:36:01.086634383Z
+updated: 2026-10-23T07:06:49.207194776Z
 ---
 
 ## Context
 
 - paths: `docs/plans/2026-09-05-parser-conformance-plan.md` (§5 M3 at ~606, the "never the parens the source had" sentence at ~620, the ladder summary at ~729), `docs/specs/perl-parser/07-conformance.md` (~308), `docs/specs/perl-parser/README.md` (Status at ~99, the stale `($x)` sentence at ~129), `internal/parseoracle/README.md` (~287), `internal/parseoracle/docs_test.go` (new)
 - commands: `go test ./internal/parseoracle/ -run '^(TestPlanM3SectionQuotesSitesRatchet|TestM3DocsQuoteCommittedNumbers)$' -count=1 -v`
-- entrypoints: `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/m3start.txt`, `internal/parse/testdata/compiledclean.txt`, `internal/parse/testdata/perlgittfaithful.ratchet`, `internal/parse/testdata/faithful_defects.txt`, `internal/parseoracle/testdata/opcount/`
+- entrypoints: `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/m3start.txt`, `internal/parse/testdata/compiledclean.txt`, `internal/parse/testdata/perlgittfaithful.ratchet`, `internal/parse/testdata/faithful_queue.txt`, `internal/parseoracle/testdata/opcount/`
 
 State the M3 gate's measured numbers where readers look, taken from the committed files rather than from memory, and check that every remaining condition of the milestone holds. The plan's M3 table says "≥ 526 of 584" and its ladder row says "584 files". Both are stale: the oracle is now pinned to perl 5.44.0, and the compiled count is m3start.txt's `compiled`. "593" was the 5.42 graded set, not a compile count, so the docs must not call it one. The README's defect sentence that `($x)` loses its `Paren` node (term.go:284-293) is also stale. And the plan (~620, "never the parens the source had") and 07-conformance.md:308 ("never the parens seen in the source") must be reconciled with perigrin's Paren-once ruling. canon writes a `Paren` node's parens once because the tree carries the paren, exactly as perl's op carries one OPf_PARENS bit, so the tree implies them. That needs saying.
 
@@ -31,14 +31,14 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 - [ ] Read each final number from its committed file:
   - sites.txt (whole corpus and M3-dir exact/wider/no-answer/WRONG, rv2hv wider) and m3start.txt (the starting values and `compiled`);
   - compiledclean.txt (clean of compiled);
-  - perlgittfaithful.ratchet (faithful of 619) and faithful_defects.txt (rows by class);
+  - perlgittfaithful.ratchet (faithful of 619, and of the M3 dirs, which must be 100% of what parses), with the start counts in m3start.txt;
   - the opcount fixtures (assertion count).
-- [ ] Plan §5 M3: change the parse row to the compiled count and add a `#### Measured at the M3 gate` subsection. It gives each metric's measured value, the perl (5.44.0) and commit it was measured at, and where the remaining re-emission defects are listed. State plainly that re-emission is not yet 100% if defects remain.
+- [ ] Plan §5 M3: change the parse row to the compiled count and add a `#### Measured at the M3 gate` subsection. It gives each metric's measured value, and the perl (5.44.0) and commit it was measured at. It states that canonical re-emission is 100% faithful on every M3-dir file that parses, with no defects file, per perigrin's round-4 ruling, and gives the start counts beside it (178/347 M3 dirs, 342/619 overall).
 - [ ] Plan ladder summary: change the M3 row's 584 to the compiled count. Confirm with `grep -nw 584` that no 584 is left anywhere in the plan.
 - [ ] Reconcile plan ~620 and 07-conformance.md:308 with the Paren-once ruling: canon writes the parens the tree implies, a `Paren` node's pair included, never the source's extra nesting.
 - [ ] docs/specs/perl-parser/README.md: add a Status paragraph starting `The M3 gate` with the measured numbers, and correct the stale `($x)` sentence. canon now writes a `Paren` node's parens once, and `Faithful` forgives only extra nesting.
 - [ ] internal/parseoracle/README.md: check that the "Ground-truth ceiling" sentence (~287) states m3start.txt's compiled count at 5.44.0, as the re-pin issue set it. Leave the historical "became 584/620" sentence (~309) alone.
-- [ ] Create `internal/parseoracle/docs_test.go` with two `// ABOUTME:` lines. RED/GREEN TestM3DocsQuoteCommittedNumbers: the plan subsection and the README `The M3 gate` paragraph state the compiled count (m3start.txt), the clean count (compiledclean.txt), the faithful count (perlgittfaithful.ratchet header), the defects row count (faithful_defects.txt) and the opcount assertion count (fixtures), each equal to its file, and the parseoracle README ceiling equals m3start.txt's `compiled`.
+- [ ] Create `internal/parseoracle/docs_test.go` with two `// ABOUTME:` lines. RED/GREEN TestM3DocsQuoteCommittedNumbers: the plan subsection and the README `The M3 gate` paragraph state the compiled count (m3start.txt), the clean count (compiledclean.txt), the faithful count (perlgittfaithful.ratchet header), the M3-dir faithful count (ratchet rows) stated as 100%, and the opcount assertion count (fixtures), each equal to its file, and the parseoracle README ceiling equals m3start.txt's `compiled`.
 - [ ] Run the regression list below and the milestone resolution command, and watch them pass. Open the PR, wait for CI (Windows and macOS included), then commit any fix and re-check.
 
 ## Acceptance criteria
@@ -68,4 +68,4 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 
 - [ ] The measured subsection's numbers are the committed ones, not a heading over stale prose. It states the whole-corpus and M3-dir site totals and the rv2hv wider count exactly as sites.txt records them, so editing either side alone fails (`go test ./internal/parseoracle/ -run '^TestPlanM3SectionQuotesSitesRatchet$' -count=1 -v | grep -q '^--- PASS: TestPlanM3SectionQuotesSitesRatchet'`)
 - [ ] The corrected `($x)` sentence describes the extra-nesting ruling, not just a removed citation (`sh -c 'grep -qi "extra nesting" docs/specs/perl-parser/README.md'`)
-- [ ] When faithful_defects.txt still holds rows, the measured subsection points to it, so remaining re-emission defects cannot read as 100%; a missing defects file fails (`sh -c 'f=internal/parse/testdata/faithful_defects.txt; test -f "$f" || exit 1; grep -q "^[^#]" "$f" || exit 0; sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q faithful_defects.txt'`)
+- [ ] The measured subsection states re-emission at 100% on the M3 dirs, and the work queue it came from is empty (`sh -c 'f=internal/parse/testdata/faithful_queue.txt; test -f "$f" && ! grep -q "^[^#]" "$f" && sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q "100%"'`)
