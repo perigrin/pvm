@@ -141,7 +141,11 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	env[baselineEnv] = good
 
 	// 1. The committed step over a five-file shim and the matching baseline.
-	buildFixtureShim(t, p, shim)
+	pin, err := parseoracle.ReadPin(pinPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildFixtureShim(t, p, shim, pin.Revision)
 	if out, err := runStep(t, sweep, env); err != nil {
 		t.Fatalf("the sweep step failed against a baseline that matches the fixture:\n%v\n%s", err, out)
 	}
@@ -455,13 +459,13 @@ jobs:
 
 // buildFixtureShim lays the five fixture files out the way corpusReport
 // expects a built shim: a t/ with test.pl in it and .t files to walk,
-// stamped with p's $] and threads. The sweep sees a shim that is already
+// stamped with p's $] and threads and with revision. The sweep sees a shim that is already
 // built for the perl it runs, which is the cache-hit path; unstamped, it
 // would try to rebuild the shim from the corpus this gate withholds.
-func buildFixtureShim(t *testing.T, p perltest.Perl, shim string) {
+func buildFixtureShim(t *testing.T, p perltest.Perl, shim, revision string) {
 	t.Helper()
 
-	built, err := parseoracle.ObservePin(context.Background(), p.Path, "")
+	built, err := parseoracle.ObservePin(context.Background(), p.Path, revision)
 	if err != nil {
 		t.Fatalf("asking %s what it is: %v", p.Path, err)
 	}

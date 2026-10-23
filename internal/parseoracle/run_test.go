@@ -37,15 +37,7 @@ func TestCorpusSweep(t *testing.T) {
 		t.Skip("full corpus sweep: pass -parseoracle.corpus")
 	}
 
-	shim := os.Getenv("PARSEORACLE_SHIM")
-	if shim == "" {
-		root := corpusRoot(t)
-		shim = t.TempDir()
-		if err := parseoracle.BuildShim("perl", root, shim); err != nil {
-			t.Fatalf("BuildShim: %v", err)
-		}
-	}
-	shimT := filepath.Join(shim, "t")
+	perl, shimT := sweepShim(t)
 
 	// Paths are relative to the shim's t/, matching how perl's tests refer to
 	// each other and how the report's file names read.
@@ -76,7 +68,7 @@ func TestCorpusSweep(t *testing.T) {
 	// quietly lost a member. Measured: this sweep reported 592 measured and
 	// 2 runner errors while PARSEORACLE_TIMEOUT=480s was set and ignored.
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t)})
+		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Perl: perl})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -94,6 +86,37 @@ func TestCorpusSweep(t *testing.T) {
 		t.Errorf("exact rate is %v: a parser that never agrees exactly is not "+
 			"vindicated by a WRONG count of zero", rate)
 	}
+}
+
+// sweepShim is the perl TestCorpusSweep measures with and the t/ of a shim
+// built for it. The perl is PATH's, so the sweep holds to no pin: it
+// reports what that perl says. A shim is built into a temp dir, or
+// $PARSEORACLE_SHIM reuses one -- but only one stamped for that perl and
+// corpus.pin's revision, since its lib/ is the library the perl reads. A
+// shared shim stamped for another perl is skipped, never rebuilt here.
+func sweepShim(t *testing.T) (perl, shimT string) {
+	t.Helper()
+	perl = "perl"
+	pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
+	if err != nil {
+		t.Fatalf("ReadPin: %v", err)
+	}
+	built, err := parseoracle.ObservePin(context.Background(), perl, pin.Revision)
+	if err != nil {
+		t.Skipf("no perl on PATH to sweep with: %v", err)
+	}
+	shim := os.Getenv("PARSEORACLE_SHIM")
+	if shim == "" {
+		shim = t.TempDir()
+		if err := parseoracle.BuildShim(perl, corpusRoot(t), shim, pin.Revision); err != nil {
+			t.Fatalf("BuildShim: %v", err)
+		}
+	}
+	if !parseoracle.ShimReady(shim, built) {
+		t.Skipf("the shim at %s is not stamped for the PATH perl (%s, threads %t) at revision %s",
+			shim, built.Interpreter, built.Threads, built.Revision)
+	}
+	return perl, filepath.Join(shim, "t")
 }
 
 // fixtureCorpus is the six-file corpus the default test run measures. It is

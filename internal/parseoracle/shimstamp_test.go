@@ -6,6 +6,8 @@ package parseoracle_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
@@ -60,7 +62,7 @@ func fakeCorpus(t *testing.T) string {
 func TestShimMatchesThePin(t *testing.T) {
 	perl := shimPerl(t, pin44.Interpreter)
 	shim := t.TempDir()
-	if err := parseoracle.BuildShim(perl, fakeCorpus(t), shim); err != nil {
+	if err := parseoracle.BuildShim(perl, fakeCorpus(t), shim, pin44.Revision); err != nil {
 		t.Fatalf("BuildShim: %v", err)
 	}
 
@@ -86,7 +88,7 @@ func TestShimMatchesThePin(t *testing.T) {
 // the rebuilt shim still disagrees with the pin or the corpus is absent.
 func TestShimStampMismatchRebuilds(t *testing.T) {
 	shim := t.TempDir()
-	if err := parseoracle.BuildShim(shimPerl(t, pin42.Interpreter), fakeCorpus(t), shim); err != nil {
+	if err := parseoracle.BuildShim(shimPerl(t, pin42.Interpreter), fakeCorpus(t), shim, pin42.Revision); err != nil {
 		t.Fatalf("BuildShim: %v", err)
 	}
 	stale := filepath.Join(shim, "lib", "stale-5.42-only.pm")
@@ -125,12 +127,98 @@ func TestShimStampMismatchRebuilds(t *testing.T) {
 func TestFixtureShimCarriesTheStamp(t *testing.T) {
 	p := perltest.Perl{Path: shimPerl(t, pin44.Interpreter)}
 	shim := t.TempDir()
-	buildFixtureShim(t, p, shim)
+	buildFixtureShim(t, p, shim, pin44.Revision)
 
 	if !parseoracle.ShimReady(shim, pin44) {
 		t.Error("the fixture shim is not ready for a pin naming the perl it was built for")
 	}
 	if parseoracle.ShimReady(shim, pin42) {
 		t.Error("the fixture shim is ready for a pin naming another perl")
+	}
+}
+
+// TestRebuildShimRefusesAForeignDirectory: RebuildShim removes the old
+// shim, so a $PARSEORACLE_SHIM pointed by mistake at a perl5 checkout
+// would delete it. A directory holding anything besides t/, lib/ and the
+// stamp is refused and left exactly as it was.
+func TestRebuildShimRefusesAForeignDirectory(t *testing.T) {
+	dir := fakeCorpus(t)
+	precious := filepath.Join(dir, "precious.c")
+	if err := os.WriteFile(precious, []byte("int main;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := parseoracle.RebuildShim(shimPerl(t, pin44.Interpreter), fakeCorpus(t), dir, pin44); err == nil {
+		t.Error("RebuildShim accepted a directory that is not a shim")
+	} else if !strings.Contains(err.Error(), "precious.c") && !strings.Contains(err.Error(), ".git") {
+		t.Errorf("the refusal does not name what it would have deleted: %v", err)
+	}
+	for _, keep := range []string{precious, filepath.Join(dir, ".git"), filepath.Join(dir, "t", "test.pl")} {
+		if _, err := os.Stat(keep); err != nil {
+			t.Errorf("RebuildShim removed %s from a directory it refused: %v", keep, err)
+		}
+	}
+}
+
+// TestRebuildShimIsSafeConcurrently: workers sharing one shim may rebuild
+// it at once. Each must succeed and leave a ready shim, never a half-
+// removed tree or a stamp check that read a sibling's deletion.
+func TestRebuildShimIsSafeConcurrently(t *testing.T) {
+	perl := shimPerl(t, pin44.Interpreter)
+	corpus := fakeCorpus(t)
+	for round := 0; round < 3; round++ {
+		shim := filepath.Join(t.TempDir(), "shim")
+		var wg sync.WaitGroup
+		errs := make([]error, 4)
+		for i := range errs {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				errs[i] = parseoracle.RebuildShim(perl, corpus, shim, pin44)
+			}(i)
+		}
+		wg.Wait()
+		for i, err := range errs {
+			if err != nil {
+				t.Errorf("round %d, rebuild %d: %v", round, i, err)
+			}
+		}
+		if !parseoracle.ShimReady(shim, pin44) {
+			t.Errorf("round %d left a shim that is not ready", round)
+		}
+	}
+}
+
+// TestShimStampRecordsTheRevision: the shim's t/ is the corpus at one
+// revision, so a pin that moves only the revision must not accept it.
+func TestShimStampRecordsTheRevision(t *testing.T) {
+	shim := t.TempDir()
+	if err := parseoracle.BuildShim(shimPerl(t, pin44.Interpreter), fakeCorpus(t), shim, pin44.Revision); err != nil {
+		t.Fatalf("BuildShim: %v", err)
+	}
+	moved := pin44
+	moved.Revision = "cafef00d"
+	if parseoracle.ShimReady(shim, moved) {
+		t.Error("a shim built from revision deadbeef was accepted for a pin naming cafef00d")
+	}
+	if !parseoracle.ShimReady(shim, pin44) {
+		t.Error("a shim is not ready for the very pin it was built for")
+	}
+}
+
+// TestRebuildShimNamesTheMissingFile: a rebuilt shim that is not ready
+// says why. A corpus with no t/test.pl builds a shim missing it, and the
+// error names that file rather than reporting a stamp mismatch.
+func TestRebuildShimNamesTheMissingFile(t *testing.T) {
+	corpus := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(corpus, "t"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := parseoracle.RebuildShim(shimPerl(t, pin44.Interpreter), corpus, filepath.Join(t.TempDir(), "shim"), pin44)
+	if err == nil || !strings.Contains(err.Error(), "test.pl") {
+		t.Errorf("want an error naming the missing t/test.pl, got %v", err)
 	}
 }

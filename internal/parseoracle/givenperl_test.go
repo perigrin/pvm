@@ -181,13 +181,14 @@ func TestOpenCacheUsesTheGivenPerl(t *testing.T) {
 // performs, run on the gate's five-file fixture against a temp pin with a
 // decoy of another version first on PATH, observes the temp pin's
 // interpreter, and the baseline that sweep would write passes CheckPin.
-// Before ObservePin took a path, this observed whichever perl PATH named.
+// The sweep itself is measured with and without the decoy and must come
+// out the same, with files perl compiled and walked: a decoy that exits 1
+// raises no runner error, it only turns every file's facts to not-ok.
 func TestRatchetPinObservedWithPinnedPerl(t *testing.T) {
 	p, pin, pinPath := givenPerl(t)
 	shim := t.TempDir()
-	buildFixtureShim(t, p, shim)
+	buildFixtureShim(t, p, shim, pin.Revision)
 	subject := goSubject(t)
-	decoyOnPath(t)
 
 	if !parseoracle.ShimReady(shim, pin) {
 		t.Fatalf("the fixture shim built for %s is not ready for the pin naming it", p.Path)
@@ -200,13 +201,30 @@ func TestRatchetPinObservedWithPinnedPerl(t *testing.T) {
 	for i, f := range files {
 		files[i] = filepath.Base(f)
 	}
-	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT, Subject: subject, Perl: p.Path})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
+	sweep := func() parseoracle.Report {
+		t.Helper()
+		report, err := parseoracle.Run(context.Background(), files,
+			parseoracle.RunOptions{Dir: shimT, Subject: subject, Perl: p.Path})
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		return report
 	}
-	if report.Errors != 0 {
-		t.Errorf("%d runner error(s) over the fixture shim: an oracle ran the decoy\n%s", report.Errors, report)
+	clean := sweep()
+	decoyOnPath(t)
+	report := sweep()
+
+	walked := 0
+	for _, f := range report.Files {
+		if f.Facts.OK && f.Facts.Walked {
+			walked++
+		}
+	}
+	if walked == 0 {
+		t.Errorf("no fixture file compiled and walked with a decoy first on PATH: an oracle ran the decoy\n%s", report)
+	}
+	if got, want := report.String(), clean.String(); got != want {
+		t.Errorf("the sweep changed when a decoy went first on PATH:\n--- without ---\n%s\n--- with ---\n%s", want, got)
 	}
 
 	observed := observedPin(t, p, pinPath)
@@ -216,5 +234,58 @@ func TestRatchetPinObservedWithPinnedPerl(t *testing.T) {
 	}
 	if err := parseoracle.NewBaseline(pin, report, shimT).CheckPin(observed); err != nil {
 		t.Errorf("the baseline this sweep would write fails its own pin check: %v", err)
+	}
+}
+
+// TestPerlSubjectUsesItsOwnPerl: perl_subject.pl compiles the file with
+// $^X, the perl running it, not whichever perl is first on PATH.
+func TestPerlSubjectUsesItsOwnPerl(t *testing.T) {
+	p, _, _ := givenPerl(t)
+	script, err := filepath.Abs(filepath.Join("testdata", "perl_subject.pl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "probe.pl")
+	if err := os.WriteFile(file, []byte("my @a = (1);\nmy $r = \\@a;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decoyOnPath(t)
+
+	facts, err := parseoracle.Subject{Command: []string{p.Path, script}}.Parse(context.Background(), file)
+	if err != nil {
+		t.Fatalf("perl_subject.pl under %s: %v", p.Path, err)
+	}
+	if !facts.OK {
+		t.Errorf("perl_subject.pl reported ok:false with a decoy first on PATH: its compile ran the decoy")
+	}
+}
+
+// TestCorpusSweepShimMatchesItsPerl: TestCorpusSweep measures with the
+// perl on PATH, so a $PARSEORACLE_SHIM stamped for another perl is not
+// one it may measure over. It skips rather than rebuilding a shim other
+// tests share.
+func TestCorpusSweepShimMatchesItsPerl(t *testing.T) {
+	_, pin, _ := givenPerl(t)
+	shim := t.TempDir()
+	other := pin
+	other.Interpreter = decoyVersion
+	if err := os.MkdirAll(filepath.Join(shim, "t"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shim, "t", "test.pl"), []byte("1;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := parseoracle.WriteShimStamp(shim, other); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PARSEORACLE_SHIM", shim)
+
+	var sub *testing.T
+	t.Run("sweepShim", func(st *testing.T) {
+		sub = st
+		sweepShim(st)
+	})
+	if !sub.Skipped() {
+		t.Errorf("TestCorpusSweep would measure with the PATH perl over a shim stamped %s", decoyVersion)
 	}
 }

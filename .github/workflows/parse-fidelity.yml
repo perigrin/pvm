@@ -265,9 +265,9 @@ jobs:
     # (ci_test.go) fails the build when a test that calls PinnedPerl is
     # missing from this list or the sweep's, or when the loop and -run differ.
     #
-    # It runs after the shim restore, so the TestGoParser* tests, which skip
-    # without $PARSEORACLE_SHIM, run here; on a cache miss they build the
-    # shim the sweep below then reuses.
+    # It runs after the shim restore, so the TestGoParser* and TestAsk*
+    # shim tests, which skip without $PARSEORACLE_SHIM, run here; on a cache
+    # miss they build the shim the sweep below then reuses.
     - name: Run the 5.44-held tests
       shell: bash
       env:
@@ -277,12 +277,13 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ \
-          -run '^(TestCIGateRunsTheSweep|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor)$' \
+          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
         status=0
-        for t in TestCIGateRunsTheSweep TestRatchet TestRatchetFailsOnRegression \
+        for t in TestCIGateRunsTheSweep TestAskFileRequiresDir TestShebangPassthrough \
+                 TestExpensiveFixtureStillFitsItsBudget TestRatchet TestRatchetFailsOnRegression \
                  TestRatchetFailsOnImprovement TestBaselineUpdateOnly TestReceiptRecordsTheSweep \
                  TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then

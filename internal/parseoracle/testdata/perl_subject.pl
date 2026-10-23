@@ -27,8 +27,11 @@ use warnings;
 
 my $file = shift or die "usage: $0 FILE\n";
 
+# $^X, the perl running this script, compiles the file: a bare `perl` would
+# be whichever perl is first on PATH, which need not be the one chosen.
 (my $quoted = $file) =~ s/'/'\\''/g;
-my $concise = `perl -MO=Concise,-exec -c '$quoted' 2>&1`;
+(my $perl = $^X) =~ s/'/'\\''/g;
+my $concise = `'$perl' -MO=Concise,-exec -c '$quoted' 2>&1`;
 if ($? != 0) {
     print qq({"ok":false}\n);
     exit 0;
