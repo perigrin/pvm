@@ -154,8 +154,13 @@ non-JSON output, output over 16 MiB, or a document without `ok` is a subject
 error: perl answered and the subject did not, so the file stays in the
 denominator as a whole-file `no-answer`, every one of perl's marker sites
 counts as `no-answer`, and the file is named under "subject error files:" with
-the subject's stderr repeated so the cause is readable. An oracle-side failure
-(perl, the shim, the cache) is a runner error and leaves the denominator. On a timeout the subject's whole
+the subject's stderr repeated so the cause is readable. The baseline freezes
+such a file as `subject-error` rather than `no-answer`, so a crash cannot hide
+among honest refusals, and a move between the two fails the ratchet. An
+oracle-side failure (perl, the shim, the cache) is a runner error and leaves
+the denominator, and so is a harness failure on the subject's side: a default
+subject that will not build, or a subject with no command, asked no parser
+anything. On a timeout the subject's whole
 process group is killed, so a shell wrapper that forks its real work does not
 leak it.
 

@@ -359,7 +359,11 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 	// Perl has answered, so a subject that fails here leaves ground truth
 	// with no answer against it: a whole-file no-answer, graded, rather than
 	// a runner error that would drop every one of perl's sites.
-	subject, err := askSubject(ctx, opts, path, src)
+	subject, harnessErr, err := askSubject(ctx, opts, path, src)
+	if harnessErr != nil {
+		r.Err = harnessErr.Error()
+		return r
+	}
 	if err != nil {
 		r.SubjectErr = err.Error()
 		r.Verdict = Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone,
@@ -389,13 +393,20 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 // the harness happened to be, and an honest one produced a subject error per
 // file while a quiet one produced a fidelity of 0% -- five parser verdicts
 // recording one environmental fact.
-func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error) {
+//
+// The first error is the harness's own: a default subject that would not
+// build, or a Subject with no command. No parser was asked, so it is a runner
+// error rather than the subject's no-answer. The second is the subject's.
+func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error, error) {
 	subject := opts.Subject
 	if subject == nil {
 		var err error
 		if subject, err = defaultSubject(); err != nil {
-			return SubjectFacts{}, err
+			return SubjectFacts{}, err, nil
 		}
+	}
+	if len(subject.Command) == 0 {
+		return SubjectFacts{}, fmt.Errorf("subject: no command configured"), nil
 	}
 	s := *subject
 	if s.Dir == "" {
@@ -404,7 +415,8 @@ func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (Su
 	if s.Timeout <= 0 {
 		s.Timeout = opts.Timeout
 	}
-	return s.Parse(ctx, path)
+	facts, err := s.Parse(ctx, path)
+	return facts, nil, err
 }
 
 // resolve mirrors AskFile: a relative path is relative to Dir, which is how
