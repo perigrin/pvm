@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c432-fbd5-7125-82fa-b52abb3ac7bc
 created: 2026-09-21T09:52:30.999321803Z
-updated: 2026-09-21T22:35:39.437184165Z
+updated: 2026-10-23T17:09:33.369383123Z
 sessions:
 - start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
   end_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
@@ -62,6 +62,8 @@ by the spec and deferred to this issue. Decide once the files exist and the
 directory is actually unreadable -- a grouping invented before the files
 exist will be the wrong grouping.
 
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/04_operators` -> `TestCorpus` over the tier-04 topics (adjacency-04_operators.md, arithmetic.md, bitwise.md, comparison.md, compound-assignment.md, named-operators.md, unary.md)). Left unchanged: `TestTierOperatorsAdjacency`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Each of the 11 nonassoc levels is measured against perl rather than inferred from the binding-power table (`go test ./internal/conformance/ -run '^TestTierOperatorsNonassocMeasured$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsNonassocMeasured'`)
@@ -72,4 +74,4 @@ exist will be the wrong grouping.
 - [ ] The tier's adjacency file puts every construct 04_operators introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierOperatorsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsAdjacency'`)
 - [ ] 04_operators/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierOperatorsRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/04_operators' -count=1 -v | grep -q '^    --- PASS: TestCorpus/04_operators'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-04_operators|arithmetic|bitwise|comparison|compound-assignment|named-operators|unary)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
