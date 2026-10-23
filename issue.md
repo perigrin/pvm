@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T01:35:58.173407413Z
+updated: 2026-10-23T01:56:33.938187038Z
 ---
 
 ## Context
@@ -47,7 +47,7 @@ Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from th
 - [ ] The committed rv2hv wider count is below the count recorded after the arrow-read fix (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellBelowArrowFix$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellBelowArrowFix'`)
 - [ ] The stale claim that `state %h` behaves like a package hash is gone from both files (`sh -c 'test -f internal/parse/sites.go && test -f internal/parse/hashhedge_test.go && ! grep -q "like a package hash here" internal/parse/sites.go && ! grep -q "is the trap: a LEXICAL declaration" internal/parse/hashhedge_test.go'`)
 - [ ] The table is committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/named-hash-decl.txt`)
-- [ ] CI runs the declaration table under the pinned perl (`grep -q TestNamedHashRv2hvTableMatchesPerl .github/workflows/parse-fidelity.yml`)
+- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
