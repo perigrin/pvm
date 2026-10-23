@@ -106,10 +106,14 @@ var parenFixtures = []parenFixture{
 	{beforeAssign, `($old{$x}) = $ENV{$x} =~ /^(.*)$/;`, `($old`, `Assign Op="=" ListAssign`},
 	// op/try.t:195
 	{beforeAssign, `(flist) = (4, 5, 6);`, `(flist`, `Assign Op="=" ListAssign`},
+	// op/coreamp.t:674: aassign; without the paren, sassign.
+	{beforeAssign, `sub mykeys :lvalue { my $x } my %h; (&mykeys(\%h)) = 1025;`, `(&`, `Assign Op="=" ListAssign`},
 	{beforeAssign, `my $x; ($x) = f();`, `($x`, `Assign Op="=" ListAssign`},
 	{beforeAssign, `() = f();`, `()`, `Assign Op="=" ListAssign`},
 	// op/inccode.t:298
 	{beforeRepeat, `@INC = (\&fake_module)x2;`, `(\&`, `Repeat ListRepeat`},
+	// op/repeat.t:62: repeat lK/DOLIST; without the paren, repeat sK/2.
+	{beforeRepeat, `my @r = (split(//, "123")) x 2;`, `(split`, `Repeat ListRepeat`},
 	{beforeRepeat, `my $x; my @r = ($x) x 3;`, `($x)`, `Repeat ListRepeat`},
 	{afterMy, `sub f { my ($x) = @_; $x }`, `($x`, `Decl ListAssign`},
 	// perl: repeat lKP/DOLIST over padsv sPM/LVINTRO -- the declaration

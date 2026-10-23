@@ -98,3 +98,77 @@ sub a :lvalue { my $a = 34; ${\(bless \$a)} }
 srefgen 2 exact
 faithful
 known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+
+=== before x : a split in parens (op/repeat.t:62)
+my @r = (split(//, "123")) x 2;
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# repeat lK/DOLIST; without the paren, repeat sK/2
+
+=== before = : an ampersand call in parens (op/coreamp.t:674)
+sub mykeys :lvalue { my $x } my %h; (&mykeys(\%h)) = 1025;
+--- facts
+srefgen 1 exact
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# aassign; without the paren, sassign
+
+=== a list slice of a call
+my $s = (stat "TEST")[7];
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+
+=== a declared list concatenated
+my ($x) . 'a';
+--- facts
+faithful
+
+=== a declared list assigned from another
+my ($x) = my ($y) = 1;
+--- facts
+faithful
+
+=== a declared list assigned in a return
+sub f { 1 } sub g { return my ($x) = f() }
+--- facts
+faithful
+
+=== a declared list assigned, then a comma
+my ($x, $y) = (1, 2), 3;
+--- facts
+faithful
+
+=== an our list assigned a repeat, then or
+our ($x, $y) = (1) x 2 or die;
+--- facts
+faithful
+
+=== a declared list repeated on the right of +
+my $y = 1 + my ($x) x 2;
+--- facts
+faithful
+
+=== a declared list repeat-assigned
+my ($x) x= 2;
+--- facts
+faithful
+
+=== a declared list assigned a defined-or
+my ($x) = <STDIN> // 0;
+--- facts
+readline 1 exact
+faithful
+
+=== a parenthesised reference list assigned
+use feature 'refaliasing'; no warnings; our ($x,$y,$a,$b); \($x, $y) = (\$a, \$b);
+--- facts
+srefgen 2 exact
+faithful
+
+=== a declared list on the right of a tighter operator
+my $y = 2 * my ($x) + 1;
+--- facts
+faithful
+known-defect 01a16a7a-a6f4-7ec6-be8b-d01eb84afc73
