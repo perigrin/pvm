@@ -1,6 +1,6 @@
 ---
 title: Split the faithful comparator out, tag canon's parens by role, and enumerate the forgiveness rules, with no behaviour change
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a1690b-4745-7ef7-9285-0a9f97d86924
 - 01a1690b-1d10-7a84-be7e-0cbc31f36812
 created: 2026-10-23T12:56:46.617002164Z
-updated: 2026-10-23T14:35:00.548968036Z
+updated: 2026-10-23T18:03:40.049352127Z
+sessions:
+- start_sha: 5b88c65c7bdc2f2969d00476bef99270f1695b3c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T18:03:40.049352127Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T18:03:40.049352127Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Split the faithful comparator out and enumerate the forgiveness rules, with no behaviour change". The role tags it names were dropped under perigrin's round-7 ruling: the call-paren forgiveness rule, their only consumer, is removed by the `not`/list-op issue, so canon records one bit per paren pair instead (below).
