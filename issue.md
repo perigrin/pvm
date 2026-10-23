@@ -8,24 +8,27 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-22T23:58:21.394278987Z
+updated: 2026-10-23T01:08:19.587008145Z
 ---
 
 ## Context
 
 - paths: `internal/parse/sites.go` (`hedgeDerefElement`, ~183-205, and the call sites at ~262, ~346, ~377), `internal/parse/arrowhashread_test.go`, `internal/parse/hashhedge_test.go`, `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/baseline.txt`, `docs/specs/perl-parser/00-findings.md` §0.11
-- commands: `go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v`; the oracle sweep, `PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v`
+- commands: `go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v`; `go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v`
 - entrypoints: `internal/parse/sites.go` (`hedgeDerefElement`)
 
-This is the real fix that the m1 hedge for arrow hash reads defers to (filed 2026-10-09). Whether perl compiles a `->{...}` hash read as a visible `rv2hv` or folds it into `multideref` depends on the chain's op_lvalue context. push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref. The chain's shape and keys matter too: a computed key like `->{shift()}`, a read inside a block dereference `@{$r->{k}}`, and `$#{ $x->{k} }`. internal/parse commits to one answer. m1 hedges the rv2hv marker for the `->{...}` reads it cannot predict, and the oracle scores them `wider`. This issue models perl's rule and reports rv2hv exactly. Seen in japh/abigail.t, op/gmagic.t, op/ref.t and porting/libperl.t. The site ratchet (TestSiteRatchetCorpus, sites.txt) records rv2hv at 540 sites with 389 wider; this issue lowers the wider count and records the new number.
+This is the real fix that the m1 hedge for arrow hash reads defers to (filed 2026-10-09). Whether perl compiles a `->{...}` hash read as a visible `rv2hv` or folds it into `multideref` depends on the chain's op_lvalue context. push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref. The chain's shape and keys matter too: a computed key like `->{shift()}`, a read inside a block dereference `@{$r->{k}}`, and `$#{ $x->{k} }`. internal/parse commits to one answer. m1 hedges the rv2hv marker for the `->{...}` reads it cannot predict, and the oracle scores them `wider`. This issue models perl's rule and reports rv2hv exactly. Seen in japh/abigail.t, op/gmagic.t, op/ref.t and porting/libperl.t. The site ratchet (TestSiteRatchetCorpus, sites.txt) records the rv2hv wider count. The starting value measured at the 5.44.0 pin is `rv2hv_wider` in m3start.txt (389 under 5.42). This issue lowers the count and records the new value as `rv2hv_wider_after_arrow` in m3start.txt.
 
 ## Steps
 
-- [ ] Measure with perl first. Run `perl -MO=Concise` on `->{...}` chains in each context: plain read, push, keys, foreach, assignment (both sides), sub argument, computed key, inside `@{...}`, and inside `$#{...}`. Quote the results in the test's comment.
+- [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Concise` on `->{...}` chains in each context: plain read, push, keys, foreach, assignment (both sides), sub argument, computed key, inside `@{...}`, and inside `$#{...}`. Quote the results in the test's comment.
 - [ ] RED: write TestArrowHashReadFollowsMultideref in arrowhashread_test.go, one case per measured context. Run it and watch it fail.
 - [ ] GREEN: decide rv2hv from op_lvalue context in `hedgeDerefElement`, hedging only the shapes the measurement cannot settle statically. Update or retire TestArrowHashReadHedgesRv2hv to match, and keep TestArrowHashReadStaysDecided green. Run the tests and watch them pass.
-- [ ] Re-baseline sites.txt (and baseline.txt where whole files move) with `-parseoracle.update` in the same commit. The commit message gives the new rv2hv wider count and names each file that moved. WRONG must stay 0.
-- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the Concise measurements and writes NEW adversarial probes outside the corpus (e.g. `local $r->{k}`, `delete $r->{a}{b}`, `exists`, `\$r->{k}`, lvalue sub args, slices off an arrow). Re-checking only the named case is not enough.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] Record the new count as `rv2hv_wider_after_arrow` in m3start.txt. The commit message gives it and names each file that moved.
+- [ ] RED/GREEN TestRv2hvWiderFellFromM3Start in internal/parseoracle: it reads sites.txt's `all rv2hv wider` row and fails unless that count is below m3start.txt's `rv2hv_wider`. It also fails if either value is missing.
+- [ ] Add every measured context, with perl's facts, as probe file `internal/parse/testdata/m3probes/arrow-hash-read.txt`.
+- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (e.g. `local $r->{k}`, `delete $r->{a}{b}`, `exists`, `\$r->{k}`, lvalue sub args, slices off an arrow), and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] Run `make test`, then commit.
 - [ ] Update docs/specs/perl-parser/00-findings.md §0.11 ("A `->{...}` read whose multideref folding is not in the text hedges its rv2hv"): replace "Sites now hedges rv2hv... The exact rule is issue 01a12059-30a8" with the decided rule
 
@@ -34,7 +37,8 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 ### Positive Scenarios
 
 - [ ] An arrow hash read reports rv2hv exactly when perl keeps it (`go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadFollowsMultideref'`)
-- [ ] The site ratchet records the lower rv2hv wider count, below 389 (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestSiteRatchetCorpus'`)
+- [ ] The committed rv2hv wider count is below the starting count recorded at the pin (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellFromM3Start'`)
+- [ ] The measured contexts are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/arrow-hash-read.txt`)
 
 ### Negative Scenarios
 
@@ -43,6 +47,5 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 - [ ] A non-constant key keeps rv2hv. perl compiles `$r->{"a$x"}` and `$r->{shift()}` each to 1 `rv2hv` and no multideref, so a rule that folds every `->{...}` read into multideref commits WRONG here (`go test ./internal/parse/ -run '^TestArrowHashReadComputedKeyKeepsRv2hv$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadComputedKeyKeepsRv2hv'`)
 - [ ] Lvalue-looking element contexts still fold. perl compiles `local $r->{a} = 1`, `\$r->{a}`, `for ($r->{a}) {}`, `exists $r->{a}{b}` and `delete $r->{a}{b}` each to one `multideref` with 0 rv2hv; none of these commits rv2hv (`go test ./internal/parse/ -run '^TestArrowHashReadLvalueElementContextsFold$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadLvalueElementContextsFold'`)
 - [ ] `$#{$r->{a}}` keeps 1 rv2hv, as perl measures, and it is not folded with the plain-read rule (`go test ./internal/parse/ -run '^TestArrowHashReadArrayLastIndexKeepsRv2hv$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadArrayLastIndexKeepsRv2hv'`)
-- [ ] A shape the measurement table does not cover, such as the postfix deref `$r->{a}->%*`, hedges rather than commits (`go test ./internal/parse/ -run '^TestArrowHashReadUnmeasuredShapeHedges$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadUnmeasuredShapeHedges'`)
 - [ ] A hedge removed from `hedgeDerefElement` is named in a test case with the perl measurement that justified removing it. A hedge that remains names the shape it covers, so no hedge disappears or survives without a stated reason (`go test ./internal/parse/ -run '^TestArrowHashReadHedgesNameTheirShape$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadHedgesNameTheirShape'`)
-- [ ] Previously decided arrow reads stay decided and agree with perl after the change (`go test ./internal/parse/ -run '^TestArrowHashReadStaysDecided$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadStaysDecided'`)
+- [ ] Regression guard: previously decided arrow reads stay decided and agree with perl after the change (`go test ./internal/parse/ -run '^TestArrowHashReadStaysDecided$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadStaysDecided'`)
