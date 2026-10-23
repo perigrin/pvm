@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-23T01:35:32.032609291Z
+updated: 2026-10-23T12:56:16.654201504Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Classify dropped source parens by position, and fix the context-changing ones as tree defects". Writing a Paren node's parens once moved to 01a1664d-75d4 in chain-review round 1 (P6).
@@ -35,6 +35,7 @@ updated: 2026-10-23T01:35:32.032609291Z
 - [ ] Add every fixture, with perl's facts, as probe file `internal/parse/testdata/m3probes/dropped-paren-context.txt`. Run TestM3ProbesHeldToPerl.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus, and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] If a tree-defect fix moves any perl.git t/ file's re-emission, re-baseline perlgittfaithful.ratchet in the same commit and name each moved file (K6).
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -42,7 +43,7 @@ updated: 2026-10-23T01:35:32.032609291Z
 ### Positive Scenarios
 
 - [ ] Every context-changing dropped-paren position parses as perl's ops do (`go test ./internal/parse/ -run '^TestDroppedParenPositionsAreClassified$' -count=1 -v | grep -q '^--- PASS: TestDroppedParenPositionsAreClassified'`)
-- [ ] The context-changing fixtures are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/dropped-paren-context.txt`)
+- [ ] The context-changing fixtures are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/dropped-paren-context.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 
 ### Negative Scenarios
 
