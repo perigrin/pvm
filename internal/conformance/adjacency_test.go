@@ -1,5 +1,5 @@
 // ABOUTME: The adjacency property, checked once for every tier: its adjacency topic emits every op the tier introduces.
-// ABOUTME: Also that each tier has such a topic, that it is multi-statement, and that it pairs with its prerequisite.
+// ABOUTME: Also that each tier has such a topic and that every case in it is multi-statement.
 package conformance
 
 import (
@@ -45,23 +45,16 @@ func TestEveryTierHasAnAdjacencyTopic(t *testing.T) {
 // first does not reach, and that case is as much the tier's adjacency as
 // the first.
 //
-// Two further claims are checked because they are cheap and ops can
-// prove them:
+// One further claim is checked because it is cheap and ops can prove it:
+// EVERY CASE IS MULTI-STATEMENT. Adjacency needs two constructs to be
+// adjacent; a one-statement case cannot satisfy it whatever its prose
+// says. `nextstate` is one per statement.
 //
-//   - EVERY CASE IS MULTI-STATEMENT. Adjacency needs two constructs to be
-//     adjacent; a one-statement case cannot satisfy it whatever its prose
-//     says. `nextstate` is one per statement.
-//   - THE TOPIC USES AN OP OF ITS DECLARED PREREQUISITE. Weak where the
-//     prerequisite is 01_literals -- measured, any program emits most of
-//     tier 01's ops, because `print` and a statement are tier 01's -- and
-//     real elsewhere. A source-spelling pairing check, which tier 01
-//     would need, took a bespoke helper per tier and is not restored.
+// The tier's declared prerequisite is not checked here: ops cannot tell
+// one plausible declaration from another, as prereq_test.go measures, so
+// TestTierPrerequisitesMatchTheSpec pins the declaration instead.
 func TestAdjacencyCoversItsTier(t *testing.T) {
 	tiers, err := readTierOps(corpusDir)
-	if err != nil {
-		t.Fatalf("reading tier READMEs: %v", err)
-	}
-	deps, err := readTierDeps(corpusDir)
 	if err != nil {
 		t.Fatalf("reading tier READMEs: %v", err)
 	}
@@ -107,12 +100,6 @@ func TestAdjacencyCoversItsTier(t *testing.T) {
 					"introduces, or the pairing it exists to reach is not "+
 					"reachable for that construct.",
 					topic, strings.Join(missing, " "), tier)
-			}
-
-			if dep := deps[tier]; dep != "nothing" &&
-				!slices.ContainsFunc(tiers[dep], func(op string) bool { return slices.Contains(used, op) }) {
-				t.Errorf("%s emits no op of its prerequisite %s, so it pairs "+
-					"with nothing it claims to need", topic, dep)
 			}
 		})
 	}
