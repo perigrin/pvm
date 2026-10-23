@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:00.652020362Z
-updated: 2026-09-21T22:35:24.691964366Z
+updated: 2026-10-23T17:09:32.796988651Z
 sessions:
 - start_sha: 6036de4e5427d522f018fc1af4fd59dc3d760c06
   end_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
@@ -47,9 +47,11 @@ that did not change. The numbering is explicitly regenerable so tiers CAN be
 reordered; a path-keyed ratchet would make the spec's own stated plan look
 like breakage every time it happened.
 
+Criteria updated 2026-10-23: a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestTierMoveIsNotARegression` -> `TestRatchetKeysCarryNoTier`; `TestDuplicateFileNameRejected` -> `TestDuplicateCaseKeyRejected`).
+
 ## Acceptance criteria
 
-- [ ] A file renamed between tiers produces no regression in the baseline (`go test ./internal/conformance/ -run '^TestTierMoveIsNotARegression$' -count=1 -v | grep -q '^--- PASS: TestTierMoveIsNotARegression'`)
+- [ ] A file renamed between tiers produces no regression in the baseline (`go test ./internal/conformance/ -run '^TestRatchetKeysCarryNoTier$' -count=1 -v | grep -q '^--- PASS: TestRatchetKeysCarryNoTier'`)
 - [ ] A file that stops parsing fails the baseline, and so does one that starts parsing while still marked refusing (`go test ./internal/conformance/ -run '^TestRatchetFailsBothDirections$' -count=1 -v | grep -q '^--- PASS: TestRatchetFailsBothDirections'`)
 - [ ] Adding a corpus file does not require regenerating the baseline by hand (`go test ./internal/conformance/ -run '^TestNewFileNeedsNoBaselineEdit$' -count=1 -v | grep -q '^--- PASS: TestNewFileNeedsNoBaselineEdit'`)
-- [ ] A duplicate file name across tiers is rejected, since the key assumes uniqueness (`go test ./internal/conformance/ -run '^TestDuplicateFileNameRejected$' -count=1 -v | grep -q '^--- PASS: TestDuplicateFileNameRejected'`)
+- [ ] A duplicate file name across tiers is rejected, since the key assumes uniqueness (`go test ./internal/conformance/ -run '^TestDuplicateCaseKeyRejected$' -count=1 -v | grep -q '^--- PASS: TestDuplicateCaseKeyRejected'`)
