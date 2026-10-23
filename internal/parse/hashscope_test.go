@@ -11,9 +11,10 @@ import (
 
 // resolvedHashes resolves src's named hashes and writes each in source
 // order: a declaring variable as `DECL %h`, a use as `%h=DECL`, with `pkg`
-// for a use no declaration reaches. A declaration perl does not make -- a
-// `state` with its feature off -- is `state! %h`. withState appends ` +s`
-// where the state feature is on.
+// for a use no declaration reaches. A `state` declared with its feature off
+// declares nothing and is `state! %h`; one declared where the feature is
+// unknown is `state? %h`, and a use resolving to it `%h=state?`. withState
+// appends ` +s` where the state feature is on and ` ?s` where it is unknown.
 func resolvedHashes(src string, withState bool) []string {
 	uses := hashScopes(Parse([]byte(src)))
 	nodes := make([]*Node, 0, len(uses))
@@ -26,17 +27,24 @@ func resolvedHashes(src string, withState bool) []string {
 		u := uses[n]
 		var s string
 		switch {
-		case u.Declares && u.Decl == "state" && !u.StateOn:
+		case u.Declares && u.Decl == "state" && u.State == stateOff:
 			s = "state! " + n.Text
+		case u.Declares && u.Decl == "state" && u.State == stateUnknown:
+			s = "state? " + n.Text
 		case u.Declares:
 			s = u.Decl + " " + n.Text
+		case u.Unsure:
+			s = n.Text + "=" + u.Decl + "?"
 		case u.Decl == "":
 			s = n.Text + "=pkg"
 		default:
 			s = n.Text + "=" + u.Decl
 		}
-		if withState && u.StateOn {
+		if withState && u.State == stateOn {
 			s += " +s"
+		}
+		if withState && u.State == stateUnknown {
+			s += " ?s"
 		}
 		got = append(got, s)
 	}
@@ -213,5 +221,122 @@ func TestHashScopeFeatureEndsWithItsBlock(t *testing.T) {
 	checkHashScopes(t, true, []hashScopeCase{
 		{"bare block", `{ use feature "state"; } state %h; keys %h`, []string{"state! %h", "%h=pkg"}},
 		{"sub body", `sub f { use v5.10; } state %h; keys %h`, []string{"state! %h", "%h=pkg"}},
+	})
+}
+
+// TestHashScopeSignatureDeclaresMy: a sub's or method's signature hash is a
+// `my` of its body. Measured on perl 5.44.0, -MO=Concise,-exec,-main,f:
+//
+//	use feature "signatures"; sub f ($x, %o) { keys %o } keys %o
+//	padhv[%o:4,5] (in f), rv2hv (in main)
+//
+//	use v5.40; use feature "class"; class C { method m (%o) { keys %o } }
+//	padhv[%o:8,9] (in C::m)
+func TestHashScopeSignatureDeclaresMy(t *testing.T) {
+	checkHashScopes(t, false, []hashScopeCase{
+		{"named sub", `use feature "signatures"; sub f ($x, %o) { keys %o } keys %o`,
+			[]string{"my %o", "%o=my", "%o=pkg"}},
+		{"lone hash parameter", `use feature "signatures"; sub f (%o) { keys %o } keys %o`,
+			[]string{"my %o", "%o=my", "%o=pkg"}},
+		{"anonymous sub", `use feature "signatures"; my $f = sub (%p) { keys %p }; keys %p`,
+			[]string{"my %p", "%p=my", "%p=pkg"}},
+		{"method", `use v5.40; use feature "class"; class C { method m (%o) { keys %o } }`,
+			[]string{"my %o", "%o=my"}},
+	})
+}
+
+// TestHashScopeStateUnknownThroughModule: a module or a BEGIN block can turn
+// state on, which the resolver cannot see, so the feature is unknown after
+// one rather than off. Core pragmas that touch no feature leave it as it
+// was, and an explicit `use`/`no feature` decides it again. Measured on perl
+// 5.44.0, -MO=Concise,-exec:
+//
+//	use if 1, feature => "state"; state %h; keys %h               padhv
+//	BEGIN { feature->import("state") } state %h; keys %h          padhv
+//	BEGIN { 1 } state %h; keys %h                                 rv2hv
+//	use warnings; state %h; keys %h                               rv2hv
+//	use Data::Dumper; use feature "state"; state %h; keys %h      padhv
+//	use Data::Dumper; no feature "state"; state %h; keys %h       rv2hv
+//	{ use if 1, feature => "state"; } state %h; keys %h           rv2hv
+//	use feature "st" . "ate"; state %h; keys %h                   padhv
+//
+// `use Modern::Perl` and `no Foo` name modules the pinned perl does not
+// have; they stand for any module whose import this resolver cannot read.
+func TestHashScopeStateUnknownThroughModule(t *testing.T) {
+	unknown := []string{"state? %h ?s", "%h=state? ?s"}
+	checkHashScopes(t, true, []hashScopeCase{
+		{"use if", `use if 1, feature => "state"; state %h; keys %h`, unknown},
+		{"BEGIN import", `BEGIN { feature->import("state") } state %h; keys %h`, unknown},
+		{"any BEGIN", `BEGIN { 1 } state %h; keys %h`, unknown},
+		{"Modern::Perl", `use Modern::Perl; state %h; keys %h`, unknown},
+		{"no of a module", `use feature "state"; no Foo; state %h; keys %h`, unknown},
+		{"quiet pragma", `use warnings; state %h; keys %h`, []string{"state! %h", "%h=pkg"}},
+		{"explicit use after", `use Data::Dumper; use feature "state"; state %h; keys %h`,
+			[]string{"state %h +s", "%h=state +s"}},
+		{"explicit no after", `use Data::Dumper; no feature "state"; state %h; keys %h`,
+			[]string{"state! %h", "%h=pkg"}},
+		{"ends with its block", `{ use if 1, feature => "state"; } state %h; keys %h`,
+			[]string{"state! %h", "%h=pkg"}},
+		{"computed feature list", `use feature "st" . "ate"; state %h; keys %h`, unknown},
+	})
+}
+
+// TestHashScopeCStyleForInit: a C-style for's init declaration reaches its
+// condition, step and block, and ends with the loop. Measured on perl
+// 5.44.0, -MO=Concise,-exec:
+//
+//	for (my %h = (); keys %h; ) { keys %h } keys %h
+//	padhv padhv padhv rv2hv
+func TestHashScopeCStyleForInit(t *testing.T) {
+	checkHashScopes(t, false, []hashScopeCase{
+		{"init reaches condition", "for (my %h = (); keys %h; ) { keys %h } keys %h",
+			[]string{"my %h", "%h=my", "%h=my", "%h=pkg"}},
+	})
+}
+
+// TestHashScopeFieldDeclaresMy: a class field is a lexical its methods see.
+// Measured on perl 5.44.0, -MO=Concise,-exec,C::m:
+//
+//	use feature "class"; class C { field %h; method m { keys %h } }
+//	padhv[%h:FAKE:]
+func TestHashScopeFieldDeclaresMy(t *testing.T) {
+	checkHashScopes(t, false, []hashScopeCase{
+		{"field in a method", `use feature "class"; class C { field %h; method m { keys %h } }`,
+			[]string{"field %h", "%h=field"}},
+	})
+}
+
+// TestHashScopeDevelopmentBundles: state is in the bundle from 5.9.5, the
+// development release it arrived in. Measured on perl 5.44.0,
+// -MO=Concise,-exec, each followed by `state %h; keys %h`:
+//
+//	use 5.9.5       padhv        use 5.009005    padhv
+//	use v5.9.5      padhv        use 5.009_005   padhv
+//	use 5.9.4       rv2hv        use 5.009004    rv2hv
+//	use 5.010_001   padhv        use 5.01        padhv
+func TestHashScopeDevelopmentBundles(t *testing.T) {
+	on := []string{"state %h +s", "%h=state +s"}
+	off := []string{"state! %h", "%h=pkg"}
+	var cases []hashScopeCase
+	for v, want := range map[string][]string{
+		"5.9.5": on, "5.009005": on, "v5.9.5": on, "5.009_005": on, "5.010_001": on, "5.01": on,
+		"5.9.4": off, "5.009004": off,
+	} {
+		cases = append(cases, hashScopeCase{"use " + v, "use " + v + "; state %h; keys %h", want})
+	}
+	checkHashScopes(t, true, cases)
+}
+
+// TestHashScopeDeclaredRefs: `my \%h` declares %h. Measured on perl 5.44.0,
+// -MO=Concise,-exec:
+//
+//	use feature "declared_refs","refaliasing"; my \%h = {}; keys %h             padhv
+//	use feature "declared_refs","refaliasing"; my (\%h, $x) = ({}, 1); keys %h  padhv
+func TestHashScopeDeclaredRefs(t *testing.T) {
+	checkHashScopes(t, false, []hashScopeCase{
+		{"my backslash", `use feature "declared_refs","refaliasing"; my \%h = {}; keys %h`,
+			[]string{"my %h", "%h=my"}},
+		{"in a list", `use feature "declared_refs","refaliasing"; my (\%h, $x) = ({}, 1); keys %h`,
+			[]string{"my %h", "%h=my"}},
 	})
 }

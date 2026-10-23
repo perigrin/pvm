@@ -83,3 +83,42 @@ faithful
 --- facts
 rv2hv 1 wider
 faithful
+
+=== signature hash parameter is a my of the body
+use feature "signatures"; sub f ($x, %o) { keys %o; } keys %o;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== C-style for init reaches its condition
+for (my %h = (); keys %h; ) { keys %h; } keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== class field seen by a method
+use v5.40; use feature "class"; no warnings; class C { field %h; method m { keys %h; } }
+--- facts
+faithful
+
+=== declared_refs declares the hash
+use feature "declared_refs", "refaliasing"; no warnings; my \%h = {}; keys %h;
+--- facts
+anonhash 1 exact
+faithful
+
+=== development bundle 5.9.5 enables state
+use 5.009005; state %h; keys %h;
+--- facts
+faithful
+
+=== development bundle 5.9.4 does not
+use 5.009004; state %h; keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== state turned on through a module
+use if 1, feature => "state"; state %h; keys %h;
+--- facts
+faithful
