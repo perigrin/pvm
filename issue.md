@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 created: 2026-10-23T01:08:33.371135176Z
-updated: 2026-10-23T01:55:41.328990855Z
+updated: 2026-10-23T07:05:53.268923124Z
 ---
 
 ## Context
@@ -30,7 +30,7 @@ updated: 2026-10-23T01:55:41.328990855Z
 - [ ] RED/GREEN the negatives the fix must not break, each a fixture judged by the pinned perl: TestOracleStillDeclinesFileDyingInBEGIN (a file that dies in BEGIN is still declined), TestOracleExitInBEGINIsNotExact (a file that exits 0 from BEGIN builds no optree and is never graded exact), and TestOracleStderrFromBEGINIsNotAFailure (a file that compiles while printing to STDERR from BEGIN is answered, not classified as a compile failure).
 - [ ] Any change to the oracle's perl-side probe or its decline logic gets a per-fix review against perl before merge. The reviewer writes NEW probes outside the corpus, such as a file printing to STDOUT and to STDERR from BEGIN, a file exiting 0 from BEGIN, and a file that dies in BEGIN. Each must still be classified as perl classifies it.
 - [ ] Run the sweep (TestRatchetCorpus and TestSiteRatchetCorpus) and re-baseline baseline.txt and sites.txt in the same commit. The message names op/magic.t and every other file that moved.
-- [ ] Record `rv2hv_wider_after_magic` in m3start.txt, under its own key, equal to sites.txt's `total all rv2hv wider` row in this same commit, and say why in the commit message. The pin-time `rv2hv_wider` stays as the site-ratchet issue recorded it. The arrow-read issue, which follows this one, measures its fall from `rv2hv_wider_after_magic`.
+- [ ] Append `rv2hv_wider_after_magic` to m3start.txt (append-only), under its own key, equal to sites.txt's `total all rv2hv wider` row in this same commit, and say why in the commit message. The pin-time `rv2hv_wider` stays as the site-ratchet issue recorded it. The arrow-read issue, which follows this one, measures its fall from `rv2hv_wider_after_magic`.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -39,7 +39,7 @@ updated: 2026-10-23T01:55:41.328990855Z
 
 - [ ] The oracle answers a file perl compiles that prints from BEGIN, rather than declining it (`go test ./internal/parseoracle/ -run '^TestOracleAnswersFileThatPerlCompiles$' -count=1 -v | grep -q '^--- PASS: TestOracleAnswersFileThatPerlCompiles'`)
 - [ ] op/magic.t is graded exact or wider in the committed per-file baseline, so excluding it cannot satisfy this (`grep -Eq '^(exact|wider) .* op/magic.t$' internal/parseoracle/testdata/ratchet/baseline.txt`)
-- [ ] m3start.txt's `rv2hv_wider_after_magic` equals sites.txt's `total all rv2hv wider` in the commit that set it, so typing a number cannot satisfy it (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_magic" -- $f/m3start.txt); [ -n "$c" ] || exit 1; a=$(git show $c:$f/m3start.txt | sed -n "s/^rv2hv_wider_after_magic = \([0-9][0-9]*\)$/\1/p"); b=$(git show $c:$f/sites.txt | awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] && [ "$a" = "$b" ]'`)
+- [ ] m3start.txt's `rv2hv_wider_after_magic` equals sites.txt's `total all rv2hv wider` in the commit that set it, and op/magic.t is graded exact or wider in that same commit, so the key cannot be recorded before the file is answered (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_magic " -- $f/m3start.txt); [ -n "$c" ] || exit 1; a=$(git show $c:$f/m3start.txt | sed -n "s/^rv2hv_wider_after_magic = \([0-9][0-9]*\)$/\1/p"); b=$(git show $c:$f/sites.txt | awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] && [ "$a" = "$b" ] && git show $c:$f/baseline.txt | grep -Eq "^(exact|wider) .* op/magic.t$"'`)
 - [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
