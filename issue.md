@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T17:33:59.477827339Z
-updated: 2026-10-23T16:04:08.161215176Z
+updated: 2026-10-23T23:40:18.539248323Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
   end_sha: 394f64d005a7e2ed73b94278ca6a14099bc6cecc
@@ -127,10 +127,12 @@ with it.
   sees op names but not flags. Op names are what this issue needs, so that
   limitation does not bite here.
 
+Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): criteria 2 and 3 passed at 054e75e6, before the work. They now name switch.md: its given/when/default case passing `TestCorpus`, and its own record of the 5.36 bundle and the absent warning.
+
 ## Acceptance criteria
 
 - [ ] A tier introduces the four switch ops (`grep -qE 'entergiven|leavegiven' conformance/mdtest/*.md`)
-- [ ] A corpus case asserts what perl prints for given/when/default (`go test ./internal/conformance/ -run 'TestMdtestTopicsMakeTheSameClaims' -count=1 | grep -q '^ok'`)
-- [ ] The case records that the feature is off from 5.36 and does not warn (`grep -qiE '5\.36|does not warn' conformance/mdtest/*.md`)
+- [ ] A corpus case asserts what perl prints for given/when/default (`go test ./internal/conformance/ -run '^TestCorpus$/^switch.md$' -count=1 -v | grep -q '^    --- PASS: TestCorpus/switch.md/.given._with_two_.when._arms_and_a_.default.'`)
+- [ ] The case records that the feature is off from 5.36 and does not warn (`grep -q 'OFF FROM BUNDLE 5.36' conformance/mdtest/switch.md && grep -q 'DOES NOT WARN' conformance/mdtest/switch.md`)
 - [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
 - [ ] REGRESSION GUARD, passes today: the parse suite holds (`go test ./internal/parse/ -count=1 | grep -q '^ok'`)
