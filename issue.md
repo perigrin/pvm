@@ -1,6 +1,6 @@
 ---
 title: Tell a subject crash from a refusal in the oracle ratchet, and keep harness failures as runner errors
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,26 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-23T15:16:37.781056222Z
-updated: 2026-10-23T15:28:53.47541296Z
+updated: 2026-10-23T16:02:13.156029941Z
 sessions:
 - start_sha: c36e4edbda2413639c02e087cbd1157fd2c88fb7
-  end_sha: ""
-  commits: 0
+  end_sha: 9858ce1da7b63c526a348468d4573171a4dce399
+  commits: 1
   started_at: 2026-10-23T15:28:53.47541296Z
+  ended_at: 2026-10-23T16:02:13.156029941Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T15:28:53.47541296Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T16:02:13.156029941Z
+observed_paths:
+- docs/specs/perl-parser/07-conformance.md
+- internal/parseoracle/README.md
+- internal/parseoracle/ratchet.go
+- internal/parseoracle/run.go
+- internal/parseoracle/sites_test.go
 ---
 
 ## Context
