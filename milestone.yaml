@@ -152,3 +152,19 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - 11 existing tests pin the old parenthesised spelling and are updated.
 - **Extended to `not` and list ops.** The issue that does this measures it the same way before landing. If list ops lose faithful files, the executor stops and brings perigrin the numbers.
 - **Not covered here:** user subs with a `($)` prototype the file cannot see. That is M4 territory, and the test says so.
+## Gates
+
+- [x] chain-review: satisfied 2026-10-23 by the session agent (crochet:chain-review, run in place, not backfilled). It ran 8 rounds through crochet:discernment, then a fix pass verified by the raisers, and closed by perigrin's ruling WITHOUT reaching a fixed point inside the 8-round bound.
+  - Participants (fresh subagents, persistent across rounds): the alignment and pushback lenses, plus a new fresh reader every round from round 2 (fresh1-fresh7), none of them reading prior findings. Drafter: the session agent, holding no view.
+  - Author: the decomposer for rounds 1-6; from round 7 a fresh Fable agent, at perigrin's request.
+  - Round 8 ended 7 ACCEPT, 2 MODIFY. The raiser-verified fix pass then released every blocking finding: K13, M1-M5, J13, and K14, which was raised during verification.
+  - perigrin's rulings, recorded above by round:
+    - judge the oracle with perl 5.44.0;
+    - fix op/magic.t in M3;
+    - perl overrides goal (7) on `state`;
+    - re-emission at 100% with no defects file;
+    - `Faithful` forgiveness closed: three rules (round 5), then two (round 7);
+    - narrowing the call-paren rule (round 6), superseded by precedence-aware canon (round 7, measured first);
+    - parens on folded ops are known gaps that canon writes.
+  - Filed follow-ups, outside the milestone: A30 (what "100% faithful" certifies), G17 (enforce NL's stop rule per ratchet row), J15 (cause-table rule 5 ordering), J16 (dropped-paren split by node kind), L12 (one ParenNode pair where Paren and binding power coincide), F18 (a fold must belong to its own gap row). The rename of `Canon` is 01a1692a.
+  - Ledger: ~/.cache/pvm/m3-oracle-at-scale/cr-ledger.md. Per-round reports were in the session scratchpad (scratchpad/m3/cr-*-r*.md, fresh*-r*.md). The measurement behind the round-7 ruling is committed at docs/measurements/2026-10-23-precedence-aware-canon/ (56f5c8f6).
