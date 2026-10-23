@@ -14,25 +14,31 @@ blocked_by:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-22T23:56:40.77601534Z
+updated: 2026-10-23T01:08:22.517860866Z
 ---
 
 ## Context
 
-- paths: `docs/plans/2026-09-05-parser-conformance-plan.md` (§5 M3 at ~606, the ladder summary at ~729), `docs/specs/perl-parser/README.md` (Status at ~99, the stale `($x)` sentence at ~129), `internal/parseoracle/README.md` (~287)
-- commands: the milestone resolution command (`git zhi milestone show m3-oracle-at-scale --format json`, field `resolution`)
-- entrypoints: `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parse/testdata/perlgittfaithful.ratchet`, `internal/parse/testdata/faithful_defects.txt`, `internal/parseoracle/testdata/opcount/`
+- paths: `docs/plans/2026-09-05-parser-conformance-plan.md` (§5 M3 at ~606, the "never the parens the source had" sentence at ~620, the ladder summary at ~729), `docs/specs/perl-parser/07-conformance.md` (~308), `docs/specs/perl-parser/README.md` (Status at ~99, the stale `($x)` sentence at ~129), `internal/parseoracle/README.md` (~287), `internal/parseoracle/docs_test.go` (new)
+- commands: `go test ./internal/parseoracle/ -run '^(TestPlanM3SectionQuotesSitesRatchet|TestM3DocsQuoteCommittedNumbers)$' -count=1 -v`
+- entrypoints: `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/m3start.txt`, `internal/parse/testdata/compiledclean.txt`, `internal/parse/testdata/perlgittfaithful.ratchet`, `internal/parse/testdata/faithful_defects.txt`, `internal/parseoracle/testdata/opcount/`
 
-State the M3 gate's measured numbers where readers look, taken from the committed ratchets rather than from memory. The plan's M3 table says "≥ 526 of 584" and its ladder row says "584 files". internal/parseoracle/README.md:287 says "584/620 (94.2%)". All three are stale: a fuller shim now compiles 593. The README's defect sentence that `($x)` loses its `Paren` node (term.go:284-293) is also stale as worded, because `finishList` now copies the node and sets `Paren`.
+State the M3 gate's measured numbers where readers look, taken from the committed files rather than from memory, and check that every remaining condition of the milestone holds. The plan's M3 table says "≥ 526 of 584" and its ladder row says "584 files". Both are stale: the oracle is now pinned to perl 5.44.0, and the compiled count is m3start.txt's `compiled`. "593" was the 5.42 graded set, not a compile count, so the docs must not call it one. The README's defect sentence that `($x)` loses its `Paren` node (term.go:284-293) is also stale. And the plan (~620, "never the parens the source had") and 07-conformance.md:308 ("never the parens seen in the source") must be reconciled with perigrin's Paren-once ruling. canon writes a `Paren` node's parens once because the tree carries the paren, exactly as perl's op carries one OPf_PARENS bit, so the tree implies them. That needs saying.
 
 ## Steps
 
-- [ ] Read the final numbers from sites.txt (whole corpus and M3-dir exact/wider/no-answer/WRONG, rv2hv wider), TestParseWithoutErrorOnCompiledCorpus's log (clean of 593), perlgittfaithful.ratchet (faithful of 619, M3 dirs), faithful_defects.txt (rows by cause) and the opcount fixture count. Re-run each test to confirm the numbers.
-- [ ] Plan §5 M3: change the parse row to 593 and add a `#### Measured at the M3 gate` subsection giving each metric's measured value, the commit it was measured at, and where the remaining re-emission defects are listed. State plainly that re-emission is not yet 100% if defects remain.
-- [ ] Plan ladder summary: change the M3 row's 584 to 593. Confirm with `grep -nw 584` that no 584 is left anywhere in the plan.
-- [ ] docs/specs/perl-parser/README.md: add a Status paragraph starting `The M3 gate` with the measured numbers, and correct the stale `($x)` sentence to describe the current cause: canon writes source parens only for a `List`, canon now writes a `Paren` node's parens once, and `Faithful` forgives only extra nesting.
-- [ ] internal/parseoracle/README.md:287: replace "584/620 (94.2%)" with the current measured count, 593/620, and its percentage.
-- [ ] Run the milestone resolution command and watch it pass, then commit.
+- [ ] Read each final number from its committed file:
+  - sites.txt (whole corpus and M3-dir exact/wider/no-answer/WRONG, rv2hv wider) and m3start.txt (the starting values and `compiled`);
+  - compiledclean.txt (clean of compiled);
+  - perlgittfaithful.ratchet (faithful of 619) and faithful_defects.txt (rows by class);
+  - the opcount fixtures (assertion count).
+- [ ] Plan §5 M3: change the parse row to the compiled count and add a `#### Measured at the M3 gate` subsection. It gives each metric's measured value, the perl (5.44.0) and commit it was measured at, and where the remaining re-emission defects are listed. State plainly that re-emission is not yet 100% if defects remain.
+- [ ] Plan ladder summary: change the M3 row's 584 to the compiled count. Confirm with `grep -nw 584` that no 584 is left anywhere in the plan.
+- [ ] Reconcile plan ~620 and 07-conformance.md:308 with the Paren-once ruling: canon writes the parens the tree implies, a `Paren` node's pair included, never the source's extra nesting.
+- [ ] docs/specs/perl-parser/README.md: add a Status paragraph starting `The M3 gate` with the measured numbers, and correct the stale `($x)` sentence. canon now writes a `Paren` node's parens once, and `Faithful` forgives only extra nesting.
+- [ ] internal/parseoracle/README.md: check that the "Ground-truth ceiling" sentence (~287) states m3start.txt's compiled count at 5.44.0, as the re-pin issue set it. Leave the historical "became 584/620" sentence (~309) alone.
+- [ ] Create `internal/parseoracle/docs_test.go` with two `// ABOUTME:` lines. RED/GREEN TestM3DocsQuoteCommittedNumbers: the plan subsection and the README `The M3 gate` paragraph state the compiled count (m3start.txt), the clean count (compiledclean.txt), the faithful count (perlgittfaithful.ratchet header), the defects row count (faithful_defects.txt) and the opcount assertion count (fixtures), each equal to its file, and the parseoracle README ceiling equals m3start.txt's `compiled`.
+- [ ] Run the regression list below and the milestone resolution command, and watch them pass. Open the PR, wait for CI (Windows and macOS included), then commit any fix and re-check.
 
 ## Acceptance criteria
 
@@ -41,15 +47,24 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 - [ ] The plan has a measured-at-the-gate subsection for M3 (`grep -q '^#### Measured at the M3 gate' docs/plans/2026-09-05-parser-conformance-plan.md`)
 - [ ] The stale 584 is gone from the plan (`sh -c '! grep -qw 584 docs/plans/2026-09-05-parser-conformance-plan.md'`)
 - [ ] The perl-parser README's Status states the M3 gate (`grep -q '^The M3 gate' docs/specs/perl-parser/README.md`)
-- [ ] The parseoracle README states 593 compiled files (`grep -q '593/620' internal/parseoracle/README.md`)
-- [ ] The parseoracle README no longer states 584/620 (`sh -c '! grep -q 584/620 internal/parseoracle/README.md'`)
+- [ ] Every number the docs state equals its committed file (`go test ./internal/parseoracle/ -run '^TestM3DocsQuoteCommittedNumbers$' -count=1 -v | grep -q '^--- PASS: TestM3DocsQuoteCommittedNumbers'`)
+- [ ] The parseoracle README's ceiling sentence no longer claims 584/620; the historical sentence at ~309 may stay (`sh -c 'test -f internal/parseoracle/README.md && ! grep -q "\*\*584/620" internal/parseoracle/README.md'`)
 - [ ] The perl-parser README no longer cites term.go:284-293 for the dropped Paren (`sh -c '! grep -q term.go:284-293 docs/specs/perl-parser/README.md'`)
+- [ ] Plan and conformance spec no longer say canon never writes source parens (`sh -c 'test -f docs/specs/perl-parser/07-conformance.md && ! grep -q "never the parens the source had" docs/plans/2026-09-05-parser-conformance-plan.md && ! grep -q "never the parens seen in the source" docs/specs/perl-parser/07-conformance.md'`)
+- [ ] Regression guard: perl.git t/ stays 619/619 clean (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
+- [ ] Regression guard: T2 still parses (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestT2CoreParses$' -count=1 -v | grep -q '^--- PASS: TestT2CoreParses'`)
+- [ ] Regression guard: T2 holds all 56 (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestT2HoldsAll56$' -count=1 -v | grep -q '^--- PASS: TestT2HoldsAll56'`)
+- [ ] Regression guard: T2 round-trips losslessly (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/lexer/ -run '^TestT2CoreRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestT2CoreRoundTrips'`)
+- [ ] Regression guard: the parse corpus ratchet holds (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
+- [ ] Regression guard: the conformance corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
+- [ ] Regression guard: the exact-match floor holds over T2 at the 5.44.0 pin (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [ ] Regression guard: inference precision stays at or above 65/76 (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
+- [ ] Regression guard: every committed perl-judged probe still holds (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestM3ProbesHeldToPerl'`)
+- [ ] CI's main workflow is green on this branch's latest run (`sh -c 'gh run list --workflow ci.yml --branch "$(git rev-parse --abbrev-ref HEAD)" -L 1 --json conclusion -q ".[0].conclusion" | grep -qx success'`)
+- [ ] CI's parse-fidelity workflow is green on this branch's latest run (`sh -c 'gh run list --workflow parse-fidelity.yml --branch "$(git rev-parse --abbrev-ref HEAD)" -L 1 --json conclusion -q ".[0].conclusion" | grep -qx success'`)
 
 ### Negative Scenarios
 
 - [ ] The measured subsection's numbers are the committed ones, not a heading over stale prose. It states the whole-corpus and M3-dir site totals and the rv2hv wider count exactly as sites.txt records them, so editing either side alone fails (`go test ./internal/parseoracle/ -run '^TestPlanM3SectionQuotesSitesRatchet$' -count=1 -v | grep -q '^--- PASS: TestPlanM3SectionQuotesSitesRatchet'`)
-- [ ] The measured subsection states 593, so deleting the stale row cannot satisfy the "no 584" check (`sh -c 'sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -qw 593'`)
-- [ ] When faithful_defects.txt still holds rows, the measured subsection points to it, so remaining re-emission defects cannot read as 100% (`sh -c 'if [ -s internal/parse/testdata/faithful_defects.txt ]; then sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q faithful_defects.txt; fi'`)
-- [ ] The README's M3 gate paragraph states 593, not only the heading words (`sh -c 'grep "^The M3 gate" docs/specs/perl-parser/README.md | grep -qw 593'`)
-- [ ] The parseoracle README gives 593/620 with its correct percentage, 95.6%, not the stale 94.2% beside the new count (`sh -c 'grep -q "593/620 (95.6%)" internal/parseoracle/README.md && ! grep -q "94.2%" internal/parseoracle/README.md'`)
 - [ ] The corrected `($x)` sentence describes the extra-nesting ruling, not just a removed citation (`sh -c 'grep -qi "extra nesting" docs/specs/perl-parser/README.md'`)
+- [ ] When faithful_defects.txt still holds rows, the measured subsection points to it, so remaining re-emission defects cannot read as 100%; a missing defects file fails (`sh -c 'f=internal/parse/testdata/faithful_defects.txt; test -f "$f" || exit 1; grep -q "^[^#]" "$f" || exit 0; sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q faithful_defects.txt'`)
