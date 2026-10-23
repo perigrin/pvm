@@ -9,3 +9,10 @@
 interpreter = 5.044000
 compiled = 593
 graded = 593
+#
+# faithful_start_all is internal/parse/testdata/perlgittfaithful.ratchet's
+# "# N/619 faithful" N: perl.git t/ files whose canon emission says what the
+# source says, under today's parse.Faithful. faithful_start_m3 is that
+# ratchet's 0 rows under op/ mro/ uni/ lib/ test_pl/.
+faithful_start_all = 342
+faithful_start_m3 = 178
