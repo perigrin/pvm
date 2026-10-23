@@ -110,6 +110,36 @@ parses: yes
 one operator whose text is "["
 ```
 
+## `when (@l)` takes a reference no backslash spells
+
+A `when` over an array smartmatches `$_` against the array's members, and
+perl does it through a REFERENCE: measured, the argument compiles to
+`padav[@l]` then `srefgen`, the same two ops `\@l` emits, with no `\` in
+the source. So the switch statement, tier 06's, has a non-scalar shape
+that cannot be spelled until this tier, and this is it.
+
+`3` is in `@l` and `9` is not; the topic comes from `$ENV{X}`, unset when
+the harness runs. As in `switch.md`, the feature is off from bundle 5.36
+onward and is enabled by name.
+
+```perl
+use feature "switch";
+my $x = $ENV{X} // 3;
+my @l = (2, 3);
+given ($x) {
+    when (@l) { print "listed\n" }
+    default { print "unlisted\n" }
+}
+```
+
+```behavior
+parses: yes
+```
+
+```output
+listed
+```
+
 ## `ref` over all three referent kinds
 
 `ref` reports what a reference points at, and it is the one operation

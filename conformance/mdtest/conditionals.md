@@ -6,9 +6,10 @@ ternary `?:` emits; `elsif` compiles to nested `cond_expr` and adds no op
 of its own. So three source constructs share two ops between them, and
 `unless` is a fourth spelling that differs from `if` by exactly one op.
 
-**Tier 06 control.** Introduces `cond_expr`, `die`, `enteriter`,
-`entertry`, `exit`, `goto`, `iter`, `last`, `leavetry`, `next`, `redo`,
-`time`, `unstack`. Depends on 05_scoping.
+**Tier 06 control.** Introduces `cond_expr`, `die`, `entergiven`,
+`enteriter`, `entertry`, `enterwhen`, `exit`, `goto`, `iter`, `last`,
+`leavegiven`, `leavetry`, `leavewhen`, `next`, `redo`, `time`, `unstack`.
+Depends on 05_scoping.
 
 Every case binds a runtime value and branches on it second.
 A constant condition ERASES the construct: measured, `if (1) { print "y" }`
