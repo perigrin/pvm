@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-10-23T19:18:32.068103876Z
+updated: 2026-10-23T23:40:18.369007124Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -126,9 +126,9 @@ ACCEPTS is reported as a CORPUS BUG before the parser is consulted at all
 also skip that adjudication, or a wrong `parsent` claim becomes
 unfalsifiable.
 
-Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `10_undeclared_callee.t` with `--- expect parsent` -> the `An undeclared callee is a syntax error` case of `argument-extent.md` carrying `parses: no`). Left unchanged: `TestTierSubroutinesAdjacency`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `10_undeclared_callee.t` with `--- expect parsent` -> the `An undeclared callee is a syntax error` case of `argument-extent.md` carrying `parses: no`). Left unchanged here: `TestTierSubroutinesAdjacency`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierSubroutinesAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierSubroutinesAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
 
 ## Acceptance criteria
 
