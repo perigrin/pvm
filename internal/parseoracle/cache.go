@@ -70,9 +70,11 @@ type CacheIdentity struct {
 const DefaultCacheDir = "internal/parseoracle/testdata/oracle_cache"
 
 // OpenCache opens a cache at dir, deriving the identity from the interpreter
-// on PATH, the pin's corpus revision, and the current parse_facts.pl.
-func OpenCache(dir string) (*Cache, error) {
-	id, err := currentIdentity()
+// at perl (empty means the one on PATH), the pin's corpus revision, and the
+// current parse_facts.pl. perl must be the RunOptions.Perl the cache serves,
+// or the key names one interpreter while another measured.
+func OpenCache(dir, perl string) (*Cache, error) {
+	id, err := currentIdentity(perl)
 	if err != nil {
 		return nil, err
 	}
@@ -238,10 +240,10 @@ func (c *Cache) key(src []byte, opts Options) string {
 
 // currentIdentity reads the three identity components from the environment
 // this process is actually measuring in.
-func currentIdentity() (CacheIdentity, error) {
+func currentIdentity(perl string) (CacheIdentity, error) {
 	id := CacheIdentity{Revision: "unpinned"}
 
-	out, err := exec.Command("perl", "-e", "print $]").Output()
+	out, err := exec.Command(perlOrPath(perl), "-e", "print $]").Output()
 	if err != nil {
 		return id, fmt.Errorf("asking perl for its version: %w", err)
 	}

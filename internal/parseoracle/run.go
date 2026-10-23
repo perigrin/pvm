@@ -272,6 +272,10 @@ type RunOptions struct {
 	// they depend on our parser and a cached verdict would hide exactly the
 	// movement a ratchet exists to detect.
 	Cache *Cache
+
+	// Perl is the perl every oracle invocation runs: parse_facts.pl
+	// itself and the compiles it starts. Empty means the perl on PATH.
+	Perl string
 }
 
 // Run compiles every file in the corpus through perl, asks the subject for
@@ -338,6 +342,7 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		Dir:     opts.Dir,
 		Shebang: wantsTaint(src),
 		Timeout: opts.Timeout,
+		Perl:    opts.Perl,
 	}
 	facts, err := opts.Cache.askFile(ctx, path, ask)
 	if err != nil {

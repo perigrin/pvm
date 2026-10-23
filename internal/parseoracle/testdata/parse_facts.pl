@@ -251,13 +251,15 @@ print encode({
 }), "\n";
 
 # Run perl on the file with the given flags, returning combined output. The
+# perl is $^X, the one running this script: a bare `perl` would be whichever
+# perl is first on PATH, which need not be the one the caller chose. The
 # file is compiled, never run: everything here is a compile-time question.
 # Perl's own tests chdir to t/ and `require "./test.pl"`, so they only compile
 # from that directory. The caller passes the directory to run from; without it
 # a third of the corpus reports a BEGIN failure that is about @INC, not syntax.
 sub capture {
     my ($flags, $path) = @_;
-    my $cmd = sprintf("perl%s %s -c %s 2>&1", taint(), $flags, quote($path));
+    my $cmd = sprintf("%s%s %s -c %s 2>&1", quote($^X), taint(), $flags, quote($path));
     $cmd = sprintf("cd %s && %s", quote($ENV{ORACLE_CHDIR}), $cmd)
         if $ENV{ORACLE_CHDIR};
     return scalar `$cmd`;
@@ -292,7 +294,7 @@ sub capture_with_end {
         TMPDIR => 1, UNLINK => 1);
     print $out $probe, $src;
     close $out;
-    my $cmd = "perl@{[taint()]} -c @{[quote($tmp)]} 2>&1";
+    my $cmd = "@{[quote($^X)]}@{[taint()]} -c @{[quote($tmp)]} 2>&1";
     $cmd = sprintf("cd %s && %s", quote($ENV{ORACLE_CHDIR}), $cmd)
         if $ENV{ORACLE_CHDIR};
     my $res = scalar `$cmd`;

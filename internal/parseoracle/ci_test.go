@@ -4,9 +4,15 @@
 package parseoracle_test
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -314,12 +320,12 @@ func TestCIWorkflowIsWellFormed(t *testing.T) {
 	// the wrong indent, is caught here rather than on the runner.
 	var sweep map[string]string
 	for _, step := range steps {
-		if strings.Contains(step.Run, "TestRatchetCorpus") {
+		if isSweep(step) {
 			sweep = step.Env
 		}
 	}
 	if sweep == nil {
-		t.Fatal("no step runs TestRatchetCorpus")
+		t.Fatal("no step is the sweep")
 	}
 	for _, key := range []string{"PERL5_CORPUS", "PARSEORACLE_SHIM", timeoutEnv} {
 		if sweep[key] == "" {
@@ -357,7 +363,7 @@ func TestCIReportsSkewBeforeSweeping(t *testing.T) {
 		if strings.Contains(step.Run, "perl -e 'print $]'") {
 			guard = i
 		}
-		if strings.Contains(step.Run, "TestRatchetCorpus") {
+		if isSweep(step) {
 			sweep = i
 		}
 	}
@@ -366,7 +372,7 @@ func TestCIReportsSkewBeforeSweeping(t *testing.T) {
 			"runner would spend the whole sweep before CheckPin said so")
 	}
 	if sweep < 0 {
-		t.Fatal("no step runs TestRatchetCorpus")
+		t.Fatal("no step is the sweep")
 	}
 	if guard > sweep {
 		t.Errorf("the interpreter check is step %d and the sweep is step %d: "+
@@ -512,4 +518,374 @@ func parseFields(out string) map[string]string {
 		}
 	}
 	return fields
+}
+
+// requirePinnedEnv turns perltest.PinnedPerl's skip into a failure. The
+// fidelity workflow sets it on each step that installed the pinned perl
+// and runs tests held to it; ci.yml's 5.42 jobs never set it, so there
+// those tests skip.
+const requirePinnedEnv = "PVM_REQUIRE_PINNED_PERL"
+
+// heldName is the name of parse-fidelity.yml's step that runs every test
+// held to the pinned perl other than the sweep.
+const heldName = "Run the 5.44-held tests"
+
+// TestCIRequiresThePinnedPerl: both steps that run tests held to the
+// pinned perl -- the sweep and the 5.44-held step -- set
+// PVM_REQUIRE_PINNED_PERL, so a held test that cannot find that perl fails
+// there rather than skipping. No ci.yml job sets it: those jobs install
+// 5.42, and a held test must skip there, not fail.
+func TestCIRequiresThePinnedPerl(t *testing.T) {
+	wf := parseWorkflow(t)
+	held := false
+	for _, step := range wf.Jobs["ratchet"].Steps {
+		if step.Name == heldName {
+			held = true
+			if step.Env[requirePinnedEnv] != "1" {
+				t.Errorf("step %q sets %s=%q, want '1'", heldName, requirePinnedEnv, step.Env[requirePinnedEnv])
+			}
+		}
+	}
+	if !held {
+		t.Errorf("%s has no step named %q", workflow, heldName)
+	}
+	if got := sweepStep(t, wf).Env[requirePinnedEnv]; got != "1" {
+		t.Errorf("the sweep step sets %s=%q, want '1'", requirePinnedEnv, got)
+	}
+
+	ci, err := os.ReadFile(repoFile(t, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(uncommented(string(ci)), requirePinnedEnv) {
+		t.Errorf("ci.yml sets %s: its jobs install perl 5.42, so every test held to "+
+			"the pinned perl would fail there instead of skipping", requirePinnedEnv)
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequired: every test function in internal/parse
+// and internal/parseoracle that calls perltest.PinnedPerl is named in the
+// -run pattern of a step that sets PVM_REQUIRE_PINNED_PERL, and that
+// step's package list covers the test's package -- `go test
+// ./internal/parseoracle/ -run X` for an X in internal/parse runs nothing
+// and exits 0. No other function may call PinnedPerl: a helper that does
+// hides the held test behind it. And each REQUIRE step's fail-unless-PASS
+// loop names exactly its -run names, so the two cannot drift.
+func TestEveryPinnedPerlTestIsRequired(t *testing.T) {
+	files := map[string][]byte{}
+	for _, dir := range []string{"internal/parse", "internal/parseoracle"} {
+		paths, err := filepath.Glob(filepath.Join(repoFile(t, dir), "*_test.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range paths {
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			files[filepath.Join(dir, filepath.Base(path))] = src
+		}
+	}
+	if len(files) == 0 {
+		t.Fatal("no test files found to scan")
+	}
+	for _, problem := range pinnedPerlProblems(t, parseWorkflow(t), files) {
+		t.Error(problem)
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequiredRejectsHelperCaller: a test that reaches
+// PinnedPerl only through a helper is invisible to the coverage check, so
+// the helper is flagged.
+func TestEveryPinnedPerlTestIsRequiredRejectsHelperCaller(t *testing.T) {
+	problems := pinnedPerlProblems(t, requireFixtureWorkflow(t), map[string][]byte{
+		"internal/parseoracle/x_test.go": []byte(`package parseoracle_test
+func pinned(t *testing.T) perltest.Perl { return perltest.PinnedPerl(t) }
+func TestHeld(t *testing.T) { _ = pinned(t) }
+`),
+	})
+	if !anyContains(problems, "pinned") {
+		t.Errorf("a helper that calls PinnedPerl was not flagged; got %q", problems)
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequiredRejectsIndirectReferences: PinnedPerl
+// reached through a package-level func literal or a function value hides
+// the test that uses it just as a helper does, and PinnedPerlAt outside
+// givenperl_test.go is a way round the check altogether. Each is flagged.
+func TestEveryPinnedPerlTestIsRequiredRejectsIndirectReferences(t *testing.T) {
+	for name, src := range map[string]string{
+		"func literal": `package parseoracle_test
+var pinned = func(t *testing.T) perltest.Perl { return perltest.PinnedPerl(t) }
+func TestHeldA(t *testing.T) { _ = pinned(t) }
+`,
+		"function value": `package parseoracle_test
+var pp = perltest.PinnedPerl
+func TestHeldC(t *testing.T) { _ = pp(t) }
+`,
+		"PinnedPerlAt": `package parseoracle_test
+func TestHeldB(t *testing.T) { _ = perltest.PinnedPerlAt(t, "testdata/corpus.pin") }
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			problems := pinnedPerlProblems(t, requireFixtureWorkflow(t), map[string][]byte{
+				"internal/parseoracle/x_test.go": []byte(src),
+			})
+			if len(problems) == 0 {
+				t.Errorf("a %s reaching PinnedPerl was not flagged", name)
+			}
+		})
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequiredFlagsUnlistedSweepTest: a held test
+// named in neither REQUIRE step is flagged, even one whose name is a
+// prefix-sharing neighbour of a listed one.
+func TestEveryPinnedPerlTestIsRequiredFlagsUnlistedSweepTest(t *testing.T) {
+	problems := pinnedPerlProblems(t, requireFixtureWorkflow(t), map[string][]byte{
+		"internal/parseoracle/r_test.go": []byte(`package parseoracle_test
+func TestRatchetCorpusSites(t *testing.T) { _ = perltest.PinnedPerl(t) }
+`),
+	})
+	if !anyContains(problems, "TestRatchetCorpusSites") {
+		t.Errorf("a held sweep test in no REQUIRE step was not flagged; got %q", problems)
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequiredChecksThePackage: a held test in
+// internal/parse named only by a step that tests internal/parseoracle
+// never runs, and is flagged.
+func TestEveryPinnedPerlTestIsRequiredChecksThePackage(t *testing.T) {
+	problems := pinnedPerlProblems(t, requireFixtureWorkflow(t), map[string][]byte{
+		"internal/parse/p_test.go": []byte(`package parse
+func TestRatchet(t *testing.T) { _ = perltest.PinnedPerl(t) }
+`),
+	})
+	if !anyContains(problems, "TestRatchet") {
+		t.Errorf("a held internal/parse test run only against internal/parseoracle was not flagged; got %q", problems)
+	}
+}
+
+// TestEveryPinnedPerlTestIsRequiredMatchesTheLoop: a REQUIRE step whose
+// fail-unless-PASS loop names fewer tests than its -run is flagged, since
+// a test it no longer checks can skip unnoticed.
+func TestEveryPinnedPerlTestIsRequiredMatchesTheLoop(t *testing.T) {
+	var wf workflowFile
+	if err := yaml.Unmarshal([]byte(`
+jobs:
+  ratchet:
+    steps:
+    - name: Run the 5.44-held tests
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: |
+        go test ./internal/parseoracle/ -run '^(TestA|TestB)$' -v 2>&1 | tee held.log
+        for t in TestA; do grep -q "^--- PASS: $t (" held.log; done
+`), &wf); err != nil {
+		t.Fatal(err)
+	}
+	if problems := pinnedPerlProblems(t, wf, nil); !anyContains(problems, "TestB") {
+		t.Errorf("a loop that drops TestB from -run was not flagged; got %q", problems)
+	}
+}
+
+// requireFixtureWorkflow is a workflow with the two REQUIRE steps' shape:
+// the sweep naming TestRatchetCorpus and the held step naming TestRatchet,
+// both over internal/parseoracle only.
+func requireFixtureWorkflow(t *testing.T) workflowFile {
+	t.Helper()
+	var wf workflowFile
+	if err := yaml.Unmarshal([]byte(`
+jobs:
+  ratchet:
+    steps:
+    - name: Run the 5.44-held tests
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: |
+        go test ./internal/parseoracle/ -run '^(TestRatchet)$' -v 2>&1 | tee held.log
+        for t in TestRatchet; do grep -q "^--- PASS: $t (" held.log; done
+    - name: Run the fidelity ratchet
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: |
+        go test ./internal/parseoracle/ -run '^(TestRatchetCorpus)$' -parseoracle.corpus -v 2>&1 | tee sweep.log
+        for t in TestRatchetCorpus; do grep -q "^--- PASS: $t (" sweep.log; done
+`), &wf); err != nil {
+		t.Fatal(err)
+	}
+	return wf
+}
+
+func anyContains(list []string, needle string) bool {
+	for _, s := range list {
+		if strings.Contains(s, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	// runPattern is a step's -run, written '^(TestA|TestB)$' so the names
+	// can be read back exactly.
+	runPattern = regexp.MustCompile(`-run[ =]'\^\(([\w|]+)\)\$'`)
+	// loopPattern is a step's fail-unless-PASS loop header.
+	loopPattern = regexp.MustCompile(`for \w+ in ([\w\s\\]+?); do`)
+	// pkgPattern is a package path handed to go test.
+	pkgPattern = regexp.MustCompile(`\./(internal/[\w/]*\w)/?(?:\s|$)`)
+)
+
+// requireStep is a step that sets PVM_REQUIRE_PINNED_PERL, read from its
+// uncommented script.
+type requireStep struct {
+	name      string
+	run, loop []string
+	pkgs      map[string]bool
+}
+
+// requireSteps reads every step in wf that sets PVM_REQUIRE_PINNED_PERL.
+func requireSteps(wf workflowFile) []requireStep {
+	var steps []requireStep
+	for _, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if step.Env[requirePinnedEnv] == "" {
+				continue
+			}
+			body := uncommented(step.Run)
+			s := requireStep{name: step.Name, pkgs: map[string]bool{}}
+			if m := runPattern.FindStringSubmatch(body); m != nil {
+				s.run = strings.Split(m[1], "|")
+			}
+			if m := loopPattern.FindStringSubmatch(body); m != nil {
+				s.loop = strings.Fields(strings.ReplaceAll(m[1], `\`, " "))
+			}
+			for _, m := range pkgPattern.FindAllStringSubmatch(body, -1) {
+				s.pkgs[m[1]] = true
+			}
+			steps = append(steps, s)
+		}
+	}
+	return steps
+}
+
+// pinnedPerlProblems checks files (keyed by repository path) against wf:
+// every Test function that calls PinnedPerl must be named in some REQUIRE
+// step's -run whose package list holds its package, no other function may
+// call PinnedPerl, and each REQUIRE step's loop must name exactly its -run.
+func pinnedPerlProblems(t *testing.T, wf workflowFile, files map[string][]byte) []string {
+	t.Helper()
+	var problems []string
+	steps := requireSteps(wf)
+	if len(steps) == 0 {
+		problems = append(problems, "no step sets "+requirePinnedEnv)
+	}
+	for _, s := range steps {
+		if len(s.run) == 0 {
+			problems = append(problems, fmt.Sprintf("step %q sets %s but has no -run '^(...)$' to read", s.name, requirePinnedEnv))
+		}
+		if !sameNames(s.run, s.loop) {
+			problems = append(problems, fmt.Sprintf("step %q runs %v but its fail-unless-PASS loop checks %v",
+				s.name, s.run, s.loop))
+		}
+	}
+
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	fset := token.NewFileSet()
+	for _, path := range paths {
+		f, err := parser.ParseFile(fset, path, files[path], 0)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", path, err)
+		}
+		pkg := filepath.Dir(path)
+		if filepath.Base(path) != pinnedPerlAtFile && references(f, "PinnedPerlAt") {
+			problems = append(problems, fmt.Sprintf("%s refers to PinnedPerlAt, which only %s may: "+
+				"elsewhere it reaches a pinned perl that no REQUIRE step holds", path, pinnedPerlAtFile))
+		}
+		for _, decl := range f.Decls {
+			if !references(decl, "PinnedPerl") {
+				continue
+			}
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "Test") {
+				problems = append(problems, fmt.Sprintf("%s: %s refers to PinnedPerl, but only a test "+
+					"function may; take a perltest.Perl parameter instead so the test that uses it is "+
+					"visible", path, declName(decl)))
+				continue
+			}
+			name := fn.Name.Name
+			covered := false
+			for _, s := range steps {
+				if s.pkgs[pkg] && containsName(s.run, name) {
+					covered = true
+				}
+			}
+			if !covered {
+				problems = append(problems, fmt.Sprintf("%s: %s calls PinnedPerl, but no step that sets %s "+
+					"names it in -run with ./%s/ in its package list, so CI never requires it to run",
+					path, name, requirePinnedEnv, pkg))
+			}
+		}
+	}
+	return problems
+}
+
+// pinnedPerlAtFile is the one test file that may use PinnedPerlAt: its
+// tests write their own pins, so none is held to the committed one.
+const pinnedPerlAtFile = "givenperl_test.go"
+
+// references reports whether node names the identifier name anywhere: a
+// call, a package selector, a function value, a func literal's body.
+// Matching references rather than calls is what keeps `var pp =
+// perltest.PinnedPerl` from hiding the tests that call pp.
+func references(node ast.Node, name string) bool {
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+// declName names a declaration for a problem message.
+func declName(decl ast.Decl) string {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		return d.Name.Name
+	case *ast.GenDecl:
+		for _, spec := range d.Specs {
+			if v, ok := spec.(*ast.ValueSpec); ok && len(v.Names) > 0 {
+				return v.Names[0].Name
+			}
+		}
+	}
+	return "a declaration"
+}
+
+func containsName(names []string, name string) bool {
+	for _, n := range names {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+// sameNames reports whether a and b hold the same names, in any order.
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, n := range a {
+		if !containsName(b, n) {
+			return false
+		}
+	}
+	return true
 }

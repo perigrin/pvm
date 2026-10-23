@@ -12,19 +12,41 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // shimT locates the built corpus shim, whose t/ is the only directory perl's
-// own tests compile from. Without it the directory-dependent tests have
-// nothing to measure, so they skip rather than fail.
-func shimT(t *testing.T) string {
+// own tests compile from, for the tests that measure with the pinned perl p.
+//
+// $PARSEORACLE_SHIM, which CI sets, is made ready for corpus.pin the way
+// the sweep makes it, rebuilt if it was built for anything else. A shim at
+// $ORACLE_SHIM (default /tmp/oracletree/t) is a local convenience and is
+// never rebuilt: one not stamped for corpus.pin is skipped, because its
+// lib/Config.pm is another perl's and the pinned perl fails on it with
+// "Insecure dependency" or "Perl lib version" rather than measuring. Without
+// a shim the directory-dependent tests have nothing to measure, so they skip
+// rather than fail.
+func shimT(t *testing.T, p perltest.Perl) string {
 	t.Helper()
+	if shim := os.Getenv("PARSEORACLE_SHIM"); shim != "" {
+		readyShim(t, p, shim)
+		return filepath.Join(shim, "t")
+	}
 	dir := os.Getenv("ORACLE_SHIM")
 	if dir == "" {
 		dir = "/tmp/oracletree/t"
 	}
 	if _, err := os.Stat(filepath.Join(dir, "op", "sub.t")); err != nil {
 		t.Skipf("corpus shim absent at %s (see README.md to build it): %v", dir, err)
+	}
+	pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
+	if err != nil {
+		t.Fatalf("ReadPin: %v", err)
+	}
+	if !parseoracle.ShimReady(filepath.Dir(dir), pin) {
+		t.Skipf("the shim at %s is not stamped for corpus.pin (%s, threads %t, revision %s); "+
+			"set PARSEORACLE_SHIM to have it built for the pinned perl",
+			dir, pin.Interpreter, pin.Threads, pin.Revision)
 	}
 	return dir
 }
@@ -54,10 +76,11 @@ func TestAskDecodesPrototype(t *testing.T) {
 // then `require './test.pl'` with @INC cleared, so they compile only from
 // inside the shim's t/. A corpus runner that omits Dir measures nothing.
 func TestAskFileRequiresDir(t *testing.T) {
-	dir := shimT(t)
+	p := perltest.PinnedPerl(t)
+	dir := shimT(t, p)
 
 	with, err := parseoracle.AskFile(context.Background(), "op/sub.t",
-		parseoracle.Options{Dir: dir})
+		parseoracle.Options{Dir: dir, Perl: p.Path})
 	if err != nil {
 		t.Fatalf("AskFile with Dir: %v", err)
 	}
@@ -119,7 +142,8 @@ func TestFactsCarriesStderr(t *testing.T) {
 // Raising the DEFAULT instead would be worse: it would slow every wedged
 // file in the corpus sweep by the same amount, to accommodate one fixture.
 func TestShebangPassthrough(t *testing.T) {
-	dir := shimT(t)
+	p := perltest.PinnedPerl(t)
+	dir := shimT(t, p)
 	const taint = "op/taint.t"
 	if _, err := os.Stat(filepath.Join(dir, taint)); err != nil {
 		t.Skipf("%s absent from shim: %v", taint, err)
@@ -131,7 +155,7 @@ func TestShebangPassthrough(t *testing.T) {
 	const budget = 4 * time.Minute
 
 	off, err := parseoracle.AskFile(context.Background(), taint,
-		parseoracle.Options{Dir: dir, Timeout: budget})
+		parseoracle.Options{Dir: dir, Timeout: budget, Perl: p.Path})
 	if err != nil {
 		t.Fatalf("AskFile without Shebang: %v", err)
 	}
@@ -140,7 +164,7 @@ func TestShebangPassthrough(t *testing.T) {
 	}
 
 	on, err := parseoracle.AskFile(context.Background(), taint,
-		parseoracle.Options{Dir: dir, Shebang: true, Timeout: budget})
+		parseoracle.Options{Dir: dir, Shebang: true, Timeout: budget, Perl: p.Path})
 	if err != nil {
 		t.Fatalf("AskFile with Shebang: %v", err)
 	}
@@ -216,7 +240,8 @@ func TestScriptPathIsPackageRelative(t *testing.T) {
 // machine, so this fails only if the cost approaches the budget it justified
 // -- which is the moment the conclusion stops holding.
 func TestExpensiveFixtureStillFitsItsBudget(t *testing.T) {
-	dir := shimT(t)
+	p := perltest.PinnedPerl(t)
+	dir := shimT(t, p)
 	const taint = "op/taint.t"
 	if _, err := os.Stat(filepath.Join(dir, taint)); err != nil {
 		t.Skipf("%s absent from shim: %v", taint, err)
@@ -224,7 +249,7 @@ func TestExpensiveFixtureStillFitsItsBudget(t *testing.T) {
 
 	start := time.Now()
 	f, err := parseoracle.AskFile(context.Background(), taint,
-		parseoracle.Options{Dir: dir, Shebang: true, Timeout: 4 * time.Minute})
+		parseoracle.Options{Dir: dir, Shebang: true, Timeout: 4 * time.Minute, Perl: p.Path})
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("AskFile: %v", err)
@@ -242,4 +267,35 @@ func TestExpensiveFixtureStillFitsItsBudget(t *testing.T) {
 			elapsed.Round(time.Second), 4*time.Minute)
 	}
 	t.Logf("op/taint.t through the probe: %v", elapsed.Round(time.Millisecond))
+}
+
+// TestShimTRefusesAShimBuiltForAnotherPerl: the directory-dependent tests
+// above measure with the pinned perl, so a shim at $ORACLE_SHIM stamped
+// for another interpreter (or not stamped at all) is skipped, not measured
+// over: its lib/Config.pm belongs to another perl.
+func TestShimTRefusesAShimBuiltForAnotherPerl(t *testing.T) {
+	p := perltest.Perl{} // the stamp check needs no perl
+	shim := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(shim, "t", "op"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"test.pl", "op/sub.t"} {
+		if err := os.WriteFile(filepath.Join(shim, "t", f), []byte("1;\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := parseoracle.WriteShimStamp(shim, parseoracle.Pin{Interpreter: "5.000001", Revision: "deadbeef", Threads: true}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PARSEORACLE_SHIM", "")
+	t.Setenv("ORACLE_SHIM", filepath.Join(shim, "t"))
+
+	var sub *testing.T
+	t.Run("shimT", func(st *testing.T) {
+		sub = st
+		shimT(st, p)
+	})
+	if !sub.Skipped() {
+		t.Error("shimT handed out a shim stamped for perl 5.000001")
+	}
 }
