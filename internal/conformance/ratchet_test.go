@@ -475,7 +475,7 @@ func TestRatchetHeaderAgreesWithItsBody(t *testing.T) {
 // never a stale minimum a later loss could hide under. Raise it to the
 // count the failure prints; lowering it is deleting cases on purpose and
 // says why in the commit.
-const corpusFloor = 261
+const corpusFloor = 263
 
 // TestCorpusHoldsAtLeastItsFloor is the corpus's denominator pin, after
 // TestT2CoreParses's `want 56` in internal/parse.

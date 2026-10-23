@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 261 cases, 261 clean, 0 refusing.
+# 263 cases, 263 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -248,11 +248,13 @@
 - subroutines.md/Calling through a code reference
 - subroutines.md/Four spellings of one call
 - subroutines.md/The ampersand call passes the caller's `@_`
+- subroutines.md/`local` restores on call return, read through a call
 - subroutines.md/`return LIST` returns every element
 - symbol-table.md/`*` is a sigil and an operator, resolved by position
 - symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
 - symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type
 - symbol-table.md/`foreach $pkg (LIST)` aliases a PACKAGE variable and restores it
+- symbol-table.md/`local` on a glob restores on call return
 - taking-references.md/The anonymous array constructor
 - taking-references.md/The backslash in scalar context
 - taking-references.md/The same backslash in list context
