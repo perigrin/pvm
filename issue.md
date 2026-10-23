@@ -1,6 +1,6 @@
 ---
 title: Find the oracle's pinned perl without PATH, and require it in CI
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
@@ -9,16 +9,49 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-69f0-715c-b060-c8f648ddfcd3
 created: 2026-10-23T01:36:02.587272751Z
-updated: 2026-10-23T14:44:59.756155711Z
+updated: 2026-10-23T16:07:41.941594079Z
 sessions:
 - start_sha: 56f5c8f664ddd85de4c34bed78394fd1db5a1778
-  end_sha: ""
-  commits: 0
+  end_sha: da9bbeee88cf17f7b6e69a97e2af4e022417b270
+  commits: 3
   started_at: 2026-10-23T14:44:59.756155711Z
+  ended_at: 2026-10-23T16:07:41.941594079Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T14:44:59.756155711Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T16:07:41.941594079Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/07-conformance.md
+- internal/parseoracle/README.md
+- internal/parseoracle/cache.go
+- internal/parseoracle/cache_test.go
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/compare_facts.go
+- internal/parseoracle/corpus.go
+- internal/parseoracle/corpus_test.go
+- internal/parseoracle/findings.go
+- internal/parseoracle/gate_test.go
+- internal/parseoracle/givenperl_test.go
+- internal/parseoracle/goparser_test.go
+- internal/parseoracle/oracle.go
+- internal/parseoracle/oracle_test.go
+- internal/parseoracle/ratchet.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/receipt_test.go
+- internal/parseoracle/run.go
+- internal/parseoracle/run_test.go
+- internal/parseoracle/shimstamp_test.go
+- internal/parseoracle/sites_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/perl_subject.pl
+- internal/parseoracle/verdict.go
+- internal/perltest/perltest.go
+- internal/perltest/pinned.go
+- internal/perltest/pinned_test.go
 ---
 
 ## Context
