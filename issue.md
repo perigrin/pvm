@@ -1,6 +1,6 @@
 ---
 title: Re-pin the parse oracle to perl 5.44.0 and record the starting counts
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -13,16 +13,38 @@ blocks:
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 - 01a16602-5e5e-73cc-a210-0341ea517914
 created: 2026-10-23T01:08:31.856618478Z
-updated: 2026-10-23T16:23:37.80059103Z
+updated: 2026-10-23T17:29:53.125272284Z
 sessions:
 - start_sha: da9bbeee88cf17f7b6e69a97e2af4e022417b270
-  end_sha: ""
-  commits: 0
+  end_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
+  commits: 1
   started_at: 2026-10-23T16:23:37.80059103Z
+  ended_at: 2026-10-23T17:29:53.125272284Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T16:23:37.80059103Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:29:53.125272284Z
+observed_paths:
+- .github/scripts/parseoracle-pin.sh
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/compiledset_test.go
+- internal/parse/pin_test.go
+- internal/parseoracle/README.md
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/cvwalk_test.go
+- internal/parseoracle/m3start_test.go
+- internal/parseoracle/testdata/corpus.pin
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/compiled.txt
+- internal/parseoracle/testdata/ratchet/fixture.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/perltest/testdata/perl542.pin
 ---
 
 ## Context
