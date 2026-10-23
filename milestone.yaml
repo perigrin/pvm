@@ -109,3 +109,9 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - If any case proves unfixable, it is escalated to perigrin for a decision. It is not parked.
   - Start counts at 054e75e6: 178/347 M3-dir files faithful; 342/619 across all of perl.git t/.
 - The goal's "falls from 389" is judged against the post-re-pin `rv2hv_wider` (round-1 ruling). The final rv2hv wider count must be below that value as well as below the intermediate anchors.
+## Ruling from chain-review round 5 (perigrin, 2026-10-23)
+
+- **`Faithful` forgives exactly three differences, and the set is closed:** call parens, a block's last `;`, and extra paren nesting.
+  - TestFaithfulForgivenessIsClosed enumerates them, each with a perl-measured fixture. Any other forgiveness fails the test.
+  - Every other spelling difference is recorded in the tree and written back by canon, as `Paren` is. That covers heredoc form, sub-less special subs (`DESTROY {`) and deref braces (`@{$x}` vs `@$x`).
+  - A new forgiveness rule needs perigrin's ruling, with its perl measurement. It is never added by an issue.
