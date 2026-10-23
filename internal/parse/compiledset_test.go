@@ -19,11 +19,36 @@ var ratchetDir = filepath.Join("..", "parseoracle", "testdata", "ratchet")
 // file order. It is the one reader of that file.
 func readCompiledSet(t *testing.T) []string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(ratchetDir, "compiled.txt"))
+	paths, err := compiledSetAt(filepath.Join(ratchetDir, "compiled.txt"))
 	if err != nil {
-		t.Fatalf("reading the compiled set: %v", err)
+		t.Fatal(err)
 	}
-	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	return paths
+}
+
+// compiledSetAt is readCompiledSet's reader, for a compiled set at any path.
+// A missing or empty file, a blank line, a line with a space in it and a
+// repeated path are each an error: read as a set, any of them would shrink
+// or pad the denominator, and an empty one would pass 0/0.
+func compiledSetAt(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading the compiled set: %w", err)
+	}
+	paths := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	seen := map[string]bool{}
+	for i, p := range paths {
+		switch {
+		case p == "":
+			return nil, fmt.Errorf("%s line %d is blank", path, i+1)
+		case strings.ContainsAny(p, " \t\r"):
+			return nil, fmt.Errorf("%s line %d, %q, is not one path", path, i+1, p)
+		case seen[p]:
+			return nil, fmt.Errorf("%s lists %s twice", path, p)
+		}
+		seen[p] = true
+	}
+	return paths, nil
 }
 
 // m3StartCount is the integer m3start.txt records under key.
@@ -68,18 +93,11 @@ func m3StartValue(path, key string) (int, error) {
 
 // TestCompiledSetExcludesPerlRejects: no file perl.git's ratchet treats as
 // rejected is in the compiled set, even where `perl -c` exits 0 on it; the
-// set has no blank or duplicate line; and its size is m3start's compiled.
+// set reads (no blank or duplicate line; see compiledSetAt); and its size is
+// m3start's compiled.
 func TestCompiledSetExcludesPerlRejects(t *testing.T) {
 	paths := readCompiledSet(t)
-	seen := map[string]bool{}
-	for i, path := range paths {
-		switch {
-		case strings.TrimSpace(path) == "":
-			t.Errorf("compiled.txt line %d is blank", i+1)
-		case seen[path]:
-			t.Errorf("compiled.txt lists %s twice", path)
-		}
-		seen[path] = true
+	for _, path := range paths {
 		if _, rejected := perlRejects[path]; rejected {
 			t.Errorf("compiled.txt lists %s, which perlRejects excludes", path)
 		}
