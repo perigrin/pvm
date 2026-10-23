@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T13:55:21.715430374Z
+updated: 2026-10-23T22:37:36.632777895Z
 ---
 
 ## Context
@@ -36,6 +36,10 @@ Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from th
 - [ ] TestNamedHashRv2hvTableMatchesPerl finds perl through `perltest.PinnedPerl`; add it to parse-fidelity.yml's 5.44-held step (`PVM_REQUIRE_PINNED_PERL=1`).
 - [ ] m3start.txt is append-only: read `rv2hv_wider_after_arrow` and `rv2hv_wider`, never edit or reorder an existing line.
 - [ ] Run `make test`, then commit.
+
+**Carried from 30a8's review (2026-10-23).** Two items left in sites.go's key classification:
+1. A surplus: `$h->{${ k }}`, a braced name with spaces, decides 1 where perl 5.44 builds 0, because isSimpleKey's `${name}` branch does not trim whitespace. The oracle cannot see it, but it is a wrong count. Fix it with a perl-judged test.
+2. Literal folds that still hedge although perl folds each to 0 rv2hv: `"a" x 2`, `1 << 2`, `2 ** 3`, `lc "A"`, `length "abc"`, `join ",",1,2`, `~0` and `!1`. They are safe as wider. Decide them only where certain, since each one decided lowers the rv2hv wider count goal 7 tracks.
 
 ## Acceptance criteria
 
