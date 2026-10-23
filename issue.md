@@ -1,19 +1,36 @@
 ---
 title: The tier-02 adjacency case omits shift, pop and splice
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-10-23T15:43:24.426165882Z
-updated: 2026-10-23T19:10:22.514700061Z
+updated: 2026-10-23T19:35:22.146488826Z
 sessions:
 - start_sha: 9c3e164290f60fe6c5c1625dbd8e15a2f8a4dc3f
-  end_sha: ""
-  commits: 0
+  end_sha: 41ca9f14c8e85a8ad6fce97e8171f817ef9702a7
+  commits: 1
   started_at: 2026-10-23T19:10:22.514700061Z
+  ended_at: 2026-10-23T19:35:22.146488826Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T19:10:22.514700061Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:35:22.146488826Z
+observed_paths:
+- conformance/01_literals/README.md
+- conformance/11_oo/README.md
+- conformance/mdtest/adjacency-01_literals.md
+- conformance/mdtest/adjacency-02_variables.md
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/adjacency-07_subroutines.md
+- conformance/mdtest/adjacency-10_io.md
+- conformance/mdtest/adjacency-11_oo.md
+- conformance/mdtest/adjacency-13_opaque.md
+- internal/conformance/adjacency_test.go
+- internal/conformance/tier02_test.go
+- internal/conformance/tier04_test.go
 ---
 
 ## Context
