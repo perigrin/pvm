@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-23T07:05:56.160538915Z
+updated: 2026-10-23T08:20:59.159446193Z
 ---
 
 ## Context
@@ -24,10 +24,19 @@ Once the context-changing dropped parens have been fixed as tree defects, the re
 
 `Faithful(n *Node, src []byte)` takes a tree, so a test that says "source A against canon B is unfaithful" needs either a hand-built tree or a comparator over token sequences. This issue splits that comparator out of `Faithful` as `faithfulTokens(canon []CanonToken, src []string) bool`, with `Faithful` calling it. The negatives here and in the triage issues that follow use it. **How it tells call-argument parens from a Paren pair (F6, chain-review round 2):** the source side cannot tell them apart from text alone, so canon tags its own tokens by role as it emits them. A `(`/`)` is `paren-node` when canon wrote it for a node with `Paren` set, `call-args` when it opened a call's argument list (including a parenless call's acquired parens), and `binding` when binding power required it. A source paren pair is forgiven as extra nesting ONLY when it sits directly inside a source pair aligned with a canon `paren-node` pair, around the same tokens. A pair aligned with `call-args` or `binding` never makes an inner pair forgivable. So source `print((1))+2` against canon `print(1)+2` stays unfaithful: the outer pair is `call-args`, and `1` has no Paren. Source `print ((1))+2` against canon `print((1))+2` is faithful as written, and `ok(((($y eq "x"))))` against canon `ok(($y eq "x"))` is forgiven down to the one `paren-node` pair.
 
+**perigrin's ruling (2026-10-23, chain-review round 5): `Faithful` forgives exactly three differences, and the set is closed:** call parens, a block's last `;`, and extra paren nesting. `faithfulTokens` reports which rule forgave each difference (`call-parens`, `last-semicolon`, `extra-nesting`). TestFaithfulForgivenessIsClosed enumerates those three, each with a perl-measured fixture, and fails when any difference is forgiven by an unlisted rule. Heredoc form, sub-less special subs and block-dereference braces get no forgiveness: the tree records them and canon writes them, as it does `Paren`. A new rule needs perigrin's ruling with its perl measurement, recorded in the test's comment; no issue adds one.
+
+**What fidelity.go forgives today (read 2026-10-23 at 054e75e6).** It has exactly the two rules its comment names:
+1. call parens, keyed on `(` right after a name in the emission, with the arguments matched unparenthesised;
+2. a block's last `;`, before the emission's `}`.
+
+Rule 2 is also applied inside a forgiven call paren (`matchForgivingSemicolons`), for a block argument such as `print({$fh;} "x")`. That is the same rule one level down, not a fourth. Separately, `significantTokens` drops Whitespace, Comment, Pod and DataSection tokens before comparing. That is token selection, not a forgiven difference, but a skip added there would bypass the rule list. So TestFaithfulForgivenessIsClosed also pins the dropped token kinds to exactly those four.
+
 ## Steps
 
 - [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Concise` on `my $z = ($x)` (with `my $x`; for a package `$x`, the `P` sits on a nulled `ex-rv2sv sKP`), on `ok(($y eq "x"))` vs `ok((($y eq "x")))`, and on `print ((1))+2` vs `print (1)+2`. Quote the output in the tests' comments.
-- [ ] RED/GREEN: write TestFaithfulTokens, then split `faithfulTokens` out of `Faithful` with no change in behaviour, giving canon's emitted tokens their role tags. TestCanonFidelityRatchet must not move.
+- [ ] RED/GREEN: write TestFaithfulTokens, then split `faithfulTokens` out of `Faithful` with no change in behaviour, giving canon's emitted tokens their role tags. `faithfulTokens` returns, with its verdict, the rule that forgave each difference.
+- [ ] RED/GREEN: write TestFaithfulForgivenessIsClosed. It holds one perl-measured fixture per rule (call parens: `print "x"` against `print("x")`; last `;`: `sub f { 1 }` against `sub f { 1; }`, measured `11`; extra nesting: `ok((($y eq "x")))` against `ok(($y eq "x"))`, the same `seq sKPM`), checks that each fixture is forgiven by its named rule, fails on any rule name outside those three, and pins `significantTokens`' dropped kinds to Whitespace, Comment, Pod and DataSection. TestCanonFidelityRatchet must not move.
 - [ ] RED: write TestCanonWritesParenOnce in canon_test.go. A `Paren` node on a non-`List` (`(shift)->foo`, `my $z = ($x)`, `ok(($y eq "x"))`) re-emits with exactly one pair, and `((x))` re-emits as `(x)`. Run it and watch it fail.
 - [ ] GREEN: make canon write a `Paren` node's parens once. Run it and watch it pass.
 - [ ] RED: write TestFaithfulForgivesOnlyExtraNesting in fidelity_test.go. `((x))` in the source against canon's `(x)` is faithful, and so is `(((x)))`. A source pair canon does not write at all (no `Paren` on the node) is still a difference. Run it and watch it fail.
@@ -52,6 +61,7 @@ Once the context-changing dropped parens have been fixed as tree defects, the re
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 - [ ] Regression guard: the forgiven quotient stays narrow (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
 - [ ] The measured cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/canon-paren-once.txt`)
+- [ ] Faithful forgives exactly the three ruled differences, each shown by a perl-measured fixture, and nothing else (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 
 ### Negative Scenarios
 
