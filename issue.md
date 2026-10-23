@@ -17,7 +17,7 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-10-23T19:18:29.324390838Z
+updated: 2026-10-23T23:40:17.365532049Z
 sessions:
 - start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
   end_sha: 9750d03b51c601e083873e26c01cb22054bb120b
@@ -78,9 +78,9 @@ the wrong tree to compare against. The token assertion is the only check
 that catches it, which is the measured argument for the whole token layer
 and belongs in this tier's README.
 
-Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/01_literals` -> `TestCorpus` over the tier-01 topics (adjacency-01_literals.md, numeric-point.md, numeric-radix.md, strings.md, vstrings.md)). Left unchanged: `TestTierLiteralsAdjacency`, `TestTierNumberingRegenerates`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/01_literals` -> `TestCorpus` over the tier-01 topics (adjacency-01_literals.md, numeric-point.md, numeric-radix.md, strings.md, vstrings.md)). Left unchanged here: `TestTierLiteralsAdjacency`, `TestTierNumberingRegenerates`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierLiteralsAdjacency` -> `TestAdjacencyCoversItsTier/01_literals`; `TestTierNumberingRegenerates` -> `TestEveryTierDeclaresFileOrder`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierLiteralsAdjacency` -> `TestAdjacencyCoversItsTier/01_literals`; `TestTierNumberingRegenerates` -> `TestEveryTierDeclaresFileOrder`. These commands pass once branch ccx/adj merges.
 
 Obsolete by perigrin's ruling 2026-10-23: the criterion that files are renumbered from 01 with no gap asserted a property of numbered `.t` files. The corpus is topic files now and topics carry no numbers, so each tier instead declares its ordering convention under `## FILE ORDER` in its README, which `TestEveryTierDeclaresFileOrder` checks.
 
