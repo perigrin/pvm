@@ -9,7 +9,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-23T01:35:43.614447101Z
+updated: 2026-10-23T01:56:19.269961623Z
 ---
 
 ## Context
@@ -18,7 +18,7 @@ updated: 2026-10-23T01:35:43.614447101Z
 - commands: `go test ./internal/parse/ -run '^TestFaithfulStatementBoundaries$' -count=1 -v`
 - entrypoints: `internal/parse/fidelity.go` (`matchForgivingSemicolons`), `internal/parse/canon.go` (block and statement emission)
 
-These are the `stmt-boundary` rows of faithful_defects.txt, where canon and source disagree on a `;`, a `}` or a block dereference's braces rather than on a paren. At 2026-10-22, examples were `;`/`}` placement (op/closure.t, op/goto.t), a source `{` where canon writes the variable (block deref `%{$a}` vs `%$a`: op/kvaslice.t, op/sort.t, uni/fold.t), and a token-count mismatch (318 vs 369: lib/universal.t). Each is reduced to a minimal fixture and judged against perl. It is then fixed, or kept in faithful_defects.txt with its line and the perl measurement that explains it. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence after the OPf_PARENS issue, which owns the `dropped-paren` rows (OPf_PARENS, then heredoc/sub-less, then statement-boundary, then operator, then term), because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet.
+These are the `stmt-boundary` rows of faithful_defects.txt, where canon and source disagree on a `;`, a `}` or a block dereference's braces rather than on a paren. At 2026-10-22, examples were `;`/`}` placement (op/closure.t, op/goto.t), a source `{` where canon writes the variable (block deref `%{$a}` vs `%$a`: op/kvaslice.t, op/sort.t, uni/fold.t), and a token-count mismatch (318 vs 369: lib/universal.t). Each is reduced to a minimal fixture and judged against perl. It is then fixed, or kept in faithful_defects.txt with its line and the perl measurement that explains it. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence after the OPf_PARENS issue, which owns the `dropped-paren` rows (OPf_PARENS, then heredoc/sub-less, then statement-boundary, then operator, then term), because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet. **Why the sequence stays (A23, chain-review round 3):** the shared-generated-files rule lets parallel branches regenerate faithful_defects.txt and the ratchets. It does not cover canon.go, fidelity.go and fidelity_test.go, which are hand-written and edited by every one of these issues. Running them in sequence also gives 5f77's handover rule a defined order: a fix that moves a row into a class whose owner has closed is handled by the issue that moved it, which only works if owners close in a known order. The cost is a longer critical chain, accepted over hand-merging four sets of canon/fidelity changes.
 
 ## Steps
 
