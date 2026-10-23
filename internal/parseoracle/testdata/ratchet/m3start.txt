@@ -23,3 +23,9 @@ faithful_start_m3 = 178
 # recorded for the docs; the floor it is held to is the fixed 80%.
 rv2hv_wider = 396
 m3_exact_pct = 89.51
+#
+# rv2hv_wider_after_magic is sites.txt's `total all rv2hv wider` once the
+# oracle answers op/magic.t: rv2hv_wider plus op/magic.t's 20 wider rv2hv
+# sites, which had counted as no-answer. The arrow-read fix measures its
+# fall from here; rv2hv_wider stays as the pin recorded it.
+rv2hv_wider_after_magic = 416
