@@ -226,6 +226,12 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 		{`print("x");`, `print ( "x" ) ;`},
 		// Nor is a grouping canon writes from binding power.
 		{`(1 + 2) * 3;`, `( 1 + 2 ) * 3 ;`},
+		// A heredoc whose statement runs on past the opener's line is split
+		// around its body, and the marks on each side must survive the split.
+		{"my ($s) = first(<<END, ($u)) eq\nhello\nEND\nq(hello\n);\n",
+			"my *( $s *) = first ( <<END , *( $u *) ) eq q(hello\nhello\nEND\n) ;"},
+		{"my $s = first(<<END, 'u') eq\nhello\nEND\nq(hello\n) . ($x);\n",
+			"my $s = first ( <<END , 'u' ) eq q(hello\nhello\nEND\n) . *( $x *) ;"},
 	} {
 		var got []string
 		for _, tok := range parse.CanonTokens(parse.Parse([]byte(tc.src)), []byte(tc.src)) {
