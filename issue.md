@@ -1,6 +1,6 @@
 ---
 title: Report a ->{...} hash read's rv2hv exactly when perl keeps it out of multideref
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T13:55:21.806578555Z
+updated: 2026-10-23T20:56:12.815492387Z
+sessions:
+- start_sha: dc4eedf851417d8140ce674c986b642d4def4129
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T20:56:12.815492387Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T20:56:12.815492387Z
 ---
 
 ## Context
