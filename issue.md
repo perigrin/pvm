@@ -15,7 +15,7 @@ blocked_by:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-23T01:09:13.618965292Z
+updated: 2026-10-23T01:11:09.259998178Z
 ---
 
 ## Context
@@ -58,9 +58,9 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 - [ ] Regression guard: T2 round-trips losslessly (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/lexer/ -run '^TestT2CoreRoundTrips$' -count=1 -v | grep -q '^--- PASS: TestT2CoreRoundTrips'`)
 - [ ] Regression guard: the parse corpus ratchet holds (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseRatchet$' -count=1 -v | grep -q '^--- PASS: TestParseRatchet'`)
 - [ ] Regression guard: the conformance corpus ratchet holds (`go test ./internal/conformance/ -run '^TestCorpusRatchet$' -count=1 -v | grep -q '^--- PASS: TestCorpusRatchet'`)
-- [ ] Regression guard: the exact-match floor holds over T2 at the 5.44.0 pin (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
+- [ ] Regression guard: the exact-match floor holds over T2 at the 5.44.0 pin (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim go test ./internal/parseoracle/ -run '^TestGoParserExactFloor$' -count=1 -v | grep -q '^--- PASS: TestGoParserExactFloor'`)
 - [ ] Regression guard: inference precision stays at or above 65/76 (`go test ./internal/infer/ -run '^TestInferencePrecision$' -count=1 -v | grep -q '^--- PASS: TestInferencePrecision'`)
-- [ ] Regression guard: every committed perl-judged probe still holds (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestM3ProbesHeldToPerl'`)
+- [ ] Regression guard: every committed perl-judged probe still holds (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestM3ProbesHeldToPerl'`)
 - [ ] CI's main workflow is green on this branch's latest run (`sh -c 'gh run list --workflow ci.yml --branch "$(git rev-parse --abbrev-ref HEAD)" -L 1 --json conclusion -q ".[0].conclusion" | grep -qx success'`)
 - [ ] CI's parse-fidelity workflow is green on this branch's latest run (`sh -c 'gh run list --workflow parse-fidelity.yml --branch "$(git rev-parse --abbrev-ref HEAD)" -L 1 --json conclusion -q ".[0].conclusion" | grep -qx success'`)
 
