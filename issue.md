@@ -1,19 +1,25 @@
 ---
 title: lintOps reads Concise's rendered text, so the op budget cannot see a flags-carried distinction
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T14:14:49.420353566Z
-updated: 2026-10-23T14:45:39.887770686Z
+updated: 2026-10-23T14:59:57.897737969Z
 sessions:
 - start_sha: 054e75e6f0548ae9b596ac0d16dadd06e0d100a9
-  end_sha: ""
-  commits: 0
+  end_sha: 1580f66972e69f3b2744df766d2961e3c5721ea0
+  commits: 1
   started_at: 2026-10-23T14:45:39.887770686Z
+  ended_at: 2026-10-23T14:59:57.897737969Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T14:45:39.887770686Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T14:59:57.897737969Z
+observed_paths:
+- internal/conformance/lint.go
 ---
 
 `lintOps` reads `B::Concise`'s RENDERED TEXT, so the op budget cannot see any
