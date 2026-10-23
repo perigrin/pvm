@@ -1,6 +1,6 @@
 ---
 title: Classify dropped source parens by position, then write a Paren node's parens once
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,44 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-23T19:40:37.09839598Z
+updated: 2026-10-23T20:54:41.349919705Z
 sessions:
 - start_sha: 4af1670f0c4f49aef69888f726ce18e3944ac43d
-  end_sha: ""
-  commits: 0
+  end_sha: dc4eedf851417d8140ce674c986b642d4def4129
+  commits: 4
   started_at: 2026-10-23T19:40:37.09839598Z
+  ended_at: 2026-10-23T20:54:41.349919705Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T19:40:37.09839598Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T20:54:41.349919705Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/00-findings.md
+- internal/lexer/expect_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/lexer/sigheads_test.go
+- internal/lower/ops.go
+- internal/parse/canon.go
+- internal/parse/decl.go
+- internal/parse/export_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/parenpos_test.go
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parseoracle/magic_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Classify dropped source parens by position, and fix the context-changing ones as tree defects". Writing a Paren node's parens once moved to 01a1664d-75d4 in chain-review round 1 (P6).
