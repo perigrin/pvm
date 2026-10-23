@@ -1,6 +1,6 @@
 ---
 title: Resolve a named hash's declaring scope and whether state is enabled
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-23T01:08:36.424056648Z
-updated: 2026-10-23T12:55:50.497439081Z
+updated: 2026-10-23T18:03:32.92604789Z
+sessions:
+- start_sha: 5b88c65c7bdc2f2969d00476bef99270f1695b3c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T18:03:32.92604789Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T18:03:32.92604789Z
 ---
 
 ## Context
