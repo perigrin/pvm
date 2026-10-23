@@ -150,9 +150,12 @@ calls, then hashes — and be measured on what it has.
 
 **Exit status is not a verdict.** Unlike `perl -c`, a subject does not exit
 non-zero to say "not Perl"; it says `"ok": false`. A non-zero exit, a timeout,
-non-JSON output, output over 16 MiB, or a document without `ok` is a runner
-error: the file leaves the denominator, and the subject's stderr is repeated
-in the report so the cause is readable. On a timeout the subject's whole
+non-JSON output, output over 16 MiB, or a document without `ok` is a subject
+error: perl answered and the subject did not, so the file stays in the
+denominator as a whole-file `no-answer`, every one of perl's marker sites
+counts as `no-answer`, and the file is named under "subject error files:" with
+the subject's stderr repeated so the cause is readable. An oracle-side failure
+(perl, the shim, the cache) is a runner error and leaves the denominator. On a timeout the subject's whole
 process group is killed, so a shell wrapper that forks its real work does not
 leak it.
 
