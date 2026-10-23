@@ -268,11 +268,50 @@ func unlistedRules(compare comparator, pairs [][2]string) []string {
 	return out
 }
 
+// unreplayed reports whether undoing each recorded forgiveness in canon
+// fails to give src exactly, and how: a last-semicolon drops its `;`, a
+// call-parens drops its `(` and the `)` that closes it. A difference
+// faithfulTokens skips without recording one leaves a token behind here.
+func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgiveness) string {
+	drop := map[int]bool{}
+	for _, f := range forgiven {
+		drop[f.CanonIndex] = true
+		if f.Rule != "call-parens" {
+			continue
+		}
+		depth := 0
+		for i := f.CanonIndex; i < len(canon); i++ {
+			switch canon[i].Text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+			}
+			if depth == 0 {
+				drop[i] = true
+				break
+			}
+		}
+	}
+	var left []string
+	for i, c := range canon {
+		if !drop[i] {
+			left = append(left, c.Text)
+		}
+	}
+	if slices.Equal(left, src) {
+		return ""
+	}
+	return fmt.Sprintf("canon with its forgivenesses undone is %q, the source is %q", left, src)
+}
+
 // TestFaithfulForgivenessIsClosed: faithfulTokens forgives a difference by
 // the listed rules and no other. Each rule's fixture is forgiven by that
 // rule alone and measured equivalent by perl; the fixtures, the
-// TestFaithfulTokens cases and every T1 file report no unlisted rule; and
-// the token kinds dropped before comparing are exactly the trivia.
+// TestFaithfulTokens cases and every T1 file report no unlisted rule; on
+// every faithful verdict, undoing the recorded forgivenesses gives the
+// source exactly, so no difference was forgiven unrecorded; and the token
+// kinds dropped before comparing are exactly the trivia.
 func TestFaithfulForgivenessIsClosed(t *testing.T) {
 	var pairs [][2]string
 	for rule, fx := range forgivenRules {
@@ -289,6 +328,26 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 	for _, p := range unlistedRules(parse.FaithfulTokens, pairs) {
 		t.Errorf("forgiven by a rule forgivenRules does not list: %s", p)
 	}
+	// Each pair as it is, and with one stray token inserted anywhere in its
+	// canon: a skip that fires only on a difference the corpus never shows
+	// is still caught, because the stray token survives the replay.
+	stray := []string{"+", "-", "!", "\\", "(", ")", "{", "}", "[", "]", ";", ",", "=>"}
+	for _, p := range pairs {
+		src, canon := sigTokens(p[0]), asCanon(sigTokens(p[1]))
+		variants := [][]parse.CanonToken{canon}
+		for i := 0; i <= len(canon); i++ {
+			for _, tok := range stray {
+				variants = append(variants, slices.Insert(slices.Clone(canon), i, parse.CanonToken{Text: tok}))
+			}
+		}
+		for _, c := range variants {
+			if ok, forgiven, _ := parse.FaithfulTokens(src, c); ok {
+				if why := unreplayed(src, c, forgiven); why != "" {
+					t.Errorf("%q: %s", p[0], why)
+				}
+			}
+		}
+	}
 
 	// Every T1 file, against its own parse's canon. A subtest, so a machine
 	// without the corpus skips this half alone.
@@ -299,11 +358,18 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			_, forgiven, _ := parse.FaithfulTokens(sigTokens(string(src)), parse.CanonTokens(parse.Parse(src), src))
+			want, canon := sigTokens(string(src)), parse.CanonTokens(parse.Parse(src), src)
+			ok, forgiven, _ := parse.FaithfulTokens(want, canon)
 			for _, f := range forgiven {
-				if _, ok := forgivenRules[f.Rule]; !ok {
+				if _, listed := forgivenRules[f.Rule]; !listed {
 					t.Errorf("%s: forgiven by a rule forgivenRules does not list: %s", rel, f.Rule)
 				}
+			}
+			if !ok {
+				continue
+			}
+			if why := unreplayed(want, canon, forgiven); why != "" {
+				t.Errorf("%s: %s", rel, why)
 			}
 		}
 	})
@@ -336,4 +402,66 @@ func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
 	if want := []string{`invented ("print \"x\";")`}; !slices.Equal(got, want) {
 		t.Errorf("unlistedRules = %q, want %q", got, want)
 	}
+}
+
+// TestFaithfulTokensReportsForgivenessOnFailure: a rule that fired before
+// the mismatch is reported with the failing verdict, so the closed-set
+// check sees it on unfaithful files too.
+func TestFaithfulTokensReportsForgivenessOnFailure(t *testing.T) {
+	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`print "x"; 1 + 2;`), asCanon(sigTokens(`print("x"); 3;`)))
+	if ok || !slices.Equal(ruleNames(forgiven), []string{"call-parens"}) {
+		t.Errorf("got %v forgiven by %v, want false forgiven by [call-parens]", ok, ruleNames(forgiven))
+	}
+}
+
+// TestCanonMarksEveryParenNodePair: over T1, canon marks one pair for each
+// parenthesised List and each parenthesised Term it writes. A nested
+// emission copied into its parent without its marks -- WriteString where
+// writeFrom belongs -- loses pairs silently, and this count is what sees it.
+func TestCanonMarksEveryParenNodePair(t *testing.T) {
+	dir, files := t1Files(t)
+	for _, rel := range files {
+		src, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			continue
+		}
+		root := parse.Parse(src)
+		marked := 0
+		for _, tok := range parse.CanonTokens(root, src) {
+			if tok.ParenNode && tok.Text == "(" {
+				marked++
+			}
+		}
+		if want := parenNodes(root, src); marked != want {
+			t.Errorf("%s: canon marks %d pairs, the tree has %d parenthesised Lists and Terms", rel, marked, want)
+		}
+	}
+}
+
+// parenNodes counts the parenthesised Lists canon emits under n, and the
+// parenthesised Terms whose source text is wrapped in their parens. It does
+// not look inside a node canon writes as its source text rather than
+// emitting its children: an Unknown, or an Index, Binary or Ternary short
+// of its children -- `}=>->join->()()` reads the trailing `()` as an Index
+// holding only the empty List.
+func parenNodes(n *parse.Node, src []byte) int {
+	switch {
+	case n.Kind == parse.Unknown,
+		n.Kind == parse.Index && len(n.Children) != 2,
+		n.Kind == parse.Binary && len(n.Children) != 2,
+		n.Kind == parse.Ternary && len(n.Children) != 3:
+		return 0
+	}
+	count := 0
+	if n.Paren {
+		text := n.SourceText(src)
+		if n.Kind == parse.List ||
+			n.Kind == parse.Term && strings.HasPrefix(text, "(") && strings.HasSuffix(text, ")") {
+			count++
+		}
+	}
+	for _, c := range n.Children {
+		count += parenNodes(c, src)
+	}
+	return count
 }

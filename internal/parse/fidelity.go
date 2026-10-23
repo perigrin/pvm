@@ -57,11 +57,13 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 
 // CanonToken is one significant token of canon's emission.
 //
-// ParenNode marks a `(` or `)` canon wrote because a node's Paren flag is
-// set: a parenthesised List's own pair, or the outermost pair of a
-// parenthesised Term, which is written as its source text. Every other
-// paren -- a call's argument list, a grouping binding power demands -- is
-// unmarked.
+// ParenNode marks a `(` or `)` canon wrote on one of two paths: a
+// parenthesised List's own pair, and the outermost pair of a parenthesised
+// Term, which is written as its source text. Every other paren is unmarked
+// -- a call's argument list, a grouping binding power demands, and two
+// paths that also write a pair from a node's Paren flag, left for the
+// Paren-once issue (01a1664d): emitWraps's pair for a Paren node with a
+// TrailingComma, `(A,)/0`, and the `->(` argument pair, `$f->($a+1)`.
 type CanonToken struct {
 	Text      string
 	ParenNode bool
@@ -84,7 +86,8 @@ const (
 
 // faithfulTokens is Faithful over token sequences: the source's significant
 // tokens against canon's. It reports each difference it forgave, with the
-// rule that forgave it.
+// rule that forgave it, on a failing verdict as well: the ones it forgave
+// before the difference it could not.
 func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, string) {
 	got := make([]string, len(canon))
 	for i, c := range canon {
@@ -118,7 +121,7 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 		if got[g] == "(" && g > 0 && isName(got[g-1]) {
 			skip, ok := matchParen(got, g)
 			if !ok {
-				return false, nil, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
+				return false, forgiven, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
 			}
 			// The source must contain the same arguments, unparenthesised.
 			// A block ARGUMENT inside those parens may have acquired its own
@@ -134,10 +137,10 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 				continue
 			}
 		}
-		return false, nil, fmt.Sprintf("token %d: source has %q, canon has %q", w, want[w], got[g])
+		return false, forgiven, fmt.Sprintf("token %d: source has %q, canon has %q", w, want[w], got[g])
 	}
 	if w != len(want) || g != len(got) {
-		return false, nil, fmt.Sprintf("source has %d significant tokens, canon has %d "+
+		return false, forgiven, fmt.Sprintf("source has %d significant tokens, canon has %d "+
 			"(matched %d and %d)", len(want), len(got), w, g)
 	}
 	return true, forgiven, ""
