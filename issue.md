@@ -17,7 +17,7 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-10-23T17:09:33.036561666Z
+updated: 2026-10-23T19:18:29.324390838Z
 sessions:
 - start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
   end_sha: 9750d03b51c601e083873e26c01cb22054bb120b
@@ -80,14 +80,18 @@ and belongs in this tier's README.
 
 Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/01_literals` -> `TestCorpus` over the tier-01 topics (adjacency-01_literals.md, numeric-point.md, numeric-radix.md, strings.md, vstrings.md)). Left unchanged: `TestTierLiteralsAdjacency`, `TestTierNumberingRegenerates`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierLiteralsAdjacency` -> `TestAdjacencyCoversItsTier/01_literals`; `TestTierNumberingRegenerates` -> `TestEveryTierDeclaresFileOrder`. These commands pass once branch ccx/adj merges.
+
+Obsolete by perigrin's ruling 2026-10-23: the criterion that files are renumbered from 01 with no gap asserted a property of numbered `.t` files. The corpus is topic files now and topics carry no numbers, so each tier instead declares its ordering convention under `## FILE ORDER` in its README, which `TestEveryTierDeclaresFileOrder` checks.
+
 ## Acceptance criteria
 
 - [ ] Tier 01 covers the numeric and string literal boundaries the glossary names, including v-strings and the -1-is-two-tokens case (`go test ./internal/conformance/ -run '^TestTierLiteralsCoversGlossary$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsCoversGlossary'`)
-- [ ] Files are renumbered from 01 with no gap, by the regeneration the spec says the numbering supports (`go test ./internal/conformance/ -run '^TestTierNumberingRegenerates$' -count=1 -v | grep -q '^--- PASS: TestTierNumberingRegenerates'`)
+- [ ] Tier 01 declares its topic ordering in its README; topics carry no numbers, so there is nothing to renumber (`go test ./internal/conformance/ -run '^TestEveryTierDeclaresFileOrder$' -count=1 -v | grep -q '^--- PASS: TestEveryTierDeclaresFileOrder'`)
 - [ ] 03_leading_decimal.t's citation of 01a0c13f-97f5 resolves to a live issue (`git-zhi issue show 01a0c13f-97f5 >/dev/null`)
 - [ ] Every file in 01_literals/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierLiteralsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsPerlValidated'`)
 - [ ] The dependency lint passes over 01_literals/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierLiteralsLint$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsLint'`)
-- [ ] The tier's adjacency file puts every construct 01_literals introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestTierLiteralsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsAdjacency'`)
+- [ ] The tier's adjacency topic puts every construct 01_literals introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^01_literals$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/01_literals'`)
 - [ ] 01_literals/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierLiteralsRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-01_literals|numeric-point|numeric-radix|strings|vstrings)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
