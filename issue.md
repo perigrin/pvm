@@ -1,6 +1,6 @@
 ---
 title: Make the oracle answer op/magic.t, which perl compiles
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,40 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 created: 2026-10-23T01:08:33.371135176Z
-updated: 2026-10-23T19:40:35.936156901Z
+updated: 2026-10-23T20:48:36.675417086Z
 sessions:
 - start_sha: 4af1670f0c4f49aef69888f726ce18e3944ac43d
-  end_sha: ""
-  commits: 0
+  end_sha: 3db5f127fa30599b0fdeb240187bf3612a1d87a8
+  commits: 3
   started_at: 2026-10-23T19:40:35.936156901Z
+  ended_at: 2026-10-23T20:48:36.675417086Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T19:40:35.936156901Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T20:48:36.675417086Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/00-findings.md
+- internal/lexer/expect_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/lexer/sigheads_test.go
+- internal/parse/canon.go
+- internal/parse/export_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parseoracle/magic_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
