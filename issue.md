@@ -9,7 +9,7 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-69f0-715c-b060-c8f648ddfcd3
 created: 2026-10-23T01:36:02.587272751Z
-updated: 2026-10-23T01:56:39.496897012Z
+updated: 2026-10-23T07:06:04.86541952Z
 ---
 
 ## Context
@@ -42,7 +42,15 @@ It takes the first candidate whose `$]` and `useithreads` match the pin. With no
 
 **Package rule (A24).** perltest imports parseoracle (for `ReadPin`). So every caller of `PinnedPerl` under internal/parseoracle lives in package `parseoracle_test`, never package `parseoracle`, or the import cycles. That includes magic_test.go, opcount_test.go, sites_test.go and parens_test.go.
 
-CI: parse-fidelity.yml installs the pinned perl. A step there runs the 5.44-held tests with `PVM_REQUIRE_PINNED_PERL=1`, so they can never skip silently. Each later issue adds its own tests to that step's `-run` list. TestEveryPinnedPerlTestIsRequired keeps that list honest. It statically finds every test function that calls `PinnedPerl` (in the manner of perltest's noskips_test) and asserts each name appears in the REQUIRE step's `-run` pattern, read with the existing `uncommented()` and `stepRunning` helpers. The 5.42 jobs never set the variable, so there the 5.44-held tests skip without failing. Those jobs are ci.yml's Test matrix and "Ratchets (corpus-backed)", which runs internal/parse with `PVM_REQUIRE_PERL542=1`. The tests that skip there include the CI gate tests, TestCIGateRunsTheSweep and (from the site-ratchet issue) TestCISweepRunsOracleOnce. They execute the sweep step, so without 5.44 they would fail with "exited 0 and wrote no receipt" (gate_test.go:147). They call `PinnedPerl` and join the 5.44-held step.
+CI: parse-fidelity.yml installs the pinned perl. A step there runs the 5.44-held tests with `PVM_REQUIRE_PINNED_PERL=1` and `PERL5_CORPUS` set, then a fail-unless-PASS loop over the same names, as ci.yml:203-218 does for the ratchets, so a held test that skips or never runs fails the job. Each later issue adds its own tests to that step's `-run` list.
+
+**How a test reaches the pinned perl (P20, H2, F12, chain-review round 4).** Helpers take the perl as a parameter: `corpusReport(t, p)`, `runGoSubject(t, p)`, `runFixture(t, p)`, `buildFixtureShim(t, p)` and the gate's sweep runner receive a `perltest.Perl`, and only test functions call `PinnedPerl`. A helper that calls `PinnedPerl` itself is a defect. TestEveryPinnedPerlTestIsRequired keeps that rule and the step honest. It parses every `_test.go` in internal/parse AND internal/parseoracle, and finds every test function that calls `PinnedPerl`. It asserts each name appears in the REQUIRE step's `-run` pattern, read with the existing `uncommented()` and `stepRunning` helpers. It asserts the step's package list covers each found test's package, since `go test ./internal/parseoracle/ -run X` for an X in internal/parse runs nothing and exits 0. And it fails on any non-test function that calls `PinnedPerl`. Under that rule TestRatchetCorpus, TestSiteRatchetCorpus, TestRatchet, TestGoParserExactFloor, TestGoParserSubjectMeasures and TestGoParserWrongIsZero (M1's WRONG = 0 gate) all call `PinnedPerl` themselves, so all of them land in the step. G11: `runFixture` takes the pinned perl, so fixture.txt is judged by the pinned interpreter only, and TestRatchet moves from the 5.42 matrix to the 5.44 step.
+
+The 5.42 jobs never set the variable, so there the 5.44-held tests skip without failing. Those jobs are ci.yml's Test matrix and "Ratchets (corpus-backed)", which runs internal/parse with `PVM_REQUIRE_PERL542=1`. The tests that skip there include the CI gate tests, TestCIGateRunsTheSweep and (from the site-ratchet issue) TestCISweepRunsOracleOnce. They execute the sweep step, so without 5.44 they would fail with "exited 0 and wrote no receipt" (gate_test.go:147). They call `PinnedPerl` and join the 5.44-held step.
+
+**Fixture shim stamp (A25, G9, H5).** `buildFixtureShim` (gate_test.go:363) builds the gate's five-file shim by hand, with no lib/ and no stamp. Under the stamp rule, `corpusReport` would rebuild it from a corpus the gate deliberately withholds (`PERL5_CORPUS=<temp>/no-corpus`). So `buildFixtureShim` writes interpreter.stamp from the `perltest.Perl` it is given (its `$]` and threads), and TestFixtureShimCarriesTheStamp holds it.
+
+**Pin tests that can fail at this point in the chain (P19).** This issue runs before the re-pin, while corpus.pin still names 5.042000, and the PATH perl here is also 5.042000. So a "5.42 first on PATH" decoy is the pinned perl itself, and it proves nothing. Every pin test writes its OWN temp corpus.pin, naming a version different from its decoy, and never reads the committed pin. The decoy is either a stub `perl` script that prints a fake `$]` or exits 1, or a different real perl (/usr/bin/perl reports 5.038002 here; pvm also holds 5.40.x and 5.38.0). This covers TestRunUsesTheGivenPerl, TestObservePinUsesTheGivenPerl and TestRatchetPinObservedWithPinnedPerl.
 
 ## Steps
 
@@ -51,14 +59,16 @@ CI: parse-fidelity.yml installs the pinned perl. A step there runs the 5.44-held
 - [ ] GREEN: implement the lookup. Run it and watch it pass.
 - [ ] RED/GREEN: write TestPinnedPerlSkipsOnMismatch (no candidate matches and the env var is unset, so the test skips) and TestPinnedPerlFailsUnderRequire (the same with `PVM_REQUIRE_PINNED_PERL=1` fails).
 - [ ] RED/GREEN: write TestPinnedPerlChecksThreads. A candidate with the right `$]` but `useithreads` undef is rejected.
-- [ ] RED: write TestRunUsesTheGivenPerl in package parseoracle_test. Put a perl first on PATH that exits 1, or a real 5.42. Run `Run` on a fixture whose BEGIN writes `$]` to STDERR, with `RunOptions.Perl` set to the pinned perl. Assert that the INNER compile's reported `$]` is the pinned value and the facts are `ok`. A fake perl that prints canned JSON must fail it, because the inner `$]` comes from the file's own BEGIN. Run it and watch it fail.
+- [ ] RED: write TestRunUsesTheGivenPerl in package parseoracle_test. Write a temp corpus.pin naming the target perl's version. Put a decoy first on PATH: a stub `perl` that prints a fake `$]` or exits 1, or /usr/bin/perl (5.038002). Run `Run` on a fixture whose BEGIN writes `$]` to STDERR, with `RunOptions.Perl` set to the target perl. Assert that the INNER compile's reported `$]` is the target's and the facts are `ok`. A fake perl that prints canned JSON must fail it, because the inner `$]` comes from the file's own BEGIN. Run it and watch it fail.
 - [ ] GREEN: thread the path through `AskFile`, `$^X` in parse_facts.pl's two shell-outs, `BuildShim`, `libraryRoots`, `ObservePin` and the cache probe. Run it and watch it pass.
-- [ ] RED/GREEN: write TestObservePinUsesTheGivenPerl: with 5.42 first on PATH, `ObservePin` given the pinned path returns corpus.pin's interpreter. Wire `corpusReport`, `runGoSubject`, TestRatchetCorpus's pin check and the gate tests to `PinnedPerl(t).Path`.
+- [ ] RED/GREEN: write TestObservePinUsesTheGivenPerl: with a temp pin and a decoy first on PATH whose version differs from it, `ObservePin` given the target path returns the temp pin's interpreter. Wire `corpusReport`, `runGoSubject`, TestRatchetCorpus's pin check and the gate tests to `PinnedPerl(t).Path`.
 - [ ] RED/GREEN: write TestShimMatchesThePin and TestShimStampMismatchRebuilds. `BuildShim` writes interpreter.stamp. A fixture shim stamped 5.042000 under a 5.044000 pin is rebuilt, or fails if it cannot be rebuilt, and is never used as is.
-- [ ] RED/GREEN: write TestEveryPinnedPerlTestIsRequired in ci_test.go, as described above. Add TestCIGateRunsTheSweep to the REQUIRE step.
+- [ ] Change `corpusReport`, `runGoSubject`, `runFixture`, `buildFixtureShim` and the gate's runner to take a `perltest.Perl` parameter, and have each test function call `PinnedPerl` and pass it down.
+- [ ] RED/GREEN: write TestFixtureShimCarriesTheStamp: `buildFixtureShim` writes interpreter.stamp matching the perl it was given, so the gate's sweep uses the five-file shim rather than rebuilding it.
+- [ ] RED/GREEN: write TestEveryPinnedPerlTestIsRequired in ci_test.go, as described above, plus TestEveryPinnedPerlTestIsRequiredRejectsHelperCaller: a fixture source where a test reaches `PinnedPerl` only through a helper is flagged. Add TestCIGateRunsTheSweep, TestRatchet and the TestGoParser* tests to the REQUIRE step, with `PERL5_CORPUS` and the fail-unless-PASS loop.
 - [ ] Add a "5.44-held tests" step to parse-fidelity.yml with `PVM_REQUIRE_PINNED_PERL: '1'`. RED/GREEN TestCIRequiresThePinnedPerl in ci_test.go: that step sets the variable, and no ci.yml job does.
 - [ ] Run `make test` with the 5.42 PATH perl, confirming nothing that uses the helper fails. Then commit.
-- [ ] RED/GREEN TestRatchetPinObservedWithPinnedPerl: the pin check TestRatchetCorpus performs, run on the gate's five-file fixture with a 5.42 first on PATH, observes corpus.pin's interpreter.
+- [ ] RED/GREEN TestRatchetPinObservedWithPinnedPerl: the pin check TestRatchetCorpus performs, run on the gate's five-file fixture against a temp pin, with a decoy of a different version first on PATH, observes the temp pin's interpreter.
 - [ ] Before merge, run the ci.yml Test job's command with only 5.42 available (no pvm 5.44 dir; for example `XDG_DATA_HOME` pointed at an empty dir), and confirm the gate tests skip rather than fail.
 
 ## Acceptance criteria
@@ -69,8 +79,10 @@ CI: parse-fidelity.yml installs the pinned perl. A step there runs the 5.44-held
 - [ ] The oracle's inner compile, not just the outer process, runs the interpreter it is given, with a different perl first on PATH (`go test ./internal/parseoracle/ -run '^TestRunUsesTheGivenPerl$' -count=1 -v | grep -q '^--- PASS: TestRunUsesTheGivenPerl'`)
 - [ ] CI's 5.44 step requires the pinned perl, and the 5.42 jobs do not (`go test ./internal/parseoracle/ -run '^TestCIRequiresThePinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestCIRequiresThePinnedPerl'`)
 - [ ] The shim records its interpreter, and a shim built by another perl is not used as is (`go test ./internal/parseoracle/ -run '^TestShimMatchesThePin$' -count=1 -v | grep -q '^--- PASS: TestShimMatchesThePin'`)
-- [ ] Every test that calls PinnedPerl is in the -run list of CI's REQUIRE step, read from uncommented YAML (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] Every test in internal/parse and internal/parseoracle that calls PinnedPerl is in the -run list of CI's REQUIRE step, whose package list covers it, read from uncommented YAML (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 - [ ] ObservePin asks the perl it is given, not the PATH perl (`go test ./internal/parseoracle/ -run '^TestObservePinUsesTheGivenPerl$' -count=1 -v | grep -q '^--- PASS: TestObservePinUsesTheGivenPerl'`)
+- [ ] The gate's hand-built fixture shim carries an interpreter stamp, so the gate's sweep does not rebuild it (`go test ./internal/parseoracle/ -run '^TestFixtureShimCarriesTheStamp$' -count=1 -v | grep -q '^--- PASS: TestFixtureShimCarriesTheStamp'`)
+- [ ] Regression guard: the CI gate still runs the committed sweep step over the fixture shim (`go test ./internal/parseoracle/ -run '^TestCIGateRunsTheSweep$' -count=1 -v | grep -q '^--- PASS: TestCIGateRunsTheSweep'`)
 
 ### Negative Scenarios
 
@@ -78,4 +90,5 @@ CI: parse-fidelity.yml installs the pinned perl. A step there runs the 5.44-held
 - [ ] Under PVM_REQUIRE_PINNED_PERL=1 a missing or mismatched perl fails the test (`go test ./internal/perltest/ -run '^TestPinnedPerlFailsUnderRequire$' -count=1 -v | grep -q '^--- PASS: TestPinnedPerlFailsUnderRequire'`)
 - [ ] A perl with the pinned version but without threads is rejected (`go test ./internal/perltest/ -run '^TestPinnedPerlChecksThreads$' -count=1 -v | grep -q '^--- PASS: TestPinnedPerlChecksThreads'`)
 - [ ] A shim stamped 5.042000 under a 5.044000 pin is rebuilt or fails, never measured with (`go test ./internal/parseoracle/ -run '^TestShimStampMismatchRebuilds$' -count=1 -v | grep -q '^--- PASS: TestShimStampMismatchRebuilds'`)
-- [ ] With 5.42 first on PATH, the sweep's observed pin still equals corpus.pin (`go test ./internal/parseoracle/ -run '^TestRatchetPinObservedWithPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRatchetPinObservedWithPinnedPerl'`)
+- [ ] With a decoy of another version first on PATH, the sweep's observed pin equals the pin it was given (`go test ./internal/parseoracle/ -run '^TestRatchetPinObservedWithPinnedPerl$' -count=1 -v | grep -q '^--- PASS: TestRatchetPinObservedWithPinnedPerl'`)
+- [ ] A test that reaches PinnedPerl only through a helper is flagged by the coverage check (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequiredRejectsHelperCaller$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequiredRejectsHelperCaller'`)
