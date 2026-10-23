@@ -1,6 +1,6 @@
 ---
 title: Write not and list operators by precedence, measured first, and remove the call-paren forgiveness
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a1692f-65de-750b-aac5-f2506623ec7f
 created: 2026-10-23T13:55:09.253494301Z
-updated: 2026-10-23T14:42:24.846526421Z
+updated: 2026-10-23T21:54:27.16129015Z
+sessions:
+- start_sha: f09a07a0f6b66e2d02cddebd76850d5db05b1ffd
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T21:54:27.16129015Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T21:54:27.16129015Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Measure the precedence-aware design for not, list ops, calls and niladics, and write not by the follow power". Split along its measure-first boundary in chain-review round 8 (P29): this issue measures and lands `not`; the list-op issue lands list ops, calls and niladic builtins with the rule still on; the rule-removal issue takes the rule out.
