@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-23T01:09:03.799452455Z
+updated: 2026-10-23T01:10:57.399052508Z
 ---
 
 ## Context
@@ -32,7 +32,7 @@ updated: 2026-10-23T01:09:03.799452455Z
 - [ ] GREEN: fix each tree defect in the parser, one at a time, running the test after each. If there are none, the test still pins the measured positions as lists.
 - [ ] Add every fixture, with perl's facts, as probe file `internal/parse/testdata/m3probes/dropped-paren-context.txt`. Run TestM3ProbesHeldToPerl.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus, and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
-- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
