@@ -64,8 +64,8 @@ func TestDefaultSubjectIsInternalParse(t *testing.T) {
 	}
 
 	for _, f := range byDefault.Files {
-		if f.Err != "" {
-			t.Errorf("%s: the default subject failed: %s", f.Path, f.Err)
+		if f.Err != "" || f.SubjectErr != "" {
+			t.Errorf("%s: the default subject failed: %s%s", f.Path, f.Err, f.SubjectErr)
 		}
 	}
 	if byDefault.Measured() == 0 {
@@ -76,7 +76,7 @@ func TestDefaultSubjectIsInternalParse(t *testing.T) {
 	}
 	for i, f := range byDefault.Files {
 		g := named.Files[i]
-		if f.Path != g.Path || f.Excluded != g.Excluded || f.Err != g.Err ||
+		if f.Path != g.Path || f.Excluded != g.Excluded || f.Err != g.Err || f.SubjectErr != g.SubjectErr ||
 			f.Verdict.Bucket != g.Verdict.Bucket || f.Verdict.Detail != g.Verdict.Detail {
 			t.Errorf("%s: by default %v %q, naming internal/parse %v %q",
 				f.Path, f.Verdict.Bucket, f.Verdict.Detail, g.Verdict.Bucket, g.Verdict.Detail)

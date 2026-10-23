@@ -32,6 +32,11 @@ type Result struct {
 	// Err is a runner-level failure — perl unspawnable, file unreadable —
 	// as a string rather than an error so a Report renders deterministically.
 	Err string
+	// SubjectErr is the subject's failure on this file -- it crashed, timed
+	// out, or answered with something that is not the contract. Unlike Err
+	// the file is graded: perl answered, the subject did not, so Verdict is
+	// a whole-file no-answer and every one of perl's sites counts as one.
+	SubjectErr string
 }
 
 // Totals counts verdicts per bucket, indexed by Bucket.
@@ -203,6 +208,17 @@ func (r Report) String() string {
 		}
 	}
 
+	// A subject failure is graded no-answer, so the buckets alone would
+	// hide a crash among honest refusals. Named for the same reason as
+	// runner errors.
+	header := "subject error files:\n"
+	for _, f := range r.Files {
+		if f.SubjectErr != "" {
+			fmt.Fprintf(&b, "%s  %s: %s\n", header, f.Path, f.SubjectErr)
+			header = ""
+		}
+	}
+
 	if wrong := r.Wrong(); len(wrong) > 0 {
 		b.WriteString("WRONG files:\n")
 		for _, f := range r.Files {
@@ -340,9 +356,14 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
+	// Perl has answered, so a subject that fails here leaves ground truth
+	// with no answer against it: a whole-file no-answer, graded, rather than
+	// a runner error that would drop every one of perl's sites.
 	subject, err := askSubject(ctx, opts, path, src)
 	if err != nil {
-		r.Err = err.Error()
+		r.SubjectErr = err.Error()
+		r.Verdict = Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone,
+			Detail: "the subject failed: " + r.SubjectErr}
 		return r
 	}
 	r.Verdict = CompareFacts(facts, subject)
@@ -365,7 +386,7 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 // budget the report claims is the one a subject actually gets. A Subject may
 // set either for itself; the run's values are the default, not an override.
 // Without this the subject was handed a path it could not open from wherever
-// the harness happened to be, and an honest one produced a runner error per
+// the harness happened to be, and an honest one produced a subject error per
 // file while a quiet one produced a fidelity of 0% -- five parser verdicts
 // recording one environmental fact.
 func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error) {

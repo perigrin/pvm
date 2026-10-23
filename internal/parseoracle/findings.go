@@ -91,3 +91,68 @@ func (r Report) WhereWrongComesFrom() string {
 	}
 	return b.String()
 }
+
+// SiteBuckets counts the file's marker sites per marker and bucket, so the
+// metric grades each op perl built rather than each file.
+//
+// A graded file's sites are exact unless a finding names them: each finding
+// is one site that fell short, in its own bucket. A whole-file no-answer --
+// a verdict that names no marker, reached before any marker was compared,
+// whichever side declined -- carries no findings, and every one of its sites
+// is no-answer; subtracting nothing from them would score them exact.
+//
+// A file that never reached a verdict, excluded or an oracle-side error,
+// contributes nothing: its zero-value Verdict reads as exact.
+//
+// More findings than sites for a marker is an error rather than a negative
+// exact count: the verdict and the facts no longer describe the same file.
+func (r Result) SiteBuckets() (map[Marker]Totals, error) {
+	counts := map[Marker]Totals{}
+	if !r.measured() {
+		return counts, nil
+	}
+	whole := BucketExact
+	if r.Verdict.Bucket == BucketNoAnswer && r.Verdict.Marker == MarkerNone {
+		whole = BucketNoAnswer
+	}
+	for m, lines := range r.Facts.Sites {
+		if len(lines) > 0 {
+			var t Totals
+			t[whole] = len(lines)
+			counts[m] = t
+		}
+	}
+	if whole == BucketNoAnswer {
+		return counts, nil
+	}
+	for _, f := range r.Verdict.Findings {
+		t := counts[f.Marker]
+		if t[BucketExact] == 0 {
+			return nil, fmt.Errorf("%s has more %s findings than the %d site(s) perl reported",
+				r.Path, f.Marker, len(r.Facts.Sites[f.Marker]))
+		}
+		t[BucketExact]--
+		t[f.Bucket]++
+		counts[f.Marker] = t
+	}
+	return counts, nil
+}
+
+// SiteBuckets sums Result.SiteBuckets over every file in the report.
+func (r Report) SiteBuckets() (map[Marker]Totals, error) {
+	sum := map[Marker]Totals{}
+	for _, f := range r.Files {
+		counts, err := f.SiteBuckets()
+		if err != nil {
+			return nil, err
+		}
+		for m, t := range counts {
+			s := sum[m]
+			for b, n := range t {
+				s[b] += n
+			}
+			sum[m] = s
+		}
+	}
+	return sum, nil
+}
