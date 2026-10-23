@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T13:41:10.741737124Z
-updated: 2026-10-23T17:09:34.60944542Z
+updated: 2026-10-23T19:18:31.703593238Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -76,11 +76,13 @@ A corpus file per form, plus the adjacency file that puts them side by side.
 
 Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestTierCallFormsParenlessExtent` -> the greedy and `($)`-prototype cases of `argument-extent.md`, under `TestCorpus`; `TestTierCallFormsPerlValidated` -> `TestTierSubroutinesPerlValidated`; `TestTierCallFormsLint` -> `TestTierSubroutinesLint`; `TestTierCallFormsRefusalsCited` -> `TestTierSubroutinesRefusalsCited`). Left unchanged: `TestTierCallFormsAdjacency`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierCallFormsAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
+
 ## Acceptance criteria
 
 - [ ] A parenless call to an unknown callee has its argument extent measured against perl rather than assumed (`go test ./internal/conformance/ -run '^TestCorpus$/^argument-extent\.md$/(greedy|prototype_cuts)' -count=1 -v | grep -c '^    --- PASS: TestCorpus/argument-extent\.md/.*\(greedy\|prototype_cuts\)' | grep -qx 2`)
 - [ ] Every file in 07_subroutines/ that this issue writes is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
 - [ ] The dependency lint passes over the call-form files (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
-- [ ] The adjacency file places the call forms side by side in one body, per the spec's rule (`go test ./internal/conformance/ -run '^TestTierCallFormsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierCallFormsAdjacency'`)
+- [ ] The adjacency topic places the call forms side by side in one body, per the spec's rule (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^07_subroutines$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/07_subroutines'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierSubroutinesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesRefusalsCited'`)
 - [ ] The smallest-useful-corpus gate is met: tiers 01-04 plus this slice all green (`go test ./internal/conformance/ -run '^TestSmallestUsefulCorpus$' -count=1 -v | grep -q '^--- PASS: TestSmallestUsefulCorpus'`)
