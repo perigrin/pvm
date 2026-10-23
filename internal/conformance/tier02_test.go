@@ -12,8 +12,8 @@ import (
 // tierVariables is the tier this file is about.
 //
 // A constant for the same reason tier 01 has one: the tier number is a
-// POSITION, and TestTierNumberingRegenerates records the spec's statement
-// that positions move.
+// POSITION, and positions move: each tier declares its ordering under
+// `## FILE ORDER`, which TestEveryTierDeclaresFileOrder checks.
 const tierVariables = "02_variables"
 
 // TestTierVariablesCoversGlossary checks the tier against the vocabulary

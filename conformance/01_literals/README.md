@@ -14,15 +14,14 @@ no earlier.
 
 ## What the files cover
 
-One construct per file, numbered from 01 with no gap, and `00` reserved
-for the adjacency file — which is not one of the tier's constructs but
-the check that they compose.
+One construct per case, grouped into topic files, and the tier's
+adjacency topic, `adjacency-01_literals.md` — which is not one of the
+tier's constructs but the check that they compose.
 
-The numbers are DERIVED. `TestTierNumberingRegenerates` rebuilds them from
-the file names alone and requires the result to be what is on disk, which
-is the spec's promise that "a reorder is a regeneration rather than a
-hand-edit" made checkable. A file's identity is its name; the number is
-its current position.
+Topics carry no numbers, so there is no numbering to regenerate. The tier
+declares its ordering convention under `## FILE ORDER` below, and
+`TestEveryTierDeclaresFileOrder` requires every tier to declare one. A
+case's identity is its topic and title.
 
 The constructs are the boundary cases `../GLOSSARY.md` names for the two
 literal categories this tier owns, and `TestTierLiteralsCoversGlossary`
