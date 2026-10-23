@@ -181,7 +181,9 @@ The design:
 
 The stop condition does not fire.
 - All 23 files fresh5 lost are faithful under the design except op/utf8cache.t, and the variant recovers it.
-- No other file or statement goes from faithful to unfaithful.
+- No other file or statement goes from faithful to unfaithful, but only with the trailing-comma variant, which perigrin adopted into the list-op design on 2026-10-23.
+  - Without the variant, 3 statements are lost: io/open.t:251, io/open.t:281 and op/utf8cache.t:70.
+  - The variant is the list-op issue's to implement. The `not` code landed here does not depend on it.
 - Gained files: comp/use.t, mro/isa_c3.t, mro/package_aliases_utf8.t, op/isa.t, op/not.t, uni/attrs.t, uni/method.t.
 
 Triage:
