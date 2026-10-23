@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:50:20.295669503Z
-updated: 2026-10-23T19:18:29.225995531Z
+updated: 2026-10-23T23:40:17.280470419Z
 sessions:
 - start_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
   end_sha: 0ce515cbfe0ba1f48eb9b741cb1fc5d8c389454d
@@ -201,9 +201,9 @@ adjacency file reproduces the ADJUST bug the adjacency design was written
 for; tier 04's refuses where every one of its constructs parses alone;
 tier 13's heredocs refuse outright.
 
-Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files;  Left unchanged: `TestEveryTierHasAnAdjacencyFile`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files;  Left unchanged here: `TestEveryTierHasAnAdjacencyFile`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestEveryTierHasAnAdjacencyFile` -> `TestEveryTierHasAnAdjacencyTopic` and `TestAdjacencyCoversItsTier`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestEveryTierHasAnAdjacencyFile` -> `TestEveryTierHasAnAdjacencyTopic` and `TestAdjacencyCoversItsTier`. These commands pass once branch ccx/adj merges.
 
 ## Acceptance criteria
 
