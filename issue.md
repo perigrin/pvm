@@ -1,19 +1,45 @@
 ---
 title: shift is introduced at tier 11, so plain array mutation cannot be written before the OO tier
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T13:24:36.843414308Z
-updated: 2026-10-23T15:16:23.050278532Z
+updated: 2026-10-23T16:20:47.531524902Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
-  end_sha: ""
-  commits: 0
+  end_sha: 9c3e164290f60fe6c5c1625dbd8e15a2f8a4dc3f
+  commits: 3
   started_at: 2026-10-23T15:16:23.050278532Z
+  ended_at: 2026-10-23T16:20:47.531524902Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T15:16:23.050278532Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T16:20:47.531524902Z
+observed_paths:
+- conformance/02_variables/README.md
+- conformance/04_operators/README.md
+- conformance/06_control/README.md
+- conformance/mdtest/adjacency-02_variables.md
+- conformance/mdtest/adjacency-06_control.md
+- conformance/mdtest/aggregate-operators.md
+- conformance/mdtest/arrays.md
+- conformance/mdtest/blocks-and-terminations.md
+- conformance/mdtest/comparison.md
+- conformance/mdtest/conditionals.md
+- conformance/mdtest/dynamic-scope.md
+- conformance/mdtest/hashes.md
+- conformance/mdtest/jumps.md
+- conformance/mdtest/loops.md
+- conformance/mdtest/names.md
+- conformance/mdtest/subroutines.md
+- conformance/mdtest/switch.md
+- conformance/mdtest/symbol-table.md
+- conformance/mdtest/taking-references.md
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
 ---
 
 `shift` is introduced at tier 11 oo, so plain array mutation cannot be
