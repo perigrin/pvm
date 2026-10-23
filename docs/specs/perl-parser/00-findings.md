@@ -586,7 +586,8 @@ The rule, decided by issue 01a12059-30a8 and measured on perl 5.44.0
   left of `=`, `\`) leaves the last level out of multideref, which keeps
   its rv2hv only if nothing before it folded. A modified `@{...}` or
   `%{...}` (push, unshift, splice, pop, shift, chomp, chop, keys, values,
-  each, grep and map lists, foreach, sprintf lists, a sub's or method's
+  each, grep and map lists, foreach and statement-modifier `for` lists,
+  sprintf lists, a sub's or method's
   arguments, `\`, local, the left of `=`) or a slice of either keeps the
   whole run holding the last level unfolded, and every brace level of it
   keeps its rv2hv.
@@ -596,7 +597,7 @@ Sites counts the rv2hv of every chain by this rule (`chainRv2hv`,
 TestArrowHashReadHedgesNameTheirShape: a key that is a call or anything
 else that might constant-fold (`sub f(){1}` folds `$r->{f()}`), a
 dereference in a context not measured (void, sort, `->$#*`, keys of a
-postfix `->%*`), and `$#{ $r->{k} }`, which the lexer reads as one token
+postfix `->%*`, a C-style for's head), and `$#{ $r->{k} }`, which the lexer reads as one token
 (01a0ad52).
 
 Four files moved, all to a better bucket; no exact file moved.

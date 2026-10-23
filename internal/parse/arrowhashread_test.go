@@ -164,6 +164,81 @@ func TestArrowHashReadFollowsMultideref(t *testing.T) {
 	})
 }
 
+// TestArrowHashReadKeyShapesFollowPerl: which keys multideref holds, as
+// the parser spells them. Measured on perl 5.44.0, counting rv2hv:
+//
+//	my $h; my $k; my $y = $h->{-$k};            1  (negate is computed)
+//	my $h; my $k; my $y = $h->{-$k}{a};         1
+//	my $h; my $k; push @{$h->{a}{-$k}},1;       0
+//	my $h; my $y = $h->{-1}{a};                 0
+//	my $h; my $k; my $y = $h->{+$k};            0  (unary plus is no op)
+//	my $h; my $y = $h->{${k}};                  0
+//	my $h; my $y = $h->{${^W}};                 0
+//	my $h; my $y = $h->{${k}}{a};               0
+//	my $h; my $y = $h->{1+1}{a};                0  (literals fold)
+//	my $h; my $y = $h->{"a"."b"}{c};            0
+//	my $h; my $y = $h->{2*3-1};                 0
+//	my $h; my $y = $h->{-x};                    0  (the string "-x")
+//	my $h; my $y = $h->{-e}{a};                 0
+//	my $h; push @{$h->{-x}}, 1;                 1
+//	my $h; my $y = $h->{lc $h};                 1  (a call on a variable)
+//	my $h; my $y = $h->{scalar @$h};            1
+func TestArrowHashReadKeyShapesFollowPerl(t *testing.T) {
+	checkDecided(t, []arrowCase{
+		{`my $h; my $k; my $y = $h->{-$k};`, 1},
+		{`my $h; my $k; my $y = $h->{-$k}{a};`, 1},
+		{`my $h; my $k; push @{$h->{a}{-$k}},1;`, 0},
+		{`my $h; my $y = $h->{-1}{a};`, 0},
+		{`my $h; my $k; my $y = $h->{+$k};`, 0},
+		{`my $h; my $y = $h->{${k}};`, 0},
+		{`my $h; my $y = $h->{${^W}};`, 0},
+		{`my $h; my $y = $h->{${k}}{a};`, 0},
+		{`my $h; my $y = $h->{1+1}{a};`, 0},
+		{`my $h; my $y = $h->{"a"."b"}{c};`, 0},
+		{`my $h; my $y = $h->{2*3-1};`, 0},
+		{`my $h; my $y = $h->{-x};`, 0},
+		{`my $h; my $y = $h->{-e}{a};`, 0},
+		{`my $h; push @{$h->{-x}}, 1;`, 1},
+		{`my $h; my $y = $h->{lc $h};`, 1},
+		{`my $h; my $y = $h->{scalar @$h};`, 1},
+	})
+}
+
+// TestArrowHashReadForLoopHeads: a statement-modifier foreach modifies its
+// list as a foreach does; a C-style for's three parts are not a foreach
+// list. Measured on perl 5.44.0, counting rv2hv:
+//
+//	my $h; print for @{$h->{a}{b}};             2
+//	my $h; print foreach @{$h->{a}};            1
+//	my $h; for (;@{$h->{a}{b}};) {}             0
+//	my $h; for (my $i;@{$h->{a}{b}};){}         0
+//	my $h; for (;;@{$h->{a}{b}}){}              0
+//	my $h; for (@{$h->{a}{b}};;){}              0
+//	my $h; for (;%{$h->{a}};){}                 1  (the `%{}` alone)
+//	my $h; for (;$h->{a}->@*;){}                0
+//
+// A C-style head is not a measured context, so its chains hedge: they
+// must not decide the foreach count.
+func TestArrowHashReadForLoopHeads(t *testing.T) {
+	checkDecided(t, []arrowCase{
+		{`my $h; print for @{$h->{a}{b}};`, 2},
+		{`my $h; print foreach @{$h->{a}};`, 1},
+	})
+	for _, c := range []arrowCase{
+		{`my $h; for (;@{$h->{a}{b}};) {}`, 0},
+		{`my $h; for (my $i;@{$h->{a}{b}};){}`, 0},
+		{`my $h; for (;;@{$h->{a}{b}}){}`, 0},
+		{`my $h; for (@{$h->{a}{b}};;){}`, 0},
+		{`my $h; for (;%{$h->{a}};){}`, 1},
+		{`my $h; for (;$h->{a}->@*;){}`, 0},
+	} {
+		if decided, hedged := hashSites(c.src); decided != c.rv2hv || hedged != 1 {
+			t.Errorf("%s\n  perl 5.44.0 builds %d rv2hv; Sites should decide %d and hedge "+
+				"the chain once, and decides %d and hedges %d", c.src, c.rv2hv, c.rv2hv, decided, hedged)
+		}
+	}
+}
+
 // TestArrowHashReadSubArgElementFoldsToMultideref: a sub's arguments are
 // modified, but an element argument is not dereferenced, so nothing sets
 // OPpDEREF and the chain folds. Only a whole dereference keeps the chain
@@ -319,6 +394,8 @@ func TestArrowHashReadHedgesNameTheirShape(t *testing.T) {
 			"void context (rv2hv=0) is not among the contexts Sites decides"},
 		{`my $p; my $x = $p->{S}->$#*;`,
 			"`->$#*` reads (rv2hv=0) where `$#{...}` keeps it (rv2hv=1); only the read is measured"},
+		{`my $p; for (;@{$p->{S}};) {}`,
+			"a C-style for's head is not a measured context (rv2hv=0 in the condition)"},
 		{`my $p; my $x = $#{$p->{S}};`,
 			"the lexer reads `$#{...}` as one token, so no node holds the chain (01a0ad52)"},
 	} {

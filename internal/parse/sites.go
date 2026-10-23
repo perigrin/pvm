@@ -797,11 +797,11 @@ func derefContext(d *Node, sigil string, up []*Node) chainContext {
 		switch {
 		case owner.Text == "while" && node == owner.Children[0]:
 			return chainRead
-		case (owner.Text == "for" || owner.Text == "foreach") &&
-			last.Kind == Block && len(owner.Children) <= 3 &&
-			node == owner.Children[len(owner.Children)-2]:
-			// ponytail: a C-style `for (; COND ;)` that parses to two
-			// children would read as foreach here; none is in the corpus.
+		case (owner.Text == "for" || owner.Text == "foreach") && !owner.CStyle &&
+			(last.Kind == Block && node == owner.Children[len(owner.Children)-2] ||
+				last.Kind != Block && node == last):
+			// The list of a foreach, or of a statement-modifier `for`.
+			// A C-style head's parts are not a list it aliases.
 			return mod
 		}
 	case Conditional:
@@ -918,7 +918,8 @@ func isChainLevel(n *Node) bool {
 }
 
 // nonConstant reports whether a subscript key can never constant-fold,
-// because it reads a variable or an element, or shifts or pops one. A key
+// because it reads a variable or an element, shifts or pops one, or
+// passes one to a call. A key
 // it is unsure of -- a call to a sub that may be a constant, `||` over
 // constants -- is not, and hedges.
 func nonConstant(k *Node) bool {
@@ -932,7 +933,16 @@ func nonConstant(k *Node) bool {
 		}
 		return (t != "" && t[0] == '"' || strings.HasPrefix(t, "qq")) && interpolatesVariable(t)
 	case Call:
-		return k.Resolved && (k.Text == "shift" || k.Text == "pop")
+		// A sub perl inlines as a constant takes no arguments, and a
+		// builtin folds only over constants.
+		if k.Resolved && (k.Text == "shift" || k.Text == "pop") {
+			return true
+		}
+		for _, c := range k.Children {
+			if nonConstant(c) {
+				return true
+			}
+		}
 	case Ternary:
 		return len(k.Children) > 0 && nonConstant(k.Children[0])
 	case Unary:
@@ -969,18 +979,29 @@ func interpolatesVariable(t string) bool {
 
 // isSimpleKey reports whether a hash subscript's key is one perl's
 // multideref takes as it stands: a number, a bareword, `-bareword`, a
-// string that interpolates nothing, or a plain scalar variable. Measured
-// on 5.42.0, `$p->{a}`, `$p->{-bar}`, `$p->{'a$b'}`, `$p->{1.5}`,
-// `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and `$p->{$Foo::x}` all fold.
+// string that interpolates nothing, a plain scalar variable, or literals
+// that constant-fold. Measured on 5.42.0, `$p->{a}`, `$p->{-bar}`,
+// `$p->{'a$b'}`, `$p->{1.5}`, `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and
+// `$p->{$Foo::x}` all fold; on 5.44.0 so do `$p->{-1}`, `$p->{+$k}`,
+// `$p->{${k}}`, `$p->{${^W}}`, `$p->{-x}`, `$p->{1+1}` and `$p->{"a"."b"}`
+// (TestArrowHashReadKeyShapesFollowPerl). `$p->{-$k}` does not: negating
+// a variable is computed.
 //
 // Conservative the safe way: a key it does not recognise hedges, which
 // scores wider, never WRONG.
 func isSimpleKey(k *Node) bool {
-	if k.Kind == Unary && k.Text == "neg" && len(k.Children) == 1 {
-		k = k.Children[0]
-		if k.Kind == Call && len(k.Children) == 0 {
-			return true // `-bar`, a string to perl
+	if k.Kind == Unary && len(k.Children) == 1 {
+		switch c := k.Children[0]; k.Text {
+		case "pos":
+			return isSimpleKey(c) // unary plus builds no op
+		case "neg":
+			// `-bar` is a string to perl and `-1` a number; anything
+			// else negated is computed.
+			return c.Kind == Call && len(c.Children) == 0 || isLiteral(c)
 		}
+	}
+	if isLiteral(k) {
+		return true
 	}
 	if k.Kind != Term || k.Text == "" {
 		return false
@@ -988,19 +1009,49 @@ func isSimpleKey(k *Node) bool {
 	t := k.Text
 	switch {
 	case t[0] == '$':
-		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+		// `$k`, `${k}` and `${^W}` name one scalar.
+		name := t[1:]
+		if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
+			name = strings.TrimPrefix(name[1:len(name)-1], "^")
+		}
+		return name != "" && strings.IndexFunc(name, func(r rune) bool {
 			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
 		}) < 0
-	case t[0] == '\'':
-		return true
-	case t[0] == '"' || strings.HasPrefix(t, "qq"):
-		return !strings.ContainsAny(t, "$@")
-	case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
-		return true
+	case t[0] == '-':
+		// A filetest's spelling, `-x`, is the string "-x" in a subscript.
+		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+			return r >= utf8.RuneSelf || !isWordByte(byte(r))
+		}) < 0
 	}
 	return strings.IndexFunc(t, func(r rune) bool {
 		return r != '.' && r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
 	}) < 0
+}
+
+// isLiteral reports whether a key is a constant perl folds at compile
+// time: a number, a string that interpolates nothing, or `+ - * .` over
+// those. A bareword is not, since strict refuses it.
+func isLiteral(k *Node) bool {
+	switch k.Kind {
+	case Binary:
+		switch k.Text {
+		case "+", "-", "*", ".":
+			return len(k.Children) == 2 && isLiteral(k.Children[0]) && isLiteral(k.Children[1])
+		}
+	case Term:
+		t := k.Text
+		switch {
+		case t == "":
+			return false
+		case t[0] >= '0' && t[0] <= '9', t[0] == '\'':
+			return true
+		case t[0] == '"' || strings.HasPrefix(t, "qq"):
+			return !strings.ContainsAny(t, "$@")
+		case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
+			return true
+		}
+	}
+	return false
 }
 
 // isAggregate reports whether a node is a whole array or hash -- what perl's

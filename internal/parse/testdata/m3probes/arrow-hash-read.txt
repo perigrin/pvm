@@ -342,3 +342,108 @@ faithful
 sub f(){1} my $r; my $x = $r->{f()};
 --- facts
 faithful
+
+# The review shapes of the arrow-read fix: key spellings and loop heads.
+
+=== negated variable key
+my $h; my $k; my $y = $h->{-$k};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== negated variable key before a folded level
+my $h; my $k; my $y = $h->{-$k}{a};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== negated variable key last under push
+my $h; my $k; push @{$h->{a}{-$k}},1;
+--- facts
+faithful
+
+=== negative number key
+my $h; my $y = $h->{-1}{a};
+--- facts
+faithful
+
+=== unary plus key
+my $h; my $k; my $y = $h->{+$k};
+--- facts
+faithful
+
+=== braced scalar key
+my $h; my $y = $h->{${k}};
+--- facts
+faithful
+
+=== caret scalar key
+my $h; my $y = $h->{${^W}};
+--- facts
+faithful
+
+=== literal sum key
+my $h; my $y = $h->{1+1}{a};
+--- facts
+faithful
+
+=== literal concatenation key
+my $h; my $y = $h->{"a"."b"}{c};
+--- facts
+faithful
+
+=== filetest spelling key
+my $h; my $y = $h->{-x};
+--- facts
+faithful
+
+=== filetest spelling key pushed
+my $h; push @{$h->{-x}}, 1;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== builtin over a variable key
+my $h; my $y = $h->{lc $h};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== scalar of a deref key
+my $h; my $y = $h->{scalar @$h};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== statement-modifier for
+my $h; print for @{$h->{a}{b}};
+--- facts
+rv2hv 2 exact
+faithful
+
+=== statement-modifier foreach
+my $h; print foreach @{$h->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== C-style for condition
+my $h; for (;@{$h->{a}{b}};) {}
+--- facts
+faithful
+
+=== C-style for hash condition
+my $h; for (;%{$h->{a}};){}
+--- facts
+rv2hv 1 exact
+faithful
+
+=== C-style for step
+my $h; for (;;@{$h->{a}{b}}){}
+--- facts
+faithful
+
+=== C-style for postfix condition
+my $h; for (;$h->{a}->@*;){}
+--- facts
+faithful
