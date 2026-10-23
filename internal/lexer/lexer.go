@@ -296,6 +296,11 @@ type lexer struct {
 	// opens a prototype rather than a list.
 	sawSubWord      bool
 	expectPrototype bool
+	// methodHead is set while a `method`'s head is open: its parenthesised
+	// head is a signature whatever the signatures feature says. Measured on
+	// perl 5.44.0, `use feature "class"; class C { method m (%o) { keys %o }
+	// }` makes %o a lexical, padhv[%o:5,6].
+	methodHead bool
 	// sigPending and sigDepth track a SIGNATURE, the `(...)` after `sub
 	// NAME` when the feature is on. sigPending is set where scanPrototype
 	// declines the parens, and the `(` that follows makes sigDepth 1; it

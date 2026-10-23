@@ -505,22 +505,33 @@ func TestQuoteOpStillLexesElsewhere(t *testing.T) {
 
 // TestMethodNeedsClassSyntax: without class syntax `method` is a name, so
 // op/method.t's `method Pack ("a")` keeps its parens as arguments rather
-// than a prototype; `use feature 'class'` turns the keyword on. Measured on
-// 5.42.0, `sub Pack::method { "m" } my $x = method Pack ("a");` deparses as
-// `my $x = 'Pack'->method('a');`.
+// than a signature; `use feature 'class'` turns the keyword on, and a
+// method's head is then always a signature. Measured on 5.42.0,
+// `sub Pack::method { "m" } my $x = method Pack ("a");` deparses as
+// `my $x = 'Pack'->method('a');`. Measured on 5.44.0, `use feature "class";
+// class C { method m ($$) { 1 } }` is "Illegal character following sigil in
+// a subroutine signature" -- never a prototype -- and in a signature a bare
+// `$` is a placeholder rather than the start of the variable `$,`.
 func TestMethodNeedsClassSyntax(t *testing.T) {
 	for _, tok := range Tokenize([]byte(`my $x = method Pack ("a");`)) {
 		if tok.Kind == Prototype {
 			t.Errorf("without class syntax `method` does not declare; got a Prototype")
 		}
 	}
-	found := false
-	for _, tok := range Tokenize([]byte(`use feature 'class'; method m ($$) { 1 }`)) {
-		if tok.Kind == Prototype {
-			found = true
+	// `method m ($$)` tells the two apart. Without class syntax `m` is the
+	// match operator and `($$)` its delimited pattern, one Quote; under it
+	// `m` is the method's name and `($$)` its signature, whose sigils lex
+	// as variables, never a Prototype.
+	for src, class := range map[string]bool{
+		`method m ($$) { 1 }`: false,
+		`use feature 'class'; class C { method m ($$) { 1 } }`: true,
+	} {
+		toks := Tokenize([]byte(src))
+		named := hasToken(toks, []byte(src), Word, "m")
+		quoted := hasToken(toks, []byte(src), Quote, "m ($$)")
+		proto := hasToken(toks, []byte(src), Prototype, "($$)")
+		if class && (!named || quoted || proto) || !class && (named || !quoted) {
+			t.Errorf("%q: class syntax %v, got %s", src, class, renderKinds(toks, []byte(src)))
 		}
-	}
-	if !found {
-		t.Errorf("under the class feature `method m ($$)` declares with a prototype")
 	}
 }
