@@ -1,6 +1,6 @@
 ---
 title: Ratchet canonical re-emission over perl.git t/ at 342/619
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,27 @@ blocks:
 - 01a168d5-d519-79b1-ae4f-e988e96cf893
 - 01a1690b-1d10-7a84-be7e-0cbc31f36812
 created: 2026-10-22T23:46:33.694596407Z
-updated: 2026-10-23T17:31:20.916639067Z
+updated: 2026-10-23T17:48:37.885281221Z
 sessions:
 - start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
-  end_sha: ""
-  commits: 0
+  end_sha: 7173ae307f8b93e53826e8f55fe3bbf7a6446cdb
+  commits: 1
   started_at: 2026-10-23T17:31:20.916639067Z
+  ended_at: 2026-10-23T17:48:37.885281221Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T17:31:20.916639067Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:48:37.885281221Z
+observed_paths:
+- .github/workflows/ci.yml
+- internal/parse/perlgitt_faithful_test.go
+- internal/parse/pin_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parseoracle/testdata/ratchet/m3start.txt
 ---
 
 ## Context
