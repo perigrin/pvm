@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c432-fbd5-7125-82fa-b52abb3ac7bc
 created: 2026-09-21T09:52:30.999321803Z
-updated: 2026-10-23T19:18:29.656211894Z
+updated: 2026-10-23T23:40:17.515864493Z
 sessions:
 - start_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
   end_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
@@ -62,9 +62,11 @@ by the spec and deferred to this issue. Decide once the files exist and the
 directory is actually unreadable -- a grouping invented before the files
 exist will be the wrong grouping.
 
-Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/04_operators` -> `TestCorpus` over the tier-04 topics (adjacency-04_operators.md, arithmetic.md, bitwise.md, comparison.md, compound-assignment.md, named-operators.md, unary.md)). Left unchanged: `TestTierOperatorsAdjacency`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/04_operators` -> `TestCorpus` over the tier-04 topics (adjacency-04_operators.md, arithmetic.md, bitwise.md, comparison.md, compound-assignment.md, named-operators.md, unary.md)). Left unchanged here: `TestTierOperatorsAdjacency`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierOperatorsAdjacency` -> `TestAdjacencyCoversItsTier/04_operators`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierOperatorsAdjacency` -> `TestAdjacencyCoversItsTier/04_operators`. These commands pass once branch ccx/adj merges.
+
+Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): `TestAdjacencyCoversItsTier` no longer checks the prerequisite pairing, which any plausible declaration satisfied. The pairing claim moved to its own criterion, run by `TestTierPrerequisitesMatchTheSpec`, which fails when a tier's DEPENDS ON is repointed.
 
 ## Acceptance criteria
 
@@ -73,7 +75,8 @@ Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tie
 - [ ] The 31 adjacent precedence pairs are fixtures whose two groupings produce different observable output, discriminated by effect order (`go test ./internal/conformance/ -run '^TestTierOperatorsAdjacentPairs$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsAdjacentPairs'`)
 - [ ] Every file in 04_operators/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierOperatorsPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsPerlValidated'`)
 - [ ] The dependency lint passes over 04_operators/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierOperatorsLint$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsLint'`)
-- [ ] The tier's adjacency topic puts every construct 04_operators introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^04_operators$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/04_operators'`)
+- [ ] The tier's adjacency topic puts every construct 04_operators introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^04_operators$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/04_operators'`)
+- [ ] The tier's declared prerequisite is the spec's edge rather than an assumed tier N-1 (`go test ./internal/conformance/ -run '^TestTierPrerequisitesMatchTheSpec$' -count=1 -v | grep -q '^--- PASS: TestTierPrerequisitesMatchTheSpec'`)
 - [ ] 04_operators/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierOperatorsRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierOperatorsRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-04_operators|arithmetic|bitwise|comparison|compound-assignment|named-operators|unary)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
