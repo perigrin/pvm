@@ -3,8 +3,10 @@ title: Write named unary ops by precedence, with the source's call parens record
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5e5e-73cc-a210-0341ea517914
 created: 2026-10-23T13:54:58.447919627Z
-updated: 2026-10-23T13:54:58.447919627Z
+updated: 2026-10-23T13:55:42.27685344Z
 ---
 
 ## Context
