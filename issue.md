@@ -9,8 +9,10 @@ blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 created: 2026-10-22T23:46:33.975890599Z
-updated: 2026-10-23T07:06:25.171126028Z
+updated: 2026-10-23T08:21:30.948525683Z
 ---
+
+**The title is stale and git-zhi cannot retitle.** Read it as "Seed the re-emission work queue with every unfaithful M3-dir file". Under perigrin's round-4 ruling the queue is a work list that must be empty at close, not a register of located defects (J6/A27, chain-review round 5).
 
 ## Context
 
@@ -24,14 +26,14 @@ TestFaithfulQueueMatchesTree asserts the queue is exactly the current state. It 
 
 This issue seeds the queue with every M3-dir failure that remains after canon writes `Paren` once and `Faithful` forgives extra nesting. Each row gets one cause class, and each class has one owning issue that FIXES its rows and brings the class to zero:
 
-- `dropped-paren` (a source paren canon still does not write): the OPf_PARENS issue;
+- `dropped-paren` (a source paren canon still does not write): the dropped-paren rows issue, which follows the OPf_PARENS check;
 - `heredoc` and `subless-special-sub`: the heredoc/sub-less issue;
 - `stmt-boundary`: the statement-boundary issue;
 - `canon-adds-paren-op` (the source token at the first difference is an operator or named op): the operator issue;
-- `canon-adds-paren-term` (a term, literal, bareword or `;`/`{`): the term issue;
+- `canon-adds-paren-term` (a term, literal, bareword or `;`/`{`): the term issue. This includes the block-form calls (`print {`, `sort {`, `grep {`, `bless {` against canon `(`), which are a call with a block argument, not a statement boundary;
 - `other`: anything else, owned by the final re-emission issue, which fixes those rows and asserts 100%.
 
-Sizing, from the 2026-10-22 first-difference list measured at 054e75e6 (scratchpad faith.log) plus the 13 files pushback round 1 found behind dropped parens: about 14 heredoc, 6 sub-less, 15 statement-boundary, 11 operator, 19 term. The true counts come from this issue's seeding.
+**Sizing is by causes, not rows (P22, J1, chain-review round 5).** A row shows only a file's FIRST difference, and reaching zero means fixing every difference in the file. Measured at 054e75e6 (pushback round 5): 1174 differing places in 168 files. A simulated post-Paren-once seed gives about 43 canon-adds-paren, 21 stmt-boundary (all block forms, which this rule moves to the term class), 8 heredoc, 6 subless and 8 other/dropped-paren, with about 25 distinct leading causes in canon-adds-paren alone. About 17 files expose a later row in a class whose owner has already closed. So after seeding, any class with more than about 8 distinct CAUSES is split into per-cause issues in this milestone before its owner starts. Each split issue is blocked by the previous owner and blocks the next, so the sequence stays intact. The seeding commit message records each class's row count and cause count, and each file's full difference depth.
 
 The class is decided from the tree as it stands after the Paren change, not from the 2026-10-22 scratch list. A file's first difference is all a row shows, so fixing it can expose a later difference of another class. The row then changes class rather than disappearing. The issue that makes that change re-classifies the row, and if the new class's owner has already closed, it handles the row itself.
 
@@ -41,7 +43,9 @@ The class is decided from the tree as it stands after the Paren change, not from
 - [ ] RED: write TestFaithfulQueueMatchesTree. Run it with an empty queue and watch it fail, listing every unfaithful M3-dir file with its first differing line.
 - [ ] GREEN: seed faithful_queue.txt from that output, classifying each row by reading the failing line. Run the test and watch it pass.
 - [ ] Add TestFaithfulQueueMatchesTree to ci.yml's "Fail if a corpus-backed ratchet skipped" loop and to TestCIRunsTheRatchets' list (internal/parse/pin_test.go:71), and confirm that the job sets the corpus env it needs.
-- [ ] Run `make test`, then commit, with the per-class counts in the message.
+- [ ] Count the distinct causes per class (a cause is one parser or canon question, judged by reading each row's first difference). Record per-class row and cause counts, and each file's full difference depth, in the commit message. For every class over about 8 causes, add per-cause issues to the milestone with `git zhi issue add`, wire them into the sequence, and narrow the owning issue's body to its first cause group before that owner starts.
+- [ ] RED/GREEN TestFaithfulQueueRowsRejectMalformed rejects any row whose fields are not separated by exactly one space, so the class greps cannot be dodged by spacing.
+- [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
 
@@ -50,6 +54,7 @@ The class is decided from the tree as it stands after the Paren change, not from
 - [ ] Every queue row names a path, line, known cause class and reason (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsAreWellFormed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsAreWellFormed'`)
 - [ ] The work queue is exactly the M3-dir files that parse and re-emit unfaithfully, each at its first differing line (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] CI fails if the queue check skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestFaithfulQueueMatchesTree\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
+- [ ] The seeding commit records per-class cause counts (`sh -c 'git log --format=%B -- internal/parse/testdata/faithful_queue.txt | grep -Eqi "causes?[: ]"'`)
 
 ### Negative Scenarios
 
@@ -58,4 +63,4 @@ The class is decided from the tree as it stands after the Paren change, not from
 - [ ] A queue row naming a file outside the M3 dirs, or a file that does not exist in the corpus, fails (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueRowsNameM3Files$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsNameM3Files'`)
 - [ ] Two rows for the same path fail, so a file cannot sit in two classes (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsAreUnique$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsAreUnique'`)
 - [ ] A row whose line is not the file's first differing line fails, so a fix that moves the first difference later shows up as a changed row (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueLineIsFirstDifference$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueLineIsFirstDifference'`)
-- [ ] A row with an empty reason, a zero line, or a class outside the seven known classes is rejected (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsRejectMalformed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsRejectMalformed'`)
+- [ ] A row with an empty reason, a zero line, a class outside the seven known classes, or fields separated by anything but one space is rejected (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsRejectMalformed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsRejectMalformed'`)
