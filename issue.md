@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-073a-78c2-ba73-227fb48a26c4
 created: 2026-09-21T09:52:58.866189072Z
-updated: 2026-10-23T19:18:30.561708117Z
+updated: 2026-10-23T23:40:18.094071678Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -62,15 +62,18 @@ tier-04 file would contain this tier's construct and fail the dependency
 check by construction. That is why everything is authored and T1 is a source
 of CASES, cited by filename and pinned revision, never copied.
 
-Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/12_packages` -> `TestCorpus` over the tier-12 topics (adjacency-12_packages.md, compile-phase.md, loading.md, packages.md)). Left unchanged: `TestTierPackagesAdjacency`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/12_packages` -> `TestCorpus` over the tier-12 topics (adjacency-12_packages.md, compile-phase.md, loading.md, packages.md)). Left unchanged here: `TestTierPackagesAdjacency`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierPackagesAdjacency` -> `TestAdjacencyCoversItsTier/12_packages`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierPackagesAdjacency` -> `TestAdjacencyCoversItsTier/12_packages`. These commands pass once branch ccx/adj merges.
+
+Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): `TestAdjacencyCoversItsTier` no longer checks the prerequisite pairing, which any plausible declaration satisfied. The pairing claim moved to its own criterion, run by `TestTierPrerequisitesMatchTheSpec`, which fails when a tier's DEPENDS ON is repointed.
 
 ## Acceptance criteria
 
 - [ ] Every file in 12_packages/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierPackagesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesPerlValidated'`)
 - [ ] The dependency lint passes over 12_packages/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierPackagesLint$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesLint'`)
-- [ ] The tier's adjacency topic puts every construct 12_packages introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^12_packages$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/12_packages'`)
+- [ ] The tier's adjacency topic puts every construct 12_packages introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^12_packages$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/12_packages'`)
+- [ ] The tier's declared prerequisite is the spec's edge rather than an assumed tier N-1 (`go test ./internal/conformance/ -run '^TestTierPrerequisitesMatchTheSpec$' -count=1 -v | grep -q '^--- PASS: TestTierPrerequisitesMatchTheSpec'`)
 - [ ] 12_packages/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierPackagesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierPackagesRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-12_packages|compile-phase|loading|packages)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
