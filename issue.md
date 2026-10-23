@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a1692f-bf96-703b-b6bc-59a216283227
 created: 2026-10-23T14:34:36.382741984Z
-updated: 2026-10-23T14:40:25.210180719Z
+updated: 2026-10-23T23:07:18.396128832Z
 ---
 
 ## Context
@@ -43,6 +43,24 @@ updated: 2026-10-23T14:40:25.210180719Z
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (a list op as the last argument of another, `print $fh @list`, `return wantarray ? @a : $a[0]`, `sort foo @a`, `sort keys %h`, a user call before `or` and before `,`, `time + 1`, `__LINE__ . "x"`), and adds them to this issue's probe file so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] Run `make test`, then commit.
+
+**Measured by NL-a (exec/nla bc947a68, 2026-10-23); the measure step quotes this.** These numbers were measured in a scratch worktree at f09a07a0. The design writes list ops, user, method and indirect calls, and niladics bare when there is no ArgParen; writes `not` by follow; and turns the call-paren rule off. ArgParen must also be set on `->name(` and on the indirect `(`.
+
+| config | perl.git t/ | M3 | statements (73,670) |
+|---|---|---|---|
+| baseline | 342/619 | 178/347 | 67,012 |
+| rule off alone | 75 | 49 | 50,935 |
+| design | 348 (1 lost, 7 gained) | 183 | 67,183 (3 lost, 174 gained) |
+| design + trailing-comma variant | 349 (0 lost) | 184 | 67,186 (0 lost) |
+
+- **This issue must adopt the trailing-comma variant:** a bare call whose last argument carries the source's trailing comma stays bare.
+  - op/utf8cache.t:70 shows why. The source is `substr $x, 0, 1, = "\x{100}"`, and perl reads it as `substr($x,0,1) = ...`.
+  - The trailing comma ends the list before `=`, `.=`, `||=`, `&&=`, `==` and `||`. It does not end it before `-=`, `*=`, `%=`, `/=`, `&=`, `**=`, `x=`, `//=` or `<<=`.
+  - The variant also recovers io/open.t:281.
+- **The stop condition did not fire.** fresh5's 23 lost files are all faithful under the design except op/utf8cache.t.
+- **NL-a pins `print(not $x);` and `print(not $x, $y);`** because list ops are still parenthesised. This issue updates those pins to the bare form.
+
+The data files are in docs/measurements/2026-10-23-precedence-aware-canon/ (nl-*).
 
 ## Acceptance criteria
 
