@@ -237,8 +237,8 @@ func runGateSweep(t *testing.T, p perltest.Perl, wf workflowFile) (workflowStep,
 
 // TestCISweepRunsOracleOnce: the sweep step runs both ratchets in one go
 // test, and they share one walk of the corpus. The receipt records how many
-// walks the process made, and carries the sites line only the site ratchet
-// adds after passing.
+// files the process walked, which must equal the files swept, and carries
+// the sites line only the site ratchet adds after passing.
 func TestCISweepRunsOracleOnce(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the gate runs on ubuntu-latest; modelling its shell on Windows proves nothing about the runner")
@@ -249,9 +249,9 @@ func TestCISweepRunsOracleOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the sweep step wrote no receipt: %v", err)
 	}
-	if r.CorpusWalks != 1 {
-		t.Errorf("the receipt records %d walks of the corpus, want 1: both ratchets must share one sweep",
-			r.CorpusWalks)
+	if r.FilesSwept == 0 || r.FilesWalked != r.FilesSwept {
+		t.Errorf("the receipt records %d files walked for %d swept, want equal: both ratchets "+
+			"must share one walk of each file", r.FilesWalked, r.FilesSwept)
 	}
 	if err := r.VerifySites(gateSitesPath()); err != nil {
 		t.Errorf("the receipt carries no sites line for the fixture: %v", err)

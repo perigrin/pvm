@@ -46,9 +46,10 @@ type Receipt struct {
 	// Sites is the sha256 of the sites.txt TestSiteRatchetCorpus matched,
 	// added to this receipt only after that ratchet has passed too.
 	Sites string `json:"sites,omitempty"`
-	// CorpusWalks is how many times the test process ran the oracle over
-	// the corpus. Both ratchets share one walk, so a sweep records 1.
-	CorpusWalks int `json:"corpus_walks,omitempty"`
+	// FilesWalked is how many files the test process handed the oracle
+	// over the corpus. Both ratchets share one walk, so a sweep records
+	// FilesSwept; a second walk records twice that.
+	FilesWalked int `json:"files_walked,omitempty"`
 }
 
 // NewReceipt describes a report that has just passed Check against the

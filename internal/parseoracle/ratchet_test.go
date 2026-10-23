@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
@@ -30,14 +31,12 @@ import (
 var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
 
-// reportMemo computes a corpus report once per process. calls counts the
-// computations, which is what the sweep's receipt reports as corpus_walks.
+// reportMemo computes a corpus report once per process.
 type reportMemo struct {
 	once   sync.Once
 	report parseoracle.Report
 	shimT  string
 	err    error
-	calls  int
 }
 
 // get returns the memoised report, computing it with f on the first call.
@@ -45,7 +44,6 @@ type reportMemo struct {
 // t.Fatalf in the first caller -- leaves that error for every later one.
 func (m *reportMemo) get(f func() (parseoracle.Report, string, error)) (parseoracle.Report, string, error) {
 	m.once.Do(func() {
-		m.calls++
 		m.err = errors.New("the corpus sweep failed in an earlier test of this run")
 		m.report, m.shimT, m.err = f()
 	})
@@ -54,6 +52,11 @@ func (m *reportMemo) get(f func() (parseoracle.Report, string, error)) (parseora
 
 // corpus is the one corpus report this test process computes.
 var corpus reportMemo
+
+// filesWalked counts every file this process hands parseoracle.Run for the
+// corpus, outside the memo, so a second walk shows as twice the files. The
+// sweep's receipt reports it as files_walked.
+var filesWalked atomic.Int64
 
 // corpusReport measures the whole corpus through a shim with the perl p,
 // the same way TestCorpusSweep does, once per process: TestRatchetCorpus
@@ -94,6 +97,7 @@ func corpusReport(t *testing.T, p perltest.Perl) (parseoracle.Report, string) {
 		}
 		sort.Strings(files)
 
+		filesWalked.Add(int64(len(files)))
 		report, err := parseoracle.Run(context.Background(), files,
 			parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t), Perl: p.Path})
 		if err != nil {
@@ -570,7 +574,7 @@ func TestSiteRatchetCorpus(t *testing.T) {
 		if err := receipt.RecordSites(sitesPath); err != nil {
 			t.Fatalf("%v", err)
 		}
-		receipt.CorpusWalks = corpus.calls
+		receipt.FilesWalked = int(filesWalked.Load())
 		if err := receipt.Write(path); err != nil {
 			t.Fatalf("writing the receipt: %v", err)
 		}
@@ -945,8 +949,8 @@ func TestCorpusReportComputesOnce(t *testing.T) {
 			t.Errorf("get returned %v, want the memoised %v", err, fail)
 		}
 	}
-	if calls != 1 || m.calls != 1 {
-		t.Errorf("the computation ran %d times (memo counted %d), want once", calls, m.calls)
+	if calls != 1 {
+		t.Errorf("the computation ran %d times, want once", calls)
 	}
 
 	var aborted reportMemo
