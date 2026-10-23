@@ -1,10 +1,19 @@
 ---
 title: The tier-02 adjacency case omits shift, pop and splice
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-10-23T15:43:24.426165882Z
-updated: 2026-10-23T19:00:45.426786262Z
+updated: 2026-10-23T19:10:22.514700061Z
+sessions:
+- start_sha: 9c3e164290f60fe6c5c1625dbd8e15a2f8a4dc3f
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T19:10:22.514700061Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:10:22.514700061Z
 ---
 
 ## Context
