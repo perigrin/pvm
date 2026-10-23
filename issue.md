@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T20:47:54.980994967Z
-updated: 2026-09-22T00:45:39.879810091Z
+updated: 2026-10-23T17:09:34.720597252Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -186,12 +186,14 @@ costs nothing on disk, but it regenerates the ratchet, which is another
 issue's work. The declaration is what stops that from being rediscovered by
 the next agent whose numbering test fails.
 
+Criteria updated 2026-10-23: a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestDerivedTierNumberingRegenerates` -> `TestDeclaredOrderingIsStillMeaningful`; `TestAccidentalTierNumberingIsNotDerivable` -> `TestAccidentalTierClaimsNoArrangement`; `TestGroupedTierNumberingCoversItsFiles` -> `TestGroupedTierNamesItsTopics`).
+
 ## Acceptance criteria
 
 - [ ] Every one of the fourteen tiers declares a `## FILE ORDER` block holding `derived`, `accidental`, or `NN-NN name` grouping lines; a tier that declares none fails by name. (`go test ./internal/conformance/ -run TestEveryTierDeclaresFileOrder -count=1 -v`)
-- [ ] Every tier declaring `derived` has numbering `regenerateNumbering` reproduces exactly, and a tier whose numbering has a gap or a misordering is named along with the number a regeneration would give it. (`go test ./internal/conformance/ -run TestDerivedTierNumberingRegenerates -count=1 -v`)
-- [ ] Every tier declaring `accidental` has an order a regeneration would NOT produce, so the word cannot be used to opt out of the derived check. (`go test ./internal/conformance/ -run TestAccidentalTierNumberingIsNotDerivable -count=1 -v`)
-- [ ] Every tier declaring a grouping has ranges that tile its construct files exactly -- no gap, no overlap, ending at the last file -- so a tier that gains or loses a file is named rather than drifting. (`go test ./internal/conformance/ -run TestGroupedTierNumberingCoversItsFiles -count=1 -v`)
+- [ ] Every tier declaring `derived` has numbering `regenerateNumbering` reproduces exactly, and a tier whose numbering has a gap or a misordering is named along with the number a regeneration would give it. (`go test ./internal/conformance/ -run '^TestDeclaredOrderingIsStillMeaningful$' -count=1 -v | grep -q '^--- PASS: TestDeclaredOrderingIsStillMeaningful'`)
+- [ ] Every tier declaring `accidental` has an order a regeneration would NOT produce, so the word cannot be used to opt out of the derived check. (`go test ./internal/conformance/ -run '^TestAccidentalTierClaimsNoArrangement$' -count=1 -v | grep -q '^--- PASS: TestAccidentalTierClaimsNoArrangement'`)
+- [ ] Every tier declaring a grouping has ranges that tile its construct files exactly -- no gap, no overlap, ending at the last file -- so a tier that gains or loses a file is named rather than drifting. (`go test ./internal/conformance/ -run '^TestGroupedTierNamesItsTopics$' -count=1 -v | grep -q '^--- PASS: TestGroupedTierNamesItsTopics'`)
 - [ ] The census is readable straight off the tree: two `derived`, one grouping, eleven `accidental`, fourteen lines in all. (`grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -cE 'derived|accidental|[0-9][0-9]-[0-9][0-9]'`)
 - [ ] No tier was renumbered to satisfy the rule; only READMEs changed. (`test 0 -eq "$(git status --porcelain conformance/ | grep -c '^R')"`)
 - [ ] The whole conformance suite is green. (`go test ./internal/conformance/ -count=1`)
