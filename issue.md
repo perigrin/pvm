@@ -3,8 +3,10 @@ title: Write list operators, calls and niladic builtins by precedence, with the 
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1690b-4745-7ef7-9285-0a9f97d86924
 created: 2026-10-23T14:34:36.382741984Z
-updated: 2026-10-23T14:34:36.382741984Z
+updated: 2026-10-23T14:35:01.789223079Z
 ---
 
 ## Context
