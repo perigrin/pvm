@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-23T01:55:44.266243639Z
+updated: 2026-10-23T07:05:56.160538915Z
 ---
 
 ## Context
@@ -46,6 +46,7 @@ Once the context-changing dropped parens have been fixed as tree defects, the re
 - [ ] canon writes a Paren node's parens exactly once (`go test ./internal/parse/ -run '^TestCanonWritesParenOnce$' -count=1 -v | grep -q '^--- PASS: TestCanonWritesParenOnce'`)
 - [ ] Faithful forgives only extra nesting around the same node (`go test ./internal/parse/ -run '^TestFaithfulForgivesOnlyExtraNesting$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivesOnlyExtraNesting'`)
 - [ ] The perl.git t/ faithful ratchet matches the tree (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+- [ ] The perl.git t/ faithful count is above the start recorded in m3start.txt (`sh -c 's=$(sed -n "s/^faithful_start_all = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(sed -n "s|^# \([0-9][0-9]*\)/619 faithful.*|\1|p" internal/parse/testdata/perlgittfaithful.ratchet); [ -n "$s" ] && [ -n "$n" ] && [ "$n" -gt "$s" ]'`)
 - [ ] Regression guard (passes today and after any re-baseline): the T1 canon ratchet matches its file (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
 - [ ] Regression guard (passes today and after any re-baseline): the T1 fidelity ratchet matches its file (`go test ./internal/parse/ -run '^TestCanonFidelityRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityRatchet'`)
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
