@@ -916,6 +916,28 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		return d
 	}
 
+	// `my`, `our` and `state` take the parenthesised list alone, perly.y's
+	// myterm, so an operator after it other than an assignment takes the
+	// whole declaration as its left operand, as the scalar path's does.
+	// Measured on perl 5.44.0 with -MO=Deparse,-p:
+	//
+	//	my @r = (my ($x) x 2);    (my(@r) = ((my($x)) x 2));
+	//	my $n = (my ($x) + 1);    (my($n) = (my $x + 1));
+	//
+	// `local` takes a whole term, `x` included: `local ($x) x 2` is perl's
+	// "Can't modify repeat (x) in local", so it keeps the expression.
+	if keywordName(p.text(word)) != "local" {
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+			list := p.parseTerm()
+			if op, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(op)]) {
+				list = p.parseInfix(list, infix[","].BP)
+			}
+			n.Children = append(n.Children, list)
+			n.End = p.prevEnd()
+			return p.parseInfix(n, infix[","].BP)
+		}
+	}
+
 	// A list target -- `my ($a, $b) = @_` -- or anything else, parsed as one
 	// expression so the assignment at level 9 is already inside it.
 	//
