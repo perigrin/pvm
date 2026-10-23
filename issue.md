@@ -1,6 +1,6 @@
 ---
 title: Mine at least 200 perf/opcount.t assertions into fixtures held to perl
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,7 +9,16 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-23T08:21:45.485117052Z
+updated: 2026-10-23T17:31:22.062437519Z
+sessions:
+- start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T17:31:22.062437519Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:31:22.062437519Z
 ---
 
 ## Context
