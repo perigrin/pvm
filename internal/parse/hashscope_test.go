@@ -385,7 +385,7 @@ func TestHashScopeSignaturesFeature(t *testing.T) {
 		{"off inside a block, on after it", `use feature "signatures"; { no feature "signatures"; } sub f (%o) { keys %o }`,
 			[]string{"%o=my"}},
 		{"5.35 bundle", `use 5.035; sub f (%o) { keys %o }`,
-			[]string{"%o=my"}},
+			[]string{"sig %o", "%o=my"}},
 		{"use VERSION resets it", `use feature "signatures"; use v5.10; sub f (%o) { keys %o }`,
 			[]string{"sig! %o", "%o=pkg"}},
 	})

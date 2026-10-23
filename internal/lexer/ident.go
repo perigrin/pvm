@@ -278,10 +278,15 @@ func (l *lexer) notePragma(start int) {
 //
 // Four spellings turn it on, and the first three appear in the corpus:
 //
-//	use v5.36;            implied by the version bundle, 5.36+
+//	use v5.36;            implied by the version bundle, 5.35+
 //	use 5.036;            the same bundle, numeric spelling
 //	use feature 'signatures';
-//	use feature ':5.36';  the feature bundle, 5.36+
+//	use feature ':5.36';  the feature bundle, 5.35+
+//
+// The bundles start at 5.35, the development series 5.36 came from:
+// feature.pm's $feature::feature_bundle{"5.35"} names signatures and
+// {"5.34"} does not, and on perl 5.44.0 `use 5.035; sub f (%o) { keys %o }`
+// makes %o a lexical where `use 5.034` does not.
 //
 // `no feature` is what turns it back OFF, in either spelling of its argument:
 //
@@ -346,7 +351,7 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 			l.pendingVersionMajor = maj
 			return
 		}
-		if v, ok := versionAtLeast(text, 5, 36); ok && v {
+		if v, ok := versionAtLeast(text, 5, 35); ok && v {
 			l.signatures = true
 		}
 	case Number:
@@ -355,14 +360,16 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		}
 		// The minor half of a split `v5.36`, or a whole `use 5.036;`.
 		if l.pendingVersionMajor > 0 {
-			if l.pendingVersionMajor > 5 || (l.pendingVersionMajor == 5 && minorAtLeast(text, 36)) {
+			if l.pendingVersionMajor > 5 || (l.pendingVersionMajor == 5 && minorAtLeast(text, 35)) {
 				l.signatures = true
 			}
 			l.pendingVersionMajor = 0
 			return
 		}
-		text = padDecimalVersion(text)
-		if v, ok := versionAtLeast(text, 5, 36); ok && v {
+		// An underscore in a numeric literal is a separator perl drops:
+		// `use 5.035_001` is 5.035001, measured padhv on 5.44.0.
+		text = padDecimalVersion(strings.ReplaceAll(text, "_", ""))
+		if v, ok := versionAtLeast(text, 5, 35); ok && v {
 			l.signatures = true
 		}
 		l.noteApostropheBundle(text)
@@ -385,7 +392,7 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		// version assertion rather than a bundle, so the version half is
 		// `use`-only. Returning either way is what keeps a v-string from
 		// falling through to the feature-name test below.
-		if v, ok := versionAtLeast(text, 5, 36); ok {
+		if v, ok := versionAtLeast(text, 5, 35); ok {
 			if v && useSpelling {
 				l.signatures = true
 			}
@@ -547,7 +554,7 @@ func versionAtLeast(text string, major, minor int) (bool, bool) {
 // version bundle whose feature set includes signatures.
 //
 // A bundle is a version behind a colon -- `':5.36'` -- so this reads off the
-// colon and hands the rest to versionAtLeast, which already knows the 5.36
+// colon and hands the rest to versionAtLeast, which already knows the 5.35
 // threshold. Measured 5.42.0 (see the call site for the runs): `:5.34` does
 // not name signatures and `:5.36` and later do.
 //
@@ -567,7 +574,7 @@ func featureBundleHasSignatures(text string) bool {
 	for end < len(rest) && (rest[end] == '.' || (rest[end] >= '0' && rest[end] <= '9')) {
 		end++
 	}
-	ok, isVersion := versionAtLeast(rest[:end], 5, 36)
+	ok, isVersion := versionAtLeast(rest[:end], 5, 35)
 	return isVersion && ok
 }
 
