@@ -269,7 +269,7 @@ print encode({
 # The backend runs in O.pm's CHECK block, after every BEGIN in the file, and a
 # file may have installed `$SIG{__WARN__} = sub { die ... }` by then
 # (op/magic.t does). B::Concise warns "Deep recursion" on a statement chain
-# through more than 100 LOGOPs, and that handler would turn Concise's own
+# through 99 or more LOGOPs, and that handler would turn Concise's own
 # warning into "CHECK failed" -- an exit status perl -c never gives the file.
 # A CHECK block loaded after O's runs just before it, once the file's own
 # CHECKs have run, and removes the handler for the backend alone.

@@ -18,7 +18,7 @@ import (
 // O.pm runs B::Concise in a CHECK block, after the file's BEGIN has
 // installed `$SIG{__WARN__} = sub { die ... }`. B::Concise is `use v5.40`,
 // so its own sequence() warns "Deep recursion" on a file whose statement
-// chain runs through more than 100 LOGOPs -- here, 101 statement-modifier
+// chain runs through 99 or more LOGOPs -- here, 101 statement-modifier
 // ifs -- and the file's handler turns that warning into "CHECK failed--call
 // queue aborted". Concise exits 255, and its exit status became ok:0.
 // The warning is Concise's, not the file's; perl never raises it.

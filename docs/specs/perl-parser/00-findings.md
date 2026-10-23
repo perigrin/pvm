@@ -488,8 +488,8 @@ until the probe answered a proxy as the constant sub it is, prototype `""`.
 `op/magic.t` read no-answer although perl compiles it. The oracle takes
 "did it compile" from its `-MO=Concise,-exec` run, whose backend runs in a
 CHECK block after the file's BEGIN has set `$SIG{__WARN__}` to die.
-B::Concise warns "Deep recursion" walking a statement chain through more
-than 100 LOGOPs, and the file's handler turned Concise's own warning into
+B::Concise warns "Deep recursion" walking a statement chain through 99
+or more LOGOPs, and the file's handler turned Concise's own warning into
 "CHECK failed". The oracle now removes that handler in a CHECK block that
 runs just before the backend, after the file's own CHECKs, and the file
 moved no-answer → wider: its 46 sites are 26 exact and 20 wider (rv2hv).
