@@ -1,19 +1,39 @@
 ---
 title: No tier introduces the switch ops, so the corpus cannot hold a given/when case
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T17:33:59.477827339Z
-updated: 2026-10-23T15:16:22.429387141Z
+updated: 2026-10-23T16:04:08.161215176Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
-  end_sha: ""
-  commits: 0
+  end_sha: 394f64d005a7e2ed73b94278ca6a14099bc6cecc
+  commits: 2
   started_at: 2026-10-23T15:16:22.429387141Z
+  ended_at: 2026-10-23T16:04:08.161215176Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T15:16:22.429387141Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T16:04:08.161215176Z
+observed_paths:
+- conformance/04_operators/README.md
+- conformance/06_control/README.md
+- conformance/mdtest/adjacency-06_control.md
+- conformance/mdtest/blocks-and-terminations.md
+- conformance/mdtest/comparison.md
+- conformance/mdtest/conditionals.md
+- conformance/mdtest/dynamic-scope.md
+- conformance/mdtest/jumps.md
+- conformance/mdtest/loops.md
+- conformance/mdtest/subroutines.md
+- conformance/mdtest/switch.md
+- conformance/mdtest/symbol-table.md
+- conformance/mdtest/taking-references.md
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
 ---
 
 The corpus has no `given`/`when`/`default` case and structurally cannot hold
