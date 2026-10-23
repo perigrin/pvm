@@ -10,8 +10,10 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-22T23:46:33.790255282Z
-updated: 2026-10-23T01:10:57.399052508Z
+updated: 2026-10-23T01:12:07.938130403Z
 ---
+
+**The title is stale and git-zhi cannot retitle.** Read it as "Classify dropped source parens by position, and fix the context-changing ones as tree defects". Writing a Paren node's parens once moved to 01a1664d-75d4 in chain-review round 1 (P6).
 
 ## Context
 
