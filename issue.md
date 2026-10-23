@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-23T07:06:50.727978535Z
-updated: 2026-10-23T07:07:01.090218621Z
+updated: 2026-10-23T08:21:10.753899699Z
 ---
 
 ## Context
@@ -19,13 +19,13 @@ updated: 2026-10-23T07:07:01.090218621Z
 
 **perigrin's ruling (2026-10-23, chain-review round 4): re-emission is 100% faithful on the M3 dirs, with no defects file.** This is the last re-emission issue. It owns the `other` class: every queue row that no triage issue's class fits, including rows re-classified as `other` by earlier fixes. It fixes each one. It then writes TestPerlGitTFaithfulOnM3Dirs, which asserts that every M3-dir file (`op mro uni lib test_pl`) that parses re-emits faithfully, with NO exception list. The milestone's resolution command runs that test. When this issue closes, the work queue holds no rows (comment lines only), and the M3-dir faithful count is above `faithful_start_m3` (178 at 054e75e6) in m3start.txt. A row that proves unfixable is escalated to perigrin with its perl measurement. It is never parked, and this issue does not close around it.
 
-Size: unknown until the triage issues finish. If more than about 10 `other` rows remain when this issue starts, split it by cause before starting, as the triage issues were split.
+Size: unknown until the triage issues finish. Count EVERY queue row when this issue starts, `other` and any class left by a closed owner alike. If they span more than about 8 distinct causes, split this issue by cause before starting, as 5f77's rule splits the triage classes.
 
 ## Steps
 
 - [ ] List the queue's `other` rows, and any rows of other classes left by closed owners. For each, reduce the first difference to a minimal snippet and judge it with the pinned perl 5.44.0 (`perl -MO=Deparse,-p` or `perl -MO=Concise`).
 - [ ] RED: add each reduced snippet to TestFaithfulOtherRowsFixed in fidelity_test.go, quoting perl's output. Run it and watch the cases fail.
-- [ ] GREEN: fix one cause at a time, in canon, `Faithful` (only where the measurement shows the difference is cosmetic) or the parser. Run the test after each.
+- [ ] GREEN: fix one cause at a time, in canon or the parser. `Faithful` is not changed: its forgiven set is closed (perigrin's round-5 ruling), and a difference that seems to need a new rule goes to perigrin with its perl measurement. Run the test after each.
 - [ ] Add every reduced case, with perl's facts, as probe file `internal/parse/testdata/m3probes/faithful-other.txt`.
 - [ ] RED/GREEN TestPerlGitTFaithfulOnM3DirsIgnoresTheQueue: with a fixture tree holding one unfaithful file and a queue listing it, TestPerlGitTFaithfulOnM3Dirs's check still fails.
 - [ ] RED: write TestPerlGitTFaithfulOnM3Dirs, which walks every M3-dir file outside `perlRejects` and fails on any file that parses and re-emits unfaithfully. It has no exception list. Run it while rows remain and watch it fail.
@@ -48,6 +48,7 @@ Size: unknown until the triage issues finish. If more than about 10 `other` rows
 - [ ] The M3-dir faithful count in the committed ratchet is above the start count recorded in m3start.txt (`sh -c 's=$(sed -n "s/^faithful_start_m3 = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(awk "\$1==\"0\" && \$2 ~ /^(op|mro|uni|lib|test_pl)\// {k++} END {print k+0}" internal/parse/testdata/perlgittfaithful.ratchet); [ -n "$s" ] && [ "$n" -gt "$s" ]'`)
 - [ ] CI fails if the 100% check skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestPerlGitTFaithfulOnM3Dirs\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
 - [ ] The reduced cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/faithful-other.txt`)
+- [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 
 ### Negative Scenarios
