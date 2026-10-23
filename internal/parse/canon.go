@@ -33,6 +33,11 @@ func Canon(n *Node, src []byte) string {
 type canonBuf struct {
 	strings.Builder
 	parenNode []int
+	// follow is the binding power of the operator written right after the
+	// node emitted next, which a named unary's operand would absorb. emit
+	// reads and clears it, so a parent sets it (emitBefore) only for the
+	// child it is about to write; every other child reads 0.
+	follow int
 }
 
 // writeParenNode writes a paren a node's Paren flag stands for, and marks it.
@@ -51,13 +56,28 @@ func (b *canonBuf) writeFrom(o *canonBuf, from, to int) {
 	b.WriteString(o.String()[from:to])
 }
 
+// emitBefore emits n with f, the power of the operator written after it.
+func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
+	b.follow = f
+	emit(b, n, src, outer)
+}
+
 // emit writes n, wrapping it in parentheses when its own binding power is
 // looser than outer -- the power its parent will read it at.
+//
+// A prefix op's parens depend on what FOLLOWS it as well, which outer does
+// not carry: at a right operand, `!defined $x` and `$a . lc $b`, outer says
+// nothing about the right edge. f is that power, 0 when a closer or nothing
+// follows. A binary's left operand is followed by its operator, its right
+// operand by whatever follows the binary, and so on down the right edge.
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
+	f := b.follow
+	b.follow = 0
 	// A parenthesised element with a trailing separator keeps its parens
 	// whatever its binding power, so the separator stays inside them:
 	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
 	if emitWraps(n, outer) {
+		f = 0 // the `)` follows
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
@@ -221,6 +241,40 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			return
 		}
 
+		// A named unary op is written as the operator it is, measured on
+		// perl 5.44.0: `chdir "t"` and `chdir("t")` build the same `chdir
+		// vK/1`, so its call parens are not in perl's tree. They are written
+		// only where the source wrote them (ArgParen), or where the operator
+		// after it is tighter and would bind into the operand: `defined($x)
+		// ** 2`. The operand is read at the named-unary level, so a looser
+		// one is wrapped and a tree with `defined` over `||` writes
+		// `defined ($x || $y)`, a paren the source lacks. The BLOCK forms of
+		// `eval` and `do` are written below.
+		if n.NamedUnary && !n.ArgParen && len(n.Children) == 0 {
+			b.WriteString(n.Text)
+			return
+		}
+		if n.NamedUnary && !n.ArgParen && len(n.Children) == 1 &&
+			n.Children[0].Kind != Block && f <= bpNamedUnary {
+			var arg canonBuf
+			emitBefore(&arg, n.Children[0], src, bpNamedUnary+1, f)
+			text := arg.String()
+			b.WriteString(n.Text)
+			// perl reads `NAME (` as the call's parens, so an operand written
+			// with a leading `(` that closes before the operand ends would
+			// re-read as the argument list: `defined ($x) . "a"` is
+			// `defined($x) . "a"`. That operand takes the call parens.
+			if leadingParenCloses(text) {
+				b.WriteByte(' ')
+				b.writeFrom(&arg, 0, len(text))
+			} else {
+				b.WriteByte('(')
+				b.writeFrom(&arg, 0, len(text))
+				b.WriteByte(')')
+			}
+			return
+		}
+
 		b.WriteString(n.Text)
 
 		// `eval { ... }` is the BLOCK form and takes no parens. Wrapping it
@@ -310,7 +364,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			// re-read, so this parenthesises it the same way.
 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
 				var operand canonBuf
-				emit(&operand, n.Children[0], src, prefix[op])
+				emitBefore(&operand, n.Children[0], src, prefix[op], f)
 				// The operand is emitted once and its text reused: emitting it
 				// again here doubles the work at every level of `!!!!$x`.
 				// `-` before a one-letter name writes a filetest: `- A()` is
@@ -325,12 +379,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				}
 				break
 			}
-			emit(b, n.Children[0], src, prefix[op])
+			emitBefore(b, n.Children[0], src, prefix[op], f)
 		}
 
 	case Postfix:
 		if len(n.Children) == 1 {
-			emit(b, n.Children[0], src, infix[n.Text].BP)
+			emitBefore(b, n.Children[0], src, infix[n.Text].BP, infix[n.Text].BP)
 		}
 		b.WriteString(n.Text)
 
@@ -339,12 +393,14 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteString(n.SourceText(src))
 			return
 		}
+		// The middle part is closed by `:` as by a closer, so it gets 0:
+		// `$c ? print "a" : print "b"` stays bare.
 		bp := infix["?"].BP
-		emit(b, n.Children[0], src, bp+1)
+		emitBefore(b, n.Children[0], src, bp+1, bp)
 		b.WriteString(" ? ")
 		emit(b, n.Children[1], src, bp)
 		b.WriteString(" : ")
-		emit(b, n.Children[2], src, bp)
+		emitBefore(b, n.Children[2], src, bp, f)
 
 	case CmpChain:
 		// N operands, each link with its own operator, evaluated once each
@@ -357,7 +413,11 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				b.WriteString(n.Ops[i-1])
 				b.WriteByte(' ')
 			}
-			emit(b, c, src, bp+1)
+			next := bp
+			if i == len(n.Children)-1 {
+				next = f
+			}
+			emitBefore(b, c, src, bp+1, next)
 		}
 
 	case List:
@@ -392,7 +452,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteString(n.SourceText(src))
 			return
 		}
-		emit(b, n.Children[0], src, atomBP)
+		emitBefore(b, n.Children[0], src, atomBP, atomBP)
 		if n.Arrow {
 			b.WriteString("->")
 		}
@@ -499,7 +559,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 					op = n.AssignOp
 				}
 				b.WriteString(" " + op + " ")
-				emit(b, c, src, infix[op].BP)
+				emitBefore(b, c, src, infix[op].BP, f)
 				continue
 			}
 			emit(b, c, src, 0)
@@ -520,6 +580,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// shape.
 		if n.Modifier {
 			for i, c := range n.Children {
+				next := 0 // the keyword follows the body
 				if i > 0 {
 					// The keyword separates the halves, and the condition
 					// after it is a BARE expression -- `$y = 1 if $x` has no
@@ -529,8 +590,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 					b.WriteByte(' ')
 					b.WriteString(n.Text)
 					b.WriteByte(' ')
+					next = f
 				}
-				emit(b, c, src, 0)
+				emitBefore(b, c, src, 0, next)
 			}
 			// The terminator is the enclosing Statement's to write, and
 			// blockForm is what decides it wants one -- see there for why a
@@ -646,7 +708,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				b.WriteString(c.Text)
 				continue
 			}
-			emit(b, c, src, 0)
+			emitBefore(b, c, src, 0, f)
 		}
 
 	case Label:
@@ -701,7 +763,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		if n.Text == "=>" && n.Children[0].Kind == Call && len(n.Children[0].Children) == 0 {
 			b.WriteString(n.Children[0].Text)
 		} else {
-			emit(b, n.Children[0], src, l)
+			emitBefore(b, n.Children[0], src, l, info.BP)
 		}
 		b.WriteByte(' ')
 		b.WriteString(n.Text)
@@ -716,7 +778,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteByte(')')
 			return
 		}
-		emit(b, n.Children[1], src, r)
+		emitBefore(b, n.Children[1], src, r, f)
 
 	default:
 		// A parenthesised Term's span covers its parens, so its source text
@@ -736,6 +798,17 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 // emitWraps reports whether emit parenthesises n when read at outer.
 func emitWraps(n *Node, outer int) bool {
 	return bindingPower(n) < outer || n.Paren && n.TrailingComma != ""
+}
+
+// leadingParenCloses reports whether text, an emitted operand, either does
+// not begin with `(` or begins with a `(` that closes at its end.
+func leadingParenCloses(text string) bool {
+	if !strings.HasPrefix(text, "(") {
+		return true
+	}
+	toks := significantTokens([]byte(text))
+	end, ok := matchParen(toks, 0)
+	return ok && end == len(toks)-1
 }
 
 // writesParens reports whether emit writes a parenthesised node's parens

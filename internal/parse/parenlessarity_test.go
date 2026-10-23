@@ -44,7 +44,9 @@ func TestParenlessBuiltinArity(t *testing.T) {
 
 		// readpipe and glob are named unaries: the comma stays outside, so
 		// the second element belongs to the enclosing list, not to the call.
-		{"my $out = readpipe $cmd;", "my $out = readpipe($cmd);"},
+		// Named unaries are written bare; perl 5.44.0 Deparse,-p:
+		// (my($out) = `$cmd`) and ((my($n) = ord($char)), '???').
+		{"my $out = readpipe $cmd;", "my $out = readpipe $cmd;"},
 		{"my @f = glob $pattern;", "my @f = glob($pattern);"},
 
 		// REGRESSION GUARD: three list operators already tabled. These pass
@@ -56,7 +58,7 @@ func TestParenlessBuiltinArity(t *testing.T) {
 
 		// REGRESSION GUARD: a named unary already tabled keeps the comma
 		// outside, so `ord $a, $b` is `ord($a), $b` and NOT `ord($a, $b)`.
-		{"my $n = ord $char, 1;", "my $n = ord($char) , 1;"},
+		{"my $n = ord $char, 1;", "my $n = ord $char , 1;"},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		got := parse.Canon(root, []byte(tc.src))

@@ -71,11 +71,12 @@ func (p *parser) parseTerm() *Node {
 	if lexer.IsFileTest(text) {
 		p.advanceTo(tok)
 		n := &Node{
-			Kind: Call, Text: text, Resolved: true, Start: tok.Start,
-			End: tok.End,
+			Kind: Call, Text: text, Resolved: true, NamedUnary: true,
+			Start: tok.Start, End: tok.End,
 		}
 		if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
 			p.advanceTo(next)
+			n.ArgParen = true
 			if arg := p.parseCallArgs(); arg != nil {
 				n.Children = append(n.Children, arg)
 			}

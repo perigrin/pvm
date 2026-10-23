@@ -319,6 +319,7 @@ func (p *parser) parseByShape(n *Node, name string) {
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
 			n.Children = append(n.Children, arg)
 		}
+		n.NamedUnary = true
 
 	case ShapeBlock:
 		// A leading `&` licenses `f { ... } LIST`. The block is optional at

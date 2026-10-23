@@ -29,7 +29,9 @@ func TestEmptyCommaSlot(t *testing.T) {
 		{"sub f {} f(1, , 2);", "sub f {} f(1 , , 2);"},
 		{"sub f {} f 1, , 2;", "sub f {} f(1 , , 2);"},
 		{`sub skip {} skip "x", 2, if $m;`, `sub skip {} skip("x" , 2 ,) if $m;`},
-		{"close $fh, or die;", "close($fh) , or die();"},
+		// close is a named unary, written bare; perl 5.44.0 Deparse,-p:
+		// (close($fh) or die).
+		{"close $fh, or die;", "close $fh , or die();"},
 		{`open my $fh, , "<", $f;`, `open(my $fh , , "<" , $f);`},
 		{"my $aa, $bb, $cc;", "my $aa , $bb , $cc;"},
 	}

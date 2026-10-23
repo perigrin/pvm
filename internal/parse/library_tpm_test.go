@@ -388,7 +388,10 @@ func noModules(string) ([]byte, bool) { return nil, false }
 // TestLibraryTpmImportsCarryTypes: a file that `use`s a library sees each
 // sub its @EXPORT names with the prototype and the typed signatures its
 // .tpm states or derives, and a call site parses by that prototype:
-// `need`'s derived `$` makes `need $a, $b` need($a), $b.
+// `need`'s derived `$` makes `need $a, $b` need($a), $b. A unary prototype
+// makes the call a named unary, which canon writes bare as the source did:
+// perl 5.44.0 Deparse,-p reads `sub one($){1} one $x, 2` as
+// (one($x), '???').
 func TestLibraryTpmImportsCarryTypes(t *testing.T) {
 	useLibraryFixture(t)
 	facts := resolveLibrary(t, "My::Lib")
@@ -408,7 +411,7 @@ func TestLibraryTpmImportsCarryTypes(t *testing.T) {
 			t.Errorf("%s: signatures %+v, want %+v", name, imp.Signatures, want)
 		}
 	}
-	if got, want := Canon(root, src), "use My::Lib; my ($a, $b);my @r = (need($a), $b);"; got != want {
+	if got, want := Canon(root, src), "use My::Lib; my ($a, $b);my @r = (need $a, $b);"; got != want {
 		t.Errorf("canon: got %q, want %q", got, want)
 	}
 }

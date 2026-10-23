@@ -225,7 +225,9 @@ func TestCoreUnaryAndListOperatorParseDiffer(t *testing.T) {
 		t.Errorf(":unary on defined %v, print %v; want defined alone", core["defined"][0].Unary, core["print"][0].Unary)
 	}
 	for src, canon := range map[string]string{
-		`my $z = defined $a, $b;`: `my $z = defined($a) , $b;`,
+		// Canon writes a named unary bare, as the source did; perl 5.44.0
+		// Deparse,-p: ((my($z) = defined($a)), $b).
+		`my $z = defined $a, $b;`: `my $z = defined $a , $b;`,
 		`my $z = print $a, $b;`:   `my $z = print($a , $b);`,
 	} {
 		n := parse.Parse([]byte(src))
