@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-0daa-7422-b787-7650ce684c4b
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:57.12910003Z
-updated: 2026-09-21T22:36:08.147158362Z
+updated: 2026-10-23T17:09:33.823043333Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -65,6 +65,8 @@ A known defect to cover rather than discover: a brace before `->` is a
 hashref, and the tree currently misreads two anonhash cases (M1 issue
 01a0bae2).
 
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/08_references` -> `TestCorpus` over the tier-08 topics (adjacency-08_references.md, code-references.md, dereferencing.md, taking-references.md)). Left unchanged: `TestTierReferencesAdjacency`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Every file in 08_references/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierReferencesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesPerlValidated'`)
@@ -72,4 +74,4 @@ hashref, and the tree currently misreads two anonhash cases (M1 issue
 - [ ] The tier's adjacency file puts every construct 08_references introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierReferencesAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesAdjacency'`)
 - [ ] 08_references/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierReferencesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierReferencesRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/08_references' -count=1 -v | grep -q '^    --- PASS: TestCorpus/08_references'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-08_references|code-references|dereferencing|taking-references)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
