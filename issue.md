@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-23T07:06:50.727978535Z
-updated: 2026-10-23T08:21:10.753899699Z
+updated: 2026-10-23T12:55:59.251047034Z
 ---
 
 ## Context
@@ -47,7 +47,7 @@ Size: unknown until the triage issues finish. Count EVERY queue row when this is
 - [ ] The work queue still matches the tree, now empty (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] The M3-dir faithful count in the committed ratchet is above the start count recorded in m3start.txt (`sh -c 's=$(sed -n "s/^faithful_start_m3 = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(awk "\$1==\"0\" && \$2 ~ /^(op|mro|uni|lib|test_pl)\// {k++} END {print k+0}" internal/parse/testdata/perlgittfaithful.ratchet); [ -n "$s" ] && [ "$n" -gt "$s" ]'`)
 - [ ] CI fails if the 100% check skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestPerlGitTFaithfulOnM3Dirs\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
-- [ ] The reduced cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/faithful-other.txt`)
+- [ ] The reduced cases are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/faithful-other.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 - [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 
