@@ -1,6 +1,6 @@
 ---
 title: Commit a perl-judged probe corpus that every parser fix extends
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -12,7 +12,16 @@ blocks:
 - 01a1664d-7bc8-7498-af02-7eaf187b43ed
 - 01a1690b-1d10-7a84-be7e-0cbc31f36812
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T13:55:43.505566607Z
+updated: 2026-10-23T17:31:28.974633733Z
+sessions:
+- start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T17:31:28.974633733Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:31:28.974633733Z
 ---
 
 ## Context
