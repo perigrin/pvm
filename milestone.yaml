@@ -100,3 +100,11 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - With `no feature "state"`, it is not a declaration: perl reads `state % h`, and the later `%h` is a package hash with 1 rv2hv.
   - The goal text is kept as set. This milestone follows perl, and issue 9 tests both cases plus the feature bundles.
 - **Already ruled 2026-10-22:** the OPf_PARENS oracle check (5f1a) is in this milestone.
+## Ruling from chain-review round 4 (perigrin, 2026-10-23)
+
+- **Re-emission is 100% faithful on M3's directories, with no defects file.** This is stricter than goal (5)'s "fixed or recorded as a defect with its location", and follows the plan's M3 bar ("100% of what parses").
+  - Every M3-dir file that parses must re-emit faithfully when the milestone closes. No exemption list may remain.
+  - A list of failing files may exist only as a work queue that must be empty when the milestone closes. It is never an accepted-defects register.
+  - If any case proves unfixable, it is escalated to perigrin for a decision. It is not parked.
+  - Start counts at 054e75e6: 178/347 M3-dir files faithful; 342/619 across all of perl.git t/.
+- The goal's "falls from 389" is judged against the post-re-pin `rv2hv_wider` (round-1 ruling). The final rv2hv wider count must be below that value as well as below the intermediate anchors.
