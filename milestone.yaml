@@ -128,3 +128,26 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - The OPf_PARENS check lists the case as a named gap, citing the Concise evidence that perl folded it. It is never a defect.
   - canon writes the paren, so the file is faithful.
 - **Convergence:** chain-review runs rounds 7 and 8. If it has not converged at 8, the minute records the non-convergence and the open findings, and perigrin chooses between executing with them as follow-ups and further rounds.
+## Ruling from chain-review round 7 (perigrin, 2026-10-23)
+
+- **Canon is precedence-aware, and the call-paren forgiveness rule is removed.**
+  - Canon emits named unary ops, `not` and list operators by their precedence, from CORE.tpm's derived shapes and powers.
+  - It writes a call's parens only where the source had them (the tree records this in a new `ArgParen` flag) or where binding power requires them.
+  - `Faithful` then forgives exactly TWO differences: a block's last `;`, and extra paren nesting.
+  - This supersedes the round-5 "exactly three" ruling and the round-6 narrowing of the call-paren rule (A28). A wrong tree's grouping now shows up as a paren the source lacks, by construction, with no forgiveness rule to leak through (A28, A29).
+- **Measured for named unary ops** in a scratch worktree at 054e75e6, judged by perl 5.44 (detail: scratchpad/m3/measure-canon.md):
+
+  | | perl.git t/ faithful | M3 dirs faithful |
+  |---|---|---|
+  | baseline | 342/619 | 178/347 |
+  | narrowed `Faithful` alone | 35/619 | 27/347 |
+  | precedence-aware canon + narrowed `Faithful` | 342/619, no file moves | 178/347 |
+
+  - At statement level (73,670 statements without heredocs), no statement regressed and 9 improved.
+  - The T1 canon, fidelity and parse ratchets moved 0 files.
+  - Wrong trees for `defined $x || $y`, `ref $x eq 'A'` and `exists $h{a}` are caught, where the old rule forgave them.
+  - Cost: about 11 parser lines and about 42 canon lines.
+  - Emit must carry the binding power of the FOLLOWING operator, not only `outer`, so that `!defined $x` and `$a . lc $b` stay bare.
+  - 11 existing tests pin the old parenthesised spelling and are updated.
+- **Extended to `not` and list ops.** The issue that does this measures it the same way before landing. If list ops lose faithful files, the executor stops and brings perigrin the numbers.
+- **Not covered here:** user subs with a `($)` prototype the file cannot see. That is M4 territory, and the test says so.
