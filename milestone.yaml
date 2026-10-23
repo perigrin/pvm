@@ -84,3 +84,17 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge order, so the two run in sequence. Items 3, 4->5->6 and 7 run in parallel with 1->2->8->9.
 
 **Budget.** The resolution command runs the ~9-minute sweep inside `--timeout 900`. Keep the other tests it names fast, and do not add a second full sweep to it.
+## Rulings from chain-review round 1 (perigrin, 2026-10-23)
+
+- **Judge the oracle with perl 5.44.0.** The corpus is perl5 blead at 94e50866, which is perl 5.45.0. Measured with each perl's own shim (`perl -c`, `-T` for the taint tests): 5.42.0 compiles 589 of the 594 non-excluded files, and 5.44.0 compiles all 594. The other 26 are exactly the 26 already excluded (porting/, win32/, bigmem/, op/goto_xs.t).
+  - Under 5.42, class/inherit.t and perf/opcount.t segfault (exit 139).
+  - Under 5.42, class/method.t and op/signatures.t fail on the unknown warnings category `experimental::signature_named_parameters`.
+  - Under 5.42, op/for-many.t has a syntax error at line 474.
+  - **Scope:** this changes the parse oracle's pin only (`corpus.pin`, the shim, CI's ratchet and fidelity jobs). The `.tpm` libraries stay held to 5.42.
+  - **Sequencing:** the re-pin is the chain's root. Every starting number (the 389 rv2hv wider count, the 80% site floor, the compile floor) is re-measured at the new pin, and the goal's "falls from 389" is judged against that post-re-pin count.
+- **op/magic.t is an oracle defect, fixed in this milestone.** It compiles under perl 5.42 (`syntax OK`, exit 0) and runs about 60 of its tests in BEGIN blocks. The oracle labels it "perl declined to compile" and so loses its 46 sites. The cause is unverified (TAP printed during compilation is a candidate). Until it's fixed, those 46 sites count as no-answer.
+- **Goal (7)'s wording on `state` is overridden by perl.** Measured on 5.42.0:
+  - With the feature on, `state %h; keys %h` compiles to padhv with 0 rv2hv.
+  - With `no feature "state"`, it is not a declaration: perl reads `state % h`, and the later `%h` is a package hash with 1 rv2hv.
+  - The goal text is kept as set. This milestone follows perl, and issue 9 tests both cases plus the feature bundles.
+- **Already ruled 2026-10-22:** the OPf_PARENS oracle check (5f1a) is in this milestone.
