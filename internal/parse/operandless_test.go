@@ -3,7 +3,6 @@
 package parse_test
 
 import (
-	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -27,23 +26,20 @@ import (
 // said nothing about WHERE the bytes went.
 func TestOperandlessFiletest(t *testing.T) {
 	// A filetest with no operand: the statement terminator, closing paren or
-	// block brace must NOT be swallowed as its argument.
-	for _, tc := range []struct {
-		src         string
-		mustNotHave string
-	}{
-		{"print -e;", "-e(;)"},
-		{"my $x = -e;", "-e(;)"},
-		{"print -d;", "-d(;)"},
-		{"if (-e) { print 1 }", "-e(){"},
-		{"my @r = grep { -d } @list;", "-d }"},
+	// block brace must NOT be swallowed as its argument. The assertion is
+	// the whole emission: canon writes a bare filetest bare, so a swallowed
+	// terminator shows as `-e ;;` or `-e ){`, not as a fixed substring.
+	for _, tc := range []struct{ src, want string }{
+		{"print -e;", "print(-e);"},
+		{"my $x = -e;", "my $x = -e;"},
+		{"print -d;", "print(-d);"},
+		{"if (-e) { print 1 }", "if (-e) {print(1);} "},
+		{"my @r = grep { -d } @list;", "my @r = grep({-d;}@list);"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
-		canon := parse.Canon(n, b)
-		if strings.Contains(canon, tc.mustNotHave) {
-			t.Errorf("Canon(%q) = %q\n  swallowed the terminator: holds %q",
-				tc.src, canon, tc.mustNotHave)
+		if got := parse.Canon(n, b); got != tc.want {
+			t.Errorf("Canon(%q) = %q, want %q: the terminator was swallowed", tc.src, got, tc.want)
 		}
 		if got := countUnknown(n); got != 0 {
 			t.Errorf("Parse(%q): Unknown=%d, want 0", tc.src, got)
