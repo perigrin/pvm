@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 created: 2026-10-22T23:46:33.975890599Z
-updated: 2026-10-23T13:55:21.899456307Z
+updated: 2026-10-23T14:34:37.566555533Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Seed the re-emission work queue with every unfaithful M3-dir file". Under perigrin's round-4 ruling the queue is a work list that must be empty at close, not a register of located defects (J6/A27, chain-review round 5).
@@ -38,13 +38,13 @@ This issue seeds the queue with every M3-dir failure that remains after canon is
   - fresh4 (round 5): 1174 differing places in 168 files, about 17 files exposing a later row into a class whose owner has closed, and 26 distinct leading signatures (69 in all).
   - pushback (round 5): 169 failing files, 39 still differing with every paren dropped, and a simulated post-Paren-once seed of 87 rows (about 43 canon-adds-paren, 21 block-form, 8 heredoc, 6 subless, 8 other or dropped-paren). The round-7 measurement of precedence-aware canon moved no file, so this seed size still stands for named unary ops; the `not`/list-op issue's own measurement may shrink the block-form and canon-adds-paren rows.
   - fresh4 and pushback (round 7): lexer KINDS are too coarse for a cause. `(`, `{`, `,` and `=` are all `Operator`; `)` and `}` are `CloseBracket`; `defined`, `not`, `print`, `sub`, `DESTROY` and a user sub are all `Word`. Kind pairs give 18-28 signatures over the whole queue and at most 7 per class, so no class could reach the split threshold, and the class table could not be computed from them. The signature below uses token TEXT and word categories instead; fresh4's text-based count of (preceding canon token, source token) contexts at the same rows was 11 for canon-adds-paren-op, 44 for canon-adds-paren-term, 40 for other and 38 for heredoc (heredoc bodies differ by text; the category folds them to one). The seeding step re-counts with the real signature.
-- **Row format:** `path:line class cause reason`, with single spaces.
-- **Cause:** a computed signature over three tokens at the file's first difference, `<source token>/<canon token>/<preceding canon token>`, each encoded by one pure function of the token stream:
+- **Row format:** `path:line class cause reason`, with single spaces. The cause is written as its three fields with single spaces between them, so a row is `path:line class src canon prev reason` (L14, round 8: `/`, `//` and `/=` are token texts, so no punctuation can be the separator; a token text never contains a space). Where this chain says `path:line class cause reason`, it means this row. The class stays field 2, so every class grep is unchanged.
+- **Cause:** a computed signature over three tokens at the file's first difference, `<source token> <canon token> <preceding canon token>`, each encoded by one pure function of the token stream:
   - punctuation (the lexer's `Operator`, `CloseBracket` and `Semicolon` kinds) by its TEXT: `(`, `)`, `{`, `}`, `;`, `,`, `=`, `\`, `-`, `->`, and so on;
-  - a `Word` by a fixed category: `declarator` (my, our, local, state), `named-unary` (the parser's named-unary set: `coreShapes()` ShapeUnary plus `lexer.IsFileTest`), `list-op` (ShapeList), `word-op` (not, and, or, xor, x, lt, gt, le, ge, eq, ne, cmp, isa), `sub`, `special-sub` (DESTROY, AUTOLOAD, BEGIN, END, INIT, CHECK, UNITCHECK), `call` (any other word that canon follows with `(`), and `bareword` for the rest. `call` and `word-op` are added to the round-7 brief's five because the class table needs to tell a call's argument list from a bareword and a word operator from a named op;
+  - a `Word` by a fixed category: `declarator` (my, our, local, state), `named-unary` (the parser's named-unary set: `coreShapes()` ShapeUnary plus `lexer.IsFileTest`), `list-op` (ShapeList), `word-op` (not, and, or, xor, x, lt, gt, le, ge, eq, ne, cmp, isa), `sub`, `special-sub` (DESTROY, AUTOLOAD, BEGIN, END, INIT, CHECK, UNITCHECK), `call` (any other word that its own stream follows with `(`: a source word by the next source token, a canon word by the next canon token, J14), and `bareword` for the rest. `call` and `word-op` are added to the round-7 brief's five because the class table needs to tell a call's argument list from a bareword and a word operator from a named op;
   - every other kind by its kind name (`Variable`, `Number`, `Quote`, `HeredocBody`, `DerefSigil`, `FuncSigil`, `Prototype`, ...), `EOF` for a side that ran out of tokens, and `BOF` for a preceding token that does not exist.
   
-  Examples that exist: `(/Variable/(` (lib/commonsense.t, dropped-paren), `HeredocBody/{/,` (op/debug.t, heredoc), `special-sub/sub/;` (subless-special-sub), `{/Variable/DerefSigil` (op/kvaslice.t, stmt-boundary), `Word/;/}`-shaped rows such as `bareword/;/}` (op/goto.t, stmt-boundary), `EOF/;/Variable` (lib/universal.t, stmt-boundary), `declarator/(/\` (`\my` rows, canon-adds-paren-op), `Variable/(/word-op` (op/not.t, canon-adds-paren-op), `named-unary/(/call` (`is(eval ...` rows, canon-adds-paren-term). TestFaithfulQueueMatchesTree computes the cause and logs it for every unfaithful file.
+  Examples that exist (fresh4 computed them at 054e75e6, round 8): `( Variable (` (lib/commonsense.t, dropped-paren), `HeredocBody { ,` (op/debug.t, heredoc), `special-sub sub ;` (subless-special-sub), `{ Variable DerefSigil` (op/kvaslice.t, stmt-boundary), `call ; }` (op/goto.t, stmt-boundary), `EOF ; )` (lib/universal.t, stmt-boundary), `declarator ( \` (`\my` rows, canon-adds-paren-op), `named-unary ( call` (`is(eval ...` rows, canon-adds-paren-term). TestFaithfulQueueMatchesTree computes the cause and logs it for every unfaithful file.
 - **Class:** a pure function of the cause, the first matching rule of this ordered table in the test:
   1. source `HeredocBody` → `heredoc`;
   2. source `(` and canon not `(` → `dropped-paren`;
@@ -66,17 +66,17 @@ The class is decided from the tree as it stands after the Paren change, not from
 - **Context:** the class, the cause signatures it owns, and their row counts.
 - **Steps:** the parent's steps, scoped to those causes, including the perl measurement, RED/GREEN, the per-fix review, the sweep when the parser moves, and the escalation rule.
 - **Positive:**
-  - a cause-zero line (`test -f` the queue, then `! grep -Eq` for rows with those causes);
+  - a cause-zero line: `test -f` the queue, then for each owned cause `! grep -Fq ' <class> <src> <canon> <prev> '` (fixed string, space-delimited and quoted, joined with `&&`), never `grep -E`, because causes hold `(`, `{`, `\`, `*`, `+` and `-`, and an unmatched `(` makes ERE exit 2, which makes `!` succeed and the line always green (J13);
   - TestFaithfulQueueMatchesTree;
-  - a per-cause fixture test, `TestFaithful<Cause>MatchesPerl`, whose name is unique;
+  - a per-cause fixture test, `TestFaithful<Class><N>MatchesPerl`, where `<Class>` is the class in CamelCase and `<N>` the cause's 1-based position in the owner's cause list at split time (`TestFaithfulDroppedParen1MatchesPerl`), because a cause text is not a Go identifier (J13); the sibling's Context maps each N to its cause;
   - its probe file, backed by TestM3ProbesHeldToPerl;
   - TestFaithfulForgivenessIsClosed as a guard.
 - **Negative:** at least one misgrouping or relabelling case for its causes. The parent's cumulative class-zero line moves to the LAST sibling only.
 
 ## Steps
 
-- [ ] RED: write TestFaithfulQueueRowsAreWellFormed: every row parses as `path:line class cause reason`, with single spaces, one of the seven classes and a cause of the form `<token>/<token>/<token>` over the encodings above. The header holds one `# causes <class> = N` line for each of the seven classes. Run it against a malformed fixture and watch it fail; then implement the parser and watch it pass.
-- [ ] RED/GREEN TestFaithfulQueueRowsRejectMalformed: rejects an empty reason, a zero line, an unknown class, a missing or two-field cause, a missing or duplicate `# causes` line, and any spacing other than one space.
+- [ ] RED: write TestFaithfulQueueRowsAreWellFormed: every row parses as `path:line class src canon prev reason`, with single spaces, one of the seven classes and a three-field cause over the encodings above. The header holds one `# causes <class> = N` line for each of the seven classes. Run it against a malformed fixture and watch it fail; then implement the parser and watch it pass.
+- [ ] RED/GREEN TestFaithfulQueueRowsRejectMalformed: rejects an empty reason, a zero line, an unknown class, a cause with fewer than three fields, a missing or duplicate `# causes` line, and any spacing other than one space.
 - [ ] RED/GREEN TestPerlGitTFaithfulOnM3DirsVisitsEveryFile: the M3-dir walk visits every M3-dir file outside `perlRejects`, and fails on a missing dir or an unset corpus.
 - [ ] RED/GREEN TestPerlGitTFaithfulOnM3DirsFailsOnUnparsedFile: an M3-dir file that gains an Unknown fails the walk.
 - [ ] RED/GREEN TestFaithfulQueueRowsNameM3Files: a row naming a file outside the M3 dirs, or one missing from the corpus, fails.
@@ -84,7 +84,8 @@ The class is decided from the tree as it stands after the Paren change, not from
 - [ ] RED/GREEN TestFaithfulQueueLineIsFirstDifference: a row whose line is not the file's first difference fails.
 - [ ] RED: write TestFaithfulQueueMatchesTree. It computes each unfaithful M3-dir file's first difference, cause and class with the encodings and the ordered table above, logs them, compares rows and `# causes` counts with the queue, and fails both ways. Run it with an empty queue and watch it fail.
 - [ ] RED/GREEN TestFaithfulQueueClassIsComputed: a fixture queue relabelling a `canon-adds-paren-op` row as `other`, or giving it a wrong cause, fails.
-- [ ] RED/GREEN TestFaithfulQueueCauseDeterminesClass: over the computed rows and a fixture set with one row per table rule, no cause maps to two classes, and every rule is reached by at least one fixture.
+- [ ] RED/GREEN TestFaithfulQueueCauseDeterminesClass: over the computed rows and a fixture set with one row per table rule, no cause maps to two classes, and every rule is reached by at least one fixture. The fixtures include one source-side `call` word (J14).
+- [ ] RED/GREEN TestFaithfulQueueCauseZeroGrepIsRedWhileRowExists (J13): the sibling template's cause-zero line, built for the cause `( Variable (`, run through `sh -c` against a fixture queue holding `op/a.t:3 dropped-paren ( Variable ( r`, exits non-zero; against the same queue without that row it exits zero; and the `grep -E` form of the same line exits zero on both, which is why the template forbids it.
 - [ ] GREEN: seed faithful_queue.txt from the computed output, with the header counts. Run the test and watch it pass.
 - [ ] Add TestFaithfulQueueMatchesTree to ci.yml's "Fail if a corpus-backed ratchet skipped" loop and to TestCIRunsTheRatchets' list (internal/parse/pin_test.go:71), and confirm that the job sets the corpus env it needs.
 - [ ] Record each class's row and cause counts, and each file's full difference depth, in the commit message. Name any class already over 8 causes there; its owner splits at its own start.
@@ -94,11 +95,12 @@ The class is decided from the tree as it stands after the Paren change, not from
 
 ### Positive Scenarios
 
-- [ ] Every queue row names a path, line, known class, computed three-token cause and reason, and the header has all seven cause counts (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsAreWellFormed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsAreWellFormed'`)
+- [ ] Every queue row names a path, line, known class, computed three-field cause and reason, and the header has all seven cause counts (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsAreWellFormed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsAreWellFormed'`)
 - [ ] The work queue is exactly the M3-dir files that parse and re-emit unfaithfully, each at its first differing line (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] CI fails if the queue check skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestFaithfulQueueMatchesTree\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
 - [ ] The queue header carries a `# causes <class> = N` line for each of the seven classes, and they equal the counts the test computes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] The class is a pure function of the cause: no cause maps to two classes, and every table rule is reached by a fixture (`go test ./internal/parse/ -run '^TestFaithfulQueueCauseDeterminesClass$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueCauseDeterminesClass'`)
+- [ ] The sibling template's fixed-string cause-zero line is red while a row with that cause exists and green without it (`go test ./internal/parse/ -run '^TestFaithfulQueueCauseZeroGrepIsRedWhileRowExists$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueCauseZeroGrepIsRedWhileRowExists'`)
 
 ### Negative Scenarios
 
@@ -107,5 +109,5 @@ The class is decided from the tree as it stands after the Paren change, not from
 - [ ] A queue row naming a file outside the M3 dirs, or a file that does not exist in the corpus, fails (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueRowsNameM3Files$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsNameM3Files'`)
 - [ ] Two rows for the same path fail, so a file cannot sit in two classes (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsAreUnique$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsAreUnique'`)
 - [ ] A row whose line is not the file's first differing line fails, so a fix that moves the first difference later shows up as a changed row (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueLineIsFirstDifference$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueLineIsFirstDifference'`)
-- [ ] A row with an empty reason, a zero line, a class outside the seven known classes, a missing or two-field cause, a missing `# causes` line, or fields separated by anything but one space is rejected (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsRejectMalformed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsRejectMalformed'`)
+- [ ] A row with an empty reason, a zero line, a class outside the seven known classes, a cause with fewer than three fields, a missing `# causes` line, or fields separated by anything but one space is rejected (`go test ./internal/parse/ -run '^TestFaithfulQueueRowsRejectMalformed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueRowsRejectMalformed'`)
 - [ ] A row whose class or cause disagrees with the one computed from its first difference fails, so relabelling a row as `other` cannot dodge its class (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueClassIsComputed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueClassIsComputed'`)
