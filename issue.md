@@ -16,7 +16,7 @@ blocked_by:
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 - 01a16795-75e8-7787-81ad-79e130324139
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-23T07:07:01.085965939Z
+updated: 2026-10-23T12:56:45.232344031Z
 ---
 
 ## Context
@@ -37,7 +37,7 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 - [ ] Plan §5 M3: change the parse row to the compiled count and add a `#### Measured at the M3 gate` subsection. It gives each metric's measured value, and the perl (5.44.0) and commit it was measured at. It states that canonical re-emission is 100% faithful on every M3-dir file that parses, with no defects file, per perigrin's round-4 ruling, and gives the start counts beside it (178/347 M3 dirs, 342/619 overall).
 - [ ] Plan ladder summary: change the M3 row's 584 to the compiled count. Confirm with `grep -nw 584` that no 584 is left anywhere in the plan.
 - [ ] Reconcile plan ~620 and 07-conformance.md:308 with the Paren-once ruling: canon writes the parens the tree implies, a `Paren` node's pair included, never the source's extra nesting.
-- [ ] docs/specs/perl-parser/README.md: add a Status paragraph starting `The M3 gate` with the measured numbers, and correct the stale `($x)` sentence. canon now writes a `Paren` node's parens once, and `Faithful` forgives only extra nesting.
+- [ ] docs/specs/perl-parser/README.md: add a Status paragraph starting `The M3 gate` with the measured numbers, and correct the stale `($x)` sentence. canon now writes a `Paren` node's parens once, and `Faithful` forgives exactly three differences: call parens (after list ops and calls), a block's last `;`, and extra nesting (perigrin's round-5 and round-6 rulings).
 - [ ] internal/parseoracle/README.md: check that the "Ground-truth ceiling" sentence (~287) states m3start.txt's compiled count at 5.44.0, as the re-pin issue set it. Leave the historical "became 584/620" sentence (~309) alone.
 - [ ] Create `internal/parseoracle/docs_test.go` with two `// ABOUTME:` lines. RED/GREEN TestM3DocsQuoteCommittedNumbers: the plan subsection and the README `The M3 gate` paragraph state the compiled count (m3start.txt), the clean count (compiledclean.txt), the faithful count (perlgittfaithful.ratchet header), the M3-dir faithful count (ratchet rows) stated as 100%, and the opcount assertion count (fixtures), each equal to its file, and the parseoracle README ceiling equals m3start.txt's `compiled`.
 - [ ] Run the regression list below and the milestone resolution command, and watch them pass. Open the PR, wait for CI (Windows and macOS included), then commit any fix and re-check.
@@ -68,5 +68,5 @@ State the M3 gate's measured numbers where readers look, taken from the committe
 ### Negative Scenarios
 
 - [ ] The measured subsection's numbers are the committed ones, not a heading over stale prose. It states the whole-corpus and M3-dir site totals and the rv2hv wider count exactly as sites.txt records them, so editing either side alone fails (`go test ./internal/parseoracle/ -run '^TestPlanM3SectionQuotesSitesRatchet$' -count=1 -v | grep -q '^--- PASS: TestPlanM3SectionQuotesSitesRatchet'`)
-- [ ] The corrected `($x)` sentence describes the extra-nesting ruling, not just a removed citation (`sh -c 'grep -qi "extra nesting" docs/specs/perl-parser/README.md'`)
+- [ ] The perl-parser README states the closed set of exactly three forgiven differences, and the old "forgives only extra nesting" wording is gone (`sh -c 'f=docs/specs/perl-parser/README.md; grep -q "exactly three differences: call parens (after list ops and calls), a block" $f && ! grep -qi "forgives only extra nesting" $f'`)
 - [ ] The measured subsection states re-emission at 100% on the M3 dirs, and the work queue it came from is empty (`sh -c 'f=internal/parse/testdata/faithful_queue.txt; test -f "$f" && ! grep -q "^[^#]" "$f" && sed -n "/^#### Measured at the M3 gate/,/^##/p" docs/plans/2026-09-05-parser-conformance-plan.md | grep -q "100%"'`)
