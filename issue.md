@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c361-a317-7807-bb9e-15f299562244
 created: 2026-09-21T13:41:10.741737124Z
-updated: 2026-10-23T19:18:31.703593238Z
+updated: 2026-10-23T23:40:18.268369832Z
 sessions:
 - start_sha: dc1bea2c2baed5af0cf71ddf16e379ee18855d30
   end_sha: b41801021927f68fcbf799c60d6b947393d983de
@@ -74,9 +74,9 @@ position, which needs the 07 slice."
 
 A corpus file per form, plus the adjacency file that puts them side by side.
 
-Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestTierCallFormsParenlessExtent` -> the greedy and `($)`-prototype cases of `argument-extent.md`, under `TestCorpus`; `TestTierCallFormsPerlValidated` -> `TestTierSubroutinesPerlValidated`; `TestTierCallFormsLint` -> `TestTierSubroutinesLint`; `TestTierCallFormsRefusalsCited` -> `TestTierSubroutinesRefusalsCited`). Left unchanged: `TestTierCallFormsAdjacency`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestTierCallFormsParenlessExtent` -> the greedy and `($)`-prototype cases of `argument-extent.md`, under `TestCorpus`; `TestTierCallFormsPerlValidated` -> `TestTierSubroutinesPerlValidated`; `TestTierCallFormsLint` -> `TestTierSubroutinesLint`; `TestTierCallFormsRefusalsCited` -> `TestTierSubroutinesRefusalsCited`). Left unchanged here: `TestTierCallFormsAdjacency`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierCallFormsAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierCallFormsAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
 
 ## Acceptance criteria
 
