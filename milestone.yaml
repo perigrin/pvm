@@ -26,7 +26,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 - **Why the M3 dirs fail re-emission.** Of the 169 M3-dir failures, 117 are `source has "(", canon has <something else>`: a source paren that canon does not write. Read from the code, this is NOT the README's "`($x)` loses its Paren node (term.go:284-293)". That defect is stale as worded, because `finishList` (term.go:~723) now copies the node and sets `Paren`. The current cause is twofold:
   - (a) canon writes a source paren only for a `List`. A single-element `(x)` with `Paren` set gets parens only when binding power demands them. Examples: `(shift)->SUPER::foo` (mro/basic_05_c3.t:32), `ok(($y eq '...'), ...)` (mro/c3_with_overload.t:40), `if (($Config{...} !~ /.../) )` (lib/commonsense.t:12).
   - (b) `Paren` is a bool, so `((x))` keeps one pair.
-  - The remaining ~52 M3 failures are heterogeneous and need triage. canon writes a `(` the source lacks in op/not.t, op/negate.t, op/isa.t, op/undef.t, op/tr.t and others: a possible misgrouping or an unforgiven parenless call. canon writes `sub` where the source has `DESTROY` (op/hash.t, op/pos.t, op/ref.t, op/sub.t, op/substr.t). Heredoc bodies show up as tokens (op/debug.t, op/lc.t, op/threads.t, op/hook/require.t). Others are `;`/`}` placement (op/closure.t, op/goto.t, op/while.t, op/state.t) and a token-count mismatch (lib/universal.t). The scratch failure list is in the session scratchpad as faith.log; the committed test regenerates it.
+  - The remaining ~52 M3 failures are heterogeneous and need triage. canon writes a `(` the source lacks in op/not.t, op/negate.t, op/isa.t, op/undef.t, op/tr.t and others: a possible misgrouping or an unforgiven parenless call. canon writes `sub` where the source has `DESTROY` (op/hash.t, op/pos.t, op/ref.t, op/sub.t, op/substr.t). Heredoc bodies show up as tokens (op/debug.t, op/lc.t, op/threads.t, op/hook/require.t). Others are `;`/`}` placement (op/closure.t, op/goto.t, op/while.t, op/state.t) and a token-count mismatch (lib/universal.t). The scratch failure list was never committed; TestFaithfulQueueMatchesTree regenerates it.
 - **perf/opcount.t** ($HOME/dev/perl5/t/perf/opcount.t) holds 109 `test_opcount(` calls with 375 op=>count pairs, so >= 200 is reachable. Nothing in the repo mines it today.
 - **rv2hv hedges** live in internal/parse/sites.go.
   - `hedgeDerefElement` (~183-205) handles `->{...}` chains under a dereference. Whether perl keeps rv2hv turns on its op_lvalue context: push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref.
@@ -54,6 +54,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 - `.github/workflows/parse-fidelity.yml` -- run TestSiteRatchetCorpus in the sweep step. TestCIGateRunsTheSweep executes that step, so share one sweep rather than run it twice (modify).
 - `internal/parse/compiled_test.go` -- TestParseWithoutErrorOnCompiledCorpus. It parses the compiled set recorded by path in testdata/ratchet/compiled.txt (the files perl 5.44.0 accepts under `perl -c`, minus perl.git's perlRejects; see 69f0 and 5e01) through `ParseFileFrom`, and asserts >= 90% clean. It never compares the graded set's size with the compiled set's; graded-set differences are only logged.
 - `internal/parse/canon.go`, `fidelity.go`, `export_test.go`, and the `Paren`, `NamedUnary` and `ArgParen` flags in `parse.go` (set in `call.go`, `indirect.go` and `term.go`) -- canon is precedence-aware: it writes named unary ops, `not` and list operators by their binding power, a call's parens only where the source had them (`ArgParen`) or binding power requires them, and a `Paren` node's parens once; `faithfulTokens` is split out of `Faithful`, which forgives exactly two differences, a block's last `;` and extra paren nesting (perigrin's round-7 ruling) (modify).
+- `docs/measurements/2026-10-23-precedence-aware-canon/` -- the round-7 measurement harness (README.md, measure-canon.diff, zz*_test.go.txt, *.tsv, fixtures.out), committed 56f5c8f6 on feat/m3-oracle-at-scale, which the `not`/list-op measurement issue extends (read).
 - `internal/parse/perlgitt_faithful_test.go` -- TestPerlGitTFaithfulRatchet (per-file 0/1 over perl.git t/) and TestPerlGitTFaithfulOnM3Dirs (every M3-dir file that parses is faithful; no exception list) (new).
 - `internal/parse/testdata/perlgittfaithful.ratchet` (new), and `internal/parse/testdata/faithful_queue.txt` -- the re-emission work queue; empty at close (round-4 ruling). Rows are `path:line class cause reason`; the header carries `# causes <class> = N` per class, checked against computed counts (new).
 - `internal/parseoracle/testdata/parens/gaps.txt` (perl-folded ops, each with Concise evidence; permanent) and `defects.txt` (empty at close) -- the OPf_PARENS check's lists (round-6 ruling) (new).
@@ -72,7 +73,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 **Independent work.** The opcount mining shares no code with the rest. The parse-without-error floor is one small test, since the number already holds. Both can start immediately.
 
 **Recommended slicing (dependencies in brackets):**
-_Superseded after chain-review round 1: the live chain (26 issues after round 7; `git zhi issue list --all --milestone m3-oracle-at-scale`) is authoritative. This list is the architect's original proposal._
+_Superseded after chain-review round 1: the live chain (28 issues after round 8; `git zhi issue list --all --milestone m3-oracle-at-scale`) is authoritative. This list is the architect's original proposal._
 1. Per-site oracle counting: no-answer findings per line, whole-file no-answer at every site (fixture tests). []
 2. TestSiteRatchetCorpus + sites.txt + M3-dir >= 80% / WRONG = 0 floor, wired into the CI sweep. [1]
 3. TestParseWithoutErrorOnCompiledCorpus at the measured count from m3start.txt. []
@@ -135,7 +136,7 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - It writes a call's parens only where the source had them (the tree records this in a new `ArgParen` flag) or where binding power requires them.
   - `Faithful` then forgives exactly TWO differences: a block's last `;`, and extra paren nesting.
   - This supersedes the round-5 "exactly three" ruling and the round-6 narrowing of the call-paren rule (A28). A wrong tree's grouping now shows up as a paren the source lacks, by construction, with no forgiveness rule to leak through (A28, A29).
-- **Measured for named unary ops** in a scratch worktree at 054e75e6, judged by perl 5.44 (detail: scratchpad/m3/measure-canon.md):
+- **Measured for named unary ops** in a scratch worktree at 054e75e6, judged by perl 5.44 (detail: docs/measurements/2026-10-23-precedence-aware-canon/README.md, on branch feat/m3-oracle-at-scale until it merges):
 
   | | perl.git t/ faithful | M3 dirs faithful |
   |---|---|---|
