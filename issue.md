@@ -3,8 +3,10 @@ title: Make the oracle answer op/magic.t, which perl compiles
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1664d-69f0-715c-b060-c8f648ddfcd3
 created: 2026-10-23T01:08:33.371135176Z
-updated: 2026-10-23T01:08:33.371135176Z
+updated: 2026-10-23T01:09:07.451217151Z
 ---
 
 ## Context
