@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 created: 2026-10-23T08:21:55.619658958Z
-updated: 2026-10-23T08:21:59.534475738Z
+updated: 2026-10-23T12:56:02.206626939Z
 ---
 
 ## Context
@@ -21,8 +21,10 @@ Fix every `dropped-paren` row of the re-emission work queue: a source paren cano
 
 ## Steps
 
+- [ ] FIRST, before any fix: read this class's `# causes <class> = N` line in faithful_queue.txt's header (5f77). If N is over 8, split this issue by cause using 5f77's sibling template before starting. This issue's body then keeps only its own cause group, and the cumulative class-zero criterion moves to the last sibling (J8, chain-review round 6).
 - [ ] For each `dropped-paren` row, reduce it to a fixture, run the pinned perl 5.44.0's `perl -MO=Concise` on it, and record which op carries P.
 - [ ] RED: add each fixture to testdata/parens/ so TestParenFlagMatchesPerlOPfPARENS fails on it. Run it and watch it fail.
+- [ ] A row on an op perl folds away (`$h{(1)}`, `-(1)`, `"a" . ("b")`, `($_[0])->[0]`; perigrin's round-6 ruling, F15) is a known gap: psc keeps the source's `Paren`, canon writes it, and 5f1a's gaps.txt lists it with Concise evidence. It is never treated as a defect.
 - [ ] GREEN: fix the parser so psc's `Paren` matches perl's bit and the row leaves the queue. One cause at a time; run the test after each.
 - [ ] Add every fixture, with perl's facts, as probe file `internal/parse/testdata/m3probes/dropped-paren-rows.txt`.
 - [ ] Remove the fixed rows from faithful_queue.txt, and re-baseline perlgittfaithful.ratchet in the same commit, naming each moved file.
@@ -38,9 +40,9 @@ Fix every `dropped-paren` row of the re-emission work queue: a source paren cano
 - [ ] No dropped-paren row is left in the work queue (`sh -c 'f=internal/parse/testdata/faithful_queue.txt; test -f $f && ! grep -Eq "^[^[:space:]#]+[[:space:]]+(dropped-paren)[[:space:]]" $f'`)
 - [ ] The work queue still matches the tree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] psc's Paren flag still matches perl's OPf_PARENS bit on every fixture, the fixed rows' fixtures included (`go test ./internal/parseoracle/ -run '^TestParenFlagMatchesPerlOPfPARENS$' -count=1 -v | grep -q '^--- PASS: TestParenFlagMatchesPerlOPfPARENS'`)
-- [ ] The fixed rows are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/dropped-paren-rows.txt`)
+- [ ] The fixed rows are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/dropped-paren-rows.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 - [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 
 ### Negative Scenarios
 
-- [ ] No row is fixed by inventing a paren: a `Paren` psc sets where perl has no P bit is still reported (`go test ./internal/parseoracle/ -run '^TestParenComparisonReportsInventedParen$' -count=1 -v | grep -q '^--- PASS: TestParenComparisonReportsInventedParen'`)
+- [ ] No row is fixed by inventing a paren: a `Paren` psc sets where perl has no P bit is still reported, unless the case is a gaps.txt fold perl optimised away (`go test ./internal/parseoracle/ -run '^TestParenComparisonReportsInventedParen$' -count=1 -v | grep -q '^--- PASS: TestParenComparisonReportsInventedParen'`)
