@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // t2Dirs is spec §7.3's tier-2 core, the same five directories
@@ -110,8 +111,9 @@ func t2Corpus(t *testing.T) (root string, files []string) {
 	return tDir, files
 }
 
-// runGoSubject measures the Go parser over T2 and returns the report.
-func runGoSubject(t *testing.T) parseoracle.Report {
+// runGoSubject measures the Go parser over T2, against the perl p, and
+// returns the report.
+func runGoSubject(t *testing.T, p perltest.Perl) parseoracle.Report {
 	t.Helper()
 
 	tDir, files := t2Corpus(t)
@@ -120,6 +122,7 @@ func runGoSubject(t *testing.T) parseoracle.Report {
 		t.Skip("set PARSEORACLE_SHIM to a built shim to measure the subject;\n" +
 			"t/test.pl clears @INC, so without one most files report false failures")
 	}
+	readyShim(t, p, shim)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
@@ -130,6 +133,7 @@ func runGoSubject(t *testing.T) parseoracle.Report {
 		// tests refer to each other from.
 		Dir:     filepath.Join(shim, "t"),
 		Timeout: 60 * time.Second,
+		Perl:    p.Path,
 	})
 	if err != nil {
 		t.Fatalf("measuring the subject over %d files from %s: %v",
@@ -145,7 +149,7 @@ func runGoSubject(t *testing.T) parseoracle.Report {
 // It asserts that the measurement HAPPENED, not that it came out well. The
 // two criteria below are what judge the answer.
 func TestGoParserSubjectMeasures(t *testing.T) {
-	report := runGoSubject(t)
+	report := runGoSubject(t, perltest.PinnedPerl(t))
 
 	if report.Measured() == 0 {
 		t.Fatalf("the subject produced no verdicts over %d files; "+
@@ -170,7 +174,7 @@ func TestGoParserSubjectMeasures(t *testing.T) {
 // consumer. Chapter 7 §7.2 and the Unknown doc at parse.go:14-26 are the
 // same rule stated twice.
 func TestGoParserWrongIsZero(t *testing.T) {
-	report := runGoSubject(t)
+	report := runGoSubject(t, perltest.PinnedPerl(t))
 
 	var names []string
 	for _, f := range report.Files {
@@ -202,7 +206,7 @@ func TestGoParserWrongIsZero(t *testing.T) {
 // logs the distance, in the ratchet discipline the other M1 metrics use:
 // the number moves deliberately, in the commit that moved it.
 func TestGoParserExactFloor(t *testing.T) {
-	report := runGoSubject(t)
+	report := runGoSubject(t, perltest.PinnedPerl(t))
 
 	measured := report.Measured()
 	if measured == 0 {

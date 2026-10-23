@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // updateBaseline is the ONLY path that rewrites a committed baseline. It is a
@@ -26,33 +27,20 @@ import (
 var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
 
-// corpusReport measures the whole corpus through a shim, the same way
-// TestCorpusSweep does. $PARSEORACLE_SHIM names a shim to reuse, which is
-// what makes a re-baseline affordable at all.
-//
-// A named shim that is not built yet is BUILT there rather than assumed
-// ready. That is the cache-miss path: CI restores $PARSEORACLE_SHIM from
-// actions/cache, and on a miss the directory exists but is empty. Treating an
-// empty directory as a corpus would walk zero files, and a run with zero
-// files does not fail loudly — it fails as 620 "baseline row has no file in
-// this run" lines, which reads like the corpus vanished rather than like the
-// cache missed.
+// corpusReport measures the whole corpus through a shim with the perl p,
+// the same way TestCorpusSweep does. $PARSEORACLE_SHIM names a shim to
+// reuse, which is what makes a re-baseline affordable at all.
 //
 // The shim's t/ is returned alongside the report because the runner records
 // paths relative to it, and the taxonomy has to re-read each file.
-func corpusReport(t *testing.T) (parseoracle.Report, string) {
+func corpusReport(t *testing.T, p perltest.Perl) (parseoracle.Report, string) {
 	t.Helper()
 
 	shim := os.Getenv("PARSEORACLE_SHIM")
 	if shim == "" {
 		shim = t.TempDir()
 	}
-	if _, err := os.Stat(filepath.Join(shim, "t", "test.pl")); err != nil {
-		root := corpusRoot(t)
-		if err := parseoracle.BuildShim(root, shim); err != nil {
-			t.Fatalf("BuildShim into %s: %v", shim, err)
-		}
-	}
+	readyShim(t, p, shim)
 	shimT := filepath.Join(shim, "t")
 
 	var files []string
@@ -75,17 +63,44 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 	sort.Strings(files)
 
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t)})
+		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t), Perl: p.Path})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	return report, shimT
 }
 
-// runFixture measures the six-file fixture corpus that TestCorpusRun uses.
-func runFixture(t *testing.T) parseoracle.Report {
+// readyShim makes shim a shim built for corpus.pin's interpreter, by p.
+//
+// A shim that is not ready is REBUILT there rather than assumed usable.
+// One that was never built is the cache-miss path: CI restores
+// $PARSEORACLE_SHIM from actions/cache, and on a miss the directory exists
+// but is empty. Treating an empty directory as a corpus would walk zero
+// files, and a run with zero files does not fail loudly -- it fails as 620
+// "baseline row has no file in this run" lines, which reads like the
+// corpus vanished rather than like the cache missed. One stamped by
+// another interpreter is the re-pin path: its lib/ is that perl's, and the
+// pinned perl run over it mis-measures without complaint.
+func readyShim(t *testing.T, p perltest.Perl, shim string) {
 	t.Helper()
-	report, err := parseoracle.Run(context.Background(), fixtureCorpus(t), parseoracle.RunOptions{Subject: goSubject(t)})
+	pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
+	if err != nil {
+		t.Fatalf("ReadPin: %v", err)
+	}
+	if parseoracle.ShimReady(shim, pin) {
+		return
+	}
+	if err := parseoracle.RebuildShim(p.Path, corpusRoot(t), shim, pin); err != nil {
+		t.Fatalf("rebuilding the shim at %s: %v", shim, err)
+	}
+}
+
+// runFixture measures the six-file fixture corpus that TestCorpusRun uses,
+// with the perl p. fixture.txt is judged by the pinned perl only.
+func runFixture(t *testing.T, p perltest.Perl) parseoracle.Report {
+	t.Helper()
+	report, err := parseoracle.Run(context.Background(), fixtureCorpus(t),
+		parseoracle.RunOptions{Subject: goSubject(t), Perl: p.Path})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -166,7 +181,7 @@ func loadFixtureBaseline(t *testing.T) parseoracle.Baseline {
 // tells them the baseline still describes reality.
 func TestRatchet(t *testing.T) {
 	requirePOSIXOracle(t)
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 
 	if *updateBaseline {
 		pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
@@ -187,12 +202,6 @@ func TestRatchet(t *testing.T) {
 		t.Fatalf("the fixture no longer matches its committed baseline:\n%v\n\n"+
 			"if this is a deliberate change, re-run with -parseoracle.update", err)
 	}
-}
-
-// fixtureReport measures the six-file fixture corpus.
-func fixtureReport(t *testing.T) parseoracle.Report {
-	t.Helper()
-	return runFixture(t)
 }
 
 // corpusBaselinePath is the full 620-file baseline: the frozen form of
@@ -375,22 +384,9 @@ func TestRatchetCorpus(t *testing.T) {
 		baselinePath = override
 	}
 
-	report, shimT := corpusReport(t)
-	pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
-	if err != nil {
-		t.Fatalf("ReadPin: %v", err)
-	}
-
-	// What perl ACTUALLY is, not what the pin says it should be. Checking the
-	// baseline against a pin read from the same file it was written with
-	// compares a value to a copy of itself and cannot fail; the first real CI
-	// run passed that check on a perl whose build differed from the
-	// baseline's. A re-baseline records the observed world for the same
-	// reason: it must describe the perl that produced the verdicts.
-	observed, err := parseoracle.ObservePin(context.Background(), pin.Revision)
-	if err != nil {
-		t.Fatalf("ObservePin: %v", err)
-	}
+	p := perltest.PinnedPerl(t)
+	report, shimT := corpusReport(t, p)
+	observed := observedPin(t, p, filepath.Join("testdata", "corpus.pin"))
 
 	if *updateBaseline {
 		if err := parseoracle.WriteBaseline(baselinePath,
@@ -438,6 +434,28 @@ func TestRatchetCorpus(t *testing.T) {
 	}
 }
 
+// observedPin is what p ACTUALLY is, for the corpus revision the pin at
+// pinPath records -- not what the pin says it should be. Checking the
+// baseline against a pin read from the same file it was written with
+// compares a value to a copy of itself and cannot fail; the first real CI
+// run passed that check on a perl whose build differed from the
+// baseline's. A re-baseline records the observed world for the same
+// reason: it must describe the perl that produced the verdicts. And it
+// asks p, never PATH: the perl first on PATH need not be the one that
+// measured.
+func observedPin(t *testing.T, p perltest.Perl, pinPath string) parseoracle.Pin {
+	t.Helper()
+	pin, err := parseoracle.ReadPin(pinPath)
+	if err != nil {
+		t.Fatalf("ReadPin: %v", err)
+	}
+	observed, err := parseoracle.ObservePin(context.Background(), p.Path, pin.Revision)
+	if err != nil {
+		t.Fatalf("ObservePin: %v", err)
+	}
+	return observed
+}
+
 // summarise renders the bucket totals for a log line.
 func summarise(r parseoracle.Report) string {
 	return strings.TrimSpace(r.String())
@@ -451,7 +469,7 @@ func summarise(r parseoracle.Report) string {
 func TestRatchetFailsOnRegression(t *testing.T) {
 	requirePOSIXOracle(t)
 	base := loadFixtureBaseline(t)
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 
 	// Synthesise the regression in the REPORT, not the baseline: that is the
 	// direction reality moves when the parser breaks.
@@ -486,7 +504,7 @@ func TestRatchetFailsOnRegression(t *testing.T) {
 func TestRatchetFailsOnImprovement(t *testing.T) {
 	requirePOSIXOracle(t)
 	base := loadFixtureBaseline(t)
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 
 	improved := upgradeOneFile(t, report)
 
@@ -726,7 +744,7 @@ func TestBaselineUpdateOnly(t *testing.T) {
 		t.Fatalf("seeding the baseline copy: %v", err)
 	}
 
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 	changed := downgradeOneFile(t, report)
 
 	// A check must never write, even when it fails.

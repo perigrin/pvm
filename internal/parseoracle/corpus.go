@@ -53,7 +53,10 @@ func CorpusRoot() (string, error) {
 // specific root. Config.pm and every XS module's .pm half live only in the
 // second; omitting it costs ~170 files and is how an earlier measurement
 // reported 66.3% where the true figure is 94.2%.
-func BuildShim(corpus, dest string) error {
+//
+// perl is the interpreter whose library fills lib/, and the shim is
+// stamped with its $] and threads (see WriteShimStamp).
+func BuildShim(perl, corpus, dest string) error {
 	if err := os.MkdirAll(filepath.Join(dest, "lib"), 0o755); err != nil {
 		return fmt.Errorf("creating shim lib: %w", err)
 	}
@@ -61,7 +64,7 @@ func BuildShim(corpus, dest string) error {
 		return fmt.Errorf("copying corpus t/: %w", err)
 	}
 
-	roots, err := libraryRoots()
+	roots, err := libraryRoots(perl)
 	if err != nil {
 		return err
 	}
@@ -73,17 +76,21 @@ func BuildShim(corpus, dest string) error {
 			return fmt.Errorf("populating shim lib from %s: %w", root, err)
 		}
 	}
-	return nil
+	built, err := ObservePin(context.Background(), perl, "")
+	if err != nil {
+		return err
+	}
+	return WriteShimStamp(dest, built)
 }
 
-// libraryRoots asks the interpreter itself which @INC directories to copy,
+// libraryRoots asks the interpreter at perl which @INC directories to copy,
 // rather than guessing paths. site_perl and vendor_perl are excluded: they
 // hold locally installed modules, which would make the corpus depend on
 // whatever happens to be installed on the measuring machine.
-func libraryRoots() ([]string, error) {
+func libraryRoots(perl string) ([]string, error) {
 	const probe = `for (@INC) { print "$_\n" if -d && !m{site_perl|vendor_perl} }`
 
-	out, err := exec.Command("perl", "-e", probe).Output()
+	out, err := exec.Command(perl, "-e", probe).Output()
 	if err != nil {
 		return nil, fmt.Errorf("asking perl for @INC: %w", err)
 	}
@@ -100,6 +107,54 @@ func libraryRoots() ([]string, error) {
 			"Config.pm and will under-report by ~170 files", len(roots), roots)
 	}
 	return roots, nil
+}
+
+// shimStamp is the file in a shim that records which interpreter built
+// it. The shim's lib/ is that interpreter's library, Config.pm included,
+// and another perl run against it mis-measures without complaint: 5.44
+// over a 5.42 lib/ compiles base/if.t and fails class/method.t with "Perl
+// lib version (5.42.0) doesn't match executable".
+const shimStamp = "interpreter.stamp"
+
+// WriteShimStamp records in shim that built's interpreter and threads
+// built it. BuildShim calls it last, so a build that died partway leaves
+// no stamp and is rebuilt rather than trusted.
+func WriteShimStamp(shim string, built Pin) error {
+	return os.WriteFile(filepath.Join(shim, shimStamp), []byte(renderShimStamp(built)), 0o644)
+}
+
+func renderShimStamp(p Pin) string {
+	return fmt.Sprintf("interpreter = %s\nthreads     = %s\n", p.Interpreter, threadsWord(p.Threads))
+}
+
+// ShimReady reports whether shim is a built shim (its t/test.pl exists)
+// whose stamp names pin's interpreter and threads. A shim that is not
+// ready is rebuilt, never measured with.
+func ShimReady(shim string, pin Pin) bool {
+	if _, err := os.Stat(filepath.Join(shim, "t", "test.pl")); err != nil {
+		return false
+	}
+	stamp, err := os.ReadFile(filepath.Join(shim, shimStamp))
+	return err == nil && string(stamp) == renderShimStamp(pin)
+}
+
+// RebuildShim replaces shim with one perl builds from corpus, and fails if
+// the result is still not ready for pin. The old shim is removed first:
+// BuildShim copies like `cp -rn`, so building over a stale shim would keep
+// every file the stale interpreter put there.
+func RebuildShim(perl, corpus, shim string, pin Pin) error {
+	if err := os.RemoveAll(shim); err != nil {
+		return fmt.Errorf("removing the stale shim at %s: %w", shim, err)
+	}
+	if err := BuildShim(perl, corpus, shim); err != nil {
+		return err
+	}
+	if !ShimReady(shim, pin) {
+		stamp, _ := os.ReadFile(filepath.Join(shim, shimStamp))
+		return fmt.Errorf("the shim %s rebuilt by %s is stamped %q, but the pin wants %q",
+			shim, perl, stamp, renderShimStamp(pin))
+	}
+	return nil
 }
 
 // copyTree copies src over dst without overwriting files that already exist,
@@ -250,16 +305,18 @@ func ReadPin(path string) (Pin, error) {
 	return pin, nil
 }
 
-// ObservePin asks the perl on PATH what it actually is, so a pin can be
-// checked against the running world rather than against itself.
+// ObservePin asks the perl at path what it actually is, so a pin can be
+// checked against the running world rather than against itself. The path
+// is the perl that measured, never PATH's: the perl first on PATH need not
+// be the one the oracle ran.
 //
 // This is the half that was missing. The sweep read the pin from the file and
 // handed it straight back to CheckPin, which compared the pin to a copy of
 // itself and could not fail -- a guard with no input. The first real CI run
 // went green through that check on a perl whose build differed from the
 // baseline's, and only the verdict comparison downstream noticed.
-func ObservePin(ctx context.Context, revision string) (Pin, error) {
-	out, err := exec.CommandContext(ctx, "perl",
+func ObservePin(ctx context.Context, perl, revision string) (Pin, error) {
+	out, err := exec.CommandContext(ctx, perl,
 		"-e", `print "$]\n", ($Config::Config{useithreads} // ""), "\n"`,
 		"-MConfig").Output()
 	if err != nil {

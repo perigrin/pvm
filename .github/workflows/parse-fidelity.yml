@@ -49,8 +49,13 @@
 #     with a failing exit on a regression.
 #   * TestCIGateCannotBeAdvisory: no continue-on-error on the job or any
 #     step. A GitHub semantic, not a shell one, so it is read, not executed.
-#   * TestCIGateCannotBeSkipped: no `if:` on the job or on either gate step,
-#     and both triggers name pu. Read, not executed, and partial -- see below.
+#   * TestCIGateCannotBeSkipped: no `if:` on the job, on either gate step,
+#     or on any step that sets PVM_REQUIRE_PINNED_PERL, and both triggers
+#     name pu. Read, not executed, and partial -- see below.
+#   * TestEveryPinnedPerlTestIsRequired: every test that calls
+#     perltest.PinnedPerl is named in the -run of a step that sets
+#     PVM_REQUIRE_PINNED_PERL and tests its package, and each such step's
+#     fail-unless-PASS loop names exactly its -run.
 #   * TestCINeverRebaselines: -parseoracle.update never appears. A must-not-
 #     contain check can be hidden from; the executed test above is what
 #     fails a step that re-baselines, since it would exit 0 on a regression.
@@ -244,7 +249,48 @@ jobs:
         # perl's @INC, and a threaded and a non-threaded perl ship different
         # trees. Keyed on $] alone, the two builds would share one entry and
         # serve each other a shim that does not match the interpreter.
-        key: parseoracle-shim-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.threads }}-${{ steps.pin.outputs.revision }}
+        #
+        # stamped marks shims that carry interpreter.stamp. A shim cached
+        # before the stamp existed is rebuilt on every run -- the sweep
+        # rebuilds any shim whose stamp does not match the pin -- and a key
+        # hit is never re-saved, so the old entries must not be hit.
+        key: parseoracle-shim-stamped-${{ steps.pin.outputs.interpreter }}-${{ steps.pin.outputs.threads }}-${{ steps.pin.outputs.revision }}
+
+    # Every test held to the pinned perl other than the sweep: each calls
+    # perltest.PinnedPerl, which skips where no perl matches corpus.pin.
+    # PVM_REQUIRE_PINNED_PERL turns that skip into a failure here, because
+    # this job installed the pinned perl above. The loop after the run fails
+    # the step unless every name in -run PASSED: a held test that skipped or
+    # never ran is a gate that measured nothing. TestEveryPinnedPerlTestIsRequired
+    # (ci_test.go) fails the build when a test that calls PinnedPerl is
+    # missing from this list or the sweep's, or when the loop and -run differ.
+    #
+    # It runs after the shim restore, so the TestGoParser* tests, which skip
+    # without $PARSEORACLE_SHIM, run here; on a cache miss they build the
+    # shim the sweep below then reuses.
+    - name: Run the 5.44-held tests
+      shell: bash
+      env:
+        PERL5_CORPUS: ${{ runner.temp }}/perl5
+        PARSEORACLE_SHIM: ${{ runner.temp }}/oracleshim
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: |
+        set -o pipefail
+        go test ./internal/parseoracle/ \
+          -run '^(TestCIGateRunsTheSweep|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor)$' \
+          -count=1 \
+          -timeout 40m \
+          -v 2>&1 | tee "$RUNNER_TEMP/held.log"
+        status=0
+        for t in TestCIGateRunsTheSweep TestRatchet TestRatchetFailsOnRegression \
+                 TestRatchetFailsOnImprovement TestBaselineUpdateOnly TestReceiptRecordsTheSweep \
+                 TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor; do
+          if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then
+            echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
+            status=1
+          fi
+        done
+        exit $status
 
     # The gate, first half. -parseoracle.corpus opts into the 620-file sweep;
     # -parseoracle.update is ABSENT and must stay absent, because a job that
@@ -260,6 +306,9 @@ jobs:
     # This step is executed, not read, by TestCIGateRunsTheSweep: change its
     # script, shell or env and the test runs the changed version.
     - name: Run the fidelity ratchet
+      # bash with pipefail, so the tee below cannot hide go test's exit
+      # status; the log it writes is what the loop reads.
+      shell: bash
       env:
         PERL5_CORPUS: ${{ runner.temp }}/perl5
         PARSEORACLE_SHIM: ${{ runner.temp }}/oracleshim
@@ -286,13 +335,27 @@ jobs:
         # other side. The receipt step below would also fail on the missing
         # receipt; this makes the reason legible in the sweep's own log.
         PARSEORACLE_REQUIRE_CORPUS: '1'
+        # TestRatchetCorpus calls perltest.PinnedPerl. Without a perl
+        # matching corpus.pin it would skip, and a skipped sweep measures
+        # nothing; this makes that a failure, and the loop below fails the
+        # step unless the sweep PASSED.
+        PVM_REQUIRE_PINNED_PERL: '1'
       run: |
+        set -o pipefail
         go test ./internal/parseoracle/ \
-          -run TestRatchetCorpus \
+          -run '^(TestRatchetCorpus)$' \
           -parseoracle.corpus \
           -count=1 \
           -timeout 40m \
-          -v
+          -v 2>&1 | tee "$RUNNER_TEMP/sweep.log"
+        status=0
+        for t in TestRatchetCorpus; do
+          if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/sweep.log"; then
+            echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
+            status=1
+          fi
+        done
+        exit $status
 
     # The gate, second half. Whatever the step above did, this one asks for
     # the receipt only a completed TestRatchetCorpus writes, and checks it

@@ -4,6 +4,8 @@
 package parseoracle_test
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // TestCIGateCannotBeAdvisory: `continue-on-error: true` reports a failed job or
@@ -107,8 +110,9 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 		t.Skip("the gate runs on ubuntu-latest; modelling its shell on Windows proves nothing about the runner")
 	}
 
+	p := perltest.PinnedPerl(t)
 	wf := parseWorkflow(t)
-	sweep := stepRunning(t, wf, "TestRatchetCorpus")
+	sweep := sweepStep(t, wf)
 	verify := stepRunning(t, wf, "cmd/receipt")
 
 	temp := t.TempDir()
@@ -137,7 +141,7 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	env[baselineEnv] = good
 
 	// 1. The committed step over a five-file shim and the matching baseline.
-	buildFixtureShim(t, shim)
+	buildFixtureShim(t, p, shim)
 	if out, err := runStep(t, sweep, env); err != nil {
 		t.Fatalf("the sweep step failed against a baseline that matches the fixture:\n%v\n%s", err, out)
 	}
@@ -201,14 +205,15 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	}
 }
 
-// TestCIGateCannotBeSkipped reads the two switches execution cannot see.
+// TestCIGateCannotBeSkipped reads the switches execution cannot see.
 //
-// `if: false` on the job or on either gate step, and triggers that never
-// name pu, each leave a workflow that parses, passes every executable
-// check here, and never runs. This is partial on purpose: nothing in this
-// repository can make a skipped or absent check block a merge. That takes
-// a ruleset on pu with required_status_checks naming the ratchet job, which
-// the workflow header spells out and only the repository owner can apply.
+// `if: false` on the job, on either gate step, or on any step that sets
+// PVM_REQUIRE_PINNED_PERL, and triggers that never name pu, each leave a
+// workflow that parses, passes every executable check here, and never
+// runs. This is partial on purpose: nothing in this repository can make a
+// skipped or absent check block a merge. That takes a ruleset on pu with
+// required_status_checks naming the ratchet job, which the workflow header
+// spells out and only the repository owner can apply.
 func TestCIGateCannotBeSkipped(t *testing.T) {
 	wf := parseWorkflow(t)
 
@@ -228,15 +233,60 @@ func TestCIGateCannotBeSkipped(t *testing.T) {
 		}
 	}
 
+	// Both gate steps must exist for the check below to mean anything.
+	sweepStep(t, wf)
+	stepRunning(t, wf, "cmd/receipt")
+	for _, problem := range skipProblems(wf) {
+		t.Error(problem)
+	}
+}
+
+// TestCIGateCannotBeSkippedCoversRequireSteps: a step that requires the
+// pinned perl is a gate too. With `if: false` on it the held tests never
+// run and the step reports success, so the 5.44-held step is flagged the
+// same as the sweep.
+func TestCIGateCannotBeSkippedCoversRequireSteps(t *testing.T) {
+	var wf workflowFile
+	if err := yaml.Unmarshal([]byte(`
+jobs:
+  ratchet:
+    steps:
+    - name: Run the 5.44-held tests
+      if: false
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: go test ./internal/parseoracle/ -run '^(TestRatchet)$'
+    - name: Run the fidelity ratchet
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: go test ./internal/parseoracle/ -run '^(TestRatchetCorpus)$' -parseoracle.corpus
+`), &wf); err != nil {
+		t.Fatal(err)
+	}
+	problems := skipProblems(wf)
+	if len(problems) != 1 || !strings.Contains(problems[0], "Run the 5.44-held tests") {
+		t.Errorf("an if: on the 5.44-held step must be flagged, and only it; got %q", problems)
+	}
+}
+
+// skipProblems names every `if:` that could turn the gate off: on the
+// ratchet job, on the sweep, on the receipt check, and on every step that
+// sets PVM_REQUIRE_PINNED_PERL.
+func skipProblems(wf workflowFile) []string {
+	var problems []string
 	job := wf.Jobs["ratchet"]
 	if job.If != nil {
-		t.Errorf("the ratchet job carries if: %v -- a skipped job reports success to a required check", job.If)
+		problems = append(problems, fmt.Sprintf(
+			"the ratchet job carries if: %v -- a skipped job reports success to a required check", job.If))
 	}
-	for _, needle := range []string{"TestRatchetCorpus", "cmd/receipt"} {
-		if step := stepRunning(t, wf, needle); step.If != nil {
-			t.Errorf("step %q carries if: %v -- a skipped step leaves nothing to fail", step.Name, step.If)
+	for _, step := range job.Steps {
+		gate := isSweep(step) || strings.Contains(step.Run, "cmd/receipt") || step.Env[requirePinnedEnv] != ""
+		if gate && step.If != nil {
+			problems = append(problems, fmt.Sprintf(
+				"step %q carries if: %v -- a skipped step leaves nothing to fail", step.Name, step.If))
 		}
 	}
+	return problems
 }
 
 // TestCorpusRequiredReadsTheEnvironment proves the knob is connected, the way
@@ -342,10 +392,9 @@ func shellArgv(t *testing.T, shell string) []string {
 	return strings.Fields(shell)
 }
 
-// stepRunning finds the step whose script mentions needle. The sweep is the
-// step that names TestRatchetCorpus, and the receipt check is the step that
-// invokes cmd/receipt; both are executed, so a step that merely mentions the
-// name in an echo is found here and then fails to produce a receipt.
+// stepRunning finds the step whose script mentions needle. The receipt
+// check is the step that invokes cmd/receipt; it is executed, so a step
+// that merely mentions the name in an echo is found here and then fails.
 func stepRunning(t *testing.T, wf workflowFile, needle string) workflowStep {
 	t.Helper()
 	for _, step := range wf.Jobs["ratchet"].Steps {
@@ -357,11 +406,65 @@ func stepRunning(t *testing.T, wf workflowFile, needle string) workflowStep {
 	return workflowStep{}
 }
 
-// buildFixtureShim lays the five fixture files out the way corpusReport
-// expects a built shim: a t/ with test.pl in it and .t files to walk. The
-// sweep sees a shim that is already built, which is the cache-hit path.
-func buildFixtureShim(t *testing.T, shim string) {
+// sweepName is the sweep step's name in parse-fidelity.yml.
+const sweepName = "Run the fidelity ratchet"
+
+// isSweep reports whether step is the corpus sweep: the step with the
+// sweep's name, or whose script passes -parseoracle.corpus. Never a test
+// name: the 5.44-held step may name the same tests the sweep runs.
+func isSweep(step workflowStep) bool {
+	return step.Name == sweepName || strings.Contains(step.Run, "-parseoracle.corpus")
+}
+
+// sweepStep finds the corpus sweep step.
+func sweepStep(t *testing.T, wf workflowFile) workflowStep {
 	t.Helper()
+	for _, step := range wf.Jobs["ratchet"].Steps {
+		if isSweep(step) {
+			return step
+		}
+	}
+	t.Fatalf("no step in the ratchet job is named %q or passes -parseoracle.corpus", sweepName)
+	return workflowStep{}
+}
+
+// TestGateFindsTheSweepStep: a REQUIRE step naming TestRatchetCorpus that
+// comes before the sweep must not be mistaken for it, or the gate would
+// execute the wrong step and prove nothing about the sweep.
+func TestGateFindsTheSweepStep(t *testing.T) {
+	var wf workflowFile
+	if err := yaml.Unmarshal([]byte(`
+jobs:
+  ratchet:
+    steps:
+    - name: Run the 5.44-held tests
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: go test ./internal/parseoracle/ -run '^(TestRatchetCorpus)$'
+    - name: Run the fidelity ratchet
+      env:
+        PVM_REQUIRE_PINNED_PERL: '1'
+      run: go test ./internal/parseoracle/ -run '^(TestRatchetCorpus)$' -parseoracle.corpus
+`), &wf); err != nil {
+		t.Fatal(err)
+	}
+	if got := sweepStep(t, wf); got.Name != sweepName {
+		t.Errorf("the gate picked step %q as the sweep, want %q", got.Name, sweepName)
+	}
+}
+
+// buildFixtureShim lays the five fixture files out the way corpusReport
+// expects a built shim: a t/ with test.pl in it and .t files to walk,
+// stamped with p's $] and threads. The sweep sees a shim that is already
+// built for the perl it runs, which is the cache-hit path; unstamped, it
+// would try to rebuild the shim from the corpus this gate withholds.
+func buildFixtureShim(t *testing.T, p perltest.Perl, shim string) {
+	t.Helper()
+
+	built, err := parseoracle.ObservePin(context.Background(), p.Path, "")
+	if err != nil {
+		t.Fatalf("asking %s what it is: %v", p.Path, err)
+	}
 
 	shimT := filepath.Join(shim, "t")
 	if err := os.MkdirAll(shimT, 0o755); err != nil {
@@ -379,6 +482,9 @@ func buildFixtureShim(t *testing.T, shim string) {
 		if err := os.WriteFile(dst, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := parseoracle.WriteShimStamp(shim, built); err != nil {
+		t.Fatal(err)
 	}
 }
 

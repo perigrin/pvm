@@ -52,7 +52,7 @@ func perlInvocations(t *testing.T, log string) int {
 // perl is what stops the ratchet from gating a commit.
 func TestCacheSecondSweepSpawnsNoPerl(t *testing.T) {
 	files := fixtureCorpus(t)
-	cache, err := parseoracle.OpenCache(t.TempDir())
+	cache, err := parseoracle.OpenCache(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestCacheSecondSweepSpawnsNoPerl(t *testing.T) {
 func TestCacheServesIdenticalFacts(t *testing.T) {
 	requirePOSIXOracle(t)
 	dir := t.TempDir()
-	cache, err := parseoracle.OpenCache(dir)
+	cache, err := parseoracle.OpenCache(dir, "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestCacheServesIdenticalFacts(t *testing.T) {
 // that stopped being true.
 func TestCacheMissesOnChangedSource(t *testing.T) {
 	requirePOSIXOracle(t)
-	cache, err := parseoracle.OpenCache(t.TempDir())
+	cache, err := parseoracle.OpenCache(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestCacheMissesOnChangedScript(t *testing.T) {
 // asked under different options are different questions.
 func TestCacheKeyCoversInvocationOptions(t *testing.T) {
 	requirePOSIXOracle(t)
-	cache, err := parseoracle.OpenCache(t.TempDir())
+	cache, err := parseoracle.OpenCache(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestCacheKeyCoversInvocationOptions(t *testing.T) {
 func TestCacheEntriesAreReadableDiffs(t *testing.T) {
 	requirePOSIXOracle(t)
 	dir := t.TempDir()
-	cache, err := parseoracle.OpenCache(dir)
+	cache, err := parseoracle.OpenCache(dir, "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestCacheEntriesAreReadableDiffs(t *testing.T) {
 // throwaway artifact into something that can break a build.
 func TestCacheSurvivesCorruptEntry(t *testing.T) {
 	dir := t.TempDir()
-	cache, err := parseoracle.OpenCache(dir)
+	cache, err := parseoracle.OpenCache(dir, "")
 	if err != nil {
 		t.Fatalf("OpenCache: %v", err)
 	}

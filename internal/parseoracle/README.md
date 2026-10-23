@@ -216,11 +216,17 @@ longer contributes to whatever the sweep eventually costs, and it removes
 620 process spawns from CI.
 
 ```go
-cache, err := parseoracle.OpenCache("testdata/oracle_cache")
+cache, err := parseoracle.OpenCache("testdata/oracle_cache", perl)
 report, err := parseoracle.Run(ctx, files, parseoracle.RunOptions{
-    Dir: shimT, Cache: cache,
+    Dir: shimT, Cache: cache, Perl: perl,
 })
 ```
+
+`Perl` is the interpreter every oracle invocation runs, inner compiles
+included (parse_facts.pl runs them with `$^X`). Empty means the perl on
+PATH. Tests held to `testdata/corpus.pin` get it from
+`perltest.PinnedPerl(t).Path`, which finds the pinned perl in pvm's
+versions directory, pvm's registry, or PATH, in that order.
 
 The key is `sha256` over everything that can change perl's answer:
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 const pinPath = "testdata/corpus.pin"
@@ -23,7 +24,7 @@ const pinPath = "testdata/corpus.pin"
 // next step reads.
 func TestReceiptRecordsTheSweep(t *testing.T) {
 	requirePOSIXOracle(t)
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 	base := loadFixtureBaseline(t)
 	if err := base.Check(report); err != nil {
 		t.Fatalf("premise: the fixture must match its baseline: %v", err)

@@ -71,6 +71,10 @@ type Options struct {
 	Shebang bool
 	// Timeout bounds a single invocation. Zero means DefaultTimeout.
 	Timeout time.Duration
+	// Perl is the perl to run. Empty means the perl on PATH. It runs
+	// parse_facts.pl, and parse_facts.pl runs its compiles with $^X, so
+	// every perl this invocation starts is this one.
+	Perl string
 }
 
 // DefaultTimeout bounds one oracle invocation.
@@ -126,7 +130,7 @@ func AskFile(ctx context.Context, path string, opts Options) (Facts, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "perl", script, path)
+	cmd := exec.CommandContext(ctx, perlOrPath(opts.Perl), script, path)
 	cmd.Dir = opts.Dir
 	// WaitDelay is what actually returns control. The script's inner
 	// `sh -c perl` child holds the stdout pipe open, so without it a
@@ -156,6 +160,14 @@ func AskFile(ctx context.Context, path string, opts Options) (Facts, error) {
 	}
 
 	return decode(out)
+}
+
+// perlOrPath is perl, or the perl on PATH when perl is empty.
+func perlOrPath(perl string) string {
+	if perl == "" {
+		return "perl"
+	}
+	return perl
 }
 
 // wire mirrors parse_facts.pl's JSON. It is separate from Facts because the
