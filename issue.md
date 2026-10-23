@@ -10,7 +10,7 @@ blocks:
 - 01a0c362-0929-795d-ac6b-c1740240e49e
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:14.225829534Z
-updated: 2026-10-23T19:18:29.4298185Z
+updated: 2026-10-23T23:40:17.416486923Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -81,15 +81,18 @@ formality.
 distinctive, so the token stream classifies them and a declaration would be
 checking itself.
 
-Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/02_variables` -> `TestCorpus` over the tier-02 topics (adjacency-02_variables.md, aggregate-operators.md, arrays.md, hashes.md, names.md)). Left unchanged: `TestTierVariablesAdjacency`, because no current test holds that property.
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/02_variables` -> `TestCorpus` over the tier-02 topics (adjacency-02_variables.md, aggregate-operators.md, arrays.md, hashes.md, names.md)). Left unchanged here: `TestTierVariablesAdjacency`; the note below maps each to the test that now holds it.
 
-Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierVariablesAdjacency` -> `TestAdjacencyCoversItsTier/02_variables`. These commands pass once branch ccx/adj merges.
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, and that each case's main program is multi-statement; the declared prerequisite is pinned by `TestTierPrerequisitesMatchTheSpec` instead. Old -> new: `TestTierVariablesAdjacency` -> `TestAdjacencyCoversItsTier/02_variables`. These commands pass once branch ccx/adj merges.
+
+Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): `TestAdjacencyCoversItsTier` no longer checks the prerequisite pairing, which any plausible declaration satisfied. The pairing claim moved to its own criterion, run by `TestTierPrerequisitesMatchTheSpec`, which fails when a tier's DEPENDS ON is repointed.
 
 ## Acceptance criteria
 
 - [ ] Every file in 02_variables/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierVariablesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierVariablesPerlValidated'`)
 - [ ] The dependency lint passes over 02_variables/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierVariablesLint$' -count=1 -v | grep -q '^--- PASS: TestTierVariablesLint'`)
-- [ ] The tier's adjacency topic puts every construct 02_variables introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^02_variables$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/02_variables'`)
+- [ ] The tier's adjacency topic puts every construct 02_variables introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^02_variables$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/02_variables'`)
+- [ ] The tier's declared prerequisite is the spec's edge rather than an assumed tier N-1 (`go test ./internal/conformance/ -run '^TestTierPrerequisitesMatchTheSpec$' -count=1 -v | grep -q '^--- PASS: TestTierPrerequisitesMatchTheSpec'`)
 - [ ] 02_variables/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierVariablesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierVariablesRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-02_variables|aggregate-operators|arrays|hashes|names)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
