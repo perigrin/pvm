@@ -16,3 +16,10 @@ graded = 593
 # ratchet's 0 rows under op/ mro/ uni/ lib/ test_pl/.
 faithful_start_all = 342
 faithful_start_m3 = 178
+#
+# rv2hv_wider is sites.txt's `total all rv2hv wider`: the whole corpus's
+# wider rv2hv sites, with op/magic.t's sites still counted as no-answer.
+# m3_exact_pct is the M3 dirs' exact share of their sites (3012 of 3365),
+# recorded for the docs; the floor it is held to is the fixed 80%.
+rv2hv_wider = 396
+m3_exact_pct = 89.51

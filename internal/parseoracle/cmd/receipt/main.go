@@ -1,4 +1,4 @@
-// ABOUTME: Verifies the receipt TestRatchetCorpus wrote against the checked-out baseline and pin.
+// ABOUTME: Verifies the receipt TestRatchetCorpus and TestSiteRatchetCorpus wrote against the checked-out baselines and pin.
 // ABOUTME: The fidelity workflow runs it from the repository root; a missing or disagreeing receipt exits non-zero.
 
 // Usage: go run ./internal/parseoracle/cmd/receipt [RECEIPT]
@@ -17,6 +17,7 @@ import (
 
 const (
 	baseline = "internal/parseoracle/testdata/ratchet/baseline.txt"
+	sites    = "internal/parseoracle/testdata/ratchet/sites.txt"
 	pin      = "internal/parseoracle/testdata/corpus.pin"
 )
 
@@ -34,6 +35,9 @@ func main() {
 		fail("%v -- the sweep did not run TestRatchetCorpus to completion", err)
 	}
 	if err := receipt.Verify(baseline, pin, parseoracle.MinCorpusRows); err != nil {
+		fail("%v", err)
+	}
+	if err := receipt.VerifySites(sites); err != nil {
 		fail("%v", err)
 	}
 	fmt.Printf("receipt: %s swept %d files against the %d-row baseline (sha256 %s, pin %s@%s)\n",

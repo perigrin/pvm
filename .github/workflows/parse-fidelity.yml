@@ -22,6 +22,9 @@
 #     it swept, how many rows the baseline had, the baseline's sha256, the
 #     pin, and a digest of the verdicts. A sweep that was skipped, filtered
 #     out, listed, run under /bin/true, or never reached writes nothing.
+#     TestSiteRatchetCorpus, the per-site ratchet and M3 floor, shares that
+#     one walk of the corpus and, only after it passes, adds the receipt's
+#     sites line: the sha256 of sites.txt.
 #   * "Verify the sweep's receipt" runs internal/parseoracle/cmd/receipt,
 #     which recomputes every field from the checked-out tree: the receipt
 #     must exist, its sha256 must be the committed baseline's, its pin must
@@ -30,6 +33,7 @@
 #     must be at least 310. The last is F7: Check is a symmetric diff, so a
 #     baseline truncated to its header and a shim with no files agree on
 #     nothing and pass. TestRatchetCorpus refuses an empty denominator too.
+#     The sites line must also be the committed sites.txt's sha256.
 #
 # What is tested locally, in the normal `go test` suite:
 #
@@ -277,12 +281,12 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ ./internal/parse/ \
-          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines)$' \
+          -run '^(TestCIGateRunsTheSweep|TestCISweepRunsOracleOnce|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
         status=0
-        for t in TestCIGateRunsTheSweep TestAskFileRequiresDir TestShebangPassthrough \
+        for t in TestCIGateRunsTheSweep TestCISweepRunsOracleOnce TestAskFileRequiresDir TestShebangPassthrough \
                  TestExpensiveFixtureStillFitsItsBudget TestRatchet TestRatchetFailsOnRegression \
                  TestRatchetFailsOnImprovement TestBaselineUpdateOnly TestReceiptRecordsTheSweep \
                  TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor \
@@ -349,13 +353,13 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ \
-          -run '^(TestRatchetCorpus)$' \
+          -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' \
           -parseoracle.corpus \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/sweep.log"
         status=0
-        for t in TestRatchetCorpus; do
+        for t in TestRatchetCorpus TestSiteRatchetCorpus; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/sweep.log"; then
             echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
             status=1

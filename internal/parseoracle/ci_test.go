@@ -63,6 +63,11 @@ const (
 	// receipt's baseline hash against the committed file regardless.
 	baselineEnv = "PARSEORACLE_BASELINE"
 
+	// sitesBaselineEnv is baselineEnv for TestSiteRatchetCorpus: it points
+	// the site ratchet at the gate's fixture sites file. The workflow must
+	// never set it either.
+	sitesBaselineEnv = "PARSEORACLE_SITES_BASELINE"
+
 	// receiptEnv names where TestRatchetCorpus writes its receipt after the
 	// ratchet passes. Unset, no receipt is written, which is right locally;
 	// the workflow sets it and its next step fails on the file's absence.
