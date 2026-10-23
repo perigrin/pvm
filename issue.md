@@ -3,8 +3,10 @@ title: Remove the call-paren forgiveness and re-home the block argument's last s
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1692f-65de-750b-aac5-f2506623ec7f
 created: 2026-10-23T14:34:59.350295778Z
-updated: 2026-10-23T14:34:59.350295778Z
+updated: 2026-10-23T14:35:03.008283402Z
 ---
 
 ## Context
