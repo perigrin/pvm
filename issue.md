@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T01:36:12.199877747Z
+updated: 2026-10-23T01:56:31.027315515Z
 ---
 
 ## Context
@@ -19,7 +19,7 @@ updated: 2026-10-23T01:36:12.199877747Z
 - commands: `go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v`; `go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v`
 - entrypoints: `internal/parse/sites.go` (`hedgeDerefElement`)
 
-This is the real fix that the m1 hedge for arrow hash reads defers to (filed 2026-10-09). Whether perl compiles a `->{...}` hash read as a visible `rv2hv` or folds it into `multideref` depends on the chain's op_lvalue context. push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref. The chain's shape and keys matter too: a computed key like `->{shift()}`, a read inside a block dereference `@{$r->{k}}`, and `$#{ $x->{k} }`. internal/parse commits to one answer. m1 hedges the rv2hv marker for the `->{...}` reads it cannot predict, and the oracle scores them `wider`. This issue models perl's rule and reports rv2hv exactly. Seen in japh/abigail.t, op/gmagic.t, op/ref.t and porting/libperl.t. The site ratchet (TestSiteRatchetCorpus, sites.txt) records the rv2hv wider count. The starting value is `rv2hv_wider` in m3start.txt, as the op/magic.t issue re-records it once that file is answered. This issue therefore follows that one. This issue lowers the count and records the new value as `rv2hv_wider_after_arrow` in m3start.txt.
+This is the real fix that the m1 hedge for arrow hash reads defers to (filed 2026-10-09). Whether perl compiles a `->{...}` hash read as a visible `rv2hv` or folds it into `multideref` depends on the chain's op_lvalue context. push, keys, foreach, assignment and sub args keep rv2hv; a plain read folds into multideref. The chain's shape and keys matter too: a computed key like `->{shift()}`, a read inside a block dereference `@{$r->{k}}`, and `$#{ $x->{k} }`. internal/parse commits to one answer. m1 hedges the rv2hv marker for the `->{...}` reads it cannot predict, and the oracle scores them `wider`. This issue models perl's rule and reports rv2hv exactly. Seen in japh/abigail.t, op/gmagic.t, op/ref.t and porting/libperl.t. The site ratchet (TestSiteRatchetCorpus, sites.txt) records the rv2hv wider count. The starting value is `rv2hv_wider_after_magic` in m3start.txt, recorded under its own key by the op/magic.t issue once that file is answered. This issue therefore follows that one. This issue lowers the count and records the new value as `rv2hv_wider_after_arrow` in m3start.txt.
 
 **How much this can lower (measured 2026-10-23, perl 5.44.0, scratch copy at 054e75e6).** The oracle ran over the 67 corpus files containing `->{`, twice: as is, and with `hedgeDerefElement` disabled. As is, it found 157 rv2hv wider findings (per line, before the per-site counting change). Disabled, it found 154 wider and 3 WRONG. So the arrow hedges account for 3 line-level findings, and every one of them is a site where perl DOES emit rv2hv. Most rv2hv wider comes from the named-hash `Index` hedges, which the next issue owns. The strict decrease below is reachable, but only by committing those few sites correctly. Dropping the hedge without deciding them turns wider into WRONG, which fails the build.
 
@@ -30,7 +30,7 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 - [ ] GREEN: decide rv2hv from op_lvalue context in `hedgeDerefElement`, hedging only the shapes the measurement cannot settle statically. Update or retire TestArrowHashReadHedgesRv2hv to match, and keep TestArrowHashReadStaysDecided green. Run the tests and watch them pass.
 - [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] Record the new count as `rv2hv_wider_after_arrow` in m3start.txt. The commit message gives it and names each file that moved.
-- [ ] RED/GREEN TestRv2hvWiderFellFromM3Start in internal/parseoracle: it reads sites.txt's `total all rv2hv wider` row and fails unless that count is below m3start.txt's `rv2hv_wider`. It also fails if either value is missing.
+- [ ] RED/GREEN TestRv2hvWiderFellFromM3Start in internal/parseoracle: it reads sites.txt's `total all rv2hv wider` row and fails unless that count is below m3start.txt's `rv2hv_wider_after_magic`. It also fails if either value is missing.
 - [ ] Add every measured context, with perl's facts, as probe file `internal/parse/testdata/m3probes/arrow-hash-read.txt`.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (e.g. `local $r->{k}`, `delete $r->{a}{b}`, `exists`, `\$r->{k}`, lvalue sub args, slices off an arrow), and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] Run `make test`, then commit.
@@ -41,8 +41,9 @@ This is the real fix that the m1 hedge for arrow hash reads defers to (filed 202
 ### Positive Scenarios
 
 - [ ] An arrow hash read reports rv2hv exactly when perl keeps it (`go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadFollowsMultideref'`)
-- [ ] The committed rv2hv wider count is below the starting count recorded at the pin (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellFromM3Start'`)
+- [ ] The committed rv2hv wider count is below the count recorded once op/magic.t was answered (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellFromM3Start'`)
 - [ ] The measured contexts are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/arrow-hash-read.txt`)
+- [ ] The arrow-read files named in this issue lose rv2hv wider sites. Each of japh/abigail.t, op/gmagic.t and op/ref.t that had an rv2hv wider row when op/magic.t was answered has fewer now, and at least one had a row (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_magic" -- $f/m3start.txt); [ -n "$c" ] || exit 1; n=0; for p in japh/abigail.t op/gmagic.t op/ref.t; do a=$(git show $c:$f/sites.txt | awk -v p=$p "\$1==\"site\" && \$2==p && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] || continue; n=$((n+1)); b=$(awk -v p=$p "\$1==\"site\" && \$2==p && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}" $f/sites.txt); [ "${b:-0}" -lt "$a" ] || exit 1; done; [ $n -gt 0 ]'`)
 
 ### Negative Scenarios
 
