@@ -6,10 +6,11 @@ milestone: m3-oracle-at-scale
 blocked_by:
 - 01a16602-5da6-79c8-aea5-e13d8f14c679
 - 01a12059-30a8-722e-bbc3-52066b8610cb
+- 01a1664d-7bc8-7498-af02-7eaf187b43ed
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T01:08:21.062819426Z
+updated: 2026-10-23T01:09:12.38850572Z
 ---
 
 ## Context
