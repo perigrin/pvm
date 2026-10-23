@@ -608,7 +608,7 @@ func tierPending(t *testing.T, tier string) {
 	if _, err := os.Stat(filepath.Join(corpusDir, tier, "README.md")); err == nil {
 		return
 	}
-	t.Skipf("%s is not written yet; issue 01a0c35f writes the fourteen tiers", tier)
+	t.Skipf("%s is not written yet; issue 01a0c35f-a487-7aa8-934b-4e68dd0fbaa1 writes the fourteen tiers", tier)
 }
 
 // TestEveryTierHasAReadme checks the corpus against the spec's tier list.
