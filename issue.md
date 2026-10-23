@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-23T01:56:01.731808731Z
+updated: 2026-10-23T07:06:13.612997624Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Hold the parse-without-error floor on the compiled set recorded at the 5.44.0 pin". The floor is over compiled.txt, not over 593 files; 593 was the 5.42 graded set (chain-review round 2, A3/A13).
@@ -31,7 +31,8 @@ The test logs, by name, every difference between the compiled set and baseline.t
 - [ ] Read compiled.txt through the one shared reader the re-pin issue adds beside TestCompiledSetExcludesPerlRejects (`readCompiledSet` in internal/parse's test files), not a second parser.
 - [ ] RED: write the test over compiled.txt, with its size checked against m3start.txt's `compiled`. Run it once against a fixture compiled.txt one line short of the count, and watch it fail, so the count check is shown to bite.
 - [ ] GREEN: implement the parse loop, reusing TestPerlGitTRatchet's helpers rather than copying them. Write compiledclean.txt under the existing update flag, and fail when the tree disagrees with it. Run the test and watch it pass.
-- [ ] Add TestParseWithoutErrorOnCompiledCorpus to ci.yml's "Fail if a corpus-backed ratchet skipped" loop, and confirm that the job sets the corpus env the test needs.
+- [ ] RED/GREEN the negatives, each a named test: TestCompiledSetFailsWithoutFile (a missing, empty or unparseable compiled.txt fails, never a 0/0 pass), TestGradedSetExcludesOnlyExcludedAndError (the graded-set reader used by the difference log keeps exact, wider and no-answer rows, on a fixture baseline), TestCompiledCorpusMissingFileCountsAsUnclean (a compiled-set file absent from PERL5_CORPUS counts as unclean and is named), and TestParseWithoutErrorPinsUncleanSet (compiledclean.txt pins the unclean set both ways).
+- [ ] Add TestParseWithoutErrorOnCompiledCorpus to ci.yml's "Fail if a corpus-backed ratchet skipped" loop and to TestCIRunsTheRatchets' list (internal/parse/pin_test.go:71), and confirm that the job sets the corpus env the test needs.
 - [ ] Run `make test`, then commit, quoting the measured clean count in the message.
 
 ## Acceptance criteria
@@ -40,7 +41,7 @@ The test logs, by name, every difference between the compiled set and baseline.t
 
 - [ ] At least 90% of the compiled set (compiled.txt, recorded with perl 5.44.0) parse with 0 Unknown (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseWithoutErrorOnCompiledCorpus$' -count=1 -v | grep -q '^--- PASS: TestParseWithoutErrorOnCompiledCorpus'`)
 - [ ] The clean count is committed for the docs to quote (`grep -Eq '^# [0-9]+/[0-9]+ clean' internal/parse/testdata/compiledclean.txt`)
-- [ ] CI fails if the test skips (`grep -q TestParseWithoutErrorOnCompiledCorpus .github/workflows/ci.yml`)
+- [ ] CI fails if the test skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestParseWithoutErrorOnCompiledCorpus\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
 
 ### Negative Scenarios
 
