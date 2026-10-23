@@ -374,6 +374,8 @@ func TestSubjectBuildFailureIsRunnerError(t *testing.T) {
 	t.Run("default subject does not build", func(t *testing.T) {
 		// Settle the once first, then stand a build failure in for its
 		// result; the real result is restored for the tests that follow.
+		// This patches a package global, so the test must never be made
+		// parallel.
 		_, _ = defaultSubject()
 		saved := internalParse.err
 		internalParse.err = errors.New("building the internal/parse subject: exit status 1")
