@@ -65,6 +65,12 @@ my $protosrc = <<'PERL';
     no strict 'refs';
     no warnings;
     for my $name (sort keys %main::) {
+        # A constant proxy -- a stash entry that is a plain reference, as
+        # `use constant` leaves -- is a constant sub with prototype "". It is
+        # answered without `defined &`, which segfaults perl 5.44.0 on a
+        # proxy named INIT (op/blocks.t: `use constant INIT => 5`).
+        my $entry = $main::{$name};
+        if (ref $entry && ref $entry ne 'CODE') { print "PROTO\t$name\t\n"; next }
         next unless defined &{"main::$name"};
         my $p = prototype(\&{"main::$name"});
         next unless defined $p;
@@ -211,6 +217,8 @@ my $protosrc = <<'PERL';
                 next;
             }
             my $full = "${pkg}::$name";
+            # A constant proxy has no op tree to walk; see the PROTO loop.
+            next if ref $stash->{$name} && ref $stash->{$name} ne 'CODE';
             next unless defined &$full;
             my $cv = B::svref_2object(\&$full);
             next unless ($cv->FILE // '') eq $oracle_file;

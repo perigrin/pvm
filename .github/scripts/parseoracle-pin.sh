@@ -1,6 +1,6 @@
 #!/bin/sh
-# ABOUTME: Reads internal/parseoracle/testdata/corpus.pin and prints its halves as key=value lines.
-# ABOUTME: The fidelity workflow needs the pin before Go exists on the runner, so it is read here.
+# ABOUTME: Reads a perl pin (corpus.pin by default, or the one named, as perl542.pin) and prints it as key=value lines.
+# ABOUTME: Workflows need the pin before Go exists on the runner, so it is read here.
 #
 # Usage: parseoracle-pin.sh [PIN_FILE] >> "$GITHUB_OUTPUT"
 #

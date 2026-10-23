@@ -456,6 +456,35 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### Judged by perl 5.44.0
+
+*2026-10-23. Corpus `perl5` at `94e5086608`, interpreter 5.44.0.*
+
+perigrin's ruling moved the oracle's pin from 5.42.0 to 5.44.0, which
+compiles every non-excluded file of this blead 5.45 corpus. Five files that
+5.42 could not compile, and so left without an answer, are graded now; no
+file moved the other way.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 492 | 83.0% |
+| wider | 86 | 14.5% |
+| **WRONG** | **0** | **0.0%** |
+| no-answer | 15 | 2.5% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+no-answer → exact: `class/inherit.t`, `class/method.t`, `op/signatures.t`.
+no-answer → wider: `op/for-many.t`, `perf/opcount.t`. The runner error is
+`re/pat_psycho.t`, at the 8m per-file budget, as before.
+
+perl 5.44.0 segfaults on `defined &main::INIT` once `use constant INIT => 5`
+has left a constant proxy in the stash (rc 139; 5.42.0 answers true).
+`op/blocks.t` declares exactly that, and the oracle's probe asked `defined &`
+of every stash entry, so its walk died and the file read exact → no-answer
+until the probe answered a proxy as the constant sub it is, prototype `""`.
+
 ### WRONG pin removed: the corpus holds no WRONG file
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
