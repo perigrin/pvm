@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-23T01:35:26.221677154Z
+updated: 2026-10-23T01:56:01.731808731Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Hold the parse-without-error floor on the compiled set recorded at the 5.44.0 pin". The floor is over compiled.txt, not over 593 files; 593 was the 5.42 graded set (chain-review round 2, A3/A13).
@@ -28,6 +28,7 @@ The test logs, by name, every difference between the compiled set and baseline.t
 ## Steps
 
 - [ ] Create `internal/parse/compiled_test.go` with two `// ABOUTME:` lines.
+- [ ] Read compiled.txt through the one shared reader the re-pin issue adds beside TestCompiledSetExcludesPerlRejects (`readCompiledSet` in internal/parse's test files), not a second parser.
 - [ ] RED: write the test over compiled.txt, with its size checked against m3start.txt's `compiled`. Run it once against a fixture compiled.txt one line short of the count, and watch it fail, so the count check is shown to bite.
 - [ ] GREEN: implement the parse loop, reusing TestPerlGitTRatchet's helpers rather than copying them. Write compiledclean.txt under the existing update flag, and fail when the tree disagrees with it. Run the test and watch it pass.
 - [ ] Add TestParseWithoutErrorOnCompiledCorpus to ci.yml's "Fail if a corpus-backed ratchet skipped" loop, and confirm that the job sets the corpus env the test needs.
@@ -47,4 +48,4 @@ The test logs, by name, every difference between the compiled set and baseline.t
 - [ ] The graded-set reader the difference log uses keeps exact, wider and no-answer rows and drops only excluded and error rows, checked on a fixture baseline holding one row of each status (`go test ./internal/parse/ -run '^TestGradedSetExcludesOnlyExcludedAndError$' -count=1 -v | grep -q '^--- PASS: TestGradedSetExcludesOnlyExcludedAndError'`)
 - [ ] A compiled-set file absent from PERL5_CORPUS (wrong pin, partial checkout) counts as unclean and is named, never skipped out of the compiled set (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestCompiledCorpusMissingFileCountsAsUnclean$' -count=1 -v | grep -q '^--- PASS: TestCompiledCorpusMissingFileCountsAsUnclean'`)
 - [ ] The 90% floor cannot hide a swap or a slide down to the 90% line: the test pins the unclean set, failing when any file outside it has an Unknown, and when a listed file becomes clean (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestParseWithoutErrorPinsUncleanSet$' -count=1 -v | grep -q '^--- PASS: TestParseWithoutErrorPinsUncleanSet'`)
-- [ ] comp/final_line_num.t is refused on the line perl rejects; a refusal on any other line fails (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlRejectedFileRefusedOnPerlsLine$' -count=1 -v | grep -q '^--- PASS: TestPerlRejectedFileRefusedOnPerlsLine'`)
+- [ ] Regression guard (an existing test; passes today): every file perl rejects, comp/final_line_num.t included, is refused on the line perl reports (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTRejects$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRejects'`)
