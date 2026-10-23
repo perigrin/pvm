@@ -1,0 +1,64 @@
+// ABOUTME: Scratch measurement: Faithful over perl.git t/ through ParseFileFrom, three configs.
+// ABOUTME: Writes "rel\tbase\truleoff\tdesign\twhy-design\twhy-base" to $MEASURE_OUT.
+package parse_test
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"tamarou.com/pvm/internal/parse"
+)
+
+func TestZZMeasureFaithful(t *testing.T) {
+	out := os.Getenv("MEASURE_OUT")
+	if out == "" {
+		t.Skip("MEASURE_OUT unset")
+	}
+	defer parse.SetMeasure(false, false)
+	dir, files := perlGitTFiles(t)
+	roots := perlGitTRoots(dir)
+	s := parse.NewSession()
+	var lines []string
+	total, m3 := 0, 0
+	ok, m3ok := [3]int{}, [3]int{}
+	cfgs := [][2]bool{{false, false}, {false, true}, {true, true}}
+	for _, rel := range files {
+		if _, rejected := perlRejects[rel]; rejected {
+			continue
+		}
+		path := filepath.Join(dir, rel)
+		n, err := s.ParseFileFrom(path, roots...)
+		if err != nil {
+			continue
+		}
+		src, _ := os.ReadFile(path)
+		total++
+		isM3 := false
+		for _, d := range []string{"op/", "mro/", "uni/", "lib/", "test_pl/"} {
+			if strings.HasPrefix(rel, d) {
+				isM3 = true
+			}
+		}
+		if isM3 {
+			m3++
+		}
+		var v [3]bool
+		var why [3]string
+		for i, c := range cfgs {
+			parse.SetMeasure(c[0], c[1]); parse.SetTC(os.Getenv("TC") != "")
+			v[i], why[i] = parse.Faithful(n, src)
+			if v[i] {
+				ok[i]++
+				if isM3 {
+					m3ok[i]++
+				}
+			}
+		}
+		lines = append(lines, fmt.Sprintf("%s\t%v\t%v\t%v\t%s\t%s", rel, v[0], v[1], v[2], why[2], why[0]))
+	}
+	os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	t.Logf("files %d: base %d ruleoff %d design %d | m3 %d: base %d ruleoff %d design %d", total, ok[0], ok[1], ok[2], m3, m3ok[0], m3ok[1], m3ok[2])
+}

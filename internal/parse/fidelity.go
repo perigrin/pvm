@@ -60,10 +60,12 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 // ParenNode marks a `(` or `)` canon wrote on one of two paths: a
 // parenthesised List's own pair, and the outermost pair of a parenthesised
 // Term, which is written as its source text. Every other paren is unmarked
-// -- a call's argument list, a grouping binding power demands, and two
+// -- a call's argument list, a grouping binding power demands, and three
 // paths that also write a pair from a node's Paren flag, left for the
 // Paren-once issue (01a1664d): emitWraps's pair for a Paren node with a
-// TrailingComma, `(A,)/0`, and the `->(` argument pair, `$f->($a+1)`.
+// TrailingComma, `(A,)/0`, the `->(` argument pair, `$f->($a+1)`, and
+// emitNot's pair for a parenthesised `not` or its parenthesised operand,
+// `(not $x)` and `not ($a == 1)`.
 type CanonToken struct {
 	Text      string
 	ParenNode bool

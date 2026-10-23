@@ -1,0 +1,7 @@
+// ABOUTME: Scratch: exposes the measurement toggles to package parse_test.
+// ABOUTME: Not production code.
+package parse
+
+func SetMeasure(design, ruleOff bool) { measureDesign, measureRuleOff = design, ruleOff }
+
+func SetTC(on bool) { measureTC = on }

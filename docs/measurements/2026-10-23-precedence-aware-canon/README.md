@@ -152,3 +152,45 @@ List ops were left unchanged, as the task asked:
 | TestCanonQuotientIsNarrow | PASS | 0 |
 
 These ratchets fail on movement in either direction, so a pass means nothing moved.
+
+# `not`, list ops, calls and niladics: scratch measurement (issue 01a1690b-4745)
+
+Worktree: detached at f09a07a0, after the named-unary issue merged; removed after the run. perl 5.44.0 judged the facts quoted here.
+
+Artifacts, all prefixed `nl-`:
+- `nl-design.diff` is the whole scratch change, with three toggles: `measureRuleOff` turns off the call-paren forgiveness, `measureDesign` writes the design, and `measureTC` adds the trailing-comma variant below.
+- `nl-zzmeasure_test.go.txt`, `nl-zzstmt_test.go.txt` and `nl-zzexport_test.go.txt` are the harness, extended from the files above to three configurations.
+- `nl-files.tsv` gives the per-file verdicts with the trailing-comma variant on. Its columns are base, rule-off and design, then each one's first difference.
+- `nl-stmts.tsv` lists every statement whose verdict differs between baseline and design, with the variant off.
+
+The design:
+- A Call without `ArgParen` and not a named unary is written bare: `NAME ARGS`. Its arguments are read at bpListOp+1, and the last one carries the follow power.
+  - The call parens come back where the follow power is tighter than a list op, or where the arguments' emission opens with a `(` that closes early.
+  - A call with no arguments is written as its bare name. That covers niladic builtins (`time`, `wantarray`) and compile-time tokens.
+- The parser sets `ArgParen` on a method call's `->name(` and on an indirect call's `(` (expr.go, indirect.go). An indirect call without one is written `METHOD CLASS ARGS`.
+- `not` is written by the follow power, as landed in this issue.
+- A comma-separated element other than the last gets the comma's power as its follow.
+- Variant (`measureTC`): a bare call whose last argument carries the source's trailing comma stays bare whatever follows.
+
+| configuration | perl.git t/ | M3 dirs | statements (73,670) |
+|---|---|---|---|
+| baseline | 342/619 | 178/347 | 67,012 |
+| rule off alone | 75/619 | 49/347 | 50,935 |
+| design, rule off | 348/619 (1 lost, 7 gained) | 183/347 | 67,183 (3 lost, 174 gained) |
+| design + trailing-comma variant | 349/619 (0 lost, 7 gained) | 184/347 | 67,186 (0 lost, 174 gained) |
+
+The stop condition does not fire.
+- All 23 files fresh5 lost are faithful under the design except op/utf8cache.t, and the variant recovers it.
+- No other file or statement goes from faithful to unfaithful.
+- Gained files: comp/use.t, mro/isa_c3.t, mro/package_aliases_utf8.t, op/isa.t, op/not.t, uni/attrs.t, uni/method.t.
+
+Triage:
+- **op/utf8cache.t:70**, `substr $x, 0, 1, = "\x{100}";`, is a list op ended by its trailing comma. perl reads `substr($x, 0, 1) = "\x{100}"`. The design writes call parens because `=` (power 60) is tighter than a list op (40). So the file is lost unless the tree's trailing comma keeps the call bare.
+  - Measured at 5.44, a trailing comma ends the list before `=`, `.=`, `||=`, `&&=`, `==` and `||`. `print 1, 2, || die` is `(print(1, 2) or die)`.
+  - It does not end the list before `-=`, `*=`, `%=`, `/=`, `&=`, `**=`, `x=`, `//=` or `<<=`. Each of those is a syntax error or re-lexes as a term.
+  - The variant keeps only the source's own spelling. It is right for correct trees, which is all the corpus holds.
+  - io/open.t:281, `ok open(...), '...', || _diag $!;`, is the same case. That file is unfaithful for other reasons.
+- **uni/parser.t** (a heredoc) stays faithful under the design. Its heredoc statements are outside the statement count.
+- The 17 niladic files and the 2 indirect-call files are recovered by writing zero-argument calls bare and keeping the indirect spelling.
+
+The landed `not` differs from the scratch in one place. A `not` whose own Paren flag is set keeps its pair: `my @l = (not $x, 1)` is a probe row.

@@ -1,0 +1,201 @@
+diff --git a/internal/parse/canon.go b/internal/parse/canon.go
+index 7a392739..7dd66857 100644
+--- a/internal/parse/canon.go
++++ b/internal/parse/canon.go
+@@ -211,10 +211,26 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 		// Deparse writes would reorder the tokens, and fidelity would count
+ 		// every correct indirect call as a misparse.
+ 		if n.Indirect && len(n.Children) > 0 {
++			if measureDesign && !n.ArgParen {
++				b.WriteString(n.Text)
++				b.WriteByte(' ')
++				b.WriteString(n.Children[0].Text)
++				if len(n.Children) == 1 {
++					return
++				}
++				var rest canonBuf
++				if emitBareCall(&rest, &Node{Kind: Call, Resolved: true, Children: n.Children[1:]}, src, f) {
++					b.WriteByte(' ')
++					b.writeFrom(&rest, 0, rest.Len())
++					return
++				}
++				emit(b, &Node{Kind: Call, Resolved: true, ArgParen: true, Children: n.Children[1:]}, src, 0)
++				return
++			}
+ 			b.WriteString(n.Text)
+ 			b.WriteByte(' ')
+ 			b.WriteString(n.Children[0].Text)
+-			emit(b, &Node{Kind: Call, Resolved: true, Children: n.Children[1:]}, src, 0)
++			emit(b, &Node{Kind: Call, Resolved: true, ArgParen: true, Children: n.Children[1:]}, src, 0)
+ 			return
+ 		}
+ 		// Always parenthesised, and that is the whole case chapter 7 names.
+@@ -275,6 +291,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 			return
+ 		}
+
++		if measureDesign && !n.NamedUnary && !n.ArgParen && emitBareCall(b, n, src, f) {
++			return
++		}
+ 		b.WriteString(n.Text)
+
+ 		// `eval { ... }` is the BLOCK form and takes no parens. Wrapping it
+@@ -336,6 +355,10 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 		// `\$x` is "ref". The table is keyed by the token, so the operator
+ 		// has to be spelled back out.
+ 		op := unaryToken(n.Text)
++		if op == "not" && len(n.Children) == 1 && measureDesign {
++			emitNot(b, n.Children[0], src, f)
++			break
++		}
+ 		b.WriteString(op)
+ 		// A WORD operator needs a separator: `not foo` is a call to foo and
+ 		// `notfoo` is the bareword "notfoo". The symbol operators must not
+@@ -841,7 +864,11 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
+ 				b.WriteString(", ")
+ 			}
+ 		}
+-		emit(b, c, src, 0)
++		if measureDesign && i < len(n.Children)-1 {
++			emitBefore(b, c, src, 0, infix[","].BP)
++		} else {
++			emit(b, c, src, 0)
++		}
+ 	}
+ }
+
+@@ -861,7 +888,7 @@ func bindingPower(n *Node) int {
+ 		// A dereference is a term: a subscript after it applies to it, so
+ 		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`. So is
+ 		// a named parameter's `:$name`, which is one parameter.
+-		if isDerefSigil(n.Text) || n.Text == ":" {
++		if isDerefSigil(n.Text) || n.Text == ":" || measureDesign && n.Text == "not" {
+ 			return atomBP
+ 		}
+ 		return prefix[unaryToken(n.Text)]
+@@ -1120,3 +1147,79 @@ func blockForm(n *Node) bool {
+ 	}
+ 	return false
+ }
++
++var measureDesign, measureRuleOff, measureTC bool
++
++func emitNot(b *canonBuf, c *Node, src []byte, f int) {
++	var arg canonBuf
++	if c.Paren {
++		emit(&arg, c, src, 0)
++		text := arg.String()
++		b.WriteString("not ")
++		if strings.HasPrefix(text, "(") && leadingParenCloses(text) {
++			b.writeFrom(&arg, 0, len(text))
++			return
++		}
++		b.writeParenNode('(')
++		b.writeFrom(&arg, 0, len(text))
++		b.writeParenNode(')')
++		return
++	}
++	group := f > prefix["not"]
++	next := f
++	if group {
++		next = 0
++	}
++	emitBefore(&arg, c, src, prefix["not"]+1, next)
++	text := arg.String()
++	if strings.HasPrefix(text, "(") && !leadingParenCloses(text) {
++		b.WriteString("not(")
++		b.writeFrom(&arg, 0, len(text))
++		b.WriteByte(')')
++		return
++	}
++	if group {
++		b.WriteByte('(')
++	}
++	b.WriteString("not ")
++	b.writeFrom(&arg, 0, len(text))
++	if group {
++		b.WriteByte(')')
++	}
++}
++
++// emitBareCall writes a list op/call without ArgParen bare; n.Text may be
++// empty (indirect args). Returns false to fall back to call parens.
++func emitBareCall(b *canonBuf, n *Node, src []byte, f int) bool {
++	if len(n.Children) == 0 {
++		b.WriteString(n.Text)
++		return true
++	}
++	if f > bpListOp && !(measureTC && n.Children[len(n.Children)-1].TrailingComma != "") {
++		return false
++	}
++	if len(n.Children) == 1 && n.Children[0].Kind == Block {
++		return false
++	}
++	var arg canonBuf
++	for i, c := range n.Children {
++		if i > 0 {
++			arg.WriteByte(' ')
++		}
++		next := 0
++		if i == len(n.Children)-1 {
++			next = f
++		}
++		emitBefore(&arg, c, src, bpListOp+1, next)
++	}
++	text := arg.String()
++	if strings.HasPrefix(text, "(") && !leadingParenCloses(text) {
++		return false
++	}
++	if n.Text != "" {
++		b.WriteString(n.Text)
++		b.WriteByte(' ')
++	}
++	b.writeFrom(&arg, 0, len(text))
++	return true
++}
+diff --git a/internal/parse/expr.go b/internal/parse/expr.go
+index f8bdaaf7..684f5b99 100644
+--- a/internal/parse/expr.go
++++ b/internal/parse/expr.go
+@@ -330,6 +330,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 				if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+ 					right.Kind = Call
+ 					right.Resolved = true
++					right.ArgParen = true
+ 					p.advanceTo(open)
+ 					if arg := p.parseCallArgs(); arg != nil {
+ 						right.Children = append(right.Children, arg)
+diff --git a/internal/parse/fidelity.go b/internal/parse/fidelity.go
+index 4041ab75..260e62a1 100644
+--- a/internal/parse/fidelity.go
++++ b/internal/parse/fidelity.go
+@@ -118,7 +118,7 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
+
+ 		// The one forgiven difference: the emission opened a paren the
+ 		// source did not, immediately after a call's name.
+-		if got[g] == "(" && g > 0 && isName(got[g-1]) {
++		if !measureRuleOff && got[g] == "(" && g > 0 && isName(got[g-1]) {
+ 			skip, ok := matchParen(got, g)
+ 			if !ok {
+ 				return false, forgiven, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
+@@ -219,7 +219,7 @@ func matchForgivingSemicolons(want []string, w int, got []string, from, to int)
+ 		// A call's added parens inside these ones: the forgiven difference
+ 		// one level down, forgiven the same way. `print create Foo sub {...}`
+ 		// is emitted `print(create Foo(sub {...}))`.
+-		if got[i] == "(" && i > from && isName(got[i-1]) {
++		if !measureRuleOff && got[i] == "(" && i > from && isName(got[i-1]) {
+ 			if skip, ok := matchParen(got[:to], i); ok {
+ 				if n, inner, ok := matchForgivingSemicolons(want, w, got, i+1, skip); ok {
+ 					forgiven = append(forgiven, Forgiveness{CanonIndex: i, SrcIndex: w, Rule: ruleCallParens})
+diff --git a/internal/parse/indirect.go b/internal/parse/indirect.go
+index d2b5459d..009170cd 100644
+--- a/internal/parse/indirect.go
++++ b/internal/parse/indirect.go
+@@ -112,6 +112,7 @@ func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Tok
+ 	// otherwise -- toke.c's METHCALL and METHCALL0.
+ 	if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+ 		p.advanceTo(open)
++		n.ArgParen = true
+ 		if arg := p.parseCallArgs(); arg != nil {
+ 			n.Children = append(n.Children, arg)
+ 		}
