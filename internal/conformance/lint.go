@@ -453,11 +453,3 @@ func checkTierNecessity(deps map[string]string) error {
 	sort.Strings(problems)
 	return fmt.Errorf("%s", strings.Join(problems, "; "))
 }
-
-// adjacencyFile is the per-tier file holding the tier's constructs
-// adjacent to one another.
-//
-// Numbered `00` because ordinary construct files start at `01`: the
-// adjacency file is not one of the tier's constructs, it is the check
-// that they compose, so it sorts ahead of them rather than among them.
-const adjacencyFile = "00_adjacency.t"

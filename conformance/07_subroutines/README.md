@@ -272,7 +272,7 @@ none could be claimed, because a claimed op that never appears is exactly
 as bad as an unclaimed op that does -- `TestCorpusLints` would pass a
 tier whose INTRODUCES list was pure fiction.
 
-`00_adjacency.t` was the sharpest instance. Its source carries a
+The adjacency case, `adjacency-07_subroutines.md`, was the sharpest instance. Its source carries a
 signature, a parameter default, a `for` loop, a `next`, three `return`s
 and an ampersand call; its MAIN optree contains `anoncode` and `entersub`
 and not one other op from tier 06 or 07. Six constructs, two visible ops.

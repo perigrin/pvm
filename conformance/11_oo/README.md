@@ -75,7 +75,7 @@ the `class` side.
   written to do put `methstart` where the lint looked. `opsOf` now
   enumerates the file's own subs and dumps each beside the main program,
   and both ops are measured where they are emitted -- `methstart` from
-  `00_adjacency.t` and `08_class_field_method.t`, `shift` from
+  `adjacency-11_oo.md` and `08_class_field_method.t`, `shift` from
   `06_indirect_new.t`.
 
   **`shift` belongs to tier 02, where arrays live.** `shift @a` outside
@@ -206,21 +206,23 @@ keywords that a reader would call the subject of the tier produce, between
 them, tier 05's `enterloop` and `leaveloop` plus `stub` and `methstart`.
 
 One more thing the op stream cannot see, and the reason this tier's
-adjacency topic exists. Measured 2026-09-21, our parser read:
+adjacency topic exists. A parser can read each construct alone and fail
+on a pair:
 
-    class Foo { ADJUST { 1 } }                   parses, 0 Unknowns
-    class Foo { ADJUST { 1 } method m { 2 } }    1 Unknown, swallowing both
+    class Foo { ADJUST { 1 } }                   ADJUST alone
+    class Foo { ADJUST { 1 } method m { 2 } }    ADJUST beside a method
 
-`ADJUST` alone parsed. `ADJUST` followed by anything -- `method`, `field`,
-or a second `ADJUST` -- did not. A corpus of one construct per case goes
-green over that by construction, because every construct in it passes in
-isolation. `adjacency-11_oo.md` puts every construct this tier introduces
-in one body, each adjacent to another, and it is what caught the bug.
-This is the case the whole adjacency design was written for.
+A parser that reads `ADJUST` alone and fails on `ADJUST` followed by
+anything -- `method`, `field`, or a second `ADJUST` -- swallows the pair
+into one Unknown. A corpus of one construct per case goes green over
+that by construction, because every construct in it passes in
+isolation. `adjacency-11_oo.md` puts every construct this tier
+introduces in one body, each adjacent to another, so it is the case that
+fails. This is the case the whole adjacency design was written for.
 
-The parser has since fixed it: the adjacency case parses clean, and
-`internal/conformance/testdata/corpus.ratchet` records it clean.
-`TestCorpusRatchet` would report a regression if the pair broke again.
+The adjacency case parses clean, and
+`internal/conformance/testdata/corpus.ratchet` records it clean, so
+`TestCorpusRatchet` reports a regression if the pair breaks.
 
 ## HARD MARKERS
 
