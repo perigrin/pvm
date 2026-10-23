@@ -1,6 +1,6 @@
 ---
 title: Ratchet oracle agreement per marker site, with the M3 floor, in the CI sweep
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -14,7 +14,16 @@ blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-23T12:56:08.016512313Z
+updated: 2026-10-23T17:31:21.295126592Z
+sessions:
+- start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T17:31:21.295126592Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:31:21.295126592Z
 ---
 
 ## Context
