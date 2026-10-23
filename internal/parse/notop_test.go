@@ -180,3 +180,20 @@ func TestCanonNotKeepsGroupingUnderTighterFollow(t *testing.T) {
 	not.Paren = false
 	requireCanon(t, n, src, src)
 }
+
+// TestCanonNotKeepsArrowCallParens: the parens of `->(` are the call's
+// argument list, and a parenthesised `not` inside them is written once.
+// Measured on perl 5.44.0, `$f->(not $x)` is `&$f((!$x))`.
+func TestCanonNotKeepsArrowCallParens(t *testing.T) {
+	for _, src := range []string{
+		`$f->(not $x);`,
+		`$f->(not $x, 1);`,
+		`$f->(not ($x));`,
+	} {
+		n := Parse([]byte(src))
+		requireCanon(t, n, src, src)
+		if ok, why := Faithful(n, []byte(src)); !ok {
+			t.Errorf("Faithful(%q) = false: %s", src, why)
+		}
+	}
+}

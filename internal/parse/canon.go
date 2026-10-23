@@ -865,10 +865,12 @@ func leadingParenCloses(text string) bool {
 }
 
 // writesParens reports whether emit writes a parenthesised node's parens
-// itself at outer: by wrapping it, as a parenthesised List, or as a Term,
-// which is written as its source and whose span covers them.
+// itself at outer: by wrapping it, as a parenthesised List, as a Term,
+// which is written as its source and whose span covers them, or as a
+// parenthesised `not`, whose pair emitNot writes.
 func writesParens(n *Node, outer int) bool {
-	return emitWraps(n, outer) || n.Kind == List || n.Kind == Term
+	return emitWraps(n, outer) || n.Kind == List || n.Kind == Term ||
+		n.Kind == Unary && n.Text == "not" && n.Paren
 }
 
 // emitCommaSeparated writes n's children with ", " between them.
