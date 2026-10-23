@@ -7,12 +7,15 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
@@ -27,45 +30,79 @@ import (
 var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
 
+// reportMemo computes a corpus report once per process. calls counts the
+// computations, which is what the sweep's receipt reports as corpus_walks.
+type reportMemo struct {
+	once   sync.Once
+	report parseoracle.Report
+	shimT  string
+	err    error
+	calls  int
+}
+
+// get returns the memoised report, computing it with f on the first call.
+// The error is preset before f runs, so an f that never returns -- a
+// t.Fatalf in the first caller -- leaves that error for every later one.
+func (m *reportMemo) get(f func() (parseoracle.Report, string, error)) (parseoracle.Report, string, error) {
+	m.once.Do(func() {
+		m.calls++
+		m.err = errors.New("the corpus sweep failed in an earlier test of this run")
+		m.report, m.shimT, m.err = f()
+	})
+	return m.report, m.shimT, m.err
+}
+
+// corpus is the one corpus report this test process computes.
+var corpus reportMemo
+
 // corpusReport measures the whole corpus through a shim with the perl p,
-// the same way TestCorpusSweep does. $PARSEORACLE_SHIM names a shim to
-// reuse, which is what makes a re-baseline affordable at all.
+// the same way TestCorpusSweep does, once per process: TestRatchetCorpus
+// and TestSiteRatchetCorpus share one walk. $PARSEORACLE_SHIM names a shim
+// to reuse, which is what makes a re-baseline affordable at all.
 //
 // The shim's t/ is returned alongside the report because the runner records
 // paths relative to it, and the taxonomy has to re-read each file.
+// ponytail: with $PARSEORACLE_SHIM unset the shim is the first caller's
+// t.TempDir, gone once that test ends; only TestRatchetCorpus's -update
+// reads shimT, and it runs first in this file.
 func corpusReport(t *testing.T, p perltest.Perl) (parseoracle.Report, string) {
 	t.Helper()
-
-	shim := os.Getenv("PARSEORACLE_SHIM")
-	if shim == "" {
-		shim = t.TempDir()
-	}
-	readyShim(t, p, shim)
-	shimT := filepath.Join(shim, "t")
-
-	var files []string
-	err := filepath.WalkDir(shimT, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	report, shimT, err := corpus.get(func() (parseoracle.Report, string, error) {
+		shim := os.Getenv("PARSEORACLE_SHIM")
+		if shim == "" {
+			shim = t.TempDir()
 		}
-		if !d.IsDir() && strings.HasSuffix(path, ".t") {
-			rel, err := filepath.Rel(shimT, path)
+		readyShim(t, p, shim)
+		shimT := filepath.Join(shim, "t")
+
+		var files []string
+		err := filepath.WalkDir(shimT, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			files = append(files, rel)
+			if !d.IsDir() && strings.HasSuffix(path, ".t") {
+				rel, err := filepath.Rel(shimT, path)
+				if err != nil {
+					return err
+				}
+				files = append(files, rel)
+			}
+			return nil
+		})
+		if err != nil {
+			return parseoracle.Report{}, "", fmt.Errorf("walking the corpus: %w", err)
 		}
-		return nil
+		sort.Strings(files)
+
+		report, err := parseoracle.Run(context.Background(), files,
+			parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t), Perl: p.Path})
+		if err != nil {
+			return parseoracle.Report{}, "", fmt.Errorf("Run: %w", err)
+		}
+		return report, shimT, nil
 	})
 	if err != nil {
-		t.Fatalf("walking the corpus: %v", err)
-	}
-	sort.Strings(files)
-
-	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t), Subject: goSubject(t), Perl: p.Path})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("%v", err)
 	}
 	return report, shimT
 }
@@ -166,6 +203,12 @@ func fixtureBaselinePath() string {
 	return filepath.Join("testdata", "ratchet", "fixture.txt")
 }
 
+// gateSitesPath is the site baseline TestCIGateRunsTheSweep gates the
+// fixture shim against, with the files named as gateName names them.
+func gateSitesPath() string {
+	return filepath.Join("testdata", "ratchet", "fixture-sites.txt")
+}
+
 // loadFixtureBaseline reads the committed fixture baseline.
 func loadFixtureBaseline(t *testing.T) parseoracle.Baseline {
 	t.Helper()
@@ -192,8 +235,21 @@ func TestRatchet(t *testing.T) {
 			parseoracle.NewBaseline(pin, report, "")); err != nil {
 			t.Fatalf("WriteBaseline: %v", err)
 		}
-		t.Logf("rewrote %s from this run; commit it in the same commit as the change that moved it",
-			fixtureBaselinePath())
+		// The CI gate runs the sweep over these files laid out as its
+		// shim names them, so its site baseline is written under those names.
+		gate := cloneReport(report)
+		for i := range gate.Files {
+			gate.Files[i].Path = gateName(gate.Files[i].Path)
+		}
+		rows, err := parseoracle.SiteRows(gate)
+		if err != nil {
+			t.Fatalf("SiteRows: %v", err)
+		}
+		if err := parseoracle.WriteSiteRows(gateSitesPath(), rows); err != nil {
+			t.Fatalf("WriteSiteRows: %v", err)
+		}
+		t.Logf("rewrote %s and %s from this run; commit them in the same commit as the change that moved them",
+			fixtureBaselinePath(), gateSitesPath())
 		return
 	}
 
@@ -431,6 +487,93 @@ func TestRatchetCorpus(t *testing.T) {
 		}
 		t.Logf("receipt: %d files against %d rows of %s -> %s",
 			receipt.FilesSwept, receipt.BaselineRows, baselinePath, path)
+	}
+}
+
+// corpusSitesPath is the committed per-site baseline for the 620-file corpus.
+func corpusSitesPath() string {
+	return filepath.Join("testdata", "ratchet", "sites.txt")
+}
+
+// TestSiteRatchetCorpus is the per-site ratchet at corpus scale, and M3's
+// oracle condition. It shares TestRatchetCorpus's walk of the corpus, and
+// fails on any per-file or total site row that moved, in either direction.
+// Against the committed sites.txt it also enforces SiteFloor: the M3 dirs
+// at least 80% exact, and 0 WRONG sites. $PARSEORACLE_SITES_BASELINE
+// substitutes a fixture for the CI gate, whose five files are no M3
+// corpus, so the floor is not applied to it.
+//
+// Under -parseoracle.update it rewrites sites.txt. On a pass it adds the
+// sites line to the receipt TestRatchetCorpus wrote at $PARSEORACLE_RECEIPT.
+func TestSiteRatchetCorpus(t *testing.T) {
+	if !*corpusSweep {
+		t.Skip("full corpus site ratchet: pass -parseoracle.corpus")
+	}
+
+	sitesPath := corpusSitesPath()
+	override := os.Getenv(sitesBaselineEnv)
+	if override != "" {
+		sitesPath = override
+	}
+	filesPath := corpusBaselinePath()
+	if o := os.Getenv(baselineEnv); o != "" {
+		filesPath = o
+	}
+
+	p := perltest.PinnedPerl(t)
+	report, _ := corpusReport(t, p)
+	rows, err := parseoracle.SiteRows(report)
+	if err != nil {
+		t.Fatalf("SiteRows: %v", err)
+	}
+	floor := func() {
+		if override != "" {
+			return
+		}
+		if err := parseoracle.SiteFloor(rows); err != nil {
+			t.Errorf("%v", err)
+		}
+	}
+
+	if *updateBaseline {
+		if err := parseoracle.WriteSiteRows(sitesPath, rows); err != nil {
+			t.Fatalf("WriteSiteRows: %v", err)
+		}
+		t.Logf("rewrote %s from %d files", sitesPath, len(report.Files))
+		floor()
+		return
+	}
+
+	want, err := parseoracle.LoadSiteRows(sitesPath)
+	if err != nil {
+		t.Fatalf("LoadSiteRows: %v", err)
+	}
+	files, err := parseoracle.LoadBaseline(filesPath)
+	if err != nil {
+		t.Fatalf("LoadBaseline: %v", err)
+	}
+	if err := parseoracle.CheckSites(want, report, files); err != nil {
+		t.Fatalf("%v", err)
+	}
+	floor()
+	if t.Failed() {
+		return
+	}
+
+	// The sites line is added last, after the site ratchet has passed, to
+	// the receipt only a passing TestRatchetCorpus writes.
+	if path := os.Getenv(receiptEnv); path != "" {
+		receipt, err := parseoracle.ReadReceipt(path)
+		if err != nil {
+			t.Fatalf("TestRatchetCorpus wrote no receipt to add the sites line to: %v", err)
+		}
+		if err := receipt.RecordSites(sitesPath); err != nil {
+			t.Fatalf("%v", err)
+		}
+		receipt.CorpusWalks = corpus.calls
+		if err := receipt.Write(path); err != nil {
+			t.Fatalf("writing the receipt: %v", err)
+		}
 	}
 }
 
@@ -781,5 +924,44 @@ func TestBaselineUpdateOnly(t *testing.T) {
 	}
 	if err := reloaded.Check(changed); err != nil {
 		t.Errorf("an updated baseline must accept the report it was written from: %v", err)
+	}
+}
+
+// TestCorpusReportComputesOnce: corpusReport's memo runs its computation
+// once per process, so the per-file and per-site ratchets in one `go test`
+// share one walk of the corpus. The error is memoised with the report, and a
+// computation that never returned -- a t.Fatalf inside it -- leaves an error
+// behind rather than an empty report a later test would compare.
+func TestCorpusReportComputesOnce(t *testing.T) {
+	var m reportMemo
+	calls := 0
+	fail := errors.New("the shim would not build")
+	for range 2 {
+		_, _, err := m.get(func() (parseoracle.Report, string, error) {
+			calls++
+			return parseoracle.Report{}, "", fail
+		})
+		if !errors.Is(err, fail) {
+			t.Errorf("get returned %v, want the memoised %v", err, fail)
+		}
+	}
+	if calls != 1 || m.calls != 1 {
+		t.Errorf("the computation ran %d times (memo counted %d), want once", calls, m.calls)
+	}
+
+	var aborted reportMemo
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _ = aborted.get(func() (parseoracle.Report, string, error) {
+			runtime.Goexit()
+			return parseoracle.Report{}, "", nil
+		})
+	}()
+	<-done
+	if _, _, err := aborted.get(func() (parseoracle.Report, string, error) {
+		return parseoracle.Report{}, "", nil
+	}); err == nil {
+		t.Error("a computation that aborted read as a report with no error")
 	}
 }

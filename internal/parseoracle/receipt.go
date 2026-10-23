@@ -1,4 +1,4 @@
-// ABOUTME: The sweep's receipt: proof, checked by a later step, that TestRatchetCorpus measured the committed baseline.
+// ABOUTME: The sweep's receipt: proof, checked by a later step, that TestRatchetCorpus and TestSiteRatchetCorpus measured the committed baselines.
 // ABOUTME: A sweep that was skipped, filtered, listed, or never executed writes no receipt, so its absence is the failure.
 
 package parseoracle
@@ -43,6 +43,12 @@ type Receipt struct {
 	// produced. Because Check passed, those are also the baseline's rows,
 	// and the verifier recomputes the digest from the committed file.
 	VerdictSHA256 string `json:"verdict_sha256"`
+	// Sites is the sha256 of the sites.txt TestSiteRatchetCorpus matched,
+	// added to this receipt only after that ratchet has passed too.
+	Sites string `json:"sites,omitempty"`
+	// CorpusWalks is how many times the test process ran the oracle over
+	// the corpus. Both ratchets share one walk, so a sweep records 1.
+	CorpusWalks int `json:"corpus_walks,omitempty"`
 }
 
 // NewReceipt describes a report that has just passed Check against the
@@ -153,6 +159,34 @@ func (r Receipt) Verify(baselinePath, pinPath string, minRows int) error {
 	if got := verdictDigest(verdicts); got != r.VerdictSHA256 {
 		return fmt.Errorf("receipt records verdict_sha256=%s but the checked-out baseline's "+
 			"rows digest to %s: the sweep's verdicts are not this baseline's", r.VerdictSHA256, got)
+	}
+	return nil
+}
+
+// RecordSites adds the sites line: the digest of the sites file at path.
+func (r *Receipt) RecordSites(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading sites for the receipt: %w", err)
+	}
+	r.Sites = sha256Hex(data)
+	return nil
+}
+
+// VerifySites checks the receipt's sites line against the sites file at
+// path. A receipt with none was written by a sweep whose site ratchet did
+// not run to completion.
+func (r Receipt) VerifySites(path string) error {
+	if r.Sites == "" {
+		return fmt.Errorf("receipt has no sites line: TestSiteRatchetCorpus did not run to completion")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading the checked-out sites: %w", err)
+	}
+	if got := sha256Hex(data); got != r.Sites {
+		return fmt.Errorf("receipt records sites=%s but %s hashes to %s: "+
+			"the site ratchet checked some other sites file", r.Sites, path, got)
 	}
 	return nil
 }

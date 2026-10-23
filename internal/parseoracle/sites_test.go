@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -382,4 +384,190 @@ func TestSubjectBuildFailureIsRunnerError(t *testing.T) {
 		t.Cleanup(func() { internalParse.err = saved })
 		check(t, nil, "building the internal/parse subject")
 	})
+}
+
+// floorRows is the total rows of a corpus whose M3 dirs hold exact, wider
+// and no-answer srefgen sites, and whose whole corpus holds wrong WRONG ones.
+func floorRows(exact, wider, noAnswer, wrong int) []string {
+	rows := []string{}
+	add := func(scope, bucket string, n int) {
+		if n > 0 {
+			rows = append(rows, "total "+scope+" srefgen "+bucket+" "+strconv.Itoa(n))
+		}
+	}
+	for _, scope := range []string{"all", "m3"} {
+		add(scope, "exact", exact)
+		add(scope, "wider", wider)
+		add(scope, "no-answer", noAnswer)
+	}
+	add("all", "WRONG", wrong)
+	return rows
+}
+
+// TestSiteFloorRejectsBelowEightyOrWrong is M3's oracle condition: the M3
+// dirs' sites are at least 80% exact, and no site is WRONG.
+func TestSiteFloorRejectsBelowEightyOrWrong(t *testing.T) {
+	assert.Error(t, SiteFloor(floorRows(799, 201, 0, 0)), "79.9% exact passed the 80% floor")
+	assert.Error(t, SiteFloor(floorRows(800, 200, 0, 1)), "one WRONG site passed the floor")
+	assert.NoError(t, SiteFloor(floorRows(800, 200, 0, 0)), "80% exact with 0 WRONG must pass")
+}
+
+// TestSiteFloorRejectsZeroSites: 0 of 0 is no evidence of agreement.
+func TestSiteFloorRejectsZeroSites(t *testing.T) {
+	assert.Error(t, SiteFloor(nil))
+	assert.Error(t, SiteFloor([]string{"total all srefgen exact 10"}), "sites outside the M3 dirs only")
+}
+
+// TestSiteFloorCountsNoAnswerInDenominator: 56 exact, 14 wider and 30
+// no-answer is 56%. Scored over the 70 answered sites it would read 80%.
+func TestSiteFloorCountsNoAnswerInDenominator(t *testing.T) {
+	assert.Error(t, SiteFloor(floorRows(56, 14, 30, 0)))
+	assert.Error(t, SiteFloor(floorRows(56, 44, 0, 0)), "wider sites are in the denominator too")
+}
+
+// exactAt is a graded file whose sites, all of marker m, perl and the
+// subject agreed on.
+func exactAt(path string, m Marker, lines ...int) Result {
+	return Result{Path: path, Facts: withSites(map[Marker][]int{m: lines}), Verdict: Verdict{Bucket: BucketExact}}
+}
+
+// widerAt is a graded file whose single marker-m site the subject hedged.
+func widerAt(path string, m Marker, line int) Result {
+	return withFinding(path, m, line, BucketWider)
+}
+
+func withFinding(path string, m Marker, line int, b Bucket) Result {
+	return Result{Path: path, Facts: withSites(map[Marker][]int{m: {line}}),
+		Verdict: Verdict{Bucket: b, Marker: m, Findings: []Finding{{Line: line, Marker: m, Bucket: b}}}}
+}
+
+// TestSiteFloorRejectsWrongOutsideM3Dirs: WRONG = 0 holds over the whole
+// corpus, so a WRONG site in a dir the 80% floor does not measure fails.
+func TestSiteFloorRejectsWrongOutsideM3Dirs(t *testing.T) {
+	report := Report{Files: []Result{
+		exactAt("op/a.t", MarkerSrefgen, 1, 2, 3),
+		withFinding("re/b.t", MarkerRv2hv, 4, BucketWrong),
+	}}
+	rows, err := SiteRows(report)
+	require.NoError(t, err)
+	assert.Error(t, SiteFloor(rows))
+
+	report.Files[1] = exactAt("re/b.t", MarkerRv2hv, 4)
+	rows, err = SiteRows(report)
+	require.NoError(t, err)
+	assert.NoError(t, SiteFloor(rows), "premise: the same corpus without the WRONG site passes")
+}
+
+// TestM3DirSubsetMatchesExactDirs: the M3 dirs are whole path segments.
+func TestM3DirSubsetMatchesExactDirs(t *testing.T) {
+	for _, path := range []string{"op/a.t", "mro/a.t", "uni/a.t", "lib/a.t", "test_pl/a.t", "op/sub/a.t"} {
+		assert.True(t, InM3Dir(path), path)
+	}
+	for _, path := range []string{"opbasic/a.t", "op.t", "re/a.t", "library/a.t", "unicode/a.t", "a/op/a.t"} {
+		assert.False(t, InM3Dir(path), path)
+	}
+
+	rows, err := SiteRows(Report{Files: []Result{
+		exactAt("op/a.t", MarkerSrefgen, 1),
+		exactAt("opbasic/b.t", MarkerSrefgen, 1, 2),
+	}})
+	require.NoError(t, err)
+	assert.Contains(t, rows, "total m3 srefgen exact 1")
+	assert.Contains(t, rows, "total all srefgen exact 3")
+}
+
+// TestSiteRowsAreSortedAndNonzero: one row per file, marker and bucket, and
+// one per scope, marker and bucket, with no zero counts.
+func TestSiteRowsAreSortedAndNonzero(t *testing.T) {
+	rows, err := SiteRows(Report{Files: []Result{
+		widerAt("re/b.t", MarkerMatch, 3),
+		exactAt("op/a.t", MarkerSrefgen, 1, 1),
+	}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"site op/a.t srefgen exact 2",
+		"site re/b.t match wider 1",
+		"total all match wider 1",
+		"total all srefgen exact 2",
+		"total m3 srefgen exact 2",
+	}, rows)
+}
+
+// TestSiteRatchetFailsWithoutBaselineFile: a missing, empty or header-only
+// sites.txt is an error, never a baseline with nothing to compare.
+func TestSiteRatchetFailsWithoutBaselineFile(t *testing.T) {
+	dir := t.TempDir()
+	_, err := LoadSiteRows(filepath.Join(dir, "missing.txt"))
+	assert.Error(t, err, "a missing file")
+
+	for name, body := range map[string]string{"empty": "", "header only": "# comment\n\n"} {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+		_, err := LoadSiteRows(path)
+		assert.Error(t, err, name)
+	}
+
+	rows := []string{"site op/a.t srefgen exact 1", "total all srefgen exact 1"}
+	path := filepath.Join(dir, "sites.txt")
+	require.NoError(t, WriteSiteRows(path, rows))
+	back, err := LoadSiteRows(path)
+	require.NoError(t, err)
+	assert.Equal(t, rows, back, "rows round-trip through the committed form")
+}
+
+// TestSiteRatchetRejectsEmptyReport: a corpus that was never walked, or
+// whose files reported no sites, cannot match anything.
+func TestSiteRatchetRejectsEmptyReport(t *testing.T) {
+	want := []string{"site op/a.t srefgen exact 1"}
+	assert.Error(t, CheckSites(want, Report{}, Baseline{}), "0 files")
+
+	noSites := Report{Files: []Result{{Path: "op/a.t", Facts: withSites(nil)}}}
+	assert.Error(t, CheckSites(want, noSites, Baseline{}), "0 sites")
+	assert.Error(t, CheckSites(nil, noSites, Baseline{}), "0 sites against an empty baseline")
+}
+
+// TestSiteRatchetDetectsSwapAtEqualTotals: a.t's site moves exact->wider and
+// b.t's wider->exact. Every total is unchanged; the per-file rows are not,
+// and the failure names both files.
+func TestSiteRatchetDetectsSwapAtEqualTotals(t *testing.T) {
+	before := Report{Files: []Result{exactAt("op/a.t", MarkerSrefgen, 1), widerAt("op/b.t", MarkerSrefgen, 1)}}
+	after := Report{Files: []Result{widerAt("op/a.t", MarkerSrefgen, 1), exactAt("op/b.t", MarkerSrefgen, 1)}}
+	want, err := SiteRows(before)
+	require.NoError(t, err)
+	got, err := SiteRows(after)
+	require.NoError(t, err)
+	assert.Equal(t, totalsOnly(want), totalsOnly(got), "premise: the swap leaves every total unchanged")
+
+	require.NoError(t, CheckSites(want, before, Baseline{}), "premise: the unswapped report matches")
+	err = CheckSites(want, after, Baseline{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "op/a.t")
+	assert.Contains(t, err.Error(), "op/b.t")
+}
+
+func totalsOnly(rows []string) []string {
+	var out []string
+	for _, r := range rows {
+		if strings.HasPrefix(r, "total ") {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// TestSiteRatchetFailsOnDroppedFiles: a report missing files the per-file
+// baseline lists has lost part of its denominator, even when its own site
+// rows match.
+func TestSiteRatchetFailsOnDroppedFiles(t *testing.T) {
+	files := Baseline{Rows: []Row{{Path: "op/a.t"}, {Path: "op/b.t"}, {Path: "op/c.t"}}}
+	report := Report{Files: []Result{exactAt("op/a.t", MarkerSrefgen, 1), exactAt("op/b.t", MarkerSrefgen, 2)}}
+	want, err := SiteRows(report)
+	require.NoError(t, err)
+
+	err = CheckSites(want, report, files)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "op/c.t")
+
+	report.Files = append(report.Files, Result{Path: "op/c.t", Excluded: true})
+	assert.NoError(t, CheckSites(want, report, files), "premise: every listed file present passes")
 }

@@ -1,0 +1,12 @@
+# ABOUTME: Frozen per-site oracle verdicts: per file, marker and bucket, and per-scope totals (all, m3).
+# ABOUTME: Regenerated under -parseoracle.update: sites.txt by TestSiteRatchetCorpus, fixture-sites.txt by TestRatchet.
+#
+# DO NOT EDIT BY HAND. A move in either direction fails the site ratchet.
+#
+# site <path> <marker> <bucket> <count>
+# total <scope> <marker> <bucket> <count>
+site explicit_ref.t srefgen exact 1
+site subbody.t rv2hv wider 2
+site wider.t rv2hv wider 2
+total all rv2hv wider 4
+total all srefgen exact 1

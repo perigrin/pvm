@@ -89,8 +89,9 @@ func TestCIGateCannotBeAdvisory(t *testing.T) {
 // variables at a five-file shim built from the fixture corpus, and runs it
 // three times:
 //
-//  1. against the matching baseline: it must exit 0 AND write a receipt that
-//     says five files were swept against that baseline. Every bypass above
+//  1. against the matching baselines, per-file and per-site: it must exit 0
+//     AND write a receipt that says five files were swept against that
+//     baseline, carrying the sites line TestSiteRatchetCorpus adds. Every bypass above
 //     produces either no receipt or the wrong one, because the only thing
 //     that writes a receipt is TestRatchetCorpus after Check has passed.
 //  2. against a baseline that records one file differently: it must exit
@@ -112,43 +113,11 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 
 	p := perltest.PinnedPerl(t)
 	wf := parseWorkflow(t)
-	sweep := sweepStep(t, wf)
 	verify := stepRunning(t, wf, "cmd/receipt")
-
-	temp := t.TempDir()
-	env := gateEnv(t, wf, sweep, temp)
-
+	sweep, env, good := runGateSweep(t, p, wf)
 	receipt := env[receiptEnv]
-	if receipt == "" {
-		t.Fatalf("the sweep step runs without %s: nothing would record that the sweep happened", receiptEnv)
-	}
-	if env[baselineEnv] != "" {
-		t.Fatalf("the workflow sets %s=%q: the gate must check the committed baseline, and the "+
-			"override exists only so this test can point the committed step at a fixture",
-			baselineEnv, env[baselineEnv])
-	}
 	shim := env["PARSEORACLE_SHIM"]
-	if shim == "" {
-		t.Fatal("the sweep step runs without PARSEORACLE_SHIM: this test can only supply a corpus through it")
-	}
-	if env["PERL5_CORPUS"] == "" {
-		// Never let a mutated workflow fall back to ~/dev/perl5 on a
-		// developer's machine and start a real six-minute sweep.
-		env["PERL5_CORPUS"] = filepath.Join(temp, "no-corpus")
-	}
 
-	good := gateBaseline(t, temp)
-	env[baselineEnv] = good
-
-	// 1. The committed step over a five-file shim and the matching baseline.
-	pin, err := parseoracle.ReadPin(pinPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buildFixtureShim(t, p, shim, pin.Revision)
-	if out, err := runStep(t, sweep, env); err != nil {
-		t.Fatalf("the sweep step failed against a baseline that matches the fixture:\n%v\n%s", err, out)
-	}
 	r, err := parseoracle.ReadReceipt(receipt)
 	if err != nil {
 		t.Fatalf("the sweep step exited 0 and wrote no receipt at %s: whatever it ran, "+
@@ -156,6 +125,9 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	}
 	if err := r.Verify(good, pinPath, 1); err != nil {
 		t.Errorf("the receipt does not describe the sweep this test asked for: %v", err)
+	}
+	if err := r.VerifySites(gateSitesPath()); err != nil {
+		t.Errorf("the receipt does not carry the site ratchet's line: %v", err)
 	}
 	if want := countFixtureFiles(t); r.FilesSwept != want {
 		t.Errorf("the receipt reports %d files swept, want the fixture's %d", r.FilesSwept, want)
@@ -181,12 +153,21 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	if out, err := runStep(t, verify, env); err != nil {
 		t.Errorf("the receipt step rejected a receipt for the committed baseline:\n%v\n%s", err, out)
 	}
+	// ... but not one whose site ratchet never added its line.
+	unsited := corpusReceipt(t)
+	unsited.Sites = ""
+	if err := unsited.Write(receipt); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runStep(t, verify, env); err == nil {
+		t.Errorf("the receipt step accepted a receipt with no sites line:\n%s", out)
+	}
 	if err := os.Remove(receipt); err != nil {
 		t.Fatal(err)
 	}
 
 	// 2. The same step, a baseline that disagrees about one file.
-	env[baselineEnv] = wrongBaseline(t, temp, good)
+	env[baselineEnv] = wrongBaseline(t, filepath.Dir(good), good)
 	if out, err := runStep(t, sweep, env); err == nil {
 		t.Fatalf("the sweep step exited 0 against a baseline that records a regression: "+
 			"the gate cannot fail, so it is decoration\n%s", out)
@@ -206,6 +187,74 @@ func TestCIGateRunsTheSweep(t *testing.T) {
 	if out, err := runStep(t, sweep, env); err == nil {
 		t.Fatalf("the sweep step exited 0 with no corpus present: on a runner whose "+
 			"checkout never arrived this job would go green having measured nothing\n%s", out)
+	}
+}
+
+// runGateSweep runs the committed sweep step over a five-file fixture shim,
+// gated against the fixture baselines, and fails unless it exits 0. It
+// returns the step and the environment it ran in, whose receiptEnv names
+// the receipt, and the per-file baseline it was given.
+func runGateSweep(t *testing.T, p perltest.Perl, wf workflowFile) (workflowStep, map[string]string, string) {
+	t.Helper()
+	sweep := sweepStep(t, wf)
+	temp := t.TempDir()
+	env := gateEnv(t, wf, sweep, temp)
+
+	if env[receiptEnv] == "" {
+		t.Fatalf("the sweep step runs without %s: nothing would record that the sweep happened", receiptEnv)
+	}
+	for _, override := range []string{baselineEnv, sitesBaselineEnv} {
+		if env[override] != "" {
+			t.Fatalf("the workflow sets %s=%q: the gate must check the committed baselines, and the "+
+				"override exists only so this test can point the committed step at a fixture",
+				override, env[override])
+		}
+	}
+	shim := env["PARSEORACLE_SHIM"]
+	if shim == "" {
+		t.Fatal("the sweep step runs without PARSEORACLE_SHIM: this test can only supply a corpus through it")
+	}
+	if env["PERL5_CORPUS"] == "" {
+		// Never let a mutated workflow fall back to ~/dev/perl5 on a
+		// developer's machine and start a real six-minute sweep.
+		env["PERL5_CORPUS"] = filepath.Join(temp, "no-corpus")
+	}
+
+	good := gateBaseline(t, temp)
+	env[baselineEnv] = good
+	env[sitesBaselineEnv] = gateSitesPath()
+
+	pin, err := parseoracle.ReadPin(pinPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildFixtureShim(t, p, shim, pin.Revision)
+	if out, err := runStep(t, sweep, env); err != nil {
+		t.Fatalf("the sweep step failed against baselines that match the fixture:\n%v\n%s", err, out)
+	}
+	return sweep, env, good
+}
+
+// TestCISweepRunsOracleOnce: the sweep step runs both ratchets in one go
+// test, and they share one walk of the corpus. The receipt records how many
+// walks the process made, and carries the sites line only the site ratchet
+// adds after passing.
+func TestCISweepRunsOracleOnce(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the gate runs on ubuntu-latest; modelling its shell on Windows proves nothing about the runner")
+	}
+	_, env, _ := runGateSweep(t, perltest.PinnedPerl(t), parseWorkflow(t))
+
+	r, err := parseoracle.ReadReceipt(env[receiptEnv])
+	if err != nil {
+		t.Fatalf("the sweep step wrote no receipt: %v", err)
+	}
+	if r.CorpusWalks != 1 {
+		t.Errorf("the receipt records %d walks of the corpus, want 1: both ratchets must share one sweep",
+			r.CorpusWalks)
+	}
+	if err := r.VerifySites(gateSitesPath()); err != nil {
+		t.Errorf("the receipt carries no sites line for the fixture: %v", err)
 	}
 }
 
@@ -482,7 +531,7 @@ func buildFixtureShim(t *testing.T, p perltest.Perl, shim, revision string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		dst := filepath.Join(shimT, strings.TrimSuffix(filepath.Base(src), ".pl")+".t")
+		dst := filepath.Join(shimT, gateName(src))
 		if err := os.WriteFile(dst, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -490,6 +539,12 @@ func buildFixtureShim(t *testing.T, p perltest.Perl, shim, revision string) {
 	if err := parseoracle.WriteShimStamp(shim, built); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// gateName is where buildFixtureShim puts a fixture file: its base name,
+// .pl swapped for .t, at the top of the shim's t/.
+func gateName(fixture string) string {
+	return strings.TrimSuffix(filepath.Base(fixture), ".pl") + ".t"
 }
 
 // gateBaseline is the committed fixture baseline with its paths rewritten to
@@ -500,7 +555,7 @@ func gateBaseline(t *testing.T, temp string) string {
 
 	base := loadFixtureBaseline(t)
 	for i := range base.Rows {
-		base.Rows[i].Path = strings.TrimSuffix(filepath.Base(base.Rows[i].Path), ".pl") + ".t"
+		base.Rows[i].Path = gateName(base.Rows[i].Path)
 	}
 	path := filepath.Join(temp, "gate-baseline.txt")
 	if err := parseoracle.WriteBaseline(path, base); err != nil {
@@ -532,7 +587,7 @@ func wrongBaseline(t *testing.T, temp, good string) string {
 }
 
 // corpusReceipt is the receipt a sweep of the committed corpus would write,
-// built from the committed baseline's own rows. It is what the receipt step
+// built from the committed baseline's own rows and sites.txt's digest. It is what the receipt step
 // must accept; a step that rejects everything is not a check either.
 func corpusReceipt(t *testing.T) parseoracle.Receipt {
 	t.Helper()
@@ -547,6 +602,9 @@ func corpusReceipt(t *testing.T) parseoracle.Receipt {
 	}
 	r, err := parseoracle.NewReceipt("TestRatchetCorpus", corpusBaselinePath(), report)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordSites(corpusSitesPath()); err != nil {
 		t.Fatal(err)
 	}
 	return r
