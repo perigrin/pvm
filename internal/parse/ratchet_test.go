@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -294,7 +295,14 @@ func checkRatchet(t *testing.T, path, what string, now map[string]int) {
 	if err != nil {
 		t.Fatalf("%v\nrun with -parse.update-ratchet to create it", err)
 	}
+	if err := ratchetDiff(want, now); err != nil {
+		t.Error(err)
+	}
+}
 
+// ratchetDiff names every file whose measurement differs from its baseline,
+// in either direction, or is on one side only. nil when they agree.
+func ratchetDiff(want, now map[string]int) error {
 	var regressed, improved, added, removed []string
 	for rel, n := range now {
 		was, ok := want[rel]
@@ -319,25 +327,30 @@ func checkRatchet(t *testing.T, path, what string, now map[string]int) {
 	sort.Strings(added)
 	sort.Strings(removed)
 
+	var errs []string
 	if len(regressed) > 0 {
-		t.Errorf("%d file(s) are WORSE than the baseline:\n  %s",
-			len(regressed), strings.Join(regressed, "\n  "))
+		errs = append(errs, fmt.Sprintf("%d file(s) are WORSE than the baseline:\n  %s",
+			len(regressed), strings.Join(regressed, "\n  ")))
 	}
 	if len(improved) > 0 {
-		t.Errorf("%d file(s) are BETTER than the baseline:\n  %s\n\n"+
+		errs = append(errs, fmt.Sprintf("%d file(s) are BETTER than the baseline:\n  %s\n\n"+
 			"This is good news and still fails: re-run with -parse.update-ratchet "+
 			"and commit the baseline with the change that earned it.",
-			len(improved), strings.Join(improved, "\n  "))
+			len(improved), strings.Join(improved, "\n  ")))
 	}
 	if len(added) > 0 {
-		t.Errorf("%d file(s) are in the corpus and not the baseline:\n  %s",
-			len(added), strings.Join(added, "\n  "))
+		errs = append(errs, fmt.Sprintf("%d file(s) are in the corpus and not the baseline:\n  %s",
+			len(added), strings.Join(added, "\n  ")))
 	}
 	if len(removed) > 0 {
-		t.Errorf("%d file(s) are in the baseline and not the corpus:\n  %s\n\n"+
+		errs = append(errs, fmt.Sprintf("%d file(s) are in the baseline and not the corpus:\n  %s\n\n"+
 			"Leaving the denominator is a regression, not a cleanup.",
-			len(removed), strings.Join(removed, "\n  "))
+			len(removed), strings.Join(removed, "\n  ")))
 	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "\n"))
+	}
+	return nil
 }
 
 // parseRatchetFile reads a baseline written by renderRatchet.
