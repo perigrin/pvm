@@ -1,6 +1,6 @@
 name: m3-oracle-at-scale
 due: 2026-11-30T00:00:00Z
-resolution: "sh -c 'P=docs/plans/2026-09-05-parser-conformance-plan.md; grep -q \"^#### Measured at the M3 gate\" $P && ! grep -qw 584 $P && grep -q \"^The M3 gate\" docs/specs/perl-parser/README.md && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestParseWithoutErrorOnCompiledCorpus$\" -count=1 -v | grep -q \"^--- PASS: TestParseWithoutErrorOnCompiledCorpus\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestPerlGitTFaithfulOnM3Dirs$\" -count=1 -v | grep -q \"^--- PASS: TestPerlGitTFaithfulOnM3Dirs\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run \"^TestOpcountFixturesHeldToPerl$\" -count=1 -v | grep -q \"^--- PASS: TestOpcountFixturesHeldToPerl\" && PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run \"^TestSiteRatchetCorpus$\" -parseoracle.corpus -count=1 -timeout 40m -v | grep -q \"^--- PASS: TestSiteRatchetCorpus\"'"
+resolution: "sh -c 'P=docs/plans/2026-09-05-parser-conformance-plan.md; grep -q \"^#### Measured at the M3 gate\" $P && ! grep -qw 584 $P && grep -q \"^The M3 gate\" docs/specs/perl-parser/README.md && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestParseWithoutErrorOnCompiledCorpus$\" -count=1 -v | grep -q \"^--- PASS: TestParseWithoutErrorOnCompiledCorpus\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run \"^TestPerlGitTFaithfulOnM3Dirs$\" -count=1 -v | grep -q \"^--- PASS: TestPerlGitTFaithfulOnM3Dirs\" && PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run \"^TestOpcountFixturesHeldToPerl$\" -count=1 -v | grep -q \"^--- PASS: TestOpcountFixturesHeldToPerl\" && PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run \"^TestSiteRatchetCorpus$\" -parseoracle.corpus -count=1 -timeout 40m -v | grep -q \"^--- PASS: TestSiteRatchetCorpus\"'"
 created: 2026-10-22T23:28:45.090439958Z
 state: open
 ---
@@ -13,10 +13,10 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 
 **Measured 2026-10-22 at 054e75e6 (perl 5.42.0, perl5 corpus pinned at 94e50866).**
 
-- **Oracle, per file.** `internal/parseoracle/testdata/ratchet/baseline.txt` over 620 files: 489 exact, 84 wider, 20 no-answer, 26 excluded, 1 error -> 593 graded (perl compiles them). 10 of the 20 no-answers are whole-file no-answers, where perl "reported success but produced no optree" (comp/final_line_num.t, lib/cygwin.t, op/refstack.t, op/svleak.t, uni/greek.t, ...); each carries <= 1 marker site. Per-file exact on the M3 dirs is 278/346 (80.3%), dragged down by rv2hv hedges across 71 files.
+- **Oracle, per file.** `internal/parseoracle/testdata/ratchet/baseline.txt` over 620 files: 489 exact, 84 wider, 20 no-answer, 26 excluded, 1 error -> 593 graded (perl 5.42 compiles 589 of the 594 non-excluded files; see Rulings from chain-review round 1). 10 of the 20 no-answers are whole-file no-answers, where perl "reported success but produced no optree" (comp/final_line_num.t, lib/cygwin.t, op/refstack.t, op/svleak.t, uni/greek.t, ...); each carries <= 1 marker site. Per-file exact on the M3 dirs is 278/346 (80.3%), dragged down by rv2hv hedges across 71 files.
 - **Oracle, per marker site.** Measured with a throwaway test that was never committed. It took the report from `corpusReport(t)` (internal/parseoracle/ratchet_test.go:43), summed `len(f.Facts.Sites[m])`, and subtracted `Verdict.Findings` by bucket. It needed one scratch change: `decideMarker`'s `!answered` branch emitted per-line `BucketNoAnswer` findings, and a whole-file no-answer (`Verdict.Marker == MarkerNone`) counted all of its sites as no-answer. The committed test needs the same change, made properly in verdict.go/findings.go.
   - Whole corpus: 5340 sites, 4933 exact (92.4%), 400 wider, 7 no-answer, 0 WRONG. srefgen 1689/1678 exact (11 wider); rv2hv 540/151 (389 wider); match 1847/1844 (3 no-answer); readline 311/307 (4 no-answer); anonhash 953/953.
-  - M3 dirs: 3198 sites, 2896 exact (90.6%), 302 wider (rv2hv 427 sites, 133 exact, 294 wider; srefgen 8 wider), 0 no-answer, 0 WRONG. Condition (3)'s >= 80% already holds. The work is to commit it as a ratchet.
+  - M3 dirs: 3198 sites, 2896 exact (90.6%), 302 wider (rv2hv 427 sites, 133 exact, 294 wider; srefgen 8 wider), 0 no-answer, 0 WRONG. Condition (3)'s >= 80% already holds. The work is to commit it as a ratchet. **Corrected in chain-review round 1 (A1):** that scratch run left op/magic.t (46 perl sites, which the oracle mislabels "perl declined") out of the denominator. Counted as no-answer, the 5.42 figures are 5386/4933/400/53 (91.6%) whole corpus and 3244/2896/302/46 (89.3%) on M3 dirs. All of these are 5.42 figures: the chain re-measures every starting number at the 5.44.0 pin and records it in testdata/ratchet/m3start.txt.
 - **Parse without error.** TestPerlGitTRatchet (internal/parse/perlgitt_test.go:114, testdata/perlgitt.ratchet) passes. perl.git t/ is 619/619 with 0 Unknown. A refusal in internal/parse IS an Unknown node, so "clean" means parsed without error. Crossed with the 593 graded oracle files: 592 are clean, plus comp/final_line_num.t, which perl rejects and internal/parse refuses on the same line (`perlRejects`). M3 dirs: 347 files, 346 graded, all 346 clean. The plan's "526 of 584" and internal/parseoracle/README.md:287's "584/620" are stale: a fuller shim now compiles 593.
 - **Canonical re-emission already exists. It has only ever run on T1.**
   - `internal/parse/canon.go`: `Canon` writes the parens implied by binding power, never the source's. The one exception is a `List` with `Paren` set (canon.go:~344).
@@ -50,14 +50,14 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 - `internal/parseoracle/sites_test.go` -- TestSiteRatchetCorpus, plus small fixture tests for the counting rules (new).
 - `internal/parseoracle/testdata/ratchet/sites.txt` -- per-marker x bucket site counts, whole corpus and M3 dirs (new, generated by `-parseoracle.update`).
 - `.github/workflows/parse-fidelity.yml` -- run TestSiteRatchetCorpus in the sweep step. TestCIGateRunsTheSweep executes that step, so share one sweep rather than run it twice (modify).
-- `internal/parse/compiled_test.go` -- TestParseWithoutErrorOnCompiledCorpus. It reads the graded set (status not excluded/error) from ../parseoracle/testdata/ratchet/baseline.txt, asserts it is 593 files, parses each through `ParseFileFrom`, and asserts >= 90% have 0 Unknown (new).
+- `internal/parse/compiled_test.go` -- TestParseWithoutErrorOnCompiledCorpus. It reads the graded set (status not excluded/error) from ../parseoracle/testdata/ratchet/baseline.txt, asserts it equals the compiled count recorded in m3start.txt, parses each through `ParseFileFrom`, and asserts >= 90% have 0 Unknown (new).
 - `internal/parse/canon.go`, `fidelity.go`, the `Paren` flag in `parse.go` -- canon writes a `Paren` node's parens once; `Faithful` forgives only extra nesting (perigrin's ruling) (modify).
 - `internal/parse/perlgitt_faithful_test.go` -- TestPerlGitTFaithfulRatchet (per-file 0/1 over perl.git t/) and TestPerlGitTFaithfulOnM3Dirs (every M3-dir file that parses is faithful, or is listed as a defect) (new).
 - `internal/parse/testdata/perlgittfaithful.ratchet`, `testdata/faithful_defects.txt` (new). The defects file holds one `path:line reason` per row. The test fails on a listed file that has become faithful, and on a listed line that no longer fails.
 - `internal/parse/testdata/t1canon.ratchet`, `t1fidelity.ratchet` -- re-baselined where the Paren fix moves them (modify).
 - `internal/parseoracle/opcount_test.go` and `testdata/opcount/` -- TestOpcountFixturesHeldToPerl. Fixtures mined from perf/opcount.t, a readable text/Markdown format rather than JSON. The test asserts >= 200 op=>count assertions and runs perl to check each count (new).
 - `internal/parse/sites.go`, `hashhedge_test.go`, `arrowhashread_test.go`, `sites_decided_test.go` -- rv2hv decided from op_lvalue context and declarations. A test names each remaining hedge's reason (modify).
-- `docs/plans/2026-09-05-parser-conformance-plan.md` -- M3 table 584 -> 593, ladder summary, a new `#### Measured at the M3 gate` subsection (modify).
+- `docs/plans/2026-09-05-parser-conformance-plan.md` -- M3 table 584 -> the measured count from m3start.txt, ladder summary, a new `#### Measured at the M3 gate` subsection (modify).
 - `docs/specs/perl-parser/README.md` -- Status gains a paragraph starting `The M3 gate`, and the stale `($x)` defect sentence is corrected (modify). `internal/parseoracle/README.md:287`'s 584/620 is updated too.
 
 ## Design Rationale
@@ -71,7 +71,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 **Recommended slicing (dependencies in brackets):**
 1. Per-site oracle counting: no-answer findings per line, whole-file no-answer at every site (fixture tests). []
 2. TestSiteRatchetCorpus + sites.txt + M3-dir >= 80% / WRONG = 0 floor, wired into the CI sweep. [1]
-3. TestParseWithoutErrorOnCompiledCorpus at 593. []
+3. TestParseWithoutErrorOnCompiledCorpus at the measured count from m3start.txt. []
 4. TestPerlGitTFaithfulRatchet at 342/619. []
 5. Classify the 117 dropped-paren failures by position and fix any context-changing one as a tree defect; then canon writes `Paren` once and `Faithful` forgives only extra nesting (perigrin's ruling); re-baseline the T1 and perl.git faithful ratchets. [4]
 5b. Oracle check: perl's OPf_PARENS bit vs psc's `Paren` flag, op by op, held to perl. [5]
@@ -79,7 +79,7 @@ Done when every issue here is done or cancelled with perigrin's recorded reason,
 7. Mine >= 200 perf/opcount.t assertions; TestOpcountFixturesHeldToPerl. []
 8. 01a12059-30a8 (moved here): `->{...}` rv2hv exactly per op_lvalue context. [2]
 9. Named-hash rv2hv from declaration (my and featured state padhv; our/local rv2hv; delete local follows the hash's scope; slices), hedging only when the declaration is not in the file; a test names each remaining hedge's reason; re-baseline sites.txt below 389 wider. [2; after 8, since both edit sites.go]
-10. Docs: plan M3 section (593, measured numbers, `#### Measured at the M3 gate`), ladder summary, README Status (`The M3 gate ...`, stale `($x)` sentence), parseoracle README 584. [2, 3, 6, 7, 9]
+10. Docs: plan M3 section (the measured counts from m3start.txt, `#### Measured at the M3 gate`), ladder summary, README Status (`The M3 gate ...`, stale `($x)` sentence), parseoracle README 584. [2, 3, 6, 7, 9]
 
 Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge order, so the two run in sequence. Items 3, 4->5->6 and 7 run in parallel with 1->2->8->9.
 
