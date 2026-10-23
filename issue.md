@@ -6,22 +6,22 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-22T23:46:25.524606434Z
-updated: 2026-10-23T01:08:01.985745542Z
+updated: 2026-10-23T01:35:20.381122132Z
 ---
 
 ## Context
 
-- paths: `internal/parseoracle/verdict.go`, `internal/parseoracle/findings.go`, `internal/parseoracle/run.go`, `internal/parseoracle/sites_test.go` (new)
-- commands: `go test ./internal/parseoracle/ -run '^(TestNoAnswerFindingsArePerLine|TestWholeFileNoAnswerCountsEverySite|TestSiteBucketsSumToFactSites)$' -count=1 -v`
-- entrypoints: `internal/parseoracle/verdict.go` (`decideMarker`), `internal/parseoracle/ratchet_test.go:43` (`corpusReport`)
+- paths: `internal/parseoracle/compare_facts.go` (`decideMarker`), `internal/parseoracle/verdict.go`, `internal/parseoracle/findings.go`, `internal/parseoracle/run.go`, `internal/parseoracle/sites_test.go` (new)
+- commands: `go test ./internal/parseoracle/ -run '^(TestNoAnswerFindingsArePerSite|TestWholeFileNoAnswerCountsEverySite|TestSiteBucketsSumToFactSites)$' -count=1 -v`
+- entrypoints: `internal/parseoracle/compare_facts.go` (`decideMarker`), `internal/parseoracle/oracle.go:39` (`Sites`: one entry per marker op), `internal/parseoracle/ratchet_test.go:43` (`corpusReport`)
 
-The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-site measurement (5340 sites, 4933 exact, 400 wider, 7 no-answer, 0 WRONG) came from a scratch test that needed one scratch change. This issue makes that change properly. `decideMarker`'s `!answered` branch emits one `BucketNoAnswer` finding per line. A whole-file no-answer (`Verdict.Marker == MarkerNone`, perl "reported success but produced no optree") counts every one of the file's sites as no-answer. With both in place, a file's sites minus its findings by bucket gives exact counts, and the counting rule is pinned by small fixture tests rather than by the corpus.
+The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-site figures came from a scratch test, and the site ratchet re-measures them at the 5.44.0 pin. This issue commits the counting rule that test needed. `Facts.Sites` holds one entry per marker op (oracle.go:39; parse_facts.pl:151 pushes one `[line, name, marker]` per op), so two sites on one line are two entries. `decideMarker`'s `!answered` branch (compare_facts.go) emits one `BucketNoAnswer` finding per site entry, not per line. A whole-file no-answer (`Verdict.Marker == MarkerNone`) counts every one of the file's sites as no-answer, whichever side declined: perl produced no optree, perl declined (the op/magic.t shape), or the subject declined. With both in place, a file's sites minus its findings by bucket gives exact counts, and the counting rule is pinned by small fixture tests rather than by the corpus.
 
 ## Steps
 
 - [ ] Create `internal/parseoracle/sites_test.go`, starting with two `// ABOUTME:` lines.
-- [ ] RED: write TestNoAnswerFindingsArePerLine, a fixture verdict where perl answered nothing for one marker on two lines; it expects two `BucketNoAnswer` findings, one per line. Run it and watch it fail.
-- [ ] GREEN: emit per-line no-answer findings from `decideMarker`'s `!answered` branch. Run the test and watch it pass.
+- [ ] RED: write TestNoAnswerFindingsArePerSite, a fixture verdict where perl answered nothing for one marker with three sites, two of them on the same line; it expects three `BucketNoAnswer` findings, one per site entry. Run it and watch it fail.
+- [ ] GREEN: emit one no-answer finding per site entry from `decideMarker`'s `!answered` branch in compare_facts.go. Run the test and watch it pass.
 - [ ] RED: write TestWholeFileNoAnswerCountsEverySite, a fixture with `Verdict.Marker == MarkerNone` and three sites across two markers; every site counts as no-answer. Run it and watch it fail.
 - [ ] GREEN: implement it in verdict.go/findings.go. Run the test and watch it pass.
 - [ ] RED/GREEN: write TestSiteBucketsSumToFactSites. For a fixture file, exact + wider + no-answer + WRONG per marker equals `len(f.Facts.Sites[m])`. Implement the per-marker x bucket counting helper the site ratchet will call.
@@ -37,7 +37,7 @@ The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-sit
 
 ### Positive Scenarios
 
-- [ ] A marker perl did not answer yields one no-answer finding per line (`go test ./internal/parseoracle/ -run '^TestNoAnswerFindingsArePerLine$' -count=1 -v | grep -q '^--- PASS: TestNoAnswerFindingsArePerLine'`)
+- [ ] A marker perl did not answer yields one no-answer finding per site, two for two sites on one line (`go test ./internal/parseoracle/ -run '^TestNoAnswerFindingsArePerSite$' -count=1 -v | grep -q '^--- PASS: TestNoAnswerFindingsArePerSite'`)
 - [ ] A whole-file no-answer counts every marker site in the file as no-answer (`go test ./internal/parseoracle/ -run '^TestWholeFileNoAnswerCountsEverySite$' -count=1 -v | grep -q '^--- PASS: TestWholeFileNoAnswerCountsEverySite'`)
 - [ ] A file psc declines whole counts every perl site as no-answer (`go test ./internal/parseoracle/ -run '^TestSubjectDeclineCountsEverySiteNoAnswer$' -count=1 -v | grep -q '^--- PASS: TestSubjectDeclineCountsEverySiteNoAnswer'`)
 - [ ] A perl-declined file that still carries sites counts them all as no-answer (`go test ./internal/parseoracle/ -run '^TestPerlDeclinedFileWithSitesCountsNoAnswer$' -count=1 -v | grep -q '^--- PASS: TestPerlDeclinedFileWithSitesCountsNoAnswer'`)
@@ -51,5 +51,5 @@ The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-sit
 - [ ] A no-answer for one marker leaves the file's other, answered markers graded as exact/wider/WRONG, not swept into no-answer (`go test ./internal/parseoracle/ -run '^TestMarkerNoAnswerDoesNotSpreadToOtherMarkers$' -count=1 -v | grep -q '^--- PASS: TestMarkerNoAnswerDoesNotSpreadToOtherMarkers'`)
 - [ ] A no-answer marker with no fact sites in the file emits no findings, so it cannot drive exact below zero (`go test ./internal/parseoracle/ -run '^TestNoAnswerWithoutSitesEmitsNoFindings$' -count=1 -v | grep -q '^--- PASS: TestNoAnswerWithoutSitesEmitsNoFindings'`)
 - [ ] Findings that outnumber a marker's fact sites are an error from the counting helper, never a negative exact count (`go test ./internal/parseoracle/ -run '^TestFindingsExceedingSitesIsAnError$' -count=1 -v | grep -q '^--- PASS: TestFindingsExceedingSitesIsAnError'`)
-- [ ] Two findings on the same line and marker (for example wider and no-answer) count that site once, in one bucket (`go test ./internal/parseoracle/ -run '^TestSiteCountedInExactlyOneBucket$' -count=1 -v | grep -q '^--- PASS: TestSiteCountedInExactlyOneBucket'`)
+- [ ] Two sites of one marker on one line produce two findings, and each site is counted once, in one bucket; a marker is never both wider and no-answer, since an unanswered marker is no-answer as a whole (`go test ./internal/parseoracle/ -run '^TestSiteCountedInExactlyOneBucket$' -count=1 -v | grep -q '^--- PASS: TestSiteCountedInExactlyOneBucket'`)
 - [ ] Excluded files and oracle-side error files contribute no sites to any bucket, so they cannot pad the denominator as exact (`go test ./internal/parseoracle/ -run '^TestExcludedAndErrorFilesContributeNoSites$' -count=1 -v | grep -q '^--- PASS: TestExcludedAndErrorFilesContributeNoSites'`)
