@@ -1,6 +1,6 @@
 ---
 title: Make the oracle answer op/magic.t, which perl compiles
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 created: 2026-10-23T01:08:33.371135176Z
-updated: 2026-10-23T08:20:56.243203195Z
+updated: 2026-10-23T19:40:35.936156901Z
+sessions:
+- start_sha: 4af1670f0c4f49aef69888f726ce18e3944ac43d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T19:40:35.936156901Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:40:35.936156901Z
 ---
 
 ## Context
