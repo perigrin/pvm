@@ -9,25 +9,29 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-22T23:58:50.106997762Z
+updated: 2026-10-23T01:08:21.062819426Z
 ---
 
 ## Context
 
-- paths: `internal/parse/sites.go` (the `Index` case, ~236+), `internal/parse/hashhedge_test.go`, `internal/parse/sites_decided_test.go`, `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/baseline.txt`
+- paths: `internal/parse/sites.go` (the `Index` case, ~236+, and the stale "state 1" comment at ~669-673), `internal/parse/hashscope.go` (the resolver, read), `internal/parse/hashhedge_test.go` (and its stale comment at ~35-37), `internal/parse/testdata/m3probes/named-hash-decl.txt` (new), `internal/parse/sites_decided_test.go`, `internal/parseoracle/testdata/ratchet/sites.txt`, `internal/parseoracle/testdata/ratchet/baseline.txt`
 - commands: `go test ./internal/parse/ -run '^(TestNamedHashRv2hvFollowsDeclaration|TestEveryRv2hvHedgeNamesItsReason)$' -count=1 -v`
 - entrypoints: `internal/parse/sites.go` (`Index` case, `hedge`)
 
-Named hashes and hash slices still hedge rv2hv. Done issue 01a0bae1 measured perl's rule against the hash's declaration: `my %h` keys give 0 rv2hv (padhv); `our` gives 1; `local` 2; `delete local` follows the hash's scope (`our %h` 1, `my %h` 0); and `state` is padhv, 0 rv2hv, when the feature is on (re-measured 2026-10-22 -- 01a0bae1's "state 1" was measured without `use feature "state"`, where `state %h` is not a declaration: perl reads `state % h` as a modulus and the later `%h` is a package hash); and a slice counts follow the scopes of the hashes sliced. This issue decides rv2hv from the declaration when the declaration is in the file. It hedges only when the declaration is not visible (a package variable from elsewhere, a string eval, a glob assignment). A test names the reason for every hedge that remains, so a hedge cannot survive without one. It edits sites.go after the arrow-read issue and re-baselines sites.txt below 389 rv2hv wider, from the lower count that issue recorded.
+Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from the declaration in effect, using the hash-scope resolver from the previous issue, and hedges only when no declaration is visible (a package variable from elsewhere, a string eval, a glob assignment). perl's rule, measured on 5.42.0 and re-measured here at the 5.44.0 pin, is that a `my %h` use is padhv with 0 rv2hv. For `our %h; keys %h` the count is 2, counting the declaration's own `rv2hv vK/OURINTR` and the `keys`; for `local %h; keys %h` it is also 2, counting `rv2hv vKM/LVINTRO`. Done issue 01a0bae1's "our 1; local 2" counted the declaring statement inconsistently. `delete local` follows the hash's scope (`our %h` 1, `my %h` 0), and slice counts follow the scopes of the hashes sliced. **perigrin's ruling (2026-10-23): goal (7)'s wording on `state` is overridden by perl.** With the feature on, `state %h; keys %h` is padhv with 0 rv2hv. Under `no feature "state"`, `state %h` is not a declaration (perl reads `state % h`), and the later `%h` is a package hash with 1 rv2hv. `use v5.10` and later bundles turn the feature on. A test names the reason for every hedge that remains. The rv2hv wider count must fall below the value the arrow-read issue recorded (`rv2hv_wider_after_arrow` in m3start.txt).
 
 ## Steps
 
-- [ ] Re-measure the 01a0bae1 table with `perl -MO=Concise` on perl 5.42 (my/our/state/local/delete local, keys/values/each/exists/delete, and slices across scopes), and quote it in the test's comment.
+- [ ] Re-measure the 01a0bae1 table with `perl -MO=Concise` on the pinned perl 5.44.0 (my/our/local/delete local, state with the feature on, off, and via `use v5.10` and `use v5.36`, keys/values/each/exists/delete, and slices across scopes), and quote it in the test's comment.
 - [ ] RED: write TestNamedHashRv2hvFollowsDeclaration in hashhedge_test.go, one case per row. Run it and watch it fail.
-- [ ] GREEN: decide rv2hv in the `Index` case from the resolved declaration. Keep TestDecidableHashStillCommits green, and update TestUndecidableHashHedges to cover only undeclared hashes. Run the tests and watch them pass.
+- [ ] RED: write TestNamedHashStateFeatureOffIsPackageHash (`no feature "state"; state %h; keys %h` gives 1 rv2hv) and TestNamedHashStateViaFeatureBundle (`use v5.10` and `use v5.36` each make `state %h` padhv, 0 rv2hv). Run them and watch them fail.
+- [ ] GREEN: decide rv2hv in the `Index` case from the resolver's answer. Keep TestDecidableHashStillCommits green, and update TestUndecidableHashHedges to cover only undeclared hashes. Run the tests and watch them pass.
 - [ ] RED/GREEN: write TestEveryRv2hvHedgeNamesItsReason. Every remaining rv2hv hedge in sites.go carries a reason string from a closed set, and a fixture for each reason produces it. Implement the reason field.
-- [ ] Re-baseline sites.txt (and baseline.txt where whole files move) with `-parseoracle.update` in the same commit, giving the new rv2hv wider count and naming each moved file. WRONG must stay 0.
-- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the Concise table and writes NEW adversarial probes outside the corpus (e.g. `our %h` shadowed by `my %h` in an inner block, `local %h` under a sub, `delete local @h{...}`, a slice mixing `my` and `our` hashes). Re-checking only the named case is not enough.
+- [ ] Correct the stale "state 1" comments at sites.go:669-673 and hashhedge_test.go:35-37 ("behaves like a package hash here (1 rv2hv)"). They hold only with the feature off.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] RED/GREEN TestRv2hvWiderFellBelowArrowFix in internal/parseoracle: sites.txt's `all rv2hv wider` must be below m3start.txt's `rv2hv_wider_after_arrow`.
+- [ ] Add every table row, with perl's facts, as probe file `internal/parse/testdata/m3probes/named-hash-decl.txt`.
+- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (e.g. `our %h` shadowed by `my %h` in an inner block, `local %h` under a sub, `delete local @h{...}`, a slice mixing `my` and `our` hashes), and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -36,7 +40,11 @@ Named hashes and hash slices still hedge rv2hv. Done issue 01a0bae1 measured per
 
 - [ ] A named hash's rv2hv count follows its declaration as perl measures it (`go test ./internal/parse/ -run '^TestNamedHashRv2hvFollowsDeclaration$' -count=1 -v | grep -q '^--- PASS: TestNamedHashRv2hvFollowsDeclaration'`)
 - [ ] Every remaining rv2hv hedge names its reason (`go test ./internal/parse/ -run '^TestEveryRv2hvHedgeNamesItsReason$' -count=1 -v | grep -q '^--- PASS: TestEveryRv2hvHedgeNamesItsReason'`)
-- [ ] The site ratchet records the further-lowered rv2hv wider count (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestSiteRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v | grep -q '^--- PASS: TestSiteRatchetCorpus'`)
+- [ ] A `state %h` with the feature off is a package hash, with 1 rv2hv (`go test ./internal/parse/ -run '^TestNamedHashStateFeatureOffIsPackageHash$' -count=1 -v | grep -q '^--- PASS: TestNamedHashStateFeatureOffIsPackageHash'`)
+- [ ] `use v5.10` and `use v5.36` turn on state, making `state %h` padhv (`go test ./internal/parse/ -run '^TestNamedHashStateViaFeatureBundle$' -count=1 -v | grep -q '^--- PASS: TestNamedHashStateViaFeatureBundle'`)
+- [ ] The committed rv2hv wider count is below the count recorded after the arrow-read fix (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellBelowArrowFix$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellBelowArrowFix'`)
+- [ ] The stale claim that `state %h` behaves like a package hash is gone from both files (`sh -c 'test -f internal/parse/sites.go && test -f internal/parse/hashhedge_test.go && ! grep -q "like a package hash here" internal/parse/sites.go && ! grep -q "is the trap: a LEXICAL declaration" internal/parse/hashhedge_test.go'`)
+- [ ] The table is committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/named-hash-decl.txt`)
 
 ### Negative Scenarios
 
