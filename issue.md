@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-23T01:36:13.420433625Z
+updated: 2026-10-23T01:56:10.566688969Z
 ---
 
 ## Context
@@ -19,7 +19,7 @@ updated: 2026-10-23T01:36:13.420433625Z
 - commands: `go test ./internal/parseoracle/ -run '^(TestParenComparisonReportsMisattachedParen|TestParenFlagMatchesPerlOPfPARENS)$' -count=1 -v`
 - entrypoints: `internal/parseoracle/testdata/parse_facts.pl`, `internal/parseoracle/cvwalk_test.go`, `internal/parse/term.go` (`finishList`)
 
-The canon change writes a `Paren` node's parens, so whether psc attached each paren to the right node now matters, and perl can judge it. perl keeps one boolean bit, OPf_PARENS (`P` in Concise), on the op a source paren enclosed: `my $z = ($x)` is `padsv sP` vs `padsv s`, and `ok(($y eq "x"))` is `seq sKPM` vs `seq sKM`. This check walks perl's optree for a fixture and collects (line, op, PARENS bit). It compares that op by op with psc's nodes and their `Paren` flag, and reports a paren psc put on the wrong node, a paren psc dropped, and a paren psc invented. Tests run perl; production psc never does. Some ops perl folds or optimises away will have no counterpart; the check names those as unmatched rather than guessing. It runs first among the issues that write faithful_defects.txt, before the heredoc/sub-less triage issue, so the two never edit that file and the parser in parallel. Dropped-paren fixes that expose a later difference re-classify the row for the triage issues that follow. This issue also owns the `dropped-paren` rows of faithful_defects.txt: source parens canon still does not write after the Paren-once change, because psc never set `Paren` on that node. The OPf_PARENS comparison is what judges them. Each is fixed in the parser, or kept with perl's measured bit in its reason. perigrin ruled the check into this milestone on 2026-10-22.
+The canon change writes a `Paren` node's parens, so whether psc attached each paren to the right node now matters, and perl can judge it. perl keeps one boolean bit, OPf_PARENS (`P` in Concise), on the op a source paren enclosed: `my $z = ($x)` is `padsv sP` vs `padsv s`, and `ok(($y eq "x"))` is `seq sKPM` vs `seq sKM`. This check walks perl's optree for a fixture and collects (line, op, PARENS bit). It compares that op by op with psc's nodes and their `Paren` flag, and reports a paren psc put on the wrong node, a paren psc dropped, and a paren psc invented. Tests run perl; production psc never does. Some ops perl folds or optimises away will have no counterpart; the check names those as unmatched rather than guessing. It runs first among the issues that write faithful_defects.txt, before the heredoc/sub-less triage issue, so the two never edit that file and the parser in parallel. **Why the sequence stays (A23, chain-review round 3):** the shared-generated-files rule lets parallel branches regenerate faithful_defects.txt and the ratchets. It does not cover canon.go, fidelity.go and fidelity_test.go, which are hand-written and edited by every one of these issues. Running them in sequence also gives 5f77's handover rule a defined order: a fix that moves a row into a class whose owner has closed is handled by the issue that moved it, which only works if owners close in a known order. The cost is a longer critical chain, accepted over hand-merging four sets of canon/fidelity changes. Dropped-paren fixes that expose a later difference re-classify the row for the triage issues that follow. This issue also owns the `dropped-paren` rows of faithful_defects.txt: source parens canon still does not write after the Paren-once change, because psc never set `Paren` on that node. The OPf_PARENS comparison is what judges them. Each is fixed in the parser, or kept with perl's measured bit in its reason. perigrin ruled the check into this milestone on 2026-10-22.
 
 ## Steps
 
@@ -45,7 +45,7 @@ The canon change writes a `Paren` node's parens, so whether psc attached each pa
 - [ ] psc's Paren flag matches perl's OPf_PARENS bit op by op on every fixture (`go test ./internal/parseoracle/ -run '^TestParenFlagMatchesPerlOPfPARENS$' -count=1 -v | grep -q '^--- PASS: TestParenFlagMatchesPerlOPfPARENS'`)
 - [ ] Every kept dropped-paren defect row quotes perl's measured OPf_PARENS bit (`go test ./internal/parse/ -run '^TestDroppedParenRowsQuoteParensBit$' -count=1 -v | grep -q '^--- PASS: TestDroppedParenRowsQuoteParensBit'`)
 - [ ] The fixtures are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/opf-parens.txt`)
-- [ ] CI runs the OPf_PARENS check under the pinned perl and fails if it skips (`grep -q TestParenFlagMatchesPerlOPfPARENS .github/workflows/parse-fidelity.yml`)
+- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
