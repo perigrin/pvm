@@ -10,7 +10,7 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-23T01:08:31.856618478Z
-updated: 2026-10-23T01:35:05.872870279Z
+updated: 2026-10-23T01:55:38.423505421Z
 ---
 
 ## Context
@@ -30,12 +30,13 @@ This issue is the chain's root. Every starting number (the rv2hv wider count, th
 - [ ] Use the pvm-installed perl 5.44.0 at `$HOME/.local/share/pvm/versions/5.44.0` (present on this machine, measured threads=define on 2026-10-23); install it with pvm only if absent. Check `$]` and `useithreads`, which must be `define` (see corpus.pin's comment on threads).
 - [ ] Rebuild the shim at `$HOME/.cache/pvm/oracleshim` from 5.44's @INC.
 - [ ] Measure with that perl: run `perl -c` (`-T` where the shebang has it) over the 594 non-excluded files in the shim. Write the accepted paths, minus `perlRejects`, to compiled.txt. Record `interpreter`, `compiled` (compiled.txt's line count) and `graded` in m3start.txt. Quote any file that fails, with its stderr, in the commit message.
-- [ ] Create `internal/parse/compiledset_test.go` with two `// ABOUTME:` lines. RED/GREEN TestCompiledSetExcludesPerlRejects: no `perlRejects` path is in compiled.txt, compiled.txt has no duplicate or blank lines, and its line count equals m3start.txt's `compiled`.
+- [ ] Create `internal/parse/compiledset_test.go` with two `// ABOUTME:` lines. It holds `readCompiledSet`, the one reader of compiled.txt that the parse-without-error issue reuses. RED/GREEN TestCompiledSetExcludesPerlRejects: no `perlRejects` path is in compiled.txt, compiled.txt has no duplicate or blank lines, and its line count equals m3start.txt's `compiled`.
 - [ ] RED: write TestCIWorkflowsPinTheirPerls in ci_test.go. parse-fidelity.yml installs corpus.pin's interpreter. ci.yml's 5.42 jobs install 5.42.0 from their own pin. Those are the Test matrix, the conformance and CORE.tpm steps, and "Ratchets (corpus-backed)", which runs internal/parse with `PVM_REQUIRE_PERL542=1`. The test names every job and the perl it installs, so a job added later must be classified. Run it after changing only corpus.pin and watch it fail.
 - [ ] GREEN: set corpus.pin to `interpreter = 5.044000`, with threads and revision as observed. Give ci.yml's 5.42 jobs their own pin source, and update the corpus.pin comment that explains for-many.t:474 under 5.42. Run TestCIWorkflowsPinTheirPerls, TestPinScriptAgreesWithReadPin and TestCIPinsTheWorldItMeasuresIn, and watch them pass.
 - [ ] RED/GREEN: write TestM3StartRecordsThePin. m3start.txt has `interpreter`, `compiled` and `graded` keys, and its `interpreter` equals corpus.pin's. Add TestM3StartRejectsInterpreterSkew: a fixture m3start whose interpreter differs from the pin fails.
 - [ ] RED/GREEN: write TestCIWorkflowsPinTheirPerlsRejectsSharedPin. A fixture workflow where a 5.42 job reads corpus.pin, or the 5.44 job reads the 5.42 pin, fails.
-- [ ] Re-baseline baseline.txt with `-parseoracle.update` under 5.44.0. Then re-check every other ratchet that reads the oracle (the exact-match floor TestGoParserExactFloor, and any fidelity ratchet parse-fidelity.yml runs), and re-baseline any that moves. The commit message explains every moved file (for example, op/signatures.t no-answer -> graded).
+- [ ] The pinned-perl helper issue is done first, so the sweep, `ObservePin` and parse_facts.pl's inner compiles all run 5.44.0 with no PATH prefix. Its change to parse_facts.pl changes the script's hash, which keys the oracle cache, so this sweep re-measures every file once; that is expected.
+- [ ] Re-baseline baseline.txt with `-parseoracle.update` under 5.44.0. Re-baseline the CI gate's fixture baseline, `testdata/ratchet/fixture.txt` (today `interpreter = 5.042000`), at 5.44.0 too, since the gate's sweep CheckPins against it. Then re-check every other ratchet that reads the oracle (the exact-match floor TestGoParserExactFloor, and any fidelity ratchet parse-fidelity.yml runs), and re-baseline any that moves. The commit message explains every moved file (for example, op/signatures.t no-answer -> graded).
 - [ ] Record the sweep's wall time. re/pat_psycho.t times out at PARSEORACLE_TIMEOUT=8m on every sweep (errors are not cached), and that counts against `git zhi verify --timeout 900`. If the sweep alone comes within 2 minutes of 900s, stop and raise it with perigrin before going on.
 - [ ] Update internal/parseoracle/README.md's "Ground-truth ceiling" sentence (line ~287) to the compiled count measured with 5.44.0. Leave the historical sentence at ~309 alone.
 - [ ] Run `make test`, then commit.
@@ -51,6 +52,7 @@ This issue is the chain's root. Every starting number (the rv2hv wider count, th
 - [ ] Regression guard: the pin script still agrees with the pin file (`go test ./internal/parseoracle/ -run '^TestPinScriptAgreesWithReadPin$' -count=1 -v | grep -q '^--- PASS: TestPinScriptAgreesWithReadPin'`)
 - [ ] The per-file baseline was regenerated under 5.44.0 (`grep -q '^interpreter = 5.044000' internal/parseoracle/testdata/ratchet/baseline.txt`)
 - [ ] The compiled set is recorded by path, leaves out perl.git's perlRejects files, and matches m3start's count (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestCompiledSetExcludesPerlRejects$' -count=1 -v | grep -q '^--- PASS: TestCompiledSetExcludesPerlRejects'`)
+- [ ] The CI gate's fixture baseline is regenerated at the 5.44.0 pin (`grep -q '^interpreter = 5.044000' internal/parseoracle/testdata/ratchet/fixture.txt`)
 
 ### Negative Scenarios
 
