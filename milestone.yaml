@@ -115,3 +115,15 @@ Item 9's re-baseline depends on 8 only through sites.go and sites.txt merge orde
   - TestFaithfulForgivenessIsClosed enumerates them, each with a perl-measured fixture. Any other forgiveness fails the test.
   - Every other spelling difference is recorded in the tree and written back by canon, as `Paren` is. That covers heredoc form, sub-less special subs (`DESTROY {`) and deref braces (`@{$x}` vs `@$x`).
   - A new forgiveness rule needs perigrin's ruling, with its perl measurement. It is never added by an issue.
+## Rulings from chain-review round 6 (perigrin, 2026-10-23)
+
+- **The call-parens rule is narrowed.** Today, fidelity.go:62 forgives a canon-added `(` after any word token (`isName`). That lets misgrouped trees pass: `defined($x || $y)` for `defined $x || $y`, `not($x or 1)`, `my($x) = @_` for `my $x = @_`, `local($x) = 1`.
+  - The narrowed rule forgives call parens only after list operators and user or method calls, identified by canon's role tags, never by `isName`.
+  - It never forgives them after my, our, local, state, named unary ops, `not`, or word infix operators.
+  - TestFaithfulForgivenessIsClosed gains perl-judged extent negatives for those five cases.
+  - T1 fidelity may drop. It is re-baselined, and every moved file is explained.
+- **A paren on an op perl folds away is a known gap, and canon writes it.** Examples: `$h{(1)}`, `-(1)`, `"a" . ("b")`, `($_[0])->[0]`; perl 5.44 keeps no P bit on any of them.
+  - psc keeps the source's Paren on that node.
+  - The OPf_PARENS check lists the case as a named gap, citing the Concise evidence that perl folded it. It is never a defect.
+  - canon writes the paren, so the file is faithful.
+- **Convergence:** chain-review runs rounds 7 and 8. If it has not converged at 8, the minute records the non-convergence and the open findings, and perigrin chooses between executing with them as follow-ups and further rounds.
