@@ -3,8 +3,10 @@ title: Fix the remaining unfaithful M3-dir files and hold re-emission at 100%
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-60e9-7343-a630-7a93da5ee389
 created: 2026-10-23T07:06:50.727978535Z
-updated: 2026-10-23T07:06:50.727978535Z
+updated: 2026-10-23T07:06:59.861764122Z
 ---
 
 ## Context
