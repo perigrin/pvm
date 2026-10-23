@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:55.931602782Z
-updated: 2026-10-23T17:09:33.595469557Z
+updated: 2026-10-23T19:18:29.857871449Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -79,11 +79,13 @@ position.
 
 Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/06_control` -> `TestCorpus` over the tier-06 topics (adjacency-06_control.md, blocks-and-terminations.md, conditionals.md, jumps.md, loops.md, switch.md)). Left unchanged: `TestTierControlAdjacency`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierControlAdjacency` -> `TestAdjacencyCoversItsTier/06_control`. These commands pass once branch ccx/adj merges.
+
 ## Acceptance criteria
 
 - [ ] Every file in 06_control/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierControlPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierControlPerlValidated'`)
 - [ ] The dependency lint passes over 06_control/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierControlLint$' -count=1 -v | grep -q '^--- PASS: TestTierControlLint'`)
-- [ ] The tier's adjacency file puts every construct 06_control introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierControlAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierControlAdjacency'`)
+- [ ] The tier's adjacency topic puts every construct 06_control introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^06_control$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/06_control'`)
 - [ ] 06_control/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierControlRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierControlRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-06_control|blocks-and-terminations|conditionals|jumps|loops|switch)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
