@@ -1,0 +1,30 @@
+---
+title: Remove conformance test code the adjacency refactor left dead, and its false refusal claims
+state: pending
+urgency: normal
+milestone: v0.1
+created: 2026-10-23T23:49:20.285028918Z
+updated: 2026-10-23T23:49:20.285028918Z
+---
+
+Found in the crochet:review of m3-conformance-corpus (round 1, 2026-10-23), by the ponytail lens and the fix-pass worker. Refactor e8ee9001 left this residue, and the milestone's diff did not create it.
+
+## Context
+
+- paths: `internal/conformance/*_test.go`, `conformance/04_operators/README.md`
+
+1. **68 unused symbols** (staticcheck U1000) remain in internal/conformance. They are the `.t`-era per-tier adjacency and spelling machinery, for example tier07_callforms's `adjacencyExempt`, tier09's `tierRegexDependsOn`, tier01's `regenerateNumbering`, and most regexes and form helpers in tiers 03, 05, 06 and 08 to 14. Their comments describe checks that no longer run. The full list is in the round-1 fix report (scratchpad ccx/rev1, 774a3860).
+2. **False claims about refusals.** The corpus is 270 clean with 0 refusing, so these are false:
+   - tier04_test.go:906, "The fifth, `00_adjacency.t`, refuses"
+   - tier11_test.go:468, "EXACTLY ONE REFUSING FILE"
+   - tier12_test.go:209
+   - 04_operators/README.md:285, "The fifth refusal"
+
+   Renaming the file they mention would keep the false claims alive. They need rewriting, or deleting along with their dead code.
+
+## Acceptance criteria
+
+### Positive Scenarios
+
+- `staticcheck -checks U1000 -tests ./internal/conformance/ 2>&1 | grep -c 'is unused' | grep -qx 0` (no unused symbols remain)
+- `! grep -rnE 'ONE REFUSING FILE|The fifth refusal|00_adjacency\.t., refuses' internal/conformance conformance/04_operators/README.md` (the false refusal claims are gone)
