@@ -1,6 +1,7 @@
 name: m3-conformance-corpus
 resolution: go test ./internal/conformance/ -count=1
 created: 2026-09-21T09:47:35.108573891Z
+state: open
 ---
 
 A corpus ordered by what a parser must understand before it can understand
@@ -47,3 +48,7 @@ issues so the deferral is reversible.
 chain, to test whether the format survives contact. It builds and its tests
 are green -- 1 pass, 2 documented refusals -- so it is kept as the starting
 point rather than rewritten. Nothing in it is settled.
+
+## Execute gates
+
+- [x] 01a0de11-954c (op budget and flags): merged 1580f669 on feat/m3-conformance-corpus, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: the change is documentation only (lintOps' docstring), with no code path, and its 3 criteria verify. Tier: none applied; it touches no parser, lexer, lower, sites, canon or fidelity code.
