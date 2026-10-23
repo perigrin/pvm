@@ -9,7 +9,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-23T01:56:28.057485579Z
+updated: 2026-10-23T08:21:45.485117052Z
 ---
 
 ## Context
@@ -40,7 +40,7 @@ M3 requires at least 200 `perf/opcount.t` assertions mined into fixtures. opcoun
 - [ ] The fixture directory is committed (`test -d internal/parseoracle/testdata/opcount`)
 - [ ] The fixtures hold at least 200 op=>count assertions, each traced to its opcount.t line (`go test ./internal/parseoracle/ -run '^TestOpcountFixturesParse$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesParse'`)
 - [ ] The pinned perl 5.44.0 confirms every mined op count (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixturesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesHeldToPerl'`)
-- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] Regression guard (passes before this issue's work; it holds the new tests once they exist): every test that calls PinnedPerl, this issue's included, is in the -run list of a CI step that sets the REQUIRE variable (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
