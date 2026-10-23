@@ -9,7 +9,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-23T13:55:21.993033225Z
+updated: 2026-10-23T22:00:12.522950417Z
 ---
 
 ## Context
@@ -34,6 +34,8 @@ These are the `stmt-boundary` rows of faithful_queue.txt, where canon and source
 - [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] If a row proves unfixable, stop and escalate it to perigrin with the perl measurement. Never leave it in the queue, and never close this issue with a row of its class left (perigrin's ruling, chain-review round 4).
 - [ ] Run `make test`, then commit.
+
+**Review note from 30a8 (2026-10-23).** TestDerefBraceFlagLeavesSitesUnchanged's fixtures have no subscripted brace deref. Add `${$h}{a}{b}` and `@{$h}{qw(a b)}`. Canon re-emits `${$h}{a}` as `$$h{a}` today, and 30a8's probe row for it carries no `faithful` fact until this issue lands.
 
 ## Acceptance criteria
 
