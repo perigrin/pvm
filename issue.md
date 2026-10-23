@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-14e9-70d6-8842-a5b379816a98
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:59.516182101Z
-updated: 2026-09-21T22:36:08.94229565Z
+updated: 2026-10-23T17:09:34.385806587Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -78,6 +78,8 @@ parse, body and all (M1 issue 01a0c13f-aaf8). Files here will refuse, and
 that is the corpus working rather than a blocker -- a refusal is recorded
 with its code and skips until the parser catches up.
 
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/13_opaque` -> `TestCorpus` over the tier-13 topics (adjacency-13_opaque.md, formats.md, heredocs.md, pod-and-data.md, quote-like-terms.md)). Left unchanged: `TestTierOpaqueAdjacency`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Each of the six delimiter kinds is delimited correctly without its contents being lexed (`go test ./internal/conformance/ -run '^TestTierOpaqueDelimitsWithoutLexing$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueDelimitsWithoutLexing'`)
@@ -86,4 +88,4 @@ with its code and skips until the parser catches up.
 - [ ] The tier's adjacency file puts every construct 13_opaque introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierOpaqueAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueAdjacency'`)
 - [ ] 13_opaque/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierOpaqueRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierOpaqueRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/13_opaque' -count=1 -v | grep -q '^    --- PASS: TestCorpus/13_opaque'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-13_opaque|formats|heredocs|pod-and-data|quote-like-terms)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
