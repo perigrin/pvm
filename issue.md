@@ -9,7 +9,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-6030-7faa-8408-bb3a8cb03f12
 created: 2026-10-22T23:46:34.069628305Z
-updated: 2026-10-23T01:11:00.373401956Z
+updated: 2026-10-23T01:35:40.723740867Z
 ---
 
 ## Context
@@ -18,7 +18,7 @@ updated: 2026-10-23T01:11:00.373401956Z
 - commands: `go test ./internal/parse/ -run '^(TestFaithfulHeredocBodyIsNotAToken|TestFaithfulSublessSpecialSub)$' -count=1 -v`
 - entrypoints: `internal/parse/fidelity.go` (significant-token extraction), `internal/parse/canon.go` (sub declarations)
 
-These are the `heredoc` and `subless-special-sub` rows of faithful_defects.txt: two token-level causes. (1) Heredoc bodies show up as significant tokens on the source side (at 2026-10-22, e.g. op/debug.t, op/threads.t, and behind dropped parens op/bop.t, op/eval.t, op/pack.t). A heredoc body is a string literal's content, and the two sides must tokenize it alike. (2) canon writes `sub` where the source has `DESTROY` without it (e.g. op/hash.t, op/vec.t). perl accepts `sub`-less declarations for some names. Whether canon should write `sub` there (a forgiven difference) or write what the source wrote is decided by measuring perl. Neither cause is a grouping question, so neither may weaken misgrouping detection. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence (heredoc/sub-less, then statement-boundary, then operator, then term) because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet.
+These are the `heredoc` and `subless-special-sub` rows of faithful_defects.txt: two token-level causes. (1) Heredoc bodies show up as significant tokens on the source side (at 2026-10-22, e.g. op/debug.t, op/threads.t, and behind dropped parens op/bop.t, op/eval.t, op/pack.t). A heredoc body is a string literal's content, and the two sides must tokenize it alike. (2) canon writes `sub` where the source has `DESTROY` without it (e.g. op/hash.t, op/vec.t). perl accepts `sub`-less declarations for some names. Whether canon should write `sub` there (a forgiven difference) or write what the source wrote is decided by measuring perl. Neither cause is a grouping question, so neither may weaken misgrouping detection. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence after the OPf_PARENS issue, which owns the `dropped-paren` rows (OPf_PARENS, then heredoc/sub-less, then statement-boundary, then operator, then term), because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet.
 
 ## Steps
 
@@ -30,7 +30,7 @@ These are the `heredoc` and `subless-special-sub` rows of faithful_defects.txt: 
 - [ ] Remove the fixed rows from faithful_defects.txt and re-baseline perlgittfaithful.ratchet in the same commit, naming each moved file in the message.
 - [ ] Add every reduced case, with perl's facts, as probe file `internal/parse/testdata/m3probes/heredoc-subless.txt`.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus, and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
-- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
