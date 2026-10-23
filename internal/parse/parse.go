@@ -853,7 +853,11 @@ type parser struct {
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
 	imports map[string]Import
-	pos     int
+
+	// bodied names, by subKey, each sub this file has declared with a body.
+	// See declareSub.
+	bodied map[string]bool
+	pos    int
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.

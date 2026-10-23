@@ -249,3 +249,46 @@ func TestCanonNamedUnaryIgnoresMethodNames(t *testing.T) {
 		}
 	}
 }
+
+// TestSubBodyKeepsItsPrototype: once perl has compiled a sub's body, a later
+// forward declaration does not change its prototype; perl warns "Prototype
+// mismatch" and keeps the body's. A body always sets it, and a forward
+// declaration does until a body arrives. Measured on perl 5.44.0 with
+// Deparse,-p, each followed by `$r = g $x, $y;`:
+//
+//	sub g(@){1} sub g($);       ($r = g($x, $y));
+//	sub g($){1} sub g(@);       (($r = g($x)), $y);
+//	sub g(@); sub g($){1}       (($r = g($x)), $y);
+//	sub g($); sub g(@){1}       ($r = g($x, $y));
+//	sub g; sub g($){1}          (($r = g($x)), $y);
+//	sub g($){1} sub g;          (($r = g($x)), $y);
+//	sub g($){1} sub g(@){2}     ($r = g($x, $y));
+//	sub g($); sub g(@);         ($r = &g($x, $y));
+func TestSubBodyKeepsItsPrototype(t *testing.T) {
+	for _, tc := range []struct {
+		decls string
+		unary bool
+	}{
+		{`sub g(@){1;} sub g($);`, false},
+		{`sub g($){1;} sub g(@);`, true},
+		{`sub g(@); sub g($){1;}`, true},
+		{`sub g($); sub g(@){1;}`, false},
+		{`sub g; sub g($){1;}`, true},
+		{`sub g($){1;} sub g;`, true},
+		{`sub g($){1;} sub g(@){2;}`, false},
+		{`sub g($); sub g(@);`, false},
+	} {
+		src := tc.decls + ` $r = g $x, $y;`
+		n := Parse([]byte(src))
+		call := findCall(lastStmt(t, n), "g")
+		if call == nil {
+			t.Fatalf("%q: no Call g", src)
+		}
+		if call.NamedUnary != tc.unary {
+			t.Errorf("%q: g NamedUnary = %v, want %v", src, call.NamedUnary, tc.unary)
+		}
+		if tc.unary {
+			requireCanon(t, n, src, src)
+		}
+	}
+}

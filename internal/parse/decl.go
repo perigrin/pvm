@@ -1206,10 +1206,28 @@ func (p *parser) declareSub(n *Node) {
 	if name == "" {
 		return
 	}
+	// A sub keeps the prototype its body came with: a later forward
+	// declaration makes perl warn "Prototype mismatch" and changes nothing.
+	// Measured on 5.44.0, `sub g($){1} sub g(@); $r = g $x, $y;` deparses
+	// as `(($r = g($x)), $y)`. A body, or a forward declaration before any
+	// body, sets it. declareSub runs before the body is read, so the `{`
+	// after the head is what says one follows.
+	key := p.subKey(name)
+	next, ok := p.peekSignificant()
+	body := ok && p.src[next.Start] == '{'
+	if p.bodied[key] && !body {
+		return
+	}
+	if body {
+		if p.bodied == nil {
+			p.bodied = map[string]bool{}
+		}
+		p.bodied[key] = true
+	}
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
-	p.imports[p.subKey(name)] = Import{
+	p.imports[key] = Import{
 		Name:           name,
 		Prototype:      proto,
 		PrototypeKnown: true,
