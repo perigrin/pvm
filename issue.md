@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c360-01bf-7eab-b864-7d902d36fb97
 created: 2026-09-21T09:52:40.407130019Z
-updated: 2026-09-21T22:35:39.516160765Z
+updated: 2026-10-23T17:09:33.481979129Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -72,6 +72,8 @@ semantics are the subject.
 `local` is the one worth care -- dynamic scope, not lexical, and a file that
 treats it as a spelling variant of `my` measures nothing.
 
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/05_scoping` -> `TestCorpus` over the tier-05 topics (adjacency-05_scoping.md, declarations.md, dynamic-scope.md)). Left unchanged: `TestTierScopingAdjacency`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Every file in 05_scoping/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierScopingPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierScopingPerlValidated'`)
@@ -79,4 +81,4 @@ treats it as a spelling variant of `my` measures nothing.
 - [ ] The tier's adjacency file puts every construct 05_scoping introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierScopingAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierScopingAdjacency'`)
 - [ ] 05_scoping/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierScopingRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierScopingRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/05_scoping' -count=1 -v | grep -q '^    --- PASS: TestCorpus/05_scoping'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-05_scoping|declarations|dynamic-scope)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
