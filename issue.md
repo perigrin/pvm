@@ -10,22 +10,22 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-23T01:08:31.856618478Z
-updated: 2026-10-23T01:09:07.453820587Z
+updated: 2026-10-23T01:11:10.74880805Z
 ---
 
 ## Context
 
 - paths: `internal/parseoracle/testdata/corpus.pin`, `internal/parseoracle/testdata/ratchet/baseline.txt`, `internal/parseoracle/testdata/ratchet/m3start.txt` (new), `.github/scripts/parseoracle-pin.sh`, `.github/workflows/parse-fidelity.yml`, `.github/workflows/ci.yml`, `internal/parseoracle/ci_test.go`, `internal/parseoracle/README.md`
-- commands: `PATH=$HOME/.local/perl-5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v`
+- commands: `PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^TestRatchetCorpus$' -parseoracle.corpus -count=1 -timeout 40m -v`
 - entrypoints: `internal/parseoracle/testdata/corpus.pin`, `internal/parseoracle/corpus.go` (ReadPin, shim build), `internal/parseoracle/ci_test.go` (TestPinScriptAgreesWithReadPin, TestCIPinsTheWorldItMeasuresIn)
 
 **perigrin's ruling (2026-10-23): judge the oracle with perl 5.44.0.** The corpus is perl5 blead at 94e50866, which is perl 5.45.0. Each perl was measured with its own shim (`perl -c`, plus `-T` for the taint tests). 5.42.0 compiles 589 of the 594 non-excluded files, and 5.44.0 compiles all 594. Under 5.42, class/inherit.t and perf/opcount.t segfault; class/method.t and op/signatures.t fail on the `experimental::signature_named_parameters` warnings category; and op/for-many.t has a syntax error at line 474. The 26 excluded files (porting/, win32/, bigmem/, op/goto_xs.t) stay excluded. **Scope:** only the parse oracle's pin moves (corpus.pin, the shim, and CI's ratchet and fidelity jobs). The `.tpm` libraries, the conformance corpus and the CORE.tpm check stay on 5.42.0. ci.yml reads the same pin script today (ci.yml:42, "Read the perl pin"), so those jobs need a pin of their own that stays at 5.42.0.
 
-This issue is the chain's root. Every starting number (the rv2hv wider count, the site floor, the compile and graded counts) is re-measured here or downstream at the new pin. It records the starting counts in `testdata/ratchet/m3start.txt` as `key = value` lines. Later criteria compare against that file, never against a number typed into an issue (389, 593). Local runs put 5.44.0 at `$HOME/.local/perl-5.44.0/bin/perl`, and every oracle command in this milestone prefixes that directory onto PATH. The milestone's resolution command needs the same prefix.
+This issue is the chain's root. Every starting number (the rv2hv wider count, the site floor, the compile and graded counts) is re-measured here or downstream at the new pin. It records the starting counts in `testdata/ratchet/m3start.txt` as `key = value` lines. Later criteria compare against that file, never against a number typed into an issue (389, 593). Local runs put 5.44.0 at `$HOME/.local/share/pvm/versions/5.44.0/bin/perl`, and every oracle command in this milestone prefixes that directory onto PATH. The milestone's resolution command needs the same prefix.
 
 ## Steps
 
-- [ ] Install perl 5.44.0 at `$HOME/.local/perl-5.44.0`, from `$HOME/.cache/pvm/binaries/5.44.0/linux-amd64/perl-5.44.0-linux-amd64.tar.gz` or a pvm install. Check `$]` and `useithreads`, which must be `define` (see corpus.pin's comment on threads).
+- [ ] Use the pvm-installed perl 5.44.0 at `$HOME/.local/share/pvm/versions/5.44.0` (present on this machine, measured threads=define on 2026-10-23); install it with pvm only if absent. Check `$]` and `useithreads`, which must be `define` (see corpus.pin's comment on threads).
 - [ ] Rebuild the shim at `$HOME/.cache/pvm/oracleshim` from 5.44's @INC.
 - [ ] Measure with that perl: run `perl -c` (`-T` where the file needs it) over the 594 non-excluded files in the shim. Record compiled and graded counts in m3start.txt (`interpreter`, `compiled`, `graded`). Quote any file that fails, with its stderr, in the commit message.
 - [ ] RED: write TestCIWorkflowsPinTheirPerls in ci_test.go. parse-fidelity.yml installs corpus.pin's interpreter. ci.yml's conformance and CORE.tpm jobs install 5.42.0 from their own pin. Run it after changing only corpus.pin and watch it fail.
@@ -40,7 +40,7 @@ This issue is the chain's root. Every starting number (the rv2hv wider count, th
 
 ### Positive Scenarios
 
-- [ ] Perl 5.44.0 with threads is installed where the milestone's commands expect it (`sh -c '$HOME/.local/perl-5.44.0/bin/perl -MConfig -e "exit !(\$] == 5.044000 && \$Config{useithreads} eq q(define))"'`)
+- [ ] Perl 5.44.0 with threads is installed where the milestone's commands expect it (`sh -c '$HOME/.local/share/pvm/versions/5.44.0/bin/perl -MConfig -e "exit !(\$] == 5.044000 && \$Config{useithreads} eq q(define))"'`)
 - [ ] The oracle pin names 5.44.0 (`grep -q '^interpreter = 5.044000' internal/parseoracle/testdata/corpus.pin`)
 - [ ] The starting counts are recorded against the pin (`go test ./internal/parseoracle/ -run '^TestM3StartRecordsThePin$' -count=1 -v | grep -q '^--- PASS: TestM3StartRecordsThePin'`)
 - [ ] CI's oracle jobs install the pinned 5.44.0, and the conformance and CORE.tpm jobs stay on 5.42.0 (`go test ./internal/parseoracle/ -run '^TestCIWorkflowsPinTheirPerls$' -count=1 -v | grep -q '^--- PASS: TestCIWorkflowsPinTheirPerls'`)
