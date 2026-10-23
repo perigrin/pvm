@@ -1,6 +1,6 @@
 ---
 title: Split the faithful comparator out, tag canon's parens by role, and enumerate the forgiveness rules, with no behaviour change
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,40 @@ blocks:
 - 01a1690b-4745-7ef7-9285-0a9f97d86924
 - 01a1690b-1d10-7a84-be7e-0cbc31f36812
 created: 2026-10-23T12:56:46.617002164Z
-updated: 2026-10-23T18:03:40.049352127Z
+updated: 2026-10-23T19:54:59.82861176Z
 sessions:
 - start_sha: 5b88c65c7bdc2f2969d00476bef99270f1695b3c
-  end_sha: ""
-  commits: 0
+  end_sha: 863b9896136941d0b13806459168c863fa094653
+  commits: 3
   started_at: 2026-10-23T18:03:40.049352127Z
+  ended_at: 2026-10-23T19:54:59.82861176Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T18:03:40.049352127Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:54:59.82861176Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/parse/canon.go
+- internal/parse/export_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/cmd/receipt/main.go
+- internal/parseoracle/gate_test.go
+- internal/parseoracle/opcount_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/receipt.go
+- internal/parseoracle/receipt_test.go
+- internal/parseoracle/siteratchet.go
+- internal/parseoracle/sites_test.go
+- internal/parseoracle/testdata/opcount/README.md
+- internal/parseoracle/testdata/opcount/opcount.md
+- internal/parseoracle/testdata/ratchet/fixture-sites.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Split the faithful comparator out and enumerate the forgiveness rules, with no behaviour change". The role tags it names were dropped under perigrin's round-7 ruling: the call-paren forgiveness rule, their only consumer, is removed by the `not`/list-op issue, so canon records one bit per paren pair instead (below).
