@@ -468,9 +468,9 @@ file moved the other way.
 | Bucket | Files | Share of measured |
 |---|---:|---:|
 | exact | 492 | 83.0% |
-| wider | 86 | 14.5% |
+| wider | 87 | 14.7% |
 | **WRONG** | **0** | **0.0%** |
-| no-answer | 15 | 2.5% |
+| no-answer | 14 | 2.4% |
 | *measured (denominator)* | *593* | |
 | excluded, environmental | 26 | — |
 | runner error | 1 | — |
@@ -484,6 +484,15 @@ has left a constant proxy in the stash (rc 139; 5.42.0 answers true).
 `op/blocks.t` declares exactly that, and the oracle's probe asked `defined &`
 of every stash entry, so its walk died and the file read exact → no-answer
 until the probe answered a proxy as the constant sub it is, prototype `""`.
+
+`op/magic.t` read no-answer although perl compiles it. The oracle takes
+"did it compile" from its `-MO=Concise,-exec` run, whose backend runs in a
+CHECK block after the file's BEGIN has set `$SIG{__WARN__}` to die.
+B::Concise warns "Deep recursion" walking a statement chain through 99
+or more LOGOPs, and the file's handler turned Concise's own warning into
+"CHECK failed". The oracle now removes that handler in a CHECK block that
+runs just before the backend, after the file's own CHECKs, and the file
+moved no-answer → wider: its 46 sites are 26 exact and 20 wider (rv2hv).
 
 ### WRONG pin removed: the corpus holds no WRONG file
 

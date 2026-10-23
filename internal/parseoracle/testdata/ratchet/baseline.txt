@@ -319,7 +319,7 @@ exact         2 -              op/loopctl.t
 exact         0 -              op/lop.t
 wider       328 -              op/lvref.t
 wider         5 -              op/magic-27839.t
-no-answer    46 -              op/magic.t
+wider        46 -              op/magic.t
 exact        31 -              op/method.t
 exact         0 -              op/mkdir.t
 wider         9 -              op/multideref.t

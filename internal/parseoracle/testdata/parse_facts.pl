@@ -265,8 +265,21 @@ print encode({
 # Perl's own tests chdir to t/ and `require "./test.pl"`, so they only compile
 # from that directory. The caller passes the directory to run from; without it
 # a third of the corpus reports a BEGIN failure that is about @INC, not syntax.
+#
+# The backend runs in O.pm's CHECK block, after every BEGIN in the file, and a
+# file may have installed `$SIG{__WARN__} = sub { die ... }` by then
+# (op/magic.t does). B::Concise warns "Deep recursion" on a statement chain
+# through 99 or more LOGOPs, and that handler would turn Concise's own
+# warning into "CHECK failed" -- an exit status perl -c never gives the file.
+# A CHECK block loaded after O's runs just before it, once the file's own
+# CHECKs have run, and removes the handler for the backend alone.
 sub capture {
     my ($flags, $path) = @_;
+    my $quiet = File::Temp::tempdir('oracle-XXXXXXXX', TMPDIR => 1, CLEANUP => 1);
+    open my $pm, '>', "$quiet/ParseOracleQuietBackend.pm" or die "$quiet: $!\n";
+    print $pm "package ParseOracleQuietBackend; CHECK { delete \$SIG{__WARN__} } 1;\n";
+    close $pm;
+    $flags .= " -I" . quote($quiet) . " -MParseOracleQuietBackend";
     my $cmd = sprintf("%s%s %s -c %s 2>&1", quote($^X), taint(), $flags, quote($path));
     $cmd = sprintf("cd %s && %s", quote($ENV{ORACLE_CHDIR}), $cmd)
         if $ENV{ORACLE_CHDIR};
