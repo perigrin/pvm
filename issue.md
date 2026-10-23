@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-10-23T15:43:24.426165882Z
-updated: 2026-10-23T21:08:34.857253847Z
+updated: 2026-10-23T23:40:18.720747823Z
 sessions:
 - start_sha: 9c3e164290f60fe6c5c1625dbd8e15a2f8a4dc3f
   end_sha: 41ca9f14c8e85a8ad6fce97e8171f817ef9702a7
@@ -43,7 +43,7 @@ Found by the 9d6b worker (m3-conformance-corpus). adjacency-02_variables.md says
 ## Steps
 
 - Done (498821c3): `shift`, `pop` and `splice` were added to the adjacency case, measured with perl 5.42.0, and its pinned output was updated.
-- Done (498821c3): no cases were added, so corpusFloor stays at 270 and corpus.ratchet is unchanged.
+- Done (498821c3): no cases were added, so corpusSize stays at 270 and corpus.ratchet is unchanged.
 
 ## Acceptance criteria
 
