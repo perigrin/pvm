@@ -1,0 +1,71 @@
+---
+title: Write named unary ops by precedence, with the source's call parens recorded in the tree
+state: pending
+urgency: normal
+milestone: m3-oracle-at-scale
+created: 2026-10-23T13:54:58.447919627Z
+updated: 2026-10-23T13:54:58.447919627Z
+---
+
+## Context
+
+- paths: `internal/parse/parse.go` (the `NamedUnary` and `ArgParen` flags on `Node`), `internal/parse/call.go` (`parseWordTerm`: the paren path sets `ArgParen`; `namedUnaryHere` sets `NamedUnary`), `internal/parse/term.go` (file tests), `internal/parse/canon.go` (the `Call` case, and the follow power threaded through `emit`), `internal/parse/namedunary_test.go` (new), `internal/parse/testdata/m3probes/named-unary-canon.txt` (new), the 11 test files named below, `internal/parse/testdata/t1canon.ratchet`, `internal/parse/testdata/t1fidelity.ratchet`, `internal/parse/testdata/perlgittfaithful.ratchet` (read; expected not to move)
+- commands: `go test ./internal/parse/ -run '^(TestCanonWritesNamedUnaryByPrecedence|TestCanonNamedUnaryKeepsSourceArgParen|TestCanonNamedUnaryWrapsLooserOperand)$' -count=1 -v`
+- entrypoints: `internal/parse/canon.go` (`emit`, the `Call` case), `internal/parse/call.go` (`namedUnaryHere`, `keywordShape`), `internal/parse/precedence.go` (`bpNamedUnary`, `derivePowers`)
+
+**perigrin's ruling (2026-10-23, chain-review round 7): canon is precedence-aware, and the call-paren forgiveness rule is removed.** Canon emits named unary ops, `not` and list operators by their precedence, from CORE.tpm's derived shapes and powers. It writes a call's parens only where the source had them, recorded in a new `ArgParen` tree flag, or where binding power requires them. A wrong tree's grouping then shows up as a paren the source lacks, by construction, with no forgiveness rule to leak through (A28, A29). This issue does the named unary ops, which perigrin measured (scratchpad/m3/measure-canon.md, scratch worktree at 054e75e6, judged by perl 5.44). The `not`/list-op issue that follows extends it and removes the rule. They are separate for sizing: the round-7 pushback found the Paren-once issue at its limit.
+
+**The measurement, which this issue reproduces.** Today canon writes every Call parenthesised: `defined $x || $y` as `defined($x) || $y`, `chdir 't' if -d 't'` as `chdir('t') if -d('t')`, `shift` as `shift()`. Each is faithful only through the `isName` call-paren rule, which also forgives a wrong tree's `defined($x || $y)`. With named unary ops written by precedence and the rule turned off for them:
+
+| | perl.git t/ faithful | M3 dirs faithful |
+|---|---|---|
+| baseline at 054e75e6 | 342/619 | 178/347 |
+| rule off, canon unchanged | 35/619 | 27/347 |
+| precedence-aware canon, rule off | 342/619, no file moves | 178/347 |
+
+At statement level (73,670 statements without heredocs) no statement regressed and 9 improved. The T1 canon, fidelity and parse ratchets moved 0 files. Wrong trees for `defined $x || $y`, `ref $x eq 'A'` and `exists $h{a}` are caught, where the old rule forgave them. Cost: about 11 parser lines and about 42 canon lines. The scratch diff is scratchpad/m3/measure-canon-full.diff; use it, minus its measurement toggles (`measureNarrow`, `measureCanonNU`, `faithfulToks`), and thread the follow power through `emit`'s signature rather than the package variable the scratch used, so `Canon` stays safe to call concurrently.
+
+**The design.**
+- **Set.** The parser's own classification: `namedUnaryHere` (keywordShape against CORE.tpm's derived shapes, which respects features and `CORE::`), plus file tests from `lexer.IsFileTest`. The tree records it as `NamedUnary` on the Call node. 84 builtins at 054e75e6 (abs alarm caller chdir chomp chop chr chroot close closedir cos dbmclose defined delete do each eof eval evalbytes exists exit exp fc fileno getc getgrgid getgrnam gethostbyname getnetbyname getpeername getpgrp getprotobyname getpwnam getpwuid getsockname gmtime goto hex int keys lc lcfirst length localtime lock log lstat oct ord pop pos prototype quotemeta rand readdir readline readlink readpipe ref reset rewinddir rmdir scalar sethostent setnetent setprotoent setservent shift sin sleep sqrt srand stat study tell telldir tied uc ucfirst umask undef untie values write) plus the file tests.
+- **Source parens.** `ArgParen` is set on a Call whose source wrote `NAME(`, the FUNC1 form. It is not `Paren`: `Paren` is the node's own grouping, `ArgParen` its argument list's.
+- **Power.** `bpNamedUnary` (160 at 054e75e6, derived from CORE.tpm by `derivePowers`; `<` is 140, `eq` 130, `<<` 170, `+` and `.` 180, `*` 190, `||` 90, `or` 10, prefix `not` 30, `bpListOp` 40). A named unary without `ArgParen` is written `NAME OPERAND`, the operand emitted at `bpNamedUnary+1`, so a looser operand is wrapped: a wrong tree with `defined` over `||` writes `defined ($x || $y)`, which the source lacks. With no operand it writes the bare name (`shift`, `-e`).
+- **The follow power.** A prefix op's parens depend on what FOLLOWS it, which `emit`'s `outer` does not carry: at a right-operand position, `!defined $x` and `$a . lc $b` must stay bare. So `emit` carries the binding power of the operator written right after the node (0 when a closer or nothing follows). A named unary falls back to call parens only when that power is tighter than `bpNamedUnary`: `defined($x) ** 2`. Binary: the left operand gets the operator's power, the right inherits. Ternary: the first two parts get `?`, the last inherits. CmpChain: each link gets the operator, the last inherits. Unary operands, declaration initialisers, LoopControl expressions and modifier conditions inherit. Postfix gets its own operator; Index children get `atomBP`; every other context gets 0; a node wrapped in parens resets it to 0.
+- **Not covered here.** `not` (a prefix Unary, NOTOP, not a Call) and list operators: the next issue. `require` has its own canon path; `goto` goes through control.go; the `eval`/`do` BLOCK forms are skipped by design. A user sub with a `($)` prototype the file cannot see takes the `knowsShape` route, is not flagged, and is still parenthesised: that is M4 prototype territory, and TestCanonWritesNamedUnaryByPrecedence's comment says so (round-7 ruling).
+- **Faithful is not touched.** The call-paren rule stays in force until the `not`/list-op issue removes it, so no file can drop here; the ratchets are the proof, and they fail in both directions.
+
+**The 11 tests that pin the old spelling** (`length("x")`, `-e($f)`, `keys(%h)`, `defined($a) , $b`, `-e()` for an operand-less file test, and so on), updated to the precedence spelling, each with the perl 5.44 evidence that the bare spelling re-parses to the same tree: TestBarewordFilehandleCase (barehandle_test.go), TestCoreUnaryAndListOperatorParseDiffer (corenoproto_test.go), TestCorePrefixedKeyword (coreprefix_test.go), TestCoreFeatureGatedBuiltinTypedParseUnchanged (coretypes_test.go), TestEmptyCommaSlot (emptycomma_test.go), TestFeatureGatedFcArity (featuregated_test.go), TestMainStashEmptyName (mainstash_test.go), TestOperandlessFiletest (operandless_test.go), TestParenlessBuiltinArity (parenlessarity_test.go), TestPrintScalarBeforeModifier (printmod_test.go), TestSortComparator (sortcmp_test.go). TestOperandlessFiletest's "swallowed the terminator" check reads `-e or` as a defect; perl reads the bare spelling the same way, so that check changes, not the code.
+
+## Steps
+
+- [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Deparse,-p` on `defined $x || $y` (`(defined($x) or $y)`), `ref $x eq 'A'`, `!defined $x`, `$a . lc $b`, `chdir 't' if -d 't'`, `shift;`, `-e $f`, `defined($x) || $y`, `exists $h{a}` and `defined $x ** 2`, and `perl -MO=Concise` on `chdir "t"` vs `chdir("t")` (the same `chdir vK/1`). Quote the output in the tests' comments.
+- [ ] Create `internal/parse/namedunary_test.go` with two `// ABOUTME:` lines. Its tests live there, not in fidelity_test.go, which the comparator issue edits in parallel.
+- [ ] RED: write TestCanonWritesNamedUnaryByPrecedence: for each source above, parse, Canon and Faithful; canon re-emits the bare source spelling unchanged. Its comment names the M4 exclusion (a `($)` prototype the file cannot see). Run it and watch it fail (canon writes `defined($x)`).
+- [ ] RED: write TestCanonNamedUnaryKeepsSourceArgParen: `defined($x) || $y` re-emits with its parens, and a tree with the right grouping but `ArgParen` cleared emits `defined $x || $y`, which is a difference. Run it and watch it fail.
+- [ ] RED: write TestCanonNamedUnaryWrapsLooserOperand: a hand-built wrong tree (regroup the parsed tree) with `defined` over `||` emits `defined ($x || $y)`, `ref` over `eq` emits `ref ($x eq 'A')`, and each is unfaithful against its source without any forgiveness. Run it and watch it fail.
+- [ ] GREEN: add `NamedUnary` and `ArgParen` to `Node` (parse.go), set them in call.go's paren path, operand-less path and named-unary case, and in term.go's file-test path. Add the named-unary branch to canon's `Call` case and thread the follow power through `emit`. Run the three tests and watch them pass.
+- [ ] Update the 11 pinned tests named above to the precedence spelling, with the perl evidence in each. Run `go test ./internal/parse/` and watch it pass.
+- [ ] Run TestCanonRatchet, TestCanonFidelityRatchet, TestParseRatchet, TestPerlGitTRatchet, TestPerlGitTFaithfulRatchet and TestCanonQuotientIsNarrow. The measurement moved 0 files in each; if any moves here, stop, name the files and the first difference, and bring them to perigrin before re-baselining.
+- [ ] Add the measured cases, with perl's facts and a `faithful` row each, as probe file `internal/parse/testdata/m3probes/named-unary-canon.txt`.
+- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (a named unary as a hash key, inside a ternary, before `x`, after `->`, a feature-gated `fc` with the feature off, a user sub overriding a builtin), and adds them to this issue's probe file so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] Run `make test`, then commit.
+
+## Acceptance criteria
+
+### Positive Scenarios
+
+- [ ] canon writes a named unary op by precedence, re-emitting each bare source spelling unchanged (`go test ./internal/parse/ -run '^TestCanonWritesNamedUnaryByPrecedence$' -count=1 -v | grep -q '^--- PASS: TestCanonWritesNamedUnaryByPrecedence'`)
+- [ ] canon writes a named unary's call parens where the source had them, and a tree that lost ArgParen is a difference (`go test ./internal/parse/ -run '^TestCanonNamedUnaryKeepsSourceArgParen$' -count=1 -v | grep -q '^--- PASS: TestCanonNamedUnaryKeepsSourceArgParen'`)
+- [ ] The measured cases are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/named-unary-canon.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
+- [ ] Regression guard (passes today and must not move): the T1 canon ratchet (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
+- [ ] Regression guard (passes today and must not move): the T1 fidelity ratchet (`go test ./internal/parse/ -run '^TestCanonFidelityRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityRatchet'`)
+- [ ] Regression guard (passes today and must not move): the perl.git t/ faithful ratchet (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+- [ ] Regression guard: perl.git t/ stays 619/619 clean (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTRatchet'`)
+- [ ] Regression guard: the forgiven quotient stays narrow (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
+- [ ] Regression guard: the 11 updated tests pass with the precedence spelling (`go test ./internal/parse/ -run '^(TestBarewordFilehandleCase|TestCoreUnaryAndListOperatorParseDiffer|TestCorePrefixedKeyword|TestCoreFeatureGatedBuiltinTypedParseUnchanged|TestEmptyCommaSlot|TestFeatureGatedFcArity|TestMainStashEmptyName|TestOperandlessFiletest|TestParenlessBuiltinArity|TestPrintScalarBeforeModifier|TestSortComparator)$' -count=1 -v | grep -c '^--- PASS: ' | grep -qx 11`)
+
+### Negative Scenarios
+
+- [ ] A wrong tree's grouping is a paren the source lacks: `defined` over `||` emits `defined ($x || $y)` and `ref` over `eq` emits `ref ($x eq 'A')`, each unfaithful with no forgiveness (`go test ./internal/parse/ -run '^TestCanonNamedUnaryWrapsLooserOperand$' -count=1 -v | grep -q '^--- PASS: TestCanonNamedUnaryWrapsLooserOperand'`)
+- [ ] The follow power, not the outer power, decides: `!defined $x` and `$a . lc $b` stay bare, while `defined $x ** 2` keeps the parens perl's grouping needs (`go test ./internal/parse/ -run '^TestCanonNamedUnaryUsesFollowPower$' -count=1 -v | grep -q '^--- PASS: TestCanonNamedUnaryUsesFollowPower'`)
+- [ ] A method name after `->` is never treated as a named unary: `$o->shift(1)` keeps its parens and `$o->keys` stays bare (`go test ./internal/parse/ -run '^TestCanonNamedUnaryIgnoresMethodNames$' -count=1 -v | grep -q '^--- PASS: TestCanonNamedUnaryIgnoresMethodNames'`)
