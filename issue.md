@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T01:56:33.938187038Z
+updated: 2026-10-23T07:06:46.230654389Z
 ---
 
 ## Context
@@ -34,6 +34,7 @@ Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from th
 - [ ] Add every table row, with perl's facts, as probe file `internal/parse/testdata/m3probes/named-hash-decl.txt`.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (e.g. `our %h` shadowed by `my %h` in an inner block, `local %h` under a sub, `delete local @h{...}`, a slice mixing `my` and `our` hashes), and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
 - [ ] TestNamedHashRv2hvTableMatchesPerl finds perl through `perltest.PinnedPerl`; add it to parse-fidelity.yml's 5.44-held step (`PVM_REQUIRE_PINNED_PERL=1`).
+- [ ] m3start.txt is append-only: read `rv2hv_wider_after_arrow` and `rv2hv_wider`, never edit or reorder an existing line.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -48,6 +49,7 @@ Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from th
 - [ ] The stale claim that `state %h` behaves like a package hash is gone from both files (`sh -c 'test -f internal/parse/sites.go && test -f internal/parse/hashhedge_test.go && ! grep -q "like a package hash here" internal/parse/sites.go && ! grep -q "is the trap: a LEXICAL declaration" internal/parse/hashhedge_test.go'`)
 - [ ] The table is committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/named-hash-decl.txt`)
 - [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] The final rv2hv wider count is below the post-re-pin `rv2hv_wider`, the baseline perigrin's rulings judge "falls from 389" against, not only below the intermediate anchors (`sh -c 's=$(sed -n "s/^rv2hv_wider = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}" internal/parseoracle/testdata/ratchet/sites.txt); [ -n "$s" ] && [ -n "$n" ] && [ "$n" -lt "$s" ]'`)
 
 ### Negative Scenarios
 
