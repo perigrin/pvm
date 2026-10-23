@@ -3,8 +3,10 @@ title: Resolve a named hash's declaring scope and whether state is enabled
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1664d-81b7-7c96-8f48-636ae47d5cb1
 created: 2026-10-23T01:08:36.424056648Z
-updated: 2026-10-23T01:08:36.424056648Z
+updated: 2026-10-23T01:09:11.160083288Z
 ---
 
 ## Context
