@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-23T01:08:36.424056648Z
-updated: 2026-10-23T01:35:14.615572802Z
+updated: 2026-10-23T12:55:50.497439081Z
 ---
 
 ## Context
@@ -44,7 +44,7 @@ The next issue uses this resolver to decide rv2hv.
 
 - [ ] A hash use resolves to the innermost declaration in effect, as perl measures (`go test ./internal/parse/ -run '^TestHashScopeResolvesInnermostDeclaration$' -count=1 -v | grep -q '^--- PASS: TestHashScopeResolvesInnermostDeclaration'`)
 - [ ] The resolver knows whether the state feature is on, including via use v5.10 and use v5.36 bundles (`go test ./internal/parse/ -run '^TestHashScopeTracksStateFeature$' -count=1 -v | grep -q '^--- PASS: TestHashScopeTracksStateFeature'`)
-- [ ] The resolver's cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/hash-scope.txt`)
+- [ ] The resolver's cases are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/hash-scope.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 
 ### Negative Scenarios
 
