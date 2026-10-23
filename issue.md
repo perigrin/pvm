@@ -1,6 +1,6 @@
 ---
 title: Ratchet oracle agreement per marker site, with the M3 floor, in the CI sweep
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -14,16 +14,47 @@ blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-23T17:31:21.295126592Z
+updated: 2026-10-23T19:29:47.242606257Z
 sessions:
 - start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
-  end_sha: ""
-  commits: 0
+  end_sha: 4af1670f0c4f49aef69888f726ce18e3944ac43d
+  commits: 5
   started_at: 2026-10-23T17:31:21.295126592Z
+  ended_at: 2026-10-23T19:29:47.242606257Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T17:31:21.295126592Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:29:47.242606257Z
+observed_paths:
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- internal/parse/compiled_test.go
+- internal/parse/compiledset_test.go
+- internal/parse/perlgitt_faithful_test.go
+- internal/parse/pin_test.go
+- internal/parse/probes_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/compiledclean.txt
+- internal/parse/testdata/m3probes/README.md
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/cmd/receipt/main.go
+- internal/parseoracle/gate_test.go
+- internal/parseoracle/opcount_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/receipt.go
+- internal/parseoracle/receipt_test.go
+- internal/parseoracle/siteratchet.go
+- internal/parseoracle/sites_test.go
+- internal/parseoracle/testdata/opcount/README.md
+- internal/parseoracle/testdata/opcount/opcount.md
+- internal/parseoracle/testdata/ratchet/fixture-sites.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
