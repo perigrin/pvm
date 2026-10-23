@@ -11,7 +11,7 @@ blocks:
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 - 01a1664d-7bc8-7498-af02-7eaf187b43ed
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T01:36:15.845240375Z
+updated: 2026-10-23T01:55:50.039106108Z
 ---
 
 ## Context
@@ -37,7 +37,7 @@ The core-module-types postmortem's action 3 asks for the regression-probe corpus
 
 - [ ] The seed probe file is committed (`test -s internal/parse/testdata/m3probes/baseline.txt`)
 - [ ] Every probe's recorded facts match perl 5.44.0, and psc agrees except on rows marked known-defect (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestM3ProbesHeldToPerl'`)
-- [ ] CI runs the probes under the pinned perl and fails if they skip (`grep -q TestM3ProbesHeldToPerl .github/workflows/parse-fidelity.yml`)
+- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
