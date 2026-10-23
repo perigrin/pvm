@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T12:56:39.538846194Z
+updated: 2026-10-23T13:55:21.806578555Z
 ---
 
 ## Context
@@ -38,8 +38,8 @@ So G10 and F11 were both right. op/ref.t has no `hedgeDerefElement` site, but it
 - [ ] RED/GREEN TestRv2hvWiderFellFromM3Start in internal/parseoracle: it reads sites.txt's `total all rv2hv wider` row and fails unless that count is below m3start.txt's `rv2hv_wider_after_magic`. It also fails if either value is missing.
 - [ ] Add every measured context, with perl's facts, as probe file `internal/parse/testdata/m3probes/arrow-hash-read.txt`.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus (e.g. `local $r->{k}`, `delete $r->{a}{b}`, `exists`, `\$r->{k}`, lvalue sub args, slices off an arrow), and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
+- [ ] Update docs/specs/perl-parser/00-findings.md §0.11 ("A `->{...}` read whose multideref folding is not in the text hedges its rv2hv"): replace "Sites now hedges rv2hv... The exact rule is issue 01a12059-30a8" with the decided rule, so the findings file states the op_lvalue rule this issue implemented and the shapes that still hedge, with their reasons.
 - [ ] Run `make test`, then commit.
-- [ ] Update docs/specs/perl-parser/00-findings.md §0.11 ("A `->{...}` read whose multideref folding is not in the text hedges its rv2hv"): replace "Sites now hedges rv2hv... The exact rule is issue 01a12059-30a8" with the decided rule
 
 ## Acceptance criteria
 
