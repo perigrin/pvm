@@ -11,7 +11,7 @@ blocks:
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 - 01a1664d-7bc8-7498-af02-7eaf187b43ed
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T07:06:01.955366713Z
+updated: 2026-10-23T08:21:04.959369845Z
 ---
 
 ## Context
@@ -38,7 +38,7 @@ The core-module-types postmortem's action 3 asks for the regression-probe corpus
 
 - [ ] The seed probe file is committed (`test -s internal/parse/testdata/m3probes/baseline.txt`)
 - [ ] Every probe's recorded facts match perl 5.44.0, and psc agrees except on rows marked known-defect (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestM3ProbesHeldToPerl'`)
-- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] Regression guard (passes before this issue's work; it holds the new tests once they exist): every test that calls PinnedPerl, this issue's included, is in the -run list of a CI step that sets the REQUIRE variable (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
