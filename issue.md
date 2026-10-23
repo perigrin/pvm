@@ -9,7 +9,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16795-75e8-7787-81ad-79e130324139
 created: 2026-10-22T23:46:34.345543908Z
-updated: 2026-10-23T08:21:42.568611909Z
+updated: 2026-10-23T12:56:33.921679664Z
 ---
 
 ## Context
@@ -22,9 +22,10 @@ These are the `canon-adds-paren-term` rows of faithful_queue.txt, including the 
 
 ## Steps
 
+- [ ] FIRST, before any fix: read this class's `# causes <class> = N` line in faithful_queue.txt's header (5f77). If N is over 8, split this issue by cause using 5f77's sibling template before starting. This issue's body then keeps only its own cause group, and the cumulative class-zero criterion moves to the last sibling (J8, chain-review round 6).
 - [ ] For each `canon-adds-paren-term` row, reduce the first difference to a minimal snippet and run the pinned perl 5.44.0's `perl -MO=Deparse,-p` on it. Record whether perl's grouping matches the tree's (a call the existing call-paren rule should already forgive, so canon or the tree is emitting it wrong) or differs (a parser misgrouping). Neither is fixed by a new forgiveness rule.
 - [ ] RED: add each reduced snippet to TestCanonAddedParensOnTermsMatchPerl, asserting perl's grouping and quoting the Deparse output in a comment. Run it and watch the cases fail.
-- [ ] GREEN: fix one cause at a time. A misgrouping is fixed in the parser. A parenless call is forgiven only by the existing call-paren rule, used exactly as it stands and never widened (perigrin's round-5 ruling: the forgiven set is closed at call parens, a block's last `;`, and extra paren nesting). A difference that seems to need a new rule goes to perigrin with its perl measurement. Each row is fixed one way or the other; the class must reach zero. Run the test after each fix.
+- [ ] GREEN: fix one cause at a time. A misgrouping is fixed in the parser. A parenless call is forgiven only by the existing call-paren rule, as the Paren-once issue narrowed it (perigrin's round-6 ruling: canon parens tagged `call-args`, after list ops and user or method calls), used exactly as it stands and never widened (perigrin's round-5 ruling: the forgiven set is closed at call parens, a block's last `;`, and extra paren nesting). A difference that seems to need a new rule goes to perigrin with its perl measurement. Each row is fixed one way or the other; the class must reach zero. Run the test after each fix.
 - [ ] Run TestCanonCatchesMisgrouping and TestCanonQuotientIsNarrow after every fix, and add each misgrouping found here as a named case to TestCanonCatchesMisgrouping.
 - [ ] Remove the fixed rows from faithful_queue.txt, and re-baseline perlgittfaithful.ratchet (and the T1 ratchets if they move) in the same commit, naming each moved file.
 - [ ] Add every reduced case, with perl's facts, as probe file `internal/parse/testdata/m3probes/canon-paren-term.txt`.
@@ -41,7 +42,7 @@ These are the `canon-adds-paren-term` rows of faithful_queue.txt, including the 
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 - [ ] The work queue still matches the tree after the fixes (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestFaithfulQueueMatchesTree$' -count=1 -v | grep -q '^--- PASS: TestFaithfulQueueMatchesTree'`)
 - [ ] The perl.git t/ faithful ratchet matches the tree after this issue's re-baseline (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
-- [ ] The reduced cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/canon-paren-term.txt`)
+- [ ] The reduced cases are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/canon-paren-term.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 - [ ] No row of this issue's class, or of any earlier owner's class (dropped-paren, heredoc, subless-special-sub, stmt-boundary, canon-adds-paren-op, canon-adds-paren-term), is left in the work queue; rows a fix here exposed in a closed owner's class are fixed here (`sh -c 'f=internal/parse/testdata/faithful_queue.txt; test -f $f && ! grep -Eq "^[^[:space:]#]+[[:space:]]+(dropped-paren|heredoc|subless-special-sub|stmt-boundary|canon-adds-paren-op|canon-adds-paren-term)[[:space:]]" $f'`)
 - [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 
