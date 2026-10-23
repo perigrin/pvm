@@ -239,6 +239,10 @@ func reachable(tier string, tiers tierOps) (allowed map[string]bool, claimedBy m
 // in testdata/parse_facts.pl, which reads the same format.
 var reConciseOp = regexp.MustCompile(`^\s*\S+\s+<[^>]*>\s+(\w+)`)
 
+// reConciseHeader matches the line B::Concise prints above each CV it
+// dumps: `main::add:`, or `main program:`.
+var reConciseHeader = regexp.MustCompile(`^\S.*:$`)
+
 // fileOpsBackend is the B:: backend opsOf compiles through.
 //
 // `perl -MO=Concise,-exec file.pl` names no sub, and B::Concise then
@@ -303,43 +307,59 @@ sub compile {
 // fileOpsBackend for why that takes a backend of our own.
 func opsOf(t *testing.T, source string) ([]string, error) {
 	t.Helper()
+	ops, _, err := fileOps(t, source)
+	return ops, err
+}
+
+// fileOps returns every op opsOf returns, and separately the ops of the
+// main program alone. B::Concise heads each CV's dump with its name and
+// a colon, and the main program's with `main program:`.
+func fileOps(t *testing.T, source string) (all, main []string, err error) {
+	t.Helper()
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "case.pl")
 	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		return nil, fmt.Errorf("writing the case: %w", err)
+		return nil, nil, fmt.Errorf("writing the case: %w", err)
 	}
 	// Beside the case rather than in the repo: `-MO=FileOps` requires a
 	// module findable as B/FileOps.pm, and a file in t.TempDir() needs no
 	// decision about where a perl helper lives in a Go tree.
 	backend := filepath.Join(dir, "B", "FileOps.pm")
 	if err := os.MkdirAll(filepath.Dir(backend), 0o750); err != nil {
-		return nil, fmt.Errorf("making room for the backend: %w", err)
+		return nil, nil, fmt.Errorf("making room for the backend: %w", err)
 	}
 	if err := os.WriteFile(backend, []byte(fileOpsBackend), 0o600); err != nil {
-		return nil, fmt.Errorf("writing the backend: %w", err)
+		return nil, nil, fmt.Errorf("writing the backend: %w", err)
 	}
 
 	perl, err := perlPath()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	out, err := exec.Command(perl, "-I"+dir, "-MO=FileOps", path).Output()
 	if err != nil {
-		return nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
+		return nil, nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
 	}
 
-	var ops []string
+	inMain := false
 	for _, line := range strings.Split(string(out), "\n") {
+		// The op test comes first: an op line may also end in a colon,
+		// when its flags do.
 		if m := reConciseOp.FindStringSubmatch(line); m != nil {
-			ops = append(ops, m[1])
+			all = append(all, m[1])
+			if inMain {
+				main = append(main, m[1])
+			}
+		} else if reConciseHeader.MatchString(line) {
+			inMain = line == "main program:"
 		}
 	}
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
+	if len(all) == 0 {
+		return nil, nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
 	}
-	return ops, nil
+	return all, main, nil
 }
 
 // reDependsOn matches a tier README's machine-read prerequisite:

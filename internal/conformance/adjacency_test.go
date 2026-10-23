@@ -1,5 +1,5 @@
 // ABOUTME: The adjacency property, checked once for every tier: its adjacency topic emits every op the tier introduces.
-// ABOUTME: Also that each tier has such a topic and that every case in it is multi-statement.
+// ABOUTME: Also that each tier has such a topic and that every case's main program is multi-statement.
 package conformance
 
 import (
@@ -48,7 +48,10 @@ func TestEveryTierHasAnAdjacencyTopic(t *testing.T) {
 // One further claim is checked because it is cheap and ops can prove it:
 // EVERY CASE IS MULTI-STATEMENT. Adjacency needs two constructs to be
 // adjacent; a one-statement case cannot satisfy it whatever its prose
-// says. `nextstate` is one per statement.
+// says. `nextstate` is one per statement, counted in the MAIN PROGRAM
+// only: a statement inside a sub body composes nothing with the main
+// program unless something calls the sub. See
+// TestAdjacencyCountsMainStatementsOnly.
 //
 // The tier's declared prerequisite is not checked here: ops cannot tell
 // one plausible declaration from another, as prereq_test.go measures, so
@@ -75,12 +78,12 @@ func TestAdjacencyCoversItsTier(t *testing.T) {
 					continue
 				}
 				n++
-				ops, err := opsOf(t, c.Source)
+				ops, k, err := adjacencyCaseOps(t, c.Source)
 				if err != nil {
 					t.Fatalf("%s: %v", c.Key, err)
 				}
-				if k := countOp(ops, "nextstate"); k < 2 {
-					t.Errorf("%s has %d statement(s); an adjacency case needs at least 2", c.Key, k)
+				if k < 2 {
+					t.Errorf("%s has %d statement(s) in its main program; an adjacency case needs at least 2", c.Key, k)
 				}
 				used = append(used, ops...)
 			}
@@ -102,5 +105,37 @@ func TestAdjacencyCoversItsTier(t *testing.T) {
 					topic, strings.Join(missing, " "), tier)
 			}
 		})
+	}
+}
+
+// adjacencyCaseOps returns every op a case emits and the number of
+// statements in its MAIN PROGRAM, which is where adjacency lives.
+func adjacencyCaseOps(t *testing.T, source string) ([]string, int, error) {
+	ops, main, err := fileOps(t, source)
+	if err != nil {
+		return nil, 0, err
+	}
+	return ops, countOp(main, "nextstate"), nil
+}
+
+// TestAdjacencyCountsMainStatementsOnly pins that a statement inside a
+// sub body does not count toward an adjacency case's two. A sub nobody
+// calls composes nothing with the main program, so a case whose main
+// program is one statement is still a one-statement case.
+func TestAdjacencyCountsMainStatementsOnly(t *testing.T) {
+	for _, tc := range []struct {
+		source string
+		want   int
+	}{
+		{`print "hello"; sub unused { my $a=1; my $b=2 }`, 1},
+		{`print "a"; print "b";`, 2},
+	} {
+		_, statements, err := adjacencyCaseOps(t, tc.source)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.source, err)
+		}
+		if statements != tc.want {
+			t.Errorf("%s: counted %d statement(s), want %d", tc.source, statements, tc.want)
+		}
 	}
 }
