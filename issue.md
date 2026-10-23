@@ -3,10 +3,12 @@ title: Hold the parse-without-error floor on the 593 files perl compiles
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a1664d-69f0-715c-b060-c8f648ddfcd3
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-23T01:08:04.912311416Z
+updated: 2026-10-23T01:09:00.107305943Z
 ---
 
 ## Context
