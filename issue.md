@@ -1,10 +1,19 @@
 ---
 title: No tier introduces the switch ops, so the corpus cannot hold a given/when case
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T17:33:59.477827339Z
-updated: 2026-09-26T17:33:59.477827339Z
+updated: 2026-10-23T15:16:22.429387141Z
+sessions:
+- start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T15:16:22.429387141Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T15:16:22.429387141Z
 ---
 
 The corpus has no `given`/`when`/`default` case and structurally cannot hold
