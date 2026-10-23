@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T07:06:46.230654389Z
+updated: 2026-10-23T08:21:51.260995163Z
 ---
 
 ## Context
@@ -48,7 +48,7 @@ Named hashes and hash slices still hedge rv2hv. This issue decides rv2hv from th
 - [ ] The committed rv2hv wider count is below the count recorded after the arrow-read fix (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellBelowArrowFix$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellBelowArrowFix'`)
 - [ ] The stale claim that `state %h` behaves like a package hash is gone from both files (`sh -c 'test -f internal/parse/sites.go && test -f internal/parse/hashhedge_test.go && ! grep -q "like a package hash here" internal/parse/sites.go && ! grep -q "is the trap: a LEXICAL declaration" internal/parse/hashhedge_test.go'`)
 - [ ] The table is committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/named-hash-decl.txt`)
-- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] Regression guard (passes before this issue's work; it holds the new tests once they exist): every test that calls PinnedPerl, this issue's included, is in the -run list of a CI step that sets the REQUIRE variable (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 - [ ] The final rv2hv wider count is below the post-re-pin `rv2hv_wider`, the baseline perigrin's rulings judge "falls from 389" against, not only below the intermediate anchors (`sh -c 's=$(sed -n "s/^rv2hv_wider = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}" internal/parseoracle/testdata/ratchet/sites.txt); [ -n "$s" ] && [ -n "$n" ] && [ "$n" -lt "$s" ]'`)
 
 ### Negative Scenarios
