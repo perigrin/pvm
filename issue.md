@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.345543908Z
-updated: 2026-10-23T01:11:04.82819858Z
+updated: 2026-10-23T01:35:49.436389804Z
 ---
 
 ## Context
@@ -17,7 +17,7 @@ updated: 2026-10-23T01:11:04.82819858Z
 - commands: `go test ./internal/parse/ -run '^TestCanonAddedParensOnTermsMatchPerl$' -count=1 -v`
 - entrypoints: `internal/parse/canon.go` (binding-power parens), `internal/parse/fidelity.go` (parenless-call forgiveness)
 
-These are the `canon-adds-paren-term` rows of faithful_defects.txt, where canon writes a `(` the source lacks, and the source token at the first difference is a term, literal, bareword or `;`/`{` (most likely a list-op or call argument list canon parenthesises). At 2026-10-22, examples were op/cmpchain.t, op/avhv.t and op/tr.t. canon writes the parens binding power implies plus a `Paren` node's pair, so an added paren is either an unforgiven parenless call or a misgrouped tree. That makes these the most important rows in the list. No case may be called a misgrouping, or forgiven, before it is judged against perl with `perl -MO=Deparse,-p` or an op tree. It also owns the `other` rows, as the last issue in the triage sequence: each is classified, then fixed or kept with a perl measurement in its reason. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence (heredoc/sub-less, then statement-boundary, then operator, then term) because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet.
+These are the `canon-adds-paren-term` rows of faithful_defects.txt, where canon writes a `(` the source lacks, and the source token at the first difference is a term, literal, bareword or `;`/`{` (most likely a list-op or call argument list canon parenthesises). At 2026-10-22, examples were op/cmpchain.t, op/avhv.t and op/tr.t. canon writes the parens binding power implies plus a `Paren` node's pair, so an added paren is either an unforgiven parenless call or a misgrouped tree. That makes these the most important rows in the list. No case may be called a misgrouping, or forgiven, before it is judged against perl with `perl -MO=Deparse,-p` or an op tree. It also owns the `other` rows, as the last issue in the triage sequence: each is classified, then fixed or kept with a perl measurement in its reason. Scope is the rows of these classes in faithful_defects.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue handles it. The triage issues run in sequence after the OPf_PARENS issue, which owns the `dropped-paren` rows (OPf_PARENS, then heredoc/sub-less, then statement-boundary, then operator, then term), because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_defects.txt and perlgittfaithful.ratchet.
 
 ## Steps
 
@@ -28,7 +28,7 @@ These are the `canon-adds-paren-term` rows of faithful_defects.txt, where canon 
 - [ ] Remove the fixed rows from faithful_defects.txt. Give every kept row its line and the Deparse result that explains it, and re-baseline perlgittfaithful.ratchet (and the T1 ratchets if they move) in the same commit, naming each moved file.
 - [ ] Add every reduced case, with perl's facts, as probe file `internal/parse/testdata/m3probes/canon-paren-term.txt`.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus, and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
-- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
+- [ ] A parser change can move the oracle ratchets, because Sites() reads the tree. Before committing, run the sweep (`PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`). If baseline.txt or sites.txt moves, re-baseline with `-parseoracle.update` in the same commit and explain each moved file. WRONG must stay 0.
 - [ ] RED/GREEN TestOtherDefectRowsQuotePerl: every kept `other` row quotes a perl measurement in its reason.
 - [ ] Run `make test`, then commit.
 
