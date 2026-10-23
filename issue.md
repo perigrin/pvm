@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5da6-79c8-aea5-e13d8f14c679
 created: 2026-10-22T23:46:25.524606434Z
-updated: 2026-10-23T01:35:20.381122132Z
+updated: 2026-10-23T07:06:07.787972442Z
 ---
 
 ## Context
@@ -30,7 +30,7 @@ The oracle grades files; M3's metric grades marker sites. The 2026-10-22 per-sit
 - [ ] RED: write TestSubjectErrorIsWholeFileNoAnswer. Split the report's `Err` into oracle-side (perl, shim or cache failure) and subject-side (askSubject failed: psc crashed or timed out, run.go:342-345). A subject-side error counts every perl site as no-answer. An oracle-side error stays excluded. Run it and watch it fail.
 - [ ] GREEN: implement the split in run.go/verdict.go. Run it and watch it pass.
 - [ ] The grader decides what counts as exact, so this change gets a review against perl before merge, like a parser fix. The reviewer checks each fixture's shape against a real corpus file where one exists (op/magic.t, comp/final_line_num.t, a run/switch* readline no-answer), and writes NEW fixtures for shapes the corpus lacks.
-- [ ] Run `make test`; the existing per-file ratchet (TestRatchetCorpus's baseline.txt) must not move. If it moves, stop and explain why before re-baselining.
+- [ ] Run `make test`. It cannot show whether baseline.txt moves, because TestRatchetCorpus skips without `-parseoracle.corpus` (ratchet_test.go:369-370), so this issue makes no claim about it. The subject-error split may move a file from error to no-answer. The site-ratchet issue, which this one blocks, runs the sweep and re-baselines with the move explained.
 - [ ] Commit.
 
 ## Acceptance criteria
