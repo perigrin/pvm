@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a1692f-bf96-703b-b6bc-59a216283227
 created: 2026-10-23T14:34:36.382741984Z
-updated: 2026-10-23T14:35:03.011929837Z
+updated: 2026-10-23T14:40:25.210180719Z
 ---
 
 ## Context
@@ -26,7 +26,7 @@ updated: 2026-10-23T14:35:03.011929837Z
 - The `Indirect` branch writes `new Foo "a"`, `find PerlIO::Layer 'perlio'` and `import Config` as the source did; its comment, which leans on the forgiven parens, is rewritten. `require MODULE` keeps its existing bare path.
 - **A bare argument list that starts with `(` (M4, round 8).** perl reads `NAME (` as call parens, so a wrong tree whose first argument's emission begins with a `(` that does not enclose the whole list would re-emit the source's tokens exactly: source `print ($a), $b` (perl: `print($a), $b`, the parens end the list) with the wrong tree `print` over `($a), $b` would emit `print ($a), $b`. Canon therefore writes the call parens whenever the list's emission begins with `(` and that pair does not close at the list's end: the wrong tree emits `print(($a), $b)`, a paren the source lacks.
 - Tests that pin the old parenthesised spelling are updated to the precedence spelling, each with the perl evidence; the commit message lists them (pushback counted about 96 expectation lines; the executor counts them exactly, as the named-unary issue listed its 11).
-- **No test here asserts "unfaithful" (M1).** While the rule exists, `push (@a , 1 or die)` from a wrong tree is still forgiven. The wrong-tree tests assert canon's TEXT; the rule-removal issue asserts the verdicts.
+- **No test here asserts "unfaithful" (M1).** While the rule exists, `push (@a , 1 or die)` from a wrong tree is still forgiven. The wrong-tree tests assert canon's TEXT; the rule-removal issue asserts the verdicts. "Emits exactly" means the significant tokens of canon's output (through `significantTokens`, the comparison Faithful makes) equal the expected string's, not the raw bytes: canon writes ` , ` between arguments (`push(@a , 1)` today), and the tests must not pin that spacing (fresh7's note, round 8).
 - A user sub with a `($)` prototype the file cannot see is parsed and written as a list op here; that is M4 territory (round-7 ruling). The file-visible case is a named unary by the named-unary issue.
 
 ## Steps
