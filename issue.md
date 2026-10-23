@@ -9,7 +9,7 @@ blocks:
 - 01a0c362-0ff3-7f3f-b2d3-f6dbe8228f86
 - 01a0c436-39e4-7560-9bf0-81d647e96aae
 created: 2026-09-21T09:52:56.634555553Z
-updated: 2026-09-21T22:36:08.059588412Z
+updated: 2026-10-23T17:09:33.710747992Z
 sessions:
 - start_sha: 9750d03b51c601e083873e26c01cb22054bb120b
   end_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
@@ -87,12 +87,14 @@ the rest of the tier.
 caller's variable. A file that treats it as a plain array measures nothing
 about what makes it different.
 
+Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/07_subroutines` -> `TestCorpus` over the tier-07 topics (adjacency-07_subroutines.md, argument-extent.md, arguments.md, subroutines.md); `TestTierSubroutinesArgAliasing` -> the `arguments.md` case on `@_` aliasing the caller's variables, under `TestCorpus`). Left unchanged: `TestTierSubroutinesAdjacency`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Every file in 07_subroutines/ that this issue writes is validated against pinned perl 5.42.0 (`go test ./internal/conformance/ -run '^TestTierSubroutinesPerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesPerlValidated'`)
 - [ ] The dependency lint passes over 07_subroutines/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierSubroutinesLint$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesLint'`)
 - [ ] The tier's adjacency file puts every construct it introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestTierSubroutinesAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesAdjacency'`)
-- [ ] `@_` aliasing is measured against perl rather than assumed, since that is what distinguishes it from an array (`go test ./internal/conformance/ -run '^TestTierSubroutinesArgAliasing$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesArgAliasing'`)
+- [ ] `@_` aliasing is measured against perl rather than assumed, since that is what distinguishes it from an array (`go test ./internal/conformance/ -run '^TestCorpus$/^arguments\.md$/aliases_the_caller' -count=1 -v | grep -q '^    --- PASS: TestCorpus/arguments\.md/.*aliases_the_caller'`)
 - [ ] 07_subroutines/README.md states what the tier introduces, what it depends on, and why check 2 places it here (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierSubroutinesRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierSubroutinesRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/07_subroutines' -count=1 -v | grep -q '^    --- PASS: TestCorpus/07_subroutines'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-07_subroutines|argument-extent|arguments|subroutines)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
