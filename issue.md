@@ -1,10 +1,19 @@
 ---
 title: The corpus suite pins no total, so an empty corpus passes every gate
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T18:45:58.933910487Z
-updated: 2026-09-26T18:45:58.933910487Z
+updated: 2026-10-23T14:45:39.958488044Z
+sessions:
+- start_sha: 054e75e6f0548ae9b596ac0d16dadd06e0d100a9
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T14:45:39.958488044Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T14:45:39.958488044Z
 ---
 
 The corpus suite pins no total. An empty or unreadable `conformance/mdtest/`
