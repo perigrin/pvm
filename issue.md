@@ -3,15 +3,13 @@ title: List every unfaithful M3-dir file as a located defect
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
-blocked_by:
-- 01a16602-5ebe-7169-b857-996ae2953394
 blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 - 01a16602-6030-7faa-8408-bb3a8cb03f12
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 - 01a16602-60e9-7343-a630-7a93da5ee389
 created: 2026-10-22T23:46:33.975890599Z
-updated: 2026-10-23T01:08:10.766478827Z
+updated: 2026-10-23T01:08:50.197920901Z
 ---
 
 ## Context
