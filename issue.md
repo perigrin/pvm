@@ -1,6 +1,6 @@
 ---
 title: Write named unary ops by precedence, with the source's call parens recorded in the tree
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a1690b-4745-7ef7-9285-0a9f97d86924
 created: 2026-10-23T13:54:58.447919627Z
-updated: 2026-10-23T14:42:24.80212755Z
+updated: 2026-10-23T19:57:49.4560849Z
+sessions:
+- start_sha: 863b9896136941d0b13806459168c863fa094653
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T19:57:49.4560849Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T19:57:49.4560849Z
 ---
 
 ## Context
