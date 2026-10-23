@@ -1,0 +1,60 @@
+---
+title: Write a Paren node's parens once, and forgive only extra nesting
+state: pending
+urgency: normal
+milestone: m3-oracle-at-scale
+created: 2026-10-23T01:08:34.900061622Z
+updated: 2026-10-23T01:08:34.900061622Z
+---
+
+## Context
+
+- paths: `internal/parse/canon.go`, `internal/parse/fidelity.go`, `internal/parse/fidelity_test.go`, `internal/parse/canon_test.go`, `internal/parse/testdata/t1fidelity.ratchet`, `internal/parse/testdata/t1canon.ratchet`, `internal/parse/testdata/perlgittfaithful.ratchet`, `internal/parse/testdata/m3probes/canon-paren-once.txt` (new), `docs/specs/perl-parser/04-expressions.md`
+- commands: `go test ./internal/parse/ -run '^(TestCanonWritesParenOnce|TestFaithfulForgivesOnlyExtraNesting|TestFaithfulTokens|TestCanonCatchesMisgrouping|TestCanonQuotientIsNarrow)$' -count=1 -v`
+- entrypoints: `internal/parse/canon.go` (~344, the `List`/`Paren` case), `internal/parse/fidelity.go` (`Faithful`, `matchParen`)
+
+Once the context-changing dropped parens have been fixed as tree defects, the remaining dropped-paren failures are parens perl records but canon does not write. canon writes a source paren only for a `List`, and `Paren` is a bool.
+
+**perigrin's ruling (2026-10-22, revised after measurement).** Where a paren does not change meaning, perl builds the same ops but keeps the paren as one boolean bit, OPf_PARENS (`P`), on the op. `my $z = ($x)` is `padsv sP` vs `padsv s`, and `(($y eq "x"))` and `($y eq "x")` are identical trees. So **canon writes a `Paren` node's parens ONCE**, and **`Faithful` forgives ONLY extra nesting**: a source paren pair nested directly inside another pair around the same node (`((x))` vs `(x)`). This supersedes the earlier same-day ruling that `Faithful` forgive redundant parens.
+
+`Faithful(n *Node, src []byte)` takes a tree, so a test that says "source A against canon B is unfaithful" needs either a hand-built tree or a comparator over token sequences. This issue splits that comparator out of `Faithful` as `faithfulTokens(canon, src []string) bool`, with `Faithful` calling it. The negatives here and in the triage issues that follow use it.
+
+## Steps
+
+- [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Concise` on `my $z = ($x)` (with `my $x`; for a package `$x`, the `P` sits on a nulled `ex-rv2sv sKP`), on `ok(($y eq "x"))` vs `ok((($y eq "x")))`, and on `print ((1))+2` vs `print (1)+2`. Quote the output in the tests' comments.
+- [ ] RED/GREEN: write TestFaithfulTokens, then split `faithfulTokens` out of `Faithful` with no change in behaviour. TestCanonFidelityRatchet must not move.
+- [ ] RED: write TestCanonWritesParenOnce in canon_test.go. A `Paren` node on a non-`List` (`(shift)->foo`, `my $z = ($x)`, `ok(($y eq "x"))`) re-emits with exactly one pair, and `((x))` re-emits as `(x)`. Run it and watch it fail.
+- [ ] GREEN: make canon write a `Paren` node's parens once. Run it and watch it pass.
+- [ ] RED: write TestFaithfulForgivesOnlyExtraNesting in fidelity_test.go. `((x))` in the source against canon's `(x)` is faithful, and so is `(((x)))`. A source pair canon does not write at all (no `Paren` on the node) is still a difference. Run it and watch it fail.
+- [ ] GREEN: implement the forgiveness in `faithfulTokens`, limited to a pair nested directly inside another pair around the same node. Run it, TestCanonCatchesMisgrouping and TestCanonQuotientIsNarrow, and watch them all pass.
+- [ ] Add the measured cases as probe file `internal/parse/testdata/m3probes/canon-paren-once.txt`.
+- [ ] Re-baseline t1canon.ratchet, t1fidelity.ratchet and perlgittfaithful.ratchet in the same commit. The message names each moved file and why it moved. A file that goes from faithful to unfaithful blocks the commit.
+- [ ] Update docs/specs/perl-parser/04-expressions.md §4.10. Remove the stale "Measured 2026-09-17 at 3b9422eb ... `($x);` parses ... with no `Paren` node" claim, which §4.14.3's `Paren` row contradicts, and state the ruling.
+- [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer re-runs the perl measurements and writes NEW adversarial probes outside the corpus, and adds them to this issue's probe file under internal/parse/testdata/m3probes/ so TestM3ProbesHeldToPerl runs them from then on. Re-checking only the named case is not enough.
+- [ ] Run `make test`, then commit.
+
+## Acceptance criteria
+
+### Positive Scenarios
+
+- [ ] The token-sequence comparator behaves as Faithful did before the split (`go test ./internal/parse/ -run '^TestFaithfulTokens$' -count=1 -v | grep -q '^--- PASS: TestFaithfulTokens'`)
+- [ ] canon writes a Paren node's parens exactly once (`go test ./internal/parse/ -run '^TestCanonWritesParenOnce$' -count=1 -v | grep -q '^--- PASS: TestCanonWritesParenOnce'`)
+- [ ] Faithful forgives only extra nesting around the same node (`go test ./internal/parse/ -run '^TestFaithfulForgivesOnlyExtraNesting$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivesOnlyExtraNesting'`)
+- [ ] The perl.git t/ faithful count rose above the 342 recorded at the start (`sh -c 'n=$(sed -n "s|^# \([0-9][0-9]*\)/619 faithful.*|\1|p" internal/parse/testdata/perlgittfaithful.ratchet); [ -n "$n" ] && [ "$n" -gt 342 ]'`)
+- [ ] The perl.git t/ faithful ratchet matches the tree (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
+- [ ] The T1 canon ratchet matches its re-baselined file (`go test ./internal/parse/ -run '^TestCanonRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonRatchet'`)
+- [ ] The T1 fidelity ratchet matches its re-baselined file (`go test ./internal/parse/ -run '^TestCanonFidelityRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityRatchet'`)
+- [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
+- [ ] Regression guard: the forgiven quotient stays narrow (`go test ./internal/parse/ -run '^TestCanonQuotientIsNarrow$' -count=1 -v | grep -q '^--- PASS: TestCanonQuotientIsNarrow'`)
+- [ ] The measured cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/canon-paren-once.txt`)
+
+### Negative Scenarios
+
+- [ ] Source `my ($x) = @_` against canon `my $x = @_` is unfaithful. perl 5.42 builds `padrange` + `aassign` for the first and `padsv_store` for the second, so this paren is never forgiven (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenAfterMy$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenAfterMy'`)
+- [ ] Source `($y) x 3` against canon `$y x 3` is unfaithful. perl measures `repeat vK/DOLIST,2` for the first and `repeat vK/2` for the second (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenBeforeRepeat$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenBeforeRepeat'`)
+- [ ] Source `local ($x) = 1` against canon `local $x = 1` (for `our $x`) is unfaithful. perl measures `aassign` for the first and `sassign` for the second (`go test ./internal/parse/ -run '^TestFaithfulRejectsDroppedParenAfterLocal$' -count=1 -v | grep -q '^--- PASS: TestFaithfulRejectsDroppedParenAfterLocal'`)
+- [ ] The nesting rule does not forgive a call's argument parens as an outer pair. perl measures `print ((1))+2` as `const[IV 1] sP` and `print (1)+2` as `const[IV 1] s`, so source `print((1))+2` against canon `print(1)+2` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulDoesNotTreatCallParensAsNesting$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDoesNotTreatCallParensAsNesting'`)
+- [ ] A pair nested inside another pair but around a different node is not forgiven: source `((1) + 2)` against canon `(1 + 2)` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulDoesNotForgiveInnerPairAroundSubterm$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDoesNotForgiveInnerPairAroundSubterm'`)
+- [ ] Doubled parens in a context-changing position are forgiven only down to one pair, never to none. perl measures `(($y)) x 3` and `($y) x 3` identically, both as `repeat vK/DOLIST,2`, but source `(($y)) x 3` against canon `$y x 3` is unfaithful (`go test ./internal/parse/ -run '^TestFaithfulNestingForgivesToOnePairNotZero$' -count=1 -v | grep -q '^--- PASS: TestFaithfulNestingForgivesToOnePairNotZero'`)
+- [ ] canon keeps a call-argument pair around a grouped term: `print ((1+2)*3)` re-emits with both pairs, never as `print (1+2)*3` (`go test ./internal/parse/ -run '^TestCanonKeepsCallArgParenAroundGroupedTerm$' -count=1 -v | grep -q '^--- PASS: TestCanonKeepsCallArgParenAroundGroupedTerm'`)
+- [ ] `my ($p, $q) = (1, 2)` and `my $p, $q` are different trees; canon re-emits each as written, and Faithful rejects either against the other (`go test ./internal/parse/ -run '^TestFaithfulDistinguishesMyListFromMyComma$' -count=1 -v | grep -q '^--- PASS: TestFaithfulDistinguishesMyListFromMyComma'`)
