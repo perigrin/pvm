@@ -1,7 +1,7 @@
 # 02_variables
 
 Sigils, scalars, arrays, hashes, element access, `delete`/`exists`, `$::`,
-and the aggregate-argument operators `push`/`unshift`/`values`/`each`.
+and the aggregate-argument operators `push`/`pop`/`shift`/`unshift`/`splice`/`values`/`each`.
 
 ## Why this tier sits here
 
@@ -33,7 +33,7 @@ subject and `print` is tier 10's. Using a construct is not introducing it.
 
 ## INTRODUCES
 
-    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice keys multideref padav padhv push rv2av rv2hv sassign shift unshift values
+    aassign aelem aelemfast aelemfast_lex aelemfastlex_store aslice av2arylen delete each gv gvsv helem hslice keys multideref padav padhv pop push rv2av rv2hv sassign shift splice unshift values
 
 ## Why those ops, and not the ones the source implies
 
@@ -84,7 +84,7 @@ so far.
   `-1`'s two tokens against a folded constant.
 
 - **The aggregate-argument operators DO emit ops, and `keys` does not --
-  but only in scalar context.** `push`, `unshift`, `values` and `each`
+  but only in scalar context.** `push`, `unshift`, `shift`, `pop`, `splice`, `values` and `each`
   each compile to an op of their own, which is the opposite of what the
   `exists`/`delete` bullet above would lead a reader to expect, so the
   contrast is worth stating. What they share with nothing else in the

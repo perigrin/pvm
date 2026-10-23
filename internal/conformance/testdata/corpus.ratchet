@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 268 cases, 268 clean, 0 refusing.
+# 270 cases, 270 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -30,8 +30,10 @@
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`keys` in list context is an op, not a flag
+- aggregate-operators.md/`pop`: `shift` at the other end
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
 - aggregate-operators.md/`shift`: the rule again, and the array gives up an element
+- aggregate-operators.md/`splice`: the container, then an offset and a length
 - aggregate-operators.md/`unshift`: the same rule at the other end
 - aggregate-operators.md/`values` takes the container, not a flattened list
 - aggregates-in-context.md/The comma operator in scalar context discards its left operands
