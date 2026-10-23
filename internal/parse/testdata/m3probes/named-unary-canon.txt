@@ -92,3 +92,73 @@ $o->shift(1); $o->keys;
 --- facts
 faithful
 # $o->shift(1); $o->keys;
+
+=== pos as an assignment target
+pos $s = 1;
+--- facts
+faithful
+# (pos($s) = 1);
+
+=== ord absorbs a shift
+ord $x << 2;
+--- facts
+faithful
+# ord(($x << 2));
+
+=== lc absorbs a binding match
+lc $x =~ /a/;
+--- facts
+match 1 exact
+faithful
+# lc(($x =~ /a/));
+
+=== a unary plus before a parenthesised operand is not call parens
+defined +($x) . 1;
+--- facts
+faithful
+# defined(($x . '1'));
+
+=== a named unary as a hash key is a string
+$h{shift};
+--- facts
+faithful
+# $h{'shift'};
+
+=== shift with no operand before a concatenation
+$x = shift . 1;
+--- facts
+faithful
+# ($x = shift(@ARGV) . '1');
+
+=== lc of a niladic plus one
+lc time + 1;
+--- facts
+faithful
+# lc((time + 1));
+
+=== an optional-argument prototype before an or
+sub h(;$){1} h || 1;
+--- facts
+faithful
+# (h() or '???');
+
+=== a user sub overriding a named unary is a list operator
+use subs 'chdir'; chdir $x, 1;
+--- facts
+faithful
+# main::chdir($x, 1);
+# psc reads chdir here as the builtin named unary, (chdir($x), 1): a tree
+# defect `faithful` cannot see, because canon writes the source's spelling
+# either way. Reported with issue 01a1690b-1d10's review.
+
+=== a forward declaration after a list-prototype body
+sub g(@){1} sub g($); $r = g $x, $y;
+--- facts
+faithful
+# Prototype mismatch: sub g (@) vs ($); ($r = g($x, $y));
+
+=== a forward declaration after a unary-prototype body
+sub g($){1} sub g(@); $r = g $x, $y;
+--- facts
+faithful
+# Prototype mismatch: sub g ($) vs (@); (($r = g($x)), $y);
