@@ -109,6 +109,16 @@ func (p *parser) namedUnaryHere(spelled, text string) bool {
 	return p.keywordHas(spelled, text, ShapeUnary)
 }
 
+// namedUnaryCall reports whether a call to a word is a named unary op: a
+// builtin of the unary shape, or failing a builtin, a sub this file can see
+// whose prototype is unary -- the order parseWordTerm asks in.
+func (p *parser) namedUnaryCall(spelled, text string) bool {
+	if shape, ok := p.keywordShape(spelled, text); ok {
+		return shape == ShapeUnary
+	}
+	return p.knowsShape(text) && ShapeOf(p.subPrototype(text)) == ShapeUnary
+}
+
 // keywordHas reports whether a word parses as a builtin of the given shape
 // at this point in the file.
 func (p *parser) keywordHas(spelled, text string, shape Shape) bool {
@@ -230,6 +240,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.End = p.prevEnd()
 		_, n.Resolved = p.keywordShape(spelled, text)
+		n.ArgParen, n.NamedUnary = true, p.namedUnaryCall(spelled, text)
 		if n.Resolved {
 			p.readHandleSlots(n, text)
 		}
@@ -257,6 +268,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// this parser has seen declared.
 		_, keyword := p.keywordShape(spelled, text)
 		n.Resolved = keyword || p.knowsShape(text)
+		n.NamedUnary = p.namedUnaryCall(spelled, text)
 		return n
 	}
 
@@ -269,7 +281,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
 			n.Children = append(n.Children, arg)
 		}
-		n.Resolved = true
+		n.Resolved, n.NamedUnary = true, true
 
 	case p.keywordHas(spelled, text, ShapeList):
 		// A BLOCK slot comes before the list, and what makes it a slot

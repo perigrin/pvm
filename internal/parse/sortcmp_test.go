@@ -39,7 +39,9 @@ func TestSortComparator(t *testing.T) {
 		{"scalar is an element", "my @b = sort $x, $y;", "my @b = sort($x , $y);"},
 		// Keywords are not comparators. perl declines to force them, so
 		// `sort keys %h` sorts the keys.
-		{"keys", "my @b = sort keys %h;", "my @b = sort(keys(%h));"},
+		// keys is a named unary, written bare; perl 5.44.0 Deparse,-p:
+		// (my(@b) = sort(keys(%h))).
+		{"keys", "my @b = sort keys %h;", "my @b = sort(keys %h);"},
 		{"map", "my @b = sort map { $_ } @a;", "my @b = sort(map({$_;}@a));"},
 	}
 	for _, c := range cases {

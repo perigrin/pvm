@@ -408,6 +408,14 @@ type Node struct {
 	// perl's Deparse writes, `'Foo'->new(ARGS)`. See parseIndirect.
 	Indirect bool
 
+	// NamedUnary marks a Call the parser read as a named unary op: a builtin
+	// of the unary shape, a file test, or a sub this file can see whose
+	// prototype makes it unary. ArgParen marks a Call whose source wrote
+	// `NAME(`, the FUNC1 form; it is the argument list's parens, where Paren
+	// is the node's own grouping. Canon writes a named unary's parens only
+	// from ArgParen and binding power.
+	NamedUnary, ArgParen bool
+
 	// Modifier is set on a Conditional or Loop built from a STATEMENT
 	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
 	// the block form `if (COND) BLOCK`.

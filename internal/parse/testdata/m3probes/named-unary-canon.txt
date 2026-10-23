@@ -1,0 +1,94 @@
+Named unary ops written by precedence (issue 01a1690b-1d10). Canon writes a
+named unary bare where the source wrote it bare, with its call parens where
+the source wrote `NAME(` (the ArgParen flag) or where the operator after it
+is tighter than a named unary. Each snippet's Deparse,-p is perl 5.44.0's.
+
+=== defined before a looser or
+defined $x || $y;
+--- facts
+faithful
+# (defined($x) or $y);
+
+=== ref before eq
+ref $x eq 'A';
+--- facts
+faithful
+# (ref($x) eq 'A');
+
+=== defined under not
+!defined $x;
+--- facts
+faithful
+# not(defined($x));
+
+=== lc at a right operand
+$a . lc $b;
+--- facts
+faithful
+# ($a . lc($b));
+
+=== chdir with a filetest modifier
+chdir 't' if -d 't';
+--- facts
+faithful
+# chdir('t') if (-d 't');
+
+=== shift with no operand
+shift;
+--- facts
+faithful
+# shift(@ARGV);
+
+=== filetest with an operand
+-e $f;
+--- facts
+faithful
+# (-e $f);
+
+=== defined with the source's call parens
+defined($x) || $y;
+--- facts
+faithful
+# (defined($x) or $y);
+
+=== exists on a hash element
+exists $h{a};
+--- facts
+faithful
+# exists $h{'a'};
+
+=== defined absorbs a tighter power
+defined $x ** 2;
+--- facts
+faithful
+# defined(($x ** 2));
+
+=== defined keeps its parens before a tighter power
+defined($x) ** 2;
+--- facts
+faithful
+# (defined($x) ** 2);
+
+=== defined with a space before its call parens
+defined ($x) . "a";
+--- facts
+faithful
+# (defined($x) . 'a');
+
+=== a visible unary prototype
+sub one($){1} one $x, 2;
+--- facts
+faithful
+# (one($x), '???');
+
+=== a builtin unary import
+use builtin qw(blessed); blessed $o, 1;
+--- facts
+faithful
+# (builtin::blessed($o), '???');
+
+=== method names are not named unaries
+$o->shift(1); $o->keys;
+--- facts
+faithful
+# $o->shift(1); $o->keys;

@@ -33,7 +33,9 @@ func TestCorePrefixedKeyword(t *testing.T) {
 		{`CORE::state $x = 42;`, `CORE::state $x = 42;`},
 		{`CORE::my $y;`, `CORE::my $y;`},
 		{`CORE::say "ok";`, `CORE::say("ok");`},
-		{`my $n = CORE::length $s;`, `my $n = CORE::length($s);`},
+		// A named unary stays bare; perl 5.44.0 Deparse,-p:
+		// (my($n) = length($s)).
+		{`my $n = CORE::length $s;`, `my $n = CORE::length $s;`},
 		{`CORE::require bleah;`, `CORE::require bleah;`},
 		// A loop's declarator is looked up in its own table, which needs
 		// the prefix off as well -- op/for.t line 727.

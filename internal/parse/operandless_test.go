@@ -37,18 +37,6 @@ func TestOperandlessFiletest(t *testing.T) {
 		{"print -d;", "-d(;)"},
 		{"if (-e) { print 1 }", "-e(){"},
 		{"my @r = grep { -d } @list;", "-d }"},
-		// An INFIX operator after the filetest also means it has no operand.
-		// Perl supplies `$_` here too:
-		//
-		//	perl -MO=Deparse -e '$_="/etc"; -e or die;'
-		//	  ->  die unless -e $_;
-		//	perl -MO=Deparse -e '$_="/etc"; print -e ? 1 : 0;'
-		//	  ->  print -e $_ ? 1 : 0;
-		//
-		// A first version of the fix stopped at `;` and closers and left both
-		// of these refusing, so they are asserted rather than assumed.
-		{"-e or die;", "-e or"},
-		{"print -e ? 1 : 0;", "-e ?"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
@@ -62,20 +50,36 @@ func TestOperandlessFiletest(t *testing.T) {
 		}
 	}
 
-	// The operandless filetest emits as `-e()`, an empty argument list, which
-	// perl reads as the `$_` default -- measured on 5.42.0:
+	// The operandless filetest emits bare, as the source wrote it, which
+	// perl reads as the `$_` default -- measured on 5.44.0 with Deparse,-p:
 	//
-	//	$ perl -MO=Deparse -e 'my $x = -e(); my @x = grep(-e() , @l);'
-	//	my $x = -e $_;
-	//	my(@x) = grep((-e $_), @l);
+	//	my $x = -e;               (my($x) = (-e $_));
+	//	my $x = -t;               (my($x) = -t(STDIN));
+	//	my @x = grep -e, @l;      (my(@x) = grep((-e $_), @l));
+	//	my @x = grep { -e } @l;   (my(@x) = grep({(-e $_);} @l));
 	//
 	// The grep forms are issue 01a0de97's: the comma, and the block's `}`,
 	// each ended the filetest rather than being taken as its operand.
+	//
+	// An INFIX operator after the filetest also means it has no operand.
+	// Perl supplies `$_` here too:
+	//
+	//	perl -MO=Deparse -e '$_="/etc"; -e or die;'
+	//	  ->  die unless -e $_;
+	//	perl -MO=Deparse -e '$_="/etc"; print -e ? 1 : 0;'
+	//	  ->  print -e $_ ? 1 : 0;
+	//
+	// A first version of the fix stopped at `;` and closers and left both
+	// of these refusing, so they are asserted rather than assumed. The bare
+	// `-e or` is the source's own spelling, so the check is the whole
+	// emission: a swallowed `or die` would show as its argument.
 	for _, tc := range []struct{ src, want string }{
-		{"my $x = -e;", "my $x = -e();"},
-		{"my $x = -t;", "my $x = -t();"},
-		{"my @x = grep -e, @l;", "my @x = grep(-e() , @l);"},
-		{"my @x = grep { -e } @l;", "my @x = grep({-e();}@l);"},
+		{"my $x = -e;", "my $x = -e;"},
+		{"my $x = -t;", "my $x = -t;"},
+		{"my @x = grep -e, @l;", "my @x = grep(-e , @l);"},
+		{"my @x = grep { -e } @l;", "my @x = grep({-e;}@l);"},
+		{"-e or die;", "-e or die();"},
+		{"print -e ? 1 : 0;", "print(-e ? 1 : 0);"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
@@ -88,12 +92,14 @@ func TestOperandlessFiletest(t *testing.T) {
 	}
 
 	// REGRESSION GUARD, passes today: a filetest WITH an operand still takes
-	// it, and stacking still nests.
+	// it, and stacking still nests. Written bare as the source wrote it;
+	// perl 5.44.0 Deparse,-p: print((-e $f)), (my($x) = (-e $f)),
+	// (my($x) = -t(STDIN)), print((-d (-e $f))).
 	for _, tc := range []struct{ src, want string }{
-		{"print -e $f;", "print(-e($f));"},
-		{"my $x = -e $f;", "my $x = -e($f);"},
-		{"my $x = -t STDIN;", "my $x = -t(STDIN);"},
-		{"print -d -e $f;", "print(-d(-e($f)));"},
+		{"print -e $f;", "print(-e $f);"},
+		{"my $x = -e $f;", "my $x = -e $f;"},
+		{"my $x = -t STDIN;", "my $x = -t STDIN;"},
+		{"print -d -e $f;", "print(-d -e $f);"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)

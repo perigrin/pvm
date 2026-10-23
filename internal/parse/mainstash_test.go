@@ -27,12 +27,14 @@ func TestMainStashEmptyName(t *testing.T) {
 	for _, tc := range []struct{ src, shape, canon string }{
 		// A subscript of the stash `%::`, keyed `foo`.
 		{"my $r = $::{foo};", "( ( (my $r ({ $:: foo))))", "my $r = $::{foo};"},
-		{"my @k = keys %::;", "( ( (my @k (keys %::))))", "my @k = keys(%::);"},
+		// keys is a named unary, written bare; perl 5.44.0 Deparse,-p:
+		// (my(@k) = keys(%main::)) and (my(@k) = keys(%Foo::)).
+		{"my @k = keys %::;", "( ( (my @k (keys %::))))", "my @k = keys %::;"},
 		{"my %h = %::;", "( ( (my %h %::)))", "my %h = %::;"},
 
 		// REGRESSION GUARD: a NAMED package's stash, which always parsed.
 		{"my $r = $Foo::{bar};", "( ( (my $r ({ $Foo:: bar))))", "my $r = $Foo::{bar};"},
-		{"my @k = keys %Foo::;", "( ( (my @k (keys %Foo::))))", "my @k = keys(%Foo::);"},
+		{"my @k = keys %Foo::;", "( ( (my @k (keys %Foo::))))", "my @k = keys %Foo::;"},
 		{"*Foo:: = \\%Bar::;", "( ( (= *Foo:: (ref %Bar::))))", "*Foo:: = \\%Bar::;"},
 		{"my $x = \\%Foo::;", "( ( (my $x (ref %Foo::))))", "my $x = \\%Foo::;"},
 		{"my $r = $Foo::bar;", "( ( (my $r $Foo::bar)))", "my $r = $Foo::bar;"},
