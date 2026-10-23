@@ -8,43 +8,39 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-23T12:56:46.617002164Z
-updated: 2026-10-23T12:56:50.555430412Z
+updated: 2026-10-23T13:55:22.727782349Z
 ---
+
+**The title is stale and git-zhi cannot retitle.** Read it as "Split the faithful comparator out and enumerate the forgiveness rules, with no behaviour change". The role tags it names were dropped under perigrin's round-7 ruling: the call-paren forgiveness rule, their only consumer, is removed by the `not`/list-op issue, so canon records one bit per paren pair instead (below).
 
 ## Context
 
-- paths: `internal/parse/canon.go` (role tags on every paren it writes), `internal/parse/fidelity.go` (`faithfulTokens` split out of `Faithful`), `internal/parse/fidelity_test.go`, `internal/parse/testdata/t1fidelity.ratchet` and `internal/parse/testdata/perlgittfaithful.ratchet` (read; must not move)
-- commands: `go test ./internal/parse/ -run '^(TestFaithfulTokens|TestCanonTagsEveryParen|TestFaithfulForgivenessIsClosed)$' -count=1 -v`
+- paths: `internal/parse/canon.go` (records which `(`/`)` pairs it wrote from a node's `Paren` flag), `internal/parse/fidelity.go` (`faithfulTokens` split out of `Faithful`), `internal/parse/export_test.go` (exports `faithfulTokens` to `package parse_test`), `internal/parse/fidelity_test.go`, `internal/parse/testdata/t1fidelity.ratchet` and `internal/parse/testdata/perlgittfaithful.ratchet` (read; must not move)
+- commands: `go test ./internal/parse/ -run '^(TestFaithfulTokens|TestCanonMarksParenNodePairs|TestFaithfulForgivenessIsClosed)$' -count=1 -v`
 - entrypoints: `internal/parse/canon.go` (the strings.Builder emission), `internal/parse/fidelity.go` (`Faithful`, `isName`, `matchParen`, `matchForgivingSemicolons`, `significantTokens`)
 
-Split out of the Paren-once issue (K5, chain-review round 6) so that issue is not the largest single-session risk on the critical chain. This issue makes NO behaviour change. Every faithful verdict and both ratchets stay exactly as they are; the Paren-once issue then changes behaviour on top of it.
+Split out of the Paren-once issue (K5, chain-review round 6) so that issue is not the largest single-session risk on the critical chain. This issue makes NO behaviour change. Every faithful verdict and both ratchets stay exactly as they are. It runs in parallel with the named-unary canon issue, which edits canon.go and the parser but not fidelity.go; the `not`/list-op issue, which edits both, follows both.
 
 **What it builds.**
 - **The comparator.** `Faithful(n *Node, src []byte)` takes a tree, so a test that says "source A against canon B is unfaithful" needs a comparator over token sequences. This issue splits one out of `Faithful`, with this signature (K5):
 
-  `faithfulTokens(canon []CanonToken, src []string) (ok bool, forgiven []Forgiveness, reason string)`
+  `faithfulTokens(src []string, canon []CanonToken) (ok bool, forgiven []Forgiveness, reason string)`
 
-  Here `Forgiveness{CanonIndex int, SrcIndex int, Rule string}` records each forgiven difference and the rule that forgave it. `Faithful` calls `faithfulTokens` and keeps its current signature.
-- **Role tags.** `Canon` writes into a strings.Builder, and `Faithful` re-tokenizes the string. So canon records a role for every `(`/`)` it writes, by byte offset, and `CanonToken` carries it after re-tokenizing:
-  - `paren-node`: a node with `Paren` set;
-  - `call-args`: the argument list of a list operator, or of a user or method call;
-  - `operand`: the operand of a declarator (`my`/`our`/`local`/`state`), a named unary op, `not`, or a word infix op such as `x`;
-  - `binding`: required by binding power.
-
-  In this issue the call-paren rule still keys on `isName`, so behaviour does not change. The Paren-once issue narrows it to `call-args`, per perigrin's round-6 ruling.
-- **The closed-set test.** TestFaithfulForgivenessIsClosed enumerates the rules that exist today, `call-parens` and `last-semicolon`, each with a perl-measured fixture. It fails on any other rule name, and it pins `significantTokens`' dropped token kinds. The Paren-once issue adds the third rule, `extra-nesting`, and the extent negatives.
+  Here `Forgiveness{CanonIndex int, SrcIndex int, Rule string}` records each forgiven difference and the rule that forgave it. `Faithful` calls `faithfulTokens` and keeps its current signature. `faithfulTokens` is unexported; fidelity_test.go is `package parse_test`, so `internal/parse/export_test.go` gains `var FaithfulTokens = faithfulTokens` beside its existing exports (L8, chain-review round 7).
+- **One bit per paren pair, not four role tags (round-7 ruling).** `Canon` writes into a strings.Builder and `Faithful` re-tokenizes the string, so canon records, by byte offset, each `(`/`)` pair it wrote because the node's `Paren` flag is set, and `CanonToken{Text string; ParenNode bool}` carries that after re-tokenizing. Nothing consumes the bit in this issue. The Paren-once issue's extra-nesting rule does: it forgives a source pair nested directly inside a `ParenNode` pair, and nothing else. The round-6 tags `call-args`, `operand` and `binding` had one consumer, the call-paren rule, which the `not`/list-op issue removes under perigrin's round-7 ruling, so they are not built. That also retires K9 (a pair matching two roles) and L7 (the `my($x)` → `operand` fixture): a pair written from `Paren` is a `ParenNode` pair wherever it sits, and every other pair is not.
+- **The closed-set test.** TestFaithfulForgivenessIsClosed enumerates the rules in force at its commit, each with a perl-measured fixture, and fails on any other rule name. At this commit those are `call-parens` and `last-semicolon`. The `not`/list-op issue removes `call-parens` from the code and the enumeration; the Paren-once issue adds `extra-nesting` and the extent negatives. The end state is perigrin's round-7 set: exactly `last-semicolon` and `extra-nesting`. The test also pins `significantTokens`' dropped token kinds.
 
 **What fidelity.go forgives today (read 2026-10-23 at 054e75e6).** It has exactly the two rules its comment names:
-1. call parens, keyed on `(` right after a name in the emission, with the arguments matched unparenthesised;
+1. call parens, keyed on `(` right after a name in the emission (`isName`), with the arguments matched unparenthesised;
 2. a block's last `;`, before the emission's `}`.
 
-Rule 2 is also applied inside a forgiven call paren (`matchForgivingSemicolons`), for a block argument such as `print({$fh;} "x")`. That is the same rule one level down, not a fourth. Separately, `significantTokens` drops Whitespace, Comment, Pod and DataSection tokens before comparing. That is token selection, not a forgiven difference, but a skip added there would bypass the rule list. So TestFaithfulForgivenessIsClosed also pins the dropped token kinds to exactly those four.
+Rule 2 is also applied inside a forgiven call paren (`matchForgivingSemicolons`), for a block argument such as `print({$fh;} "x")`. That is the same rule one level down, not a third. Separately, `significantTokens` drops Whitespace, Comment, Pod and DataSection tokens before comparing. That is token selection, not a forgiven difference, but a skip added there would bypass the rule list. So TestFaithfulForgivenessIsClosed also pins the dropped token kinds to exactly those four.
 
 ## Steps
 
-- [ ] RED: write TestFaithfulTokens over a table of (canon tokens, source tokens, verdict, forgiven rules), copied from today's Faithful behaviour: the T1 and perl.git t/ examples in fidelity_test.go plus `print "x"` / `print("x")` and `sub f { 1 }` / `sub f { 1; }`. Run it and watch it fail (no `faithfulTokens` yet).
-- [ ] GREEN: split `faithfulTokens` out with the signature above, returning each forgiven difference's rule. Run it and TestCanonFidelityRatchet, and watch both pass, with the ratchet unmoved.
-- [ ] RED/GREEN: write TestCanonTagsEveryParen. Every `(` and `)` canon writes for a fixture set carries exactly one role tag, and the tags for `print("x")`, `my($x)`, `defined($x)`, `($x)` with Paren, and `(1 + 2) * 3` are `call-args`, `operand`, `operand`, `paren-node` and `binding`.
+- [ ] RED: write TestFaithfulTokens over a table of (source tokens, canon tokens, verdict, forgiven rules), copied from today's Faithful behaviour: the T1 and perl.git t/ examples in fidelity_test.go plus `print "x"` / `print("x")` and `sub f { 1 }` / `sub f { 1; }`. It calls `parse.FaithfulTokens` from export_test.go. Run it and watch it fail (no `faithfulTokens` yet).
+- [ ] GREEN: split `faithfulTokens` out with the signature above, returning each forgiven difference's rule, and add the export. Run it and TestCanonFidelityRatchet, and watch both pass, with the ratchet unmoved.
+- [ ] RED/GREEN: write TestCanonMarksParenNodePairs. For a fixture set, every `(`/`)` pair canon wrote from a node's `Paren` flag carries `ParenNode`, and no other pair does: `my ($x) = @_` (the List's pair, marked), `($x) x 3` (marked), `ok(($y eq "x"))` (the inner pair marked, the call's pair not), `print("x")` (not marked), `(1 + 2) * 3` (binding power, not marked).
 - [ ] RED/GREEN: write TestFaithfulForgivenessIsClosed with the two existing rules' fixtures. Measure each with the pinned perl 5.44.0: `print "x"` and `print("x")` print the same; `perl -e 'sub f { 1 } sub g { 1; } print f(), g()'` prints `11`. Pin the dropped token kinds to Whitespace, Comment, Pod and DataSection. Add TestFaithfulForgivenessIsClosedRejectsUnlistedRule: a fixture comparator reporting an unlisted rule name is flagged.
 - [ ] Run TestPerlGitTFaithfulRatchet and TestCanonFidelityRatchet. Neither may move; if one does, the split changed behaviour, so fix it.
 - [ ] Any change to internal/parse/sites.go, canon.go, fidelity.go or the parser gets a per-fix review against perl before merge. The reviewer checks that no verdict moved.
@@ -55,8 +51,9 @@ Rule 2 is also applied inside a forgiven call paren (`matchForgivingSemicolons`)
 ### Positive Scenarios
 
 - [ ] The token-sequence comparator reproduces Faithful's verdicts and names the rule behind each forgiven difference (`go test ./internal/parse/ -run '^TestFaithfulTokens$' -count=1 -v | grep -q '^--- PASS: TestFaithfulTokens'`)
-- [ ] Every paren canon writes carries one role tag (`go test ./internal/parse/ -run '^TestCanonTagsEveryParen$' -count=1 -v | grep -q '^--- PASS: TestCanonTagsEveryParen'`)
+- [ ] Every pair canon writes from a node's Paren flag is marked ParenNode, and no other pair is (`go test ./internal/parse/ -run '^TestCanonMarksParenNodePairs$' -count=1 -v | grep -q '^--- PASS: TestCanonMarksParenNodePairs'`)
 - [ ] The forgiven set is enumerated, each rule with a perl-measured fixture, and the dropped token kinds are pinned (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
+- [ ] The comparator is reachable from the external test package (`grep -q '^var FaithfulTokens = faithfulTokens' internal/parse/export_test.go`)
 - [ ] Regression guard: the T1 fidelity ratchet does not move (`go test ./internal/parse/ -run '^TestCanonFidelityRatchet$' -count=1 -v | grep -q '^--- PASS: TestCanonFidelityRatchet'`)
 - [ ] Regression guard: the perl.git t/ faithful ratchet does not move (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parse/ -run '^TestPerlGitTFaithfulRatchet$' -count=1 -v | grep -q '^--- PASS: TestPerlGitTFaithfulRatchet'`)
 
