@@ -963,6 +963,24 @@ func installedPin(job workflowJob) ([]string, []string) {
 	return pins, problems
 }
 
+// readsPin reports whether the script run names pin, by its path or, for
+// corpus.pin, by calling the pin script with no argument.
+func readsPin(run, pin string) bool {
+	body := uncommented(run)
+	if strings.Contains(body, pin) {
+		return true
+	}
+	if pin != oraclePin {
+		return false
+	}
+	for _, call := range pinScriptCall.FindAllStringSubmatch(body, -1) {
+		if call[1] == "" {
+			return true
+		}
+	}
+	return false
+}
+
 // workflowPinProblems checks every job in workflows (keyed by file name)
 // against want: each job is classified, installs perl from exactly its
 // pin, and never names the other pin.
@@ -1002,7 +1020,7 @@ func workflowPinProblems(workflows map[string]workflowFile, want map[string]stri
 				other = perl542Pin
 			}
 			for _, step := range job.Steps {
-				if strings.Contains(uncommented(step.Run), other) {
+				if readsPin(step.Run, other) {
 					problems = append(problems, fmt.Sprintf("%s step %q reads %s, the other perl's pin", key, step.Name, other))
 				}
 			}
@@ -1089,6 +1107,22 @@ jobs:
       with:
         perl-version: ${{ steps.perlpin.outputs.perl_version }}
     - run: grep revision internal/parseoracle/testdata/corpus.pin
+`},
+		"5.42 job reads corpus.pin through the script's default": {as542, `
+jobs:
+  test:
+    steps:
+    - id: perlpin
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
+    - id: opin
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@v5
+      with:
+        ref: ${{ steps.opin.outputs.revision }}
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+        multi-thread: ${{ steps.opin.outputs.threads == 'define' }}
 `},
 		"5.42 job names its own version": {as542, `
 jobs:
