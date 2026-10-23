@@ -8,20 +8,20 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.43792349Z
-updated: 2026-10-23T01:11:06.309450744Z
+updated: 2026-10-23T01:35:52.374260761Z
 ---
 
 ## Context
 
 - paths: `internal/parseoracle/opcount_test.go` (new), `internal/parseoracle/testdata/opcount/` (new), `.github/workflows/parse-fidelity.yml`
-- commands: `PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^(TestOpcountFixturesParse|TestOpcountFixturesHeldToPerl)$' -count=1 -v`
+- commands: `PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^(TestOpcountFixturesParse|TestOpcountFixturesHeldToPerl)$' -count=1 -v`
 - entrypoints: `$HOME/dev/perl5/t/perf/opcount.t` (`test_opcount`, ~line 49)
 
 M3 requires at least 200 `perf/opcount.t` assertions mined into fixtures. opcount.t holds 109 `test_opcount(` calls with 375 op=>count pairs; nothing in the repo mines them today. Each call gives a code snippet and the count of each named op perl compiles it to. This issue writes those as readable text/Markdown fixtures, not JSON, under `testdata/opcount/`. TestOpcountFixturesHeldToPerl asserts there are >= 200 op=>count assertions and runs perl on each snippet to confirm every count. The fixtures then hold their own provenance, and a later issue can grade internal/parse's sites against them. The test runs perl; no production code does. This issue shares no code with the rest of the milestone.
 
 ## Steps
 
-- [ ] The fixtures are held to the oracle's pinned perl, 5.44.0 (corpus.pin; found on PATH as the criteria show). Under 5.42, perl segfaults compiling perf/opcount.t whole (exit 139, first crash between lines 1120 and 1130, the builtin::indexed foreach snippets). Re-check that under 5.44.0, which compiles the file, and quote the result in the test's comment. Either way, mine and check snippets ONE AT A TIME, never by compiling the whole file. opcount.t's counts are blead's, so some may legitimately differ on 5.44.0. Each dropped fixture is quoted with perl's output, and the >= 100 nonzero floor must still hold.
+- [ ] The fixtures are held to the oracle's pinned perl, 5.44.0 (corpus.pin), found through `perltest.PinnedPerl`, so the tests skip under the 5.42 jobs and fail under `PVM_REQUIRE_PINNED_PERL=1`. Under 5.42, perl segfaults compiling perf/opcount.t whole (exit 139, first crash between lines 1120 and 1130, the builtin::indexed foreach snippets). Re-check that under 5.44.0, which compiles the file, and quote the result in the test's comment. Either way, mine and check snippets ONE AT A TIME, never by compiling the whole file. opcount.t's counts are blead's, so some may legitimately differ on 5.44.0. Each dropped fixture is quoted with perl's output, and the >= 100 nonzero floor must still hold.
 - [ ] Read opcount.t's `test_opcount` and its callback to learn how it counts ops, including which ops it skips and how it treats nested subs. Quote that in the test's comment.
 - [ ] Create `internal/parseoracle/opcount_test.go` with two `// ABOUTME:` lines.
 - [ ] RED: write TestOpcountFixturesParse. It reads every fixture in testdata/opcount/ into (name, snippet, op=>count) records, and asserts at least 200 op=>count pairs and the source line in opcount.t for each. Run it with no fixtures and watch it fail.
@@ -29,7 +29,7 @@ M3 requires at least 200 `perf/opcount.t` assertions mined into fixtures. opcoun
 - [ ] RED: write TestOpcountFixturesHeldToPerl. It runs the pinned perl with B on each snippet separately, counting ops the way opcount.t does, and compares against the fixture. Flip one count by hand, watch the test fail, and restore it.
 - [ ] GREEN: run the test and watch every fixture pass. Drop a fixture perl disagrees with only after quoting perl's output in the commit message.
 - [ ] Add internal/parseoracle/testdata/opcount/README.md describing the fixture format (snippet, op=>count pairs, the opcount.t line each came from), like internal/infer/testdata/oracle/README.md
-- [ ] CI's ratchet step runs only ./internal/parse and ./internal/lexer, so this test would never run there. Add a step to parse-fidelity.yml, which installs the pinned perl, that runs TestOpcountFixturesHeldToPerl and fails if it skips.
+- [ ] CI's ratchet step runs only ./internal/parse and ./internal/lexer, so this test would never run there. Add TestOpcountFixturesHeldToPerl and its perl-running siblings to parse-fidelity.yml's 5.44-held step (`PVM_REQUIRE_PINNED_PERL=1`), so they fail rather than skip there.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -38,15 +38,15 @@ M3 requires at least 200 `perf/opcount.t` assertions mined into fixtures. opcoun
 
 - [ ] The fixture directory is committed (`test -d internal/parseoracle/testdata/opcount`)
 - [ ] The fixtures hold at least 200 op=>count assertions, each traced to its opcount.t line (`go test ./internal/parseoracle/ -run '^TestOpcountFixturesParse$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesParse'`)
-- [ ] The pinned perl 5.44.0 confirms every mined op count (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixturesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesHeldToPerl'`)
+- [ ] The pinned perl 5.44.0 confirms every mined op count (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixturesHeldToPerl$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesHeldToPerl'`)
 - [ ] CI runs the held-to-perl test under the pinned perl (`grep -q TestOpcountFixturesHeldToPerl .github/workflows/parse-fidelity.yml`)
 
 ### Negative Scenarios
 
 - [ ] Zero counts cannot carry the floor. Of opcount.t's op=>count pairs, 177 are `=> 0`, and those pass for any snippet that lacks the op, including a truncated or mis-mined one. Every fixture must hold at least one nonzero count, and at least 100 of the >= 200 mined assertions must be nonzero (`go test ./internal/parseoracle/ -run '^TestOpcountFixturesNotCarriedByZeroCounts$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesNotCarriedByZeroCounts'`)
-- [ ] A fixture whose snippet perl fails to compile (a strict error, or a missing `use feature` from the enclosing block in opcount.t, such as `signatures` at line 269 or `try` at line 677) fails the held-to-perl test with perl's stderr; it is never scored as all-zero counts (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixtureCompileFailureIsAFailure$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixtureCompileFailureIsAFailure'`)
-- [ ] Counts are taken over the snippet sub's ROOT, the way `test_opcount` walks `B::svref_2object($coderef)->ROOT`, naming null ops `ex-<ppname>` by targ. They are not taken over the main program, where `leavesub` and the `nextstate` counts differ (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountCountsSubRootLikeOpcountT$' -count=1 -v | grep -q '^--- PASS: TestOpcountCountsSubRootLikeOpcountT'`)
-- [ ] A fixture with one count altered from perl's fails the held-to-perl check and names the op, the expected count and perl's count (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountDetectsDriftedCount$' -count=1 -v | grep -q '^--- PASS: TestOpcountDetectsDriftedCount'`)
-- [ ] Each fixture's snippet and counts still match the opcount.t line it names, so a fixture cannot drift from its source while still agreeing with perl (`PATH=$HOME/.local/share/pvm/versions/5.44.0/bin:$PATH PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixturesMatchTheirSourceLines$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesMatchTheirSourceLines'`)
+- [ ] A fixture whose snippet perl fails to compile (a strict error, or a missing `use feature` from the enclosing block in opcount.t, such as `signatures` at line 269 or `try` at line 677) fails the held-to-perl test with perl's stderr; it is never scored as all-zero counts (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixtureCompileFailureIsAFailure$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixtureCompileFailureIsAFailure'`)
+- [ ] Counts are taken over the snippet sub's ROOT, the way `test_opcount` walks `B::svref_2object($coderef)->ROOT`, naming null ops `ex-<ppname>` by targ. They are not taken over the main program, where `leavesub` and the `nextstate` counts differ (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountCountsSubRootLikeOpcountT$' -count=1 -v | grep -q '^--- PASS: TestOpcountCountsSubRootLikeOpcountT'`)
+- [ ] A fixture with one count altered from perl's fails the held-to-perl check and names the op, the expected count and perl's count (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountDetectsDriftedCount$' -count=1 -v | grep -q '^--- PASS: TestOpcountDetectsDriftedCount'`)
+- [ ] Each fixture's snippet and counts still match the opcount.t line it names, so a fixture cannot drift from its source while still agreeing with perl (`PERL5_CORPUS=$HOME/dev/perl5 go test ./internal/parseoracle/ -run '^TestOpcountFixturesMatchTheirSourceLines$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesMatchTheirSourceLines'`)
 - [ ] No two fixtures claim the same opcount.t line, and the 200 floor counts distinct (line, op) pairs, so duplicating a fixture cannot reach it (`go test ./internal/parseoracle/ -run '^TestOpcountFixturesHaveDistinctSources$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesHaveDistinctSources'`)
 - [ ] An empty or missing testdata/opcount/ fails the parse test; it does not report 0 assertions as a pass (`go test ./internal/parseoracle/ -run '^TestOpcountFixturesRejectEmptyDir$' -count=1 -v | grep -q '^--- PASS: TestOpcountFixturesRejectEmptyDir'`)
