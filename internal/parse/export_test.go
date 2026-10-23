@@ -42,3 +42,15 @@ func CoreSignaturesOf(src []byte) (map[string][]types.Signature, error) {
 	_, sigs, err := coreProtos(src)
 	return sigs, err
 }
+
+// FaithfulTokens is faithfulTokens, for TestFaithfulTokens and the
+// closed-set tests (fidelity_test.go).
+var FaithfulTokens = faithfulTokens
+
+// CanonTokens is canonTokens, for TestCanonMarksParenNodePairs
+// (fidelity_test.go).
+var CanonTokens = canonTokens
+
+// DroppedKinds is droppedKinds, for TestFaithfulForgivenessIsClosed
+// (fidelity_test.go).
+var DroppedKinds = droppedKinds
