@@ -137,9 +137,11 @@ type Finding struct {
 	Line int
 	// Marker is the parse fact perl reported there.
 	Marker Marker
-	// Bucket is BucketWider when the subject hedged the statement and
-	// BucketWrong when it committed with no site and no hedge. Never exact:
-	// an accounted-for site is not a finding.
+	// Bucket is BucketWider when the subject hedged the statement,
+	// BucketWrong when it committed with no site and no hedge, and
+	// BucketNoAnswer when the subject reported no site of the marker's kind
+	// anywhere in the file. Never exact: an accounted-for site is not a
+	// finding.
 	Bucket Bucket
 }
 

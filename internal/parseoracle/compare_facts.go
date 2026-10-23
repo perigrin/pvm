@@ -222,9 +222,15 @@ func compareMarkers(oracle Facts, subject SubjectFacts) Verdict {
 // decideMarker is the per-statement rule for one marker.
 func decideMarker(m Marker, lines []int, stmts []*statement, answered bool) Verdict {
 	if !answered {
+		// One finding per site entry, not per line: perl reports one entry
+		// per op, so two matches on one line are two sites left unanswered.
+		findings := make([]Finding, 0, len(lines))
+		for _, line := range lines {
+			findings = append(findings, Finding{Line: line, Marker: m, Bucket: BucketNoAnswer})
+		}
 		return Verdict{Bucket: BucketNoAnswer, Marker: m,
 			Detail: fmt.Sprintf("perl %s at %s, and the subject reported no site that answers "+
-				"the %s question", markerDeed[m], lineList(lines), m)}
+				"the %s question", markerDeed[m], lineList(lines), m), Findings: findings}
 	}
 
 	var wider, wrong []int
