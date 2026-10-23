@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T18:45:58.933910487Z
-updated: 2026-10-23T15:12:03.217569328Z
+updated: 2026-10-23T23:40:18.666956997Z
 sessions:
 - start_sha: 054e75e6f0548ae9b596ac0d16dadd06e0d100a9
   end_sha: 62cf900f71db986393d6d645b6814afefaea26e4
@@ -103,9 +103,11 @@ someone who did.
 - related: `01a0ddfb` (parse ratchet headers unchecked on read), `01a0deeb`
   (the t/ goal has no ratchet), `01a0de11` (lintOps sees names, not flags)
 
+Pinned exactly by perigrin's ruling 2026-10-23: the corpus count is an EXACT pin, not a floor. It fails above as well as below, which also catches a case added or duplicated by accident, at the cost of a one-line bump per contributed case. Scope items 1 and 2, which ask for a floor, are superseded by this ruling. The constant is `corpusSize` and the test `TestCorpusHoldsItsPinnedSize`, both in `internal/conformance/ratchet_test.go`. Criteria 1 and 2 now name that test and that comment; the previous commands passed at 054e75e6, before the work.
+
 ## Acceptance criteria
 
-- [ ] The corpus suite fails when the corpus is empty (`go test ./internal/conformance/ -run 'TestCorpus' -count=1 | grep -q '^ok'`)
-- [ ] The floor is a FLOOR, with a comment saying why not an exact match (`grep -qiE 'floor|at least' internal/conformance/ratchet_test.go`)
+- [ ] The corpus suite fails when the corpus holds more or fewer cases than its pinned size, so an empty corpus fails (`go test ./internal/conformance/ -run '^TestCorpusHoldsItsPinnedSize$' -count=1 -v | grep -q '^--- PASS: TestCorpusHoldsItsPinnedSize'`)
+- [ ] The count is an EXACT pin, with a comment saying why (`grep -q 'EXACT PIN' internal/conformance/ratchet_test.go && grep -q '^const corpusSize = ' internal/conformance/ratchet_test.go`)
 - [ ] REGRESSION GUARD, passes today: the corpus stays complete at 216 (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
 - [ ] REGRESSION GUARD, passes today: T2's own denominator pin still fires (`go test ./internal/parse/ -run TestT2CoreParses -count=1 | grep -q '^ok'`)
