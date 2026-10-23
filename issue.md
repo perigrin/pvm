@@ -1,6 +1,6 @@
 ---
 title: Report a ->{...} hash read's rv2hv exactly when perl keeps it out of multideref
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,51 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T20:56:12.815492387Z
+updated: 2026-10-23T22:42:23.992301029Z
 sessions:
 - start_sha: dc4eedf851417d8140ce674c986b642d4def4129
-  end_sha: ""
-  commits: 0
+  end_sha: 53c11cac135ca2830a13005fe0ca983c9df545ee
+  commits: 2
   started_at: 2026-10-23T20:56:12.815492387Z
+  ended_at: 2026-10-23T22:42:23.992301029Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T20:56:12.815492387Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T22:42:23.992301029Z
+observed_paths:
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/arrowhashread_test.go
+- internal/parse/barehandle_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coreprefix_test.go
+- internal/parse/coresubs_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/decl.go
+- internal/parse/emptycomma_test.go
+- internal/parse/featuregated_test.go
+- internal/parse/library_tpm_test.go
+- internal/parse/mainstash_test.go
+- internal/parse/namedunary_test.go
+- internal/parse/operandless_test.go
+- internal/parse/parenlessarity_test.go
+- internal/parse/parse.go
+- internal/parse/printmod_test.go
+- internal/parse/shape.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parse/sortcmp_test.go
+- internal/parse/term.go
+- internal/parse/testdata/m3probes/arrow-hash-read.txt
+- internal/parse/testdata/m3probes/named-unary-canon.txt
+- internal/parseoracle/rv2hvfell_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
