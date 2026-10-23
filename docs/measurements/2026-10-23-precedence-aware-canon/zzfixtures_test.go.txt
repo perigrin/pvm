@@ -1,0 +1,160 @@
+// ABOUTME: Scratch: canon and Faithful for named-unary fixtures, correct and wrong trees.
+// ABOUTME: Wrong trees are built by regrouping the parsed tree by hand.
+package parse
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// rotate turns Binary(op, Call(NAME, a), b) into Call(NAME, Binary(op, a, b)):
+// the named op taking the whole right-hand expression.
+func rotate(x *Node) *Node {
+	if (x.Kind != Binary && x.Kind != CmpChain) || len(x.Children) != 2 {
+		return nil
+	}
+	l, r := x.Children[0], x.Children[1]
+	if (l.Kind != Call && l.Kind != Unary) || len(l.Children) == 0 {
+		return nil
+	}
+	a := l.Children[len(l.Children)-1]
+	inner := &Node{Kind: x.Kind, Text: x.Text, Ops: x.Ops, Start: a.Start, End: r.End, Children: []*Node{a, r}}
+	c := *l
+	c.Children = append(append([]*Node{}, l.Children[:len(l.Children)-1]...), inner)
+	c.Start, c.End = l.Start, r.End
+	return &c
+}
+
+func lastIdx(n *Node) int {
+	for i := len(n.Children) - 1; i >= 0; i-- {
+		if n.Children[i].Kind == Statement && len(n.Children[i].Children) > 0 {
+			return i
+		}
+	}
+	return -1
+}
+
+func firstExpr(n *Node) *Node {
+	if i := lastIdx(n); i >= 0 {
+		return n.Children[i].Children[0]
+	}
+	return nil
+}
+
+// withStmt is n with its last statement's children replaced.
+func withStmt(n *Node, kids []*Node) *Node {
+	i := lastIdx(n)
+	ws := *n.Children[i]
+	ws.Children = kids
+	root := *n
+	root.Children = append([]*Node{}, n.Children...)
+	root.Children[i] = &ws
+	return &root
+}
+
+func dumpTree(n *Node) string {
+	var b strings.Builder
+	var w func(*Node)
+	w = func(x *Node) {
+		if x == nil {
+			b.WriteString("nil")
+			return
+		}
+		fmt.Fprintf(&b, "%s[%s", x.Kind, x.Text)
+		if x.NamedUnary {
+			b.WriteString(" NU")
+		}
+		if x.ArgParen {
+			b.WriteString(" AP")
+		}
+		if x.Paren {
+			b.WriteString(" P")
+		}
+		for _, c := range x.Children {
+			b.WriteByte(' ')
+			w(c)
+		}
+		b.WriteByte(']')
+	}
+	w(n)
+	return b.String()
+}
+
+func TestZZFixtures(t *testing.T) {
+	cases := []string{
+		"defined $x || $y;",
+		"ref $x eq 'A';",
+		"chdir 't' if -d 't';",
+		"lc $s;", "scalar @a;", "exists $h{a};", "shift;", "-e $f;",
+		"defined($x) || $y;",
+		"not $x or 1;",
+		"push @a, 1 or die;",
+		"sub foo; sub bar; foo 1, bar 2, 3;",
+	}
+	for _, design := range []bool{false, true} {
+		measureNarrow, measureCanonNU = design, design
+		fmt.Printf("== design=%v\n", design)
+		for _, src := range cases {
+			n := Parse([]byte(src))
+			ok, why := Faithful(n, []byte(src))
+			fmt.Printf("SRC %s\n  tree  %s\n  canon %s\n  faithful=%v %s\n", src, dumpTree(firstExpr(n)), Canon(n, []byte(src)), ok, why)
+			// wrong tree: rotate the statement's expression (or a modifier's body).
+			e := firstExpr(n)
+			var wrong *Node
+			if e != nil {
+				wrong = rotate(e)
+			}
+			if src == "exists $h{a};" {
+				idx := e.Children[0]
+				c := *e
+				c.Children = []*Node{idx.Children[0]}
+				c.End = idx.Children[0].End
+				ni := *idx
+				ni.Children = []*Node{&c, idx.Children[1]}
+				wrong = &ni
+			}
+			if e == nil {
+				fmt.Printf("  whole tree %s\n", dumpTree(n))
+				continue
+			}
+			if src == "sub foo; sub bar; foo 1, bar 2, 3;" && e.Kind == Call && len(e.Children) == 1 {
+				// foo(1, bar(2, 3)) -> foo(1, bar(2), 3)
+				comma := e.Children[0]
+				fmt.Printf("  (comma %s)\n", dumpTree(comma))
+				if comma.Kind == Binary && len(comma.Children) == 2 && comma.Children[1].Kind == Call {
+					bar := comma.Children[1]
+					if len(bar.Children) == 1 && bar.Children[0].Kind == Binary && bar.Children[0].Text == "," {
+						two, three := bar.Children[0].Children[0], bar.Children[0].Children[1]
+						nb := *bar
+						nb.Children = []*Node{two}
+						nb.End = two.End
+						left := &Node{Kind: Binary, Text: ",", Start: comma.Start, End: two.End, Children: []*Node{comma.Children[0], &nb}}
+						top := &Node{Kind: Binary, Text: ",", Start: comma.Start, End: three.End, Children: []*Node{left, three}}
+						ne := *e
+						ne.Children = []*Node{top}
+						wrong = &ne
+					}
+				}
+			}
+			if src == "defined($x) || $y;" {
+				// same grouping, ArgParen lost
+				w2 := *e
+				l := *e.Children[0]
+				l.ArgParen = false
+				w2.Children = []*Node{&l, e.Children[1]}
+				root := withStmt(n, []*Node{&w2})
+				ok, why := Faithful(root, []byte(src))
+				fmt.Printf("  NOPAREN-FLAG tree %s\n    canon %s\n    faithful=%v %s\n", dumpTree(&w2), Canon(root, []byte(src)), ok, why)
+			}
+			if wrong == nil {
+				fmt.Printf("  WRONG: none constructible\n")
+				continue
+			}
+			root := withStmt(n, append([]*Node{wrong}, n.Children[lastIdx(n)].Children[1:]...))
+			ok, why = Faithful(root, []byte(src))
+			fmt.Printf("  WRONG tree %s\n    canon %s\n    faithful=%v %s\n", dumpTree(wrong), Canon(root, []byte(src)), ok, why)
+		}
+	}
+	measureNarrow, measureCanonNU = true, true
+}

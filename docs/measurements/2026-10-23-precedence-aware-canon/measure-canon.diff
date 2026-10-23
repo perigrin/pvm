@@ -1,0 +1,277 @@
+diff --git a/internal/parse/call.go b/internal/parse/call.go
+index 520df63b..76948d1a 100644
+--- a/internal/parse/call.go
++++ b/internal/parse/call.go
+@@ -230,6 +230,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		}
+ 		n.End = p.prevEnd()
+ 		_, n.Resolved = p.keywordShape(spelled, text)
++		n.ArgParen, n.NamedUnary = true, p.namedUnaryHere(spelled, text)
+ 		if n.Resolved {
+ 			p.readHandleSlots(n, text)
+ 		}
+@@ -257,6 +258,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		// this parser has seen declared.
+ 		_, keyword := p.keywordShape(spelled, text)
+ 		n.Resolved = keyword || p.knowsShape(text)
++		n.NamedUnary = p.namedUnaryHere(spelled, text)
+ 		return n
+ 	}
+
+@@ -269,7 +271,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
+ 			n.Children = append(n.Children, arg)
+ 		}
+-		n.Resolved = true
++		n.Resolved, n.NamedUnary = true, true
+
+ 	case p.keywordHas(spelled, text, ShapeList):
+ 		// A BLOCK slot comes before the list, and what makes it a slot
+diff --git a/internal/parse/canon.go b/internal/parse/canon.go
+index dca2dfdc..99c025a4 100644
+--- a/internal/parse/canon.go
++++ b/internal/parse/canon.go
+@@ -31,10 +31,15 @@ func Canon(n *Node, src []byte) string {
+ // emit writes n, wrapping it in parentheses when its own binding power is
+ // looser than outer -- the power its parent will read it at.
+ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
++	// f is the power of the operator written right after n, which a named
++	// unary's operand would absorb; 0 when a closer or nothing follows.
++	f := follow
++	follow = 0
+ 	// A parenthesised element with a trailing separator keeps its parens
+ 	// whatever its binding power, so the separator stays inside them:
+ 	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
+ 	if emitWraps(n, outer) {
++		f = 0
+ 		b.WriteByte('(')
+ 		defer b.WriteByte(')')
+ 	}
+@@ -198,6 +203,21 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 			return
+ 		}
+
++		// A named unary op is written as an operator: its parens only where
++		// the source had them, or where an operator after it would otherwise
++		// bind into its operand.
++		if measureCanonNU && n.NamedUnary && !n.ArgParen && len(n.Children) <= 1 &&
++			(len(n.Children) == 0 || n.Children[0].Kind != Block) &&
++			(len(n.Children) == 0 || f <= bpNamedUnary) {
++			b.WriteString(n.Text)
++			if len(n.Children) == 1 {
++				b.WriteByte(' ')
++				follow = f
++				emit(b, n.Children[0], src, bpNamedUnary+1)
++			}
++			return
++		}
++
+ 		b.WriteString(n.Text)
+
+ 		// `eval { ... }` is the BLOCK form and takes no parens. Wrapping it
+@@ -287,6 +307,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 			// re-read, so this parenthesises it the same way.
+ 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
+ 				var operand strings.Builder
++				follow = f
+ 				emit(&operand, n.Children[0], src, prefix[op])
+ 				// The operand is emitted once and its text reused: emitting it
+ 				// again here doubles the work at every level of `!!!!$x`.
+@@ -300,11 +321,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 				}
+ 				break
+ 			}
++			follow = f
+ 			emit(b, n.Children[0], src, prefix[op])
+ 		}
+
+ 	case Postfix:
+ 		if len(n.Children) == 1 {
++			follow = infix[n.Text].BP
+ 			emit(b, n.Children[0], src, infix[n.Text].BP)
+ 		}
+ 		b.WriteString(n.Text)
+@@ -315,10 +338,13 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 			return
+ 		}
+ 		bp := infix["?"].BP
++		follow = bp
+ 		emit(b, n.Children[0], src, bp+1)
+ 		b.WriteString(" ? ")
++		follow = bp
+ 		emit(b, n.Children[1], src, bp)
+ 		b.WriteString(" : ")
++		follow = f
+ 		emit(b, n.Children[2], src, bp)
+
+ 	case CmpChain:
+@@ -332,6 +358,10 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 				b.WriteString(n.Ops[i-1])
+ 				b.WriteByte(' ')
+ 			}
++			follow = bp
++			if i == len(n.Children)-1 {
++				follow = f
++			}
+ 			emit(b, c, src, bp+1)
+ 		}
+
+@@ -367,6 +397,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 			b.WriteString(n.SourceText(src))
+ 			return
+ 		}
++		follow = atomBP
+ 		emit(b, n.Children[0], src, atomBP)
+ 		if n.Arrow {
+ 			b.WriteString("->")
+@@ -474,6 +505,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 					op = n.AssignOp
+ 				}
+ 				b.WriteString(" " + op + " ")
++				follow = f
+ 				emit(b, c, src, infix[op].BP)
+ 				continue
+ 			}
+@@ -504,6 +536,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 					b.WriteByte(' ')
+ 					b.WriteString(n.Text)
+ 					b.WriteByte(' ')
++					follow = f
+ 				}
+ 				emit(b, c, src, 0)
+ 			}
+@@ -621,6 +654,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 				b.WriteString(c.Text)
+ 				continue
+ 			}
++			follow = f
+ 			emit(b, c, src, 0)
+ 		}
+
+@@ -676,6 +710,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 		if n.Text == "=>" && n.Children[0].Kind == Call && len(n.Children[0].Children) == 0 {
+ 			b.WriteString(n.Children[0].Text)
+ 		} else {
++			follow = info.BP
+ 			emit(b, n.Children[0], src, l)
+ 		}
+ 		b.WriteByte(' ')
+@@ -691,6 +726,7 @@ func emit(b *strings.Builder, n *Node, src []byte, outer int) {
+ 			b.WriteByte(')')
+ 			return
+ 		}
++		follow = f
+ 		emit(b, n.Children[1], src, r)
+
+ 	default:
+@@ -875,6 +911,12 @@ func closer(open string) byte {
+ 	}
+ }
+
++// follow carries emit's f to the child emitted next; see emit.
++//
++// ponytail: a package variable rather than a parameter, so Canon is not safe
++// to call concurrently; thread it through emit's signature if it ships.
++var follow int
++
+ // atomBP is above every level in the table: nothing can split an atom.
+ const atomBP = 1000
+
+diff --git a/internal/parse/fidelity.go b/internal/parse/fidelity.go
+index e40a8497..ead95d38 100644
+--- a/internal/parse/fidelity.go
++++ b/internal/parse/fidelity.go
+@@ -34,9 +34,13 @@ import (
+ // TestCanonQuotientIsNarrow, which asserts that each rewrite is accepted and
+ // that a grouping difference of the same shape is not.
+ func Faithful(n *Node, src []byte) (bool, string) {
+-	want := significantTokens(src)
+-	got := significantTokens([]byte(Canon(n, src)))
++	return faithfulToks(significantTokens(src), significantTokens([]byte(Canon(n, src))))
++}
++
++// measureNarrow and measureCanonNU switch the scratch design on and off.
++var measureNarrow, measureCanonNU = true, true
+
++func faithfulToks(want, got []string) (bool, string) {
+ 	w, g := 0, 0
+ 	for w < len(want) && g < len(got) {
+ 		if want[w] == got[g] {
+@@ -59,7 +63,7 @@ func Faithful(n *Node, src []byte) (bool, string) {
+
+ 		// The one forgiven difference: the emission opened a paren the
+ 		// source did not, immediately after a call's name.
+-		if got[g] == "(" && g > 0 && isName(got[g-1]) {
++		if got[g] == "(" && g > 0 && isName(got[g-1]) && !namedUnaryAt(got, g-1) {
+ 			skip, ok := matchParen(got, g)
+ 			if !ok {
+ 				return false, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
+@@ -145,7 +149,7 @@ func matchForgivingSemicolons(want, inner []string) (int, bool) {
+ 		// A call's added parens inside these ones: the forgiven difference
+ 		// one level down, forgiven the same way. `print create Foo sub {...}`
+ 		// is emitted `print(create Foo(sub {...}))`.
+-		if inner[i] == "(" && i > 0 && isName(inner[i-1]) {
++		if inner[i] == "(" && i > 0 && isName(inner[i-1]) && !namedUnaryAt(inner, i-1) {
+ 			if skip, ok := matchParen(inner, i); ok {
+ 				if n, ok := matchForgivingSemicolons(want[w:], inner[i+1:skip]); ok {
+ 					w += n
+@@ -178,3 +182,24 @@ func isName(tok string) bool {
+ 	c := tok[0]
+ 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+ }
++
++// namedUnaryAt reports whether toks[i] names a named unary op: a file test or
++// a builtin CORE.tpm gives the unary shape, and not a method name after `->`.
++// Canon writes such an op's parens only where the source had them or binding
++// power requires them, so they are never forgiven.
++//
++// ponytail: token-level, so a feature-gated word (`fc`) or a user sub that
++// overrides a builtin counts as the builtin; the tree's NamedUnary flag is the
++// upgrade if that shows.
++func namedUnaryAt(toks []string, i int) bool {
++	if !measureNarrow {
++		return false
++	}
++	if i > 0 && toks[i-1] == "->" {
++		return false
++	}
++	if lexer.IsFileTest(toks[i]) {
++		return true
++	}
++	return coreShapes()[keywordName(toks[i])] == ShapeUnary
++}
+diff --git a/internal/parse/parse.go b/internal/parse/parse.go
+index 96e24ab8..dac25340 100644
+--- a/internal/parse/parse.go
++++ b/internal/parse/parse.go
+@@ -408,6 +408,12 @@ type Node struct {
+ 	// perl's Deparse writes, `'Foo'->new(ARGS)`. See parseIndirect.
+ 	Indirect bool
+
++	// NamedUnary marks a Call the parser read as a named unary op (a builtin
++	// of the unary shape, or a file test), and ArgParen a Call whose source
++	// wrote `NAME(` -- the FUNC1 form. Canon writes a named unary's parens
++	// only from these and binding power.
++	NamedUnary, ArgParen bool
++
+ 	// Modifier is set on a Conditional or Loop built from a STATEMENT
+ 	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
+ 	// the block form `if (COND) BLOCK`.
+diff --git a/internal/parse/term.go b/internal/parse/term.go
+index 25ae0ee6..3847af77 100644
+--- a/internal/parse/term.go
++++ b/internal/parse/term.go
+@@ -71,11 +71,12 @@ func (p *parser) parseTerm() *Node {
+ 	if lexer.IsFileTest(text) {
+ 		p.advanceTo(tok)
+ 		n := &Node{
+-			Kind: Call, Text: text, Resolved: true, Start: tok.Start,
++			Kind: Call, Text: text, Resolved: true, NamedUnary: true, Start: tok.Start,
+ 			End: tok.End,
+ 		}
+ 		if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
+ 			p.advanceTo(next)
++			n.ArgParen = true
+ 			if arg := p.parseCallArgs(); arg != nil {
+ 				n.Children = append(n.Children, arg)
+ 			}
