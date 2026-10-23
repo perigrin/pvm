@@ -3,8 +3,10 @@ title: Write a Paren node's parens once, and forgive only extra nesting
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-5f1a-7d56-a91d-5fa2c478d608
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-23T01:08:34.900061622Z
+updated: 2026-10-23T01:08:51.594387452Z
 ---
 
 ## Context
