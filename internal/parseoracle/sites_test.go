@@ -4,7 +4,12 @@
 package parseoracle
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,4 +239,65 @@ func TestExcludedAndErrorFilesContributeNoSites(t *testing.T) {
 	for m, totals := range counts {
 		assert.Zero(t, totals.Sum(), "%s counted sites from a file that was never graded", m)
 	}
+}
+
+// TestSubjectErrorIsWholeFileNoAnswer splits a run's failures by side. Perl
+// answered for ref.t and the subject did not -- it crashed on one run and
+// timed out on another -- so the file has ground truth and no answer: a
+// whole-file no-answer, every perl site counted. When the ORACLE fails
+// there is no ground truth, and the file stays a runner error, out of every
+// bucket.
+func TestSubjectErrorIsWholeFileNoAnswer(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the perl oracle is POSIX-only: parse_facts.pl runs perl through sh -c")
+	}
+	dir := t.TempDir()
+	write := func(name, src string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644))
+	}
+	write("ref.t", "sub f (\\@) {}\nmy @a;\nf(@a);\n")
+	// A compile-time fork that outlives its parent wedges the oracle, which
+	// is the shape test.pl's watchdog() creates; see TestRunBoundsAWedgedFile.
+	write("wedged.t", "BEGIN { my $pid = fork(); if (!$pid) { sleep 60; exit } }\nmy $x = 1;\n")
+
+	crashed := writeSubjectScript(t, "#!/bin/sh\necho 'psc: segmentation fault' >&2\nexit 139\n")
+	hung := writeSubjectScript(t, "#!/bin/sh\nexec sleep 30\n")
+	for name, subject := range map[string]*Subject{
+		"crashed":   {Command: []string{crashed}},
+		"timed out": {Command: []string{hung}, Timeout: 200 * time.Millisecond},
+	} {
+		t.Run(name, func(t *testing.T) {
+			report, err := Run(context.Background(), []string{"ref.t"}, RunOptions{Dir: dir, Subject: subject})
+			require.NoError(t, err)
+			r := report.Files[0]
+			require.Empty(t, r.Err, "a subject failure is not a runner error")
+			require.NotEmpty(t, r.SubjectErr, "the subject's failure is kept for triage")
+			assert.Equal(t, BucketNoAnswer, r.Verdict.Bucket, r.Verdict.Detail)
+			assert.Equal(t, MarkerNone, r.Verdict.Marker)
+			assert.Equal(t, 0, report.Errors)
+			assert.Equal(t, 1, report.Totals[BucketNoAnswer])
+			assert.Contains(t, report.String(), "subject error files:\n  ref.t: "+r.SubjectErr,
+				"a crash graded no-answer must still be named in the report")
+
+			counts, err := report.SiteBuckets()
+			require.NoError(t, err)
+			assert.Equal(t, map[Marker]Totals{MarkerSrefgen: buckets(0, 0, 0, 1)}, counts)
+		})
+	}
+
+	t.Run("oracle failed", func(t *testing.T) {
+		report, err := Run(context.Background(), []string{"wedged.t"},
+			RunOptions{Dir: dir, Subject: &Subject{Command: []string{crashed}}, Timeout: 2 * time.Second})
+		require.NoError(t, err)
+		r := report.Files[0]
+		require.NotEmpty(t, r.Err, "the oracle timed out: no ground truth")
+		assert.Empty(t, r.SubjectErr)
+		assert.Equal(t, 1, report.Errors)
+		assert.Zero(t, report.Measured())
+
+		counts, err := report.SiteBuckets()
+		require.NoError(t, err)
+		assert.Empty(t, counts)
+	})
 }
