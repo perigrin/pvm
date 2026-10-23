@@ -609,6 +609,35 @@ func TestHeld(t *testing.T) { _ = pinned(t) }
 	}
 }
 
+// TestEveryPinnedPerlTestIsRequiredRejectsIndirectReferences: PinnedPerl
+// reached through a package-level func literal or a function value hides
+// the test that uses it just as a helper does, and PinnedPerlAt outside
+// givenperl_test.go is a way round the check altogether. Each is flagged.
+func TestEveryPinnedPerlTestIsRequiredRejectsIndirectReferences(t *testing.T) {
+	for name, src := range map[string]string{
+		"func literal": `package parseoracle_test
+var pinned = func(t *testing.T) perltest.Perl { return perltest.PinnedPerl(t) }
+func TestHeldA(t *testing.T) { _ = pinned(t) }
+`,
+		"function value": `package parseoracle_test
+var pp = perltest.PinnedPerl
+func TestHeldC(t *testing.T) { _ = pp(t) }
+`,
+		"PinnedPerlAt": `package parseoracle_test
+func TestHeldB(t *testing.T) { _ = perltest.PinnedPerlAt(t, "testdata/corpus.pin") }
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			problems := pinnedPerlProblems(t, requireFixtureWorkflow(t), map[string][]byte{
+				"internal/parseoracle/x_test.go": []byte(src),
+			})
+			if len(problems) == 0 {
+				t.Errorf("a %s reaching PinnedPerl was not flagged", name)
+			}
+		})
+	}
+}
+
 // TestEveryPinnedPerlTestIsRequiredFlagsUnlistedSweepTest: a held test
 // named in neither REQUIRE step is flagged, even one whose name is a
 // prefix-sharing neighbour of a listed one.
@@ -773,17 +802,22 @@ func pinnedPerlProblems(t *testing.T, wf workflowFile, files map[string][]byte) 
 			t.Fatalf("parsing %s: %v", path, err)
 		}
 		pkg := filepath.Dir(path)
+		if filepath.Base(path) != pinnedPerlAtFile && references(f, "PinnedPerlAt") {
+			problems = append(problems, fmt.Sprintf("%s refers to PinnedPerlAt, which only %s may: "+
+				"elsewhere it reaches a pinned perl that no REQUIRE step holds", path, pinnedPerlAtFile))
+		}
 		for _, decl := range f.Decls {
+			if !references(decl, "PinnedPerl") {
+				continue
+			}
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil || !callsPinnedPerl(fn.Body) {
+			if !ok || fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "Test") {
+				problems = append(problems, fmt.Sprintf("%s: %s refers to PinnedPerl, but only a test "+
+					"function may; take a perltest.Perl parameter instead so the test that uses it is "+
+					"visible", path, declName(decl)))
 				continue
 			}
 			name := fn.Name.Name
-			if fn.Recv != nil || !strings.HasPrefix(name, "Test") {
-				problems = append(problems, fmt.Sprintf("%s: %s calls PinnedPerl, but only a test function "+
-					"may; take a perltest.Perl parameter instead so the test that calls it is visible", path, name))
-				continue
-			}
 			covered := false
 			for _, s := range steps {
 				if s.pkgs[pkg] && containsName(s.run, name) {
@@ -800,24 +834,38 @@ func pinnedPerlProblems(t *testing.T, wf workflowFile, files map[string][]byte) 
 	return problems
 }
 
-// callsPinnedPerl reports whether body calls PinnedPerl, through a package
-// selector or directly.
-func callsPinnedPerl(body ast.Node) bool {
+// pinnedPerlAtFile is the one test file that may use PinnedPerlAt: its
+// tests write their own pins, so none is held to the committed one.
+const pinnedPerlAtFile = "givenperl_test.go"
+
+// references reports whether node names the identifier name anywhere: a
+// call, a package selector, a function value, a func literal's body.
+// Matching references rather than calls is what keeps `var pp =
+// perltest.PinnedPerl` from hiding the tests that call pp.
+func references(node ast.Node, name string) bool {
 	found := false
-	ast.Inspect(body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	ast.Inspect(node, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
 		}
-		switch fun := call.Fun.(type) {
-		case *ast.SelectorExpr:
-			found = found || fun.Sel.Name == "PinnedPerl"
-		case *ast.Ident:
-			found = found || fun.Name == "PinnedPerl"
-		}
-		return true
+		return !found
 	})
 	return found
+}
+
+// declName names a declaration for a problem message.
+func declName(decl ast.Decl) string {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		return d.Name.Name
+	case *ast.GenDecl:
+		for _, spec := range d.Specs {
+			if v, ok := spec.(*ast.ValueSpec); ok && len(v.Names) > 0 {
+				return v.Names[0].Name
+			}
+		}
+	}
+	return "a declaration"
 }
 
 func containsName(names []string, name string) bool {
