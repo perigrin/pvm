@@ -518,10 +518,20 @@ func TestMethodNeedsClassSyntax(t *testing.T) {
 			t.Errorf("without class syntax `method` does not declare; got a Prototype")
 		}
 	}
-	src := `use feature 'class'; class C { method m ($, $y) { 1 } }`
-	if !hasToken(Tokenize([]byte(src)), []byte(src), Variable, "$y") ||
-		hasToken(Tokenize([]byte(src)), []byte(src), Variable, "$,") {
-		t.Errorf("under the class feature `method m ($, $y)` declares with a signature: %s",
-			renderKinds(Tokenize([]byte(src)), []byte(src)))
+	// `method m ($$)` tells the two apart. Without class syntax `m` is the
+	// match operator and `($$)` its delimited pattern, one Quote; under it
+	// `m` is the method's name and `($$)` its signature, whose sigils lex
+	// as variables, never a Prototype.
+	for src, class := range map[string]bool{
+		`method m ($$) { 1 }`: false,
+		`use feature 'class'; class C { method m ($$) { 1 } }`: true,
+	} {
+		toks := Tokenize([]byte(src))
+		named := hasToken(toks, []byte(src), Word, "m")
+		quoted := hasToken(toks, []byte(src), Quote, "m ($$)")
+		proto := hasToken(toks, []byte(src), Prototype, "($$)")
+		if class && (!named || quoted || proto) || !class && (named || !quoted) {
+			t.Errorf("%q: class syntax %v, got %s", src, class, renderKinds(toks, []byte(src)))
+		}
 	}
 }

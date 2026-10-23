@@ -50,8 +50,11 @@ func TestMethodHeadIsASignature(t *testing.T) {
 		"use experimental \"class\";\nclass C { method m (%o) { keys %o } }\n",
 		"use feature \"class\";\nclass C { method m ($x) { $x } }\n",
 	} {
-		if hasPrototype(src) {
-			t.Errorf("%q: a method's head lexed as a Prototype", src)
+		// The method's name is a Word. Without class syntax `m (...)` would
+		// be one Quote, a match with `(` delimiters.
+		toks := Tokenize([]byte(src))
+		if hasPrototype(src) || !hasToken(toks, []byte(src), Word, "m") {
+			t.Errorf("%q: a method's head is not a signature: %s", src, renderKinds(toks, []byte(src)))
 		}
 	}
 	// A sub beside it keeps its prototype: the feature is still off.
