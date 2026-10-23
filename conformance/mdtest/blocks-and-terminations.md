@@ -12,9 +12,10 @@ beside the block pair because `die` is only writable in this tier once
 `time` is here for neither reason, and says so: it is not control flow. It
 is in this tier because 06 is the EARLIEST tier that can hold it.
 
-**Tier 06 control.** Introduces `cond_expr`, `die`, `enteriter`,
-`entertry`, `exit`, `goto`, `iter`, `last`, `leavetry`, `next`, `redo`,
-`time`, `unstack`. Depends on 05_scoping.
+**Tier 06 control.** Introduces `cond_expr`, `die`, `entergiven`,
+`enteriter`, `entertry`, `enterwhen`, `exit`, `goto`, `iter`, `last`,
+`leavegiven`, `leavetry`, `leavewhen`, `next`, `redo`, `time`, `unstack`.
+Depends on 05_scoping.
 
 Every case binds a runtime value and branches on it second.
 A constant condition ERASES the construct: measured, `if (1) { print "y" }`

@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 263 cases, 263 clean, 0 refusing.
+# 268 cases, 268 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -101,6 +101,7 @@
 - comparison.md/The numeric relations and `<=>`
 - comparison.md/The string relations and `cmp`
 - comparison.md/`&&` and `and` are one op at two precedences
+- comparison.md/`~~` is neither relation family
 - compile-phase.md/A `#` at column zero that is not a comment
 - compile-phase.md/BEGIN runs first, END runs last, whatever the source order
 - compile-phase.md/`__PACKAGE__` is a bareword that is not a bareword
@@ -250,6 +251,9 @@
 - subroutines.md/The ampersand call passes the caller's `@_`
 - subroutines.md/`local` restores on call return, read through a call
 - subroutines.md/`return LIST` returns every element
+- switch.md/The parenless `default BLOCK`, taken, and the statement after it
+- switch.md/`given` with two `when` arms and a `default`
+- switch.md/`when` over a comparison, which does not smartmatch
 - symbol-table.md/`*` is a sigil and an operator, resolved by position
 - symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
 - symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type
@@ -259,6 +263,7 @@
 - taking-references.md/The backslash in scalar context
 - taking-references.md/The same backslash in list context
 - taking-references.md/`ref` over all three referent kinds
+- taking-references.md/`when (@l)` takes a reference no backslash spells
 - tie.md/`tie` is a list operator taking a VARIABLE
 - tie.md/`tied` is a named unary, in boolean position
 - unary.md/Pre and post, increment and decrement

@@ -5,7 +5,8 @@ repetition is a SYNTAX ERROR rather than a grouping.
 
 **Tier 04 operators.** Introduces `eq` `ne` `lt` `gt` `le` `ge` `ncmp`,
 `seq` `sne` `slt` `sgt` `sle` `sge` `scmp`, `and` `or` `dor` `not`
-`xor`, `cmpchain_and`, `cmpchain_dup`. Depends on 03_context.
+`xor`, `cmpchain_and`, `cmpchain_dup`, `smartmatch`. Depends on
+03_context.
 
 THE TWO COMPARISON FAMILIES ARE THE SAME RELATION OVER THE SAME
 OPERANDS, differing only in the context each imposes -- which is the
@@ -86,6 +87,46 @@ scmp [-1]
 
 ```tokens
 one word-shaped operator whose text is "cmp"
+```
+
+## `~~` is neither relation family
+
+The smartmatch operator, one op, `smartmatch`. It picks its comparison
+from its operands at run time: `3` and `"3.0"` both look like numbers, so
+`~~` compares them numerically and finds them equal where `eq`, on the
+same two operands, does not. That disagreement is the assertion.
+
+`~~` is claimed here, not with `given`/`when` in tier 06, because it is a
+binary operator reached without any switch -- `when (1)` emits this op,
+but so does this case, and this case is the earlier tier. Measured under
+5.42.0: it compiles silently under `perl -w` and `use warnings
+"deprecated"`, and `use v5.42` disables it while `use v5.40` does not.
+Disabled, `~~` is not an operator at all: `1 ~~ @a` is a syntax error, and
+`print $a ~~ "3.0"` compiles as a print to the filehandle `$a` and dies at
+run time. With no bundle it is available, so no case needs a `use
+feature`.
+
+An array operand smartmatches through an implicit reference and emits
+`srefgen`, tier 08's op, so only scalar operands are affordable here.
+
+```perl
+my $a = $ARGV[0] // 3;
+my $b = $ARGV[1] // "3.0";
+print "sm [", ($a ~~ $b), "]\n";
+print "eq [", ($a eq $b), "]\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+sm [1]
+eq []
+```
+
+```tokens
+one operator whose text is "~~"
 ```
 
 ## The five logical operators
