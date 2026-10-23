@@ -14,7 +14,7 @@ blocks:
 - 01a16602-5ebe-7169-b857-996ae2953394
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-22T23:46:33.509926758Z
-updated: 2026-10-23T01:36:14.633105744Z
+updated: 2026-10-23T01:55:58.746869153Z
 ---
 
 ## Context
@@ -23,7 +23,7 @@ updated: 2026-10-23T01:36:14.633105744Z
 - commands: `PERL5_CORPUS=$HOME/dev/perl5 PARSEORACLE_SHIM=$HOME/.cache/pvm/oracleshim PARSEORACLE_TIMEOUT=8m go test ./internal/parseoracle/ -run '^(TestRatchetCorpus|TestSiteRatchetCorpus)$' -parseoracle.corpus -count=1 -timeout 40m -v`
 - entrypoints: `internal/parseoracle/ratchet_test.go:43` (`corpusReport`, TestRatchetCorpus), `internal/parseoracle/gate_test.go:105-208` (TestCIGateRunsTheSweep, `baselineEnv`), `internal/parseoracle/receipt.go`
 
-Commit M3's oracle condition as a ratchet, at the 5.44.0 pin. TestSiteRatchetCorpus takes the report from `corpusReport(t)` and writes `testdata/ratchet/sites.txt` with two kinds of row. `site <path> <marker> <bucket> <count>` gives one row per file, marker and bucket. `total <scope> <marker> <bucket> <count>` gives the scope `all` or `m3`, the M3 dirs being `op mro uni lib test_pl`. The per-file rows are what make the ratchet see a swap between two files at equal totals; the totals rows are what later issues and the docs quote (A14, chain-review round 2). The test fails in both directions against that file and enforces the floor: M3-dir exact >= 80% of sites, and WRONG = 0 everywhere. The numbers are measured here, at the 5.44.0 pin, with op/magic.t's sites counted as no-answer until the op/magic.t issue fixes it. The 5.42 scratch figures are not a target. This issue records the starting site counts in m3start.txt (`rv2hv_wider`, `m3_exact_pct`). The op/magic.t issue re-records `rv2hv_wider` once that file is answered, and the rv2hv issues compare against the value it leaves.
+Commit M3's oracle condition as a ratchet, at the 5.44.0 pin. TestSiteRatchetCorpus takes the report from `corpusReport(t)` and writes `testdata/ratchet/sites.txt` with two kinds of row. `site <path> <marker> <bucket> <count>` gives one row per file, marker and bucket. `total <scope> <marker> <bucket> <count>` gives the scope `all` or `m3`, the M3 dirs being `op mro uni lib test_pl`. Only nonzero rows are written, sorted by kind, path, marker and bucket, so the diff stays readable (A22/P18). The per-file rows are what make the ratchet see a swap between two files at equal totals. A swap between two sites inside one file, at equal per-file counts, stays invisible; that is accepted, and baseline.txt's per-file status does not see it either. the totals rows are what later issues and the docs quote (A14, chain-review round 2). The test fails in both directions against that file and enforces the floor: M3-dir exact >= 80% of sites, and WRONG = 0 everywhere. The numbers are measured here, at the 5.44.0 pin, with op/magic.t's sites counted as no-answer until the op/magic.t issue fixes it. The 5.42 scratch figures are not a target. This issue records the starting site counts in m3start.txt: `rv2hv_wider`, whose scope is `all` (the whole 620-file corpus, sites.txt's `total all rv2hv wider`), and `m3_exact_pct`. The op/magic.t issue records `rv2hv_wider_after_magic` under its own key once that file is answered, and the arrow-read issue compares against that.
 
 The CI gate (gate_test.go) runs the committed sweep step over a five-file fixture shim, pointing the per-file baseline at a fixture through `baselineEnv`. It checks a receipt that only a completed TestRatchetCorpus writes. For TestSiteRatchetCorpus to join that step:
 - it needs its own baseline override and a fixture sites.txt for the gate's five files;
@@ -37,6 +37,7 @@ The CI gate (gate_test.go) runs the committed sweep step over a five-file fixtur
 - [ ] RED/GREEN: write TestCorpusReportComputesOnce, then memoise `corpusReport` with sync.Once (its error included).
 - [ ] RED: write TestSiteRatchetCorpus. Its counts come from the per-site helper. It compares them to sites.txt, honouring a `PARSEORACLE_SITES_BASELINE` override like the per-file `baselineEnv`, and fails on any difference, gain or loss. It regenerates the file under `-parseoracle.update`, and on a pass it adds the `sites` line to the receipt. Run it without sites.txt and watch it fail.
 - [ ] GREEN: generate sites.txt with `-parseoracle.update` at the 5.44.0 pin. Write `rv2hv_wider` and `m3_exact_pct` into m3start.txt from it. Run the sweep and watch both tests pass.
+- [ ] TestCISweepRunsOracleOnce and TestCIGateRunsTheSweep execute the sweep step, so they call `perltest.PinnedPerl`, skip on the 5.42 jobs, and are in parse-fidelity.yml's 5.44-held step. They live in package parseoracle_test.
 - [ ] RED: write TestCISweepRunsOracleOnce. It runs the gate's sweep step and asserts from the receipt that parseoracle.Run walked each file once, and that the receipt carries the `sites` line. Change the sweep step's `-run TestRatchetCorpus` in `.github/workflows/parse-fidelity.yml` to a pattern running both tests, point the gate at a fixture sites.txt via the override, and require the receipt's `sites` line. Run TestCIGateRunsTheSweep and TestCISweepRunsOracleOnce, and watch them pass.
 - [ ] Run `make test`, then commit.
 
@@ -47,7 +48,6 @@ The CI gate (gate_test.go) runs the committed sweep step over a five-file fixtur
 - [ ] The floor rejects M3-dir exact below 80% and any WRONG site (`go test ./internal/parseoracle/ -run '^TestSiteFloorRejectsBelowEightyOrWrong$' -count=1 -v | grep -q '^--- PASS: TestSiteFloorRejectsBelowEightyOrWrong'`)
 - [ ] The corpus report is computed once per process (`go test ./internal/parseoracle/ -run '^TestCorpusReportComputesOnce$' -count=1 -v | grep -q '^--- PASS: TestCorpusReportComputesOnce'`)
 - [ ] The starting rv2hv wider count is recorded beside the pin (`grep -Eq '^rv2hv_wider = [0-9]+$' internal/parseoracle/testdata/ratchet/m3start.txt`)
-- [ ] The CI sweep step runs the site ratchet (`grep -q TestSiteRatchetCorpus .github/workflows/parse-fidelity.yml`)
 - [ ] Regression guard (passes today; the issue extends it): the CI gate executes the sweep step, site ratchet and receipt line included (`go test ./internal/parseoracle/ -run '^TestCIGateRunsTheSweep$' -count=1 -v | grep -q '^--- PASS: TestCIGateRunsTheSweep'`)
 - [ ] One CI sweep walks each file once for both ratchets, and its receipt carries the sites line (`go test ./internal/parseoracle/ -run '^TestCISweepRunsOracleOnce$' -count=1 -v | grep -q '^--- PASS: TestCISweepRunsOracleOnce'`)
 - [ ] Regression guard: CI never regenerates the ratchets it checks, now that the sweep step also runs the site ratchet (`go test ./internal/parseoracle/ -run '^TestCINeverRebaselines$' -count=1 -v | grep -q '^--- PASS: TestCINeverRebaselines'`)
