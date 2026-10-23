@@ -11,7 +11,7 @@ blocks:
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 - 01a1664d-7bc8-7498-af02-7eaf187b43ed
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T01:55:50.039106108Z
+updated: 2026-10-23T07:06:01.955366713Z
 ---
 
 ## Context
@@ -25,6 +25,7 @@ The core-module-types postmortem's action 3 asks for the regression-probe corpus
 ## Steps
 
 - [ ] Create `internal/parse/probes_test.go` with two `// ABOUTME:` lines, and a README in testdata/m3probes/ describing the readable text format (snippet, perl facts, optional `known-defect` row).
+- [ ] Each probe row records, per marker, perl's count and psc's expected verdict, `exact` or `wider`. A psc hedge counts as agreement only where the row says `wider` explicitly. A row that says `exact` fails on a hedge, so a hedge cannot stand in silently for a decision, and a probe added by a fix that removes a hedge says `exact` (H7).
 - [ ] RED: write TestM3ProbesHeldToPerl. It loads every probe file and fails on an empty directory. It runs perl on each snippet and compares perl's facts with the recorded ones, then compares psc's facts with perl's. Seed one probe file, `baseline.txt`, from adversarial cases the reviews of this milestone's predecessors used (for example, `\(@a)` vs `\@a`, `my ($x) = @_`, and `keys %$r` in each context). Flip one recorded count, watch the test fail, and restore it.
 - [ ] GREEN: implement the fact extraction on both sides by reusing the oracle's perl-side probe (internal/parseoracle/testdata/parse_facts.pl) rather than writing a second one. Run the test and watch it pass.
 - [ ] RED/GREEN the negatives: TestM3ProbesRejectEmptyDir (an empty or missing probe directory fails), TestM3ProbesDetectDriftedFact (a fixture probe with one count changed from perl's fails and names the snippet, the marker, and both counts), and TestM3ProbesKnownDefectNamesAnIssue (a `known-defect` row without a git-zhi issue id fails).
