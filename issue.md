@@ -3,12 +3,10 @@ title: Triage statement-boundary re-emission differences in the M3 dirs
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
-blocked_by:
-- 01a16602-5f77-78ef-a0c7-538e0a241cdc
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-23T01:08:13.698716839Z
+updated: 2026-10-23T01:08:50.258835902Z
 ---
 
 ## Context
