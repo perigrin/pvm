@@ -5,6 +5,7 @@ package parseoracle
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -299,5 +300,86 @@ func TestSubjectErrorIsWholeFileNoAnswer(t *testing.T) {
 		counts, err := report.SiteBuckets()
 		require.NoError(t, err)
 		assert.Empty(t, counts)
+	})
+}
+
+// TestRatchetDistinguishesSubjectErrorFromRefusal freezes a subject crash as
+// its own status. Both are graded no-answer, but a baseline row that said
+// only "no-answer" could not tell a psc crash from an honest refusal, and a
+// crash that turned into a refusal would move nothing the ratchet checks.
+func TestRatchetDistinguishesSubjectErrorFromRefusal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the perl oracle is POSIX-only: parse_facts.pl runs perl through sh -c")
+	}
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ref.t"), []byte("sub f (\\@) {}\nmy @a;\nf(@a);\n"), 0o644))
+
+	run := func(subject *Subject) Report {
+		t.Helper()
+		report, err := Run(context.Background(), []string{"ref.t"}, RunOptions{Dir: dir, Subject: subject})
+		require.NoError(t, err)
+		return report
+	}
+	crashed := run(&Subject{Command: []string{writeSubjectScript(t, "#!/bin/sh\nexit 139\n")}})
+	refused := run(&Subject{Command: []string{writeFakeSubject(t, `{"ok": false}`)}})
+	require.Equal(t, BucketNoAnswer, crashed.Files[0].Verdict.Bucket)
+	require.Equal(t, BucketNoAnswer, refused.Files[0].Verdict.Bucket, refused.Files[0].Verdict.Detail)
+
+	pin := Pin{Interpreter: "perl", Revision: "r"}
+	crashRow := NewBaseline(pin, crashed, dir).Rows[0]
+	refusalRow := NewBaseline(pin, refused, dir).Rows[0]
+	assert.Equal(t, "subject-error", crashRow.Status)
+	assert.Equal(t, "no-answer", refusalRow.Status)
+
+	// The status survives a round trip through the committed form.
+	parsed, err := ParseBaseline([]byte(NewBaseline(pin, crashed, dir).Render()))
+	require.NoError(t, err)
+	assert.Equal(t, "subject-error", parsed.Rows[0].Status)
+
+	// A crash that becomes a refusal, or the reverse, is a move a human
+	// must look at -- neither is an improvement.
+	var diff *RatchetError
+	require.ErrorAs(t, NewBaseline(pin, crashed, dir).Check(refused), &diff)
+	assert.Len(t, diff.Regressions, 1)
+	require.ErrorAs(t, NewBaseline(pin, refused, dir).Check(crashed), &diff)
+	assert.Len(t, diff.Regressions, 1)
+}
+
+// TestSubjectBuildFailureIsRunnerError keeps the harness's own failures out
+// of the subject's grade. A default subject that would not build, or a
+// Subject with no command, never asked any parser anything, so the file is a
+// runner error -- not a no-answer charged to the parser.
+func TestSubjectBuildFailureIsRunnerError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the perl oracle is POSIX-only: parse_facts.pl runs perl through sh -c")
+	}
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ref.t"), []byte("my $x = 1;\n"), 0o644))
+
+	check := func(t *testing.T, subject *Subject, want string) {
+		t.Helper()
+		report, err := Run(context.Background(), []string{"ref.t"}, RunOptions{Dir: dir, Subject: subject})
+		require.NoError(t, err)
+		r := report.Files[0]
+		assert.Contains(t, r.Err, want)
+		assert.Empty(t, r.SubjectErr, "the harness failed, not the subject")
+		assert.Equal(t, 1, report.Errors)
+		assert.Zero(t, report.Measured())
+	}
+
+	t.Run("no command", func(t *testing.T) {
+		check(t, &Subject{}, "no command configured")
+	})
+
+	t.Run("default subject does not build", func(t *testing.T) {
+		// Settle the once first, then stand a build failure in for its
+		// result; the real result is restored for the tests that follow.
+		// This patches a package global, so the test must never be made
+		// parallel.
+		_, _ = defaultSubject()
+		saved := internalParse.err
+		internalParse.err = errors.New("building the internal/parse subject: exit status 1")
+		t.Cleanup(func() { internalParse.err = saved })
+		check(t, nil, "building the internal/parse subject")
 	})
 }

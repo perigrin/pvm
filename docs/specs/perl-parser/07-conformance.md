@@ -769,7 +769,11 @@ error**: perl answered and the subject did not, so the file stays in the
 denominator as a whole-file `no-answer`, every one of perl's marker sites
 counts as `no-answer`, and the report names the file under "subject error
 files:" with the subject's stderr alongside the exit status. An oracle-side
-failure is a **runner error** and leaves the denominator. Recording a crash as a rejection would put a parser
+failure is a **runner error** and leaves the denominator. The baseline freezes
+a subject error as `subject-error` rather than `no-answer`, so a crash cannot
+hide among refusals, and a harness failure on the subject's side -- a default
+subject that will not build, or a subject with no command -- is a runner
+error, because no parser was asked. Recording a crash as a rejection would put a parser
 opinion in the report that no parser held.
 
 **The subject runs where the oracle runs.** It is invoked from the corpus
