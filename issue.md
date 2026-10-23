@@ -1,10 +1,19 @@
 ---
 title: shift is introduced at tier 11, so plain array mutation cannot be written before the OO tier
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T13:24:36.843414308Z
-updated: 2026-09-26T13:24:36.843414308Z
+updated: 2026-10-23T15:16:23.050278532Z
+sessions:
+- start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T15:16:23.050278532Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T15:16:23.050278532Z
 ---
 
 `shift` is introduced at tier 11 oo, so plain array mutation cannot be
