@@ -118,7 +118,7 @@ exact         4 -              io/socketpair.t
 exact         6 -              io/tell.t
 exact         6 -              io/through.t
 exact        21 -              io/utf8.t
-wider        16 -              japh/abigail.t
+exact        16 -              japh/abigail.t
 exact         3 -              lib/commonsense.t
 exact         0 -              lib/croak.t
 no-answer     0 -              lib/cygwin.t
@@ -379,7 +379,7 @@ exact         2 -              op/splice.t
 exact        28 -              op/split.t
 exact         0 -              op/split_unicode.t
 exact        17 -              op/sprintf.t
-wider        41 -              op/sprintf2.t
+exact        41 -              op/sprintf2.t
 exact         8 -              op/srand.t
 exact         5 -              op/sselect.t
 wider        22 -              op/stash.t

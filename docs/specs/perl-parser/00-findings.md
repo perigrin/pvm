@@ -467,8 +467,8 @@ file moved the other way.
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 492 | 83.0% |
-| wider | 87 | 14.7% |
+| exact | 494 | 83.3% |
+| wider | 85 | 14.3% |
 | **WRONG** | **0** | **0.0%** |
 | no-answer | 14 | 2.4% |
 | *measured (denominator)* | *593* | |
@@ -493,6 +493,10 @@ or more LOGOPs, and the file's handler turned Concise's own warning into
 "CHECK failed". The oracle now removes that handler in a CHECK block that
 runs just before the backend, after the file's own CHECKs, and the file
 moved no-answer → wider: its 46 sites are 26 exact and 20 wider (rv2hv).
+
+Counting a `->{...}` chain's rv2hv by perl's multideref rule (01a12059-30a8,
+below) moved `japh/abigail.t` and `op/sprintf2.t` wider → exact, and the
+corpus's wider rv2hv sites from 416 to 399.
 
 ### WRONG pin removed: the corpus holds no WRONG file
 
@@ -567,19 +571,33 @@ sub f(){1} my $p; $p->{f()};        multideref
 my $p; my $x = $p->{a}{f()};        helem multideref
 ```
 
-Two things keep the rv2hv, and neither is in the text. A dereferenced
-element keeps it, at every level of the chain, when the context around the
-dereference modifies or vivifies it (push, chomp, grep, map, foreach, a
-sub's arguments, keys, assignment) -- perl's op_lvalue, not the source. A
-key that is not a constant or a plain scalar keeps it unless it
-constant-folds, which turns on declarations, or the element below it
-folded. Sites now hedges rv2hv for a hash element that is the whole
-operand of `@{}`, `%{}`, `${}` or `->@*`/`->%*`/`->$*`/`->$#*`, and for a
-brace subscript through a reference whose key is anything but a constant
-or a plain scalar. Simple-key chains read in place stay decided as no
-rv2hv. The chained `@{$r->{x}{$k}}` and `@{$a[0]{$k}}` no longer decide
-the one hash site the bare `@{$::{$k}}` stash deref does: perl emits two
-or none there, by context. The exact rule is issue 01a12059-30a8.
+The rule, decided by issue 01a12059-30a8 and measured on perl 5.44.0
+(`internal/parse/arrowhashread_test.go`,
+`internal/parse/testdata/m3probes/arrow-hash-read.txt`):
+
+- multideref folds a chain's subscripts in runs. A key it cannot hold --
+  not a constant or a plain scalar -- ends the run. That level keeps its
+  rv2hv unless the run before it folded something, whose multideref then
+  hands over the hash itself (`multideref($r->{"a"}->)`).
+- What is done with the dereference around the chain decides the last
+  level, through perl's op_lvalue. A read (an initialiser, the right of
+  `=`, arithmetic, a condition, print, join, reverse, scalar, return)
+  leaves it alone, and the chain folds. A modified `${...}` (`++`, the
+  left of `=`, `\`) leaves the last level out of multideref, which keeps
+  its rv2hv only if nothing before it folded. A modified `@{...}` or
+  `%{...}` (push, unshift, splice, pop, shift, chomp, chop, keys, values,
+  each, grep and map lists, foreach, sprintf lists, a sub's or method's
+  arguments, `\`, local, the left of `=`) or a slice of either keeps the
+  whole run holding the last level unfolded, and every brace level of it
+  keeps its rv2hv.
+
+Sites counts the rv2hv of every chain by this rule (`chainRv2hv`,
+`derefContext`). The shapes that still hedge, each named in
+TestArrowHashReadHedgesNameTheirShape: a key that is a call or anything
+else that might constant-fold (`sub f(){1}` folds `$r->{f()}`), a
+dereference in a context not measured (void, sort, `->$#*`, keys of a
+postfix `->%*`), and `$#{ $r->{k} }`, which the lexer reads as one token
+(01a0ad52).
 
 Four files moved, all to a better bucket; no exact file moved.
 - WRONG → wider: `japh/abigail.t` (`@{$program -> {SKIP_OS}}` at 191, 193,
