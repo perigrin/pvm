@@ -1,6 +1,6 @@
 ---
 title: Write named unary ops by precedence, with the source's call parens recorded in the tree
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,60 @@ blocked_by:
 blocks:
 - 01a1690b-4745-7ef7-9285-0a9f97d86924
 created: 2026-10-23T13:54:58.447919627Z
-updated: 2026-10-23T19:57:49.4560849Z
+updated: 2026-10-23T21:51:35.800409884Z
 sessions:
 - start_sha: 863b9896136941d0b13806459168c863fa094653
-  end_sha: ""
-  commits: 0
+  end_sha: f09a07a0f6b66e2d02cddebd76850d5db05b1ffd
+  commits: 4
   started_at: 2026-10-23T19:57:49.4560849Z
+  ended_at: 2026-10-23T21:51:35.800409884Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T19:57:49.4560849Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T21:51:35.800409884Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/00-findings.md
+- internal/lexer/expect_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/lexer/sigheads_test.go
+- internal/lower/ops.go
+- internal/parse/barehandle_test.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coreprefix_test.go
+- internal/parse/coresubs_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/decl.go
+- internal/parse/emptycomma_test.go
+- internal/parse/featuregated_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/library_tpm_test.go
+- internal/parse/mainstash_test.go
+- internal/parse/namedunary_test.go
+- internal/parse/operandless_test.go
+- internal/parse/parenlessarity_test.go
+- internal/parse/parenpos_test.go
+- internal/parse/parse.go
+- internal/parse/printmod_test.go
+- internal/parse/shape.go
+- internal/parse/sortcmp_test.go
+- internal/parse/term.go
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parse/testdata/m3probes/named-unary-canon.txt
+- internal/parseoracle/magic_test.go
+- internal/parseoracle/testdata/parse_facts.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
