@@ -282,7 +282,7 @@ lexer stops measuring the lexer, which is the one thing `--- expect tokens`
 exists to do -- see the corpus README on why `5e-1` needs a token assertion
 at all.
 
-The fifth refusal is `00_adjacency.t`, and it is the adjacency argument
+The fifth refusal is `adjacency-04_operators.md`, and it is the adjacency argument
 working exactly as tier 01 predicted: three Unknown nodes over a body whose
 every construct appears in a sibling file that parses. Only the mixture
 refuses.

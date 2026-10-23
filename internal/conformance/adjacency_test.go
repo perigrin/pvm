@@ -1,5 +1,5 @@
 // ABOUTME: The adjacency property, checked once for every tier: its adjacency topic emits every op the tier introduces.
-// ABOUTME: Also that each tier has such a topic, that it is multi-statement, and that it pairs with its prerequisite.
+// ABOUTME: Also that each tier has such a topic and that every case's main program is multi-statement.
 package conformance
 
 import (
@@ -45,23 +45,19 @@ func TestEveryTierHasAnAdjacencyTopic(t *testing.T) {
 // first does not reach, and that case is as much the tier's adjacency as
 // the first.
 //
-// Two further claims are checked because they are cheap and ops can
-// prove them:
+// One further claim is checked because it is cheap and ops can prove it:
+// EVERY CASE IS MULTI-STATEMENT. Adjacency needs two constructs to be
+// adjacent; a one-statement case cannot satisfy it whatever its prose
+// says. `nextstate` is one per statement, counted in the MAIN PROGRAM
+// only: a statement inside a sub body composes nothing with the main
+// program unless something calls the sub. See
+// TestAdjacencyCountsMainStatementsOnly.
 //
-//   - EVERY CASE IS MULTI-STATEMENT. Adjacency needs two constructs to be
-//     adjacent; a one-statement case cannot satisfy it whatever its prose
-//     says. `nextstate` is one per statement.
-//   - THE TOPIC USES AN OP OF ITS DECLARED PREREQUISITE. Weak where the
-//     prerequisite is 01_literals -- measured, any program emits most of
-//     tier 01's ops, because `print` and a statement are tier 01's -- and
-//     real elsewhere. A source-spelling pairing check, which tier 01
-//     would need, took a bespoke helper per tier and is not restored.
+// The tier's declared prerequisite is not checked here: ops cannot tell
+// one plausible declaration from another, as prereq_test.go measures, so
+// TestTierPrerequisitesMatchTheSpec pins the declaration instead.
 func TestAdjacencyCoversItsTier(t *testing.T) {
 	tiers, err := readTierOps(corpusDir)
-	if err != nil {
-		t.Fatalf("reading tier READMEs: %v", err)
-	}
-	deps, err := readTierDeps(corpusDir)
 	if err != nil {
 		t.Fatalf("reading tier READMEs: %v", err)
 	}
@@ -82,12 +78,12 @@ func TestAdjacencyCoversItsTier(t *testing.T) {
 					continue
 				}
 				n++
-				ops, err := opsOf(t, c.Source)
+				ops, k, err := adjacencyCaseOps(t, c.Source)
 				if err != nil {
 					t.Fatalf("%s: %v", c.Key, err)
 				}
-				if k := countOp(ops, "nextstate"); k < 2 {
-					t.Errorf("%s has %d statement(s); an adjacency case needs at least 2", c.Key, k)
+				if k < 2 {
+					t.Errorf("%s has %d statement(s) in its main program; an adjacency case needs at least 2", c.Key, k)
 				}
 				used = append(used, ops...)
 			}
@@ -108,12 +104,38 @@ func TestAdjacencyCoversItsTier(t *testing.T) {
 					"reachable for that construct.",
 					topic, strings.Join(missing, " "), tier)
 			}
-
-			if dep := deps[tier]; dep != "nothing" &&
-				!slices.ContainsFunc(tiers[dep], func(op string) bool { return slices.Contains(used, op) }) {
-				t.Errorf("%s emits no op of its prerequisite %s, so it pairs "+
-					"with nothing it claims to need", topic, dep)
-			}
 		})
+	}
+}
+
+// adjacencyCaseOps returns every op a case emits and the number of
+// statements in its MAIN PROGRAM, which is where adjacency lives.
+func adjacencyCaseOps(t *testing.T, source string) ([]string, int, error) {
+	ops, main, err := fileOps(t, source)
+	if err != nil {
+		return nil, 0, err
+	}
+	return ops, countOp(main, "nextstate"), nil
+}
+
+// TestAdjacencyCountsMainStatementsOnly pins that a statement inside a
+// sub body does not count toward an adjacency case's two. A sub nobody
+// calls composes nothing with the main program, so a case whose main
+// program is one statement is still a one-statement case.
+func TestAdjacencyCountsMainStatementsOnly(t *testing.T) {
+	for _, tc := range []struct {
+		source string
+		want   int
+	}{
+		{`print "hello"; sub unused { my $a=1; my $b=2 }`, 1},
+		{`print "a"; print "b";`, 2},
+	} {
+		_, statements, err := adjacencyCaseOps(t, tc.source)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.source, err)
+		}
+		if statements != tc.want {
+			t.Errorf("%s: counted %d statement(s), want %d", tc.source, statements, tc.want)
+		}
 	}
 }

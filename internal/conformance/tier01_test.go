@@ -50,17 +50,16 @@ func tierFiles(t *testing.T, tier string) map[string]*File {
 // adjacencyCase returns a tier's adjacency case and its key.
 //
 // The adjacency case is the one holding EVERY construct its tier
-// introduces, each beside another. It used to be a file named
-// `00_adjacency.t` and seventeen tests looked it up by that name; it is
-// now a case in `adjacency-<tier>.md`, which is how the port kept it
-// separable without a naming convention doing the work.
+// introduces, each beside another. It is a case in the tier's
+// adjacency topic, named by adjacencyTopic, which keeps it separable
+// without a naming convention doing the work.
 //
 // Found by TOPIC rather than by title, because the title is prose a
 // reader writes and the topic file name is structure.
 func adjacencyCase(t *testing.T, files map[string]*File, tier string) (*File, string) {
 	t.Helper()
 
-	want := "adjacency-" + tier + ".md/"
+	want := adjacencyTopic(tier) + "/"
 	for key, f := range files {
 		if strings.HasPrefix(key, want) {
 			return f, key
@@ -132,7 +131,7 @@ func TestTierLiteralsCoversGlossary(t *testing.T) {
 	//
 	// Measured before this exclusion landed: three of the fifteen
 	// boundaries below -- `= 42;`, `= 'plain';` and `= "` -- were
-	// supplied ONLY by `00_adjacency.t`, whose own header says it
+	// supplied ONLY by the adjacency case, whose own header says it
 	// introduces nothing of its own. Two of those three are the string
 	// literals that issue 01a0c360's acceptance criterion names by
 	// name, and the tier had no string file at all: twelve construct
@@ -160,7 +159,7 @@ func TestTierLiteralsCoversGlossary(t *testing.T) {
 				"\t%s is excluded deliberately: it composes every "+
 				"construct, so counting it would satisfy this check by "+
 				"construction.",
-				tierLiterals, b.spelling, b.boundary, adjacencyFile)
+				tierLiterals, b.spelling, b.boundary, adjKey)
 		}
 	}
 }
@@ -197,7 +196,7 @@ var reNumbered = regexp.MustCompile(`^(\d\d)_(.+\.t)$`)
 func regenerateNumbering(names []string) map[string]string {
 	var constructs []string
 	for _, n := range names {
-		if n == adjacencyFile {
+		if n == "00_adjacency.t" {
 			continue
 		}
 		m := reNumbered.FindStringSubmatch(n)
