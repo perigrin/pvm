@@ -55,6 +55,10 @@ from `\my $buf` (08).
 is not this tier's op at all but a method call. Measured, the pragma
 changes no op in this body beyond enabling `say` itself.
 
+`join("", reverse @rest)` is the pairing with 03_context in ops as well
+as in prose: the lines the LIST readline returned feed `reverse` and
+`join`, both 03's, so the body prints `third` before `second`.
+
 ```perl
 use feature "say";
 open(my $in, "<", \"first\nsecond\nthird\n");
@@ -62,6 +66,7 @@ my $head = <$in>;
 my @rest = <$in>;
 print STDOUT $head;
 print STDOUT scalar(@rest), " left, eof ", (eof($in) ? "yes" : "no"), "\n";
+print STDOUT join("", reverse @rest);
 close($in);
 open(my $out, ">", \my $buf);
 my $prev = select($out);
@@ -82,6 +87,8 @@ parses: yes
 ```output
 first
 2 left, eof yes
+third
+second
 round trip
 ready 0 sq 9 glob GLOB auto:missing
 ```

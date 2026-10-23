@@ -206,21 +206,21 @@ keywords that a reader would call the subject of the tier produce, between
 them, tier 05's `enterloop` and `leaveloop` plus `stub` and `methstart`.
 
 One more thing the op stream cannot see, and the reason this tier's
-adjacency file exists:
+adjacency topic exists. Measured 2026-09-21, our parser read:
 
     class Foo { ADJUST { 1 } }                   parses, 0 Unknowns
     class Foo { ADJUST { 1 } method m { 2 } }    1 Unknown, swallowing both
 
-`ADJUST` alone parses. `ADJUST` followed by anything -- `method`, `field`,
-or a second `ADJUST` -- does not. A corpus of one construct per file goes
-green over this by construction, because every construct in it passes in
-isolation. The adjacency file
+`ADJUST` alone parsed. `ADJUST` followed by anything -- `method`, `field`,
+or a second `ADJUST` -- did not. A corpus of one construct per case goes
+green over that by construction, because every construct in it passes in
+isolation. `adjacency-11_oo.md` puts every construct this tier introduces
+in one body, each adjacent to another, and it is what caught the bug.
+This is the case the whole adjacency design was written for.
 
-    class Foo { field $x; ADJUST { 1 } method m { 2 } }
-
-puts every construct this tier introduces in one body, each adjacent to
-another, and is what catches it. This is the case the whole
-adjacency-file design was written for.
+The parser has since fixed it: the adjacency case parses clean, and
+`internal/conformance/testdata/corpus.ratchet` records it clean.
+`TestCorpusRatchet` would report a regression if the pair broke again.
 
 ## HARD MARKERS
 
