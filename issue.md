@@ -1,6 +1,6 @@
 ---
 title: Resolve a named hash's declaring scope and whether state is enabled
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,48 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-23T01:08:36.424056648Z
-updated: 2026-10-23T18:03:32.92604789Z
+updated: 2026-10-23T20:28:59.655671632Z
 sessions:
 - start_sha: 5b88c65c7bdc2f2969d00476bef99270f1695b3c
-  end_sha: ""
-  commits: 0
+  end_sha: 79f02050c096f2f504836d628f2ceedae3417d83
+  commits: 4
   started_at: 2026-10-23T18:03:32.92604789Z
+  ended_at: 2026-10-23T20:28:59.655671632Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T18:03:32.92604789Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T20:28:59.655671632Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/lexer/expect_test.go
+- internal/lexer/ident.go
+- internal/lexer/lexer.go
+- internal/lexer/proto.go
+- internal/lexer/sigheads_test.go
+- internal/parse/canon.go
+- internal/parse/export_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/cmd/receipt/main.go
+- internal/parseoracle/gate_test.go
+- internal/parseoracle/opcount_test.go
+- internal/parseoracle/ratchet_test.go
+- internal/parseoracle/receipt.go
+- internal/parseoracle/receipt_test.go
+- internal/parseoracle/siteratchet.go
+- internal/parseoracle/sites_test.go
+- internal/parseoracle/testdata/opcount/README.md
+- internal/parseoracle/testdata/opcount/opcount.md
+- internal/parseoracle/testdata/ratchet/fixture-sites.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
