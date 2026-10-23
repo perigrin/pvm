@@ -9,7 +9,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-60e9-7343-a630-7a93da5ee389
 created: 2026-10-22T23:46:34.2538574Z
-updated: 2026-10-23T13:55:22.267451088Z
+updated: 2026-10-23T14:34:37.384251561Z
 ---
 
 ## Context
@@ -20,7 +20,7 @@ updated: 2026-10-23T13:55:22.267451088Z
 
 These are the `canon-adds-paren-op` rows of faithful_queue.txt, where canon writes a `(` the source lacks after an operator, a declarator, a named unary op, `not`, a word operator or `sub` (5f77's rule 7: `\my`, `- -`, `= not`, `** -`, `delete $::`). At 2026-10-22, examples were op/not.t, op/negate.t and op/undef.t. Under the round-7 ruling canon is precedence-aware and writes a call's parens only where the source had them (`ArgParen`) or where binding power requires them, plus a `Paren` node's pair. So an added paren here is one of two things: canon's binding-power table disagrees with perl's precedence (a canon defect, fixed in canon or `derivePowers`), or the tree groups the operands differently from perl (a parser misgrouping). There is no forgiveness to apply. That makes these the most important rows in the list. No case may be called a misgrouping, or forgiven, before it is judged against perl with `perl -MO=Deparse,-p` or an op tree. Scope is the rows of these classes in faithful_queue.txt when this issue starts, not a fixed file list. The 2026-10-22 first-difference list is only an example, because the Paren change exposes later differences. A fix that changes a row's class re-classifies it, and if that class's owner has already closed, this issue fixes it; the zero-row criterion covers every earlier owner's class to hold that (J1, chain-review round 5). The triage issues run in sequence after the dropped-paren rows issue (3323), which owns the `dropped-paren` rows and itself follows the OPf_PARENS check (OPf_PARENS, then dropped-paren rows, then heredoc/sub-less, then statement-boundary, then operator, then term), because they all edit canon.go, fidelity.go, fidelity_test.go, faithful_queue.txt and perlgittfaithful.ratchet. **Why the sequence stays (A23, chain-review round 3):** the shared-generated-files rule lets parallel branches regenerate faithful_queue.txt and the ratchets. It does not cover canon.go, fidelity.go and fidelity_test.go, which are hand-written and edited by every one of these issues. Running them in sequence also gives 5f77's handover rule a defined order: a fix that moves a row into a class whose owner has closed is handled by the issue that moved it, which only works if owners close in a known order. The cost is a longer critical chain, accepted over hand-merging four sets of canon/fidelity changes.
 
-**These negatives are satisfiable by construction (A28, round-7 ruling).** The call-paren rule is gone, so a canon `defined($x || $y)` or `not($x or 1)` from a wrong tree is a paren the source lacks and unfaithful. Each negative builds the wrong tree by hand (regroup the parsed tree, as scratchpad/m3/measure-canon.md did), runs `Canon`, and judges the result with `Faithful` against the source.
+**These negatives are satisfiable by construction (A28, round-7 ruling).** The call-paren rule is gone, so a canon `defined($x || $y)` or `not($x or 1)` from a wrong tree is a paren the source lacks and unfaithful. Each negative builds the wrong tree by hand (regroup the parsed tree, as docs/measurements/2026-10-23-precedence-aware-canon/README.md did), runs `Canon`, and judges the result with `Faithful` against the source.
 
 ## Steps
 
