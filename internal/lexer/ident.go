@@ -250,9 +250,15 @@ func (l *lexer) notePragma(start int) {
 			l.utf8Pragma = false
 		}
 		l.pendingPragma = 0
-	case "feature":
+	case "feature", "experimental":
 		// `use feature 'signatures'`: the pragma stays pending so the quoted
 		// feature name after it is still seen by noteSignatures.
+		// `use experimental` enables what `use feature` would, and `no
+		// experimental` disables it. Measured on perl 5.44.0:
+		//
+		//	use experimental "signatures"; sub f (%o) { keys %o }   padhv in f
+		//	use experimental "signatures"; no experimental "signatures";
+		//	sub f (%o) { keys %o }                                  rv2hv in f
 	default:
 		// A version bundle keeps the pragma pending too. `use v5.36;` USED
 		// TO lex its version as Word("v5") Operator(".") Number(36), so

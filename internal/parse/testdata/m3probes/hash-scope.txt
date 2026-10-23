@@ -122,3 +122,18 @@ faithful
 use if 1, feature => "state"; state %h; keys %h;
 --- facts
 faithful
+
+=== use experimental signatures
+use experimental "signatures"; sub f (%o) { keys %o; }
+--- facts
+faithful
+
+=== use experimental class, method signature
+use experimental "class"; class C { method m (%o) { keys %o; } }
+--- facts
+faithful
+
+=== class feature method head is a signature
+use feature "class"; no warnings; class C { method m (%o) { keys %o; } }
+--- facts
+faithful

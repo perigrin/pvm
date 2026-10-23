@@ -1,9 +1,10 @@
 // ABOUTME: Resolves each named hash use to the declaration in effect there -- my, our, state, local or none --
-// ABOUTME: and says whether the state feature is on there, walking the tree's lexical scopes as perl does.
+// ABOUTME: and whether the state and signatures features are on there, walking the lexical scopes as perl does.
 
 package parse
 
 import (
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,18 +14,25 @@ import (
 type hashUse struct {
 	// Decl is the declarator in effect: "my", "our", "state", "local" or
 	// "field", or "" where no declaration reaches and the hash is the
-	// package's. A signature's hash parameter is "my"; a field, like a my,
-	// is padhv.
-	// On a declaring variable it is that variable's own declarator.
+	// package's. A field, like a my, is padhv.
+	// On a declaring variable it is that variable's own declarator, and on
+	// a sub's or method's signature parameter it is "signature": a use of
+	// the parameter in the body resolves to "my".
 	Decl string
 	// Declares marks the variable a declaration names, `%h` in `my %h`.
 	Declares bool
 	// State is the state feature at this node. A
 	// `state %h` with it off declares nothing: perl reads `state % h`.
 	State featureState
-	// Unsure marks a use whose declaration is a `state` made where the
-	// feature was unknown: perl may have read it as `state % h`, and then
-	// the hash is whatever lies outside it.
+	// Signatures is the signatures feature at this node, as State is state.
+	// On a signature parameter it is whether its head is a signature: off
+	// makes the head an illegal prototype ("Illegal character in
+	// prototype") that declares nothing.
+	Signatures featureState
+	// Unsure marks a use whose declaration is a `state` or a signature
+	// parameter made where its feature was unknown: perl may have read
+	// `state % h`, or a prototype, and then the hash is whatever lies
+	// outside it.
 	Unsure bool
 }
 
@@ -51,6 +59,7 @@ type hashScope struct {
 	//	my %h = do { keys %h }     rv2hv, padhv[%h:3,4]
 	pending map[string]hashUse
 	state   featureState
+	sigs    featureState
 }
 
 // hashScopes resolves every named hash in root: each `%h`, and each `$h`
@@ -73,7 +82,7 @@ func (r *hashResolver) top() *hashScope { return r.scopes[len(r.scopes)-1] }
 func (r *hashResolver) push() {
 	s := &hashScope{decls: map[string]hashUse{}, pending: map[string]hashUse{}}
 	if len(r.scopes) > 0 {
-		s.state = r.top().state
+		s.state, s.sigs = r.top().state, r.top().sigs
 	}
 	r.scopes = append(r.scopes, s)
 }
@@ -91,7 +100,7 @@ func (r *hashResolver) introduce() {
 
 // resolve records a use of the hash name, from its innermost declaration.
 func (r *hashResolver) resolve(n *Node, name string) {
-	use := hashUse{State: r.top().state}
+	use := hashUse{State: r.top().state, Signatures: r.top().sigs}
 	for i := len(r.scopes) - 1; i >= 0; i-- {
 		if decl, ok := r.scopes[i].decls[name]; ok {
 			use.Decl, use.Unsure = decl.Decl, decl.Unsure
@@ -132,14 +141,14 @@ func (r *hashResolver) walk(n *Node) {
 		}
 
 	case Use:
-		r.noteState(n)
+		r.noteFeatures(n)
 		return
 
 	case Phaser:
 		// A BEGIN block runs as it is compiled and may turn a feature on
 		// in the scope around it: `BEGIN { feature->import("state") }`.
 		if n.Text == "BEGIN" {
-			r.top().state = stateUnknown
+			r.top().state, r.top().sigs = stateUnknown, stateUnknown
 		}
 
 	case Declaration:
@@ -150,7 +159,17 @@ func (r *hashResolver) walk(n *Node) {
 			//
 			//	use feature "signatures"; sub f ($x, %o) { keys %o } keys %o
 			//	padhv[%o:4,5] in f, rv2hv in main
-			r.walkHead(n, r.declareSignature)
+			//	use feature "class"; class C { method m (%o) { keys %o } }
+			//	padhv[%o:5,6] in C::m: a method's head is always a signature
+			//
+			// The parser's choice between prototype and signature follows
+			// the feature file-wide; this follows it lexically, as perl
+			// does, so either node may hold a signature.
+			sig := r.top().sigs
+			if keywordName(n.Text) == "method" {
+				sig = stateOn
+			}
+			r.walkHead(n, func(c *Node) { r.declareSignature(c, sig) })
 			return
 		}
 		if r.declare(n) {
@@ -198,21 +217,35 @@ func (r *hashResolver) walkHead(n *Node, head func(*Node)) {
 	r.pop()
 }
 
-// declareSignature reads a sub's head: a signature's hash parameters are
-// `my` declarations, and anything else is walked as usual.
-func (r *hashResolver) declareSignature(c *Node) {
+// declareSignature reads a sub's head, which is a signature as sig says:
+// its hash parameters are `my` declarations of the body, and anything else
+// is walked as usual. A head the parser took as a prototype names its
+// hashes only in its text.
+func (r *hashResolver) declareSignature(c *Node, sig featureState) {
+	if c.Kind == PrototypeNode {
+		if sig != stateOff {
+			for _, m := range prototypeHash.FindAllStringSubmatch(c.Text, -1) {
+				r.top().pending[m[1]] = hashUse{Decl: "my", Unsure: sig == stateUnknown}
+			}
+		}
+		return
+	}
 	targets := []*Node{c}
 	if c.Kind == List {
 		targets = c.Children
 	}
 	for _, t := range targets {
 		if t.Kind == Term && isNamedHash(t.Text) {
-			r.declareHash(t, "my")
+			r.declareHash(t, "signature", sig)
 		} else {
 			r.walk(t)
 		}
 	}
 }
+
+// prototypeHash finds the hashes a signature the parser read as a
+// prototype names: `%o` in `(%o)`, but nothing in `(\%)`.
+var prototypeHash = regexp.MustCompile(`%(\w+)`)
 
 func (r *hashResolver) walkChildren(n *Node) {
 	for _, c := range n.Children {
@@ -256,7 +289,11 @@ func (r *hashResolver) declare(n *Node) bool {
 				t = t.Children[0]
 			}
 			if t.Kind == Term && isNamedHash(t.Text) {
-				r.declareHash(t, decl)
+				gate := stateOn
+				if decl == "state" {
+					gate = r.top().state
+				}
+				r.declareHash(t, decl, gate)
 			} else {
 				r.walk(t)
 			}
@@ -268,18 +305,26 @@ func (r *hashResolver) declare(n *Node) bool {
 	return true
 }
 
-// declareHash records the declaring variable t and makes it pending.
-func (r *hashResolver) declareHash(t *Node, decl string) {
+// declareHash records the declaring variable t and makes it pending, where
+// its feature gate is not off: a `state`'s is the state feature, a
+// signature's the signatures feature. Unknown makes its uses Unsure.
+func (r *hashResolver) declareHash(t *Node, decl string, gate featureState) {
 	s := r.top()
-	r.uses[t] = hashUse{Decl: decl, Declares: true, State: s.state}
-	if decl == "state" && s.state == stateOff {
+	use := hashUse{Decl: decl, Declares: true, State: s.state, Signatures: s.sigs}
+	pend := decl
+	if decl == "signature" {
+		use.Signatures, pend = gate, "my"
+	}
+	r.uses[t] = use
+	if gate == stateOff {
 		return
 	}
-	s.pending[t.Text[1:]] = hashUse{Decl: decl, Unsure: decl == "state" && s.state == stateUnknown}
+	s.pending[t.Text[1:]] = hashUse{Decl: pend, Unsure: gate == stateUnknown}
 }
 
-// noteState applies a `use` or `no` to the top scope's state feature, which
-// ends with that scope as every feature does. Measured on 5.44.0:
+// noteFeatures applies a `use` or `no` to the top scope's state and
+// signatures features, which end with that scope as every feature does.
+// Measured on 5.44.0:
 //
 //	{ use feature "state"; } state %h; keys %h               rv2hv
 //	use feature "state"; no feature; state %h; keys %h       rv2hv
@@ -287,13 +332,17 @@ func (r *hashResolver) declareHash(t *Node, decl string) {
 //	use feature ":5.10"; ...; no feature ":5.10"; state %g   rv2hv
 //	use if 1, feature => "state"; state %h; keys %h          padhv
 //	use warnings; state %h; keys %h                          rv2hv
+//	use experimental "signatures"; sub f (%o) { keys %o }    padhv
+//	use feature "signatures"; use v5.10; sub f (%o) { keys %o }   rv2hv
 //
-// `use VERSION` sets the version's bundle, and a bare `no feature` returns
-// to the default bundle, which has no state. Any other module's import may
-// turn state on or off -- Modern::Perl and Mojo::Base do -- so after one the
-// feature is unknown, unless it is a core pragma known to leave features
-// alone. A `require` runs when the program does, too late to change one.
-func (r *hashResolver) noteState(n *Node) {
+// `use VERSION` sets the version's bundle -- state from 5.9.5, signatures
+// from 5.35 -- and a bare `no feature` returns to the default bundle, which
+// has neither. `use experimental` enables what `use feature` would. Any
+// other module's import may turn a feature on or off -- Modern::Perl and
+// Mojo::Base do -- so after one both are unknown, unless it is a core
+// pragma known to leave features alone. A `require` runs when the program
+// does, too late to change one.
+func (r *hashResolver) noteFeatures(n *Node) {
 	if n.Text == "require" || len(n.Children) == 0 {
 		return
 	}
@@ -302,56 +351,71 @@ func (r *hashResolver) noteState(n *Node) {
 	switch {
 	case module == "feature" && len(n.Children) == 1:
 		if n.Text == "no" {
-			s.state = stateOff
+			s.state, s.sigs = stateOff, stateOff
 		}
-	case module == "feature":
+	case module == "experimental" && len(n.Children) == 1:
+	case module == "feature" || module == "experimental":
 		names, ok := literalNameList(n.Children[1])
 		if !ok {
-			s.state = stateUnknown
+			s.state, s.sigs = stateUnknown, stateUnknown
 			return
 		}
+		to := stateOff
+		if n.Text == "use" {
+			to = stateOn
+		}
 		for _, name := range names {
+			hasState, hasSigs := name == "state", name == "signatures"
 			if bundle, ok := strings.CutPrefix(name, ":"); ok {
-				if has, _ := versionHasState("v" + bundle); bundle != "all" && !has {
-					continue
+				hasState, _ = perlVersionAtLeast("v"+bundle, 5, 9, 5)
+				hasSigs, _ = perlVersionAtLeast("v"+bundle, 5, 35, 0)
+				if bundle == "all" {
+					hasState, hasSigs = true, true
 				}
-			} else if name != "state" {
-				continue
 			}
-			s.state = stateOff
-			if n.Text == "use" {
-				s.state = stateOn
+			if hasState {
+				s.state = to
+			}
+			if hasSigs {
+				s.sigs = to
 			}
 		}
 	case len(n.Children) == 1 && isVersionText(module):
-		if has, ok := versionHasState(module); ok && n.Text == "use" {
-			s.state = stateOff
-			if has {
-				s.state = stateOn
-			}
+		if n.Text == "use" {
+			hasState, _ := perlVersionAtLeast(module, 5, 9, 5)
+			hasSigs, _ := perlVersionAtLeast(module, 5, 35, 0)
+			s.state, s.sigs = onIf(hasState), onIf(hasSigs)
 		}
 	case !quietPragmas[module]:
-		s.state = stateUnknown
+		s.state, s.sigs = stateUnknown, stateUnknown
 	}
+}
+
+func onIf(on bool) featureState {
+	if on {
+		return stateOn
+	}
+	return stateOff
 }
 
 // isVersionText reports whether a `use` names a perl version: `v5.10`,
 // `5.010`, `5.9.5`.
 func isVersionText(text string) bool {
-	_, ok := versionHasState(text)
+	_, ok := perlVersionAtLeast(text, 5, 0, 0)
 	return ok
 }
 
-// versionHasState reports whether the feature bundle of a perl version holds
-// state, which arrived in development release 5.9.5. Measured on 5.44.0,
-// each before `state %h; keys %h`:
+// perlVersionAtLeast reports whether a perl version is at least
+// major.minor.patch: state's bundle starts at development release 5.9.5,
+// and signatures' at 5.35. Measured on 5.44.0, each before
+// `state %h; keys %h`:
 //
 //	use 5.9.5    padhv     use 5.009005   padhv     use 5.009_005   padhv
 //	use 5.9.4    rv2hv     use 5.009004   rv2hv     use 5.010_001   padhv
 //
 // A decimal version's fraction is read in groups of three digits, and an
 // underscore is not a digit.
-func versionHasState(text string) (has, ok bool) {
+func perlVersionAtLeast(text string, major, minor, patch int) (atLeast, ok bool) {
 	text, dotted := strings.CutPrefix(text, "v")
 	parts := strings.Split(strings.ReplaceAll(text, "_", ""), ".")
 	if len(parts) < 2 || len(parts) > 3 {
@@ -369,5 +433,6 @@ func versionHasState(text string) (has, ok bool) {
 		}
 		v[i] = n
 	}
-	return v[0] > 5 || v[0] == 5 && (v[1] > 9 || v[1] == 9 && v[2] >= 5), true
+	want := [3]int{major, minor, patch}
+	return slices.Compare(v[:], want[:]) >= 0, true
 }

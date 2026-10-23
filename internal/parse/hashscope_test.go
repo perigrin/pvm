@@ -11,7 +11,8 @@ import (
 
 // resolvedHashes resolves src's named hashes and writes each in source
 // order: a declaring variable as `DECL %h`, a use as `%h=DECL`, with `pkg`
-// for a use no declaration reaches. A `state` declared with its feature off
+// for a use no declaration reaches. A signature parameter is `sig %o`, and
+// `sig! %o` or `sig? %o` where the signatures feature is off or unknown. A `state` declared with its feature off
 // declares nothing and is `state! %h`; one declared where the feature is
 // unknown is `state? %h`, and a use resolving to it `%h=state?`. withState
 // appends ` +s` where the state feature is on and ` ?s` where it is unknown.
@@ -31,6 +32,8 @@ func resolvedHashes(src string, withState bool) []string {
 			s = "state! " + n.Text
 		case u.Declares && u.Decl == "state" && u.State == stateUnknown:
 			s = "state? " + n.Text
+		case u.Declares && u.Decl == "signature":
+			s = map[featureState]string{stateOn: "sig ", stateOff: "sig! ", stateUnknown: "sig? "}[u.Signatures] + n.Text
 		case u.Declares:
 			s = u.Decl + " " + n.Text
 		case u.Unsure:
@@ -235,13 +238,13 @@ func TestHashScopeFeatureEndsWithItsBlock(t *testing.T) {
 func TestHashScopeSignatureDeclaresMy(t *testing.T) {
 	checkHashScopes(t, false, []hashScopeCase{
 		{"named sub", `use feature "signatures"; sub f ($x, %o) { keys %o } keys %o`,
-			[]string{"my %o", "%o=my", "%o=pkg"}},
+			[]string{"sig %o", "%o=my", "%o=pkg"}},
 		{"lone hash parameter", `use feature "signatures"; sub f (%o) { keys %o } keys %o`,
-			[]string{"my %o", "%o=my", "%o=pkg"}},
+			[]string{"sig %o", "%o=my", "%o=pkg"}},
 		{"anonymous sub", `use feature "signatures"; my $f = sub (%p) { keys %p }; keys %p`,
-			[]string{"my %p", "%p=my", "%p=pkg"}},
+			[]string{"sig %p", "%p=my", "%p=pkg"}},
 		{"method", `use v5.40; use feature "class"; class C { method m (%o) { keys %o } }`,
-			[]string{"my %o", "%o=my"}},
+			[]string{"sig %o", "%o=my"}},
 	})
 }
 
@@ -338,5 +341,52 @@ func TestHashScopeDeclaredRefs(t *testing.T) {
 			[]string{"my %h", "%h=my"}},
 		{"in a list", `use feature "declared_refs","refaliasing"; my (\%h, $x) = ({}, 1); keys %h`,
 			[]string{"my %h", "%h=my"}},
+	})
+}
+
+// TestHashScopeSignaturesFeature: a parenthesised sub head is a signature
+// where the signatures feature is on, and an illegal prototype ("Illegal
+// character in prototype") where it is off. The feature is lexical, a
+// `use VERSION` sets its bundle's (5.35 on), and a module or BEGIN block
+// leaves it unknown, where a head's hashes are declared Unsure. A method's
+// head is always a signature. The parser's own choice of prototype or
+// signature is file-wide; the resolver follows perl's lexical feature
+// either way. Measured on perl 5.44.0, -MO=Concise,-exec,-main,f:
+//
+//	use experimental "signatures"; sub f (%o) { keys %o }             padhv
+//	use experimental "class"; class C { method m (%o) { keys %o } }   padhv
+//	use feature "class"; class C { method m (%o) { keys %o } }        padhv[%o:5,6]
+//	sub f (%o) { keys %o }                                            rv2hv
+//	{ use feature "signatures"; } sub f (%o) { keys %o }              rv2hv
+//	use feature "signatures"; { no feature "signatures"; }
+//	sub f (%o) { keys %o }                                            padhv[%o:6,7]
+//	use 5.035; sub f (%o) { keys %o }                                 padhv
+//	use feature "signatures"; use v5.10; sub f (%o) { keys %o }       rv2hv
+//
+// `use Mojo::Base -signatures` turns the feature on through a module the
+// pinned perl does not have; it stands for any import this resolver cannot
+// read, as `BEGIN { 1 }` does.
+func TestHashScopeSignaturesFeature(t *testing.T) {
+	checkHashScopes(t, false, []hashScopeCase{
+		{"use experimental", `use experimental "signatures"; sub f (%o) { keys %o } keys %o`,
+			[]string{"sig %o", "%o=my", "%o=pkg"}},
+		{"experimental class method", `use experimental "class"; class C { method m (%o) { keys %o } }`,
+			[]string{"sig %o", "%o=my"}},
+		{"class feature method", `use feature "class"; class C { method m (%o) { keys %o } }`,
+			[]string{"sig %o", "%o=my"}},
+		{"Mojo::Base", `use Mojo::Base -strict, -signatures; sub f (%o) { keys %o }`,
+			[]string{"%o=my?"}},
+		{"BEGIN", `BEGIN { 1 } sub f (%o) { keys %o }`,
+			[]string{"%o=my?"}},
+		{"off", `sub f (%o) { keys %o }`,
+			[]string{"%o=pkg"}},
+		{"on inside a block, off after it", `{ use feature "signatures"; } sub f (%o) { keys %o }`,
+			[]string{"sig! %o", "%o=pkg"}},
+		{"off inside a block, on after it", `use feature "signatures"; { no feature "signatures"; } sub f (%o) { keys %o }`,
+			[]string{"%o=my"}},
+		{"5.35 bundle", `use 5.035; sub f (%o) { keys %o }`,
+			[]string{"%o=my"}},
+		{"use VERSION resets it", `use feature "signatures"; use v5.10; sub f (%o) { keys %o }`,
+			[]string{"sig! %o", "%o=pkg"}},
 	})
 }

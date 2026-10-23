@@ -505,22 +505,23 @@ func TestQuoteOpStillLexesElsewhere(t *testing.T) {
 
 // TestMethodNeedsClassSyntax: without class syntax `method` is a name, so
 // op/method.t's `method Pack ("a")` keeps its parens as arguments rather
-// than a prototype; `use feature 'class'` turns the keyword on. Measured on
-// 5.42.0, `sub Pack::method { "m" } my $x = method Pack ("a");` deparses as
-// `my $x = 'Pack'->method('a');`.
+// than a signature; `use feature 'class'` turns the keyword on, and a
+// method's head is then always a signature. Measured on 5.42.0,
+// `sub Pack::method { "m" } my $x = method Pack ("a");` deparses as
+// `my $x = 'Pack'->method('a');`. Measured on 5.44.0, `use feature "class";
+// class C { method m ($$) { 1 } }` is "Illegal character following sigil in
+// a subroutine signature" -- never a prototype -- and in a signature a bare
+// `$` is a placeholder rather than the start of the variable `$,`.
 func TestMethodNeedsClassSyntax(t *testing.T) {
 	for _, tok := range Tokenize([]byte(`my $x = method Pack ("a");`)) {
 		if tok.Kind == Prototype {
 			t.Errorf("without class syntax `method` does not declare; got a Prototype")
 		}
 	}
-	found := false
-	for _, tok := range Tokenize([]byte(`use feature 'class'; method m ($$) { 1 }`)) {
-		if tok.Kind == Prototype {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("under the class feature `method m ($$)` declares with a prototype")
+	src := `use feature 'class'; class C { method m ($, $y) { 1 } }`
+	if !hasToken(Tokenize([]byte(src)), []byte(src), Variable, "$y") ||
+		hasToken(Tokenize([]byte(src)), []byte(src), Variable, "$,") {
+		t.Errorf("under the class feature `method m ($, $y)` declares with a signature: %s",
+			renderKinds(Tokenize([]byte(src)), []byte(src)))
 	}
 }
