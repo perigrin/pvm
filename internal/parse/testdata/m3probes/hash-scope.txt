@@ -1,0 +1,85 @@
+The named-hash scope resolver's cases (hashscope.go): which declaration a
+`%h` use sees, and whether the state feature is on there. A `my` or a
+`state` with its feature on is padhv, no rv2hv; `our`, `local` and a hash
+no declaration reaches are rv2hv. Each snippet is a fixture of
+hashscope_test.go, with perl 5.44.0's rv2hv count.
+
+=== innermost my shadows our
+our %h; { my %h; keys %h; } keys %h;
+--- facts
+rv2hv 2 wider
+faithful
+
+=== closed block's my does not leak
+{ my %h; } keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== use before my is the package hash
+keys %h; my %h; keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== use before my in the same statement
+my $n = (keys %h, my %h); keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== local of an our hash
+our %h; local %h; keys %h;
+--- facts
+rv2hv 3 wider
+faithful
+
+=== initialiser sees the outer hash
+my %h = keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== condition's my reaches its block, not past it
+while (my %g = ()) { keys %g; } keys %g;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== state with the feature on
+use feature "state"; state %h; keys %h;
+--- facts
+faithful
+
+=== state with the feature off
+no feature "state"; state %h; keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== state with no feature at all
+state %h; keys %h;
+--- facts
+rv2hv 1 wider
+faithful
+
+=== use v5.10 enables state
+use v5.10; state %h; keys %h;
+--- facts
+faithful
+
+=== use v5.36 enables state
+use v5.36; state %h; keys %h;
+--- facts
+faithful
+
+=== feature on inside a block
+{ use feature "state"; state %h; keys %h; }
+--- facts
+faithful
+
+=== feature on inside a block ends with it
+{ use feature "state"; } state %h; keys %h;
+--- facts
+rv2hv 1 wider
+faithful
