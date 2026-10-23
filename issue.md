@@ -10,7 +10,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-09T11:07:58.504119457Z
-updated: 2026-10-23T07:06:43.171293524Z
+updated: 2026-10-23T12:56:39.538846194Z
 ---
 
 ## Context
@@ -47,7 +47,7 @@ So G10 and F11 were both right. op/ref.t has no `hedgeDerefElement` site, but it
 
 - [ ] An arrow hash read reports rv2hv exactly when perl keeps it (`go test ./internal/parse/ -run '^TestArrowHashReadFollowsMultideref$' -count=1 -v | grep -q '^--- PASS: TestArrowHashReadFollowsMultideref'`)
 - [ ] The committed rv2hv wider count is below the count recorded once op/magic.t was answered (`go test ./internal/parseoracle/ -run '^TestRv2hvWiderFellFromM3Start$' -count=1 -v | grep -q '^--- PASS: TestRv2hvWiderFellFromM3Start'`)
-- [ ] The measured contexts are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/arrow-hash-read.txt`)
+- [ ] The measured contexts are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/arrow-hash-read.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
 - [ ] Each of the three files carrying a hedge this issue owns (japh/abigail.t and op/gmagic.t, arrow; op/ref.t, computed key) had an rv2hv wider row when op/magic.t was answered, and has fewer now (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_magic" -- $f/m3start.txt); [ -n "$c" ] || exit 1; for p in japh/abigail.t op/gmagic.t op/ref.t; do a=$(git show $c:$f/sites.txt | awk -v p=$p "\$1==\"site\" && \$2==p && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] || exit 1; b=$(awk -v p=$p "\$1==\"site\" && \$2==p && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}" $f/sites.txt); [ "${b:-0}" -lt "$a" ] || exit 1; done'`)
 - [ ] `rv2hv_wider_after_arrow` in m3start.txt equals sites.txt's `total all rv2hv wider` in the commit that recorded it (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_arrow " -- $f/m3start.txt); [ -n "$c" ] || exit 1; a=$(git show $c:$f/m3start.txt | sed -n "s/^rv2hv_wider_after_arrow = \([0-9][0-9]*\)$/\1/p"); b=$(git show $c:$f/sites.txt | awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] && [ "$a" = "$b" ]'`)
 
