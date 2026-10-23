@@ -3,6 +3,8 @@ title: Re-pin the parse oracle to perl 5.44.0 and record the starting counts
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16666-9a1b-76b3-9389-e4dbfb01ab9d
 blocks:
 - 01a16602-5da6-79c8-aea5-e13d8f14c679
 - 01a16602-5e01-7e7a-92c5-27d7da7d6f36
@@ -10,7 +12,7 @@ blocks:
 - 01a16602-6146-76ab-bb68-f3e8b645ae79
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 created: 2026-10-23T01:08:31.856618478Z
-updated: 2026-10-23T01:55:38.423505421Z
+updated: 2026-10-23T01:56:39.493426906Z
 ---
 
 ## Context
