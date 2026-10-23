@@ -276,8 +276,8 @@ jobs:
         PVM_REQUIRE_PINNED_PERL: '1'
       run: |
         set -o pipefail
-        go test ./internal/parseoracle/ \
-          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock)$' \
+        go test ./internal/parseoracle/ ./internal/parse/ \
+          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
@@ -286,7 +286,8 @@ jobs:
                  TestExpensiveFixtureStillFitsItsBudget TestRatchet TestRatchetFailsOnRegression \
                  TestRatchetFailsOnImprovement TestBaselineUpdateOnly TestReceiptRecordsTheSweep \
                  TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor \
-                 TestOracleWalksPastAConstantNamedLikeABlock; do
+                 TestOracleWalksPastAConstantNamedLikeABlock TestM3ProbesHeldToPerl \
+                 TestM3ProbesDetectDriftedFact TestM3ProbesCheckFaithfulRows; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then
             echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
             status=1
