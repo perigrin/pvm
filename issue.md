@@ -17,7 +17,7 @@ blocks:
 - 01a0c362-0a97-7c14-82fe-27d76ee5c862
 - 01a0c362-0c0b-7f6a-b807-fa62daefe02e
 created: 2026-09-21T09:50:44.159860455Z
-updated: 2026-09-21T22:35:39.174127925Z
+updated: 2026-10-23T17:09:33.036561666Z
 sessions:
 - start_sha: 7711154e001e09d6d7b489eaa6d325851e7a4e30
   end_sha: 9750d03b51c601e083873e26c01cb22054bb120b
@@ -78,6 +78,8 @@ the wrong tree to compare against. The token assertion is the only check
 that catches it, which is the measured argument for the whole token layer
 and belongs in this tier's README.
 
+Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/01_literals` -> `TestCorpus` over the tier-01 topics (adjacency-01_literals.md, numeric-point.md, numeric-radix.md, strings.md, vstrings.md)). Left unchanged: `TestTierLiteralsAdjacency`, `TestTierNumberingRegenerates`, because no current test holds that property.
+
 ## Acceptance criteria
 
 - [ ] Tier 01 covers the numeric and string literal boundaries the glossary names, including v-strings and the -1-is-two-tokens case (`go test ./internal/conformance/ -run '^TestTierLiteralsCoversGlossary$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsCoversGlossary'`)
@@ -88,4 +90,4 @@ and belongs in this tier's README.
 - [ ] The tier's adjacency file puts every construct 01_literals introduces in one body, each adjacent to another (`go test ./internal/conformance/ -run '^TestTierLiteralsAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsAdjacency'`)
 - [ ] 01_literals/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierLiteralsRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierLiteralsRefusalsCited'`)
-- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus/01_literals' -count=1 -v | grep -q '^    --- PASS: TestCorpus/01_literals'`)
+- [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-01_literals|numeric-point|numeric-radix|strings|vstrings)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
