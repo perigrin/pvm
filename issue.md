@@ -1,6 +1,6 @@
 ---
 title: Re-pin the parse oracle to perl 5.44.0 and record the starting counts
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -13,7 +13,16 @@ blocks:
 - 01a1664d-6fdb-7a09-8211-882e814db87c
 - 01a16602-5e5e-73cc-a210-0341ea517914
 created: 2026-10-23T01:08:31.856618478Z
-updated: 2026-10-23T07:07:02.320224064Z
+updated: 2026-10-23T16:23:37.80059103Z
+sessions:
+- start_sha: da9bbeee88cf17f7b6e69a97e2af4e022417b270
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-23T16:23:37.80059103Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-23T16:23:37.80059103Z
 ---
 
 ## Context
