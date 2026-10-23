@@ -9,7 +9,7 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-23T01:09:03.796218825Z
+updated: 2026-10-23T01:35:11.713155408Z
 ---
 
 ## Context
@@ -22,12 +22,12 @@ Once the context-changing dropped parens have been fixed as tree defects, the re
 
 **perigrin's ruling (2026-10-22, revised after measurement).** Where a paren does not change meaning, perl builds the same ops but keeps the paren as one boolean bit, OPf_PARENS (`P`), on the op. `my $z = ($x)` is `padsv sP` vs `padsv s`, and `(($y eq "x"))` and `($y eq "x")` are identical trees. So **canon writes a `Paren` node's parens ONCE**, and **`Faithful` forgives ONLY extra nesting**: a source paren pair nested directly inside another pair around the same node (`((x))` vs `(x)`). This supersedes the earlier same-day ruling that `Faithful` forgive redundant parens.
 
-`Faithful(n *Node, src []byte)` takes a tree, so a test that says "source A against canon B is unfaithful" needs either a hand-built tree or a comparator over token sequences. This issue splits that comparator out of `Faithful` as `faithfulTokens(canon, src []string) bool`, with `Faithful` calling it. The negatives here and in the triage issues that follow use it.
+`Faithful(n *Node, src []byte)` takes a tree, so a test that says "source A against canon B is unfaithful" needs either a hand-built tree or a comparator over token sequences. This issue splits that comparator out of `Faithful` as `faithfulTokens(canon []CanonToken, src []string) bool`, with `Faithful` calling it. The negatives here and in the triage issues that follow use it. **How it tells call-argument parens from a Paren pair (F6, chain-review round 2):** the source side cannot tell them apart from text alone, so canon tags its own tokens by role as it emits them. A `(`/`)` is `paren-node` when canon wrote it for a node with `Paren` set, `call-args` when it opened a call's argument list (including a parenless call's acquired parens), and `binding` when binding power required it. A source paren pair is forgiven as extra nesting ONLY when it sits directly inside a source pair aligned with a canon `paren-node` pair, around the same tokens. A pair aligned with `call-args` or `binding` never makes an inner pair forgivable. So source `print((1))+2` against canon `print(1)+2` stays unfaithful: the outer pair is `call-args`, and `1` has no Paren. Source `print ((1))+2` against canon `print((1))+2` is faithful as written, and `ok(((($y eq "x"))))` against canon `ok(($y eq "x"))` is forgiven down to the one `paren-node` pair.
 
 ## Steps
 
 - [ ] Measure with the pinned perl 5.44.0 first. Run `perl -MO=Concise` on `my $z = ($x)` (with `my $x`; for a package `$x`, the `P` sits on a nulled `ex-rv2sv sKP`), on `ok(($y eq "x"))` vs `ok((($y eq "x")))`, and on `print ((1))+2` vs `print (1)+2`. Quote the output in the tests' comments.
-- [ ] RED/GREEN: write TestFaithfulTokens, then split `faithfulTokens` out of `Faithful` with no change in behaviour. TestCanonFidelityRatchet must not move.
+- [ ] RED/GREEN: write TestFaithfulTokens, then split `faithfulTokens` out of `Faithful` with no change in behaviour, giving canon's emitted tokens their role tags. TestCanonFidelityRatchet must not move.
 - [ ] RED: write TestCanonWritesParenOnce in canon_test.go. A `Paren` node on a non-`List` (`(shift)->foo`, `my $z = ($x)`, `ok(($y eq "x"))`) re-emits with exactly one pair, and `((x))` re-emits as `(x)`. Run it and watch it fail.
 - [ ] GREEN: make canon write a `Paren` node's parens once. Run it and watch it pass.
 - [ ] RED: write TestFaithfulForgivesOnlyExtraNesting in fidelity_test.go. `((x))` in the source against canon's `(x)` is faithful, and so is `(((x)))`. A source pair canon does not write at all (no `Paren` on the node) is still a difference. Run it and watch it fail.
