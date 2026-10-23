@@ -7,8 +7,9 @@ blocked_by:
 - 01a16602-5e5e-73cc-a210-0341ea517914
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
+- 01a1690b-4745-7ef7-9285-0a9f97d86924
 created: 2026-10-23T12:56:46.617002164Z
-updated: 2026-10-23T13:55:22.727782349Z
+updated: 2026-10-23T13:55:45.930082003Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Split the faithful comparator out and enumerate the forgiveness rules, with no behaviour change". The role tags it names were dropped under perigrin's round-7 ruling: the call-paren forgiveness rule, their only consumer, is removed by the `not`/list-op issue, so canon records one bit per paren pair instead (below).
