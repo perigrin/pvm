@@ -1,6 +1,6 @@
 ---
 title: Hold the parse-without-error floor on the 593 files perl compiles
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,34 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:33.601895885Z
-updated: 2026-10-23T17:31:22.895105133Z
+updated: 2026-10-23T18:02:15.169718712Z
 sessions:
 - start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
-  end_sha: ""
-  commits: 0
+  end_sha: 5b88c65c7bdc2f2969d00476bef99270f1695b3c
+  commits: 3
   started_at: 2026-10-23T17:31:22.895105133Z
+  ended_at: 2026-10-23T18:02:15.169718712Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T17:31:22.895105133Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T18:02:15.169718712Z
+observed_paths:
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- internal/parse/compiled_test.go
+- internal/parse/compiledset_test.go
+- internal/parse/perlgitt_faithful_test.go
+- internal/parse/pin_test.go
+- internal/parse/probes_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/compiledclean.txt
+- internal/parse/testdata/m3probes/README.md
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parseoracle/testdata/ratchet/m3start.txt
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Hold the parse-without-error floor on the compiled set recorded at the 5.44.0 pin". The floor is over compiled.txt, not over 593 files; 593 was the 5.42 graded set (chain-review round 2, A3/A13).
