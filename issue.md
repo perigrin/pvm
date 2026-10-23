@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-23T07:06:50.727978535Z
-updated: 2026-10-23T12:55:59.251047034Z
+updated: 2026-10-23T13:55:22.083754881Z
 ---
 
 ## Context
@@ -25,7 +25,7 @@ Size: unknown until the triage issues finish. Count EVERY queue row when this is
 
 - [ ] List the queue's `other` rows, and any rows of other classes left by closed owners. For each, reduce the first difference to a minimal snippet and judge it with the pinned perl 5.44.0 (`perl -MO=Deparse,-p` or `perl -MO=Concise`).
 - [ ] RED: add each reduced snippet to TestFaithfulOtherRowsFixed in fidelity_test.go, quoting perl's output. Run it and watch the cases fail.
-- [ ] GREEN: fix one cause at a time, in canon or the parser. `Faithful` is not changed: its forgiven set is closed (perigrin's round-5 ruling), and a difference that seems to need a new rule goes to perigrin with its perl measurement. Run the test after each.
+- [ ] GREEN: fix one cause at a time, in canon or the parser. `Faithful` is not changed: its forgiven set is closed at a block's last `;` and extra nesting (perigrin's round-7 ruling), and a difference that seems to need a new rule goes to perigrin with its perl measurement. Run the test after each.
 - [ ] Add every reduced case, with perl's facts, as probe file `internal/parse/testdata/m3probes/faithful-other.txt`.
 - [ ] RED/GREEN TestPerlGitTFaithfulOnM3DirsIgnoresTheQueue: with a fixture tree holding one unfaithful file and a queue listing it, TestPerlGitTFaithfulOnM3Dirs's check still fails.
 - [ ] RED: write TestPerlGitTFaithfulOnM3Dirs, which walks every M3-dir file outside `perlRejects` and fails on any file that parses and re-emits unfaithfully. It has no exception list. Run it while rows remain and watch it fail.
@@ -48,7 +48,7 @@ Size: unknown until the triage issues finish. Count EVERY queue row when this is
 - [ ] The M3-dir faithful count in the committed ratchet is above the start count recorded in m3start.txt (`sh -c 's=$(sed -n "s/^faithful_start_m3 = \([0-9][0-9]*\)$/\1/p" internal/parseoracle/testdata/ratchet/m3start.txt); n=$(awk "\$1==\"0\" && \$2 ~ /^(op|mro|uni|lib|test_pl)\// {k++} END {print k+0}" internal/parse/testdata/perlgittfaithful.ratchet); [ -n "$s" ] && [ "$n" -gt "$s" ]'`)
 - [ ] CI fails if the 100% check skips: the test is in TestCIRunsTheRatchets' list, and that test passes (`sh -c 'grep -q "\"TestPerlGitTFaithfulOnM3Dirs\"," internal/parse/pin_test.go && go test ./internal/parse/ -run "^TestCIRunsTheRatchets$" -count=1 -v | grep -q "^--- PASS: TestCIRunsTheRatchets"'`)
 - [ ] The reduced cases are committed as perl-judged probes, held by TestM3ProbesHeldToPerl (`sh -c 'test -s internal/parse/testdata/m3probes/faithful-other.txt && go test ./internal/parse/ -run "^TestM3ProbesHeldToPerl$" -count=1 -v | grep -q "^--- PASS: TestM3ProbesHeldToPerl"'`)
-- [ ] Regression guard: the forgiven set is still exactly the three ruled differences (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
+- [ ] Regression guard: the forgiven set is still exactly the two ruled differences, a block's last `;` and extra nesting (`go test ./internal/parse/ -run '^TestFaithfulForgivenessIsClosed$' -count=1 -v | grep -q '^--- PASS: TestFaithfulForgivenessIsClosed'`)
 - [ ] Regression guard: canon still catches misgrouping (`go test ./internal/parse/ -run '^TestCanonCatchesMisgrouping$' -count=1 -v | grep -q '^--- PASS: TestCanonCatchesMisgrouping'`)
 
 ### Negative Scenarios
