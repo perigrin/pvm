@@ -1,6 +1,6 @@
 ---
 title: Commit a perl-judged probe corpus that every parser fix extends
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -12,16 +12,31 @@ blocks:
 - 01a1664d-7bc8-7498-af02-7eaf187b43ed
 - 01a1690b-1d10-7a84-be7e-0cbc31f36812
 created: 2026-10-23T01:08:37.943092553Z
-updated: 2026-10-23T17:31:28.974633733Z
+updated: 2026-10-23T17:56:19.751704819Z
 sessions:
 - start_sha: 4505f236a5ac6d2c6b78214071acbab509c7bb37
-  end_sha: ""
-  commits: 0
+  end_sha: 9d988d16137e30a076caab4f069d0dde44961088
+  commits: 2
   started_at: 2026-10-23T17:31:28.974633733Z
+  ended_at: 2026-10-23T17:56:19.751704819Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T17:31:28.974633733Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-23T17:56:19.751704819Z
+observed_paths:
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- internal/parse/perlgitt_faithful_test.go
+- internal/parse/pin_test.go
+- internal/parse/probes_test.go
+- internal/parse/ratchet_test.go
+- internal/parse/testdata/m3probes/README.md
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parseoracle/testdata/ratchet/m3start.txt
 ---
 
 ## Context
