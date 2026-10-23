@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a12059-30a8-722e-bbc3-52066b8610cb
 created: 2026-10-23T01:08:33.371135176Z
-updated: 2026-10-23T07:05:53.268923124Z
+updated: 2026-10-23T08:20:56.243203195Z
 ---
 
 ## Context
@@ -40,7 +40,7 @@ updated: 2026-10-23T07:05:53.268923124Z
 - [ ] The oracle answers a file perl compiles that prints from BEGIN, rather than declining it (`go test ./internal/parseoracle/ -run '^TestOracleAnswersFileThatPerlCompiles$' -count=1 -v | grep -q '^--- PASS: TestOracleAnswersFileThatPerlCompiles'`)
 - [ ] op/magic.t is graded exact or wider in the committed per-file baseline, so excluding it cannot satisfy this (`grep -Eq '^(exact|wider) .* op/magic.t$' internal/parseoracle/testdata/ratchet/baseline.txt`)
 - [ ] m3start.txt's `rv2hv_wider_after_magic` equals sites.txt's `total all rv2hv wider` in the commit that set it, and op/magic.t is graded exact or wider in that same commit, so the key cannot be recorded before the file is answered (`sh -c 'f=internal/parseoracle/testdata/ratchet; c=$(git log -1 --format=%H -G "^rv2hv_wider_after_magic " -- $f/m3start.txt); [ -n "$c" ] || exit 1; a=$(git show $c:$f/m3start.txt | sed -n "s/^rv2hv_wider_after_magic = \([0-9][0-9]*\)$/\1/p"); b=$(git show $c:$f/sites.txt | awk "\$1==\"total\" && \$2==\"all\" && \$3==\"rv2hv\" && \$4==\"wider\" {print \$5}"); [ -n "$a" ] && [ "$a" = "$b" ] && git show $c:$f/baseline.txt | grep -Eq "^(exact|wider) .* op/magic.t$"'`)
-- [ ] Every test that calls PinnedPerl, this issue's included, is in the -run list of CI's REQUIRE step (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
+- [ ] Regression guard (passes before this issue's work; it holds the new tests once they exist): every test that calls PinnedPerl, this issue's included, is in the -run list of a CI step that sets the REQUIRE variable (`go test ./internal/parseoracle/ -run '^TestEveryPinnedPerlTestIsRequired$' -count=1 -v | grep -q '^--- PASS: TestEveryPinnedPerlTestIsRequired'`)
 
 ### Negative Scenarios
 
