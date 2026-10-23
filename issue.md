@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T22:11:13.008302813Z
-updated: 2026-10-23T17:09:34.834486666Z
+updated: 2026-10-23T19:18:32.068103876Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -128,6 +128,8 @@ unfalsifiable.
 
 Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `10_undeclared_callee.t` with `--- expect parsent` -> the `An undeclared callee is a syntax error` case of `argument-extent.md` carrying `parses: no`). Left unchanged: `TestTierSubroutinesAdjacency`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierSubroutinesAdjacency` -> `TestAdjacencyCoversItsTier/07_subroutines`. These commands pass once branch ccx/adj merges.
+
 ## Acceptance criteria
 
 - [x] The dependency lint skips a `parsent` file rather than erroring on it, at ONE place all seventeen `lintOps` call sites route through rather than at each of them, and `opsOf` is left alone so a genuinely broken `parses` file still errors. (`go test ./internal/conformance/ -run 'TestCorpusLints' -count=1`)
@@ -138,6 +140,6 @@ Criteria updated 2026-10-23: e8ee9001 and a6b33a2a replaced the tier-keyed tests
 
 - [x] A `parses` file whose source perl genuinely refuses still ERRORS from the lint rather than linting vacuously -- the failure mode the caller-side skip exists to avoid. (`go test ./internal/conformance/ -run 'TestLintErrorsOnABrokenParsesFile' -count=1 -v`)
 
-- [x] The new file joins the tier's adjacency table rather than being invisible to it: `subroutineConstructs` gains its entry, which is what `TestTierSubroutinesAdjacency` demands of every construct file. (`go test ./internal/conformance/ -run 'TestTierSubroutinesAdjacency' -count=1`)
+- [x] The tier's adjacency topic still emits every op tier 07 introduces, which `TestAdjacencyCoversItsTier` demands of every tier; a `parses: no` case compiles no ops, so it adds nothing the topic must cover. (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^07_subroutines$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/07_subroutines'`)
 
 - [x] The ratchet records the new file and the whole conformance suite is green. (`go test ./internal/conformance/ -count=1`)
