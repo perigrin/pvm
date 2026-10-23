@@ -140,6 +140,27 @@ func lintFile(t *testing.T, f *File, tier string, tiers tierOps) error {
 // therefore DECLARES its tier and the ops lint that declaration --
 // necessary, not sufficient, and parser-independent, which is what lets
 // the corpus check itself while the parser it measures is incomplete.
+//
+// THE OPS ARE READ FROM B::Concise's RENDERED TEXT, so the lint sees op
+// NAMES and nothing Concise does not print. Op flags are the blind
+// direction: `split / /, $s` and `split " ", $s` render byte-identically
+// (`split(/" "/ => ...)`) yet split differently, the awk mode living only
+// in the PMOP's `pmflags` as PMf_SKIPWHITE (2048) -- measured 5.42.0,
+// pmflags=0 versus 2048. Two programs that differ only in a flag are one
+// op set here, and "the op sets are identical" means "identical in what
+// Concise prints".
+//
+// THE DECISION: flags the budget does not see, by design. The budget
+// answers "which constructs does this tier introduce", and a flag is a
+// property of an op whose tier is already fixed by its name -- both
+// `split` readings arrive with `split`, in tier 09, so no flag could move
+// a file to a different tier. What the flag changes is BEHAVIOUR, and
+// behaviour is what a case's expected output asserts and perl judges
+// (regex-pattern-positions.md holds both `split` spellings apart by
+// their output and token facts). Reading `$op->pmflags` in
+// fileOpsBackend is the route if a tier is ever defined by a flag rather
+// than an op; until then it would be a second vocabulary for the
+// INTRODUCES blocks with nothing to place.
 func lintOps(t *testing.T, source, tier string, tiers tierOps) error {
 	t.Helper()
 
