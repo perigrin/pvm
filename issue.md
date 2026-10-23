@@ -3,8 +3,10 @@ title: Split the faithful comparator out, tag canon's parens by role, and enumer
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocked_by:
+- 01a16602-5e5e-73cc-a210-0341ea517914
 created: 2026-10-23T12:56:46.617002164Z
-updated: 2026-10-23T12:56:46.617002164Z
+updated: 2026-10-23T12:56:49.329772351Z
 ---
 
 ## Context
