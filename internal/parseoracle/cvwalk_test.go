@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 // TestOracleCountsReferencesInEveryCV is the defect: `-MO=Concise,-exec` dumps
@@ -164,5 +165,32 @@ func TestOracleCountsClonedSubOnce(t *testing.T) {
 				t.Errorf("Sites[srefgen] = %v, want %v", facts.Sites[parseoracle.MarkerSrefgen], c.want)
 			}
 		})
+	}
+}
+
+// TestOracleWalksPastAConstantNamedLikeABlock: `use constant INIT => 5`
+// leaves a constant proxy, a plain reference, in main's stash, and perl
+// 5.44.0 segfaults on `defined &main::INIT` there (measured: rc 139, where
+// 5.42.0 answers "def"). op/blocks.t declares exactly that, so a probe
+// that asks `defined &` of every stash entry lost the file's whole walk.
+// A proxy is a constant sub: prototype "", and no op tree to walk.
+func TestOracleWalksPastAConstantNamedLikeABlock(t *testing.T) {
+	requirePOSIXOracle(t)
+	p := perltest.PinnedPerl(t)
+	src := "use constant INIT => 5;\n" + // 1
+		"my $r = { a => INIT };\n" // 2
+
+	facts, err := parseoracle.Ask(context.Background(), []byte(src), parseoracle.Options{Perl: p.Path})
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if !facts.Walked {
+		t.Fatalf("the walk did not complete, stderr: %s", facts.Stderr)
+	}
+	if want := []int{2}; !reflect.DeepEqual(facts.Sites[parseoracle.MarkerAnonhash], want) {
+		t.Errorf("Sites[anonhash] = %v, want %v", facts.Sites[parseoracle.MarkerAnonhash], want)
+	}
+	if proto, ok := facts.Prototypes["INIT"]; !ok || proto != "" {
+		t.Errorf(`Prototypes["INIT"] = %q (present %t), want "" as for any constant`, proto, ok)
 	}
 }

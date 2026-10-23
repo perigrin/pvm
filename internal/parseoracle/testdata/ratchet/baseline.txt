@@ -7,7 +7,7 @@
 # is how a gain is recorded.
 #
 # Columns: status metric category path
-interpreter = 5.042000
+interpreter = 5.044000
 revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6
 threads     = define
 exact         0 -              base/cond.t
@@ -39,8 +39,8 @@ exact         1 -              class/destruct.t
 exact         6 -              class/field.t
 exact         0 -              class/gh22169.t
 exact         0 -              class/gh23511.t
-no-answer     0 -              class/inherit.t
-no-answer     0 -              class/method.t
+exact         1 -              class/inherit.t
+exact         1 -              class/method.t
 exact         0 -              class/phasers.t
 exact         0 -              class/threads.t
 exact         0 -              class/utf8.t
@@ -268,7 +268,7 @@ exact        13 -              op/filetest.t
 exact         2 -              op/filetest_stack_ok.t
 exact         2 -              op/filetest_t.t
 exact        10 -              op/flip.t
-no-answer     0 -              op/for-many.t
+wider        20 -              op/for-many.t
 exact         4 -              op/for.t
 exact         3 -              op/fork.t
 exact         0 -              op/fresh_perl_utf8.t
@@ -369,7 +369,7 @@ wider         5 -              op/select.t
 exact         1 -              op/setpgrpstack.t
 exact         3 -              op/sigdispatch.t
 exact         2 -              op/signame_canonical.t
-no-answer     0 -              op/signatures.t
+exact       101 -              op/signatures.t
 exact         1 -              op/sigsystem.t
 exact         0 -              op/sleep.t
 exact         0 -              op/smartkve.t
@@ -436,7 +436,7 @@ exact         3 -              opbasic/concat.t
 exact         2 -              opbasic/magic_phase.t
 exact         0 -              opbasic/qq.t
 exact         1 -              perf/benchmarks.t
-no-answer     0 -              perf/opcount.t
+wider       128 -              perf/opcount.t
 wider         5 -              perf/optree.t
 exact         1 -              perf/speed.t
 exact         2 -              perf/taint.t

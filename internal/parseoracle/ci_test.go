@@ -144,10 +144,10 @@ func TestPinScriptAgreesWithReadPin(t *testing.T) {
 	}
 
 	// perl_version is the same interpreter in the dotted form
-	// actions-setup-perl takes. 5.042000 is 5.42.0; getting this wrong
+	// actions-setup-perl takes. 5.044000 is 5.44.0; getting this wrong
 	// installs a perl the pin does not describe, and every verdict below
 	// the baseline header was measured against something else.
-	if want := "5.42.0"; got["perl_version"] != want {
+	if want := "5.44.0"; got["perl_version"] != want {
 		t.Errorf("%s printed perl_version=%q, want %q for interpreter %q",
 			pinScript, got["perl_version"], want, pin.Interpreter)
 	}
@@ -396,7 +396,9 @@ func TestCIReportsSkewBeforeSweeping(t *testing.T) {
 // and Env are what TestCIGateRunsTheSweep executes; If is what it cannot.
 type workflowStep struct {
 	Name  string            `yaml:"name"`
+	ID    string            `yaml:"id"`
 	Uses  string            `yaml:"uses"`
+	With  map[string]string `yaml:"with"`
 	Run   string            `yaml:"run"`
 	Shell string            `yaml:"shell"`
 	Env   map[string]string `yaml:"env"`
@@ -888,4 +890,244 @@ func sameNames(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// The two perls CI installs, each from its own pin. The parse oracle is
+// judged by corpus.pin's perl; the .tpm libraries, the conformance corpus
+// and the CORE.tpm check are judged by perl 5.42.0, from perl542.pin.
+const (
+	oraclePin  = "internal/parseoracle/testdata/corpus.pin"
+	perl542Pin = "internal/perltest/testdata/perl542.pin"
+)
+
+// workflowPerls names every job in every workflow and the pin its perl is
+// installed from, "" for a job that installs none. A job added later is
+// unclassified until it is named here, which fails the build.
+var workflowPerls = map[string]string{
+	"build-perl-binaries.yml/prepare": "",
+	"build-perl-binaries.yml/build":   "",
+	"build-perl-binaries.yml/upload":  "",
+	"build-perl-binaries.yml/summary": "",
+	"ci.yml/test":                     perl542Pin,
+	"ci.yml/ratchets":                 perl542Pin,
+	"ci.yml/smoke-test":               "",
+	"parse-fidelity.yml/ratchet":      oraclePin,
+	"parser-fuzz.yml/fuzz-parser":     "",
+	"release.yml/build-matrix":        "",
+	"release.yml/create-release":      "",
+}
+
+var (
+	// perlVersionOutput is the only perl-version a setup-perl step may
+	// take: the output of a step in the same job that read a pin.
+	perlVersionOutput = regexp.MustCompile(`^\$\{\{\s*steps\.([\w-]+)\.outputs\.perl_version\s*\}\}$`)
+	// pinScriptCall is the pin script's invocation, with its optional pin
+	// argument; corpus.pin is the script's default.
+	pinScriptCall = regexp.MustCompile(`sh \.github/scripts/parseoracle-pin\.sh(?:[ \t]+([^\s>]+))?[ \t]*>>`)
+)
+
+// installedPin is the pin each actions-setup-perl step in job installs
+// from, as repository paths, with the problems found tracing them.
+func installedPin(job workflowJob) ([]string, []string) {
+	var pins, problems []string
+	for _, step := range job.Steps {
+		if !strings.HasPrefix(step.Uses, "shogo82148/actions-setup-perl@") {
+			continue
+		}
+		m := perlVersionOutput.FindStringSubmatch(step.With["perl-version"])
+		if m == nil {
+			problems = append(problems, fmt.Sprintf("step %q installs perl-version %q, not a pin's perl_version",
+				step.Name, step.With["perl-version"]))
+			continue
+		}
+		found := false
+		for _, src := range job.Steps {
+			if src.ID != m[1] {
+				continue
+			}
+			found = true
+			call := pinScriptCall.FindStringSubmatch(uncommented(src.Run))
+			switch {
+			case call == nil:
+				problems = append(problems, fmt.Sprintf("step %q does not read a pin with %s", src.Name, pinScript))
+			case call[1] == "":
+				pins = append(pins, oraclePin)
+			default:
+				pins = append(pins, call[1])
+			}
+		}
+		if !found {
+			problems = append(problems, fmt.Sprintf("step %q reads steps.%s, which no step in its job is", step.Name, m[1]))
+		}
+	}
+	return pins, problems
+}
+
+// workflowPinProblems checks every job in workflows (keyed by file name)
+// against want: each job is classified, installs perl from exactly its
+// pin, and never names the other pin.
+func workflowPinProblems(workflows map[string]workflowFile, want map[string]string) []string {
+	var problems []string
+	seen := map[string]bool{}
+	for file, wf := range workflows {
+		for name, job := range wf.Jobs {
+			key := file + "/" + name
+			seen[key] = true
+			pin, ok := want[key]
+			if !ok {
+				problems = append(problems, fmt.Sprintf("%s is not classified: name the perl it installs in workflowPerls", key))
+				continue
+			}
+			pins, traced := installedPin(job)
+			for _, p := range traced {
+				problems = append(problems, key+": "+p)
+			}
+			if pin == "" && len(pins) > 0 {
+				problems = append(problems, fmt.Sprintf("%s installs perl from %v, but is classified as installing none", key, pins))
+			}
+			if pin != "" && len(pins) == 0 && len(traced) == 0 {
+				problems = append(problems, fmt.Sprintf("%s installs no perl, but is classified as installing %s's", key, pin))
+			}
+			for _, p := range pins {
+				if p != pin {
+					problems = append(problems, fmt.Sprintf("%s installs perl from %s, want %s", key, p, pin))
+				}
+			}
+			if pin == "" {
+				continue
+			}
+			// The full path, since t1corpus.pin ends in corpus.pin too.
+			other := oraclePin
+			if pin == oraclePin {
+				other = perl542Pin
+			}
+			for _, step := range job.Steps {
+				if strings.Contains(uncommented(step.Run), other) {
+					problems = append(problems, fmt.Sprintf("%s step %q reads %s, the other perl's pin", key, step.Name, other))
+				}
+			}
+		}
+	}
+	for key := range want {
+		if !seen[key] {
+			problems = append(problems, fmt.Sprintf("workflowPerls names %s, which no workflow has", key))
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+// TestCIWorkflowsPinTheirPerls: the oracle's job installs corpus.pin's
+// perl, and ci.yml's jobs -- the Test matrix, whose go test ./... runs the
+// conformance and CORE.tpm checks, and "Ratchets (corpus-backed)" -- install
+// perl 5.42.0 from perl542.pin. Both pins measure the same perl5 corpus.
+func TestCIWorkflowsPinTheirPerls(t *testing.T) {
+	paths, err := filepath.Glob(repoFile(t, ".github", "workflows", "*.yml"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no workflows found: %v", err)
+	}
+	workflows := map[string]workflowFile{}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wf workflowFile
+		if err := yaml.Unmarshal(data, &wf); err != nil {
+			t.Fatalf("%s is not valid YAML: %v", path, err)
+		}
+		workflows[filepath.Base(path)] = wf
+	}
+	for _, p := range workflowPinProblems(workflows, workflowPerls) {
+		t.Error(p)
+	}
+
+	oracle, err := parseoracle.ReadPin(repoFile(t, oraclePin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p542, err := parseoracle.ReadPin(repoFile(t, perl542Pin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p542.Interpreter != "5.042000" {
+		t.Errorf("%s pins %s; the 5.42 jobs judge the .tpm libraries with 5.042000", perl542Pin, p542.Interpreter)
+	}
+	if p542.Revision != oracle.Revision {
+		t.Errorf("%s records perl5 at %s and %s at %s: the ratchets job and the oracle measure one corpus",
+			perl542Pin, p542.Revision, oraclePin, oracle.Revision)
+	}
+}
+
+// TestCIWorkflowsPinTheirPerlsRejectsSharedPin: a 5.42 job that installs
+// from, or reads, corpus.pin fails, and so does the oracle job reading
+// perl542.pin.
+func TestCIWorkflowsPinTheirPerlsRejectsSharedPin(t *testing.T) {
+	as542 := map[string]string{"w.yml/test": perl542Pin}
+	asOracle := map[string]string{"w.yml/test": oraclePin}
+	for name, tc := range map[string]struct {
+		want map[string]string
+		body string
+	}{
+		"5.42 job installs from corpus.pin": {as542, `
+jobs:
+  test:
+    steps:
+    - id: perlpin
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+`},
+		"5.42 job reads corpus.pin": {as542, `
+jobs:
+  test:
+    steps:
+    - id: perlpin
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+    - run: grep revision internal/parseoracle/testdata/corpus.pin
+`},
+		"5.42 job names its own version": {as542, `
+jobs:
+  test:
+    steps:
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: '5.42.0'
+`},
+		"oracle job installs from perl542.pin": {asOracle, `
+jobs:
+  test:
+    steps:
+    - id: pin
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.pin.outputs.perl_version }}
+`},
+		"oracle job reads perl542.pin": {asOracle, `
+jobs:
+  test:
+    steps:
+    - id: pin
+      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+    - uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.pin.outputs.perl_version }}
+    - run: cat internal/perltest/testdata/perl542.pin
+`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var wf workflowFile
+			if err := yaml.Unmarshal([]byte(tc.body), &wf); err != nil {
+				t.Fatal(err)
+			}
+			if problems := workflowPinProblems(map[string]workflowFile{"w.yml": wf}, tc.want); len(problems) == 0 {
+				t.Errorf("%s passed the workflow pin check", name)
+			}
+		})
+	}
 }

@@ -1,0 +1,13 @@
+# ABOUTME: Pins the perl ci.yml's jobs install: 5.42.0, which judges the .tpm libraries, conformance and CORE.tpm.
+# ABOUTME: The parse oracle is judged by another perl, pinned apart in internal/parseoracle/testdata/corpus.pin.
+#
+# Read by .github/scripts/parseoracle-pin.sh, the same reader as corpus.pin,
+# so the fields are the same. revision is the perl5 checkout the ratchets
+# job measures its lexer, parse and canon ratchets over: the same corpus
+# the oracle measures, and TestCIWorkflowsPinTheirPerls fails when the two
+# pins disagree about it. threads is define, the build these jobs have
+# installed since they first read a pin.
+
+interpreter = 5.042000
+revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6
+threads     = define

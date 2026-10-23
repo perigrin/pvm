@@ -298,9 +298,14 @@ cd shim/t && perl -c op/sub.t          # syntax OK
 
 ## Ground-truth ceiling
 
-Measured with perl 5.42.0 and the shim above: **584/620 (94.2%)** compile.
-Most of the corpus's 19 directories are at 100%; `porting/` (43.2%) tests
-perl's own source tree rather than the language.
+Measured with perl 5.44.0 and the shim above: all **594** files outside the
+26 excluded (porting/, win32/, bigmem/, op/goto_xs.t) compile under `perl -c`
+with the shebang's taint switch. **593** of them are the compiled set,
+`testdata/ratchet/compiled.txt`: comp/final_line_num.t is left out because
+its `-c` exits 0 only through a BEGIN `__DIE__` handler, and perl.git's
+ratchet counts it as rejected. Under perl 5.42.0 the same shim compiled
+584/620 (94.2%); `porting/` (43.2%) tests perl's own source tree rather than
+the language.
 
 The per-directory table in `docs/specs/perl-parser/00-findings.md` §0.5 lists
 14 of those 19 rows and so does not sum to its own total; an earlier claim

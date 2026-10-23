@@ -48,7 +48,7 @@ func TestCIRunsTheRatchets(t *testing.T) {
 		{"the T1 corpus is supplied", "T1_CORPUS:"},
 		{"the perl5 corpus is supplied", "PERL5_CORPUS:"},
 		{"the T1 pin is read", "t1corpus.pin"},
-		{"the perl5 pin is read", "corpus.pin"},
+		{"the perl5 pin is read", "perl542.pin"},
 		{"the checkout is verified against the pin", "rev-parse HEAD"},
 		{"the corpora are cached on the pin", "actions/cache"},
 		{"a skipped ratchet fails the build", "--- SKIP: $t"},

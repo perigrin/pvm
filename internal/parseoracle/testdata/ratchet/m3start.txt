@@ -1,0 +1,10 @@
+# ABOUTME: The M3 starting counts, measured under corpus.pin's interpreter; later criteria compare against these keys.
+# ABOUTME: Append-only: add keys, never edit or reorder a line, since history criteria find each key's commit by its line.
+#
+# compiled is compiled.txt's line count: the files perl -c accepts (with the
+# shebang's taint switch), minus perl.git's perlRejects. graded is the files
+# the oracle sweep graded: the 594 non-excluded files less the runner errors.
+# They are different sets of the same size; nothing compares them as one.
+interpreter = 5.044000
+compiled = 593
+graded = 593

@@ -86,7 +86,7 @@
 #
 # What remains genuinely unproven until this runs on a real runner:
 #
-#   1. shogo82148/actions-setup-perl@v1 provides 5.42.0 on ubuntu-latest, and
+#   1. shogo82148/actions-setup-perl@v1 provides the pinned perl on ubuntu-latest, and
 #      the resulting @INC has both a pure-perl and an architecture-specific
 #      root. BuildShim REQUIRES both -- libraryRoots() errors on fewer than
 #      two -- and a system perl that ships only one would fail the job with a
@@ -277,7 +277,7 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ \
-          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor)$' \
+          -run '^(TestCIGateRunsTheSweep|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
@@ -285,7 +285,8 @@ jobs:
         for t in TestCIGateRunsTheSweep TestAskFileRequiresDir TestShebangPassthrough \
                  TestExpensiveFixtureStillFitsItsBudget TestRatchet TestRatchetFailsOnRegression \
                  TestRatchetFailsOnImprovement TestBaselineUpdateOnly TestReceiptRecordsTheSweep \
-                 TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor; do
+                 TestGoParserSubjectMeasures TestGoParserWrongIsZero TestGoParserExactFloor \
+                 TestOracleWalksPastAConstantNamedLikeABlock; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then
             echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
             status=1
