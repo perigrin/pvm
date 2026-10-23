@@ -23,11 +23,12 @@ MEASURED perl 5.42.0, and this is not hypothetical:
 one-construct-per-case corpus can ever see that, because every case is
 one construct by definition.
 
-`TestTierLiteralsAdjacency` reads the tier's construct sources for the
-literal each binds and requires the spelling to appear here, so this
-body cannot fall behind the tier by a construct. It cannot check the
-ADJACENCY itself; see the note in that test about `padrange` absorbing
-`pushmark`, which is why more adjacent constructs emit FEWER ops.
+`TestAdjacencyCoversItsTier` requires this topic to emit every op the
+tier's README introduces, so this body cannot fall behind the tier by an
+op. It cannot check the ADJACENCY itself: `padrange` absorbs `pushmark`,
+so more adjacent constructs emit FEWER ops. That is why the body ends
+with `print $int`: the long `print` above it opens with an interpolation
+whose pad reads fuse into `padrange`, and it emits no `pushmark` at all.
 
 ## The whole tier in one body
 
@@ -77,6 +78,7 @@ my $dq = "$int-$dec";
 my $esc = "a\nb";
 my $qop = q(one);
 print "$bin $dec $hex $lead $neg $oct $octp $exp $trail $usep $vb $vv $int $sq $dq ", qw(a b c), " $qop ", $esc, "\n";
+print $int, "\n";
 ```
 
 ```behavior
@@ -86,4 +88,5 @@ parses: yes
 ```output
 10 0.5 255 0.5 -1 255 255 0.5 1 4294967296 ABC ABC 42 plain 42-0.5 abc one a
 b
+42
 ```

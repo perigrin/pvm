@@ -79,6 +79,14 @@ no call written anywhere, and `y` is `tied($t)` answering. Nothing
 prints a raw object: `Bar=HASH(0x...)` carries an address that changes
 every run, so `ref` is what this asserts on.
 
+Three constructs follow from the tier's ops. `method idle { }` sits
+after `m` and is the empty body that emits `stub`, a second method
+beside ADJUST's sibling. `Baz` inherits from `Bar` and its `hi` calls
+`$s->SUPER::hi`, which is `method_super` because `SUPER::` resolves
+against the package it is compiled in. `bless { k => 1 }` is the
+non-empty anonymous hash, `anonhash`; `bless {}` above is `emptyavhv`.
+The last line prints `baz+bar` then the `1` read back out of the hash.
+
 ```perl
 use feature 'class', 'isa';
 no warnings 'experimental::class';
@@ -86,11 +94,15 @@ class Foo {
     field $x = 1;
     ADJUST { $x = 2 }
     method m { $x }
+    method idle { }
 }
 package Bar;
 sub hi { return "bar" }
 sub TIESCALAR { return bless {}, "Bar" }
 sub FETCH { return "fetched" }
+package Baz;
+our @ISA = ("Bar");
+sub hi { my $s = shift; return "baz+" . $s->SUPER::hi }
 package main;
 my $c = Foo->new;
 my $b = bless {}, "Bar";
@@ -100,6 +112,8 @@ my $code = $b->can("hi")->($b);
 tie my $t, "Bar", "arg";
 my $is = tied($t) ? "y" : "n";
 print ref($c), $c->m, ref($b), $b->hi, $b->$name, $yes, $code, $t, $is, "\n";
+my $z = bless { k => 1 }, "Baz";
+print $z->hi, $z->{k}, "\n";
 ```
 
 ```behavior
@@ -108,4 +122,5 @@ parses: yes
 
 ```output
 Foo2Barbarbar1barfetchedy
+baz+bar1
 ```

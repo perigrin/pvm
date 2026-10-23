@@ -270,36 +270,6 @@ var operatorKinds = map[string]string{
 	"range_refusal":      ".. 2 ..",
 }
 
-// refusingFile names the tier-04 files exempt from the adjacency
-// requirement because the construct they introduce REFUSES.
-//
-// This is a different exemption from pragmaScopedFile's. That one is
-// forced by the format -- a file-scoped pragma cannot be scoped to part
-// of a body. This one is forced by the refusal: 00_adjacency.t must
-// parse and run for every OTHER construct it places, and a construct
-// our lexer cannot read would make the whole body refuse, taking the
-// working pairings down with it.
-//
-// The exemption lapses when the refusal does. A file listed here that
-// no longer refuses is a file that belongs in the adjacency body, and
-// the check below says so rather than letting it sit exempt forever.
-var refusingFile = map[string]string{
-	"31_file_test.t": "01a0cf64-8436-7f82-bcb5-587f0eba266f",
-}
-
-// pragmaScopedFile names the tier-04 files exempt from the adjacency
-// requirement because their subject is a FILE-SCOPED PRAGMA.
-//
-// The exemption is deliberately a named list rather than a property
-// derived from the source, so adding one is a decision a reader can see.
-// The reasoning is recorded at the point of use in
-// TestTierOperatorsAdjacency, with the three measurements that forced
-// it.
-var pragmaScopedFile = map[string]bool{
-	"20_bitwise_polymorphic.t": true,
-	"21_bitwise_numeric.t":     true,
-}
-
 // operatorKindFromName returns the operator class a file's name
 // identifies, or "" when its name identifies none.
 func operatorKindFromName(name string) string {
