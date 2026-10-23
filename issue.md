@@ -6,7 +6,7 @@ milestone: m3-conformance-corpus
 blocked_by:
 - 01a0c362-127c-73c1-8bb8-a4bf8b66c735
 created: 2026-09-21T09:53:00.137066905Z
-updated: 2026-10-23T17:09:34.496612116Z
+updated: 2026-10-23T19:18:31.326921792Z
 sessions:
 - start_sha: b4af7e5155e5d0a16b7b29683f2f2731eb3074c8
   end_sha: 71979369e31e3d89136535fe4d6b05a22095e26b
@@ -57,11 +57,13 @@ a tier that refuses entirely is a true statement about where it is.
 
 Criteria updated 2026-10-23: e8ee9001 replaced the tier-keyed tests with topic files; each remapped command now names the test that holds the same property (old -> new: `TestCorpus/14_recursive` -> `TestCorpus` over the tier-14 topics (adjacency-14_recursive.md, embedded-code.md, eval-replacement.md)). Left unchanged: `TestTierRecursiveAdjacency`, because no current test holds that property.
 
+Criteria updated 2026-10-23 (agent:ccx-adj, issue 01a1696e): the deleted per-tier adjacency tests are replaced by one generic test, `TestAdjacencyCoversItsTier`, whose per-tier subtest checks that the tier's adjacency topic emits every op its README's INTRODUCES list names, that each case in it is multi-statement, and that it emits an op of the declared prerequisite. Old -> new: `TestTierRecursiveAdjacency` -> `TestAdjacencyCoversItsTier/14_recursive`. These commands pass once branch ccx/adj merges.
+
 ## Acceptance criteria
 
 - [ ] Every file in 14_recursive/ is validated against pinned perl 5.42.0 before it counts (`go test ./internal/conformance/ -run '^TestTierRecursivePerlValidated$' -count=1 -v | grep -q '^--- PASS: TestTierRecursivePerlValidated'`)
 - [ ] The dependency lint passes over 14_recursive/: every construct used was introduced at or before this tier (`go test ./internal/conformance/ -run '^TestTierRecursiveLint$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveLint'`)
-- [ ] The tier's adjacency file puts every construct 14_recursive introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestTierRecursiveAdjacency$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveAdjacency'`)
+- [ ] The tier's adjacency topic puts every construct 14_recursive introduces in one body, each adjacent to another, pairing with the declared prerequisite rather than tier N-1 (`go test ./internal/conformance/ -run '^TestAdjacencyCoversItsTier$/^14_recursive$' -count=1 -v | grep -q '^    --- PASS: TestAdjacencyCoversItsTier/14_recursive'`)
 - [ ] 14_recursive/README.md states what the tier introduces, what it depends on, and why check 2 places it here, in the form the dependency lint reads (`go test ./internal/conformance/ -run '^TestEveryTierHasAReadme$' -count=1 -v | grep -q '^--- PASS: TestEveryTierHasAReadme'`)
 - [ ] Each refusing file cites a refusal code rather than a message (`go test ./internal/conformance/ -run '^TestTierRecursiveRefusalsCited$' -count=1 -v | grep -q '^--- PASS: TestTierRecursiveRefusalsCited'`)
 - [ ] The tier's own files are green with skips limited to documented refusals (`go test ./internal/conformance/ -run '^TestCorpus$/^(adjacency-14_recursive|embedded-code|eval-replacement)\.md$' -count=1 -v | grep -q '^--- PASS: TestCorpus'`)
