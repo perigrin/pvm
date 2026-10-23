@@ -8,7 +8,7 @@ blocked_by:
 blocks:
 - 01a16602-61a2-78de-a798-da4cef3208c5
 created: 2026-10-23T01:08:36.424056648Z
-updated: 2026-10-23T01:09:12.391725524Z
+updated: 2026-10-23T01:35:14.615572802Z
 ---
 
 ## Context
@@ -35,6 +35,7 @@ The next issue uses this resolver to decide rv2hv.
 - [ ] GREEN: track the feature lexically. Run the test and watch it pass.
 - [ ] Add the fixtures, with perl's rv2hv counts, as probe file `testdata/m3probes/hash-scope.txt`, and run TestM3ProbesHeldToPerl.
 - [ ] Per-fix review against perl before merge. The reviewer writes NEW probes outside the corpus, such as `our %h` redeclared in a nested package, string-eval'd declarations, and `use feature ':5.10'`.
+- [ ] RED/GREEN the negatives as separate named tests, so a resolver that passes the positive tables by special-casing cannot hide them: TestHashScopeClosedBlockDoesNotLeak, TestHashScopeUseBeforeMyIsPackage, TestHashScopeNoFeatureStateIsNotADeclaration and TestHashScopeFeatureEndsWithItsBlock.
 - [ ] Run `make test`, then commit.
 
 ## Acceptance criteria
@@ -44,3 +45,10 @@ The next issue uses this resolver to decide rv2hv.
 - [ ] A hash use resolves to the innermost declaration in effect, as perl measures (`go test ./internal/parse/ -run '^TestHashScopeResolvesInnermostDeclaration$' -count=1 -v | grep -q '^--- PASS: TestHashScopeResolvesInnermostDeclaration'`)
 - [ ] The resolver knows whether the state feature is on, including via use v5.10 and use v5.36 bundles (`go test ./internal/parse/ -run '^TestHashScopeTracksStateFeature$' -count=1 -v | grep -q '^--- PASS: TestHashScopeTracksStateFeature'`)
 - [ ] The resolver's cases are committed as perl-judged probes (`test -s internal/parse/testdata/m3probes/hash-scope.txt`)
+
+### Negative Scenarios
+
+- [ ] A `my %h` in a block that has closed does not resolve a later `%h` outside it (`go test ./internal/parse/ -run '^TestHashScopeClosedBlockDoesNotLeak$' -count=1 -v | grep -q '^--- PASS: TestHashScopeClosedBlockDoesNotLeak'`)
+- [ ] A use before `my %h` resolves to the package hash, never to the later declaration; perl gives 1 rv2hv, then 0 (`go test ./internal/parse/ -run '^TestHashScopeUseBeforeMyIsPackage$' -count=1 -v | grep -q '^--- PASS: TestHashScopeUseBeforeMyIsPackage'`)
+- [ ] Under `no feature "state"`, `state %h` declares nothing, and the later `%h` resolves to the package hash (`go test ./internal/parse/ -run '^TestHashScopeNoFeatureStateIsNotADeclaration$' -count=1 -v | grep -q '^--- PASS: TestHashScopeNoFeatureStateIsNotADeclaration'`)
+- [ ] A `use feature "state"` inside a block does not reach a `state %h` after the block closes (`go test ./internal/parse/ -run '^TestHashScopeFeatureEndsWithItsBlock$' -count=1 -v | grep -q '^--- PASS: TestHashScopeFeatureEndsWithItsBlock'`)
