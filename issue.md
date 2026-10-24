@@ -1,6 +1,6 @@
 ---
 title: Fix the dropped-paren rows of the re-emission work queue
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,31 @@ blocked_by:
 blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 created: 2026-10-23T08:21:55.619658958Z
-updated: 2026-10-24T17:49:58.651381533Z
+updated: 2026-10-24T19:06:11.434754717Z
 sessions:
 - start_sha: 0abe3a1220ef9161682767b2c11fa000c91e5389
-  end_sha: ""
-  commits: 0
+  end_sha: e431b5c84144841104d0d774118e10e8dd1b9b3e
+  commits: 1
   started_at: 2026-10-24T17:49:58.651381533Z
+  ended_at: 2026-10-24T19:06:11.434754717Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T17:49:58.651381533Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T19:06:11.434754717Z
+observed_paths:
+- internal/parse/decl.go
+- internal/parse/lexsub_test.go
+- internal/parse/parse.go
+- internal/parse/shape.go
+- internal/parse/testdata/faithful_queue.txt
+- internal/parse/testdata/m3probes/dropped-paren-rows.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/use.go
+- internal/parseoracle/parens_test.go
+- internal/parseoracle/testdata/parens/fixtures.txt
 ---
 
 ## Context
