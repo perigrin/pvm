@@ -1,5 +1,5 @@
 // ABOUTME: Faithful compares canon's emission against the SOURCE, not against itself.
-// ABOUTME: One difference is forgiven: the parens a parenless call must acquire.
+// ABOUTME: One difference is forgiven: the semicolon canon writes after a block's last statement.
 
 package parse
 
@@ -19,16 +19,15 @@ import (
 //	WRONG tree: once="print((1 + 2) * 3);"
 //	            twice="print((1 + 2) * 3);"   fixpoint
 //
-// This puts the source back on one side, and forgives exactly two
-// differences, each one a spelling the tree cannot record because it does
-// not change meaning:
+// This puts the source back on one side, and forgives exactly one
+// difference, a spelling the tree cannot record because it does not change
+// meaning: a block's last statement acquires its semicolon. Measured:
+// `sub f { 1 }` and `sub g { 1; }` both return 1. That covers a block
+// argument too: `print {$fh} "x"` is emitted `print {$fh;} "x"`.
 //
-//  1. A call written without parens acquires them. `print "x"` and
-//     `print("x")` parse to the SAME TREE, correctly, so a tree-faithful
-//     emitter must print one form for both. It was 519 of 658 disagreeing
-//     T1 files.
-//  2. A block's last statement acquires its semicolon. Measured:
-//     `sub f { 1 }` and `sub g { 1; }` both return 1.
+// A call's parens are not forgiven. Canon writes them only where the source
+// did (the tree's ArgParen) or binding power needs them, so a pair the
+// source lacks is a grouping the tree imposed.
 //
 // Nothing else is forgiven. A paren that changes grouping is the defect this
 // exists to catch, and the quotient must not reach it -- see
@@ -82,7 +81,6 @@ type Forgiveness struct {
 // The rules faithfulTokens forgives a difference by. See Faithful;
 // TestFaithfulForgivenessIsClosed holds the set closed.
 const (
-	ruleCallParens    = "call-parens"
 	ruleLastSemicolon = "last-semicolon"
 )
 
@@ -118,27 +116,6 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 			continue
 		}
 
-		// The one forgiven difference: the emission opened a paren the
-		// source did not, immediately after a call's name.
-		if got[g] == "(" && g > 0 && isName(got[g-1]) {
-			skip, ok := matchParen(got, g)
-			if !ok {
-				return false, forgiven, fmt.Sprintf("token %d: unbalanced %q in the emission", g, got[g])
-			}
-			// The source must contain the same arguments, unparenthesised.
-			// A block ARGUMENT inside those parens may have acquired its own
-			// trailing `;`, which is difference 2 one level down: `print {$fh}
-			// "x"` is emitted `print({$fh;} "x")` and `map { $_ } @a` as
-			// `map({$_;} @a)`. Forgiving it only in the outer loop failed both,
-			// and the `;` is no more meaningful inside a paren than outside one.
-			if n, inner, ok := matchForgivingSemicolons(want, w, got, g+1, skip); ok {
-				forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleCallParens})
-				forgiven = append(forgiven, inner...)
-				w += n
-				g = skip + 1
-				continue
-			}
-		}
 		return false, forgiven, fmt.Sprintf("token %d: source has %q, canon has %q", w, want[w], got[g])
 	}
 	if w != len(want) || g != len(got) {
@@ -190,69 +167,4 @@ func matchParen(toks []string, open int) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-// matchForgivingSemicolons matches inner against the front of want, forgiving a
-// `;` the emission wrote immediately before a `}` where the source went straight
-// to the brace.
-//
-// The same rewrite Faithful's main loop forgives, applied inside a forgiven
-// paren: `print {$fh} "x"` is emitted as `print({$fh;} "x")` and `map { $_ } @a`
-// as `map({$_;} @a)`, so the arguments agree except for that one semicolon. A
-// `;` is no more meaningful inside a paren than outside one, and forgiving it
-// only outside failed every block argument in the corpus.
-//
-// It matches got[from:to] against want from w on, and returns how many of
-// want's tokens were consumed and each difference it forgave, indexed into
-// want and got.
-func matchForgivingSemicolons(want []string, w int, got []string, from, to int) (int, []Forgiveness, bool) {
-	start := w
-	var forgiven []Forgiveness
-	for i := from; i < to; i++ {
-		if w < len(want) && want[w] == got[i] {
-			w++
-			continue
-		}
-		if got[i] == ";" && i+1 < to && got[i+1] == "}" &&
-			w < len(want) && want[w] == "}" {
-			forgiven = append(forgiven, Forgiveness{CanonIndex: i, SrcIndex: w, Rule: ruleLastSemicolon})
-			continue
-		}
-		// A call's added parens inside these ones: the forgiven difference
-		// one level down, forgiven the same way. `print create Foo sub {...}`
-		// is emitted `print(create Foo(sub {...}))`.
-		if got[i] == "(" && i > from && isName(got[i-1]) {
-			if skip, ok := matchParen(got[:to], i); ok {
-				if n, inner, ok := matchForgivingSemicolons(want, w, got, i+1, skip); ok {
-					forgiven = append(forgiven, Forgiveness{CanonIndex: i, SrcIndex: w, Rule: ruleCallParens})
-					forgiven = append(forgiven, inner...)
-					w += n
-					i = skip
-					continue
-				}
-			}
-		}
-		return 0, nil, false
-	}
-	return w - start, forgiven, true
-}
-
-// isName reports whether a token could be a call's name -- the only place
-// the forgiven paren may appear.
-//
-// A leading letter or underscore covers every named call, and a file test is
-// the one call whose name begins with punctuation: `-e` is ONE operator token
-// whose text includes the minus, and canon emits it with the same parens it
-// gives `length`. Without this clause `-e $f` emitted as `-e($f)` failed the
-// forgiveness that `length $x` emitted as `length($x)` receives, which is a
-// difference in the spelling of the name and not in the tree.
-func isName(tok string) bool {
-	if tok == "" {
-		return false
-	}
-	if lexer.IsFileTest(tok) {
-		return true
-	}
-	c := tok[0]
-	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }

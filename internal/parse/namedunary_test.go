@@ -149,17 +149,12 @@ func TestCanonNamedUnaryKeepsSourceArgParen(t *testing.T) {
 }
 
 // TestCanonNamedUnaryWrapsLooserOperand: a wrong tree's grouping is a paren
-// the source lacks. Canon's text only; the verdict is asserted once the
-// call-paren forgiveness is removed.
+// the source lacks. Canon's text only; TestCanonWrongTreesAreUnfaithful
+// holds the verdicts.
 func TestCanonNamedUnaryWrapsLooserOperand(t *testing.T) {
-	for _, tc := range []struct{ src, want string }{
-		{`defined $x || $y;`, `defined ($x || $y);`},
-		{`ref $x eq 'A';`, `ref ($x eq 'A');`},
-	} {
-		n := Parse([]byte(tc.src))
-		st := lastStmt(t, n)
-		st.Children[0] = rotate(t, st.Children[0])
-		requireCanon(t, n, tc.src, tc.want)
+	for _, name := range []string{"defined over ||", "ref over eq"} {
+		n, src := wrongTree(t, name)
+		requireCanon(t, n, src, wrongTreeCanon(t, name))
 	}
 }
 
@@ -172,18 +167,7 @@ func TestCanonNamedUnaryParenthesisesLeadingParenOperand(t *testing.T) {
 	n := Parse([]byte(src))
 	requireCanon(t, n, src, src)
 
-	// The wrong tree: defined over `($x) . "a"`, the `($x)` a parenthesised
-	// Term spanning the source's parens, and no call parens.
-	st := lastStmt(t, n)
-	wrong := rotate(t, st.Children[0])
-	wrong.ArgParen = false
-	dot := wrong.Children[0]
-	x := *dot.Children[0]
-	x.Paren = true
-	x.Start = strings.Index(src, "(")
-	x.End = strings.Index(src, ")") + 1
-	dot.Children[0] = &x
-	st.Children[0] = wrong
+	n, src = wrongTree(t, "defined over a leading paren")
 	requireCanon(t, n, src, `defined(($x) . "a");`)
 }
 
