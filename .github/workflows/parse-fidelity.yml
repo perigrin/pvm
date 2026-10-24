@@ -281,7 +281,7 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ ./internal/parse/ \
-          -run '^(TestCIGateRunsTheSweep|TestCISweepRunsOracleOnce|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestOracleAnswersFileThatPerlCompiles|TestOracleStillDeclinesFileDyingInBEGIN|TestOracleExitInBEGINIsNotExact|TestOracleStderrFromBEGINIsNotAFailure|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines|TestFaithfulForgivenessIsClosed|TestNamedHashRv2hvTableMatchesPerl|TestFaithfulForgivesSemicolonOnlyInBlocks|TestFaithfulLastSemicolonOnlyInBlocks|TestDerefBareNameBraceReadsAsPerlDoes)$' \
+          -run '^(TestCIGateRunsTheSweep|TestCISweepRunsOracleOnce|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestOracleAnswersFileThatPerlCompiles|TestOracleStillDeclinesFileDyingInBEGIN|TestOracleExitInBEGINIsNotExact|TestOracleStderrFromBEGINIsNotAFailure|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines|TestFaithfulForgivenessIsClosed|TestNamedHashRv2hvTableMatchesPerl|TestFaithfulForgivesSemicolonOnlyInBlocks|TestFaithfulLastSemicolonOnlyInBlocks|TestDerefBareNameBraceReadsAsPerlDoes|TestParenWalkReadsPARENSOnNulledOps|TestParenFlagMatchesPerlOPfPARENS|TestParenFoldedOpsAreGaps|TestParenGapRowWithUnfoldedOpFails|TestParenStructuralOpsAreExcluded|TestParenFlagCallArgParensAreNotAParen|TestParenFlagFailsWhenPerlProducesNoOps|TestParenWalkSurvivesLargeOutput)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
@@ -298,6 +298,10 @@ jobs:
                  TestOpcountCountsSubRootLikeOpcountT TestOpcountDetectsDriftedCount \
                  TestOpcountFixturesMatchTheirSourceLines \
                  TestFaithfulForgivenessIsClosed TestNamedHashRv2hvTableMatchesPerl \
+                 TestParenWalkReadsPARENSOnNulledOps TestParenFlagMatchesPerlOPfPARENS \
+                 TestParenFoldedOpsAreGaps TestParenGapRowWithUnfoldedOpFails \
+                 TestParenStructuralOpsAreExcluded TestParenFlagCallArgParensAreNotAParen \
+                 TestParenFlagFailsWhenPerlProducesNoOps TestParenWalkSurvivesLargeOutput \
                  TestFaithfulForgivesSemicolonOnlyInBlocks TestFaithfulLastSemicolonOnlyInBlocks \
                  TestDerefBareNameBraceReadsAsPerlDoes; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then

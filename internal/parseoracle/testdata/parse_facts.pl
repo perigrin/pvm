@@ -77,7 +77,7 @@ my $protosrc = <<'PERL';
         print "PROTO\t$name\t$p\n";
     }
 
-    my (%seen, @sites);
+    my (%seen, @sites, @opflags);
     my ($walk, $walkcv);
 
     # The SV behind a const or method_named op. Under ithreads it lives in
@@ -156,6 +156,19 @@ my $protosrc = <<'PERL';
                 && ($parent->name eq 'goto' || $is_attr_import->($parent, $cv));
             push @sites, [$cop->line, $name, $marker] unless $rewrite;
         }
+        if ($cop && $cop->file eq $oracle_file) {
+            # Every op of the file's statements, for the OPf_PARENS check
+            # (parens_test.go): its name as Concise prints it -- a nulled
+            # op is ex- its former name, as `f((1,2))`'s `ex-list lKPM` --
+            # then P when it carries OPf_PARENS, the one bit perl keeps for
+            # a source paren around the op, and FOLD when constant folding
+            # made it.
+            my $shown = $name eq 'null' && $op->targ
+                ? 'ex-' . substr(B::ppname($op->targ), 3) : $name;
+            $shown .= ' P' if $op->flags & B::OPf_PARENS();
+            $shown .= ' FOLD' if $op->folded;
+            push @opflags, $cop->line . " $shown";
+        }
         if ($op->flags & B::OPf_KIDS()) {
             # A COP names the statement for the siblings that FOLLOW it at
             # this level only; a nested block's COPs must not leak out to
@@ -227,15 +240,22 @@ my $protosrc = <<'PERL';
     };
     $walkstash->('main');
 
+    # Unbuffered, so every line is out before perl -c writes "syntax OK"
+    # to the same captured stream. Buffered, a file with many ops flushed
+    # its last block after it, and "syntax OK" landed inside an OPF line
+    # (comp/proto.t).
+    $| = 1;
     print "SITE\t$_->[0]\t$_->[1]\t$_->[2]\n" for @sites;
+    print "OPF\t$_\n" for @opflags;
     print "WALK\tok\n";
 PERL
 
 my $protoout = capture_with_end($file, $protosrc);
-my (@sites, $walked);
+my (@sites, @opflags, $walked);
 for my $line (split /\n/, $protoout) {
     $proto{$2} = $3 if $line =~ /^(PROTO)\t([^\t]*)\t(.*)$/;
     push @sites, [$1, $2, $3] if $line =~ /^SITE\t(\d+)\t(\w+)\t(\w+)$/;
+    push @opflags, $1 if $line =~ /^OPF\t(.*)$/;
     $walked = 1 if $line eq "WALK\tok";
 }
 
@@ -255,6 +275,7 @@ print encode({
     walked    => $walked ? 1 : 0,
     entersub  => scalar(grep { $_ eq 'entersub' } @ops),
     prototypes=> \%proto,
+    opflags   => \@opflags,
     stderr    => $stderr,
 }), "\n";
 

@@ -301,10 +301,11 @@ func TestCodeRefCallThroughSubscript(t *testing.T) {
 		src  string
 		want lower.Node
 	}{
-		{"$c->(1)(2);", &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", true)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
+		{"$c->(1)(2);", &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", false)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
+		{"$c->((1))(2);", &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", true)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
 		{"$c->()(2);", &lower.Call{Fn: &lower.Call{Fn: c, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true}},
 		{"$c->(1)(2)(3);", &lower.Call{
-			Fn:            &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", true)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true},
+			Fn:            &lower.Call{Fn: &lower.Call{Fn: c, Args: L{num("1", false)}, Parenthesized: true}, Args: L{num("2", false)}, Parenthesized: true},
 			Args:          L{num("3", false)},
 			Parenthesized: true,
 		}},

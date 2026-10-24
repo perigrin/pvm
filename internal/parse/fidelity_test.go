@@ -770,12 +770,11 @@ func TestFaithfulDistinguishesMyListFromMyComma(t *testing.T) {
 }
 
 // TestFaithfulDoesNotTreatSliceParensAsNesting: a list slice's pair is
-// syntax, as a call's is, so a pair inside it is not extra nesting and
-// canon writes the slice's pair unmarked. Measured on perl 5.44.0
-// (parenMeasurements), `((1,2,3))[1]` is `ex-list lKP` and `(1,2,3)[1]` is
-// `ex-list lK`; `((@a))[0,1]` is `padav lP` and `(@a)[0,1]` is `padav l`.
-// psc's tree holds one Paren for both pairs, so canon writes one, and the
-// doubled source is unfaithful (01a16602-5f1a).
+// syntax, as a call's is, so a pair inside it is not extra nesting: it is
+// the list's Paren, and canon writes it marked inside the slice's unmarked
+// pair (Node.SyntaxParen). Measured on perl 5.44.0 (parenMeasurements),
+// `((1,2,3))[1]` is `ex-list lKP` and `(1,2,3)[1]` is `ex-list lK`;
+// `((@a))[0,1]` is `padav lP` and `(@a)[0,1]` is `padav l`.
 func TestFaithfulDoesNotTreatSliceParensAsNesting(t *testing.T) {
 	for _, src := range []string{
 		`my $x = ((1,2,3))[1];`,
@@ -785,13 +784,15 @@ func TestFaithfulDoesNotTreatSliceParensAsNesting(t *testing.T) {
 		`my $x = ((caller))[2];`,
 		`my @a; my ($p,$q) = ((@a))[0,1];`,
 	} {
-		if ok, _ := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); ok {
-			t.Errorf("Faithful(%q) = true, want false", src)
+		if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
+			t.Errorf("Faithful(%q) = false (%s), want true", src, why)
 		}
 	}
 	for _, tc := range []struct{ src, want string }{
 		{`my $x = (1,2,3)[1];`, `my $x = ( 1 , 2 , 3 ) [ 1 ] ;`},
 		{`my @a; my @x = (@a)[0];`, `my @a ; my @x = ( @a ) [ 0 ] ;`},
+		{`my $x = ((1,2,3))[1];`, `my $x = ( *( 1 , 2 , 3 *) ) [ 1 ] ;`},
+		{`my $x = (((1,2,3)))[1];`, `my $x = ( *( 1 , 2 , 3 *) ) [ 1 ] ;`},
 	} {
 		if got := markedCanon(tc.src); got != tc.want {
 			t.Errorf("canon tokens of %q are %q, want %q", tc.src, got, tc.want)

@@ -1,0 +1,283 @@
+Fixtures for the OPf_PARENS check (parens_test.go). perl keeps one boolean
+bit, OPf_PARENS (P in Concise), on the op a source paren enclosed; psc keeps
+Paren on the node. Each snippet is compiled as a file of its own by the
+pinned perl (corpus.pin's interpreter, 5.44.0), and the check compares, per
+statement line, the ops perl marks P with the ops psc's Paren nodes map to.
+
+A line `=== NAME [CLASS ...]` opens a fixture; its source runs to `--- perl`.
+`--- perl` lists the ops perl marks P, one `LINE OP` per row, or `none`
+when perl keeps no P for the snippet. `#` lines quote perl 5.44.0's
+-MO=Concise. The structural ops every block and loop carries P on (leave,
+leaveloop, lineseq, scope, and the null over an `if`) are not listed: the
+check excludes them on perl's side.
+
+=== a declared list [list-op]
+my ($a, $b) = @_;
+--- perl
+1 ex-list
+# -        <1> ex-list lKPRM* ->4
+
+=== a declared list and a list assignment [list-op]
+our ($p, $q);
+($p, $q) = (1, 2);
+--- perl
+1 ex-list
+2 ex-list
+2 ex-list
+# -     <1> ex-list vKP ->2
+# -        <1> ex-list lKP ->6
+# -        <1> ex-list lKPRM* ->9
+
+=== a declared one-element list [one-element-list]
+my ($x) = @_;
+--- perl
+1 padsv
+# -           <0> padsv[$x:1,2] sPRM*/LVINTRO ->-
+# the ex-list over it is lK, with no P
+
+=== a localised one-element list [one-element-list]
+our $x;
+local ($x) = 1;
+--- perl
+2 ex-rv2sv
+# -           <1> ex-rv2sv sKPRM*/LVINTRO,1 ->-
+
+=== a lexical in parens [scalar-op]
+my $x;
+my $z = ($x);
+--- perl
+2 padsv
+# 5        <0> padsv[$x:1,3] sP ->6
+
+=== a package variable in parens [scalar-op]
+our $x;
+my $z = ($x);
+--- perl
+2 ex-rv2sv
+# -        <1> ex-rv2sv sKP/1 ->4
+
+=== a lexical in doubled parens [doubled scalar-op]
+my $x;
+my $z = (($x));
+--- perl
+2 padsv
+# 5        <0> padsv[$x:1,3] sP ->6, as with one pair
+
+=== a comparison in doubled parens as a call argument [doubled call-arg]
+sub ok {}
+our $y;
+ok((($y eq "x")));
+--- perl
+3 seq
+# 8           <2> seq sKPM/2 ->9, as with one pair
+
+=== a comparison in parens as a call argument [call-arg]
+sub ok {}
+our $y;
+ok(($y eq "x"));
+--- perl
+3 seq
+# 8           <2> seq sKPM/2 ->9
+
+=== a call's parens around a parenthesised constant [call-arg doubled]
+print ((1))+2;
+--- perl
+1 const
+# 4           <$> const[IV 1] sP ->5
+
+=== a call's parens around a constant [call-arg single-form]
+print (1)+2;
+--- perl
+none
+# 4           <$> const[IV 1] s ->5: print's pair is its call parens
+
+=== a parenthesised list as a call's argument [ex-list call-arg]
+sub f {}
+f((1,2));
+--- perl
+2 ex-list
+# -           <1> ex-list lKPM ->8
+
+=== a qw list [qw]
+my @a = qw(a b);
+--- perl
+1 ex-list
+# -        <1> ex-list lKP ->6
+
+=== a one-word qw list [qw]
+my @a = qw(a);
+--- perl
+1 const
+# 4           <$> const[PV "a"] sP ->5
+
+=== a qw list in parens [qw doubled]
+my @a = (qw(a b));
+--- perl
+1 ex-list
+# -        <1> ex-list lKP ->6, as without the parens
+
+=== return of a parenthesised list [absorbed]
+sub r {
+  return (1, 2);
+}
+--- perl
+2 return
+# -        <@> return KP ->-: return absorbed the list, and no list op is left
+
+=== return of a doubly parenthesised list [absorbed doubled]
+sub s {
+  return ((1, 2));
+}
+--- perl
+2 return
+# -        <@> return KP ->-
+
+=== return of a parenthesised constant [scalar-op]
+sub t {
+  return (1);
+}
+--- perl
+2 const
+# 2           <$> const[IV 1] sP ->3
+
+=== if, else and do blocks [block]
+our $x;
+if ($x) {
+  my $y = 1;
+  $y++;
+}
+else {
+  my $y = 2;
+  $y++;
+}
+my $r = do { my $z = 1; $z };
+--- perl
+none
+# c           <@> leave vKP ->d, u           <@> leave vKP ->d,
+# k           <@> leave sKP ->l and -     <1> null vKP/1 ->d over the if's
+# `and`: structural, excluded. A one-statement block is `scope vK`, no P.
+
+=== for and while loops [loop]
+for my $i (1, 2) {
+  my $y = ($i);
+  $y++;
+}
+our $x;
+while ($x) {
+  $x--;
+  1;
+}
+--- perl
+2 padsv
+# 8                    <0> padsv[$i:2,6] sP ->9
+# g     <2> leaveloop vKP/2 ->h and -              <@> lineseq vKP ->-, on
+# each loop: structural, excluded
+
+=== an arrow call's argument [single-form]
+my $f = sub {};
+our $x;
+$f->($x);
+--- perl
+none
+# -           <1> ex-rv2sv sKM/1 ->8: the pair is the call's
+
+=== an arrow call's argument in doubled parens [doubled]
+my $f = sub {};
+our $x;
+$f->(($x));
+--- perl
+3 ex-rv2sv
+# -           <1> ex-rv2sv sKPM/1 ->8
+
+=== an arrow call's arguments [single-form]
+my $f = sub {};
+$f->(1, 2);
+--- perl
+none
+# -        <1> ex-list K ->a: the pair is the call's
+
+=== an arrow call's arguments in doubled parens [doubled ex-list]
+my $f = sub {};
+$f->((1, 2));
+--- perl
+2 ex-list
+# -           <1> ex-list lKPM ->9
+
+=== an arrow call with no arguments [single-form]
+my $f = sub {};
+$f->();
+--- perl
+none
+# -        <1> ex-list K ->8
+
+=== not's parenthesised operand [single-form]
+our $a;
+my $r = not ($a == 1);
+--- perl
+none
+# 5           <2> eq sK/2 ->6: the pair is not's
+
+=== not's operand in doubled parens [doubled]
+our $a;
+my $r = not (($a == 1));
+--- perl
+2 eq
+# 5           <2> eq sKP/2 ->6
+
+=== a parenthesised not [scalar-op]
+our $x;
+my $r = (not $x);
+--- perl
+2 not
+# 4        <1> not sKP/1 ->5
+
+=== a list slice of an array [single-form]
+my @a;
+my @x = (@a)[0];
+--- perl
+none
+# 9                 <0> padav[@a:1,3] l ->a: the pair is the slice's
+
+=== a list slice of an array in doubled parens [doubled]
+my @a;
+my @x = ((@a))[0];
+--- perl
+2 padav
+# 9                 <0> padav[@a:1,3] lP ->a
+
+=== a list slice of a list [single-form]
+my $x = (1,2,3)[1];
+--- perl
+none
+# -           <1> ex-list lK ->9
+
+=== a list slice of a list in doubled parens [doubled]
+my $x = ((1,2,3))[1];
+--- perl
+1 ex-list
+# -           <1> ex-list lKP ->9
+
+=== a list slice of stat in doubled parens [doubled]
+my $x = ((stat "/"))[2];
+--- perl
+1 stat
+# 7              <1> stat lKP/1 ->8; `(stat "/")[2]` is stat lK
+
+=== a list slice of caller in doubled parens [doubled]
+my $x = ((caller))[2];
+--- perl
+1 caller
+# 6              <0> caller[t2] lP ->7
+
+=== a list slice of a parenthesised element and a comma [doubled]
+my $x = ((0),)[0];
+--- perl
+1 const
+# 6              <$> const[IV 0] sP ->7; `(0,)[0]` is const[IV 0] s
+
+=== an arrow call's parenthesised argument and a comma [doubled]
+my $f = sub {};
+$f->((0),);
+--- perl
+2 const
+# 7           <$> const[IV 0] sPM ->8: the inner pair is the 0's

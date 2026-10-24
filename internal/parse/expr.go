@@ -52,11 +52,11 @@ func (p *parser) parseExpr(minBP int) *Node {
 // `(!foo()=>0)` calls foo.
 func markFatOperand(left *Node) {
 	n := left
-	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration ||
+	for !n.Paren && !n.SyntaxParen && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration ||
 		n.Kind == Call && n.NamedUnary && !n.ArgParen && len(n.Children) == 1) {
 		n = n.Children[len(n.Children)-1]
 	}
-	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
+	if n != left && !n.Paren && !n.SyntaxParen && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
 		n.Fat = true
 	}
 }
@@ -245,6 +245,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			// whatever owns it reports the bytes left over.
 			if text == "(" && !p.callsHere(left) {
 				return left
+			}
+			// A list slice: the pair before `[` is the slice's.
+			if text == "[" && left.Paren && p.src[left.Start] == '(' {
+				takeSyntaxPair(left)
 			}
 			left = p.parseSubscript(left, text)
 		case "->":
@@ -518,7 +522,7 @@ func (p *parser) callsHere(left *Node) bool {
 	// The method name or the arrow call's own parens: `$x->$m` or the `(1)`
 	// of `$x->(1)`, not a postfix slice, `$x->@[0]`. Once called,
 	// `$x->$m()` is a term, and its `(1)` is read by subscripted.
-	return p.afterArrow(left) && (left.Paren || p.src[left.Start] == '$') &&
+	return p.afterArrow(left) && (left.SyntaxParen || p.src[left.Start] == '$') &&
 		!(left.Kind == Index && left.Text == "(")
 }
 
@@ -530,7 +534,7 @@ func (p *parser) subscripted(n *Node) bool {
 	}
 	base := n.Children[0]
 	if n.Text == "(" {
-		return p.subscripted(base) || base.Paren && p.afterArrow(base)
+		return p.subscripted(base) || base.SyntaxParen && p.afterArrow(base)
 	}
 	if n.Arrow {
 		return true

@@ -1,0 +1,306 @@
+The OPf_PARENS fixtures (issue 01a16602-5f1a), held as probes: every
+snippet of internal/parseoracle/testdata/parens/fixtures.txt and gaps.txt,
+which TestParenFlagMatchesPerlOPfPARENS compares op by op. perl keeps one
+boolean bit, OPf_PARENS (P in Concise), on the op a source paren enclosed;
+a pair the syntax requires -- `$f->(...)`, `not (...)`, a list slice's
+`(...)[...]` -- sets no bit, and psc records it as SyntaxParen, not Paren.
+Each row's comment quotes perl 5.44.0's -MO=Concise.
+
+=== a declared list
+my ($a, $b) = @_;
+--- facts
+faithful
+# -        <1> ex-list lKPRM* ->4
+
+=== a declared list and a list assignment
+our ($p, $q);
+($p, $q) = (1, 2);
+--- facts
+faithful
+# -     <1> ex-list vKP ->2
+# -        <1> ex-list lKP ->6
+# -        <1> ex-list lKPRM* ->9
+
+=== a declared one-element list
+my ($x) = @_;
+--- facts
+faithful
+# -           <0> padsv[$x:1,2] sPRM*/LVINTRO ->-
+# the ex-list over it is lK, with no P
+
+=== a localised one-element list
+our $x;
+local ($x) = 1;
+--- facts
+faithful
+# -           <1> ex-rv2sv sKPRM*/LVINTRO,1 ->-
+
+=== a lexical in parens
+my $x;
+my $z = ($x);
+--- facts
+faithful
+# 5        <0> padsv[$x:1,3] sP ->6
+
+=== a package variable in parens
+our $x;
+my $z = ($x);
+--- facts
+faithful
+# -        <1> ex-rv2sv sKP/1 ->4
+
+=== a lexical in doubled parens
+my $x;
+my $z = (($x));
+--- facts
+faithful
+# 5        <0> padsv[$x:1,3] sP ->6, as with one pair
+
+=== a comparison in doubled parens as a call argument
+sub ok {}
+our $y;
+ok((($y eq "x")));
+--- facts
+faithful
+# 8           <2> seq sKPM/2 ->9, as with one pair
+
+=== a comparison in parens as a call argument
+sub ok {}
+our $y;
+ok(($y eq "x"));
+--- facts
+faithful
+# 8           <2> seq sKPM/2 ->9
+
+=== a call's parens around a parenthesised constant
+print ((1))+2;
+--- facts
+faithful
+# 4           <$> const[IV 1] sP ->5
+
+=== a call's parens around a constant
+print (1)+2;
+--- facts
+faithful
+# 4           <$> const[IV 1] s ->5: print's pair is its call parens
+
+=== a parenthesised list as a call's argument
+sub f {}
+f((1,2));
+--- facts
+faithful
+# -           <1> ex-list lKPM ->8
+
+=== a qw list
+my @a = qw(a b);
+--- facts
+faithful
+# -        <1> ex-list lKP ->6
+
+=== a one-word qw list
+my @a = qw(a);
+--- facts
+faithful
+# 4           <$> const[PV "a"] sP ->5
+
+=== a qw list in parens
+my @a = (qw(a b));
+--- facts
+faithful
+# -        <1> ex-list lKP ->6, as without the parens
+
+=== return of a parenthesised list
+sub r {
+  return (1, 2);
+}
+--- facts
+faithful
+# -        <@> return KP ->-: return absorbed the list, and no list op is left
+
+=== return of a doubly parenthesised list
+sub s {
+  return ((1, 2));
+}
+--- facts
+faithful
+# -        <@> return KP ->-
+
+=== return of a parenthesised constant
+sub t {
+  return (1);
+}
+--- facts
+faithful
+# 2           <$> const[IV 1] sP ->3
+
+=== if, else and do blocks
+our $x;
+if ($x) {
+  my $y = 1;
+  $y++;
+}
+else {
+  my $y = 2;
+  $y++;
+}
+my $r = do { my $z = 1; $z };
+--- facts
+faithful
+# c           <@> leave vKP ->d, u           <@> leave vKP ->d,
+# k           <@> leave sKP ->l and -     <1> null vKP/1 ->d over the if's
+# `and`: structural, excluded. A one-statement block is `scope vK`, no P.
+
+=== for and while loops
+for my $i (1, 2) {
+  my $y = ($i);
+  $y++;
+}
+our $x;
+while ($x) {
+  $x--;
+  1;
+}
+--- facts
+faithful
+# 8                    <0> padsv[$i:2,6] sP ->9
+# g     <2> leaveloop vKP/2 ->h and -              <@> lineseq vKP ->-, on
+# each loop: structural, excluded
+
+=== an arrow call's argument
+my $f = sub {};
+our $x;
+$f->($x);
+--- facts
+faithful
+# -           <1> ex-rv2sv sKM/1 ->8: the pair is the call's
+
+=== an arrow call's argument in doubled parens
+my $f = sub {};
+our $x;
+$f->(($x));
+--- facts
+faithful
+# -           <1> ex-rv2sv sKPM/1 ->8
+
+=== an arrow call's arguments
+my $f = sub {};
+$f->(1, 2);
+--- facts
+faithful
+# -        <1> ex-list K ->a: the pair is the call's
+
+=== an arrow call's arguments in doubled parens
+my $f = sub {};
+$f->((1, 2));
+--- facts
+faithful
+# -           <1> ex-list lKPM ->9
+
+=== an arrow call with no arguments
+my $f = sub {};
+$f->();
+--- facts
+faithful
+# -        <1> ex-list K ->8
+
+=== not's parenthesised operand
+our $a;
+my $r = not ($a == 1);
+--- facts
+faithful
+# 5           <2> eq sK/2 ->6: the pair is not's
+
+=== not's operand in doubled parens
+our $a;
+my $r = not (($a == 1));
+--- facts
+faithful
+# 5           <2> eq sKP/2 ->6
+
+=== a parenthesised not
+our $x;
+my $r = (not $x);
+--- facts
+faithful
+# 4        <1> not sKP/1 ->5
+
+=== a list slice of an array
+my @a;
+my @x = (@a)[0];
+--- facts
+faithful
+# 9                 <0> padav[@a:1,3] l ->a: the pair is the slice's
+
+=== a list slice of an array in doubled parens
+my @a;
+my @x = ((@a))[0];
+--- facts
+faithful
+# 9                 <0> padav[@a:1,3] lP ->a
+
+=== a list slice of a list
+my $x = (1,2,3)[1];
+--- facts
+faithful
+# -           <1> ex-list lK ->9
+
+=== a list slice of a list in doubled parens
+my $x = ((1,2,3))[1];
+--- facts
+faithful
+# -           <1> ex-list lKP ->9
+
+=== a list slice of stat in doubled parens
+my $x = ((stat "/"))[2];
+--- facts
+faithful
+# 7              <1> stat lKP/1 ->8; `(stat "/")[2]` is stat lK
+
+=== a list slice of caller in doubled parens
+my $x = ((caller))[2];
+--- facts
+faithful
+# 6              <0> caller[t2] lP ->7
+
+=== a list slice of a parenthesised element and a comma
+my $x = ((0),)[0];
+--- facts
+faithful
+# 6              <$> const[IV 0] sP ->7; `(0,)[0]` is const[IV 0] s
+
+=== an arrow call's parenthesised argument and a comma
+my $f = sub {};
+$f->((0),);
+--- facts
+faithful
+# 7           <$> const[IV 0] sPM ->8: the inner pair is the 0's
+
+=== a parenthesised hash key
+my %h;
+my $v = $h{(1)};
+--- facts
+faithful
+# 5           <+> multideref($h{"1"}) sK ->6: the key's const is folded
+# into the multideref, and no op carries P
+
+=== a negated parenthesised constant
+my $v = -(1);
+--- facts
+faithful
+# 3        <$> const[IV -1] s/FOLD ->4
+
+=== a concatenation with a parenthesised constant
+my $v = "a" . ("b");
+--- facts
+faithful
+# 3        <$> const[PV "ab"] s/FOLD ->4
+
+=== a parenthesised element before an arrow subscript
+sub g {
+  my $v = ($_[0])->[0];
+}
+--- facts
+faithful
+# -           <1> ex-aelem sK/2 ->3
+# 2              <+> multideref($_[0][0]) sK ->3: the aelem is nulled
+# into the multideref, and no op carries P

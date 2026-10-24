@@ -98,19 +98,15 @@ faithful
 my $f = sub {}; our $x; $f->(($x));
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
-# ex-rv2sv sKPM/1; `$f->($x)` is ex-rv2sv sKM/1. psc's tree puts one
-# Paren on $x for both pairs, though the outer is the call's, so canon
-# writes `$f->($x)`.
+# ex-rv2sv sKPM/1; `$f->($x)` is ex-rv2sv sKM/1. The outer pair is the
+# call's (SyntaxParen), the inner $x's Paren.
 
 === not's operand in doubled parens
 our $a; my $r = not (($a == 1));
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
-# eq sKP/2; `not ($a == 1)` is eq sK/2. psc's tree puts one Paren on the
-# comparison for both pairs, though the outer is not's, so canon writes
-# `not ($a == 1)`.
+# eq sKP/2; `not ($a == 1)` is eq sK/2. The outer pair is not's
+# (SyntaxParen), the inner the comparison's Paren.
 
 === a list slice of a list
 my $x = (1,2,3)[1];
@@ -127,41 +123,35 @@ faithful
 my $x = ((1,2,3))[1];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
-# ex-list lKP; `(1,2,3)[1]` is ex-list lK. psc's tree puts one Paren on
-# the list for both pairs, though the outer is the slice's.
+# ex-list lKP; `(1,2,3)[1]` is ex-list lK. The outer pair is the slice's
+# (SyntaxParen), the inner the list's Paren.
 
 === a list slice of a list in tripled parens
 my $x = (((1,2,3)))[1];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
 
 === a list slice of stat in doubled parens
 my $x = ((stat "/"))[2];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
 # stat lKP; `(stat "/")[2]` is stat lK
 
 === a list slice of an array in doubled parens
 my @a; my @x = ((@a))[0,1];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
 # padav lP; `(@a)[0,1]` is padav l
 
 === a list slice of caller in doubled parens
 my $x = ((caller))[2];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
 
 === a list slice in doubled parens assigned to a list
 my @a; my ($p,$q) = ((@a))[0,1];
 --- facts
 faithful
-known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
 
 === a parenthesised element before a trailing comma, in parens
 my @r = ((1),);

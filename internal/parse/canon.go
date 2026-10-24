@@ -43,15 +43,6 @@ type canonBuf struct {
 	// reads and clears it, so a parent sets it (emitBefore) only for the
 	// child it is about to write; every other child reads 0.
 	follow int
-	// argParens says the node emitted next is one whose Paren flag stands
-	// for a pair the syntax requires, not a grouping: `$f->(...)`, `not
-	// (...)` and a list slice's `(...)[...]`. Measured on perl 5.44.0,
-	// `$f->($x)` is `ex-rv2sv sKM` and `$f->(($x))` is `ex-rv2sv sKPM`,
-	// `not ($a == 1)` is `eq sK` and `not (($a == 1))` is `eq sKP`, and
-	// `(1,2,3)[1]` is `ex-list lK` and `((1,2,3))[1]` is `ex-list lKP`:
-	// perl keeps no OPf_PARENS bit for that pair, so it is written
-	// unmarked. emit reads and clears it, as it does follow.
-	argParens bool
 }
 
 // writeParenNode writes a paren a node's Paren flag stands for, and marks it.
@@ -98,22 +89,36 @@ func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	f := b.follow
 	b.follow = 0
-	argParens := b.argParens
-	b.argParens = false
 	// A trailing separator the source wrote goes after the node. See
 	// Node.TrailingComma. No blank goes before it, as before any comma (the
 	// Binary case): measured on perl 5.44.0, `print time , or die` dies
 	// with "No comma allowed after filehandle". One the source wrote after
 	// the node's own parens, `f((0),)`, goes after them; deferred first, it
 	// is written last.
-	if n.TrailingComma != "" && n.Paren && !commaInParens(n, src) {
+	if n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
 		defer b.WriteString(n.TrailingComma)
 	}
+	innerSep := syntaxPairSep(n, src)
 	switch {
-	case n.Paren && argParens:
+	case n.SyntaxParen:
+		// A pair the syntax requires, `$f->(...)`, `not (...)` and a list
+		// slice's `(...)[...]`: perl keeps no OPf_PARENS bit for it, so it
+		// is written unmarked. Measured on perl 5.44.0, `$f->($x)` is
+		// `ex-rv2sv sKM` and `$f->(($x))` is `ex-rv2sv sKPM`, `not ($a ==
+		// 1)` is `eq sK` and `not (($a == 1))` is `eq sKP`, and
+		// `(1,2,3)[1]` is `ex-list lK` and `((1,2,3))[1]` is `ex-list lKP`.
+		// A grouping pair the source nested inside it is the node's Paren,
+		// written inside it and marked.
 		f = 0 // the `)` follows
 		b.WriteByte('(')
 		defer b.WriteByte(')')
+		if n.Paren {
+			if innerSep != "" {
+				defer b.WriteString(innerSep)
+			}
+			b.writeParenNode('(')
+			defer b.writeParenNode(')')
+		}
 	case n.Paren:
 		// A node the source parenthesised is written with ONE pair, marked
 		// as its Paren flag's. perl keeps that paren as one bit,
@@ -133,7 +138,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	}
 	// A separator inside the parens, the source's `(A,)`, stays inside them:
 	// `(A,)/0` is written `(A,) / 0`, not `A, / 0`.
-	if n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) {
+	if n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) && innerSep == "" {
 		defer b.WriteString(n.TrailingComma)
 	}
 
@@ -299,7 +304,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// (emitCallArgs): measured on perl 5.44.0, `(foo() => 1)` is
 		// `(foo(), 1)`.
 		if n.Fat && len(n.Children) == 0 && !n.ArgParen {
-			if n.Paren {
+			if n.Paren || n.SyntaxParen {
 				b.WriteString(ownText(n, src))
 				return
 			}
@@ -505,10 +510,6 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// so only the closing brace is left. See bracedSubscriptedName.
 		if n.NameBraces {
 			defer b.WriteByte('}')
-		}
-		// A list slice's pair is the slice's (argParens).
-		if c := n.Children[0]; isListSlice(n) {
-			b.argParens = c.Paren
 		}
 		emitBefore(b, n.Children[0], src, atomBP, atomBP)
 		if n.Arrow {
@@ -829,12 +830,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		b.WriteByte(' ')
 		// The parens of `->(` are the call's argument list, not grouping,
 		// so they are written even where the argument alone would not need
-		// them, and are not marked (argParens). Measured on 5.42.0,
-		// `$r->($v->[0])` is `&$r($v->[0])` and `$r -> $v->[0]` is
-		// `$r->$v->[0]`, a method call through $v.
-		if c := n.Children[1]; n.Text == "->" && c.Paren && src[c.Start] == '(' {
-			b.argParens = true
-		}
+		// them, and are not marked (SyntaxParen, which emit writes).
+		// Measured on 5.42.0, `$r->($v->[0])` is `&$r($v->[0])` and `$r ->
+		// $v->[0]` is `$r->$v->[0]`, a method call through $v.
 		emitBefore(b, n.Children[1], src, r, f)
 
 	default:
@@ -862,15 +860,15 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 func emitNot(b *canonBuf, n *Node, src []byte, f int) {
 	c := n.Children[0]
 	// A parenthesised `not` has its pair from emit, and f is then 0.
-	if f > prefix["not"] && !c.Paren {
+	if f > prefix["not"] && !c.SyntaxParen {
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 		f = 0 // the `)` follows
 	}
-	// The operand's pair is the `not (` call form's (argParens).
-	if c.Paren {
+	// The operand's pair is the `not (` call form's (SyntaxParen), which
+	// emit writes.
+	if c.SyntaxParen {
 		b.WriteString("not ")
-		b.argParens = true
 		emit(b, c, src, 0)
 		return
 	}
@@ -975,9 +973,20 @@ func foldsSep(n *Node) bool {
 	return len(n.Children) == 0 && (n.Kind == Term || n.Kind == Call && n.Fat)
 }
 
-// isListSlice reports whether n, an Index, is a list slice: `(LIST)[...]`.
-func isListSlice(n *Node) bool {
-	return n.Kind == Index && !n.Arrow && n.Text == "[" && len(n.Children) == 2 && n.Children[0].Paren
+// syntaxPairSep is the separator the source wrote between a syntax pair
+// and the grouping pair inside it, `$f->((0),)` and `$f->((1,2),)`, or "".
+// A List's TrailingComma is always after its own pair.
+func syntaxPairSep(n *Node, src []byte) string {
+	if !n.SyntaxParen || !n.Paren {
+		return ""
+	}
+	if n.Kind == List {
+		return n.TrailingComma
+	}
+	if sep, afterPair := sepInParens(n, src); afterPair {
+		return sep
+	}
+	return ""
 }
 
 // sepInParens is the separator, `,` or `=>`, the source wrote between a
@@ -1007,11 +1016,15 @@ func sepInParens(n *Node, src []byte) (string, bool) {
 // 5.44.0, `((1),)` and `(1,)` build the same ops, so the inner pair is
 // spelling, written as the source wrote it.
 func ownText(n *Node, src []byte) string {
-	if !n.Paren {
+	if !n.Paren && !n.SyntaxParen {
 		return n.SourceText(src)
 	}
 	sep, afterPair := sepInParens(n, src)
-	if afterPair {
+	switch {
+	case afterPair && n.SyntaxParen && n.Paren:
+		// emit writes the separator between the two pairs.
+		return string(src[n.InnerStart:n.InnerEnd])
+	case afterPair:
 		return string(src[n.Start+1 : n.End-1])
 	}
 	return string(src[n.InnerStart:n.InnerEnd]) + sep
@@ -1118,7 +1131,7 @@ func bindingPower(n *Node) int {
 	case List:
 		// An unparenthesised list is a comma expression and binds like one;
 		// a parenthesised one is already grouped and cannot be split.
-		if !n.Paren {
+		if !n.Paren && !n.SyntaxParen {
 			return infix[","].BP
 		}
 		return atomBP

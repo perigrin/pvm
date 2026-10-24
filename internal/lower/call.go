@@ -39,12 +39,12 @@ var namesCode = map[string]bool{"defined": true, "exists": true, "undef": true}
 // parenthesized reports whether a call's arguments stand in parentheses.
 // A node's span covers its children exactly, so the span running past the
 // last child -- or, with no child, past the name -- is the closing paren:
-// `f(1,2)` does, `join ",", @a` does not. Grouping parens around the call,
-// `(localtime)`, widen its span, so a call with Paren is read off its
-// inner span.
+// `f(1,2)` does, `join ",", @a` does not. Parens around the call,
+// `(localtime)` or a list slice's `(localtime)[0]`, widen its span, so a
+// call with Paren or SyntaxParen is read off its inner span.
 func parenthesized(n *parse.Node) bool {
 	start, stop := n.Start, n.End
-	if n.Paren {
+	if n.Paren || n.SyntaxParen {
 		start, stop = n.InnerStart, n.InnerEnd
 	}
 	end := start + len(n.Text)
@@ -136,7 +136,7 @@ func (l *lowerer) arrowCall(n *parse.Node) Node {
 		return nil
 	}
 	inv, r := n.Children[0], n.Children[1]
-	if r.Paren {
+	if r.SyntaxParen {
 		return &Call{Fn: l.expr(inv), Args: l.parenArgs(r), Parenthesized: true}
 	}
 	if out := l.chainedCall(inv, r); out != nil {
@@ -173,7 +173,7 @@ func (l *lowerer) chainedCall(inv, r *parse.Node) Node {
 		chain = append(chain, x)
 		x = x.Children[0]
 	}
-	if len(chain) == 0 || !x.Paren {
+	if len(chain) == 0 || !x.SyntaxParen {
 		return nil
 	}
 	var fn Node = &Call{Fn: l.expr(inv), Args: l.parenArgs(x), Parenthesized: true}

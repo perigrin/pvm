@@ -354,6 +354,23 @@ type Node struct {
 	// marking it would make every call look like a list assignment target.
 	Paren bool
 
+	// SyntaxParen is set on a node standing in a pair the syntax requires
+	// rather than a grouping: an arrow call's arguments, `$f->(...)`;
+	// `not (...)`; and a list slice's list, `(...)[...]`. perl keeps no
+	// OPf_PARENS bit for that pair -- measured on perl 5.44.0, `$f->($x)`
+	// is `ex-rv2sv sKM`, `not ($a == 1)` is `eq sK` and `(@a)[0]` is
+	// `padav l` -- so it is not Paren. A pair the source nested inside it
+	// is a grouping, and sets Paren as anywhere else: `$f->(($x))` is
+	// `ex-rv2sv sKPM`. So Paren holds perl's bit, and canon writes the
+	// syntax's pair unmarked and a Paren pair marked.
+	SyntaxParen bool
+
+	// nestedParen is set by finishList on a node whose parens enclose
+	// another pair around the same node, `((x))` or `((x),)`. When the outer
+	// pair turns out to be the syntax's (takeSyntaxPair), the inner one is
+	// still a grouping. Parser state, not read outside it.
+	nestedParen bool
+
 	// InnerStart and InnerEnd are, on a node with Paren, its span before
 	// the grouping parens widened it: `(localtime)` starts and ends at the
 	// parens, and its inner span is `localtime`'s. A fact read off the
