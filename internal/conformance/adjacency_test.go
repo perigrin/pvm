@@ -139,3 +139,22 @@ func TestAdjacencyCountsMainStatementsOnly(t *testing.T) {
 		}
 	}
 }
+
+// TestConciseOpsSplitsCRLFOutput holds the main-program split to perl's
+// output on Windows, where B::Concise ends each line with "\r\n". A
+// header compared with its "\r" still attached never matches, and the
+// main program then counts no statements at all.
+func TestConciseOpsSplitsCRLFOutput(t *testing.T) {
+	out := "main::f:\r\n" +
+		"1  <;> nextstate(main 2 case.pl:1) v ->2\r\n" +
+		"main program:\r\n" +
+		"2  <;> nextstate(main 1 case.pl:1) v:{ ->3\r\n" +
+		"3  <;> nextstate(main 1 case.pl:1) v:{ ->4\r\n"
+	all, main := splitConciseOps(out)
+	if got := countOp(all, "nextstate"); got != 3 {
+		t.Errorf("all ops: counted %d nextstate, want 3", got)
+	}
+	if got := countOp(main, "nextstate"); got != 2 {
+		t.Errorf("main program: counted %d nextstate, want 2", got)
+	}
+}

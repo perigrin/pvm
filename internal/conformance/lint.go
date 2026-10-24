@@ -343,8 +343,20 @@ func fileOps(t *testing.T, source string) (all, main []string, err error) {
 		return nil, nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
 	}
 
+	all, main = splitConciseOps(string(out))
+	if len(all) == 0 {
+		return nil, nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
+	}
+	return all, main, nil
+}
+
+// splitConciseOps reads a B::Concise dump into every op, and separately
+// the ops under the `main program:` header.
+func splitConciseOps(out string) (all, main []string) {
 	inMain := false
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
+		// perl on Windows ends each line with "\r\n".
+		line = strings.TrimSuffix(line, "\r")
 		// The op test comes first: an op line may also end in a colon,
 		// when its flags do.
 		if m := reConciseOp.FindStringSubmatch(line); m != nil {
@@ -356,10 +368,7 @@ func fileOps(t *testing.T, source string) (all, main []string, err error) {
 			inMain = line == "main program:"
 		}
 	}
-	if len(all) == 0 {
-		return nil, nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
-	}
-	return all, main, nil
+	return all, main
 }
 
 // reDependsOn matches a tier README's machine-read prerequisite:
