@@ -29,10 +29,15 @@ func Canon(n *Node, src []byte) string {
 }
 
 // canonBuf is canon's output, with the offset of each `(` and `)` it wrote
-// because a node's Paren flag is set. See CanonToken.
+// because a node's Paren flag is set, and of each `;` it wrote as a Block's
+// last statement terminator. See CanonToken.
 type canonBuf struct {
 	strings.Builder
 	parenNode []int
+	blockSemi []int
+	// term is the offset of the `;` that ended the statement written last,
+	// -1 when it ended without one. A Block reads it after its children.
+	term int
 	// follow is the binding power of the operator written right after the
 	// node emitted next, which a named unary's operand would absorb. emit
 	// reads and clears it, so a parent sets it (emitBefore) only for the
@@ -62,7 +67,18 @@ func (b *canonBuf) writeFrom(o *canonBuf, from, to int) {
 			b.parenNode = append(b.parenNode, b.Len()+at-from)
 		}
 	}
+	for _, at := range o.blockSemi {
+		if at >= from && at < to {
+			b.blockSemi = append(b.blockSemi, b.Len()+at-from)
+		}
+	}
 	b.WriteString(o.String()[from:to])
+}
+
+// writeTerm writes a statement's terminating `;` and records where.
+func (b *canonBuf) writeTerm() {
+	b.term = b.Len()
+	b.WriteByte(';')
 }
 
 // emitBefore emits n with f, the power of the operator written after it.
@@ -172,7 +188,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				}
 				b.writeFrom(&stmt, at+1, len(text))
 				if !blockForm(n) {
-					b.WriteByte(';')
+					b.writeTerm()
 				} else {
 					b.WriteByte(' ')
 				}
@@ -192,6 +208,8 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// the text it follows the `;` that closed it. Canon supplies that
 		// `;`, so the split is made here, where both are in hand.
 		if bodies := heredocBodies(n); len(bodies) > 0 {
+			// Not writeTerm: the body follows this `;`, so it is never
+			// a block's last token and last-semicolon cannot forgive it.
 			if !blockForm(n) {
 				b.WriteByte(';')
 			}
@@ -214,8 +232,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// T1's 986 files. A kind list can drift; a wrong rule cannot be made
 		// right.
 		if !blockForm(n) {
-			b.WriteByte(';')
+			b.writeTerm()
 			return
+		}
+		// A block form that writes its own `;`, `require Carp`, ends there.
+		if strings.HasSuffix(text, ";") {
+			b.term = b.Len() - 1
 		}
 		// A block form takes no semicolon, so it needs a space instead --
 		// `sub f {1;}f();` runs the next statement into the brace and does
@@ -491,9 +513,20 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		b.WriteByte(closer(n.Text))
 
 	case Block:
+		// The `;` ending the last statement is marked: the tree says these
+		// braces are a code block, so Faithful may forgive it (see Faithful).
 		b.WriteByte('{')
+		b.term = -1
 		for _, c := range n.Children {
+			// Trivia writes nothing, so the statement before it is still the
+			// last; any other child, Statement or not, ends a new one.
+			if c.Kind != Trivia {
+				b.term = -1
+			}
 			emit(b, c, src, 0)
+		}
+		if b.term >= 0 {
+			b.blockSemi = append(b.blockSemi, b.term)
 		}
 		b.WriteByte('}')
 

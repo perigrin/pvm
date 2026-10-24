@@ -161,8 +161,8 @@ func ruleNames(fs []parse.Forgiveness) []string {
 
 // faithfulTokensCases are Faithful's verdicts on the examples above, as
 // token sequences, each with the rule behind every difference it forgave.
-// A case with parsed set takes its canon from the source's own parse, so
-// Faithful's verdict on that parse is held to the same answer.
+// A case with parsed set takes its canon from the source's own parse, marks
+// and all, so Faithful's verdict on that parse is held to the same answer.
 var faithfulTokensCases = []struct {
 	name, src, canon string
 	parsed           bool
@@ -190,6 +190,16 @@ var faithfulTokensCases = []struct {
 		[]string{"last-semicolon"}},
 }
 
+// caseCanon is a faithfulTokensCases canon's tokens: its source's own
+// parse's, marks and all, when parsed is set, and canon's text unmarked
+// otherwise.
+func caseCanon(src, canon string, parsed bool) []parse.CanonToken {
+	if parsed {
+		return parse.CanonTokens(parse.Parse([]byte(src)), []byte(src))
+	}
+	return asCanon(sigTokens(canon))
+}
+
 // TestFaithfulTokens: the token-sequence comparator gives Faithful's
 // verdicts and names the rule behind each difference it forgives.
 func TestFaithfulTokens(t *testing.T) {
@@ -204,7 +214,7 @@ func TestFaithfulTokens(t *testing.T) {
 					t.Errorf("Faithful(%q) = %v (%s), want %v", tc.src, ok, why, tc.ok)
 				}
 			}
-			ok, forgiven, why := parse.FaithfulTokens(sigTokens(tc.src), asCanon(sigTokens(tc.canon)))
+			ok, forgiven, why := parse.FaithfulTokens(sigTokens(tc.src), caseCanon(tc.src, tc.canon, tc.parsed))
 			if ok != tc.ok {
 				t.Errorf("FaithfulTokens(%q, %q) = %v (%s), want %v", tc.src, tc.canon, ok, why, tc.ok)
 			}
@@ -390,9 +400,10 @@ func unlistedRules(compare comparator, pairs []tokenPair) []string {
 
 // unreplayed reports whether undoing each recorded forgiveness in canon
 // fails to give src exactly, and how: a last-semicolon drops canon's `;`,
-// and an extra-nesting puts the source's paren back before the canon
-// token it was found at. A difference faithfulTokens skips without
-// recording one leaves a token behind, or misses one, here.
+// which must carry the mark canon writes on a Block's last `;`, and an
+// extra-nesting puts the source's paren back before the canon token it was
+// found at. A difference faithfulTokens skips without recording one leaves
+// a token behind, or misses one, here.
 func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgiveness) string {
 	drop := map[int]bool{}
 	insert := map[int][]string{}
@@ -404,6 +415,13 @@ func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgive
 			}
 			insert[f.CanonIndex] = append(insert[f.CanonIndex], src[f.SrcIndex])
 		default:
+			if f.CanonIndex < 0 || f.CanonIndex >= len(canon) {
+				return fmt.Sprintf("a %s at canon token %d, past canon", f.Rule, f.CanonIndex)
+			}
+			if c := canon[f.CanonIndex]; f.Rule == "last-semicolon" && (c.Text != ";" || !c.BlockSemi) {
+				return fmt.Sprintf("a last-semicolon forgave canon token %d, %q, which is no block's marked `;`",
+					f.CanonIndex, c.Text)
+			}
 			drop[f.CanonIndex] = true
 		}
 	}
@@ -441,7 +459,7 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 		}
 	}
 	for _, tc := range faithfulTokensCases {
-		pairs = append(pairs, tokenPair{tc.src, asCanon(sigTokens(tc.canon))})
+		pairs = append(pairs, tokenPair{tc.src, caseCanon(tc.src, tc.canon, tc.parsed)})
 	}
 	// The extent negatives: each wrong tree's canon is rejected, with
 	// nothing forgiven on the way.
@@ -457,18 +475,18 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 		t.Errorf("forgiven by a rule forgivenRules does not list: %s", p)
 	}
 	// Each pair as it is, and with one stray token inserted anywhere in its
-	// canon, marked or not: a skip that fires only on a difference the
-	// corpus never shows is still caught, because the stray token survives
-	// the replay.
+	// canon, under each mark or none: a skip that fires only on a difference
+	// the corpus never shows is still caught, because the stray token
+	// survives the replay.
 	stray := []string{"+", "-", "!", "\\", "(", ")", "{", "}", "[", "]", ";", ",", "=>"}
 	for _, p := range pairs {
 		src, canon := sigTokens(p.src), p.canon
 		variants := [][]parse.CanonToken{canon}
 		for i := 0; i <= len(canon); i++ {
 			for _, tok := range stray {
-				for _, marked := range []bool{false, true} {
-					variants = append(variants, slices.Insert(slices.Clone(canon), i,
-						parse.CanonToken{Text: tok, ParenNode: marked}))
+				for _, mark := range []parse.CanonToken{{}, {ParenNode: true}, {BlockSemi: true}} {
+					mark.Text = tok
+					variants = append(variants, slices.Insert(slices.Clone(canon), i, mark))
 				}
 			}
 		}
@@ -561,7 +579,7 @@ func TestFaithfulCallParenRuleIsGone(t *testing.T) {
 // paren canon adds after the block is not.
 func TestFaithfulLastSemicolonCoversBlockArgument(t *testing.T) {
 	src := `print {$fh} "x";`
-	ok, forgiven, why := parse.FaithfulTokens(sigTokens(src), asCanon(sigTokens(`print {$fh;} "x";`)))
+	ok, forgiven, why := parse.FaithfulTokens(sigTokens(src), canonTokensOf(t, `print {$fh;} "x";`))
 	if !ok || !slices.Equal(ruleNames(forgiven), []string{"last-semicolon"}) {
 		t.Errorf("FaithfulTokens(%q, `print {$fh;} \"x\";`) = %v forgiven by %v (%s), want true by [last-semicolon]",
 			src, ok, ruleNames(forgiven), why)
@@ -569,7 +587,7 @@ func TestFaithfulLastSemicolonCoversBlockArgument(t *testing.T) {
 	if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
 		t.Errorf("Faithful(%q) = false: %s", src, why)
 	}
-	if ok, _, _ := parse.FaithfulTokens(sigTokens(src), asCanon(sigTokens(`print {$fh;} ("x");`))); ok {
+	if ok, _, _ := parse.FaithfulTokens(sigTokens(src), canonTokensOf(t, `print {$fh;} ("x");`)); ok {
 		t.Errorf("FaithfulTokens(%q, `print {$fh;} (\"x\");`) = true, want false", src)
 	}
 }
@@ -590,7 +608,7 @@ func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
 // the mismatch is reported with the failing verdict, so the closed-set
 // check sees it on unfaithful files too.
 func TestFaithfulTokensReportsForgivenessOnFailure(t *testing.T) {
-	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`sub f { 1 } 1 + 2;`), asCanon(sigTokens(`sub f { 1; } 3;`)))
+	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`sub f { 1 } 1 + 2;`), canonTokensOf(t, `sub f { 1; } 3;`))
 	if ok || !slices.Equal(ruleNames(forgiven), []string{"last-semicolon"}) {
 		t.Errorf("got %v forgiven by %v, want false forgiven by [last-semicolon]", ok, ruleNames(forgiven))
 	}
@@ -825,4 +843,123 @@ func TestFaithfulNestingNeedsAnOpeningParen(t *testing.T) {
 		t.Errorf("(f(1)) against its own canon gave %v forgiven by %v (%s), want true with nothing forgiven",
 			ok, ruleNames(forgiven), why)
 	}
+}
+
+// hashSemicolons are a `;` written inside braces perl reads as an anonymous
+// hash or a subscript, each source against that canon. Measured on perl
+// 5.44.0, every source compiles and every canon is a syntax error near
+// ";}": the `;` is no spelling of the same program, so it is never forgiven.
+var hashSemicolons = []struct{ src, canon string }{
+	{`$h{a};`, `$h{a;};`},
+	{`$h->{a};`, `$h->{a;};`},
+	{`@h{a};`, `@h{a;};`},
+	{`$h = {a => 1};`, `$h = {a => 1;};`},
+}
+
+// realBlocks are code blocks whose last statement the source leaves without
+// its `;`. Canon writes one, and last-semicolon forgives it: perl 5.44.0
+// compiles each source and its canon alike.
+var realBlocks = []string{
+	"my @m = map { $_ + 1 } (1, 2);",
+	"my @g = grep { $_ > 1 } (1, 2);",
+	"my @s = sort { $a <=> $b } (2, 1);",
+	"my $d = do { 5 + 6 };",
+	"my $f = sub { 1 };",
+	"my $e = eval { 7 * 8 };",
+	`print {*STDOUT} "x";`,
+	"{ print 1 }",
+	"sub f { require Carp }",
+}
+
+// TestFaithfulForgivesSemicolonOnlyInBlocks: at canon-token level, a `;`
+// inside an anonymous hash or a subscript is never forgiven. Canon of each
+// source's own tree marks no `;`, and the `;` such braces would take is
+// unmarked, so last-semicolon cannot reach it.
+func TestFaithfulForgivesSemicolonOnlyInBlocks(t *testing.T) {
+	for _, tc := range hashSemicolons {
+		src := []byte(tc.src)
+		for _, tok := range parse.CanonTokens(parse.Parse(src), src) {
+			if tok.BlockSemi {
+				t.Errorf("canon of %q marks a %q as a block's last `;`", tc.src, tok.Text)
+			}
+		}
+		if ok, forgiven, _ := parse.FaithfulTokens(sigTokens(tc.src), asCanon(sigTokens(tc.canon))); ok || len(forgiven) > 0 {
+			t.Errorf("FaithfulTokens(%q, %q) = %v forgiven by %v, want false with nothing forgiven",
+				tc.src, tc.canon, ok, ruleNames(forgiven))
+		}
+	}
+	t.Run("perl", func(t *testing.T) {
+		perl := perltest.PinnedPerl(t)
+		for _, tc := range hashSemicolons {
+			if out, err := perl.Command("-c", "-e", tc.src).CombinedOutput(); err != nil {
+				t.Errorf("perl -c %q: %v\n%s", tc.src, err, out)
+			}
+			if out, err := perl.Command("-c", "-e", tc.canon).CombinedOutput(); err == nil ||
+				!strings.Contains(string(out), `near ";}"`) {
+				t.Errorf("perl -c %q: %v, want a syntax error near \";}\"\n%s", tc.canon, err, out)
+			}
+		}
+	})
+}
+
+// TestFaithfulLastSemicolonOnlyInBlocks: `$h{a;}` against `$h{a}`, and a
+// hash constructor written `{a => 1;}`, are unfaithful; a real block's last
+// `;` -- map, grep, sort, do, sub, eval, a print block and a bare block --
+// is still forgiven, by last-semicolon alone, on the canon of its own tree.
+func TestFaithfulLastSemicolonOnlyInBlocks(t *testing.T) {
+	for _, tc := range hashSemicolons {
+		if ok, _, _ := parse.FaithfulTokens(sigTokens(tc.src), asCanon(sigTokens(tc.canon))); ok {
+			t.Errorf("FaithfulTokens(%q, %q) = true, want false", tc.src, tc.canon)
+		}
+	}
+	for _, src := range realBlocks {
+		canon := parse.CanonTokens(parse.Parse([]byte(src)), []byte(src))
+		ok, forgiven, why := parse.FaithfulTokens(sigTokens(src), canon)
+		names := ruleNames(forgiven)
+		if !ok || len(names) == 0 || slices.ContainsFunc(names, func(r string) bool { return r != "last-semicolon" }) {
+			t.Errorf("%q against its canon %q: %v forgiven by %v (%s), want true by last-semicolon alone",
+				src, parse.Canon(parse.Parse([]byte(src)), []byte(src)), ok, names, why)
+		}
+	}
+	// Every token canon marks is a `;` right before a `}`, here and over
+	// T1: a mark left over from an earlier statement would sit elsewhere,
+	// and so would one on the `;` a heredoc body follows.
+	marksBeforeBrace := func(t *testing.T, name string, canon []parse.CanonToken) {
+		for i, tok := range canon {
+			if tok.BlockSemi && (tok.Text != ";" || i+1 == len(canon) || canon[i+1].Text != "}") {
+				t.Errorf("%s: canon token %d, %q, is marked a block's last `;`", name, i, tok.Text)
+			}
+		}
+	}
+	for _, src := range append(slices.Clone(realBlocks), "{ 1; is f(10), 4; }", "sub g {\n  print <<E\nbody\nE\n}\n") {
+		marksBeforeBrace(t, src, parse.CanonTokens(parse.Parse([]byte(src)), []byte(src)))
+	}
+	// A heredoc body canon writes into a quote that runs on past the
+	// opener, ahead of the statement's `;`: that `;` still ends the block,
+	// and is marked.
+	runOn := "sub first { $_[0] } sub h {\n  first(<<END, 'u') eq\nhello\nEND\nq(hello\n)\n}\n"
+	if canon := parse.CanonTokens(parse.Parse([]byte(runOn)), []byte(runOn)); !canon[len(canon)-2].BlockSemi {
+		t.Errorf("canon of %q leaves the `;` before its last `}` unmarked: %v", runOn, canon)
+	}
+	t.Run("T1", func(t *testing.T) {
+		dir, files := t1Files(t)
+		for _, rel := range files {
+			src, err := os.ReadFile(filepath.Join(dir, rel))
+			if err != nil {
+				continue
+			}
+			marksBeforeBrace(t, rel, parse.CanonTokens(parse.Parse(src), src))
+		}
+	})
+	t.Run("perl", func(t *testing.T) {
+		perl := perltest.PinnedPerl(t)
+		for _, src := range realBlocks {
+			canon := parse.Canon(parse.Parse([]byte(src)), []byte(src))
+			for _, text := range []string{src, canon} {
+				if out, err := perl.Command("-c", "-e", text).CombinedOutput(); err != nil {
+					t.Errorf("perl -c %q: %v\n%s", text, err, out)
+				}
+			}
+		}
+	})
 }
