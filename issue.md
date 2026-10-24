@@ -1,21 +1,30 @@
 ---
 title: The last-semicolon forgiveness hides a hash misread as a block
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T04:11:53.607169795Z
-updated: 2026-10-24T13:37:57.683278124Z
+updated: 2026-10-24T14:39:31.022841924Z
 sessions:
 - start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
-  end_sha: ""
-  commits: 0
+  end_sha: 39c57492239c1d5954f394b3eb49cd8f2bd675f4
+  commits: 1
   started_at: 2026-10-24T13:37:57.683278124Z
+  ended_at: 2026-10-24T14:39:31.022841924Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T13:37:57.683278124Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T14:39:31.022841924Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/parse/canon.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
 ---
 
 Found by the independent review of NL-c (01a1692f-bf96, exec/nlc 3de59a88) on 2026-10-24. **perigrin's ruling (2026-10-24): narrow it in M3.** Faithful keeps the last-semicolon forgiveness, but it applies only where the TREE says the braces are a code block. It never applies to `{` … `}` that the tree reads as a hash, a subscript, or anything else. This issue moves into m3-oracle-at-scale and lands before the M3-dir unfaithful list (01a16602-5f77) is made, so that uni/variables.t is judged honestly.
