@@ -88,3 +88,4 @@ point rather than rewritten. Nothing in it is settled.
   - d36e267d → 01a0dde3
 - **Accepted weaker remaps (ccr-coverage-5).** ParenlessExtent (01a0c432) and ArgAliasing (01a0c362-073a) lost their outputs-must-differ step but are judged adequate.
 - **Milestone criteria.** `git zhi verify --timeout 900 m3-conformance-corpus` passes 220/220 (scratchpad cc-verify4.log). It is re-run at completion.
+- **After the review: a fix for Windows CI (7f05b270).** On PR #489, CI failed on Windows only. perl there ends lines with \r\n, so B::Concise's `main program:` header never matched, and every adjacency case counted 0 main-program statements. splitConciseOps now trims the \r, and TestConciseOpsSplitsCRLFOutput failed first, then passed. The fix is test code only, with no behaviour change on Linux or macOS. CI on #489 was then green on Linux, macOS and Windows, both ratchet jobs, fidelity and smoke.
