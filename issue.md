@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T02:04:17.860956737Z
-updated: 2026-10-24T05:57:38.745086494Z
+updated: 2026-10-24T14:40:49.589577426Z
 ---
 
 Found by the NL-b worker (01a1692f-65de, exec/nlb 3630cbed) on 2026-10-24. The defect predates NL-b.
@@ -22,4 +22,4 @@ The parser reads `print STDOUT (1, 2)` as a call `STDOUT(1, 2)`. perl reads it a
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (a tree-level probe row asserting that `print STDOUT (1, 2)` prints a list to a filehandle)
+- [ ] A tree-level probe row asserting that `print STDOUT (1, 2)` prints a list to a filehandle (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
