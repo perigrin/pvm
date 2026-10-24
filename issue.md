@@ -1,6 +1,6 @@
 ---
 title: Decide a named hash's rv2hv from its declaration
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,91 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-24T00:20:39.641391984Z
+updated: 2026-10-24T04:45:27.702026993Z
 sessions:
 - start_sha: 53c11cac135ca2830a13005fe0ca983c9df545ee
-  end_sha: ""
-  commits: 0
+  end_sha: b9980c79248522ee55428da65376dcde00a2c9e6
+  commits: 4
   started_at: 2026-10-24T00:20:39.641391984Z
+  ended_at: 2026-10-24T04:45:27.702026993Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T00:20:39.641391984Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T04:45:27.702026993Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/measurements/2026-10-23-precedence-aware-canon/README.md
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-design.diff
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-files.tsv
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-stmts.tsv
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzexport_test.go.txt
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzmeasure_test.go.txt
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzstmt_test.go.txt
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/arrowhashread_test.go
+- internal/parse/barehandle_test.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/commafat_test.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coreprefix_test.go
+- internal/parse/coreshapes_test.go
+- internal/parse/coresubs_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/cstylefor_test.go
+- internal/parse/emptycomma_test.go
+- internal/parse/expr.go
+- internal/parse/featuregated_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/formany_test.go
+- internal/parse/globpunct_test.go
+- internal/parse/hashhedge_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/hedgereason_test.go
+- internal/parse/heredocarg_test.go
+- internal/parse/indirect.go
+- internal/parse/indirect_test.go
+- internal/parse/indirectprog_test.go
+- internal/parse/listop_test.go
+- internal/parse/namedunary_test.go
+- internal/parse/notop_test.go
+- internal/parse/operandless_test.go
+- internal/parse/parenhandle_test.go
+- internal/parse/parenlessarity_test.go
+- internal/parse/parse.go
+- internal/parse/printmod_test.go
+- internal/parse/returnlist_test.go
+- internal/parse/scalarhandle_test.go
+- internal/parse/shape_test.go
+- internal/parse/sites.go
+- internal/parse/sortcmp_test.go
+- internal/parse/stmtmodcanon_test.go
+- internal/parse/subspelling_test.go
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parse/testdata/m3probes/listop-canon.txt
+- internal/parse/testdata/m3probes/named-hash-decl.txt
+- internal/parse/testdata/m3probes/not-canon.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/trailingcomma_test.go
+- internal/parse/trycatch_test.go
+- internal/parse/wrongtrees_test.go
+- internal/parseoracle/rv2hvfell_test.go
+- internal/parseoracle/testdata/fixture/subbody.pl
+- internal/parseoracle/testdata/fixture/wider.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/fixture-sites.txt
+- internal/parseoracle/testdata/ratchet/fixture.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
