@@ -1,5 +1,5 @@
-// ABOUTME: Tests that the committed rv2hv wider count fell below the count m3start.txt recorded
-// ABOUTME: once op/magic.t was answered, which is what deciding arrow hash reads is for.
+// ABOUTME: Tests that the committed rv2hv wider count fell below the counts m3start.txt recorded
+// ABOUTME: once op/magic.t was answered and once arrow hash reads were decided.
 
 package parseoracle_test
 
@@ -31,8 +31,8 @@ func sitesTotal(path, scope, marker, bucket string) (int, error) {
 }
 
 // rv2hvFellProblems says why sites.txt's rv2hv wider total is not below
-// m3start.txt's rv2hv_wider_after_magic, or that either is missing.
-func rv2hvFellProblems(sites, m3start string) []string {
+// m3start.txt's key, or that either is missing.
+func rv2hvFellProblems(sites, m3start, key string) []string {
 	now, err := sitesTotal(sites, "all", "rv2hv", "wider")
 	if err != nil {
 		return []string{err.Error()}
@@ -41,16 +41,16 @@ func rv2hvFellProblems(sites, m3start string) []string {
 	if err != nil {
 		return []string{err.Error()}
 	}
-	v, ok := keys["rv2hv_wider_after_magic"]
+	v, ok := keys[key]
 	if !ok {
-		return []string{m3start + " records no rv2hv_wider_after_magic"}
+		return []string{m3start + " records no " + key}
 	}
 	before, err := strconv.Atoi(v)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: rv2hv_wider_after_magic: %v", m3start, err)}
+		return []string{fmt.Sprintf("%s: %s: %v", m3start, key, err)}
 	}
 	if now >= before {
-		return []string{fmt.Sprintf("rv2hv wider is %d, not below rv2hv_wider_after_magic = %d", now, before)}
+		return []string{fmt.Sprintf("rv2hv wider is %d, not below %s = %d", now, key, before)}
 	}
 	return nil
 }
@@ -59,7 +59,16 @@ func rv2hvFellProblems(sites, m3start string) []string {
 // corpus's wider rv2hv sites from the count recorded once op/magic.t was
 // answered.
 func TestRv2hvWiderFellFromM3Start(t *testing.T) {
-	for _, p := range rv2hvFellProblems(sitesPath, m3startPath) {
+	for _, p := range rv2hvFellProblems(sitesPath, m3startPath, "rv2hv_wider_after_magic") {
+		t.Error(p)
+	}
+}
+
+// TestRv2hvWiderFellBelowArrowFix: deciding a named hash's rv2hv from its
+// declaration lowered the wider count below the one recorded once arrow
+// hash reads were decided.
+func TestRv2hvWiderFellBelowArrowFix(t *testing.T) {
+	for _, p := range rv2hvFellProblems(sitesPath, m3startPath, "rv2hv_wider_after_arrow") {
 		t.Error(p)
 	}
 }
@@ -84,12 +93,12 @@ func TestRv2hvWiderFellRejectsNoFallAndMissingValues(t *testing.T) {
 		"no sites row": {noSites, m3},
 		"no magic key": {sites, noKey},
 	} {
-		if len(rv2hvFellProblems(c[0], c[1])) == 0 {
+		if len(rv2hvFellProblems(c[0], c[1], "rv2hv_wider_after_magic")) == 0 {
 			t.Errorf("%s: the check passed", name)
 		}
 	}
 	fell := write("fell.txt", "total all rv2hv wider 415\n")
-	if p := rv2hvFellProblems(fell, m3); len(p) != 0 {
+	if p := rv2hvFellProblems(fell, m3, "rv2hv_wider_after_magic"); len(p) != 0 {
 		t.Errorf("a fall from 416 to 415 failed: %v", p)
 	}
 }

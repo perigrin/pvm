@@ -281,7 +281,7 @@ jobs:
       run: |
         set -o pipefail
         go test ./internal/parseoracle/ ./internal/parse/ \
-          -run '^(TestCIGateRunsTheSweep|TestCISweepRunsOracleOnce|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestOracleAnswersFileThatPerlCompiles|TestOracleStillDeclinesFileDyingInBEGIN|TestOracleExitInBEGINIsNotExact|TestOracleStderrFromBEGINIsNotAFailure|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines|TestFaithfulForgivenessIsClosed)$' \
+          -run '^(TestCIGateRunsTheSweep|TestCISweepRunsOracleOnce|TestAskFileRequiresDir|TestShebangPassthrough|TestExpensiveFixtureStillFitsItsBudget|TestRatchet|TestRatchetFailsOnRegression|TestRatchetFailsOnImprovement|TestBaselineUpdateOnly|TestReceiptRecordsTheSweep|TestGoParserSubjectMeasures|TestGoParserWrongIsZero|TestGoParserExactFloor|TestOracleWalksPastAConstantNamedLikeABlock|TestOracleAnswersFileThatPerlCompiles|TestOracleStillDeclinesFileDyingInBEGIN|TestOracleExitInBEGINIsNotExact|TestOracleStderrFromBEGINIsNotAFailure|TestM3ProbesHeldToPerl|TestM3ProbesDetectDriftedFact|TestM3ProbesCheckFaithfulRows|TestOpcountFixturesHeldToPerl|TestOpcountFixtureCompileFailureIsAFailure|TestOpcountCountsSubRootLikeOpcountT|TestOpcountDetectsDriftedCount|TestOpcountFixturesMatchTheirSourceLines|TestFaithfulForgivenessIsClosed|TestNamedHashRv2hvTableMatchesPerl)$' \
           -count=1 \
           -timeout 40m \
           -v 2>&1 | tee "$RUNNER_TEMP/held.log"
@@ -297,7 +297,7 @@ jobs:
                  TestOpcountFixturesHeldToPerl TestOpcountFixtureCompileFailureIsAFailure \
                  TestOpcountCountsSubRootLikeOpcountT TestOpcountDetectsDriftedCount \
                  TestOpcountFixturesMatchTheirSourceLines \
-                 TestFaithfulForgivenessIsClosed; do
+                 TestFaithfulForgivenessIsClosed TestNamedHashRv2hvTableMatchesPerl; do
           if ! grep -q -- "^--- PASS: $t (" "$RUNNER_TEMP/held.log"; then
             echo "::error::$t did not pass under the pinned perl: it failed, skipped, or never ran."
             status=1

@@ -265,14 +265,10 @@ func TestArrowHashReadSubArgElementFoldsToMultideref(t *testing.T) {
 //	my $r; push @{$r->{a}}, 1;      rv2hv=1 multideref=0
 //	my $r; my @x = @{$r->{a}};      rv2hv=0 multideref=1
 //
-// `%x` is a named hash, whose rv2hv turns on its declaration and which
-// hedges for that reason alone; the chain decides its own count.
+// `my %x` is padhv, so the 1 is the `%{}` alone.
 func TestArrowHashReadCountFollowsOuterDerefContext(t *testing.T) {
-	if decided, hedged := hashSites(`my $r; my %x = %{$r->{a}};`); decided != 1 || hedged != 1 {
-		t.Errorf("my %%x = %%{$r->{a}}: perl 5.44.0 builds 1 rv2hv; Sites decides %d "+
-			"and hedges %d, where only the named `%%x` should hedge", decided, hedged)
-	}
 	checkDecided(t, []arrowCase{
+		{`my $r; my %x = %{$r->{a}};`, 1},
 		{`my $r; keys %{$r->{a}};`, 2},
 		{`my $r; push @{$r->{a}}, 1;`, 1},
 		{`my $r; my @x = @{$r->{a}};`, 0},
@@ -367,6 +363,8 @@ func TestArrowHashReadHedgesNameTheirShape(t *testing.T) {
 		{`my $p; my @x = @{$p->{a}}{qw(a b)};`, 2},
 		// Postfix deref pushed: rv2hv=1.
 		{`my $p; push $p->{S}->@*, 1;`, 1},
+		// keys of a postfix `->%*`: rv2hv=2, the `->%*` and its level.
+		{`my $p; my @x = keys $p->{S}->%*;`, 2},
 		// porting/libperl.t:212's shape, pushed: rv2hv=2.
 		{`my $s; my $sym; push @{$s->{xref}{$sym}}, 1;`, 2},
 		// op/ref.t:343, a computed key: rv2hv=1.
@@ -386,8 +384,6 @@ func TestArrowHashReadHedgesNameTheirShape(t *testing.T) {
 				"but rv2hv=0 after `sub f(){1}`"},
 		{`my $p; my $x = $$p{f()};`,
 			"a call key constant-folds when the sub is a constant"},
-		{`my $p; my @x = keys $p->{S}->%*;`,
-			"keys of a postfix `->%*` (rv2hv=2) is not among the contexts Sites decides"},
 		{`my $p; my @x = sort @{$p->{S}};`,
 			"sort with a block modifies (rv2hv=1) and without one reads (rv2hv=0)"},
 		{`my $p; @{$p->{S}};`,
@@ -441,5 +437,104 @@ func TestArrowHashReadStaysDecided(t *testing.T) {
 	src := `my $s; my @x = @{$s->{xref}{$sym}};`
 	if got := decidedKinds(src); has(got, parseoracle.SiteKindHash) {
 		t.Errorf("%s\n  perl emits no rv2hv here, yet it decides %v", src, got)
+	}
+}
+
+// TestArrowHashReadLiteralFoldsDecide: perl constant-folds these keys
+// before multideref sees them, so each chain folds. Measured on perl
+// 5.44.0, each `my $r; my $x = $r->{KEY};`:
+//
+//	"a" x 2   1 << 2   2 ** 3   ~0   !1   length "abc"   join ",", 1, 2
+//	                                                   rv2hv=0 multideref=1
+//	${ k }                                             rv2hv=0 multideref=1
+//	("a") x 2                                          rv2hv=1 (a list repeat)
+//	1,2                                                rv2hv=1 (joined with $;)
+//	lc "A"                                             rv2hv=0
+//
+// `lc` folds only outside `use locale` (op.c's fold_constants skips the
+// case-changing ops under a compile-time LC_CTYPE locale), so it hedges,
+// as the list repeat does.
+func TestArrowHashReadLiteralFoldsDecide(t *testing.T) {
+	checkDecided(t, []arrowCase{
+		{`my $r; my $x = $r->{"a" x 2};`, 0},
+		{`my $r; my $x = $r->{1 << 2};`, 0},
+		{`my $r; my $x = $r->{2 ** 3};`, 0},
+		{`my $r; my $x = $r->{~0};`, 0},
+		{`my $r; my $x = $r->{!1};`, 0},
+		{`my $r; my $x = $r->{length "abc"};`, 0},
+		{`my $r; my $x = $r->{join ",", 1, 2};`, 0},
+		{`my $r; my $x = $r->{${ k }};`, 0},
+		{`my $r; my $x = $r->{${ k }}{a};`, 0},
+	})
+	for _, src := range []string{
+		`my $r; my $x = $r->{("a") x 2};`,
+		`my $r; my $x = $r->{lc "A"};`,
+		`my $r; my $x = $r->{1,2};`,
+	} {
+		if _, hedged := hashSites(src); hedged != 1 {
+			t.Errorf("%s\n  should hedge: the key may or may not fold", src)
+		}
+	}
+}
+
+// TestArrowHashReadTernaryBranchesTakeTheContext: perl propagates a
+// dereference's lvalue context into both branches of a `?:` (GH 18669,
+// op/ref.t:928), so each branch's chain is counted as if dereferenced on
+// its own. A `do` or `eval` block's last statement takes the context too,
+// and keeps an rv2hv even where the dereference only reads, so it hedges.
+// Measured on perl 5.44.0:
+//
+//	my ($c,$x); push @{ $c ? $x->{a} : $x->{b} }, 1;      rv2hv=2
+//	my ($c,$x); my @y = @{ $c ? $x->{a} : $x->{b} };      rv2hv=0
+//	my ($c,$x); push @{ $c ? $x->{a}{b} : $x }, 1;        rv2hv=2
+//	my ($c,$x); ${ $c ? $x->{a} : $x->{b} }++;            rv2hv=2
+//	my ($c,$d,$x); push @{ $c ? $x->{a} : $d ? $x->{b} : $x->{c} }, 1;  rv2hv=3
+//	our %h; my $c; push @{ $c ? $h{a} : $h{b} }, 1;       rv2hv=3
+//	my ($c,$x); my @y = @{ do { $x->{a} } };              rv2hv=1
+//	my ($c,$x); my @y = @{ eval { $x->{a} } };            rv2hv=1
+func TestArrowHashReadTernaryBranchesTakeTheContext(t *testing.T) {
+	checkDecided(t, []arrowCase{
+		{`my ($c,$x); push @{ $c ? $x->{a} : $x->{b} }, 1;`, 2},
+		{`my ($c,$x); my @y = @{ $c ? $x->{a} : $x->{b} };`, 0},
+		{`my ($c,$x); push @{ $c ? $x->{a}{b} : $x }, 1;`, 2},
+		{`my ($c,$x); ${ $c ? $x->{a} : $x->{b} }++;`, 2},
+		{`my ($c,$d,$x); push @{ $c ? $x->{a} : $d ? $x->{b} : $x->{c} }, 1;`, 3},
+		{`our %h; my $c; push @{ $c ? $h{a} : $h{b} }, 1;`, 3},
+	})
+	for _, src := range []string{
+		`my ($c,$x); my @y = @{ do { $x->{a} } };`,
+		`my ($c,$x); my @y = @{ eval { $x->{a} } };`,
+	} {
+		if _, hedged := hashSites(src); hedged == 0 {
+			t.Errorf("%s\n  perl keeps an rv2hv for the block's last statement, and Sites does not hedge it", src)
+		}
+	}
+}
+
+// TestArrowHashReadModifiedExpressionDerefs: a modified dereference of an
+// expression, not a chain. Unary plus builds no op, so the chain under it
+// is counted; an operator yielding a fresh value stops the context; any
+// other operator holding an element hedges. Measured on perl 5.44.0:
+//
+//	push @{ +$x->{a} }, 1               rv2hv=1
+//	push @{ $x->{a} // [] }, 1          rv2hv=0
+//	push @{ $x->{a} ||= [] }, 1         rv2hv=0
+//	push @{ [$x->{a}] }, 1              rv2hv=0
+//	push @{ scalar $x->{a} }, 1         rv2hv=1
+//	keys %{ (1, $x->{a}) }              rv2hv=2
+func TestArrowHashReadModifiedExpressionDerefs(t *testing.T) {
+	checkDecided(t, []arrowCase{
+		{`my $x; push @{ +$x->{a} }, 1;`, 1},
+		{`my $x; push @{ $x->{a} // [] }, 1;`, 0},
+		{`my $x; push @{ $x->{a} ||= [] }, 1;`, 0},
+		{`my $x; push @{ [$x->{a}] }, 1;`, 0},
+	})
+	for _, src := range []string{
+		`my $x; push @{ scalar $x->{a} }, 1;`,
+		`my $x; my @k = keys %{ (1, $x->{a}) };`,
+	} {
+		if _, hedged := hashSites(src); hedged == 0 {
+			t.Errorf("%s\n  perl keeps an rv2hv here, and Sites does not hedge it", src)
+		}
 	}
 }

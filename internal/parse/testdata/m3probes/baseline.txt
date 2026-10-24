@@ -104,7 +104,7 @@ faithful
 our %h = (a => 1);
 my @k = keys %h;
 --- facts
-rv2hv 2 wider
+rv2hv 2 exact
 faithful
 
 === anonymous hash in map needs a plus
