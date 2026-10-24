@@ -1,6 +1,6 @@
 ---
 title: Re-emit heredoc bodies and sub-less special subs faithfully
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,33 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-6030-7faa-8408-bb3a8cb03f12
 created: 2026-10-22T23:46:34.069628305Z
-updated: 2026-10-24T19:09:16.585851334Z
+updated: 2026-10-24T20:11:35.594344562Z
 sessions:
 - start_sha: e431b5c84144841104d0d774118e10e8dd1b9b3e
-  end_sha: ""
-  commits: 0
+  end_sha: 7a4b0cc1600607c2507684b3a8b3222b64cd27cf
+  commits: 1
   started_at: 2026-10-24T19:09:16.585851334Z
+  ended_at: 2026-10-24T20:11:35.594344562Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T19:09:16.585851334Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T20:11:35.594344562Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/parse/canon.go
+- internal/parse/fidelity_test.go
+- internal/parse/heredocarg_test.go
+- internal/parse/heredocsubless_test.go
+- internal/parse/parse.go
+- internal/parse/specialsub_test.go
+- internal/parse/testdata/faithful_queue.txt
+- internal/parse/testdata/m3probes/heredoc-subless.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/use.go
 ---
 
 ## Context
