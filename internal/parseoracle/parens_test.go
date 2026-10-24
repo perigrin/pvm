@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestParenWalkReadsPARENSOnNulledOps(t *testing.T) {
 		src  string
 		want []parenOp
 	}{
-		{"sub f {}\nf((1,2));\n", []parenOp{{2, "ex-list"}}},
+		{"sub f {}\nf((1,2));\n", []parenOp{{2, "ex-list", ""}}},
 		{"sub f {}\nf(1,2);\n", nil},
 	} {
 		facts, err := parseoracle.Ask(context.Background(), []byte(tc.src), parseoracle.Options{Perl: p.Path})
@@ -43,20 +44,36 @@ func TestParenWalkReadsPARENSOnNulledOps(t *testing.T) {
 }
 
 // parenOp is one OPf_PARENS fact: an op name on a statement's first line,
-// which is the line perl's nextstate records for every op of the statement.
+// which is the line perl's nextstate records for every op of the statement,
+// and the variable the op reads where it reads one (padsv, ex-rv2sv,
+// rv2av ...), so `($x) + $y` and `$x + ($y)` differ.
 type parenOp struct {
 	Line int
 	Op   string
+	Var  string
+}
+
+// label is o's op name and variable, as the comparison matches them.
+func (o parenOp) label() string {
+	if o.Var == "" {
+		return o.Op
+	}
+	return o.Op + " " + o.Var
 }
 
 // structuralParens are ops perl marks P with no source paren behind them.
 // Measured on perl 5.44.0, for a block of two or more statements: `leave
 // vKP` on an `if`'s, `else`'s and `do`'s block; `leaveloop vKP` and
-// `lineseq vKP` on a `for` or `while`; and the `null vKP/1` over an `if`
-// statement's `and`, a null with no former op, so no ex- name. A
-// one-statement block is a `scope`, listed too.
+// `lineseq vKP` on a `for` or `while`. A one-statement block is a `scope`,
+// listed too.
+//
+// A `null` with P is NOT structural in general: it is where perl keeps a
+// paren around `&&`, `||`, `//`, `and`, `or`, `?:` and `do {}`, `null
+// sKP/1`, and in void context `($x && 1);` is `null vKP/1`. Only the null
+// over an `if`/`unless` condition is structural, and the walk marks it:
+// its logop carries OPpSTATEMENT (`and vK/STMT`).
 var structuralParens = map[string]bool{
-	"leave": true, "leaveloop": true, "lineseq": true, "scope": true, "null": true,
+	"leave": true, "leaveloop": true, "lineseq": true, "scope": true,
 }
 
 // perlParens is perl's side: every op of the file carrying OPf_PARENS,
@@ -64,8 +81,8 @@ var structuralParens = map[string]bool{
 func perlParens(f parseoracle.Facts) []parenOp {
 	var out []parenOp
 	for _, o := range f.OpFlags {
-		if o.Parens && !structuralParens[o.Op] {
-			out = append(out, parenOp{o.Line, o.Op})
+		if o.Parens && !structuralParens[o.Op] && !o.Statement {
+			out = append(out, parenOp{o.Line, o.Op, o.Var})
 		}
 	}
 	return out
@@ -91,25 +108,53 @@ func sameParenOps(a, b []parenOp) bool {
 // parenTable maps an operator node's Text to the op perl builds for it,
 // measured on perl 5.44.0 one fixture at a time (K8, chain-review round 7).
 // A node kind or operator missing here is unmapped, and fails its fixture.
+// perl keeps a paren around a logical operator or `?:` on the null over
+// its logop: `($x && 1)` is `null sKP/1` over `and sK/1`.
 var parenTable = map[string]string{
 	"==": "eq", "!=": "ne", "<": "lt", ">": "gt",
 	"eq": "seq", "ne": "sne",
 	"+": "add", "-": "subtract", "*": "multiply", ".": "concat",
 	"not": "not", "neg": "negate",
+	"&&": "null", "||": "null", "//": "null", "and": "null", "or": "null", "?:": "null",
 }
 
-// parenCalls maps a builtin call psc gave Paren to its op, measured on
-// perl 5.44.0 as parenTable is.
-var parenCalls = map[string]string{"stat": "stat", "caller": "caller"}
+// parenCalls maps a call psc gave Paren to its op, measured on perl 5.44.0
+// as parenTable is: `((stat "/"))[2]` is `stat lKP/1`, `((caller))[2]`
+// `caller lP`, `(keys %h)` `keys sKP/1`, `((sort @a))` `sort lKP`, and
+// `(do {1})` `null sKP*/1` over the block's scope.
+var parenCalls = map[string]string{
+	"stat": "stat", "caller": "caller", "keys": "keys", "sort": "sort", "do": "null",
+}
+
+// parenListOps maps the node a parenthesised List stands directly in to the
+// list op that absorbed it, measured on perl 5.44.0: `print((1,2))` is
+// `print vKP`, `[(1,2)]` `anonlist sKP*/1` and `{(a=>1)}` `anonhash sKP*/1`.
+var parenListOps = map[parse.Kind]string{
+	parse.AnonArray: "anonlist", parse.AnonHash: "anonhash",
+}
 
 // parenOpOf is the op perl builds for n, a node psc gave Paren, through the
-// fixed node-kind→op-name table: a scalar variable is `padsv` when a `my` or
-// `state` declared it and `ex-rv2sv` otherwise; an array `padav` or
-// `rv2av`; a constant `const`; `qw(...)` `ex-list`; a List of two or more
-// elements `ex-list`, or the list op that absorbed it, as `return (1,2)`'s
-// `<@> return KP`. A one-element `(x)` is x itself in psc's tree, so it
-// maps to x's op: `my ($x) = @_` puts P on `padsv`, not on the list.
-func parenOpOf(n, parent *parse.Node, lexical map[string]bool) (string, bool) {
+// fixed node-kind→op-name table; up is n's ancestors, its parent last.
+//   - A scalar variable is `padsv` when a `my` or `state` declared it and
+//     `ex-rv2sv` otherwise; an array `padav` or `rv2av`. `our ($p)` is
+//     `rv2sv vKP/OURINTR`, and `($x)->[0]` `ex-padsv sPM/DREFAV`.
+//   - A constant is `const`; `qw(...)` is `ex-list`, or `const` for one word.
+//   - A List of two or more elements is `ex-list`, or the list op that
+//     absorbed it: `return (1,2)` is `<@> return KP`, and see parenListOps.
+//     `my ($x, $y);` is `list vKP`, `() = f()` `stub lPRM*` and the value
+//     of `do {(1,2)}` `list sKP`.
+//   - A one-element `(x)` is x itself in psc's tree, so it maps to x's op:
+//     `my ($x) = @_` puts P on `padsv`, not on the list.
+//   - `($x = 1)` is `sassign sKPS/2`, a list assignment `aassign`;
+//     `($a[0])` is `ex-aelem sKP/2` and `($x->{a})` `ex-helem sKP/2`.
+func parenOpOf(n *parse.Node, up []*parse.Node, lexical map[string]bool) (string, bool) {
+	var parent *parse.Node
+	if len(up) > 0 {
+		parent = up[len(up)-1]
+	}
+	isHead := func(decl string) bool {
+		return parent != nil && parent.Kind == parse.Declaration && parent.Text == decl && parent.Children[0] == n
+	}
 	switch n.Kind {
 	case parse.Term:
 		switch {
@@ -119,7 +164,12 @@ func parenOpOf(n, parent *parse.Node, lexical map[string]bool) (string, bool) {
 			}
 			return "ex-list", true
 		case strings.HasPrefix(n.Text, "$") && len(n.Text) > 1:
-			if lexical[n.Text] {
+			switch {
+			case isHead("our"):
+				return "rv2sv", true
+			case lexical[n.Text] && parent != nil && parent.Kind == parse.Index && parent.Arrow && parent.Children[0] == n:
+				return "ex-padsv", true
+			case lexical[n.Text]:
 				return "padsv", true
 			}
 			return "ex-rv2sv", true
@@ -131,25 +181,57 @@ func parenOpOf(n, parent *parse.Node, lexical map[string]bool) (string, bool) {
 		case isConstant(n.Text):
 			return "const", true
 		}
-	case parse.Binary, parse.CmpChain, parse.Unary:
+	case parse.Binary:
+		if n.Text == "=" && len(n.Children) == 2 {
+			if l := n.Children[0]; l.Kind == parse.Term && strings.HasPrefix(l.Text, "$") && !l.Paren {
+				return "sassign", true
+			}
+			return "aassign", true
+		}
+		op, ok := parenTable[n.Text]
+		return op, ok
+	case parse.CmpChain, parse.Unary, parse.Ternary:
 		op, ok := parenTable[n.Text]
 		return op, ok
 	case parse.List:
-		if parent != nil && parent.Kind == parse.LoopControl && parent.Text == "return" {
+		switch {
+		case parent == nil:
+		case parent.Kind == parse.LoopControl && parent.Text == "return":
 			return "return", true
+		case parent.Kind == parse.Call && parent.Text == "print":
+			return "print", true
+		case parenListOps[parent.Kind] != "":
+			return parenListOps[parent.Kind], true
+		case isHead("my") || isHead("state"):
+			return "list", true
+		case len(n.Children) == 0 && parent.Kind == parse.Binary && parent.Text == "=" && parent.Children[0] == n:
+			return "stub", true
+		case len(up) >= 3 && parent.Kind == parse.Statement && up[len(up)-2].Kind == parse.Block &&
+			up[len(up)-3].Kind == parse.Call && up[len(up)-3].Text == "do":
+			return "list", true
 		}
 		return "ex-list", true
 	case parse.Call:
-		// A builtin is its own op: `((stat "/"))[2]` is `stat lKP/1` and
-		// `((caller))[2]` `caller lP`.
 		op, ok := parenCalls[n.Text]
 		return op, ok
 	case parse.Index:
-		if !n.Arrow && n.Text == "[" && len(n.Children) == 2 && strings.HasPrefix(n.Children[0].Text, "$") {
-			return "aelem", true
+		switch {
+		case n.Text == "[" && len(n.Children) == 2:
+			return "ex-aelem", true
+		case n.Text == "{" && len(n.Children) == 2:
+			return "ex-helem", true
 		}
 	}
 	return "", false
+}
+
+// varOf is the variable n reads, for an op the walk names one for.
+func varOf(n *parse.Node, op string) string {
+	switch op {
+	case "padsv", "padav", "ex-rv2sv", "rv2sv", "rv2av":
+		return n.Text
+	}
+	return ""
 }
 
 // isQw reports whether n is a `qw` list. perl's toke.c builds one as a
@@ -177,24 +259,27 @@ func isConstant(text string) bool {
 // whose kind the table does not map.
 func pscParens(src []byte, root *parse.Node) (ops []parenOp, unmapped []string) {
 	lexical := declaredLexicals(root)
-	var walk func(n, parent *parse.Node, stmt int)
-	walk = func(n, parent *parse.Node, stmt int) {
+	var up []*parse.Node
+	var walk func(n *parse.Node, stmt int)
+	walk = func(n *parse.Node, stmt int) {
 		if n.Kind == parse.Statement {
 			stmt = lineOf(src, n.Start)
 		}
 		if n.Paren || isQw(n) {
-			if op, ok := parenOpOf(n, parent, lexical); ok {
-				ops = append(ops, parenOp{stmt, op})
+			if op, ok := parenOpOf(n, up, lexical); ok {
+				ops = append(ops, parenOp{stmt, op, varOf(n, op)})
 			} else {
 				unmapped = append(unmapped, fmt.Sprintf("line %d: unmapped: psc's Paren on a %s %q has no row in the node-kind→op table",
 					stmt, n.Kind, src[n.Start:n.End]))
 			}
 		}
+		up = append(up, n)
 		for _, c := range n.Children {
-			walk(c, n, stmt)
+			walk(c, stmt)
 		}
+		up = up[:len(up)-1]
 	}
-	walk(root, nil, 1)
+	walk(root, 1)
 	return ops, unmapped
 }
 
@@ -239,7 +324,13 @@ func lineOf(src []byte, at int) int {
 // On each line the ops both sides name cancel; then each leftover pair is a
 // paren psc put on the wrong node (misattached), a leftover of perl's is a
 // paren psc dropped, and a leftover of psc's is a paren psc invented --
-// unless gaps lists it, as an op perl folded away and so keeps no bit for.
+// unless gaps lists it: an op perl folded away and so keeps no bit for, or
+// one perl's fold gave a bit no source paren stands for.
+//
+// The match is by op name, and variable name for an op that reads one,
+// per statement line -- not by the op's position in the tree. Two P ops
+// of one name on one line that read no variable, `(1) + 2` against `1 +
+// (2)`, are not told apart: a Paren moved between them passes.
 //
 // Zero on both sides is agreement only when the fixture says so (none):
 // a source with a `(` in it whose two sides are both empty may be a walk
@@ -260,14 +351,25 @@ func compareParens(src string, perl, psc, gaps []parenOp, none bool) []string {
 		return lines[line]
 	}
 	for _, o := range perl {
-		at(o.Line).perl = append(at(o.Line).perl, o.Op)
+		at(o.Line).perl = append(at(o.Line).perl, o.label())
 	}
 	for _, o := range psc {
-		at(o.Line).psc = append(at(o.Line).psc, o.Op)
+		at(o.Line).psc = append(at(o.Line).psc, o.label())
 	}
 	excused := map[parenOp]int{}
 	for _, g := range gaps {
-		excused[g]++
+		excused[parenOp{g.Line, g.label(), ""}]++
+	}
+	excuse := func(line int, ops []string) []string {
+		var kept []string
+		for _, op := range ops {
+			if k := (parenOp{line, op, ""}); excused[k] > 0 {
+				excused[k]--
+				continue
+			}
+			kept = append(kept, op)
+		}
+		return kept
 	}
 	var nums []int
 	for line := range lines {
@@ -278,14 +380,8 @@ func compareParens(src string, perl, psc, gaps []parenOp, none bool) []string {
 	for _, line := range nums {
 		s := lines[line]
 		left, right := cancel(s.perl, s.psc)
-		var invented []string
-		for _, op := range right {
-			if k := (parenOp{line, op}); excused[k] > 0 {
-				excused[k]--
-				continue
-			}
-			invented = append(invented, op)
-		}
+		invented := excuse(line, right)
+		left = excuse(line, left)
 		for len(left) > 0 && len(invented) > 0 {
 			problems = append(problems, fmt.Sprintf("line %d: misattached: perl puts P on %s, psc puts Paren on %s", line, left[0], invented[0]))
 			left, invented = left[1:], invented[1:]
@@ -367,7 +463,7 @@ func hasProblem(problems []string, want string) bool {
 // with Paren on the comparison matches; moved onto $y, it is misattached.
 func TestParenComparisonReportsMisattachedParen(t *testing.T) {
 	src := "sub ok {}\nour $y;\nok(($y eq \"x\"));\n"
-	perl := []parenOp{{3, "seq"}}
+	perl := []parenOp{{3, "seq", ""}}
 	if got := pscCompare(t, src, nil, perl, nil, false); len(got) != 0 {
 		t.Errorf("a matching pair reports %q, want nothing", got)
 	}
@@ -379,7 +475,7 @@ func TestParenComparisonReportsMisattachedParen(t *testing.T) {
 		cmp.Paren, cmp.Children[0].Paren = false, true
 	}
 	got := pscCompare(t, src, moved, perl, nil, false)
-	if want := "line 3: misattached: perl puts P on seq, psc puts Paren on ex-rv2sv"; len(got) != 1 || got[0] != want {
+	if want := "line 3: misattached: perl puts P on seq, psc puts Paren on ex-rv2sv $y"; len(got) != 1 || got[0] != want {
 		t.Errorf("Paren moved onto $y reports %q, want exactly %q", got, want)
 	}
 }
@@ -388,7 +484,7 @@ func TestParenComparisonReportsMisattachedParen(t *testing.T) {
 // perl 5.44.0; psc's tree without Paren on $x has dropped it.
 func TestParenComparisonReportsDroppedParen(t *testing.T) {
 	src := "my $x;\nmy $z = ($x);\n"
-	perl := []parenOp{{2, "padsv"}}
+	perl := []parenOp{{2, "padsv", "$x"}}
 	if got := pscCompare(t, src, nil, perl, nil, false); len(got) != 0 {
 		t.Errorf("psc's own tree reports %q, want nothing", got)
 	}
@@ -396,7 +492,7 @@ func TestParenComparisonReportsDroppedParen(t *testing.T) {
 		findNode(root, func(n *parse.Node) bool { return n.Paren }).Paren = false
 	}
 	got := pscCompare(t, src, drop, perl, nil, false)
-	if want := "line 2: dropped: perl puts P on padsv, psc has no Paren there"; len(got) != 1 || got[0] != want {
+	if want := "line 2: dropped: perl puts P on padsv $x, psc has no Paren there"; len(got) != 1 || got[0] != want {
 		t.Errorf("a dropped Paren reports %q, want exactly %q", got, want)
 	}
 }
@@ -415,7 +511,7 @@ func TestParenComparisonReportsInventedParen(t *testing.T) {
 		t.Errorf("an invented Paren reports %q, want exactly %q", got, want)
 	}
 	gap := "my %h;\nmy $v = $h{(1)};\n"
-	if got := pscCompare(t, gap, nil, nil, []parenOp{{2, "const"}}, true); len(got) != 0 {
+	if got := pscCompare(t, gap, nil, nil, []parenOp{{2, "const", ""}}, true); len(got) != 0 {
 		t.Errorf("a gaps.txt fold reports %q, want nothing", got)
 	}
 }
@@ -442,7 +538,7 @@ func TestParenUnmatchedOpsAreNotAgreement(t *testing.T) {
 	if got := pscCompare(t, src, nil, nil, nil, true); !hasProblem(got, "invented: psc puts Paren on const") {
 		t.Errorf("an unmatched Paren reports %q, want it invented", got)
 	}
-	if got := pscCompare(t, src, nil, nil, []parenOp{{1, "const"}}, true); len(got) != 0 {
+	if got := pscCompare(t, src, nil, nil, []parenOp{{1, "const", ""}}, true); len(got) != 0 {
 		t.Errorf("an unmatched Paren listed as a gap reports %q, want nothing", got)
 	}
 }
@@ -453,7 +549,7 @@ func TestParenUnmatchedOpsAreNotAgreement(t *testing.T) {
 // table that mapped it to ex-list would be misattached.
 func TestParenOneElementListMapsToElement(t *testing.T) {
 	src := "my ($x) = @_;\n"
-	perl := []parenOp{{1, "padsv"}}
+	perl := []parenOp{{1, "padsv", "$x"}}
 	root := parse.Parse([]byte(src))
 	psc, unmapped := pscParens([]byte(src), root)
 	if len(unmapped) > 0 || !sameParenOps(psc, perl) {
@@ -462,7 +558,7 @@ func TestParenOneElementListMapsToElement(t *testing.T) {
 	if got := compareParens(src, perl, psc, nil, false); len(got) != 0 {
 		t.Errorf("my ($x) reports %q, want nothing", got)
 	}
-	if got := compareParens(src, perl, []parenOp{{1, "ex-list"}}, nil, false); !hasProblem(got, "misattached: perl puts P on padsv, psc puts Paren on ex-list") {
+	if got := compareParens(src, perl, []parenOp{{1, "ex-list", ""}}, nil, false); !hasProblem(got, "misattached: perl puts P on padsv $x, psc puts Paren on ex-list") {
 		t.Errorf("an ex-list mapping reports %q, want a misattachment", got)
 	}
 }
@@ -487,13 +583,14 @@ type parenFixture struct {
 	Perl     []parenOp // the ops perl marks P, as recorded
 	None     bool      // recorded: perl marks no op P
 	Gaps     []parenOp // gaps.txt only: ops perl folded away
+	PerlGaps []parenOp // gaps.txt only: P bits a fold gave, no source paren
 	Evidence []string  // the `#` lines: perl's Concise
 }
 
 // loadParenFixtures reads a fixture file: `=== NAME [CLASS ...]`, the
-// source, `--- perl` with `LINE OP` rows or `none`, and in gaps.txt a
-// `--- gap` section of `LINE OP` rows. Text before the first `===` is
-// commentary.
+// source, `--- perl` with `LINE OP [VAR]` rows or `none`, and in gaps.txt
+// a `--- gap` or `--- perl-gap` section of `LINE OP` rows. Text before the
+// first `===` is commentary.
 func loadParenFixtures(path string) ([]parenFixture, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -515,7 +612,7 @@ func loadParenFixtures(path string) ([]parenFixture, error) {
 		case fx == nil:
 		case strings.HasPrefix(line, "--- "):
 			section = strings.TrimPrefix(line, "--- ")
-			if section != "perl" && section != "gap" {
+			if section != "perl" && section != "gap" && section != "perl-gap" {
 				return nil, fmt.Errorf("%s: %s: unknown section %q", path, fx.Name, line)
 			}
 		case section == "src":
@@ -527,12 +624,21 @@ func loadParenFixtures(path string) ([]parenFixture, error) {
 			fx.None = true
 		default:
 			var o parenOp
-			if _, err := fmt.Sscanf(line, "%d %s", &o.Line, &o.Op); err != nil {
-				return nil, fmt.Errorf("%s: %s: bad row %q: %v", path, fx.Name, line, err)
+			f := strings.Fields(line)
+			line, err := strconv.Atoi(f[0])
+			if err != nil || len(f) < 2 || len(f) > 3 {
+				return nil, fmt.Errorf("%s: %s: bad row %q", path, fx.Name, strings.Join(f, " "))
 			}
-			if section == "gap" {
+			o.Line, o.Op = line, f[1]
+			if len(f) == 3 {
+				o.Var = f[2]
+			}
+			switch section {
+			case "gap":
 				fx.Gaps = append(fx.Gaps, o)
-			} else {
+			case "perl-gap":
+				fx.PerlGaps = append(fx.PerlGaps, o)
+			default:
 				fx.Perl = append(fx.Perl, o)
 			}
 		}
@@ -557,7 +663,7 @@ func loadAllParenFixtures(t *testing.T) []parenFixture {
 		t.Fatal(err)
 	}
 	for _, fx := range fixtures {
-		if len(fx.Gaps) > 0 {
+		if len(fx.Gaps)+len(fx.PerlGaps) > 0 {
 			t.Fatalf("fixtures.txt: %s has a gap section; gaps belong in gaps.txt", fx.Name)
 		}
 	}
@@ -595,7 +701,7 @@ func checkParenFixture(perl string, fx parenFixture) ([]string, error) {
 	}
 	psc, unmapped := pscParens([]byte(fx.Src), parse.Parse([]byte(fx.Src)))
 	problems = append(problems, unmapped...)
-	return append(problems, compareParens(fx.Src, got, psc, fx.Gaps, fx.None)...), nil
+	return append(problems, compareParens(fx.Src, got, psc, append(fx.Gaps, fx.PerlGaps...), fx.None)...), nil
 }
 
 // TestParenFlagMatchesPerlOPfPARENS: on every fixture, psc's Paren flag
@@ -618,7 +724,7 @@ func TestParenFlagMatchesPerlOPfPARENS(t *testing.T) {
 // lopsided set.
 var parenClasses = []string{
 	"list-op", "one-element-list", "scalar-op", "doubled", "call-arg",
-	"ex-list", "qw", "absorbed", "block", "loop", "single-form",
+	"ex-list", "qw", "absorbed", "block", "loop", "single-form", "logical",
 }
 
 // classProblems names each class in parenClasses no fixture carries.
@@ -651,18 +757,25 @@ func TestParenFixturesCoverEveryClass(t *testing.T) {
 
 // gapProblems re-checks a gap row against perl's facts for its snippet,
 // not against its pasted text: the op psc's Paren maps to must be absent
-// from the statement's ops, or one of that name there must carry FOLD.
+// from the statement's ops, or one of that name there must carry FOLD, or
+// every one of that name must be a nulled op without P on a line where a
+// multideref absorbed it -- `($_[0])->[0]`'s `ex-aelem sK/2` under
+// `multideref($_[0][0])`.
 func gapProblems(facts parseoracle.Facts, gap parenOp) []string {
-	present := false
+	present, absorbed, multideref := false, true, false
 	for _, o := range facts.OpFlags {
+		if o.Line == gap.Line && o.Op == "multideref" {
+			multideref = true
+		}
 		if o.Line == gap.Line && o.Op == gap.Op {
 			if o.Folded {
 				return nil
 			}
 			present = true
+			absorbed = absorbed && strings.HasPrefix(o.Op, "ex-") && !o.Parens
 		}
 	}
-	if present {
+	if present && !(absorbed && multideref) {
 		return []string{fmt.Sprintf("line %d: perl still emits %s, present and unfolded: not a fold, so not a gap", gap.Line, gap.Op)}
 	}
 	return nil
@@ -678,8 +791,8 @@ func TestParenFoldedOpsAreGaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fx := range gaps {
-		if len(fx.Gaps) == 0 {
-			t.Errorf("%s: a gaps.txt row with no `--- gap` section", fx.Name)
+		if len(fx.Gaps)+len(fx.PerlGaps) == 0 {
+			t.Errorf("%s: a gaps.txt row with no `--- gap` or `--- perl-gap` section", fx.Name)
 		}
 		facts, err := askParens(p.Path, fx.Src)
 		if err != nil {
@@ -688,6 +801,11 @@ func TestParenFoldedOpsAreGaps(t *testing.T) {
 		}
 		for _, gap := range fx.Gaps {
 			for _, problem := range gapProblems(facts, gap) {
+				t.Errorf("%s: %s", fx.Name, problem)
+			}
+		}
+		for _, gap := range fx.PerlGaps {
+			for _, problem := range perlGapProblems(facts, gap) {
 				t.Errorf("%s: %s", fx.Name, problem)
 			}
 		}
@@ -704,6 +822,17 @@ func TestParenFoldedOpsAreGaps(t *testing.T) {
 	}
 }
 
+// perlGapProblems re-checks a perl-gap row: perl must still mark the op P
+// on that line, or the row excuses nothing and is stale.
+func perlGapProblems(facts parseoracle.Facts, gap parenOp) []string {
+	for _, o := range perlParens(facts) {
+		if o.Line == gap.Line && o.label() == gap.label() {
+			return nil
+		}
+	}
+	return []string{fmt.Sprintf("line %d: perl no longer marks %s P: the perl-gap row is stale", gap.Line, gap.label())}
+}
+
 // TestParenGapRowWithUnfoldedOpFails: `print (1)+2` is `const[IV 1] s` on
 // perl 5.44.0, present and unfolded, so a gap row for it fails the
 // re-check rather than excusing an invented paren.
@@ -713,7 +842,7 @@ func TestParenGapRowWithUnfoldedOpFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := gapProblems(facts, parenOp{1, "const"}); !hasProblem(got, "present and unfolded") {
+	if got := gapProblems(facts, parenOp{1, "const", ""}); !hasProblem(got, "present and unfolded") {
 		t.Errorf("a gap row for an unfolded const reports %q, want it rejected", got)
 	}
 }
@@ -786,7 +915,7 @@ func TestParenStructuralOpsAreExcluded(t *testing.T) {
 func TestParenFlagCallArgParensAreNotAParen(t *testing.T) {
 	p := perltest.PinnedPerl(t)
 	for _, fx := range []parenFixture{
-		{Name: "doubled", Src: "print ((1))+2;\n", Perl: []parenOp{{1, "const"}}},
+		{Name: "doubled", Src: "print ((1))+2;\n", Perl: []parenOp{{1, "const", ""}}},
 		{Name: "single", Src: "print (1)+2;\n", None: true},
 	} {
 		problems, err := checkParenFixture(p.Path, fx)
@@ -839,3 +968,55 @@ func TestParenWalkSurvivesLargeOutput(t *testing.T) {
 
 // opName matches an op name as the walk prints it: `const`, `ex-rv2sv`.
 var opName = regexp.MustCompile(`^[a-z_][a-z0-9_-]*$`)
+
+// TestParenLogicalNullIsNotStructural: perl keeps a paren around `&&`,
+// `||`, `//`, `and`, `or`, `?:` and `do {}` on the null op over the
+// logop, `null sKP/1` on perl 5.44.0 -- and in void context `($x && 1);`
+// is `null vKP/1`, the flags of the null over an `if`. Only the `if`'s,
+// whose logop carries OPpSTATEMENT (`and vK/STMT`), is structural. A
+// Paren psc dropped from the `&&` is reported.
+func TestParenLogicalNullIsNotStructural(t *testing.T) {
+	p := perltest.PinnedPerl(t)
+	src := "our $x;\nmy $v = ($x && 1) + ($x);\n($x && 1);\nif ($x) {\n  my $y = 1;\n  $y++;\n}\n"
+	facts, err := askParens(p.Path, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []parenOp{{2, "null", ""}, {2, "ex-rv2sv", "$x"}, {3, "null", ""}}
+	if got := perlParens(facts); !sameParenOps(got, want) {
+		t.Fatalf("perl's side is %v, want %v: only the if's null is structural", got, want)
+	}
+	drop := func(root *parse.Node) {
+		findNode(root, func(n *parse.Node) bool { return n.Paren && n.Text == "&&" }).Paren = false
+	}
+	if got := pscCompare(t, src, drop, perlParens(facts), nil, false); !hasProblem(got, "line 2: dropped: perl puts P on null") {
+		t.Errorf("a Paren dropped from && reports %q, want it dropped", got)
+	}
+}
+
+// TestParenComparisonKeysVariables: a variable's op carries its name, so
+// a Paren moved between two variables of one op name on one line is
+// misattached. `my $z = ($x) + $y` is `padsv[$x] sP` on perl 5.44.0.
+func TestParenComparisonKeysVariables(t *testing.T) {
+	p := perltest.PinnedPerl(t)
+	src := "my ($x, $y);\nmy $z = ($x) + $y;\n"
+	facts, err := askParens(p.Path, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	perl := perlParens(facts)
+	if want := []parenOp{{1, "list", ""}, {2, "padsv", "$x"}}; !sameParenOps(perl, want) {
+		t.Fatalf("perl's side is %v, want %v", perl, want)
+	}
+	if got := pscCompare(t, src, nil, perl, nil, false); len(got) != 0 {
+		t.Errorf("psc's own tree reports %q, want nothing", got)
+	}
+	moved := func(root *parse.Node) {
+		x := findNode(root, func(n *parse.Node) bool { return n.Paren && n.Text == "$x" })
+		y := findNode(root, func(n *parse.Node) bool { return n.Kind == parse.Term && n.Text == "$y" && n.Start > x.Start })
+		x.Paren, y.Paren = false, true
+	}
+	if got := pscCompare(t, src, moved, perl, nil, false); !hasProblem(got, "misattached: perl puts P on padsv $x, psc puts Paren on padsv $y") {
+		t.Errorf("a Paren moved from $x to $y reports %q, want a misattachment", got)
+	}
+}

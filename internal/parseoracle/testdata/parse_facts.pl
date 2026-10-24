@@ -78,6 +78,31 @@ my $protosrc = <<'PERL';
     }
 
     my (%seen, @sites, @opflags);
+
+    # OPpSTATEMENT marks the logop of an `if`/`unless` condition. perl
+    # 5.44.0 has it; 5.42.0 has no such bit, and there no null is marked
+    # STMT. The OPf_PARENS check is held to the pinned 5.44.0.
+    my $stmtbit = defined &B::OPpSTATEMENT ? B::OPpSTATEMENT() : 0;
+
+    # The variable an op with P reads, for the OPf_PARENS check: a lexical
+    # from the CV's pad names, `padsv[$x]`, and a package variable from the
+    # GV its gvsv or gv kid holds -- under ithreads in the CV's pad, as
+    # $opsv explains. Without it two P ops of one name on one line, `($x) +
+    # ($y)`, could not be told apart.
+    my $varname = sub {
+        my ($op, $shown, $cv) = @_;
+        if ($shown =~ /^pad[ash]v$/ && $op->targ) {
+            my $pn = (($cv->PADLIST->ARRAY)[0]->ARRAY)[$op->targ];
+            return ref $pn && $pn->can('PVX') ? $pn->PVX : undef;
+        }
+        return undef unless $shown =~ /^(?:ex-)?rv2([sah])v$/ && ($op->flags & B::OPf_KIDS());
+        my $sigil = { s => '$', a => '@', h => '%' }->{$1};
+        my $kid = $op->first;
+        return undef unless $kid->name eq 'gvsv' || $kid->name eq 'gv';
+        my $gv = $kid->can('padix')
+            ? (($cv->PADLIST->ARRAY)[1]->ARRAY)[$kid->padix] : $kid->gv;
+        return ref $gv && $gv->can('NAME') ? $sigil . $gv->NAME : undef;
+    };
     my ($walk, $walkcv);
 
     # The SV behind a const or method_named op. Under ithreads it lives in
@@ -162,10 +187,20 @@ my $protosrc = <<'PERL';
             # op is ex- its former name, as `f((1,2))`'s `ex-list lKPM` --
             # then P when it carries OPf_PARENS, the one bit perl keeps for
             # a source paren around the op, and FOLD when constant folding
-            # made it.
+            # made it. A P op also carries STMT when it is the null over an
+            # `if`/`unless` condition -- its logop is `and vK/STMT`, which a
+            # parenthesised `($x && 1);` is not -- and `=NAME`, the variable
+            # it reads.
             my $shown = $name eq 'null' && $op->targ
                 ? 'ex-' . substr(B::ppname($op->targ), 3) : $name;
-            $shown .= ' P' if $op->flags & B::OPf_PARENS();
+            if ($op->flags & B::OPf_PARENS()) {
+                my $var = $varname->($op, $shown, $cv);
+                $shown .= ' P';
+                $shown .= ' STMT' if $stmtbit && $name eq 'null' && ($op->flags & B::OPf_KIDS())
+                    && $op->first->name =~ /^(?:and|or|cond_expr)\z/
+                    && ($op->first->private & $stmtbit);
+                $shown .= " =$var" if defined $var;
+            }
             $shown .= ' FOLD' if $op->folded;
             push @opflags, $cop->line . " $shown";
         }

@@ -1,10 +1,11 @@
 The OPf_PARENS fixtures (issue 01a16602-5f1a), held as probes: every
 snippet of internal/parseoracle/testdata/parens/fixtures.txt and gaps.txt,
-which TestParenFlagMatchesPerlOPfPARENS compares op by op. perl keeps one
-boolean bit, OPf_PARENS (P in Concise), on the op a source paren enclosed;
-a pair the syntax requires -- `$f->(...)`, `not (...)`, a list slice's
-`(...)[...]` -- sets no bit, and psc records it as SyntaxParen, not Paren.
-Each row's comment quotes perl 5.44.0's -MO=Concise.
+which TestParenFlagMatchesPerlOPfPARENS compares op by op, then the
+per-fix review's own probes. perl keeps one boolean bit, OPf_PARENS (P in
+Concise), on the op a source paren enclosed; a pair the syntax requires --
+`$f->(...)`, `not (...)`, a list slice's `(...)[...]` -- sets no bit, and
+psc records it as SyntaxParen, not Paren. Each row's comment quotes perl
+5.44.0's -MO=Concise.
 
 === a declared list
 my ($a, $b) = @_;
@@ -275,6 +276,165 @@ $f->((0),);
 faithful
 # 7           <$> const[IV 0] sPM ->8: the inner pair is the 0's
 
+=== a parenthesised &&
+our $x;
+my $v = ($x && 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised ||
+our $x;
+my $v = ($x || 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised //
+our $x;
+my $v = ($x // 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised and
+our $x;
+my $v = ($x and 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised or
+our $x;
+my $v = ($x or 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised ternary
+our $x;
+my $v = ($x ? 1 : 2);
+--- facts
+faithful
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised do block
+my $v = (do { 1 });
+--- facts
+faithful
+# -        <1> null sKP*/1 ->4
+
+=== a parenthesised && in void context
+our $x;
+($x && 1);
+--- facts
+faithful
+# -     <1> null vKP/1 ->5
+
+=== a parenthesised && beside a parenthesised variable
+our $x;
+my $v = ($x && 1) + ($x);
+--- facts
+faithful
+# -           <1> null sKP/1 ->6
+# -           <1> ex-rv2sv sKP/1 ->7
+
+=== two lexicals, one in parens
+my ($x, $y);
+my $z = ($x) + $y;
+--- facts
+faithful
+# -     <@> list vKP ->4
+# 5           <0> padsv[$x:1,3] sP ->6
+
+=== a declared list in void context
+my ($x, $y);
+--- facts
+faithful
+# -     <@> list vKP ->4
+
+=== a declared one-element our list
+our ($p);
+--- facts
+faithful
+# -     <1> rv2sv vKP/OURINTR,1 ->3
+
+=== an empty list assigned to
+sub f {}
+() = f();
+--- facts
+faithful
+# -           <0> stub lPRM* ->-
+
+=== print of a parenthesised list
+print((1, 2));
+--- facts
+faithful
+# 6     <@> print vKP ->7
+
+=== an anonymous array of a parenthesised list
+my $r = [(1, 2)];
+--- facts
+faithful
+# 6        <@> anonlist sKP*/1 ->7
+
+=== an anonymous hash of a parenthesised list
+my $r = {(a => 1)};
+--- facts
+anonhash 1 exact
+faithful
+# 6        <@> anonhash sKP*/1 ->7
+
+=== a reference to a parenthesised list
+my ($a, $b);
+my $r = \($a, $b);
+--- facts
+srefgen 1 exact
+faithful
+# -     <@> list vKP ->4
+# -           <1> ex-list lKPRM ->6
+
+=== a do block's parenthesised list
+my $r = do { (1, 2) };
+--- facts
+faithful
+# 5              <@> list sKP ->6
+
+=== a parenthesised lexical before an arrow subscript
+my $x;
+my $r = ($x)->[0];
+--- facts
+faithful
+# -              <0> ex-padsv sPM/DREFAV ->5
+
+=== a parenthesised arrow element
+my $x;
+my $r = ($x->[0]);
+--- facts
+faithful
+# -        <1> ex-aelem sKP/2 ->6
+
+=== a parenthesised keys
+my %h;
+my $r = (keys %h);
+--- facts
+faithful
+# -        <1> keys[t3] sKP/1 ->6
+
+=== a doubly parenthesised sort
+my @a;
+my @r = ((sort @a));
+--- facts
+faithful
+# 8           <@> sort lKP ->9
+
+=== a parenthesised scalar assignment
+my $x;
+my $r = ($x = 1);
+--- facts
+faithful
+# 7        <2> sassign sKPS/2 ->8
+
 === a parenthesised hash key
 my %h;
 my $v = $h{(1)};
@@ -304,3 +464,120 @@ faithful
 # -           <1> ex-aelem sK/2 ->3
 # 2              <+> multideref($_[0][0]) sK ->3: the aelem is nulled
 # into the multideref, and no op carries P
+
+=== not over a doubly parenthesised constant
+my $r = not((1));
+--- facts
+faithful
+# 3        <$> const[SPECIAL sv_no] s/FOLD ->4: not's pair is SyntaxParen,
+# the inner pair the 1's Paren, and the not folded with it
+
+=== a list slice by a constant range
+my @a;
+my @r = (@a)[0..1];
+--- facts
+faithful
+# 8                 <1> rv2av lKP/1 ->9
+# 7                    <$> const[AV ARRAY] s ->8: the range 0..1 folded
+# into a constant array, whose rv2av carries P with no source paren
+
+=== review: an if condition in doubled parens
+our $x; if (($x)) {1}
+--- facts
+faithful
+
+=== review: a while condition in doubled parens
+our $x; while (($x)) {last}
+--- facts
+faithful
+
+=== review: a for list in doubled parens
+for my $x ((1,2)) {}
+--- facts
+faithful
+
+=== review: a reference to a parenthesised array
+my @a; my $r = \(@a);
+--- facts
+srefgen 1 exact
+faithful
+
+=== review: a doubly parenthesised list repeated
+my @r = ((1,2)) x 3;
+--- facts
+faithful
+
+=== review: a parenthesised constant repeated
+my @r = (1) x 3;
+--- facts
+faithful
+
+=== review: a chained arrow call with a doubled argument
+my $f; $f->(1)->((2));
+--- facts
+faithful
+
+=== review: a method call's argument in doubled parens
+our $x; my $o; $o->m(($x));
+--- facts
+faithful
+
+=== review: an ampersand call's argument in doubled parens
+our $x; my $f; &$f(($x));
+--- facts
+faithful
+
+=== review: a call through an element with a doubled argument
+my $h; $h->{x}((1));
+--- facts
+faithful
+
+=== review: a call of a call's result with a doubled argument
+my $c; $c->(1)((2));
+--- facts
+faithful
+
+=== review: defined of a doubly parenthesised variable
+our $x; my $r = defined(($x));
+--- facts
+faithful
+
+=== review: not-bang of a parenthesised variable
+our $x; my $r = !($x);
+--- facts
+faithful
+
+=== review: negation of a parenthesised variable
+our $x; my $r = -($x);
+--- facts
+faithful
+
+=== review: scalar of a doubly parenthesised array
+my @a; my $r = scalar((@a));
+--- facts
+faithful
+
+=== review: a list slice of a parenthesised array and a constant
+my @a; my $r = ((@a),1)[0];
+--- facts
+faithful
+
+=== review: a list slice of caller in doubled parens
+my $r = ((caller(0)))[3];
+--- facts
+faithful
+
+=== review: an arrow call's argument in tripled parens
+my $f; $f->(((1)));
+--- facts
+faithful
+
+=== review: a statement modifier's parenthesised condition
+our $x; 1 if ($x);
+--- facts
+faithful
+
+=== review: a ternary's parenthesised condition
+our $x; my $r = ($x) ? 1 : 2;
+--- facts
+faithful

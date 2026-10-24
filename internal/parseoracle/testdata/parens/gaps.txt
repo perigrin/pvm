@@ -6,9 +6,14 @@ F15) makes it a gap, never a defect, and canon writes the paren.
 Each row is a fixture, as in fixtures.txt, with a `--- gap` section: the
 `LINE OP` psc's Paren maps to, which perl folded away. The check re-runs
 the pinned perl on the snippet and requires that op to be absent from the
-statement's ops, or one of that name to carry FOLD; a row that perl still
-emits present and unfolded fails. `#` lines quote perl 5.44.0's Concise,
-the evidence of the fold.
+statement's ops, or one of that name to carry FOLD, or every one of that
+name to be a nulled op without P that a multideref on the line absorbed;
+a row that perl still emits present and unfolded fails.
+
+A `--- perl-gap` section is the converse: a P bit a fold gave an op no
+source paren stands for. The check requires perl to still mark it P.
+
+`#` lines quote perl 5.44.0's Concise, the evidence of the fold.
 
 === a parenthesised hash key
 my %h;
@@ -43,7 +48,27 @@ sub g {
 --- perl
 none
 --- gap
-2 aelem
+2 ex-aelem
 # -           <1> ex-aelem sK/2 ->3
 # 2              <+> multideref($_[0][0]) sK ->3: the aelem is nulled
 # into the multideref, and no op carries P
+
+=== not over a doubly parenthesised constant
+my $r = not((1));
+--- perl
+none
+--- gap
+1 const
+# 3        <$> const[SPECIAL sv_no] s/FOLD ->4: not's pair is SyntaxParen,
+# the inner pair the 1's Paren, and the not folded with it
+
+=== a list slice by a constant range
+my @a;
+my @r = (@a)[0..1];
+--- perl
+2 rv2av
+--- perl-gap
+2 rv2av
+# 8                 <1> rv2av lKP/1 ->9
+# 7                    <$> const[AV ARRAY] s ->8: the range 0..1 folded
+# into a constant array, whose rv2av carries P with no source paren

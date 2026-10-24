@@ -71,6 +71,11 @@ type OpFlag struct {
 	Op     string
 	Parens bool
 	Folded bool
+	// Statement is set on a null with P over an `if`/`unless`
+	// condition's logop, which perl marks P with no source paren.
+	Statement bool
+	// Var is the variable a P op reads, `$x`, where the walk names one.
+	Var string
 }
 
 // Options controls how perl is invoked.
@@ -209,7 +214,8 @@ func decode(out []byte) (Facts, error) {
 	for name, lines := range w.Sites {
 		sites[Marker(name)] = lines
 	}
-	// "LINE NAME", then " P" and " FOLD" when the op carries them.
+	// "LINE NAME", then " P", " STMT", " =VAR" and " FOLD" as the op
+	// carries them.
 	var opflags []OpFlag
 	for _, row := range w.OpFlags {
 		f := strings.Fields(row)
@@ -222,8 +228,16 @@ func decode(out []byte) (Facts, error) {
 		}
 		o := OpFlag{Line: line, Op: f[1]}
 		for _, flag := range f[2:] {
-			o.Parens = o.Parens || flag == "P"
-			o.Folded = o.Folded || flag == "FOLD"
+			switch {
+			case flag == "P":
+				o.Parens = true
+			case flag == "FOLD":
+				o.Folded = true
+			case flag == "STMT":
+				o.Statement = true
+			case strings.HasPrefix(flag, "="):
+				o.Var = flag[1:]
+			}
 		}
 		opflags = append(opflags, o)
 	}
