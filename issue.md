@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T13:37:12.288889876Z
-updated: 2026-10-24T13:37:12.288889876Z
+updated: 2026-10-24T14:40:49.92392885Z
 ---
 
 Found by the narrowing worker (01a16c1b-a587) on 2026-10-24. perigrin ruled that a `{` psc misreads as a block is a parser defect, to be fixed at the root.
@@ -22,4 +22,4 @@ Measure toke.c's guess with perl 5.44 (Concise) on this line and on reductions o
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (a probe row for `sub { {1,2,3,4} }` with perl's tree, whose canon compiles under perl)
+- [ ] A probe row for `sub { {1,2,3,4} }` with perl's tree, whose canon compiles under perl (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
