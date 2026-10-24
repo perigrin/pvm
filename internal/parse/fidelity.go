@@ -26,6 +26,8 @@ import (
 //   - last-semicolon: a block's last statement acquires its semicolon.
 //     Measured: `sub f { 1 }` and `sub g { 1; }` both return 1. That covers
 //     a block argument too: `print {$fh} "x"` is emitted `print {$fh;} "x"`.
+//     Only where the TREE reads the braces as a Block (CanonToken.BlockSemi):
+//     `$h{a;}` and `{a => 1;}` are syntax errors, never a spelling of a hash.
 //   - extra-nesting: a source pair nested directly inside the pair canon
 //     wrote for a node's Paren flag, around the same node. perl keeps that
 //     paren as one boolean bit, OPf_PARENS: measured on perl 5.44.0,
@@ -56,6 +58,7 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 		out = append(out, CanonToken{
 			Text:      string(text[tok.Start:tok.End]),
 			ParenNode: slices.Contains(b.parenNode, tok.Start),
+			BlockSemi: slices.Contains(b.blockSemi, tok.Start),
 		})
 	}
 	return out
@@ -70,9 +73,15 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 // for where perl keeps no OPf_PARENS bit, because the syntax requires them:
 // the `->(` argument pair, `$f->($a+1)`, the `not (` operand's, `not ($a ==
 // 1)`, and a list slice's, `(1,2,3)[1]` (canonBuf.argParens).
+//
+// BlockSemi marks the `;` canon wrote as the terminator of a Block's last
+// statement: the one `;` last-semicolon may forgive. A `;` inside braces the
+// tree reads as anything but a Block -- an anonymous hash, a subscript --
+// is unmarked.
 type CanonToken struct {
 	Text      string
 	ParenNode bool
+	BlockSemi bool
 }
 
 // Forgiveness is one difference faithfulTokens forgave: the canon token and
@@ -144,8 +153,11 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 		//	11
 		//
 		// Narrow on purpose: only a `;` the emission has, immediately before
-		// its closing `}`, where the source went straight to the brace.
-		if got[g] == ";" && g+1 < len(got) && got[g+1] == "}" && want[w] == "}" {
+		// its closing `}`, where the source went straight to the brace -- and
+		// only one canon marked as a Block's, never a `;` inside braces the
+		// tree reads as a hash or a subscript: perl 5.44.0 rejects `$h{a;}`
+		// and `{a => 1;}` alike.
+		if canon[g].BlockSemi && got[g] == ";" && g+1 < len(got) && got[g+1] == "}" && want[w] == "}" {
 			forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleLastSemicolon})
 			g++
 			continue
