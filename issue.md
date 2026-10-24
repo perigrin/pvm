@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T04:11:53.607169795Z
-updated: 2026-10-24T14:39:31.022841924Z
+updated: 2026-10-24T14:40:06.338559036Z
 sessions:
 - start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
   end_sha: 39c57492239c1d5954f394b3eb49cd8f2bd675f4
@@ -53,5 +53,5 @@ A narrower option: forgive the last `;` only inside a node the tree knows is a B
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestFaithfulForgivesSemicolonOnlyInBlocks$' -count=1 -v | grep -q '^--- PASS'` (a `;` inside an AnonHash or a subscript is never forgiven, at canon-token level)
-- `go test ./internal/parse/ -run '^TestFaithfulLastSemicolonOnlyInBlocks$' -count=1 -v | grep -q '^--- PASS'` (`$h{a;}` against `$h{a}`, and a hash constructor written `{a => 1;}`, are unfaithful; a real block's last `;` is still forgiven)
+- [ ] A `;` inside an AnonHash or a subscript is never forgiven, at canon-token level (`go test ./internal/parse/ -run '^TestFaithfulForgivesSemicolonOnlyInBlocks$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] `$h{a;}` against `$h{a}`, and a hash constructor written `{a => 1;}`, are unfaithful; a real block's last `;` is still forgiven (`go test ./internal/parse/ -run '^TestFaithfulLastSemicolonOnlyInBlocks$' -count=1 -v | grep -q '^--- PASS'`)
