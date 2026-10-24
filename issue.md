@@ -1,6 +1,6 @@
 ---
 title: Decide a named hash's rv2hv from its declaration
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-22T23:46:34.530218409Z
-updated: 2026-10-23T22:37:36.632777895Z
+updated: 2026-10-24T00:20:39.641391984Z
+sessions:
+- start_sha: 53c11cac135ca2830a13005fe0ca983c9df545ee
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T00:20:39.641391984Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T00:20:39.641391984Z
 ---
 
 ## Context
