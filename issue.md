@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T21:37:50.149043545Z
-updated: 2026-10-23T21:37:50.149043545Z
+updated: 2026-10-24T14:40:49.39780315Z
 ---
 
 Found by the NU worker (01a1690b-1d10, exec/nu, 945135e2) on 2026-10-23, and measured with perl 5.44.0. The defect predates NU.
@@ -22,4 +22,4 @@ The same gap applies to `use subs` and to a `CORE::GLOBAL::` override, and to an
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (a tree-level probe row for `use subs 'chdir'; chdir $x, 1` that asserts the list-operator reading)
+- [ ] A tree-level probe row for `use subs 'chdir'; chdir $x, 1` that asserts the list-operator reading (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
