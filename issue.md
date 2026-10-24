@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-26T17:52:33.001336328Z
-updated: 2026-10-23T23:40:18.605172108Z
+updated: 2026-10-24T00:08:53.657961285Z
 sessions:
 - start_sha: 62cf900f71db986393d6d645b6814afefaea26e4
   end_sha: 58b9d93efe068e8222e292e76272380827c4d10f
@@ -127,8 +127,10 @@ lint reads Concise's rendered text, so it sees op NAMES and not flags.
 
 Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): criterion 1 passed at 054e75e6, before the work. It now names the call-return case in subroutines.md.
 
+**Review round 2 (2026-10-24):** the glob criterion grepped for `local *x` text, which two topics' prose also matches. It now names the case's own subtest.
+
 ## Acceptance criteria
 
 - [ ] A case asserts local restores on CALL RETURN, not just block exit (`go test ./internal/conformance/ -run '^TestCorpus$/^subroutines.md$/^.local._restores_on_call_return' -count=1 -v | grep -q '^    --- PASS: TestCorpus/subroutines.md/.local._restores_on_call_return'`)
-- [ ] Both the scalar and glob spellings are covered (`grep -qE 'local \*[a-z]' conformance/mdtest/*.md`)
+- [ ] The corpus holds a glob `local` that restores on call return, and perl confirms its pinned output (`go test ./internal/conformance/ -run '^TestCorpus$/^symbol-table\.md$' -count=1 -v | grep -qF -- '--- PASS: TestCorpus/symbol-table.md/`local`_on_a_glob_restores_on_call_return'`)
 - [ ] REGRESSION GUARD, passes today: the corpus stays complete (`go test ./internal/conformance/ -count=1 | grep -q '^ok'`)
