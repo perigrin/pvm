@@ -1,6 +1,6 @@
 ---
 title: Fix the dropped-paren rows of the re-emission work queue
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 created: 2026-10-23T08:21:55.619658958Z
-updated: 2026-10-23T13:55:21.622765398Z
+updated: 2026-10-24T17:49:58.651381533Z
+sessions:
+- start_sha: 0abe3a1220ef9161682767b2c11fa000c91e5389
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T17:49:58.651381533Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T17:49:58.651381533Z
 ---
 
 ## Context
