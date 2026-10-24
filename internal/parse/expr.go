@@ -46,11 +46,14 @@ func (p *parser) parseExpr(minBP int) *Node {
 // A parenthesis between the word and the `=>` ends the reach -- `(foo)=>0`
 // calls foo -- so only Unary, Binary, CmpChain and Ternary right edges are
 // followed, and a Declaration's, whose last child is its initialiser: measured on
-// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". The word must be bare: its
-// call's own parens end the reach as well, and `(!foo()=>0)` calls foo.
+// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". So is a bare named unary's
+// operand: measured on 5.44.0, `(ucfirst foo => 1)` is `('Foo', 1)`. The
+// word must be bare: its call's own parens end the reach as well, and
+// `(!foo()=>0)` calls foo.
 func markFatOperand(left *Node) {
 	n := left
-	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration) {
+	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration ||
+		n.Kind == Call && n.NamedUnary && !n.ArgParen && len(n.Children) == 1) {
 		n = n.Children[len(n.Children)-1]
 	}
 	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {

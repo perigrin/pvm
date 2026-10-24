@@ -270,3 +270,168 @@ sub skip; skip "x", 2, if $m;
 faithful
 # skip('x', 2) if $m;
 # sub skip ;
+
+=== a parenthesised zero-argument call before minus
+sub foo {} my $x = (foo) - 1;
+--- facts
+faithful
+# (my($x) = (foo() - 1));
+
+=== a parenthesised zero-argument call before plus
+sub foo {} my $x = (foo) + 1;
+--- facts
+faithful
+# (my($x) = (foo() + 1));
+
+=== a parenthesised zero-argument call before **
+sub foo {} my $x = (foo) ** 2;
+--- facts
+faithful
+# (my($x) = (foo() ** 2));
+
+=== a parenthesised zero-argument call before <
+sub foo {} my $x = (foo) < 1;
+--- facts
+faithful
+# (my($x) = (foo() < 1));
+
+=== a parenthesised zero-argument call before < in a condition
+sub foo {} if ((foo) < 1) {}
+--- facts
+faithful
+# if ((foo() < 1)) {
+#     ();
+
+=== a parenthesised zero-argument call before /
+sub foo {} my $x = (foo) / 2;
+--- facts
+faithful
+# (my($x) = (foo() / 2));
+
+=== a parenthesised zero-argument call before x
+sub foo {} my $x = (foo) x 2;
+--- facts
+faithful
+# (my($x) = (foo() x 2));
+
+=== a parenthesised qualified zero-argument call before minus
+sub Foo::bar {} my $x = (Foo::bar) - 1;
+--- facts
+faithful
+# (my($x) = (Foo::bar() - 1));
+
+=== ucfirst over a call before a fat comma
+sub foo {} my %h = ((ucfirst foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (ucfirst(foo()), 1));
+
+=== defined over a call before a fat comma
+sub foo {} my %h = ((defined foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (defined(foo()), 1));
+
+=== ref over a call before a fat comma
+sub foo {} my %h = ((ref foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (ref(foo()), 1));
+
+=== lc over a call before a fat comma
+sub foo {} my %h = ((lc foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (lc(foo()), 1));
+
+=== chr over a call before a fat comma
+sub foo {} my %h = ((chr foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (chr(foo()), 1));
+
+=== length over a call before a fat comma
+sub foo {} my %h = ((length foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (length(foo()), 1));
+
+=== rand over a call before a fat comma
+sub foo {} my %h = ((rand foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (rand(foo()), 1));
+
+=== a filetest over a call before a fat comma
+sub foo {} my %h = ((-e foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = ((-e foo()), 1));
+
+=== lc over time before a fat comma
+my %h = ((lc time) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = (lc(time), 1));
+
+=== ucfirst over a call at a right operand before a fat comma
+sub foo {} my %h = ((1 + ucfirst foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my(%h) = ((1 + ucfirst(foo())), 1));
+
+=== ucfirst over a call before a fat comma in an anon hash
+sub foo {} my $h = {(ucfirst foo) => 1};
+--- facts
+anonhash 1 exact
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my($h) = {ucfirst(foo()), 1});
+
+=== ucfirst over a call before a fat comma in an anon array
+sub foo {} my $a = [(ucfirst foo) => 1];
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# (my($a) = [ucfirst(foo()), 1]);
+
+=== ucfirst over a call before a fat comma in call arguments
+sub foo {} print((ucfirst foo) => 1);
+--- facts
+faithful
+known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# print(ucfirst(foo()), 1);
+
+=== a bare ucfirst operand quoted by a fat comma
+sub foo {} my %h = (ucfirst foo => 1);
+--- facts
+faithful
+# (my(%h) = ('Foo', 1));
+
+=== a bare defined operand quoted by a fat comma
+sub foo {} my %h = (defined foo => 1);
+--- facts
+faithful
+# (my(%h) = (1, 1));
+
+=== a bare lc operand quoted by a fat comma
+my %h = (lc time => 1);
+--- facts
+faithful
+# (my(%h) = ('time', 1));
+
+=== a bare ucfirst operand at a right operand quoted by a fat comma
+sub foo {} my %h = (1 + ucfirst foo => 1);
+--- facts
+faithful
+# (my(%h) = ((1 + 'Foo'), 1));

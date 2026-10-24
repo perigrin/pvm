@@ -308,3 +308,110 @@ func TestCanonFatCommaKeepsSourceCallParens(t *testing.T) {
 		requireCanon(t, Parse([]byte(src)), src, strings.Replace(src, "{7}", "{7;}", 1))
 	}
 }
+
+// TestCanonParenthesisedZeroArgCallBeforeTighterOp: a zero-argument call
+// the source parenthesised keeps a pair before an operator tighter than a
+// list operator, which would otherwise be read as the start of its
+// argument. Measured on perl 5.44.0 with Deparse,-p:
+//
+//	sub foo {} my $x = (foo) - 1;      (my($x) = (foo() - 1));
+//	sub foo {} my $x = foo - 1;        (my($x) = foo(-1));
+//	sub foo {} my $x = (foo) + 1;      (my($x) = (foo() + 1));
+//	sub foo {} my $x = (foo) ** 2;     (my($x) = (foo() ** 2));
+//	sub foo {} my $x = (foo) < 1;      (my($x) = (foo() < 1));
+//	sub foo {} if ((foo) < 1) {}       if ((foo() < 1)) {
+//	sub foo {} my $x = (foo) / 2;      (my($x) = (foo() / 2));
+//	sub foo {} my $x = (foo) x 2;      (my($x) = (foo() x 2));
+//	sub Foo::bar {} my $x = (Foo::bar) - 1;
+//	                                   (my($x) = (Foo::bar() - 1));
+//
+// Bare, `foo - 1` is `foo(-1)`, `foo ** 2` a glob, `foo < 1` a readline,
+// and `foo / 2` and `foo x 2` syntax errors.
+func TestCanonParenthesisedZeroArgCallBeforeTighterOp(t *testing.T) {
+	for _, src := range []string{
+		`sub foo {} my $x = (foo) - 1;`,
+		`sub foo {} my $x = (foo) + 1;`,
+		`sub foo {} my $x = (foo) ** 2;`,
+		`sub foo {} my $x = (foo) < 1;`,
+		`sub foo {} if ((foo) < 1) {}`,
+		`sub foo {} my $x = (foo) / 2;`,
+		`sub foo {} my $x = (foo) x 2;`,
+		`sub Foo::bar {} my $x = (Foo::bar) - 1;`,
+	} {
+		n := Parse([]byte(src))
+		got := Canon(n, []byte(src))
+		if strings.Contains(got, "foo -") || strings.Contains(got, "foo +") || strings.Contains(got, "foo *") ||
+			strings.Contains(got, "foo <") || strings.Contains(got, "foo /") || strings.Contains(got, "foo x") ||
+			strings.Contains(got, "bar -") {
+			t.Errorf("Canon(%q) = %q: the operator after the bare call starts its argument", src, got)
+		}
+		if ok, why := Faithful(n, []byte(src)); !ok {
+			t.Errorf("Faithful(%q) = false: %s", src, why)
+		}
+	}
+}
+
+// TestCanonFatCommaKeepsNamedUnaryOperandACall: a zero-argument call that
+// is a named unary's operand, at the right edge of a `=>`'s left side, is
+// a call. Canon drops the source's paren around the named unary, so the
+// call keeps `()`, or the `=>` would quote it. Measured on perl 5.44.0
+// with Deparse,-p:
+//
+//	sub foo {} my %h = ((ucfirst foo) => 1);    (my(%h) = (ucfirst(foo()), 1));
+//	sub foo {} my %h = ((defined foo) => 1);    (my(%h) = (defined(foo()), 1));
+//	sub foo {} my %h = ((ref foo) => 1);        (my(%h) = (ref(foo()), 1));
+//	sub foo {} my %h = ((-e foo) => 1);         (my(%h) = ((-e foo()), 1));
+//	my %h = ((lc time) => 1);                   (my(%h) = (lc(time), 1));
+//	sub foo {} my %h = ((1 + ucfirst foo) => 1);
+//	                                            (my(%h) = ((1 + ucfirst(foo())), 1));
+//	sub foo {} my $h = {(ucfirst foo) => 1};    (my($h) = {ucfirst(foo()), 1});
+//	sub foo {} my $a = [(ucfirst foo) => 1];    (my($a) = [ucfirst(foo()), 1]);
+//	sub foo {} print((ucfirst foo) => 1);       print(ucfirst(foo()), 1);
+//
+// Written `(ucfirst foo => 1)`, it is `('Foo', 1)`.
+func TestCanonFatCommaKeepsNamedUnaryOperandACall(t *testing.T) {
+	for _, tc := range []struct{ src, call string }{
+		{`sub foo {} my %h = ((ucfirst foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((defined foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((ref foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((lc foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((chr foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((length foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((rand foo) => 1);`, "foo()"},
+		{`sub foo {} my %h = ((-e foo) => 1);`, "foo()"},
+		{`my %h = ((lc time) => 1);`, "time()"},
+		{`sub foo {} my %h = ((1 + ucfirst foo) => 1);`, "foo()"},
+		{`sub foo {} my $h = {(ucfirst foo) => 1};`, "foo()"},
+		{`sub foo {} my $a = [(ucfirst foo) => 1];`, "foo()"},
+		{`sub foo {} print((ucfirst foo) => 1);`, "foo()"},
+	} {
+		if got := Canon(Parse([]byte(tc.src)), []byte(tc.src)); !strings.Contains(got, tc.call+" =>") {
+			t.Errorf("Canon(%q) = %q, want %s before the =>", tc.src, got, tc.call)
+		}
+	}
+}
+
+// TestFatCommaQuotesNamedUnaryOperand: written bare, the operand of a named
+// unary right before `=>` is the word the `=>` quotes, so the tree marks it
+// Fat and canon writes it bare. Measured on perl 5.44.0 with Deparse,-p:
+//
+//	sub foo {} my %h = (ucfirst foo => 1);       (my(%h) = ('Foo', 1));
+//	sub foo {} my %h = (defined foo => 1);       (my(%h) = (1, 1));
+//	my %h = (lc time => 1);                      (my(%h) = ('time', 1));
+//	sub foo {} my %h = (1 + ucfirst foo => 1);   (my(%h) = ((1 + 'Foo'), 1));
+//	sub foo {} print ucfirst foo => 1;           print('Foo', 1);
+func TestFatCommaQuotesNamedUnaryOperand(t *testing.T) {
+	for _, tc := range []struct{ src, word string }{
+		{`sub foo {} my %h = (ucfirst foo => 1);`, "foo"},
+		{`sub foo {} my %h = (defined foo => 1);`, "foo"},
+		{`my %h = (lc time => 1);`, "time"},
+		{`sub foo {} my %h = (1 + ucfirst foo => 1);`, "foo"},
+		{`sub foo {} print ucfirst foo => 1;`, "foo"},
+	} {
+		n := Parse([]byte(tc.src))
+		if w := findCall(lastStmt(t, n), tc.word); w == nil || !w.Fat {
+			t.Errorf("%q: want %s marked as the word => quotes, got %+v", tc.src, tc.word, w)
+		}
+		requireCanon(t, n, tc.src, tc.src)
+	}
+}

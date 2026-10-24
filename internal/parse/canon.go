@@ -195,6 +195,19 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// Dropped. See Canon.
 
 	case Call:
+		// A call with no arguments the source parenthesised, `(foo) - 1`,
+		// keeps that pair before an operator tighter than a list operator:
+		// written bare, the operator would begin its argument. Measured on
+		// perl 5.44.0, `sub foo {} (foo) - 1` is `(foo() - 1)` and `foo - 1`
+		// is `foo(-1)`; `foo ** 2` is a glob and `foo / 2` a syntax error.
+		// The pair is written for binding power, as a wrap is, so it is not
+		// marked as a Paren node's: Paren only says the source's pair stood
+		// there.
+		if n.Paren && !n.ArgParen && !n.Fat && f > bpListOp &&
+			(len(n.Children) == 0 || n.Indirect && len(n.Children) == 1) {
+			b.WriteByte('(')
+			defer b.WriteByte(')')
+		}
 		// `require MODULE` keeps its bareword bare: written `require(mro)`
 		// it would re-parse with `mro` as a call rather than a module name.
 		if keywordName(n.Text) == "require" && len(n.Children) == 1 &&
@@ -987,6 +1000,8 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 // (markFatOperand, which sets Fat). One the source did not quote stood
 // before a paren canon has not written -- `((my $x = foo)=>0)` calls foo,
 // measured on 5.42.0 -- so it is written with call parens to stay a call.
+// A bare named unary's operand is on that edge too: measured on perl
+// 5.44.0, `((ucfirst foo) => 1)` is `(ucfirst(foo()), 1)`.
 func emitBeforeFat(b *canonBuf, n *Node, src []byte, outer, f int) {
 	var left canonBuf
 	emitBefore(&left, n, src, outer, f)
@@ -994,7 +1009,8 @@ func emitBeforeFat(b *canonBuf, n *Node, src []byte, outer, f int) {
 	b.writeFrom(&left, 0, len(text))
 	c := n
 	for len(c.Children) > 0 && (c.Kind == Unary || c.Kind == Binary || c.Kind == CmpChain ||
-		c.Kind == Ternary || c.Kind == Declaration) {
+		c.Kind == Ternary || c.Kind == Declaration ||
+		c.Kind == Call && c.NamedUnary && !c.ArgParen && len(c.Children) == 1) {
 		c = c.Children[len(c.Children)-1]
 	}
 	if c != n && c.Kind == Call && len(c.Children) == 0 && !c.Fat && !c.ArgParen &&
