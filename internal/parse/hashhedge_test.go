@@ -123,6 +123,105 @@ var namedHashTable = []arrowCase{
 	// multideref, as `${...}` modified does.
 	{`my $r; delete local $r->{a};`, 1},
 	{`my $r; delete local $r->{a}{b};`, 0},
+	// Nested shadowing, packages, a local in a sub, and mixed slices.
+	{`our %h; {my %h; {our %h; keys %h} keys %h} keys %h;`, 4},
+	{`package A; our %h; package B; keys %h;`, 2},
+	{`sub f { local %h } f(); keys %h; my %h; keys %h;`, 2},
+	{`our %a; my %b; my @x = (@a{1,2}, @b{1,2}, %a{3}, %b{4});`, 3},
+	// Space after a sigil, and a braced name, still name the hash.
+	{`my %h; my @k = keys % h;`, 0},
+	{`my %h; my @x = @ h{1,2};`, 0},
+	{`my %h; my %x = % h{1,2};`, 0},
+	{`my %h; my @k = keys %{h};`, 0},
+	{`my %h; my @k = keys %{ h };`, 0},
+	{`my %h; my $x = ${h}{a};`, 0},
+	{`my %h; my $x = $ h{a};`, 0},
+	{`my %h; my @x = @{h}{1,2};`, 0},
+	{`my %h; my $k; my $x = ${h}{"a$k"};`, 0},
+	{`our %h; my $k; my $x = ${h}{"a$k"};`, 2},
+	// A literal left operand settles a short circuit: `1 && X` is X.
+	{`our %h; my $n = 1 && %h;`, 2},
+	{`our %h; my $n = 0 || %h;`, 2},
+	{`our %h; my $n = "" or %h;`, 2},
+	// A true literal condition keeps what it guards.
+	{`our %h; while (1) { my @k = keys %h; last; }`, 2},
+	{`our %h; if (1) { my @k = keys %h; }`, 2},
+	{`our %h; unless (0) { my @k = keys %h; }`, 2},
+	{`our %h; my @k = keys %h if 1;`, 2},
+	{`our %h; do { my @k = keys %h } until 1;`, 2},
+	{`our %h; do { my @k = keys %h } while 0;`, 2},
+	{`our %h; my $x = 1 ? keys %h : 0;`, 2},
+	// `use parent -norequire` loads nothing.
+	{`use parent -norequire, "Lp"; keys %h;`, 1},
+	// A use's arguments are resolved as any other code.
+	{`use constant N => scalar(%h);`, 1},
+}
+
+// hedgedHashTable is perl 5.44.0's rv2hv count for snippets Sites must
+// hedge, never deciding more than perl builds. Each is a case where the
+// text alone cannot settle the count:
+//
+//   - a numeric fold over a string, which perl leaves unfolded because it
+//     would warn (`"a" << 1`, `1+"a"`);
+//   - a literal key after a module's import, which may install
+//     overload::constant (`use bigint` makes `1` an object, and a `q`
+//     handler does the same to `"a"`);
+//   - `length` or `join` where the file may override it;
+//   - code under a condition perl may fold away (`if (0)`, `keys %h if 0`,
+//     `sub D(){0} if (D)`), and a `?:` whose condition may be constant.
+var hedgedHashTable = []arrowCase{
+	{`my $r; my $x = $r->{"a" << 1};`, 1},
+	{`my $r; my $x = $r->{"a" ** 2};`, 1},
+	{`my $r; my $x = $r->{"0x10" << 1};`, 1},
+	{`my $r; my $x = $r->{1+"a"};`, 1},
+	{`my $r; my $x = $r->{"a"*2};`, 1},
+	{`my $r; my $x = $r->{"a"-2};`, 1},
+	{`my $r; my $x = $r->{"1"+2};`, 0},
+	{`use bigint; my $r; my $x = $r->{1<<2};`, 1},
+	{`use bigint; my $r; my $x = $r->{~0};`, 1},
+	{`use bigint; my $r; my $x = $r->{2**3};`, 1},
+	{`use bigint; my $r; my $x = $r->{1};`, 1},
+	{`use bignum; my $r; my $x = $r->{1.5};`, 1},
+	{`BEGIN { $^H{integer} = sub { bless [], "X" }; $^H |= 0x1000 } my $r; my $x = $r->{1};`, 1},
+	{`use bigint; my $r; my $x = $r->{"a"};`, 0},
+	{`use subs "length"; sub length {1} my $r; my $x = $r->{length "abc"};`, 1},
+	{`BEGIN { *CORE::GLOBAL::length = sub {1} } my $r; my $x = $r->{length "abc"};`, 1},
+	{`BEGIN { *CORE::GLOBAL::join = sub {1} } my $r; my $x = $r->{join ",", 1, 2};`, 1},
+	{`our %h; if (0) { keys %h }`, 1},
+	{`our %h; keys %h if 0;`, 1},
+	{`our %h; unless (1) { keys %h }`, 1},
+	{`our %h; 0 and keys %h;`, 1},
+	{`our %h; my $x = 1 || keys %h;`, 1},
+	{`our %h; while (0) { keys %h }`, 1},
+	{`our %h; my $x = 0 ? keys %h : 1;`, 1},
+	{`our %h; my $x = (1 == 2) ? keys %h : 0;`, 1},
+	{`our %h; my @x = (0 ? %h : ());`, 1},
+	{`our %h; if (1) { 1 } else { keys %h }`, 1},
+	{`our %h; if ($x) { keys %h } elsif (0) { keys %h }`, 2},
+	{`our %h; sub D(){0} if (D) { keys %h }`, 1},
+	{`my $r; keys %$r if 0;`, 0},
+	{`my $r; push @{ 1 ? $r->{a} : $r->{b} }, 1;`, 1},
+	{`my $r; push @{ 0 ? $r->{a} : $r->{b} }, 1;`, 1},
+	{`my $r; push @{ "" ? $r->{a} : $r->{b} }, 1;`, 1},
+	{`use constant C => 1; my $r; push @{ C ? $r->{a} : $r->{b} }, 1;`, 1},
+	{`sub C(){1} my $r; push @{ C ? $r->{a} : $r->{b} }, 1;`, 1},
+	// Code run at BEGIN that may declare a lexical %h.
+	{`use lib do { builtin::export_lexically("%h" => {}); "." }; my @k = keys %h;`, 0},
+	{`sub BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0},
+	{`BEGIN { my $f = \&builtin::export_lexically; &$f("%h" => {}) } my @k = keys %h;`, 0},
+	{`BEGIN { my $f = \&builtin::export_lexically; &{$f}("%h" => {}) } my @k = keys %h;`, 0},
+}
+
+// TestNamedHashHedgesNeverOvercount: each hedgedHashTable row hedges, and
+// decides no more rv2hv than perl builds.
+func TestNamedHashHedgesNeverOvercount(t *testing.T) {
+	for _, c := range hedgedHashTable {
+		decided, hedged := hashSites(c.src)
+		if decided > c.rv2hv || hedged == 0 {
+			t.Errorf("%s\n  perl 5.44.0 builds %d rv2hv; Sites decides %d and hedges %d, "+
+				"where it should hedge and decide no more than perl", c.src, c.rv2hv, decided, hedged)
+		}
+	}
 }
 
 // TestNamedHashRv2hvFollowsDeclaration: each row is decided, with no hash
@@ -131,11 +230,12 @@ func TestNamedHashRv2hvFollowsDeclaration(t *testing.T) {
 	checkDecided(t, namedHashTable)
 }
 
-// TestNamedHashRv2hvTableMatchesPerl re-measures namedHashTable on the
+// TestNamedHashRv2hvTableMatchesPerl re-measures namedHashTable and
+// hedgedHashTable on the
 // pinned perl, so a row copied from an older measurement fails.
 func TestNamedHashRv2hvTableMatchesPerl(t *testing.T) {
 	perl := perltest.PinnedPerl(t)
-	for _, c := range namedHashTable {
+	for _, c := range append(append([]arrowCase{}, namedHashTable...), hedgedHashTable...) {
 		facts, err := parseoracle.Ask(context.Background(), []byte(c.src), parseoracle.Options{Perl: perl.Path})
 		if err != nil || !facts.OK {
 			t.Errorf("%s\n  perl did not compile it: %v %s", c.src, err, facts.Stderr)
@@ -231,6 +331,8 @@ func TestUndecidableHashHedges(t *testing.T) {
 		`BEGIN { require "./x.pl" } my $n = keys %h;`,
 		`new Foo(my %h); my $n = keys %h;`,
 		`use if 1, feature => "state"; state %h; my $n = keys %h;`,
+		`use parent "Lp"; my $n = keys %h;`,
+		`use base "Lp"; my $n = keys %h;`,
 	} {
 		sites := parse.Sites(parse.Parse([]byte(src)), []byte(src))
 		if !hedgedSite(sites, parseoracle.SiteKindHash) {

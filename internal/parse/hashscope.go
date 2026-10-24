@@ -78,21 +78,32 @@ type hashScope struct {
 	// imported is the resolver's count at the last import point in
 	// effect here, 0 where there has been none.
 	imported int
+	// constants marks a scope where overload::constant may be in effect:
+	// after an import point, or a BEGIN block writing %^H.
+	constants bool
 }
 
 // hashScopes resolves every named hash in root: each `%h`, and each `$h`
 // or `@h` a brace subscript reads %h through. A qualified or punctuation
 // name never matches a lexical declaration, so it resolves to "".
-func hashScopes(root *Node) map[*Node]hashUse {
-	r := &hashResolver{uses: map[*Node]hashUse{}}
+//
+// It also reports the brace subscripts read where overload::constant may
+// be in effect: after an import point, or a BEGIN block writing %^H. A
+// module's import may install overload::constant, which makes a literal
+// key an object that does not fold: measured on 5.44.0,
+// `use bigint; $r->{1}` keeps its rv2hv, and so does `$r->{"a"}` under a
+// `q` handler.
+func hashScopes(root *Node) (uses map[*Node]hashUse, afterImport map[*Node]bool) {
+	r := &hashResolver{uses: map[*Node]hashUse{}, afterImport: map[*Node]bool{}}
 	r.push()
 	r.walk(root)
-	return r.uses
+	return r.uses, r.afterImport
 }
 
 type hashResolver struct {
-	scopes []*hashScope
-	uses   map[*Node]hashUse
+	scopes      []*hashScope
+	uses        map[*Node]hashUse
+	afterImport map[*Node]bool
 	// seq counts declarations and import points, in source order.
 	seq int
 }
@@ -102,7 +113,7 @@ func (r *hashResolver) top() *hashScope { return r.scopes[len(r.scopes)-1] }
 func (r *hashResolver) push() {
 	s := &hashScope{decls: map[string]hashUse{}, pending: map[string]hashUse{}}
 	if len(r.scopes) > 0 {
-		s.state, s.sigs, s.imported = r.top().state, r.top().sigs, r.top().imported
+		s.state, s.sigs, s.imported, s.constants = r.top().state, r.top().sigs, r.top().imported, r.top().constants
 	}
 	r.scopes = append(r.scopes, s)
 }
@@ -164,24 +175,26 @@ func (r *hashResolver) walk(n *Node) {
 		}
 
 	case Use:
+		// The arguments are ordinary code, compiled before the import.
+		if len(n.Children) > 1 {
+			r.walkChildren(&Node{Children: n.Children[1:]})
+		}
 		r.noteFeatures(n)
 		return
 
 	case Phaser:
-		// A BEGIN block runs as it is compiled and may turn a feature on
-		// in the scope around it: `BEGIN { feature->import("state") }`.
-		// One that loads or calls code may declare a lexical there too,
-		// once it has run.
 		if n.Text == "BEGIN" {
-			r.top().state, r.top().sigs = stateUnknown, stateUnknown
-			r.walkChildren(n)
-			if mayImport(n) {
-				r.importPoint()
-			}
+			r.begin(n)
 			return
 		}
 
 	case Declaration:
+		// `sub BEGIN { ... }` is a BEGIN block.
+		if keywordName(n.Text) == "sub" && len(n.Children) > 0 &&
+			n.Children[0].Kind == Term && n.Children[0].Text == "BEGIN" {
+			r.begin(n)
+			return
+		}
 		switch keywordName(n.Text) {
 		case "sub", "method":
 			// A signature's hash parameter is a `my` of the body. Measured
@@ -207,13 +220,16 @@ func (r *hashResolver) walk(n *Node) {
 		}
 
 	case Index:
+		if n.Text == "{" && r.top().constants {
+			r.afterImport[n] = true
+		}
 		// `$h{k}`, `@h{...}` and `%h{...}` read %h. A bracket subscript
 		// reads an array, `%h[0]` included.
 		if len(n.Children) > 0 && !n.Arrow {
 			base := n.Children[0]
 			if base.Kind == Term && (isNamedVariable(base.Text) || isNamedHash(base.Text)) {
 				if n.Text == "{" {
-					r.resolve(base, base.Text[1:])
+					r.resolve(base, hashName(base.Text))
 				}
 				for _, c := range n.Children[1:] {
 					r.walk(c)
@@ -224,7 +240,7 @@ func (r *hashResolver) walk(n *Node) {
 
 	case Term:
 		if isNamedHash(n.Text) {
-			r.resolve(n, n.Text[1:])
+			r.resolve(n, hashName(n.Text))
 		}
 		return
 	}
@@ -350,27 +366,68 @@ func (r *hashResolver) declareHash(t *Node, decl string, gate featureState) {
 		return
 	}
 	r.seq++
-	s.pending[t.Text[1:]] = hashUse{Decl: pend, Unsure: gate == stateUnknown, at: r.seq}
+	s.pending[hashName(t.Text)] = hashUse{Decl: pend, Unsure: gate == stateUnknown, at: r.seq}
+}
+
+// begin reads a BEGIN block, which runs as it is compiled and may turn a
+// feature on in the scope around it: `BEGIN { feature->import("state") }`.
+// One that loads or calls code may declare a lexical there too, once it
+// has run.
+func (r *hashResolver) begin(n *Node) {
+	r.top().state, r.top().sigs = stateUnknown, stateUnknown
+	r.walkChildren(n)
+	switch {
+	case mayImport(n):
+		r.importPoint()
+	case writesHintHash(n):
+		r.top().constants = true
+	}
+}
+
+// writesHintHash reports whether n mentions %^H, which is how
+// overload::constant installs a handler: `BEGIN { $^H{integer} = ... }`
+// keeps `$r->{1}`'s rv2hv, measured on 5.44.0.
+func writesHintHash(n *Node) bool {
+	if n.Kind == Term && strings.Contains(n.Text, "^H") {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, writesHintHash)
 }
 
 // importPoint records that code may have run at compile time here, and
 // declared lexicals in the top scope that a later use sees.
 func (r *hashResolver) importPoint() {
 	r.seq++
-	r.top().imported = r.seq
+	r.top().imported, r.top().constants = r.seq, true
 }
 
-// mayImport reports whether a BEGIN block loads or calls code that could
-// declare a lexical in the scope around it: a use or require, do, eval, a
-// method call, or a sub this parser has not resolved. `BEGIN { $| = 1 }`
-// cannot.
+// mayImport reports whether code run at compile time -- a BEGIN block, or
+// a pragma's arguments -- loads or calls code that could declare a lexical
+// in the scope around it: a use or require, do, eval, a method call, a
+// call through a code reference (`&$f(...)`, `&{$f}`), or a sub this
+// parser has not resolved. `BEGIN { $| = 1 }` cannot.
 func mayImport(n *Node) bool {
 	switch n.Kind {
 	case Use, Unknown:
 		return true
+	case Index:
+		if n.Text == "(" {
+			return true
+		}
+	case Term:
+		if strings.HasPrefix(n.Text, "&") {
+			return true
+		}
 	case Call:
 		if !n.Resolved || n.Text == "do" || n.Text == "eval" || n.Text == "require" {
 			return true
+		}
+		if (n.Text == "defined" || n.Text == "exists") && len(n.Children) == 1 && isCodeName(n.Children[0]) {
+			return false // `defined &f` asks, and calls nothing
+		}
+	case Unary:
+		if n.Text == "ref" && len(n.Children) == 1 && isCodeName(n.Children[0]) {
+			return false // `\&f` takes a reference, and calls nothing
 		}
 	case Binary:
 		if n.Text == "->" {
@@ -378,6 +435,11 @@ func mayImport(n *Node) bool {
 		}
 	}
 	return slices.ContainsFunc(n.Children, mayImport)
+}
+
+// isCodeName reports whether n is a `&name` or `&$f` leaf.
+func isCodeName(n *Node) bool {
+	return n.Kind == Term && strings.HasPrefix(n.Text, "&")
 }
 
 // isIdentifier reports whether a hash name could be a lexical's: `h` or
@@ -452,10 +514,29 @@ func (r *hashResolver) noteFeatures(n *Node) {
 			hasSigs, _ := perlVersionAtLeast(module, 5, 35, 0)
 			s.state, s.sigs = onIf(hasState), onIf(hasSigs)
 		}
-	case !quietPragmas[module]:
+	case module == "parent" && len(n.Children) > 1 && isNoRequire(n.Children[1]):
+		// `use parent -norequire, ...` loads nothing.
+	case !quietPragmas[module] || module == "parent" || module == "base":
+		// parent and base load their classes, whose top-level code runs
+		// in this compile.
 		s.state, s.sigs = stateUnknown, stateUnknown
 		r.importPoint()
+	case len(n.Children) > 1 && mayImport(&Node{Children: n.Children[1:]}):
+		// A quiet pragma's arguments run at BEGIN too:
+		// `use lib do { builtin::export_lexically(...); "." }`.
+		r.importPoint()
 	}
+}
+
+// isNoRequire reports whether a `use parent` list starts with -norequire.
+func isNoRequire(list *Node) bool {
+	for list.Kind == Binary && list.Text == "," && len(list.Children) > 0 {
+		list = list.Children[0]
+	}
+	if list.Kind == Unary && list.Text == "neg" && len(list.Children) == 1 {
+		list = list.Children[0]
+	}
+	return list.Text == "norequire" || list.Text == "'-norequire'" || list.Text == `"-norequire"`
 }
 
 func onIf(on bool) featureState {

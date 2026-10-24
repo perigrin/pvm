@@ -627,6 +627,24 @@ not read names %h, and where a module or BEGIN may have changed the state
 or signatures feature. Every rv2hv hedge names its reason from a closed
 set (`TestEveryRv2hvHedgeNamesItsReason`).
 
+A per-fix review then found keys and conditions the text cannot settle,
+each measured on 5.44.0 and now hedged rather than decided:
+
+- a numeric op over a string does not fold, since it would warn:
+  `$r->{"a" << 1}` and `$r->{1+"a"}` keep their rv2hv;
+- after a module's import or a BEGIN block, a literal key may be an
+  object: `use bigint; $r->{1}` keeps its rv2hv, and an
+  `overload::constant q` handler does the same to `$r->{"a"}`;
+- `length` and `join` may be overridden (`use subs`, `CORE::GLOBAL::`);
+- perl folds away a branch under a constant condition, so
+  `our %h; if (0) { keys %h }` counts only the declaration, and a `?:`
+  under a dereference counts one branch when its condition is constant;
+- `use parent` and `use base` load code, as do a quiet pragma's computed
+  arguments, `sub BEGIN`, and a call through a code reference in BEGIN.
+
+A space after a sigil and a braced name, `% h` and `%{ h }`, name the
+hash as `%h` does.
+
 Removing the named hashes' hedges uncovered four WRONG sites in
 `op/ref.t` (928, 938) they had covered: perl passes a modified
 dereference's context into both branches of a `?:` (GH 18669), so

@@ -17,7 +17,7 @@ import (
 // unknown is `state? %h`, and a use resolving to it `%h=state?`. withState
 // appends ` +s` where the state feature is on and ` ?s` where it is unknown.
 func resolvedHashes(src string, withState bool) []string {
-	uses := hashScopes(Parse([]byte(src)))
+	uses, _ := hashScopes(Parse([]byte(src)))
 	nodes := make([]*Node, 0, len(uses))
 	for n := range uses {
 		nodes = append(nodes, n)
@@ -403,6 +403,10 @@ func TestHashScopeSignaturesFeature(t *testing.T) {
 //	BEGIN { require "./x.pl" } keys %h       padhv
 //	BEGIN { $| = 1 } keys %h                 rv2hv
 //	use strict; keys %h                      rv2hv (with no strict vars)
+//	use parent -norequire, "Lp"; keys %h     rv2hv: it loads nothing
+//	use lib do { builtin::export_lexically("%h" => {}); "." }; keys %h   padhv
+//	sub BEGIN { builtin::export_lexically("%h" => {}) } keys %h          padhv
+//	BEGIN { my $f = \&builtin::export_lexically; &$f("%h" => {}) } keys %h  padhv
 func TestHashScopeImportPoints(t *testing.T) {
 	for _, c := range []struct {
 		src      string
@@ -421,9 +425,21 @@ func TestHashScopeImportPoints(t *testing.T) {
 		{`use Lx; keys %Foo::h;`, false},
 		{`use Lx; my %h; keys %h;`, false},
 		{`keys %h; use Lx;`, false},
+		{`use parent "Lp"; keys %h;`, true},
+		{`use base "Lp"; keys %h;`, true},
+		{`use parent -norequire, "Lp"; keys %h;`, false},
+		{`use lib do { builtin::export_lexically("%h" => {}); "." }; keys %h;`, true},
+		{`use lib "."; keys %h;`, false},
+		{`sub BEGIN { builtin::export_lexically("%h" => {}) } keys %h;`, true},
+		{`BEGIN { my $f; &$f("%h" => {}) } keys %h;`, true},
+		{`BEGIN { my $f; &{$f}("%h" => {}) } keys %h;`, true},
+		{`BEGIN { print 1 if defined &DynaLoader::boot_DynaLoader } keys %h;`, false},
+		{`BEGIN { my $f = \&foo } keys %h;`, false},
+		{`BEGIN { &foo; } keys %h;`, true},
+		{`BEGIN { $^H{FOO} = 1 } keys %h;`, false},
 	} {
 		root := Parse([]byte(c.src))
-		uses := hashScopes(root)
+		uses, _ := hashScopes(root)
 		var last *Node
 		for n, u := range uses {
 			if !u.Declares && (last == nil || n.Start > last.Start) {

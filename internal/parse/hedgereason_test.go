@@ -33,14 +33,14 @@ var rv2hvHedgeFixtures = map[hedgeReason]string{
 	reasonMayBeImported: "use Lx; my $n = keys %h;\n",
 	// `new Foo(my %h); keys %h` is padhv, the my unread.
 	reasonDeclaredInUnread: "new Foo(my %h);\nmy $n = keys %h;\n",
-	// A use's arguments are outside the resolver's walk.
-	reasonNotResolved: "use constant N => scalar(%h);\n",
+	// `if (0)`'s block is folded away: rv2hv=1, the declaration's.
+	reasonConstantCondition: "our %h; keys %h if 0;\n",
 }
 
 // rv2hvHedges returns the reason of every rv2hv hedge Sites makes for src.
 func rv2hvHedges(src string) []hedgeReason {
 	root := Parse([]byte(src))
-	decls := namedHashes{uses: hashScopes(root), unread: unreadHashNames(root, []byte(src))}
+	decls := newNamedHashes(root, []byte(src))
 	var got []hedgeReason
 	for _, n := range root.Children {
 		for _, d := range decidedMarkers(n, []byte(src), decls) {
