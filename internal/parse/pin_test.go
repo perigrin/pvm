@@ -70,6 +70,7 @@ func TestCIRunsTheRatchets(t *testing.T) {
 		"TestCanonTokenIdentity",
 		"TestCanonFidelityRatchet",
 		"TestPerlGitTFaithfulRatchet",
+		"TestFaithfulQueueMatchesTree",
 		"TestParseWithoutErrorOnCompiledCorpus",
 	} {
 		if !strings.Contains(ci, name) {
