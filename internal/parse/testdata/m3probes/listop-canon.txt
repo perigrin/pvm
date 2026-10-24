@@ -435,3 +435,46 @@ sub foo {} my %h = (1 + ucfirst foo => 1);
 --- facts
 faithful
 # (my(%h) = ((1 + 'Foo'), 1));
+
+=== a block argument with two statements
+map { $_; $_ } @a;
+--- facts
+faithful
+# map({$_;
+# $_;} @a);
+
+=== a block argument whose last statement has its semicolon in the source
+print {$fh;} "x";
+--- facts
+faithful
+# print({$fh;} 'x');
+
+=== a sort comparator with its semicolon in the source
+sort { $a <=> $b; } @x;
+--- facts
+faithful
+# sort {$a <=> $b} @x;
+
+=== a block argument nested in another
+map { grep { 1 } @a } @b;
+--- facts
+faithful
+# map({grep({1;} @a);} @b);
+
+=== a do block with its semicolon in the source
+do { 1; };
+--- facts
+faithful
+# do {
+#     '???'
+# };
+
+=== an eval block without its last semicolon
+eval { 1 };
+--- facts
+faithful
+# eval {
+#     do {
+#         '???'
+#     }
+# };
