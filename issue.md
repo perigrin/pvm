@@ -1,12 +1,21 @@
 ---
 title: Parse @{ foo { ... } } as perl does after an &-prototype sub
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T13:36:55.397928747Z
-updated: 2026-10-24T13:37:12.207418091Z
+updated: 2026-10-24T13:38:04.003147709Z
+sessions:
+- start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T13:38:04.003147709Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T13:38:04.003147709Z
 ---
 
 perigrin's ruling (2026-10-24): psc misreads a `{` as a code block, so a rule in Faithful cannot catch it. The fix belongs in the parser, and this issue fixes it for the one M3-dir file that has it.
