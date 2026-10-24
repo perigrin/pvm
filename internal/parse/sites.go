@@ -352,8 +352,8 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 			return
 		case n.Kind == Call && (n.Text == "do" || n.Text == "eval") &&
 			slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Block }):
-			// The block's last statement takes it, and keeps an rv2hv
-			// even where the dereference reads; unmeasured beyond that.
+			// The block's last statement takes it, and keeps an rv2hv in
+			// some contexts and not others; unmeasured beyond that.
 			hedge(parseoracle.SiteKindHash, n, reasonUnmeasuredContext)
 			return
 		case n.Kind == Unary && n.Text == "pos" && len(n.Children) == 1:

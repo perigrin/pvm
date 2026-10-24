@@ -481,8 +481,8 @@ func TestArrowHashReadLiteralFoldsDecide(t *testing.T) {
 // dereference's lvalue context into both branches of a `?:` (GH 18669,
 // op/ref.t:928), so each branch's chain is counted as if dereferenced on
 // its own. A `do` or `eval` block's last statement takes the context too,
-// and keeps an rv2hv even where the dereference only reads, so it hedges.
-// Measured on perl 5.44.0:
+// and keeps an rv2hv in some contexts and not others, so it hedges. Measured
+// on perl 5.44.0:
 //
 //	my ($c,$x); push @{ $c ? $x->{a} : $x->{b} }, 1;      rv2hv=2
 //	my ($c,$x); my @y = @{ $c ? $x->{a} : $x->{b} };      rv2hv=0
@@ -490,6 +490,18 @@ func TestArrowHashReadLiteralFoldsDecide(t *testing.T) {
 //	my ($c,$x); ${ $c ? $x->{a} : $x->{b} }++;            rv2hv=2
 //	my ($c,$d,$x); push @{ $c ? $x->{a} : $d ? $x->{b} : $x->{c} }, 1;  rv2hv=3
 //	our %h; my $c; push @{ $c ? $h{a} : $h{b} }, 1;       rv2hv=3
+//	my ($c,$x); push @{ +do { $x->{a} } }, 1;             rv2hv=1
+//	my ($c,$x); push @{ +eval { $x->{a} } }, 1;           rv2hv=0
+//	my ($c,$x); my @y = @{ +do { $x->{a} } };             rv2hv=0
+//
+// Without the `+`, `do` and `eval` are no blocks there: toke.c's scan_ident
+// reads a word then `{` inside a sigil's braces as the variable's name
+// (TestDerefBareNameBraceReadsAsPerlDoes), so `@{ do { $x->{a} } }` is the
+// slice `@do{$x->{a}}`, and its one rv2hv is the package hash %do's:
+//
+//	9  <1> rv2hv[t5] sKR ->a
+//	8     <#> gv[*do] s ->9
+//
 //	my ($c,$x); my @y = @{ do { $x->{a} } };              rv2hv=1
 //	my ($c,$x); my @y = @{ eval { $x->{a} } };            rv2hv=1
 func TestArrowHashReadTernaryBranchesTakeTheContext(t *testing.T) {
@@ -500,13 +512,16 @@ func TestArrowHashReadTernaryBranchesTakeTheContext(t *testing.T) {
 		{`my ($c,$x); ${ $c ? $x->{a} : $x->{b} }++;`, 2},
 		{`my ($c,$d,$x); push @{ $c ? $x->{a} : $d ? $x->{b} : $x->{c} }, 1;`, 3},
 		{`our %h; my $c; push @{ $c ? $h{a} : $h{b} }, 1;`, 3},
+		{`my ($c,$x); my @y = @{ do { $x->{a} } };`, 1},
+		{`my ($c,$x); my @y = @{ eval { $x->{a} } };`, 1},
 	})
 	for _, src := range []string{
-		`my ($c,$x); my @y = @{ do { $x->{a} } };`,
-		`my ($c,$x); my @y = @{ eval { $x->{a} } };`,
+		`my ($c,$x); push @{ +do { $x->{a} } }, 1;`,
+		`my ($c,$x); push @{ +eval { $x->{a} } }, 1;`,
+		`my ($c,$x); my @y = @{ +do { $x->{a} } };`,
 	} {
 		if _, hedged := hashSites(src); hedged == 0 {
-			t.Errorf("%s\n  perl keeps an rv2hv for the block's last statement, and Sites does not hedge it", src)
+			t.Errorf("%s\n  perl keeps an rv2hv for the block's last statement in some contexts, and Sites does not hedge it", src)
 		}
 	}
 }

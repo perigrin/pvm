@@ -337,6 +337,12 @@ type Node struct {
 	// 25.3% of T1's Index nodes are the arrow form.
 	Arrow bool
 
+	// NameBraces is set on an Index whose base variable's name the source
+	// wrote inside a sigil's braces with the subscripts, toke.c's `${foo[0]}`
+	// notation: `@{ foo {"a"} }` is the slice `@foo{"a"}`. Canon writes the
+	// braces back, `@{foo{"a"}}`. See bracedSubscriptedName.
+	NameBraces bool
+
 	// Paren is set on a node the source wrapped in grouping parentheses.
 	//
 	// Two of Perl's rules turn on it, so it is not decoration. §4.10, list

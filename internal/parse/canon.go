@@ -500,6 +500,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteString(ownText(n, src))
 			return
 		}
+		// The sigil's braces around the name and its subscripts: the leaf
+		// writes the sigil, the `{` and the name as the source spelled them,
+		// so only the closing brace is left. See bracedSubscriptedName.
+		if n.NameBraces {
+			defer b.WriteByte('}')
+		}
 		// A list slice's pair is the slice's (argParens).
 		if c := n.Children[0]; isListSlice(n) {
 			b.argParens = c.Paren
