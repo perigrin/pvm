@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T20:36:25.460408142Z
-updated: 2026-10-23T20:36:25.460408142Z
+updated: 2026-10-24T14:40:49.257347221Z
 ---
 
 Found in the independent review of 01a16602-5ebe (exec/5ebe, f80cbfbf), 2026-10-23, and measured with perl 5.44.0 -MO=Deparse,-p.
@@ -25,4 +25,4 @@ No perl.git t/ or T1 file is known to hit this. 5ebe's probe file carries the fi
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (this issue's probe rows lose their known-defect mark)
+- [ ] This issue's probe rows lose their known-defect mark (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
