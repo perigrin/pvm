@@ -223,54 +223,152 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		// A parenthesised List writes its own pair.
 		{`my ($x) = @_;`, `my *( $x *) = @_ ;`},
-		// A parenthesised Term is written as its source text, parens and
-		// all; the pair its Paren flag stands for is the outermost one.
+		// A parenthesised Term is written with one pair, however deeply
+		// the source nested it.
 		{`($x) x 3;`, `*( $x *) x 3 ;`},
-		{`my $z = (($x));`, `my $z = *( ( $x ) *) ;`},
+		{`my $z = (($x));`, `my $z = *( $x *) ;`},
 		// A call's argument list is not a Paren node's pair.
 		{`print("x");`, `print ( "x" ) ;`},
-		// Nor is a grouping canon writes from binding power.
-		{`(1 + 2) * 3;`, `( 1 + 2 ) * 3 ;`},
+		// A grouping the source wrote is a Paren node's pair.
+		{`(1 + 2) * 3;`, `*( 1 + 2 *) * 3 ;`},
+		// One canon writes for binding power is not.
+		{`- -$x;`, `- ( - $x ) ;`},
 		// A heredoc whose statement runs on past the opener's line is split
 		// around its body, and the marks on each side must survive the split.
 		{"my ($s) = first(<<END, ($u)) eq\nhello\nEND\nq(hello\n);\n",
 			"my *( $s *) = first ( <<END , *( $u *) ) eq q(hello\nhello\nEND\n) ;"},
 		{"my $s = first(<<END, 'u') eq\nhello\nEND\nq(hello\n) . ($x);\n",
 			"my $s = first ( <<END , 'u' ) eq q(hello\nhello\nEND\n) . *( $x *) ;"},
+		// A Paren node inside a call's argument list: the inner pair is the
+		// node's, the call's is not. Measured on perl 5.44.0,
+		// `ok(($y eq "x"))` is `seq sKPM` and `ok($y eq "x")` is `seq sKM`.
+		{`ok(($y eq "x"));`, `ok ( *( $y eq "x" *) ) ;`},
 	} {
-		var got []string
-		for _, tok := range parse.CanonTokens(parse.Parse([]byte(tc.src)), []byte(tc.src)) {
-			if tok.ParenNode {
-				got = append(got, "*"+tok.Text)
-				continue
-			}
-			got = append(got, tok.Text)
-		}
-		if g := strings.Join(got, " "); g != tc.want {
-			t.Errorf("canon tokens of %q are %q, want %q", tc.src, g, tc.want)
+		if got := markedCanon(tc.src); got != tc.want {
+			t.Errorf("canon tokens of %q are %q, want %q", tc.src, got, tc.want)
 		}
 	}
 }
 
+// markedCanon is canon's significant tokens of src's parse, joined by
+// spaces, with a paren written for a node's Paren flag written `*(` or
+// `*)`.
+func markedCanon(src string) string {
+	var got []string
+	for _, tok := range parse.CanonTokens(parse.Parse([]byte(src)), []byte(src)) {
+		if tok.ParenNode {
+			got = append(got, "*"+tok.Text)
+			continue
+		}
+		got = append(got, tok.Text)
+	}
+	return strings.Join(got, " ")
+}
+
 // forgivenRules is every rule faithfulTokens may forgive a difference by,
 // each with a fixture: two programs that differ by exactly that rewrite,
-// which the pinned perl runs to the same output.
+// which the pinned perl runs to the same output and compiles to the same
+// ops. The canon side is canon's own spelling, and its tokens are canon's,
+// marks and all (canonTokensOf).
 var forgivenRules = map[string]struct{ src, canon string }{
 	// A block's last statement with and without its semicolon.
 	"last-semicolon": {`sub f { 1 } print f();`, `sub f { 1; } print f();`},
+	// A pair nested directly inside the pair a node's Paren flag stands
+	// for. Measured on perl 5.44.0 with -MO=Concise, both build `seq sKPM`:
+	// the OPf_PARENS bit is boolean.
+	"extra-nesting": {`sub ok { print @_; } our $y = "x"; ok((($y eq "x")));`,
+		`sub ok { print @_; } our $y = "x"; ok(($y eq "x"));`},
+}
+
+// extentNegatives are canons of wrong trees, each the tree of the reading
+// perl does NOT make of its source, which faithfulTokens must reject with
+// nothing forgiven. Each wrong tree is psc's parse of the wrong reading's
+// own spelling, so its canon carries the marks a real tree's would. perl
+// 5.44.0 builds different ops for each pair (parenMeasurements); with
+// -MO=Deparse,-p:
+//
+//	defined $x || $y         (defined($x) or $y)
+//	defined($x||$y)          defined(($x or $y))
+//	not $x or 1              ($x and '???')
+//	not($x or 1)             not(($x || 1))
+//	my $x = @_               padsv_store   (Deparse writes both `(my($x) = @_)`)
+//	my($x)=@_                aassign
+//	local $x = 1             sassign       (`our $x` first)
+//	local($x)=1              aassign
+//	$y x 3                   const[IV 3] s
+//	$y x(3)                  const[IV 3] sP
+//	push @a, 1 or die        (push(@a, 1) or die)
+//	push(@a, 1 or die)       refused: "Experimental push on scalar is now forbidden"
+//	foo 1, bar 2, 3          foo(1, bar(2, 3))     (both subs declared)
+//	foo(1, bar(2), 3)        foo(1, bar(2), 3)
+//
+// A user sub with a `($)` prototype the file cannot see -- declared in a
+// module, or after the call -- is M4 territory and is not covered here.
+var extentNegatives = []struct{ src, wrong string }{
+	{`defined $x || $y;`, `defined($x||$y);`},
+	{`not $x or 1;`, `not($x or 1);`},
+	{`my $x = @_;`, `my($x)=@_;`},
+	{`our $x; local $x = 1;`, `our $x; local($x)=1;`},
+	{`$y x 3;`, `$y x(3);`},
+	{`my @a; push @a, 1 or die;`, `my @a; push(@a, 1 or die);`},
+	{`sub foo {} sub bar {} foo 1, bar 2, 3;`, `sub foo {} sub bar {} foo(1, bar(2), 3);`},
+}
+
+// parenMeasurements are the perl 5.44.0 -MO=Concise comparisons the
+// fidelity tests quote: each pair builds the same ops, or not.
+var parenMeasurements = []struct {
+	a, b string
+	same bool
+}{
+	// TestFaithfulRejectsDroppedParenAfterMy: padrange + aassign against
+	// padsv_store.
+	{`my ($x) = @_;`, `my $x = @_;`, false},
+	// TestFaithfulRejectsDroppedParenBeforeRepeat: repeat vK/DOLIST,2
+	// against repeat vK/2.
+	{`our $y; ($y) x 3;`, `our $y; $y x 3;`, false},
+	// TestFaithfulRejectsDroppedParenAfterLocal: aassign against sassign.
+	{`our $x; local ($x) = 1;`, `our $x; local $x = 1;`, false},
+	// TestFaithfulDoesNotTreatCallParensAsNesting: const[IV 1] sP against
+	// const[IV 1] s.
+	{`print ((1))+2;`, `print (1)+2;`, false},
+	// TestFaithfulNestingForgivesToOnePairNotZero: both repeat vK/DOLIST,2,
+	// and neither is the string repeat.
+	{`our $y; (($y)) x 3;`, `our $y; ($y) x 3;`, true},
+	{`our $y; (($y)) x 3;`, `our $y; $y x 3;`, false},
+}
+
+// canonTokensOf is canon's tokens of the parse of text, which must be
+// canon's own spelling: its significant tokens are canon's.
+func canonTokensOf(t *testing.T, text string) []parse.CanonToken {
+	t.Helper()
+	canon := parse.CanonTokens(parse.Parse([]byte(text)), []byte(text))
+	got := make([]string, len(canon))
+	for i, c := range canon {
+		got[i] = c.Text
+	}
+	if want := sigTokens(text); !slices.Equal(got, want) {
+		t.Fatalf("canon of %q is %q, not %q as written", text, got, want)
+	}
+	return canon
+}
+
+// tokenPair is a source and a canon to compare it against.
+type tokenPair struct {
+	src   string
+	canon []parse.CanonToken
 }
 
 type comparator func([]string, []parse.CanonToken) (bool, []parse.Forgiveness, string)
 
 // unlistedRules is every rule compare forgave a pair by that forgivenRules
 // does not list, as "rule (source)".
-func unlistedRules(compare comparator, pairs [][2]string) []string {
+func unlistedRules(compare comparator, pairs []tokenPair) []string {
 	var out []string
 	for _, p := range pairs {
-		_, forgiven, _ := compare(sigTokens(p[0]), asCanon(sigTokens(p[1])))
+		_, forgiven, _ := compare(sigTokens(p.src), p.canon)
 		for _, f := range forgiven {
 			if _, ok := forgivenRules[f.Rule]; !ok {
-				out = append(out, fmt.Sprintf("%s (%q)", f.Rule, p[0]))
+				out = append(out, fmt.Sprintf("%s (%q)", f.Rule, p.src))
 			}
 		}
 	}
@@ -278,20 +376,32 @@ func unlistedRules(compare comparator, pairs [][2]string) []string {
 }
 
 // unreplayed reports whether undoing each recorded forgiveness in canon
-// fails to give src exactly, and how: a last-semicolon drops its `;`. A
-// difference faithfulTokens skips without recording one leaves a token
-// behind here.
+// fails to give src exactly, and how: a last-semicolon drops canon's `;`,
+// and an extra-nesting puts the source's paren back before the canon
+// token it was found at. A difference faithfulTokens skips without
+// recording one leaves a token behind, or misses one, here.
 func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgiveness) string {
 	drop := map[int]bool{}
+	insert := map[int][]string{}
 	for _, f := range forgiven {
-		drop[f.CanonIndex] = true
+		switch f.Rule {
+		case "extra-nesting":
+			if f.SrcIndex < 0 || f.SrcIndex >= len(src) {
+				return fmt.Sprintf("an extra-nesting at source token %d, past the source", f.SrcIndex)
+			}
+			insert[f.CanonIndex] = append(insert[f.CanonIndex], src[f.SrcIndex])
+		default:
+			drop[f.CanonIndex] = true
+		}
 	}
 	var left []string
 	for i, c := range canon {
+		left = append(left, insert[i]...)
 		if !drop[i] {
 			left = append(left, c.Text)
 		}
 	}
+	left = append(left, insert[len(canon)]...)
 	if slices.Equal(left, src) {
 		return ""
 	}
@@ -306,37 +416,53 @@ func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgive
 // source exactly, so no difference was forgiven unrecorded; and the token
 // kinds dropped before comparing are exactly the trivia.
 func TestFaithfulForgivenessIsClosed(t *testing.T) {
-	var pairs [][2]string
+	var pairs []tokenPair
 	for rule, fx := range forgivenRules {
-		pairs = append(pairs, [2]string{fx.src, fx.canon})
-		ok, forgiven, why := parse.FaithfulTokens(sigTokens(fx.src), asCanon(sigTokens(fx.canon)))
-		if !ok || !slices.Equal(ruleNames(forgiven), []string{rule}) {
+		canon := canonTokensOf(t, fx.canon)
+		pairs = append(pairs, tokenPair{fx.src, canon})
+		ok, forgiven, why := parse.FaithfulTokens(sigTokens(fx.src), canon)
+		names := ruleNames(forgiven)
+		if !ok || len(names) == 0 || slices.ContainsFunc(names, func(r string) bool { return r != rule }) {
 			t.Errorf("%s: %q against %q gave %v %v (%s), want forgiven by %s alone",
-				rule, fx.src, fx.canon, ok, ruleNames(forgiven), why, rule)
+				rule, fx.src, fx.canon, ok, names, why, rule)
 		}
 	}
 	for _, tc := range faithfulTokensCases {
-		pairs = append(pairs, [2]string{tc.src, tc.canon})
+		pairs = append(pairs, tokenPair{tc.src, asCanon(sigTokens(tc.canon))})
+	}
+	// The extent negatives: each wrong tree's canon is rejected, with
+	// nothing forgiven on the way.
+	for _, tc := range extentNegatives {
+		canon := canonTokensOf(t, tc.wrong)
+		pairs = append(pairs, tokenPair{tc.src, canon})
+		if ok, forgiven, _ := parse.FaithfulTokens(sigTokens(tc.src), canon); ok || len(forgiven) > 0 {
+			t.Errorf("%q against the wrong tree's canon %q gave %v forgiven by %v, want false with nothing forgiven",
+				tc.src, tc.wrong, ok, ruleNames(forgiven))
+		}
 	}
 	for _, p := range unlistedRules(parse.FaithfulTokens, pairs) {
 		t.Errorf("forgiven by a rule forgivenRules does not list: %s", p)
 	}
 	// Each pair as it is, and with one stray token inserted anywhere in its
-	// canon: a skip that fires only on a difference the corpus never shows
-	// is still caught, because the stray token survives the replay.
+	// canon, marked or not: a skip that fires only on a difference the
+	// corpus never shows is still caught, because the stray token survives
+	// the replay.
 	stray := []string{"+", "-", "!", "\\", "(", ")", "{", "}", "[", "]", ";", ",", "=>"}
 	for _, p := range pairs {
-		src, canon := sigTokens(p[0]), asCanon(sigTokens(p[1]))
+		src, canon := sigTokens(p.src), p.canon
 		variants := [][]parse.CanonToken{canon}
 		for i := 0; i <= len(canon); i++ {
 			for _, tok := range stray {
-				variants = append(variants, slices.Insert(slices.Clone(canon), i, parse.CanonToken{Text: tok}))
+				for _, marked := range []bool{false, true} {
+					variants = append(variants, slices.Insert(slices.Clone(canon), i,
+						parse.CanonToken{Text: tok, ParenNode: marked}))
+				}
 			}
 		}
 		for _, c := range variants {
 			if ok, forgiven, _ := parse.FaithfulTokens(src, c); ok {
 				if why := unreplayed(src, c, forgiven); why != "" {
-					t.Errorf("%q: %s", p[0], why)
+					t.Errorf("%q: %s", p.src, why)
 				}
 			}
 		}
@@ -374,12 +500,30 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 
 	t.Run("perl", func(t *testing.T) {
 		perl := perltest.PinnedPerl(t)
+		concise := func(src string) string {
+			out, _ := perl.Command("-MO=Concise", "-e", src).CombinedOutput()
+			return string(out)
+		}
 		for rule, fx := range forgivenRules {
 			a, errA := perl.Command("-e", fx.src).CombinedOutput()
 			b, errB := perl.Command("-e", fx.canon).CombinedOutput()
 			if errA != nil || errB != nil || string(a) != string(b) {
 				t.Errorf("%s: perl runs %q to %q (%v) and %q to %q (%v); the rule forgives only an equivalence",
 					rule, fx.src, a, errA, fx.canon, b, errB)
+			}
+			if a, b := concise(fx.src), concise(fx.canon); a != b {
+				t.Errorf("%s: perl compiles %q and %q to different ops:\n%s\n%s", rule, fx.src, fx.canon, a, b)
+			}
+		}
+		for _, tc := range extentNegatives {
+			if a, b := concise(tc.src), concise(tc.wrong); a == b {
+				t.Errorf("perl compiles %q and the wrong reading %q to the same ops:\n%s", tc.src, tc.wrong, a)
+			}
+		}
+		for _, m := range parenMeasurements {
+			if a, b := concise(m.a), concise(m.b); (a == b) != m.same {
+				t.Errorf("perl compiles %q and %q to the same ops: %v, the tests say %v:\n%s\n%s",
+					m.a, m.b, a == b, m.same, a, b)
 			}
 		}
 	})
@@ -423,7 +567,7 @@ func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
 	invented := func([]string, []parse.CanonToken) (bool, []parse.Forgiveness, string) {
 		return true, []parse.Forgiveness{{Rule: "invented"}}, ""
 	}
-	got := unlistedRules(invented, [][2]string{{`print "x";`, `print("x");`}})
+	got := unlistedRules(invented, []tokenPair{{`print "x";`, asCanon(sigTokens(`print("x");`))}})
 	if want := []string{`invented ("print \"x\";")`}; !slices.Equal(got, want) {
 		t.Errorf("unlistedRules = %q, want %q", got, want)
 	}
@@ -440,9 +584,10 @@ func TestFaithfulTokensReportsForgivenessOnFailure(t *testing.T) {
 }
 
 // TestCanonMarksEveryParenNodePair: over T1, canon marks one pair for each
-// parenthesised List and each parenthesised Term it writes. A nested
-// emission copied into its parent without its marks -- WriteString where
-// writeFrom belongs -- loses pairs silently, and this count is what sees it.
+// parenthesised node it writes, but for the two whose pair is a call's (see
+// CanonToken). A nested emission copied into its parent without its marks
+// -- WriteString where writeFrom belongs -- loses pairs silently, and this
+// count is what sees it.
 func TestCanonMarksEveryParenNodePair(t *testing.T) {
 	dir, files := t1Files(t)
 	for _, rel := range files {
@@ -457,36 +602,137 @@ func TestCanonMarksEveryParenNodePair(t *testing.T) {
 				marked++
 			}
 		}
-		if want := parenNodes(root, src); marked != want {
-			t.Errorf("%s: canon marks %d pairs, the tree has %d parenthesised Lists and Terms", rel, marked, want)
+		if want := parenNodes(root, src, false); marked != want {
+			t.Errorf("%s: canon marks %d pairs, the tree has %d parenthesised nodes", rel, marked, want)
 		}
 	}
 }
 
-// parenNodes counts the parenthesised Lists canon emits under n, and the
-// parenthesised Terms whose source text is wrapped in their parens. It does
-// not look inside a node canon writes as its source text rather than
-// emitting its children: an Unknown, or an Index, Binary or Ternary short
-// of its children -- `}=>->join->()()` reads the trailing `()` as an Index
-// holding only the empty List.
-func parenNodes(n *parse.Node, src []byte) int {
+// parenNodes counts the parenthesised nodes canon emits under n, but for
+// one whose pair is a call's: the argument of `->(` and the operand of
+// `not (`, which argParens says n is. It does not look inside a node canon
+// writes as its source text rather than emitting its children: an
+// Unknown, or an Index, Binary or Ternary short of its children --
+// `}=>->join->()()` reads the trailing `()` as an Index holding only the
+// empty List.
+func parenNodes(n *parse.Node, src []byte, argParens bool) int {
+	count := 0
+	if n.Paren && !argParens {
+		count++
+	}
 	switch {
 	case n.Kind == parse.Unknown,
 		n.Kind == parse.Index && len(n.Children) != 2,
 		n.Kind == parse.Binary && len(n.Children) != 2,
 		n.Kind == parse.Ternary && len(n.Children) != 3:
-		return 0
+		return count
 	}
-	count := 0
-	if n.Paren {
-		text := n.SourceText(src)
-		if n.Kind == parse.List ||
-			n.Kind == parse.Term && strings.HasPrefix(text, "(") && strings.HasSuffix(text, ")") {
-			count++
-		}
-	}
-	for _, c := range n.Children {
-		count += parenNodes(c, src)
+	for i, c := range n.Children {
+		call := n.Kind == parse.Binary && n.Text == "->" && i == 1 && c.Paren && src[c.Start] == '(' ||
+			n.Kind == parse.Unary && n.Text == "not" && len(n.Children) == 1 && c.Paren
+		count += parenNodes(c, src, call)
 	}
 	return count
+}
+
+// TestFaithfulForgivesOnlyExtraNesting: a source pair nested directly
+// inside the pair a node's Paren flag stands for is forgiven, however
+// deep; a pair canon does not write at all is not. perl keeps such a
+// paren as one boolean bit (forgivenRules' extra-nesting fixture).
+func TestFaithfulForgivesOnlyExtraNesting(t *testing.T) {
+	for _, src := range []string{
+		`my $z = (($x));`,
+		`my $z = ((($x)));`,
+		`ok((($y eq "x")));`,
+		`my @r = ((1, 2)) x 2;`,
+	} {
+		ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src))
+		if !ok {
+			t.Errorf("Faithful(%q) = false (%s), want true", src, why)
+		}
+		_, forgiven, _ := parse.FaithfulTokens(sigTokens(src), parse.CanonTokens(parse.Parse([]byte(src)), []byte(src)))
+		if names := ruleNames(forgiven); len(names) == 0 ||
+			slices.ContainsFunc(names, func(r string) bool { return r != "extra-nesting" }) {
+			t.Errorf("FaithfulTokens(%q) forgave %v, want extra-nesting alone", src, names)
+		}
+	}
+	// No Paren on the node: canon writes no pair to nest inside.
+	if ok, _, _ := parse.FaithfulTokens(sigTokens(`my $z = (($x));`), canonTokensOf(t, `my $z = $x;`)); ok {
+		t.Errorf("FaithfulTokens(`my $z = (($x));`, `my $z = $x;`) = true, want false")
+	}
+	// The same pair unmarked, as a call's or a binding-power one is.
+	if ok, _, _ := parse.FaithfulTokens(sigTokens(`my $z = (($x));`), asCanon(sigTokens(`my $z = ($x);`))); ok {
+		t.Errorf("FaithfulTokens(`my $z = (($x));`, unmarked `my $z = ($x);`) = true, want false")
+	}
+}
+
+// rejects fails t unless FaithfulTokens rejects src against the canon of
+// canon's own spelling.
+func rejects(t *testing.T, src, canon string) {
+	t.Helper()
+	if ok, forgiven, _ := parse.FaithfulTokens(sigTokens(src), canonTokensOf(t, canon)); ok {
+		t.Errorf("FaithfulTokens(%q, %q) = true, forgiven by %v; want false", src, canon, ruleNames(forgiven))
+	}
+}
+
+// TestFaithfulRejectsDroppedParenAfterMy: `my ($x) = @_` is a list
+// assignment and `my $x = @_` a scalar one. Measured on perl 5.44.0
+// (parenMeasurements): padrange + aassign against padsv_store.
+func TestFaithfulRejectsDroppedParenAfterMy(t *testing.T) {
+	rejects(t, `my ($x) = @_;`, `my $x = @_;`)
+}
+
+// TestFaithfulRejectsDroppedParenBeforeRepeat: `($y) x 3` is a list repeat
+// and `$y x 3` a string one. Measured on perl 5.44.0
+// (parenMeasurements): repeat vK/DOLIST,2 against repeat vK/2.
+func TestFaithfulRejectsDroppedParenBeforeRepeat(t *testing.T) {
+	rejects(t, `($y) x 3;`, `$y x 3;`)
+}
+
+// TestFaithfulRejectsDroppedParenAfterLocal: for `our $x`, `local ($x) = 1`
+// is a list assignment and `local $x = 1` a scalar one. Measured on perl
+// 5.44.0 (parenMeasurements): aassign against sassign.
+func TestFaithfulRejectsDroppedParenAfterLocal(t *testing.T) {
+	rejects(t, `our $x; local ($x) = 1;`, `our $x; local $x = 1;`)
+}
+
+// TestFaithfulDoesNotTreatCallParensAsNesting: a call's argument pair is
+// not a Paren node's, so a pair inside it is not extra nesting. Measured
+// on perl 5.44.0 (parenMeasurements), `print ((1))+2` is `const[IV 1] sP`
+// and `print (1)+2` is `const[IV 1] s`.
+func TestFaithfulDoesNotTreatCallParensAsNesting(t *testing.T) {
+	rejects(t, `print((1))+2;`, `print(1) + 2;`)
+}
+
+// TestFaithfulDoesNotForgiveInnerPairAroundSubterm: a pair inside the
+// node's pair but around one of its operands is not nesting: it wraps a
+// different node.
+func TestFaithfulDoesNotForgiveInnerPairAroundSubterm(t *testing.T) {
+	rejects(t, `((1) + 2);`, `(1 + 2);`)
+}
+
+// TestFaithfulNestingForgivesToOnePairNotZero: doubled parens in a
+// context-changing position are one pair, never none. Measured on perl
+// 5.44.0 (parenMeasurements), `(($y)) x 3` and `($y) x 3` are both repeat
+// vK/DOLIST,2; `$y x 3` is the string repeat.
+func TestFaithfulNestingForgivesToOnePairNotZero(t *testing.T) {
+	rejects(t, `(($y)) x 3;`, `$y x 3;`)
+	if ok, why := parse.Faithful(parse.Parse([]byte(`(($y)) x 3;`)), []byte(`(($y)) x 3;`)); !ok {
+		t.Errorf("Faithful(`(($y)) x 3;`) = false (%s), want true", why)
+	}
+}
+
+// TestFaithfulDistinguishesMyListFromMyComma: `my ($p, $q) = (1, 2)`
+// declares both names, and `my $p, $q` declares one and evaluates the
+// other. Canon writes each as written, and neither is faithful against the
+// other's canon.
+func TestFaithfulDistinguishesMyListFromMyComma(t *testing.T) {
+	list, comma := `my ($p, $q) = (1, 2);`, `my $p, $q;`
+	for _, src := range []string{list, comma} {
+		if got := parse.Canon(parse.Parse([]byte(src)), []byte(src)); got != src {
+			t.Errorf("Canon(%q) = %q, want it as written", src, got)
+		}
+	}
+	rejects(t, list, comma)
+	rejects(t, comma, list)
 }

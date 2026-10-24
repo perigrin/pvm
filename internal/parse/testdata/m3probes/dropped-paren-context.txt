@@ -12,7 +12,6 @@ my (%old, %env, $x);
 --- facts
 match 1 exact
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # aassign; without the paren, sassign
 
 === before = : an lvalue call in parens (op/try.t:195)
@@ -36,21 +35,18 @@ my @inc = (\&fake_module) x 2;
 --- facts
 srefgen 1 exact
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # repeat lK/DOLIST; without the paren, repeat sK/2
 
 === after my : a declared list repeated
 my @r = (my ($x) x 2);
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # Deparse,-p: (my(@r) = ((my($x)) x 2)); repeat lKP/DOLIST over padsv sPM/LVINTRO
 
 === after my : two declared names repeated
 my @r = (my ($x, $y) x 2);
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 
 === after my : a foreach reference alias (op/for-many.t:474)
 use feature qw(refaliasing declared_refs);
@@ -59,13 +55,11 @@ my @ret;
 foreach my (\@array) (["A"], ["B"]) { push @ret, "<@array>" }
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 
 === after our : a declared package list repeated
 our @r = (our ($x) x 2);
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 
 === after local : a list assignment
 our $x;
@@ -79,7 +73,6 @@ use feature 'state';
 my @r = (state ($x) x 2);
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # Deparse,-p: (my(@r) = ((state $x) x 2))
 
 === after \ : a parenthesised my, assigned (op/aassign.t:163)
@@ -90,7 +83,6 @@ our $pkg10;
 --- facts
 srefgen 1 exact
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # aassign; `\my $lex = \$pkg10` is refassign
 
 === after \ : a parenthesised call (op/sub_lval.t:10)
@@ -98,13 +90,11 @@ sub a :lvalue { my $a = 34; ${\(bless \$a)} }
 --- facts
 srefgen 2 exact
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 
 === before x : a split in parens (op/repeat.t:62)
 my @r = (split(//, "123")) x 2;
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # repeat lK/DOLIST; without the paren, repeat sK/2
 
 === before = : an ampersand call in parens (op/coreamp.t:674)
@@ -112,14 +102,12 @@ sub mykeys :lvalue { my $x } my %h; (&mykeys(\%h)) = 1025;
 --- facts
 srefgen 1 exact
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 # aassign; without the paren, sassign
 
 === a list slice of a call
 my $s = (stat "TEST")[7];
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
 
 === a declared list concatenated
 my ($x) . 'a';

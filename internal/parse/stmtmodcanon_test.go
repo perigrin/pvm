@@ -86,7 +86,10 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		//
 		//	$ perl -MO=Deparse -e '$x=0; do {$x++;} while ($x < 10);'
 		//	do { ++$x } while $x < 10;
-		{"do { $x++; } while ($x < 10);", "do {$x++;} while $x < 10;"},
+		//
+		// The condition's own parens are a Paren node's, written once.
+		{"do { $x++; } while ($x < 10);", "do {$x++;} while ($x < 10);"},
+		{"do { $x++; } while $x < 10;", "do {$x++;} while $x < 10;"},
 
 		// A PARENTHESISED condition. The parens are grouping here, not
 		// grammar, so they belong to the child's Paren flag and canon writes

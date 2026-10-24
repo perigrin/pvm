@@ -68,7 +68,7 @@ func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 		{"sub foo {7} my @a = ((foo)=>0);", "sub foo {7;} my @a = ((foo) => 0);"},
 		{"my$x=y=>0", "my $x = y => 0;"},
 		{"sub foo {7} my @a = (my $x = foo=>0);", "sub foo {7;} my @a = (my $x = foo => 0);"},
-		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
+		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = ((my $x = foo) => 0);"},
 		{"sub foo {7} my @a = (my $x = foo()=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (!foo()=>0, 1+foo()=>0);", "sub foo {7;} my @a = (!foo() => 0, 1 + foo() => 0);"},
 		{"y0>y=>0", "y0 > y => 0;"},
