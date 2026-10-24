@@ -69,10 +69,10 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 // ParenNode marks a `(` or `)` canon wrote for a node's Paren flag: the one
 // pair emit writes for every parenthesised node, `(A,)/0` and `(not $x)`
 // among them. Every other paren is unmarked -- a call's argument list, a
-// grouping binding power demands, and the three pairs a Paren flag stands
-// for where perl keeps no OPf_PARENS bit, because the syntax requires them:
-// the `->(` argument pair, `$f->($a+1)`, the `not (` operand's, `not ($a ==
-// 1)`, and a list slice's, `(1,2,3)[1]` (canonBuf.argParens).
+// grouping binding power demands, and the three pairs the syntax requires,
+// where perl keeps no OPf_PARENS bit: the `->(` argument pair, `$f->($a+1)`,
+// the `not (` operand's, `not ($a == 1)`, and a list slice's, `(1,2,3)[1]`
+// (Node.SyntaxParen).
 //
 // BlockSemi marks the `;` canon wrote as the terminator of a Block's last
 // statement: the one `;` last-semicolon may forgive. A `;` inside braces the

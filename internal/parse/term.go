@@ -146,6 +146,10 @@ func (p *parser) parseTerm() *Node {
 			bp = bpDeref
 		}
 		operand := p.operand(bp, tok)
+		// The `not (` pair is not's, as a call's parens are the call's.
+		if text == "not" && bp == bpDeref && operand.Paren && p.src[operand.Start] == '(' {
+			takeSyntaxPair(operand)
+		}
 		return p.refuseAliasedOperand(&Node{
 			Kind: Unary, Text: prefixName(text),
 			Start: tok.Start, End: operand.End,
@@ -247,7 +251,12 @@ func (p *parser) parseTerm() *Node {
 
 	switch {
 	case text == "(":
-		return p.parseParenList(tok)
+		n := p.parseParenList(tok)
+		// `->(`: the pair is the call's argument list.
+		if n.Paren && p.afterArrow(n) {
+			takeSyntaxPair(n)
+		}
+		return n
 	case text == "[":
 		return p.parseBracketed(tok, "]", AnonArray)
 	case text == "{":
@@ -801,6 +810,10 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		if !c.Paren {
 			c.InnerStart, c.InnerEnd = c.Start, c.End
 		}
+		// The inner pair is a grouping of the same node even with a
+		// separator after it: measured on perl 5.44.0, `((0),)[0]` is
+		// `const[IV 0] sP` and `(0,)[0]` is `const[IV 0] s`.
+		c.nestedParen = c.Paren
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
 		// A leaf is written as its source text, which now holds any
@@ -817,6 +830,15 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		Children: items,
 		Paren:    true,
 	}
+}
+
+// takeSyntaxPair gives n's outermost pair, which finishList recorded as
+// Paren, to the syntax that requires it: an arrow call's arguments, `not
+// (`'s operand, or a list slice's list. n keeps Paren only for a grouping
+// pair nested directly inside, `$f->(($x))`. See Node.SyntaxParen.
+func takeSyntaxPair(n *Node) {
+	n.SyntaxParen = true
+	n.Paren = n.nestedParen
 }
 
 // commaList is the element list as ONE node, for a caller that must hand it

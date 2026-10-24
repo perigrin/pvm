@@ -84,7 +84,7 @@ func (l *lowerer) subscript(n *parse.Node) Node {
 // elementBase reports whether an index's base makes it an element access.
 func elementBase(n *parse.Node) bool {
 	base := n.Children[0]
-	if !n.Arrow && (base.Paren || base.Kind == parse.List) {
+	if !n.Arrow && (base.Paren || base.SyntaxParen || base.Kind == parse.List) {
 		return false
 	}
 	if (base.Kind == parse.Term || base.Kind == parse.Unary) && base.Text != "" {

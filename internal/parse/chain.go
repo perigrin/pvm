@@ -148,7 +148,7 @@ func sameLevel(a, b cmpClass) bool {
 // is not: the parentheses make it a term, so `($a == $b) == 0` compares the
 // first result with 0 rather than chaining.
 func isComparison(n *Node) bool {
-	if n.Paren {
+	if n.Paren || n.SyntaxParen {
 		return false
 	}
 	if n.Kind == CmpChain {

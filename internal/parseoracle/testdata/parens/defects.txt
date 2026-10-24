@@ -1,0 +1,5 @@
+# Known defects of the OPf_PARENS check: a fixture where psc put Paren on
+# the wrong node, dropped it or invented it. One row per defect, naming the
+# fixture and the git-zhi issue that fixes it. TestParenKnownDefectsEmpty
+# fails while any row is here: a defect is fixed in the parser, or
+# escalated to perigrin, and never parked.
