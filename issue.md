@@ -1,6 +1,6 @@
 ---
 title: Write list operators, calls and niladic builtins by precedence, with the source's call parens recorded, behaviour-neutral
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,61 @@ blocked_by:
 blocks:
 - 01a1692f-bf96-703b-b6bc-59a216283227
 created: 2026-10-23T14:34:36.382741984Z
-updated: 2026-10-24T00:42:21.049664387Z
+updated: 2026-10-24T03:43:15.522263868Z
 sessions:
 - start_sha: 5cb7269ab1e1b863f91500caf7c076350c33656d
-  end_sha: ""
-  commits: 0
+  end_sha: 71f565f4ac26e7daab8f57db45d665b2a93c116c
+  commits: 1
   started_at: 2026-10-24T00:42:21.049664387Z
+  ended_at: 2026-10-24T03:43:15.522263868Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T00:42:21.049664387Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T03:43:15.522263868Z
+observed_paths:
+- internal/parse/barehandle_test.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/commafat_test.go
+- internal/parse/corenoproto_test.go
+- internal/parse/coreprefix_test.go
+- internal/parse/coreshapes_test.go
+- internal/parse/coresubs_test.go
+- internal/parse/coretypes_test.go
+- internal/parse/cstylefor_test.go
+- internal/parse/emptycomma_test.go
+- internal/parse/expr.go
+- internal/parse/featuregated_test.go
+- internal/parse/fidelity_test.go
+- internal/parse/formany_test.go
+- internal/parse/globpunct_test.go
+- internal/parse/heredocarg_test.go
+- internal/parse/indirect.go
+- internal/parse/indirect_test.go
+- internal/parse/indirectprog_test.go
+- internal/parse/listop_test.go
+- internal/parse/notop_test.go
+- internal/parse/operandless_test.go
+- internal/parse/parenhandle_test.go
+- internal/parse/parenlessarity_test.go
+- internal/parse/parse.go
+- internal/parse/printmod_test.go
+- internal/parse/returnlist_test.go
+- internal/parse/scalarhandle_test.go
+- internal/parse/shape_test.go
+- internal/parse/sortcmp_test.go
+- internal/parse/stmtmodcanon_test.go
+- internal/parse/subspelling_test.go
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/listop-canon.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1canon.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/trailingcomma_test.go
+- internal/parse/trycatch_test.go
 ---
 
 ## Context
