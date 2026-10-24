@@ -1,6 +1,6 @@
 ---
 title: Remove the call-paren forgiveness and re-home the block argument's last semicolon
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-23T14:34:59.350295778Z
-updated: 2026-10-23T14:40:25.124284343Z
+updated: 2026-10-24T03:47:02.81987399Z
+sessions:
+- start_sha: 71f565f4ac26e7daab8f57db45d665b2a93c116c
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T03:47:02.81987399Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T03:47:02.81987399Z
 ---
 
 ## Context
