@@ -306,7 +306,7 @@ func TestCoreFeatureGatedBuiltinTypedParseUnchanged(t *testing.T) {
 		`my $z = fc $a, $b;`: `my $z = fc $a, $b;`,
 		// Named unaries are written bare, as the source did; perl 5.44.0
 		// Deparse,-p: ((my($z) = fc($a)), $b) and (my($m) = ord(CORE::fc($c))).
-		`use feature 'fc'; my $z = fc $a, $b;`: `use feature 'fc'; my $z = fc $a , $b;`,
+		`use feature 'fc'; my $z = fc $a, $b;`: `use feature 'fc'; my $z = fc $a, $b;`,
 		`my $m = ord CORE::fc $c;`:             `my $m = ord CORE::fc $c;`,
 	} {
 		n := parse.Parse([]byte(src))

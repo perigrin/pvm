@@ -175,9 +175,9 @@ func TestCanonVisitsInteriorNodes(t *testing.T) {
 // files as text and must not acquire an interpreter dependency for one case.
 func TestCanonEmitsValidPerl(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`print $fh "x";`, `print($fh "x");`},
-		{`print STDERR "x";`, `print(STDERR "x");`},
-		{`print "x";`, `print("x");`},
+		{`print $fh "x";`, `print $fh "x";`},
+		{`print STDERR "x";`, `print STDERR "x";`},
+		{`print "x";`, `print "x";`},
 
 		// A nonassoc operator needs a paren on BOTH sides at equal power.
 		// `1 .. 2 .. 3` is a syntax error, so dropping it emits one.
@@ -186,7 +186,7 @@ func TestCanonEmitsValidPerl(t *testing.T) {
 		// A statement ending in `}` still takes its semicolon unless it is a
 		// BLOCK form. `$x = sub {1;}$y = 2;` does not parse.
 		{`$x = sub { 1 }; $y = 2;`, `$x = sub {1;};$y = 2;`},
-		{`$x ||= {}; print 1;`, `$x ||= {};print(1);`},
+		{`$x ||= {}; print 1;`, `$x ||= {};print 1;`},
 
 		// A word operator needs a separator: `not foo` calls foo and
 		// `notfoo` is the bareword "notfoo".
@@ -412,7 +412,7 @@ func TestCanonKeepsParensAroundWordOperators(t *testing.T) {
 		{`my %h; my $x = (not %h) ? 0 : 1;`, `my %h;my $x = (not %h) ? 0 : 1;`},
 		{`my %h; my $x = (1 and %h and 2);`, `my %h;my $x = (1 and %h and 2);`},
 		{`my @x = (1, 2 and 3);`, `my @x = (1, 2 and 3);`},
-		{`my %h; f((%h and 1), 2);`, `my %h;f((%h and 1) , 2);`},
+		{`my %h; f((%h and 1), 2);`, `my %h;f((%h and 1), 2);`},
 
 		// Dropped: perl reads these the same without them.
 		{`my %h; (%h and 1);`, `my %h;%h and 1;`},

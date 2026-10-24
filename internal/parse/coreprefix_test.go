@@ -32,7 +32,7 @@ func TestCorePrefixedKeyword(t *testing.T) {
 	}{
 		{`CORE::state $x = 42;`, `CORE::state $x = 42;`},
 		{`CORE::my $y;`, `CORE::my $y;`},
-		{`CORE::say "ok";`, `CORE::say("ok");`},
+		{`CORE::say "ok";`, `CORE::say "ok";`},
 		// A named unary stays bare; perl 5.44.0 Deparse,-p:
 		// (my($n) = length($s)).
 		{`my $n = CORE::length $s;`, `my $n = CORE::length $s;`},

@@ -404,8 +404,8 @@ type Node struct {
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
 	// and the rest the arguments. The children stay in source order, which
-	// puts the invocant after the method name; canon writes the arrow form
-	// perl's Deparse writes, `'Foo'->new(ARGS)`. See parseIndirect.
+	// puts the invocant after the method name, and canon writes them in that
+	// order, as the source did. See parseIndirect.
 	Indirect bool
 
 	// NamedUnary marks a Call the parser read as a named unary op: a builtin
@@ -518,6 +518,11 @@ type Node struct {
 	// the tree's shape; canon writes it back so the emission says what the
 	// source says (perigrin, 2026-09-30).
 	TrailingComma string
+	// EndsList is set with TrailingComma when that separator ended a list
+	// before an operator, not before a closer: measured on perl 5.44.0,
+	// `substr $x, 0, 1, = "a"` is `substr($x, 0, 1) = 'a'`. A call whose
+	// last argument has it is written bare whatever follows (emitCallArgs).
+	EndsList bool
 
 	// RefSlot is set on an argument that fills a `\X`, `*` or `+` slot of
 	// its callee's prototype in a way perl compiles as a reference to it:

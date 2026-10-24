@@ -39,24 +39,24 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// The call argument list: `parseCallArgs` hands the whole inside to
 		// parseExpr, so the comma's operand hunt runs straight into the `)`.
 		// 27 of the 67 bare-closer files in perl.git t/ are this shape.
-		{"call one arg", "f($a,);", "f($a ,);"},
-		{"call two args", "f($a, $b,);", "f($a , $b ,);"},
+		{"call one arg", "f($a,);", "f($a,);"},
+		{"call two args", "f($a, $b,);", "f($a, $b,);"},
 
 		// A named list operator's parenthesised form takes the same path.
-		{"list op", `is(index($a, "bar",    ), 5);`, `is(index($a , "bar" ,) , 5);`},
+		{"list op", `is(index($a, "bar",    ), 5);`, `is(index($a, "bar",), 5);`},
 
 		// The loop list, where the damage is structural rather than a count:
 		// the swallowed `)` left the body `{ 1 }` to be read as a subscript.
-		{"foreach list", "foreach my $x ($a,) { 1 }", "foreach my $x ($a ,) {1;}"},
+		{"foreach list", "foreach my $x ($a,) { 1 }", "foreach my $x ($a,) {1;}"},
 
 		// A hash subscript is a list too, and it was the third caller. With
 		// the comma gone the key is a BAREWORD KEY rather than a call, which
 		// is what perl reads there -- `$h{a}` auto-quotes -- so the canon
 		// loses the `()` the broken parse had invented around it.
-		{"hash subscript", "$h{a,};", "$h{a ,};"},
+		{"hash subscript", "$h{a,};", "$h{a,};"},
 
 		// The fat comma is the same separator and must behave the same way.
-		{"fat comma", "f(a => 1,);", "f(a => 1 ,);"},
+		{"fat comma", "f(a => 1,);", "f(a => 1,);"},
 
 		// A comma with nothing at all in front of it is NOT this case: there
 		// is no element for the separator to follow, so the refusal stands.
@@ -83,9 +83,9 @@ func TestTrailingCommaBeforeCloserIsNotATerm(t *testing.T) {
 		// which the next pass read as a comma before an unterminated
 		// pattern -- found by the parser fuzzer. perl 5.42 Deparses
 		// `(A,)/0` as `'A' / 0` and `my @x = (f(1),)` as `my(@x) = f(1)`.
-		{"paren one call", "(A,)/0;", "(A() ,) / 0;"},
-		{"paren one call assigned", "my @x = (f(1),);", "my @x = (f(1) ,);"},
-		{"paren one element", "($a[0],)[0];", "($a[0] ,)[0];"},
+		{"paren one call", "(A,)/0;", "(A,) / 0;"},
+		{"paren one call assigned", "my @x = (f(1),);", "my @x = (f(1),);"},
+		{"paren one element", "($a[0],)[0];", "($a[0],)[0];"},
 	}
 
 	// Canon writes the trailing comma back where the source had it

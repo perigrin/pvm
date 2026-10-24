@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 847 clean (85.9%), 139 total.
+# 986 files, 854 clean (86.6%), 132 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -61,12 +61,12 @@
 0 bytes_regex_substitution_todo.t
 0 bytes_scope_interpreter.t
 1 caller_anonymous_callback.t
-1 caller_block_terminated_copline.t
-1 caller_conditional_block_line.t
+0 caller_block_terminated_copline.t
+0 caller_conditional_block_line.t
 0 caller_exported_first_statement_in_if.t
-1 caller_if_condition_line.t
+0 caller_if_condition_line.t
 1 caller_line_number.t
-1 caller_multiline_chained_call_line.t
+0 caller_multiline_chained_call_line.t
 1 caller_multiline_data_call_line.t
 0 caller_negative_frame.t
 0 caller_nested_eval_frames.t
@@ -369,7 +369,7 @@
 0 inc_hook_prefix_filehandle.t
 0 indirect_isa_feature_gate.t
 0 indirect_object_block_list.t
-1 indirect_object_constructor.t
+0 indirect_object_constructor.t
 0 indirect_object_named_args.t
 0 indirect_object_syntax.t
 0 indirect_system_argv0_interpreter.t
@@ -424,7 +424,7 @@
 1 jvm_eval_nested_compound_assignment.t
 0 large_sub_interpreter_fallback.t
 0 lazy_sub_verification_side_effects.t
-1 leading_colon_bareword_call.t
+0 leading_colon_bareword_call.t
 0 less_pragma.t
 0 lexical_reassignment_releases_old_reference.t
 0 lexical_redeclaration_pad_slot.t
@@ -530,7 +530,7 @@
 0 netssleay_phase4.t
 0 netssleay_phase5_6.t
 0 next_method_cache_context.t
-1 next_module_prereq.t
+0 next_module_prereq.t
 0 non_begin_phaser_pragma_scope.t
 0 nonblocking_pipe_syswrite.t
 0 nonregex_baseline_closure.t

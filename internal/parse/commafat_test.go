@@ -71,7 +71,7 @@ func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (my $x = foo()=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (!foo()=>0, 1+foo()=>0);", "sub foo {7;} my @a = (!foo() => 0, 1 + foo() => 0);"},
-		{"y0>y=>0", "y0() > y => 0;"},
+		{"y0>y=>0", "y0 > y => 0;"},
 		{"1<2<y=>0", "1 < 2 < y => 0;"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))

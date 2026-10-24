@@ -1,8 +1,8 @@
-# 345/619 faithful
+# 367/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 345 clean (55.7%), 274 total.
+# 619 files, 367 clean (59.3%), 252 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -142,10 +142,10 @@
 0 mro/basic_04_c3_utf8.t
 0 mro/basic_04_dfs.t
 0 mro/basic_04_dfs_utf8.t
-1 mro/basic_05_c3.t
-1 mro/basic_05_c3_utf8.t
-1 mro/basic_05_dfs.t
-1 mro/basic_05_dfs_utf8.t
+0 mro/basic_05_c3.t
+0 mro/basic_05_c3_utf8.t
+0 mro/basic_05_dfs.t
+0 mro/basic_05_dfs_utf8.t
 0 mro/basic_utf8.t
 1 mro/c3_with_overload.t
 1 mro/c3_with_overload_utf8.t
@@ -161,7 +161,7 @@
 0 mro/inconsistent_c3_utf8.t
 0 mro/isa_aliases.t
 0 mro/isa_aliases_utf8.t
-1 mro/isa_c3.t
+0 mro/isa_c3.t
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
@@ -169,25 +169,25 @@
 0 mro/isarev_utf8.t
 0 mro/method_caching.t
 0 mro/method_caching_utf8.t
-1 mro/next_NEXT.t
-1 mro/next_NEXT_utf8.t
-1 mro/next_edgecases.t
-1 mro/next_edgecases_utf8.t
+0 mro/next_NEXT.t
+0 mro/next_NEXT_utf8.t
+0 mro/next_edgecases.t
+0 mro/next_edgecases_utf8.t
 0 mro/next_goto.t
 0 mro/next_goto_utf8.t
-1 mro/next_inanon.t
-1 mro/next_inanon_utf8.t
-1 mro/next_ineval.t
-1 mro/next_ineval_utf8.t
-1 mro/next_method.t
-1 mro/next_method_utf8.t
-1 mro/next_skip.t
-1 mro/next_skip_utf8.t
+0 mro/next_inanon.t
+0 mro/next_inanon_utf8.t
+0 mro/next_ineval.t
+0 mro/next_ineval_utf8.t
+0 mro/next_method.t
+0 mro/next_method_utf8.t
+0 mro/next_skip.t
+0 mro/next_skip_utf8.t
 1 mro/overload_c3.t
 1 mro/overload_c3_utf8.t
 1 mro/overload_dfs.t
 0 mro/package_aliases.t
-1 mro/package_aliases_utf8.t
+0 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -430,7 +430,7 @@
 1 opbasic/cmp.t
 1 opbasic/concat.t
 0 opbasic/magic_phase.t
-1 opbasic/qq.t
+0 opbasic/qq.t
 0 perf/benchmarks.t
 1 perf/opcount.t
 1 perf/optree.t
@@ -445,7 +445,7 @@
 0 porting/checkcase.t
 0 porting/checkcfgvar.t
 0 porting/cmp_version.t
-1 porting/copyright.t
+0 porting/copyright.t
 0 porting/corelist.t
 1 porting/cpphdrcheck.t
 1 porting/customized.t
@@ -587,7 +587,7 @@
 0 test_pl/examples.t
 0 test_pl/plan_skip_all.t
 1 test_pl/tempfile.t
-1 uni/attrs.t
+0 uni/attrs.t
 1 uni/bless.t
 1 uni/caller.t
 0 uni/chomp.t
@@ -601,7 +601,7 @@
 0 uni/latin2.t
 1 uni/lex_utf8.t
 0 uni/lower.t
-1 uni/method.t
+0 uni/method.t
 0 uni/opcroak.t
 0 uni/overload.t
 1 uni/package.t

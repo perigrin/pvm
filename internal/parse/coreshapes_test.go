@@ -138,8 +138,9 @@ func TestCoreShapesUnknownNameHasNoShape(t *testing.T) {
 	// measured, `sub frobnicate {} frobnicate $x, $y` deparses as
 	// `frobnicate($x, $y)`.
 	src := []byte("sub frobnicate {} frobnicate $x, $y;")
-	if got := Canon(Parse(src), src); !strings.Contains(got, "frobnicate($x , $y)") {
-		t.Errorf("frobnicate takes the whole list: %s", got)
+	if call := findCallNamed(Parse(src), "frobnicate"); call == nil || len(call.Children) != 1 ||
+		call.Children[0].Kind != Binary || call.Children[0].Text != "," {
+		t.Errorf("frobnicate takes the whole list: %+v", call)
 	}
 	// Bare, it is a call to a sub this parse has not seen, unresolved,
 	// where a niladic builtin is resolved.
@@ -209,13 +210,17 @@ func shapeDisagreements(derived, golden map[string]Shape) []string {
 //
 //	my @f = glob $a lt 5;               (my(@f) = glob(($a lt 5)))
 //	my $p = getprotobynumber $a < 5;    (my $p = getprotobynumber(($a < 5)))
+//
+// Canon writes both bare, as the source did, so the tree is asked: the
+// comparison is the call's one argument.
 func TestCoreShapesReachTheParser(t *testing.T) {
-	for src, want := range map[string]string{
-		"my @f = glob $a lt 5;":            "my @f = glob($a lt 5);",
-		"my $p = getprotobynumber $a < 5;": "my $p = getprotobynumber($a < 5);",
+	for src, name := range map[string]string{
+		"my @f = glob $a lt 5;":            "glob",
+		"my $p = getprotobynumber $a < 5;": "getprotobynumber",
 	} {
-		if got := Canon(Parse([]byte(src)), []byte(src)); got != want {
-			t.Errorf("%s\n  got  %s\n  want %s", src, got, want)
+		call := findCallNamed(Parse([]byte(src)), name)
+		if call == nil || len(call.Children) != 1 || call.Children[0].Kind != CmpChain {
+			t.Errorf("%s: want %s over the comparison, got %+v", src, name, call)
 		}
 	}
 }
@@ -238,14 +243,14 @@ func TestGatedBuiltinsTakeTheirShapeUnderTheirFeature(t *testing.T) {
 		src, canon, call string
 		resolved         bool
 	}{
-		{"use feature 'keyword_any'; my $r = any { $_ } @a;", "use feature 'keyword_any'; my $r = any({$_;}@a);", "any", true},
-		{"use feature 'keyword_all'; my $r = all { $_ } @a;", "use feature 'keyword_all'; my $r = all({$_;}@a);", "all", true},
+		{"use feature 'keyword_any'; my $r = any { $_ } @a;", "use feature 'keyword_any'; my $r = any {$_;} @a;", "any", true},
+		{"use feature 'keyword_all'; my $r = all { $_ } @a;", "use feature 'keyword_all'; my $r = all {$_;} @a;", "all", true},
 		{"my $r = any { $_ } @a;", "my $r = any {$_;}@a;", "any", false},
 		{"my $r = all { $_ } @a;", "my $r = all {$_;}@a;", "all", false},
-		{"use feature 'current_sub'; my $s = __SUB__ + 1;", "use feature 'current_sub'; my $s = __SUB__() + 1;", "__SUB__", true},
-		{"use v5.16; my $s = __SUB__ + 1;", "use v5.16; my $s = __SUB__() + 1;", "__SUB__", true},
-		{"my $s = CORE::__SUB__ + 1;", "my $s = CORE::__SUB__() + 1;", "CORE::__SUB__", true},
-		{"my $s = __SUB__ + 1;", "my $s = __SUB__() + 1;", "__SUB__", false},
+		{"use feature 'current_sub'; my $s = __SUB__ + 1;", "use feature 'current_sub'; my $s = __SUB__ + 1;", "__SUB__", true},
+		{"use v5.16; my $s = __SUB__ + 1;", "use v5.16; my $s = __SUB__ + 1;", "__SUB__", true},
+		{"my $s = CORE::__SUB__ + 1;", "my $s = CORE::__SUB__ + 1;", "CORE::__SUB__", true},
+		{"my $s = __SUB__ + 1;", "my $s = __SUB__ + 1;", "__SUB__", false},
 	} {
 		root := Parse([]byte(c.src))
 		if got := Canon(root, []byte(c.src)); got != c.canon {

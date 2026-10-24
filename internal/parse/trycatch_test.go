@@ -43,7 +43,7 @@ func TestTryCatchIsOneStatement(t *testing.T) {
 		{"with finally", `try { f() } catch ($e) { 1 } finally { h() }`,
 			`try {f();} catch ($e) {1;} finally {h();}`},
 		{"statement follows without a semicolon", `try { 1 } catch ($e) { 2 } print "a";`,
-			`try {1;} catch ($e) {2;} print("a");`},
+			`try {1;} catch ($e) {2;} print "a";`},
 	}
 
 	for _, c := range cases {

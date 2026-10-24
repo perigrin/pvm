@@ -21,7 +21,8 @@ sub flist :lvalue { @array }
 (flist) = (4, 5, 6);
 --- facts
 faithful
-known-defect 01a1664d-75d4-76eb-aad2-10b322f366a9
+# A zero-argument call keeps its source pair before an operator tighter
+# than a list operator (issue 01a1692f), so canon writes `(flist) = ...`.
 
 === before = : the empty list
 sub f { (1, 2) }
