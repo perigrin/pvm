@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a167da-3323-7ce0-a627-abf5b99603d8
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-23T13:55:22.454496952Z
+updated: 2026-10-24T05:57:36.062977032Z
 ---
 
 ## Context
@@ -64,6 +64,14 @@ The comparison then reports:
 - [ ] RED/GREEN TestParenFoldedOpsAreGaps: each F15 fixture is listed in gaps.txt with Concise evidence, is reported neither invented nor a defect, and re-emits faithfully. **A gap row is re-checked against perl, not against pasted text (F16, chain-review round 7):** the test runs the pinned perl on the row's snippet and requires that the op the table maps the node to is ABSENT from the statement's ops (`$h{(1)}` and `($_[0])->[0]`, both multideref), or that the op which replaced it carries `FOLD` (`-(1)` gives `const[IV -1] s/FOLD`, `"a" . ("b")` gives `const s/FOLD`). Otherwise the row fails: `print (1)+2` gives `const[IV 1] s`, present and unfolded, so listing it as a gap fails and it stays an invented paren.
 - [ ] Add the F15 gap fixtures (`$h{(1)}`, `-(1)`, `"a" . ("b")`, `($_[0])->[0]`) to testdata/parens/ and gaps.txt, each with its Concise output showing no P bit, and check that canon writes the paren for each.
 - [ ] Run `make test`, then commit.
+
+**Note from the 75d4 review (2026-10-24).** The invented-paren check must test the SINGLE form, not only the doubled one.
+- For `$f->(($x))`, psc's one Paren sits on `$x` and perl's P bit sits on `ex-rv2sv`, so the two agree.
+- The defect shows in `$f->($x)`, where psc sets Paren and perl sets no P bit (`sKM`). That paren is invented.
+- `not ($a == 1)` (`eq sK`) and the list slice `(@a)[0]` behave the same way.
+- Add all three as fixtures.
+
+75d4 carries the doubled forms as known-defect rows citing this issue: `$f->(($x))`, `not (($a == 1))` and `((1,2,3))[1]`.
 
 ## Acceptance criteria
 
