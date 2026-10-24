@@ -1,6 +1,6 @@
 ---
 title: Re-emit heredoc bodies and sub-less special subs faithfully
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-6030-7faa-8408-bb3a8cb03f12
 created: 2026-10-22T23:46:34.069628305Z
-updated: 2026-10-23T13:55:22.635979065Z
+updated: 2026-10-24T19:09:16.585851334Z
+sessions:
+- start_sha: e431b5c84144841104d0d774118e10e8dd1b9b3e
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T19:09:16.585851334Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T19:09:16.585851334Z
 ---
 
 ## Context
