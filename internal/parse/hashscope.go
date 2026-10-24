@@ -404,8 +404,8 @@ func (r *hashResolver) importPoint() {
 // mayImport reports whether code run at compile time -- a BEGIN block, or
 // a pragma's arguments -- loads or calls code that could declare a lexical
 // in the scope around it: a use or require, do, eval, a method call, a
-// call through a code reference (`&$f(...)`, `&{$f}`), or a sub this
-// parser has not resolved. `BEGIN { $| = 1 }` cannot.
+// call through a code reference (`&$f(...)`, `&{$f}`), or a call to
+// anything but a builtin. `BEGIN { $| = 1 }` cannot.
 func mayImport(n *Node) bool {
 	switch n.Kind {
 	case Use, Unknown:
@@ -419,7 +419,11 @@ func mayImport(n *Node) bool {
 			return true
 		}
 	case Call:
-		if !n.Resolved || n.Text == "do" || n.Text == "eval" || n.Text == "require" {
+		// A resolved name that is not a builtin is a sub the file
+		// defines: `sub f { builtin::export_lexically(...) } BEGIN { f }`
+		// is padhv, measured on 5.44.0.
+		if !n.Resolved || !isBuiltinCall(n) ||
+			n.Text == "do" || n.Text == "eval" || n.Text == "require" {
 			return true
 		}
 		if (n.Text == "defined" || n.Text == "exists") && len(n.Children) == 1 && isCodeName(n.Children[0]) {
@@ -435,6 +439,22 @@ func mayImport(n *Node) bool {
 		}
 	}
 	return slices.ContainsFunc(n.Children, mayImport)
+}
+
+// isBuiltinCall reports whether a resolved Call names one of perl's
+// builtins, a filetest included, that nothing in the file overrides.
+func isBuiltinCall(n *Node) bool {
+	if n.Override {
+		return false
+	}
+	name := n.Text
+	if after, ok := strings.CutPrefix(name, "CORE::"); ok && !strings.HasPrefix(after, "GLOBAL::") {
+		name = after
+	}
+	if _, ok := coreShapes()[name]; ok || len(coreSignatures()[name]) > 0 {
+		return true
+	}
+	return len(name) == 2 && name[0] == '-' // `-d 't'`
 }
 
 // isCodeName reports whether n is a `&name` or `&$f` leaf.

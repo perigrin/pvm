@@ -1056,6 +1056,16 @@ func constantGuard(n *Node) bool {
 	if len(n.Children) == 0 {
 		return false
 	}
+	if n.Kind == Loop && n.CStyle {
+		// The tree does not say which head part is the condition, so any
+		// part that may be constant, and is not a known true, guards it:
+		// `for (;0;) { keys %h }` builds no rv2hv for the use, where
+		// `for (;;)` and `for (;1;)` keep it.
+		return slices.ContainsFunc(n.Children, func(c *Node) bool {
+			truth, known := literalTruth(c)
+			return c.Kind != Block && possiblyConstant(c) && !(known && truth)
+		})
+	}
 	cond, _, _ := guardCondition(n)
 	if cond == nil || !possiblyConstant(cond) {
 		return false
@@ -1095,6 +1105,22 @@ func guardCondition(n *Node) (cond *Node, modifier, ok bool) {
 // use's rv2hv (op/each.t:233), `while (1) { keys %$r }` keeps its body,
 // and `do { keys %h } until 1` runs its block once.
 func foldedAway(n *Node, i int) bool {
+	// An `elsif` that may be constant may fold the branches after it:
+	// `if ($c) {...} elsif (1) {...} else { keys %h }` builds no rv2hv
+	// for the else, measured on 5.44.0.
+	if n.Kind == Conditional && slices.ContainsFunc(n.Children[:min(i, len(n.Children))], func(c *Node) bool {
+		if c.Kind != Conditional || c.Text != "elsif" {
+			return false
+		}
+		cond, _, ok := guardCondition(c)
+		if !ok {
+			return false
+		}
+		truth, known := literalTruth(cond)
+		return possiblyConstant(cond) && !(known && !truth)
+	}) {
+		return true
+	}
 	cond, modifier, ok := guardCondition(n)
 	if !ok || len(n.Children) == 0 {
 		return false

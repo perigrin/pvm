@@ -437,6 +437,9 @@ func TestHashScopeImportPoints(t *testing.T) {
 		{`BEGIN { my $f = \&foo } keys %h;`, false},
 		{`BEGIN { &foo; } keys %h;`, true},
 		{`BEGIN { $^H{FOO} = 1 } keys %h;`, false},
+		{`sub f { 1 } BEGIN { f } keys %h;`, true},
+		{`sub f { 1 } BEGIN { 1 if f } keys %h;`, true},
+		{`BEGIN { chdir "t" if -d "t"; @INC = "../lib"; undef $x; CORE::warn "w" } keys %h;`, false},
 	} {
 		root := Parse([]byte(c.src))
 		uses, _ := hashScopes(root)

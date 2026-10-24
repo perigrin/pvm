@@ -151,6 +151,9 @@ var namedHashTable = []arrowCase{
 	{`our %h; do { my @k = keys %h } until 1;`, 2},
 	{`our %h; do { my @k = keys %h } while 0;`, 2},
 	{`our %h; my $x = 1 ? keys %h : 0;`, 2},
+	{`our %h; for (;;) { keys %h; last }`, 2},
+	{`our %h; for (;1;) { keys %h; last }`, 2},
+	{`our %h; my $c; if ($c) { keys %h } elsif ($c) { keys %h } else { keys %h }`, 4},
 	// `use parent -norequire` loads nothing.
 	{`use parent -norequire, "Lp"; keys %h;`, 1},
 	// A use's arguments are resolved as any other code.
@@ -210,6 +213,14 @@ var hedgedHashTable = []arrowCase{
 	{`sub BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0},
 	{`BEGIN { my $f = \&builtin::export_lexically; &$f("%h" => {}) } my @k = keys %h;`, 0},
 	{`BEGIN { my $f = \&builtin::export_lexically; &{$f}("%h" => {}) } my @k = keys %h;`, 0},
+	{`sub f { builtin::export_lexically("%h" => {}) } BEGIN { f } my @k = keys %h;`, 0},
+	{`sub f { builtin::export_lexically("%h" => {}) } BEGIN { f 1 } my @k = keys %h;`, 0},
+	{`sub f { builtin::export_lexically("%h" => {}) } BEGIN { 1 if f } my @k = keys %h;`, 0},
+	// A later branch of an elsif chain, and a C-style for's condition.
+	{`our %h; my $c; if ($c) { keys %h } elsif (1) { keys %h } else { keys %h }`, 3},
+	{`our %h; my $c; if ($c) { keys %h } elsif ("x") { keys %h } else { keys %h }`, 3},
+	{`our %h; for (;0;) { keys %h }`, 1},
+	{`our %h; for (my $i = 0; 0; $i++) { keys %h }`, 1},
 }
 
 // TestNamedHashHedgesNeverOvercount: each hedgedHashTable row hedges, and

@@ -1054,3 +1054,63 @@ BEGIN { $^H{integer} = sub { bless [], "X" }; $^H |= 0x1000 } my $r; my $x = $r-
 --- facts
 rv2hv 1 wider
 faithful
+
+=== our %h; for (;;) { keys %h; last }
+our %h; for (;;) { keys %h; last }
+--- facts
+rv2hv 2 exact
+faithful
+
+=== our %h; for (;1;) { keys %h; last }
+our %h; for (;1;) { keys %h; last }
+--- facts
+rv2hv 2 exact
+faithful
+
+=== our %h; my $c; if ($c) { keys %h } elsif ($c) { keys %h } else { keys %h }
+our %h; my $c; if ($c) { keys %h } elsif ($c) { keys %h } else { keys %h }
+--- facts
+rv2hv 4 exact
+faithful
+
+=== sub f { builtin::export_lexically("%h" => {}) } BEGIN { f } my @k = keys %h;
+sub f { builtin::export_lexically("%h" => {}) } BEGIN { f } my @k = keys %h;
+--- facts
+anonhash 1 exact
+faithful
+
+=== sub f { builtin::export_lexically("%h" => {}) } BEGIN { f 1 } my @k = keys %h;
+sub f { builtin::export_lexically("%h" => {}) } BEGIN { f 1 } my @k = keys %h;
+--- facts
+anonhash 1 exact
+faithful
+
+=== sub f { builtin::export_lexically("%h" => {}) } BEGIN { 1 if f } my @k = keys %h;
+sub f { builtin::export_lexically("%h" => {}) } BEGIN { 1 if f } my @k = keys %h;
+--- facts
+anonhash 1 exact
+faithful
+
+=== our %h; my $c; if ($c) { keys %h } elsif (1) { keys %h } else { keys %h }
+our %h; my $c; if ($c) { keys %h } elsif (1) { keys %h } else { keys %h }
+--- facts
+rv2hv 3 exact
+faithful
+
+=== our %h; my $c; if ($c) { keys %h } elsif ("x") { keys %h } else { keys %h }
+our %h; my $c; if ($c) { keys %h } elsif ("x") { keys %h } else { keys %h }
+--- facts
+rv2hv 3 exact
+faithful
+
+=== our %h; for (;0;) { keys %h }
+our %h; for (;0;) { keys %h }
+--- facts
+rv2hv 1 exact
+faithful
+
+=== our %h; for (my $i = 0; 0; $i++) { keys %h }
+our %h; for (my $i = 0; 0; $i++) { keys %h }
+--- facts
+rv2hv 1 exact
+faithful
