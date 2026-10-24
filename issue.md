@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T00:31:36.873798557Z
-updated: 2026-10-24T00:31:36.873798557Z
+updated: 2026-10-24T14:40:49.554714161Z
 ---
 
 Found by the independent review of NL-a (01a1690b-4745, exec/nla 43ddc197) on 2026-10-24. The defect predates NL-a.
@@ -20,4 +20,4 @@ Canon wraps an arrow call that has a subscript after it: `$f->(...)->[0]` comes 
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (faithful probe rows for `$f->(1)->[0]`, `$f->($x)->{a}` and `$f->(not $x)->[0]`)
+- [ ] Faithful probe rows for `$f->(1)->[0]`, `$f->($x)->{a}` and `$f->(not $x)->[0]` (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
