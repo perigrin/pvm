@@ -1,6 +1,6 @@
 ---
 title: Hold psc's Paren flag to perl's OPf_PARENS bit, op by op
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,16 +10,43 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a167da-3323-7ce0-a627-abf5b99603d8
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-24T17:00:26.902252272Z
+updated: 2026-10-24T17:46:51.094692147Z
 sessions:
 - start_sha: aa8f4d45eda250e45e7987c7eaede3270d95b8bc
-  end_sha: ""
-  commits: 0
+  end_sha: 0abe3a1220ef9161682767b2c11fa000c91e5389
+  commits: 1
   started_at: 2026-10-24T15:35:53.181226596Z
+  ended_at: 2026-10-24T17:46:51.094692147Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T15:35:53.181226596Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T17:46:51.094692147Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/lower/call.go
+- internal/lower/call_test.go
+- internal/lower/slice.go
+- internal/lower/slice_test.go
+- internal/lower/vars.go
+- internal/parse/arrowcodederef_test.go
+- internal/parse/canon.go
+- internal/parse/chain.go
+- internal/parse/expr.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/parse.go
+- internal/parse/term.go
+- internal/parse/testdata/m3probes/canon-paren-once.txt
+- internal/parse/testdata/m3probes/opf-parens.txt
+- internal/parseoracle/oracle.go
+- internal/parseoracle/parens_test.go
+- internal/parseoracle/testdata/parens/defects.txt
+- internal/parseoracle/testdata/parens/fixtures.txt
+- internal/parseoracle/testdata/parens/gaps.txt
+- internal/parseoracle/testdata/parse_facts.pl
 ---
 
 ## Context
