@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T23:49:20.221374189Z
-updated: 2026-10-23T23:49:20.221374189Z
+updated: 2026-10-24T14:40:49.454045284Z
 ---
 
 Found by the independent review of NL-a (01a1690b-4745, exec/nla bc947a68) on 2026-10-23. The defect predates NL-a.
@@ -22,4 +22,4 @@ Other operator words that perl quotes as subscript keys (`and`, `or`, `x`, `eq`,
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (probe rows for `$h{not}`, `$h->{not}{x}`, `$h{and}` and `$h{x}`, each faithful)
+- [ ] Probe rows for `$h{not}`, `$h->{not}{x}`, `$h{and}` and `$h{x}`, each faithful (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
