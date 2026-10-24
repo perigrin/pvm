@@ -390,3 +390,52 @@ func TestHashScopeSignaturesFeature(t *testing.T) {
 			[]string{"sig! %o", "%o=pkg"}},
 	})
 }
+
+// TestHashScopeImportPoints: a module's import, or a BEGIN block that
+// loads or calls code, may declare a lexical %h (builtin::export_lexically),
+// so a package-hash use after one is Imported, until a declaration read
+// after it. Measured on 5.44.0, with Lx's import and x.pl exporting %h:
+//
+//	use Lx; keys %h                          padhv
+//	our %h; use Lx; keys %h                  padhv
+//	use Lx; our %h; keys %h                  rv2hv
+//	{ use Lx; } keys %h                      rv2hv
+//	BEGIN { require "./x.pl" } keys %h       padhv
+//	BEGIN { $| = 1 } keys %h                 rv2hv
+//	use strict; keys %h                      rv2hv (with no strict vars)
+func TestHashScopeImportPoints(t *testing.T) {
+	for _, c := range []struct {
+		src      string
+		imported bool
+	}{
+		{`use Lx; keys %h;`, true},
+		{`our %h; use Lx; keys %h;`, true},
+		{`local %h; use Lx; keys %h;`, true},
+		{`use Lx; our %h; keys %h;`, false},
+		{`{ use Lx; } keys %h;`, false},
+		{`BEGIN { require "./x.pl" } keys %h;`, true},
+		{`BEGIN { f() } keys %h;`, true},
+		{`BEGIN { Foo->import } keys %h;`, true},
+		{`BEGIN { $| = 1 } keys %h;`, false},
+		{`use strict; use warnings; keys %h;`, false},
+		{`use Lx; keys %Foo::h;`, false},
+		{`use Lx; my %h; keys %h;`, false},
+		{`keys %h; use Lx;`, false},
+	} {
+		root := Parse([]byte(c.src))
+		uses := hashScopes(root)
+		var last *Node
+		for n, u := range uses {
+			if !u.Declares && (last == nil || n.Start > last.Start) {
+				last = n
+			}
+		}
+		if last == nil {
+			t.Errorf("%s: no use resolved", c.src)
+			continue
+		}
+		if got := uses[last].Imported; got != c.imported {
+			t.Errorf("%s: the last use's Imported is %v, want %v", c.src, got, c.imported)
+		}
+	}
+}

@@ -35,3 +35,9 @@ rv2hv_wider_after_magic = 416
 # (01a12059-30a8): rv2hv_wider_after_magic less the arrow reads and
 # computed keys it now decides.
 rv2hv_wider_after_arrow = 399
+#
+# rv2hv_wider_after_named is sites.txt's `total all rv2hv wider` once
+# Sites decides a named hash's rv2hv from its declaration
+# (01a16602-61a2): rv2hv_wider_after_arrow less the named hashes, slices
+# and elements it now decides.
+rv2hv_wider_after_named = 194

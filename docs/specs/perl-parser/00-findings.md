@@ -467,8 +467,8 @@ file moved the other way.
 
 | Bucket | Files | Share of measured |
 |---|---:|---:|
-| exact | 494 | 83.3% |
-| wider | 85 | 14.3% |
+| exact | 536 | 90.4% |
+| wider | 43 | 7.3% |
 | **WRONG** | **0** | **0.0%** |
 | no-answer | 14 | 2.4% |
 | *measured (denominator)* | *593* | |
@@ -497,6 +497,10 @@ moved no-answer → wider: its 46 sites are 26 exact and 20 wider (rv2hv).
 Counting a `->{...}` chain's rv2hv by perl's multideref rule (01a12059-30a8,
 below) moved `japh/abigail.t` and `op/sprintf2.t` wider → exact, and the
 corpus's wider rv2hv sites from 416 to 399.
+
+Deciding a named hash's rv2hv from its declaration (01a16602-61a2, below)
+moved 42 files wider → exact, and the corpus's wider rv2hv sites from 399
+to 194.
 
 ### WRONG pin removed: the corpus holds no WRONG file
 
@@ -596,9 +600,39 @@ Sites counts the rv2hv of every chain by this rule (`chainRv2hv`,
 `derefContext`). The shapes that still hedge, each named in
 TestArrowHashReadHedgesNameTheirShape: a key that is a call or anything
 else that might constant-fold (`sub f(){1}` folds `$r->{f()}`), a
-dereference in a context not measured (void, sort, `->$#*`, keys of a
-postfix `->%*`, a C-style for's head), and `$#{ $r->{k} }`, which the lexer reads as one token
+dereference in a context not measured (void, sort, `->$#*`, a C-style
+for's head), and `$#{ $r->{k} }`, which the lexer reads as one token
 (01a0ad52).
+
+### A named hash's rv2hv follows its declaration
+
+*2026-10-24. Corpus `perl5` at `94e5086608`, interpreter 5.44.0.*
+
+A `%h`, `$h{...}` or `@h{...}` is padhv, with no rv2hv, when a `my`, a
+`field`, a signature parameter or a `state` with its feature on declares
+%h, and rv2hv for a package hash: an `our`, a `local`, or no declaration
+at all. With the feature off, perl reads `state %h` as `state % h`, and
+the later `%h` is the package's. An element of a package hash folds into
+multideref as an element through a reference does, so `chainRv2hv`
+counts it as one more level; a slice reads the hash once; `delete local`
+keeps the last level out of multideref as a modified `${...}` does
+(`internal/parse/hashhedge_test.go`,
+`internal/parse/testdata/m3probes/named-hash-decl.txt`).
+
+A use hedges where the declaration may not be in the file: after a
+module's import or a BEGIN block that loads or calls code, either of which
+may declare a lexical %h with `builtin::export_lexically` (measured:
+`use Lx; keys %h` is padhv when Lx exports %h), where code the parser did
+not read names %h, and where a module or BEGIN may have changed the state
+or signatures feature. Every rv2hv hedge names its reason from a closed
+set (`TestEveryRv2hvHedgeNamesItsReason`).
+
+Removing the named hashes' hedges uncovered four WRONG sites in
+`op/ref.t` (928, 938) they had covered: perl passes a modified
+dereference's context into both branches of a `?:` (GH 18669), so
+`push @{ $c ? $x->{a} : $x->{b} }` keeps two rv2hv. Each branch is now
+counted in the dereference's context; a `do` or `eval` block, `scalar`
+and a list under a modified dereference hedge.
 
 Four files moved, all to a better bucket; no exact file moved.
 - WRONG → wider: `japh/abigail.t` (`@{$program -> {SKIP_OS}}` at 191, 193,

@@ -7,43 +7,43 @@ hashscope_test.go, with perl 5.44.0's rv2hv count.
 === innermost my shadows our
 our %h; { my %h; keys %h; } keys %h;
 --- facts
-rv2hv 2 wider
+rv2hv 2 exact
 faithful
 
 === closed block's my does not leak
 { my %h; } keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === use before my is the package hash
 keys %h; my %h; keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === use before my in the same statement
 my $n = (keys %h, my %h); keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === local of an our hash
 our %h; local %h; keys %h;
 --- facts
-rv2hv 3 wider
+rv2hv 3 exact
 faithful
 
 === initialiser sees the outer hash
 my %h = keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === condition's my reaches its block, not past it
 while (my %g = ()) { keys %g; } keys %g;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === state with the feature on
@@ -54,13 +54,13 @@ faithful
 === state with the feature off
 no feature "state"; state %h; keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === state with no feature at all
 state %h; keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === use v5.10 enables state
@@ -81,19 +81,19 @@ faithful
 === feature on inside a block ends with it
 { use feature "state"; } state %h; keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === signature hash parameter is a my of the body
 use feature "signatures"; sub f ($x, %o) { keys %o; } keys %o;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === C-style for init reaches its condition
 for (my %h = (); keys %h; ) { keys %h; } keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === class field seen by a method
@@ -115,7 +115,7 @@ faithful
 === development bundle 5.9.4 does not
 use 5.009004; state %h; keys %h;
 --- facts
-rv2hv 1 wider
+rv2hv 1 exact
 faithful
 
 === state turned on through a module

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // hashUse is what hashScopes says about one named hash in the tree.
@@ -34,6 +35,20 @@ type hashUse struct {
 	// `state % h`, or a prototype, and then the hash is whatever lies
 	// outside it.
 	Unsure bool
+	// Imported marks a use of a package hash -- an `our`, a `local` or no
+	// declaration at all -- made after a module's import or a BEGIN block
+	// that ran after that declaration. Either may have declared a lexical
+	// %h with builtin::export_lexically, the declaration not in the file.
+	// Measured on 5.44.0, with Lx's import exporting %h lexically:
+	//
+	//	use Lx; keys %h                          padhv
+	//	our %h; use Lx; keys %h                  padhv
+	//	{ use Lx; } keys %h                      rv2hv
+	//	BEGIN { require "./x.pl" } keys %h       padhv, x.pl exporting %h
+	Imported bool
+	// at orders a declaration against the import points: the resolver's
+	// count when the declaration was read.
+	at int
 }
 
 // featureState is whether a feature is on, off, or unknown -- turned on or
@@ -60,6 +75,9 @@ type hashScope struct {
 	pending map[string]hashUse
 	state   featureState
 	sigs    featureState
+	// imported is the resolver's count at the last import point in
+	// effect here, 0 where there has been none.
+	imported int
 }
 
 // hashScopes resolves every named hash in root: each `%h`, and each `$h`
@@ -75,6 +93,8 @@ func hashScopes(root *Node) map[*Node]hashUse {
 type hashResolver struct {
 	scopes []*hashScope
 	uses   map[*Node]hashUse
+	// seq counts declarations and import points, in source order.
+	seq int
 }
 
 func (r *hashResolver) top() *hashScope { return r.scopes[len(r.scopes)-1] }
@@ -82,7 +102,7 @@ func (r *hashResolver) top() *hashScope { return r.scopes[len(r.scopes)-1] }
 func (r *hashResolver) push() {
 	s := &hashScope{decls: map[string]hashUse{}, pending: map[string]hashUse{}}
 	if len(r.scopes) > 0 {
-		s.state, s.sigs = r.top().state, r.top().sigs
+		s.state, s.sigs, s.imported = r.top().state, r.top().sigs, r.top().imported
 	}
 	r.scopes = append(r.scopes, s)
 }
@@ -104,9 +124,12 @@ func (r *hashResolver) resolve(n *Node, name string) {
 	for i := len(r.scopes) - 1; i >= 0; i-- {
 		if decl, ok := r.scopes[i].decls[name]; ok {
 			use.Decl, use.Unsure = decl.Decl, decl.Unsure
-			break
+			use.Imported = (decl.Decl == "our" || decl.Decl == "local") && decl.at < r.top().imported
+			r.uses[n] = use
+			return
 		}
 	}
+	use.Imported = r.top().imported > 0 && isIdentifier(name)
 	r.uses[n] = use
 }
 
@@ -147,8 +170,15 @@ func (r *hashResolver) walk(n *Node) {
 	case Phaser:
 		// A BEGIN block runs as it is compiled and may turn a feature on
 		// in the scope around it: `BEGIN { feature->import("state") }`.
+		// One that loads or calls code may declare a lexical there too,
+		// once it has run.
 		if n.Text == "BEGIN" {
 			r.top().state, r.top().sigs = stateUnknown, stateUnknown
+			r.walkChildren(n)
+			if mayImport(n) {
+				r.importPoint()
+			}
+			return
 		}
 
 	case Declaration:
@@ -319,7 +349,43 @@ func (r *hashResolver) declareHash(t *Node, decl string, gate featureState) {
 	if gate == stateOff {
 		return
 	}
-	s.pending[t.Text[1:]] = hashUse{Decl: pend, Unsure: gate == stateUnknown}
+	r.seq++
+	s.pending[t.Text[1:]] = hashUse{Decl: pend, Unsure: gate == stateUnknown, at: r.seq}
+}
+
+// importPoint records that code may have run at compile time here, and
+// declared lexicals in the top scope that a later use sees.
+func (r *hashResolver) importPoint() {
+	r.seq++
+	r.top().imported = r.seq
+}
+
+// mayImport reports whether a BEGIN block loads or calls code that could
+// declare a lexical in the scope around it: a use or require, do, eval, a
+// method call, or a sub this parser has not resolved. `BEGIN { $| = 1 }`
+// cannot.
+func mayImport(n *Node) bool {
+	switch n.Kind {
+	case Use, Unknown:
+		return true
+	case Call:
+		if !n.Resolved || n.Text == "do" || n.Text == "eval" || n.Text == "require" {
+			return true
+		}
+	case Binary:
+		if n.Text == "->" {
+			return true
+		}
+	}
+	return slices.ContainsFunc(n.Children, mayImport)
+}
+
+// isIdentifier reports whether a hash name could be a lexical's: `h` or
+// `ENV` or, under `use utf8`, `hò`; but not `Foo::h`, `::`, `^H`, `+` or `1`.
+func isIdentifier(name string) bool {
+	return name != "" && (name[0] < '0' || name[0] > '9') && strings.IndexFunc(name, func(r rune) bool {
+		return r < utf8.RuneSelf && !isWordByte(byte(r))
+	}) < 0
 }
 
 // noteFeatures applies a `use` or `no` to the top scope's state and
@@ -388,6 +454,7 @@ func (r *hashResolver) noteFeatures(n *Node) {
 		}
 	case !quietPragmas[module]:
 		s.state, s.sigs = stateUnknown, stateUnknown
+		r.importPoint()
 	}
 }
 

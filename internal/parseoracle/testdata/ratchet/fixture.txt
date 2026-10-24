@@ -14,5 +14,5 @@ excluded      0 -              testdata/fixture/environmental.pl
 exact         0 -              testdata/fixture/exact.pl
 exact         1 -              testdata/fixture/explicit_ref.pl
 no-answer     0 -              testdata/fixture/noanswer.pl
-wider         2 -              testdata/fixture/subbody.pl
-wider         2 -              testdata/fixture/wider.pl
+wider         1 -              testdata/fixture/subbody.pl
+wider         1 -              testdata/fixture/wider.pl
