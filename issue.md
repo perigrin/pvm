@@ -1,6 +1,6 @@
 ---
 title: Hold psc's Paren flag to perl's OPf_PARENS bit, op by op
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -10,7 +10,16 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a167da-3323-7ce0-a627-abf5b99603d8
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-24T05:57:36.062977032Z
+updated: 2026-10-24T15:35:53.181226596Z
+sessions:
+- start_sha: aa8f4d45eda250e45e7987c7eaede3270d95b8bc
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T15:35:53.181226596Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T15:35:53.181226596Z
 ---
 
 ## Context
