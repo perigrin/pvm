@@ -27,6 +27,13 @@ var phasers = map[string]bool{
 
 // parseTheRest handles the statement forms this issue owns, or returns nil.
 func (p *parser) parseTheRest(word lexer.Token) *Node {
+	// A lexical sub of the same bare name shadows each of these words: toke.c
+	// looks a word up in the pad before its keyword table. Measured on
+	// 5.44.0, `state sub END {...} END("a")` calls the sub, and `my sub
+	// require`, `use`, `class` likewise; `CORE::END` still names the phaser.
+	if _, lex := p.lexical[p.text(word)]; lex {
+		return nil
+	}
 	text := keywordName(p.text(word))
 	switch {
 	case text == "use" || text == "no" || text == "require":

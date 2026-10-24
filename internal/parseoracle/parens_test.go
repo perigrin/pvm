@@ -108,14 +108,16 @@ func sameParenOps(a, b []parenOp) bool {
 // parenTable maps an operator node's Text to the op perl builds for it,
 // measured on perl 5.44.0 one fixture at a time (K8, chain-review round 7).
 // A node kind or operator missing here is unmapped, and fails its fixture.
-// perl keeps a paren around a logical operator or `?:` on the null over
-// its logop: `($x && 1)` is `null sKP/1` over `and sK/1`.
+// perl keeps a paren around a logical operator, a logical assignment or
+// `?:` on the null over its logop: `($x && 1)` is `null sKP/1` over `and
+// sK/1`, and `($x ||= 1)` `null sKP/1` over `orassign`.
 var parenTable = map[string]string{
 	"==": "eq", "!=": "ne", "<": "lt", ">": "gt",
 	"eq": "seq", "ne": "sne",
 	"+": "add", "-": "subtract", "*": "multiply", ".": "concat",
 	"not": "not", "neg": "negate",
 	"&&": "null", "||": "null", "//": "null", "and": "null", "or": "null", "?:": "null",
+	"||=": "null", "//=": "null", "&&=": "null",
 }
 
 // parenCalls maps a call psc gave Paren to its op, measured on perl 5.44.0
@@ -211,6 +213,12 @@ func parenOpOf(n *parse.Node, up []*parse.Node, lexical map[string]bool) (string
 			return "list", true
 		}
 		return "ex-list", true
+	case parse.Declaration:
+		// `\(my @a)` and `(my $x) = 1` put P on the variable's own op:
+		// `padav lPM/LVINTRO` and `padsv sPRM*/LVINTRO`, `state` alike.
+		if (n.Text == "my" || n.Text == "state") && len(n.Children) == 1 && n.Children[0].Kind == parse.Term {
+			return parenOpOf(n.Children[0], append(up, n), lexical)
+		}
 	case parse.Call:
 		op, ok := parenCalls[n.Text]
 		return op, ok
@@ -229,6 +237,9 @@ func parenOpOf(n *parse.Node, up []*parse.Node, lexical map[string]bool) (string
 func varOf(n *parse.Node, op string) string {
 	switch op {
 	case "padsv", "padav", "ex-rv2sv", "rv2sv", "rv2av":
+		if n.Kind == parse.Declaration {
+			return n.Children[0].Text
+		}
 		return n.Text
 	}
 	return ""

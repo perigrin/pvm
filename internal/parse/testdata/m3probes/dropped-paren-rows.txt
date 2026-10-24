@@ -1,0 +1,144 @@
+The dropped-paren rows of the re-emission work queue (issue
+01a167da-3323), reduced and held to perl 5.44.0.
+
+op/lexsub.t:350 was the queue's one dropped-paren row: `state sub END
+{ shift }` declares a lexical END, and `END('jkqeudth')` calls it. psc read
+the word as the END phaser, so the call's `(` came back as a `;`. No op
+carries P on the call: its parens are a call's. toke.c looks a word up in
+the pad before its keyword table, so a lexical sub shadows every statement
+keyword parseTheRest reads; `CORE::END` still names the phaser, and the
+lexical's scope ends with its block.
+
+Then the three logical assignments 01a16602-5f1a's review found unmapped in
+the OPf_PARENS op table, and issue 3323's original defect, `\(my @a)`,
+which 01a16602-75d4 fixed.
+
+=== the op/lexsub.t row: a lexical END called in an eval block
+use feature 'state';
+sub is { 1 }
+{
+  state sub END { shift }
+  is eval{END('jkqeudth')}, 'jkqeudth',
+    'state sub END {shift} implies @_, not @ARGV';
+}
+--- facts
+faithful
+# i  <1> entersub lKS ->7 over h  <0> padcv[&END:7,10] s: no P on the call
+
+=== a lexical BEGIN called at statement start
+my sub BEGIN { 1 }
+BEGIN('x');
+--- facts
+faithful
+
+=== a lexical require called at statement start
+my sub require { 1 }
+require('x');
+--- facts
+faithful
+
+=== a lexical use called at statement start
+my sub use { 1 }
+use('x');
+--- facts
+faithful
+
+=== a lexical class called at statement start
+my sub class { 1 }
+class('x');
+--- facts
+faithful
+
+=== a lexical END's scope ends with its block
+{ my sub END { 1 } }
+END { 2 }
+--- facts
+faithful
+# perl -e '{ my sub BEGIN {} } BEGIN { print "phaser\n" }' prints phaser
+
+=== CORE::END is the phaser under a lexical END
+my sub END { 1 }
+CORE::END { 2 }
+--- facts
+faithful
+
+=== a parenthesised ||=
+our $x;
+my $v = ($x ||= 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->7, over orassign
+
+=== a parenthesised //=
+our $x;
+my $v = ($x //= 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->7, over dorassign
+
+=== a parenthesised &&=
+our $x;
+my $v = ($x &&= 1);
+--- facts
+faithful
+# -        <1> null sKP/1 ->7, over andassign
+
+=== backslash parenthesised my array
+my $r = \(my @a);
+--- facts
+srefgen 1 exact
+faithful
+# 4              <0> padav[@a:1,2] lPM/LVINTRO ->5
+
+=== backslash parenthesised my scalar
+my $r = \(my $x);
+--- facts
+srefgen 1 exact
+faithful
+# 3              <0> padsv[$x:1,2] sPRM/LVINTRO ->4
+
+=== a parenthesised my scalar assigned to
+(my $x) = 1;
+--- facts
+faithful
+# 6           <0> padsv[$x:1,2] sPRM*/LVINTRO ->7
+
+# The per-fix review's probes follow: a `my` or `state` sub's prototype
+# ends with its block, and `our sub` and a lexical END keep perl's reading.
+
+=== a lexical prototype does not outlive its block over a package sub
+sub u{1} { my sub u($){2} } my @b=(u 1,2);
+--- facts
+faithful
+# Deparse,-p: (my(@b) = u(1, 2))
+
+=== a lexical prototype does not outlive its block over a forward declaration
+sub f9; {my sub f9($){1}} my @c=(f9 1,2);
+--- facts
+faithful
+# Deparse,-p: (my(@c) = f9(1, 2))
+
+=== a lexical block prototype does not outlive its block
+{my sub mb(&){1}} my $m=(mb {1});
+--- facts
+faithful
+# Deparse,-p: (my($m) = (mb {1})), a method call on the block
+
+=== a lexical empty prototype does not outlive its block
+{my sub cz(){7}} my $z=cz+1;
+--- facts
+faithful
+# Deparse,-p: (my($z) = ('cz' + 1))
+
+=== a lexical END called with a block
+my sub END {1} END {2};
+--- facts
+anonhash 1 exact
+faithful
+# Deparse,-p: END({2});
+
+=== an our sub BEGIN in a block leaves the later BEGIN a phaser
+{ our sub BEGIN {1} } BEGIN {2}
+--- facts
+faithful
+# perl -e '{ our sub BEGIN {print "o\n"} } BEGIN {print "p\n"}' prints o, p

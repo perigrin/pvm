@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"maps"
 	"sort"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -1454,6 +1455,10 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	// it: `package A; { package B; } s2(1)` calls A::s2.
 	pkg := p.pkg
 	defer func() { p.pkg = pkg }()
+	// A lexical sub declared inside lasts to its end too: measured on 5.44.0,
+	// `{ my sub BEGIN {} } BEGIN {...}` runs the phaser.
+	lexical := maps.Clone(p.lexical)
+	defer func() { p.lexical = lexical }()
 
 	for p.pos < len(p.toks) {
 		tok := p.toks[p.pos]

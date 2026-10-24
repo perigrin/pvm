@@ -244,11 +244,8 @@ var interpreterPackages = map[string]bool{
 
 // declareLexical records a lexical sub -- `my sub`, `our sub`, `state sub`,
 // or a `use builtin` import -- under its bare name, in scope from here
-// whatever package the parse moves to.
-//
-// ponytail: the scope runs to the end of the file, not the enclosing block;
-// end it at the block if a corpus file calls a lexical sub's name after its
-// block closes.
+// whatever package the parse moves to, to the end of the enclosing block
+// (parseBlock restores the table).
 func (p *parser) declareLexical(imp Import) {
 	if p.lexical == nil {
 		p.lexical = map[string]Import{}
