@@ -946,6 +946,7 @@ func TestFaithfulLastSemicolonOnlyInBlocks(t *testing.T) {
 		for _, rel := range files {
 			src, err := os.ReadFile(filepath.Join(dir, rel))
 			if err != nil {
+				t.Errorf("%s: %v", rel, err)
 				continue
 			}
 			marksBeforeBrace(t, rel, parse.CanonTokens(parse.Parse(src), src))
