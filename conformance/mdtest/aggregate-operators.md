@@ -1,13 +1,14 @@
 # The aggregate-argument operators
 
-`push`, `unshift`, `shift`, `values`, `keys` and `each` share an ARGUMENT RULE nothing
+`push`, `unshift`, `shift`, `pop`, `splice`, `values`, `keys` and `each` share an ARGUMENT RULE nothing
 else in the corpus has: the first argument is the aggregate ITSELF, not
 an expression to be flattened.
 
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
 `each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
-`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`padhv`, `pop`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `splice`,
+`unshift`,
 `values`. Depends on 01_literals.
 
 Measured, `push @a, @tail` emits `padav[@a] lRM` and `padav[@tail] l` --
@@ -149,6 +150,64 @@ parses: yes
 ```output
 10
 2
+```
+
+## `pop`: `shift` at the other end
+
+`pop @a` is `shift @a` mirrored: the aggregate itself in the first
+slot, and the LAST element removed and returned. Measured, the slot is
+`padav[@a] lRM` again and the op is `pop sK/1`, the `shift` case's
+shape with the other name. It is ordinary array work, so it belongs
+here with `push`, `unshift` and `shift` and not with the tier that
+first needed its sibling.
+
+`$x` is 30, the element that was last -- a parser that read `pop` as
+`shift` would print 10 -- and `@a` is left with two.
+
+```perl
+my @a = (10, 20, 30);
+my $x = pop @a;
+print $x, "\n";
+print scalar(@a), "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+30
+2
+```
+
+## `splice`: the container, then an offset and a length
+
+`splice` is the last of perlfunc's array functions and the only one
+that edits the MIDDLE. Its first slot is the container as for the
+others -- measured, `padav[@a] lRM` -- and the rest are expressions:
+an offset, a length, and a replacement list. The op is `splice`.
+
+Removing one element at offset 1 and inserting two in its place
+returns the removed one, 20, and leaves `@a` one longer than it was.
+Reading back `$a[2]` gives 50, the second element inserted, which shows
+the replacement landed in the middle rather than at either end.
+
+```perl
+my @a = (10, 20, 30);
+my @r = splice @a, 1, 1, 40, 50;
+print $r[0], "\n";
+print scalar(@a), "\n";
+print $a[2], "\n";
+```
+
+```behavior
+parses: yes
+```
+
+```output
+20
+4
+50
 ```
 
 ## `values` takes the container, not a flattened list

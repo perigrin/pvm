@@ -458,3 +458,39 @@ func TestRatchetHeaderAgreesWithItsBody(t *testing.T) {
 			header, want)
 	}
 }
+
+// corpusSize is how many cases the corpus holds: an EXACT PIN, failing
+// above as well as below.
+//
+// Below catches a lost case. The ratchet above catches one only until
+// someone regenerates the baseline, and regenerating on a corpus missing
+// a topic writes the loss in as the new normal (measured: ungated.md
+// moved aside, -conformance.update-ratchet, and the whole package went
+// green on 257 cases). Nothing outside the baseline remembered how many
+// cases there were. This does, and it lives in code so moving it is an
+// edit someone reads in review.
+//
+// Above catches a case added or duplicated by accident, and keeps the pin
+// the corpus's true size rather than a stale minimum a later loss could
+// hide under. The price is a one-line bump per contributed case: raise it
+// to the count the failure prints, in the commit that adds the case.
+// Lowering it is deleting cases on purpose and says why in the commit.
+const corpusSize = 270
+
+// TestCorpusHoldsItsPinnedSize is the corpus's denominator pin, after
+// TestT2CoreParses's `want 56` in internal/parse.
+func TestCorpusHoldsItsPinnedSize(t *testing.T) {
+	cases, err := AllCases(corpusDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch n := len(cases); {
+	case n < corpusSize:
+		t.Errorf("the corpus holds %d cases, below its pinned size of %d: %d lost",
+			n, corpusSize, corpusSize-n)
+	case n > corpusSize:
+		t.Errorf("the corpus holds %d cases, above its pinned size of %d: "+
+			"raise corpusSize to %d with the cases that earned it",
+			n, corpusSize, n)
+	}
+}

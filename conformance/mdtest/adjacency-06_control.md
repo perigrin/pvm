@@ -4,9 +4,10 @@ One body holding every construct this tier introduces, each adjacent to
 another -- and adjacent to tier 05's blocks, which is what this tier
 depends on.
 
-**Tier 06 control.** Introduces `cond_expr`, `die`, `enteriter`,
-`entertry`, `exit`, `goto`, `iter`, `last`, `leavetry`, `next`, `redo`,
-`time`, `unstack`. Depends on 05_scoping.
+**Tier 06 control.** Introduces `cond_expr`, `die`, `entergiven`,
+`enteriter`, `entertry`, `enterwhen`, `exit`, `goto`, `iter`, `last`,
+`leavegiven`, `leavetry`, `leavewhen`, `next`, `redo`, `time`, `unstack`.
+Depends on 05_scoping.
 
 WHY A MIXTURE NEEDS ITS OWN CASE. The tier's other cases are one construct
 each, which is what makes them diagnosable. That same property is why a
@@ -38,6 +39,11 @@ order below is the order it is:
 - C-style `for` immediately before `foreach`, because these are the same
   keyword over two unrelated optrees and the disambiguation happens at the
   open paren.
+- `given` between a postfix `if` and `goto`, because `given`, `when` and
+  `default` are words in statement position followed by a parenthesis or
+  a brace, which is the shape a parser that does not know them reads as a
+  call followed by an index -- and `default BLOCK` has no parenthesis at
+  all. The `use feature "switch"` at the top is what makes them keywords.
 - `goto LABEL` last, with a dead statement between it and its label, so
   the label is adjacent to a statement it is not attached to.
 
@@ -82,6 +88,7 @@ The three fields the block-valued group adds each discriminate:
   every field to its right is also evidence the frame held.
 
 ```perl
+use feature "switch";
 my $n = $ENV{N} // 2;
 my $r = $ENV{R} // 0;
 my @l = ($ENV{A} // "a", "b");
@@ -106,6 +113,7 @@ print "-t", $t > 1000000000 ? 1 : 0;
 for (my $j = 0; $j < 1; $j = $j + 1) { print "-c$j" }
 foreach my $x (@l) { redo if $r; print "-f$x" }
 print "-p" if $n;
+given ($n) { when (2) { print "-g" } default { print "-G" } }
 goto DONE;
 print "-skipped";
 DONE:
@@ -118,7 +126,7 @@ parses: yes
 
 ```output
 if-w0-w1-u3-d2-v3-et-Dx
--X-t1-c0-fa-fb-p
+-X-t1-c0-fa-fb-p-g
 ```
 
 ## Two `next` guards in a row, where the first arm carries the second

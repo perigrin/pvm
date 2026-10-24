@@ -21,13 +21,14 @@ import (
 // that read the edge from there would compare the README with itself.
 //
 // THE OP PAIRING CANNOT DO THIS JOB, and that is measured rather than
-// assumed. Each tier's adjacency test asks whether `00_adjacency.t`
-// emits an op the declared prerequisite introduces; an adjacency file
-// composes the tier's constructs, so it legitimately touches several
-// tiers' ops and the question is satisfied by almost any plausible
-// declaration. Three tiers proved it independently by mutation -- 12
-// repointed to 11_oo, 11 to 07_subroutines, 04 to 02_variables -- and
-// each stayed GREEN.
+// assumed. The pairing asks whether a tier's adjacency topic
+// (`adjacency-NN_name.md`) emits an op the declared prerequisite
+// introduces; an adjacency topic composes the tier's constructs, so it
+// legitimately touches several tiers' ops and the question is satisfied
+// by almost any plausible declaration. Mutation proves it: with 12
+// repointed to 11_oo, 11 to 07_subroutines or 04 to 02_variables, the
+// pairing holds. So no pairing check is kept, and this list is the only
+// check of a declaration.
 //
 // The three stronger op rules were measured against all fourteen tiers
 // before this list was written, and all three are dead:
@@ -48,10 +49,7 @@ import (
 //     that pairing with tier 11 "would assert nothing at all".
 //
 // So this is the corpus's own lesson applied to the declaration: ops
-// LINT a declared tier and cannot derive one. See `lintOps`. What the
-// ops still do is the pairing check in each tier's own test, which says
-// the adjacency file HONOURS the declaration; this says the declaration
-// is the one the spec makes. Neither implies the other.
+// LINT a declared tier and cannot derive one. See `lintOps`.
 //
 // `nothing` is a value, not an absence: tier 01 has no earlier tier, and
 // leaving it out would make a deleted entry indistinguishable from a

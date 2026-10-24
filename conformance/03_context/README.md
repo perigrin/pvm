@@ -137,7 +137,7 @@ returns, so both halves report the same number in different shapes.
 2 while the list half is two strings, and the arities differ from the
 input as well as from each other.
 
-As always the list is a UNION across the tier's files, and `00_adjacency.t`
+As always the list is a UNION across the tier's files, and `adjacency-03_context.md`
 happening to emit all of them is a fact about that program rather than a rule
 the format requires: `padrange` fuses consecutive `my` declarations and the
 comma operator in scalar context erases its own left operands, so a file
@@ -187,7 +187,7 @@ even where one wanted them. The `*start` ops are, and they are the rows.
 
 Two of the seven are MEASURED here and not yet CHECKED. `mapstart` and
 `grepstart` carry both flags in the files named above and in
-`00_adjacency.t` -- the measurement is in each file's header -- but the
+`adjacency-03_context.md` -- the measurement is in each file's header -- but the
 pair reader's own table lists five, so nothing fails if a later change
 collapses either. Closing that is a two-line addition to
 `discriminatingPairs` in `internal/conformance/tier03_test.go`, naming
@@ -199,7 +199,7 @@ not introducing it; that `01_scalar_of_array.t` introduces no op of its own
 while carrying the tier's baseline pair is the clearest statement of what
 this tier is.
 
-All seven pairs also appear in `00_adjacency.t`, in one body, which is the
+All seven pairs also appear in `adjacency-03_context.md`, in one body, which is the
 adjacency claim stated in the only terms the optree can check. A file
 holding one half of each pair would satisfy every source-coverage check
 this tier has and measure none of its subject -- which the adjacency file
@@ -219,7 +219,7 @@ did until it was measured.
 | `08_caller.t` | `caller` at file scope, in both contexts | `caller` |
 | `09_map.t` | `map BLOCK` and `map EXPR`, and `map` in both contexts | `mapstart`, `mapwhile` |
 | `10_grep.t` | `grep BLOCK` and `grep EXPR`, and `grep` in both contexts | `grepstart`, `grepwhile` |
-| `00_adjacency.t` | all of the above, consecutively, each pair in both contexts | none |
+| `adjacency-03_context.md` | all of the above, consecutively, each pair in both contexts | none |
 
 `06_localtime.t` pins shape, not time: nine elements in list context, one
 element in scalar. Pinning the formatted string would make the file fail

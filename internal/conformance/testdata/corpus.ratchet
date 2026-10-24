@@ -8,7 +8,7 @@
 # topic's `**Tier NN name.**` line and leaves every key alone. That
 # is the `t/` sweep working, and must not read as a regression.
 #
-# 261 cases, 261 clean, 0 refusing.
+# 270 cases, 270 clean, 0 refusing.
 #
 # Regenerate with -conformance.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own is a
@@ -30,8 +30,10 @@
 - adjacency-14_recursive.md/The whole tier in one body
 - aggregate-operators.md/`each` returns a PAIR where its siblings return a flat list
 - aggregate-operators.md/`keys` in list context is an op, not a flag
+- aggregate-operators.md/`pop`: `shift` at the other end
 - aggregate-operators.md/`push`: the first argument is an array, not an expression
 - aggregate-operators.md/`shift`: the rule again, and the array gives up an element
+- aggregate-operators.md/`splice`: the container, then an offset and a length
 - aggregate-operators.md/`unshift`: the same rule at the other end
 - aggregate-operators.md/`values` takes the container, not a flattened list
 - aggregates-in-context.md/The comma operator in scalar context discards its left operands
@@ -101,6 +103,7 @@
 - comparison.md/The numeric relations and `<=>`
 - comparison.md/The string relations and `cmp`
 - comparison.md/`&&` and `and` are one op at two precedences
+- comparison.md/`~~` is neither relation family
 - compile-phase.md/A `#` at column zero that is not a comment
 - compile-phase.md/BEGIN runs first, END runs last, whatever the source order
 - compile-phase.md/`__PACKAGE__` is a bareword that is not a bareword
@@ -248,15 +251,21 @@
 - subroutines.md/Calling through a code reference
 - subroutines.md/Four spellings of one call
 - subroutines.md/The ampersand call passes the caller's `@_`
+- subroutines.md/`local` restores on call return, read through a call
 - subroutines.md/`return LIST` returns every element
+- switch.md/The parenless `default BLOCK`, taken, and the statement after it
+- switch.md/`given` with two `when` arms and a `default`
+- switch.md/`when` over a comparison, which does not smartmatch
 - symbol-table.md/`*` is a sigil and an operator, resolved by position
 - symbol-table.md/`AUTOLOAD` catches a call to a sub that does not exist
 - symbol-table.md/`\*STDOUT` is a reference to a GLOB, its own type
 - symbol-table.md/`foreach $pkg (LIST)` aliases a PACKAGE variable and restores it
+- symbol-table.md/`local` on a glob restores on call return
 - taking-references.md/The anonymous array constructor
 - taking-references.md/The backslash in scalar context
 - taking-references.md/The same backslash in list context
 - taking-references.md/`ref` over all three referent kinds
+- taking-references.md/`when (@l)` takes a reference no backslash spells
 - tie.md/`tie` is a list operator taking a VARIABLE
 - tie.md/`tied` is a named unary, in boolean position
 - unary.md/Pre and post, increment and decrement

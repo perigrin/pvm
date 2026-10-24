@@ -11,9 +11,10 @@ Both close with `leaveloop`. `while` and `until` differ by the same one op
 as `if` and `unless` -- the test is `and` for one and `or` for the other.
 What makes a loop a loop is `enterloop`/`unstack`, not the test.
 
-**Tier 06 control.** Introduces `cond_expr`, `die`, `enteriter`,
-`entertry`, `exit`, `goto`, `iter`, `last`, `leavetry`, `next`, `redo`,
-`time`, `unstack`. Depends on 05_scoping.
+**Tier 06 control.** Introduces `cond_expr`, `die`, `entergiven`,
+`enteriter`, `entertry`, `enterwhen`, `exit`, `goto`, `iter`, `last`,
+`leavegiven`, `leavetry`, `leavewhen`, `next`, `redo`, `time`, `unstack`.
+Depends on 05_scoping.
 
 Every case binds a runtime value and branches on it second.
 A constant condition ERASES the construct: measured, `if (1) { print "y" }`

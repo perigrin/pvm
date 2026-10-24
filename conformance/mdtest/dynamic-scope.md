@@ -24,6 +24,11 @@ The probe is the second print: the block shows the localised 2, and
 after it `$x` is 1 again, restored by the block exit with no statement
 putting it back. That restoration is the entire construct.
 
+Every read here is in the block that holds the `local`. Reading the
+localised value from inside a CALL needs `entersub`, which this tier
+cannot reach; those cases are in `subroutines.md` (`local $v`) and
+`symbol-table.md` (`local *v`).
+
 Like `our`, it emits no op of its own: `gvsv` and `sassign` are tier
 02's, and the difference from `our` is a flag, `gvsv[*x] s/LVINTRO`
 against `s/OURINTR`, which the ops list does not record. The `enterloop`

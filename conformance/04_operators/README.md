@@ -45,7 +45,7 @@ without a runtime operand this tier has nothing to measure. See below.
 
 ## INTRODUCES
 
-    add and andassign bit_and bit_or bit_xor chr cmpchain_and cmpchain_dup complement concat defined divide dor dorassign eq ftis ge gt index le left_shift length lt modulo multiply nbit_and ncmp ne negate not or orassign ord postdec postinc pow predec preinc repeat right_shift scmp seq sge sgt sle slt sne sprintf substr subtract uc undef xor
+    add and andassign bit_and bit_or bit_xor chr cmpchain_and cmpchain_dup complement concat defined divide dor dorassign eq ftis ge gt index le left_shift length lt modulo multiply nbit_and ncmp ne negate not or orassign ord postdec postinc pow predec preinc repeat right_shift scmp seq sge sgt sle slt smartmatch sne sprintf substr subtract uc undef xor
 
 ## Why those ops, and not the ones the source implies
 
@@ -282,7 +282,7 @@ lexer stops measuring the lexer, which is the one thing `--- expect tokens`
 exists to do -- see the corpus README on why `5e-1` needs a token assertion
 at all.
 
-The fifth refusal is `00_adjacency.t`, and it is the adjacency argument
+The fifth refusal is `adjacency-04_operators.md`, and it is the adjacency argument
 working exactly as tier 01 predicted: three Unknown nodes over a body whose
 every construct appears in a sibling file that parses. Only the mixture
 refuses.
@@ -360,6 +360,13 @@ rejection by the grammar: perl PARSES `$a++ ++` and declines it at the
 lvalue check. `expr.go` already excludes `++` and `--` from
 `parseNonassoc` because they are postfix and take no right operand; this
 measurement says that exclusion is right for a second reason.
+
+**`~~` is claimed here, and `given`/`when` are not.** `smartmatch` is a
+binary operator's op and `$a ~~ $b` reaches it with scalar operands this
+tier already has, so the earliest tier that can spell it is this one. The
+switch statement emits it too -- `when (1)` is `$_ ~~ 1` -- but its own
+ops are control transfers and belong to 06_control. An array operand adds
+`srefgen`, 08's op, so the case here is scalar-only.
 
 **The op budget, not perl, is what bounds this tier's operator coverage.**
 Of perly.y's 31 adjacent precedence pairs, nine have a pseudo-token or an

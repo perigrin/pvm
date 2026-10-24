@@ -140,6 +140,27 @@ func lintFile(t *testing.T, f *File, tier string, tiers tierOps) error {
 // therefore DECLARES its tier and the ops lint that declaration --
 // necessary, not sufficient, and parser-independent, which is what lets
 // the corpus check itself while the parser it measures is incomplete.
+//
+// THE OPS ARE READ FROM B::Concise's RENDERED TEXT, so the lint sees op
+// NAMES and nothing Concise does not print. Op flags are the blind
+// direction: `split / /, $s` and `split " ", $s` render byte-identically
+// (`split(/" "/ => ...)`) yet split differently, the awk mode living only
+// in the PMOP's `pmflags` as PMf_SKIPWHITE (2048) -- measured 5.42.0,
+// pmflags=0 versus 2048. Two programs that differ only in a flag are one
+// op set here, and "the op sets are identical" means "identical in what
+// Concise prints".
+//
+// THE DECISION: flags the budget does not see, by design. The budget
+// answers "which constructs does this tier introduce", and a flag is a
+// property of an op whose tier is already fixed by its name -- both
+// `split` readings arrive with `split`, in tier 09, so no flag could move
+// a file to a different tier. What the flag changes is BEHAVIOUR, and
+// behaviour is what a case's expected output asserts and perl judges
+// (regex-pattern-positions.md holds both `split` spellings apart by
+// their output and token facts). Reading `$op->pmflags` in
+// fileOpsBackend is the route if a tier is ever defined by a flag rather
+// than an op; until then it would be a second vocabulary for the
+// INTRODUCES blocks with nothing to place.
 func lintOps(t *testing.T, source, tier string, tiers tierOps) error {
 	t.Helper()
 
@@ -218,6 +239,10 @@ func reachable(tier string, tiers tierOps) (allowed map[string]bool, claimedBy m
 // in testdata/parse_facts.pl, which reads the same format.
 var reConciseOp = regexp.MustCompile(`^\s*\S+\s+<[^>]*>\s+(\w+)`)
 
+// reConciseHeader matches the line B::Concise prints above each CV it
+// dumps: `main::add:`, or `main program:`.
+var reConciseHeader = regexp.MustCompile(`^\S.*:$`)
+
 // fileOpsBackend is the B:: backend opsOf compiles through.
 //
 // `perl -MO=Concise,-exec file.pl` names no sub, and B::Concise then
@@ -282,43 +307,68 @@ sub compile {
 // fileOpsBackend for why that takes a backend of our own.
 func opsOf(t *testing.T, source string) ([]string, error) {
 	t.Helper()
+	ops, _, err := fileOps(t, source)
+	return ops, err
+}
+
+// fileOps returns every op opsOf returns, and separately the ops of the
+// main program alone. B::Concise heads each CV's dump with its name and
+// a colon, and the main program's with `main program:`.
+func fileOps(t *testing.T, source string) (all, main []string, err error) {
+	t.Helper()
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "case.pl")
 	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		return nil, fmt.Errorf("writing the case: %w", err)
+		return nil, nil, fmt.Errorf("writing the case: %w", err)
 	}
 	// Beside the case rather than in the repo: `-MO=FileOps` requires a
 	// module findable as B/FileOps.pm, and a file in t.TempDir() needs no
 	// decision about where a perl helper lives in a Go tree.
 	backend := filepath.Join(dir, "B", "FileOps.pm")
 	if err := os.MkdirAll(filepath.Dir(backend), 0o750); err != nil {
-		return nil, fmt.Errorf("making room for the backend: %w", err)
+		return nil, nil, fmt.Errorf("making room for the backend: %w", err)
 	}
 	if err := os.WriteFile(backend, []byte(fileOpsBackend), 0o600); err != nil {
-		return nil, fmt.Errorf("writing the backend: %w", err)
+		return nil, nil, fmt.Errorf("writing the backend: %w", err)
 	}
 
 	perl, err := perlPath()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	out, err := exec.Command(perl, "-I"+dir, "-MO=FileOps", path).Output()
 	if err != nil {
-		return nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
+		return nil, nil, fmt.Errorf("perl -MO=Concise refused the source: %w", err)
 	}
 
-	var ops []string
-	for _, line := range strings.Split(string(out), "\n") {
+	all, main = splitConciseOps(string(out))
+	if len(all) == 0 {
+		return nil, nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
+	}
+	return all, main, nil
+}
+
+// splitConciseOps reads a B::Concise dump into every op, and separately
+// the ops under the `main program:` header.
+func splitConciseOps(out string) (all, main []string) {
+	inMain := false
+	for _, line := range strings.Split(out, "\n") {
+		// perl on Windows ends each line with "\r\n".
+		line = strings.TrimSuffix(line, "\r")
+		// The op test comes first: an op line may also end in a colon,
+		// when its flags do.
 		if m := reConciseOp.FindStringSubmatch(line); m != nil {
-			ops = append(ops, m[1])
+			all = append(all, m[1])
+			if inMain {
+				main = append(main, m[1])
+			}
+		} else if reConciseHeader.MatchString(line) {
+			inMain = line == "main program:"
 		}
 	}
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("no ops in B::Concise output, which cannot be right")
-	}
-	return ops, nil
+	return all, main
 }
 
 // reDependsOn matches a tier README's machine-read prerequisite:
@@ -412,11 +462,3 @@ func checkTierNecessity(deps map[string]string) error {
 	sort.Strings(problems)
 	return fmt.Errorf("%s", strings.Join(problems, "; "))
 }
-
-// adjacencyFile is the per-tier file holding the tier's constructs
-// adjacent to one another.
-//
-// Numbered `00` because ordinary construct files start at `01`: the
-// adjacency file is not one of the tier's constructs, it is the check
-// that they compose, so it sorts ahead of them rather than among them.
-const adjacencyFile = "00_adjacency.t"
