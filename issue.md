@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T20:36:43.139953275Z
-updated: 2026-10-23T20:36:43.139953275Z
+updated: 2026-10-24T14:40:49.35306434Z
 ---
 
 Found in the independent review of 01a16602-5ebe (exec/5ebe, f80cbfbf), 2026-10-23. The defect predates 5ebe; base 4af1670f does the same.
@@ -20,4 +20,4 @@ Found in the independent review of 01a16602-5ebe (exec/5ebe, f80cbfbf), 2026-10-
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (a probe row for the snippet, faithful)
+- [ ] A probe row for the snippet, faithful (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
