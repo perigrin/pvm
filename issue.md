@@ -4,7 +4,7 @@ state: done
 urgency: normal
 milestone: m3-conformance-corpus
 created: 2026-09-21T20:47:54.980994967Z
-updated: 2026-10-23T23:40:18.315090293Z
+updated: 2026-10-24T00:03:45.604831585Z
 sessions:
 - start_sha: b41801021927f68fcbf799c60d6b947393d983de
   end_sha: a3a0ed0c97ce48a68f5db427979f9d8acf88d3c8
@@ -190,12 +190,14 @@ Criteria updated 2026-10-23: a6b33a2a replaced the tier-keyed tests with topic f
 
 Criteria updated 2026-10-23 (review round 1, agent:ccx-rev1): the Grouped criterion's text now says what `TestGroupedTierNamesItsTopics` proves over topics, which carry no numbers to tile.
 
+**Review round 2 (2026-10-24):** the census criterion counted lines without comparing them, so it passed at any count. Its text also predated the topic refactor. Both now state today's census and compare it.
+
 ## Acceptance criteria
 
 - [ ] Every one of the fourteen tiers declares a `## FILE ORDER` block holding `derived`, `accidental`, or `NN-NN name` grouping lines; a tier that declares none fails by name. (`go test ./internal/conformance/ -run TestEveryTierDeclaresFileOrder -count=1 -v`)
 - [ ] Every tier declaring `derived` has numbering `regenerateNumbering` reproduces exactly, and a tier whose numbering has a gap or a misordering is named along with the number a regeneration would give it. (`go test ./internal/conformance/ -run '^TestDeclaredOrderingIsStillMeaningful$' -count=1 -v | grep -q '^--- PASS: TestDeclaredOrderingIsStillMeaningful'`)
 - [ ] Every tier declaring `accidental` has an order a regeneration would NOT produce, so the word cannot be used to opt out of the derived check. (`go test ./internal/conformance/ -run '^TestAccidentalTierClaimsNoArrangement$' -count=1 -v | grep -q '^--- PASS: TestAccidentalTierClaimsNoArrangement'`)
 - [ ] Every tier declaring a grouping has groups that cover its topics exactly -- every group names a topic the tier holds, and every topic but the adjacency topic is named by exactly one group, so no gap and no overlap -- so a tier that gains, loses or renames a topic is named rather than drifting. (`go test ./internal/conformance/ -run '^TestGroupedTierNamesItsTopics$' -count=1 -v | grep -q '^--- PASS: TestGroupedTierNamesItsTopics'`)
-- [ ] The census is readable straight off the tree: two `derived`, one grouping, eleven `accidental`, fourteen lines in all. (`grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -cE 'derived|accidental|[0-9][0-9]-[0-9][0-9]'`)
+- [ ] The census is readable straight off the tree: thirteen tiers declare `accidental` and one, 06_control, groups by its topic list; none is `derived`. (`test "$(grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -c accidental)" -eq 13 && ! grep -A2 '^## FILE ORDER' conformance/*/README.md | grep -q derived`)
 - [ ] No tier was renumbered to satisfy the rule; only READMEs changed. (`test 0 -eq "$(git status --porcelain conformance/ | grep -c '^R')"`)
 - [ ] The whole conformance suite is green. (`go test ./internal/conformance/ -count=1`)
