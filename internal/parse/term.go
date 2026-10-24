@@ -181,6 +181,11 @@ func (p *parser) parseTerm() *Node {
 		if name, ok := p.peekAfter(tok); ok &&
 			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
 				p.text(name) == "{") {
+			if p.text(name) == "{" {
+				if n := p.bracedSubscriptedName(tok, name); n != nil {
+					return n
+				}
+			}
 			p.advanceTo(tok)
 			// Braces holding statements, as `${; ...}`'s do: `*{;undef}`.
 			if p.text(name) == "{" && p.derefHoldsStatements(name) {
@@ -272,6 +277,9 @@ func (p *parser) parseTerm() *Node {
 		// hash was being built around the very expression being
 		// dereferenced.
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			if n := p.bracedSubscriptedName(tok, open); n != nil {
+				return n
+			}
 			// The braces hold a BLOCK in perly.y (`indirob: ... | block`),
 			// and almost always one expression. A `;` -- first, or after
 			// that expression -- says there are statements: `${; do { ... }
@@ -462,6 +470,59 @@ func (p *parser) declaratorTakesTarget(word lexer.Token) bool {
 		return false
 	}
 	return next.Kind == lexer.Variable || p.text(next) == "("
+}
+
+// bracedSubscriptedName reads `${ foo[0] }`, `@{ foo {"a"} }`, `%{ foo{a} }`
+// and `*{ foo{a} }` as toke.c's scan_ident does: an identifier other than
+// `sub`, then `[` or `{`, inside the braces after a sigil is the variable's
+// NAME and the subscripts are its own, `$foo[0]`, `@foo{"a"}`. The closing
+// brace is a fake one perl drops. A sub of that name and its prototype play
+// no part: measured on 5.44.0, `@{ foo { "a" } }` deparses as `@foo{'a'}`
+// with `sub foo (&)`, `sub foo ($)`, `use strict` or no sub at all, and `@{
+// sub {1} }` as a deref of an anonymous sub. Nor is a word with a leading
+// `::` a name: `@{ ::foo {"a"} }` is rv2av over entersub, with no rv2hv, and
+// `@{ ::foo [1] }` a syntax error. The outermost subscript has
+// NameBraces set, so canon writes the braces back. nil, with the cursor
+// unmoved, when the braces hold anything else.
+//
+// ponytail: only subscripts running to the closing brace. perl drops that
+// brace wherever it falls, so `@{ foo {"a"}; 1 }` is `@foo{'a'}; 1` and `@{
+// foo {"a"} + 1 }` is `@foo{'a'} + 1`; psc's tree for those is wrong. So is
+// its tree for a quote word, `@{ q {a} }`, which perl reads as the slice
+// `@q{'a'}` (likewise qq, qw, m, s, y and tr) and the lexer takes as a
+// quote. Issue 01a16e4f-b570-7182-8094-71c56af8c419 tracks both.
+func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
+	text := p.text(sigil)
+	word, ok := p.peekAfter(open)
+	if !ok || text != "$" && text != "@" && text != "%" && text != "*" || word.Kind != lexer.Word {
+		return nil
+	}
+	name := p.text(word)
+	if name == "sub" || strings.HasPrefix(name, "::") || !isIdentifier(strings.ReplaceAll(name, "::", "_")) {
+		return nil
+	}
+	if sub, ok := p.peekAfter(word); !ok || p.text(sub) != "[" && p.text(sub) != "{" {
+		return nil
+	}
+	save := p.pos
+	p.advanceTo(word)
+	n := &Node{Kind: Term, Text: text + name, Start: sigil.Start, End: word.End}
+	for {
+		sub, ok := p.peekSignificant()
+		if !ok || p.text(sub) != "[" && p.text(sub) != "{" {
+			break
+		}
+		n = p.parseSubscript(n, p.text(sub))
+	}
+	shut, ok := p.peekSignificant()
+	if !ok || p.text(shut) != "}" {
+		p.pos = save
+		return nil
+	}
+	p.advanceTo(shut)
+	n.End = shut.End
+	n.NameBraces = true
+	return n
 }
 
 // derefHoldsStatements reports whether the brace at open, after a deref
