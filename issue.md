@@ -3,8 +3,10 @@ title: Parse @{ foo { ... } } as perl does after an &-prototype sub
 state: pending
 urgency: normal
 milestone: m3-oracle-at-scale
+blocks:
+- 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T13:36:55.397928747Z
-updated: 2026-10-24T13:36:55.397928747Z
+updated: 2026-10-24T13:37:12.207418091Z
 ---
 
 perigrin's ruling (2026-10-24): psc misreads a `{` as a code block, so a rule in Faithful cannot catch it. The fix belongs in the parser, and this issue fixes it for the one M3-dir file that has it.
