@@ -133,13 +133,10 @@ func requireNotBareUnderListOp(t *testing.T) {
 }
 
 // TestCanonNotWrapsLooserOperand: a wrong tree's grouping is a paren the
-// source lacks. Canon's text only; the verdict is asserted once the
-// call-paren forgiveness is removed.
+// source lacks. Canon's text only; TestCanonWrongTreesAreUnfaithful holds
+// the verdict.
 func TestCanonNotWrapsLooserOperand(t *testing.T) {
-	src := `not $x or 1;`
-	n := Parse([]byte(src))
-	st := lastStmt(t, n)
-	st.Children[0] = notOver(t, st.Children[0])
+	n, src := wrongTree(t, "not over or")
 	requireCanon(t, n, src, `not ($x or 1);`)
 }
 
@@ -154,8 +151,7 @@ func TestCanonNotKeepsGroupingUnderTighterFollow(t *testing.T) {
 	src := `not $x == 1;`
 	n := Parse([]byte(src))
 	requireCanon(t, n, src, src)
-	st := lastStmt(t, n)
-	st.Children[0] = notUnder(t, st.Children[0])
+	n, src = wrongTree(t, "== over not")
 	requireCanon(t, n, src, `(not $x) == 1;`)
 
 	// `not` over `(1) + 1`: perl reads `not (1) + 1` as `(!1) + 1`, so the
@@ -163,8 +159,7 @@ func TestCanonNotKeepsGroupingUnderTighterFollow(t *testing.T) {
 	src = `not (1) + 1;`
 	n = Parse([]byte(src))
 	requireCanon(t, n, src, src)
-	st = lastStmt(t, n)
-	st.Children[0] = notOver(t, st.Children[0])
+	n, src = wrongTree(t, "not over a leading paren")
 	requireCanon(t, n, src, `not((1) + 1);`)
 
 	// A bracketed list's comma follows each element but the last, so a

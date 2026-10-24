@@ -90,50 +90,13 @@ func TestCanonWritesNiladicBare(t *testing.T) {
 }
 
 // TestCanonListOpWrapsLooserOperand: a wrong tree's list extent is a paren
-// the source lacks. Canon's text only; the verdicts are asserted once the
-// call-paren forgiveness is removed.
+// the source lacks. Canon's text only; TestCanonWrongTreesAreUnfaithful
+// holds the verdicts.
 func TestCanonListOpWrapsLooserOperand(t *testing.T) {
-	// push over `or`: the looser operand is wrapped.
-	src := `push @a, 1 or die;`
-	n := Parse([]byte(src))
-	st := lastStmt(t, n)
-	st.Children[0] = rotate(t, st.Children[0])
-	requireCanon(t, n, src, `push (@a, 1 or die);`)
-
-	// foo(1, bar(2), 3) for `foo 1, bar 2, 3`: bar's comma follows it, so
-	// bar takes call parens.
-	src = `sub foo; sub bar; foo 1, bar 2, 3;`
-	n = Parse([]byte(src))
-	st = lastStmt(t, n)
-	foo := st.Children[0]
-	outer := foo.Children[0] // 1 , bar(2 , 3)
-	bar := outer.Children[1]
-	inner := bar.Children[0] // 2 , 3
-	two, three := inner.Children[0], inner.Children[1]
-	wrongBar := *bar
-	wrongBar.Children = []*Node{two}
-	left := *outer
-	left.Children = []*Node{outer.Children[0], &wrongBar}
-	whole := *outer
-	whole.Children = []*Node{&left, three}
-	foo.Children = []*Node{&whole}
-	requireCanon(t, n, src, `sub foo; sub bar; foo 1, bar (2), 3;`)
-
-	// print over `($a), $b`: the bare list would begin with a `(` that
-	// closes early, which perl reads as the call's parens.
-	src = `print ($a), $b;`
-	n = Parse([]byte(src))
-	st = lastStmt(t, n)
-	wrong := rotate(t, st.Children[0])
-	wrong.ArgParen = false
-	comma := wrong.Children[0]
-	a := *comma.Children[0]
-	a.Paren = true
-	a.Start = strings.Index(src, "(")
-	a.End = strings.Index(src, ")") + 1
-	comma.Children[0] = &a
-	st.Children[0] = wrong
-	requireCanon(t, n, src, `print(($a), $b);`)
+	for _, name := range []string{"push over or", "bar takes one argument", "print over a leading paren"} {
+		n, src := wrongTree(t, name)
+		requireCanon(t, n, src, wrongTreeCanon(t, name))
+	}
 }
 
 // TestCanonIndirectObjectKeepsSourceSpelling: an indirect-object call is

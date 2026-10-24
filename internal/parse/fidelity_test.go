@@ -59,17 +59,17 @@ func TestCanonFidelityCatchesMisgrouping(t *testing.T) {
 	}
 }
 
-// TestCanonQuotientIsNarrow: only the parenless-call paren is forgiven.
+// TestCanonQuotientIsNarrow: a call's parens are not forgiven, and need not
+// be.
 //
-// That equivalence is real and unavoidable -- `print "x"` and `print("x")`
-// parse to the SAME TREE, correctly, so a tree-faithful emitter must print
-// one form for both. 519 of 658 disagreeing T1 files differed by exactly
-// this and nothing else.
+// `print "x"` and `print("x")` parse to the same call, and the tree records
+// which spelling the source wrote (ArgParen), so canon writes it back and
+// both are faithful with nothing forgiven.
 //
-// Every other difference must still fail, or the quotient has swallowed the
-// property it was carved out of.
+// A paren that changes grouping must still fail, or the quotient has
+// swallowed the property it was carved out of.
 func TestCanonQuotientIsNarrow(t *testing.T) {
-	// Forgiven: the call's own parens, present or absent in the source.
+	// Faithful: the call's own parens, present or absent in the source.
 	for _, src := range []string{
 		`print "x";`,
 		`print("x");`,
@@ -77,8 +77,8 @@ func TestCanonQuotientIsNarrow(t *testing.T) {
 		`ok($x, 'n');`,
 	} {
 		if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
-			t.Errorf("Faithful rejected %q, but a call's parens are the one "+
-				"difference it must forgive: %s", src, why)
+			t.Errorf("Faithful rejected %q, but canon writes a call's parens "+
+				"as the source spelled them: %s", src, why)
 		}
 	}
 
@@ -108,7 +108,7 @@ func TestCanonQuotientIsNarrow(t *testing.T) {
 // This is the criterion 01a0a8d8 was written for and could not carry: its
 // corpus sweep compares canon against ITSELF, so a tree that misread its
 // source passes. Here the source is on one side, and the only forgiven
-// difference is the paren a parenless call must acquire.
+// difference is a block's last semicolon.
 //
 // The count is 1 for a file whose emission does not say what its source
 // says, 0 for one that does -- so "clean" in the header is the fidelity
@@ -171,7 +171,7 @@ var faithfulTokensCases = []struct {
 }{
 	{"misgrouped tree", "print (1+2)*3;", "print((1 + 2) * 3);", false, false, []string{}},
 	{"correct parse", "print (1+2)*3;", "print(1 + 2) * 3;", true, true, []string{}},
-	{"parenless call", `print "x";`, `print("x");`, false, true, []string{"call-parens"}},
+	{"parenless call given parens", `print "x";`, `print("x");`, false, false, []string{}},
 	{"parenless call as canon writes it", `print "x";`, `print "x";`, true, true, []string{}},
 	{"call with parens", `print("x");`, `print("x");`, true, true, []string{}},
 	{"parenless ok", `ok $x, 'n';`, `ok $x, 'n';`, true, true, []string{}},
@@ -180,11 +180,11 @@ var faithfulTokensCases = []struct {
 	{"grouping added", `1 - 2 - 3;`, `1 - (2 - 3);`, false, false, []string{}},
 	{"block without last semicolon", `sub f { 1 }`, `sub f {1;} `, true, true, []string{"last-semicolon"}},
 	{"block with last semicolon", `sub f { 1; }`, `sub f {1;} `, true, true, []string{}},
-	{"block argument", `print {$fh} "x";`, `print({$fh;} "x");`, false, true, []string{"call-parens", "last-semicolon"}},
+	{"block argument given parens", `print {$fh} "x";`, `print({$fh;} "x");`, false, false, []string{}},
 	{"block argument as canon writes it", `print {$fh} "x";`, `print {$fh;} "x";`, true, true, []string{"last-semicolon"}},
-	{"nested call parens", "package Foo; sub create { } package main; print create Foo sub { 1 };",
-		"package Foo;sub create {} package main;print(create Foo(sub {1;}));", false, true,
-		[]string{"call-parens", "call-parens", "last-semicolon"}},
+	{"nested calls given parens", "package Foo; sub create { } package main; print create Foo sub { 1 };",
+		"package Foo;sub create {} package main;print(create Foo(sub {1;}));", false, false,
+		[]string{}},
 	{"nested calls as canon writes them", "package Foo; sub create { } package main; print create Foo sub { 1 };",
 		"package Foo;sub create {} package main;print create Foo sub {1;};", true, true,
 		[]string{"last-semicolon"}},
@@ -256,8 +256,6 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 // each with a fixture: two programs that differ by exactly that rewrite,
 // which the pinned perl runs to the same output.
 var forgivenRules = map[string]struct{ src, canon string }{
-	// `print "x"` and `print("x")` parse to the same tree.
-	"call-parens": {`print "x";`, `print("x");`},
 	// A block's last statement with and without its semicolon.
 	"last-semicolon": {`sub f { 1 } print f();`, `sub f { 1; } print f();`},
 }
@@ -280,29 +278,13 @@ func unlistedRules(compare comparator, pairs [][2]string) []string {
 }
 
 // unreplayed reports whether undoing each recorded forgiveness in canon
-// fails to give src exactly, and how: a last-semicolon drops its `;`, a
-// call-parens drops its `(` and the `)` that closes it. A difference
-// faithfulTokens skips without recording one leaves a token behind here.
+// fails to give src exactly, and how: a last-semicolon drops its `;`. A
+// difference faithfulTokens skips without recording one leaves a token
+// behind here.
 func unreplayed(src []string, canon []parse.CanonToken, forgiven []parse.Forgiveness) string {
 	drop := map[int]bool{}
 	for _, f := range forgiven {
 		drop[f.CanonIndex] = true
-		if f.Rule != "call-parens" {
-			continue
-		}
-		depth := 0
-		for i := f.CanonIndex; i < len(canon); i++ {
-			switch canon[i].Text {
-			case "(":
-				depth++
-			case ")":
-				depth--
-			}
-			if depth == 0 {
-				drop[i] = true
-				break
-			}
-		}
 	}
 	var left []string
 	for i, c := range canon {
@@ -403,6 +385,38 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 	})
 }
 
+// TestFaithfulCallParenRuleIsGone: a call's parens are not forgiven. Canon
+// writes them only where the source did or binding power needs them, so a
+// pair the source lacks is a difference.
+func TestFaithfulCallParenRuleIsGone(t *testing.T) {
+	for _, tc := range []struct{ src, canon string }{
+		{`print "x";`, `print ( "x" ) ;`},
+		{`defined $x;`, `defined ( $x ) ;`},
+	} {
+		if ok, forgiven, _ := parse.FaithfulTokens(sigTokens(tc.src), asCanon(sigTokens(tc.canon))); ok {
+			t.Errorf("FaithfulTokens(%q, %q) = true, forgiven by %v; want false", tc.src, tc.canon, ruleNames(forgiven))
+		}
+	}
+}
+
+// TestFaithfulLastSemicolonCoversBlockArgument: a block argument's last `;`
+// is forgiven by the main loop's rule, with no paren around it, and a call
+// paren canon adds after the block is not.
+func TestFaithfulLastSemicolonCoversBlockArgument(t *testing.T) {
+	src := `print {$fh} "x";`
+	ok, forgiven, why := parse.FaithfulTokens(sigTokens(src), asCanon(sigTokens(`print {$fh;} "x";`)))
+	if !ok || !slices.Equal(ruleNames(forgiven), []string{"last-semicolon"}) {
+		t.Errorf("FaithfulTokens(%q, `print {$fh;} \"x\";`) = %v forgiven by %v (%s), want true by [last-semicolon]",
+			src, ok, ruleNames(forgiven), why)
+	}
+	if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
+		t.Errorf("Faithful(%q) = false: %s", src, why)
+	}
+	if ok, _, _ := parse.FaithfulTokens(sigTokens(src), asCanon(sigTokens(`print {$fh;} ("x");`))); ok {
+		t.Errorf("FaithfulTokens(%q, `print {$fh;} (\"x\");`) = true, want false", src)
+	}
+}
+
 // TestFaithfulForgivenessIsClosedRejectsUnlistedRule: a comparator that
 // forgives by a rule the closed set does not list is caught.
 func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
@@ -419,9 +433,9 @@ func TestFaithfulForgivenessIsClosedRejectsUnlistedRule(t *testing.T) {
 // the mismatch is reported with the failing verdict, so the closed-set
 // check sees it on unfaithful files too.
 func TestFaithfulTokensReportsForgivenessOnFailure(t *testing.T) {
-	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`print "x"; 1 + 2;`), asCanon(sigTokens(`print("x"); 3;`)))
-	if ok || !slices.Equal(ruleNames(forgiven), []string{"call-parens"}) {
-		t.Errorf("got %v forgiven by %v, want false forgiven by [call-parens]", ok, ruleNames(forgiven))
+	ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`sub f { 1 } 1 + 2;`), asCanon(sigTokens(`sub f { 1; } 3;`)))
+	if ok || !slices.Equal(ruleNames(forgiven), []string{"last-semicolon"}) {
+		t.Errorf("got %v forgiven by %v, want false forgiven by [last-semicolon]", ok, ruleNames(forgiven))
 	}
 }
 
