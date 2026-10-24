@@ -625,6 +625,15 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 		return nil
 	}
 	p.advanceTo(word)
+	// parseSubDecl records the sub in the package table, where it would
+	// outlive the block. A `my` or `state` sub lives only in p.lexical, so
+	// the package entry it overwrote comes back: measured on 5.44.0, `sub
+	// u{1} { my sub u($){2} } (u 1,2)` is `u(1, 2)`. `our sub` aliases the
+	// package sub, which perl keeps.
+	nameTok, _ := p.peekAfter(sub)
+	key := p.subKey(p.text(nameTok))
+	prevImp, hadImp := p.imports[key]
+	prevBodied := p.bodied[key]
 	inner := p.parseSubDecl(sub)
 	// A lexical sub is in scope whatever package follows: measured on
 	// 5.42.0, `my sub s2 (\$) {} package B; s2(1)` meets the `\$`. And perl
@@ -634,6 +643,16 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 		imp := p.imports[p.subKey(name)]
 		imp.Lvalue = true
 		p.declareLexical(imp)
+	}
+	if p.text(word) != "our" {
+		if hadImp {
+			p.imports[key] = prevImp
+		} else {
+			delete(p.imports, key)
+		}
+		if p.bodied != nil {
+			p.bodied[key] = prevBodied
+		}
 	}
 	return &Node{
 		Kind: Declaration, Text: p.text(word),

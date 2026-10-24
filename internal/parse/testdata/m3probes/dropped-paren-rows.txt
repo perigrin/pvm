@@ -102,3 +102,43 @@ faithful
 --- facts
 faithful
 # 6           <0> padsv[$x:1,2] sPRM*/LVINTRO ->7
+
+# The per-fix review's probes follow: a `my` or `state` sub's prototype
+# ends with its block, and `our sub` and a lexical END keep perl's reading.
+
+=== a lexical prototype does not outlive its block over a package sub
+sub u{1} { my sub u($){2} } my @b=(u 1,2);
+--- facts
+faithful
+# Deparse,-p: (my(@b) = u(1, 2))
+
+=== a lexical prototype does not outlive its block over a forward declaration
+sub f9; {my sub f9($){1}} my @c=(f9 1,2);
+--- facts
+faithful
+# Deparse,-p: (my(@c) = f9(1, 2))
+
+=== a lexical block prototype does not outlive its block
+{my sub mb(&){1}} my $m=(mb {1});
+--- facts
+faithful
+# Deparse,-p: (my($m) = (mb {1})), a method call on the block
+
+=== a lexical empty prototype does not outlive its block
+{my sub cz(){7}} my $z=cz+1;
+--- facts
+faithful
+# Deparse,-p: (my($z) = ('cz' + 1))
+
+=== a lexical END called with a block
+my sub END {1} END {2};
+--- facts
+anonhash 1 exact
+faithful
+# Deparse,-p: END({2});
+
+=== an our sub BEGIN in a block leaves the later BEGIN a phaser
+{ our sub BEGIN {1} } BEGIN {2}
+--- facts
+faithful
+# perl -e '{ our sub BEGIN {print "o\n"} } BEGIN {print "p\n"}' prints o, p

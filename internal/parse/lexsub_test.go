@@ -107,3 +107,46 @@ func TestLexicalSubShadowsStatementKeyword(t *testing.T) {
 		t.Errorf("Parse(%q) lost the CORE::END phaser", src)
 	}
 }
+
+// TestLexicalSubPrototypeEndsWithBlock holds a `my` or `state` sub's
+// prototype to its block: past the block, the code after it reads as if the
+// block were empty. Measured on 5.44.0 with -MO=Deparse,-p:
+//
+//	sub u{1} { my sub u($){2} } my @b=(u 1,2);   (my(@b) = u(1, 2))
+//	{my sub cz(){7}} my $z=cz+1;                 (my($z) = ('cz' + 1))
+//	{my sub mb(&){1}} my $m=(mb {1});            (mb {1}), a method call
+//
+// `our sub` is a lexical alias to the package sub, which outlives the block.
+func TestLexicalSubPrototypeEndsWithBlock(t *testing.T) {
+	cases := []struct{ with, without string }{
+		{"sub u{1} { my sub u($){2} } my @b=(u 1,2);", "sub u{1} { 1; } my @b=(u 1,2);"},
+		{"sub f9; {my sub f9($){1}} my @c=(f9 1,2);", "sub f9; { 1; } my @c=(f9 1,2);"},
+		{"{state sub f8($){1}} my @c=(f8 1,2);", "{ 1; } my @c=(f8 1,2);"},
+		{"{my sub mb(&){1}} my $m=(mb {1});", "{ 1; } my $m=(mb {1});"},
+		{"{my sub cz(){7}} my $z=cz+1;", "{ 1; } my $z=cz+1;"},
+	}
+	for _, c := range cases {
+		got := lastStatement(t, c.with)
+		want := lastStatement(t, c.without)
+		if got != want {
+			t.Errorf("%q: the lexical prototype leaked past its block:\n  got  %s\n  want %s", c.with, got, want)
+		}
+	}
+}
+
+// lastStatement is the structure of src's last statement, the one after
+// the block.
+func lastStatement(t *testing.T, src string) string {
+	t.Helper()
+	n := parse.Parse([]byte(src))
+	var last *parse.Node
+	for _, c := range n.Children {
+		if c.Kind != parse.Trivia {
+			last = c
+		}
+	}
+	if last == nil {
+		t.Fatalf("Parse(%q) is empty", src)
+	}
+	return structure(last)
+}
