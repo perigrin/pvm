@@ -1,6 +1,6 @@
 ---
 title: Remove the call-paren forgiveness and re-home the block argument's last semicolon
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,16 +8,28 @@ blocked_by:
 blocks:
 - 01a1664d-75d4-76eb-aad2-10b322f366a9
 created: 2026-10-23T14:34:59.350295778Z
-updated: 2026-10-24T03:47:02.81987399Z
+updated: 2026-10-24T04:24:27.394938063Z
 sessions:
 - start_sha: 71f565f4ac26e7daab8f57db45d665b2a93c116c
-  end_sha: ""
-  commits: 0
+  end_sha: abcdacd2e26884b358ead9c54a4c044ce9574402
+  commits: 1
   started_at: 2026-10-24T03:47:02.81987399Z
+  ended_at: 2026-10-24T04:24:27.394938063Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T03:47:02.81987399Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T04:24:27.394938063Z
+observed_paths:
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/listop_test.go
+- internal/parse/namedunary_test.go
+- internal/parse/notop_test.go
+- internal/parse/testdata/m3probes/listop-canon.txt
+- internal/parse/wrongtrees_test.go
 ---
 
 ## Context
