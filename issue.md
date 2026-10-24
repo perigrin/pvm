@@ -1,6 +1,6 @@
 ---
 title: Write list operators, calls and niladic builtins by precedence, with the source's call parens recorded, behaviour-neutral
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a1692f-bf96-703b-b6bc-59a216283227
 created: 2026-10-23T14:34:36.382741984Z
-updated: 2026-10-23T23:07:18.396128832Z
+updated: 2026-10-24T00:42:21.049664387Z
+sessions:
+- start_sha: 5cb7269ab1e1b863f91500caf7c076350c33656d
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T00:42:21.049664387Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T00:42:21.049664387Z
 ---
 
 ## Context
