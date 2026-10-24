@@ -10,7 +10,7 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a167da-3323-7ce0-a627-abf5b99603d8
 created: 2026-10-22T23:46:33.882832365Z
-updated: 2026-10-24T15:35:53.181226596Z
+updated: 2026-10-24T17:00:26.902252272Z
 sessions:
 - start_sha: aa8f4d45eda250e45e7987c7eaede3270d95b8bc
   end_sha: ""
@@ -81,6 +81,8 @@ The comparison then reports:
 - Add all three as fixtures.
 
 75d4 carries the doubled forms as known-defect rows citing this issue: `$f->(($x))`, `not (($a == 1))` and `((1,2,3))[1]`.
+
+**Matching granularity (per-fix review, 2026-10-24).** The comparison matches per statement line by op name, plus the variable name for an op that reads one (padsv, padav, ex-rv2sv, rv2sv, rv2av; the walk reports it as `=NAME`). It does not key ops by their position in the tree. So a Paren moved between two variables on one line is caught (`my $z = ($x) + $y`, TestParenComparisonKeysVariables), but a Paren moved between two ops of one name that read no variable, such as `(1) + 2` against `1 + (2)`, still passes. Read "op by op" in this issue as "op name, and variable, per statement line".
 
 ## Acceptance criteria
 
