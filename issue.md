@@ -1,6 +1,6 @@
 ---
 title: Write a Paren node's parens once, and forgive only extra nesting
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -11,16 +11,56 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-24T04:26:35.518027761Z
+updated: 2026-10-24T13:08:23.661623531Z
 sessions:
 - start_sha: abcdacd2e26884b358ead9c54a4c044ce9574402
-  end_sha: ""
-  commits: 0
+  end_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
+  commits: 2
   started_at: 2026-10-24T04:26:35.518027761Z
+  ended_at: 2026-10-24T13:08:23.661623531Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T04:26:35.518027761Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T13:08:23.661623531Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- docs/specs/perl-parser/00-findings.md
+- docs/specs/perl-parser/04-expressions.md
+- internal/parse/arrowhashread_test.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/commafat_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/hashhedge_test.go
+- internal/parse/hashscope.go
+- internal/parse/hashscope_test.go
+- internal/parse/hedgereason_test.go
+- internal/parse/listop_test.go
+- internal/parse/probes_test.go
+- internal/parse/sites.go
+- internal/parse/statementanonhash_test.go
+- internal/parse/stmtmodcanon_test.go
+- internal/parse/testdata/m3probes/baseline.txt
+- internal/parse/testdata/m3probes/canon-paren-once.txt
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/hash-scope.txt
+- internal/parse/testdata/m3probes/listop-canon.txt
+- internal/parse/testdata/m3probes/named-hash-decl.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/wrongtrees_test.go
+- internal/parseoracle/rv2hvfell_test.go
+- internal/parseoracle/testdata/fixture/subbody.pl
+- internal/parseoracle/testdata/fixture/wider.pl
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/fixture-sites.txt
+- internal/parseoracle/testdata/ratchet/fixture.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 ## Context
