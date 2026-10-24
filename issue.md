@@ -1,12 +1,21 @@
 ---
 title: The last-semicolon forgiveness hides a hash misread as a block
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T04:11:53.607169795Z
-updated: 2026-10-24T13:37:28.236784443Z
+updated: 2026-10-24T13:37:57.683278124Z
+sessions:
+- start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T13:37:57.683278124Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T13:37:57.683278124Z
 ---
 
 Found by the independent review of NL-c (01a1692f-bf96, exec/nlc 3de59a88) on 2026-10-24. **perigrin's ruling (2026-10-24): narrow it in M3.** Faithful keeps the last-semicolon forgiveness, but it applies only where the TREE says the braces are a code block. It never applies to `{` … `}` that the tree reads as a hash, a subscript, or anything else. This issue moves into m3-oracle-at-scale and lands before the M3-dir unfaithful list (01a16602-5f77) is made, so that uni/variables.t is judged honestly.
