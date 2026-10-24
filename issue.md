@@ -1,6 +1,6 @@
 ---
 title: Write a Paren node's parens once, and forgive only extra nesting
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -11,7 +11,16 @@ blocks:
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-23T01:08:34.900061622Z
-updated: 2026-10-23T14:35:04.287429838Z
+updated: 2026-10-24T04:26:35.518027761Z
+sessions:
+- start_sha: abcdacd2e26884b358ead9c54a4c044ce9574402
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T04:26:35.518027761Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T04:26:35.518027761Z
 ---
 
 ## Context
