@@ -1,21 +1,36 @@
 ---
 title: Parse @{ foo { ... } } as perl does after an &-prototype sub
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T13:36:55.397928747Z
-updated: 2026-10-24T14:40:08.065430474Z
+updated: 2026-10-24T15:11:53.255155208Z
 sessions:
 - start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
-  end_sha: ""
-  commits: 0
+  end_sha: ee411f22474a735637b49cfcdbf98c2fd7a8ffcf
+  commits: 2
   started_at: 2026-10-24T13:38:04.003147709Z
+  ended_at: 2026-10-24T15:11:53.255155208Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-24T13:38:04.003147709Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T15:11:53.255155208Z
+observed_paths:
+- .github/workflows/parse-fidelity.yml
+- internal/parse/arrowhashread_test.go
+- internal/parse/canon.go
+- internal/parse/derefbarename_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/parse.go
+- internal/parse/sites.go
+- internal/parse/term.go
+- internal/parse/testdata/m3probes/deref-bare-name.txt
 ---
 
 perigrin's ruling (2026-10-24): psc misreads a `{` as a code block, so a rule in Faithful cannot catch it. The fix belongs in the parser, and this issue fixes it for the one M3-dir file that has it.
