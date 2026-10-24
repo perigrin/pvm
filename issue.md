@@ -2,12 +2,12 @@
 title: The last-semicolon forgiveness hides a hash misread as a block
 state: pending
 urgency: normal
-milestone: v0.1
+milestone: m3-oracle-at-scale
 created: 2026-10-24T04:11:53.607169795Z
-updated: 2026-10-24T04:11:53.607169795Z
+updated: 2026-10-24T12:53:12.324843072Z
 ---
 
-Found by the independent review of NL-c (01a1692f-bf96, exec/nlc 3de59a88) on 2026-10-24. **This needs perigrin's ruling.** It would replace one of the two forgivenesses he ruled into Faithful's closed set (round 7).
+Found by the independent review of NL-c (01a1692f-bf96, exec/nlc 3de59a88) on 2026-10-24. **perigrin's ruling (2026-10-24): narrow it in M3.** Faithful keeps the last-semicolon forgiveness, but it applies only where the TREE says the braces are a code block. It never applies to `{` … `}` that the tree reads as a hash, a subscript, or anything else. This issue moves into m3-oracle-at-scale and lands before the M3-dir unfaithful list (01a16602-5f77) is made, so that uni/variables.t is judged honestly.
 
 ## Context
 
@@ -25,8 +25,13 @@ The reviewer's proposed fix follows the call-paren precedent: the tree records w
 
 A narrower option: forgive the last `;` only inside a node the tree knows is a Block, never inside `{` … `}` that the tokens alone can't classify.
 
+**Why it matters for M3:** three files are counted faithful while psc builds the wrong tree for them. All three fail `perl -c` near `;}`: uni/variables.t (in an M3 dir), hash_ref_disambiguation.t (T1) and cpan_ceph_tie_runtime.t (T1). Once this issue lands they become unfaithful. That is correct, and the drop is expected and re-baselined in the same commit, naming exactly these files. Any other file that drops is a stop: report it to perigrin.
+
+**Approach:** canonTokens already carries per-token marks (ParenNode). Add a mark for the `;` that canon writes as a code block's last statement terminator, and have last-semicolon forgive only a `;` carrying that mark. Then TestFaithfulForgivenessIsClosed's replay checks the mark.
+
 ## Acceptance criteria
 
 ### Positive Scenarios
 
 - `go test ./internal/parse/ -run '^TestFaithfulCatchesBlockForHashMisread$' -count=1 -v | grep -q '^--- PASS'` (a hand-built AnonHash-as-Block tree is unfaithful)
+- `go test ./internal/parse/ -run '^TestFaithfulLastSemicolonOnlyInBlocks$' -count=1 -v | grep -q '^--- PASS'` (`$h{a;}` against `$h{a}`, and a hash constructor written `{a => 1;}`, are unfaithful; a real block's last `;` is still forgiven)
