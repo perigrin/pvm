@@ -56,3 +56,34 @@ point rather than rewritten. Nothing in it is settled.
 - [x] 01a0ded8-eae9 (local on call return): merged 58b9d93e, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: corpus cases only. perl 5.42.0 judges each case's pinned output through TestMdtestTopicsMakeTheSameClaims, and the worker proved one red by clobbering its output. The glob spelling sits in tier 10, because tier 07's op lint refuses rv2gv. corpusFloor 261 -> 263; 3 criteria verify.
 - [x] 01a0dec7-ed35 (given/when tier): merged 394f64d0, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: corpus cases and tier INTRODUCES lists only, each case's pinned output judged by perl 5.42.0 through the corpus tests, the op lint red first ('uses ops no tier claims: entergiven ...'). perl 5.42: given/when exist behind feature 'switch', off from the 5.36 bundle, with no warning; ~~ is off from 5.42's bundle. corpusFloor 263 -> 268. 5 criteria verify.
 - [x] 01a0dde3-9d6b (pop and splice join tier 02): merged 9c3e1642, 2026-10-23, by the session agent, not backfilled. Review gate declined in writing: corpus cases and tier INTRODUCES lists only. The lint was red first ('uses ops no tier claims: pop / splice'), and perl 5.42.0 produced each pinned output byte for byte. shift was already in tier 02 (6001ca7f). corpusFloor 268 -> 270. 3 criteria verify. The adjacency-case gap is filed as 01a1696e.
+
+## Review minute (crochet:review, 2026-10-23 to 2026-10-24)
+
+- [x] Review gate satisfied 2026-10-24 by the session agent, run in place and not backfilled. The subject was branch feat/m3-conformance-corpus at c139e83f against pu (merge base 054e75e6): 33 files, plus the review fix merge.
+- **Participants.** All were dispatched to fresh subagents.
+  - ccr-coverage covered the decision and the live docs.
+  - ccr-quality ran paad:agentic-review. Two Sonnet specialists returned; the concurrency, security and verifier lenses ran inline in that agent.
+  - ccr-ponytail ran ponytail:ponytail-review.
+  - ccr-fresh joined in round 2 and read the branch without the prior findings.
+  Every participant reported in both rounds.
+- **Round 1.**
+  - Coverage said NOT YET on ccr-coverage-1: the corpus count was coded as an exact pin while 01a0df09 decided a floor. perigrin ruled it an exact pin.
+  - Quality said ACCEPT. Ponytail said ACCEPT.
+  - perigrin also ruled to restore the Grouped tier's coverage check (ccr-coverage-5).
+  - The follow-ups were answered in ccx/rev1, merged as c139e83f. That work:
+    - removed the near-vacuous prerequisite branch, and added TestTierPrerequisitesMatchTheSpec to 12 tier criteria;
+    - made the adjacency check count only main-program statements;
+    - repointed 7 vacuous criteria, each now failing at base;
+    - removed stale 00_adjacency.t names, temporal prose and 3 dead symbols.
+- **Round 2.** All four said ACCEPT.
+  - Coverage released all 7 of its findings, quality all 5, ponytail all 5.
+  - New nits were answered by issue edits: the census criterion compares counts, the 216 guard names the pin, and the 01a0ded8 glob criterion names its own subtest.
+  - Code nits that predate the diff are filed in v0.1 as 01a16b2b-451d: 68 U1000 symbols, false refusal claims, the remaining 00_adjacency.t and NN_name.t names, and the adjacencyCaseOps wrapper.
+  - Fixed point: the round raised nothing blocking, and nothing is outstanding.
+- **Commit-to-issue mapping (ccr-coverage-2).** Four commits carry an Implements line that git does not parse as a trailer, because of a blank line before Claude-Session. History is not rewritten. The mapping:
+  - fc0447d7 → 01a0de11
+  - 203e7db7 → 01a0df09
+  - da1176d9 → 01a0dec7
+  - d36e267d → 01a0dde3
+- **Accepted weaker remaps (ccr-coverage-5).** ParenlessExtent (01a0c432) and ArgAliasing (01a0c362-073a) lost their outputs-must-differ step but are judged adequate.
+- **Milestone criteria.** `git zhi verify --timeout 900 m3-conformance-corpus` passes 220/220 (scratchpad cc-verify4.log). It is re-run at completion.
