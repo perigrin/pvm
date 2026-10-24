@@ -58,11 +58,26 @@ func TestDerefBareNameBraceReadsAsPerlDoes(t *testing.T) {
 		}
 	}
 
-	// `sub` is never a name here.
-	src := `my @r = @{ sub {1} };`
-	if got := shape(parse.Parse([]byte(src))); got == shape(parse.Parse([]byte(`my @r = @sub{1};`))) {
-		t.Errorf("%q read as the slice @sub{1}: %s", src, got)
+	// `sub` is never a name here, nor a word with a leading `::`. Measured
+	// on 5.44.0, `@{ ::foo {"a"} }` is rv2av over entersub, with no rv2hv,
+	// `%{ ::foo {a} }` and `@{ ::foo::bar {a} }` deparse as derefs, and
+	// `@{ ::foo [1] }` is a syntax error.
+	for _, tc := range [][2]string{
+		{`my @r = @{ sub {1} };`, `my @r = @sub{1};`},
+		{`my @r = @{ ::foo {"a"} };`, `my @r = @::foo{"a"};`},
+		{`my @r = %{ ::foo {a} };`, `my @r = %::foo{a};`},
+		{`my @r = @{ ::foo::bar {a} };`, `my @r = @::foo::bar{a};`},
+	} {
+		if got := shape(parse.Parse([]byte(tc[0]))); got == shape(parse.Parse([]byte(tc[1]))) {
+			t.Errorf("%q read as the slice %q: %s", tc[0], tc[1], got)
+		}
 	}
+	// Sites, against perl 5.44.0's rv2hv count: only %h's.
+	checkDecided(t, []arrowCase{
+		{`my @r = @{ ::foo {"a"} };`, 0},
+		{`my %h; my @r = @{ ::foo { %h } };`, 0},
+		{`our %h; my @r = @{ ::foo { $h{b} } };`, 1},
+	})
 
 	t.Run("perl", func(t *testing.T) {
 		perl := perltest.PinnedPerl(t)

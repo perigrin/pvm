@@ -56,3 +56,19 @@ faithful
 my @r = @{ sub {[1]}->() };
 --- facts
 faithful
+
+=== a leading :: is no name: a deref of a call
+our %h;
+my @r = @{ ::foo { $h{b} } };
+--- facts
+rv2hv 1 exact
+faithful
+# perl's one rv2hv is %h's; the braces are rv2av over entersub
+
+=== a leading :: is no name, with a lexical hash inside
+my %h;
+my @r = @{ ::foo { %h } };
+my @s = @{ ::foo {"a"} };
+--- facts
+faithful
+# no rv2hv: rv2av over entersub/method_redir

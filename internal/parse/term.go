@@ -479,14 +479,18 @@ func (p *parser) declaratorTakesTarget(word lexer.Token) bool {
 // brace is a fake one perl drops. A sub of that name and its prototype play
 // no part: measured on 5.44.0, `@{ foo { "a" } }` deparses as `@foo{'a'}`
 // with `sub foo (&)`, `sub foo ($)`, `use strict` or no sub at all, and `@{
-// sub {1} }` as a deref of an anonymous sub. The outermost subscript has
+// sub {1} }` as a deref of an anonymous sub. Nor is a word with a leading
+// `::` a name: `@{ ::foo {"a"} }` is rv2av over entersub, with no rv2hv, and
+// `@{ ::foo [1] }` a syntax error. The outermost subscript has
 // NameBraces set, so canon writes the braces back. nil, with the cursor
 // unmoved, when the braces hold anything else.
 //
 // ponytail: only subscripts running to the closing brace. perl drops that
-// brace wherever it falls, so `@{ foo {"a"}; 1 }` is `@foo{"a"}; 1`; such
-// a source reads as the deref it looks like. A quote-like word, `@{ q {a} }`,
-// is the lexer's quote and never reaches here.
+// brace wherever it falls, so `@{ foo {"a"}; 1 }` is `@foo{'a'}; 1` and `@{
+// foo {"a"} + 1 }` is `@foo{'a'} + 1`; psc's tree for those is wrong. So is
+// its tree for a quote word, `@{ q {a} }`, which perl reads as the slice
+// `@q{'a'}` (likewise qq, qw, m, s, y and tr) and the lexer takes as a
+// quote. Issue 01a16e4f-b570-7182-8094-71c56af8c419 tracks both.
 func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
 	text := p.text(sigil)
 	word, ok := p.peekAfter(open)
@@ -494,7 +498,7 @@ func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
 		return nil
 	}
 	name := p.text(word)
-	if name == "sub" || !isIdentifier(strings.ReplaceAll(name, "::", "_")) {
+	if name == "sub" || strings.HasPrefix(name, "::") || !isIdentifier(strings.ReplaceAll(name, "::", "_")) {
 		return nil
 	}
 	if sub, ok := p.peekAfter(word); !ok || p.text(sub) != "[" && p.text(sub) != "{" {
