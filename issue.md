@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T14:27:59.984199171Z
-updated: 2026-10-24T14:27:59.984199171Z
+updated: 2026-10-24T14:40:49.998479284Z
 ---
 
 Found by the independent review of 01a16e20-f266 (exec/univar, 5fd34251) on 2026-10-24. These defects predate that branch. They are rv2hv WRONG verdicts outside the corpus.
@@ -26,4 +26,4 @@ Before writing any code, measure each one with perl 5.44 using Concise and Depar
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (probe rows for `@{ q {a} }`, `@{ qw {a} }`, `@{ m {a} }`, `@{ foo {"a"}; 1 }`, `@{ foo {"a"} + 1 }` and a `Foo'bar` form, each held to perl's hslice and rv2hv count)
+- [ ] Probe rows for `@{ q {a} }`, `@{ qw {a} }`, `@{ m {a} }`, `@{ foo {"a"}; 1 }`, `@{ foo {"a"} + 1 }` and a `Foo'bar` form, each held to perl's hslice and rv2hv count (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
