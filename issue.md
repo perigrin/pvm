@@ -1,6 +1,6 @@
 ---
 title: Write not and list operators by precedence, measured first, and remove the call-paren forgiveness
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,16 +9,43 @@ blocked_by:
 blocks:
 - 01a1692f-65de-750b-aac5-f2506623ec7f
 created: 2026-10-23T13:55:09.253494301Z
-updated: 2026-10-23T21:54:27.16129015Z
+updated: 2026-10-24T00:39:46.32383615Z
 sessions:
 - start_sha: f09a07a0f6b66e2d02cddebd76850d5db05b1ffd
-  end_sha: ""
-  commits: 0
+  end_sha: 5cb7269ab1e1b863f91500caf7c076350c33656d
+  commits: 2
   started_at: 2026-10-23T21:54:27.16129015Z
+  ended_at: 2026-10-24T00:39:46.32383615Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-23T21:54:27.16129015Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-24T00:39:46.32383615Z
+observed_paths:
+- docs/measurements/2026-10-23-precedence-aware-canon/README.md
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-design.diff
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-files.tsv
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-stmts.tsv
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzexport_test.go.txt
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzmeasure_test.go.txt
+- docs/measurements/2026-10-23-precedence-aware-canon/nl-zzstmt_test.go.txt
+- docs/specs/perl-parser/00-findings.md
+- internal/parse/arrowhashread_test.go
+- internal/parse/canon.go
+- internal/parse/fidelity.go
+- internal/parse/notop_test.go
+- internal/parse/sites.go
+- internal/parse/sites_decided_test.go
+- internal/parse/testdata/m3probes/arrow-hash-read.txt
+- internal/parse/testdata/m3probes/not-canon.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parseoracle/rv2hvfell_test.go
+- internal/parseoracle/testdata/ratchet/baseline.txt
+- internal/parseoracle/testdata/ratchet/m3start.txt
+- internal/parseoracle/testdata/ratchet/sites.txt
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Measure the precedence-aware design for not, list ops, calls and niladics, and write not by the follow power". Split along its measure-first boundary in chain-review round 8 (P29): this issue measures and lands `not`; the list-op issue lands list ops, calls and niladic builtins with the rule still on; the rule-removal issue takes the rule out.
