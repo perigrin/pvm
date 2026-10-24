@@ -43,6 +43,44 @@ type canonBuf struct {
 	// reads and clears it, so a parent sets it (emitBefore) only for the
 	// child it is about to write; every other child reads 0.
 	follow int
+	// bodies are the heredoc bodies inside the statements being written
+	// that are not written yet, in source order, shared by every buffer
+	// those statements are written through. See writeBodiesBefore.
+	bodies *[]*Node
+}
+
+// sub is an empty buffer for part of b's text, sharing b's pending bodies.
+func (b *canonBuf) sub() canonBuf {
+	return canonBuf{bodies: b.bodies}
+}
+
+// writeBodiesBefore writes the pending heredoc bodies the source put before
+// n, on a line of their own, ahead of n.
+//
+// perl reads a body from the line after its opener's and then resumes the
+// statement, so a body inside a statement's span (Node.InnerHeredocBodies)
+// sits between the code that ended the opener's line and the code after it:
+// written there, canon says what the source says, token for token. Measured
+// on perl 5.44.0, `f(<<A, <<B,\nfirst\nA\nsecond\nB\n 1);` and `f(<<A,
+// <<B, 1);` with the same bodies after it are both `f("first\n",
+// "second\n", 1)`.
+func (b *canonBuf) writeBodiesBefore(n *Node, src []byte) {
+	if b.bodies == nil || n.Kind == Trivia || n.HeredocBody {
+		return
+	}
+	pending := *b.bodies
+	i := 0
+	for i < len(pending) && pending[i].Start < n.Start {
+		i++
+	}
+	if i == 0 {
+		return
+	}
+	b.WriteByte('\n')
+	for _, body := range pending[:i] {
+		b.WriteString(body.SourceText(src))
+	}
+	*b.bodies = pending[i:]
 }
 
 // writeParenNode writes a paren a node's Paren flag stands for, and marks it.
@@ -87,6 +125,7 @@ func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
 // follows. A binary's left operand is followed by its operator, its right
 // operand by whatever follows the binary, and so on down the right edge.
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
+	b.writeBodiesBefore(n, src)
 	f := b.follow
 	b.follow = 0
 	// A trailing separator the source wrote goes after the node. See
@@ -149,7 +188,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		}
 
 	case Statement:
-		var stmt canonBuf
+		stmt := b.sub()
+		if stmt.bodies == nil {
+			stmt.bodies = new([]*Node)
+		}
+		*stmt.bodies = append(*stmt.bodies, n.InnerHeredocBodies...)
+		slices.SortFunc(*stmt.bodies, func(x, y *Node) int { return x.Start - y.Start })
 		for _, c := range n.Children {
 			if c.HeredocBody {
 				continue // after the terminator; see below
@@ -166,7 +210,24 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			}
 			emit(&stmt, c, src, 0)
 		}
+		// This statement's own bodies that no node followed are written by
+		// the rules below, with its trailing ones.
+		var inner []*Node
+		*stmt.bodies = slices.DeleteFunc(*stmt.bodies, func(body *Node) bool {
+			own := slices.Contains(n.InnerHeredocBodies, body)
+			if own {
+				inner = append(inner, body)
+			}
+			return own
+		})
 		text := stmt.String()
+		// Past the last body written inside the statement, if any.
+		from := 0
+		for _, body := range n.InnerHeredocBodies {
+			if !slices.Contains(inner, body) {
+				from = strings.LastIndex(text, body.SourceText(src)) + len(body.SourceText(src))
+			}
+		}
 		// An expression statement whose emission begins with `{` begins with
 		// an anonymous hash -- `({0})` or `({0}) . 1` with the parens gone --
 		// and a bare `{` at statement position re-reads as a block unless
@@ -185,8 +246,8 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// quote's own lines as the body. Measured on 5.42.0,
 		// `<<E21 . 'single\nE21 content\nE21\nquoted'` is
 		// "E21 content\n" . "single\nquoted".
-		if bodies := heredocBodies(n); len(bodies) > 0 {
-			if at := newlineAfterOpener(n, text); at >= 0 {
+		if bodies := heredocBodies(n, inner); len(bodies) > 0 {
+			if at := newlineAfterOpener(n, text, from); at >= 0 {
 				b.writeFrom(&stmt, 0, at+1)
 				for _, c := range bodies {
 					b.WriteString(c.SourceText(src))
@@ -200,7 +261,34 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				return
 			}
 		}
-		b.writeFrom(&stmt, 0, len(text))
+		// A BODY THE SOURCE PUT AHEAD OF THE STATEMENT'S END goes there too:
+		// one inside the span that no node followed sits before the closers
+		// after it, `f(<<A, 1\nbody\nA\n);`, and a statement the source
+		// ended without a `;`, a block's last, has its bodies before that
+		// block's `}`. The `;` canon then writes follows the bodies, a
+		// block's last one when the source had none. Measured on perl 5.44.0,
+		// `note <<"EOF"\nbody\nEOF\n;` is `note("body\n")`, and `{ $m =
+		// <<'E'\nbody\nE\n}` is `$m = "body\n"`.
+		var early []*Node
+		at := 0
+		if len(inner) > 0 {
+			if cut, ok := cutBefore(text, src, inner[len(inner)-1].End, n.End); ok {
+				early, inner, at = inner, nil, cut
+			}
+		}
+		late := heredocBodies(n, inner)
+		if len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
+			!endsInSemicolon(src[lastForm(n).Start:late[0].Start]) {
+			early, late, at = late, nil, len(text)
+		}
+		if len(early) > 0 {
+			b.writeFrom(&stmt, 0, at)
+			b.WriteByte('\n')
+			for _, c := range early {
+				b.WriteString(c.SourceText(src))
+			}
+		}
+		b.writeFrom(&stmt, at, len(text))
 		// A HEREDOC BODY GOES AFTER THE TERMINATOR, ON ITS OWN LINE, and
 		// both halves of that are required rather than cosmetic. Perl reads
 		// a body from the line FOLLOWING the opener's line, so
@@ -212,7 +300,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// the tree the body is a child of the statement that opened it; in
 		// the text it follows the `;` that closed it. Canon supplies that
 		// `;`, so the split is made here, where both are in hand.
-		if bodies := heredocBodies(n); len(bodies) > 0 {
+		if bodies := late; len(bodies) > 0 {
 			// Not writeTerm: the body follows this `;`, so it is never
 			// a block's last token and last-semicolon cannot forgive it.
 			if !blockForm(n) {
@@ -327,7 +415,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		}
 		if n.NamedUnary && !n.ArgParen && len(n.Children) == 1 &&
 			n.Children[0].Kind != Block && f <= bpNamedUnary {
-			var arg canonBuf
+			arg := b.sub()
 			emitBefore(&arg, n.Children[0], src, bpNamedUnary+1, f)
 			text := arg.String()
 			b.WriteString(n.Text)
@@ -423,7 +511,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			// refuses there; Deparse writes that one bare and so does not
 			// re-read, so this parenthesises it the same way.
 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
-				var operand canonBuf
+				operand := b.sub()
 				emitBefore(&operand, n.Children[0], src, prefix[op], f)
 				// The operand is emitted once and its text reused: emitting it
 				// again here doubles the work at every level of `!!!!$x`.
@@ -570,7 +658,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// then the children -- a target and optionally an initialiser or a
 		// body. An `=` initialiser arrives as a Binary already holding the
 		// target, so it is not written here.
-		b.WriteString(n.Text)
+		if !n.Subless {
+			b.WriteString(n.Text)
+		}
 		for i, c := range n.Children {
 			// `my $x = 1` arrives as TWO children, target and initialiser,
 			// with the `=` consumed by parseVarDecl rather than left in the
@@ -593,6 +683,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			// node with Paren set rather than a List, and emit writes its
 			// pair: `sub f ($x = 1)`.
 			switch {
+			case i == 0 && n.Subless:
 			case i == 0 || c.Kind == Block ||
 				c.Kind == PrototypeNode || c.Kind == Attribute ||
 				(n.Text == "sub" || n.Text == "method") && c.Paren:
@@ -872,7 +963,7 @@ func emitNot(b *canonBuf, n *Node, src []byte, f int) {
 		emit(b, c, src, 0)
 		return
 	}
-	var arg canonBuf
+	arg := b.sub()
 	emitBefore(&arg, c, src, prefix["not"]+1, f)
 	text := arg.String()
 	if strings.HasPrefix(text, "(") && !leadingParenCloses(text) {
@@ -923,7 +1014,7 @@ func emitCallArgs(b *canonBuf, n *Node, args []*Node, src []byte, f int) {
 		return
 	}
 	if !n.ArgParen && (f <= bpListOp || args[len(args)-1].EndsList) {
-		var list canonBuf
+		list := b.sub()
 		for i, c := range args {
 			if i > 0 {
 				list.WriteByte(' ')
@@ -1088,7 +1179,7 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 // A bare named unary's operand is on that edge too: measured on perl
 // 5.44.0, `((ucfirst foo) => 1)` is `(ucfirst(foo()), 1)`.
 func emitBeforeFat(b *canonBuf, n *Node, src []byte, outer, f int) {
-	var left canonBuf
+	left := b.sub()
 	emitBefore(&left, n, src, outer, f)
 	text := left.String()
 	b.writeFrom(&left, 0, len(text))
@@ -1253,22 +1344,35 @@ const atomBP = 1000
 // The kinds that write their own terminator are included: `use strict;` and
 // `next L;` emit theirs in their own case, and a second one here would be a
 // stray token.
-// heredocBodies is the statement's heredoc bodies, in opener order: first the
-// ones that fell inside its span, then the ones after its terminator. Every
-// inner body precedes every trailing one in the source, so the order holds.
+// heredocBodies is the statement's heredoc bodies not yet written, in opener
+// order: first inner, the ones inside its span that no node followed, then
+// the ones after its terminator. Every inner body precedes every trailing one
+// in the source, so the order holds.
+func heredocBodies(n *Node, inner []*Node) []*Node {
+	out := slices.Clone(inner)
+	for _, c := range n.Children {
+		if c.HeredocBody {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // newlineAfterOpener is the offset, in a statement's emitted text, of the
-// first newline after its first heredoc opener, or -1 when the opener's line
-// runs to the statement's end.
+// first newline after its first heredoc opener at or past from, or -1 when
+// the opener's line runs to the statement's end. from is past the bodies
+// writeBodiesBefore already wrote, whose openers are not the ones waiting.
 //
 // ponytail: the opener is found by its spelling, so a string holding the
 // same `<<TERM` earlier in the statement is taken for it; emit offsets would
 // be the upgrade.
-func newlineAfterOpener(n *Node, text string) int {
-	opener := firstHeredocOpener(n)
-	if opener == "" {
-		return -1
+func newlineAfterOpener(n *Node, text string, from int) int {
+	at := -1
+	for _, opener := range heredocOpeners(n) {
+		if i := strings.Index(text[from:], opener); i >= 0 && (at < 0 || from+i < at) {
+			at = from + i
+		}
 	}
-	at := strings.Index(text, opener)
 	if at < 0 {
 		return -1
 	}
@@ -1279,27 +1383,41 @@ func newlineAfterOpener(n *Node, text string) int {
 	return at + nl
 }
 
-// firstHeredocOpener is the spelling of the first `<<TERM` under n.
-func firstHeredocOpener(n *Node) string {
-	if n.Kind == Term && strings.HasPrefix(n.Text, "<<") && len(n.Children) == 0 {
-		return n.Text
+// cutBefore is the offset in text before the significant tokens src holds
+// from from to to, less a last `;`, which canon writes after text: where
+// text ends in the same tokens, written the same. ok is false where it does
+// not.
+func cutBefore(text string, src []byte, from, to int) (int, bool) {
+	toks := significantTokens(src[from:to])
+	if len(toks) > 0 && toks[len(toks)-1] == ";" {
+		toks = toks[:len(toks)-1]
 	}
-	for _, c := range n.Children {
-		if c.HeredocBody {
-			continue
+	at := len(text)
+	for i := len(toks) - 1; i >= 0; i-- {
+		rest := strings.TrimRight(text[:at], " \n")
+		if !strings.HasSuffix(rest, toks[i]) {
+			return 0, false
 		}
-		if got := firstHeredocOpener(c); got != "" {
-			return got
-		}
+		at = len(rest) - len(toks[i])
 	}
-	return ""
+	return at, true
 }
 
-func heredocBodies(n *Node) []*Node {
-	out := append([]*Node{}, n.InnerHeredocBodies...)
+// endsInSemicolon reports whether code's last significant token is `;`.
+func endsInSemicolon(code []byte) bool {
+	toks := significantTokens(code)
+	return len(toks) > 0 && toks[len(toks)-1] == ";"
+}
+
+// heredocOpeners is the spelling of every `<<TERM` under n, in tree order.
+func heredocOpeners(n *Node) []string {
+	if n.Kind == Term && strings.HasPrefix(n.Text, "<<") && len(n.Children) == 0 {
+		return []string{n.Text}
+	}
+	var out []string
 	for _, c := range n.Children {
-		if c.HeredocBody {
-			out = append(out, c)
+		if !c.HeredocBody {
+			out = append(out, heredocOpeners(c)...)
 		}
 	}
 	return out
