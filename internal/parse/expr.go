@@ -198,6 +198,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			if next, ok := p.peekAfter(tok); ok && endsListAfterComma(next, p.src) {
 				p.advanceTo(tok)
 				markTrailing(left, text)
+				left.EndsList = true
 				return left
 			}
 		}
@@ -329,7 +330,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				// MEANING is unsettled, and this one's is settled by the arrow.
 				if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 					right.Kind = Call
-					right.Resolved = true
+					right.Resolved, right.ArgParen = true, true
 					p.advanceTo(open)
 					if arg := p.parseCallArgs(); arg != nil {
 						right.Children = append(right.Children, arg)

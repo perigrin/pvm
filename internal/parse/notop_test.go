@@ -115,14 +115,14 @@ func TestCanonNotStaysBareUnderListOp(t *testing.T) {
 	requireNotBareUnderListOp(t)
 }
 
-// requireNotBareUnderListOp checks `not` under `print`. The list op's own
-// argument parens are still canon's, so they are the only parens written:
-// the list-op issue writes the list op by precedence and drops them.
+// requireNotBareUnderListOp checks `not` under `print`. The list op is
+// written by precedence, bare as the source wrote it, so no paren is
+// written at all.
 func requireNotBareUnderListOp(t *testing.T) {
 	t.Helper()
 	for _, tc := range []struct{ src, want string }{
-		{`print not $x;`, `print(not $x);`},
-		{`print not $x, $y;`, `print(not $x, $y);`},
+		{`print not $x;`, `print not $x;`},
+		{`print not $x, $y;`, `print not $x, $y;`},
 	} {
 		n := Parse([]byte(tc.src))
 		requireCanon(t, n, tc.src, tc.want)

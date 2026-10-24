@@ -1,8 +1,8 @@
-# 345/619 faithful
+# 349/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 345 clean (55.7%), 274 total.
+# 619 files, 349 clean (56.4%), 270 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -161,7 +161,7 @@
 0 mro/inconsistent_c3_utf8.t
 0 mro/isa_aliases.t
 0 mro/isa_aliases_utf8.t
-1 mro/isa_c3.t
+0 mro/isa_c3.t
 0 mro/isa_c3_utf8.t
 0 mro/isa_dfs.t
 0 mro/isa_dfs_utf8.t
@@ -187,7 +187,7 @@
 1 mro/overload_c3_utf8.t
 1 mro/overload_dfs.t
 0 mro/package_aliases.t
-1 mro/package_aliases_utf8.t
+0 mro/package_aliases_utf8.t
 0 mro/pkg_gen.t
 0 mro/pkg_gen_utf8.t
 0 mro/recursion_c3.t
@@ -587,7 +587,7 @@
 0 test_pl/examples.t
 0 test_pl/plan_skip_all.t
 1 test_pl/tempfile.t
-1 uni/attrs.t
+0 uni/attrs.t
 1 uni/bless.t
 1 uni/caller.t
 0 uni/chomp.t
@@ -601,7 +601,7 @@
 0 uni/latin2.t
 1 uni/lex_utf8.t
 0 uni/lower.t
-1 uni/method.t
+0 uni/method.t
 0 uni/opcroak.t
 0 uni/overload.t
 1 uni/package.t

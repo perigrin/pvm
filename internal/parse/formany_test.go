@@ -32,12 +32,12 @@ func TestForLoopManyVariables(t *testing.T) {
 		canon string
 	}{
 		{"two", "for my ($k, $v) (@x) { 1 }", "for my ($k, $v) (@x) {1;}"},
-		{"one in parens", "for my ($a) (1, 2) { 1 }", "for my ($a) (1 , 2) {1;}"},
+		{"one in parens", "for my ($a) (1, 2) { 1 }", "for my ($a) (1, 2) {1;}"},
 		{"foreach spelling", "foreach my ($a, $b) (@x) { 1 }", "foreach my ($a, $b) (@x) {1;}"},
 		// perl accepts empty slots between the variables -- measured,
 		// `for my ($a,,, $b) (1,2)` prints 12 -- and op/for-many.t's
 		// "comma test" cases spell forty of them.
-		{"empty slots", "for my ($a,,, $b) (@x) { 1 }", "for my ($a , , , $b) (@x) {1;}"},
+		{"empty slots", "for my ($a,,, $b) (@x) { 1 }", "for my ($a, , , $b) (@x) {1;}"},
 		// A refalias iterator, under `use feature 'refaliasing'`.
 		{"refalias", `foreach my ($k, \@a) (@x) { 1 }`, `foreach my ($k, \@a) (@x) {1;}`},
 	}
@@ -80,7 +80,7 @@ func TestListEmptySlot(t *testing.T) {
 	if got := countUnknown(n); got != 0 {
 		t.Errorf("Parse(%q) has %d Unknown, want 0", src, got)
 	}
-	if got, want := strings.TrimSpace(parse.Canon(n, src)), "my @a = (1 , , , 2);"; got != want {
+	if got, want := strings.TrimSpace(parse.Canon(n, src)), "my @a = (1, , , 2);"; got != want {
 		t.Errorf("Canon(%q):\n  got  %s\n  want %s", src, got, want)
 	}
 

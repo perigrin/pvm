@@ -41,18 +41,18 @@ func TestHeredocBodyInsideItsStatement(t *testing.T) {
 	}{
 		{"argument after the body",
 			"f(<<EOF,\nbody\nEOF\n 1);\n",
-			"f(<<EOF , 1);\nbody\nEOF\n"},
+			"f(<<EOF, 1);\nbody\nEOF\n"},
 		{"indented, quoted",
 			"f(<<~'EOF',\n  body\n  EOF\n  \"n\");\n",
-			"f(<<~'EOF' , \"n\");\n  body\n  EOF\n"},
+			"f(<<~'EOF', \"n\");\n  body\n  EOF\n"},
 		{"opener on its own line, trailing comma",
 			"f(\n  <<~EOF,\n    body\n    EOF\n  2,\n);\n",
-			"f(<<~EOF , 2 ,);\n    body\n    EOF\n"},
+			"f(<<~EOF, 2,);\n    body\n    EOF\n"},
 		// A body inside a nested statement belongs to THAT statement, and the
 		// outer one must not claim it a second time.
 		{"nested in a block",
 			"f(sub { g(<<EOF,\nbody\nEOF\n 1) }, 2);\n",
-			"f(sub {g(<<EOF , 1);\nbody\nEOF\n} , 2);"},
+			"f(sub {g(<<EOF, 1);\nbody\nEOF\n}, 2);"},
 	}
 
 	for _, c := range cases {

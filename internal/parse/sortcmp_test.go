@@ -31,18 +31,18 @@ func TestSortComparator(t *testing.T) {
 		src   string
 		canon string
 	}{
-		{"sub name", "my @b = sort foo 3, 1, 2;", "my @b = sort(foo 3 , 1 , 2);"},
-		{"scalar", "my @b = sort $s 3, 1, 2;", "my @b = sort($s 3 , 1 , 2);"},
-		{"scalar then array", "my @b = sort $s @h;", "my @b = sort($s @h);"},
+		{"sub name", "my @b = sort foo 3, 1, 2;", "my @b = sort foo 3, 1, 2;"},
+		{"scalar", "my @b = sort $s 3, 1, 2;", "my @b = sort $s 3, 1, 2;"},
+		{"scalar then array", "my @b = sort $s @h;", "my @b = sort $s @h;"},
 		{"parenthesised", "my @b = sort(foo @h);", "my @b = sort(foo @h);"},
 		// A comma means the scalar is an ELEMENT: `sort $x, $y` sorts two.
-		{"scalar is an element", "my @b = sort $x, $y;", "my @b = sort($x , $y);"},
+		{"scalar is an element", "my @b = sort $x, $y;", "my @b = sort $x, $y;"},
 		// Keywords are not comparators. perl declines to force them, so
 		// `sort keys %h` sorts the keys.
 		// keys is a named unary, written bare; perl 5.44.0 Deparse,-p:
 		// (my(@b) = sort(keys(%h))).
-		{"keys", "my @b = sort keys %h;", "my @b = sort(keys %h);"},
-		{"map", "my @b = sort map { $_ } @a;", "my @b = sort(map({$_;}@a));"},
+		{"keys", "my @b = sort keys %h;", "my @b = sort keys %h;"},
+		{"map", "my @b = sort map { $_ } @a;", "my @b = sort map {$_;} @a;"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

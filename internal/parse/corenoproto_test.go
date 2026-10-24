@@ -227,8 +227,8 @@ func TestCoreUnaryAndListOperatorParseDiffer(t *testing.T) {
 	for src, canon := range map[string]string{
 		// Canon writes a named unary bare, as the source did; perl 5.44.0
 		// Deparse,-p: ((my($z) = defined($a)), $b).
-		`my $z = defined $a, $b;`: `my $z = defined $a , $b;`,
-		`my $z = print $a, $b;`:   `my $z = print($a , $b);`,
+		`my $z = defined $a, $b;`: `my $z = defined $a, $b;`,
+		`my $z = print $a, $b;`:   `my $z = print $a, $b;`,
 	} {
 		n := parse.Parse([]byte(src))
 		if got := strings.TrimSpace(parse.Canon(n, []byte(src))); got != canon {

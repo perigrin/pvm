@@ -30,9 +30,9 @@ func TestFeatureGatedFcArity(t *testing.T) {
 		// Deparse,-p reads each bare spelling as the comment above says, and
 		// `evalbytes $p` as evalbytes($p), `fc $a` under v5.36 as fc($a),
 		// and `ord CORE::fc $c` as ord(CORE::fc($c)).
-		{`use feature 'fc'; my $z = fc $a, $b;`, `use feature 'fc'; my $z = fc $a , $b;`},
+		{`use feature 'fc'; my $z = fc $a, $b;`, `use feature 'fc'; my $z = fc $a, $b;`},
 		{`use feature qw(unicode_strings evalbytes); evalbytes $p;`, `use feature qw(unicode_strings evalbytes); evalbytes $p;`},
-		{`use 5.016; my $z = evalbytes $a, $b;`, `use 5.016; my $z = evalbytes $a , $b;`},
+		{`use 5.016; my $z = evalbytes $a, $b;`, `use 5.016; my $z = evalbytes $a, $b;`},
 		{`use v5.36; my $z = fc $a;`, `use v5.36; my $z = fc $a;`},
 		{`my $m = ord CORE::fc $c;`, `my $m = ord CORE::fc $c;`},
 	}

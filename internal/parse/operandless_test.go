@@ -30,11 +30,11 @@ func TestOperandlessFiletest(t *testing.T) {
 	// the whole emission: canon writes a bare filetest bare, so a swallowed
 	// terminator shows as `-e ;;` or `-e ){`, not as a fixed substring.
 	for _, tc := range []struct{ src, want string }{
-		{"print -e;", "print(-e);"},
+		{"print -e;", "print -e;"},
 		{"my $x = -e;", "my $x = -e;"},
-		{"print -d;", "print(-d);"},
-		{"if (-e) { print 1 }", "if (-e) {print(1);} "},
-		{"my @r = grep { -d } @list;", "my @r = grep({-d;}@list);"},
+		{"print -d;", "print -d;"},
+		{"if (-e) { print 1 }", "if (-e) {print 1;} "},
+		{"my @r = grep { -d } @list;", "my @r = grep {-d;} @list;"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
@@ -72,10 +72,10 @@ func TestOperandlessFiletest(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		{"my $x = -e;", "my $x = -e;"},
 		{"my $x = -t;", "my $x = -t;"},
-		{"my @x = grep -e, @l;", "my @x = grep(-e , @l);"},
-		{"my @x = grep { -e } @l;", "my @x = grep({-e;}@l);"},
-		{"-e or die;", "-e or die();"},
-		{"print -e ? 1 : 0;", "print(-e ? 1 : 0);"},
+		{"my @x = grep -e, @l;", "my @x = grep -e, @l;"},
+		{"my @x = grep { -e } @l;", "my @x = grep {-e;} @l;"},
+		{"-e or die;", "-e or die;"},
+		{"print -e ? 1 : 0;", "print -e ? 1 : 0;"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
@@ -92,10 +92,10 @@ func TestOperandlessFiletest(t *testing.T) {
 	// perl 5.44.0 Deparse,-p: print((-e $f)), (my($x) = (-e $f)),
 	// (my($x) = -t(STDIN)), print((-d (-e $f))).
 	for _, tc := range []struct{ src, want string }{
-		{"print -e $f;", "print(-e $f);"},
+		{"print -e $f;", "print -e $f;"},
 		{"my $x = -e $f;", "my $x = -e $f;"},
 		{"my $x = -t STDIN;", "my $x = -t STDIN;"},
-		{"print -d -e $f;", "print(-d -e $f);"},
+		{"print -d -e $f;", "print -d -e $f;"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)

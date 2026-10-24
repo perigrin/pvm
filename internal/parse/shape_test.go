@@ -86,8 +86,10 @@ func TestShapeOfTrailingSemicolonIsListOp(t *testing.T) {
 		}
 	}
 
+	// Canon writes the call bare, as the source did, so the tree is asked:
+	// the comparison is f's argument.
 	src := []byte("sub f ($;) {} my $z = f $a < 5;")
-	if got := parse.Canon(parse.Parse(src), src); got != "sub f ($;) {} my $z = f($a < 5);" {
+	if got := shape(parse.Parse(src)); got != "( ( (sub f ($;) ))  ( (my $z (f (< $a 5)))))" {
 		t.Errorf("a ($;) sub takes the list: %s", got)
 	}
 }

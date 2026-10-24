@@ -1,0 +1,272 @@
+List operators, user, method and indirect calls, and niladic builtins
+written by precedence (issue 01a1692f-65de-750b-aac5-f2506623ec7f). Canon
+writes a call bare where the source wrote it bare, with call parens where
+the source wrote `NAME(` (ArgParen) or where the operator after it is
+tighter than a list operator. A niladic builtin or compile-time token is its
+bare name. A trailing comma right before an operator ends the list there,
+and that call stays bare. Each snippet's Deparse,-p is perl 5.44.0's.
+
+=== push before a looser or
+push @a, 1 or die;
+--- facts
+faithful
+# (push(@a, 1) or die);
+
+=== print before a looser and
+print $x, 1 and f();
+--- facts
+faithful
+# (print($x, 1) and f());
+
+=== a user call as the last argument of another
+sub foo; sub bar; foo 1, bar 2, 3;
+--- facts
+faithful
+# foo(1, bar(2, 3));
+# sub bar ;
+# sub foo ;
+
+=== indirect object call, bare
+package Foo; sub new {1} package main; new Foo "a";
+--- facts
+faithful
+# package Foo;
+# sub new {
+#     1;
+# }
+# package main;
+# 'Foo'->new('a');
+
+=== indirect object call with its parens
+package Foo; sub new {1} package main; new Foo("a");
+--- facts
+faithful
+# package Foo;
+# sub new {
+#     1;
+# }
+# package main;
+# 'Foo'->new('a');
+
+=== indirect object call on a core class
+find PerlIO::Layer 'perlio';
+--- facts
+faithful
+# 'PerlIO::Layer'->find('perlio');
+
+=== print with a block filehandle
+print {$fh} "x";
+--- facts
+faithful
+# print({$fh;} 'x');
+
+=== print with a scalar filehandle and a list
+print $fh @list;
+--- facts
+faithful
+# print($fh @list);
+
+=== sort with a comparator block
+my @s = sort { $a <=> $b } @a;
+--- facts
+faithful
+# (my(@s) = (sort {$a <=> $b} @a));
+
+=== sort with a named comparator
+my @s = sort foo @a;
+--- facts
+faithful
+# (my(@s) = (sort foo @a));
+
+=== sort over a named unary
+my %h; my @s = sort keys %h;
+--- facts
+faithful
+# my(%h);
+# (my(@s) = sort(keys(%h)));
+
+=== print with source parens before a comma
+print ($a), $b;
+--- facts
+faithful
+# (print($a), $b);
+
+=== print with source parens
+print("x");
+--- facts
+faithful
+# print('x');
+
+=== time, bare
+my $t = time;
+--- facts
+faithful
+# (my($t) = time);
+
+=== time with its own parens
+my $t = time();
+--- facts
+faithful
+# (my($t) = time);
+
+=== time before a tighter plus
+my $t = time + 1;
+--- facts
+faithful
+# (my($t) = (time + 1));
+
+=== fork, bare
+my $p = fork;
+--- facts
+faithful
+# (my($p) = fork);
+
+=== __FILE__ under print
+print __FILE__;
+--- facts
+faithful
+# print(__FILE__);
+
+=== __LINE__ before a concatenation
+my $l = __LINE__ . "x";
+--- facts
+faithful
+# (my($l) = '1x');
+
+=== __PACKAGE__ as print's first argument
+print __PACKAGE__, "x";
+--- facts
+faithful
+# print(__PACKAGE__, 'x');
+
+=== __PACKAGE__ as an invocant
+my $o = __PACKAGE__->can("x");
+--- facts
+faithful
+# (my($o) = __PACKAGE__->can('x'));
+
+=== wantarray in a return
+sub f { return wantarray ? @a : $a[0] }
+--- facts
+faithful
+# sub f {
+#     (return (wantarray ? @a : $a[0]));
+# }
+
+=== a user call before or
+sub foo; foo 1 or die;
+--- facts
+faithful
+# (foo(1) or die);
+# sub foo ;
+
+=== a user call before a comma in parens
+sub foo; my @x = (foo(1), 2);
+--- facts
+faithful
+# (my(@x) = (foo(1), 2));
+# sub foo ;
+
+=== a user call written bare as the right side of an assignment
+sub foo; my @x = foo 1, 2;
+--- facts
+faithful
+# (my(@x) = foo(1, 2));
+# sub foo ;
+
+=== time before a comma under print
+print time, "x";
+--- facts
+faithful
+# print(time, 'x');
+
+=== a call with its parens before a fat comma
+sub foo {7} my @a = (foo() => 1);
+--- facts
+faithful
+# sub foo {
+#     7;
+# }
+# (my(@a) = (foo(), 1));
+
+=== a word before a fat comma
+sub foo {7} my @a = (foo => 1);
+--- facts
+faithful
+# sub foo {
+#     7;
+# }
+# (my(@a) = ('foo', 1));
+
+=== a method call with its parens
+my $r = Foo->can("x")->(1);
+--- facts
+faithful
+# (my($r) = 'Foo'->can('x')->(1));
+
+=== open before or die
+open my $fh, "<", $f or die "no: $!";
+--- facts
+faithful
+# (open(my $fh, '<', $f) or die(("no: $!")));
+
+=== join as the last argument of push
+push @a, join ",", @b;
+--- facts
+faithful
+# push(@a, join(',', @b));
+
+=== printf with a list op argument
+printf "%s\n", join " ", map { "<$_>" } @a;
+--- facts
+faithful
+# printf("%s\n", join(' ', map({("<$_>");} @a)));
+
+=== a trailing comma before =
+substr $x, 0, 1, = "a";
+--- facts
+faithful
+# substr($x, 0, 1) = 'a';
+
+=== a trailing comma before .=
+substr $x, 0, 1, .= "a";
+--- facts
+faithful
+# (substr($x, 0, 1) .= 'a');
+
+=== a trailing comma before ||=
+substr $x, 0, 1, ||= "a";
+--- facts
+faithful
+# (substr($x, 0, 1) ||= 'a');
+
+=== a trailing comma before &&=
+substr $x, 0, 1, &&= "a";
+--- facts
+faithful
+# (substr($x, 0, 1) &&= 'a');
+
+=== a trailing comma before ==
+my $b = substr $x, 0, 1, == 1;
+--- facts
+faithful
+# (my($b) = (substr($x, 0, 1) == 1));
+
+=== a trailing comma before ||
+substr $x, 0, 1, || die;
+--- facts
+faithful
+# (substr($x, 0, 1) or die);
+
+=== a trailing comma before or
+close $fh, or die;
+--- facts
+faithful
+# (close($fh) or die);
+
+=== a trailing comma before a modifier
+sub skip; skip "x", 2, if $m;
+--- facts
+faithful
+# skip('x', 2) if $m;
+# sub skip ;

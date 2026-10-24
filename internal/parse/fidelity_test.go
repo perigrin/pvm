@@ -171,7 +171,8 @@ var faithfulTokensCases = []struct {
 }{
 	{"misgrouped tree", "print (1+2)*3;", "print((1 + 2) * 3);", false, false, []string{}},
 	{"correct parse", "print (1+2)*3;", "print(1 + 2) * 3;", true, true, []string{}},
-	{"parenless call", `print "x";`, `print("x");`, true, true, []string{"call-parens"}},
+	{"parenless call", `print "x";`, `print("x");`, false, true, []string{"call-parens"}},
+	{"parenless call as canon writes it", `print "x";`, `print "x";`, true, true, []string{}},
 	{"call with parens", `print("x");`, `print("x");`, true, true, []string{}},
 	{"parenless ok", `ok $x, 'n';`, `ok $x, 'n';`, true, true, []string{}},
 	{"grouping kept", `(1 + 2) * 3;`, `(1 + 2) * 3;`, true, true, []string{}},
@@ -179,10 +180,14 @@ var faithfulTokensCases = []struct {
 	{"grouping added", `1 - 2 - 3;`, `1 - (2 - 3);`, false, false, []string{}},
 	{"block without last semicolon", `sub f { 1 }`, `sub f {1;} `, true, true, []string{"last-semicolon"}},
 	{"block with last semicolon", `sub f { 1; }`, `sub f {1;} `, true, true, []string{}},
-	{"block argument", `print {$fh} "x";`, `print({$fh;} "x");`, true, true, []string{"call-parens", "last-semicolon"}},
+	{"block argument", `print {$fh} "x";`, `print({$fh;} "x");`, false, true, []string{"call-parens", "last-semicolon"}},
+	{"block argument as canon writes it", `print {$fh} "x";`, `print {$fh;} "x";`, true, true, []string{"last-semicolon"}},
 	{"nested call parens", "package Foo; sub create { } package main; print create Foo sub { 1 };",
-		"package Foo;sub create {} package main;print(create Foo(sub {1;}));", true, true,
+		"package Foo;sub create {} package main;print(create Foo(sub {1;}));", false, true,
 		[]string{"call-parens", "call-parens", "last-semicolon"}},
+	{"nested calls as canon writes them", "package Foo; sub create { } package main; print create Foo sub { 1 };",
+		"package Foo;sub create {} package main;print create Foo sub {1;};", true, true,
+		[]string{"last-semicolon"}},
 }
 
 // TestFaithfulTokens: the token-sequence comparator gives Faithful's

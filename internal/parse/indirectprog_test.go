@@ -24,10 +24,10 @@ func TestIndirectProgramSlot(t *testing.T) {
 		src   string
 		canon string
 	}{
-		{`my $rc = system { "ls" } "ls", "-l";`, `my $rc = system({"ls";} "ls" , "-l");`},
-		{`exec { $p } @args;`, `exec({$p;} @args);`},
-		{`system $shell "-sh";`, `system($shell "-sh");`},
-		{`system "ls", "-l";`, `system("ls" , "-l");`},
+		{`my $rc = system { "ls" } "ls", "-l";`, `my $rc = system {"ls";} "ls", "-l";`},
+		{`exec { $p } @args;`, `exec {$p;} @args;`},
+		{`system $shell "-sh";`, `system $shell "-sh";`},
+		{`system "ls", "-l";`, `system "ls", "-l";`},
 	}
 	for _, c := range cases {
 		src := []byte(c.src)

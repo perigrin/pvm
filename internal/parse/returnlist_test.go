@@ -54,23 +54,23 @@ func TestReturnList(t *testing.T) {
 		// PARENTHESISED one is a List and emits `, ` from
 		// emitCommaSeparated. Two spellings because they are two node kinds,
 		// and canon writes what the tree holds.
-		{"return 1, 2;", "return 1 , 2;"},
+		{"return 1, 2;", "return 1, 2;"},
 		{"sub f { return ($a, $b); }", "sub f {return ($a, $b);}"},
 
 		// The same loss with the `return` inside a sub body, which is where
 		// the corpus meets it.
-		{"sub f { return 1, 2; }", "sub f {return 1 , 2;}"},
+		{"sub f { return 1, 2; }", "sub f {return 1, 2;}"},
 
 		// A ternary operand: no comma, same deletion. `return ?:;` was the
 		// canon at 34737c46. `wantarray` emits parenthesised because canon
 		// writes every Call's argument boundary explicitly -- see its Call
 		// case -- and that is not this issue's to change.
-		{"return wantarray ? @r : $r[0];", "return wantarray() ? @r : $r[0];"},
+		{"return wantarray ? @r : $r[0];", "return wantarray ? @r : $r[0];"},
 
 		// An operand that is a call with its own arguments -- the Call's Text
 		// is the callee name, so this one canon'd as `return f;` and looked
 		// almost right, which is worse.
-		{"return f($x, $y);", "return f($x , $y);"},
+		{"return f($x, $y);", "return f($x, $y);"},
 
 		// A binary that is not a comma. `return $a + $b;` canon'd as
 		// `return +;`.
@@ -146,7 +146,7 @@ func TestLoopControlStatementModifier(t *testing.T) {
 		// A LIST return with a modifier: 01a0e013's canon and 01a0dee8's
 		// modifier in one statement, which is why the two fixes ship
 		// together.
-		{"return 1, 2 if $x;", "return 1 , 2 if $x;"},
+		{"return 1, 2 if $x;", "return 1, 2 if $x;"},
 	} {
 		src := []byte(tc.src)
 		got := strings.TrimSpace(parse.Canon(parse.Parse(src), src))

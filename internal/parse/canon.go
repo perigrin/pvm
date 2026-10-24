@@ -75,17 +75,19 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	b.follow = 0
 	// A parenthesised element with a trailing separator keeps its parens
 	// whatever its binding power, so the separator stays inside them:
-	// `(A,)/0` is written `(A() ,) / 0`, not `A() , / 0`.
+	// `(A,)/0` is written `(A,) / 0`, not `A, / 0`.
 	if emitWraps(n, outer) {
 		f = 0 // the `)` follows
 		b.WriteByte('(')
 		defer b.WriteByte(')')
 	}
 	// A trailing separator the source wrote goes after the node, inside any
-	// parens added above: `f 1, || 2` is written `f(1 ,) || 2`. See
-	// Node.TrailingComma.
+	// parens added above, `(A,) / 0`. See Node.TrailingComma. No blank goes
+	// before it, as before any comma (the Binary case): measured on perl
+	// 5.44.0, `print time , or die` dies with "No comma allowed after
+	// filehandle".
 	if n.TrailingComma != "" {
-		defer b.WriteString(" " + n.TrailingComma)
+		defer b.WriteString(n.TrailingComma)
 	}
 
 	switch n.Kind {
@@ -203,36 +205,41 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			break
 		}
 		// Indirect object notation keeps its spelling, method then class,
-		// and gains the argument parens every call gets: `new Foo "a"` is
-		// written `new Foo("a")`. That re-parses to the same call -- the
-		// class is a package this file declares or loads, which is what
-		// made parseIndirect read it -- and it differs from the source only
-		// in the parens Faithful already forgives. The arrow form perl's
-		// Deparse writes would reorder the tokens, and fidelity would count
-		// every correct indirect call as a misparse.
+		// and its arguments are written as any call's are, below: `new Foo
+		// "a"` stays bare and `new Foo("a")` keeps its parens. That re-parses
+		// to the same call -- the class is a package this file declares or
+		// loads, which is what made parseIndirect read it, and toke.c's
+		// METHCALL reads a `(` after the class as the argument list, as
+		// after any call's name. The arrow form perl's Deparse writes would
+		// reorder the tokens, and fidelity would count every correct
+		// indirect call as a misparse.
 		if n.Indirect && len(n.Children) > 0 {
 			b.WriteString(n.Text)
 			b.WriteByte(' ')
 			b.WriteString(n.Children[0].Text)
-			emit(b, &Node{Kind: Call, Resolved: true, Children: n.Children[1:]}, src, 0)
+			emitCallArgs(b, n, n.Children[1:], src, f)
 			return
 		}
-		// Always parenthesised, and that is the whole case chapter 7 names.
-		// `print (1+2)*3` is `print(1+2) * 3`, and a tree that read it as
+		// The ARGUMENT BOUNDARY is the whole case chapter 7 names. `print
+		// (1+2)*3` is `print(1+2) * 3`, and a tree that read it as
 		// `print((1+2)*3)` has the same leaves in the same order -- so the
-		// ARGUMENT BOUNDARY is the only thing that tells the two apart, and
-		// writing it explicitly is what makes the difference visible.
+		// boundary is the only thing that tells the two apart. Canon writes
+		// the call parens the source wrote (ArgParen) and otherwise where
+		// precedence needs them (emitCallArgs), so a tree with the wrong
+		// boundary writes a paren the source lacks.
 		//
 		// A call's arguments are one child: the comma is a Binary operator,
 		// not a separator this case supplies. Writing ", " here as well
-		// would emit `f($x , 1)`.
+		// would write the comma twice.
 		// A fat comma autoquotes the word to its left, so this is a STRING
 		// and writing `a()` would call it. The parser records the autoquote
 		// on the element rather than rewriting the node, because hover and
 		// go-to-definition still want to know a word was written there.
 		// Parenthesised, it is written as its source, `(A=>)`: the word
-		// alone re-reads as a call.
-		if n.Fat && len(n.Children) == 0 {
+		// alone re-reads as a call. A word written with its call's parens,
+		// `foo() => 1`, is a call and keeps them (emitCallArgs): measured on
+		// perl 5.44.0, `(foo() => 1)` is `(foo(), 1)`.
+		if n.Fat && len(n.Children) == 0 && !n.ArgParen {
 			if n.Paren {
 				b.WriteString(n.SourceText(src))
 				return
@@ -314,22 +321,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			return
 		}
 
-		b.WriteByte('(')
-		for i, c := range n.Children {
-			// A filehandle slot takes no comma after it -- `print $fh "x"`
-			// is the handle and then the list, and `print $fh, "x"` prints
-			// the handle AS an argument. Only a space separates them, and
-			// omitting it emits `print($fh"x")`, which is stable under the
-			// fixpoint and still wrong.
-			//
-			// A sort comparator is the same shape: `sort foo @a` orders by foo,
-			// and `sort foo, @a` sorts foo's result with the rest.
-			if i > 0 && (n.Children[i-1].Handle || n.Children[i-1].Comparator) {
-				b.WriteByte(' ')
-			}
-			emit(b, c, src, 0)
-		}
-		b.WriteByte(')')
+		emitCallArgs(b, n, n.Children, src, f)
 
 	case Unary:
 		// Text is the OPERATION, not the source token: `-$x` is "neg" and
@@ -761,15 +753,21 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			l, r = info.BP+1, info.BP+1
 		}
 		// A fat comma autoquotes the word to its left, so `a => 1` is the
-		// string "a" and writing `a()` calls it (§4.5.4). The flag form is
-		// handled in emitCommaSeparated; inside a call's arguments the `=>`
-		// is a Binary and the autoquote is a property of THIS operator.
-		if n.Text == "=>" && n.Children[0].Kind == Call && len(n.Children[0].Children) == 0 {
-			b.WriteString(n.Children[0].Text)
+		// string "a" and writing `a()` calls it (§4.5.4). A call with no
+		// arguments is written as its bare name unless the source wrote its
+		// parens (emitCallArgs), so the word stays a word.
+		if n.Text == "=>" {
+			emitBeforeFat(b, n.Children[0], src, l, info.BP)
 		} else {
 			emitBefore(b, n.Children[0], src, l, info.BP)
 		}
-		b.WriteByte(' ')
+		// No space before a comma: perl's checkcomma (toke.c) counts the
+		// blanks after a word into the word, so measured on perl 5.44.0,
+		// `print time, "x"` prints the time and `print time , "x"` dies
+		// with "No comma allowed after filehandle".
+		if n.Text != "," {
+			b.WriteByte(' ')
+		}
 		b.WriteString(n.Text)
 		b.WriteByte(' ')
 		// The parens of `->(` are the call's argument list, not grouping,
@@ -848,6 +846,79 @@ func emitNot(b *canonBuf, n *Node, src []byte, f int) {
 	b.writeFrom(&arg, 0, len(text))
 }
 
+// emitCallArgs writes args, call n's arguments after its name, followed by
+// an operator of power f.
+//
+// A list operator's call parens are not in perl's tree -- measured on perl
+// 5.44.0, `push @a, 1 or die` is `(push(@a, 1) or die)` -- so they are
+// written where the source wrote them (ArgParen), and otherwise only where
+// the operator after the call is tighter than a list operator and would
+// bind into its last argument: a bare call before `+` is `f(1) + 2`. The
+// arguments are read just above a list operator, so a looser one is
+// wrapped and a tree with push over `or` writes `push (@a, 1 or die)`, a
+// paren the source lacks. A call with no arguments is its bare name: a
+// niladic builtin (`time`), a compile-time token (`__FILE__`), or a call
+// that met the end of its list.
+//
+// A trailing comma the source wrote after the last argument, right before
+// an operator, ends the list there, so that call stays bare whatever
+// follows (Node.EndsList): measured on perl 5.44.0, `substr $x, 0, 1, =
+// "a"` is `substr($x, 0, 1) = 'a'`. perl ends a list so before `=`, `.=`,
+// `||=`, `&&=`, `==` and `||`; before `-=`, `*=`, `%=`, `/=`, `&=`, `**=`,
+// `x=`, `//=` and `<<=` it reads a term instead, and the parser builds no
+// such call (endsListAfterComma). A trailing comma before a closer ends
+// nothing: canon may not write that closer, and a comma after the trailing
+// one does not end the list -- `(foo 1, 2,), 3` written `foo 1, 2,, 3` is
+// `foo(1, 2, 3)` -- so that call is written by precedence like any other.
+//
+// perl reads `NAME (` as the call's parens, so a bare list whose emission
+// begins with a `(` that closes before the list ends would re-read as the
+// whole argument list: `print ($a), $b` is `print($a), $b`. That list takes
+// the call parens, and a tree with print over `($a), $b` writes
+// `print(($a), $b)`.
+func emitCallArgs(b *canonBuf, n *Node, args []*Node, src []byte, f int) {
+	if len(args) == 0 {
+		if n.ArgParen {
+			b.WriteString("()")
+		}
+		return
+	}
+	if !n.ArgParen && (f <= bpListOp || args[len(args)-1].EndsList) {
+		var list canonBuf
+		for i, c := range args {
+			if i > 0 {
+				list.WriteByte(' ')
+			}
+			next := 0
+			if i == len(args)-1 {
+				next = f
+			}
+			emitBefore(&list, c, src, bpListOp+1, next)
+		}
+		if text := list.String(); leadingParenCloses(text) {
+			b.WriteByte(' ')
+			b.writeFrom(&list, 0, len(text))
+			return
+		}
+	}
+	b.WriteByte('(')
+	for i, c := range args {
+		// A filehandle slot takes no comma after it -- `print $fh "x"`
+		// is the handle and then the list, and `print $fh, "x"` prints
+		// the handle AS an argument. Only a space separates them, and
+		// omitting it emits `print($fh"x")`, which is stable under the
+		// fixpoint and still wrong.
+		//
+		// A sort comparator is the same shape: `sort foo @a` orders by foo,
+		// and `sort foo, @a` sorts foo's result with the rest.
+		if i > 0 && (args[i-1].Handle || args[i-1].Comparator) {
+			b.WriteByte(' ')
+		}
+		emit(b, c, src, 0)
+	}
+	b.WriteByte(')')
+}
+
 // emitWraps reports whether emit parenthesises n when read at outer.
 func emitWraps(n *Node, outer int) bool {
 	return bindingPower(n) < outer || n.Paren && n.TrailingComma != ""
@@ -902,7 +973,33 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 		if i < len(n.Children)-1 {
 			next = infix[","].BP
 		}
-		emitBefore(b, c, src, 0, next)
+		if c.Fat {
+			emitBeforeFat(b, c, src, 0, next)
+		} else {
+			emitBefore(b, c, src, 0, next)
+		}
+	}
+}
+
+// emitBeforeFat emits n, the left side of a `=>`, as emitBefore does. A call
+// with no arguments at its right edge is written bare, and the `=>` would
+// quote it; the source quoted it only when nothing came between the two
+// (markFatOperand, which sets Fat). One the source did not quote stood
+// before a paren canon has not written -- `((my $x = foo)=>0)` calls foo,
+// measured on 5.42.0 -- so it is written with call parens to stay a call.
+func emitBeforeFat(b *canonBuf, n *Node, src []byte, outer, f int) {
+	var left canonBuf
+	emitBefore(&left, n, src, outer, f)
+	text := left.String()
+	b.writeFrom(&left, 0, len(text))
+	c := n
+	for len(c.Children) > 0 && (c.Kind == Unary || c.Kind == Binary || c.Kind == CmpChain ||
+		c.Kind == Ternary || c.Kind == Declaration) {
+		c = c.Children[len(c.Children)-1]
+	}
+	if c != n && c.Kind == Call && len(c.Children) == 0 && !c.Fat && !c.ArgParen &&
+		strings.HasSuffix(text, c.Text) {
+		b.WriteString("()")
 	}
 }
 
