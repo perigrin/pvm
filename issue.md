@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T02:36:35.542533867Z
-updated: 2026-10-24T02:36:35.542533867Z
+updated: 2026-10-24T14:40:49.713725037Z
 ---
 
 Found by the independent review of NL-b (01a1692f-65de, exec/nlb 3630cbed) on 2026-10-24. The defect predates NL-b.
@@ -20,4 +20,4 @@ Found by the independent review of NL-b (01a1692f-65de, exec/nlb 3630cbed) on 20
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (probe rows for `substr $x, 0, 1, /= "d"` and `(foo 1, 2, /= 3)`, held to perl's verdict)
+- [ ] Probe rows for `substr $x, 0, 1, /= "d"` and `(foo 1, 2, /= 3)`, held to perl's verdict (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
