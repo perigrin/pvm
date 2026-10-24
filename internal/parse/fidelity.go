@@ -66,10 +66,10 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 // ParenNode marks a `(` or `)` canon wrote for a node's Paren flag: the one
 // pair emit writes for every parenthesised node, `(A,)/0` and `(not $x)`
 // among them. Every other paren is unmarked -- a call's argument list, a
-// grouping binding power demands, and the two pairs a Paren flag stands for
-// where perl keeps no OPf_PARENS bit, because they are a call's: the `->(`
-// argument pair, `$f->($a+1)`, and the `not (` operand's, `not ($a == 1)`
-// (canonBuf.argParens).
+// grouping binding power demands, and the three pairs a Paren flag stands
+// for where perl keeps no OPf_PARENS bit, because the syntax requires them:
+// the `->(` argument pair, `$f->($a+1)`, the `not (` operand's, `not ($a ==
+// 1)`, and a list slice's, `(1,2,3)[1]` (canonBuf.argParens).
 type CanonToken struct {
 	Text      string
 	ParenNode bool
@@ -111,26 +111,31 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 			w++
 			continue
 		}
-		if want[w] == got[g] {
-			w++
-			g++
-			continue
-		}
 		// A source pair nested directly inside the pair canon wrote for a
 		// node's Paren flag: the source's `(` follows the `(` matched to
 		// canon's marked one, and closes right before it. Measured on perl
 		// 5.44.0, `ok((($y eq "x")))` and `ok(($y eq "x"))` are the same
 		// `seq sKPM`. A call's pair is unmarked, so `print((1))+2` is not
 		// forgiven against `print(1)+2`: `const sP` against `const s`.
-		if want[w] == "(" && w > 0 && want[w-1] == "(" && g > 0 && got[g-1] == "(" && canon[g-1].ParenNode {
-			inner, okInner := matchParen(want, w)
-			outer, okOuter := matchParen(want, w-1)
-			if okInner && okOuter && inner+1 == outer {
-				forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleExtraNesting})
-				closes[inner] = true
-				w++
-				continue
-			}
+		//
+		// Asked before the tokens are compared, so a `(` canon writes next
+		// for an operand is not taken for it: `((($a+$b)*2))` against
+		// `(($a + $b) * 2)`. Not where canon nests its own pair the same
+		// way, which is then the source's pair. canon[g-1] is the `(` matched
+		// to want[w-1], or to the pair want[w-1] was itself forgiven inside:
+		// nestedPair says want[w-1] is a `(`.
+		if g > 0 && canon[g-1].ParenNode && nestedPair(want, w) &&
+			!(got[g] == "(" && nestedPair(got, g)) {
+			inner, _ := matchParen(want, w)
+			forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleExtraNesting})
+			closes[inner] = true
+			w++
+			continue
+		}
+		if want[w] == got[g] {
+			w++
+			g++
+			continue
 		}
 		// A block's LAST statement may omit its semicolon in the source, and
 		// canon always writes one. Measured to be no difference at all:
@@ -180,6 +185,19 @@ func significant(src []byte) []lexer.Token {
 		}
 	}
 	return out
+}
+
+// nestedPair reports whether toks[i] opens a pair nested directly inside
+// the pair opened at i-1: it closes right before that pair does. That
+// toks[i-1] is a `(` follows: from any other token, matchParen finds no `)`
+// right after the one closing toks[i].
+func nestedPair(toks []string, i int) bool {
+	if i == 0 || toks[i] != "(" {
+		return false
+	}
+	inner, okInner := matchParen(toks, i)
+	outer, okOuter := matchParen(toks, i-1)
+	return okInner && okOuter && inner+1 == outer
 }
 
 // matchParen returns the index of the `)` closing the `(` at open.

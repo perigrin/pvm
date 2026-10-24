@@ -38,13 +38,14 @@ type canonBuf struct {
 	// reads and clears it, so a parent sets it (emitBefore) only for the
 	// child it is about to write; every other child reads 0.
 	follow int
-	// argParens says the node emitted next is an argument list whose
-	// Paren flag stands for a call's parens, not a grouping: `$f->(...)`
-	// and `not (...)`. Measured on perl 5.44.0, `$f->($x)` is `ex-rv2sv
-	// sKM` and `$f->(($x))` is `ex-rv2sv sKPM`, and `not ($a == 1)` is `eq
-	// sK` and `not (($a == 1))` is `eq sKP`: perl keeps no OPf_PARENS bit
-	// for that pair, so it is written unmarked. emit reads and clears it,
-	// as it does follow.
+	// argParens says the node emitted next is one whose Paren flag stands
+	// for a pair the syntax requires, not a grouping: `$f->(...)`, `not
+	// (...)` and a list slice's `(...)[...]`. Measured on perl 5.44.0,
+	// `$f->($x)` is `ex-rv2sv sKM` and `$f->(($x))` is `ex-rv2sv sKPM`,
+	// `not ($a == 1)` is `eq sK` and `not (($a == 1))` is `eq sKP`, and
+	// `(1,2,3)[1]` is `ex-list lK` and `((1,2,3))[1]` is `ex-list lKP`:
+	// perl keeps no OPf_PARENS bit for that pair, so it is written
+	// unmarked. emit reads and clears it, as it does follow.
 	argParens bool
 }
 
@@ -476,6 +477,10 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		if len(n.Children) != 2 {
 			b.WriteString(ownText(n, src))
 			return
+		}
+		// A list slice's pair is the slice's (argParens).
+		if c := n.Children[0]; isListSlice(n) {
+			b.argParens = c.Paren
 		}
 		emitBefore(b, n.Children[0], src, atomBP, atomBP)
 		if n.Arrow {
@@ -920,18 +925,36 @@ func emitCallArgs(b *canonBuf, n *Node, args []*Node, src []byte, f int) {
 // parens, `(A,)`, rather than after them, `(A),`. A List's own is always
 // after them: one inside belongs to its last element.
 func commaInParens(n *Node, src []byte) bool {
-	return n.Kind != List && sepInParens(n, src) != ""
+	sep, _ := sepInParens(n, src)
+	return n.Kind != List && !foldsSep(n) && sep != ""
+}
+
+// foldsSep reports whether n is a leaf finishList folds a separator inside
+// its parens into, `(0,)`, clearing its TrailingComma: any TrailingComma
+// it carries was written after its parens, `(0),`.
+func foldsSep(n *Node) bool {
+	return len(n.Children) == 0 && (n.Kind == Term || n.Kind == Call && n.Fat)
+}
+
+// isListSlice reports whether n, an Index, is a list slice: `(LIST)[...]`.
+func isListSlice(n *Node) bool {
+	return n.Kind == Index && !n.Arrow && n.Text == "[" && len(n.Children) == 2 && n.Children[0].Paren
 }
 
 // sepInParens is the separator, `,` or `=>`, the source wrote between a
-// parenthesised node's inner span and its closing paren, or "".
-func sepInParens(n *Node, src []byte) string {
+// parenthesised node's inner span and its closing paren, or "", and
+// whether an inner pair closed before it, `((1),)`.
+func sepInParens(n *Node, src []byte) (string, bool) {
+	afterPair := false
 	for _, tok := range significant(src[n.InnerEnd:n.End]) {
-		if sep := string(src[n.InnerEnd+tok.Start : n.InnerEnd+tok.End]); sep == "," || sep == "=>" {
-			return sep
+		switch text := string(src[n.InnerEnd+tok.Start : n.InnerEnd+tok.End]); text {
+		case ",", "=>":
+			return text, afterPair
+		case ")":
+			afterPair = true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // ownText is the source text of n, a node canon writes as its source;
@@ -940,12 +963,19 @@ func sepInParens(n *Node, src []byte) string {
 // inside them, which finishList folds into a leaf -- `(($x))` is `$x`,
 // `(0,)` is `0,` and `(A=>)` is `A=>`. Read off the spans, not by matching
 // the text's parens: a signature's `($)` lexes as `(` and the variable
-// `$)`.
+// `$)`. A separator the source wrote after an inner pair, `((1),)`, stays
+// after it: the text inside the outermost pair, `(1),`. Measured on perl
+// 5.44.0, `((1),)` and `(1,)` build the same ops, so the inner pair is
+// spelling, written as the source wrote it.
 func ownText(n *Node, src []byte) string {
 	if !n.Paren {
 		return n.SourceText(src)
 	}
-	return string(src[n.InnerStart:n.InnerEnd]) + sepInParens(n, src)
+	sep, afterPair := sepInParens(n, src)
+	if afterPair {
+		return string(src[n.Start+1 : n.End-1])
+	}
+	return string(src[n.InnerStart:n.InnerEnd]) + sep
 }
 
 // leadingParenCloses reports whether text, an emitted operand, either does

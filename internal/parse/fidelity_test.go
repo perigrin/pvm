@@ -335,6 +335,19 @@ var parenMeasurements = []struct {
 	// and neither is the string repeat.
 	{`our $y; (($y)) x 3;`, `our $y; ($y) x 3;`, true},
 	{`our $y; (($y)) x 3;`, `our $y; $y x 3;`, false},
+	// TestFaithfulDoesNotTreatSliceParensAsNesting: a list slice's pair is
+	// the slice's, and the pair inside it sets the bit: ex-list lKP against
+	// lK, stat lKP against lK, padav lP against l.
+	{`my $x = ((1,2,3))[1];`, `my $x = (1,2,3)[1];`, false},
+	{`my $x = ((stat "/"))[2];`, `my $x = (stat "/")[2];`, false},
+	{`my @a; my @x = ((@a))[0,1];`, `my @a; my @x = (@a)[0,1];`, false},
+	{`my $x = ((caller))[2];`, `my $x = (caller)[2];`, false},
+	{`my @a; my ($p,$q) = ((@a))[0,1];`, `my @a; my ($p,$q) = (@a)[0,1];`, false},
+	// TestCanonKeepsTrailingCommaInItsPair: the comma's place moves no op.
+	{`my @r = ((1),);`, `my @r = (1,);`, true},
+	{`sub f {} f((0,),);`, `sub f {} f((0,));`, true},
+	// TestFaithfulForgivesNestingAroundAGroupedOperand.
+	{`my ($a,$b); my $x = ((($a+$b)*2));`, `my ($a,$b); my $x = (($a+$b)*2);`, true},
 }
 
 // canonTokensOf is canon's tokens of the parse of text, which must be
@@ -609,8 +622,8 @@ func TestCanonMarksEveryParenNodePair(t *testing.T) {
 }
 
 // parenNodes counts the parenthesised nodes canon emits under n, but for
-// one whose pair is a call's: the argument of `->(` and the operand of
-// `not (`, which argParens says n is. It does not look inside a node canon
+// one whose pair the syntax requires: the argument of `->(`, the operand of
+// `not (` and a list slice's list, which argParens says n is. It does not look inside a node canon
 // writes as its source text rather than emitting its children: an
 // Unknown, or an Index, Binary or Ternary short of its children --
 // `}=>->join->()()` reads the trailing `()` as an Index holding only the
@@ -629,7 +642,8 @@ func parenNodes(n *parse.Node, src []byte, argParens bool) int {
 	}
 	for i, c := range n.Children {
 		call := n.Kind == parse.Binary && n.Text == "->" && i == 1 && c.Paren && src[c.Start] == '(' ||
-			n.Kind == parse.Unary && n.Text == "not" && len(n.Children) == 1 && c.Paren
+			n.Kind == parse.Unary && n.Text == "not" && len(n.Children) == 1 && c.Paren ||
+			n.Kind == parse.Index && !n.Arrow && n.Text == "[" && i == 0 && c.Paren
 		count += parenNodes(c, src, call)
 	}
 	return count
@@ -735,4 +749,80 @@ func TestFaithfulDistinguishesMyListFromMyComma(t *testing.T) {
 	}
 	rejects(t, list, comma)
 	rejects(t, comma, list)
+}
+
+// TestFaithfulDoesNotTreatSliceParensAsNesting: a list slice's pair is
+// syntax, as a call's is, so a pair inside it is not extra nesting and
+// canon writes the slice's pair unmarked. Measured on perl 5.44.0
+// (parenMeasurements), `((1,2,3))[1]` is `ex-list lKP` and `(1,2,3)[1]` is
+// `ex-list lK`; `((@a))[0,1]` is `padav lP` and `(@a)[0,1]` is `padav l`.
+// psc's tree holds one Paren for both pairs, so canon writes one, and the
+// doubled source is unfaithful (01a16602-5f1a).
+func TestFaithfulDoesNotTreatSliceParensAsNesting(t *testing.T) {
+	for _, src := range []string{
+		`my $x = ((1,2,3))[1];`,
+		`my $x = (((1,2,3)))[1];`,
+		`my $x = ((stat "/"))[2];`,
+		`my @a; my @x = ((@a))[0,1];`,
+		`my $x = ((caller))[2];`,
+		`my @a; my ($p,$q) = ((@a))[0,1];`,
+	} {
+		if ok, _ := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); ok {
+			t.Errorf("Faithful(%q) = true, want false", src)
+		}
+	}
+	for _, tc := range []struct{ src, want string }{
+		{`my $x = (1,2,3)[1];`, `my $x = ( 1 , 2 , 3 ) [ 1 ] ;`},
+		{`my @a; my @x = (@a)[0];`, `my @a ; my @x = ( @a ) [ 0 ] ;`},
+	} {
+		if got := markedCanon(tc.src); got != tc.want {
+			t.Errorf("canon tokens of %q are %q, want %q", tc.src, got, tc.want)
+		}
+		if ok, why := parse.Faithful(parse.Parse([]byte(tc.src)), []byte(tc.src)); !ok {
+			t.Errorf("Faithful(%q) = false (%s), want true", tc.src, why)
+		}
+	}
+}
+
+// TestCanonKeepsTrailingCommaInItsPair: a trailing comma is written inside
+// the pair the source wrote it in. Measured on perl 5.44.0
+// (parenMeasurements), `((1),)` and `(1,)` build the same ops, as do
+// `f((0,),)` and `f((0,))`; each re-emits as written.
+func TestCanonKeepsTrailingCommaInItsPair(t *testing.T) {
+	for _, src := range []string{`my @r = ((1),);`, `sub f {} f((0,),);`, `sub f {} f((0),);`, `my @r = (1,);`} {
+		if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
+			t.Errorf("Faithful(%q) = false (%s), want true", src, why)
+		}
+	}
+}
+
+// TestFaithfulForgivesNestingAroundAGroupedOperand: an extra pair whose
+// first token is itself a grouped operand's `(` is still extra nesting.
+// Measured on perl 5.44.0 (parenMeasurements), `((($a+$b)*2))` and
+// `(($a+$b)*2)` build the same ops. Paired greedily, the source's second
+// `(` would be matched to canon's operand pair and the nesting missed.
+func TestFaithfulForgivesNestingAroundAGroupedOperand(t *testing.T) {
+	src := `my ($a,$b); my $x = ((($a+$b)*2));`
+	if ok, why := parse.Faithful(parse.Parse([]byte(src)), []byte(src)); !ok {
+		t.Errorf("Faithful(%q) = false (%s), want true", src, why)
+	}
+	// Not when canon nests the same way: the source's pair is canon's.
+	if ok, forgiven, _ := parse.FaithfulTokens(sigTokens(`((1));`),
+		[]parse.CanonToken{{Text: "(", ParenNode: true}, {Text: "(", ParenNode: true}, {Text: "1"},
+			{Text: ")", ParenNode: true}, {Text: ")", ParenNode: true}, {Text: ";"}}); !ok || len(forgiven) != 0 {
+		t.Errorf("((1)) against a doubly marked canon gave %v forgiven by %v, want true with nothing forgiven",
+			ok, ruleNames(forgiven))
+	}
+}
+
+// TestFaithfulNestingNeedsAnOpeningParen: only a `(` opens a nested pair.
+// A word right inside a marked pair, whose own call pair closes right
+// before it, is matched as itself.
+func TestFaithfulNestingNeedsAnOpeningParen(t *testing.T) {
+	canon := []parse.CanonToken{{Text: "(", ParenNode: true}, {Text: "f"}, {Text: "("}, {Text: "1"},
+		{Text: ")"}, {Text: ")", ParenNode: true}, {Text: ";"}}
+	if ok, forgiven, why := parse.FaithfulTokens(sigTokens(`(f(1));`), canon); !ok || len(forgiven) != 0 {
+		t.Errorf("(f(1)) against its own canon gave %v forgiven by %v (%s), want true with nothing forgiven",
+			ok, ruleNames(forgiven), why)
+	}
 }
