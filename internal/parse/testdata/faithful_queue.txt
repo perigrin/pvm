@@ -5,60 +5,36 @@
 # with the cause (src canon prev) and class computed by TestFaithfulQueueMatchesTree.
 # Regenerate with -parse.update-ratchet; never merge it by hand.
 # causes dropped-paren = 0
-# causes heredoc = 5
-# causes subless-special-sub = 1
+# causes heredoc = 0
+# causes subless-special-sub = 0
 # causes stmt-boundary = 7
 # causes canon-adds-paren-op = 6
 # causes canon-adds-paren-term = 0
 # causes other = 0
 lib/universal.t:75 stmt-boundary EOF ; Quote is $], 7, 'SvREADONLY can make magic vars mutable'
-op/attrs.t:498 heredoc HeredocBody Quote , Invalid SCALAR attribute: Dummy at - line 1.
 op/avhv.t:227 stmt-boundary { Variable DerefSigil @x = delete @{$avhv}{'foo','pants'};
-op/bop.t:723 heredoc HeredocBody Quote , formline X000n^\\0,\\0^\\0for\0,0..10
-op/caller.t:235 heredoc HeredocBody Quote , { package foo; sub bar { main::bar() } }
 op/closure.t:55 stmt-boundary ; } } sub {$i = shift if @_; $i };
-op/concat2.t:44 heredoc HeredocBody Quote , sub canonpath {
 op/const-optree.t:140 stmt-boundary ; } } sub () { $x };
 op/coresubs.t:119 canon-adds-paren-op ) ( ( ? () = $' =~ /\G$protochar/g
-op/debug.t:23 heredoc HeredocBody { , use B qw(SVf_IOK);
-op/eval.t:690 heredoc HeredocBody Quote , Missing right curly or square bracket at (eval 1) line 1, at
-op/exec.t:164 heredoc HeredocBody Quote , l${\"s"}
 op/filetest.t:170 canon-adds-paren-op bareword ( - -X => sub {
 op/gmagic.t:141 canon-adds-paren-op sub ( = () = sub { delete $_{elem} }->()->[3];
 op/goto-sub.t:64 stmt-boundary { ; sub goto sub { $x=0; ok(1, "don't prematurely free CV"); };
 op/goto.t:164 stmt-boundary call ; } ok($ok, '#20357 goto inside /{ } continue { }/ loop');
 op/gv.t:204 stmt-boundary { Variable DerefSigil ok(!defined ${$a});
-op/hash-rt85026.t:59 heredoc HeredocBody ; HeredocOpen Found keys '$first_key' and '$second_key' on chain $riter
-op/hash.t:22 subless-special-sub special-sub sub ; { package Class; DESTROY { ++$destroyed; } }
-op/hook/require.t:43 heredoc HeredocBody { , before Apack.pm at - line 1.
 op/kvaslice.t:73 stmt-boundary { Variable DerefSigil is( join(':', %{$a}[2,3,4]), '2:c:3:d:4:e', "correct result
 op/kvhslice.t:74 stmt-boundary { Variable DerefSigil is( join(':', %{$h}{'c','d','e'}), 'c:C:d:D:e:E', "correct r
-op/lc.t:302 heredoc HeredocBody Quote , my $function = "uc";
-op/lex.t:138 heredoc HeredocBody { , Bareword found where operator expected (Missing operator bef
 op/localref.t:16 stmt-boundary { Variable DerefSigil { local ${$x}; $aa = 5; is($aa,5); undef $x; is($aa,5); }
 op/loopctl.t:428 stmt-boundary Variable ; } $ok = 0;
 op/lvref.t:42 canon-adds-paren-op declarator ( \ \my $n = \$y;
-op/magic.t:333 heredoc HeredocBody ; HeredocOpen $^X = Cygwin::win_to_posix_path(Cygwin::posix_to_win_path($^
-op/method.t:394 heredoc HeredocBody Quote , package UNIVERSAL; sub AUTOLOAD { my \$c = shift; print "\$c
 op/negate.t:17 canon-adds-paren-op - ( - is(- -10, 10, "Simple numeric negation to positive");
 op/numconvert.t:265 canon-adds-paren-op - ( - is sprintf("%+.f", - -$nz), sprintf("%+.f", - -$nz),
-op/pack.t:957 heredoc HeredocBody Variable { # On the Ning Nang Nong
-op/pos.t:43 subless-special-sub special-sub sub ; { package Class; DESTROY { ++$destroyed; } }
 op/postfixderef.t:366 stmt-boundary { Variable DerefSigil is ${$h}{ppp}, "pp";
-op/ref.t:308 subless-special-sub special-sub sub ; DESTROY {
-op/signatures.t:1574 heredoc HeredocBody Quote , no warnings 'closure';
+op/ref.t:612 stmt-boundary { Variable DerefSigil my (undef, $one) = @{$name1}[2,3];
 op/sort.t:798 stmt-boundary { ; sub eval { @output = sort {goto sub {}} 1,2; };
 op/stash.t:109 stmt-boundary ; } } sub { 1 };
 op/state.t:288 stmt-boundary Variable ; declarator goto state $flower = $f;
-op/sub.t:156 subless-special-sub special-sub sub ; DESTROY {
-op/substr.t:846 subless-special-sub special-sub sub ; { package Class; DESTROY { ++$destroyed; } }
-op/taint.t:2315 heredoc HeredocBody Quote , $TAINT = substr($^X, 0, 0);
-op/threads.t:202 heredoc HeredocBody ) Quote use threads;
-op/undef.t:134 subless-special-sub special-sub sub ; DESTROY { $messages .= 'destroyed ' }
-op/vec.t:108 subless-special-sub special-sub sub ; { package Class; DESTROY { ++$destroyed; } }
 op/ver.t:225 canon-adds-paren-op - ( ** ok( abs($v - $]) < 10**-8 , "\$^V == \$] (numeric)" );
 op/while.t:148 stmt-boundary call ; } is($got_l, 18);
-op/write.t:2042 heredoc HeredocBody { , use warnings 'syntax' ;
 uni/fold.t:359 stmt-boundary { Variable DerefSigil my ($simple_lc, $simple_tc, $simple_uc, $simple_fc) = @{$_}[
 uni/gv.t:208 stmt-boundary { Variable DerefSigil ok(!defined ${$a});
 uni/stash.t:98 stmt-boundary ; } } sub { 1 };

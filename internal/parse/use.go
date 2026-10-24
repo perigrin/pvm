@@ -1028,7 +1028,7 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 		return nil
 	}
 	p.advanceTo(word)
-	n := &Node{Kind: Declaration, Text: "sub", Start: word.Start}
+	n := &Node{Kind: Declaration, Text: "sub", Subless: true, Start: word.Start}
 	n.Children = append(n.Children, &Node{
 		Kind: Term, Text: p.text(word), Start: word.Start, End: word.End,
 	})

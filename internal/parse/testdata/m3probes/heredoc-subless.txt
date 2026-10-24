@@ -1,0 +1,137 @@
+Heredoc bodies and sub-less special subs, written back as the source wrote
+them (issue 01a16602-5fd5). perl reads a heredoc's body from the line after
+its opener's and then resumes the statement, so canon writes a body inside a
+statement's span where the source put it: after the code that ended the
+opener's line, ahead of the next node, or ahead of the closers and `;` that
+follow it. A sub-less `DESTROY { ... }` or `AUTOLOAD { ... }` is the sub
+perl's yyl_sub reads at a statement boundary, and canon writes it without
+`sub`. Neither is forgiven by Faithful. Each Deparse,-p is perl 5.44.0's.
+
+=== two heredocs in an argument list that runs on (op/debug.t)
+fresh_perl_is(<<'CODE', <<'EXPECT',
+use B qw(SVf_IOK);
+CODE
+Done
+EXPECT
+    {}, 'debugger');
+--- facts
+anonhash 1 exact
+faithful
+# fresh_perl_is("use B qw(SVf_IOK);\n", "Done\n", scalar({}), 'debugger');
+
+=== a heredoc after a string in a multi-line list (op/hook/require.t)
+fresh_perl_is(
+    'require Apack;',
+    <<'EOF_WANT',
+before Apack.pm at - line 1.
+EOF_WANT
+    { },
+    'post action');
+--- facts
+anonhash 1 exact
+faithful
+
+=== a heredoc whose line ends after the next argument (op/attrs.t)
+fresh_perl_is('our $d : Dummy', <<EOS, {},
+Invalid SCALAR attribute.
+EOS
+    "same name");
+--- facts
+anonhash 1 exact
+faithful
+
+=== a body before the statement's semicolon (op/hash-rt85026.t)
+print <<"EOF"
+body
+EOF
+;
+--- facts
+faithful
+# print("body\n");
+
+=== a body before the call's closing paren (op/threads.t)
+fresh_perl_is(
+ <<'   EOJ', 'ok'
+   use threads;
+   EOJ
+);
+--- facts
+faithful
+
+=== a body as a block's last statement, with no semicolon (op/magic.t)
+my ($x, $m);
+if ($x) {
+  $m = <<'EOX'
+body
+EOX
+}
+--- facts
+faithful
+# if ($x) { ($m = "body\n"); }
+
+=== a body before a sub's first statement
+f(1, <<"E", sub {
+body
+E
+  2; });
+--- facts
+faithful
+# f(1, "body\n", sub { 2; });
+
+=== two bodies of one line keep their order
+f(<<A, <<B,
+first
+A
+second
+B
+  1);
+--- facts
+faithful
+# f("first\n", "second\n", 1);
+
+=== an indented heredoc in a list
+my $x = 1; f(1,
+<<~EOT, 2);
+    a $x
+    EOT
+--- facts
+faithful
+# f(1, "a $x\n", 2);
+
+=== an interpolating heredoc with a paren and a semicolon in its body
+my $x = 1; f(<<"EOT",
+a $x (;
+EOT
+  2);
+--- facts
+faithful
+
+=== DESTROY without sub (op/hash.t, op/pos.t, op/vec.t)
+{ package Class; DESTROY { ++$destroyed; } }
+--- facts
+faithful
+# sub DESTROY { (++$destroyed); }
+
+=== DESTROY without sub across lines (op/sub.t, op/undef.t)
+DESTROY {
+    $messages .= 'destroyed ';
+}
+--- facts
+faithful
+
+=== AUTOLOAD without sub
+AUTOLOAD { 1; }
+--- facts
+faithful
+# sub AUTOLOAD { 1; }
+
+=== a body inside the statement, then one after it
+f(<<A,
+first
+A
+  <<B);
+second
+B
+--- facts
+faithful
+# f("first\n", "second\n");

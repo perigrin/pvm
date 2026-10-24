@@ -1,8 +1,8 @@
-# 534/619 faithful
+# 573/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 534 clean (86.3%), 85 total.
+# 619 files, 573 clean (92.6%), 46 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -60,11 +60,11 @@
 0 comp/our.t
 0 comp/package.t
 0 comp/package_block.t
-1 comp/parser.t
+0 comp/parser.t
 0 comp/parser_run.t
 1 comp/proto.t
 0 comp/redef.t
-1 comp/require.t
+0 comp/require.t
 0 comp/retainedlines.t
 0 comp/term.t
 0 comp/uproto.t
@@ -95,7 +95,7 @@
 0 io/open.t
 0 io/openpid.t
 0 io/paragraph_mode.t
-1 io/perlio.t
+0 io/perlio.t
 0 io/perlio_fail.t
 0 io/perlio_leaks.t
 0 io/perlio_open.t
@@ -211,14 +211,14 @@
 0 op/assignwarn.t
 0 op/attrhand.t
 0 op/attrproto.t
-1 op/attrs.t
+0 op/attrs.t
 0 op/auto.t
 1 op/avhv.t
 0 op/bless.t
 0 op/blocks.t
 0 op/bool.t
-1 op/bop.t
-1 op/caller.t
+0 op/bop.t
+0 op/caller.t
 0 op/catch.t
 0 op/chars.t
 0 op/chdir.t
@@ -226,7 +226,7 @@
 0 op/chr.t
 1 op/closure.t
 0 op/cmpchain.t
-1 op/concat2.t
+0 op/concat2.t
 0 op/cond.t
 1 op/const-optree.t
 0 op/context.t
@@ -236,7 +236,7 @@
 0 op/crypt.t
 0 op/current_sub.t
 0 op/dbm.t
-1 op/debug.t
+0 op/debug.t
 0 op/decl-refs.t
 0 op/defer.t
 0 op/defined.t
@@ -253,9 +253,9 @@
 0 op/dump.t
 0 op/each.t
 0 op/each_array.t
-1 op/eval.t
+0 op/eval.t
 0 op/evalbytes.t
-1 op/exec.t
+0 op/exec.t
 0 op/exists_sub.t
 0 op/exp.t
 0 op/fh.t
@@ -280,13 +280,13 @@
 0 op/groups.t
 1 op/gv.t
 0 op/hash-clear-placeholders.t
-1 op/hash-rt85026.t
-1 op/hash.t
+0 op/hash-rt85026.t
+0 op/hash.t
 0 op/hashassign.t
 0 op/hashwarn.t
 0 op/heredoc.t
 0 op/hexfp.t
-1 op/hook/require.t
+0 op/hook/require.t
 0 op/inc.t
 0 op/inccode-tie.t
 0 op/inccode.t
@@ -300,10 +300,10 @@
 0 op/kill0.t
 1 op/kvaslice.t
 1 op/kvhslice.t
-1 op/lc.t
+0 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
-1 op/lex.t
+0 op/lex.t
 0 op/lex_assign.t
 0 op/lexsub.t
 0 op/lfs.t
@@ -315,8 +315,8 @@
 0 op/lop.t
 1 op/lvref.t
 0 op/magic-27839.t
-1 op/magic.t
-1 op/method.t
+0 op/magic.t
+0 op/method.t
 0 op/mkdir.t
 0 op/multideref.t
 0 op/my.t
@@ -332,9 +332,9 @@
 0 op/ord.t
 0 op/overload_integer.t
 0 op/override.t
-1 op/pack.t
+0 op/pack.t
 0 op/packagev.t
-1 op/pos.t
+0 op/pos.t
 1 op/postfixderef.t
 0 op/pow.t
 0 op/print.t
@@ -365,7 +365,7 @@
 0 op/setpgrpstack.t
 0 op/sigdispatch.t
 0 op/signame_canonical.t
-1 op/signatures.t
+0 op/signatures.t
 0 op/sigsystem.t
 0 op/sleep.t
 0 op/smartkve.t
@@ -385,9 +385,9 @@
 1 op/state.t
 0 op/study.t
 0 op/studytied.t
-1 op/sub.t
+0 op/sub.t
 0 op/sub_lval.t
-1 op/substr.t
+0 op/substr.t
 0 op/substr_left.t
 0 op/substr_thr.t
 0 op/svflags.t
@@ -395,9 +395,9 @@
 0 op/switch.t
 0 op/symbolcache.t
 0 op/sysio.t
-1 op/taint.t
+0 op/taint.t
 0 op/threads-dirh.t
-1 op/threads.t
+0 op/threads.t
 0 op/tie.t
 0 op/tie_fetch_count.t
 0 op/tiearray.t
@@ -408,7 +408,7 @@
 0 op/tr.t
 0 op/tr_latin1.t
 0 op/try.t
-1 op/undef.t
+0 op/undef.t
 0 op/universal.t
 0 op/unlink.t
 0 op/unshift.t
@@ -418,13 +418,13 @@
 0 op/utf8magic.t
 0 op/utfhash.t
 0 op/utftaint.t
-1 op/vec.t
+0 op/vec.t
 1 op/ver.t
 0 op/waitpid.t
 0 op/wantarray.t
 0 op/warn.t
 1 op/while.t
-1 op/write.t
+0 op/write.t
 0 op/yadayada.t
 0 opbasic/arith.t
 0 opbasic/cmp.t
@@ -456,7 +456,7 @@
 0 porting/extrefs.t
 0 porting/filenames.t
 0 porting/globvar.t
-1 porting/header_parser.t
+0 porting/header_parser.t
 1 porting/libperl.t
 0 porting/maintainers.t
 0 porting/makerel.t
@@ -464,7 +464,7 @@
 0 porting/merge-deltas.t
 0 porting/perlfunc.t
 0 porting/pod_rules.t
-1 porting/podcheck.t
+0 porting/podcheck.t
 0 porting/re_context.t
 0 porting/readme.t
 0 porting/regen.t
@@ -490,7 +490,7 @@
 0 re/opt.t
 0 re/overload.t
 0 re/pat.t
-1 re/pat_advanced.t
+0 re/pat_advanced.t
 0 re/pat_advanced_thr.t
 0 re/pat_psycho.t
 0 re/pat_psycho_thr.t
@@ -511,7 +511,7 @@
 0 re/reg_email.t
 0 re/reg_email_thr.t
 0 re/reg_eval.t
-1 re/reg_eval_scope.t
+0 re/reg_eval_scope.t
 0 re/reg_fold.t
 0 re/reg_mesg.t
 0 re/reg_namedcapture.t
@@ -537,7 +537,7 @@
 0 re/script_run.t
 0 re/speed.t
 0 re/speed_thr.t
-1 re/stclass_threads.t
+0 re/stclass_threads.t
 0 re/subst.t
 0 re/substT.t
 0 re/subst_amp.t
@@ -554,14 +554,14 @@
 1 re/uniprops10.t
 0 re/user_prop_race_thr.t
 0 run/cloexec.t
-1 run/dtrace.t
+0 run/dtrace.t
 0 run/exit.t
 0 run/fresh_perl.t
-1 run/locale.t
+0 run/locale.t
 0 run/noswitch.t
-1 run/runenv.t
+0 run/runenv.t
 0 run/runenv_hashseed.t
-1 run/runenv_randseed.t
+0 run/runenv_randseed.t
 0 run/script.t
 0 run/switch-I-and-M.t
 0 run/switch0.t
@@ -575,12 +575,12 @@
 0 run/switcha.t
 0 run/switchd-78586.t
 1 run/switchd.t
-1 run/switches.t
+0 run/switches.t
 0 run/switchn.t
 0 run/switchp.t
 0 run/switcht.t
 0 run/switchx.t
-1 run/todo.t
+0 run/todo.t
 0 test_pl/_num_to_alpha.t
 0 test_pl/can_isa_ok.t
 0 test_pl/display.t
@@ -620,7 +620,7 @@
 0 win32/crypt.t
 0 win32/fs.t
 0 win32/popen.t
-1 win32/runenv.t
+0 win32/runenv.t
 0 win32/seekdir.t
 0 win32/signal.t
 0 win32/stat.t

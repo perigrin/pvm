@@ -244,11 +244,12 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 		// One canon writes for binding power is not.
 		{`- -$x;`, `- ( - $x ) ;`},
 		// A heredoc whose statement runs on past the opener's line is split
-		// around its body, and the marks on each side must survive the split.
+		// around its body, written where the source put it, and the marks on
+		// each side must survive the split.
 		{"my ($s) = first(<<END, ($u)) eq\nhello\nEND\nq(hello\n);\n",
-			"my *( $s *) = first ( <<END , *( $u *) ) eq q(hello\nhello\nEND\n) ;"},
+			"my *( $s *) = first ( <<END , *( $u *) ) eq hello\nEND\n q(hello\n) ;"},
 		{"my $s = first(<<END, 'u') eq\nhello\nEND\nq(hello\n) . ($x);\n",
-			"my $s = first ( <<END , 'u' ) eq q(hello\nhello\nEND\n) . *( $x *) ;"},
+			"my $s = first ( <<END , 'u' ) eq hello\nEND\n q(hello\n) . *( $x *) ;"},
 		// A Paren node inside a call's argument list: the inner pair is the
 		// node's, the call's is not. Measured on perl 5.44.0,
 		// `ok(($y eq "x"))` is `seq sKPM` and `ok($y eq "x")` is `seq sKM`.

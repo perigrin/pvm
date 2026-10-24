@@ -463,6 +463,12 @@ type Node struct {
 	// took; the flag records it instead of asking canon to guess.
 	Modifier bool
 
+	// Subless is set on a `sub` Declaration the source wrote without its
+	// keyword, `DESTROY { ... }`: perl reads AUTOLOAD and DESTROY that way
+	// at a statement boundary (parseSpecialSub). Canon writes it back as
+	// written, the way it writes a Paren.
+	Subless bool
+
 	// HeredocBody is set on a Term holding a heredoc's body and terminator
 	// line, which is the one child whose bytes lie AFTER its statement's
 	// `;` rather than inside it.
