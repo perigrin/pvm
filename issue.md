@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T02:04:17.921523729Z
-updated: 2026-10-24T02:04:17.921523729Z
+updated: 2026-10-24T14:40:49.624119311Z
 ---
 
 Found by the NL-b worker (01a1692f-65de, exec/nlb 3630cbed) on 2026-10-24. The defect predates NL-b.
@@ -20,4 +20,4 @@ Lowering treats a zero-argument Call on the left of `=>` as a string even when t
 
 ### Positive Scenarios
 
-- `go test ./internal/lower/ -run 'FatCommaCallWithParens' -count=1 -v | grep -q '^--- PASS'` (a lowering test: `(foo() => 1)` lowers to a call, and `(foo => 1)` lowers to a string)
+- [ ] A lowering test: `(foo() => 1)` lowers to a call, and `(foo => 1)` lowers to a string (`go test ./internal/lower/ -run 'FatCommaCallWithParens' -count=1 -v | grep -q '^--- PASS'`)
