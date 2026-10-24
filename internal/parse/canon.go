@@ -336,6 +336,10 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// `\$x` is "ref". The table is keyed by the token, so the operator
 		// has to be spelled back out.
 		op := unaryToken(n.Text)
+		if op == "not" && len(n.Children) == 1 {
+			emitNot(b, n, src, f)
+			break
+		}
 		b.WriteString(op)
 		// A WORD operator needs a separator: `not foo` is a call to foo and
 		// `notfoo` is the bareword "notfoo". The symbol operators must not
@@ -795,6 +799,55 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	}
 }
 
+// emitNot writes n, a `not`, followed by an operator of power f.
+//
+// `not` is a term whose operand runs right until a looser `and`, `or` or
+// `xor`, so the operand is read just above NOTOP -- a tree with `not` over
+// `or` writes `not ($x or 1)` -- and only what follows decides whether the
+// whole `not` needs grouping: measured on perl 5.44.0, `not $x == 1` is
+// `not(($x == 1))`, so `==` over `not $x` is written `(not $x) == 1`. A
+// `not` the source parenthesised keeps that pair wherever it stands.
+//
+// perl reads `not (` as a function of the parenthesised operand alone
+// (term.go), tighter than anything after it: `not ($y) + 1` is
+// `(!$y) + 1`. So a parenthesised operand is written with its parens and
+// needs no grouping, and an operand whose emission begins with a `(` that
+// closes early takes call parens: `not` over `(1) + 1` is `not((1) + 1)`,
+// where `not (1) + 1` would be a different program.
+func emitNot(b *canonBuf, n *Node, src []byte, f int) {
+	c := n.Children[0]
+	// With a TrailingComma, emit has written the source's pair already.
+	if n.Paren && n.TrailingComma == "" || f > prefix["not"] && !c.Paren {
+		b.WriteByte('(')
+		defer b.WriteByte(')')
+		f = 0 // the `)` follows
+	}
+	var arg canonBuf
+	if c.Paren {
+		emit(&arg, c, src, 0)
+		text := arg.String()
+		b.WriteString("not ")
+		if strings.HasPrefix(text, "(") && leadingParenCloses(text) {
+			b.writeFrom(&arg, 0, len(text))
+			return
+		}
+		b.WriteByte('(')
+		b.writeFrom(&arg, 0, len(text))
+		b.WriteByte(')')
+		return
+	}
+	emitBefore(&arg, c, src, prefix["not"]+1, f)
+	text := arg.String()
+	if strings.HasPrefix(text, "(") && !leadingParenCloses(text) {
+		b.WriteString("not(")
+		b.writeFrom(&arg, 0, len(text))
+		b.WriteByte(')')
+		return
+	}
+	b.WriteString("not ")
+	b.writeFrom(&arg, 0, len(text))
+}
+
 // emitWraps reports whether emit parenthesises n when read at outer.
 func emitWraps(n *Node, outer int) bool {
 	return bindingPower(n) < outer || n.Paren && n.TrailingComma != ""
@@ -812,10 +865,12 @@ func leadingParenCloses(text string) bool {
 }
 
 // writesParens reports whether emit writes a parenthesised node's parens
-// itself at outer: by wrapping it, as a parenthesised List, or as a Term,
-// which is written as its source and whose span covers them.
+// itself at outer: by wrapping it, as a parenthesised List, as a Term,
+// which is written as its source and whose span covers them, or as a
+// parenthesised `not`, whose pair emitNot writes.
 func writesParens(n *Node, outer int) bool {
-	return emitWraps(n, outer) || n.Kind == List || n.Kind == Term
+	return emitWraps(n, outer) || n.Kind == List || n.Kind == Term ||
+		n.Kind == Unary && n.Text == "not" && n.Paren
 }
 
 // emitCommaSeparated writes n's children with ", " between them.
@@ -841,7 +896,13 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 				b.WriteString(", ")
 			}
 		}
-		emit(b, c, src, 0)
+		// Every element but the last is followed by its comma, which a
+		// `not` would take into its operand: `[(not $x), 1]`.
+		next := 0
+		if i < len(n.Children)-1 {
+			next = infix[","].BP
+		}
+		emitBefore(b, c, src, 0, next)
 	}
 }
 
@@ -860,8 +921,10 @@ func bindingPower(n *Node) int {
 	case Unary:
 		// A dereference is a term: a subscript after it applies to it, so
 		// `$$r[0]` is written bare, not as the list slice `($$r)[0]`. So is
-		// a named parameter's `:$name`, which is one parameter.
-		if isDerefSigil(n.Text) || n.Text == ":" {
+		// a named parameter's `:$name`, which is one parameter. So is `not`
+		// (perly.y's `term: NOTOP listexpr`): nothing before it splits it,
+		// and emitNot groups it by what follows.
+		if isDerefSigil(n.Text) || n.Text == ":" || n.Text == "not" {
 			return atomBP
 		}
 		return prefix[unaryToken(n.Text)]

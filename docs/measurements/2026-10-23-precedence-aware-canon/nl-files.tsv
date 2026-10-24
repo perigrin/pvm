@@ -1,0 +1,620 @@
+file	base	ruleoff	design	design_first_difference	base_first_difference
+base/cond.t	false	false	false	token 11: source has "(", canon has "print"	token 11: source has "(", canon has "print"
+base/if.t	true	false	true
+base/lex.t	false	false	false	token 314: source has "(", canon has "q{{\\{\\(}}"	token 314: source has "(", canon has "q{{\\{\\(}}"
+base/num.t	false	false	false	token 969: source has "(", canon has "pack"	token 969: source has "(", canon has "pack"
+base/pat.t	true	false	true
+base/rs.t	true	false	true
+base/term.t	false	false	false	token 183: source has "(", canon has "die"	token 183: source has "(", canon has "die"
+base/translate.t	true	false	true
+base/while.t	true	false	true
+benchmark/gh7094-speed-up-keys-on-empty-hash.t	false	false	false	token 29: source has "(", canon has "1"	token 29: source has "(", canon has "1"
+bigmem/hash.t	true	true	true
+bigmem/index.t	true	true	true
+bigmem/pos.t	true	false	true
+bigmem/read.t	true	true	true
+bigmem/regexp.t	false	false	false	token 54: source has "(", canon has "$"	token 54: source has "(", canon has "$"
+bigmem/stack.t	false	false	false	token 149: source has "(", canon has "x"	token 149: source has "(", canon has "x"
+bigmem/stack_over.t	true	true	true
+bigmem/str.t	false	false	false	token 63: source has "(", canon has "$p"	token 63: source has "(", canon has "$p"
+bigmem/subst.t	true	false	true
+bigmem/subst2.t	false	false	false	token 62: source has "(", canon has "$x"	token 62: source has "(", canon has "$x"
+bigmem/sv_gets.t	true	false	true
+bigmem/vec.t	true	true	true
+class/accessor.t	true	false	true
+class/class.t	true	false	true
+class/construct.t	true	false	true
+class/destruct.t	true	false	true
+class/field.t	true	false	true
+class/gh22169.t	true	true	true
+class/gh23511.t	true	false	true
+class/inherit.t	true	false	true
+class/method.t	true	false	true
+class/phasers.t	true	false	true
+class/threads.t	true	false	true
+class/utf8.t	true	false	true
+cmd/elsif.t	true	false	true
+cmd/for.t	false	false	false	token 380: source has "(", canon has "Internals::stack_refcounted"	token 377: source has "$@", canon has "("
+cmd/mod.t	false	false	false	token 25: source has "(", canon has "print"	token 25: source has "(", canon has "print"
+cmd/subval.t	true	false	true
+cmd/switch.t	false	false	false	token 172: source has "return", canon has ";"	token 172: source has "return", canon has ";"
+comp/bproto.t	true	false	true
+comp/cmdopt.t	true	false	true
+comp/colon.t	true	false	true
+comp/decl.t	true	false	true
+comp/filter_exception.t	false	false	false	token 78: source has "(", canon has "do"	token 77: source has "+", canon has "("
+comp/fold.t	true	false	true
+comp/form_scope.t	true	false	true
+comp/hints.t	false	false	false	token 295: source has ";", canon has "for"	token 295: source has ";", canon has "for"
+comp/line_debug.t	true	false	true
+comp/multiline.t	false	false	false	token 174: source has "(", canon has "die"	token 174: source has "(", canon has "die"
+comp/opsubs.t	true	false	true
+comp/our.t	true	false	true
+comp/package.t	false	false	false	token 195: source has "(", canon has "foo"	token 195: source has "(", canon has "foo"
+comp/package_block.t	true	false	true
+comp/parser.t	false	false	false	token 855: source has "1 { foo => 'bar' }\n1 { qoo => 'bar' }\n1 { q   => 'bar' }\n1 { qq  => 'bar' }\n0 { q,'bar', }\n0 { q=bar= }\n0 { qq=bar= }\n1 { q=bar= => 'bar' }\nEOF\n", canon has "{"	token 855: source has "1 { foo => 'bar' }\n1 { qoo => 'bar' }\n1 { q   => 'bar' }\n1 { qq  => 'bar' }\n0 { q,'bar', }\n0 { q=bar= }\n0 { qq=bar= }\n1 { q=bar= => 'bar' }\nEOF\n", canon has "{"
+comp/parser_run.t	false	false	false	token 29: source has "(", canon has "\"v\""	token 29: source has "(", canon has "\"v\""
+comp/proto.t	false	false	false	token 79: source has "(", canon has "defined"	token 79: source has "(", canon has "defined"
+comp/redef.t	true	false	true
+comp/require.t	false	false	false	token 800: source has "print \"not \" if !defined wantarray || wantarray ne '';\nprint \"ok $i - require() context\\n\";\n1;\n**BLEAH**\n", canon has ")"	token 800: source has "print \"not \" if !defined wantarray || wantarray ne '';\nprint \"ok $i - require() context\\n\";\n1;\n**BLEAH**\n", canon has ")"
+comp/retainedlines.t	false	false	false	token 155: source has "(", canon has "scalar"	token 155: source has "(", canon has "scalar"
+comp/term.t	true	false	true
+comp/uproto.t	false	false	false	token 264: source has "(", canon has "\"abcdef\""	token 264: source has "(", canon has "\"abcdef\""
+comp/use.t	false	false	true		token 102: source has "not", canon has "("
+comp/utf.t	false	false	false	token 100: source has "(", canon has "0xD800"	token 98: source has "@remember_that_utf_16_is_variable_length", canon has "("
+io/argv.t	false	false	false	token 62: source has "(", canon has "die"	token 62: source has "(", canon has "die"
+io/binmode.t	true	false	true
+io/bom.t	true	false	true
+io/closepid.t	true	false	true
+io/crlf.t	false	false	false	token 86: source has "(", canon has "'a'"	token 82: source has "FOO", canon has "("
+io/crlf_through.t	true	false	true
+io/data.t	true	true	true
+io/defout.t	false	false	false	token 66: source has "(", canon has "write"	token 66: source has "(", canon has "write"
+io/dup.t	true	false	true
+io/eintr.t	false	false	false	token 141: source has "(", canon has "$^O"	token 141: source has "(", canon has "$^O"
+io/eintr_print.t	false	false	false	token 43: source has "(", canon has "int"	token 43: source has "(", canon has "int"
+io/errno.t	true	true	true
+io/errnosig.t	true	true	true
+io/fflush.t	true	false	true
+io/fs.t	false	false	false	token 23: source has "(", canon has "$^O"	token 23: source has "(", canon has "$^O"
+io/getcwd.t	true	false	true
+io/inplace.t	true	false	true
+io/iofile.t	true	false	true
+io/iprefix.t	true	false	true
+io/layers.t	false	false	false	token 176: source has "(", canon has "$DOSISH"	token 176: source has "(", canon has "$DOSISH"
+io/msg.t	true	false	true
+io/nargv.t	false	false	false	token 203: source has "(", canon has "stat"	token 203: source has "(", canon has "stat"
+io/open.t	false	false	false	token 139: source has "(", canon has "print"	token 139: source has "(", canon has "print"
+io/openpid.t	true	false	true
+io/paragraph_mode.t	false	false	false	token 43: source has "(", canon has "1"	token 43: source has "(", canon has "1"
+io/perlio.t	false	false	false	token 316: source has "(", canon has "print"	token 316: source has "(", canon has "print"
+io/perlio_fail.t	true	false	true
+io/perlio_leaks.t	true	false	true
+io/perlio_open.t	false	false	false	token 44: source has "(", canon has "open"	token 44: source has "(", canon has "open"
+io/pipe.t	true	false	true
+io/print.t	false	false	false	token 191: source has "(", canon has "$!"	token 191: source has "(", canon has "$!"
+io/pvbm.t	true	false	true
+io/read.t	false	false	false	token 105: source has "(", canon has "!"	token 105: source has "(", canon has "!"
+io/say.t	false	false	false	token 119: source has "(", canon has "$!"	token 119: source has "(", canon has "$!"
+io/scalar.t	false	false	false	token 814: source has "(", canon has "defined"	token 814: source has "(", canon has "defined"
+io/scalar_ungetc.t	false	false	false	token 164: source has "(", canon has "$a"	token 164: source has "(", canon has "$a"
+io/sem.t	true	false	true
+io/semctl.t	false	false	false	token 103: source has "(", canon has "semctl"	token 103: source has "(", canon has "semctl"
+io/shm.t	true	false	true
+io/socket.t	true	false	true
+io/socketpair.t	true	false	true
+io/tell.t	false	false	false	token 49: source has "(", canon has "die"	token 49: source has "(", canon has "die"
+io/through.t	true	false	true
+io/utf8.t	false	false	false	token 755: source has "(", canon has "!"	token 755: source has "(", canon has "!"
+japh/abigail.t	false	false	false	token 200: source has "(", canon has "map"	token 200: source has "(", canon has "map"
+lib/commonsense.t	false	false	false	token 28: source has "(", canon has "$Config"	token 28: source has "(", canon has "$Config"
+lib/croak.t	true	true	true
+lib/cygwin.t	false	false	false	token 276: source has "(", canon has "$rootmnt"	token 276: source has "(", canon has "$rootmnt"
+lib/deprecate.t	false	false	false	token 55: source has "(", canon has "File::Spec"	token 55: source has "(", canon has "File::Spec"
+lib/mypragma.t	true	false	true
+lib/no_load.t	true	true	true
+lib/overload_fallback.t	true	false	true
+lib/overload_nomethod.t	true	false	true
+lib/proxy_constant_subs.t	true	false	true
+lib/universal.t	false	false	false	source has 318 significant tokens, canon has 325 (matched 318 and 324)	source has 318 significant tokens, canon has 365 (matched 318 and 364)
+mro/basic.t	true	false	true
+mro/basic_01_c3.t	true	true	true
+mro/basic_01_c3_utf8.t	true	true	true
+mro/basic_01_dfs.t	true	true	true
+mro/basic_01_dfs_utf8.t	true	true	true
+mro/basic_02_c3.t	true	true	true
+mro/basic_02_c3_utf8.t	true	true	true
+mro/basic_02_dfs.t	true	true	true
+mro/basic_02_dfs_utf8.t	true	true	true
+mro/basic_03_c3.t	true	true	true
+mro/basic_03_c3_utf8.t	true	true	true
+mro/basic_03_dfs.t	true	true	true
+mro/basic_03_dfs_utf8.t	true	true	true
+mro/basic_04_c3.t	true	true	true
+mro/basic_04_c3_utf8.t	true	true	true
+mro/basic_04_dfs.t	true	true	true
+mro/basic_04_dfs_utf8.t	true	true	true
+mro/basic_05_c3.t	false	false	false	token 47: source has "(", canon has "shift"	token 47: source has "(", canon has "shift"
+mro/basic_05_c3_utf8.t	false	false	false	token 54: source has "(", canon has "shift"	token 54: source has "(", canon has "shift"
+mro/basic_05_dfs.t	false	false	false	token 47: source has "(", canon has "shift"	token 47: source has "(", canon has "shift"
+mro/basic_05_dfs_utf8.t	false	false	false	token 54: source has "(", canon has "shift"	token 54: source has "(", canon has "shift"
+mro/basic_utf8.t	true	false	true
+mro/c3_with_overload.t	false	false	false	token 144: source has "(", canon has "$y"	token 144: source has "(", canon has "$y"
+mro/c3_with_overload_utf8.t	false	false	false	token 144: source has "(", canon has "$y"	token 144: source has "(", canon has "$y"
+mro/complex_c3.t	true	true	true
+mro/complex_c3_utf8.t	true	true	true
+mro/complex_dfs.t	true	true	true
+mro/complex_dfs_utf8.t	true	true	true
+mro/dbic_c3.t	true	true	true
+mro/dbic_c3_utf8.t	true	true	true
+mro/dbic_dfs.t	true	true	true
+mro/dbic_dfs_utf8.t	true	true	true
+mro/inconsistent_c3.t	true	true	true
+mro/inconsistent_c3_utf8.t	true	true	true
+mro/isa_aliases.t	true	false	true
+mro/isa_aliases_utf8.t	true	false	true
+mro/isa_c3.t	false	false	true		token 220: source has "\"no crash when ISA contains nonexistent elements\"", canon has "("
+mro/isa_c3_utf8.t	true	false	true
+mro/isa_dfs.t	true	false	true
+mro/isa_dfs_utf8.t	true	false	true
+mro/isarev.t	true	false	true
+mro/isarev_utf8.t	true	false	true
+mro/method_caching.t	true	false	true
+mro/method_caching_utf8.t	true	true	true
+mro/next_NEXT.t	false	false	false	token 66: source has "(", canon has "shift"	token 66: source has "(", canon has "shift"
+mro/next_NEXT_utf8.t	false	false	false	token 73: source has "(", canon has "shift"	token 73: source has "(", canon has "shift"
+mro/next_edgecases.t	false	false	false	token 166: source has "(", canon has "shift"	token 166: source has "(", canon has "shift"
+mro/next_edgecases_utf8.t	false	false	false	token 173: source has "(", canon has "shift"	token 173: source has "(", canon has "shift"
+mro/next_goto.t	true	true	true
+mro/next_goto_utf8.t	true	true	true
+mro/next_inanon.t	false	false	false	token 62: source has "(", canon has "shift"	token 62: source has "(", canon has "shift"
+mro/next_inanon_utf8.t	false	false	false	token 69: source has "(", canon has "shift"	token 69: source has "(", canon has "shift"
+mro/next_ineval.t	false	false	false	token 55: source has "(", canon has "shift"	token 55: source has "(", canon has "shift"
+mro/next_ineval_utf8.t	false	false	false	token 62: source has "(", canon has "shift"	token 62: source has "(", canon has "shift"
+mro/next_method.t	false	false	false	token 52: source has "(", canon has "shift"	token 52: source has "(", canon has "shift"
+mro/next_method_utf8.t	false	false	false	token 59: source has "(", canon has "shift"	token 59: source has "(", canon has "shift"
+mro/next_skip.t	false	false	false	token 52: source has "(", canon has "shift"	token 52: source has "(", canon has "shift"
+mro/next_skip_utf8.t	false	false	false	token 59: source has "(", canon has "shift"	token 59: source has "(", canon has "shift"
+mro/overload_c3.t	false	false	false	token 165: source has "(", canon has "$y"	token 165: source has "(", canon has "$y"
+mro/overload_c3_utf8.t	false	false	false	token 172: source has "(", canon has "$y"	token 172: source has "(", canon has "$y"
+mro/overload_dfs.t	false	false	false	token 165: source has "(", canon has "$y"	token 165: source has "(", canon has "$y"
+mro/package_aliases.t	true	false	true
+mro/package_aliases_utf8.t	false	false	true		token 802: source has "fฤmᛈ", canon has "("
+mro/pkg_gen.t	true	false	true
+mro/pkg_gen_utf8.t	true	false	true
+mro/recursion_c3.t	true	false	true
+mro/recursion_c3_utf8.t	true	false	true
+mro/recursion_dfs.t	true	false	true
+mro/recursion_dfs_utf8.t	true	false	true
+mro/vulcan_c3.t	true	true	true
+mro/vulcan_c3_utf8.t	true	true	true
+mro/vulcan_dfs.t	true	true	true
+mro/vulcan_dfs_utf8.t	true	true	true
+op/64bitint.t	false	false	false	token 1231: source has "(", canon has "++"	token 1231: source has "(", canon has "++"
+op/aassign.t	false	false	false	token 676: source has "(", canon has "my"	token 676: source has "(", canon has "my"
+op/alarm.t	false	false	false	token 82: source has "(", canon has "$end_time"	token 82: source has "(", canon has "$end_time"
+op/anonconst.t	true	false	true
+op/anonsub.t	true	true	true
+op/any_all.t	false	false	false	token 27: source has "(", canon has "any"	token 27: source has "(", canon has "any"
+op/append.t	true	false	true
+op/args.t	true	false	true
+op/arith2.t	true	false	true
+op/array.t	false	false	false	token 347: source has "(", canon has "$foo"	token 347: source has "(", canon has "$foo"
+op/assignwarn.t	true	false	true
+op/attrhand.t	true	false	true
+op/attrproto.t	true	false	true
+op/attrs.t	false	false	false	token 1832: source has "Invalid SCALAR attribute: Dummy at - line 1.\nBEGIN failed--compilation aborted at - line 1.\nEOS\n", canon has "\"attribute on our scalar with sub of same name\""	token 460: source has ";", canon has "("
+op/auto.t	true	false	true
+op/avhv.t	false	false	false	token 131: source has "(", canon has "caller"	token 128: source has "STDERR", canon has "("
+op/bless.t	false	false	false	token 145: source has "(", canon has "map"	token 144: source has "\\", canon has "("
+op/blocks.t	false	false	false	token 234: source has "(", canon has "map"	token 190: source has "INIT", canon has "("
+op/bool.t	false	false	false	token 26: source has "(", canon has "5"	token 26: source has "(", canon has "5"
+op/bop.t	false	false	false	token 82: source has "(", canon has "257"	token 82: source has "(", canon has "257"
+op/caller.t	false	false	false	token 42: source has "(", canon has "!"	token 42: source has "(", canon has "!"
+op/catch.t	true	false	true
+op/chars.t	true	false	true
+op/chdir.t	false	false	false	token 115: source has "(", canon has "splitdir"	token 115: source has "(", canon has "splitdir"
+op/chop.t	false	false	false	token 643: source has "(", canon has "1"	token 643: source has "(", canon has "1"
+op/chr.t	true	false	true
+op/closure.t	false	false	false	token 236: source has ";", canon has "}"	token 236: source has ";", canon has "}"
+op/cmpchain.t	false	false	false	token 1343: source has "(", canon has "\"c\""	token 1326: source has "$e", canon has "("
+op/concat2.t	false	false	false	token 137: source has " sub canonpath {\n     my ($path) = @_;\n     my $node = '';\n     $path =~ s|/\\z||;\n     return \"$node$path\";\n }\n \n {\n  package Path::Class::Dir;\n  use overload q[\"\"] => sub { ::canonpath(\"tmp\") };\n }\n \n print canonpath(\"tmp\"), \"\\n\";\n print canonpath(bless {},\"Path::Class::Dir\"), \"\\n\";\nend\n", canon has "\"recursive concat does not share TARGs\""	token 122: source has "\"${$a[0]}${$a[2]}\"", canon has "("
+op/cond.t	true	false	true
+op/const-optree.t	false	false	false	token 536: source has ";", canon has "}"	token 503: source has "@tests", canon has "("
+op/context.t	true	false	true
+op/coreamp.t	false	false	false	token 2943: source has "(", canon has "&"	token 2943: source has "(", canon has "&"
+op/coresubs.t	false	false	false	token 417: source has "(", canon has "$proto"	token 417: source has "(", canon has "$proto"
+op/cproto.t	true	false	true
+op/crypt.t	false	false	false	token 123: source has "(", canon has "$^O"	token 123: source has "(", canon has "$^O"
+op/current_sub.t	true	false	true
+op/dbm.t	true	false	true
+op/debug.t	false	false	false	token 47: source has "use B qw(SVf_IOK);\n\nsub _do_eval {\n  eval $_[0] or die $!;\n}\n\n_do_eval(<<'EVAL');\n{\n  sub table {\n  }\n}\n1;\nEVAL\n\n# look for lines that don't have an IV set\nmy ($f) = grep /\\(eval/, keys %::;\nmy $x = $::{$f};\nmy $lineno = 0;\nfor my $l (@$x) {\n  if ($l) {\n    my $b = B::svref_2object(\\$l);\n    if (!($b->FLAGS & SVf_IOK)) {\n      print \"No IV for $f line $lineno: $l\\n\";\n      last\n    }\n  }\n  ++$lineno;\n}\n\nprint \"Done\\n\";\nCODE\n", canon has "{"	token 47: source has "use B qw(SVf_IOK);\n\nsub _do_eval {\n  eval $_[0] or die $!;\n}\n\n_do_eval(<<'EVAL');\n{\n  sub table {\n  }\n}\n1;\nEVAL\n\n# look for lines that don't have an IV set\nmy ($f) = grep /\\(eval/, keys %::;\nmy $x = $::{$f};\nmy $lineno = 0;\nfor my $l (@$x) {\n  if ($l) {\n    my $b = B::svref_2object(\\$l);\n    if (!($b->FLAGS & SVf_IOK)) {\n      print \"No IV for $f line $lineno: $l\\n\";\n      last\n    }\n  }\n  ++$lineno;\n}\n\nprint \"Done\\n\";\nCODE\n", canon has "{"
+op/decl-refs.t	true	false	true
+op/defer.t	true	false	true
+op/defined.t	true	false	true
+op/defins.t	false	false	false	token 271: source has "(", canon has "$line"	token 271: source has "(", canon has "$line"
+op/delete.t	false	false	false	token 95: source has "(", canon has "exists"	token 95: source has "(", canon has "exists"
+op/die.t	true	false	true
+op/die_except.t	true	false	true
+op/die_exit.t	false	false	false	token 163: source has "(", canon has "VMS::Feature::current"	token 163: source has "(", canon has "VMS::Feature::current"
+op/die_goto.t	true	false	true
+op/die_keeperr.t	true	false	true
+op/die_unwind.t	true	false	true
+op/do.t	false	false	false	token 263: source has "(", canon has "$u"	token 261: source has "@t", canon has "("
+op/dor.t	true	true	true
+op/dump.t	true	false	true
+op/each.t	false	false	false	token 329: source has "(", canon has "'a'"	token 329: source has "(", canon has "'a'"
+op/each_array.t	true	false	true
+op/eval.t	false	false	false	token 1339: source has "(", canon has "wantarray"	token 1339: source has "(", canon has "wantarray"
+op/evalbytes.t	true	false	true
+op/exec.t	false	false	false	token 38: source has "(", canon has "VMS::Feature::current"	token 38: source has "(", canon has "VMS::Feature::current"
+op/exists_sub.t	true	false	true
+op/exp.t	true	false	true
+op/fh.t	true	false	true
+op/filehandle.t	true	false	true
+op/filetest.t	false	false	false	token 410: source has "(", canon has "stat"	token 410: source has "(", canon has "stat"
+op/filetest_stack_ok.t	true	false	true
+op/filetest_t.t	true	false	true
+op/flip.t	false	false	false	token 166: source has "(", canon has "$foo"	token 166: source has "(", canon has "$foo"
+op/for-many.t	false	false	false	token 2259: source has "(", canon has "\\"	token 2259: source has "(", canon has "\\"
+op/for.t	false	false	false	token 3607: source has "(", canon has "reverse"	token 3607: source has "(", canon has "reverse"
+op/fork.t	false	false	false	token 24: source has "(", canon has "$Config::Config"	token 24: source has "(", canon has "$Config::Config"
+op/fresh_perl_utf8.t	true	false	true
+op/getpid.t	true	false	true
+op/getppid.t	true	false	true
+op/glob.t	false	false	false	token 149: source has "(", canon has "keys"	token 149: source has "(", canon has "keys"
+op/gmagic.t	false	false	false	token 850: source has "sub", canon has "("	token 850: source has "sub", canon has "("
+op/goto-sub.t	false	false	false	token 82: source has "{", canon has ";"	token 82: source has "{", canon has ";"
+op/goto.t	false	false	false	token 505: source has "ok", canon has ";"	token 505: source has "ok", canon has ";"
+op/goto_xs.t	false	false	false	token 399: source has "(", canon has "my"	token 399: source has "(", canon has "my"
+op/grent.t	true	false	true
+op/grep.t	false	false	false	token 194: source has "(", canon has "map"	token 194: source has "(", canon has "map"
+op/groups.t	false	false	false	token 502: source has "(", canon has "!"	token 502: source has "(", canon has "!"
+op/gv.t	false	false	false	token 790: source has "(", canon has "!"	token 783: source has "{", canon has "("
+op/hash-clear-placeholders.t	true	false	true
+op/hash-rt85026.t	false	false	false	token 46: source has "(", canon has "\"a\""	token 39: source has "+", canon has "("
+op/hash.t	false	false	false	token 63: source has "DESTROY", canon has "sub"	token 63: source has "DESTROY", canon has "sub"
+op/hashassign.t	false	false	false	token 1654: source has "(", canon has "join"	token 1654: source has "(", canon has "join"
+op/hashwarn.t	false	false	false	token 82: source has "(", canon has "1"	token 82: source has "(", canon has "1"
+op/heredoc.t	true	false	true
+op/hexfp.t	false	false	false	token 621: source has "(", canon has "$Config"	token 621: source has "(", canon has "$Config"
+op/hook/require.t	false	false	false	token 87: source has "before Apack.pm at - line 1.\nbefore Bpack.pm at - line 1.\nbefore Cpack.pm at - line 1.\nafter Cpack.pm at - line 1.\nafter Bpack.pm at - line 1.\nafter Apack.pm at - line 1.\nEOF_WANT\n", canon has "{"	token 87: source has "before Apack.pm at - line 1.\nbefore Bpack.pm at - line 1.\nbefore Cpack.pm at - line 1.\nafter Cpack.pm at - line 1.\nafter Bpack.pm at - line 1.\nafter Apack.pm at - line 1.\nEOF_WANT\n", canon has "{"
+op/inc.t	false	false	false	token 310: source has "(", canon has "++"	token 310: source has "(", canon has "++"
+op/inccode-tie.t	true	false	true
+op/inccode.t	false	false	false	token 1517: source has "(", canon has "\\"	token 1517: source has "(", canon has "\\"
+op/incfilter.t	true	false	true
+op/index.t	false	false	false	token 1801: source has "(", canon has "$substr"	token 1801: source has "(", canon has "$substr"
+op/index_thr.t	true	true	true
+op/infnan.t	true	false	true
+op/int.t	false	false	false	token 154: source has "(", canon has "3"	token 154: source has "(", canon has "3"
+op/isa.t	false	false	true		token 98: source has "not", canon has "("
+op/join.t	true	false	true
+op/kill0.t	false	false	false	token 188: source has "(", canon has "$^O"	token 188: source has "(", canon has "$^O"
+op/kvaslice.t	false	false	false	token 386: source has "{", canon has "$a"	token 386: source has "{", canon has "$a"
+op/kvhslice.t	false	false	false	token 432: source has "{", canon has "$h"	token 432: source has "{", canon has "$h"
+op/lc.t	false	false	false	token 1580: source has "    my $function = \"uc\";\n    my $char = \"\\xff\";\n    {\n        use feature 'unicode_strings';\n        print ord uc($char), \",\",\n              ord eval \"$function('$char')\", \"\\n\";\n    }\nconstantfolding\n", canon has "'folded uc() in string eval uses the right hints'"	token 1580: source has "    my $function = \"uc\";\n    my $char = \"\\xff\";\n    {\n        use feature 'unicode_strings';\n        print ord uc($char), \",\",\n              ord eval \"$function('$char')\", \"\\n\";\n    }\nconstantfolding\n", canon has "'folded uc() in string eval uses the right hints'"
+op/leaky-magic.t	true	false	true
+op/length.t	false	false	false	token 624: source has "(", canon has "$ul"	token 624: source has "(", canon has "$ul"
+op/lex.t	false	false	false	token 316: source has "Bareword found where operator expected (Missing operator before \"ax\"?) at - line 1, near \"\"ab}\"ax\"\nsyntax error at - line 1, near \"\"ab}\"ax\"\nExecution of - aborted due to compilation errors.\ngibberish\n", canon has "{"	token 316: source has "Bareword found where operator expected (Missing operator before \"ax\"?) at - line 1, near \"\"ab}\"ax\"\nsyntax error at - line 1, near \"\"ab}\"ax\"\nExecution of - aborted due to compilation errors.\ngibberish\n", canon has "{"
+op/lex_assign.t	false	false	false	token 35: source has "(", canon has "1"	token 35: source has "(", canon has "1"
+op/lexsub.t	false	false	false	token 350: source has "(", canon has "h"	token 237: source has "eval", canon has "("
+op/lfs.t	false	false	false	token 507: source has "(", canon has "$offset_will_be"	token 507: source has "(", canon has "$offset_will_be"
+op/list.t	false	false	false	token 901: source has "(", canon has "$x"	token 901: source has "(", canon has "$x"
+op/local.t	false	false	false	token 31: source has "(", canon has "$^O"	token 31: source has "(", canon has "$^O"
+op/localref.t	false	false	false	token 103: source has "{", canon has "$x"	token 103: source has "{", canon has "$x"
+op/lock.t	true	false	true
+op/loopctl.t	false	false	false	token 1295: source has "$ok", canon has ";"	token 1295: source has "$ok", canon has ";"
+op/lop.t	false	false	false	token 67: source has "(", canon has "!"	token 67: source has "(", canon has "!"
+op/lvref.t	false	false	false	token 143: source has "my", canon has "("	token 143: source has "my", canon has "("
+op/magic-27839.t	true	false	true
+op/magic.t	false	false	false	token 175: source has "(", canon has "$Is_VMS"	token 175: source has "(", canon has "$Is_VMS"
+op/method.t	false	false	false	token 275: source has "(", canon has "method"	token 275: source has "(", canon has "method"
+op/mkdir.t	true	false	true
+op/multideref.t	false	false	false	token 1673: source has "(", canon has "10"	token 1673: source has "(", canon has "10"
+op/my.t	true	false	true
+op/my_stash.t	true	false	true
+op/mydef.t	true	false	true
+op/negate.t	false	false	false	token 40: source has "-", canon has "("	token 40: source has "-", canon has "("
+op/not.t	false	false	true		token 33: source has "not", canon has "("
+op/numconvert.t	false	false	false	token 253: source has "(", canon has "$l_iv"	token 247: source has "97", canon has "("
+op/numify.t	false	false	false	token 135: source has "(", canon has "$nv_has_inf"	token 135: source has "(", canon has "$nv_has_inf"
+op/numify_chkflags.t	true	false	true
+op/oct.t	false	false	false	token 166: source has "(", canon has "'0'"	token 166: source has "(", canon has "'0'"
+op/or.t	true	false	true
+op/ord.t	true	false	true
+op/overload_integer.t	true	false	true
+op/override.t	false	false	false	token 572: source has "(", canon has "$_"	token 572: source has "(", canon has "$_"
+op/pack.t	false	false	false	token 133: source has "(", canon has "$size"	token 133: source has "(", canon has "$size"
+op/packagev.t	false	false	false	token 43: source has "(", canon has "grep"	token 35: source has "tests", canon has "("
+op/pos.t	false	false	false	token 180: source has "DESTROY", canon has "sub"	token 180: source has "DESTROY", canon has "sub"
+op/postfixderef.t	false	false	false	token 1488: source has "(", canon has "eval"	token 1488: source has "(", canon has "eval"
+op/pow.t	true	false	true
+op/print.t	true	true	true
+op/protowarn.t	true	false	true
+op/push.t	true	false	true
+op/pwent.t	false	false	false	token 201: source has "(", canon has "split"	token 201: source has "(", canon has "split"
+op/qr.t	true	false	true
+op/quotemeta.t	true	false	true
+op/rand.t	false	false	false	token 36: source has "(", canon has "1"	token 36: source has "(", canon has "1"
+op/range.t	false	false	false	token 516: source has "(", canon has ")"	token 516: source has "(", canon has ")"
+op/read.t	true	false	true
+op/readdir.t	true	false	true
+op/readline.t	false	false	false	token 193: source has "(", canon has "'perl'"	token 193: source has "(", canon has "'perl'"
+op/readline_nb.t	true	true	true
+op/recurse.t	false	false	false	token 49: source has "(", canon has "$_"	token 49: source has "(", canon has "$_"
+op/ref.t	false	false	false	token 1557: source has "DESTROY", canon has "sub"	token 1557: source has "DESTROY", canon has "sub"
+op/refstack.t	false	false	false	token 20: source has "(", canon has "Internals::stack_refcounted"	token 20: source has "(", canon has "Internals::stack_refcounted"
+op/repeat.t	false	false	false	token 474: source has "(", canon has "split"	token 474: source has "(", canon has "split"
+op/require_37033.t	true	false	true
+op/require_errors.t	false	false	false	token 641: source has "(", canon has "$^O"	token 641: source has "(", canon has "$^O"
+op/require_gh20577.t	true	false	true
+op/require_override.t	true	false	true
+op/reset.t	false	false	false	token 31: source has "(", canon has "shift"	token 31: source has "(", canon has "shift"
+op/reverse.t	true	false	true
+op/rt119311.t	true	false	true
+op/runlevel.t	true	true	true
+op/select.t	true	false	true
+op/setpgrpstack.t	true	false	true
+op/sigdispatch.t	false	false	false	token 123: source has "(", canon has "$^O"	token 123: source has "(", canon has "$^O"
+op/signame_canonical.t	false	false	false	token 76: source has "(", canon has "scalar"	token 76: source has "(", canon has "scalar"
+op/signatures.t	false	false	false	token 166: source has "(", canon has "$got"	token 166: source has "(", canon has "$got"
+op/sigsystem.t	true	false	true
+op/sleep.t	true	false	true
+op/smartkve.t	true	false	true
+op/smartmatch.t	false	false	false	token 79: source has "(", canon has "1"	token 79: source has "(", canon has "1"
+op/sort.t	false	false	false	token 1256: source has "(", canon has "$@"	token 1256: source has "(", canon has "$@"
+op/splice.t	false	false	false	token 23: source has "(", canon has "1"	token 23: source has "(", canon has "1"
+op/split.t	false	false	false	token 112: source has "(", canon has "@ary"	token 112: source has "(", canon has "@ary"
+op/split_unicode.t	true	false	true
+op/sprintf.t	false	false	false	token 92: source has "(", canon has "pack"	token 92: source has "(", canon has "pack"
+op/sprintf2.t	false	false	false	token 80: source has "(", canon has "$Config"	token 80: source has "(", canon has "$Config"
+op/srand.t	true	false	true
+op/sselect.t	true	false	true
+op/stash.t	false	false	false	token 431: source has ";", canon has "}"	token 431: source has ";", canon has "}"
+op/stash_parse_gv.t	true	true	true
+op/stat.t	false	false	false	token 278: source has "(", canon has "0"	token 278: source has "(", canon has "0"
+op/stat_errors.t	false	false	false	token 94: source has "(", canon has "map"	token 94: source has "(", canon has "map"
+op/state.t	false	false	false	token 1202: source has "$flower", canon has ";"	token 1202: source has "$flower", canon has ";"
+op/study.t	true	false	true
+op/studytied.t	true	false	true
+op/sub.t	false	false	false	token 701: source has "DESTROY", canon has "sub"	token 701: source has "DESTROY", canon has "sub"
+op/sub_lval.t	false	false	false	token 35: source has "(", canon has "bless"	token 35: source has "(", canon has "bless"
+op/substr.t	false	false	false	token 6435: source has "DESTROY", canon has "sub"	token 6435: source has "DESTROY", canon has "sub"
+op/substr_left.t	true	false	true
+op/substr_thr.t	true	true	true
+op/svflags.t	false	false	false	token 422: source has "(", canon has "SVf_IOK"	token 422: source has "(", canon has "SVf_IOK"
+op/svleak.t	false	false	false	token 197: source has "(", canon has "\"&& $code1\""	token 197: source has "(", canon has "\"&& $code1\""
+op/switch.t	false	false	false	token 2404: source has "(", canon has "1"	token 2404: source has "(", canon has "1"
+op/symbolcache.t	true	true	true
+op/sysio.t	false	false	false	token 37: source has "(", canon has "$^O"	token 37: source has "(", canon has "$^O"
+op/taint.t	false	false	false	token 269: source has "(", canon has "$old"	token 269: source has "(", canon has "$old"
+op/threads-dirh.t	true	false	true
+op/threads.t	false	false	false	token 545: source has "   use threads;\n   push @bar, threads->create(sub{sub{}})->join() for 1...10;\n   print \"ok\";\n   EOJ\n", canon has ")"	token 545: source has "   use threads;\n   push @bar, threads->create(sub{sub{}})->join() for 1...10;\n   print \"ok\";\n   EOJ\n", canon has ")"
+op/tie.t	true	true	true
+op/tie_fetch_count.t	true	false	true
+op/tiearray.t	false	false	false	token 1151: source has "(", canon has "'A'"	token 1147: source has "@n", canon has "("
+op/tiehandle.t	false	false	false	token 57: source has "(", canon has "@_"	token 57: source has "(", canon has "@_"
+op/tiehash.t	true	false	true
+op/time.t	false	false	false	token 122: source has "(", canon has "!"	token 122: source has "(", canon has "!"
+op/time_loop.t	true	false	true
+op/tr.t	false	false	false	token 346: source has "(", canon has "map"	token 333: source has "$s", canon has "("
+op/tr_latin1.t	true	false	true
+op/try.t	false	false	false	token 545: source has "(", canon has "flist"	token 545: source has "(", canon has "flist"
+op/undef.t	false	false	false	token 400: source has "(", canon has "keys"	token 389: source has "defined", canon has "("
+op/universal.t	false	false	false	token 146: source has "(", canon has "\"main::Alice\""	token 146: source has "(", canon has "\"main::Alice\""
+op/unlink.t	true	false	true
+op/unshift.t	true	false	true
+op/upgrade.t	true	false	true
+op/utf8cache.t	true	false	true
+op/utf8decode.t	true	false	true
+op/utf8magic.t	true	false	true
+op/utfhash.t	false	false	false	token 561: source has "(", canon has "map"	token 561: source has "(", canon has "map"
+op/utftaint.t	false	false	false	token 521: source has "(", canon has "$encode"	token 521: source has "(", canon has "$encode"
+op/vec.t	false	false	false	token 202: source has "(", canon has "unpack"	token 202: source has "(", canon has "unpack"
+op/ver.t	false	false	false	token 798: source has "(", canon has "$::IS_EBCDIC"	token 798: source has "(", canon has "$::IS_EBCDIC"
+op/waitpid.t	true	false	true
+op/wantarray.t	false	false	false	token 45: source has "(", canon has "defined"	token 45: source has "(", canon has "defined"
+op/warn.t	true	false	true
+op/while.t	false	false	false	token 559: source has "is", canon has ";"	token 559: source has "is", canon has ";"
+op/write.t	false	false	false	token 4624: source has "(", canon has "'~'"	token 4467: source has "$^A", canon has "("
+op/yadayada.t	false	false	false	token 104: source has "(", canon has "3"	token 104: source has "(", canon has "3"
+opbasic/arith.t	false	false	false	token 2140: source has "(", canon has "$n"	token 2140: source has "(", canon has "$n"
+opbasic/cmp.t	false	false	false	token 21: source has "(", canon has "$uv_big"	token 21: source has "(", canon has "$uv_big"
+opbasic/concat.t	false	false	false	token 33: source has "(", canon has "$ok"	token 31: source has "\"%sok %d - %s\\n\"", canon has "("
+opbasic/magic_phase.t	true	false	true
+opbasic/qq.t	false	false	false	token 84: source has "(", canon has "caller"	token 82: source has "q(# Failed test at line %d\n)", canon has "("
+perf/benchmarks.t	true	false	true
+perf/opcount.t	false	false	false	token 922: source has "(", canon has "$s"	token 922: source has "(", canon has "$s"
+perf/optree.t	false	false	false	token 55: source has "(", canon has "\"  \""	token 55: source has "(", canon has "\"  \""
+perf/speed.t	true	false	true
+perf/taint.t	false	false	false	token 98: source has "(", canon has "\"ab\""	token 98: source has "(", canon has "\"ab\""
+porting/FindExt.t	true	false	true
+porting/args_assert.t	true	false	true
+porting/authors.t	false	false	false	token 49: source has "(", canon has "-e"	token 49: source has "(", canon has "-e"
+porting/bench.t	true	false	true
+porting/bench_selftest.t	true	false	true
+porting/bincompat.t	true	false	true
+porting/checkcase.t	true	false	true
+porting/checkcfgvar.t	true	false	true
+porting/cmp_version.t	true	false	true
+porting/copyright.t	false	false	false	token 78: source has "(", canon has "gmtime"	token 78: source has "(", canon has "gmtime"
+porting/corelist.t	true	false	true
+porting/cpphdrcheck.t	false	false	false	token 497: source has "(", canon has "$?"	token 497: source has "(", canon has "$?"
+porting/customized.t	false	false	false	token 98: source has "{", canon has "$customized"	token 81: source has "{", canon has "("
+porting/deprecation.t	false	false	false	token 320: source has "(", canon has "$file"	token 320: source has "(", canon has "$file"
+porting/diag.t	false	false	false	token 99: source has "(", canon has "setup_embed"	token 99: source has "(", canon has "setup_embed"
+porting/dual-life.t	true	false	true
+porting/exec-bit.t	true	false	true
+porting/extrefs.t	false	false	false	token 106: source has "(", canon has "$^O"	token 106: source has "(", canon has "$^O"
+porting/filenames.t	true	false	true
+porting/globvar.t	true	false	true
+porting/header_parser.t	false	false	false	token 99: source has "\n# You can set the env var $update_key to true and rerun\n# this test script ($0) to automatically fix this test.\n# Eg:\n#\n#   $update_key=1 ./perl -Ilib $0\n\nEOF_BLURB\n", canon has ";"	token 99: source has "\n# You can set the env var $update_key to true and rerun\n# this test script ($0) to automatically fix this test.\n# Eg:\n#\n#   $update_key=1 ./perl -Ilib $0\n\nEOF_BLURB\n", canon has ";"
+porting/libperl.t	false	false	false	token 1250: source has "{", canon has "$xref"	token 1245: source has "\"Didn't find the symbol '$sym' where expected,\"", canon has "("
+porting/maintainers.t	true	false	true
+porting/makerel.t	true	false	true
+porting/manifest.t	false	false	false	token 179: source has "(", canon has "!"	token 179: source has "(", canon has "!"
+porting/merge-deltas.t	true	false	true
+porting/perlfunc.t	true	false	true
+porting/pod_rules.t	true	false	true
+porting/podcheck.t	false	false	false	token 948: source has "(", canon has "$regen"	token 948: source has "(", canon has "$regen"
+porting/re_context.t	true	false	true
+porting/readme.t	true	false	true
+porting/regen.t	true	false	true
+porting/ss_dup.t	true	false	true
+porting/test_bootstrap.t	false	false	false	token 112: source has "(", canon has "$file"	token 112: source has "(", canon has "$file"
+porting/test_testlist.t	false	false	false	token 339: source has "(", canon has "!"	token 339: source has "(", canon has "!"
+porting/update_authors.t	true	false	true
+porting/utils.t	true	false	true
+re/alpha_assertions.t	true	false	true
+re/anyof.t	false	false	false	token 91: source has "(", canon has "$pattern"	token 91: source has "(", canon has "$pattern"
+re/begin-once.t	true	false	true
+re/bigfuzzy_not_utf8.t	true	false	true
+re/charset.t	false	false	false	token 802: source has "(", canon has "0xA2"	token 802: source has "(", canon has "0xA2"
+re/fold_grind_8.t	true	false	true
+re/fold_grind_T.t	true	false	true
+re/fold_grind_a.t	true	false	true
+re/fold_grind_aa.t	true	false	true
+re/fold_grind_d.t	true	false	true
+re/fold_grind_l.t	true	false	true
+re/fold_grind_u.t	true	false	true
+re/keep_tabs.t	true	false	true
+re/no_utf8_pm.t	true	false	true
+re/opt.t	false	false	false	token 110: source has "(", canon has "$k"	token 95: source has "{", canon has "("
+re/overload.t	true	false	true
+re/pat.t	false	false	false	token 1636: source has "(", canon has "1"	token 1636: source has "(", canon has "1"
+re/pat_advanced.t	false	false	false	token 538: source has "(", canon has "$char"	token 538: source has "(", canon has "$char"
+re/pat_advanced_thr.t	true	true	true
+re/pat_psycho.t	true	false	true
+re/pat_psycho_thr.t	true	true	true
+re/pat_re_eval.t	false	false	false	token 173: source has "(", canon has "$lex_b"	token 173: source has "(", canon has "$lex_b"
+re/pat_re_eval_thr.t	true	true	true
+re/pat_rt_report.t	false	false	false	token 2343: source has "(", canon has "\"A\""	token 2343: source has "(", canon has "\"A\""
+re/pat_rt_report_thr.t	true	true	true
+re/pat_special_cc.t	true	false	true
+re/pat_special_cc_thr.t	true	true	true
+re/pat_thr.t	true	true	true
+re/pos.t	true	false	true
+re/qr-72922.t	true	false	true
+re/qr.t	false	false	false	token 63: source has "(", canon has "$a"	token 63: source has "(", canon has "$a"
+re/qr_gc.t	true	false	true
+re/qrstack.t	true	false	true
+re/recompile.t	true	false	true
+re/reg_60508.t	true	false	true
+re/reg_email.t	true	false	true
+re/reg_email_thr.t	true	true	true
+re/reg_eval.t	true	false	true
+re/reg_eval_scope.t	false	false	false	token 55: source has " for my $x(\"a\"..\"c\") {\n  $y = 1;\n  print scalar\n   \"abcabc\" =~\n       /\n        (\n         a (?{ print $y; local $y = $y+1; print $x; my $x = 8; print $x })\n         b (?{ print $y; local $y = $y+1; print $x; my $x = 9; print $x })\n         c (?{ print $y; local $y = $y+1; print $x; my $x = 10; print $x })\n        ){2}\n       /x;\n  print \"$x \";\n }\nCODE\n", canon has "'1a82a93a104a85a96a101a 1b82b93b104b85b96b101b 1c82c93c104c85c96c101c '"	token 53: source has "<<'CODE'", canon has "("
+re/reg_fold.t	false	false	false	token 693: source has "(", canon has "scalar"	token 689: source has "\";\\n\"", canon has "("
+re/reg_mesg.t	false	false	false	token 319: source has "(", canon has "1"	token 319: source has "(", canon has "1"
+re/reg_namedcapture.t	true	false	true
+re/reg_nc_tie.t	true	false	true
+re/reg_nocapture.t	true	false	true
+re/reg_pmod.t	false	false	false	token 232: source has "(", canon has "$p"	token 232: source has "(", canon has "$p"
+re/reg_posixcc.t	false	false	false	token 460: source has "(", canon has "$chr"	token 460: source has "(", canon has "$chr"
+re/regex_sets.t	true	true	true
+re/regex_sets_compat.t	true	false	true
+re/regexp.t	false	false	false	token 250: source has "(", canon has "ord"	token 250: source has "(", canon has "ord"
+re/regexp_noamp.t	true	false	true
+re/regexp_nonull.t	true	false	true
+re/regexp_normal.t	true	false	true
+re/regexp_notrie.t	true	false	true
+re/regexp_qr.t	true	false	true
+re/regexp_qr_embed.t	true	false	true
+re/regexp_qr_embed_thr.t	true	false	true
+re/regexp_trielist.t	true	false	true
+re/regexp_unicode_prop.t	false	false	false	token 605: source has "(", canon has "$property"	token 605: source has "(", canon has "$property"
+re/regexp_unicode_prop_thr.t	true	true	true
+re/rt122747.t	true	false	true
+re/rxcode.t	true	false	true
+re/script_run.t	true	false	true
+re/speed.t	false	false	false	token 69: source has "(", canon has "$::running_as_thread"	token 69: source has "(", canon has "$::running_as_thread"
+re/speed_thr.t	true	true	true
+re/stclass_threads.t	false	false	false	token 84: source has "        use threads;\n        use re 'debug';\n\n        sub start_thread {\n            warn \"===\\n\";\n            split /[.;]+[\\'\\\"]+/, $_[0];\n            warn \"===\\n\";\n        }\n\n        my $buffer = '.' x %d;\n\n        start_thread $buffer;\nEOF_CODE\n", canon has "{"	token 84: source has "        use threads;\n        use re 'debug';\n\n        sub start_thread {\n            warn \"===\\n\";\n            split /[.;]+[\\'\\\"]+/, $_[0];\n            warn \"===\\n\";\n        }\n\n        my $buffer = '.' x %d;\n\n        start_thread $buffer;\nEOF_CODE\n", canon has "{"
+re/subst.t	false	false	false	token 504: source has "(", canon has "$a"	token 504: source has "(", canon has "$a"
+re/substT.t	true	false	true
+re/subst_amp.t	false	false	false	token 33: source has "(", canon has "'<x><>'"	token 33: source has "(", canon has "'<x><>'"
+re/subst_wamp.t	true	false	true
+re/uniprops01.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops02.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops03.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops04.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops05.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops06.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops07.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops08.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops09.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/uniprops10.t	false	false	false	source has 77 significant tokens, canon has 78 (matched 77 and 77)	source has 77 significant tokens, canon has 86 (matched 77 and 85)
+re/user_prop_race_thr.t	true	true	true
+run/cloexec.t	true	false	true
+run/dtrace.t	false	false	false	token 115: source has "    my $x = 0;\n    BEGIN { $x++ }\n    CHECK { $x++ }\n    INIT  { $x++ }\n    sub Moo::DESTROY { $x++ }\n\n    my $tiger = bless {}, Moo::;\n\n    sub Kooh::DESTROY { $x++ }\n\n    our $affe = bless {}, Kooh::;\n\n    END { $x++ }\nMAGIC_OP\n", canon has "'phase-change { printf(\"%s -> %s; \", copyinstr(arg1), copyinstr(arg0)) }'"	token 115: source has "    my $x = 0;\n    BEGIN { $x++ }\n    CHECK { $x++ }\n    INIT  { $x++ }\n    sub Moo::DESTROY { $x++ }\n\n    my $tiger = bless {}, Moo::;\n\n    sub Kooh::DESTROY { $x++ }\n\n    our $affe = bless {}, Kooh::;\n\n    END { $x++ }\nMAGIC_OP\n", canon has "'phase-change { printf(\"%s -> %s; \", copyinstr(arg1), copyinstr(arg0)) }'"
+run/exit.t	false	false	false	token 50: source has "(", canon has "$^O"	token 50: source has "(", canon has "$^O"
+run/fresh_perl.t	true	false	true
+run/locale.t	false	false	false	token 167: source has "(", canon has "grep"	token 167: source has "(", canon has "grep"
+run/noswitch.t	true	true	true
+run/runenv.t	false	false	false	token 321: source has "Name \"main::x\" used only once: possible typo at -e line 1.\nUse of uninitialized value \\$x in print at -e line 1.\nERROR\n", canon has ")"	token 321: source has "Name \"main::x\" used only once: possible typo at -e line 1.\nUse of uninitialized value \\$x in print at -e line 1.\nERROR\n", canon has ")"
+run/runenv_hashseed.t	false	false	false	token 278: source has "(", canon has "4"	token 276: source has "tests", canon has "("
+run/runenv_randseed.t	false	false	false	token 189: source has "            for my $l (\"A\"..\"E\") {\n                my $pid= fork;\n                if ($pid) {\n                    push @pids, $pid;\n                }\n                elsif (!defined $pid) {\n                    print \"$l:failed fork\";\n                } elsif (!$pid) {\n                    print \"$l:\", map { chr(utf8::unicode_to_native(rand(26)+65)) } 1..10;\n                    exit;\n                }\n            }\n            waitpid $_,0 for @pids;\nEOF_TEST_CODE\n", canon has "]"	token 189: source has "            for my $l (\"A\"..\"E\") {\n                my $pid= fork;\n                if ($pid) {\n                    push @pids, $pid;\n                }\n                elsif (!defined $pid) {\n                    print \"$l:failed fork\";\n                } elsif (!$pid) {\n                    print \"$l:\", map { chr(utf8::unicode_to_native(rand(26)+65)) } 1..10;\n                    exit;\n                }\n            }\n            waitpid $_,0 for @pids;\nEOF_TEST_CODE\n", canon has "]"
+run/script.t	false	false	false	token 55: source has "(", canon has "die"	token 55: source has "(", canon has "die"
+run/switch-I-and-M.t	true	true	true
+run/switch0.t	true	false	true
+run/switchC.t	true	false	true
+run/switchDx.t	true	false	true
+run/switchF.t	true	true	true
+run/switchF1.t	true	false	true
+run/switchF2.t	true	false	true
+run/switchI.t	false	false	false	token 49: source has "(", canon has "$#INC"	token 37: source has "do", canon has "("
+run/switchM.t	true	true	true
+run/switcha.t	true	true	true
+run/switchd-78586.t	true	false	true
+run/switchd.t	false	false	false	token 422: source has "     BEGIN {\n      $^P = 0x22;\n     }\n     package DB;\n     sub DB {\n      my $x = 42;\n      return if $__++;\n      $^D |= 1 << 30; # allow recursive calls\n      main::foo();\n      print $x//q-u-, qq-\\n-;\n     }\n     package main;\n     chop;\n     sub foo { chop; }\n=\n", canon has "]"	token 422: source has "     BEGIN {\n      $^P = 0x22;\n     }\n     package DB;\n     sub DB {\n      my $x = 42;\n      return if $__++;\n      $^D |= 1 << 30; # allow recursive calls\n      main::foo();\n      print $x//q-u-, qq-\\n-;\n     }\n     package main;\n     chop;\n     sub foo { chop; }\n=\n", canon has "]"
+run/switches.t	false	false	false	token 1203: source has "(", canon has "grep"	token 1203: source has "(", canon has "grep"
+run/switchn.t	true	true	true
+run/switchp.t	true	false	true
+run/switcht.t	false	false	false	token 260: source has "(", canon has "$^O"	token 260: source has "(", canon has "$^O"
+run/switchx.t	true	false	true
+run/todo.t	false	false	false	token 283: source has "        my $mul = 2**32; my $a = 104712103; my $b = 50;\n        my $c = 449735057880383538; # For these values, $mul * $a + $b == $c. Thus $diff should be zero.\n        my $diff = $c - ($a * $mul + $b);\n        printf \"%.0f %.0f %.0f %.0f\", $a, $b, $c, $diff;\n        #printf \"\\$c $c %0.f\\n\", $c;\n    EOF\n", canon has "\"104712103 50 449735057880383538 0\""	token 283: source has "        my $mul = 2**32; my $a = 104712103; my $b = 50;\n        my $c = 449735057880383538; # For these values, $mul * $a + $b == $c. Thus $diff should be zero.\n        my $diff = $c - ($a * $mul + $b);\n        printf \"%.0f %.0f %.0f %.0f\", $a, $b, $c, $diff;\n        #printf \"\\$c $c %0.f\\n\", $c;\n    EOF\n", canon has "\"104712103 50 449735057880383538 0\""
+test_pl/_num_to_alpha.t	true	true	true
+test_pl/can_isa_ok.t	true	false	true
+test_pl/display.t	true	false	true
+test_pl/examples.t	true	false	true
+test_pl/plan_skip_all.t	true	false	true
+test_pl/tempfile.t	false	false	false	token 319: source has "(", canon has "26"	token 319: source has "(", canon has "26"
+uni/attrs.t	false	false	true		token 272: source has ";", canon has "("
+uni/bless.t	false	false	false	token 152: source has "(", canon has "map"	token 151: source has "\\", canon has "("
+uni/caller.t	false	false	false	token 343: source has "(", canon has "caller"	token 42: source has "$@", canon has "("
+uni/chomp.t	true	false	true
+uni/class.t	false	false	false	token 419: source has "(", canon has "ord"	token 419: source has "(", canon has "ord"
+uni/eval.t	true	false	true
+uni/fold.t	false	false	false	token 612: source has "(", canon has "$f"	token 612: source has "(", canon has "$f"
+uni/goto.t	true	false	true
+uni/greek.t	true	false	true
+uni/gv.t	false	false	false	token 839: source has "(", canon has "!"	token 832: source has "{", canon has "("
+uni/labels.t	true	false	true
+uni/latin2.t	true	false	true
+uni/lex_utf8.t	false	false	false	token 155: source has "(", canon has "join"	token 155: source has "(", canon has "join"
+uni/lower.t	true	true	true
+uni/method.t	false	false	true		token 45: source has "shift", canon has "("
+uni/opcroak.t	true	false	true
+uni/overload.t	true	false	true
+uni/package.t	false	false	false	token 22: source has "(", canon has "\"a\""	token 22: source has "(", canon has "\"a\""
+uni/parser.t	true	false	true
+uni/readline.t	true	false	true
+uni/select.t	true	false	true
+uni/sprintf.t	false	false	false	token 509: source has "(", canon has "sprintf"	token 509: source has "(", canon has "sprintf"
+uni/stash.t	false	false	false	token 404: source has ";", canon has "}"	token 404: source has ";", canon has "}"
+uni/tie.t	true	false	true
+uni/title.t	true	true	true
+uni/tr_utf8.t	true	false	true
+uni/universal.t	false	false	false	token 150: source has "(", canon has "\"main::Àlìcè\""	token 131: source has ";", canon has "("
+uni/upper.t	true	true	true
+uni/variables.t	false	false	false	token 455: source has "(", canon has "$chr"	token 455: source has "(", canon has "$chr"
+uni/write.t	true	false	true
+win32/crypt.t	true	false	true
+win32/fs.t	true	false	true
+win32/popen.t	true	false	true
+win32/runenv.t	false	false	false	token 21: source has "(", canon has "Win32::GetOSVersion"	token 21: source has "(", canon has "Win32::GetOSVersion"
+win32/seekdir.t	true	false	true
+win32/signal.t	true	false	true
+win32/stat.t	false	false	false	token 472: source has "(", canon has "lstat"	token 472: source has "(", canon has "lstat"
+win32/symlink.t	true	false	true
+win32/system.t	true	false	true
