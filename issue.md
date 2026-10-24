@@ -6,7 +6,7 @@ milestone: m3-oracle-at-scale
 blocks:
 - 01a16602-5f77-78ef-a0c7-538e0a241cdc
 created: 2026-10-24T13:36:55.397928747Z
-updated: 2026-10-24T13:38:04.003147709Z
+updated: 2026-10-24T14:40:08.065430474Z
 sessions:
 - start_sha: 1d4a6f4e304f58c864263cc69e31979df173b738
   end_sha: ""
@@ -39,5 +39,5 @@ The narrowing of the last-semicolon forgiveness (01a16c1b-a587) cannot see this,
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestDerefBareNameBraceReadsAsPerlDoes$' -count=1 -v | grep -q '^--- PASS'` (the uni/variables.t shape gives perl's tree, held to Concise)
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (probe rows for the reductions, with canon compiling under perl)
+- [ ] The uni/variables.t shape gives perl's tree, held to Concise (`go test ./internal/parse/ -run '^TestDerefBareNameBraceReadsAsPerlDoes$' -count=1 -v | grep -q '^--- PASS'`)
+- [ ] Probe rows for the reductions, with canon compiling under perl (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
