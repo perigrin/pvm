@@ -1,6 +1,6 @@
 ---
 title: List every unfaithful M3-dir file as a located defect
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -11,7 +11,16 @@ blocks:
 - 01a16602-5fd5-7cc4-9645-4539ca73e839
 - 01a16602-5f1a-7d56-a91d-5fa2c478d608
 created: 2026-10-22T23:46:33.975890599Z
-updated: 2026-10-24T13:37:12.199059271Z
+updated: 2026-10-24T15:13:53.921145082Z
+sessions:
+- start_sha: ee411f22474a735637b49cfcdbf98c2fd7a8ffcf
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-24T15:13:53.921145082Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-24T15:13:53.921145082Z
 ---
 
 **The title is stale and git-zhi cannot retitle.** Read it as "Seed the re-emission work queue with every unfaithful M3-dir file". Under perigrin's round-4 ruling the queue is a work list that must be empty at close, not a register of located defects (J6/A27, chain-review round 5).
