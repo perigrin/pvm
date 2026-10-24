@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-24T05:41:33.815026386Z
-updated: 2026-10-24T05:41:33.815026386Z
+updated: 2026-10-24T14:40:49.88821801Z
 ---
 
 Found by the 75d4 worker (01a1664d-75d4, exec/75d4 0f1bacff) on 2026-10-24, while running Deparse on whole files. The defect predates 75d4; base canon does the same.
@@ -20,4 +20,4 @@ Canon re-spaces hexadecimal floating-point literals such as `0x1.8p1`, and the r
 
 ### Positive Scenarios
 
-- `go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'` (probe rows for `0x1.8p1`, `0x.8p0` and `0x1p-2`, each faithful with canon compiling under perl 5.44)
+- [ ] Probe rows for `0x1.8p1`, `0x.8p0` and `0x1p-2`, each faithful with canon compiling under perl 5.44 (`go test ./internal/parse/ -run '^TestM3ProbesHeldToPerl$' -count=1 | grep -q '^ok'`)
