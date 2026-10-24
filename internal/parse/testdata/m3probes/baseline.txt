@@ -35,7 +35,6 @@ my $r = \(my @a);
 --- facts
 srefgen 1 exact
 faithful
-known-defect 01a167da-3323-7ce0-a627-abf5b99603d8
 
 === backslash constant folds away
 my $r = \1;

@@ -1,0 +1,182 @@
+Canon writes a Paren node's parens once, and Faithful forgives a source pair
+nested directly inside that pair (issue 01a1664d-75d4, perigrin's rulings of
+2026-10-22 and round 7). perl keeps such a paren as one boolean bit,
+OPf_PARENS (`P` in Concise), on the op it wraps, so `((x))` and `(x)` are
+one tree. Each row's comment quotes perl 5.44.0's -MO=Concise.
+
+=== a lexical in parens
+my $x; my $z = ($x);
+--- facts
+faithful
+# padsv[$x:1,3] sP; without the paren, padsv[$x:1,3] s
+
+=== a package variable in parens
+our $x; my $z = ($x);
+--- facts
+faithful
+# ex-rv2sv sKP/1
+
+=== a lexical in doubled parens
+my $x; my $z = (($x));
+--- facts
+faithful
+# padsv[$x:1,3] sP, as with one pair
+
+=== a lexical in tripled parens
+my $x; my $z = ((($x)));
+--- facts
+faithful
+
+=== a comparison in parens as a call argument
+sub ok {} our $y; ok(($y eq "x"));
+--- facts
+faithful
+# seq sKPM/2; without the inner pair, seq sKM/2
+
+=== a comparison in doubled parens as a call argument
+sub ok {} our $y; ok((($y eq "x")));
+--- facts
+faithful
+# seq sKPM/2, as with one pair
+
+=== a call's parens around a parenthesised constant
+print ((1))+2;
+--- facts
+faithful
+# const[IV 1] sP; `print (1)+2` is const[IV 1] s. The outer pair is
+# print's, so canon writes both.
+
+=== a call's parens around a grouped term
+print ((1+2)*3);
+--- facts
+faithful
+
+=== a niladic call in parens before an arrow
+sub f { (shift)->can("x") } f("main");
+--- facts
+faithful
+
+=== a comparison chain in parens
+my $x = 2; my $r = (1 < $x < 3);
+--- facts
+faithful
+
+=== a list repeated, in doubled parens
+my @r = ((1, 2)) x 2;
+--- facts
+faithful
+# repeat lK/DOLIST,2, as with one pair
+
+=== a scalar repeated, in doubled parens
+our $y; my @r = (($y)) x 3;
+--- facts
+faithful
+# repeat lK/DOLIST,2, as `($y) x 3`; `$y x 3` is the string repeat
+
+=== a parenthesised not
+our $x; my $r = (not $x);
+--- facts
+faithful
+# not sKP/1
+
+=== an element and its trailing comma inside parens
+sub f {} f((0,));
+--- facts
+faithful
+
+=== a parenthesised element before a trailing comma
+sub f {} f((0),);
+--- facts
+faithful
+
+=== a declared list and a declared name with a comma
+my ($p, $q) = (1, 2); my $s, $q;
+--- facts
+faithful
+
+=== an arrow call's argument in doubled parens
+my $f = sub {}; our $x; $f->(($x));
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+# ex-rv2sv sKPM/1; `$f->($x)` is ex-rv2sv sKM/1. psc's tree puts one
+# Paren on $x for both pairs, though the outer is the call's, so canon
+# writes `$f->($x)`.
+
+=== not's operand in doubled parens
+our $a; my $r = not (($a == 1));
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+# eq sKP/2; `not ($a == 1)` is eq sK/2. psc's tree puts one Paren on the
+# comparison for both pairs, though the outer is not's, so canon writes
+# `not ($a == 1)`.
+
+=== a list slice of a list
+my $x = (1,2,3)[1];
+--- facts
+faithful
+# ex-list lK: the slice's pair sets no OPf_PARENS bit
+
+=== a list slice of an array
+my @a; my @x = (@a)[0];
+--- facts
+faithful
+
+=== a list slice of a list in doubled parens
+my $x = ((1,2,3))[1];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+# ex-list lKP; `(1,2,3)[1]` is ex-list lK. psc's tree puts one Paren on
+# the list for both pairs, though the outer is the slice's.
+
+=== a list slice of a list in tripled parens
+my $x = (((1,2,3)))[1];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+
+=== a list slice of stat in doubled parens
+my $x = ((stat "/"))[2];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+# stat lKP; `(stat "/")[2]` is stat lK
+
+=== a list slice of an array in doubled parens
+my @a; my @x = ((@a))[0,1];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+# padav lP; `(@a)[0,1]` is padav l
+
+=== a list slice of caller in doubled parens
+my $x = ((caller))[2];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+
+=== a list slice in doubled parens assigned to a list
+my @a; my ($p,$q) = ((@a))[0,1];
+--- facts
+faithful
+known-defect 01a16602-5f1a-7d56-a91d-5fa2c478d608
+
+=== a parenthesised element before a trailing comma, in parens
+my @r = ((1),);
+--- facts
+faithful
+# the same ops as `my @r = (1,);`
+
+=== an element and its trailing comma in parens, before a trailing comma
+sub f {} f((0,),);
+--- facts
+faithful
+# the same ops as `f((0,))`
+
+=== doubled parens around a product of a grouped sum
+my ($a,$b); my $x = ((($a+$b)*2));
+--- facts
+faithful
+# the same ops as `(($a+$b)*2)`

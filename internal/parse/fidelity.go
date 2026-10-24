@@ -1,5 +1,5 @@
 // ABOUTME: Faithful compares canon's emission against the SOURCE, not against itself.
-// ABOUTME: One difference is forgiven: the semicolon canon writes after a block's last statement.
+// ABOUTME: Two differences are forgiven: a block's last semicolon, and parens nested inside a node's own pair.
 
 package parse
 
@@ -19,11 +19,18 @@ import (
 //	WRONG tree: once="print((1 + 2) * 3);"
 //	            twice="print((1 + 2) * 3);"   fixpoint
 //
-// This puts the source back on one side, and forgives exactly one
-// difference, a spelling the tree cannot record because it does not change
-// meaning: a block's last statement acquires its semicolon. Measured:
-// `sub f { 1 }` and `sub g { 1; }` both return 1. That covers a block
-// argument too: `print {$fh} "x"` is emitted `print {$fh;} "x"`.
+// This puts the source back on one side, and forgives exactly two
+// differences, spellings the tree cannot record because they do not change
+// meaning (perigrin's ruling, 2026-10-23):
+//
+//   - last-semicolon: a block's last statement acquires its semicolon.
+//     Measured: `sub f { 1 }` and `sub g { 1; }` both return 1. That covers
+//     a block argument too: `print {$fh} "x"` is emitted `print {$fh;} "x"`.
+//   - extra-nesting: a source pair nested directly inside the pair canon
+//     wrote for a node's Paren flag, around the same node. perl keeps that
+//     paren as one boolean bit, OPf_PARENS: measured on perl 5.44.0,
+//     `ok((($y eq "x")))` and `ok(($y eq "x"))` both build `seq sKPM`. Only
+//     down to one pair: `(($y)) x 3` against `$y x 3` is a difference.
 //
 // A call's parens are not forgiven. Canon writes them only where the source
 // did (the tree's ArgParen) or binding power needs them, so a pair the
@@ -56,15 +63,13 @@ func canonTokens(n *Node, src []byte) []CanonToken {
 
 // CanonToken is one significant token of canon's emission.
 //
-// ParenNode marks a `(` or `)` canon wrote on one of two paths: a
-// parenthesised List's own pair, and the outermost pair of a parenthesised
-// Term, which is written as its source text. Every other paren is unmarked
-// -- a call's argument list, a grouping binding power demands, and three
-// paths that also write a pair from a node's Paren flag, left for the
-// Paren-once issue (01a1664d): emitWraps's pair for a Paren node with a
-// TrailingComma, `(A,)/0`, the `->(` argument pair, `$f->($a+1)`, and
-// emitNot's pair for a parenthesised `not` or its parenthesised operand,
-// `(not $x)` and `not ($a == 1)`.
+// ParenNode marks a `(` or `)` canon wrote for a node's Paren flag: the one
+// pair emit writes for every parenthesised node, `(A,)/0` and `(not $x)`
+// among them. Every other paren is unmarked -- a call's argument list, a
+// grouping binding power demands, and the three pairs a Paren flag stands
+// for where perl keeps no OPf_PARENS bit, because the syntax requires them:
+// the `->(` argument pair, `$f->($a+1)`, the `not (` operand's, `not ($a ==
+// 1)`, and a list slice's, `(1,2,3)[1]` (canonBuf.argParens).
 type CanonToken struct {
 	Text      string
 	ParenNode bool
@@ -82,6 +87,7 @@ type Forgiveness struct {
 // TestFaithfulForgivenessIsClosed holds the set closed.
 const (
 	ruleLastSemicolon = "last-semicolon"
+	ruleExtraNesting  = "extra-nesting"
 )
 
 // faithfulTokens is Faithful over token sequences: the source's significant
@@ -94,9 +100,38 @@ func faithfulTokens(want []string, canon []CanonToken) (bool, []Forgiveness, str
 		got[i] = c.Text
 	}
 	var forgiven []Forgiveness
+	// closes holds the source index of each `)` closing a pair forgiven as
+	// extra nesting, which the source has and canon does not.
+	closes := map[int]bool{}
 
 	w, g := 0, 0
 	for w < len(want) && g < len(got) {
+		if closes[w] {
+			forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleExtraNesting})
+			w++
+			continue
+		}
+		// A source pair nested directly inside the pair canon wrote for a
+		// node's Paren flag: the source's `(` follows the `(` matched to
+		// canon's marked one, and closes right before it. Measured on perl
+		// 5.44.0, `ok((($y eq "x")))` and `ok(($y eq "x"))` are the same
+		// `seq sKPM`. A call's pair is unmarked, so `print((1))+2` is not
+		// forgiven against `print(1)+2`: `const sP` against `const s`.
+		//
+		// Asked before the tokens are compared, so a `(` canon writes next
+		// for an operand is not taken for it: `((($a+$b)*2))` against
+		// `(($a + $b) * 2)`. Not where canon nests its own pair the same
+		// way, which is then the source's pair. canon[g-1] is the `(` matched
+		// to want[w-1], or to the pair want[w-1] was itself forgiven inside:
+		// nestedPair says want[w-1] is a `(`.
+		if g > 0 && canon[g-1].ParenNode && nestedPair(want, w) &&
+			!(got[g] == "(" && nestedPair(got, g)) {
+			inner, _ := matchParen(want, w)
+			forgiven = append(forgiven, Forgiveness{CanonIndex: g, SrcIndex: w, Rule: ruleExtraNesting})
+			closes[inner] = true
+			w++
+			continue
+		}
 		if want[w] == got[g] {
 			w++
 			g++
@@ -150,6 +185,19 @@ func significant(src []byte) []lexer.Token {
 		}
 	}
 	return out
+}
+
+// nestedPair reports whether toks[i] opens a pair nested directly inside
+// the pair opened at i-1: it closes right before that pair does. That
+// toks[i-1] is a `(` follows: from any other token, matchParen finds no `)`
+// right after the one closing toks[i].
+func nestedPair(toks []string, i int) bool {
+	if i == 0 || toks[i] != "(" {
+		return false
+	}
+	inner, okInner := matchParen(toks, i)
+	outer, okOuter := matchParen(toks, i-1)
+	return okInner && okOuter && inner+1 == outer
 }
 
 // matchParen returns the index of the `)` closing the `(` at open.

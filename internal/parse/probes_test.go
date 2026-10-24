@@ -295,15 +295,15 @@ func TestM3ProbesKnownDefectNamesAnIssue(t *testing.T) {
 // its snippet or canon re-emits it unfaithfully, and passes otherwise.
 func TestM3ProbesCheckFaithfulRows(t *testing.T) {
 	perl := perltest.PinnedPerl(t)
-	// The unfaithful case is a real canon defect, the dropped paren in
-	// `\(my @a)` (01a167da-3323-7ce0-a627-abf5b99603d8): perl gives it no
-	// element, and the `\my @a` canon writes one array ref. Once that issue
-	// is fixed this case passes, and wants another snippet canon re-emits
+	// The unfaithful case is a real canon defect, the dropped `;` after an
+	// anonymous-sub statement (01a16c1b-a55d-77fa-bbe2-8b95461248f3):
+	// `sub { 1 }; 2;` re-emits as `sub {1;} 2;`. Once that issue is fixed
+	// this case passes, and wants another snippet canon re-emits
 	// unfaithfully.
 	for name, tc := range map[string]struct{ snippet, facts, want string }{
 		"compiles and re-emits": {"my $x = 1 + 2;\n", "", ""},
 		"perl -c rejects":       {"my $x = ;\n", "", "perl -c rejects the snippet"},
-		"unfaithful":            {"my $r = \\(my @a);\n", "srefgen 1 exact\n", "faithful: canon does not re-emit"},
+		"unfaithful":            {"sub { 1 }; 2;\n", "", "faithful: canon does not re-emit"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			probes, err := loadProbes(writeProbeDir(t, "=== "+name+"\n"+tc.snippet+"--- facts\n"+tc.facts+"faithful\n"))

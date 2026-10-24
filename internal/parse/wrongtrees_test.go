@@ -81,6 +81,7 @@ func definedOverParenDot(t *testing.T, n *Node, src string) {
 	dot := wrong.Children[0]
 	x := *dot.Children[0]
 	x.Paren = true
+	x.InnerStart, x.InnerEnd = x.Start, x.End // as finishList records them
 	x.Start = strings.Index(src, "(")
 	x.End = strings.Index(src, ")") + 1
 	dot.Children[0] = &x
@@ -114,6 +115,7 @@ func printOverParenList(t *testing.T, n *Node, src string) {
 	comma := wrong.Children[0]
 	a := *comma.Children[0]
 	a.Paren = true
+	a.InnerStart, a.InnerEnd = a.Start, a.End // as finishList records them
 	a.Start = strings.Index(src, "(")
 	a.End = strings.Index(src, ")") + 1
 	comma.Children[0] = &a

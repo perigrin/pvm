@@ -204,21 +204,22 @@ func TestCanonListOpTrailingCommaDoesNotEndList(t *testing.T) {
 }
 
 // TestCanonListOpTrailingCommaBeforeCloser: a trailing comma before a closer
-// ends no list before an operator, so the call is written by precedence.
-// Canon does not write every source paren, and a comma after a trailing one
-// does not end the list either. Measured on perl 5.44.0:
+// ends no list before an operator, so the call is written by precedence:
+// bare, before the closer of the pair canon writes for the Paren node
+// around it. A comma after a trailing one does not end the list. Measured on
+// perl 5.44.0:
 //
 //	sub foo; my @l = (foo 1, 2,), 3;   ((my(@l) = foo(1, 2)), '???');
 //	sub foo; my @l = foo 1, 2 ,, 3;    (my(@l) = foo(1, 2, 3));
 //	sub foo; my @l = (1 * foo 1, 2,) + 3;
 //	                                   (my(@l) = ((1 * foo(1, 2)) + 3));
 //
-// So the call takes parens there, and the meaning is kept.
+// So the meaning is kept.
 func TestCanonListOpTrailingCommaBeforeCloser(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`sub foo; my @l = (foo 1, 2,), 3;`, `sub foo; my @l = foo(1, 2,), 3;`},
-		{`sub foo; my @l = ($y = foo 1, 2,), 3;`, `sub foo; my @l = $y = foo(1, 2,), 3;`},
-		{`sub foo; my @l = (1 * foo 1, 2,) + 3;`, `sub foo; my @l = 1 * foo(1, 2,) + 3;`},
+		{`sub foo; my @l = (foo 1, 2,), 3;`, `sub foo; my @l = (foo 1, 2,), 3;`},
+		{`sub foo; my @l = ($y = foo 1, 2,), 3;`, `sub foo; my @l = ($y = foo 1, 2,), 3;`},
+		{`sub foo; my @l = (1 * foo 1, 2,) + 3;`, `sub foo; my @l = (1 * foo 1, 2,) + 3;`},
 	} {
 		n := Parse([]byte(tc.src))
 		if call := findCall(n, "foo"); call == nil || call.Children[0].TrailingComma != "," || call.Children[0].EndsList {
@@ -316,9 +317,9 @@ func TestCanonParenthesisedZeroArgCallBeforeTighterOp(t *testing.T) {
 
 // TestCanonFatCommaKeepsNamedUnaryOperandACall: a zero-argument call that
 // is a named unary's operand, at the right edge of a `=>`'s left side, is
-// a call. Canon drops the source's paren around the named unary, so the
-// call keeps `()`, or the `=>` would quote it. Measured on perl 5.44.0
-// with Deparse,-p:
+// a call. Canon writes the source's paren around the named unary, a Paren
+// node's, so the call does not stand before the `=>`. Measured on perl
+// 5.44.0 with Deparse,-p:
 //
 //	sub foo {} my %h = ((ucfirst foo) => 1);    (my(%h) = (ucfirst(foo()), 1));
 //	sub foo {} my %h = ((defined foo) => 1);    (my(%h) = (defined(foo()), 1));
@@ -333,23 +334,23 @@ func TestCanonParenthesisedZeroArgCallBeforeTighterOp(t *testing.T) {
 //
 // Written `(ucfirst foo => 1)`, it is `('Foo', 1)`.
 func TestCanonFatCommaKeepsNamedUnaryOperandACall(t *testing.T) {
-	for _, tc := range []struct{ src, call string }{
-		{`sub foo {} my %h = ((ucfirst foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((defined foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((ref foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((lc foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((chr foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((length foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((rand foo) => 1);`, "foo()"},
-		{`sub foo {} my %h = ((-e foo) => 1);`, "foo()"},
-		{`my %h = ((lc time) => 1);`, "time()"},
-		{`sub foo {} my %h = ((1 + ucfirst foo) => 1);`, "foo()"},
-		{`sub foo {} my $h = {(ucfirst foo) => 1};`, "foo()"},
-		{`sub foo {} my $a = [(ucfirst foo) => 1];`, "foo()"},
-		{`sub foo {} print((ucfirst foo) => 1);`, "foo()"},
+	for _, tc := range []struct{ src, left string }{
+		{`sub foo {} my %h = ((ucfirst foo) => 1);`, "(ucfirst foo)"},
+		{`sub foo {} my %h = ((defined foo) => 1);`, "(defined foo)"},
+		{`sub foo {} my %h = ((ref foo) => 1);`, "(ref foo)"},
+		{`sub foo {} my %h = ((lc foo) => 1);`, "(lc foo)"},
+		{`sub foo {} my %h = ((chr foo) => 1);`, "(chr foo)"},
+		{`sub foo {} my %h = ((length foo) => 1);`, "(length foo)"},
+		{`sub foo {} my %h = ((rand foo) => 1);`, "(rand foo)"},
+		{`sub foo {} my %h = ((-e foo) => 1);`, "(-e foo)"},
+		{`my %h = ((lc time) => 1);`, "(lc time)"},
+		{`sub foo {} my %h = ((1 + ucfirst foo) => 1);`, "(1 + ucfirst foo)"},
+		{`sub foo {} my $h = {(ucfirst foo) => 1};`, "(ucfirst foo)"},
+		{`sub foo {} my $a = [(ucfirst foo) => 1];`, "(ucfirst foo)"},
+		{`sub foo {} print((ucfirst foo) => 1);`, "(ucfirst foo)"},
 	} {
-		if got := Canon(Parse([]byte(tc.src)), []byte(tc.src)); !strings.Contains(got, tc.call+" =>") {
-			t.Errorf("Canon(%q) = %q, want %s before the =>", tc.src, got, tc.call)
+		if got := Canon(Parse([]byte(tc.src)), []byte(tc.src)); !strings.Contains(got, tc.left+" =>") {
+			t.Errorf("Canon(%q) = %q, want %s before the =>", tc.src, got, tc.left)
 		}
 	}
 }
