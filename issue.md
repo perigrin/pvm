@@ -4,7 +4,7 @@ state: pending
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T23:49:20.285028918Z
-updated: 2026-10-24T00:09:08.649774522Z
+updated: 2026-10-24T14:40:49.514311491Z
 ---
 
 Found in the crochet:review of m3-conformance-corpus (round 1, 2026-10-23), by the ponytail lens and the fix-pass worker. Refactor e8ee9001 left this residue, and the milestone's diff did not create it.
@@ -33,7 +33,7 @@ Found in the crochet:review of m3-conformance-corpus (round 1, 2026-10-23), by t
 
 ### Positive Scenarios
 
-- `staticcheck -checks U1000 -tests ./internal/conformance/ 2>&1 | grep -c 'is unused' | grep -qx 0` (no unused symbols remain)
-- `! grep -rnE 'ONE REFUSING FILE|The fifth refusal|00_adjacency\.t., refuses' internal/conformance conformance/04_operators/README.md` (the false refusal claims are gone)
-- `! grep -rn '00_adjacency\.t' internal/conformance` (no live code or comment names the deleted file)
-- `! grep -rnE '\b[0-9][0-9]_[a-z_]+\.t\b' conformance/*/README.md` (no README names a .t file)
+- [ ] No unused symbols remain (`staticcheck -checks U1000 -tests ./internal/conformance/ 2>&1 | grep -c 'is unused' | grep -qx 0`)
+- [ ] The false refusal claims are gone (`! grep -rnE 'ONE REFUSING FILE|The fifth refusal|00_adjacency\.t., refuses' internal/conformance conformance/04_operators/README.md`)
+- [ ] No live code or comment names the deleted file (`! grep -rn '00_adjacency\.t' internal/conformance`)
+- [ ] No README names a .t file (`! grep -rnE '\b[0-9][0-9]_[a-z_]+\.t\b' conformance/*/README.md`)
