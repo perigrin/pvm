@@ -4,7 +4,7 @@
 #   path:line class src canon prev reason
 # with the cause (src canon prev) and class computed by TestFaithfulQueueMatchesTree.
 # Regenerate with -parse.update-ratchet; never merge it by hand.
-# causes dropped-paren = 1
+# causes dropped-paren = 0
 # causes heredoc = 5
 # causes subless-special-sub = 1
 # causes stmt-boundary = 7
@@ -35,7 +35,6 @@ op/kvaslice.t:73 stmt-boundary { Variable DerefSigil is( join(':', %{$a}[2,3,4])
 op/kvhslice.t:74 stmt-boundary { Variable DerefSigil is( join(':', %{$h}{'c','d','e'}), 'c:C:d:D:e:E', "correct r
 op/lc.t:302 heredoc HeredocBody Quote , my $function = "uc";
 op/lex.t:138 heredoc HeredocBody { , Bareword found where operator expected (Missing operator bef
-op/lexsub.t:350 dropped-paren ( ; special-sub is eval{END('jkqeudth')}, jkqeudth,
 op/localref.t:16 stmt-boundary { Variable DerefSigil { local ${$x}; $aa = 5; is($aa,5); undef $x; is($aa,5); }
 op/loopctl.t:428 stmt-boundary Variable ; } $ok = 0;
 op/lvref.t:42 canon-adds-paren-op declarator ( \ \my $n = \$y;

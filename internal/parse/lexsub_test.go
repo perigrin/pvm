@@ -65,3 +65,45 @@ func TestLexicalSubDeclaration(t *testing.T) {
 		t.Errorf("Canon(%q) = %s, want the anonymous sub unchanged", anon, got)
 	}
 }
+
+// TestLexicalSubShadowsStatementKeyword holds a lexical sub named like a
+// phaser, a special sub or `use`/`require`/`class` to perl's reading: a call
+// to the sub, never the keyword. toke.c looks a word up in the pad before
+// its keyword table, so the lexical wins. Measured on 5.44.0:
+//
+//	$ perl -e 'use feature "state"; state sub END { print "called @_\n" }
+//	           END("a"); END {1};'
+//	called a
+//	called HASH(0x...)
+//
+// `CORE::END` still names the phaser: `my sub END {} CORE::END {print
+// "real\n"}` prints `real`.
+func TestLexicalSubShadowsStatementKeyword(t *testing.T) {
+	for _, word := range []string{"END", "BEGIN", "DESTROY", "AUTOLOAD", "require", "use", "class"} {
+		src := []byte("my sub " + word + " { 1 }\n" + word + "('x');\n")
+		n := parse.Parse(src)
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q) has %d Unknown", src, got)
+		}
+		if ok, diff := parse.Faithful(n, src); !ok {
+			t.Errorf("Faithful(%q) = false at %s", src, diff)
+		}
+		if firstOfKind(n, parse.Phaser) != nil || findCall(n, word) == nil {
+			t.Errorf("Parse(%q) did not read the lexical %s as a call", src, word)
+		}
+	}
+
+	// A lexical sub's scope ends with its block: past it, BEGIN is the
+	// phaser again. Measured on 5.44.0, `{ my sub BEGIN {} } BEGIN { print
+	// "phaser\n" }` prints `phaser` at compile time.
+	scoped := []byte("{ my sub BEGIN { 1 } }\nBEGIN { 2 }\n")
+	if firstOfKind(parse.Parse(scoped), parse.Phaser) == nil {
+		t.Errorf("Parse(%q) kept the lexical BEGIN past its block", scoped)
+	}
+
+	// REGRESSION GUARD: CORE::END is the phaser whatever is in scope.
+	src := []byte("my sub END { 1 }\nCORE::END { 2 }\n")
+	if firstOfKind(parse.Parse(src), parse.Phaser) == nil {
+		t.Errorf("Parse(%q) lost the CORE::END phaser", src)
+	}
+}

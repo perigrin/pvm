@@ -43,6 +43,24 @@ local ($x) = 1;
 2 ex-rv2sv $x
 # -           <1> ex-rv2sv sKPRM*/LVINTRO,1 ->-
 
+=== a backslash over a parenthesised my array [one-element-list]
+my $r = \(my @a);
+--- perl
+1 padav @a
+# 4              <0> padav[@a:1,2] lPM/LVINTRO ->5
+
+=== a backslash over a parenthesised my scalar [one-element-list]
+my $r = \(my $x);
+--- perl
+1 padsv $x
+# 3              <0> padsv[$x:1,2] sPRM/LVINTRO ->4
+
+=== a parenthesised my scalar assigned to [one-element-list]
+(my $x) = 1;
+--- perl
+1 padsv $x
+# 6           <0> padsv[$x:1,2] sPRM*/LVINTRO ->7
+
 === a lexical in parens [scalar-op]
 my $x;
 my $z = ($x);
@@ -324,6 +342,27 @@ my $v = ($x ? 1 : 2);
 --- perl
 2 null
 # -        <1> null sKP/1 ->6
+
+=== a parenthesised ||= [logical]
+our $x;
+my $v = ($x ||= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over orassign
+
+=== a parenthesised //= [logical]
+our $x;
+my $v = ($x //= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over dorassign
+
+=== a parenthesised &&= [logical]
+our $x;
+my $v = ($x &&= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over andassign
 
 === a parenthesised do block [logical]
 my $v = (do { 1 });
