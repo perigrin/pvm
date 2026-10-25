@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -590,7 +591,9 @@ func TestEveryPinnedPerlTestIsRequired(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			files[filepath.Join(dir, filepath.Base(path))] = src
+			// A slash path on every platform: the workflow names packages
+			// with `/`, and filepath.Join wrote `internal\parse` on Windows.
+			files[dir+"/"+filepath.Base(path)] = src
 		}
 	}
 	if len(files) == 0 {
@@ -808,8 +811,8 @@ func pinnedPerlProblems(t *testing.T, wf workflowFile, files map[string][]byte) 
 		if err != nil {
 			t.Fatalf("parsing %s: %v", path, err)
 		}
-		pkg := filepath.Dir(path)
-		if filepath.Base(path) != pinnedPerlAtFile && references(f, "PinnedPerlAt") {
+		pkg := pathpkg.Dir(path)
+		if pathpkg.Base(path) != pinnedPerlAtFile && references(f, "PinnedPerlAt") {
 			problems = append(problems, fmt.Sprintf("%s refers to PinnedPerlAt, which only %s may: "+
 				"elsewhere it reaches a pinned perl that no REQUIRE step holds", path, pinnedPerlAtFile))
 		}
