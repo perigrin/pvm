@@ -1,0 +1,26 @@
+# ABOUTME: Temporary diagnostic for PR #493: runs the Windows test step and reports each failing test as an annotation.
+# ABOUTME: The cloud session that opened the PR cannot read Actions logs; delete this branch once the failure is known.
+
+name: Diag Windows
+
+on:
+  push:
+    branches: [ 'diag/m3-windows' ]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.24.4'
+    - name: Test, failures as annotations
+      shell: bash
+      env:
+        PVM_REQUIRE_PERL542: "1"
+      run: |
+        go test ./... -count=1 > test.log 2>&1 || true
+        grep -E -- '^(--- FAIL|FAIL|panic:|ok )' test.log | grep -v '^ok ' | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+        grep -E -B2 -A12 -- '^\s*--- FAIL' test.log | head -150 | sed 's/^/::error::/' | head -150
+        grep -E -A20 -- '^panic:' test.log | head -40 | sed 's/^/::error::/'
