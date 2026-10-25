@@ -125,12 +125,24 @@ WRONG = 0) it is materially incomplete. What exists in code:
   tree through `internal/parser/`; its conversion to `internal/parse/`, and
   the lowering pass that conversion goes through, is chapter 6 §6.1.6.
 
-Two measured defects in `internal/parse/` are recorded rather than hidden:
-`($x)` loses its `Paren` node (`term.go:284-293`, against chapter 4 §4.10)
-and `${$h->{k}}` lexes to one token and parses to one childless leaf (issue
-01a0ad52). Both pass round-trip, which proves no byte was lost and nothing
-about structure (chapter 7 §7.2(c)). Chapter 6 §6.1.8 lists them with the
-rest of what is open.
+A measured defect in `internal/parse/` is recorded rather than hidden:
+`${$h->{k}}` lexes to one token and parses to one childless leaf (issue
+01a0ad52). It passes round-trip, which proves no byte was lost and nothing
+about structure (chapter 7 §7.2(c)). Chapter 6 §6.1.8 lists it with the
+rest of what is open. The defect once recorded beside it, `($x)` losing its
+`Paren` node, is fixed: a parenthesised term keeps the flag, and canon
+writes a `Paren` node's parens once. canon is precedence-aware and writes a
+call's parens only where the source had them or binding power requires
+them, and `Faithful` forgives exactly two differences: a block's last `;`,
+and extra paren nesting (perigrin's round-7 ruling).
+
+The M3 gate (plan §5 M3) is closed at b2142de8, measured with perl 5.44.0:
+**593/593** of the files perl compiles parse without error; **3181/3365**
+M3-dir marker sites exact (94.53%) and **5425/5637** whole-corpus marker
+sites exact (96.24%), WRONG 0 in both; **347/347** M3-dir files re-emit
+faithfully (100%), with no defects file, and perl.git t/ **616/619**
+faithful; **345** op=>count assertions from `perf/opcount.t` held to perl;
+and rv2hv wider **194**, from 396 at the 5.44.0 re-pin.
 
 A third is fixed: `$h{k}` and `$h->{k}` produced two unrelated tree shapes
 for one operation until d2ebe02a. The measurement there is worth keeping in

@@ -609,7 +609,7 @@ like a real editor integration rather than a batch tool.
 
 | Metric | Target |
 |---|---|
-| Parse without error | **≥ 90% of the compilable corpus (≥ 526 of 584)** |
+| Parse without error | **≥ 90% of the files perl compiles (≥ 534 of 593)** |
 | Oracle agreement, exact | **≥ 80%** of marker sites |
 | Oracle agreement, WRONG | **0** |
 | Canonical re-emission (token-identical) | **100% of what parses** |
@@ -617,8 +617,11 @@ like a real editor integration rather than a batch tool.
 
 **Canonical re-emission replaces the Deparse-fixpoint metric this table used
 to carry**, and the replacement is not a rename. Re-emit the tree as Perl
-with the parenthesisation the TREE implies — never the parens the source had
-— then compare significant tokens against the source's. The two must be
+with the parenthesisation the TREE implies, then compare significant tokens
+against the source's. The tree implies a source paren that perl keeps: a
+`Paren` node is written with one pair, as perl's op carries one OPf_PARENS
+bit, and the source's extra nesting is not written (perigrin's Paren-once
+ruling). The two must be
 identical.
 
 Three reasons it is the better check, each measured:
@@ -649,6 +652,30 @@ claim about parse correctness rather than parse coverage.
 
 **Ships:** trustworthy go-to-definition and PSC type inference on a parse
 that has been checked against perl.
+
+#### Measured at the M3 gate
+
+Measured at b2142de8 with perl 5.44.0 (threaded), the perl5 corpus pinned at
+94e50866 (`internal/parseoracle/testdata/corpus.pin`). Each number is read
+from its committed file, and `TestM3DocsQuoteCommittedNumbers` and
+`TestPlanM3SectionQuotesSitesRatchet` fail if this text and the file part.
+
+| Metric | Target | Measured |
+|---|---|---|
+| Parse without error | ≥ 90% of the 593 files perl compiles | **593/593** of the files perl compiles parse without error (`compiledclean.txt`) |
+| Oracle agreement, exact, per marker site | ≥ 80% | **3181/3365** M3-dir marker sites exact (94.53%): 184 wider, 0 no-answer, 0 WRONG. **5425/5637** whole-corpus marker sites exact (96.24%): 205 wider, 7 no-answer, 0 WRONG (`sites.txt`) |
+| Oracle agreement, WRONG | 0 | 0 on the M3 dirs and the whole corpus |
+| Canonical re-emission | 100% of what parses | **347/347** M3-dir files re-emit faithfully (100%), from 178/347 at the M3 start; perl.git t/ **616/619** faithful, from 342/619 (`perlgittfaithful.ratchet`, `m3start.txt`) |
+| `perf/opcount.t` assertions in fixtures | ≥ 200 | **345** op=>count assertions in 96 fixtures, each held to perl |
+| rv2hv reported where perl emits it | the wider count falls from 389 | rv2hv wider **194**, from 396 at the 5.44.0 re-pin (389 was the 5.42.0 count) |
+
+Re-emission is 100% faithful on every M3-dir file that parses, with no
+defects file (perigrin's round-4 ruling): `TestPerlGitTFaithfulOnM3Dirs`
+walks all 347 files and reads no exception list, and the work queue it
+replaced, `internal/parse/testdata/faithful_queue.txt`, holds no rows.
+`Faithful` forgives exactly two differences, a block's last `;` and extra
+paren nesting. The three perl.git t/ files still unfaithful are outside
+the M3 dirs: base/lex.t, comp/hints.t and japh/abigail.t.
 
 ### M4 — Prototypes, context, and the hard ambiguities
 
@@ -726,7 +753,7 @@ does not have to re-derive it.
 | M0 | Lexer round-trip | 100% lossless on 56 core files; `t/base/lex.t` | Syntax highlighting |
 | M1 | Parse the core | T2 56 of 56, corpus and exact-match ratchets, WRONG = 0 | Symbols, folding |
 | M2 | Incremental | incremental == full, 10 M fuzz execs, < 10 ms p99 | Responsive LSP |
-| M3 | Oracle at scale | ≥ 90% parse on 584 files, ≥ 80% exact, WRONG = 0, re-emission 100% | Trustworthy navigation, PSC |
+| M3 | Oracle at scale | ≥ 90% parse on 593 files, ≥ 80% exact, WRONG = 0, re-emission 100% | Trustworthy navigation, PSC |
 | M4 | Prototypes | ≥ 95% prototype agreement, ≥ 90% exact | Signature help, context |
 | M5 | Regex + wild | ≥ 95% on 518 regex + 200 CPAN | Survives real code |
 | M6 | Conformance | ≥ 99% `t/op`, ≥ 95% exact (**re-derive from floors**) | Reference implementation |

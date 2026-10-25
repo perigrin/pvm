@@ -305,7 +305,9 @@ mis-grouped tree:
   is: pure Go, no perl, every file participates.
 
   `canon` emits the structure the tree asserts — **parenthesisation implied
-  by the tree, never the parens seen in the source**. That constraint is the
+  by the tree**. A source paren perl keeps is in the tree: a `Paren` node
+  is written with one pair, as perl's op carries one OPf_PARENS bit, and
+  the source's extra nesting is not written. That constraint is the
   whole mechanism. An emitter that prints each leaf's original text in order
   is `emit` with extra steps: it round-trips by construction and proves
   nothing. An emitter that must write out its own grouping has to write a
