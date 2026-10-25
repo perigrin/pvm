@@ -22,7 +22,9 @@ jobs:
         go test ./... -count=1 -v *> test.log
         "exit $LASTEXITCODE" | Out-File -Append test.log
         (Get-Command perl).Source | Out-File perl.txt
+        exit 0
     - name: Failing tests
+      if: always()
       shell: bash
       run: |
         echo "::error title=perl::$(cat perl.txt | tr -d '\r')"
