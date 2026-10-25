@@ -74,9 +74,19 @@ own and always did, because `not` is PREFIX and `prefix` has it. Reading
 a count off a failing case and then naming a cause for it is how that
 happened; the cause was never measured separately.
 
-The file test is the one construct NOT here. `31_file_test`'s claim is
-`no operator whose text is "-"`, and this body writes `-$n ** 2` and
-`~$a`, so the negative is false here and no spelling of it is not.
+The file test IS here, as `-e $^X`, but its token claim is not.
+`unary.md`'s claim is `no operator whose text is "-"`, and this body
+writes `-$n ** 2`, so that negative is false here and stays with the
+case that owns it.
+
+`TestAdjacencyCoversItsTier` requires this topic to emit every op the
+tier's README introduces, and the lines after the sixth `print` are the
+ones that check added. Each spelling is the one that reaches its op:
+`$count++` as a VALUE is `postinc` (in void context perl rewrites it to
+`preinc`); `.` inside a list is `concat` (beside interpolation it is
+`multiconcat`); and `use feature 'bitwise'` comes LAST because it is
+lexical to the end of the file, and the `&` and `|` above it must stay
+`bit_and` and `bit_or` while the `&` below it is `nbit_and`.
 
 ```perl
 my @nums = (3, 1, 2);
@@ -124,6 +134,26 @@ print sprintf("%0*d", $n, $n), " [$edit] ", index($edit, "b"), " [", substr($wor
 print "bits [$bits] prec [$prec] shift [$shifted] comp [$comp]\n";
 print "acc [$acc] app [$app] rep [$t] def [$def] mask [$mask]\n";
 print "count [$count] tag [$tag] flag [$flag] group [$group] chain [$chain]\n";
+my $old = $count++;
+my $was = $count--;
+my $and = $ARGV[12] // 1;
+$and &&= 4;
+my $or = $ARGV[13] // 0;
+$or ||= 8;
+my $xor = $a ^ $b;
+my $rsh = $a >> 1;
+my @cat = ($word . $app);
+my $len = length $word;
+my $up = uc $word;
+my $num = ($a == 6) . ($a != 6);
+my $str = ($word eq "ab") . ($word ne "ab") . ($word lt "b") . ($word gt "b") . ($word le "ab") . ($word ge "ac");
+my $sm = $n ~~ "3.0";
+my $ft = -e $^X;
+print "old [$old] was [$was] and [$and] or [$or] xor [$xor] rsh [$rsh] cat [$cat[0]] len [$len] up [$up]\n";
+print "num [$num] str [$str] sm [$sm] ft [$ft]\n";
+use feature 'bitwise';
+my $nb = $a & $b;
+print "nbit [$nb]\n";
 ```
 
 ```behavior
@@ -137,4 +167,7 @@ sum [-2] rel [00] pick [1] rep [abab] pow [-3]
 bits [2] prec [2] shift [12] comp [249]
 acc [7] app [ab] rep [abab] def [0] mask [15]
 count [6] tag [Ba] flag [] group [8] chain []
+old [6] was [7] and [4] or [8] xor [5] rsh [3] cat [abab] len [2] up [AB]
+num [1] str [111] sm [1] ft [1]
+nbit [2]
 ```

@@ -482,3 +482,46 @@ parses: yes
 ```output
 both 5 5
 ```
+
+## `local` restores on call return, read through a call
+
+`dynamic-scope.md` asserts that `local` restores on BLOCK exit, and every
+read there is in the same scope as the `local`. This case moves the READ:
+`inner` localises `$v` and never reads it, `show` reads it and never
+localises it, so the localised value is observable only from inside a call
+-- the same construct with a different read position, the axis
+`read-position.md` is about. It lives in this tier because the read needs
+`entersub`, which tier 05 cannot reach.
+
+The second read goes through TWO frames, `relay` calling `show`, because an
+implementation that tracks only the immediate caller can get one frame
+right and two wrong. The last print, back at file scope after `inner`
+returned, is the restore. Measured 5.42.0: `inner`, `inner`, `outer`.
+
+An implementation that drops the save and restore -- a bare assignment --
+prints `inner` three times: it compiles, exits 0, and clobbers the outer
+value. The same-scope shape cannot catch that, because there the pre- and
+post-block values can be read as two bindings and printed correctly with no
+restore at all.
+
+The glob spelling, `local *v = \"inner"`, is the same property through a
+different slot; it is in `symbol-table.md` because `rv2gv` is tier 10's.
+
+```perl
+our $v = "outer";
+sub show  { print "$v\n" }
+sub relay { show() }
+sub inner { local $v = "inner"; show(); relay() }
+inner();
+show();
+```
+
+```behavior
+parses: yes
+```
+
+```output
+inner
+inner
+outer
+```

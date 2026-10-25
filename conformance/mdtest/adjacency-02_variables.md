@@ -6,7 +6,8 @@ another, and adjacent to tier 01's literals.
 **Tier 02 variables.** Introduces `aassign`, `aelem`, `aelemfast`,
 `aelemfast_lex`, `aelemfastlex_store`, `aslice`, `av2arylen`, `delete`,
 `each`, `gv`, `gvsv`, `helem`, `hslice`, `keys`, `multideref`, `padav`,
-`padhv`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `unshift`,
+`padhv`, `pop`, `push`, `rv2av`, `rv2hv`, `sassign`, `shift`, `splice`,
+`unshift`,
 `values`. Depends on 01_literals. The mixture itself is the subject; it introduces
 nothing of its own.
 
@@ -72,6 +73,15 @@ hash the first iteration is determined. `values %h` is safe on the big
 hash only because it is wrapped in `scalar`, which asks how many rather
 than which.
 
+The last two lines are the mutators that REMOVE elements -- `shift`,
+`pop` and `splice` -- over the same `@a` the four above built up, and
+`keys` in LIST context, which is the spelling that emits a `keys` op
+(`scalar(keys %h)` is a flag on `padhv`; see the tier README). `%one`
+again, so the one key is determined. They come last for the reason the
+aggregate operators come after the prints: they mutate `@a`. Line by
+line: the shifted `3`, the popped `2`, the spliced `7`, the `2` left,
+and `solo`.
+
 `print $a[0]` rather than `print "$a[0]"` throughout: the interpolated
 subscript emits `stringify` and an interpolated `@a` emits `join` plus a
 `gvsv` for `$"`, none of which this tier claims. `$tag` is built by a
@@ -100,6 +110,11 @@ unshift @a, $#a;
 my %one = (solo => 11);
 my ($ek, $ev) = each %one;
 print $a[0], $a[$#a], scalar(@a), $ek, $ev, "\n";
+my $sh = shift @a;
+my $po = pop @a;
+my @sp = splice @a, 0, 1;
+my @ok = keys %one;
+print $sh, $po, $sp[0], scalar(@a), $ok[0], "\n";
 ```
 
 ```behavior
@@ -112,4 +127,5 @@ parses: yes
 142
 782110
 325solo11
+3272solo
 ```

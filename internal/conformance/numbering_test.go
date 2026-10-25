@@ -295,14 +295,17 @@ func TestDeclaredOrderingIsStillMeaningful(t *testing.T) {
 // `loops.md` and `jumps.md` -- because the topics were cut along the
 // lines the groupings already drew.
 //
-// So the check is: every group names a topic this tier holds. That keeps
-// what made the grouping spelling expensive enough to be honest -- a tier
-// whose arrangement is an accident still cannot write down names a reader
-// can check -- and it keeps the drift alarm, since renaming or merging a
-// topic without touching the README is reported. What it no longer
-// checks, because nothing on disk says it, is that the parts are
-// CONTIGUOUS or that they COVER the tier: a topic in no group is now
-// invisible to this test.
+// So the check is: every group names a topic this tier holds, and the
+// groups COVER the tier's topics exactly -- no topic in no group, no
+// topic in two. That keeps what made the grouping spelling expensive
+// enough to be honest -- a tier whose arrangement is an accident still
+// cannot write down names a reader can check -- and it keeps the drift
+// alarm, since adding, renaming or merging a topic without touching the
+// README is reported. What it does not check, because nothing on disk
+// says it, is that the parts are CONTIGUOUS.
+//
+// The adjacency topic is in no group. It is not one of the tier's parts
+// but the check that the parts compose; see adjacencyTopic.
 func TestGroupedTierNamesItsTopics(t *testing.T) {
 	orders, err := readFileOrders(corpusDir)
 	if err != nil {
@@ -325,10 +328,24 @@ func TestGroupedTierNamesItsTopics(t *testing.T) {
 			have[strings.TrimSuffix(topic, ".md")] = true
 		}
 
+		named := map[string]int{}
 		for _, g := range order.groups {
-			if !have[groupTopic(g.name)] {
+			stem := groupTopic(g.name)
+			named[stem]++
+			if !have[stem] {
 				t.Errorf("%s: group %q names no topic; %s holds %s",
 					tier, g.name, tier, strings.Join(topics, ", "))
+			}
+			if named[stem] == 2 {
+				t.Errorf("%s: two groups name %s.md; a topic is one part of its tier",
+					tier, stem)
+			}
+		}
+		for _, topic := range topics {
+			stem := strings.TrimSuffix(topic, ".md")
+			if topic != adjacencyTopic(tier) && named[stem] == 0 {
+				t.Errorf("%s: %s is in no group; the FILE ORDER block must name every topic",
+					tier, topic)
 			}
 		}
 	}

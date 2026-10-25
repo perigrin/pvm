@@ -202,3 +202,38 @@ before
 one word whose text is "foreach"
 one word whose text is "our"
 ```
+
+## `local` on a glob restores on call return
+
+The same property through the glob slot, the spelling perl's own `t/` uses.
+`local *v = \"inner"` localises the whole glob and installs a scalar
+reference in it; `$v` reads through the glob, so `show` sees `inner` from
+one and two frames down and `outer` once `inner` has returned. Measured
+5.42.0, identical output to the scalar spelling.
+
+`local` is a flag, not an op: measured, `*v = \@A` is `rv2gv sKRM*/1` and
+`local *v = \"x"` is `rv2gv sKRM*/LVINTRO,1`, one bit apart, which the op
+lint reads past because it sees op names and not flags. The case lives
+here and not beside its scalar twin in `subroutines.md` because of that
+`rv2gv`: it is this tier's op, and the lint reads sub bodies, so tier 07
+cannot hold it. `\"inner"` takes no reference op at all -- perl folds it
+to `const[IV \"inner"] s/FOLD`.
+
+```perl
+our $v = "outer";
+sub show  { print "$v\n" }
+sub relay { show() }
+sub inner { local *v = \"inner"; show(); relay() }
+inner();
+show();
+```
+
+```behavior
+parses: yes
+```
+
+```output
+inner
+inner
+outer
+```

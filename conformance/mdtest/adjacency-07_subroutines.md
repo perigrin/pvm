@@ -118,6 +118,11 @@ ops: `aelemfast and argcheck argdefelem argelem enteriter eq iter join
 leaveloop leavesub lt multiconcat next postinc return rv2av unstack`.
 That difference is the size of the blind spot, in one file.
 
+`sub slot :lvalue` is last because it is the only spelling that emits
+`leavesublv`, the tier's lvalue terminator. `slot() = answer() + $seen`
+assigns through the call, beside a call to `answer` and
+the `$seen` that `bump` raised to 1, so it prints `43`.
+
 ```perl
 use v5.36;
 sub pick ($n, $label = "small") {
@@ -149,6 +154,10 @@ print f 1, 2;
 print "\n";
 print g 1, 2;
 print "\n";
+my $slot = 0;
+sub slot :lvalue { $slot }
+slot() = answer() + $seen;
+print slot(), "\n";
 ```
 
 ```behavior
@@ -161,4 +170,5 @@ small big-2 small/tiny 1
 12
 f[1-2]
 g[1]2
+43
 ```

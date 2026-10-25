@@ -91,6 +91,11 @@ both open DATA in package main.
 output and print output share one ordered stream on STDOUT. The output
 ends with a BLANK LINE, and it is the corpus format's own.
 
+`pack` and `unpack` take the `"C3"` template, the opaque region this tier
+owns, and the first value comes from `$ENV{X} // 65` so the pack runs at
+RUN time: over constants perl folds it away and no `pack` op is left.
+`ABC` is the packed string and `656667` the three codes read back.
+
 ```perl
 format STDOUT =
 a report line
@@ -110,6 +115,8 @@ Prose the lexer eats and the optree never sees.
 my @none = <*.nonexistent-xyz>;
 my @data = <DATA>;
 print $shell, $here, "glob ", scalar(@none), "\n";
+my $packed = pack("C3", $ENV{X} // 65, 66, 67);
+print $packed, " ", unpack("C3", $packed), "\n";
 write;
 print @data;
 __END__
@@ -124,6 +131,7 @@ parses: yes
 hi
 heredoc line
 glob 0
+ABC 656667
 a report line
 from the data section
 ```

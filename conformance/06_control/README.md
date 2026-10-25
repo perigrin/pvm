@@ -45,8 +45,8 @@ this tier's subject.
 
 ## INTRODUCES
 
-    cond_expr die enteriter entertry exit goto iter last leavetry next redo
-    time unstack
+    cond_expr die entergiven enteriter entertry enterwhen exit goto iter last
+    leavegiven leavetry leavewhen next redo time unstack
 
 ## Why those ops, and not the ones the source implies
 
@@ -173,6 +173,19 @@ is left out of this tier deliberately. `do SUB` is not measured at all
 because it does not exist: under 5.42.0 `do f()` is a syntax error, so the
 third of the "three unrelated parses" is a parse perl no longer has.
 
+`entergiven`, `leavegiven`, `enterwhen` and `leavewhen` are the switch
+statement, `given`/`when`/`default`, and they are here because `when` is a
+jump: it runs its block and then LEAVES the enclosing `given`, the same
+control transfer as `last` out of a loop, and `default` is a `when` whose
+guard always holds. `given` takes an expression and `when` a block, both
+already available at 05, so the family needs nothing later. What it does
+emit is `smartmatch`, for `when (1)`, and that op is 04's -- `~~` reaches
+it without any switch. A `when` over an array emits `srefgen` as well, so
+that shape waits for 08. Measured under 5.42.0, the feature is OFF from
+bundle 5.36 onward and on for bundles 5.10 through 5.34, and it does not
+warn: `perl -w` and `use warnings "deprecated"` both compile it silently.
+`switch.md` carries both facts beside its cases.
+
 Two erasures worth recording, because they are how a file in this tier can
 silently measure nothing. `if (1) { print "y" } else { print "n" }` emits
 `pushmark`, `const` and `print` and no branch op whatsoever -- the else
@@ -240,6 +253,7 @@ a file here that the probe finds.
     loops
     jumps
     blocks-and-terminations
+    switch
 
 The tier's topics, which are its grouping: a case lives in the topic
 whose subject it shares, and the topic file name IS the group name.
