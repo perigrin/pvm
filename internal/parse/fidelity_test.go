@@ -525,7 +525,8 @@ func TestFaithfulForgivenessIsClosed(t *testing.T) {
 		}
 	})
 
-	want := []lexer.Kind{lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection}
+	// A data section is compared, not dropped: perigrin's ruling (2026-10-25).
+	want := []lexer.Kind{lexer.Whitespace, lexer.Comment, lexer.Pod}
 	if !slices.Equal(parse.DroppedKinds, want) {
 		t.Errorf("Faithful drops token kinds %v before comparing, want exactly %v", parse.DroppedKinds, want)
 	}

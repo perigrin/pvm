@@ -112,6 +112,22 @@ func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
 	*b.bodies = pending[i:]
 }
 
+// writeDataSection writes the data section a Trivia node holds, if any, on a
+// line of its own.
+func writeDataSection(b *canonBuf, n *Node, src []byte) {
+	text := n.SourceText(src)
+	for _, tok := range lexer.Tokenize([]byte(text)) {
+		if tok.Kind != lexer.DataSection {
+			continue
+		}
+		if b.Len() > 0 && !strings.HasSuffix(b.String(), "\n") {
+			b.WriteByte('\n')
+		}
+		b.WriteString(text[tok.Start:])
+		return
+	}
+}
+
 // writeParenNode writes a paren a node's Paren flag stands for, and marks it.
 func (b *canonBuf) writeParenNode(c byte) {
 	b.parenNode = append(b.parenNode, b.Len())
@@ -383,7 +399,13 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		b.WriteByte(' ')
 
 	case Trivia:
-		// Dropped. See Canon.
+		// Dropped, but for a data section. See Canon. A data section is
+		// written back verbatim, on a line of its own as perl requires:
+		// perigrin's ruling (2026-10-25). Its bytes are what DATA yields,
+		// so dropping them changes the run: measured on perl 5.44.0,
+		// `print while <DATA>;\n__DATA__\nline one\n` prints "line one\n"
+		// and the same without its section prints nothing.
+		writeDataSection(b, n, src)
 
 	case Call:
 		// A call with no arguments the source parenthesised, `(foo) - 1`,
@@ -1457,11 +1479,12 @@ func endsInSemicolon(code []byte) bool {
 	return len(toks) > 0 && toks[len(toks)-1] == ";"
 }
 
-// endsInTerminator reports whether code's last significant token, a heredoc
-// body aside, is `;`. A body follows the `;` that ended its statement.
+// endsInTerminator reports whether code's last significant token, heredoc
+// bodies and a data section aside, is `;`. Both follow the `;` that ended
+// the statement before them.
 func endsInTerminator(code []byte) bool {
 	toks := significant(code)
-	for len(toks) > 0 && toks[len(toks)-1].Kind == lexer.HeredocBody {
+	for len(toks) > 0 && (toks[len(toks)-1].Kind == lexer.HeredocBody || toks[len(toks)-1].Kind == lexer.DataSection) {
 		toks = toks[:len(toks)-1]
 	}
 	return len(toks) > 0 && string(code[toks[len(toks)-1].Start:toks[len(toks)-1].End]) == ";"

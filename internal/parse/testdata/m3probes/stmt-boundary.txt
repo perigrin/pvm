@@ -191,3 +191,40 @@ use feature 'switch'; no warnings; for (1) { next when 2; last if 1; }
 --- facts
 faithful
 # foreach $_ (1) { when (2) { (next); } (last); }
+
+=== a __DATA__ section read back (perigrin, 2026-10-25: kept and compared)
+print while <DATA>;
+__DATA__
+line one
+line two
+--- facts
+readline 1 exact
+faithful
+
+=== __END__ followed by POD
+print "code\n";
+__END__
+
+=head1 NAME
+
+pod here
+
+=cut
+--- facts
+faithful
+
+=== __DATA__ in a package other than main
+package Foo;
+print while <DATA>;
+__DATA__
+foo data
+--- facts
+readline 1 exact
+faithful
+
+=== a last statement without a semicolon before __END__
+print 1
+__END__
+x
+--- facts
+faithful
