@@ -1,6 +1,6 @@
 ---
 title: Triage statement-boundary re-emission differences in the M3 dirs
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,7 +9,16 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-23T22:00:12.522950417Z
+updated: 2026-10-25T13:08:58.978616051Z
+sessions:
+- start_sha: 7a4b0cc1600607c2507684b3a8b3222b64cd27cf
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-25T13:08:58.978616051Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-25T13:08:58.978616051Z
 ---
 
 ## Context
