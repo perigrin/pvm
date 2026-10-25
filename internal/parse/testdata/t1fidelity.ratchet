@@ -3,7 +3,7 @@
 # recursively gives 1508 files and adding module/ gives 1935;
 # both are different corpora. This is the 986.
 #
-# 986 files, 959 clean (97.3%), 27 total.
+# 986 files, 975 clean (98.9%), 11 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -15,7 +15,7 @@
 0 archive_zip_members_matching_qr.t
 0 array.t
 0 array_autovivification.t
-1 array_delete_exists.t
+0 array_delete_exists.t
 0 array_deref_size_append.t
 0 attribute_method_named_sub_deparse.t
 0 attributes_prototype_warning_scope.t
@@ -90,7 +90,7 @@
 0 cli_warning_overrides.t
 0 clone.t
 0 closed_stderr_unhandled_die.t
-1 closure.t
+0 closure.t
 0 closure_eval_string.t
 0 code_deref_nonstrict.t
 0 code_ref_defined_exists.t
@@ -119,7 +119,7 @@
 0 config_startperl_exec.t
 0 constant.t
 0 constant_mro_generation.t
-1 constant_stash_proxy.t
+0 constant_stash_proxy.t
 0 context.t
 0 context_semantics.t
 0 control_flow.t
@@ -236,7 +236,7 @@
 0 direct_builtin_data_handle.t
 0 directory.t
 0 do_block_freetmps_fresh_result.t
-1 do_modern_syntax_and_copy.t
+0 do_modern_syntax_and_copy.t
 0 do_quote_like_file_operand.t
 0 do_subref_parenthesized_syntax.t
 0 double_diamond_closed_stdin.t
@@ -343,7 +343,7 @@
 0 goto_localized_typeglob_args.t
 0 goto_named_redefinition.t
 0 goto_tailcall_args_cleanup.t
-1 goto_tailcall_cleanup.t
+0 goto_tailcall_cleanup.t
 0 goto_tailcall_core_destroy_order.t
 0 harness_skip_all.t
 0 hash.t
@@ -391,8 +391,8 @@
 0 interpreter_foreach_continue_alias.t
 0 interpreter_globref_code_assignment.t
 0 interpreter_labeled_next_continue_block.t
-1 interpreter_local_hash_slice_coderef_method.t
-1 interpreter_myhash_myarray_scope_exit.t
+0 interpreter_local_hash_slice_coderef_method.t
+0 interpreter_myhash_myarray_scope_exit.t
 0 interpreter_nested_factory_array_lifetime.t
 0 interpreter_next_inside_foreach_continue.t
 0 interpreter_overloaded_bitwise_not_scalar_context.t
@@ -435,7 +435,7 @@
 0 list_util_does_not_mark_sub_util_loaded.t
 0 listutil_shared_subutil_backend.t
 0 local.t
-1 local_glob_dynamic.t
+0 local_glob_dynamic.t
 0 local_glob_filehandle.t
 0 local_hash_slice_regressions.t
 0 local_isa_method_dispatch.t
@@ -448,8 +448,8 @@
 0 localized_named_sub_in_compiled_caller.t
 0 localized_regex_captures.t
 0 localtime_tz.t
-1 loop_label.t
-1 loop_label_bareword_constant.t
+0 loop_label.t
+0 loop_label_bareword_constant.t
 0 loop_modifiers.t
 0 lvalue_list_sub.t
 0 lvalue_substr.t
@@ -496,7 +496,7 @@
 0 mojolicious_inherited_listener_regression.t
 0 mojolicious_mount_lifecycle_regression.t
 0 mojolicious_parser_diagnostic_parity.t
-1 mojolicious_promise_lifecycle_regressions.t
+0 mojolicious_promise_lifecycle_regressions.t
 0 mojolicious_skipped_closure_lifecycle_regression.t
 0 mojolicious_socket_poll_regressions.t
 0 moose_regexpref_constraint.t
@@ -824,7 +824,7 @@
 0 threads_postfix_create_and_invalid_entry.t
 0 threads_public_api_surface.t
 0 threads_qr_literal_validation.t
-1 threads_regex_callback_clone_isolation.t
+0 threads_regex_callback_clone_isolation.t
 0 threads_regex_callback_reuse.t
 0 threads_regex_callback_shared_wrapper.t
 0 threads_regex_capture_snapshot.t
@@ -863,7 +863,7 @@
 1 tied_hash_autoviv_refloop_cleanup.t
 0 tied_hash_destroy_release.t
 0 tied_hash_weak_owner_cleanup.t
-1 tied_isa_method_lookup.t
+0 tied_isa_method_lookup.t
 0 tied_lvalue_sub_return.t
 0 tied_scalar_local_mutable_undef.t
 0 tied_scalar_self_backing_value.t
@@ -908,7 +908,7 @@
 0 unpack.t
 0 unpack_short_string.t
 0 use_adjacent_import_quote.t
-1 use_lib_inc_hook.t
+0 use_lib_inc_hook.t
 0 use_vars_glob_strict.t
 0 utf8.t
 0 utf8_downgrade_references.t
@@ -948,7 +948,7 @@
 0 xml_libxml_relaxng.t
 0 xml_libxslt.t
 0 xml_parser_current_element.t
-1 xml_parser_external_entity_sysid.t
+0 xml_parser_external_entity_sysid.t
 0 xml_parser_parsefile_typeglob.t
 0 xml_parser_tied_handle.t
 0 xstring.t
@@ -980,7 +980,7 @@
 0 zz_redo_unless.t
 0 zz_storable_code_eval.t
 0 zz_strict_deref_compile_error.t
-1 zzzz_cgi_sparse_rearrange.t
+0 zzzz_cgi_sparse_rearrange.t
 0 zzzz_env_byte_string.t
 0 zzzz_file_temp_filehandle_identity.t
 0 zzzz_html_entities_undef_unsafe.t

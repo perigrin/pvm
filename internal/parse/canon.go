@@ -43,6 +43,9 @@ type canonBuf struct {
 	// reads and clears it, so a parent sets it (emitBefore) only for the
 	// child it is about to write; every other child reads 0.
 	follow int
+	// noTerm is set while the file's last statement is written when the
+	// source ended it with no `;`: writeTerm writes none there.
+	noTerm bool
 	// bodies are the heredoc bodies inside the statements being written
 	// that are not written yet, in source order, shared by every buffer
 	// those statements are written through. See writeBodiesBefore.
@@ -83,6 +86,32 @@ func (b *canonBuf) writeBodiesBefore(n *Node, src []byte) {
 	*b.bodies = pending[i:]
 }
 
+// writeBodiesAfter writes the pending heredoc bodies the source put right
+// after n, with no token between, on a line of their own: n ended its
+// opener's line, so the bodies go before the closers canon writes after it,
+// as the source has them. Measured on perl 5.44.0, `print f(<<A\nx\nA\n),
+// "\n";` is `print(f("x\n"), "\n");` under Deparse,-p. A statement's own
+// bodies are its case's to place.
+func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
+	if b.bodies == nil || n.Kind == Statement || n.Kind == SourceFile || n.Kind == Trivia || n.HeredocBody {
+		return
+	}
+	pending := *b.bodies
+	i, from := 0, n.End
+	for i < len(pending) && pending[i].Start >= from && len(significant(src[from:pending[i].Start])) == 0 {
+		from = pending[i].End
+		i++
+	}
+	if i == 0 {
+		return
+	}
+	b.WriteByte('\n')
+	for _, body := range pending[:i] {
+		b.WriteString(body.SourceText(src))
+	}
+	*b.bodies = pending[i:]
+}
+
 // writeParenNode writes a paren a node's Paren flag stands for, and marks it.
 func (b *canonBuf) writeParenNode(c byte) {
 	b.parenNode = append(b.parenNode, b.Len())
@@ -106,6 +135,9 @@ func (b *canonBuf) writeFrom(o *canonBuf, from, to int) {
 
 // writeTerm writes a statement's terminating `;` and records where.
 func (b *canonBuf) writeTerm() {
+	if b.noTerm {
+		return
+	}
 	b.term = b.Len()
 	b.WriteByte(';')
 }
@@ -126,6 +158,7 @@ func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
 // operand by whatever follows the binary, and so on down the right edge.
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	b.writeBodiesBefore(n, src)
+	defer b.writeBodiesAfter(n, src)
 	f := b.follow
 	b.follow = 0
 	// A trailing separator the source wrote goes after the node. See
@@ -183,9 +216,21 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 
 	switch n.Kind {
 	case SourceFile:
-		for _, c := range n.Children {
+		// The main program's last statement needs no `;`, as a block's
+		// does not, and one the source ended without it is written without
+		// it: measured on perl 5.44.0, Deparse,-p reads `print 1; print 2`
+		// as `print(1); print(2);`, the same as with the `;`.
+		last := -1
+		for i, c := range n.Children {
+			if c.Kind == Statement {
+				last = i
+			}
+		}
+		for i, c := range n.Children {
+			b.noTerm = i == last && !endsInTerminator(src[c.Start:])
 			emit(b, c, src, 0)
 		}
+		b.noTerm = false
 
 	case Statement:
 		stmt := b.sub()
@@ -497,8 +542,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			// scalar variable: `$$name` reads only that, so `${$h->{k}}`
 			// written bare is `${$h}->{k}`, a different program -- measured
 			// on 5.42.0, one yields the value and the other dies with "Not a
-			// SCALAR reference". A Block operand writes its own braces.
-			if c := n.Children[0]; isDerefSigil(op) && c.Kind != Block && !bareDerefOperand(c) {
+			// SCALAR reference". A Block operand writes its own braces. Braces
+			// the source wrote around a plain one are kept (DerefBraces).
+			if c := n.Children[0]; isDerefSigil(op) && c.Kind != Block && (n.DerefBraces || !bareDerefOperand(c)) {
 				b.WriteByte('{')
 				emit(b, c, src, 0)
 				b.WriteByte('}')
@@ -1262,8 +1308,10 @@ func isDerefSigil(op string) bool {
 }
 
 // bareDerefOperand reports whether a dereference's operand may follow its
-// sigil without braces: a scalar variable, or a scalar dereference of one --
-// `@$r`, `$$$r`.
+// sigil without braces: a scalar variable, or a scalar dereference --
+// `@$r`, `$$$r`, `$${$_[0]}`. A scalar dereference is written beginning `$$`
+// or `${`, either of which the lexer reads after a sigil: measured on perl
+// 5.44.0, Deparse,-p writes `$${$_[0]}` as `$${$_[0];}`.
 //
 // The variable's name must be one the lexer reads after a second sigil -- a
 // word byte, `{`, `$` or `::`, toke.c's test -- or the bare form re-reads as
@@ -1275,7 +1323,7 @@ func bareDerefOperand(c *Node) bool {
 		return rest != "" && (isWordByte(rest[0]) || rest[0] == '{' || rest[0] == '$' ||
 			strings.HasPrefix(rest, "::"))
 	case c.Kind == Unary && c.Text == "$" && len(c.Children) == 1:
-		return bareDerefOperand(c.Children[0])
+		return !c.Paren
 	}
 	return false
 }
@@ -1409,6 +1457,16 @@ func endsInSemicolon(code []byte) bool {
 	return len(toks) > 0 && toks[len(toks)-1] == ";"
 }
 
+// endsInTerminator reports whether code's last significant token, a heredoc
+// body aside, is `;`. A body follows the `;` that ended its statement.
+func endsInTerminator(code []byte) bool {
+	toks := significant(code)
+	for len(toks) > 0 && toks[len(toks)-1].Kind == lexer.HeredocBody {
+		toks = toks[:len(toks)-1]
+	}
+	return len(toks) > 0 && string(code[toks[len(toks)-1].Start:toks[len(toks)-1].End]) == ";"
+}
+
 // heredocOpeners is the spelling of every `<<TERM` under n, in tree order.
 func heredocOpeners(n *Node) []string {
 	if n.Kind == Term && strings.HasPrefix(n.Text, "<<") && len(n.Children) == 0 {
@@ -1468,6 +1526,11 @@ func blockForm(n *Node) bool {
 		return len(last.Children) > 0
 	case Block, Use, Unknown:
 		return true
+	case Statement:
+		// A bare block with a continue block is the pair the parser
+		// returns as one statement, and is a loop, a block form: measured on
+		// perl 5.44.0, `{ 1 } continue { 2 } 3;` compiles.
+		return blockForm(last)
 	case LoopControl:
 		// NOT a block form. `last`, `next`, `redo`, `goto` and `return` all end
 		// in a label or an expression and all take a `;` -- they were listed
@@ -1493,6 +1556,15 @@ func blockForm(n *Node) bool {
 		// the emission stops being a fixpoint.
 		if d.Text == "format" {
 			return true
+		}
+		// An ANONYMOUS sub is an expression, so its statement takes a `;`:
+		// measured on perl 5.44.0, `sub {1} print 1` is a syntax error, and
+		// Deparse writes `sub { 1 };` with it. It has no name child; a named
+		// sub's first child is its name, and a one-element signature is a
+		// Term too, but with Paren set (parseAnonSub).
+		if (d.Text == "sub" || d.Text == "method") &&
+			(len(d.Children) == 0 || d.Children[0].Kind != Term || d.Children[0].Paren) {
+			return false
 		}
 		// `sub f { }` is a block form; `my $x = 1` is not.
 		return len(d.Children) > 0 && d.Children[len(d.Children)-1].Kind == Block

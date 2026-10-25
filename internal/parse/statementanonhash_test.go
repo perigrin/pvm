@@ -20,7 +20,7 @@ import (
 // its parens, as every Paren node does, and needs no `+`.
 func TestCanonStatementAnonHashKeepsItsPlus(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"({0})", "({0});"},
+		{"({0})", "({0})"},
 		{"({0}) . 1;", "({0}) . 1;"},
 		{"+{0};", "+{0};"},
 		{"+{0} . 1;", "+{0} . 1;"},

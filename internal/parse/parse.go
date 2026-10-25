@@ -344,6 +344,16 @@ type Node struct {
 	// braces back, `@{foo{"a"}}`. See bracedSubscriptedName.
 	NameBraces bool
 
+	// DerefBraces is set on a dereference Unary whose operand the source
+	// wrote inside the sigil's braces, `@{$x}` rather than `@$x`. The
+	// braces are spelling: measured on perl 5.44.0, `my @x = @{$r}` builds
+	// a nulled `scope` and `ex-nextstate` around the `padsv` that `my @x =
+	// @$r` builds bare, so the ops that run are the same. Canon writes them
+	// back where the source had them. Only a flag: Kind, Text and children
+	// are the braceless spelling's, so nothing that reads the tree's shape
+	// sees it (TestDerefBraceFlagClearedEqualsBracelessTree).
+	DerefBraces bool
+
 	// Paren is set on a node the source wrapped in grouping parentheses.
 	//
 	// Two of Perl's rules turn on it, so it is not decoration. §4.10, list

@@ -226,7 +226,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// as argument 1 makes every typed-handle print a false Str mismatch.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
-		} else if cmp := p.parseSortComparator(text); cmp != nil {
+		} else if cmp := p.parseSortComparator(text, true); cmp != nil {
 			n.Children = append(n.Children, cmp)
 		} else if fh := p.parseFilehandleSlot(text); fh != nil {
 			fh.Handle = true
@@ -301,7 +301,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// byte in the tree, round-tripping, and not a parse of its source.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
-		} else if cmp := p.parseSortComparator(text); cmp != nil {
+		} else if cmp := p.parseSortComparator(text, false); cmp != nil {
 			n.Children = append(n.Children, cmp)
 		}
 		// A filehandle slot works the same way and for the same reason:
@@ -630,7 +630,13 @@ func (p *parser) featureTakesBlock(op string) bool {
 //
 //	sort foo 3,1,2    3,2,1      sort $s 3,1,2     1,2,3
 //	sort(foo 3,1,2)   3,2,1      sort($s 3,1,2)    1,2,3
-func (p *parser) parseSortComparator(op string) *Node {
+//
+// inParens says sort's own `(` came first. force_word then reads that `(`,
+// not the word, so the word is lexed as any other and a `(` right after it
+// makes it a call: measured on perl 5.44.0, Deparse,-p writes
+// `sort(routine(1))` as `sort(routine(1))`, but `sort(routine (1))` and
+// `sort routine(1)` as `(sort routine 1)`.
+func (p *parser) parseSortComparator(op string, inParens bool) *Node {
 	if op != "sort" {
 		return nil
 	}
@@ -648,6 +654,9 @@ func (p *parser) parseSortComparator(op string) *Node {
 	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
 	// are both `sort foo 3, 1`.
 	next, ok := p.peekAfter(tok)
+	if ok && inParens && tok.Kind == lexer.Word && p.text(next) == "(" && next.Start == tok.End {
+		return nil
+	}
 	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") &&
 		!(tok.Kind == lexer.Variable && termAfterScalar(tok, next, p.src)) {
 		return nil

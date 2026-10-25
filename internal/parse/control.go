@@ -26,8 +26,8 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 		//	Can't find label FOO
 		//
 		// It looks for a label, not for the sub -- so `goto FOO` must not
-		// become a call. What goto adds is the other two forms, `goto &f`
-		// and `goto $where`, which are expressions rather than labels.
+		// become a call. Like the loop controls, it takes an expression
+		// instead of a label too: `goto &f` and `goto $where`.
 		return p.parseGoto(word)
 	case "return":
 		// perly.y level 7, a statement form taking an optional list. It
@@ -246,7 +246,8 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
 	return n
 }
 
-// parseLoopControl: `last`, `next`, `redo`, each with an optional label.
+// parseLoopControl: `last`, `next`, `redo`, each with an optional label or
+// expression.
 //
 // perly.y puts these at level 2 (LOOPEX), a statement form rather than an
 // expression operator, and they take an optional term. Measured:
@@ -265,13 +266,19 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
 	return n
 }
 
-// parseLoopControlTerm is the keyword and its label, with no `;`: what
-// parseLoopControl reads at a statement's start, and what an expression
-// holds -- `$p = $b and last BIN if $b`, measured on 5.42.0 to deparse as
-// written.
+// parseLoopControlTerm is the keyword and its label or operand, with no
+// `;`: what parseLoopControl reads at a statement's start, and what an
+// expression holds -- `$p = $b and last BIN if $b`, measured on 5.42.0 to
+// deparse as written.
 func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	p.advanceTo(word)
 	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
+
+	next, ok := p.peekSignificant()
+	if !ok {
+		n.End = p.prevEnd()
+		return n
+	}
 
 	// The label, if there is one. A bareword here is a label rather than a
 	// function call: `last FOO` never calls FOO.
@@ -282,13 +289,32 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	// Unknown = 0, and the modifier then had nothing to attach to -- issue
 	// 01a0dee8. `unless`, `while`, `until`, `for` and `foreach` are all in
 	// `modifiers` and every one of them had it.
-	if next, ok := p.peekSignificant(); ok && next.Kind == lexer.Word {
-		if !statementKeywords[p.text(next)] && !modifiers[p.text(next)] {
-			p.advanceTo(next)
-			n.Children = append(n.Children, &Node{
-				Kind: Label, Text: p.text(next),
-				Start: next.Start, End: next.End,
-			})
+	//
+	// Nor is any other keyword: toke.c's LOOPX reads the word as a label
+	// through force_word with check_keyword, so a keyword begins the
+	// operand. Measured on perl 5.44.0, Deparse,-p writes `goto sub { 1 }`
+	// as `(goto (sub {1;}))`, `last shift` as `(last (shift(@ARGV)))` and
+	// `goto FOO` as `(goto FOO)`.
+	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
+		!modifiers[p.text(next)] && !p.keywordHere(p.text(next)) {
+		p.advanceTo(next)
+		n.Children = append(n.Children, &Node{
+			Kind: Label, Text: p.text(next),
+			Start: next.Start, End: next.End,
+		})
+		n.End = p.prevEnd()
+		return n
+	}
+
+	// `goto &f`, `goto $where`, `last $label`. The operand is perly.y's
+	// `LOOPEX term`, a term running through an assignment and stopping at a
+	// comma. Measured on perl 5.44.0, Deparse,-p writes `goto $x = 1` as
+	// `(goto ($x = 1))`, `goto $x || $y` as `(goto ($x || $y))`, `goto $x,
+	// $y` as `((goto $x), $y)` and `last $l` as `(last $l)`. A modifier word
+	// begins none, `next when 2` among them.
+	if !endsArgumentList(next, p.src) && !(next.Kind == lexer.Word && modifiers[p.text(next)]) {
+		if arg := p.parseExpr(infix[","].BP); arg != nil {
+			n.Children = append(n.Children, arg)
 		}
 	}
 	n.End = p.prevEnd()
@@ -298,10 +324,10 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 // parseGoto: `goto LABEL`, `goto &NAME`, `goto EXPR`.
 //
 // A LoopControl like its siblings (§4.14.2 puts all four under `LoopEx`),
-// differing only in what it may take. A bareword is a label -- perl looks for
-// one and says "Can't find label FOO" rather than calling FOO -- and anything
-// else is an expression: `goto &f` is the tail call, `goto $where` a computed
-// target.
+// read as they are (parseLoopControl). A bareword is a label -- perl looks
+// for one and says "Can't find label FOO" rather than calling FOO -- and
+// anything else is an expression: `goto &f` is the tail call, `goto $where`
+// a computed target.
 //
 // The semicolon is consumed here, as parseLoopControl and parseReturn do,
 // because `statement()` returns a control-flow node directly (`parse.go:430`)
@@ -313,44 +339,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 // the inverse -- a modifier crossing a `;` that had already been eaten --
 // and it is why the two are separated rather than both handled here.
 func (p *parser) parseGoto(word lexer.Token) *Node {
-	p.advanceTo(word)
-	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
-
-	next, ok := p.peekSignificant()
-	if !ok {
-		n.End = p.prevEnd()
-		return n
-	}
-
-	// A bareword that is not a statement keyword is a label. `goto HERE if
-	// $x` must leave `if` to the modifier, which is what the keyword test
-	// does.
-	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
-		!modifiers[p.text(next)] {
-		p.advanceTo(next)
-		n.Children = append(n.Children, &Node{
-			Kind: Label, Text: p.text(next),
-			Start: next.Start, End: next.End,
-		})
-		if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
-			p.advanceTo(tok)
-		}
-		n.End = p.prevEnd()
-		return n
-	}
-
-	// `goto &f`, `goto $where`. Parsed at the named-unary level so the
-	// argument binds the way perl's does -- measured, `((goto $x), $y)`.
-	if !endsArgumentList(next, p.src) {
-		if arg := p.parseExpr(bpNamedUnary); arg != nil {
-			n.Children = append(n.Children, arg)
-		}
-	}
-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
-		p.advanceTo(tok)
-	}
-	n.End = p.prevEnd()
-	return n
+	return p.parseLoopControl(word)
 }
 
 // parseRefaliasVar reads `\VAR` or `\my VAR` at the backslash, where VAR is

@@ -1,0 +1,193 @@
+Statement boundaries written back as the source wrote them (issue
+01a16602-6030). A dereference keeps the braces the source put around its
+operand (Node.DerefBraces); an anonymous sub standing as a statement keeps
+its `;`; a keyword after goto, last, next or redo begins the operand rather
+than naming a label, and the operand runs through an assignment; a bare
+block with a continue block is a block form; the file's last statement keeps
+the source's missing `;`; and a heredoc body the source put before closers
+stays before them. None is forgiven by Faithful. Each Deparse,-p is perl
+5.44.0's.
+
+=== a hash slice through braces (op/avhv.t)
+my $avhv; my @x = delete @{$avhv}{'foo','pants'};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== a scalar deref in braces (op/gv.t, uni/gv.t)
+my $a; ok(!defined ${$a});
+--- facts
+faithful
+
+=== a key/value array slice through braces (op/kvaslice.t)
+my $a; my $s = join(':', %{$a}[2,3,4]);
+--- facts
+faithful
+
+=== a key/value hash slice through braces (op/kvhslice.t)
+my $h; my $s = join(':', %{$h}{'c','d','e'});
+--- facts
+rv2hv 1 exact
+faithful
+
+=== local of a braced scalar deref (op/localref.t)
+my $x; { local ${$x}; }
+--- facts
+faithful
+
+=== a braced scalar deref subscripted (op/postfixderef.t)
+my $h; is(${$h}{ppp}, 'pp');
+--- facts
+faithful
+
+=== an array slice through braces (op/ref.t)
+my $name1; my (undef, $one) = @{$name1}[2,3];
+--- facts
+faithful
+
+=== an array slice of $_ through braces (uni/fold.t)
+my @a = @{$_}[1,2];
+--- facts
+faithful
+
+=== a braced scalar deref with two subscripts (30a8)
+my $h; my $x = ${$h}{a}{b};
+--- facts
+faithful
+
+=== a hash slice of qw through braces (30a8)
+my $h; my @x = @{$h}{qw(a b)};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== a whole array through braces
+my $r; my @x = @{$r};
+--- facts
+faithful
+# (my(@x) = @{$r;}); `my @x = @$r` is (my(@x) = @$r)
+
+=== a scalar deref as the operand of another (op/gv.t, uni/gv.t)
+sub FETCH { $${$_[0]}; }
+--- facts
+faithful
+
+=== braces around a non-plain operand stay
+my $a; my $v = ${$a->[0]};
+--- facts
+faithful
+
+=== an anonymous sub statement in a block (op/closure.t)
+sub bizz { if (@_) { my $i = shift; sub { $i = shift if @_; $i; }; } }
+--- facts
+faithful
+
+=== an anonymous sub with a prototype as a statement (op/const-optree.t)
+my $s = sub { sub () { $x; }; };
+--- facts
+faithful
+
+=== an anonymous sub as a do block's last statement (op/stash.t, uni/stash.t)
+my $sub = do { package four; sub { 1; }; };
+--- facts
+faithful
+
+=== an anonymous sub statement at file level
+sub { 1; };
+print 2;
+--- facts
+faithful
+# sub { 1; } ; print(2);   `sub {1} print 2` is a syntax error
+
+=== goto an anonymous sub (op/goto-sub.t)
+sub f1 { my $x; goto sub { $x = 0; ok(1); }; }
+--- facts
+faithful
+# sub f1 { my($x); (goto (sub { ($x = 0); ok(1); })); }
+
+=== goto an anonymous sub in a sort block (op/sort.t)
+my @output = sort { goto sub { 1; }; } 1, 2;
+--- facts
+faithful
+
+=== goto a state assignment (op/state.t)
+use feature 'state'; foreach my $f (1) { goto state $flower = $f; }
+--- facts
+faithful
+
+=== goto an assignment
+sub f2 { my $x; goto $x = 1; }
+--- facts
+faithful
+
+=== last with a variable label (op/loopctl.t)
+L: { my $l = 'L'; eval { last $l; }; }
+--- facts
+faithful
+# L: { (my($l) = 'L'); eval { do { (last $l) } }; }
+
+=== next, redo and last with expressions
+for my $x (1) { next $x . 'a'; redo $x if 0; last shift; }
+--- facts
+faithful
+
+=== a bare block with a continue block, then a statement (op/goto.t)
+my $ok; { goto A; A: $ok = 1; } continue { } ok($ok);
+--- facts
+faithful
+
+=== a bare block with a continue block, then a call (op/while.t, op/loopctl.t)
+my ($got_l, $l); { my $l = 0; } continue { $got_l = $l; } is($got_l, 18);
+--- facts
+faithful
+
+=== a file's last statement without a semicolon (lib/universal.t)
+print 1;
+print 2
+--- facts
+faithful
+# print(1); print(2);
+
+=== a file's last statement without a semicolon, before a comment
+print 1;
+print 2 # a comment
+--- facts
+faithful
+
+=== a heredoc as the file's last statement, without a semicolon
+print <<A
+body
+A
+--- facts
+faithful
+
+=== a heredoc body before a call's closer (5fd5 F3)
+print f(<<A
+x
+A
+), "\n";
+--- facts
+faithful
+# print(f("x\n"), "\n");
+
+=== a heredoc body before nested closers
+print(f(g(<<A
+x
+A
+)), 1);
+--- facts
+faithful
+
+=== a heredoc body before an anonymous array's closer
+my $x = [<<A
+x
+A
+];
+--- facts
+faithful
+
+=== next before a when modifier (op/switch.t)
+use feature 'switch'; no warnings; for (1) { next when 2; last if 1; }
+--- facts
+faithful
+# foreach $_ (1) { when (2) { (next); } (last); }

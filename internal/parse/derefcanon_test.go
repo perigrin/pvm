@@ -1,5 +1,5 @@
-// ABOUTME: Canon keeps a dereference's braces unless the operand is a plain scalar
-// ABOUTME: variable: `${$h->{k}}` and `$$h->{k}` are different programs.
+// ABOUTME: Canon keeps a dereference's braces where the source wrote them, and always unless the
+// ABOUTME: operand is a plain scalar variable: `${$h->{k}}` and `$$h->{k}` are different programs.
 
 package parse_test
 
@@ -26,7 +26,8 @@ func TestDerefCanonKeepsBraces(t *testing.T) {
 		{"my $x = ${*$f};", "my $x = ${*$f};"},
 		{"my $z = ${\\$x};", "my $z = ${\\$x};"},
 		{"my @v = @{$o->list};", "my @v = @{$o -> list};"},
-		{"my @y = @{$r};", "my @y = @$r;"},
+		{"my @y = @{$r};", "my @y = @{$r};"},
+		{"my @y = @$r;", "my @y = @$r;"},
 		{"my $w = $$$r;", "my $w = $$$r;"},
 		// Bare, the operand has to be a name the lexer reads after `$$`:
 		// `$$;` is the pid and then a terminator, and `$$ x` the pid and a
@@ -35,8 +36,10 @@ func TestDerefCanonKeepsBraces(t *testing.T) {
 		// `${$#}`, whose bare `$$#` re-lexed as the pid and a comment.
 		{"my $p = ${$;};", "my $p = ${$;};"},
 		{"my $q = ${$ x};", "my $q = ${$ x};"},
-		{"my $n = ${$1};", "my $n = $$1;"},
-		{"my $m = ${$::x};", "my $m = $$::x;"},
+		{"my $n = ${$1};", "my $n = ${$1};"},
+		{"my $n = $$1;", "my $n = $$1;"},
+		{"my $m = ${$::x};", "my $m = ${$::x};"},
+		{"my $m = $$::x;", "my $m = $$::x;"},
 		// Issue 01a0e045's shapes, from T1's package_decl_stash.t. Dropping
 		// the braces made `$` take `$pkg` alone. Deparse writes
 		// `${$pkg . '::';}` and `!!${$pkg . '::';}{$1 . '::'}`.
@@ -47,10 +50,13 @@ func TestDerefCanonKeepsBraces(t *testing.T) {
 		// writes `$main::{$pkg}`.
 		{"my $x = $::{$pkg};", "my $x = $::{$pkg};"},
 		{"my $x = $::{$pkg . '::'};", "my $x = $::{$pkg . '::'};"},
-		// A plain scalar operand needs no braces, as `@{$r}` above.
+		// A plain scalar operand needs no braces, and braces the source
+		// wrote around one are kept (Node.DerefBraces), as `@{$r}` above.
 		{"my $v = $$r;", "my $v = $$r;"},
-		{"my %v = %{$h};", "my %v = %$h;"},
-		{"my $w = ${$h}{k};", "my $w = $$h{k};"},
+		{"my %v = %{$h};", "my %v = %{$h};"},
+		{"my %v = %$h;", "my %v = %$h;"},
+		{"my $w = ${$h}{k};", "my $w = ${$h}{k};"},
+		{"my $w = $$h{k};", "my $w = $$h{k};"},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		if containsKind(root, parse.Unknown) {
