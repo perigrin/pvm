@@ -15,12 +15,15 @@ jobs:
     - uses: actions/setup-go@v6
       with:
         go-version: '1.24.4'
-    - name: Test, failures as annotations
+    - name: Conformance failures, one annotation per test
       shell: bash
       env:
         PVM_REQUIRE_PERL542: "1"
       run: |
-        go test ./... -count=1 > test.log 2>&1 || true
-        grep -E -- '^(--- FAIL|FAIL|panic:|ok )' test.log | grep -v '^ok ' | head -40 | while IFS= read -r line; do echo "::error::$line"; done
-        grep -E -B2 -A12 -- '^\s*--- FAIL' test.log | head -150 | sed 's/^/::error::/' | head -150
-        grep -E -A20 -- '^panic:' test.log | head -40 | sed 's/^/::error::/'
+        go test ./internal/conformance/ -count=1 -v > conf.log 2>&1 || true
+        for t in TestLintRejectsUndeclaredConstruct TestPerlAdjudicatesFirst TestCorpus TestAdjacencyCoversItsTier TestEmptyExpectedOutputIsChecked TestCorpusSkipsAreDocumented; do
+          body=$(awk -v t="$t" '$0 ~ "^=== RUN   "t"$" {on=1} on {print} $0 ~ "^--- (FAIL|PASS): "t" " {exit}' conf.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=$t::${body:0:6000}"
+        done
+        perl -v | head -3 | tr '\n' ' ' | sed 's/^/::error title=perl::/'; echo
+        which perl; echo "::error title=which::$(which -a perl | tr '\n' ' ')"
