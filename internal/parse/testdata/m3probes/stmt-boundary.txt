@@ -1008,3 +1008,85 @@ use feature "isa"; L: for (1) { last L isa Foo } print "ok\n";
 --- facts
 faithful
 # (last ('L' isa 'Foo'));
+
+# Reviewer probes for bbdd233f (per-fix review, 2026-10-25), outside the
+# corpus, each measured on the pinned perl 5.44.0 first.
+
+=== review bbdd233f: a tab before the label's colon after __END__
+print "a\n"; __END__	: print "b\n";
+--- facts
+faithful
+# __END__: print("b\n"); prints a then b
+
+=== review bbdd233f: a tab before the colon at a line's start
+print "a\n";
+__END__	:print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review bbdd233f: a space before the colon and none after
+print "a\n"; __END__ :print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review bbdd233f: an array subscript through -> after a label
+L: for (1) { last L->[0] } print "ok\n";
+--- facts
+faithful
+# (last $L[0]);
+
+=== review bbdd233f: a hash subscript through -> after a label
+L: for (1) { last L->{k} } print "ok\n";
+--- facts
+faithful
+# (last $L{'k'});
+
+=== review bbdd233f: a dynamic method through -> after a label
+my $m = "foo"; sub L::foo { "L" } L: for (1) { last L->$m } print "ok\n";
+--- facts
+faithful
+# (last 'L'->$m); prints ok
+
+=== review bbdd233f: a method through a spaced -> after a label, with and without parens
+sub L::foo { "L" } L: for (1) { last L -> foo; last L->foo() } print "ok\n";
+--- facts
+faithful
+# (last 'L'->foo); prints ok
+
+=== review bbdd233f: a deep word operator chain over a loop control under if
+for (1) { last and 1 and 2 or 3 if 1 } print "ok\n";
+--- facts
+faithful
+# (last);
+
+=== review bbdd233f: xor between two loop controls under if
+for (1) { next xor last if 1 } print "ok\n";
+--- facts
+faithful
+# (next);
+
+=== review bbdd233f: a loop control on the right of and under if
+for (1) { 1 and last if 1 } print "ok\n";
+--- facts
+faithful
+# (last);
+
+=== review bbdd233f: a loop control on the right of or under if, then a statement
+for (1) { 0 or last if 1; print "x\n" } print "ok\n";
+--- facts
+faithful
+# (last); print("x\n");
+
+=== review bbdd233f: cmp then or over a loop control under if
+for (1) { last cmp 1 or 2 if 1 } print "ok\n";
+--- facts
+faithful
+# (last);
+
+=== review bbdd233f: a parenthesised loop control under or and if
+for (1) { (last) or 1 if 1 } print "ok\n";
+--- facts
+faithful
+# (last);
