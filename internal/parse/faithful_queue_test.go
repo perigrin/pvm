@@ -725,8 +725,14 @@ func TestFaithfulQueueCauseDeterminesClass(t *testing.T) {
 }
 
 func TestFaithfulQueueCauseZeroGrepIsRedWhileRowExists(t *testing.T) {
+	// The cause-zero line is a POSIX sh command, as git zhi verify runs it.
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skipf("no sh to run the cause-zero line: %v", err)
+	}
 	dir := t.TempDir()
-	queue := filepath.Join(dir, "queue.txt")
+	// Inside sh a backslash is an escape, so Windows's `C:\...` is written
+	// with slashes, which its sh reads as the same file.
+	queue := filepath.ToSlash(filepath.Join(dir, "queue.txt"))
 	line := causeZeroLine(queue, "dropped-paren", []string{"( Variable ("})
 	ere := strings.ReplaceAll(line, "grep -Fq", "grep -Eq")
 	run := func(content, cmd string) int {
