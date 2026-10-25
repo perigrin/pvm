@@ -185,8 +185,12 @@ func significantTokens(src []byte) []string {
 	return out
 }
 
-// droppedKinds are the token kinds significant leaves out.
-var droppedKinds = []lexer.Kind{lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection}
+// droppedKinds are the token kinds significant leaves out. A data section,
+// `__END__` or `__DATA__` and everything after it, is not one of them:
+// perigrin's ruling (2026-10-25) is that canon writes it back verbatim and
+// Faithful compares it exactly, as one token. Its bytes are what DATA
+// yields, so a canon that drops or alters them runs differently.
+var droppedKinds = []lexer.Kind{lexer.Whitespace, lexer.Comment, lexer.Pod}
 
 // significant is src's tokens with droppedKinds left out.
 func significant(src []byte) []lexer.Token {

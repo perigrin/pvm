@@ -314,7 +314,7 @@ func (p *parser) parseTerm() *Node {
 				return &Node{Kind: Unknown, Refusal: EmptyDeref, Start: tok.Start, End: p.prevEnd()}
 			}
 			return &Node{
-				Kind: Unary, Text: text,
+				Kind: Unary, Text: text, DerefBraces: true,
 				Start: tok.Start, End: p.prevEnd(),
 				Children: []*Node{inner},
 			}

@@ -344,6 +344,16 @@ type Node struct {
 	// braces back, `@{foo{"a"}}`. See bracedSubscriptedName.
 	NameBraces bool
 
+	// DerefBraces is set on a dereference Unary whose operand the source
+	// wrote inside the sigil's braces, `@{$x}` rather than `@$x`. The
+	// braces are spelling: measured on perl 5.44.0, `my @x = @{$r}` builds
+	// a nulled `scope` and `ex-nextstate` around the `padsv` that `my @x =
+	// @$r` builds bare, so the ops that run are the same. Canon writes them
+	// back where the source had them. Only a flag: Kind, Text and children
+	// are the braceless spelling's, so nothing that reads the tree's shape
+	// sees it (TestDerefBraceFlagClearedEqualsBracelessTree).
+	DerefBraces bool
+
 	// Paren is set on a node the source wrapped in grouping parentheses.
 	//
 	// Two of Perl's rules turn on it, so it is not decoration. §4.10, list
@@ -1255,7 +1265,11 @@ func (p *parser) statementForm() *Node {
 			// shape, so a wider reach here would repeat the `defer.t` bug in a
 			// new place. A LoopControl never ends in a block, so the kind test
 			// is the whole condition.
-			if c.Kind == LoopControl {
+			//
+			// So is a word operator over one (parseLoopControl): measured on
+			// perl 5.44.0, `last or print "x" if 1` is valid, the modifier
+			// over the whole `last or print "x"`.
+			if c.Kind == LoopControl || startsWithLoopControl(c) {
 				if mod := p.applyModifier(c, start); mod != nil {
 					return p.withLabels(labels, mod, start)
 				}
@@ -1705,18 +1719,13 @@ func (p *parser) declarationEnded(d *Node) bool {
 // section's body survives in the tree -- which matters more for a data
 // section than for the rest, because those bytes are what `DATA` yields.
 //
-// WHAT GUARDS THAT IS NOT CANON. An earlier revision of this comment
-// credited the round-trip machinery, and the PAAD gate measured otherwise:
-// excluding the section's bytes from the Trivia span leaves
-// `TestCanon*` AND `TestCorpus` green. Canon cannot see it twice over --
-// `canon.go`'s `case Trivia:` drops trivia unemitted, and
-// `canon_test.go`'s `significant()` skips `lexer.DataSection`, so both
-// sides of the comparison have already discarded the section.
-//
-// The guard is `TestDataSectionIsTrivia`'s `last.End != len(src)`
+// One guard is `TestDataSectionIsTrivia`'s `last.End != len(src)`
 // assertion in `stmt_test.go`, plus a `TestFuzzSeeds` case that catches an
-// empty trivia node. Both fail on that mutation. Naming the wrong guard is
-// how a guarantee quietly stops being one, so it is named here.
+// empty trivia node. Both fail if the section's bytes leave the Trivia
+// span. Canon writes the section back verbatim from that span, and
+// Faithful compares it as a token (perigrin's ruling, 2026-10-25), so
+// TestCanonKeepsDataSection guards it too; `canon_test.go`'s
+// `significant()` still skips it.
 func isTrivia(k lexer.Kind) bool {
 	switch k {
 	case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:

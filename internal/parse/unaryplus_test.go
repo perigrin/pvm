@@ -70,7 +70,7 @@ func TestCanonNestedMinusIsNotDecrement(t *testing.T) {
 // does for `- -$x`.
 func TestCanonNotOfComplementIsNotNegatedMatch(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"! ~&A", "!(~&A);"},
+		{"! ~&A", "!(~&A)"},
 		{"my $x; ! ~$x;", "my $x;!(~$x);"},
 		{"my $x; ! ~~$x;", "my $x;!(~~$x);"},
 		{"my $x; !!$x;", "my $x;!!$x;"},

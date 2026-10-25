@@ -7,34 +7,15 @@
 # causes dropped-paren = 0
 # causes heredoc = 0
 # causes subless-special-sub = 0
-# causes stmt-boundary = 7
+# causes stmt-boundary = 0
 # causes canon-adds-paren-op = 6
-# causes canon-adds-paren-term = 0
+# causes canon-adds-paren-term = 1
 # causes other = 0
-lib/universal.t:75 stmt-boundary EOF ; Quote is $], 7, 'SvREADONLY can make magic vars mutable'
-op/avhv.t:227 stmt-boundary { Variable DerefSigil @x = delete @{$avhv}{'foo','pants'};
-op/closure.t:55 stmt-boundary ; } } sub {$i = shift if @_; $i };
-op/const-optree.t:140 stmt-boundary ; } } sub () { $x };
 op/coresubs.t:119 canon-adds-paren-op ) ( ( ? () = $' =~ /\G$protochar/g
 op/filetest.t:170 canon-adds-paren-op bareword ( - -X => sub {
 op/gmagic.t:141 canon-adds-paren-op sub ( = () = sub { delete $_{elem} }->()->[3];
-op/goto-sub.t:64 stmt-boundary { ; sub goto sub { $x=0; ok(1, "don't prematurely free CV"); };
-op/goto.t:164 stmt-boundary call ; } ok($ok, '#20357 goto inside /{ } continue { }/ loop');
-op/gv.t:204 stmt-boundary { Variable DerefSigil ok(!defined ${$a});
-op/kvaslice.t:73 stmt-boundary { Variable DerefSigil is( join(':', %{$a}[2,3,4]), '2:c:3:d:4:e', "correct result
-op/kvhslice.t:74 stmt-boundary { Variable DerefSigil is( join(':', %{$h}{'c','d','e'}), 'c:C:d:D:e:E', "correct r
-op/localref.t:16 stmt-boundary { Variable DerefSigil { local ${$x}; $aa = 5; is($aa,5); undef $x; is($aa,5); }
-op/loopctl.t:428 stmt-boundary Variable ; } $ok = 0;
 op/lvref.t:42 canon-adds-paren-op declarator ( \ \my $n = \$y;
 op/negate.t:17 canon-adds-paren-op - ( - is(- -10, 10, "Simple numeric negation to positive");
 op/numconvert.t:265 canon-adds-paren-op - ( - is sprintf("%+.f", - -$nz), sprintf("%+.f", - -$nz),
-op/postfixderef.t:366 stmt-boundary { Variable DerefSigil is ${$h}{ppp}, "pp";
-op/ref.t:612 stmt-boundary { Variable DerefSigil my (undef, $one) = @{$name1}[2,3];
-op/sort.t:798 stmt-boundary { ; sub eval { @output = sort {goto sub {}} 1,2; };
-op/stash.t:109 stmt-boundary ; } } sub { 1 };
-op/state.t:288 stmt-boundary Variable ; declarator goto state $flower = $f;
+op/postfixderef.t:379 canon-adds-paren-term Variable ( call is $cr->()->{ppp}, "pp";
 op/ver.t:225 canon-adds-paren-op - ( ** ok( abs($v - $]) < 10**-8 , "\$^V == \$] (numeric)" );
-op/while.t:148 stmt-boundary call ; } is($got_l, 18);
-uni/fold.t:359 stmt-boundary { Variable DerefSigil my ($simple_lc, $simple_tc, $simple_uc, $simple_fc) = @{$_}[
-uni/gv.t:208 stmt-boundary { Variable DerefSigil ok(!defined ${$a});
-uni/stash.t:98 stmt-boundary ; } } sub { 1 };

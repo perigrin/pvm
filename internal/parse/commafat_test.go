@@ -62,17 +62,17 @@ func TestCommaBeforeFatComma(t *testing.T) {
 // `1 < 2 < 'x', '???'`, a chain's last operand quoted as a binary's is.
 func TestFatCommaQuotesAnOperandsWord(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"!y=>0", "!y => 0;"},
+		{"!y=>0", "!y => 0"},
 		{"sub foo {1} my @a = (!foo=>0);", "sub foo {1;} my @a = (!foo => 0);"},
 		{"sub foo {7} my @a = (1+foo=>0);", "sub foo {7;} my @a = (1 + foo => 0);"},
 		{"sub foo {7} my @a = ((foo)=>0);", "sub foo {7;} my @a = ((foo) => 0);"},
-		{"my$x=y=>0", "my $x = y => 0;"},
+		{"my$x=y=>0", "my $x = y => 0"},
 		{"sub foo {7} my @a = (my $x = foo=>0);", "sub foo {7;} my @a = (my $x = foo => 0);"},
 		{"sub foo {7} my @a = ((my $x = foo)=>0);", "sub foo {7;} my @a = ((my $x = foo) => 0);"},
 		{"sub foo {7} my @a = (my $x = foo()=>0);", "sub foo {7;} my @a = (my $x = foo() => 0);"},
 		{"sub foo {7} my @a = (!foo()=>0, 1+foo()=>0);", "sub foo {7;} my @a = (!foo() => 0, 1 + foo() => 0);"},
-		{"y0>y=>0", "y0 > y => 0;"},
-		{"1<2<y=>0", "1 < 2 < y => 0;"},
+		{"y0>y=>0", "y0 > y => 0"},
+		{"1<2<y=>0", "1 < 2 < y => 0"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
 		if got != tc.want {

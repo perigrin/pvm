@@ -1,8 +1,8 @@
-# 573/619 faithful
+# 607/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 573 clean (92.6%), 46 total.
+# 619 files, 607 clean (98.1%), 12 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -45,7 +45,7 @@
 0 cmd/for.t
 0 cmd/mod.t
 0 cmd/subval.t
-1 cmd/switch.t
+0 cmd/switch.t
 0 comp/bproto.t
 0 comp/cmdopt.t
 0 comp/colon.t
@@ -62,7 +62,7 @@
 0 comp/package_block.t
 0 comp/parser.t
 0 comp/parser_run.t
-1 comp/proto.t
+0 comp/proto.t
 0 comp/redef.t
 0 comp/require.t
 0 comp/retainedlines.t
@@ -124,7 +124,7 @@
 0 lib/overload_fallback.t
 0 lib/overload_nomethod.t
 0 lib/proxy_constant_subs.t
-1 lib/universal.t
+0 lib/universal.t
 0 mro/basic.t
 0 mro/basic_01_c3.t
 0 mro/basic_01_c3_utf8.t
@@ -213,7 +213,7 @@
 0 op/attrproto.t
 0 op/attrs.t
 0 op/auto.t
-1 op/avhv.t
+0 op/avhv.t
 0 op/bless.t
 0 op/blocks.t
 0 op/bool.t
@@ -224,11 +224,11 @@
 0 op/chdir.t
 0 op/chop.t
 0 op/chr.t
-1 op/closure.t
+0 op/closure.t
 0 op/cmpchain.t
 0 op/concat2.t
 0 op/cond.t
-1 op/const-optree.t
+0 op/const-optree.t
 0 op/context.t
 0 op/coreamp.t
 1 op/coresubs.t
@@ -272,13 +272,13 @@
 0 op/getppid.t
 0 op/glob.t
 1 op/gmagic.t
-1 op/goto-sub.t
-1 op/goto.t
+0 op/goto-sub.t
+0 op/goto.t
 0 op/goto_xs.t
 0 op/grent.t
 0 op/grep.t
 0 op/groups.t
-1 op/gv.t
+0 op/gv.t
 0 op/hash-clear-placeholders.t
 0 op/hash-rt85026.t
 0 op/hash.t
@@ -298,8 +298,8 @@
 0 op/isa.t
 0 op/join.t
 0 op/kill0.t
-1 op/kvaslice.t
-1 op/kvhslice.t
+0 op/kvaslice.t
+0 op/kvhslice.t
 0 op/lc.t
 0 op/leaky-magic.t
 0 op/length.t
@@ -309,9 +309,9 @@
 0 op/lfs.t
 0 op/list.t
 0 op/local.t
-1 op/localref.t
+0 op/localref.t
 0 op/lock.t
-1 op/loopctl.t
+0 op/loopctl.t
 0 op/lop.t
 1 op/lvref.t
 0 op/magic-27839.t
@@ -350,7 +350,7 @@
 0 op/readline.t
 0 op/readline_nb.t
 0 op/recurse.t
-1 op/ref.t
+0 op/ref.t
 0 op/refstack.t
 0 op/repeat.t
 0 op/require_37033.t
@@ -370,7 +370,7 @@
 0 op/sleep.t
 0 op/smartkve.t
 0 op/smartmatch.t
-1 op/sort.t
+0 op/sort.t
 0 op/splice.t
 0 op/split.t
 0 op/split_unicode.t
@@ -378,11 +378,11 @@
 0 op/sprintf2.t
 0 op/srand.t
 0 op/sselect.t
-1 op/stash.t
+0 op/stash.t
 0 op/stash_parse_gv.t
 0 op/stat.t
 0 op/stat_errors.t
-1 op/state.t
+0 op/state.t
 0 op/study.t
 0 op/studytied.t
 0 op/sub.t
@@ -423,7 +423,7 @@
 0 op/waitpid.t
 0 op/wantarray.t
 0 op/warn.t
-1 op/while.t
+0 op/while.t
 0 op/write.t
 0 op/yadayada.t
 0 opbasic/arith.t
@@ -448,7 +448,7 @@
 0 porting/copyright.t
 0 porting/corelist.t
 0 porting/cpphdrcheck.t
-1 porting/customized.t
+0 porting/customized.t
 0 porting/deprecation.t
 0 porting/diag.t
 0 porting/dual-life.t
@@ -457,7 +457,7 @@
 0 porting/filenames.t
 0 porting/globvar.t
 0 porting/header_parser.t
-1 porting/libperl.t
+0 porting/libperl.t
 0 porting/maintainers.t
 0 porting/makerel.t
 0 porting/manifest.t
@@ -542,16 +542,16 @@
 0 re/substT.t
 0 re/subst_amp.t
 0 re/subst_wamp.t
-1 re/uniprops01.t
-1 re/uniprops02.t
-1 re/uniprops03.t
-1 re/uniprops04.t
-1 re/uniprops05.t
-1 re/uniprops06.t
-1 re/uniprops07.t
-1 re/uniprops08.t
-1 re/uniprops09.t
-1 re/uniprops10.t
+0 re/uniprops01.t
+0 re/uniprops02.t
+0 re/uniprops03.t
+0 re/uniprops04.t
+0 re/uniprops05.t
+0 re/uniprops06.t
+0 re/uniprops07.t
+0 re/uniprops08.t
+0 re/uniprops09.t
+0 re/uniprops10.t
 0 re/user_prop_race_thr.t
 0 run/cloexec.t
 0 run/dtrace.t
@@ -574,7 +574,7 @@
 0 run/switchM.t
 0 run/switcha.t
 0 run/switchd-78586.t
-1 run/switchd.t
+0 run/switchd.t
 0 run/switches.t
 0 run/switchn.t
 0 run/switchp.t
@@ -593,10 +593,10 @@
 0 uni/chomp.t
 0 uni/class.t
 0 uni/eval.t
-1 uni/fold.t
+0 uni/fold.t
 0 uni/goto.t
 0 uni/greek.t
-1 uni/gv.t
+0 uni/gv.t
 0 uni/labels.t
 0 uni/latin2.t
 0 uni/lex_utf8.t
@@ -609,7 +609,7 @@
 0 uni/readline.t
 0 uni/select.t
 0 uni/sprintf.t
-1 uni/stash.t
+0 uni/stash.t
 0 uni/tie.t
 0 uni/title.t
 0 uni/tr_utf8.t

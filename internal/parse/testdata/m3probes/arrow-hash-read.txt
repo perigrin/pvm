@@ -45,7 +45,7 @@ faithful
 === ${$h}{a}
 my $h; my $x = ${$h}{a};
 --- facts
-# canon re-emits `${$h}{a}` as `$$h{a}`, so no faithful row
+faithful
 
 === postfix slice
 my $h; my @x = $h->@{qw(a b)};
