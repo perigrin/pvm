@@ -776,12 +776,27 @@ func (p *parser) parseVarDeclHead(word lexer.Token) *Node {
 	return n
 }
 
+// parseVarDeclOperand reads a declaration that is the operand of an
+// operator binding tighter than assignment, bp being the power its operand
+// is read at. It takes the declarator's target and nothing after it: no
+// initialiser and no infix operator, which belong to the expression the
+// operator is in. Measured on perl 5.44.0, `\my $n = \$y` is a refassign
+// of `\my $n`, `\my $x . 1` is `((\my $x) . '1')` under Deparse,-p, and
+// `!my $x = 1` is "Can't modify not in scalar assignment": the `=` applies
+// to `!my $x`. `\local $n = \$y` and `\my ($n) = \$y` read the same way.
+func (p *parser) parseVarDeclOperand(word lexer.Token, bp int) *Node {
+	p.declOperandBP = bp
+	return p.parseVarDeclNoSemi(word)
+}
+
 // parseVarDeclNoSemi is parseVarDecl without consuming a terminator.
 //
 // The init clause of a C-style for head is a declaration whose `;` is the
 // head's SEPARATOR, not the declaration's terminator: `for (my $i = 0; ...)`.
 // Eating it there loses the head's structure.
 func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+	operandBP := p.declOperandBP
+	p.declOperandBP = 0
 	p.advanceTo(word)
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
@@ -861,6 +876,10 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 		// Level 9 is the whole assignment class in one token group
 		// (toke.c:250), so the test is the level rather than a list of
 		// nineteen spellings.
+		if operandBP > 0 {
+			n.End = p.prevEnd()
+			return n
+		}
 		hadInit := false
 		if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 			hadInit = true
@@ -948,6 +967,11 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	if keywordName(p.text(word)) != "local" {
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 			list := p.parseTerm()
+			if operandBP > 0 {
+				n.Children = append(n.Children, list)
+				n.End = p.prevEnd()
+				return n
+			}
 			if op, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(op)]) {
 				list = p.parseInfix(list, infix[","].BP)
 			}
@@ -970,7 +994,11 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// Nothing at all after the declarator -- `my` at the end of the file --
 	// is perl's "syntax error at EOF", the declarator a prefix whose operand
 	// ran out, and operand's Unknown spanning the declarator replaces it.
-	target := p.operand(infix[","].BP, word)
+	bp := infix[","].BP
+	if operandBP > 0 {
+		bp = operandBP
+	}
+	target := p.operand(bp, word)
 	if target.Kind == Unknown && target.Start == word.Start {
 		return target
 	}

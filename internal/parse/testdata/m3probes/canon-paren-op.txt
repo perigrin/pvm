@@ -1,0 +1,464 @@
+Canon-added parens after an operator, a declarator or `sub` (issue
+01a16602-608d), the canon-adds-paren-op rows of the re-emission queue. Each
+was a pair canon wrote that the tree did not need, or a misgrouping:
+
+- `- -10`: a blank keeps `-` `-` from reading as `--`, as a paren did,
+  without the paren's OPf_PARENS bit: `-(-$x)` is `negate sKP`.
+- `10**-8`: a prefix operator on the right of `**` cannot be split there.
+- `-X =>`: toke.c reads `-` and a letter before `=>` as a minus on a word.
+- `$p ? () = ... : 0`: the middle of `?:` takes an assignment.
+- `sub {...}->()->[3]`: a `->` call is a subscript's base as written.
+- `\my $n = \$y`: a declaration that is the operand of a tighter operator
+  takes no initialiser; the parser read `\(my $n = \$y)`.
+
+None is forgiven by Faithful. Each Deparse,-p and Concise is perl 5.44.0's.
+
+=== a negated negation (op/negate.t)
+my $n = - -10;
+--- facts
+faithful
+# (my $n = 10);
+
+=== a negated negated variable (op/numconvert.t)
+my $nz = 0; my $s = sprintf('%+.f', - -$nz);
+--- facts
+faithful
+
+=== not over a complement
+my $x = 1; my $y = ! ~$x;
+--- facts
+faithful
+# (my $y = (!(~$x)));
+
+=== a negated one-letter call, not a filetest
+sub A { 1; } my $y = - A();
+--- facts
+faithful
+# (my $y = (-A()));
+
+=== a negative exponent (op/ver.t)
+my $v = 1; my $ok = abs($v - $]) < 10**-8;
+--- facts
+faithful
+
+=== a negated power on the right of a power
+my $z = 2**-1**2;
+--- facts
+faithful
+# (my $z = 0.5);
+
+=== an overload key that spells a filetest (op/filetest.t)
+my @o = (fallback => 1, -X => sub { 1; });
+--- facts
+faithful
+# Concise: const[PV "-X"]
+
+=== a list assignment in a ternary's middle (op/coresubs.t)
+my ($p, $q) = (1, 'xx'); my $n = $p ? () = $q =~ /x/g : 0;
+--- facts
+match 1 exact
+faithful
+# (my $n = ($p ? (() = ($q =~ /x/g)) : 0));
+
+=== a scalar assignment in a ternary's middle
+my ($p, $a) = (1, 0); my $n = $p ? $a = 1 : 0;
+--- facts
+faithful
+
+=== an anonymous sub called and subscripted (op/gmagic.t)
+() = sub { [1, 2, 3, 4]; }->()->[3];
+--- facts
+faithful
+
+=== a method call subscripted
+my $o; my $m = $o->meth->[0];
+--- facts
+faithful
+# (my $m = $o->meth->[0]);
+
+=== a code call subscripted without an arrow
+my $f; my $e = $f->()[3];
+--- facts
+faithful
+# (my $e = &$f()->[3]);
+
+=== a reference alias to a lexical (op/lvref.t)
+use feature 'refaliasing'; no warnings; my $y = 1; \my $n = \$y;
+--- facts
+srefgen 1 exact
+faithful
+# Concise: refassign over srefgen of $y
+
+=== a reference alias through local
+use feature 'refaliasing'; no warnings; our $n; my $y = 1; \local $n = \$y;
+--- facts
+srefgen 1 exact
+faithful
+
+=== a reference to a declaration, concatenated
+my $s = \my $x . 1;
+--- facts
+srefgen 1 exact
+faithful
+# (my $s = ((\my $x) . '1'));
+
+
+# Review probes (per-fix review of 8f1f1ecb), written outside the corpus.
+# Each was measured on perl 5.44.0 with Deparse,-p; the parse tree was read
+# against it and canon re-read by perl as the source is.
+
+=== review: an array reference alias to a declaration
+use feature 'refaliasing'; no warnings; my @b = (1); \my @a = \@b;
+--- facts
+srefgen 1 exact
+faithful
+# (\my(@a) = (\@b));
+
+=== review: a reference to a declared hash
+my $r = \my %h;
+--- facts
+srefgen 1 exact
+faithful
+# (my($r) = (\my %h));
+
+=== review: a negated declaration, concatenated
+my $v = -my $x . 1;
+--- facts
+faithful
+# (my $v = (-my $x) . '1');
+
+=== review: not over local
+no warnings; our $x; my $v = !local $x;
+--- facts
+faithful
+# (my($v) = (!local $x));
+
+=== review: a named unary over a declaration
+my $v = ref my $x;
+--- facts
+faithful
+# (my($v) = ref(my $x));
+
+=== review: a declaration with its initialiser in a ternary's middle
+my $c; my $v = $c ? my $x = 1 : 0;
+--- facts
+faithful
+# (my($v) = ($c ? (my $x = 1) : 0));
+
+=== review: a declaration with its initialiser in an anonymous array
+my $v = [my $x = 1, 2];
+--- facts
+faithful
+# (my($v) = [(my $x = 1), 2]);
+
+=== review: a declaration with its initialiser as a list op's argument
+sub foo { 1; } foo my $x = 1, 2;
+--- facts
+faithful
+# foo((my $x = 1), 2);
+
+=== review: a declaration on the right of a plus
+my $v = 1 + my $x;
+--- facts
+faithful
+# (my($v) = (1 + my $x));
+
+=== review: a reference to a parenthesised declaration with its initialiser
+my $r = \(my $x = 1);
+--- facts
+srefgen 1 exact
+faithful
+# (my($r) = (\(my $x = 1)));
+
+=== review: a do block under a backslash keeps its declaration's initialiser
+my $r = \do { my $x = 1; $x + 1; } + 1;
+--- facts
+srefgen 1 exact
+faithful
+# (my($r) = ((\do { (my $x = 1); ($x + 1) }) + 1));
+
+=== review: a reference to a declaration as a ternary's condition
+my $v = \my $x ? 1 : 0;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = ((\my $x) ? 1 : 0));
+
+=== review: not over a declaration, matched
+my $v = !my $x =~ /a/;
+--- facts
+match 1 exact
+faithful
+# (my($v) = ((!my $x) =~ /a/));
+
+=== review: a reference to a declaration, or'd
+my $v = \my $x || 1;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = ((\my $x) || 1));
+
+=== review: a reference to a post-incremented declaration
+my $v = \my $x ++;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = (\(my $x++)));
+
+=== review: a power under a backslash on the right of a plus
+my $v = 1 + \my $x ** 2;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = (1 + (\(my $x ** 2))));
+
+=== review: a complemented declaration
+my $v = ~my $x;
+--- facts
+faithful
+# (my($v) = (~my $x));
+
+=== review: a reference alias in a ternary's middle
+use feature 'refaliasing'; no warnings; my $c; my $v = $c ? \my $x = \1 : 0;
+--- facts
+faithful
+# (my($v) = ($c ? (\my $x = (\1)) : 0));
+
+=== review: a reference alias as a list element
+use feature 'refaliasing'; no warnings; my @r = (\my $x = \1, 2);
+--- facts
+faithful
+# (my(@r) = ((\my $x = (\1)), 2));
+
+=== review: a reference alias as a foreach variable
+use feature 'refaliasing'; no warnings; my @l = ({}); foreach \my %h (@l) { 1; }
+--- facts
+anonhash 1 exact
+faithful
+# foreach \my %h (@l) { ... }
+
+=== review: a reference alias to a state variable
+use feature 'refaliasing', 'state'; no warnings; \state $x = \1;
+--- facts
+faithful
+# (\state($x) = (\1));
+
+=== review: a declaration with its initialiser after an or-assignment
+my $a; $a ||= my $y = 1;
+--- facts
+faithful
+# ($a ||= (my $y = 1));
+
+=== review: not keeps a declaration's initialiser
+my $v = not my $x = 1;
+--- facts
+faithful
+# (my($v) = (!(my $x = 1)));
+
+=== review: a reference to a deleted local element
+our %h; my $v = \delete local $h{a};
+--- facts
+srefgen 1 exact
+rv2hv 2 exact
+faithful
+
+=== review: a negated twice-negated variable
+my $x = 1; my $v = - - -$x;
+--- facts
+faithful
+# (my($v) = (-(-(-$x))));
+
+=== review: a doubled unary plus
+my $x = 1; my $v = + +$x;
+--- facts
+faithful
+
+=== review: not over a doubled complement
+my $x = 1; my $v = ! ~ ~$x;
+--- facts
+faithful
+# (my($v) = (!(~(~$x))));
+
+=== review: a negated filetest
+my $f = '.'; my $v = - -e $f;
+--- facts
+faithful
+# (my($v) = (-(-e $f)));
+
+=== review: a negated call named like a filetest
+sub e { 1; } my $v = - e();
+--- facts
+faithful
+# (my($v) = (-(e())));
+
+=== review: a filetest letter before a fat comma
+my %h = (-e => 1);
+--- facts
+faithful
+# (my(%h) = ('-e', 1));
+
+=== review: a negated filetest letter before a fat comma
+my @l = (- -A => 1);
+--- facts
+faithful
+# (my(@l) = ('+A', 1));
+
+=== review: a negated negated string
+my $v = - -"foo";
+--- facts
+faithful
+# (my($v) = '+foo');
+
+=== review: a negated pre-decrement
+my $x = 1; my $v = - --$x;
+--- facts
+faithful
+# (my($v) = (-(--$x)));
+
+=== review: a plus over a pre-increment
+my $x = 1; my $v = + ++$x;
+--- facts
+faithful
+# (my($v) = (++$x));
+
+=== review: a negated post-decrement
+my $x = 1; my $v = -$x--;
+--- facts
+faithful
+# (my($v) = (-($x--)));
+
+=== review: a minus before a negation
+my $x = 1; my $v = $x - - $x;
+--- facts
+faithful
+# (my($v) = ($x - (-$x)));
+
+=== review: a negated negated element
+my $x; my $v = - -$x->[0];
+--- facts
+faithful
+# (my($v) = (-(-$x->[0])));
+
+=== review: a reference on the right of a power
+my $x = 1; my $v = 2**\$x;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = (2 ** (\$x)));
+
+=== review: a complement on the right of a power
+my $v = 2**~0;
+--- facts
+faithful
+
+=== review: a negative power of a negative
+my $v = -2**-2;
+--- facts
+faithful
+# (my($v) = (-0.25));
+
+=== review: a chain of negative powers
+my $v = 2**-2**-2;
+--- facts
+faithful
+# (my($v) = 0.84089641525371450204);
+
+=== review: a negative power, multiplied
+my ($a, $b, $c) = (1, 2, 3); my $v = $a**-$b*$c;
+--- facts
+faithful
+# (my($v) = (($a ** (-$b)) * $c));
+
+=== review: a negative power, added
+my ($a, $b, $c) = (1, 2, 3); my $v = $a**-$b+$c;
+--- facts
+faithful
+# (my($v) = (($a ** (-$b)) + $c));
+
+=== review: a filetest on the right of a power
+sub f { 1; } my $v = 2**-f(1);
+--- facts
+faithful
+# (my($v) = (2 ** (-f 1)));
+
+=== review: a negative power as a range's start
+my @v = (2 ** -1 .. 3);
+--- facts
+faithful
+
+=== review: not on the right of a power, repeated
+my ($a, $b) = (1, 2); my $v = $a ** !$b x 2;
+--- facts
+faithful
+# (my($v) = (($a ** (!$b)) x 2));
+
+=== review: a backslash over a power on the right of a power
+my ($a, $b) = (1, 2); my $v = $a ** \$b ** 2;
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = ($a ** (\($b ** 2))));
+
+=== review: a negated post-increment on the right of a power
+my ($a, $b) = (1, 2); my $v = $a ** -$b++;
+--- facts
+faithful
+# (my($v) = ($a ** (-($b++))));
+
+=== review: a negated method power on the right of a power
+my ($a, $b) = (1, 2); my $v = $a ** -$b->m ** 2;
+--- facts
+faithful
+# (my($v) = ($a ** (-($b->m ** 2))));
+
+=== review: a ternary in a ternary's middle
+my ($a, $b) = (1, 2); my $v = $a ? $b ? 1 : 2 : 3;
+--- facts
+faithful
+# (my($v) = ($a ? ($b ? 1 : 2) : 3));
+
+=== review: an assignment to a ternary with an assignment in its middle
+my ($a, $b, $c) = (1, 2, 3); $a ? $b = 1 : $c = 2;
+--- facts
+faithful
+# (($a ? ($b = 1) : $c) = 2);
+
+=== review: a plus-assignment in a ternary's middle
+my ($a, $b) = (1, 2); my $v = $a ? $b += 1 : 0;
+--- facts
+faithful
+
+=== review: an array assignment in a ternary's middle
+my $a = 1; my @x; my $v = $a ? @x = (1, 2) : 0;
+--- facts
+faithful
+# (my($v) = ($a ? (@x = (1, 2)) : 0));
+
+=== review: an or-assignment in a ternary's middle
+my ($a, $b) = (1, 2); my $v = $a ? $b ||= 1 : 0;
+--- facts
+faithful
+
+=== review: a chained assignment in a ternary's middle
+my ($a, $b, $c) = (1, 2, 3); my $v = $a ? $b = $c = 1 : 0;
+--- facts
+faithful
+# (my($v) = ($a ? ($b = ($c = 1)) : 0));
+
+=== review: an assignment of a ternary in a ternary's middle
+my ($a, $b, $c) = (1, 2, 3); my $v = $a ? $b = $c ? 1 : 2 : 0;
+--- facts
+faithful
+# (my($v) = ($a ? ($b = ($c ? 1 : 2)) : 0));
+
+=== review: a local assignment in a ternary's middle
+my $a = 1; my $v = $a ? local $_ = 1 : 0;
+--- facts
+faithful
+# (my($v) = ($a ? (local $_ = 1) : 0));
+
+=== review: not over a list in a ternary's middle
+my ($a, $b, $c) = (1, 2, 3); my $v = $a ? not $b, $c : 0;
+--- facts
+faithful
+# (my($v) = ($a ? (!($b, $c)) : 0));

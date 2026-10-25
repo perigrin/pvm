@@ -573,11 +573,14 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				break
 			}
 			// `-` or `+` before an operand that begins with the same byte
-			// would write `--` or `++`, the decrement or increment: perl's
-			// Deparse writes `- -$x` as `-(-$x)`, and so does this. `!`
-			// before `~` would write `!~`, the negated match, which perl
-			// refuses there; Deparse writes that one bare and so does not
-			// re-read, so this parenthesises it the same way.
+			// would write `--` or `++`, the decrement or increment, and `!`
+			// before `~` would write `!~`, the negated match. A blank between
+			// them keeps the two operators apart without a paren the source
+			// lacks, and the pair would be one: measured on perl 5.44.0,
+			// `- -$x` is `negate sK` over a negate and `-(-$x)` is `negate
+			// sKP`, the inner op carrying OPf_PARENS, as `! ~$x` is
+			// `complement sK` and `!(~$x)` `complement sKP`. Deparse writes
+			// the pair, but the source's tree has no such bit.
 			if joins, ok := map[string]string{"-": "-", "+": "+", "!": "~"}[op]; ok {
 				operand := b.sub()
 				emitBefore(&operand, n.Children[0], src, prefix[op], f)
@@ -585,11 +588,11 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				// again here doubles the work at every level of `!!!!$x`.
 				// `-` before a one-letter name writes a filetest: `- A()` is
 				// a negated call and `-A()` is `-A $_`, measured on 5.42.0.
+				// The blank separates those too.
 				if text := operand.String(); strings.HasPrefix(text, joins) ||
 					op == "-" && joinsFiletest(text) {
-					b.WriteByte('(')
+					b.WriteByte(' ')
 					b.writeFrom(&operand, 0, len(text))
-					b.WriteByte(')')
 				} else {
 					b.writeFrom(&operand, 0, len(text))
 				}
@@ -609,12 +612,16 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteString(ownText(n, src))
 			return
 		}
-		// The middle part is closed by `:` as by a closer, so it gets 0:
-		// `$c ? print "a" : print "b"` stays bare.
+		// The middle part is closed by `:` as by a closer, so nothing
+		// follows it: `$c ? print "a" : print "b"` stays bare. It is
+		// perly.y's `term`, which takes an assignment and nothing looser:
+		// measured on perl 5.44.0, `$p ? $a = 1 : 0` is a cond_expr over a
+		// sassign, and `$p ? 1, 2 : 0` and `$p ? $a or $b : 0` are syntax
+		// errors.
 		bp := infix["?"].BP
 		emitBefore(b, n.Children[0], src, bp+1, bp)
 		b.WriteString(" ? ")
-		emit(b, n.Children[1], src, bp)
+		emit(b, n.Children[1], src, infix["="].BP)
 		b.WriteString(" : ")
 		emitBefore(b, n.Children[2], src, bp, f)
 
@@ -667,7 +674,19 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		if n.NameBraces {
 			defer b.WriteByte('}')
 		}
-		emitBefore(b, n.Children[0], src, atomBP, atomBP)
+		// A `->` call or method call is the base of a subscript after it as
+		// written: `->` and the subscripts are one left-associative level,
+		// so `$o->meth->[0]` and `$f->()->[3]` subscript the call's result.
+		// Measured on perl 5.44.0, Deparse,-p writes `$o->meth->[0]` bare.
+		// Without the arrow, only a `->(...)` call may stand there --
+		// `$f->()[3]` is `&$f()->[3]`, the arrow being optional between
+		// subscripts -- and `$o->meth[0]` is a syntax error.
+		base := atomBP
+		if c := n.Children[0]; c.Kind == Binary && c.Text == "->" && len(c.Children) == 2 &&
+			(n.Arrow || c.Children[1].Kind == List) {
+			base = infix["->"].BP
+		}
+		emitBefore(b, n.Children[0], src, base, atomBP)
 		if n.Arrow {
 			b.WriteString("->")
 		}
@@ -992,6 +1011,15 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// them, and are not marked (SyntaxParen, which emit writes).
 		// Measured on 5.42.0, `$r->($v->[0])` is `&$r($v->[0])` and `$r ->
 		// $v->[0]` is `$r->$v->[0]`, a method call through $v.
+		//
+		// A prefix operator on the right needs no pair however tightly the
+		// binary binds: the parser reads it as the start of a term, so it
+		// cannot be split there. Only `**` binds tighter than the prefix
+		// operators, and measured on perl 5.44.0, `2**-1**2` is 0.5, `2 **
+		// (-(1 ** 2))`. Its operand's right edge is still read against f.
+		if c := n.Children[1]; prefixOperator(c) && bindingPower(c) < r {
+			r = bindingPower(c)
+		}
 		emitBefore(b, n.Children[1], src, r, f)
 
 	default:
@@ -1317,6 +1345,14 @@ func bindingPower(n *Node) int {
 	default:
 		return atomBP
 	}
+}
+
+// prefixOperator reports whether n is a symbol prefix operator applied to an
+// operand -- `-`, `+`, `!`, `~` or `\` -- rather than a dereference, a named
+// parameter's `:` or `not`, which bindingPower reads as terms.
+func prefixOperator(n *Node) bool {
+	return n.Kind == Unary && !n.Paren && len(n.Children) == 1 &&
+		!isDerefSigil(n.Text) && n.Text != ":" && n.Text != "not"
 }
 
 // isDerefSigil reports whether a Unary's operator is a sigil applied to an

@@ -1,8 +1,8 @@
-# 607/619 faithful
+# 616/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 607 clean (98.1%), 12 total.
+# 619 files, 616 clean (99.5%), 3 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -104,7 +104,7 @@
 0 io/pvbm.t
 0 io/read.t
 0 io/say.t
-1 io/scalar.t
+0 io/scalar.t
 0 io/scalar_ungetc.t
 0 io/sem.t
 0 io/semctl.t
@@ -231,7 +231,7 @@
 0 op/const-optree.t
 0 op/context.t
 0 op/coreamp.t
-1 op/coresubs.t
+0 op/coresubs.t
 0 op/cproto.t
 0 op/crypt.t
 0 op/current_sub.t
@@ -260,7 +260,7 @@
 0 op/exp.t
 0 op/fh.t
 0 op/filehandle.t
-1 op/filetest.t
+0 op/filetest.t
 0 op/filetest_stack_ok.t
 0 op/filetest_t.t
 0 op/flip.t
@@ -271,7 +271,7 @@
 0 op/getpid.t
 0 op/getppid.t
 0 op/glob.t
-1 op/gmagic.t
+0 op/gmagic.t
 0 op/goto-sub.t
 0 op/goto.t
 0 op/goto_xs.t
@@ -313,7 +313,7 @@
 0 op/lock.t
 0 op/loopctl.t
 0 op/lop.t
-1 op/lvref.t
+0 op/lvref.t
 0 op/magic-27839.t
 0 op/magic.t
 0 op/method.t
@@ -322,9 +322,9 @@
 0 op/my.t
 0 op/my_stash.t
 0 op/mydef.t
-1 op/negate.t
+0 op/negate.t
 0 op/not.t
-1 op/numconvert.t
+0 op/numconvert.t
 0 op/numify.t
 0 op/numify_chkflags.t
 0 op/oct.t
@@ -335,7 +335,7 @@
 0 op/pack.t
 0 op/packagev.t
 0 op/pos.t
-1 op/postfixderef.t
+0 op/postfixderef.t
 0 op/pow.t
 0 op/print.t
 0 op/protowarn.t
@@ -419,7 +419,7 @@
 0 op/utfhash.t
 0 op/utftaint.t
 0 op/vec.t
-1 op/ver.t
+0 op/ver.t
 0 op/waitpid.t
 0 op/wantarray.t
 0 op/warn.t

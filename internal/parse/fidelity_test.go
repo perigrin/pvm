@@ -241,8 +241,8 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 		{`print("x");`, `print ( "x" ) ;`},
 		// A grouping the source wrote is a Paren node's pair.
 		{`(1 + 2) * 3;`, `*( 1 + 2 *) * 3 ;`},
-		// One canon writes for binding power is not.
-		{`- -$x;`, `- ( - $x ) ;`},
+		// Two prefix minuses are kept apart by a blank, not a pair.
+		{`- -$x;`, `- - $x ;`},
 		// A heredoc whose statement runs on past the opener's line is split
 		// around its body, written where the source put it, and the marks on
 		// each side must survive the split.
@@ -259,14 +259,34 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
 			t.Errorf("canon tokens of %q are %q, want %q", tc.src, got, tc.want)
 		}
 	}
+
+	// A pair canon writes for binding power is not marked. No parse writes
+	// one here, so the tree is regrouped by hand: `-2 ** 2` with the minus
+	// as `**`'s left operand, which canon must write `(-2) ** 2`.
+	src := `-2 ** 2;`
+	n := parse.Parse([]byte(src))
+	neg := n.Children[0].Children[0]
+	pow := neg.Children[0]
+	neg.Children = []*parse.Node{pow.Children[0]}
+	neg.End = pow.Children[0].End
+	pow.Children[0], pow.Start = neg, neg.Start
+	n.Children[0].Children[0] = pow
+	if got, want := markedTokens(n, src), `( - 2 ) ** 2 ;`; got != want {
+		t.Errorf("canon tokens of the regrouped %q are %q, want %q", src, got, want)
+	}
 }
 
 // markedCanon is canon's significant tokens of src's parse, joined by
 // spaces, with a paren written for a node's Paren flag written `*(` or
 // `*)`.
 func markedCanon(src string) string {
+	return markedTokens(parse.Parse([]byte(src)), src)
+}
+
+// markedTokens is markedCanon for the tree n of src.
+func markedTokens(n *parse.Node, src string) string {
 	var got []string
-	for _, tok := range parse.CanonTokens(parse.Parse([]byte(src)), []byte(src)) {
+	for _, tok := range parse.CanonTokens(n, []byte(src)) {
 		if tok.ParenNode {
 			got = append(got, "*"+tok.Text)
 			continue
