@@ -15,15 +15,19 @@ jobs:
     - uses: actions/setup-go@v6
       with:
         go-version: '1.24.4'
-    - name: Conformance failures, one annotation per test
-      shell: bash
+    - name: Test as CI does (default shell)
       env:
         PVM_REQUIRE_PERL542: "1"
       run: |
-        go test ./internal/conformance/ -count=1 -v > conf.log 2>&1 || true
-        for t in TestLintRejectsUndeclaredConstruct TestPerlAdjudicatesFirst TestCorpus TestAdjacencyCoversItsTier TestEmptyExpectedOutputIsChecked TestCorpusSkipsAreDocumented; do
-          body=$(awk -v t="$t" '$0 ~ "^=== RUN   "t"$" {on=1} on {print} $0 ~ "^--- (FAIL|PASS): "t" " {exit}' conf.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-          echo "::error title=$t::${body:0:6000}"
+        go test ./... -count=1 -v *> test.log
+        "exit $LASTEXITCODE" | Out-File -Append test.log
+        (Get-Command perl).Source | Out-File perl.txt
+    - name: Failing tests
+      shell: bash
+      run: |
+        echo "::error title=perl::$(cat perl.txt | tr -d '\r')"
+        echo "::error title=summary::$(grep -aE -- '^(--- FAIL|FAIL|panic:|exit )' test.log | tr -d '\r' | head -60 | awk '{printf "%s%%0A", $0}')"
+        for t in $(grep -aE -- '^--- FAIL: ' test.log | tr -d '\r' | awk '{print $3}' | head -8); do
+          body=$(awk -v t="$t" '$0 ~ "^=== RUN   "t"\r?$" {on=1} on {print} $0 ~ "^--- (FAIL|PASS): "t" " {exit}' test.log | tr -d '\r' | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=$t::${body:0:5000}"
         done
-        perl -v | head -3 | tr '\n' ' ' | sed 's/^/::error title=perl::/'; echo
-        which perl; echo "::error title=which::$(which -a perl | tr '\n' ' ')"
