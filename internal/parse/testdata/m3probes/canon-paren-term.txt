@@ -1,0 +1,231 @@
+Canon-added parens after a call name, a term or a bareword (issue
+01a16602-60e9), the canon-adds-paren-term rows of the re-emission queue.
+The one row, op/postfixderef.t:379's `is $cr->()->{ppp}`, was an Index
+writing its base at an atom's power, so a `->` call took a pair:
+01a16602-608d's subscript-base rule fixed it. The bareword rows are a
+call's arguments perl reads as a filehandle or a class name, which canon
+gives no call parens. Each Deparse,-p is perl 5.44.0's.
+
+=== a code call's result subscripted (op/postfixderef.t)
+sub is { 1; } my $cr = sub { +{ppp => 'pp'}; }; is $cr->()->{ppp}, 'pp';
+--- facts
+anonhash 1 exact
+faithful
+# is(&$cr()->{'ppp'}, 'pp');
+
+=== a code call's result subscripted, then subtracted (op/postfixderef.t)
+sub is { 1; } my $cr = sub { +{rrr => 7}; }; is $cr->()->{'rrr'} - 2, 5;
+--- facts
+anonhash 1 exact
+faithful
+
+=== a method call's result subscripted twice
+my $o; my $v = $o->meth->{k}{j};
+--- facts
+faithful
+# (my $v = $o->meth->{'k'}{'j'});
+
+=== a code call's result dereferenced
+my $f; my @v = @{$f->()};
+--- facts
+faithful
+
+=== a filehandle argument
+print STDERR 'x';
+--- facts
+faithful
+# print(STDERR 'x');
+
+=== a bareword handle opened and closed
+my $f = '/dev/null'; open FH, '<', $f; close FH;
+--- facts
+faithful
+# open(FH, '<', $f); close(FH);
+
+=== a class name blessed into
+my $r = bless {}, 'Foo';
+--- facts
+anonhash 1 exact
+faithful
+
+# Issue 01a16b51-f9a9 (canon wraps an arrow call that is followed by a
+# subscript), closed by 01a16602-608d's subscript-base rule.
+
+=== a code call with an argument, its result subscripted
+my $f; my $v = $f->(1)->[0];
+--- facts
+faithful
+
+=== a code call with a variable argument, its result hash-subscripted
+my ($f, $x); my $v = $f->($x)->{a};
+--- facts
+faithful
+
+=== a code call with a not argument, its result subscripted
+my ($f, $x); my $v = $f->(not $x)->[0];
+--- facts
+faithful
+
+
+# Review probes (per-fix review of 96c0f075 and 8f1f1ecb's subscript-base
+# rule), written outside the corpus. Each was measured on perl 5.44.0 with
+# Deparse,-p; the parse tree was read against it and canon re-read by perl
+# as the source is.
+
+=== review: a method call with empty parens subscripted
+my $o; my $v = $o->m()->[0];
+--- facts
+faithful
+# (my($v) = $o->m->[0]);
+
+=== review: a dynamic method call subscripted
+my ($o, $m); my $v = $o->$m->[0];
+--- facts
+faithful
+# (my($v) = $o->$m->[0]);
+
+=== review: a dynamic method call with parens subscripted
+my ($o, $m); my $v = $o->$m()->[0];
+--- facts
+faithful
+
+=== review: a SUPER method call's result subscripted
+my $o; my $v = $o->SUPER::m->{k};
+--- facts
+faithful
+# (my($v) = $o->SUPER::m->{'k'});
+
+=== review: a constructor's result subscripted
+my $v = Foo->new->{k};
+--- facts
+faithful
+# (my($v) = 'Foo'->new->{'k'});
+
+=== review: a code call's result called
+my $f; my $v = $f->()();
+--- facts
+faithful
+# (my($v) = &$f()->());
+
+=== review: a code call with an argument subscripted without an arrow
+my $f; my $v = $f->(1)[0];
+--- facts
+faithful
+# (my($v) = &$f(1)->[0]);
+
+=== review: an element called and its result subscripted
+my $x; my $v = $x->[0]->()->{k};
+--- facts
+faithful
+# (my($v) = $x->[0]->()->{'k'});
+
+=== review: a method call's result array-dereferenced postfix
+my $o; my @v = $o->m->@*;
+--- facts
+faithful
+# (my(@v) = @{$o->m});
+
+=== review: a method call's result's last index postfix
+my $o; my $v = $o->m->$#*;
+--- facts
+faithful
+
+=== review: a method call's result as a block deref's base
+my $o; my $v = ${$o->m}[0];
+--- facts
+faithful
+
+=== review: a parenthesised constructor subscripted
+my $v = (Foo->new)->[0];
+--- facts
+faithful
+# (my($v) = 'Foo'->new->[0]);
+
+=== review: a class-quoted invocant's method result subscripted
+my $v = Foo::->m->[0];
+--- facts
+faithful
+# (my($v) = 'Foo'->m->[0]);
+
+=== review: a method call's result subscripted twice with arrows
+my $o; my $v = $o->m->[0]->[1];
+--- facts
+faithful
+# (my($v) = $o->m->[0][1]);
+
+=== review: method calls and subscripts alternating
+my $o; my $v = $o->m->{k}->m2->[0];
+--- facts
+faithful
+# (my($v) = $o->m->{'k'}->m2->[0]);
+
+=== review: a code call subscripted and called
+my $f; my $v = $f->()->[0]->(1);
+--- facts
+faithful
+# (my($v) = &$f()->[0]->(1));
+
+=== review: a method call's result element post-incremented
+my $o; my $v = $o->m->{k}++;
+--- facts
+faithful
+
+=== review: a reference to a method call's result element
+my $o; my $v = \$o->m->[0];
+--- facts
+srefgen 1 exact
+faithful
+# (my($v) = (\$o->m->[0]));
+
+=== review: a negated method call's result element
+my $o; my $v = -$o->m->[0];
+--- facts
+faithful
+# (my($v) = (-$o->m->[0]));
+
+=== review: a method call's result element as a power's exponent
+my $o; my $v = 2 ** $o->m->[0];
+--- facts
+faithful
+
+=== review: an anonymous sub called and subscripted without an arrow
+my $v = sub { [1]; }->()[0];
+--- facts
+faithful
+# (my($v) = sub { [1]; }->()->[0]);
+
+=== review: an ampersand call subscripted
+my $f; my $v = &$f()->[0];
+--- facts
+faithful
+
+=== review: a method call's result called and subscripted
+my $o; my $v = $o->m->()->[0];
+--- facts
+faithful
+# (my($v) = $o->m->()->[0]);
+
+=== review: a method call chain split across lines
+my $o; my $v = $o
+  ->m
+  ->[0];
+--- facts
+faithful
+
+=== review: a list op's arguments with a declaration and its initialiser
+my $v = join ',', my @a = (1, 2);
+--- facts
+faithful
+# (my($v) = join(',', (my(@a) = (1, 2))));
+
+=== review: a sort block over a declaration with its initialiser
+my @v = sort { $a <=> $b } my @a = (2, 1);
+--- facts
+faithful
+# (my(@v) = (sort {$a <=> $b} (my(@a) = (2, 1))));
+
+=== review: a filehandle before a declaration with its initialiser
+print STDERR my $x = 1;
+--- facts
+faithful
+# print(STDERR (my $x = 1));
