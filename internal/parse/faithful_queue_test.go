@@ -225,7 +225,10 @@ func m3Walk(tDir string) (visited []string, rows []queueRow, err error) {
 			return nil
 		})
 		for _, path := range paths {
+			// A slash path, as perlRejects and the queue spell it: the walk
+			// runs on fixture trees on every platform, Windows included.
 			rel, _ := filepath.Rel(tDir, path)
+			rel = filepath.ToSlash(rel)
 			if _, rejected := perlRejects[rel]; rejected {
 				continue
 			}
