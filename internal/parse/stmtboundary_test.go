@@ -90,6 +90,52 @@ var bareBlockContinue = []string{
 // lib/universal.t. The main program's last statement needs none, as a
 // block's does not: measured on 5.44.0, Deparse,-p writes `print 1; print 2`
 // as `print(1); print(2);`, the same as with the `;`.
+// loopControlWords are the words after a loop control that its review
+// (2026-10-25) found read wrongly once a keyword began the operand. A word
+// operator applies to the loop control: measured on perl 5.44.0, `last eq
+// 1` is `((last) eq 1)` and `last and print "x"` prints nothing. `x` names a
+// label (Concise: goto("x"), op/goto.t:755), and so does a switch keyword
+// with the switch feature off: `last default` is a syntax error under `use
+// v5.10` and names a label under `use v5.36`.
+var loopControlWords = []string{
+	"for (1..2) { last and print \"x\\n\"; } print \"ok\\n\";\n",
+	"for (1) { last eq 1; }\n",
+	"for (1) { last or 2; }\n",
+	"for (1) { redo xor 1; }\n",
+	"for (1) { next lt 1; }\n",
+	"sub f { goto or 1; }\n",
+	"goto x; x: print \"x\\n\";\n",
+	"for (1) { last default; }\n",
+	"use v5.36; for (1) { last given; }\n",
+}
+
+// midLineDataSection is a data section whose marker does not begin its
+// line. toke.c ends the program at the keyword wherever a statement starts
+// with it: measured on perl 5.44.0, `print "a\n"; __END__ not code` prints
+// "a", and Deparse shows the section.
+var midLineDataSection = []string{
+	"print \"a\\n\"; __END__\nnot code\n",
+	"print \"a\\n\"; __DATA__\nd\n",
+}
+
+// TestLoopControlWordLabels: a word that names a label after a loop
+// control is a Label, not a call -- Faithful cannot see the difference, the
+// tree can. Under the switch feature a switch keyword is the operand.
+func TestLoopControlWordLabels(t *testing.T) {
+	for src, want := range map[string]parse.Kind{
+		"goto x; x: 1;\n":                       parse.Label,
+		"for (1) { last default; }\n":           parse.Label,
+		"for (1) { last given; }\n":             parse.Label,
+		"use v5.10; for (1) { last given; }\n":  parse.Call,
+		"use feature 'switch'; last default;\n": parse.Call,
+	} {
+		lc := firstOfKind(parse.Parse([]byte(src)), parse.LoopControl)
+		if lc == nil || len(lc.Children) != 1 || lc.Children[0].Kind != want {
+			t.Errorf("%q: want the loop control's one child a %v, got %+v", src, want, lc)
+		}
+	}
+}
+
 var fileEnds = []string{
 	"print 1;\nprint 2\n",
 	"print 1;\nprint 2 # a comment\n",
@@ -112,7 +158,7 @@ var heredocClosers = []string{
 // the source.
 func TestFaithfulStatementBoundaries(t *testing.T) {
 	var all []string
-	for _, group := range [][]string{derefBraces, anonSubStatements, gotoKeywordOperand, bareBlockContinue, fileEnds, heredocClosers} {
+	for _, group := range [][]string{derefBraces, anonSubStatements, gotoKeywordOperand, bareBlockContinue, fileEnds, heredocClosers, loopControlWords, midLineDataSection} {
 		all = append(all, group...)
 	}
 	for _, src := range all {

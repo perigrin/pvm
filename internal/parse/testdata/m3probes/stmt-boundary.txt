@@ -228,3 +228,415 @@ __END__
 x
 --- facts
 faithful
+
+# Reviewer probes (per-fix review of ae4be0f2 and 99cd2e5d, 2026-10-25),
+# outside the corpus. Each was measured on the pinned perl 5.44.0 first;
+# the comment under a row is its Deparse,-p or what the program prints.
+
+=== review: a braced scalar deref then a nested subscript, beside the bare one
+my $x = [[5]]; print ${$x}[0][0], " ", $$x[0][0], "\n";
+--- facts
+faithful
+# print(do { $x }->[0][0], ' ', $x->[0][0], "\n"); both print 5
+
+=== review: exists on a braced scalar deref's element
+my $r = {a => 1}; print exists ${$r}{a} ? 1 : 0, "\n";
+--- facts
+anonhash 1 exact
+faithful
+
+=== review: an array slice through braces as an lvalue
+my $r = \my @a; @{$r}[0 .. 1] = (1, 2); print "@a\n";
+--- facts
+srefgen 1 exact
+faithful
+
+=== review: a hash slice of qw through braces as an lvalue, then keys through braces
+my $r = {}; @{$r}{qw(a b)} = (1, 2); print join(",", sort keys %{$r}), "\n";
+--- facts
+rv2hv 2 exact
+anonhash 1 exact
+faithful
+
+=== review: a braced scalar deref with inner spaces as an lvalue
+my $r = \my $s; ${ $r } = 4; print "$s\n";
+--- facts
+srefgen 1 exact
+faithful
+
+=== review: three spellings of a double scalar deref
+my $r = \\"x"; print ${${$r}}, $${$r}, ${$$r}, "\n";
+--- facts
+srefgen 1 exact
+faithful
+# print(${${$r;};}, $${$r;}, ${$$r;}, "\n"); prints xxx
+
+=== review: braces around an element are not a plain operand
+my @x = (\"e"); print ${$x[0]}, "\n";
+--- facts
+faithful
+
+=== review: braced derefs on both sides of a binary
+my $r = [3]; print ${$r}[-1] + @{$r}, "\n";
+--- facts
+faithful
+
+=== review: each over a hash through braces in a while condition
+my $h = {k => 1}; while (my ($k, $v) = each %{$h}) { print "$k=$v\n"; }
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== review: a code deref and a glob deref through braces
+my $c = sub { 42 }; my $g = \*STDOUT; print {*{$g}} &{$c}(), "\n";
+--- facts
+srefgen 1 exact
+faithful
+
+=== review: an anonymous sub with a signature as a statement
+use feature 'signatures'; no warnings; sub ($x) { $x };
+print "ok\n";
+--- facts
+faithful
+# sub ($x) { $x; } ; print("ok\n");
+
+=== review: an anonymous sub with an empty prototype as a statement
+sub () { 1 };
+print "ok\n";
+--- facts
+faithful
+
+=== review: an anonymous sub called as a statement
+sub { 1 }->();
+print "ok\n";
+--- facts
+faithful
+
+=== review: a named sub with a signature stays a block form
+use feature 'signatures'; no warnings; sub f ($x) { $x }
+print f(3), "\n";
+--- facts
+faithful
+
+=== review: an anonymous sub as the file's last statement, without a semicolon
+my $x = 1; sub { 1 }
+--- facts
+faithful
+
+=== review: return last
+sub r { for (1) { return last } } print "x\n";
+--- facts
+faithful
+
+=== review: last() with empty parens
+for (1 .. 3) { print "$_\n"; last(); }
+--- facts
+faithful
+
+=== review: last with a list operator's result as its label
+my @l = ("L"); L: for (1 .. 3) { print "$_\n"; last shift @l; }
+--- facts
+faithful
+# prints 1 only
+
+=== review: goto through a computed label
+my $x = "END"; goto $x; print "skip\n"; END: print "end\n";
+--- facts
+faithful
+
+=== review: next then a modifier on the next line
+for (1 .. 3) { next
+if $_ == 1; print "$_\n" }
+--- facts
+faithful
+
+=== review: last with a ternary operand
+my %h; for (1 .. 2) { last defined $h{x} ? "A" : "B" }
+--- facts
+faithful
+# (last (defined($h{'x'}) ? 'A' : 'B'))
+
+=== review: goto a code deref through braces
+sub x { goto &{\&y} } sub y { print "y\n" } x();
+--- facts
+srefgen 1 exact
+faithful
+
+=== review: last with an eval block, a do block and an anonymous sub as operand
+for (1 .. 3) { last eval { "X" }; last do { "X" }; last sub { 1 } }
+--- facts
+faithful
+# (last (do { 'X' })) and (last (sub { 1; })): a keyword begins the operand
+
+=== review: redo with a label under a modifier
+my $c = 0; X: { $c++; redo X if $c < 2 } print "$c\n";
+--- facts
+faithful
+# prints 2
+
+=== review: last not
+for (1 .. 2) { last not 1 } print "ok\n";
+--- facts
+faithful
+
+=== review: last and an assignment inside a list, then or
+my $x = 0; for (1 .. 2) { $x = 1, last or 2 } print "$x\n";
+--- facts
+faithful
+# (((($x = 1), (last)) or '???'))
+
+=== review: last with a quote-like label and a match
+for (1 .. 2) { last q(X); last m/x/ } print "ok\n";
+--- facts
+match 1 exact
+faithful
+# (last X); (last /x/);
+
+=== review: last with a my assignment and a local as operand
+for (1 .. 2) { last my $x = "L"; last local $y } print "ok\n";
+--- facts
+faithful
+# (last (my $x = 'L')); (last (local $y));
+
+=== review: last under a foreach modifier
+for (1 .. 2) { last foreach 1 } print "ok\n";
+--- facts
+faithful
+# (last) foreach (1);
+
+=== review: last with a builtin call as operand
+for (1 .. 2) { last time; last lc; last print } print "ok\n";
+--- facts
+faithful
+# (last (time)); (last (lc($_))); (last (print($_)))
+
+=== review: sort with a call whose paren follows a space inside sort's parens
+sub r { (3, 1, 2) } print join(",", sort(routine (1))), "\n"; sub routine { $b <=> $a }
+--- facts
+faithful
+# sort routine 1: prints 1
+
+=== review: sort with a space before its paren and a call inside
+sub r { (3, 1, 2) } print join(",", sort (r(1))), "\n";
+--- facts
+faithful
+# sort(r(1)): prints 1,2,3
+
+=== review: sort of a call then more list
+sub r { (3, 1, 2) } print join(",", sort(r(1), 5)), "\n";
+--- facts
+faithful
+# sort(r(1), 5): prints 1,2,3,5
+
+=== review: sort with spaces inside its parens before a spaced call
+sub r { (3, 1, 2) } print join(",", sort( r (1) )), "\n";
+--- facts
+faithful
+# (sort r 1): prints 1
+
+=== review: sort of a package-qualified call and an ampersand call
+sub r { (3, 1, 2) } print join(",", sort(main::r(1))), join(",", sort(&r(1))), "\n";
+--- facts
+faithful
+# sort(main::r(1)) and sort(&r(1)): prints 1,2,31,2,3
+
+=== review: sort with a named comparator and a parenthesised list
+sub routine { $b <=> $a } print join(",", sort routine(1, 3, 2)), "\n";
+--- facts
+faithful
+# sort routine 1, 3, 2: prints 3,2,1
+
+=== review: a labelled bare block with continue, then a statement
+L: { last L } continue { print "c\n" } print "d\n";
+--- facts
+faithful
+
+=== review: a bare block with continue, then a bare block
+{ 1 } continue { 2 }
+{ print "x\n" }
+--- facts
+faithful
+
+=== review: a bare block with continue inside a loop body
+for (1) { { 1 } continue { 2 } print "x\n" }
+--- facts
+faithful
+
+=== review: a bare block with continue and its own semicolon
+{ print "a\n" } continue { print "b\n" };
+print "c\n";
+--- facts
+faithful
+
+=== review: do-while as the file's last statement, without a semicolon
+do { print "a\n" } while (0); print "b\n"
+--- facts
+faithful
+
+=== review: eval and do blocks as the file's last statement, without a semicolon
+my $x = do { 1 }; eval { print "a\n" }
+--- facts
+faithful
+
+=== review: a modifier statement last, without a semicolon
+print "a\n" if 1
+--- facts
+faithful
+
+=== review: a lone expression as the whole file
+1
+--- facts
+faithful
+
+=== review: package then a last statement without a semicolon
+package Foo; print "a\n"
+--- facts
+faithful
+
+=== review: a semicolon on its own line ends the last statement
+print 1; print 2
+;
+--- facts
+faithful
+
+=== review: goto, return and last as the file's last statement
+print "a\n"; goto X; X: print "b\n"; for (1) { last } sub f { return }
+--- facts
+faithful
+
+=== review: a heredoc body before a block's closer
+if (1) { print(<<A
+x
+A
+) }
+print "y\n";
+--- facts
+faithful
+
+=== review: a heredoc with a comment after its opener, before a closer
+sub f { print @_ } f(<<A # comment
+x
+A
+);
+--- facts
+faithful
+
+=== review: an indented heredoc before a closer
+sub f { print @_ } f(<<~A
+    x
+    A
+);
+--- facts
+faithful
+
+=== review: a heredoc body before an inner call's closer, with more arguments after
+sub f { print @_ } sub g { @_ } f("a", g(<<A
+x
+A
+), "b\n");
+--- facts
+faithful
+# prints ax then b
+
+=== review: a heredoc inside an anonymous hash on one line
+my $h = { k => <<A };
+v
+A
+print $h->{k};
+--- facts
+anonhash 1 exact
+faithful
+
+=== review: a heredoc before an array ref inside a list
+my @a = ([<<A
+x
+A
+]); print $a[0][0];
+--- facts
+faithful
+
+=== review: a string holding __END__ is not a data section
+my $s = "__END__"; print "$s\n";
+print q{
+__END__
+};
+--- facts
+faithful
+
+=== review: a heredoc whose body holds __END__
+print <<A;
+__END__
+A
+print "after\n";
+--- facts
+faithful
+# prints __END__ then after
+
+=== review: __DATA__ read from a sub in another package
+package Foo; sub d { local $/; my $x = <DATA>; $x } package main; print Foo::d();
+__DATA__
+foodata
+--- facts
+readline 1 exact
+faithful
+
+=== review: POD holding __END__ is not a data section
+print "a\n";
+=pod
+
+__END__
+
+=cut
+print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review: an __END__ section read through main::DATA
+print while <main::DATA>;
+__END__
+endtext
+--- facts
+readline 1 exact
+faithful
+
+=== review: trailing spaces after __END__
+print "a\n";
+__END__   
+trailing spaces after marker
+--- facts
+faithful
+
+# Fixes for the review's D1-D3 (2026-10-25), each measured on perl 5.44.0.
+
+=== a data section after a statement on the same line (review D1)
+print "a\n"; __END__
+not code
+--- facts
+faithful
+# prints "a"; Deparse shows the __DATA__ section
+
+=== a word operator after a loop control (review D3)
+for (1..2) { last and print "x\n"; } print "ok\n";
+--- facts
+faithful
+# foreach $_ (1 .. 2) { (last); } print("ok\n"); prints ok
+
+=== a comparison after a loop control (review D3)
+for (1) { last eq 1; }
+--- facts
+faithful
+# ((last) eq 1);
+
+=== a label named x (review D2, op/goto.t:755)
+goto x; x: print "x\n";
+--- facts
+faithful
+# Concise: goto("x")
+
+=== a switch keyword as a label with the feature off (review D2)
+for (1) { last default; }
+--- facts
+faithful
+# (last default);

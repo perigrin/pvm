@@ -67,8 +67,13 @@ func isPodCut(line []byte) bool {
 //
 // The rest of the file is data, not Perl. One trivia token, so the bytes
 // still round-trip while nothing tries to lex `) not ( perl $$$` as code.
+//
+// The marker need not begin its line. toke.c ends the program at the
+// keyword wherever it is read as one, so a statement may start with it
+// after a `;` on the same line: measured on perl 5.44.0, `print "a\n";
+// __END__ not code` prints "a" and Deparse shows the data section.
 func scanDataSection(l *lexer) bool {
-	if !l.atLineStart() {
+	if !l.atLineStart() && l.expect != XState {
 		return false
 	}
 	// CORE::__DATA__ is the same keyword; toke.c reaches KEY___DATA__

@@ -259,6 +259,13 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
 // every real loop in the corpus unparseable -- the forms arrive together.
 func (p *parser) parseLoopControl(word lexer.Token) *Node {
 	n := p.parseLoopControlTerm(word)
+	// A word operator after it took the loop control as its left operand
+	// (parseLoopControlTerm), and reads its right one here: measured on
+	// perl 5.44.0, `last and print "x"` is `(last and print("x"))`.
+	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word && tok.Start >= n.End &&
+		p.text(tok) != "x" && p.operatorHere(p.text(tok)) {
+		n = p.parseInfix(n, 0)
+	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 	}
@@ -295,8 +302,22 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	// operand. Measured on perl 5.44.0, Deparse,-p writes `goto sub { 1 }`
 	// as `(goto (sub {1;}))`, `last shift` as `(last (shift(@ARGV)))` and
 	// `goto FOO` as `(goto FOO)`.
+	//
+	// A keyword toke.c then reads in term position as an infix operator is
+	// neither label nor operand: it applies to the loop control, so the
+	// loop control is its left operand. Measured on perl 5.44.0, `last eq 1`
+	// is `((last) eq 1)` and `last and print` runs no print. `x` is the
+	// exception: in term position it is a plain word, so `goto x` names the
+	// label x (Concise: goto("x")). So is a switch keyword, `given`, `when`,
+	// `default` or `break`, where the switch feature is off: `last default`
+	// names a label unless `use feature "switch"` or a 5.10 to 5.34 bundle
+	// is in effect.
+	if next.Kind == lexer.Word && p.text(next) != "x" && p.operatorHere(p.text(next)) {
+		n.End = p.prevEnd()
+		return n
+	}
 	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
-		!modifiers[p.text(next)] && !p.keywordHere(p.text(next)) {
+		!modifiers[p.text(next)] && (!p.keywordHere(p.text(next)) || p.labelWordHere(p.text(next))) {
 		p.advanceTo(next)
 		n.Children = append(n.Children, &Node{
 			Kind: Label, Text: p.text(next),
@@ -319,6 +340,19 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// labelWordHere reports whether word, a keyword, is still read as a loop
+// control's label: `x`, which toke.c reads as a plain word in term
+// position, and a switch keyword with the switch feature off.
+func (p *parser) labelWordHere(word string) bool {
+	switch word {
+	case "x":
+		return true
+	case "given", "when", "default", "break":
+		return !p.features["switch"]
+	}
+	return false
 }
 
 // parseGoto: `goto LABEL`, `goto &NAME`, `goto EXPR`.

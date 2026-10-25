@@ -250,7 +250,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" || name == "switch" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -266,6 +266,13 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			// current_sub is in the same bundle: measured, `use v5.16;
 			// __SUB__ + 1` deparses as `(__SUB__ + 1)`, the builtin.
 			p.features["current_sub"] = true
+		}
+		// The 5.10 to 5.34 bundles hold `switch`, and 5.36's drops it --
+		// measured on perl 5.44.0, under `use v5.10` and `use v5.34` `last
+		// default` is a syntax error, `default` the keyword, and under `use
+		// v5.36` it names a label.
+		if ok && major == 5 && minor >= 9 && minor < 35 {
+			p.features["switch"] = true
 		}
 		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
 		// Foo;` is a syntax error on 5.42.0.
