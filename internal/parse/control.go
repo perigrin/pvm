@@ -355,14 +355,29 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	return n
 }
 
+// startsWithLoopControl reports whether n is a word operator chain whose
+// leftmost operand is a loop control, as parseLoopControl builds: `last or
+// print 1 or print 2` is or over or over last.
+func startsWithLoopControl(n *Node) bool {
+	for (n.Kind == Binary || n.Kind == CmpChain) && len(n.Children) > 0 {
+		n = n.Children[0]
+		if n.Kind == LoopControl {
+			return true
+		}
+	}
+	return false
+}
+
 // labelOperandContinues reports whether op, after a loop control's label,
 // is an infix operator binding tighter than the comma, which takes the
 // label as its left operand. A bracket is not: `[`, `{` and `(` after a
-// label begin nothing perl reads as a subscript of it.
+// label begin nothing perl reads as a subscript of it. `->` is: measured on
+// perl 5.44.0, `last L->foo` is `(last 'L'->foo)`, a method call on the
+// string.
 func labelOperandContinues(p *parser, op lexer.Token) bool {
 	text := p.text(op)
 	switch text {
-	case "(", "[", "{", "->", ",", "=>":
+	case "(", "[", "{", ",", "=>":
 		return false
 	}
 	if op.Kind == lexer.Word && !p.operatorHere(text) {

@@ -105,7 +105,11 @@ func scanDataSection(l *lexer) bool {
 	if bytes.HasPrefix(bytes.TrimLeft(rest, " \t"), []byte("=>")) {
 		return false
 	}
-	if len(rest) > 0 && rest[0] == ':' {
+	// The label's `:` may follow a blank, and only `::` straight after the
+	// word is a package separator: `__END__ : print "b"` is a label, and
+	// `__END__ ::foo()` the data section.
+	if label := bytes.TrimLeft(rest, " \t"); len(label) > 0 && label[0] == ':' &&
+		(len(rest) == 0 || rest[0] == ':' || len(label) == 1 || label[1] != ':') {
 		return false
 	}
 	// A heredoc whose body has not started yet owns the next line, so a

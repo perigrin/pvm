@@ -1269,8 +1269,7 @@ func (p *parser) statementForm() *Node {
 			// So is a word operator over one (parseLoopControl): measured on
 			// perl 5.44.0, `last or print "x" if 1` is valid, the modifier
 			// over the whole `last or print "x"`.
-			if c.Kind == LoopControl || (c.Kind == Binary || c.Kind == CmpChain) &&
-				len(c.Children) > 0 && c.Children[0].Kind == LoopControl {
+			if c.Kind == LoopControl || startsWithLoopControl(c) {
 				if mod := p.applyModifier(c, start); mod != nil {
 					return p.withLabels(labels, mod, start)
 				}

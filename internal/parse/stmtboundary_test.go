@@ -117,17 +117,23 @@ var loopControlWords = []string{
 	"L: for (1) { last L ne 1; }\n",
 	"for (1) { last or print \"x\\n\" if 1; } print \"ok\\n\";\n",
 	"use v5.10; use v5.36; for (1) { last default; }\n",
+	// The third review: `->` after a label is a method call on the string
+	// (`(last 'L'->foo)`), and a modifier applies over a chain of word
+	// operators over a loop control.
+	"L: for (1) { last L->foo; } print \"ok\\n\"; sub L::foo { 'L'; }\n",
+	"for (1) { last or print 1 or print 2 if 1; } print \"ok\\n\";\n",
 }
 
 // notDataSection are `__END__` and `__DATA__` spellings perl reads as code,
 // found by the same review: measured on perl 5.44.0, `__END__::foo()`
 // calls __END__::foo, `__END__ => 1` quotes the word and `__END__:` is a
-// label, and a marker after a heredoc's opener leaves the body to the
-// heredoc.
+// label, with or without a blank before the `:`, and a marker after a
+// heredoc's opener leaves the body to the heredoc.
 var notDataSection = []string{
 	"print \"a\\n\"; __END__::foo(\\1) if 0; print \"b\\n\";\n",
 	"print \"a\\n\"; my %h = (__END__ => 1); print \"b\\n\";\n",
 	"print \"a\\n\"; __END__: print \"b\\n\";\n",
+	"print \"a\\n\"; __END__ : print \"b\\n\";\n",
 }
 
 // midLineDataSection is a data section whose marker does not begin its

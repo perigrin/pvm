@@ -834,3 +834,177 @@ for (1) { $_ = 1, last and 2 } print "ok\n";
 --- facts
 faithful
 # ((($_ = 1), (last)) and '???');
+
+# Reviewer probes for f8f1c474 (per-fix review, 2026-10-25), outside the
+# corpus, each measured on the pinned perl 5.44.0 first. A label's operand
+# rows compile; several die at run time with "Label not found", which is
+# perl's answer for the folded label, not a parse failure.
+
+=== review f8f1c474: __END__ then a tab then a fat comma is code
+print "a\n"; __END__	=> print "b\n";
+--- facts
+faithful
+# prints a then b; ('???', print("b\n"))
+
+=== review f8f1c474: __END__ then a space then :: is still the data section
+print "a\n"; __END__ ::foo(); print "b\n";
+--- facts
+faithful
+# prints a only; Deparse shows __DATA__
+
+=== review f8f1c474: __END__ then a space then :: at a line start is the data section
+print "a\n";
+__END__ ::foo(); print "b\n";
+--- facts
+faithful
+# prints a only
+
+=== review f8f1c474: __END__, a comment, then a fat comma on the next line is data
+print "a\n"; __END__ # c
+=> print "b\n";
+--- facts
+faithful
+# prints a only
+
+=== review f8f1c474: __END__ then a fat comma then a newline is code
+print "a\n"; __END__=>
+1; print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review f8f1c474: __DATA__ as a label mid-line
+print "a\n"; __DATA__:print "b\n";
+--- facts
+faithful
+# __DATA__: print("b\n"); prints a then b
+
+=== review f8f1c474: a mid-line __END__ once the heredoc body is done
+print <<A;
+x
+A
+print "c\n"; __END__
+data
+--- facts
+faithful
+# prints x then c; Deparse shows __DATA__ data
+
+=== review f8f1c474: power after a label continues its operand
+L: for (1) { last L ** 2 } print "ok\n";
+--- facts
+faithful
+# (last ('L' ** 2));
+
+=== review f8f1c474: a match after a label continues its operand
+L: for (1) { last L =~ /x/ } print "ok\n";
+--- facts
+match 1 exact
+faithful
+# (last ('L' =~ /x/));
+
+=== review f8f1c474: a range after a label continues its operand
+L: for (1) { last L .. 3 } print "ok\n";
+--- facts
+faithful
+# (last ('L' .. 3));
+
+=== review f8f1c474: || and // and && after a label continue its operand
+L: for (1) { last L || 1; last L // 1; last L && 1 } print "ok\n";
+--- facts
+faithful
+# (last L); (last L); (last 1): each folded from 'L' OP 1
+
+=== review f8f1c474: goto a label minus one
+L: for (1) { goto L - 1 } print "ok\n";
+--- facts
+faithful
+# (goto ('L' - 1));
+
+=== review f8f1c474: a repetition after a label under a modifier
+L: for (1) { last L x 3 if 1 } print "ok\n";
+--- facts
+faithful
+# (last LLL);
+
+=== review f8f1c474: a word operator over a loop control under unless
+for (1) { last and print "a" unless 0 } print "ok\n";
+--- facts
+faithful
+# (last);
+
+=== review f8f1c474: a comparison over a loop control under for
+for (1) { last eq 1 for 1 } print "ok\n";
+--- facts
+faithful
+# ((last) eq 1) foreach (1);
+
+=== review f8f1c474: a word operator over a loop control under while
+for (1) { last and 1 while 0; print "x\n"; last } print "ok\n";
+--- facts
+faithful
+# prints x then ok
+
+=== review f8f1c474: cmp over a loop control under if
+for (1) { last cmp 1 if 1 } print "ok\n";
+--- facts
+faithful
+
+=== review f8f1c474: decimal 5.010 then 5.036 drops switch
+use 5.010; use 5.036; for (1) { last given } print "ok\n";
+--- facts
+faithful
+# (last given);
+
+=== review f8f1c474: 5.008 leaves switch off
+use 5.008; for (1) { last default } print "ok\n";
+--- facts
+faithful
+# (last default);
+
+=== review f8f1c474: use v5.36 after use feature switch turns it off
+use feature "switch"; use v5.36; for (1) { last default } print "ok\n";
+--- facts
+faithful
+# (last default);
+
+=== review f8f1c474: a ternary after a label continues its operand
+L: for (1) { last L ? 1 : 2 } print "ok\n";
+--- facts
+faithful
+# (last 1);
+
+=== review f8f1c474: concatenation after a label continues its operand
+L: for (1) { last L . ""; last L . L } print "ok\n";
+--- facts
+faithful
+# (last L); (last LL);
+
+=== review f8f1c474: a comparison and a ternary after a label
+L: for (1) { last L eq "L" ? "L" : 1; next L lt "M" ? "L" : "X" } print "ok\n";
+--- facts
+faithful
+# (last L); (next L);
+
+=== review f8f1c474: or after a label under a modifier applies over the loop control
+L: for (1) { last L or 1 if 1 } print "ok\n";
+--- facts
+faithful
+# (last L);
+
+=== review f8f1c474: ne after a label under a modifier
+L: for (1) { last L ne 1 if 1 } print "ok\n";
+--- facts
+faithful
+# (last 1);
+
+=== review f8f1c474: addition and numeric comparison after a label
+L: for (1) { last L + 0; last L < 1 } print "ok\n";
+--- facts
+faithful
+# (last ('L' + 0)); (last ('L' < 1));
+
+=== review f8f1c474: isa after a label under the isa feature
+use feature "isa"; L: for (1) { last L isa Foo } print "ok\n";
+--- facts
+faithful
+# (last ('L' isa 'Foo'));
