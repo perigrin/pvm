@@ -16,6 +16,10 @@ import (
 // plan's rule applies inside expressions as much as at statement level: a
 // guessed operand produces a tree that is not a parse of its source.
 func (p *parser) parseTerm() *Node {
+	// The power parseExpr is reading this term at belongs to this term
+	// alone: a block or a parenthesised list inside it starts over.
+	termBP := p.termBP
+	p.termBP = 0
 	p.depth++
 	defer func() { p.depth-- }()
 	if p.depth > maxDepth {
@@ -71,11 +75,12 @@ func (p *parser) parseTerm() *Node {
 	if lexer.IsFileTest(text) {
 		p.advanceTo(tok)
 		n := &Node{
-			Kind: Call, Text: text, Resolved: true, Start: tok.Start,
-			End: tok.End,
+			Kind: Call, Text: text, Resolved: true, NamedUnary: true,
+			Start: tok.Start, End: tok.End,
 		}
 		if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
 			p.advanceTo(next)
+			n.ArgParen = true
 			if arg := p.parseCallArgs(); arg != nil {
 				n.Children = append(n.Children, arg)
 			}
@@ -145,6 +150,10 @@ func (p *parser) parseTerm() *Node {
 			bp = bpDeref
 		}
 		operand := p.operand(bp, tok)
+		// The `not (` pair is not's, as a call's parens are the call's.
+		if text == "not" && bp == bpDeref && operand.Paren && p.src[operand.Start] == '(' {
+			takeSyntaxPair(operand)
+		}
 		return p.refuseAliasedOperand(&Node{
 			Kind: Unary, Text: prefixName(text),
 			Start: tok.Start, End: operand.End,
@@ -180,6 +189,11 @@ func (p *parser) parseTerm() *Node {
 		if name, ok := p.peekAfter(tok); ok &&
 			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
 				p.text(name) == "{") {
+			if p.text(name) == "{" {
+				if n := p.bracedSubscriptedName(tok, name); n != nil {
+					return n
+				}
+			}
 			p.advanceTo(tok)
 			// Braces holding statements, as `${; ...}`'s do: `*{;undef}`.
 			if p.text(name) == "{" && p.derefHoldsStatements(name) {
@@ -241,7 +255,12 @@ func (p *parser) parseTerm() *Node {
 
 	switch {
 	case text == "(":
-		return p.parseParenList(tok)
+		n := p.parseParenList(tok)
+		// `->(`: the pair is the call's argument list.
+		if n.Paren && p.afterArrow(n) {
+			takeSyntaxPair(n)
+		}
+		return n
 	case text == "[":
 		return p.parseBracketed(tok, "]", AnonArray)
 	case text == "{":
@@ -271,6 +290,9 @@ func (p *parser) parseTerm() *Node {
 		// hash was being built around the very expression being
 		// dereferenced.
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			if n := p.bracedSubscriptedName(tok, open); n != nil {
+				return n
+			}
 			// The braces hold a BLOCK in perly.y (`indirob: ... | block`),
 			// and almost always one expression. A `;` -- first, or after
 			// that expression -- says there are statements: `${; do { ... }
@@ -296,7 +318,7 @@ func (p *parser) parseTerm() *Node {
 				return &Node{Kind: Unknown, Refusal: EmptyDeref, Start: tok.Start, End: p.prevEnd()}
 			}
 			return &Node{
-				Kind: Unary, Text: text,
+				Kind: Unary, Text: text, DerefBraces: true,
 				Start: tok.Start, End: p.prevEnd(),
 				Children: []*Node{inner},
 			}
@@ -369,6 +391,9 @@ func (p *parser) parseTerm() *Node {
 			// 50 of T1's files first fail on `open my $fh, ...`, which is
 			// the idiomatic three-argument open and appears in almost every
 			// file that touches a filehandle.
+			if termBP > infix["="].BP {
+				return p.parseVarDeclOperand(tok, termBP)
+			}
 			return p.parseVarDeclNoSemi(tok)
 
 		case (keywordName(text) == "my" || keywordName(text) == "our") && !p.declaratorIsBareword(tok):
@@ -461,6 +486,59 @@ func (p *parser) declaratorTakesTarget(word lexer.Token) bool {
 		return false
 	}
 	return next.Kind == lexer.Variable || p.text(next) == "("
+}
+
+// bracedSubscriptedName reads `${ foo[0] }`, `@{ foo {"a"} }`, `%{ foo{a} }`
+// and `*{ foo{a} }` as toke.c's scan_ident does: an identifier other than
+// `sub`, then `[` or `{`, inside the braces after a sigil is the variable's
+// NAME and the subscripts are its own, `$foo[0]`, `@foo{"a"}`. The closing
+// brace is a fake one perl drops. A sub of that name and its prototype play
+// no part: measured on 5.44.0, `@{ foo { "a" } }` deparses as `@foo{'a'}`
+// with `sub foo (&)`, `sub foo ($)`, `use strict` or no sub at all, and `@{
+// sub {1} }` as a deref of an anonymous sub. Nor is a word with a leading
+// `::` a name: `@{ ::foo {"a"} }` is rv2av over entersub, with no rv2hv, and
+// `@{ ::foo [1] }` a syntax error. The outermost subscript has
+// NameBraces set, so canon writes the braces back. nil, with the cursor
+// unmoved, when the braces hold anything else.
+//
+// ponytail: only subscripts running to the closing brace. perl drops that
+// brace wherever it falls, so `@{ foo {"a"}; 1 }` is `@foo{'a'}; 1` and `@{
+// foo {"a"} + 1 }` is `@foo{'a'} + 1`; psc's tree for those is wrong. So is
+// its tree for a quote word, `@{ q {a} }`, which perl reads as the slice
+// `@q{'a'}` (likewise qq, qw, m, s, y and tr) and the lexer takes as a
+// quote. Issue 01a16e4f-b570-7182-8094-71c56af8c419 tracks both.
+func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
+	text := p.text(sigil)
+	word, ok := p.peekAfter(open)
+	if !ok || text != "$" && text != "@" && text != "%" && text != "*" || word.Kind != lexer.Word {
+		return nil
+	}
+	name := p.text(word)
+	if name == "sub" || strings.HasPrefix(name, "::") || !isIdentifier(strings.ReplaceAll(name, "::", "_")) {
+		return nil
+	}
+	if sub, ok := p.peekAfter(word); !ok || p.text(sub) != "[" && p.text(sub) != "{" {
+		return nil
+	}
+	save := p.pos
+	p.advanceTo(word)
+	n := &Node{Kind: Term, Text: text + name, Start: sigil.Start, End: word.End}
+	for {
+		sub, ok := p.peekSignificant()
+		if !ok || p.text(sub) != "[" && p.text(sub) != "{" {
+			break
+		}
+		n = p.parseSubscript(n, p.text(sub))
+	}
+	shut, ok := p.peekSignificant()
+	if !ok || p.text(shut) != "}" {
+		p.pos = save
+		return nil
+	}
+	p.advanceTo(shut)
+	n.End = shut.End
+	n.NameBraces = true
+	return n
 }
 
 // derefHoldsStatements reports whether the brace at open, after a deref
@@ -739,6 +817,10 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		if !c.Paren {
 			c.InnerStart, c.InnerEnd = c.Start, c.End
 		}
+		// The inner pair is a grouping of the same node even with a
+		// separator after it: measured on perl 5.44.0, `((0),)[0]` is
+		// `const[IV 0] sP` and `(0,)[0]` is `const[IV 0] s`.
+		c.nestedParen = c.Paren
 		c.Start, c.End = open.Start, p.prevEnd()
 		c.Paren = true
 		// A leaf is written as its source text, which now holds any
@@ -755,6 +837,15 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
 		Children: items,
 		Paren:    true,
 	}
+}
+
+// takeSyntaxPair gives n's outermost pair, which finishList recorded as
+// Paren, to the syntax that requires it: an arrow call's arguments, `not
+// (`'s operand, or a list slice's list. n keeps Paren only for a grouping
+// pair nested directly inside, `$f->(($x))`. See Node.SyntaxParen.
+func takeSyntaxPair(n *Node) {
+	n.SyntaxParen = true
+	n.Paren = n.nestedParen
 }
 
 // commaList is the element list as ONE node, for a caller that must hand it

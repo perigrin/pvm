@@ -27,7 +27,7 @@ func TestParenthesisedFilehandle(t *testing.T) {
 	}{
 		{`print($fh "x");`, `print($fh "x");`},
 		{`print(STDERR "y");`, `print(STDERR "y");`},
-		{`print($a, "z");`, `print($a , "z");`},
+		{`print($a, "z");`, `print($a, "z");`},
 		{`print({$fh} "x");`, `print({$fh;} "x");`},
 	}
 	for _, c := range cases {

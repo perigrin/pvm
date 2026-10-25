@@ -1,0 +1,148 @@
+The seed probes: the adversarial shapes the reviews of this milestone's
+predecessors used -- a backslash with and without parens, `my ($x) = @_`,
+and `keys %$r` in each context -- plus one snippet per marker that perl
+does or does not build. The format is in README.md.
+
+=== backslash array
+my @a = (1, 2);
+my $r = \@a;
+--- facts
+srefgen 1 exact
+faithful
+
+=== backslash parenthesised array
+my @a = (1, 2);
+my @r = \(@a);
+--- facts
+srefgen 1 exact
+faithful
+
+=== backslash parenthesised list of two arrays
+my @a = (1); my @b = (2);
+my @r = \(@a, @b);
+--- facts
+srefgen 1 exact
+faithful
+
+=== backslash my list
+my @r = \my ($x, $y);
+--- facts
+srefgen 1 exact
+faithful
+
+=== backslash parenthesised my array
+my $r = \(my @a);
+--- facts
+srefgen 1 exact
+faithful
+
+=== backslash constant folds away
+my $r = \1;
+--- facts
+faithful
+
+=== prototype forces a reference
+sub f (\@) { scalar @{ $_[0] } }
+my @a = (1, 2);
+my $n = f(@a);
+--- facts
+srefgen 1 exact
+faithful
+
+=== list assignment from @_
+sub f { my ($x) = @_; return $x }
+--- facts
+faithful
+
+=== keys of a hash ref in list context
+my $r = { a => 1 };
+my @k = keys %$r;
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== keys of a hash ref in scalar context
+my $r = { a => 1 };
+my $n = keys %$r;
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== keys of a hash ref in boolean context
+my $r = { a => 1 };
+print "y\n" if keys %$r;
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== keys of a hash ref in void context
+my $r = { a => 1 };
+keys %$r;
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== arrow element read folds into multideref
+my $r = { a => 1 };
+my $v = $r->{a};
+--- facts
+anonhash 1 exact
+faithful
+
+=== lexical hash is padhv
+my %h = (a => 1);
+my @k = keys %h;
+--- facts
+faithful
+
+=== package hash is rv2hv
+our %h = (a => 1);
+my @k = keys %h;
+--- facts
+rv2hv 2 exact
+faithful
+
+=== anonymous hash in map needs a plus
+my @r = map { +{ n => $_ } } 1, 2;
+--- facts
+anonhash 1 exact
+faithful
+
+=== block in map is not a hash
+my @r = map {; "$_" => 1 } 1, 2;
+--- facts
+faithful
+
+=== bare match and bound match
+$_ = "abc";
+print "a\n" if /a/;
+print "b\n" if $_ =~ m/b/;
+--- facts
+match 2 exact
+faithful
+
+=== substitution, qr and split are not matches
+my $s = "a,b";
+$s =~ s/a/c/;
+my $q = qr/b/;
+my @p = split /,/, $s;
+--- facts
+faithful
+
+=== readline forms
+my $l = <STDIN>;
+open my $fh, '<', $0 or die;
+my $m = <$fh>;
+my $n = readline($fh);
+--- facts
+readline 3 exact
+faithful
+
+=== glob is not readline
+my @f = <*.c>;
+--- facts
+faithful

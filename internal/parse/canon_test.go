@@ -34,9 +34,11 @@ func TestCanonEmitsTreeParens(t *testing.T) {
 		// Canon must write it back.
 		{"(1 + 2) * 3;", "(1 + 2) * 3;"},
 
-		// A paren the source had but the tree did not need. Canon prints
-		// the TREE, so the redundant paren is gone.
-		{"1 + (2 * 3);", "1 + 2 * 3;"},
+		// A paren the source had but binding power does not need. The tree
+		// records it (Paren), as perl does with its OPf_PARENS bit, so Canon
+		// writes it once.
+		{"1 + (2 * 3);", "1 + (2 * 3);"},
+		{"1 + ((2 * 3));", "1 + (2 * 3);"},
 
 		// Left associative: the right operand at equal power needs a paren,
 		// the left one does not. `1 - 2 - 3` is (1-2)-3.
@@ -105,6 +107,37 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
 		t.Errorf("Canon does not distinguish the mis-grouped tree from the correct one; "+
 			"both emitted %q", got)
 	}
+
+	// `\my $n = \$y`, the misgrouping the parser had until issue
+	// 01a16602-608d (op/lvref.t:42): the backslash over a declaration that
+	// took the initialiser. Measured on perl 5.44.0, it is a refassign of
+	// `\my $n`, the `=` above the backslash.
+	t.Run("backslash over a declaration's initialiser", func(t *testing.T) {
+		src := []byte(`\my $n = \$y;`)
+		wrong := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+			{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+				{Kind: parse.Unary, Text: "ref", Start: 0, End: 12, Children: []*parse.Node{
+					{Kind: parse.Declaration, Text: "my", Start: 1, End: 12, Children: []*parse.Node{
+						{Kind: parse.Term, Text: "$n", Start: 4, End: 6},
+						{Kind: parse.Unary, Text: "ref", Start: 9, End: 12, Children: []*parse.Node{
+							{Kind: parse.Term, Text: "$y", Start: 10, End: 12},
+						}},
+					}},
+				}},
+			}},
+		}}
+		if got := wrong.SourceText(src); got != string(src) {
+			t.Fatalf("the wrong tree must still round-trip: got %q", got)
+		}
+		got := strings.TrimSpace(parse.Canon(wrong, src))
+		right := strings.TrimSpace(parse.Canon(parse.Parse(src), src))
+		if got == right {
+			t.Errorf("Canon does not distinguish the mis-grouped tree from the correct one; both emitted %q", got)
+		}
+		if right != string(src) {
+			t.Errorf("Canon of the parse of %q is %q, want the source", src, right)
+		}
+	})
 }
 
 // TestCanonVisitsInteriorNodes: no interior node emits its own source text.
@@ -175,9 +208,9 @@ func TestCanonVisitsInteriorNodes(t *testing.T) {
 // files as text and must not acquire an interpreter dependency for one case.
 func TestCanonEmitsValidPerl(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`print $fh "x";`, `print($fh "x");`},
-		{`print STDERR "x";`, `print(STDERR "x");`},
-		{`print "x";`, `print("x");`},
+		{`print $fh "x";`, `print $fh "x";`},
+		{`print STDERR "x";`, `print STDERR "x";`},
+		{`print "x";`, `print "x";`},
 
 		// A nonassoc operator needs a paren on BOTH sides at equal power.
 		// `1 .. 2 .. 3` is a syntax error, so dropping it emits one.
@@ -186,7 +219,7 @@ func TestCanonEmitsValidPerl(t *testing.T) {
 		// A statement ending in `}` still takes its semicolon unless it is a
 		// BLOCK form. `$x = sub {1;}$y = 2;` does not parse.
 		{`$x = sub { 1 }; $y = 2;`, `$x = sub {1;};$y = 2;`},
-		{`$x ||= {}; print 1;`, `$x ||= {};print(1);`},
+		{`$x ||= {}; print 1;`, `$x ||= {};print 1;`},
 
 		// A word operator needs a separator: `not foo` calls foo and
 		// `notfoo` is the bareword "notfoo".
@@ -389,9 +422,9 @@ func TestCanonRatchet(t *testing.T) {
 // emission lost its `)` -- `my $x = (%h and 1;`, a syntax error near "1;" --
 // and was still a fixpoint, so the corpus counted it clean.
 //
-// Where nothing outside binds tighter, the parens are not the tree's and
-// canon drops them: a statement's `(%h and 1)` and a `&&` on the right of
-// `=` read the same bare.
+// Where nothing outside binds tighter, perl reads them the same bare, but
+// the tree records the source's pair (Paren) and canon writes it once: a
+// statement's `(%h and 1)` and a `&&` on the right of `=`.
 func TestCanonKeepsParensAroundWordOperators(t *testing.T) {
 	perl, perlErr := conformance.PerlPath()
 	deparse := func(src string) string {
@@ -412,11 +445,12 @@ func TestCanonKeepsParensAroundWordOperators(t *testing.T) {
 		{`my %h; my $x = (not %h) ? 0 : 1;`, `my %h;my $x = (not %h) ? 0 : 1;`},
 		{`my %h; my $x = (1 and %h and 2);`, `my %h;my $x = (1 and %h and 2);`},
 		{`my @x = (1, 2 and 3);`, `my @x = (1, 2 and 3);`},
-		{`my %h; f((%h and 1), 2);`, `my %h;f((%h and 1) , 2);`},
+		{`my %h; f((%h and 1), 2);`, `my %h;f((%h and 1), 2);`},
 
-		// Dropped: perl reads these the same without them.
-		{`my %h; (%h and 1);`, `my %h;%h and 1;`},
-		{`my ($a, $b); my $x = ($a && $b);`, `my ($a, $b);my $x = $a && $b;`},
+		// Kept as a Paren node's, though perl reads these the same without
+		// them.
+		{`my %h; (%h and 1);`, `my %h;(%h and 1);`},
+		{`my ($a, $b); my $x = ($a && $b);`, `my ($a, $b);my $x = ($a && $b);`},
 	} {
 		src := []byte(tc.src)
 		got := strings.TrimSpace(parse.Canon(parse.Parse(src), src))
@@ -436,5 +470,51 @@ func TestCanonKeepsParensAroundWordOperators(t *testing.T) {
 	}
 	if perlErr != nil {
 		t.Logf("no perl 5.42 to compare readings with: %v", perlErr)
+	}
+}
+
+// TestCanonWritesParenOnce: a node the source parenthesised is written with
+// one pair, whatever its kind and however deeply the source nested it.
+// Each want is canon's significant tokens with a pair written for a Paren
+// flag marked `*(` and `*)`.
+//
+// perl keeps such a paren as one bit, OPf_PARENS, on the op it wraps.
+// Measured on perl 5.44.0 with -MO=Concise:
+//
+//	my $x; my $z = ($x);    padsv[$x:1,3] sP
+//	my $x; my $z = $x;      padsv[$x:1,3] s
+//	our $x; my $z = ($x);   ex-rv2sv sKP/1
+//	ok(($y eq "x"))         seq sKPM/2
+//	ok((($y eq "x")))       seq sKPM/2
+//	ok($y eq "x")           seq sKM/2
+//
+// The bit is boolean, so `(($y eq "x"))` and `($y eq "x")` are one tree,
+// and canon writes the one pair it stands for.
+func TestCanonWritesParenOnce(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		// A Call, a Binary and a comparison chain get the pair their flag
+		// stands for, where binding power alone would write none.
+		{`(shift)->foo;`, `*( shift *) -> foo ;`},
+		{`ok(($y eq "x"));`, `ok ( *( $y eq "x" *) ) ;`},
+		{`my $r = (1 < $x < 3);`, `my $r = *( 1 < $x < 3 *) ;`},
+		// A Term on its own.
+		{`my $z = ($x);`, `my $z = *( $x *) ;`},
+		// Nesting is one pair, on the Term path and off it.
+		{`my $z = (($x));`, `my $z = *( $x *) ;`},
+		{`ok((($y eq "x")));`, `ok ( *( $y eq "x" *) ) ;`},
+	} {
+		if got := markedCanon(tc.src); got != tc.want {
+			t.Errorf("canon tokens of %q are %q, want %q", tc.src, got, tc.want)
+		}
+	}
+}
+
+// TestCanonKeepsCallArgParenAroundGroupedTerm: a call's argument pair and
+// a grouping pair inside it are both written. Dropping the call's pair
+// writes `print (1 + 2) * 3`, which perl reads as `print(1 + 2) * 3`.
+func TestCanonKeepsCallArgParenAroundGroupedTerm(t *testing.T) {
+	src := []byte(`print ((1+2)*3);`)
+	if got, want := parse.Canon(parse.Parse(src), src), `print((1 + 2) * 3);`; got != want {
+		t.Errorf("Canon(%q) = %q, want %q", src, got, want)
 	}
 }

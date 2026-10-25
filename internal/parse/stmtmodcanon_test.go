@@ -49,11 +49,11 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		{"f($x) foreach @a;", "f($x) foreach @a;"},
 		{"$s = 1 foreach @a;", "$s = 1 foreach @a;"},
 		{"$x++ foreach @a;", "$x++ foreach @a;"},
-		{"push @r, $_ foreach @a;", "push(@r , $_) foreach @a;"},
+		{"push @r, $_ foreach @a;", "push @r, $_ foreach @a;"},
 
 		// `for` is a synonym and shares the defect, so it shares the fix.
 		{"$x++ for @a;", "$x++ for @a;"},
-		{"push @r, $_ for @a;", "push(@r , $_) for @a;"},
+		{"push @r, $_ for @a;", "push @r, $_ for @a;"},
 
 		// The issue recorded that `if`, `unless`, `while` and `until`
 		// "already canon correctly". They do NOT -- measured at 652f4792,
@@ -73,7 +73,7 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		// what canon echoes for an UNKNOWN: `$_` was taken as print's handle,
 		// the statement refused, and the test -- which asserts only the canon
 		// -- matched the echo. Read correctly, the call gains its parens.
-		{"print $_ foreach @a;", "print($_) foreach @a;"},
+		{"print $_ foreach @a;", "print $_ foreach @a;"},
 
 		// A body whose last token is a `}` but which is NOT a block form.
 		// endsInBlock already declined the modifier for `defer { ... } if`;
@@ -86,7 +86,10 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		//
 		//	$ perl -MO=Deparse -e '$x=0; do {$x++;} while ($x < 10);'
 		//	do { ++$x } while $x < 10;
-		{"do { $x++; } while ($x < 10);", "do {$x++;} while $x < 10;"},
+		//
+		// The condition's own parens are a Paren node's, written once.
+		{"do { $x++; } while ($x < 10);", "do {$x++;} while ($x < 10);"},
+		{"do { $x++; } while $x < 10;", "do {$x++;} while $x < 10;"},
 
 		// A PARENTHESISED condition. The parens are grouping here, not
 		// grammar, so they belong to the child's Paren flag and canon writes
@@ -98,7 +101,7 @@ func TestStatementModifierKeepsItsBody(t *testing.T) {
 		//
 		//	$ perl -MO=Deparse -e 'print("a") or die("b") if $x;'
 		//	print 'a' or die 'b' if $x;
-		{"print \"a\" or die \"b\" if $x;", "print(\"a\") or die(\"b\") if $x;"},
+		{"print \"a\" or die \"b\" if $x;", "print \"a\" or die \"b\" if $x;"},
 
 		// A modifier on a DECLARATION, which reaches applyModifier by a
 		// different path -- parseVarDecl stops at the keyword and the

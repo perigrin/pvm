@@ -108,8 +108,15 @@ func PerlVersion(path string) (string, error) {
 // variable cannot pass by having the perl-held tests quietly skip.
 func skipOrRequire(t testing.TB, format string, args ...any) {
 	t.Helper()
-	if os.Getenv("PVM_REQUIRE_PERL542") != "" {
-		t.Fatalf("PVM_REQUIRE_PERL542 is set: "+format, args...)
+	skipOrRequireUnder(t, "PVM_REQUIRE_PERL542", format, args...)
+}
+
+// skipOrRequireUnder skips t with the given reason, or fails it instead
+// when the environment variable require is set to anything non-empty.
+func skipOrRequireUnder(t testing.TB, require, format string, args ...any) {
+	t.Helper()
+	if os.Getenv(require) != "" {
+		t.Fatalf(require+" is set: "+format, args...)
 	}
 	t.Skipf(format, args...)
 }
@@ -119,8 +126,15 @@ func skipOrRequire(t testing.TB, format string, args ...any) {
 // path or its privlib is not a directory.
 func locate(t testing.TB, path string) Perl {
 	t.Helper()
+	return locateUnder(t, path, "PVM_REQUIRE_PERL542")
+}
+
+// locateUnder is locate with the skip turned into a failure by the
+// environment variable require rather than PVM_REQUIRE_PERL542.
+func locateUnder(t testing.TB, path, require string) Perl {
+	t.Helper()
 	if _, err := os.Stat(path); err != nil {
-		skipOrRequire(t, "perl 5.42.0 is not at %s", path)
+		skipOrRequireUnder(t, require, "no perl at %s", path)
 		return Perl{}
 	}
 	out, err := exec.Command(path, "-MConfig", "-e", `print "$Config{privlibexp}\n$Config{archlibexp}\n"`).Output()
@@ -133,7 +147,7 @@ func locate(t testing.TB, path string) Perl {
 	}
 	p := Perl{Path: path, Privlib: strings.TrimSpace(dirs[0]), Archlib: strings.TrimSpace(dirs[1])}
 	if fi, err := os.Stat(p.Privlib); err != nil || !fi.IsDir() {
-		skipOrRequire(t, "perl 5.42.0's privlib %s is not a directory", p.Privlib)
+		skipOrRequireUnder(t, require, "%s's privlib %s is not a directory", path, p.Privlib)
 		return Perl{}
 	}
 	return p

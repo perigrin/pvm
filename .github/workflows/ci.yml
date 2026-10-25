@@ -37,11 +37,13 @@ jobs:
     # The conformance corpus and the CORE.tpm check run their programs under
     # perl 5.42.0, the perl every corpus expectation was measured on, and
     # ubuntu-latest and macos-latest ship older ones. The windows-latest
-    # image already carries a 5.42 Strawberry perl.
+    # image already carries a 5.42 Strawberry perl. 5.42.0 has its own pin:
+    # the parse oracle's corpus.pin names the perl that judges the oracle,
+    # which is not this one.
     - name: Read the perl pin
       id: perlpin
       if: matrix.os != 'Windows'
-      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
 
     - name: Install the pinned perl
       if: matrix.os != 'Windows'
@@ -87,11 +89,11 @@ jobs:
 
     # T1's parse ratchet resolves each file's imports through perl 5.42's @INC,
     # and skips without that perl -- a skip the step at the end of this job
-    # fails. ubuntu-latest ships an older perl, so install the one the
-    # fidelity workflow pins, read by the same script rather than named here.
+    # fails. ubuntu-latest ships an older perl, so install the one 5.42's pin
+    # names, read by the same script as the oracle's pin rather than named here.
     - name: Read the perl pin
       id: perlpin
-      run: sh .github/scripts/parseoracle-pin.sh >> "$GITHUB_OUTPUT"
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
 
     - name: Install the pinned perl
       uses: shogo82148/actions-setup-perl@v1
@@ -100,11 +102,13 @@ jobs:
         multi-thread: ${{ steps.perlpin.outputs.threads == 'define' }}
 
     # Both pins are read before Go exists on the runner, so shell rather than a
-    # Go helper. The perl5 revision comes from the oracle's pin because it is
-    # the same corpus at the same revision -- a second file recording the same
-    # fact is a second file to forget to update.
+    # Go helper. The perl5 revision comes from 5.42's pin, read above: it is
+    # the oracle's corpus at the oracle's revision, and
+    # TestCIWorkflowsPinTheirPerls fails when the two pins disagree about it.
     - name: Read the corpus pins
       id: pin
+      env:
+        PERL5_REVISION: ${{ steps.perlpin.outputs.revision }}
       run: |
         set -eu
         field() {
@@ -113,7 +117,7 @@ jobs:
             | tail -n 1 | cut -d= -f2- | tr -d '[:space:]'
         }
         t1=$(field revision internal/parse/testdata/t1corpus.pin)
-        perl5=$(field revision internal/parseoracle/testdata/corpus.pin)
+        perl5=$PERL5_REVISION
         if [ -z "$t1" ] || [ -z "$perl5" ]; then
           echo "::error::a corpus pin records no revision (t1=${t1:-<missing>} perl5=${perl5:-<missing>})"
           exit 1
@@ -206,7 +210,9 @@ jobs:
         status=0
         for t in TestLexerRatchet TestParseRatchet TestParsedFilesRoundTrip \
                  TestLexDotTGoldenStream TestCanonRatchet TestCanonTokenIdentity \
-                 TestCanonFidelityRatchet; do
+                 TestCanonFidelityRatchet TestPerlGitTFaithfulRatchet \
+                 TestParseWithoutErrorOnCompiledCorpus TestFaithfulQueueMatchesTree \
+                 TestPerlGitTFaithfulOnM3Dirs; do
           if grep -q -- "--- SKIP: $t" ratchets.log; then
             echo "::error::$t SKIPPED in CI: its corpus did not resolve, so it gated nothing."
             status=1

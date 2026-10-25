@@ -67,8 +67,13 @@ func isPodCut(line []byte) bool {
 //
 // The rest of the file is data, not Perl. One trivia token, so the bytes
 // still round-trip while nothing tries to lex `) not ( perl $$$` as code.
+//
+// The marker need not begin its line. toke.c ends the program at the
+// keyword wherever it is read as one, so a statement may start with it
+// after a `;` on the same line: measured on perl 5.44.0, `print "a\n";
+// __END__ not code` prints "a" and Deparse shows the data section.
 func scanDataSection(l *lexer) bool {
-	if !l.atLineStart() {
+	if !l.atLineStart() && l.expect != XState {
 		return false
 	}
 	// CORE::__DATA__ is the same keyword; toke.c reaches KEY___DATA__
@@ -87,6 +92,31 @@ func scanDataSection(l *lexer) bool {
 	// The marker owns its whole line, so `__END__x` is an identifier.
 	after := l.pos + prefix + len(marker)
 	if after < len(l.src) && isWordByte(l.src[after]) {
+		return false
+	}
+	// Nor is the word the keyword where perl reads it as a name: measured
+	// on perl 5.44.0, `__END__::foo(1)` calls __END__::foo, `__END__ => 1`
+	// quotes the word, and `__END__: print "b"` is a label. A `=>` on a
+	// later line still leaves the marker data.
+	rest = l.src[after:]
+	if bytes.HasPrefix(rest, []byte("::")) {
+		return false
+	}
+	if bytes.HasPrefix(bytes.TrimLeft(rest, " \t"), []byte("=>")) {
+		return false
+	}
+	// The label's `:` may follow a blank, and only `::` straight after the
+	// word is a package separator: `__END__ : print "b"` is a label, and
+	// `__END__ ::foo()` the data section.
+	if label := bytes.TrimLeft(rest, " \t"); len(label) > 0 && label[0] == ':' &&
+		(len(rest) == 0 || rest[0] == ':' || len(label) == 1 || label[1] != ':') {
+		return false
+	}
+	// A heredoc whose body has not started yet owns the next line, so a
+	// marker after its opener is not the end of the file there: measured,
+	// `print <<A; __END__` then `x` and `A` prints the body. That shape is
+	// left to the code path, as it was before the mid-line marker.
+	if !l.atLineStart() && len(l.pending) > 0 {
 		return false
 	}
 

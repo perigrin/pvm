@@ -20,7 +20,10 @@ import (
 //
 // Eleven of the 32 levels are %nonassoc, so this is a rule, not an edge.
 func (p *parser) parseExpr(minBP int) *Node {
+	saved := p.termBP
+	p.termBP = minBP
 	left := p.parseTerm()
+	p.termBP = saved
 	if left == nil {
 		// Input ran out where a term was expected. Nothing to build and
 		// nothing consumed; the statement loop decides what that means.
@@ -46,14 +49,17 @@ func (p *parser) parseExpr(minBP int) *Node {
 // A parenthesis between the word and the `=>` ends the reach -- `(foo)=>0`
 // calls foo -- so only Unary, Binary, CmpChain and Ternary right edges are
 // followed, and a Declaration's, whose last child is its initialiser: measured on
-// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". The word must be bare: its
-// call's own parens end the reach as well, and `(!foo()=>0)` calls foo.
+// 5.42.0, `(my $x = foo=>0)` leaves $x "foo". So is a bare named unary's
+// operand: measured on 5.44.0, `(ucfirst foo => 1)` is `('Foo', 1)`. The
+// word must be bare: its call's own parens end the reach as well, and
+// `(!foo()=>0)` calls foo.
 func markFatOperand(left *Node) {
 	n := left
-	for !n.Paren && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration) {
+	for !n.Paren && !n.SyntaxParen && len(n.Children) > 0 && (n.Kind == Unary || n.Kind == Binary || n.Kind == CmpChain || n.Kind == Ternary || n.Kind == Declaration ||
+		n.Kind == Call && n.NamedUnary && !n.ArgParen && len(n.Children) == 1) {
 		n = n.Children[len(n.Children)-1]
 	}
-	if n != left && !n.Paren && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
+	if n != left && !n.Paren && !n.SyntaxParen && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
 		n.Fat = true
 	}
 }
@@ -198,6 +204,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			if next, ok := p.peekAfter(tok); ok && endsListAfterComma(next, p.src) {
 				p.advanceTo(tok)
 				markTrailing(left, text)
+				left.EndsList = true
 				return left
 			}
 		}
@@ -241,6 +248,10 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			// whatever owns it reports the bytes left over.
 			if text == "(" && !p.callsHere(left) {
 				return left
+			}
+			// A list slice: the pair before `[` is the slice's.
+			if text == "[" && left.Paren && p.src[left.Start] == '(' {
+				takeSyntaxPair(left)
 			}
 			left = p.parseSubscript(left, text)
 		case "->":
@@ -329,7 +340,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 				// MEANING is unsettled, and this one's is settled by the arrow.
 				if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 					right.Kind = Call
-					right.Resolved = true
+					right.Resolved, right.ArgParen = true, true
 					p.advanceTo(open)
 					if arg := p.parseCallArgs(); arg != nil {
 						right.Children = append(right.Children, arg)
@@ -514,7 +525,7 @@ func (p *parser) callsHere(left *Node) bool {
 	// The method name or the arrow call's own parens: `$x->$m` or the `(1)`
 	// of `$x->(1)`, not a postfix slice, `$x->@[0]`. Once called,
 	// `$x->$m()` is a term, and its `(1)` is read by subscripted.
-	return p.afterArrow(left) && (left.Paren || p.src[left.Start] == '$') &&
+	return p.afterArrow(left) && (left.SyntaxParen || p.src[left.Start] == '$') &&
 		!(left.Kind == Index && left.Text == "(")
 }
 
@@ -526,7 +537,7 @@ func (p *parser) subscripted(n *Node) bool {
 	}
 	base := n.Children[0]
 	if n.Text == "(" {
-		return p.subscripted(base) || base.Paren && p.afterArrow(base)
+		return p.subscripted(base) || base.SyntaxParen && p.afterArrow(base)
 	}
 	if n.Arrow {
 		return true

@@ -109,6 +109,16 @@ func (p *parser) namedUnaryHere(spelled, text string) bool {
 	return p.keywordHas(spelled, text, ShapeUnary)
 }
 
+// namedUnaryCall reports whether a call to a word is a named unary op: a
+// builtin of the unary shape, or failing a builtin, a sub this file can see
+// whose prototype is unary -- the order parseWordTerm asks in.
+func (p *parser) namedUnaryCall(spelled, text string) bool {
+	if shape, ok := p.keywordShape(spelled, text); ok {
+		return shape == ShapeUnary
+	}
+	return p.knowsShape(text) && ShapeOf(p.subPrototype(text)) == ShapeUnary
+}
+
 // keywordHas reports whether a word parses as a builtin of the given shape
 // at this point in the file.
 func (p *parser) keywordHas(spelled, text string, shape Shape) bool {
@@ -216,7 +226,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// as argument 1 makes every typed-handle print a false Str mismatch.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
-		} else if cmp := p.parseSortComparator(text); cmp != nil {
+		} else if cmp := p.parseSortComparator(text, true); cmp != nil {
 			n.Children = append(n.Children, cmp)
 		} else if fh := p.parseFilehandleSlot(text); fh != nil {
 			fh.Handle = true
@@ -230,6 +240,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		}
 		n.End = p.prevEnd()
 		_, n.Resolved = p.keywordShape(spelled, text)
+		n.ArgParen, n.NamedUnary = true, p.namedUnaryCall(spelled, text)
 		if n.Resolved {
 			p.readHandleSlots(n, text)
 		}
@@ -257,6 +268,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// this parser has seen declared.
 		_, keyword := p.keywordShape(spelled, text)
 		n.Resolved = keyword || p.knowsShape(text)
+		n.NamedUnary = p.namedUnaryCall(spelled, text)
 		return n
 	}
 
@@ -269,7 +281,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
 			n.Children = append(n.Children, arg)
 		}
-		n.Resolved = true
+		n.Resolved, n.NamedUnary = true, true
 
 	case p.keywordHas(spelled, text, ShapeList):
 		// A BLOCK slot comes before the list, and what makes it a slot
@@ -289,7 +301,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// byte in the tree, round-tripping, and not a parse of its source.
 		if blk := p.parseListOpBlock(text); blk != nil {
 			n.Children = append(n.Children, blk)
-		} else if cmp := p.parseSortComparator(text); cmp != nil {
+		} else if cmp := p.parseSortComparator(text, false); cmp != nil {
 			n.Children = append(n.Children, cmp)
 		}
 		// A filehandle slot works the same way and for the same reason:
@@ -618,7 +630,13 @@ func (p *parser) featureTakesBlock(op string) bool {
 //
 //	sort foo 3,1,2    3,2,1      sort $s 3,1,2     1,2,3
 //	sort(foo 3,1,2)   3,2,1      sort($s 3,1,2)    1,2,3
-func (p *parser) parseSortComparator(op string) *Node {
+//
+// inParens says sort's own `(` came first. force_word then reads that `(`,
+// not the word, so the word is lexed as any other and a `(` right after it
+// makes it a call: measured on perl 5.44.0, Deparse,-p writes
+// `sort(routine(1))` as `sort(routine(1))`, but `sort(routine (1))` and
+// `sort routine(1)` as `(sort routine 1)`.
+func (p *parser) parseSortComparator(op string, inParens bool) *Node {
 	if op != "sort" {
 		return nil
 	}
@@ -636,6 +654,9 @@ func (p *parser) parseSortComparator(op string) *Node {
 	// on 5.42.0 with -MO=Deparse,-p, `sort foo (3,1)` and `sort foo(3,1)`
 	// are both `sort foo 3, 1`.
 	next, ok := p.peekAfter(tok)
+	if ok && inParens && tok.Kind == lexer.Word && p.text(next) == "(" && next.Start == tok.End {
+		return nil
+	}
 	if !ok || !startsTerm(next, p.src) && !(tok.Kind == lexer.Word && p.text(next) == "(") &&
 		!(tok.Kind == lexer.Variable && termAfterScalar(tok, next, p.src)) {
 		return nil

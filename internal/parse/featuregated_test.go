@@ -26,11 +26,15 @@ func TestFeatureGatedFcArity(t *testing.T) {
 		src   string
 		canon string
 	}{
-		{`use feature 'fc'; my $z = fc $a, $b;`, `use feature 'fc'; my $z = fc($a) , $b;`},
-		{`use feature qw(unicode_strings evalbytes); evalbytes $p;`, `use feature qw(unicode_strings evalbytes); evalbytes($p);`},
-		{`use 5.016; my $z = evalbytes $a, $b;`, `use 5.016; my $z = evalbytes($a) , $b;`},
-		{`use v5.36; my $z = fc $a;`, `use v5.36; my $z = fc($a);`},
-		{`my $m = ord CORE::fc $c;`, `my $m = ord(CORE::fc($c));`},
+		// A named unary is written bare, as the source did. perl 5.44.0
+		// Deparse,-p reads each bare spelling as the comment above says, and
+		// `evalbytes $p` as evalbytes($p), `fc $a` under v5.36 as fc($a),
+		// and `ord CORE::fc $c` as ord(CORE::fc($c)).
+		{`use feature 'fc'; my $z = fc $a, $b;`, `use feature 'fc'; my $z = fc $a, $b;`},
+		{`use feature qw(unicode_strings evalbytes); evalbytes $p;`, `use feature qw(unicode_strings evalbytes); evalbytes $p;`},
+		{`use 5.016; my $z = evalbytes $a, $b;`, `use 5.016; my $z = evalbytes $a, $b;`},
+		{`use v5.36; my $z = fc $a;`, `use v5.36; my $z = fc $a;`},
+		{`my $m = ord CORE::fc $c;`, `my $m = ord CORE::fc $c;`},
 	}
 	for _, c := range cases {
 		src := []byte(c.src)
@@ -51,7 +55,7 @@ func TestFeatureGatedFcArity(t *testing.T) {
 		`use v5.14; my $z = fc $a, $b;`,
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(src)), []byte(src)))
-		if strings.Contains(got, "fc($a) , $b") {
+		if strings.Contains(got, "fc $a , $b") {
 			t.Errorf("Canon(%q) = %s: fc read as the builtin where it is not enabled", src, got)
 		}
 	}

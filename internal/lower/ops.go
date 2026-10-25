@@ -26,9 +26,16 @@ func (l *lowerer) repeat(n *parse.Node) Node {
 	r.Left, r.Count = l.operands(n)
 	if len(n.Children) > 0 {
 		left := n.Children[0]
-		r.ListRepeat = left.Paren || isQw(left)
+		r.ListRepeat = left.Paren || isQw(left) || declOfParen(left)
 	}
 	return r
+}
+
+// declOfParen reports whether n is a declaration of a parenthesised list,
+// `my ($x)`: measured on perl 5.44.0, `(my ($x)) x 2` repeats a list
+// (repeat lKP/DOLIST) where `my $x x 2` repeats a string.
+func declOfParen(n *parse.Node) bool {
+	return n.Kind == parse.Declaration && len(n.Children) > 0 && n.Children[len(n.Children)-1].Paren
 }
 
 // rangeOp lowers `binary ".."` and `binary "..."`.
@@ -58,9 +65,16 @@ func (l *lowerer) assign(n *parse.Node) Node {
 	a.L, a.R = l.operands(n)
 	if len(n.Children) > 0 {
 		left := n.Children[0]
-		a.ListAssign = left.Kind == parse.List || left.Paren || aggregate(left)
+		a.ListAssign = left.Kind == parse.List || left.Paren || aggregate(left) || refOfParen(left)
 	}
 	return a
+}
+
+// refOfParen reports whether n is `\(...)`. Assigned to, it is a list:
+// measured on perl 5.44.0, `\($x) = \$y` is aassign where `\$x = \$y` is
+// refassign, as `my \($x) = f()` is a list assignment in decl.go.
+func refOfParen(n *parse.Node) bool {
+	return n.Kind == parse.Unary && n.Text == "ref" && len(n.Children) == 1 && n.Children[0].Paren
 }
 
 // aggregate reports whether n names an array or a hash: a term with an

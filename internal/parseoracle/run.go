@@ -32,6 +32,11 @@ type Result struct {
 	// Err is a runner-level failure — perl unspawnable, file unreadable —
 	// as a string rather than an error so a Report renders deterministically.
 	Err string
+	// SubjectErr is the subject's failure on this file -- it crashed, timed
+	// out, or answered with something that is not the contract. Unlike Err
+	// the file is graded: perl answered, the subject did not, so Verdict is
+	// a whole-file no-answer and every one of perl's sites counts as one.
+	SubjectErr string
 }
 
 // Totals counts verdicts per bucket, indexed by Bucket.
@@ -203,6 +208,17 @@ func (r Report) String() string {
 		}
 	}
 
+	// A subject failure is graded no-answer, so the buckets alone would
+	// hide a crash among honest refusals. Named for the same reason as
+	// runner errors.
+	header := "subject error files:\n"
+	for _, f := range r.Files {
+		if f.SubjectErr != "" {
+			fmt.Fprintf(&b, "%s  %s: %s\n", header, f.Path, f.SubjectErr)
+			header = ""
+		}
+	}
+
 	if wrong := r.Wrong(); len(wrong) > 0 {
 		b.WriteString("WRONG files:\n")
 		for _, f := range r.Files {
@@ -256,6 +272,10 @@ type RunOptions struct {
 	// they depend on our parser and a cached verdict would hide exactly the
 	// movement a ratchet exists to detect.
 	Cache *Cache
+
+	// Perl is the perl every oracle invocation runs: parse_facts.pl
+	// itself and the compiles it starts. Empty means the perl on PATH.
+	Perl string
 }
 
 // Run compiles every file in the corpus through perl, asks the subject for
@@ -322,6 +342,7 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		Dir:     opts.Dir,
 		Shebang: wantsTaint(src),
 		Timeout: opts.Timeout,
+		Perl:    opts.Perl,
 	}
 	facts, err := opts.Cache.askFile(ctx, path, ask)
 	if err != nil {
@@ -340,9 +361,18 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
-	subject, err := askSubject(ctx, opts, path, src)
+	// Perl has answered, so a subject that fails here leaves ground truth
+	// with no answer against it: a whole-file no-answer, graded, rather than
+	// a runner error that would drop every one of perl's sites.
+	subject, harnessErr, err := askSubject(ctx, opts, path, src)
+	if harnessErr != nil {
+		r.Err = harnessErr.Error()
+		return r
+	}
 	if err != nil {
-		r.Err = err.Error()
+		r.SubjectErr = err.Error()
+		r.Verdict = Verdict{Bucket: BucketNoAnswer, Marker: MarkerNone,
+			Detail: "the subject failed: " + r.SubjectErr}
 		return r
 	}
 	r.Verdict = CompareFacts(facts, subject)
@@ -365,16 +395,23 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 // budget the report claims is the one a subject actually gets. A Subject may
 // set either for itself; the run's values are the default, not an override.
 // Without this the subject was handed a path it could not open from wherever
-// the harness happened to be, and an honest one produced a runner error per
+// the harness happened to be, and an honest one produced a subject error per
 // file while a quiet one produced a fidelity of 0% -- five parser verdicts
 // recording one environmental fact.
-func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error) {
+//
+// The first error is the harness's own: a default subject that would not
+// build, or a Subject with no command. No parser was asked, so it is a runner
+// error rather than the subject's no-answer. The second is the subject's.
+func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (SubjectFacts, error, error) {
 	subject := opts.Subject
 	if subject == nil {
 		var err error
 		if subject, err = defaultSubject(); err != nil {
-			return SubjectFacts{}, err
+			return SubjectFacts{}, err, nil
 		}
+	}
+	if len(subject.Command) == 0 {
+		return SubjectFacts{}, fmt.Errorf("subject: no command configured"), nil
 	}
 	s := *subject
 	if s.Dir == "" {
@@ -383,7 +420,8 @@ func askSubject(ctx context.Context, opts RunOptions, path string, _ []byte) (Su
 	if s.Timeout <= 0 {
 		s.Timeout = opts.Timeout
 	}
-	return s.Parse(ctx, path)
+	facts, err := s.Parse(ctx, path)
+	return facts, nil, err
 }
 
 // resolve mirrors AskFile: a relative path is relative to Dir, which is how

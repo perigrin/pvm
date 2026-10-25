@@ -25,8 +25,9 @@ import (
 // The class must be one this parse knows -- declared, or loaded by `use` or
 // `require` -- for the reason parseIndirect records.
 //
-// The tree carries Indirect; canon keeps the spelling and adds the argument
-// parens, which re-parses to the same call and stays faithful to the source. The `WORD $var` half -- `doit $object
+// The tree carries Indirect; canon keeps the spelling, with argument parens
+// only where the source wrote them, which re-parses to the same call and
+// stays faithful to the source. The `WORD $var` half -- `doit $object
 // "FOO"` is `$object->doit('FOO')` -- is not read without a loader; see
 // parseIndirect for the measurement behind that, and TestIndirectOnScalar
 // for the half read with one.
@@ -35,12 +36,12 @@ func TestIndirectObjectNotation(t *testing.T) {
 		src   string
 		canon string
 	}{
-		{`package Foo; package main; my $x = new Foo "a";`, `package Foo;package main;my $x = new Foo("a");`},
-		{`package Foo; package main; my $x = new Foo(1, 2);`, `package Foo;package main;my $x = new Foo(1 , 2);`},
-		{`use Foo; new Foo;`, `use Foo; new Foo();`},
-		{`use Foo::Bar; my $o = new Foo::Bar;`, `use Foo::Bar; my $o = new Foo::Bar();`},
+		{`package Foo; package main; my $x = new Foo "a";`, `package Foo;package main;my $x = new Foo "a";`},
+		{`package Foo; package main; my $x = new Foo(1, 2);`, `package Foo;package main;my $x = new Foo(1, 2);`},
+		{`use Foo; new Foo;`, `use Foo; new Foo;`},
+		{`use Foo::Bar; my $o = new Foo::Bar;`, `use Foo::Bar; my $o = new Foo::Bar;`},
 		{`package Foo; sub new {1} package main; my $o = new Foo;`,
-			`package Foo;sub new {1;} package main;my $o = new Foo();`},
+			`package Foo;sub new {1;} package main;my $o = new Foo;`},
 	}
 	for _, c := range cases {
 		src := []byte(c.src)

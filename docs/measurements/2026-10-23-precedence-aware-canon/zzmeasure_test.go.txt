@@ -1,0 +1,56 @@
+// ABOUTME: Scratch measurement: Faithful over perl.git t/ through ParseFileFrom.
+// ABOUTME: Writes one line per file, "rel\tok\treason", to $MEASURE_OUT.
+package parse_test
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"tamarou.com/pvm/internal/parse"
+)
+
+func TestZZMeasureFaithful(t *testing.T) {
+	out := os.Getenv("MEASURE_OUT")
+	if out == "" {
+		t.Skip("MEASURE_OUT unset")
+	}
+	dir, files := perlGitTFiles(t)
+	roots := perlGitTRoots(dir)
+	s := parse.NewSession()
+	var lines []string
+	total, ok, m3, m3ok := 0, 0, 0, 0
+	for _, rel := range files {
+		if _, rejected := perlRejects[rel]; rejected {
+			continue
+		}
+		path := filepath.Join(dir, rel)
+		n, err := s.ParseFileFrom(path, roots...)
+		if err != nil {
+			continue
+		}
+		src, _ := os.ReadFile(path)
+		good, why := parse.Faithful(n, src)
+		total++
+		isM3 := false
+		for _, d := range []string{"op/", "mro/", "uni/", "lib/", "test_pl/"} {
+			if strings.HasPrefix(rel, d) {
+				isM3 = true
+			}
+		}
+		if isM3 {
+			m3++
+		}
+		if good {
+			ok++
+			if isM3 {
+				m3ok++
+			}
+		}
+		lines = append(lines, fmt.Sprintf("%s\t%v\t%s", rel, good, why))
+	}
+	os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	t.Logf("faithful %d/%d  m3 %d/%d", ok, total, m3ok, m3)
+}

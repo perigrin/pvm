@@ -150,9 +150,17 @@ calls, then hashes — and be measured on what it has.
 
 **Exit status is not a verdict.** Unlike `perl -c`, a subject does not exit
 non-zero to say "not Perl"; it says `"ok": false`. A non-zero exit, a timeout,
-non-JSON output, output over 16 MiB, or a document without `ok` is a runner
-error: the file leaves the denominator, and the subject's stderr is repeated
-in the report so the cause is readable. On a timeout the subject's whole
+non-JSON output, output over 16 MiB, or a document without `ok` is a subject
+error: perl answered and the subject did not, so the file stays in the
+denominator as a whole-file `no-answer`, every one of perl's marker sites
+counts as `no-answer`, and the file is named under "subject error files:" with
+the subject's stderr repeated so the cause is readable. The baseline freezes
+such a file as `subject-error` rather than `no-answer`, so a crash cannot hide
+among honest refusals, and a move between the two fails the ratchet. An
+oracle-side failure (perl, the shim, the cache) is a runner error and leaves
+the denominator, and so is a harness failure on the subject's side: a default
+subject that will not build, or a subject with no command, asked no parser
+anything. On a timeout the subject's whole
 process group is killed, so a shell wrapper that forks its real work does not
 leak it.
 
@@ -216,11 +224,17 @@ longer contributes to whatever the sweep eventually costs, and it removes
 620 process spawns from CI.
 
 ```go
-cache, err := parseoracle.OpenCache("testdata/oracle_cache")
+cache, err := parseoracle.OpenCache("testdata/oracle_cache", perl)
 report, err := parseoracle.Run(ctx, files, parseoracle.RunOptions{
-    Dir: shimT, Cache: cache,
+    Dir: shimT, Cache: cache, Perl: perl,
 })
 ```
+
+`Perl` is the interpreter every oracle invocation runs, inner compiles
+included (parse_facts.pl runs them with `$^X`). Empty means the perl on
+PATH. Tests held to `testdata/corpus.pin` get it from
+`perltest.PinnedPerl(t).Path`, which finds the pinned perl in pvm's
+versions directory, pvm's registry, or PATH, in that order.
 
 The key is `sha256` over everything that can change perl's answer:
 
@@ -284,9 +298,14 @@ cd shim/t && perl -c op/sub.t          # syntax OK
 
 ## Ground-truth ceiling
 
-Measured with perl 5.42.0 and the shim above: **584/620 (94.2%)** compile.
-Most of the corpus's 19 directories are at 100%; `porting/` (43.2%) tests
-perl's own source tree rather than the language.
+Measured with perl 5.44.0 and the shim above: all **594** files outside the
+26 excluded (porting/, win32/, bigmem/, op/goto_xs.t) compile under `perl -c`
+with the shebang's taint switch. **593** of them are the compiled set,
+`testdata/ratchet/compiled.txt`: comp/final_line_num.t is left out because
+its `-c` exits 0 only through a BEGIN `__DIE__` handler, and perl.git's
+ratchet counts it as rejected. Under perl 5.42.0, with a shim built from
+5.42's own @INC, 584/620 (94.2%) compiled; `porting/` (43.2%) tests perl's
+own source tree rather than the language.
 
 The per-directory table in `docs/specs/perl-parser/00-findings.md` §0.5 lists
 14 of those 19 rows and so does not sum to its own total; an earlier claim

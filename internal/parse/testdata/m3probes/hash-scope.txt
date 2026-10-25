@@ -1,0 +1,139 @@
+The named-hash scope resolver's cases (hashscope.go): which declaration a
+`%h` use sees, and whether the state feature is on there. A `my` or a
+`state` with its feature on is padhv, no rv2hv; `our`, `local` and a hash
+no declaration reaches are rv2hv. Each snippet is a fixture of
+hashscope_test.go, with perl 5.44.0's rv2hv count.
+
+=== innermost my shadows our
+our %h; { my %h; keys %h; } keys %h;
+--- facts
+rv2hv 2 exact
+faithful
+
+=== closed block's my does not leak
+{ my %h; } keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== use before my is the package hash
+keys %h; my %h; keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== use before my in the same statement
+my $n = (keys %h, my %h); keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== local of an our hash
+our %h; local %h; keys %h;
+--- facts
+rv2hv 3 exact
+faithful
+
+=== initialiser sees the outer hash
+my %h = keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== condition's my reaches its block, not past it
+while (my %g = ()) { keys %g; } keys %g;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== state with the feature on
+use feature "state"; state %h; keys %h;
+--- facts
+faithful
+
+=== state with the feature off
+no feature "state"; state %h; keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== state with no feature at all
+state %h; keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== use v5.10 enables state
+use v5.10; state %h; keys %h;
+--- facts
+faithful
+
+=== use v5.36 enables state
+use v5.36; state %h; keys %h;
+--- facts
+faithful
+
+=== feature on inside a block
+{ use feature "state"; state %h; keys %h; }
+--- facts
+faithful
+
+=== feature on inside a block ends with it
+{ use feature "state"; } state %h; keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== signature hash parameter is a my of the body
+use feature "signatures"; sub f ($x, %o) { keys %o; } keys %o;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== C-style for init reaches its condition
+for (my %h = (); keys %h; ) { keys %h; } keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== class field seen by a method
+use v5.40; use feature "class"; no warnings; class C { field %h; method m { keys %h; } }
+--- facts
+faithful
+
+=== declared_refs declares the hash
+use feature "declared_refs", "refaliasing"; no warnings; my \%h = {}; keys %h;
+--- facts
+anonhash 1 exact
+faithful
+
+=== development bundle 5.9.5 enables state
+use 5.009005; state %h; keys %h;
+--- facts
+faithful
+
+=== development bundle 5.9.4 does not
+use 5.009004; state %h; keys %h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== state turned on through a module
+use if 1, feature => "state"; state %h; keys %h;
+--- facts
+faithful
+
+=== use experimental signatures
+use experimental "signatures"; sub f (%o) { keys %o; }
+--- facts
+faithful
+
+=== use experimental class, method signature
+use experimental "class"; class C { method m (%o) { keys %o; } }
+--- facts
+faithful
+
+=== class feature method head is a signature
+use feature "class"; no warnings; class C { method m (%o) { keys %o; } }
+--- facts
+faithful

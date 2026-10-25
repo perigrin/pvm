@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -52,10 +53,29 @@ type Facts struct {
 	Entersub int
 	// Prototypes maps every sub name in scope to its prototype.
 	Prototypes map[string]string
+	// OpFlags is every op the walk reached in this file's statements, in
+	// walk order, with two of its flags: OPf_PARENS, the one bit perl keeps
+	// for a paren the source wrapped the op in (Concise's P), and whether
+	// constant folding made it (Concise's FOLD). An op perl nulled is named
+	// as Concise names it, `ex-list`.
+	OpFlags []OpFlag
 	// Stderr is perl's diagnostic when OK is false, empty otherwise. It is
 	// the only thing that separates a parser being wrong from a machine
 	// missing Config.pm; an exit status cannot tell those apart.
 	Stderr string
+}
+
+// OpFlag is one op of the file, attributed to its statement's first line.
+type OpFlag struct {
+	Line   int
+	Op     string
+	Parens bool
+	Folded bool
+	// Statement is set on a null with P over an `if`/`unless`
+	// condition's logop, which perl marks P with no source paren.
+	Statement bool
+	// Var is the variable a P op reads, `$x`, where the walk names one.
+	Var string
 }
 
 // Options controls how perl is invoked.
@@ -71,6 +91,10 @@ type Options struct {
 	Shebang bool
 	// Timeout bounds a single invocation. Zero means DefaultTimeout.
 	Timeout time.Duration
+	// Perl is the perl to run. Empty means the perl on PATH. It runs
+	// parse_facts.pl, and parse_facts.pl runs its compiles with $^X, so
+	// every perl this invocation starts is this one.
+	Perl string
 }
 
 // DefaultTimeout bounds one oracle invocation.
@@ -126,7 +150,7 @@ func AskFile(ctx context.Context, path string, opts Options) (Facts, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "perl", script, path)
+	cmd := exec.CommandContext(ctx, perlOrPath(opts.Perl), script, path)
 	cmd.Dir = opts.Dir
 	// WaitDelay is what actually returns control. The script's inner
 	// `sh -c perl` child holds the stdout pipe open, so without it a
@@ -158,6 +182,14 @@ func AskFile(ctx context.Context, path string, opts Options) (Facts, error) {
 	return decode(out)
 }
 
+// perlOrPath is perl, or the perl on PATH when perl is empty.
+func perlOrPath(perl string) string {
+	if perl == "" {
+		return "perl"
+	}
+	return perl
+}
+
 // wire mirrors parse_facts.pl's JSON. It is separate from Facts because the
 // script speaks in perl's idiom — ok is 0 or 1 — and Facts speaks in Go's.
 type wire struct {
@@ -169,6 +201,7 @@ type wire struct {
 	Walked     int               `json:"walked"`
 	Entersub   int               `json:"entersub"`
 	Prototypes map[string]string `json:"prototypes"`
+	OpFlags    []string          `json:"opflags"`
 	Stderr     string            `json:"stderr"`
 }
 
@@ -181,6 +214,33 @@ func decode(out []byte) (Facts, error) {
 	for name, lines := range w.Sites {
 		sites[Marker(name)] = lines
 	}
+	// "LINE NAME", then " P", " STMT", " =VAR" and " FOLD" as the op
+	// carries them.
+	var opflags []OpFlag
+	for _, row := range w.OpFlags {
+		f := strings.Fields(row)
+		if len(f) < 2 {
+			return Facts{}, fmt.Errorf("decode oracle op row %q", row)
+		}
+		line, err := strconv.Atoi(f[0])
+		if err != nil {
+			return Facts{}, fmt.Errorf("decode oracle op row %q: %w", row, err)
+		}
+		o := OpFlag{Line: line, Op: f[1]}
+		for _, flag := range f[2:] {
+			switch {
+			case flag == "P":
+				o.Parens = true
+			case flag == "FOLD":
+				o.Folded = true
+			case flag == "STMT":
+				o.Statement = true
+			case strings.HasPrefix(flag, "="):
+				o.Var = flag[1:]
+			}
+		}
+		opflags = append(opflags, o)
+	}
 	return Facts{
 		OK:         w.OK == 1,
 		Ops:        w.Ops,
@@ -190,6 +250,7 @@ func decode(out []byte) (Facts, error) {
 		Walked:     w.Walked == 1,
 		Entersub:   w.Entersub,
 		Prototypes: w.Prototypes,
+		OpFlags:    opflags,
 		Stderr:     w.Stderr,
 	}, nil
 }

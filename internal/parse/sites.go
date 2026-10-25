@@ -5,6 +5,8 @@ package parse
 
 import (
 	"bytes"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -56,21 +58,13 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 	sites := []parseoracle.SubjectCallSite{}
 
 	lines := lineIndex(src)
+	decls := newNamedHashes(root, src)
 	for _, n := range root.Children {
 		start, end := lines.at(n.Start), lines.at(n.End-1)
 
-		if n.Kind == Unknown {
-			for _, kind := range markerKinds {
-				sites = append(sites, parseoracle.SubjectCallSite{
-					Kind:       kind,
-					Line:       start,
-					EndLine:    end,
-					Unresolved: true,
-				})
-			}
-			continue
-		}
-
+		// An Unknown statement reports through decidedMarkers too, which
+		// hedges every marker for it.
+		//
 		// A statement this parser DID read reports what it decided. Without
 		// this the subject only ever hedges, and a subject that never commits
 		// cannot be wrong -- nor right. WRONG=0 with exact=0 is the vacuous
@@ -81,7 +75,7 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 		// body is reported at the body's line; CompareFacts spends a decided
 		// site only against the innermost subject statement covering that
 		// line (`compare_facts.go:349`), and a statement span covers it.
-		for _, d := range decidedMarkers(n, src) {
+		for _, d := range decidedMarkers(n, src, decls) {
 			// The span is the whole STATEMENT, because perl's nextstate
 			// line can be either end of it.
 			//
@@ -143,12 +137,139 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
 // enclosing statement's -- see Sites.
 //
 // unresolved makes it a hedge rather than a commitment. A nested Unknown
-// settles every marker the only way it can: by refusing, out loud.
+// settles every marker the only way it can: by refusing, out loud. A
+// hedge's reason says why the text cannot settle it.
 type decided struct {
 	kind       string
 	node       *Node
 	unresolved bool
+	reason     hedgeReason
 }
+
+// hedgeReason is why a site hedges. Every hedge names one, from the closed
+// set below (TestEveryRv2hvHedgeNamesItsReason).
+type hedgeReason string
+
+const (
+	// reasonUnread: a node this parser did not read, an Unknown.
+	reasonUnread hedgeReason = "unread"
+	// reasonHiddenStructure: a construct the lexer kept inside one token.
+	reasonHiddenStructure hedgeReason = "hidden structure"
+	// reasonInterpolatedCode: code inside an interpolating string.
+	reasonInterpolatedCode hedgeReason = "interpolated code"
+	// reasonUnmeasuredContext: a chain whose context Sites has not measured.
+	reasonUnmeasuredContext hedgeReason = "unmeasured context"
+	// reasonKeyMayFold: a key that may constant-fold, as a call to a sub
+	// declared `sub f(){1}` does.
+	reasonKeyMayFold hedgeReason = "key may fold"
+	// reasonFeatureUnknown: a hash declared by `state` or a signature
+	// where a module or BEGIN block may have changed the feature.
+	reasonFeatureUnknown hedgeReason = "feature unknown"
+	// reasonMayBeImported: a package hash used after a module's import or
+	// a BEGIN block, either of which may have declared a lexical %h.
+	reasonMayBeImported hedgeReason = "may be imported"
+	// reasonDeclaredInUnread: a package hash whose name appears in code
+	// this parser did not read, which may declare it.
+	reasonDeclaredInUnread hedgeReason = "declared in unread code"
+	// reasonConstantCondition: a site under a condition that may be
+	// constant, whose dead branch perl folds away.
+	reasonConstantCondition hedgeReason = "constant condition"
+)
+
+// hedgeReasons is the closed set.
+var hedgeReasons = []hedgeReason{
+	reasonUnread, reasonHiddenStructure, reasonInterpolatedCode,
+	reasonUnmeasuredContext, reasonKeyMayFold, reasonFeatureUnknown,
+	reasonMayBeImported, reasonDeclaredInUnread, reasonConstantCondition,
+}
+
+// namedHashes is what Sites knows about a file beyond one statement: the
+// declaration each named hash use resolves to, the names code it did not
+// read mentions with a `%`, the brace subscripts read after an import
+// point, and the builtins the file may override.
+type namedHashes struct {
+	uses        map[*Node]hashUse
+	unread      map[string]bool
+	afterImport map[*Node]bool
+	overridden  map[string]bool
+}
+
+func newNamedHashes(root *Node, src []byte) namedHashes {
+	d := namedHashes{unread: unreadHashNames(root, src), overridden: map[string]bool{}}
+	d.uses, d.afterImport = hashScopes(root)
+	for _, m := range overridesBuiltin.FindAllSubmatch(src, -1) {
+		d.overridden[string(m[1])+string(m[2])] = true
+	}
+	return d
+}
+
+// overridesBuiltin finds the subs a file defines and the CORE::GLOBAL
+// names it mentions, either of which may override a builtin: `use subs
+// "length"; sub length {1}` and `*CORE::GLOBAL::length = sub {1}` both
+// keep `$r->{length "abc"}`'s rv2hv, measured on 5.44.0.
+var overridesBuiltin = regexp.MustCompile(`\bsub\s+(?:CORE::GLOBAL::)?(\w+)|CORE::GLOBAL::(\w+)`)
+
+// rv2hv counts the rv2hv perl builds for the named hash n -- a `%h`, or the
+// `$h` or `@h` a brace subscript reads %h through -- standing alone: 1 for
+// a package hash, none for a lexical, which is padhv. A non-empty reason
+// is a hedge.
+func (d namedHashes) rv2hv(n *Node) (int, hedgeReason) {
+	u, ok := d.uses[n]
+	switch {
+	case !ok:
+		// The resolver walks every node a named hash can sit in; one it
+		// did not reach is code it did not read.
+		return 0, reasonUnread
+	case u.Unsure,
+		u.Declares && u.Decl == "state" && u.State == stateUnknown,
+		u.Declares && u.Decl == "signature" && u.Signatures == stateUnknown:
+		return 0, reasonFeatureUnknown
+	case u.Declares && (u.Decl == "our" || u.Decl == "local"):
+		// The declaration's own `rv2hv vK/OURINTR` or `vKM/LVINTRO`.
+		return 1, ""
+	case u.Declares, u.Decl == "my", u.Decl == "state", u.Decl == "field":
+		// A lexical, or `state % h` where the feature is off.
+		return 0, ""
+	case u.Imported:
+		return 0, reasonMayBeImported
+	case d.unread[hashName(n.Text)]:
+		return 0, reasonDeclaredInUnread
+	}
+	return 1, ""
+}
+
+// unreadHashNames collects the hash names that code this parser did not
+// read mentions after a `%`, as `my %h` and `my \%h` do: an Unknown's
+// bytes, a token hiding structure, and interpolated code.
+func unreadHashNames(root *Node, src []byte) map[string]bool {
+	names := map[string]bool{}
+	var walk func(*Node)
+	walk = func(n *Node) {
+		text := ""
+		switch {
+		case n.Kind == Unknown:
+			text = string(src[n.Start:n.End])
+		case n.Kind == Term && (hidesStructure(n.Text) ||
+			isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)):
+			text = n.Text
+		case n.HeredocBody && interpolatesCode(string(src[n.Start:n.End])):
+			text = string(src[n.Start:n.End])
+		}
+		for _, m := range unreadHashName.FindAllStringSubmatch(text, -1) {
+			names[m[1]] = true
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+		for _, b := range n.InnerHeredocBodies {
+			walk(b)
+		}
+	}
+	walk(root)
+	return names
+}
+
+var unreadHashName = regexp.MustCompile(`%\s*(\w+)`)
 
 // decidedMarkers reports which of the five markers this statement contains,
 // in the subject vocabulary. Each is a conclusion the parser committed to.
@@ -158,7 +279,7 @@ type decided struct {
 // pattern; `$a < $c` is a comparison, not a readline. The lexer settled all
 // three by position (§3.2) and the tree records the answer, so reading the
 // tree cannot reach a different one. Scanning source text could.
-func decidedMarkers(stmt *Node, src []byte) []decided {
+func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 	var found []decided
 
 	// One entry per OCCURRENCE, not per kind. CompareFacts consumes a decided
@@ -169,43 +290,104 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 	// Deduplicating here was the cause of 11 of the 20 WRONG files in T2's
 	// first subject measurement -- `eq_hash({$o->h}, {qw( the hash )})` in
 	// t/class/accessor.t:31 is two anonhash ops to perl and was one site here.
+	//
+	// Under a condition perl may fold away, a hash site is hedged instead:
+	// the ops of a dead branch are never built. Measured on 5.44.0,
+	// `our %h; if (0) { keys %h }` and `sub D(){0} if (D) { keys %h }`
+	// count only the declaration's rv2hv.
+	dead := 0
 	add := func(kind string, n *Node) {
+		if dead > 0 && kind == parseoracle.SiteKindHash {
+			found = append(found, decided{kind: kind, node: n, unresolved: true, reason: reasonConstantCondition})
+			return
+		}
 		found = append(found, decided{kind: kind, node: n})
 	}
 
 	// hedge reports a site this parser SEES but cannot settle. It scores
 	// wider rather than WRONG, which is the honest bucket for "something
 	// here may or may not emit the op, and the answer is not in the text".
-	hedge := func(kind string, n *Node) {
-		found = append(found, decided{kind: kind, node: n, unresolved: true})
+	hedge := func(kind string, n *Node, why hedgeReason) {
+		found = append(found, decided{kind: kind, node: n, unresolved: true, reason: why})
 	}
-
-	// hedgeDerefElement hedges a hash element read through a reference
-	// that is the whole operand of a dereference: `@{$r->{k}}`,
-	// `%{$r->{k}}`, `${$r->{k}}`, `$r->{k}->@*`. perl folds the element
-	// into multideref when the dereference only reads it, and keeps a
-	// rv2hv for every level of the chain when the context modifies or
-	// vivifies it -- push, chomp, grep, map, foreach, a sub's arguments,
-	// keys, an assignment to it. Measured on 5.42.0:
-	//
-	//	my $p; my @x = @{$p->{S}};          rv2av multideref
-	//	my $p; push @{$p->{S}}, 1;          rv2av helem rv2hv
-	//	my $s; push @{$s->{x}{$k}}, 1;      rv2av helem rv2hv helem rv2hv
-	//	my $p; my %h = %{$p->{S}};          rv2hv multideref
-	//	my $p; keys %{$p->{S}};             rv2hv helem rv2hv
-	//
-	// Which context is which is perl's op_lvalue, not anything in the
-	// text, so this hedges until 01a12059-30a8 decides it.
-	// japh/abigail.t:191, op/gmagic.t:233 and porting/libperl.t:212 are
-	// this shape. `&{$r->{k}}` and `*{$r->{k}}` fold either way.
-	hedgeDerefElement := func(n *Node) {
-		if n.Kind == Index && n.Text == "{" && throughReference(n) {
-			hedge(parseoracle.SiteKindHash, n)
+	hedgeAll := func(n *Node, why hedgeReason) {
+		for _, kind := range markerKinds {
+			hedge(kind, n, why)
+		}
+	}
+	// named reports a named hash's rv2hv, decided or hedged.
+	named := func(n *Node) {
+		count, why := decls.rv2hv(n)
+		if why != "" {
+			hedge(parseoracle.SiteKindHash, n, why)
+			return
+		}
+		for ; count > 0; count-- {
+			add(parseoracle.SiteKindHash, n)
 		}
 	}
 
+	// arrowChain reports the rv2hv perl builds for the subscript chain
+	// topped by n, in context ctx: a decided site for each, or one hedge
+	// where the count is not in the text. Each chain is reported once, by
+	// the dereference around it or, failing one, at its top.
+	reported := map[*Node]bool{}
+	var arrowChain func(n *Node, ctx chainContext)
+	arrowChain = func(n *Node, ctx chainContext) {
+		if reported[n] {
+			return
+		}
+		reported[n] = true
+		switch {
+		case n.Kind == Ternary && len(n.Children) == 3:
+			// Each branch takes the context: perl propagates op_lvalue
+			// into both (TestArrowHashReadTernaryBranchesTakeTheContext).
+			// A condition that may be constant folds one branch away.
+			if possiblyConstant(n.Children[0]) {
+				hedge(parseoracle.SiteKindHash, n, reasonConstantCondition)
+				return
+			}
+			arrowChain(n.Children[1], ctx)
+			arrowChain(n.Children[2], ctx)
+			return
+		case n.Kind == Call && (n.Text == "do" || n.Text == "eval") &&
+			slices.ContainsFunc(n.Children, func(c *Node) bool { return c.Kind == Block }):
+			// The block's last statement takes it, and keeps an rv2hv in
+			// some contexts and not others; unmeasured beyond that.
+			hedge(parseoracle.SiteKindHash, n, reasonUnmeasuredContext)
+			return
+		case n.Kind == Unary && n.Text == "pos" && len(n.Children) == 1:
+			arrowChain(n.Children[0], ctx) // unary plus builds no op
+			return
+		case ctx != chainRead && !isChainLevel(n) && n.Kind != Index &&
+			!yieldsFreshValue(n) && containsBraceIndex(n):
+			// A modified dereference of an expression holding a hash
+			// element: perl passes the context on through some operators
+			// (`scalar`, a list's last item) and not others, measured
+			// beside yieldsFreshValue.
+			hedge(parseoracle.SiteKindHash, n, reasonUnmeasuredContext)
+			return
+		}
+		count, why := chainRv2hv(n, ctx, decls)
+		if why != "" {
+			hedge(parseoracle.SiteKindHash, n, why)
+			return
+		}
+		for ; count > 0; count-- {
+			add(parseoracle.SiteKindHash, n)
+		}
+	}
+
+	// up is the walk's ancestors, outermost first: the context a
+	// dereference sits in is its parents, and op_lvalue reads them.
+	var up []*Node
+
 	var walk func(*Node)
 	walk = func(n *Node) {
+		if constantGuard(n) {
+			dead++
+			defer func() { dead-- }()
+		}
 		// perl: srefgen, for an argument its callee's prototype takes by
 		// reference (markReferenceSlots). The argument's own markers are
 		// still walked below: `f(%$r)` through `\%` is a srefgen and a rv2hv.
@@ -223,9 +405,7 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			// the verdict was WRONG rather than wider.
 			//
 			// Do not descend: nothing inside a refusal is decided.
-			for _, kind := range markerKinds {
-				found = append(found, decided{kind: kind, node: n, unresolved: true})
-			}
+			hedgeAll(n, reasonUnread)
 			return
 
 		case AnonHash:
@@ -235,13 +415,13 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 
 		case Index:
 			// A BRACE subscript reads a hash, and whether perl emits rv2hv
-			// for it turns on the same undecidable question a named `%h`
-			// does -- plus the optimiser, which folds `$h{a}` to multideref
-			// and emits nothing at all:
+			// for it turns on the same declaration a named `%h` does --
+			// plus the optimiser, which folds `$h{a}` to multideref and
+			// emits nothing at all. Measured on 5.44.0, the use alone:
 			//
 			//	my %h;  @h{"a","b"}       0 rv2hv
 			//	our %h; @h{"a","b"}       1 rv2hv
-			//	my %h;  delete $h{a}      0
+			//	our %h; delete $h{a}      0
 			//	our %h; delete local $h{a} 1
 			//
 			// A SLICE through a reference is rv2hv, decided: `@$r{"a","b"}`
@@ -259,13 +439,22 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 				n.Children[0].Kind == Unary && n.Children[0].Text == "@" {
 				add(parseoracle.SiteKindHash, n)
 				for _, c := range n.Children[0].Children {
-					hedgeDerefElement(c)
+					arrowChain(c, chainModAggregate)
 					walk(c)
 				}
 				for _, c := range n.Children[1:] {
 					walk(c)
 				}
 				return
+			}
+
+			// A slice of a named hash, `@h{...}`, reads the hash once:
+			// rv2hv for a package hash, padhv for a lexical. A named
+			// element is a chain level, counted with its chain below.
+			if n.Text == "{" && len(n.Children) > 0 &&
+				n.Children[0].Kind == Term && !n.Arrow &&
+				isNamedVariable(n.Children[0].Text) && !isChainLevel(n) {
+				named(n.Children[0])
 			}
 
 			// The same slice spelled postfix, `$r->@{"a","b"}` or
@@ -280,25 +469,25 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 				add(parseoracle.SiteKindHash, n)
 			}
 
-			// Hedged for a NAMED base and left alone for a dereference,
-			// which is decided above.
-			if n.Text == "{" && len(n.Children) > 0 &&
-				n.Children[0].Kind == Term && !n.Arrow &&
-				isNamedVariable(n.Children[0].Text) {
-				hedge(parseoracle.SiteKindHash, n)
-			}
-
-			// A brace subscript through a reference folds into multideref,
-			// no rv2hv, when its key is a constant or a plain scalar. Any
-			// other key keeps the rv2hv -- `$r->{shift()}` -- unless it
-			// constant-folds, which turns on declarations (`sub f(){1}`
-			// makes `$r->{f()}` fold), or the element below it folded
-			// (`$r->{a}{f()}` emits none). Hedged until 01a12059-30a8
-			// decides it. op/ref.t:343 and porting/libperl.t:307 are this
-			// shape.
-			if n.Text == "{" && len(n.Children) > 1 && throughReference(n) &&
-				!isSimpleKey(n.Children[1]) {
-				hedge(parseoracle.SiteKindHash, n)
+			// A chain read in place: nothing dereferences its last element,
+			// so it is decided as a read. Each level below the top is part of
+			// the top's chain and reported with it.
+			//
+			// `delete local` keeps the last level out of multideref as a
+			// modified `${...}` does. Measured on 5.44.0:
+			//
+			//	my $r; delete local $r->{a}       rv2hv=1
+			//	my $r; delete local $r->{a}{b}    rv2hv=0
+			//	our %h; delete local $h{a}        rv2hv=2, the declaration's and the use's
+			if len(up) == 0 || up[len(up)-1].Kind != Index ||
+				up[len(up)-1].Children[0] != n {
+				ctx := chainRead
+				if len(up) > 1 && up[len(up)-1].Kind == Declaration &&
+					up[len(up)-1].Text == "local" &&
+					up[len(up)-2].Kind == Call && up[len(up)-2].Text == "delete" {
+					ctx = chainModScalar
+				}
+				arrowChain(n, ctx)
 			}
 
 		case Unary:
@@ -321,29 +510,14 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			if n.Text == "%" {
 				add(parseoracle.SiteKindHash, n)
 			}
-			// A braced deref of a brace subscript, `@{$::{$keys[0]}}`, is
-			// decided here as one hash site, and its inner Index is not
-			// walked, so the subscript does not hedge the same access. perl
-			// emits one rv2hv for that statement, measured.
+			// A dereference of an element, `@{$r->{x}}` or `@{$h{x}}`, is
+			// counted by the context around the dereference: the chain's
+			// levels through a reference, and a package hash's own.
 			//
 			// The bare slice `@$r{"a","b"}` does not reach here: it is a
 			// subscript on the deref, decided in the Index case.
-			//
-			// NOT `@{$r->{x}}`, which is an ARRAY dereference of a hash
-			// element -- rv2av, a different op. Its Index carries Arrow, and
-			// a chained `@{$r->{x}{$k}}` or `@{$$r{x}}` reads through a
-			// reference the same way; both are hedged below instead.
-			if n.Text == "@" && len(n.Children) == 1 &&
-				n.Children[0].Kind == Index && n.Children[0].Text == "{" &&
-				!throughReference(n.Children[0]) {
-				add(parseoracle.SiteKindHash, n)
-				for _, c := range n.Children[0].Children {
-					walk(c)
-				}
-				return
-			}
 			if (n.Text == "@" || n.Text == "%" || n.Text == "$") && len(n.Children) == 1 {
-				hedgeDerefElement(n.Children[0])
+				arrowChain(n.Children[0], derefContext(n, n.Text, up))
 			}
 
 		case Call:
@@ -370,11 +544,14 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 
 		case Binary:
 			// The postfix spelling of a dereference, `$r->{k}->@*`, is the
-			// same question hedgeDerefElement answers for `@{$r->{k}}`.
+			// same question as `@{$r->{k}}`. `->$#*` reads where `$#{...}`
+			// does not, and only the read is measured, so it has no context.
 			if n.Text == "->" && len(n.Children) == 2 && n.Children[1].Kind == Term {
-				switch n.Children[1].Text {
-				case "@*", "%*", "$*", "$#*":
-					hedgeDerefElement(n.Children[0])
+				switch t := n.Children[1].Text; t {
+				case "@*", "%*", "$*":
+					arrowChain(n.Children[0], derefContext(n, t[:1], up))
+				case "$#*":
+					arrowChain(n.Children[0], chainUnknown)
 				}
 			}
 			// perl: match. `=~` and `!~` bind a pattern; s/// and tr/// are
@@ -420,9 +597,7 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			// a quiet Unknown would be. Hedge every marker and do not look
 			// further: a walk over nodes cannot reach text.
 			if hidesStructure(n.Text) {
-				for _, kind := range markerKinds {
-					found = append(found, decided{kind: kind, node: n, unresolved: true})
-				}
+				hedgeAll(n, reasonHiddenStructure)
 				return
 			}
 			// Code inside an interpolating string, regex or heredoc --
@@ -442,15 +617,16 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			// opener is the upgrade if the precision ever matters.
 			if (n.HeredocBody && interpolatesCode(string(src[n.Start:n.End]))) ||
 				(isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)) {
-				for _, kind := range markerKinds {
-					hedge(kind, n)
-				}
+				hedgeAll(n, reasonInterpolatedCode)
 			}
 			switch {
+			case isNamedHash(n.Text) && len(up) > 0 && up[len(up)-1].Kind == Index &&
+				up[len(up)-1].Text == "[" && up[len(up)-1].Children[0] == n:
+				// `%h[0]` slices the array @h, keys and values.
 			case isNamedHash(n.Text):
 				// perl: rv2hv for a PACKAGE hash, padhv for a lexical --
-				// from identical source text. Undecidable here, so hedged.
-				hedge(parseoracle.SiteKindHash, n)
+				// from identical source text, so the declaration decides.
+				named(n)
 			case isHashTerm(n.Text):
 				// perl: rv2hv. A dereference reads through a reference and
 				// emits the op however anything was declared.
@@ -462,6 +638,8 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 				add(parseoracle.SiteKindMatch, n)
 			}
 		}
+		up = append(up, n)
+		defer func() { up = up[:len(up)-1] }()
 		for i, c := range n.Children {
 			// A method NAME is not a call to the builtin of that name.
 			// `$obj->readline` parses as Binary "->" whose right operand is
@@ -474,9 +652,17 @@ func decidedMarkers(stmt *Node, src []byte) []decided {
 			// subtree lost it -- measured, op/threads.t went from clean to
 			// three WRONG srefgen sites and re/pat.t gained two.
 			if n.Kind == Binary && n.Text == "->" && i == 1 && c.Kind == Call {
+				up = append(up, c)
 				for _, arg := range c.Children {
 					walk(arg)
 				}
+				up = up[:len(up)-1]
+				continue
+			}
+			if foldedAway(n, i) {
+				dead++
+				walk(c)
+				dead--
 				continue
 			}
 			walk(c)
@@ -665,26 +851,52 @@ func isHashTerm(text string) bool {
 // A dereference has no such ambiguity: `%$r` reads through a reference and
 // emits the op however anything was declared.
 //
-// Scope tracking would not settle it either, and that is why this hedges
-// rather than resolving. `state %h` is a LEXICAL declaration that behaves
-// like a package hash here (1 rv2hv, measured), so a rule keyed on "was it
-// declared with my" answers it wrong -- and a lexical closed over by a named
-// sub stays padhv, so the rule would need closure analysis to get the
-// easy case right.
+// The declaration in effect settles it (hashScopes, namedHashes.rv2hv): a
+// `my`, a `field`, a signature parameter and a `state` with its feature on
+// are padhv, and an `our`, a `local` and no declaration at all are rv2hv.
+// With the feature off, `state %h` declares nothing -- perl reads
+// `state % h` -- and the later `%h` is the package's. A lexical closed over
+// by a named sub stays padhv, which lexical scope gives without closure
+// analysis. `->%*` is a dereference, not a name: isHashTerm decides it.
 func isNamedHash(text string) bool {
-	return len(text) > 1 && text[0] == '%' &&
-		text[1] != '$' && text[1] != '{'
+	return text != "" && text[0] == '%' && text != "%*" && hashName(text) != ""
+}
+
+// hashName is the name a sigilled leaf names: `h` for `%h`, `% h`, `%{h}`,
+// `%{ h }`, `$h` or `@{h}`, and "" for a dereference, `%$r` or
+// `%{ $r }`. Measured on 5.44.0, `my %h; keys % h` and `keys %{ h }` are
+// padhv, as `keys %h` is.
+func hashName(text string) string {
+	if len(text) < 2 {
+		return ""
+	}
+	name := strings.TrimSpace(text[1:])
+	if inner, ok := strings.CutPrefix(name, "{"); ok {
+		inner, ok = strings.CutSuffix(inner, "}")
+		if !ok {
+			return ""
+		}
+		name = strings.TrimSpace(inner)
+		if strings.IndexFunc(strings.TrimPrefix(name, "^"), func(r rune) bool {
+			return r != ':' && r < utf8.RuneSelf && !isWordByte(byte(r))
+		}) >= 0 {
+			return ""
+		}
+	}
+	if name == "" || name[0] == '$' || name[0] == '{' {
+		return ""
+	}
+	return name
 }
 
 // isNamedVariable reports whether a subscript's base names a variable rather
 // than holding a reference: `$h` and `@h`, not `$$r` or `${...}`.
 //
 // Same question isNamedHash asks, one node down. `@h{...}` slices the hash
-// %h -- package or lexical, undecidable -- while `@$r{...}` slices through a
-// reference and is read by the Unary case above.
+// %h -- package or lexical, as its declaration says -- while `@$r{...}`
+// slices through a reference and is read by the Unary case above.
 func isNamedVariable(text string) bool {
-	return len(text) > 1 && (text[0] == '$' || text[0] == '@') &&
-		text[1] != '$' && text[1] != '{'
+	return text != "" && (text[0] == '$' || text[0] == '@') && hashName(text) != ""
 }
 
 // throughReference reports whether a brace subscript reads its hash through
@@ -705,20 +917,509 @@ func throughReference(n *Node) bool {
 	return base.Kind == Unary && base.Text == "$"
 }
 
+// chainContext is what perl's op_lvalue does to the last element of a
+// subscript chain, which decides how much of the chain multideref folds.
+type chainContext int
+
+const (
+	// chainUnknown is a context Sites has not measured: the chain hedges.
+	chainUnknown chainContext = iota
+	// chainRead leaves the last element alone, and the chain folds.
+	chainRead
+	// chainModScalar is `${...}` modified: the last element is marked
+	// OPpDEREF_SV, and multideref folds the levels before it.
+	chainModScalar
+	// chainModAggregate is `@{...}` or `%{...}` modified, or sliced: the
+	// last element is marked OPpDEREF_AV or _HV, and the run of levels
+	// holding it does not fold at all.
+	chainModAggregate
+)
+
+// derefContext classifies the dereference d, of sigil `@`, `%` or `$`,
+// from its ancestors, outermost first. Only contexts measured on perl 5.44.0
+// are classified (TestArrowHashReadFollowsMultideref); any other is
+// chainUnknown, which hedges.
+func derefContext(d *Node, sigil string, up []*Node) chainContext {
+	mod := chainModAggregate
+	if sigil == "$" {
+		mod = chainModScalar
+	}
+	if len(up) == 0 {
+		return chainUnknown
+	}
+	switch p := up[len(up)-1]; {
+	case p.Kind == Index && p.Children[0] == d && sigil != "%":
+		// `@{X}[0,1]`, `@{X}{qw(a b)}` and `${X}[0]` dereference X as an
+		// aggregate whatever the statement does with the result.
+		return chainModAggregate
+	case p.Kind == Postfix, p.Kind == Unary && p.Text == "ref":
+		return mod
+	case p.Kind == Unary && p.Text == "!":
+		return chainRead
+	}
+
+	// The list the dereference is an item of, and whether it is the first.
+	node, first, i := d, true, len(up)-1
+	for ; i >= 0; i-- {
+		p := up[i]
+		if p.Kind != List && (p.Kind != Binary || p.Text != "," && p.Text != "=>") {
+			break
+		}
+		first = first && p.Children[0] == node
+		node = p
+	}
+	if i < 0 {
+		return chainUnknown
+	}
+	owner := up[i]
+	last := owner.Children[len(owner.Children)-1]
+	switch owner.Kind {
+	case Call:
+		method := i > 0 && up[i-1].Kind == Binary && up[i-1].Text == "->" &&
+			len(up[i-1].Children) == 2 && up[i-1].Children[1] == owner
+		if method || !owner.Resolved {
+			return mod // a sub's arguments
+		}
+		switch owner.Text {
+		case "push", "unshift", "splice", "pop", "shift":
+			if first {
+				return mod
+			}
+		case "chomp", "chop", "keys", "values", "each":
+			return mod
+		case "grep", "map":
+			if !first || node != owner.Children[0] {
+				return mod // the list, not the block or expression
+			}
+		case "sprintf":
+			if !first {
+				return mod
+			}
+		case "print", "join", "reverse", "scalar":
+			return chainRead
+		}
+	case LoopControl:
+		if owner.Text == "return" {
+			return chainRead
+		}
+	case Loop:
+		switch {
+		case owner.Text == "while" && node == owner.Children[0]:
+			return chainRead
+		case (owner.Text == "for" || owner.Text == "foreach") && !owner.CStyle &&
+			(last.Kind == Block && node == owner.Children[len(owner.Children)-2] ||
+				last.Kind != Block && node == last):
+			// The list of a foreach, or of a statement-modifier `for`.
+			// A C-style head's parts are not a list it aliases.
+			return mod
+		}
+	case Conditional:
+		if (owner.Text == "if" || owner.Text == "unless") &&
+			(last.Kind == Block && node == owner.Children[0] ||
+				last.Kind != Block && node == last) {
+			return chainRead
+		}
+	case Declaration:
+		switch {
+		case node != owner.Children[0] &&
+			(owner.Text == "my" || owner.Text == "our" || owner.Text == "state"):
+			return chainRead // the initialiser
+		case node == owner.Children[0] && owner.Text == "local":
+			return mod
+		}
+	case Binary:
+		switch owner.Text {
+		case "=":
+			if node == owner.Children[0] {
+				return mod
+			}
+			return chainRead
+		case "+=":
+			if node == owner.Children[1] {
+				return chainRead
+			}
+		case "+", "-", "*", "/", "==", "<", "||":
+			return chainRead
+		}
+	case CmpChain:
+		return chainRead
+	}
+	return chainUnknown
+}
+
+// constantGuard reports whether n is a conditional construct whose
+// condition may be constant, so that perl may fold a branch of it away:
+// `if`, `unless`, `elsif`, `while` and `until`, as blocks or statement
+// modifiers, a `?:`, and `&&`, `||`, `//`, `and`, `or` and `xor`, whose
+// left operand is the condition.
+func constantGuard(n *Node) bool {
+	if len(n.Children) == 0 {
+		return false
+	}
+	if n.Kind == Loop && n.CStyle {
+		// The tree does not say which head part is the condition, so any
+		// part that may be constant, and is not a known true, guards it:
+		// `for (;0;) { keys %h }` builds no rv2hv for the use, where
+		// `for (;;)` and `for (;1;)` keep it.
+		return slices.ContainsFunc(n.Children, func(c *Node) bool {
+			truth, known := literalTruth(c)
+			return c.Kind != Block && possiblyConstant(c) && !(known && truth)
+		})
+	}
+	cond, _, _ := guardCondition(n)
+	if cond == nil || !possiblyConstant(cond) {
+		return false
+	}
+	_, known := literalTruth(cond)
+	return !known || n.Kind == Binary && n.Text == "xor"
+}
+
+// guardCondition is the condition of a construct constantGuard reads, and
+// whether it is a statement modifier, whose condition is its last child.
+func guardCondition(n *Node) (cond *Node, modifier, ok bool) {
+	switch {
+	case n.Kind == Conditional && n.Text != "else", n.Kind == Loop && (n.Text == "while" || n.Text == "until"):
+		last := n.Children[len(n.Children)-1]
+		switch {
+		case len(n.Children) > 1 && n.Children[1].Kind == Block:
+			return n.Children[0], false, true
+		case last.Kind != Block:
+			return last, true, true
+		}
+	case n.Kind == Ternary:
+		return n.Children[0], false, true
+	case n.Kind == Binary:
+		switch n.Text {
+		case "&&", "||", "//", "and", "or", "xor":
+			return n.Children[0], false, true
+		}
+	}
+	return nil, false, false
+}
+
+// foldedAway reports whether perl folds n's child i away under a literal
+// condition, whose truth is known: the block of `if (0)` or `while (0)`,
+// the `else` of `if (1)`, the statement of `X if 0`, the unchosen branch
+// of `1 ? A : B`, and the right operand of `0 && X`, `1 || X` or
+// `1 // X`. Measured on 5.44.0, `our %h; my $n = 1 && %h` builds the
+// use's rv2hv (op/each.t:233), `while (1) { keys %$r }` keeps its body,
+// and `do { keys %h } until 1` runs its block once.
+func foldedAway(n *Node, i int) bool {
+	// An `elsif` that may be constant may fold the branches after it:
+	// `if ($c) {...} elsif (1) {...} else { keys %h }` builds no rv2hv
+	// for the else, measured on 5.44.0.
+	if n.Kind == Conditional && slices.ContainsFunc(n.Children[:min(i, len(n.Children))], func(c *Node) bool {
+		if c.Kind != Conditional || c.Text != "elsif" {
+			return false
+		}
+		cond, _, ok := guardCondition(c)
+		if !ok {
+			return false
+		}
+		truth, known := literalTruth(cond)
+		return possiblyConstant(cond) && !(known && !truth)
+	}) {
+		return true
+	}
+	cond, modifier, ok := guardCondition(n)
+	if !ok || len(n.Children) == 0 {
+		return false
+	}
+	truth, known := literalTruth(cond)
+	if !known {
+		return false
+	}
+	if n.Text == "unless" || n.Text == "until" {
+		truth = !truth
+	}
+	switch {
+	case n.Kind == Binary:
+		switch n.Text {
+		case "&&", "and":
+			return i == 1 && !truth
+		case "||", "or":
+			return i == 1 && truth
+		case "//":
+			return i == 1 // a literal is defined
+		}
+		return false
+	case n.Kind == Ternary:
+		return truth && i == 2 || !truth && i == 1
+	case modifier:
+		body := n.Children[0]
+		doBlock := body.Kind == Call && body.Text == "do"
+		return !truth && i < len(n.Children)-1 && !(n.Kind == Loop && doBlock)
+	case !truth:
+		return i == 1
+	}
+	return n.Kind == Conditional && i >= 2
+}
+
+// literalTruth is a plain number or quoted literal's truth: "", "0" and
+// a number equal to zero are false. Anything else is not known.
+func literalTruth(n *Node) (truth, known bool) {
+	if n.Kind != Term || n.Text == "" {
+		return false, false
+	}
+	t := n.Text
+	if isNumber(n) {
+		f, err := strconv.ParseFloat(strings.ReplaceAll(t, "_", ""), 64)
+		if err != nil {
+			return false, false
+		}
+		return f != 0, true
+	}
+	if len(t) >= 2 && (t[0] == '\'' || t[0] == '"') && t[len(t)-1] == t[0] &&
+		!strings.ContainsAny(t[1:len(t)-1], "\\$@") {
+		v := t[1 : len(t)-1]
+		return v != "" && v != "0", true
+	}
+	return false, false
+}
+
+// possiblyConstant reports whether an expression may be a compile-time
+// constant: a literal, a call with no arguments (`D` after `sub D(){0}`, or
+// a `use constant`), or an operator over those. Measured on 5.44.0,
+// `use constant C => 1; push @{ C ? $r->{a} : $r->{b} }, 1` builds one
+// rv2hv, where a variable condition builds two.
+func possiblyConstant(n *Node) bool {
+	switch n.Kind {
+	case Term:
+		return isLiteral(n)
+	case Call:
+		return len(n.Children) == 0
+	case Unary:
+		return len(n.Children) == 1 && possiblyConstant(n.Children[0])
+	case Binary, CmpChain, Ternary, List:
+		// An operator, a comparison chain, a `?:` or a parenthesised
+		// list folds when every operand does.
+		return len(n.Children) > 0 && !slices.ContainsFunc(n.Children, func(c *Node) bool { return !possiblyConstant(c) })
+	}
+	return false
+}
+
+// yieldsFreshValue reports whether an expression's value is not one of
+// its operands' lvalues, so a dereference's context stops there. Measured
+// on perl 5.44.0, each keeping no rv2hv for `$x->{a}`:
+//
+//	push @{ $x->{a} // [] }, 1      push @{ $x->{a} //= [] }, 1
+//	push @{ $x->{a} ||= [] }, 1     push @{ $r = $x->{a} }, 1
+//	push @{ $c && $x->{a} }, 1      push @{ [$x->{a}] }, 1
+//	push @{ \$x->{a} }, 1
+//
+// where `push @{ scalar $x->{a} }, 1`, `push @{ +$x->{a} }, 1` and
+// `keys %{ (1, $x->{a}) }` keep it.
+func yieldsFreshValue(n *Node) bool {
+	switch n.Kind {
+	case AnonArray, AnonHash:
+		return true
+	case Unary:
+		return n.Text == "ref"
+	case Binary:
+		switch n.Text {
+		case "//", "||", "&&", "//=", "||=", "&&=", "=":
+			return true
+		}
+	}
+	return false
+}
+
+// containsBraceIndex reports whether n holds a brace subscript.
+func containsBraceIndex(n *Node) bool {
+	if n.Kind == Index && n.Text == "{" {
+		return true
+	}
+	return slices.ContainsFunc(n.Children, containsBraceIndex)
+}
+
+// chainRv2hv counts the rv2hv perl builds for the brace levels of the
+// subscript chain topped by top that read through a reference or a
+// package hash, when ctx is what is done with its last element. A reason
+// when the count is not in the text: an unmeasured context, a key that
+// might constant-fold, or a named hash whose declaration may be elsewhere.
+//
+// A package hash's element folds as an element through a reference does,
+// measured on 5.44.0: `our %h; $h{a}{b}` is multideref with no rv2hv for
+// the use, `our %h; $h{"a$k"}` keeps one, and `our %h; push @{$h{a}}, 1`
+// keeps one, where `my %h` keeps none in any of them.
+//
+// The levels fold into multideref in runs. A key multideref cannot hold
+// ends its run, and keeps its level's rv2hv unless the run before it
+// folded something. The last level, under a modifying ctx, is the
+// exception TestArrowHashReadFollowsMultideref measures.
+func chainRv2hv(top *Node, ctx chainContext, decls namedHashes) (int, hedgeReason) {
+	var levels []*Node
+	for l := top; isChainLevel(l); l = l.Children[0] {
+		levels = append([]*Node{l}, levels...)
+	}
+	if len(levels) == 0 {
+		// A slice, or a subscript this does not model: through a
+		// reference it hedges.
+		if top.Kind == Index && top.Text == "{" && throughReference(top) {
+			return 0, reasonUnmeasuredContext
+		}
+		return 0, ""
+	}
+	// The bottom level reads a named hash, or through a reference.
+	base := 0
+	if b := levels[0]; b.Text == "{" && !b.Arrow && b.Children[0].Kind == Term &&
+		isNamedVariable(b.Children[0].Text) {
+		n, why := decls.rv2hv(b.Children[0])
+		if why != "" {
+			return 0, why
+		}
+		base = n
+	}
+	rv2hv := func(l *Node) int {
+		switch {
+		case l == levels[0] && base > 0:
+			return 1
+		case l.Text == "{" && throughReference(l):
+			return 1
+		}
+		return 0
+	}
+	refLevels := 0
+	for _, l := range levels {
+		refLevels += rv2hv(l)
+	}
+	if refLevels == 0 {
+		return 0, "" // a lexical's elements, or arrays'
+	}
+
+	count := 0
+	var run []*Node
+	for i, l := range levels {
+		key := l.Children[1]
+		switch {
+		case !isSimpleKey(key):
+			if !nonConstant(key) {
+				return 0, reasonKeyMayFold
+			}
+			if len(run) == 0 {
+				count += rv2hv(l)
+			}
+			run = nil
+		case decls.keyMayNotFold(l, key):
+			return 0, reasonKeyMayFold
+		case i < len(levels)-1 || ctx == chainRead:
+			run = append(run, l)
+		case ctx == chainModScalar:
+			if len(run) == 0 {
+				count += rv2hv(l)
+			}
+		case ctx == chainModAggregate:
+			for _, r := range append(run, l) {
+				count += rv2hv(r)
+			}
+		default:
+			return 0, reasonUnmeasuredContext
+		}
+	}
+	return count, ""
+}
+
+// isChainLevel reports whether n is one `{key}` or `[index]` subscript of
+// an element chain, rather than a slice or a postfix slice.
+func isChainLevel(n *Node) bool {
+	if n.Kind != Index || n.Text != "{" && n.Text != "[" || len(n.Children) != 2 {
+		return false
+	}
+	base := n.Children[0]
+	switch base.Kind {
+	case Term:
+		return base.Text == "" || base.Text[0] != '@' && base.Text[0] != '%'
+	case Unary:
+		return base.Text != "@" && base.Text != "%"
+	}
+	return true
+}
+
+// nonConstant reports whether a subscript key can never constant-fold,
+// because it reads a variable or an element, shifts or pops one, or
+// passes one to a call. A key
+// it is unsure of -- a call to a sub that may be a constant, `||` over
+// constants -- is not, and hedges.
+func nonConstant(k *Node) bool {
+	switch k.Kind {
+	case Index:
+		return true
+	case Term:
+		t := k.Text
+		if len(t) > 1 && (t[0] == '$' || t[0] == '@') {
+			return true
+		}
+		return (t != "" && t[0] == '"' || strings.HasPrefix(t, "qq")) && interpolatesVariable(t)
+	case Call:
+		// A sub perl inlines as a constant takes no arguments, and a
+		// builtin folds only over constants.
+		if k.Resolved && (k.Text == "shift" || k.Text == "pop") {
+			return true
+		}
+		for _, c := range k.Children {
+			if nonConstant(c) {
+				return true
+			}
+		}
+	case Ternary:
+		return len(k.Children) > 0 && nonConstant(k.Children[0])
+	case Unary:
+		return len(k.Children) == 1 && nonConstant(k.Children[0])
+	case Binary:
+		switch k.Text {
+		case "&&", "||", "//", "and", "or", "xor":
+			return false // these fold on a constant operand alone
+		}
+		for _, c := range k.Children {
+			if nonConstant(c) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// interpolatesVariable reports whether a double-quoted literal's text holds
+// an unescaped `$` or `@` followed by a name or a brace.
+func interpolatesVariable(t string) bool {
+	for i := 0; i+1 < len(t); i++ {
+		switch t[i] {
+		case '\\':
+			i++
+		case '$', '@':
+			if c := t[i+1]; isWordByte(c) || c == '{' || c == ':' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // isSimpleKey reports whether a hash subscript's key is one perl's
 // multideref takes as it stands: a number, a bareword, `-bareword`, a
-// string that interpolates nothing, or a plain scalar variable. Measured
-// on 5.42.0, `$p->{a}`, `$p->{-bar}`, `$p->{'a$b'}`, `$p->{1.5}`,
-// `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and `$p->{$Foo::x}` all fold.
+// string that interpolates nothing, a plain scalar variable, or literals
+// that constant-fold. Measured on 5.42.0, `$p->{a}`, `$p->{-bar}`,
+// `$p->{'a$b'}`, `$p->{1.5}`, `$p->{$k}`, `$p->{$_}`, `$p->{$1}` and
+// `$p->{$Foo::x}` all fold; on 5.44.0 so do `$p->{-1}`, `$p->{+$k}`,
+// `$p->{${k}}`, `$p->{${^W}}`, `$p->{-x}`, `$p->{1+1}` and `$p->{"a"."b"}`
+// (TestArrowHashReadKeyShapesFollowPerl). `$p->{-$k}` does not: negating
+// a variable is computed.
 //
 // Conservative the safe way: a key it does not recognise hedges, which
 // scores wider, never WRONG.
 func isSimpleKey(k *Node) bool {
-	if k.Kind == Unary && k.Text == "neg" && len(k.Children) == 1 {
-		k = k.Children[0]
-		if k.Kind == Call && len(k.Children) == 0 {
-			return true // `-bar`, a string to perl
+	if k.Kind == Unary && len(k.Children) == 1 {
+		switch c := k.Children[0]; k.Text {
+		case "pos":
+			return isSimpleKey(c) // unary plus builds no op
+		case "neg":
+			// `-bar` is a string to perl and `-1` a number; anything
+			// else negated is computed.
+			return c.Kind == Call && len(c.Children) == 0 || isLiteral(c)
 		}
+	}
+	if isLiteral(k) {
+		return true
 	}
 	if k.Kind != Term || k.Text == "" {
 		return false
@@ -726,19 +1427,113 @@ func isSimpleKey(k *Node) bool {
 	t := k.Text
 	switch {
 	case t[0] == '$':
-		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+		// `$k`, `${k}`, `${ k }` and `${^W}` name one scalar.
+		name := t[1:]
+		if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
+			name = strings.TrimPrefix(strings.TrimSpace(name[1:len(name)-1]), "^")
+		}
+		return name != "" && strings.IndexFunc(name, func(r rune) bool {
 			return r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
 		}) < 0
-	case t[0] == '\'':
-		return true
-	case t[0] == '"' || strings.HasPrefix(t, "qq"):
-		return !strings.ContainsAny(t, "$@")
-	case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
-		return true
+	case t[0] == '-':
+		// A filetest's spelling, `-x`, is the string "-x" in a subscript.
+		return len(t) > 1 && strings.IndexFunc(t[1:], func(r rune) bool {
+			return r >= utf8.RuneSelf || !isWordByte(byte(r))
+		}) < 0
 	}
 	return strings.IndexFunc(t, func(r rune) bool {
 		return r != '.' && r != ':' && (r >= utf8.RuneSelf || !isWordByte(byte(r)))
 	}) < 0
+}
+
+// isLiteral reports whether a key is a constant perl folds at compile
+// time: a number, a string that interpolates nothing, or `+ - * . << **`,
+// a scalar `x`, `~`, `!`, `length` or `join` over those
+// (TestArrowHashReadLiteralFoldsDecide). A bareword is not, since strict
+// refuses it; `("a") x 2` is a list repeat, which perl does not fold; and
+// `lc` and its kin fold only outside `use locale`.
+func isLiteral(k *Node) bool {
+	switch k.Kind {
+	case Binary:
+		if len(k.Children) != 2 {
+			return false
+		}
+		switch k.Text {
+		case "x":
+			return !k.Children[0].Paren && isLiteral(k.Children[0]) && isNumber(k.Children[1])
+		case ".":
+			return isLiteral(k.Children[0]) && isLiteral(k.Children[1])
+		}
+		return isNumber(k)
+	case Unary:
+		if k.Text == "!" {
+			return len(k.Children) == 1 && isLiteral(k.Children[0])
+		}
+		return isNumber(k)
+	case Call:
+		// A key's own comma, `$r->{1,2}`, joins with `$;` at run time and
+		// keeps its rv2hv; join's commas separate its arguments.
+		return k.Resolved && (k.Text == "length" || k.Text == "join") &&
+			len(k.Children) == 1 && isLiteralList(k.Children[0])
+	case Term:
+		t := k.Text
+		switch {
+		case t == "":
+			return false
+		case t[0] >= '0' && t[0] <= '9', t[0] == '\'':
+			return true
+		case t[0] == '"' || strings.HasPrefix(t, "qq"):
+			return !strings.ContainsAny(t, "$@")
+		case strings.HasPrefix(t, "q") && len(t) > 1 && !isWordByte(t[1]):
+			return true
+		}
+	}
+	return false
+}
+
+// isNumber reports whether a key is a number literal, or `+ - * << **` or
+// `~` over number literals. perl does not fold a numeric op over a string,
+// which would warn: measured on 5.44.0, `$r->{"a" << 1}`, `$r->{1+"a"}`
+// and `$r->{"0x10" << 1}` each keep their rv2hv.
+func isNumber(k *Node) bool {
+	switch k.Kind {
+	case Binary:
+		switch k.Text {
+		case "+", "-", "*", "<<", "**":
+			return len(k.Children) == 2 && isNumber(k.Children[0]) && isNumber(k.Children[1])
+		}
+	case Unary:
+		return k.Text == "~" && len(k.Children) == 1 && isNumber(k.Children[0])
+	case Term:
+		return k.Text != "" && k.Text[0] >= '0' && k.Text[0] <= '9'
+	}
+	return false
+}
+
+// keyMayNotFold reports whether a key isSimpleKey accepts may still keep
+// its level's rv2hv: a quoted or numeric literal read after an import
+// point, which may have installed overload::constant, or a `length` or
+// `join` the file may override.
+func (d namedHashes) keyMayNotFold(level, key *Node) bool {
+	var doubt func(*Node) bool
+	doubt = func(n *Node) bool {
+		switch {
+		case n.Kind == Term && d.afterImport[level] && (isNumber(n) || isLiteral(n)):
+			return true
+		case n.Kind == Call && d.overridden[n.Text]:
+			return true
+		}
+		return slices.ContainsFunc(n.Children, doubt)
+	}
+	return doubt(key)
+}
+
+// isLiteralList reports whether every item of a comma list is a literal.
+func isLiteralList(k *Node) bool {
+	if k.Kind == Binary && k.Text == "," && len(k.Children) == 2 {
+		return isLiteralList(k.Children[0]) && isLiteralList(k.Children[1])
+	}
+	return isLiteral(k)
 }
 
 // isAggregate reports whether a node is a whole array or hash -- what perl's

@@ -20,9 +20,11 @@ import (
 // scalar became a handle and the modifier was left with nothing to attach to.
 func TestPrintScalarBeforeModifier(t *testing.T) {
 	for _, c := range []struct{ src, canon string }{
-		{`print $warn if length $warn;`, `print($warn) if length($warn);`},
-		{`print $w unless $q;`, `print($w) unless $q;`},
-		{`print $w foreach @a;`, `print($w) foreach @a;`},
+		// length is a named unary, written bare; perl 5.44.0 Deparse,-p:
+		// print($warn) if length($warn).
+		{`print $warn if length $warn;`, `print $warn if length $warn;`},
+		{`print $w unless $q;`, `print $w unless $q;`},
+		{`print $w foreach @a;`, `print $w foreach @a;`},
 	} {
 		src := []byte(c.src)
 		n := parse.Parse(src)
@@ -35,7 +37,7 @@ func TestPrintScalarBeforeModifier(t *testing.T) {
 	}
 	// REGRESSION GUARD: a handle followed by a real term is still a handle.
 	src := []byte(`print $fh "x" if $c;`)
-	if got := strings.TrimSpace(parse.Canon(parse.Parse(src), src)); got != `print($fh "x") if $c;` {
+	if got := strings.TrimSpace(parse.Canon(parse.Parse(src), src)); got != `print $fh "x" if $c;` {
 		t.Errorf("Canon(%q) = %s, want the handle kept", src, got)
 	}
 }

@@ -1,0 +1,13 @@
+# The re-emission work queue: every M3-dir file (t/op mro uni lib test_pl) whose
+# canon emission is unfaithful, at its first difference. A work list, not a register:
+# it must be empty when m3-oracle-at-scale closes. Rows are
+#   path:line class src canon prev reason
+# with the cause (src canon prev) and class computed by TestFaithfulQueueMatchesTree.
+# Regenerate with -parse.update-ratchet; never merge it by hand.
+# causes dropped-paren = 0
+# causes heredoc = 0
+# causes subless-special-sub = 0
+# causes stmt-boundary = 0
+# causes canon-adds-paren-op = 0
+# causes canon-adds-paren-term = 0
+# causes other = 0

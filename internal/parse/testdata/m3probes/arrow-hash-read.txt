@@ -1,0 +1,449 @@
+The arrow-read cases (sites.go, chainRv2hv and derefContext): how many
+rv2hv perl builds for a `->{...}` chain, by the chain's keys and by what is
+done with the dereference around it. A modified `@{}` or `%{}` keeps every
+brace level of the last run out of multideref; a computed key keeps its own
+level's rv2hv unless the run before it folded. Each snippet is measured on
+perl 5.44.0 with -MO=Concise. The wider rows are the hedges that remain,
+each named in TestArrowHashReadHedgesNameTheirShape.
+
+=== plain read
+my $h; my $x = $h->{a};
+--- facts
+faithful
+
+=== two levels
+my $h; my $x = $h->{a}{b};
+--- facts
+faithful
+
+=== three levels
+my $h; my $x = $h->{a}{b}{c};
+--- facts
+faithful
+
+=== scalar key
+my $h; my $k; my $x = $h->{$k};
+--- facts
+faithful
+
+=== interpolated key
+my $h; my $b; my $x = $h->{"a$b"};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== array level after a hash level
+my $h; my $x = $h->{a}->[0];
+--- facts
+faithful
+
+=== $$h{a}
+my $h; my $x = $$h{a};
+--- facts
+faithful
+
+=== ${$h}{a}
+my $h; my $x = ${$h}{a};
+--- facts
+faithful
+
+=== postfix slice
+my $h; my @x = $h->@{qw(a b)};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== exists two levels
+my $h; exists $h->{a}{b};
+--- facts
+faithful
+
+=== delete
+my $h; delete $h->{a};
+--- facts
+faithful
+
+=== local element
+my $h; local $h->{a};
+--- facts
+faithful
+
+=== postincrement element
+my $h; $h->{a}++;
+--- facts
+faithful
+
+=== call key
+my $h; my $x = $h->{f()};
+--- facts
+rv2hv 1 wider
+faithful
+
+=== negated bareword key
+my $h; my $x = $h->{-bareword};
+--- facts
+faithful
+
+=== assign through an undefined ref
+my $x; $x->{a} = 1;
+--- facts
+faithful
+
+=== whole hash deref
+my $h; my %x = %$h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== keys of a hash deref
+my $h; keys %$h;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== shift key
+my $r; my $x = $r->{shift()};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== element as a sub argument
+my $r; foo($r->{a});
+--- facts
+faithful
+
+=== hash deref of an element as a sub argument
+my $r; foo(%{$r->{a}});
+--- facts
+rv2hv 2 exact
+faithful
+
+=== hash deref of an element in list assignment
+my $r; my @x = %{$r->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== keys of a deref element
+my $r; keys %{$r->{a}};
+--- facts
+rv2hv 2 exact
+faithful
+
+=== push onto a deref element
+my $r; push @{$r->{a}}, 1;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== push onto a two-level chain
+my $s; my $k; push @{$s->{x}{$k}}, 1;
+--- facts
+rv2hv 2 exact
+faithful
+
+=== push after a computed last key
+my $r; push @{$r->{a}{"x$r"}}, 1;
+--- facts
+faithful
+
+=== push after a computed first key
+my $r; push @{$r->{"x$r"}{a}}, 1;
+--- facts
+rv2hv 2 exact
+faithful
+
+=== local element assigned
+my $r; local $r->{a} = 1;
+--- facts
+faithful
+
+=== reference to an element
+my $r; my $x = \$r->{a};
+--- facts
+srefgen 1 exact
+faithful
+
+=== foreach over an element
+my $r; for ($r->{a}) {}
+--- facts
+faithful
+
+=== exists
+my $r; exists $r->{a}{b};
+--- facts
+faithful
+
+=== delete two levels
+my $r; delete $r->{a}{b};
+--- facts
+faithful
+
+=== last index of a deref element
+my $r; my $x = $#{$r->{a}};
+--- facts
+rv2hv 1 wider
+faithful
+
+=== array deref of an element read
+my $r; my @x = @{$r->{a}};
+--- facts
+faithful
+
+=== foreach over a deref element
+my $r; foreach (@{$r->{a}}) {}
+--- facts
+rv2hv 1 exact
+faithful
+
+=== assign to a deref element
+my $r; @{$r->{a}} = (1);
+--- facts
+rv2hv 1 exact
+faithful
+
+=== scalar deref read
+my $r; my $x = ${$r->{a}};
+--- facts
+faithful
+
+=== scalar deref assigned
+my $r; ${$r->{a}} = 1;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== scalar deref incremented after a folded level
+my $r; ${$r->{a}{b}}++;
+--- facts
+faithful
+
+=== scalar deref incremented from @_
+${$_[0]->{a}}++;
+--- facts
+faithful
+
+=== deref element as a sub argument
+my $r; foo(@{$r->{a}});
+--- facts
+rv2hv 1 exact
+faithful
+
+=== chomp
+my $r; chomp(@{$r->{a}});
+--- facts
+rv2hv 1 exact
+faithful
+
+=== grep list
+my $r; my @x = grep { 1 } @{$r->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== map list
+my $r; my @x = map { 1 } @{$r->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== sprintf list
+my $r; my $x = sprintf "%s", @{$r->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== method arguments
+my $r; my $o; $o->m(@{$r->{a}});
+--- facts
+rv2hv 1 exact
+faithful
+
+=== postfix deref read
+my $r; my @x = $r->{a}->@*;
+--- facts
+faithful
+
+=== postfix deref pushed
+my $r; push $r->{a}->@*, 1;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== sort without a block reads
+my $r; my @x = sort @{$r->{a}};
+--- facts
+faithful
+
+=== sort with a block modifies
+my $r; my @x = sort { 1 } @{$r->{a}};
+--- facts
+rv2hv 1 wider
+faithful
+
+=== condition
+my $r; if (@{$r->{a}}) {}
+--- facts
+faithful
+
+=== statement modifier condition
+my $r; print 1 if @{$r->{a}};
+--- facts
+faithful
+
+=== arithmetic
+my $r; my $x = 2 * @{$r->{a}} + @{$r->{b}};
+--- facts
+faithful
+
+=== reference to a deref element
+my $r; my $x = \@{$r->{a}};
+--- facts
+rv2hv 1 exact
+srefgen 1 exact
+faithful
+
+=== array slice of a deref element
+my $r; my @x = @{$r->{a}}[0,1];
+--- facts
+rv2hv 1 exact
+faithful
+
+=== hash slice of a deref element
+my $r; my @x = @{$r->{a}}{qw(a b)};
+--- facts
+rv2hv 2 exact
+faithful
+
+=== element of a scalar deref
+my $r; my $x = ${$r->{a}}[0];
+--- facts
+rv2hv 1 exact
+faithful
+
+=== element key after a folded run
+my $r; my $x = $r->{$x->{y}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== computed key after an array level
+my $r; my $x = $r->[0]{2*$_[0]};
+--- facts
+faithful
+
+=== two computed keys
+my $r; my $x = $r->{"x$r"}{"y$r"};
+--- facts
+rv2hv 2 exact
+faithful
+
+=== constant sub key folds
+sub f(){1} my $r; my $x = $r->{f()};
+--- facts
+faithful
+
+# The review shapes of the arrow-read fix: key spellings and loop heads.
+
+=== negated variable key
+my $h; my $k; my $y = $h->{-$k};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== negated variable key before a folded level
+my $h; my $k; my $y = $h->{-$k}{a};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== negated variable key last under push
+my $h; my $k; push @{$h->{a}{-$k}},1;
+--- facts
+faithful
+
+=== negative number key
+my $h; my $y = $h->{-1}{a};
+--- facts
+faithful
+
+=== unary plus key
+my $h; my $k; my $y = $h->{+$k};
+--- facts
+faithful
+
+=== braced scalar key
+my $h; my $y = $h->{${k}};
+--- facts
+faithful
+
+=== caret scalar key
+my $h; my $y = $h->{${^W}};
+--- facts
+faithful
+
+=== literal sum key
+my $h; my $y = $h->{1+1}{a};
+--- facts
+faithful
+
+=== literal concatenation key
+my $h; my $y = $h->{"a"."b"}{c};
+--- facts
+faithful
+
+=== filetest spelling key
+my $h; my $y = $h->{-x};
+--- facts
+faithful
+
+=== filetest spelling key pushed
+my $h; push @{$h->{-x}}, 1;
+--- facts
+rv2hv 1 exact
+faithful
+
+=== builtin over a variable key
+my $h; my $y = $h->{lc $h};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== scalar of a deref key
+my $h; my $y = $h->{scalar @$h};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== statement-modifier for
+my $h; print for @{$h->{a}{b}};
+--- facts
+rv2hv 2 exact
+faithful
+
+=== statement-modifier foreach
+my $h; print foreach @{$h->{a}};
+--- facts
+rv2hv 1 exact
+faithful
+
+=== C-style for condition
+my $h; for (;@{$h->{a}{b}};) {}
+--- facts
+faithful
+
+=== C-style for hash condition
+my $h; for (;%{$h->{a}};){}
+--- facts
+rv2hv 1 exact
+faithful
+
+=== C-style for step
+my $h; for (;;@{$h->{a}{b}}){}
+--- facts
+faithful
+
+=== C-style for postfix condition
+my $h; for (;$h->{a}->@*;){}
+--- facts
+faithful

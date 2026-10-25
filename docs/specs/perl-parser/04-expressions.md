@@ -1146,11 +1146,23 @@ type Repeat struct {
 Do not normalise away the `Paren` bit before this decision is made. This is a
 common source of bugs in Perl parsers that eagerly unwrap parentheses.
 
-Measured 2026-09-17 at 3b9422eb: `internal/parse/term.go:284-293` does
-exactly this — `finishList` returns the single item with the parens' span,
-and `($x);` parses to `[statement [term "$x"]]` with no `Paren` node. It
-round-trips, because round-trip cannot see structure (chapter 7 §7.2(c)).
-No issue tracked it at the time of measurement; chapter 6 §6.1.8 lists it.
+psc keeps it: `finishList` (`internal/parse/term.go`) returns the single item
+with the parens' span and `Paren` set, so `($x) x 3` and `$x x 3` are
+different trees (§4.14.3's `Paren` row).
+
+Where a paren does not change meaning, perl builds the same ops and keeps
+the paren as one boolean bit, OPf_PARENS (`P` in Concise), on the op it
+wraps. Measured on perl 5.44.0: `my $z = ($x)` is `padsv sP` and `my $z =
+$x` is `padsv s`; `ok(($y eq "x"))` and `ok((($y eq "x")))` are both `seq
+sKPM`, and `ok($y eq "x")` is `seq sKM`. So `Paren` is a bool, and canon
+writes a `Paren` node's parens once: `(($x))` re-emits as `($x)`.
+`Faithful` forgives exactly two differences (perigrin's ruling, 2026-10-23):
+a block's last `;`, and a source pair nested directly inside the pair canon
+wrote for a node's `Paren` flag. A call's argument pair is not such a pair:
+`print ((1))+2` is `const[IV 1] sP` and `print (1)+2` is `const[IV 1] s`,
+so the one is not forgiven against the other. Nor is nesting forgiven down
+to no pair: `(($y)) x 3` and `($y) x 3` are both the list repeat, and
+`$y x 3` is the string repeat.
 
 ---
 

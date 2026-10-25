@@ -46,21 +46,21 @@ func TestSubNameSpellings(t *testing.T) {
 // TestSubNameSpellingsResolve holds issue 01a0df59's table in the issue's own
 // spellings, a single argument, by the tree each one builds. A resolved
 // parenless call is a call node with its argument as a child, and canon
-// writes it with parentheses; an unresolved one refuses and canon writes it
-// back bare. Measured on perl 5.42.0, Deparse spells every cross-spelling
-// pair `sub ok {1;} ok 1;`.
+// writes it bare, as the source did; an unresolved one refuses, and the
+// shape is what tells the two apart. Measured on perl 5.42.0, Deparse spells
+// every cross-spelling pair `sub ok {1;} ok 1;`.
 func TestSubNameSpellingsResolve(t *testing.T) {
 	for _, tc := range []struct{ src, shape, canon string }{
 		// The three cross-spelling pairs the issue requires.
-		{"sub ok {1} ::ok 1;", "( ( (sub ok ( ( 1))))  ( (::ok 1)))", "sub ok {1;} ::ok(1);"},
-		{"sub main::ok {1} ok 1;", "( ( (sub main::ok ( ( 1))))  ( (ok 1)))", "sub main::ok {1;} ok(1);"},
-		{"sub ok {1} main::ok 1;", "( ( (sub ok ( ( 1))))  ( (main::ok 1)))", "sub ok {1;} main::ok(1);"},
+		{"sub ok {1} ::ok 1;", "( ( (sub ok ( ( 1))))  ( (::ok 1)))", "sub ok {1;} ::ok 1;"},
+		{"sub main::ok {1} ok 1;", "( ( (sub main::ok ( ( 1))))  ( (ok 1)))", "sub main::ok {1;} ok 1;"},
+		{"sub ok {1} main::ok 1;", "( ( (sub ok ( ( 1))))  ( (main::ok 1)))", "sub ok {1;} main::ok 1;"},
 
 		// REGRESSION GUARD: the three byte-identical pairs, which always
 		// resolved.
-		{"sub ok {1} ok 1;", "( ( (sub ok ( ( 1))))  ( (ok 1)))", "sub ok {1;} ok(1);"},
-		{"sub main::ok {1} main::ok 1;", "( ( (sub main::ok ( ( 1))))  ( (main::ok 1)))", "sub main::ok {1;} main::ok(1);"},
-		{"sub Foo::bar {1} Foo::bar 1;", "( ( (sub Foo::bar ( ( 1))))  ( (Foo::bar 1)))", "sub Foo::bar {1;} Foo::bar(1);"},
+		{"sub ok {1} ok 1;", "( ( (sub ok ( ( 1))))  ( (ok 1)))", "sub ok {1;} ok 1;"},
+		{"sub main::ok {1} main::ok 1;", "( ( (sub main::ok ( ( 1))))  ( (main::ok 1)))", "sub main::ok {1;} main::ok 1;"},
+		{"sub Foo::bar {1} Foo::bar 1;", "( ( (sub Foo::bar ( ( 1))))  ( (Foo::bar 1)))", "sub Foo::bar {1;} Foo::bar 1;"},
 	} {
 		n := parse.Parse([]byte(tc.src))
 		if got := countUnknown(n); got != 0 {

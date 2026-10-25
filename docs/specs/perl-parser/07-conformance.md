@@ -305,7 +305,9 @@ mis-grouped tree:
   is: pure Go, no perl, every file participates.
 
   `canon` emits the structure the tree asserts — **parenthesisation implied
-  by the tree, never the parens seen in the source**. That constraint is the
+  by the tree**. A source paren perl keeps is in the tree: a `Paren` node
+  is written with one pair, as perl's op carries one OPf_PARENS bit, and
+  the source's extra nesting is not written. That constraint is the
   whole mechanism. An emitter that prints each leaf's original text in order
   is `emit` with extra steps: it round-trips by construction and proves
   nothing. An emitter that must write out its own grouping has to write a
@@ -764,9 +766,16 @@ not a wrong answer, and scores `no-answer`.
 `perl -c` convention — exit non-zero for a file that does not compile — does
 not apply here. A subject exits 0 and says `"ok": false` for a file it rejects;
 that is a verdict, and it scores `no-answer`. A non-zero exit, a timeout, output
-that is not a JSON object, or a document with no `ok` field is a **runner
-error**: the file leaves the denominator and the subject's stderr is reported
-alongside the exit status. Recording a crash as a rejection would put a parser
+that is not a JSON object, or a document with no `ok` field is a **subject
+error**: perl answered and the subject did not, so the file stays in the
+denominator as a whole-file `no-answer`, every one of perl's marker sites
+counts as `no-answer`, and the report names the file under "subject error
+files:" with the subject's stderr alongside the exit status. An oracle-side
+failure is a **runner error** and leaves the denominator. The baseline freezes
+a subject error as `subject-error` rather than `no-answer`, so a crash cannot
+hide among refusals, and a harness failure on the subject's side -- a default
+subject that will not build, or a subject with no command -- is a runner
+error, because no parser was asked. Recording a crash as a rejection would put a parser
 opinion in the report that no parser held.
 
 **The subject runs where the oracle runs.** It is invoked from the corpus

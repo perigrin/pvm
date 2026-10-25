@@ -39,24 +39,26 @@ import (
 func TestParenlessBuiltinArity(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		// atan2 is a two-argument list operator.
-		{"my $d = atan2 $var, 1;", "my $d = atan2($var , 1);"},
-		{"$dummy = atan2 $var, 1;", "$dummy = atan2($var , 1);"},
+		{"my $d = atan2 $var, 1;", "my $d = atan2 $var, 1;"},
+		{"$dummy = atan2 $var, 1;", "$dummy = atan2 $var, 1;"},
 
 		// readpipe and glob are named unaries: the comma stays outside, so
 		// the second element belongs to the enclosing list, not to the call.
-		{"my $out = readpipe $cmd;", "my $out = readpipe($cmd);"},
-		{"my @f = glob $pattern;", "my @f = glob($pattern);"},
+		// Named unaries are written bare; perl 5.44.0 Deparse,-p:
+		// (my($out) = `$cmd`) and ((my($n) = ord($char)), '???').
+		{"my $out = readpipe $cmd;", "my $out = readpipe $cmd;"},
+		{"my @f = glob $pattern;", "my @f = glob $pattern;"},
 
 		// REGRESSION GUARD: three list operators already tabled. These pass
 		// today and must keep passing -- a table edit that reclassified one
 		// of them would show here.
-		{"my $i = index $str, $sub;", "my $i = index($str , $sub);"},
-		{"my $s = sprintf $fmt, $x;", "my $s = sprintf($fmt , $x);"},
-		{"my $c = crypt $pw, $salt;", "my $c = crypt($pw , $salt);"},
+		{"my $i = index $str, $sub;", "my $i = index $str, $sub;"},
+		{"my $s = sprintf $fmt, $x;", "my $s = sprintf $fmt, $x;"},
+		{"my $c = crypt $pw, $salt;", "my $c = crypt $pw, $salt;"},
 
 		// REGRESSION GUARD: a named unary already tabled keeps the comma
 		// outside, so `ord $a, $b` is `ord($a), $b` and NOT `ord($a, $b)`.
-		{"my $n = ord $char, 1;", "my $n = ord($char) , 1;"},
+		{"my $n = ord $char, 1;", "my $n = ord $char, 1;"},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		got := parse.Canon(root, []byte(tc.src))

@@ -58,7 +58,7 @@ func (l *lowerer) sliceIdx(n *parse.Node) Node {
 // not one.
 func sliceKindOf(n *parse.Node) (SliceKind, bool) {
 	base := n.Children[0]
-	if !n.Arrow && (base.Paren || base.Kind == parse.List || isQw(base)) {
+	if !n.Arrow && (base.Paren || base.SyntaxParen || base.Kind == parse.List || isQw(base)) {
 		return SliceList, true
 	}
 	if (base.Kind != parse.Term && base.Kind != parse.Unary) || base.Text == "" {

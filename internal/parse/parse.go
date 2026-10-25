@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"maps"
 	"sort"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -337,6 +338,22 @@ type Node struct {
 	// 25.3% of T1's Index nodes are the arrow form.
 	Arrow bool
 
+	// NameBraces is set on an Index whose base variable's name the source
+	// wrote inside a sigil's braces with the subscripts, toke.c's `${foo[0]}`
+	// notation: `@{ foo {"a"} }` is the slice `@foo{"a"}`. Canon writes the
+	// braces back, `@{foo{"a"}}`. See bracedSubscriptedName.
+	NameBraces bool
+
+	// DerefBraces is set on a dereference Unary whose operand the source
+	// wrote inside the sigil's braces, `@{$x}` rather than `@$x`. The
+	// braces are spelling: measured on perl 5.44.0, `my @x = @{$r}` builds
+	// a nulled `scope` and `ex-nextstate` around the `padsv` that `my @x =
+	// @$r` builds bare, so the ops that run are the same. Canon writes them
+	// back where the source had them. Only a flag: Kind, Text and children
+	// are the braceless spelling's, so nothing that reads the tree's shape
+	// sees it (TestDerefBraceFlagClearedEqualsBracelessTree).
+	DerefBraces bool
+
 	// Paren is set on a node the source wrapped in grouping parentheses.
 	//
 	// Two of Perl's rules turn on it, so it is not decoration. §4.10, list
@@ -347,6 +364,23 @@ type Node struct {
 	// Not set for a call's parens: `f($y)` has no grouping in it, and
 	// marking it would make every call look like a list assignment target.
 	Paren bool
+
+	// SyntaxParen is set on a node standing in a pair the syntax requires
+	// rather than a grouping: an arrow call's arguments, `$f->(...)`;
+	// `not (...)`; and a list slice's list, `(...)[...]`. perl keeps no
+	// OPf_PARENS bit for that pair -- measured on perl 5.44.0, `$f->($x)`
+	// is `ex-rv2sv sKM`, `not ($a == 1)` is `eq sK` and `(@a)[0]` is
+	// `padav l` -- so it is not Paren. A pair the source nested inside it
+	// is a grouping, and sets Paren as anywhere else: `$f->(($x))` is
+	// `ex-rv2sv sKPM`. So Paren holds perl's bit, and canon writes the
+	// syntax's pair unmarked and a Paren pair marked.
+	SyntaxParen bool
+
+	// nestedParen is set by finishList on a node whose parens enclose
+	// another pair around the same node, `((x))` or `((x),)`. When the outer
+	// pair turns out to be the syntax's (takeSyntaxPair), the inner one is
+	// still a grouping. Parser state, not read outside it.
+	nestedParen bool
 
 	// InnerStart and InnerEnd are, on a node with Paren, its span before
 	// the grouping parens widened it: `(localtime)` starts and ends at the
@@ -404,9 +438,17 @@ type Node struct {
 	// Indirect is set on a Call written in indirect object notation --
 	// `new Foo ARGS`, `doit $obj ARGS` -- whose FIRST child is the invocant
 	// and the rest the arguments. The children stay in source order, which
-	// puts the invocant after the method name; canon writes the arrow form
-	// perl's Deparse writes, `'Foo'->new(ARGS)`. See parseIndirect.
+	// puts the invocant after the method name, and canon writes them in that
+	// order, as the source did. See parseIndirect.
 	Indirect bool
+
+	// NamedUnary marks a Call the parser read as a named unary op: a builtin
+	// of the unary shape, a file test, or a sub this file can see whose
+	// prototype makes it unary. ArgParen marks a Call whose source wrote
+	// `NAME(`, the FUNC1 form; it is the argument list's parens, where Paren
+	// is the node's own grouping. Canon writes a named unary's parens only
+	// from ArgParen and binding power.
+	NamedUnary, ArgParen bool
 
 	// Modifier is set on a Conditional or Loop built from a STATEMENT
 	// MODIFIER -- `$y = 1 if $x`, `$s += $_ foreach 1..3` -- rather than from
@@ -430,6 +472,12 @@ type Node struct {
 	// stops being a fact about the form. The parser knows which production it
 	// took; the flag records it instead of asking canon to guess.
 	Modifier bool
+
+	// Subless is set on a `sub` Declaration the source wrote without its
+	// keyword, `DESTROY { ... }`: perl reads AUTOLOAD and DESTROY that way
+	// at a statement boundary (parseSpecialSub). Canon writes it back as
+	// written, the way it writes a Paren.
+	Subless bool
 
 	// HeredocBody is set on a Term holding a heredoc's body and terminator
 	// line, which is the one child whose bytes lie AFTER its statement's
@@ -510,6 +558,11 @@ type Node struct {
 	// the tree's shape; canon writes it back so the emission says what the
 	// source says (perigrin, 2026-09-30).
 	TrailingComma string
+	// EndsList is set with TrailingComma when that separator ended a list
+	// before an operator, not before a closer: measured on perl 5.44.0,
+	// `substr $x, 0, 1, = "a"` is `substr($x, 0, 1) = 'a'`. A call whose
+	// last argument has it is written bare whatever follows (emitCallArgs).
+	EndsList bool
 
 	// RefSlot is set on an argument that fills a `\X`, `*` or `+` slot of
 	// its callee's prototype in a way perl compiles as a reference to it:
@@ -763,8 +816,16 @@ type parser struct {
 	// which runs before any binding power exists. Every other parse, a
 	// CORE.tpm read included, derives the powers first.
 	derivingPowers bool
-	typedErrs      []error
-	operators      []operatorDecl
+	// termBP is the minimum binding power the term parseExpr is reading
+	// will be held to: the operand of `\`, `-` or `!` is read at the prefix
+	// operator's power, a list element at the comma's. A declaration read
+	// above the assignment level takes no initialiser (parseVarDeclNoSemi).
+	termBP int
+	// declOperandBP is parseVarDeclOperand's bp, read and cleared by the
+	// parseVarDeclNoSemi it calls.
+	declOperandBP int
+	typedErrs     []error
+	operators     []operatorDecl
 	// relations are the precedence relations stated on named operators'
 	// lines; see declareOperator.
 	relations []operatorDecl
@@ -845,7 +906,11 @@ type parser struct {
 	// imports is what this file's `use` statements brought into scope,
 	// accumulated as they are parsed and lifted onto the root at the end.
 	imports map[string]Import
-	pos     int
+
+	// bodied names, by subKey, each sub this file has declared with a body.
+	// See declareSub.
+	bodied map[string]bool
+	pos    int
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.
@@ -1208,7 +1273,11 @@ func (p *parser) statementForm() *Node {
 			// shape, so a wider reach here would repeat the `defer.t` bug in a
 			// new place. A LoopControl never ends in a block, so the kind test
 			// is the whole condition.
-			if c.Kind == LoopControl {
+			//
+			// So is a word operator over one (parseLoopControl): measured on
+			// perl 5.44.0, `last or print "x" if 1` is valid, the modifier
+			// over the whole `last or print "x"`.
+			if c.Kind == LoopControl || startsWithLoopControl(c) {
 				if mod := p.applyModifier(c, start); mod != nil {
 					return p.withLabels(labels, mod, start)
 				}
@@ -1414,6 +1483,10 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	// it: `package A; { package B; } s2(1)` calls A::s2.
 	pkg := p.pkg
 	defer func() { p.pkg = pkg }()
+	// A lexical sub declared inside lasts to its end too: measured on 5.44.0,
+	// `{ my sub BEGIN {} } BEGIN {...}` runs the phaser.
+	lexical := maps.Clone(p.lexical)
+	defer func() { p.lexical = lexical }()
 
 	for p.pos < len(p.toks) {
 		tok := p.toks[p.pos]
@@ -1654,18 +1727,13 @@ func (p *parser) declarationEnded(d *Node) bool {
 // section's body survives in the tree -- which matters more for a data
 // section than for the rest, because those bytes are what `DATA` yields.
 //
-// WHAT GUARDS THAT IS NOT CANON. An earlier revision of this comment
-// credited the round-trip machinery, and the PAAD gate measured otherwise:
-// excluding the section's bytes from the Trivia span leaves
-// `TestCanon*` AND `TestCorpus` green. Canon cannot see it twice over --
-// `canon.go`'s `case Trivia:` drops trivia unemitted, and
-// `canon_test.go`'s `significant()` skips `lexer.DataSection`, so both
-// sides of the comparison have already discarded the section.
-//
-// The guard is `TestDataSectionIsTrivia`'s `last.End != len(src)`
+// One guard is `TestDataSectionIsTrivia`'s `last.End != len(src)`
 // assertion in `stmt_test.go`, plus a `TestFuzzSeeds` case that catches an
-// empty trivia node. Both fail on that mutation. Naming the wrong guard is
-// how a guarantee quietly stops being one, so it is named here.
+// empty trivia node. Both fail if the section's bytes leave the Trivia
+// span. Canon writes the section back verbatim from that span, and
+// Faithful compares it as a token (perigrin's ruling, 2026-10-25), so
+// TestCanonKeepsDataSection guards it too; `canon_test.go`'s
+// `significant()` still skips it.
 func isTrivia(k lexer.Kind) bool {
 	switch k {
 	case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:

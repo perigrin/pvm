@@ -1,0 +1,147 @@
+`not` written by the follow power (issue 01a1690b-4745). `not` is a term
+(perly.y's `NOTOP listexpr`): nothing before it splits it, and its operand
+runs right until a looser `and`, `or` or `xor`. Canon writes it bare, groups
+it only when a tighter operator follows, and keeps a parenthesised operand's
+parens, which perl reads as `not (X)`, tighter. Each snippet's Deparse,-p is
+perl 5.44.0's.
+
+=== not before a looser or
+not $x or $z;
+--- facts
+faithful
+# ($x and $z);
+# perl's void-context rewrite of `!$x or $z`: `not` took $x alone.
+
+=== not in an initialiser before a looser or
+my $v = not $x or 1;
+--- facts
+faithful
+# ((my $v = (!$x)) or '???');
+
+=== not with a parenthesised operand before a tighter plus
+not ($y) + 1;
+--- facts
+faithful
+# ((!$y) + 1);
+
+=== not with a parenthesised comparison before a tighter plus
+not ($a == 1) + 1;
+--- facts
+faithful
+# ((!($a == 1)) + 1);
+
+=== not takes a tighter comparison
+not $x == 1;
+--- facts
+faithful
+# not(($x == 1));
+
+=== not grouped by the source before a tighter comparison
+(not $x) == 1;
+--- facts
+faithful
+# ((!$x) == 1);
+
+=== not under a list operator
+print not $x;
+--- facts
+faithful
+# print((!$x));
+
+=== not takes the whole comma list under a list operator
+print not $x, $y;
+--- facts
+faithful
+# print((!($x, $y)));
+
+=== not under a high-precedence not
+!not $x;
+--- facts
+faithful
+# not((!$x));
+
+=== not as a ternary's middle part
+$c ? not $x : 1;
+--- facts
+faithful
+# ($c ? (!$x) : '???');
+
+=== not at a right operand takes the comma list
+$a + not $x, $y;
+--- facts
+faithful
+# ($a + (!($x, $y)));
+
+=== not of not
+not not $x;
+--- facts
+faithful
+# not((!$x));
+
+=== not takes a repetition
+not $x x 3;
+--- facts
+faithful
+# not(($x x 3));
+
+=== not inside a parenthesised list
+my @l = (not $x, 1);
+--- facts
+faithful
+# (my(@l) = (!($x, 1)));
+
+=== not grouped before a bracketed list's comma
+my $r = [(not $x), 1];
+--- facts
+faithful
+# (my($r) = [(!$x), 1]);
+
+=== not inside an arrow call's argument parens
+$f->(not $x);
+--- facts
+faithful
+# &$f((!$x));
+
+=== not with a parenthesised operand before a tighter repetition
+not ($x) x 2;
+--- facts
+faithful
+# ((!$x) x 2);
+
+=== a parenthesised not as an arrow call's first argument
+$f->((not $x), 1);
+--- facts
+faithful
+# &$f((!$x), 1);
+
+=== not of a parenthesised sum that opens with a paren
+not ((1) + 1);
+--- facts
+faithful
+# '???';
+# perl folded the constant; with a variable, `not (($y) + 1)` is
+# not(($y + 1)).
+
+=== not as a ternary's last part takes the comma list
+[$c ? 1 : not $x, 2];
+--- facts
+faithful
+# [($c ? 1 : (!($x, 2)))];
+
+=== not takes a ternary holding another not
+not $x ? not $y : $z;
+--- facts
+faithful
+# not(($x ? (!$y) : $z));
+
+=== not after a list operator's filehandle
+print STDOUT not $x;
+--- facts
+faithful
+# print(STDOUT (!$x));
+
+=== not with a parenthesised operand before a subscript arrow
+not ($x)->[0];
+--- facts
+faithful
+# +(!$x)->[0];

@@ -34,7 +34,7 @@ func scanPrototype(l *lexer) bool {
 	//
 	// `:prototype(...)`'s argument is a prototype either way: it is where
 	// the prototype goes when the feature is on.
-	if l.signatures && !l.atPrototypeAttribute() {
+	if (l.signatures || l.methodHead) && !l.atPrototypeAttribute() {
 		l.expectPrototype = false
 		l.sigPending = true
 		return false
@@ -167,6 +167,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case word == "sub" || word == "method" && l.classSyntax:
 			l.sawSubWord = true
 			l.sawPackageWord = false
+			l.methodHead = word == "method"
 			// An ANONYMOUS sub's prototype or signature follows the keyword
 			// directly: `sub (&) { ... }`, `sub ($x) { ... }`. A named one's
 			// follows its name, and the name resets this below. After `->`
@@ -237,6 +238,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 // impossible.
 func (l *lexer) closeDeclHead() {
 	l.sawSubWord = false
+	l.methodHead = false
 	l.sawPackageWord = false
 	l.sawPackageName = false
 	l.expectPrototype = false

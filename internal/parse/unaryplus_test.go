@@ -40,16 +40,19 @@ func TestCanonUnaryPlusIsPlus(t *testing.T) {
 // TestCanonNestedMinusIsNotDecrement is the parser fuzzer's `- -!00`. Two
 // prefix minuses written with nothing between them are `--`, the
 // predecrement: measured on 5.42.0, `print --1` is "Can't modify constant
-// item in predecrement (--)". perl's Deparse writes `- -$x` as `-(-$x)` and
-// `- --$x` as `---$x`, so canon parenthesises an operand whose first byte
-// would join the operator.
+// item in predecrement (--)". canon writes a blank between an operator and
+// an operand whose first byte would join it, not the pair perl's Deparse
+// writes (`-(-$x)`), which the source lacks (issue 01a16602-608d,
+// op/negate.t): measured on perl 5.44.0, the inner negate of `- -$x` is
+// `negate sK` and of `-(-$x)` is `negate sKP`, so the pair is a bit the
+// source's tree does not have.
 func TestCanonNestedMinusIsNotDecrement(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"my $x; - -$x;", "my $x;-(-$x);"},
-		{"my $x; - --$x;", "my $x;-(--$x);"},
-		{"my $x; + +$x;", "my $x;+(+$x);"},
+		{"my $x; - -$x;", "my $x;- -$x;"},
+		{"my $x; - --$x;", "my $x;- --$x;"},
+		{"my $x; + +$x;", "my $x;+ +$x;"},
 		{"my $x; - +$x;", "my $x;-+$x;"},
-		{"- -!0;", "-(-!0);"},
+		{"- -!0;", "- -!0;"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
 		if got != tc.want {
@@ -66,13 +69,13 @@ func TestCanonNestedMinusIsNotDecrement(t *testing.T) {
 // A `!` written against a `~` is `!~`, the negated binding operator:
 // measured on 5.42.0, `! ~$x` compiles as not-of-complement and `!~$x` is
 // "syntax error ... near "!~"". perl's own Deparse writes `!~$x` there,
-// which does not re-read, so canon parenthesises the operand instead, as it
-// does for `- -$x`.
+// which does not re-read, so canon writes a blank between them, as it does
+// for `- -$x`.
 func TestCanonNotOfComplementIsNotNegatedMatch(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"! ~&A", "!(~&A);"},
-		{"my $x; ! ~$x;", "my $x;!(~$x);"},
-		{"my $x; ! ~~$x;", "my $x;!(~~$x);"},
+		{"! ~&A", "! ~&A"},
+		{"my $x; ! ~$x;", "my $x;! ~$x;"},
+		{"my $x; ! ~~$x;", "my $x;! ~~$x;"},
 		{"my $x; !!$x;", "my $x;!!$x;"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))
@@ -89,12 +92,13 @@ func TestCanonNotOfComplementIsNotNegatedMatch(t *testing.T) {
 // TestCanonMinusBeforeAFiletestLetter is the parser fuzzer's `--- A`. A `-`
 // written against a one-letter name is a filetest: measured on 5.42.0 with
 // -MO=Deparse,-p, `print - A()` is `print((-(A())))` but `print -A()` is
-// `print((-A $_))`. Deparse writes the negation as `-(A())`, and so does
-// canon. A longer name joins nothing: `print -foo()` is `print((-foo()))`.
+// `print((-A $_))`. Deparse writes the negation as `-(A())`; canon writes
+// the blank, as the source did. A longer name joins nothing: `print
+// -foo()` is `print((-foo()))`.
 func TestCanonMinusBeforeAFiletestLetter(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"- A();", "-(A());"},
-		{"- f(1);", "-(f(1));"},
+		{"- A();", "- A();"},
+		{"- f(1);", "- f(1);"},
 		{"- foo();", "-foo();"},
 	} {
 		got := strings.TrimSpace(parse.Canon(parse.Parse([]byte(tc.src)), []byte(tc.src)))

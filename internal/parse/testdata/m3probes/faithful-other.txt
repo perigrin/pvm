@@ -1,0 +1,40 @@
+The re-emission work queue's `other` class (issue 01a16795-75e8): rows no
+triage issue's class fits. The class held no rows when 75e8 began
+(faithful_queue.txt's `# causes other = 0` at 99cd2e5d), and
+01a16602-608d emptied the queue, so there was no `other` row to reduce.
+TestPerlGitTFaithfulOnM3Dirs now holds all 347 M3-dir files faithful with
+no exception list.
+
+These rows hold shapes the milestone's context names among the M3-dir
+failures at the M3 start (054e75e6), from mro, lib, uni and op, so a
+regression in one shows here as well as in the walk. Each compiles under
+perl 5.44.0.
+
+=== a source paren around a shift invocant (mro/basic_05_c3.t:32)
+package B; sub foo { 1; } package A; our @ISA = ('B'); sub foo { (shift)->SUPER::foo(@_); }
+--- facts
+faithful
+
+=== a source paren around a call argument (mro/c3_with_overload.t:40)
+sub ok { 1; } my $y = 'x'; ok(($y eq 'x'), 'eq');
+--- facts
+faithful
+
+=== a source paren inside a condition's parens (lib/commonsense.t:12)
+my %Config = (a => 1); if (($Config{a} !~ /z/) ) { print 1; }
+--- facts
+match 1 exact
+faithful
+
+=== a braced hash deref (uni/fold.t, op/sort.t)
+my $a = {}; my @k = sort keys %{$a};
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+
+=== a braced scalar deref (op/gv.t, uni/gv.t)
+my $x = 1; my $r = \$x; print ${$r}, "\n";
+--- facts
+srefgen 1 exact
+faithful

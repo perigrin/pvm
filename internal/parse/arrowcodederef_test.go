@@ -97,7 +97,7 @@ func arrowCallArgs(n *parse.Node, src []byte) []string {
 		out = append(out, arrowCallArgs(c, src)...)
 	}
 	if n.Kind == parse.Binary && n.Text == "->" && len(n.Children) == 2 {
-		if r := n.Children[1]; r.Paren && src[r.Start] == '(' {
+		if r := n.Children[1]; r.SyntaxParen {
 			out = append(out, r.SourceText(src))
 		}
 	}

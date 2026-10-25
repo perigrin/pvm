@@ -29,11 +29,14 @@ func TestInterpreterDefinedSubs(t *testing.T) {
 		src   string
 		canon string
 	}{
-		{`utf8::encode $x;`, `utf8::encode($x);`},
-		{`utf8::upgrade $x if $u;`, `utf8::upgrade($x) if $u;`},
-		{`Internals::SvREADONLY $x, 1;`, `Internals::SvREADONLY($x , 1);`},
-		{`my @l = PerlIO::get_layers $fh;`, `my @l = PerlIO::get_layers($fh);`},
-		{`my $p = re::regexp_pattern $qr;`, `my $p = re::regexp_pattern($qr);`},
+		{`utf8::encode $x;`, `utf8::encode $x;`},
+		{`utf8::upgrade $x if $u;`, `utf8::upgrade $x if $u;`},
+		{`Internals::SvREADONLY $x, 1;`, `Internals::SvREADONLY $x, 1;`},
+		{`my @l = PerlIO::get_layers $fh;`, `my @l = PerlIO::get_layers $fh;`},
+		// re::regexp_pattern's `$` prototype makes it a named unary, which
+		// canon writes bare as the source did; perl 5.44.0 Deparse,-p:
+		// (my($p) = &re::regexp_pattern($qr)).
+		{`my $p = re::regexp_pattern $qr;`, `my $p = re::regexp_pattern $qr;`},
 	}
 	for _, c := range cases {
 		src := []byte(c.src)

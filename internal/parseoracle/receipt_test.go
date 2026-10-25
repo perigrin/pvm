@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/parseoracle"
+	"tamarou.com/pvm/internal/perltest"
 )
 
 const pinPath = "testdata/corpus.pin"
@@ -23,7 +24,7 @@ const pinPath = "testdata/corpus.pin"
 // next step reads.
 func TestReceiptRecordsTheSweep(t *testing.T) {
 	requirePOSIXOracle(t)
-	report := fixtureReport(t)
+	report := runFixture(t, perltest.PinnedPerl(t))
 	base := loadFixtureBaseline(t)
 	if err := base.Check(report); err != nil {
 		t.Fatalf("premise: the fixture must match its baseline: %v", err)
@@ -120,6 +121,45 @@ func TestReceiptVerify(t *testing.T) {
 				t.Errorf("the failure must name %s, got: %v", tc.want, err)
 			}
 		})
+	}
+}
+
+// TestReceiptVerifySites: the sites line is what TestSiteRatchetCorpus adds
+// once it has passed. A receipt without it, or naming other sites rows than
+// the checked-out file's, fails; one that recorded that file passes.
+func TestReceiptVerifySites(t *testing.T) {
+	dir := t.TempDir()
+	sites := filepath.Join(dir, "sites.txt")
+	if err := parseoracle.WriteSiteRows(sites, []string{"site op/a.t srefgen exact 1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var r parseoracle.Receipt
+	if err := r.VerifySites(sites); err == nil || !strings.Contains(err.Error(), "sites") {
+		t.Errorf("a receipt with no sites line must fail naming sites, got: %v", err)
+	}
+	if err := r.RecordSites(sites); err != nil {
+		t.Fatalf("RecordSites: %v", err)
+	}
+	if err := r.VerifySites(sites); err != nil {
+		t.Errorf("a receipt that recorded the sites file must verify against it: %v", err)
+	}
+
+	other := filepath.Join(dir, "other.txt")
+	if err := parseoracle.WriteSiteRows(other, []string{"site op/a.t srefgen wider 1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.VerifySites(other); err == nil {
+		t.Error("a receipt for one sites file verified against another")
+	}
+
+	path := filepath.Join(dir, "receipt.json")
+	if err := r.Write(path); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `"sites"`) {
+		t.Errorf("the receipt JSON carries no sites line:\n%s", raw)
 	}
 }
 

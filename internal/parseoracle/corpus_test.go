@@ -55,7 +55,7 @@ func TestBuildShimCompilesSubT(t *testing.T) {
 	root := corpusRoot(t)
 	shim := t.TempDir()
 
-	if err := parseoracle.BuildShim(root, shim); err != nil {
+	if err := parseoracle.BuildShim("perl", root, shim, ""); err != nil {
 		t.Fatalf("BuildShim: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestShimHasConfigPm(t *testing.T) {
 	root := corpusRoot(t)
 	shim := t.TempDir()
 
-	if err := parseoracle.BuildShim(root, shim); err != nil {
+	if err := parseoracle.BuildShim("perl", root, shim, ""); err != nil {
 		t.Fatalf("BuildShim: %v", err)
 	}
 

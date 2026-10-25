@@ -1,0 +1,483 @@
+Fixtures for the OPf_PARENS check (parens_test.go). perl keeps one boolean
+bit, OPf_PARENS (P in Concise), on the op a source paren enclosed; psc keeps
+Paren on the node. Each snippet is compiled as a file of its own by the
+pinned perl (corpus.pin's interpreter, 5.44.0), and the check compares, per
+statement line, the ops perl marks P with the ops psc's Paren nodes map to.
+
+A line `=== NAME [CLASS ...]` opens a fixture; its source runs to `--- perl`.
+`--- perl` lists the ops perl marks P, one `LINE OP [VAR]` per row, or
+`none` when perl keeps no P for the snippet; VAR is the variable an op
+like padsv or ex-rv2sv reads. `#` lines quote perl 5.44.0's
+-MO=Concise. The structural ops every block and loop carries P on (leave,
+leaveloop, lineseq, scope, and the null over an `if`) are not listed: the
+check excludes them on perl's side.
+
+=== a declared list [list-op]
+my ($a, $b) = @_;
+--- perl
+1 ex-list
+# -        <1> ex-list lKPRM* ->4
+
+=== a declared list and a list assignment [list-op]
+our ($p, $q);
+($p, $q) = (1, 2);
+--- perl
+1 ex-list
+2 ex-list
+2 ex-list
+# -     <1> ex-list vKP ->2
+# -        <1> ex-list lKP ->6
+# -        <1> ex-list lKPRM* ->9
+
+=== a declared one-element list [one-element-list]
+my ($x) = @_;
+--- perl
+1 padsv $x
+# -           <0> padsv[$x:1,2] sPRM*/LVINTRO ->-
+# the ex-list over it is lK, with no P
+
+=== a localised one-element list [one-element-list]
+our $x;
+local ($x) = 1;
+--- perl
+2 ex-rv2sv $x
+# -           <1> ex-rv2sv sKPRM*/LVINTRO,1 ->-
+
+=== a backslash over a parenthesised my array [one-element-list]
+my $r = \(my @a);
+--- perl
+1 padav @a
+# 4              <0> padav[@a:1,2] lPM/LVINTRO ->5
+
+=== a backslash over a parenthesised my scalar [one-element-list]
+my $r = \(my $x);
+--- perl
+1 padsv $x
+# 3              <0> padsv[$x:1,2] sPRM/LVINTRO ->4
+
+=== a parenthesised my scalar assigned to [one-element-list]
+(my $x) = 1;
+--- perl
+1 padsv $x
+# 6           <0> padsv[$x:1,2] sPRM*/LVINTRO ->7
+
+=== a lexical in parens [scalar-op]
+my $x;
+my $z = ($x);
+--- perl
+2 padsv $x
+# 5        <0> padsv[$x:1,3] sP ->6
+
+=== a package variable in parens [scalar-op]
+our $x;
+my $z = ($x);
+--- perl
+2 ex-rv2sv $x
+# -        <1> ex-rv2sv sKP/1 ->4
+
+=== a lexical in doubled parens [doubled scalar-op]
+my $x;
+my $z = (($x));
+--- perl
+2 padsv $x
+# 5        <0> padsv[$x:1,3] sP ->6, as with one pair
+
+=== a comparison in doubled parens as a call argument [doubled call-arg]
+sub ok {}
+our $y;
+ok((($y eq "x")));
+--- perl
+3 seq
+# 8           <2> seq sKPM/2 ->9, as with one pair
+
+=== a comparison in parens as a call argument [call-arg]
+sub ok {}
+our $y;
+ok(($y eq "x"));
+--- perl
+3 seq
+# 8           <2> seq sKPM/2 ->9
+
+=== a call's parens around a parenthesised constant [call-arg doubled]
+print ((1))+2;
+--- perl
+1 const
+# 4           <$> const[IV 1] sP ->5
+
+=== a call's parens around a constant [call-arg single-form]
+print (1)+2;
+--- perl
+none
+# 4           <$> const[IV 1] s ->5: print's pair is its call parens
+
+=== a parenthesised list as a call's argument [ex-list call-arg]
+sub f {}
+f((1,2));
+--- perl
+2 ex-list
+# -           <1> ex-list lKPM ->8
+
+=== a qw list [qw]
+my @a = qw(a b);
+--- perl
+1 ex-list
+# -        <1> ex-list lKP ->6
+
+=== a one-word qw list [qw]
+my @a = qw(a);
+--- perl
+1 const
+# 4           <$> const[PV "a"] sP ->5
+
+=== a qw list in parens [qw doubled]
+my @a = (qw(a b));
+--- perl
+1 ex-list
+# -        <1> ex-list lKP ->6, as without the parens
+
+=== return of a parenthesised list [absorbed]
+sub r {
+  return (1, 2);
+}
+--- perl
+2 return
+# -        <@> return KP ->-: return absorbed the list, and no list op is left
+
+=== return of a doubly parenthesised list [absorbed doubled]
+sub s {
+  return ((1, 2));
+}
+--- perl
+2 return
+# -        <@> return KP ->-
+
+=== return of a parenthesised constant [scalar-op]
+sub t {
+  return (1);
+}
+--- perl
+2 const
+# 2           <$> const[IV 1] sP ->3
+
+=== if, else and do blocks [block]
+our $x;
+if ($x) {
+  my $y = 1;
+  $y++;
+}
+else {
+  my $y = 2;
+  $y++;
+}
+my $r = do { my $z = 1; $z };
+--- perl
+none
+# c           <@> leave vKP ->d, u           <@> leave vKP ->d,
+# k           <@> leave sKP ->l and -     <1> null vKP/1 ->d over the if's
+# `and`: structural, excluded. A one-statement block is `scope vK`, no P.
+
+=== for and while loops [loop]
+for my $i (1, 2) {
+  my $y = ($i);
+  $y++;
+}
+our $x;
+while ($x) {
+  $x--;
+  1;
+}
+--- perl
+2 padsv $i
+# 8                    <0> padsv[$i:2,6] sP ->9
+# g     <2> leaveloop vKP/2 ->h and -              <@> lineseq vKP ->-, on
+# each loop: structural, excluded
+
+=== an arrow call's argument [single-form]
+my $f = sub {};
+our $x;
+$f->($x);
+--- perl
+none
+# -           <1> ex-rv2sv sKM/1 ->8: the pair is the call's
+
+=== an arrow call's argument in doubled parens [doubled]
+my $f = sub {};
+our $x;
+$f->(($x));
+--- perl
+3 ex-rv2sv $x
+# -           <1> ex-rv2sv sKPM/1 ->8
+
+=== an arrow call's arguments [single-form]
+my $f = sub {};
+$f->(1, 2);
+--- perl
+none
+# -        <1> ex-list K ->a: the pair is the call's
+
+=== an arrow call's arguments in doubled parens [doubled ex-list]
+my $f = sub {};
+$f->((1, 2));
+--- perl
+2 ex-list
+# -           <1> ex-list lKPM ->9
+
+=== an arrow call with no arguments [single-form]
+my $f = sub {};
+$f->();
+--- perl
+none
+# -        <1> ex-list K ->8
+
+=== not's parenthesised operand [single-form]
+our $a;
+my $r = not ($a == 1);
+--- perl
+none
+# 5           <2> eq sK/2 ->6: the pair is not's
+
+=== not's operand in doubled parens [doubled]
+our $a;
+my $r = not (($a == 1));
+--- perl
+2 eq
+# 5           <2> eq sKP/2 ->6
+
+=== a parenthesised not [scalar-op]
+our $x;
+my $r = (not $x);
+--- perl
+2 not
+# 4        <1> not sKP/1 ->5
+
+=== a list slice of an array [single-form]
+my @a;
+my @x = (@a)[0];
+--- perl
+none
+# 9                 <0> padav[@a:1,3] l ->a: the pair is the slice's
+
+=== a list slice of an array in doubled parens [doubled]
+my @a;
+my @x = ((@a))[0];
+--- perl
+2 padav @a
+# 9                 <0> padav[@a:1,3] lP ->a
+
+=== a list slice of a list [single-form]
+my $x = (1,2,3)[1];
+--- perl
+none
+# -           <1> ex-list lK ->9
+
+=== a list slice of a list in doubled parens [doubled]
+my $x = ((1,2,3))[1];
+--- perl
+1 ex-list
+# -           <1> ex-list lKP ->9
+
+=== a list slice of stat in doubled parens [doubled]
+my $x = ((stat "/"))[2];
+--- perl
+1 stat
+# 7              <1> stat lKP/1 ->8; `(stat "/")[2]` is stat lK
+
+=== a list slice of caller in doubled parens [doubled]
+my $x = ((caller))[2];
+--- perl
+1 caller
+# 6              <0> caller[t2] lP ->7
+
+=== a list slice of a parenthesised element and a comma [doubled]
+my $x = ((0),)[0];
+--- perl
+1 const
+# 6              <$> const[IV 0] sP ->7; `(0,)[0]` is const[IV 0] s
+
+=== an arrow call's parenthesised argument and a comma [doubled]
+my $f = sub {};
+$f->((0),);
+--- perl
+2 const
+# 7           <$> const[IV 0] sPM ->8: the inner pair is the 0's
+
+=== a parenthesised && [logical]
+our $x;
+my $v = ($x && 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised || [logical]
+our $x;
+my $v = ($x || 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised // [logical]
+our $x;
+my $v = ($x // 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised and [logical]
+our $x;
+my $v = ($x and 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised or [logical]
+our $x;
+my $v = ($x or 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised ternary [logical]
+our $x;
+my $v = ($x ? 1 : 2);
+--- perl
+2 null
+# -        <1> null sKP/1 ->6
+
+=== a parenthesised ||= [logical]
+our $x;
+my $v = ($x ||= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over orassign
+
+=== a parenthesised //= [logical]
+our $x;
+my $v = ($x //= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over dorassign
+
+=== a parenthesised &&= [logical]
+our $x;
+my $v = ($x &&= 1);
+--- perl
+2 null
+# -        <1> null sKP/1 ->7, over andassign
+
+=== a parenthesised do block [logical]
+my $v = (do { 1 });
+--- perl
+1 null
+# -        <1> null sKP*/1 ->4
+
+=== a parenthesised && in void context [logical]
+our $x;
+($x && 1);
+--- perl
+2 null
+# -     <1> null vKP/1 ->5
+
+=== a parenthesised && beside a parenthesised variable [logical]
+our $x;
+my $v = ($x && 1) + ($x);
+--- perl
+2 null
+2 ex-rv2sv $x
+# -           <1> null sKP/1 ->6
+# -           <1> ex-rv2sv sKP/1 ->7
+
+=== two lexicals, one in parens [scalar-op]
+my ($x, $y);
+my $z = ($x) + $y;
+--- perl
+1 list
+2 padsv $x
+# -     <@> list vKP ->4
+# 5           <0> padsv[$x:1,3] sP ->6
+
+=== a declared list in void context [list-op]
+my ($x, $y);
+--- perl
+1 list
+# -     <@> list vKP ->4
+
+=== a declared one-element our list [one-element-list]
+our ($p);
+--- perl
+1 rv2sv $p
+# -     <1> rv2sv vKP/OURINTR,1 ->3
+
+=== an empty list assigned to [list-op]
+sub f {}
+() = f();
+--- perl
+2 stub
+# -           <0> stub lPRM* ->-
+
+=== print of a parenthesised list [absorbed]
+print((1, 2));
+--- perl
+1 print
+# 6     <@> print vKP ->7
+
+=== an anonymous array of a parenthesised list [absorbed]
+my $r = [(1, 2)];
+--- perl
+1 anonlist
+# 6        <@> anonlist sKP*/1 ->7
+
+=== an anonymous hash of a parenthesised list [absorbed]
+my $r = {(a => 1)};
+--- perl
+1 anonhash
+# 6        <@> anonhash sKP*/1 ->7
+
+=== a reference to a parenthesised list [list-op]
+my ($a, $b);
+my $r = \($a, $b);
+--- perl
+1 list
+2 ex-list
+# -     <@> list vKP ->4
+# -           <1> ex-list lKPRM ->6
+
+=== a do block's parenthesised list [list-op]
+my $r = do { (1, 2) };
+--- perl
+1 list
+# 5              <@> list sKP ->6
+
+=== a parenthesised lexical before an arrow subscript [scalar-op]
+my $x;
+my $r = ($x)->[0];
+--- perl
+2 ex-padsv
+# -              <0> ex-padsv sPM/DREFAV ->5
+
+=== a parenthesised arrow element [scalar-op]
+my $x;
+my $r = ($x->[0]);
+--- perl
+2 ex-aelem
+# -        <1> ex-aelem sKP/2 ->6
+
+=== a parenthesised keys [scalar-op]
+my %h;
+my $r = (keys %h);
+--- perl
+2 keys
+# -        <1> keys[t3] sKP/1 ->6
+
+=== a doubly parenthesised sort [doubled]
+my @a;
+my @r = ((sort @a));
+--- perl
+2 sort
+# 8           <@> sort lKP ->9
+
+=== a parenthesised scalar assignment [scalar-op]
+my $x;
+my $r = ($x = 1);
+--- perl
+2 sassign
+# 7        <2> sassign sKPS/2 ->8

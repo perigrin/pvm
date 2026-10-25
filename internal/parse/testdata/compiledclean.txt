@@ -1,0 +1,3 @@
+# ABOUTME: The compiled set's files that do not parse with 0 Unknown, and the clean count over it.
+# ABOUTME: Written by TestParseWithoutErrorOnCompiledCorpus under -parse.update-ratchet; DO NOT EDIT BY HAND.
+# 593/593 clean

@@ -387,16 +387,16 @@ func TestDerefBlockContentsAreDecided(t *testing.T) {
 	for _, c := range []struct {
 		src   string
 		count int
-		// hashHedge is the one hedge a deref of a hash element keeps:
+		// hashHedge is the one hedge a deref of a hash element may keep:
 		// whether perl folds the element into multideref turns on the
-		// context around the deref (TestArrowHashReadHedgesRv2hv), and
-		// that is not something hidden in the block.
+		// context around the deref (TestArrowHashReadHedgesNameTheirShape),
+		// and that is not something hidden in the block.
 		hashHedge bool
 	}{
 		// The anonymous hash inside the deref, which perl reports once.
 		{`my $x = ${[{a=>214}]}[0];`, 1, false},
 		// A deref of a plain variable holds no marker at all.
-		{`my $r = ${$h->{k}};`, 0, true},
+		{`my $r = ${$h->{k}};`, 0, false},
 		{`my @a = @{[ 1, 2 ]};`, 0, false},
 	} {
 		var n int

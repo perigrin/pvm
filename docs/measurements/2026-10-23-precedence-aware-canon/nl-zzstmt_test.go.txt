@@ -1,0 +1,94 @@
+// ABOUTME: Scratch: per-statement Faithful over perl.git t/ under three configs.
+// ABOUTME: Lists statements whose verdict differs between baseline and design.
+package parse
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+)
+
+func TestZZStatements(t *testing.T) {
+	out := os.Getenv("MEASURE_OUT")
+	if out == "" {
+		t.Skip("MEASURE_OUT unset")
+	}
+	root := filepath.Join(os.Getenv("PERL5_CORPUS"), "t")
+	var files []string
+	filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
+		if err == nil && !fi.IsDir() && strings.HasSuffix(p, ".t") {
+			files = append(files, p)
+		}
+		return nil
+	})
+	sort.Strings(files)
+	r := filepath.Dir(root)
+	roots := []string{root, r, filepath.Join(r, "lib")}
+	for _, tree := range []string{"dist", "cpan", "ext"} {
+		libs, _ := filepath.Glob(filepath.Join(r, tree, "*", "lib"))
+		roots = append(roots, libs...)
+	}
+	for _, tree := range []string{"dist", "cpan", "ext"} {
+		roots = append(roots, filepath.Join(r, tree))
+	}
+	measureTC = os.Getenv("TC") != ""
+	defer func() { measureTC = false }()
+	s := NewSession()
+	configs := [][2]bool{{false, false}, {true, false}, {true, true}}
+	counts := make([]int, 3)
+	total := 0
+	var lines []string
+	for _, path := range files {
+		rel, _ := filepath.Rel(root, path)
+		if rel == "comp/final_line_num.t" {
+			continue
+		}
+		n, err := s.ParseFileFrom(path, roots...)
+		if err != nil {
+			continue
+		}
+		src, _ := os.ReadFile(path)
+		var walk func(*Node)
+		walk = func(x *Node) {
+			if x.Kind == Statement && len(heredocBodies(x)) == 0 {
+				total++
+				want := significantTokens(src[x.Start:x.End])
+				var v [3]bool
+				var why [3]string
+				for i, c := range configs {
+					measureRuleOff, measureDesign = c[0], c[1]
+					got := significantTokens([]byte(Canon(x, src)))
+					v[i], why[i] = faithfulStr(want, got)
+					if v[i] {
+						counts[i]++
+					}
+				}
+				if v[0] != v[2] || v[1] != v[2] {
+					measureRuleOff, measureDesign = true, true
+					line := strings.Count(string(src[:x.Start]), "\n") + 1
+					lines = append(lines, fmt.Sprintf("%s:%d\tbase=%v ruleoff=%v design=%v\t%s\t%q\t%q",
+						rel, line, v[0], v[1], v[2], why[2], strings.Join(want, " "), Canon(x, src)))
+				}
+			}
+			for _, c := range x.Children {
+				walk(c)
+			}
+		}
+		walk(n)
+	}
+	measureRuleOff, measureDesign = false, false
+	os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	t.Logf("statements %d: baseline %d ruleoff %d design %d", total, counts[0], counts[1], counts[2])
+}
+
+func faithfulStr(want, got []string) (bool, string) {
+	c := make([]CanonToken, len(got))
+	for i, g := range got {
+		c[i] = CanonToken{Text: g}
+	}
+	ok, _, why := faithfulTokens(want, c)
+	return ok, why
+}

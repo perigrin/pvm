@@ -1,0 +1,43 @@
+# ABOUTME: The M3 starting counts, measured under corpus.pin's interpreter; later criteria compare against these keys.
+# ABOUTME: Append-only: add keys, never edit or reorder a line, since history criteria find each key's commit by its line.
+#
+# compiled is compiled.txt's line count: the files perl -c accepts (with the
+# shebang's taint switch), minus perl.git's perlRejects (comp/final_line_num.t).
+# graded is the files the oracle sweep graded: the 594 non-excluded files less
+# the runner errors (re/pat_psycho.t, at the 8m per-file budget).
+# They are different sets of the same size; nothing compares them as one.
+interpreter = 5.044000
+compiled = 593
+graded = 593
+#
+# faithful_start_all is internal/parse/testdata/perlgittfaithful.ratchet's
+# "# N/619 faithful" N: perl.git t/ files whose canon emission says what the
+# source says, under today's parse.Faithful. faithful_start_m3 is that
+# ratchet's 0 rows under op/ mro/ uni/ lib/ test_pl/.
+faithful_start_all = 342
+faithful_start_m3 = 178
+#
+# rv2hv_wider is sites.txt's `total all rv2hv wider`: the whole corpus's
+# wider rv2hv sites, with op/magic.t's sites still counted as no-answer.
+# m3_exact_pct is the M3 dirs' exact share of their sites (3012 of 3365),
+# recorded for the docs; the floor it is held to is the fixed 80%.
+rv2hv_wider = 396
+m3_exact_pct = 89.51
+#
+# rv2hv_wider_after_magic is sites.txt's `total all rv2hv wider` once the
+# oracle answers op/magic.t: rv2hv_wider plus op/magic.t's 20 wider rv2hv
+# sites, which had counted as no-answer. The arrow-read fix measures its
+# fall from here; rv2hv_wider stays as the pin recorded it.
+rv2hv_wider_after_magic = 416
+#
+# rv2hv_wider_after_arrow is sites.txt's `total all rv2hv wider` once
+# Sites counts a `->{...}` chain's rv2hv by perl's multideref rule
+# (01a12059-30a8): rv2hv_wider_after_magic less the arrow reads and
+# computed keys it now decides.
+rv2hv_wider_after_arrow = 399
+#
+# rv2hv_wider_after_named is sites.txt's `total all rv2hv wider` once
+# Sites decides a named hash's rv2hv from its declaration
+# (01a16602-61a2): rv2hv_wider_after_arrow less the named hashes, slices
+# and elements it now decides.
+rv2hv_wider_after_named = 194

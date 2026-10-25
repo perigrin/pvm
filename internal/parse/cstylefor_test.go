@@ -46,8 +46,8 @@ func TestCStyleForCanon(t *testing.T) {
 
 		// The list forms keep their one parenthesised list, in canon's existing
 		// spelling of it.
-		"for my $i (1,2){}": "for my $i (1 , 2) {}",
-		"for (1,2){}":       "for (1 , 2) {}",
+		"for my $i (1,2){}": "for my $i (1, 2) {}",
+		"for (1,2){}":       "for (1, 2) {}",
 		"while($x){}":       "while ($x) {}",
 	} {
 		b := []byte(src)

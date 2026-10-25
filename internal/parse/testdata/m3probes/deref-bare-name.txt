@@ -1,0 +1,74 @@
+An identifier other than `sub`, then `[` or `{`, inside a sigil's braces is
+the variable's name, as toke.c's scan_ident reads it (issue
+01a16e20-f266-7b4e-a98d-7a9ecbf65690): `@{ foo { "a" } }` is the slice
+`@foo{"a"}`, from uni/variables.t:402. A sub of that name, its prototype and
+`use strict` play no part. Each row's comment quotes perl 5.44.0's
+-MO=Concise or Deparse,-p.
+
+=== uni/variables.t's shape, after an &-prototype sub
+sub foo (&) { [1] }
+my %foo = (a=>2);
+my $ret = @{ foo { "a" } };
+--- facts
+faithful
+# d  <@> hslice sK ->e
+#    b  <$> const[PV "a"] s ->c
+# Deparse,-p: (my($ret) = @foo{'a'});
+
+=== the same with a newline inside the braces
+sub foo (&) { [1] }
+my %foo = (a=>2);
+my $ret = @{
+        foo { "a" }
+    };
+--- facts
+faithful
+# Deparse,-p: (my($ret) = @foo{'a'});
+
+=== a package hash, with no sub
+use strict;
+our %foo = (a=>2);
+my @r = @{ foo { "a" } };
+--- facts
+rv2hv 2 exact
+faithful
+# one rv2hv for the assignment to %foo, and under the hslice:
+# 7  <1> rv2hv[t3] sKR ->8
+
+=== a $-prototype sub and an array element
+sub foo ($) { [1] }
+our @foo = (1);
+my $x = ${ foo [0] };
+--- facts
+faithful
+# Deparse,-p: (my($x) = $foo[0]);
+
+=== a subscript chain and a subscript after the braces
+our %foo;
+my $x = ${ foo {a} {b} };
+my $y = ${ foo {a} }{b};
+--- facts
+rv2hv 1 exact
+faithful
+# Deparse,-p: (my($x) = $foo{'a'}{'b'}); (my($y) = $foo{'a'}{'b'});
+
+=== sub is excluded: a deref of an anonymous sub's result
+my @r = @{ sub {[1]}->() };
+--- facts
+faithful
+
+=== a leading :: is no name: a deref of a call
+our %h;
+my @r = @{ ::foo { $h{b} } };
+--- facts
+rv2hv 1 exact
+faithful
+# perl's one rv2hv is %h's; the braces are rv2av over entersub
+
+=== a leading :: is no name, with a lexical hash inside
+my %h;
+my @r = @{ ::foo { %h } };
+my @s = @{ ::foo {"a"} };
+--- facts
+faithful
+# no rv2hv: rv2av over entersub/method_redir

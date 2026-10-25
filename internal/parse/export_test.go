@@ -2,7 +2,12 @@
 // ABOUTME: Compiled only under go test.
 package parse
 
-import "tamarou.com/pvm/internal/types"
+import (
+	"fmt"
+	"strings"
+
+	"tamarou.com/pvm/internal/types"
+)
 
 // CoreTable is coreTable, for TestCoreDeclarationsArePerls (coretable_test.go): its test asks
 // perl through conformance, which imports this package.
@@ -41,4 +46,53 @@ var CoreSignatures = coreSignatures
 func CoreSignaturesOf(src []byte) (map[string][]types.Signature, error) {
 	_, sigs, err := coreProtos(src)
 	return sigs, err
+}
+
+// FaithfulTokens is faithfulTokens, for TestFaithfulTokens and the
+// closed-set tests (fidelity_test.go).
+var FaithfulTokens = faithfulTokens
+
+// CanonTokens is canonTokens, for TestCanonMarksParenNodePairs
+// (fidelity_test.go).
+var CanonTokens = canonTokens
+
+// DroppedKinds is droppedKinds, for TestFaithfulForgivenessIsClosed
+// (fidelity_test.go).
+var DroppedKinds = droppedKinds
+
+// CoreShapes is coreShapes, for the faithful queue's word categories
+// (faithful_queue_test.go).
+var CoreShapes = coreShapes
+
+// FaithfulStop is where Faithful stops on n: the source and canon token
+// indexes of the first difference it could not forgive, for the faithful
+// queue (faithful_queue_test.go). differs is false on a faithful tree.
+//
+// faithfulTokens names only the source index of a token difference, so the
+// canon index is counted from what it forgave: an extra-nesting paren
+// advances the source alone, a last semicolon the canon alone, and every
+// other step both.
+func FaithfulStop(n *Node, src []byte) (w, g int, differs bool) {
+	ok, forgiven, why := faithfulTokens(significantTokens(src), canonTokens(n, src))
+	if ok {
+		return 0, 0, false
+	}
+	if _, err := fmt.Sscanf(why, "token %d:", &w); err == nil {
+		g = w
+		for _, f := range forgiven {
+			switch f.Rule {
+			case ruleExtraNesting:
+				g--
+			case ruleLastSemicolon:
+				g++
+			}
+		}
+		return w, g, true
+	}
+	if i := strings.LastIndex(why, "(matched "); i >= 0 {
+		if _, err := fmt.Sscanf(why[i:], "(matched %d and %d)", &w, &g); err == nil {
+			return w, g, true
+		}
+	}
+	panic("FaithfulStop: unrecognised verdict " + why)
 }

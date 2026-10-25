@@ -23,13 +23,15 @@ import (
 //	package Thingie;
 //	sub DESTROY { 1; }
 //	sub AUTOLOAD { 2; }
+//
+// Canon writes them back as the source did, without `sub` (Node.Subless).
 func TestSpecialSubWithoutSub(t *testing.T) {
 	cases := []struct {
 		src   string
 		canon string
 	}{
-		{"DESTROY { $messages .= 'destroyed ' }\nf();", "sub DESTROY {$messages .= 'destroyed ';} f();"},
-		{"AUTOLOAD { return 2 }", "sub AUTOLOAD {return 2;}"},
+		{"DESTROY { $messages .= 'destroyed ' }\nf();", "DESTROY {$messages .= 'destroyed ';} f();"},
+		{"AUTOLOAD { return 2 }", "AUTOLOAD {return 2;}"},
 	}
 	for _, c := range cases {
 		src := []byte(c.src)

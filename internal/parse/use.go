@@ -27,6 +27,13 @@ var phasers = map[string]bool{
 
 // parseTheRest handles the statement forms this issue owns, or returns nil.
 func (p *parser) parseTheRest(word lexer.Token) *Node {
+	// A lexical sub of the same bare name shadows each of these words: toke.c
+	// looks a word up in the pad before its keyword table. Measured on
+	// 5.44.0, `state sub END {...} END("a")` calls the sub, and `my sub
+	// require`, `use`, `class` likewise; `CORE::END` still names the phaser.
+	if _, lex := p.lexical[p.text(word)]; lex {
+		return nil
+	}
 	text := keywordName(p.text(word))
 	switch {
 	case text == "use" || text == "no" || text == "require":
@@ -243,7 +250,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			return
 		}
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" {
+			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" || name == "switch" {
 				p.features[name] = verb == "use"
 			}
 			if name == "indirect" {
@@ -259,6 +266,14 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			// current_sub is in the same bundle: measured, `use v5.16;
 			// __SUB__ + 1` deparses as `(__SUB__ + 1)`, the builtin.
 			p.features["current_sub"] = true
+		}
+		// The 5.10 to 5.34 bundles hold `switch`, and 5.36's drops it, so a
+		// later `use v5.36` turns it off again --
+		// measured on perl 5.44.0, under `use v5.10` and `use v5.34` `last
+		// default` is a syntax error, `default` the keyword, and under `use
+		// v5.36` it names a label.
+		if ok && (major > 5 || major == 5 && minor >= 9) {
+			p.features["switch"] = major == 5 && minor < 35
 		}
 		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
 		// Foo;` is a syntax error on 5.42.0.
@@ -1021,7 +1036,7 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
 		return nil
 	}
 	p.advanceTo(word)
-	n := &Node{Kind: Declaration, Text: "sub", Start: word.Start}
+	n := &Node{Kind: Declaration, Text: "sub", Subless: true, Start: word.Start}
 	n.Children = append(n.Children, &Node{
 		Kind: Term, Text: p.text(word), Start: word.Start, End: word.End,
 	})

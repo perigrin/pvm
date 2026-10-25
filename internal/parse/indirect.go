@@ -112,6 +112,7 @@ func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Tok
 	// otherwise -- toke.c's METHCALL and METHCALL0.
 	if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
 		p.advanceTo(open)
+		n.ArgParen = true
 		if arg := p.parseCallArgs(); arg != nil {
 			n.Children = append(n.Children, arg)
 		}

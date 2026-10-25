@@ -71,7 +71,7 @@ func TestGlobOfPunctuationVariable(t *testing.T) {
 	}{
 		{"*OUTPUT_AUTOFLUSH = *|;", "*OUTPUT_AUTOFLUSH = *|;", []string{"*|"}},
 		{"*OFS = *,;", "*OFS = *,;", []string{"*,"}},
-		{"f(*|, *,);", "f(*| , *,);", []string{"*|", "*,"}},
+		{"f(*|, *,);", "f(*|, *,);", []string{"*|", "*,"}},
 		{"my $x = [*,, *;];", "my $x = [*,, *;];", []string{"*,", "*;"}},
 		{"local *, = *;;", "local *, = *;;", []string{"*,", "*;"}},
 		{"my $x = *0;", "my $x = *0;", []string{"*0"}},

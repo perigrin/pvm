@@ -1,0 +1,20 @@
+// ABOUTME: Scratch: prints CORE.tpm's named-unary set and the named-unary power.
+// ABOUTME: Internal test so it can read coreShapes and bpNamedUnary.
+package parse
+
+import (
+	"sort"
+	"testing"
+)
+
+func TestZZShapes(t *testing.T) {
+	var u []string
+	for k, v := range coreShapes() {
+		if v == ShapeUnary {
+			u = append(u, k)
+		}
+	}
+	sort.Strings(u)
+	t.Logf("%d unary: %v", len(u), u)
+	t.Logf("bpNamedUnary=%d bpListOp=%d not=%d ||=%d or=%d eq=%d <=%d +=%d .=%d *=%d <<=%d", bpNamedUnary, bpListOp, prefix["not"], infix["||"].BP, infix["or"].BP, infix["eq"].BP, infix["<"].BP, infix["+"].BP, infix["."].BP, infix["*"].BP, infix["<<"].BP)
+}

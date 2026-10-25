@@ -456,6 +456,52 @@ oracle stops being a reason not to re-run.
 
 ## 0.11 Fidelity across the whole corpus, measured
 
+### Judged by perl 5.44.0
+
+*2026-10-23. Corpus `perl5` at `94e5086608`, interpreter 5.44.0.*
+
+perigrin's ruling moved the oracle's pin from 5.42.0 to 5.44.0, which
+compiles every non-excluded file of this blead 5.45 corpus. Five files that
+5.42 could not compile, and so left without an answer, are graded now; no
+file moved the other way.
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 536 | 90.4% |
+| wider | 43 | 7.3% |
+| **WRONG** | **0** | **0.0%** |
+| no-answer | 14 | 2.4% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+no-answer → exact: `class/inherit.t`, `class/method.t`, `op/signatures.t`.
+no-answer → wider: `op/for-many.t`, `perf/opcount.t`. The runner error is
+`re/pat_psycho.t`, at the 8m per-file budget, as before.
+
+perl 5.44.0 segfaults on `defined &main::INIT` once `use constant INIT => 5`
+has left a constant proxy in the stash (rc 139; 5.42.0 answers true).
+`op/blocks.t` declares exactly that, and the oracle's probe asked `defined &`
+of every stash entry, so its walk died and the file read exact → no-answer
+until the probe answered a proxy as the constant sub it is, prototype `""`.
+
+`op/magic.t` read no-answer although perl compiles it. The oracle takes
+"did it compile" from its `-MO=Concise,-exec` run, whose backend runs in a
+CHECK block after the file's BEGIN has set `$SIG{__WARN__}` to die.
+B::Concise warns "Deep recursion" walking a statement chain through 99
+or more LOGOPs, and the file's handler turned Concise's own warning into
+"CHECK failed". The oracle now removes that handler in a CHECK block that
+runs just before the backend, after the file's own CHECKs, and the file
+moved no-answer → wider: its 46 sites are 26 exact and 20 wider (rv2hv).
+
+Counting a `->{...}` chain's rv2hv by perl's multideref rule (01a12059-30a8,
+below) moved `japh/abigail.t` and `op/sprintf2.t` wider → exact, and the
+corpus's wider rv2hv sites from 416 to 399.
+
+Deciding a named hash's rv2hv from its declaration (01a16602-61a2, below)
+moved 42 files wider → exact, and the corpus's wider rv2hv sites from 399
+to 194.
+
 ### WRONG pin removed: the corpus holds no WRONG file
 
 *2026-10-09. Corpus `perl5` at `94e5086608`, interpreter 5.42.0.*
@@ -529,19 +575,82 @@ sub f(){1} my $p; $p->{f()};        multideref
 my $p; my $x = $p->{a}{f()};        helem multideref
 ```
 
-Two things keep the rv2hv, and neither is in the text. A dereferenced
-element keeps it, at every level of the chain, when the context around the
-dereference modifies or vivifies it (push, chomp, grep, map, foreach, a
-sub's arguments, keys, assignment) -- perl's op_lvalue, not the source. A
-key that is not a constant or a plain scalar keeps it unless it
-constant-folds, which turns on declarations, or the element below it
-folded. Sites now hedges rv2hv for a hash element that is the whole
-operand of `@{}`, `%{}`, `${}` or `->@*`/`->%*`/`->$*`/`->$#*`, and for a
-brace subscript through a reference whose key is anything but a constant
-or a plain scalar. Simple-key chains read in place stay decided as no
-rv2hv. The chained `@{$r->{x}{$k}}` and `@{$a[0]{$k}}` no longer decide
-the one hash site the bare `@{$::{$k}}` stash deref does: perl emits two
-or none there, by context. The exact rule is issue 01a12059-30a8.
+The rule, decided by issue 01a12059-30a8 and measured on perl 5.44.0
+(`internal/parse/arrowhashread_test.go`,
+`internal/parse/testdata/m3probes/arrow-hash-read.txt`):
+
+- multideref folds a chain's subscripts in runs. A key it cannot hold --
+  not a constant or a plain scalar -- ends the run. That level keeps its
+  rv2hv unless the run before it folded something, whose multideref then
+  hands over the hash itself (`multideref($r->{"a"}->)`).
+- What is done with the dereference around the chain decides the last
+  level, through perl's op_lvalue. A read (an initialiser, the right of
+  `=`, arithmetic, a condition, print, join, reverse, scalar, return)
+  leaves it alone, and the chain folds. A modified `${...}` (`++`, the
+  left of `=`, `\`) leaves the last level out of multideref, which keeps
+  its rv2hv only if nothing before it folded. A modified `@{...}` or
+  `%{...}` (push, unshift, splice, pop, shift, chomp, chop, keys, values,
+  each, grep and map lists, foreach and statement-modifier `for` lists,
+  sprintf lists, a sub's or method's
+  arguments, `\`, local, the left of `=`) or a slice of either keeps the
+  whole run holding the last level unfolded, and every brace level of it
+  keeps its rv2hv.
+
+Sites counts the rv2hv of every chain by this rule (`chainRv2hv`,
+`derefContext`). The shapes that still hedge, each named in
+TestArrowHashReadHedgesNameTheirShape: a key that is a call or anything
+else that might constant-fold (`sub f(){1}` folds `$r->{f()}`), a
+dereference in a context not measured (void, sort, `->$#*`, a C-style
+for's head), and `$#{ $r->{k} }`, which the lexer reads as one token
+(01a0ad52).
+
+### A named hash's rv2hv follows its declaration
+
+*2026-10-24. Corpus `perl5` at `94e5086608`, interpreter 5.44.0.*
+
+A `%h`, `$h{...}` or `@h{...}` is padhv, with no rv2hv, when a `my`, a
+`field`, a signature parameter or a `state` with its feature on declares
+%h, and rv2hv for a package hash: an `our`, a `local`, or no declaration
+at all. With the feature off, perl reads `state %h` as `state % h`, and
+the later `%h` is the package's. An element of a package hash folds into
+multideref as an element through a reference does, so `chainRv2hv`
+counts it as one more level; a slice reads the hash once; `delete local`
+keeps the last level out of multideref as a modified `${...}` does
+(`internal/parse/hashhedge_test.go`,
+`internal/parse/testdata/m3probes/named-hash-decl.txt`).
+
+A use hedges where the declaration may not be in the file: after a
+module's import or a BEGIN block that loads or calls code, either of which
+may declare a lexical %h with `builtin::export_lexically` (measured:
+`use Lx; keys %h` is padhv when Lx exports %h), where code the parser did
+not read names %h, and where a module or BEGIN may have changed the state
+or signatures feature. Every rv2hv hedge names its reason from a closed
+set (`TestEveryRv2hvHedgeNamesItsReason`).
+
+A per-fix review then found keys and conditions the text cannot settle,
+each measured on 5.44.0 and now hedged rather than decided:
+
+- a numeric op over a string does not fold, since it would warn:
+  `$r->{"a" << 1}` and `$r->{1+"a"}` keep their rv2hv;
+- after a module's import or a BEGIN block, a literal key may be an
+  object: `use bigint; $r->{1}` keeps its rv2hv, and an
+  `overload::constant q` handler does the same to `$r->{"a"}`;
+- `length` and `join` may be overridden (`use subs`, `CORE::GLOBAL::`);
+- perl folds away a branch under a constant condition, so
+  `our %h; if (0) { keys %h }` counts only the declaration, and a `?:`
+  under a dereference counts one branch when its condition is constant;
+- `use parent` and `use base` load code, as do a quiet pragma's computed
+  arguments, `sub BEGIN`, and a call through a code reference in BEGIN.
+
+A space after a sigil and a braced name, `% h` and `%{ h }`, name the
+hash as `%h` does.
+
+Removing the named hashes' hedges uncovered four WRONG sites in
+`op/ref.t` (928, 938) they had covered: perl passes a modified
+dereference's context into both branches of a `?:` (GH 18669), so
+`push @{ $c ? $x->{a} : $x->{b} }` keeps two rv2hv. Each branch is now
+counted in the dereference's context; a `do` or `eval` block, `scalar`
+and a list under a modified dereference hedge.
 
 Four files moved, all to a better bucket; no exact file moved.
 - WRONG → wider: `japh/abigail.t` (`@{$program -> {SKIP_OS}}` at 191, 193,

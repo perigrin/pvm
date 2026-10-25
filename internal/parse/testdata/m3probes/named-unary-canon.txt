@@ -1,0 +1,164 @@
+Named unary ops written by precedence (issue 01a1690b-1d10). Canon writes a
+named unary bare where the source wrote it bare, with its call parens where
+the source wrote `NAME(` (the ArgParen flag) or where the operator after it
+is tighter than a named unary. Each snippet's Deparse,-p is perl 5.44.0's.
+
+=== defined before a looser or
+defined $x || $y;
+--- facts
+faithful
+# (defined($x) or $y);
+
+=== ref before eq
+ref $x eq 'A';
+--- facts
+faithful
+# (ref($x) eq 'A');
+
+=== defined under not
+!defined $x;
+--- facts
+faithful
+# not(defined($x));
+
+=== lc at a right operand
+$a . lc $b;
+--- facts
+faithful
+# ($a . lc($b));
+
+=== chdir with a filetest modifier
+chdir 't' if -d 't';
+--- facts
+faithful
+# chdir('t') if (-d 't');
+
+=== shift with no operand
+shift;
+--- facts
+faithful
+# shift(@ARGV);
+
+=== filetest with an operand
+-e $f;
+--- facts
+faithful
+# (-e $f);
+
+=== defined with the source's call parens
+defined($x) || $y;
+--- facts
+faithful
+# (defined($x) or $y);
+
+=== exists on a hash element
+exists $h{a};
+--- facts
+faithful
+# exists $h{'a'};
+
+=== defined absorbs a tighter power
+defined $x ** 2;
+--- facts
+faithful
+# defined(($x ** 2));
+
+=== defined keeps its parens before a tighter power
+defined($x) ** 2;
+--- facts
+faithful
+# (defined($x) ** 2);
+
+=== defined with a space before its call parens
+defined ($x) . "a";
+--- facts
+faithful
+# (defined($x) . 'a');
+
+=== a visible unary prototype
+sub one($){1} one $x, 2;
+--- facts
+faithful
+# (one($x), '???');
+
+=== a builtin unary import
+use builtin qw(blessed); blessed $o, 1;
+--- facts
+faithful
+# (builtin::blessed($o), '???');
+
+=== method names are not named unaries
+$o->shift(1); $o->keys;
+--- facts
+faithful
+# $o->shift(1); $o->keys;
+
+=== pos as an assignment target
+pos $s = 1;
+--- facts
+faithful
+# (pos($s) = 1);
+
+=== ord absorbs a shift
+ord $x << 2;
+--- facts
+faithful
+# ord(($x << 2));
+
+=== lc absorbs a binding match
+lc $x =~ /a/;
+--- facts
+match 1 exact
+faithful
+# lc(($x =~ /a/));
+
+=== a unary plus before a parenthesised operand is not call parens
+defined +($x) . 1;
+--- facts
+faithful
+# defined(($x . '1'));
+
+=== a named unary as a hash key is a string
+$h{shift};
+--- facts
+faithful
+# $h{'shift'};
+
+=== shift with no operand before a concatenation
+$x = shift . 1;
+--- facts
+faithful
+# ($x = shift(@ARGV) . '1');
+
+=== lc of a niladic plus one
+lc time + 1;
+--- facts
+faithful
+# lc((time + 1));
+
+=== an optional-argument prototype before an or
+sub h(;$){1} h || 1;
+--- facts
+faithful
+# (h() or '???');
+
+=== a user sub overriding a named unary is a list operator
+use subs 'chdir'; chdir $x, 1;
+--- facts
+faithful
+# main::chdir($x, 1);
+# psc reads chdir here as the builtin named unary, (chdir($x), 1): a tree
+# defect `faithful` cannot see, because canon writes the source's spelling
+# either way. Reported with issue 01a1690b-1d10's review.
+
+=== a forward declaration after a list-prototype body
+sub g(@){1} sub g($); $r = g $x, $y;
+--- facts
+faithful
+# Prototype mismatch: sub g (@) vs ($); ($r = g($x, $y));
+
+=== a forward declaration after a unary-prototype body
+sub g($){1} sub g(@); $r = g $x, $y;
+--- facts
+faithful
+# Prototype mismatch: sub g ($) vs (@); (($r = g($x)), $y);

@@ -107,8 +107,11 @@ func ValidCategory(c Category) bool {
 type Row struct {
 	// Status is the frozen verdict: a bucket name, or "excluded" for an
 	// environmental failure, or "error" for a file the runner could not
-	// measure. All three are recorded, because a file silently leaving the
-	// denominator is exactly the drift a baseline exists to catch.
+	// measure, or "subject-error" for a subject that crashed or timed out.
+	// The last is graded no-answer but frozen apart from it, so a crash
+	// cannot hide among honest refusals. All are recorded, because a file
+	// silently leaving the denominator is exactly the drift a baseline
+	// exists to catch.
 	Status string
 	// Metric is how many marker sites perl reported for the file, across
 	// every marker. It is recorded but NOT ratcheted — a metric that moved
@@ -123,10 +126,11 @@ type Row struct {
 	Path string
 }
 
-// statusExcluded and statusError are the two non-bucket statuses.
+// statusExcluded, statusError and statusSubjectError are the non-bucket statuses.
 const (
-	statusExcluded = "excluded"
-	statusError    = "error"
+	statusExcluded     = "excluded"
+	statusError        = "error"
+	statusSubjectError = "subject-error"
 )
 
 // rank orders statuses from best to worst, so a move can be called an
@@ -136,7 +140,9 @@ const (
 // denominator has not got better or worse, it has stopped being measured, and
 // calling that an improvement would let a broken shim read as progress. Any
 // move into or out of them is reported as a regression, because it means the
-// measurement changed shape and a human should look.
+// measurement changed shape and a human should look. subject-error sits
+// outside it too: a crash that becomes a refusal, or a verdict, is a
+// different failure rather than a better one, and a human should look.
 func rank(status string) (int, bool) {
 	switch status {
 	case BucketExact.String():
@@ -243,6 +249,8 @@ func status(r Result) string {
 		return statusError
 	case r.Excluded:
 		return statusExcluded
+	case r.SubjectErr != "":
+		return statusSubjectError
 	default:
 		return r.Verdict.Bucket.String()
 	}
