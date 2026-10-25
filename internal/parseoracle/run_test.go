@@ -234,6 +234,7 @@ func TestRunExcludesEnvironmental(t *testing.T) {
 // order the workers finished — and a report that reorders between runs cannot
 // be committed as a baseline, which is what the next issue needs from it.
 func TestRunIsDeterministic(t *testing.T) {
+	requirePOSIXOracle(t)
 	files := fixtureCorpus(t)
 
 	first, err := parseoracle.Run(context.Background(), files, parseoracle.RunOptions{Subject: goSubject(t)})
