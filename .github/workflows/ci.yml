@@ -211,7 +211,8 @@ jobs:
         for t in TestLexerRatchet TestParseRatchet TestParsedFilesRoundTrip \
                  TestLexDotTGoldenStream TestCanonRatchet TestCanonTokenIdentity \
                  TestCanonFidelityRatchet TestPerlGitTFaithfulRatchet \
-                 TestParseWithoutErrorOnCompiledCorpus TestFaithfulQueueMatchesTree; do
+                 TestParseWithoutErrorOnCompiledCorpus TestFaithfulQueueMatchesTree \
+                 TestPerlGitTFaithfulOnM3Dirs; do
           if grep -q -- "--- SKIP: $t" ratchets.log; then
             echo "::error::$t SKIPPED in CI: its corpus did not resolve, so it gated nothing."
             status=1
