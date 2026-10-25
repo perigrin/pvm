@@ -15,6 +15,7 @@ import (
 
 	"tamarou.com/pvm/internal/parseoracle"
 	"tamarou.com/pvm/internal/perltest"
+	"tamarou.com/pvm/internal/platform"
 )
 
 // t2Dirs is spec §7.3's tier-2 core, the same five directories
@@ -32,7 +33,8 @@ var t2Dirs = []string{"base", "cmd", "comp", "opbasic", "class"}
 func goSubject(t *testing.T) *parseoracle.Subject {
 	t.Helper()
 
-	bin := filepath.Join(t.TempDir(), "subject")
+	// subject.exe on Windows, where exec finds nothing by a bare name.
+	bin := filepath.Join(t.TempDir(), platform.ExecutableName("subject"))
 	build := exec.Command("go", "build", "-o", bin,
 		"tamarou.com/pvm/internal/parse/cmd/subject")
 	build.Dir = repoRoot(t)

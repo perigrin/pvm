@@ -144,6 +144,10 @@ func TestPinnedPerlRequiredFailureChild(t *testing.T) {
 // skip into a failure, for the CI steps that installed the pinned perl
 // and must not pass by having every held test skip.
 func TestPinnedPerlFailsUnderRequire(t *testing.T) {
+	// Its child skips there, so there is no failure to see.
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in perl is a shell script")
+	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestPinnedPerlRequiredFailureChild$", "-test.v")
 	cmd.Env = append(os.Environ(), pinnedRequiredFailureChildEnv+"=1")
 	out, err := cmd.CombinedOutput()
