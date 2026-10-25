@@ -16,6 +16,10 @@ import (
 // plan's rule applies inside expressions as much as at statement level: a
 // guessed operand produces a tree that is not a parse of its source.
 func (p *parser) parseTerm() *Node {
+	// The power parseExpr is reading this term at belongs to this term
+	// alone: a block or a parenthesised list inside it starts over.
+	termBP := p.termBP
+	p.termBP = 0
 	p.depth++
 	defer func() { p.depth-- }()
 	if p.depth > maxDepth {
@@ -387,6 +391,9 @@ func (p *parser) parseTerm() *Node {
 			// 50 of T1's files first fail on `open my $fh, ...`, which is
 			// the idiomatic three-argument open and appears in almost every
 			// file that touches a filehandle.
+			if termBP > infix["="].BP {
+				return p.parseVarDeclOperand(tok, termBP)
+			}
 			return p.parseVarDeclNoSemi(tok)
 
 		case (keywordName(text) == "my" || keywordName(text) == "our") && !p.declaratorIsBareword(tok):

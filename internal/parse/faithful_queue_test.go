@@ -586,8 +586,47 @@ func queueFixture(t *testing.T, rows []queueRow, class string, edit func(*queueR
 	return faithfulQueue{}, ""
 }
 
+// fixtureQueueRows are queue rows computed without the corpus, for the
+// tests of the queue's own checks: the M3 walk computes none once
+// re-emission is 100% there. One is a fixture tree's unfaithful file,
+// `print "a\n"; use strict` with no last `;`, which canon ends with one;
+// the other is `my $y = -2 ** 2` regrouped by hand with the minus as
+// `**`'s left operand, which canon writes `(-2) ** 2`, a canon-adds-paren-op
+// row.
+func fixtureQueueRows(t *testing.T) []queueRow {
+	t.Helper()
+	tmp := t.TempDir()
+	for _, dir := range m3Dirs {
+		if err := os.MkdirAll(filepath.Join(tmp, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "uni/bad.t"), []byte("print \"a\\n\"; use strict"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, rows, err := m3Walk(tmp)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("the fixture tree's walk: rows %v, error %v", rows, err)
+	}
+
+	src := "my $y = -2 ** 2;\n"
+	n := parse.Parse([]byte(src))
+	decl := n.Children[0].Children[0]
+	neg := decl.Children[1]
+	pow := neg.Children[0]
+	neg.Children = []*parse.Node{pow.Children[0]}
+	neg.End = pow.Children[0].End
+	pow.Children[0], pow.Start = neg, neg.Start
+	decl.Children[1] = pow
+	r, differs := firstDifference("op/regrouped.t", n, []byte(src))
+	if !differs {
+		t.Fatalf("the regrouped %q re-emits faithfully", src)
+	}
+	return append(rows, r)
+}
+
 func TestFaithfulQueueLineIsFirstDifference(t *testing.T) {
-	_, _, rows := m3Corpus(t)
+	rows := fixtureQueueRows(t)
 	q, path := queueFixture(t, rows, "", func(r *queueRow) { r.Line++ })
 	errs := queueDiff(q, rows)
 	if len(errs) != 1 || !strings.Contains(errs[0], path) || !strings.Contains(errs[0], "first difference") {
@@ -614,7 +653,7 @@ func TestFaithfulQueueMatchesTree(t *testing.T) {
 }
 
 func TestFaithfulQueueClassIsComputed(t *testing.T) {
-	_, _, rows := m3Corpus(t)
+	rows := fixtureQueueRows(t)
 	for name, edit := range map[string]func(*queueRow){
 		"relabelled other": func(r *queueRow) { r.Class = "other" },
 		"wrong cause":      func(r *queueRow) { r.Prev = "declarator" },

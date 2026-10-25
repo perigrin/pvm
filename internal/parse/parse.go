@@ -816,8 +816,16 @@ type parser struct {
 	// which runs before any binding power exists. Every other parse, a
 	// CORE.tpm read included, derives the powers first.
 	derivingPowers bool
-	typedErrs      []error
-	operators      []operatorDecl
+	// termBP is the minimum binding power the term parseExpr is reading
+	// will be held to: the operand of `\`, `-` or `!` is read at the prefix
+	// operator's power, a list element at the comma's. A declaration read
+	// above the assignment level takes no initialiser (parseVarDeclNoSemi).
+	termBP int
+	// declOperandBP is parseVarDeclOperand's bp, read and cleared by the
+	// parseVarDeclNoSemi it calls.
+	declOperandBP int
+	typedErrs     []error
+	operators     []operatorDecl
 	// relations are the precedence relations stated on named operators'
 	// lines; see declareOperator.
 	relations []operatorDecl

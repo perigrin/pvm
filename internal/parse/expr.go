@@ -20,7 +20,10 @@ import (
 //
 // Eleven of the 32 levels are %nonassoc, so this is a rule, not an edge.
 func (p *parser) parseExpr(minBP int) *Node {
+	saved := p.termBP
+	p.termBP = minBP
 	left := p.parseTerm()
+	p.termBP = saved
 	if left == nil {
 		// Input ran out where a term was expected. Nothing to build and
 		// nothing consumed; the statement loop decides what that means.

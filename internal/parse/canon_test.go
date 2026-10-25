@@ -107,6 +107,37 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
 		t.Errorf("Canon does not distinguish the mis-grouped tree from the correct one; "+
 			"both emitted %q", got)
 	}
+
+	// `\my $n = \$y`, the misgrouping the parser had until issue
+	// 01a16602-608d (op/lvref.t:42): the backslash over a declaration that
+	// took the initialiser. Measured on perl 5.44.0, it is a refassign of
+	// `\my $n`, the `=` above the backslash.
+	t.Run("backslash over a declaration's initialiser", func(t *testing.T) {
+		src := []byte(`\my $n = \$y;`)
+		wrong := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+			{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+				{Kind: parse.Unary, Text: "ref", Start: 0, End: 12, Children: []*parse.Node{
+					{Kind: parse.Declaration, Text: "my", Start: 1, End: 12, Children: []*parse.Node{
+						{Kind: parse.Term, Text: "$n", Start: 4, End: 6},
+						{Kind: parse.Unary, Text: "ref", Start: 9, End: 12, Children: []*parse.Node{
+							{Kind: parse.Term, Text: "$y", Start: 10, End: 12},
+						}},
+					}},
+				}},
+			}},
+		}}
+		if got := wrong.SourceText(src); got != string(src) {
+			t.Fatalf("the wrong tree must still round-trip: got %q", got)
+		}
+		got := strings.TrimSpace(parse.Canon(wrong, src))
+		right := strings.TrimSpace(parse.Canon(parse.Parse(src), src))
+		if got == right {
+			t.Errorf("Canon does not distinguish the mis-grouped tree from the correct one; both emitted %q", got)
+		}
+		if right != string(src) {
+			t.Errorf("Canon of the parse of %q is %q, want the source", src, right)
+		}
+	})
 }
 
 // TestCanonVisitsInteriorNodes: no interior node emits its own source text.

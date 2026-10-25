@@ -8,14 +8,6 @@
 # causes heredoc = 0
 # causes subless-special-sub = 0
 # causes stmt-boundary = 0
-# causes canon-adds-paren-op = 6
-# causes canon-adds-paren-term = 1
+# causes canon-adds-paren-op = 0
+# causes canon-adds-paren-term = 0
 # causes other = 0
-op/coresubs.t:119 canon-adds-paren-op ) ( ( ? () = $' =~ /\G$protochar/g
-op/filetest.t:170 canon-adds-paren-op bareword ( - -X => sub {
-op/gmagic.t:141 canon-adds-paren-op sub ( = () = sub { delete $_{elem} }->()->[3];
-op/lvref.t:42 canon-adds-paren-op declarator ( \ \my $n = \$y;
-op/negate.t:17 canon-adds-paren-op - ( - is(- -10, 10, "Simple numeric negation to positive");
-op/numconvert.t:265 canon-adds-paren-op - ( - is sprintf("%+.f", - -$nz), sprintf("%+.f", - -$nz),
-op/postfixderef.t:379 canon-adds-paren-term Variable ( call is $cr->()->{ppp}, "pp";
-op/ver.t:225 canon-adds-paren-op - ( ** ok( abs($v - $]) < 10**-8 , "\$^V == \$] (numeric)" );

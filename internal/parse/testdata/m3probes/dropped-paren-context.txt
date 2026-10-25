@@ -160,4 +160,11 @@ faithful
 my $y = 2 * my ($x) + 1;
 --- facts
 faithful
-known-defect 01a16a7a-a6f4-7ec6-be8b-d01eb84afc73
+# (my($y) = ((2 * my $x) + 1)); fixed by 01a16602-608d's declaration
+# operand, which also closes 01a16a7a-a6f4.
+
+=== a declared scalar on the right of a tighter operator
+my $y = 2 * my $x + 1;
+--- facts
+faithful
+# (my($y) = ((2 * my $x) + 1));
