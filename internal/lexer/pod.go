@@ -94,6 +94,27 @@ func scanDataSection(l *lexer) bool {
 	if after < len(l.src) && isWordByte(l.src[after]) {
 		return false
 	}
+	// Nor is the word the keyword where perl reads it as a name: measured
+	// on perl 5.44.0, `__END__::foo(1)` calls __END__::foo, `__END__ => 1`
+	// quotes the word, and `__END__: print "b"` is a label. A `=>` on a
+	// later line still leaves the marker data.
+	rest = l.src[after:]
+	if bytes.HasPrefix(rest, []byte("::")) {
+		return false
+	}
+	if bytes.HasPrefix(bytes.TrimLeft(rest, " \t"), []byte("=>")) {
+		return false
+	}
+	if len(rest) > 0 && rest[0] == ':' {
+		return false
+	}
+	// A heredoc whose body has not started yet owns the next line, so a
+	// marker after its opener is not the end of the file there: measured,
+	// `print <<A; __END__` then `x` and `A` prints the body. That shape is
+	// left to the code path, as it was before the mid-line marker.
+	if !l.atLineStart() && len(l.pending) > 0 {
+		return false
+	}
 
 	start := l.pos
 	l.pos = len(l.src)

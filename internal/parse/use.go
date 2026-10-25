@@ -267,12 +267,13 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 			// __SUB__ + 1` deparses as `(__SUB__ + 1)`, the builtin.
 			p.features["current_sub"] = true
 		}
-		// The 5.10 to 5.34 bundles hold `switch`, and 5.36's drops it --
+		// The 5.10 to 5.34 bundles hold `switch`, and 5.36's drops it, so a
+		// later `use v5.36` turns it off again --
 		// measured on perl 5.44.0, under `use v5.10` and `use v5.34` `last
 		// default` is a syntax error, `default` the keyword, and under `use
 		// v5.36` it names a label.
-		if ok && major == 5 && minor >= 9 && minor < 35 {
-			p.features["switch"] = true
+		if ok && (major > 5 || major == 5 && minor >= 9) {
+			p.features["switch"] = major == 5 && minor < 35
 		}
 		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
 		// Foo;` is a syntax error on 5.42.0.

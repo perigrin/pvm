@@ -640,3 +640,197 @@ for (1) { last default; }
 --- facts
 faithful
 # (last default);
+
+# Reviewer probes for 2a312ce4 (per-fix review, 2026-10-25), outside the
+# corpus, each measured on the pinned perl 5.44.0 first. The comment under a
+# row is what the program prints or its Deparse,-p.
+
+=== review 2a312ce4: __END__ after a named sub's closing brace
+sub f { 1 } __END__
+x
+--- facts
+faithful
+# Deparse: sub f { 1; } __DATA__ x
+
+=== review 2a312ce4: __END__ after an if block's closing brace
+if (1) { print "a\n" } __END__
+x
+--- facts
+faithful
+# prints a
+
+=== review 2a312ce4: __END__ after a label
+L: __END__
+x
+--- facts
+faithful
+# Deparse: L: ; __DATA__ x
+
+=== review 2a312ce4: __END__ as a hash subscript is a string
+my %h = (k => 1); print $h{__END__} // "u", "\n"; print "after\n";
+--- facts
+faithful
+# prints u then after
+
+=== review 2a312ce4: __END__ as an anonymous hash key
+my $h = { __END__ => 1 }; print keys(%$h), "\n";
+--- facts
+rv2hv 1 exact
+anonhash 1 exact
+faithful
+# prints __END__
+
+=== review 2a312ce4: __END__ before a fat comma inside a list
+my @a = (__END__ => 1); print "@a\n";
+--- facts
+faithful
+# prints __END__ 1
+
+=== review 2a312ce4: CORE::__END__ and CORE::__DATA__ mid-line
+print "a\n"; CORE::__DATA__
+x
+--- facts
+faithful
+# prints a; Deparse shows the __DATA__ section
+
+=== review 2a312ce4: a semicolon and __END__ inside POD
+print "a\n";
+=pod
+
+; __END__
+
+=cut
+print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review 2a312ce4: __END__ inside a string eval ends only the eval
+eval q{print "e\n"; __END__ junk}; print "after\n";
+--- facts
+faithful
+# prints e then after
+
+=== review 2a312ce4: __END__ after an empty statement
+print "a\n";;__END__
+x
+--- facts
+faithful
+
+=== review 2a312ce4: __END__ inside a comment is not a data section
+print "a\n"; # c ; __END__
+print "b\n";
+--- facts
+faithful
+# prints a then b
+
+=== review 2a312ce4: __END__ after a modifier, a do block and an anonymous sub
+print "a\n" if 1; do { 1 }; my $x = sub { 1 }; __END__ x
+--- facts
+faithful
+
+=== review 2a312ce4: a semicolon right after a mid-line __END__ is data
+print "a\n"; __END__; print "b\n";
+--- facts
+faithful
+# prints a only
+
+=== review 2a312ce4: __DATA__ mid-line after a package statement
+print "a\n"; package Foo; __DATA__
+d
+--- facts
+faithful
+
+=== review 2a312ce4: a fat comma on the line after __END__ is data
+print "a\n"; __END__
+=> print "b\n";
+--- facts
+faithful
+# prints a only
+
+=== review 2a312ce4: isa after a loop control under the isa feature
+use feature "isa"; for (1) { last isa 1 } print "ok\n";
+--- facts
+faithful
+# foreach $_ (1) { (last); }
+
+=== review 2a312ce4: switch keywords name labels under the 5.36 bundle
+use v5.36; for (1) { last given; last break; last default } print "ok\n";
+--- facts
+faithful
+# (last given); (last break); (last default);
+
+=== review 2a312ce4: a decimal 5.036 bundle drops switch too
+use 5.036; for (1) { last given } print "ok\n";
+--- facts
+faithful
+# (last given);
+
+=== review 2a312ce4: break is the operand under the 5.10 bundle
+use v5.10; for (1) { last break } print "ok\n";
+--- facts
+faithful
+# (last (break));
+
+=== review 2a312ce4: no feature switch after use v5.10 makes default a label
+use v5.10; no feature "switch"; for (1) { last default; last given } print "ok\n";
+--- facts
+faithful
+# (last default); (last given);
+
+=== review 2a312ce4: a comparison after a loop control inside a ternary
+for (1) { last cmp 1 ? 2 : 3 } print "ok\n";
+--- facts
+faithful
+# (last);
+
+=== review 2a312ce4: last and last
+for (1) { last and last } print "ok\n";
+--- facts
+faithful
+
+=== review 2a312ce4: a label then and, a label then or die
+L: for (1) { last L and 1 } M: for (1) { last M or die "x" } print "ok\n";
+--- facts
+faithful
+# (last L); (last M);
+
+=== review 2a312ce4: a loop control in parens repeated with x
+for (1) { my @a = (last) x 3 } print "ok\n";
+--- facts
+faithful
+# (my(@a) = (last));
+
+=== review 2a312ce4: xor after a loop control
+for (1) { last xor print "x\n" } print "ok\n";
+--- facts
+faithful
+# (last); prints ok
+
+=== review 2a312ce4: word operators inside a modifier's condition
+for (1) { next if 1 and 2; last unless 0 or 1 } print "ok\n";
+--- facts
+faithful
+
+=== review 2a312ce4: a word operator after a loop control, then another statement
+for (1) { last and print "x\n"; print "y\n" } print "ok\n";
+--- facts
+faithful
+# (last); print("y\n");
+
+=== review 2a312ce4: redo x and last x name the label x
+for (1) { redo x if 0; last x; } print "ok\n";
+--- facts
+faithful
+
+=== review 2a312ce4: lt then or after a loop control
+for (1) { last lt 1 or 2 } print "ok\n";
+--- facts
+faithful
+# (((last) lt 1) or '???');
+
+=== review 2a312ce4: a loop control inside a list, then and
+for (1) { $_ = 1, last and 2 } print "ok\n";
+--- facts
+faithful
+# ((($_ = 1), (last)) and '???');

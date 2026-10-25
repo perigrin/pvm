@@ -107,6 +107,27 @@ var loopControlWords = []string{
 	"goto x; x: print \"x\\n\";\n",
 	"for (1) { last default; }\n",
 	"use v5.36; for (1) { last given; }\n",
+	// The second review of 01a16602-6030 (2026-10-25): an operator tighter
+	// than the comma after a label continues the operand, with the label
+	// forced to a string: `last L ne 1` is `(last 1)` and `goto x x 1` is
+	// `(goto x)`. A modifier applies over a word operator over a loop
+	// control, and a later `use v5.36` turns the switch feature off.
+	"X: for (1) { goto x x 1; } print \"ok\\n\";\n",
+	"L: for (1) { last L x 3; }\n",
+	"L: for (1) { last L ne 1; }\n",
+	"for (1) { last or print \"x\\n\" if 1; } print \"ok\\n\";\n",
+	"use v5.10; use v5.36; for (1) { last default; }\n",
+}
+
+// notDataSection are `__END__` and `__DATA__` spellings perl reads as code,
+// found by the same review: measured on perl 5.44.0, `__END__::foo()`
+// calls __END__::foo, `__END__ => 1` quotes the word and `__END__:` is a
+// label, and a marker after a heredoc's opener leaves the body to the
+// heredoc.
+var notDataSection = []string{
+	"print \"a\\n\"; __END__::foo(\\1) if 0; print \"b\\n\";\n",
+	"print \"a\\n\"; my %h = (__END__ => 1); print \"b\\n\";\n",
+	"print \"a\\n\"; __END__: print \"b\\n\";\n",
 }
 
 // midLineDataSection is a data section whose marker does not begin its
@@ -158,7 +179,7 @@ var heredocClosers = []string{
 // the source.
 func TestFaithfulStatementBoundaries(t *testing.T) {
 	var all []string
-	for _, group := range [][]string{derefBraces, anonSubStatements, gotoKeywordOperand, bareBlockContinue, fileEnds, heredocClosers, loopControlWords, midLineDataSection} {
+	for _, group := range [][]string{derefBraces, anonSubStatements, gotoKeywordOperand, bareBlockContinue, fileEnds, heredocClosers, loopControlWords, midLineDataSection, notDataSection} {
 		all = append(all, group...)
 	}
 	for _, src := range all {

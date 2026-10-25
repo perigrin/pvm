@@ -1265,7 +1265,12 @@ func (p *parser) statementForm() *Node {
 			// shape, so a wider reach here would repeat the `defer.t` bug in a
 			// new place. A LoopControl never ends in a block, so the kind test
 			// is the whole condition.
-			if c.Kind == LoopControl {
+			//
+			// So is a word operator over one (parseLoopControl): measured on
+			// perl 5.44.0, `last or print "x" if 1` is valid, the modifier
+			// over the whole `last or print "x"`.
+			if c.Kind == LoopControl || (c.Kind == Binary || c.Kind == CmpChain) &&
+				len(c.Children) > 0 && c.Children[0].Kind == LoopControl {
 				if mod := p.applyModifier(c, start); mod != nil {
 					return p.withLabels(labels, mod, start)
 				}

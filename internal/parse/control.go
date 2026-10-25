@@ -308,7 +308,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	// loop control is its left operand. Measured on perl 5.44.0, `last eq 1`
 	// is `((last) eq 1)` and `last and print` runs no print. `x` is the
 	// exception: in term position it is a plain word, so `goto x` names the
-	// label x (Concise: goto("x")). So is a switch keyword, `given`, `when`,
+	// label x (Concise: goto("x")). So is a switch keyword, `given`,
 	// `default` or `break`, where the switch feature is off: `last default`
 	// names a label unless `use feature "switch"` or a 5.10 to 5.34 bundle
 	// is in effect.
@@ -319,10 +319,23 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
 		!modifiers[p.text(next)] && (!p.keywordHere(p.text(next)) || p.labelWordHere(p.text(next))) {
 		p.advanceTo(next)
-		n.Children = append(n.Children, &Node{
+		label := &Node{
 			Kind: Label, Text: p.text(next),
 			Start: next.Start, End: next.End,
-		})
+		}
+		// The label is a term, forced as a bareword, so an operator tighter
+		// than the comma after it continues the operand: measured on perl
+		// 5.44.0, `last L ne 1` is `(last 1)`, `last ('L' ne 1)`, and `goto
+		// x x 1` is `(goto x)`, "x" x 1 folded. `and` and `or` stop here, and
+		// parseLoopControl reads them over the loop control.
+		// There it is no target but the string it is forced to, so it is a
+		// Term.
+		if op, ok := p.peekSignificant(); ok && labelOperandContinues(p, op) {
+			label.Kind = Term
+			n.Children = append(n.Children, p.parseInfix(label, infix[","].BP))
+		} else {
+			n.Children = append(n.Children, label)
+		}
 		n.End = p.prevEnd()
 		return n
 	}
@@ -342,6 +355,23 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
 	return n
 }
 
+// labelOperandContinues reports whether op, after a loop control's label,
+// is an infix operator binding tighter than the comma, which takes the
+// label as its left operand. A bracket is not: `[`, `{` and `(` after a
+// label begin nothing perl reads as a subscript of it.
+func labelOperandContinues(p *parser, op lexer.Token) bool {
+	text := p.text(op)
+	switch text {
+	case "(", "[", "{", "->", ",", "=>":
+		return false
+	}
+	if op.Kind == lexer.Word && !p.operatorHere(text) {
+		return false
+	}
+	info, ok := infix[text]
+	return ok && info.BP > infix[","].BP && !isAssignment(info)
+}
+
 // labelWordHere reports whether word, a keyword, is still read as a loop
 // control's label: `x`, which toke.c reads as a plain word in term
 // position, and a switch keyword with the switch feature off.
@@ -349,7 +379,7 @@ func (p *parser) labelWordHere(word string) bool {
 	switch word {
 	case "x":
 		return true
-	case "given", "when", "default", "break":
+	case "given", "default", "break":
 		return !p.features["switch"]
 	}
 	return false
