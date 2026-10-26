@@ -1,10 +1,19 @@
 ---
 title: A declaration on the right of a tighter operator swallows what follows it
-state: pending
+state: in-progress
 urgency: normal
 milestone: v0.1
 created: 2026-10-23T20:36:25.460408142Z
-updated: 2026-10-24T14:40:49.257347221Z
+updated: 2026-10-26T00:16:33.734740562Z
+sessions:
+- start_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-26T00:16:33.734740562Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:16:33.734740562Z
 ---
 
 Found in the independent review of 01a16602-5ebe (exec/5ebe, f80cbfbf), 2026-10-23, and measured with perl 5.44.0 -MO=Deparse,-p.
