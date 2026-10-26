@@ -1,6 +1,6 @@
 ---
 title: State the M3 gate's measured numbers in the plan and READMEs
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -17,7 +17,16 @@ blocked_by:
 - 01a16795-75e8-7787-81ad-79e130324139
 - 01a16955-df15-7c3a-9e23-c9f119ef8b8f
 created: 2026-10-22T23:46:34.622478576Z
-updated: 2026-10-23T15:16:51.949742203Z
+updated: 2026-10-26T00:16:33.658297856Z
+sessions:
+- start_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-26T00:16:33.658297856Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:16:33.658297856Z
 ---
 
 ## Context
