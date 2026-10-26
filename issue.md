@@ -1,6 +1,6 @@
 ---
 title: Triage statement-boundary re-emission differences in the M3 dirs
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,16 +9,108 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-608d-71ed-8ab2-66a9951d9957
 created: 2026-10-22T23:46:34.159970536Z
-updated: 2026-10-25T13:08:58.978616051Z
+updated: 2026-10-26T00:13:08.907527033Z
 sessions:
 - start_sha: 7a4b0cc1600607c2507684b3a8b3222b64cd27cf
-  end_sha: ""
-  commits: 0
+  end_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
+  commits: 1840
   started_at: 2026-10-25T13:08:58.978616051Z
+  ended_at: 2026-10-26T00:13:08.907527033Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-25T13:08:58.978616051Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:13:08.907527033Z
+observed_paths:
+- .github/workflows/ci.yml
+- .github/workflows/parse-fidelity.yml
+- conformance/01_literals/README.md
+- conformance/02_variables/README.md
+- conformance/03_context/README.md
+- conformance/04_operators/README.md
+- conformance/06_control/README.md
+- conformance/07_subroutines/README.md
+- conformance/11_oo/README.md
+- conformance/mdtest/adjacency-01_literals.md
+- conformance/mdtest/adjacency-02_variables.md
+- conformance/mdtest/adjacency-04_operators.md
+- conformance/mdtest/adjacency-06_control.md
+- conformance/mdtest/adjacency-07_subroutines.md
+- conformance/mdtest/adjacency-10_io.md
+- conformance/mdtest/adjacency-11_oo.md
+- conformance/mdtest/adjacency-13_opaque.md
+- conformance/mdtest/aggregate-operators.md
+- conformance/mdtest/arrays.md
+- conformance/mdtest/blocks-and-terminations.md
+- conformance/mdtest/comparison.md
+- conformance/mdtest/conditionals.md
+- conformance/mdtest/dynamic-scope.md
+- conformance/mdtest/hashes.md
+- conformance/mdtest/jumps.md
+- conformance/mdtest/loops.md
+- conformance/mdtest/names.md
+- conformance/mdtest/subroutines.md
+- conformance/mdtest/switch.md
+- conformance/mdtest/symbol-table.md
+- conformance/mdtest/taking-references.md
+- docs/plans/2026-09-05-parser-conformance-plan.md
+- docs/postmortems/m3-conformance-corpus.md
+- docs/postmortems/m3-oracle-at-scale.md
+- docs/specs/perl-parser/07-conformance.md
+- docs/specs/perl-parser/README.md
+- internal/conformance/adjacency_test.go
+- internal/conformance/lint.go
+- internal/conformance/lint_test.go
+- internal/conformance/numbering_test.go
+- internal/conformance/prereq_test.go
+- internal/conformance/ratchet_test.go
+- internal/conformance/testdata/corpus.ratchet
+- internal/conformance/tier01_test.go
+- internal/conformance/tier02_test.go
+- internal/conformance/tier04_test.go
+- internal/lexer/pod.go
+- internal/parse/call.go
+- internal/parse/canon.go
+- internal/parse/canon_test.go
+- internal/parse/canonparenop_test.go
+- internal/parse/canonparenop_wrong_test.go
+- internal/parse/canonparenterm_test.go
+- internal/parse/canonparenterm_wrong_test.go
+- internal/parse/commafat_test.go
+- internal/parse/control.go
+- internal/parse/datasection_test.go
+- internal/parse/decl.go
+- internal/parse/derefcanon_test.go
+- internal/parse/expr.go
+- internal/parse/faithful_queue_test.go
+- internal/parse/fidelity.go
+- internal/parse/fidelity_test.go
+- internal/parse/m3faithful_test.go
+- internal/parse/parse.go
+- internal/parse/pin_test.go
+- internal/parse/probes_test.go
+- internal/parse/sortcmp_test.go
+- internal/parse/statementanonhash_test.go
+- internal/parse/stmtboundary_test.go
+- internal/parse/term.go
+- internal/parse/testdata/faithful_queue.txt
+- internal/parse/testdata/m3probes/arrow-hash-read.txt
+- internal/parse/testdata/m3probes/canon-paren-op.txt
+- internal/parse/testdata/m3probes/canon-paren-term.txt
+- internal/parse/testdata/m3probes/dropped-paren-context.txt
+- internal/parse/testdata/m3probes/faithful-other.txt
+- internal/parse/testdata/m3probes/stmt-boundary.txt
+- internal/parse/testdata/perlgittfaithful.ratchet
+- internal/parse/testdata/t1fidelity.ratchet
+- internal/parse/unaryplus_test.go
+- internal/parse/use.go
+- internal/parseoracle/ci_test.go
+- internal/parseoracle/docs_test.go
+- internal/parseoracle/goparser_test.go
+- internal/parseoracle/run_test.go
+- internal/perltest/pinned_test.go
 ---
 
 ## Context
