@@ -2630,10 +2630,11 @@ func declaredVariables(t *testing.T, module string) map[string]types.Param {
 // %Config is declared Hash[Str|Undef], and every value perl's %Config
 // holds on 5.42.0 is a member of that element type -- some of them
 // undef, which Hash[Str] alone would exclude. Exactly how many are
-// undef depends on which build of 5.42.0 is running (measured: pvm's
-// own reference build has 172, CI's actions-setup-perl build has 174,
-// job 39489951290's Linux log), so that exact count is pinned only
-// against internal/perltest.Perl.IsReferenceBuild.
+// undef depends on which build of 5.42.0 is running and the C headers
+// its machine had (measured: the reference build has 172, CI's
+// actions-setup-perl build 174 in job 39489951290's Linux log, and a pvm
+// build on a machine with the DBM headers 163), so that exact count is
+// pinned only against internal/perltest.Perl.IsReferenceBuild.
 func TestConfigValuesFitDeclaredType(t *testing.T) {
 	want := declaredVariables(t, "Config")["%Config"]
 	require.Equal(t, types.Hash, want.Type, "%%Config is not declared Hash")
@@ -2660,7 +2661,7 @@ func TestConfigValuesFitDeclaredType(t *testing.T) {
 		"Hash[Str] would exclude the undef values Hash[Str|Undef] admits")
 
 	if !p.IsReferenceBuild(t) {
-		t.Logf("not the reference build (perl -V's useshrplib is not false): skipping the exact undef count, pinned only against it")
+		t.Logf("not the reference build: skipping the exact undef count, pinned only against it")
 		return
 	}
 	assert.Equal(t, 172, undef, "measured on perl 5.42.0's reference build: 172 of %%Config's values are undef")

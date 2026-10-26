@@ -201,7 +201,6 @@ func TestCoreModuleRanking(t *testing.T) {
 	require.NoError(t, err)
 	got := rankCoreModules(t, p.Privlib, archDir)
 
-	assert.Equal(t, 128, got.Modules, "core modules imported from outside their namespace")
 	require.GreaterOrEqual(t, len(got.Ranked), 50)
 
 	// Every perl 5.42.0 build on Linux ranks the same 50 modules into the
@@ -215,17 +214,21 @@ func TestCoreModuleRanking(t *testing.T) {
 	}
 	assert.ElementsMatch(t, rankedModuleNames(t), top50, "the top 50 core modules by import count, by name")
 
-	// The exact import counts and their order (ties break by count, so a
-	// handful fewer imports of one module can reorder the rest) depend on
-	// exactly which files privlib ships, which differs even between two
-	// builds of the same perl 5.42.0 -- CI's build links libperl shared
-	// and pvm's own links it static (internal/perltest.IsReferenceBuild).
-	// Pinned only against the build they were measured on.
+	// The module and import counts and their order (ties break by count,
+	// so a handful fewer imports of one module can reorder the rest)
+	// depend on exactly which files privlib ships, which differs even
+	// between two builds of the same perl 5.42.0: CI's build links libperl
+	// shared, and a pvm build on a machine with the DBM libraries builds
+	// DB_File, GDBM_File, NDBM_File and ODBM_File (measured: 131 modules
+	// and 1437 imports, where the reference build counts 128 and 1427).
+	// Pinned only against the build they were measured on
+	// (internal/perltest.IsReferenceBuild).
 	if !p.IsReferenceBuild(t) {
-		t.Logf("not the reference build (perl -V's useshrplib is not false): skipping the exact import counts and their order, pinned only against it")
+		t.Logf("not the reference build: skipping the exact module and import counts and their order, pinned only against it")
 		return
 	}
 
+	assert.Equal(t, 128, got.Modules, "core modules imported from outside their namespace")
 	assert.Equal(t, 1427, got.Imports, "imports of core modules from outside their namespace")
 	want, err := os.ReadFile(filepath.Join("testdata", "core_module_ranking.txt"))
 	require.NoError(t, err)
