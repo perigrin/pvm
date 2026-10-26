@@ -1,6 +1,6 @@
 ---
 title: Judge canon-added parens on operators against perl
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16602-60e9-7343-a630-7a93da5ee389
 created: 2026-10-22T23:46:34.2538574Z
-updated: 2026-10-26T00:16:33.417440461Z
+updated: 2026-10-26T00:17:01.954984567Z
 sessions:
 - start_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
-  end_sha: ""
+  end_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
   commits: 0
   started_at: 2026-10-26T00:16:33.417440461Z
+  ended_at: 2026-10-26T00:17:01.954984567Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-26T00:16:33.417440461Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:17:01.954984567Z
 ---
 
 ## Context
