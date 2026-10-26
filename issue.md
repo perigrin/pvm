@@ -1,6 +1,6 @@
 ---
 title: Fix the remaining unfaithful M3-dir files and hold re-emission at 100%
-state: pending
+state: in-progress
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -8,7 +8,16 @@ blocked_by:
 blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 created: 2026-10-23T07:06:50.727978535Z
-updated: 2026-10-23T13:55:22.083754881Z
+updated: 2026-10-26T00:16:33.57247975Z
+sessions:
+- start_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
+  end_sha: ""
+  commits: 0
+  started_at: 2026-10-26T00:16:33.57247975Z
+transitions:
+- state: in-progress
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:16:33.57247975Z
 ---
 
 ## Context
