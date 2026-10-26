@@ -1,6 +1,6 @@
 ---
 title: Judge canon-added parens on terms and argument lists against perl
-state: in-progress
+state: done
 urgency: normal
 milestone: m3-oracle-at-scale
 blocked_by:
@@ -9,16 +9,20 @@ blocks:
 - 01a16602-61fe-7207-8f41-b24de8b9b960
 - 01a16795-75e8-7787-81ad-79e130324139
 created: 2026-10-22T23:46:34.345543908Z
-updated: 2026-10-26T00:16:33.493645642Z
+updated: 2026-10-26T00:19:37.803073805Z
 sessions:
 - start_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
-  end_sha: ""
+  end_sha: 3b77ae24bd593b2eb20e829fdc36fd5135584b9a
   commits: 0
   started_at: 2026-10-26T00:16:33.493645642Z
+  ended_at: 2026-10-26T00:19:37.803073805Z
 transitions:
 - state: in-progress
   actor: human:git-zhi
   timestamp: 2026-10-26T00:16:33.493645642Z
+- state: done
+  actor: human:git-zhi
+  timestamp: 2026-10-26T00:19:37.803073805Z
 ---
 
 ## Context
