@@ -272,8 +272,12 @@ func TestPostfixIncrementEndsTerm(t *testing.T) {
 	}
 	// And after a bareword `x`: FuzzParser's `(x--*y)`, perl's `x-- * y`
 	// with `y)` an unterminated transliteration.
-	if found := collectUnknown(parse.Parse([]byte("(x--*y)"))); len(found) == 0 {
-		t.Errorf("`(x--*y)`: perl rejects this, but it parses")
+	// And after the split glob `**`, which the parser reads as the operator:
+	// FuzzParser's `x**x*(x&"`, an unterminated string to perl.
+	for _, src := range []string{"(x--*y)", "x**x*(x&\""} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
 	}
 }
 

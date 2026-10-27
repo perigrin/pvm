@@ -1497,6 +1497,13 @@ func (l *lexer) endsTerm(k int) bool {
 		if w == "x" {
 			return !l.endsTerm(l.significantBefore(k))
 		}
+		// The glob `**` split after a word is read by the parser as the
+		// operator `**` when a term follows, so it ends no term:
+		// FuzzParser's `x**x*(x&"` is `x ** x * (x & "...`.
+		if j := l.significantBefore(k); w == "*" && j == k-1 && l.toks[j].Kind == Operator && l.toks[j].End == t.Start &&
+			l.src[l.toks[j].Start] == '*' {
+			return false
+		}
 		return !perlKeywords[w]
 	}
 	return false
