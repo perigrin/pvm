@@ -804,13 +804,16 @@ func (l *lexer) scanNumberRun() int {
 				l.pos += 2
 				continue
 			}
-			// A DECIMAL takes no other letter: its `e` only before a sign,
-			// a digit or `_` (toke.c:13142-13144), so `5x3` is `5 x 3` and
-			// `1if $b` is `1 if $b`, measured on 5.42.0. A radix literal's
-			// letters are its digits and prefix, and stay.
+			// A DECIMAL takes no other letter: its `e` only before a digit
+			// or `_`, or the signed digit above (toke.c:13142-13144), so
+			// `5x3` is `5 x 3` and `1if $b` is `1 if $b`, measured on
+			// 5.42.0. A sign with no digit after it ends the number before
+			// the `e`: `0e+A` is a syntax error on 5.44.0, and taking
+			// `0e` whole read it differently from its canon `0e + A`. A
+			// radix literal's letters are its digits and prefix, and stay.
 			if !radix && !isDigit(c) && c != '_' &&
 				!((c == 'e' || c == 'E') && l.pos+1 < len(l.src) &&
-					byteIn(l.src[l.pos+1], "+-0123456789_")) {
+					byteIn(l.src[l.pos+1], "0123456789_")) {
 				return dots
 			}
 		default:
