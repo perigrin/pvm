@@ -1485,7 +1485,7 @@ func (l *lexer) closerBefore(i int) bool {
 // endsTerm reports whether toks[k] ends a term, so that an operator follows
 // it: a variable, a literal, a closer, or a word no keyword table settles.
 // After a keyword, an operator or nothing, a term is read: perl 5.44.0
-// deparses `1x x*$(` as `'' * $(`, the second `x` a bareword.
+// deparses `1x x*$(` as a product of `$(`, the second `x` a bareword.
 func (l *lexer) endsTerm(k int) bool {
 	if k < 0 {
 		return false
@@ -1494,7 +1494,13 @@ func (l *lexer) endsTerm(k int) bool {
 	case Variable, Number, Quote, Readline, CloseBracket, HeredocOpen:
 		return true
 	case Word:
-		return !perlKeywords[string(l.src[t.Start:t.End])]
+		// `x` is a bareword, so a term, where a term is read: FuzzParser's
+		// `(x--*y)` is `x-- * y`.
+		w := string(l.src[t.Start:t.End])
+		if w == "x" {
+			return !l.endsTerm(l.significantBefore(k))
+		}
+		return !perlKeywords[w]
 	}
 	return false
 }

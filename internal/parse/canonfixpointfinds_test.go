@@ -266,6 +266,11 @@ func TestPostfixIncrementEndsTerm(t *testing.T) {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
 	}
+	// And after a bareword `x`: FuzzParser's `(x--*y)`, perl's `x-- * y`
+	// with `y)` an unterminated transliteration.
+	if found := collectUnknown(parse.Parse([]byte("(x--*y)"))); len(found) == 0 {
+		t.Errorf("`(x--*y)`: perl rejects this, but it parses")
+	}
 }
 
 // TestSpacedPercentAfterWordIsModulus: perl 5.44.0 reads `A% #` + newline
