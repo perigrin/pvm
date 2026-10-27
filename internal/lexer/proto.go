@@ -167,8 +167,11 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		}
 		// `sub:` at a statement's start is a label, as any word's is: perl
 		// 5.44.0 deparses `sub: ();` as written, and FuzzParser's `sub:(` +
-		// newline + `)`, canon'd `sub: ()`, re-read with a prototype.
-		labelled := l.pos+1 < len(l.src) && l.src[l.pos] == ':' && l.src[l.pos+1] != ':' &&
+		// newline + `)`, canon'd `sub: ()`, re-read with a prototype. Blanks
+		// may stand before the colon, as perl skips them: `sub :y` is a
+		// label and a transliteration (FuzzParser's find).
+		colon := skipSpaceFrom(l.src, l.pos)
+		labelled := colon+1 < len(l.src) && l.src[colon] == ':' && l.src[colon+1] != ':' &&
 			(l.expect == XState || l.expect == XBlock)
 		switch {
 		case word == "sub" && labelled:

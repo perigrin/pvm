@@ -315,10 +315,15 @@ func TestEmptyStatementTakesHeredocBody(t *testing.T) {
 // deparses `sub: ();` as written. FuzzParser's `sub:(` + newline + `)`
 // canon'd as `sub: ()`, which lexed `()` as a prototype.
 func TestSubLabel(t *testing.T) {
-	for src, want := range map[string]string{"sub:(\n)": "sub: ()", "sub: ();": "sub: ();", "my $f = sub :lvalue { 1 };": "my $f = sub :lvalue {1;};"} {
+	for src, want := range map[string]string{"sub:(\n)": "sub: ()", "sub: ();": "sub: ();", "my $f = sub :lvalue { 1 };": "my $f = sub :lvalue {1;};", "sub :lvalue": "sub: lvalue"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
+	}
+	// Blanks before the colon too: FuzzParser's `sub :y`, a label and an
+	// unterminated transliteration to perl 5.44.0.
+	if found := collectUnknown(parse.Parse([]byte("sub :y"))); len(found) == 0 {
+		t.Errorf("`sub :y`: perl rejects this, but it parses")
 	}
 }
 
