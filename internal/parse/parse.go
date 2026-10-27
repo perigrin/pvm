@@ -656,15 +656,37 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 
 // parseWith runs p over its source, returning the tree and p.
 func parseWith(p *parser) (*Node, *parser) {
+	root := p.parseFile()
+	p.finish(root)
+	return root, p
+}
+
+// parseFile reads every statement of p's source into a SourceFile root,
+// without the whole-file passes finish runs at EOF.
+func (p *parser) parseFile() *Node {
 	if !p.derivingPowers {
 		derivePowers()
 	}
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
-	res := p.res
+	root.Children = p.statementsTo(false, p.snaps != nil)
+	return root
+}
+
+// statementsTo reads statements to end of file or, when inBlock is set, to
+// the `}` closing the block, which it leaves unconsumed. With snap set it
+// checkpoints the parser before each one; see checkpoint.
+func (p *parser) statementsTo(inBlock, snap bool) []*Node {
+	var out []*Node
 	for p.pos < len(p.toks) {
+		if tok := p.toks[p.pos]; inBlock && tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
+			break
+		}
+		if snap {
+			p.checkpoint(inBlock)
+		}
 		before := p.pos
 		if n := p.statement(); n != nil {
-			root.Children = append(root.Children, n)
+			out = append(out, n)
 		}
 		// Forward progress, asserted rather than assumed. The lexer learned
 		// this the hard way: scanFormatBody was wrapped in a step() guard and
@@ -675,38 +697,46 @@ func parseWith(p *parser) (*Node, *parser) {
 			p.pos++
 		}
 	}
-	p.refuseUnclosedOpener(root)
-	if res != nil {
-		root.loaded = res.loaded
-		root.declErrs = res.declErrs
-		root.declWarns = res.declWarns
-		root.imports = p.imports
+	return out
+}
 
-		// A local sub shadows an import, and its OWN prototype is the one
-		// that applies. Done after the whole file is parsed so that
-		// `Imports()` reports EVERY sub the file declares, wherever it sits
-		// -- a consumer asking "what does this file define" wants the one
-		// below the call as much as the one above it.
-		//
-		// This is NOT what a call site reads, and the distinction is perl's.
-		// A call sees only declarations already parsed, which is why
-		// parseSubDecl records each one as it is read (decl.go, declareSub):
-		// `f 1, 2; sub f { }` is a syntax error in perl and this pass, run
-		// after the fact, would wrongly make it a call. The two populations
-		// differ deliberately, and only this one is complete.
-		for name, proto := range readModule(root).protos {
-			if root.imports == nil {
-				root.imports = map[string]Import{}
-			}
-			root.imports[name] = Import{
-				Name:           name,
-				Prototype:      proto,
-				PrototypeKnown: true,
-				Local:          true,
-			}
+// finish runs the whole-file passes over root once its statements are read:
+// the unclosed-opener refusal at EOF and, with a resolver, the imports and
+// every declared sub's prototype. A parse resumed from a snapshot runs them
+// again over the spliced tree, since an edit anywhere can change them.
+func (p *parser) finish(root *Node) {
+	p.refuseUnclosedOpener(root)
+	if p.res == nil {
+		return
+	}
+	root.loaded = p.res.loaded
+	root.declErrs = p.res.declErrs
+	root.declWarns = p.res.declWarns
+	root.imports = p.imports
+
+	// A local sub shadows an import, and its OWN prototype is the one
+	// that applies. Done after the whole file is parsed so that
+	// `Imports()` reports EVERY sub the file declares, wherever it sits
+	// -- a consumer asking "what does this file define" wants the one
+	// below the call as much as the one above it.
+	//
+	// This is NOT what a call site reads, and the distinction is perl's.
+	// A call sees only declarations already parsed, which is why
+	// parseSubDecl records each one as it is read (decl.go, declareSub):
+	// `f 1, 2; sub f { }` is a syntax error in perl and this pass, run
+	// after the fact, would wrongly make it a call. The two populations
+	// differ deliberately, and only this one is complete.
+	for name, proto := range readModule(root).protos {
+		if root.imports == nil {
+			root.imports = map[string]Import{}
+		}
+		root.imports[name] = Import{
+			Name:           name,
+			Prototype:      proto,
+			PrototypeKnown: true,
+			Local:          true,
 		}
 	}
-	return root, p
 }
 
 // refuseUnclosedOpener refuses a file that ends with a `(`, `[` or `{` still
@@ -911,6 +941,13 @@ type parser struct {
 	// See declareSub.
 	bodied map[string]bool
 	pos    int
+
+	// snaps collects a snapshot at each re-parse point when non-nil, and
+	// anchorBlock marks the next parseBlock's statements as re-parse points:
+	// the body of a file-level `package NAME BLOCK` or bare block. See
+	// parsestate.go.
+	snaps       *[]parserSnapshot
+	anchorBlock bool
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.
@@ -1231,6 +1268,7 @@ func (p *parser) statementForm() *Node {
 		// block, which is what keeps every bare block, `if` body and loop
 		// body working.
 		if !p.braceOpensAnonHash(tok) {
+			p.anchorBlock = p.snaps != nil && p.depth == 0
 			blk := p.parseBlock(tok)
 			// A bare block is a loop that runs once, so it takes a `continue`
 			// block like any other. Measured on perl 5.42.0:
@@ -1469,6 +1507,8 @@ func (p *parser) takeHeredocBodies() []*Node {
 // statement sequence with exactly the properties the file level has, and
 // writing it twice is how the two drift apart.
 func (p *parser) parseBlock(open lexer.Token) *Node {
+	anchor := p.anchorBlock
+	p.anchorBlock = false
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
 	p.depth++
@@ -1488,23 +1528,12 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	lexical := maps.Clone(p.lexical)
 	defer func() { p.lexical = lexical }()
 
-	for p.pos < len(p.toks) {
-		tok := p.toks[p.pos]
-		if tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
-			p.pos++
-			n.End = tok.End
-			return n
-		}
-		before := p.pos
-		if child := p.statement(); child != nil {
-			n.Children = append(n.Children, child)
-		}
-		// The same forward-progress guard the file level has, for the same
-		// reason: a statement that consumes nothing would spin here rather
-		// than there.
-		if p.pos == before {
-			p.pos++
-		}
+	n.Children = append(n.Children, p.statementsTo(true, anchor)...)
+	if p.pos < len(p.toks) {
+		// statementsTo stopped on the block's `}`.
+		n.End = p.toks[p.pos].End
+		p.pos++
+		return n
 	}
 
 	// Unterminated. The block still spans what it consumed, so round-trip
