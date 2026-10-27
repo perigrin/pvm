@@ -32,6 +32,11 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		"A*@x":  "A * @x",
 		"A*&x":  "A * &x",
 		"A*%$h": "A * %$h",
+		// And a punctuation name, as perl's scan_ident takes one: `&;`
+		// calls the sub `;`, so the statement still needs its terminator.
+		"got*&;": "got * &;;",
+		"got*%;": "got * %;",
+		"A*@}":   "A * @}",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -70,5 +75,85 @@ func TestAmpBeforeTildeAfterWord(t *testing.T) {
 		if ok, why := canonMatches([]byte(src)); !ok {
 			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
 		}
+	}
+}
+
+// TestAmpDigitsNameASub: perl 5.44.0 compiles `goto&0`, `&0` and `f(&0)`,
+// each calling the sub named `0`. Lexed as a sigil and a number, `goto&0`
+// was `goto &` and a second statement, and its canon re-read differently.
+func TestAmpDigitsNameASub(t *testing.T) {
+	// The name may stand apart from the `&`: `& 0;` deparses as `&0;`, and
+	// FuzzParser's `!& 0` was `!&` and then `0`.
+	for src, want := range map[string]string{"goto&0": "goto &0", "&0": "&0", "f(&0)": "f(&0)", "&12;": "&12;", "!& 0": "!& 0"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+	// A longer name may not start with 0: "Numeric variables with more than
+	// one digit may not start with '0'". FuzzParser's `no n!&00`.
+	for _, src := range []string{"&00;", "f(&01)", "no n!&00", "& 00;"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
+	}
+}
+
+// TestAmpPunctNameEndsTerm: `&!` calls the sub named `!`, so an operator
+// follows it. perl 5.44.0 compiles `A*&!*&%*!x &0` as `A * &! * &% * !x &
+// 0`; with the `!` lexed as an operator, the `*` after it read as a glob.
+func TestAmpPunctNameEndsTerm(t *testing.T) {
+	for src, want := range map[string]string{
+		"A*&!*&%*!x &0": "A * &! * &% * !x & 0",
+		"&!*2;":         "&! * 2;",
+	} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestWordOperatorIsNoTerm: perl 5.44.0 rejects `gt*&;`, `gt*2;` and
+// `print -eq;`, and compiles `$h{eq}`, `{eq => 1}` and `x*&;`, the last
+// `'x' * &;`. Read as a call, `gt*&;`'s canon re-read differently.
+func TestWordOperatorIsNoTerm(t *testing.T) {
+	for _, src := range []string{"gt*&;", "gt*2;", "print -eq;", "CORE::eq*2"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
+	}
+	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)"} {
+		clean(t, src)
+	}
+	if got := clean(t, "x*&;"); got != "x * &;;" {
+		t.Errorf("`x*&;`: canon %q, want %q", got, "x * &;;")
+	}
+}
+
+// TestIncrementOverPrefixCanon: canon wrote `+++y=>` as `++(+y)=>`, and
+// `y)=>` re-lexed as a transliteration. A blank keeps `++` and the prefix
+// operator apart without a paren the source lacks; perl 5.44.0 compiles
+// `my $y; ++ +$y;`.
+func TestIncrementOverPrefixCanon(t *testing.T) {
+	for src, want := range map[string]string{"my $y; ++ +$y;": "my $y;++ +$y;", "my $y; --+$y;": "my $y;-- +$y;"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+	if ok, why := canonMatches([]byte("+++y=>")); !ok {
+		t.Errorf("`+++y=>`: canon is not a fixpoint: %s", why)
+	}
+}
+
+// TestNumberTakesNoSubscript: perl 5.44.0 rejects `A{},(0{},)` near "0{".
+// Read as a hash subscript on 0, its canon doubled the trailing comma and
+// re-read differently. A list slice, `(1)[0]`, is no number.
+func TestNumberTakesNoSubscript(t *testing.T) {
+	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
+	}
+	for _, src := range []string{"my @a = (1)[0];", "my %x; ($x{a},)", "my @x; ($x[0],)"} {
+		clean(t, src)
 	}
 }

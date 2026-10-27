@@ -381,6 +381,13 @@ func (p *parser) parseTerm() *Node {
 				Start: tok.Start, End: name.End,
 			}
 		}
+		// Digits after it that are a Number are a name perl refuses: `&00` is "Numeric
+		// variables with more than one digit may not start with '0'" on
+		// 5.44.0. Read as a bare `&`, `no n!&00`'s canon `&;00` re-read
+		// differently.
+		if name.Kind == lexer.Number {
+			return p.refuseNotATerm(tok)
+		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
 	case lexer.Word:
@@ -410,6 +417,13 @@ func (p *parser) parseTerm() *Node {
 			// are no term: measured on 5.42.0, `!my=0`, `f(my)` and `$x =
 			// our;` are each a syntax error. Read as a call, canon wrote
 			// `my()`, which re-read as a declaration.
+			return p.refuseNotATerm(tok)
+
+		case wordInfixOps[keywordName(text)] && !p.declaratorIsBareword(tok):
+			// Nor is a word operator: measured on 5.44.0, `gt*2;` and
+			// `print -eq;` are each a syntax error, while `$h{eq}` and `eq
+			// => 1` compile. Read as a call, `gt*&;`'s canon re-read
+			// differently.
 			return p.refuseNotATerm(tok)
 
 		case text == "sub":
@@ -469,6 +483,14 @@ func (p *parser) parseTerm() *Node {
 func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
 	return p.missingIdentifier(p.recover(&Node{Kind: Error, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}), tok)
+}
+
+// wordInfixOps are the word operators that are never a term: `x` is a
+// bareword where a term is read (`x*2` is `'x' * 2` on 5.44.0), and `isa`
+// one without its feature.
+var wordInfixOps = map[string]bool{
+	"eq": true, "ne": true, "lt": true, "gt": true, "le": true, "ge": true,
+	"cmp": true, "and": true, "or": true, "xor": true,
 }
 
 // declaratorIsBareword reports whether a `my` or `our` with no variable

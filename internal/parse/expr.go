@@ -272,6 +272,12 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			if text == "(" && !p.callsHere(left) {
 				return left
 			}
+			// Nor does a number take a subscript: measured on 5.44.0,
+			// `(0{},)` is a syntax error near "0{", and read as one its
+			// canon re-read differently.
+			if left.Kind == Term && len(left.Children) == 0 && p.src[left.Start] >= '0' && p.src[left.Start] <= '9' {
+				return left
+			}
 			// A list slice: the pair before `[` is the slice's.
 			if text == "[" && left.Paren && p.src[left.Start] == '(' {
 				takeSyntaxPair(left)

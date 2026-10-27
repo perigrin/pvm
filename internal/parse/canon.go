@@ -608,6 +608,17 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				}
 				break
 			}
+			// `++` or `--` over a prefix operator: the parser read the
+			// operand as a term whatever its precedence, so a blank keeps the
+			// two apart where a paren would add one the source lacks, and
+			// would split a fat comma's word from its `=>`: FuzzParser's
+			// `+++y=>` canon'd as `++(+y)=>`, `y)` a transliteration.
+			// Measured on 5.44.0, `my $y; ++ +$y;` compiles.
+			if c := n.Children[0]; (op == "++" || op == "--") && prefixOperator(c) {
+				b.WriteByte(' ')
+				emit(b, c, src, f)
+				break
+			}
 			emitBefore(b, n.Children[0], src, prefix[op], f)
 		}
 

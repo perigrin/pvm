@@ -512,6 +512,7 @@ func scanOne(l *lexer) {
 		// Before every scanner that reads punctuation: `*#`, `*"` and `*;`
 		// are globs, not a comment, a string and a statement's end.
 		scanGlobName,
+		scanAmpName,
 		scanComment,
 		// Before every scanner that reads punctuation as something else:
 		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
