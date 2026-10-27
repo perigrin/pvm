@@ -1435,6 +1435,31 @@ Five things in that loop earn their place:
    changed whether it contains an error, the damage estimate was wrong.
    Bail out.
 
+**The parser's state at the re-parse point.** The lexer's checkpoint (§6.3.1)
+is half of what step 3 resumes from. The other half is the parser's own
+file-wide state — the package, the features and lexical subs in scope, the
+imports, the known packages and the declared subs — which it threads from
+statement to statement. Step 3 restores it from a `parserSnapshot`
+(`internal/parse/parsestate.go`), a copy of the `parser` struct taken before
+each statement at a re-parse point. The re-parse points are each top-level
+statement and each statement directly inside a file-level `package NAME BLOCK`,
+`class NAME BLOCK` or bare block, which are the nested anchors widening may
+choose; there is none inside a `BEGIN` block, a `use` or a `format`. A
+snapshot holds copies of every map and slice, never aliases, so one snapshot
+can be resumed from any number of times. `parserFields` classifies every field
+of `parser` as snapshotted, per-statement scratch, or the resuming parse's own
+(source, tokens and resolver: a re-parse uses its Session's resolver, never
+the snapshot's), and `TestParserStateSnapshotCoversEveryField` fails until a
+new field is classified. A resumed parse stops at end of file, or at the `}`
+of a nested snapshot's block.
+
+Two passes run over the whole file at EOF, and an edit anywhere can change
+their result, so Repair runs them again over the spliced tree (`finish`):
+`refuseUnclosedOpener`, which wraps the file's last token in
+`Unknown{UnclosedOpener}` when any opener anywhere is unclosed, and the pass
+that lifts the imports and every declared sub's prototype (`readModule`) onto
+the root.
+
 ### 6.5.4 The correctness test, and it is not optional
 
 perl-lsp got this exactly right and it is the single most important test in the
