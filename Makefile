@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental
 
 BINARIES = pvm pvx pm psc
 
@@ -35,6 +35,13 @@ fuzz-lexer:
 # TestFuzzSeeds afterwards.
 fuzz-parser:
 	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzParser$$' -fuzztime 1000000x
+
+# The incremental re-parse property (spec §7.7): one fuzzer per edit shape,
+# run one after the other because -fuzz takes one target. 10M executions
+# each. Their seeds, the §7.7.3 edits among them, are replayed by `test`.
+fuzz-incremental:
+	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncremental$$' -fuzztime 10000000x
+	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncrementalSequence$$' -fuzztime 10000000x
 
 # Docker-based user-journey smoke test. Simulates a fresh install against
 # bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.
