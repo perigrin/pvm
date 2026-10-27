@@ -1,13 +1,15 @@
 // ABOUTME: Tests for Document, the open buffer's text and line table.
-// ABOUTME: Covers UTF-16 LSP positions, clamping, CRLF, and suffix-only reindexing.
+// ABOUTME: Covers UTF-16 positions, clamping, CR/LF, suffix reindexing, edit ranges and snapshots.
 
 package psc
 
 import (
+	"slices"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // nonASCII is the corpus of §6.11 step 1: é (2 bytes, 1 unit), → (3/1), 世
@@ -57,16 +59,20 @@ func TestDocumentPositionsUTF16(t *testing.T) {
 func TestDocumentSuffixReindex(t *testing.T) {
 	d := NewDocument([]byte("a\nb\nc\nd\n"))
 	before := &d.Lines[0]
+	// A '\n' planted ahead of the edit's line, behind the table's back: a
+	// rescan of the prefix would index it, a suffix-only one cannot see it.
+	d.Text[0] = '\n'
 	// Replace "c" with "x\ny" on line 2.
-	d.ApplyEdit(4, 5, []byte("x\ny"))
-	assert.Equal(t, "a\nb\nx\ny\nd\n", string(d.Text))
-	assert.Equal(t, NewDocument(d.Text).Lines, d.Lines)
+	mustEdit(t, d, 4, 5, "x\ny")
+	assert.Equal(t, "\n\nb\nx\ny\nd\n", string(d.Text))
 	// The prefix was kept in place, not rebuilt into a new table.
 	assert.Same(t, before, &d.Lines[0])
 	assert.Equal(t, []int32{0, 2, 4, 6, 8, 10}, d.Lines)
+	d.Text[0] = 'a'
+	assert.Equal(t, NewDocument(d.Text).Lines, d.Lines)
 
 	// An edit spanning lines deletes their starts.
-	d.ApplyEdit(1, 7, nil)
+	mustEdit(t, d, 1, 7, "")
 	assert.Equal(t, "a\nd\n", string(d.Text))
 	assert.Equal(t, NewDocument(d.Text).Lines, d.Lines)
 }
@@ -136,15 +142,15 @@ func TestDocumentEditAtOffsetZeroAndEOF(t *testing.T) {
 		assert.Equal(t, want, string(d.Text))
 		assert.Equal(t, NewDocument([]byte(want)).Lines, d.Lines)
 	}
-	d.ApplyEdit(0, 0, []byte("a\n"))
+	mustEdit(t, d, 0, 0, "a\n")
 	check("a\nb\nc")
-	d.ApplyEdit(len(d.Text), len(d.Text), []byte("\n"))
+	mustEdit(t, d, len(d.Text), len(d.Text), "\n")
 	check("a\nb\nc\n")
-	d.ApplyEdit(len(d.Text)-1, len(d.Text), nil)
+	mustEdit(t, d, len(d.Text)-1, len(d.Text), "")
 	check("a\nb\nc")
-	d.ApplyEdit(0, len(d.Text), nil)
+	mustEdit(t, d, 0, len(d.Text), "")
 	check("")
-	d.ApplyEdit(0, 0, []byte("x\n\ny"))
+	mustEdit(t, d, 0, 0, "x\n\ny")
 	check("x\n\ny")
 }
 
@@ -160,4 +166,129 @@ func TestDocumentInvalidUTF8NoPanic(t *testing.T) {
 	for c := -1; c < 10; c++ {
 		assert.LessOrEqual(t, d.PositionToByte(lspPosition{Line: 1, Character: c}), uint32(len(text)))
 	}
+}
+
+// mustEdit applies an edit that must be accepted.
+func mustEdit(t *testing.T, d *Document, start, oldEnd int, newText string) {
+	t.Helper()
+	_, err := d.ApplyEdit(start, oldEnd, []byte(newText))
+	require.NoError(t, err)
+}
+
+func TestDocumentApplyEditSnapshotIsolation(t *testing.T) {
+	s := NewLSPServer()
+	const uri = "untitled:snapshot.pl"
+	src := []byte("my $x = 1;\nmy $y = 2;\n")
+	require.NoError(t, s.OpenDocument(uri, src))
+	// The open buffer is the server's own, not the caller's.
+	src[0] = 'X'
+
+	snap := s.Text(uri)
+	want, wantLines := "my $x = 1;\nmy $y = 2;\n", slices.Clone(snap.Lines)
+	require.Equal(t, want, string(snap.Text))
+
+	editing, done := make(chan struct{}), make(chan struct{})
+	o := s.owner(uri)
+	go func() {
+		defer close(done)
+		// Edits run on the owner's goroutine, as incremental didChange will.
+		o.call(func() {
+			close(editing)
+			doc := o.snap.text
+			// Same-length edits, which fit the buffer in place, and one of
+			// them adds a line.
+			for range 50 {
+				_, err := doc.ApplyEdit(0, 1, []byte("\n"))
+				assert.NoError(t, err)
+				_, err = doc.ApplyEdit(0, 1, []byte("m"))
+				assert.NoError(t, err)
+			}
+			_, err := doc.ApplyEdit(0, 2, []byte("our"))
+			assert.NoError(t, err)
+		})
+	}()
+	<-editing
+	for range 1000 {
+		snap.ByteToPosition(uint32(len(snap.Text)))
+		_ = string(snap.Text)
+	}
+	<-done
+
+	assert.Equal(t, want, string(snap.Text))
+	assert.Equal(t, wantLines, snap.Lines)
+	assert.Equal(t, "our $x = 1;\nmy $y = 2;\n", string(s.Text(uri).Text))
+}
+
+// TestTextConcurrentWithOwnerEdits takes snapshots while the owner applies
+// edits one call at a time: the snapshot must be taken on the owner's
+// goroutine, between edits, or it races them.
+func TestTextConcurrentWithOwnerEdits(t *testing.T) {
+	s := NewLSPServer()
+	const uri = "untitled:race.pl"
+	require.NoError(t, s.OpenDocument(uri, []byte("my $x = 1;\nmy $y = 2;\n")))
+	o := s.owner(uri)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			o.call(func() {
+				_, err := o.snap.text.ApplyEdit(0, 1, []byte{"\nm"[i%2]})
+				assert.NoError(t, err)
+			})
+		}
+	}()
+	for {
+		select {
+		case <-done:
+			assert.Equal(t, "my $x = 1;\nmy $y = 2;\n", string(s.Source(uri)))
+			return
+		default:
+			d := s.Text(uri)
+			require.NotNil(t, d)
+			assert.Len(t, d.Text, len("my $x = 1;\nmy $y = 2;\n"))
+		}
+	}
+}
+
+// TestSourceHasNoSpareCapacity appends to two Source results: neither may
+// write into bytes the other, or the open document, shares.
+func TestSourceHasNoSpareCapacity(t *testing.T) {
+	s := NewLSPServer()
+	const uri = "untitled:cap.pl"
+	require.NoError(t, s.OpenDocument(uri, []byte("ab")))
+	o := s.owner(uri)
+	// Leave the open buffer spare capacity, as an in-place edit can.
+	o.call(func() {
+		d := o.snap.text
+		d.Text = append(make([]byte, 0, 64), d.Text...)
+	})
+
+	a := append(s.Source(uri), 'x')
+	b := append(s.Source(uri), 'y')
+	assert.Equal(t, "abx", string(a))
+	assert.Equal(t, "aby", string(b))
+	assert.Equal(t, 2, cap(s.Source(uri)))
+}
+
+func TestDocumentApplyEditRejectsBadRange(t *testing.T) {
+	const text = "ab\ncd\n"
+	for _, r := range [][2]int{{3, 1}, {-1, 2}, {2, 99}, {99, 99}, {-2, -1}} {
+		d := NewDocument([]byte(text))
+		lines := slices.Clone(d.Lines)
+		_, err := d.ApplyEdit(r[0], r[1], []byte("X\n"))
+		assert.Error(t, err, "range %v", r)
+		assert.Equal(t, text, string(d.Text), "range %v", r)
+		assert.Equal(t, lines, d.Lines, "range %v", r)
+	}
+}
+
+func TestDocumentLoneCRAtEOFIsOrdinaryByte(t *testing.T) {
+	d := NewDocument([]byte("ab\r"))
+	assert.Equal(t, lspPosition{Line: 0, Character: 2}, d.ByteToPosition(2))
+	assert.Equal(t, lspPosition{Line: 0, Character: 3}, d.ByteToPosition(3))
+	assert.Equal(t, uint32(3), d.PositionToByte(lspPosition{Line: 0, Character: 99}))
+	// A CRLF line still ends before its '\r'.
+	d = NewDocument([]byte("ab\r\n"))
+	assert.Equal(t, lspPosition{Line: 0, Character: 2}, d.ByteToPosition(3))
 }
