@@ -29,6 +29,26 @@ func TestCanonFixpointOperatorBeforeComment(t *testing.T) {
 	}
 }
 
+// TestSplitPowerIsExponentiation: where the lexer split `**` as `*` and the
+// glob `**` after a word or a glob's name, the operator perl reads is `**`
+// (perl 5.44.0 -MO=Deparse: `x **2` is `'x' ** 2`, `x***x` is `'x' ** *x`).
+func TestSplitPowerIsExponentiation(t *testing.T) {
+	for _, src := range []string{"my $g = x **2;", "my $g = *x **2;", "print STDOUT *x ** 2;", "x***x;"} {
+		root := parse.Parse([]byte(src))
+		if b := firstOfKind(root, parse.Binary); b == nil || b.Text != "**" {
+			t.Errorf("%q: want a `**` Binary: %v", src, kinds(root))
+		}
+	}
+	// And `**=` (Deparse: `x **=2` is `'x' **= 2`; perl then refuses to
+	// modify the constant, as it does `x = 2`).
+	for _, src := range []string{"x **=2;", "*x **=2;"} {
+		root := parse.Parse([]byte(src))
+		if b := firstOfKind(root, parse.Binary); b == nil || b.Text != "**=" {
+			t.Errorf("%q: want a `**=` Binary: %v", src, kinds(root))
+		}
+	}
+}
+
 // TestUndeclaredWordStarBeforePunctuationRefuses: after an undeclared word
 // perl's `*` multiplies, so in `fo*#` the `#` starts a comment, while the
 // lexer, with no symbol table, read the glob `*#`. Measured on 5.42.0 with
@@ -37,18 +57,46 @@ func TestCanonFixpointOperatorBeforeComment(t *testing.T) {
 // is perl's, so it refuses the undeclared case -- even the one perl
 // compiles -- and the declared one keeps its glob argument.
 func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
-	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;"} {
+	// A quote is the same disagreement as `#`: measured on 5.42.0, `A*"3"`,
+	// `A*'3'` and A*`ls` are `'A' * 3` and `'A' * \`ls\``, a string to perl
+	// and the glob `*"` to the lexer. FuzzParser's `A{} (A*" )` canon'd as
+	// `A {}(A * ")`, which re-read as an unterminated string.
+	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;",
+		`A{} (A*" )`, `A*"3";`, "A*'3';", "A*`ls`;",
+		// And the glob `**` where no glob `*x` follows it glued: perl 5.44.0
+		// rejects `x****x`, `x****2` and `x**;`, and FuzzParser's
+		// `*A*x***x****$0` canon'd past a fixpoint.
+		"*A*x***x****$0", "x****x;", "x****2;", "x**;",
+		// And the globs `*;` and `*}`, which end the operand perl reads
+		// instead: `A*;` and `{A*}` are syntax errors on 5.42.0. The
+		// merge-commit campaign's `A*}x0` canon'd as `A * } x 0`, where
+		// the `}` ends the operator's missing operand (R-g).
+		"A*}x0", "A*;", "{A*}",
+		// After any term, not only a word: FuzzParser's `{}*}{$0}` read the
+		// glob `*}` after an anonymous hash, perl 5.44.0's "Unmatched right
+		// curly", and canon wrote `{} * }{$0}`, which re-read differently.
+		"{}*}{$0}", "{}**;"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
 	}
-	// `*` glued to punctuation other than `#` multiplies, measured with
-	// -MO=Deparse on 5.42.0, and only `#` has a measured fixpoint failure.
+	// `*` glued to punctuation other than `#` or a quote multiplies,
+	// measured with -MO=Deparse on 5.42.0, and only those have a measured
+	// fixpoint failure.
 	for _, src := range []string{
 		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
 		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",
-		"foo*+1;", "foo*[1];", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "sub A {} A*;",
+		// perl 5.44.0 compiles each: `x ** *x`, and a print to a bareword
+		// handle of the glob `*;`, `*}` or `*#` -- a handle is no
+		// undeclared word's call.
+		"x***x;", "x***$0;",
+		// And exponentiation the lexer split as `*` and the glob `**`
+		// before a term, after a word or a glob's name (round 2 of the
+		// gate review): each compiles on 5.44.0.
+		"my $g = x **2;", "my $g = *x **2;", "print *x **2;", "print STDOUT *x**2;", "print STDOUT *x ** 2;",
+		"print STDOUT *;", "say STDOUT *};", "printf STDERR *;", "exec FOO *;", "system FOO *;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
 	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))

@@ -247,7 +247,7 @@ func unreadHashNames(root *Node, src []byte) map[string]bool {
 	walk = func(n *Node) {
 		text := ""
 		switch {
-		case n.Kind == Unknown:
+		case n.Refused():
 			text = string(src[n.Start:n.End])
 		case n.Kind == Term && (hidesStructure(n.Text) ||
 			isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)):
@@ -394,20 +394,21 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 		if n.RefSlot {
 			add(parseoracle.SiteKindReference, n)
 		}
-		switch n.Kind {
-		case Unknown:
-			// A nested Unknown speaks its own refusal, at its own span. The
+		if n.Refused() {
+			// A nested refusal speaks for itself, at its own span. The
 			// statement around it was READ -- `BEGIN { ... }` is a Phaser
 			// holding a Block -- so nothing else hedges these bytes, and
 			// silence here is the same silent wrong answer the top-level
 			// rule exists to prevent: perl found a marker inside, innermost
 			// found a statement offering neither a site nor a hedge, and
-			// the verdict was WRONG rather than wider.
+			// the verdict was WRONG rather than wider. A catch-all Error
+			// node hedges exactly as the Unknown it replaced.
 			//
 			// Do not descend: nothing inside a refusal is decided.
 			hedgeAll(n, reasonUnread)
 			return
-
+		}
+		switch n.Kind {
 		case AnonHash:
 			// perl: anonhash. The lexer's brace stack already chose term
 			// over block (§4.9.2), so this node IS the decision.

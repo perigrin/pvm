@@ -64,7 +64,7 @@ func (l *lowerer) decl(n *parse.Node) Node {
 		case d.Vars == nil:
 			d.Vars = []Node{l.expr(c)}
 			listTarget = c.Kind == parse.List
-		case (kind == DeclPackage || kind == DeclClass) && c.Kind != parse.Block && c.Kind != parse.Unknown:
+		case (kind == DeclPackage || kind == DeclClass) && c.Kind != parse.Block && !c.Refused():
 			// `package Foo 1.2 { ... }` has a version and a block; the
 			// version is its own field, so Init holds only the block.
 			d.Version = l.expr(c)
@@ -98,7 +98,7 @@ func (l *lowerer) sub(n *parse.Node, kind DeclKind) Node {
 		return l.anonSub(kids)
 	}
 	d := &Decl{Kind: kind, Vars: []Node{l.stamp(kids[0], &Var{Sigil: "&", Name: kids[0].Text})}}
-	if last := kids[len(kids)-1]; last.Kind == parse.Block || last.Kind == parse.Unknown {
+	if last := kids[len(kids)-1]; last.Kind == parse.Block || last.Refused() {
 		// The AnonSub is the same syntax site as its Decl (§4.14.1 rule
 		// 6), so its id is the declaration's under RoleSubValue.
 		d.Init = l.derive(n, RoleSubValue, l.anonSub(kids[1:]))

@@ -2112,6 +2112,25 @@ The tokens worth synthesizing in Perl:
 | Expression | Binary operator with no RHS (`$x = `) | Placeholder so `=` typechecks |
 | Identifier | `sub` with no name, `$` with no name | Declaration is still recognizable |
 
+**As landed (`internal/parse/recovery.go`).** The kinds are `parse.Error` and
+`parse.Missing`, and the flag is the field `Node.HasError`, set by
+`markErrors` on each statement as it is finished (only on one that built a
+recovery node) and by `refuseUnclosedOpener` along the path it inserts into.
+An Error node stands where a catch-all Unknown stood -- `not_a_term`,
+`trailing_tokens`, `not_an_expression` -- carries that code, and covers the
+same bytes; `parse.CatchAll` names those three, and their nodes are structure
+only, reporting nothing (perigrin, R-a′). The missing operand is a Missing
+node carrying `missing_operand` (R-g), at the operator's end, before `;`, `}`
+or end of input. The other Missing nodes carry no code and Text names the
+token: `;` (only before `my`/`our` on a later line, not after a word), each
+closer still open at end of input (a child of the `unclosed_opener` or
+specific refusal holding the last token; none past a `nesting_too_deep`
+decline), and an empty Text for an identifier after `sub` or `$`, inside the
+`not_a_term` Error. Specific refusals stay `Unknown`. Every reader asks
+`(*Node).Refused()` (`internal/parse/refused.go`) rather than comparing a
+Kind with `Unknown`, so ratchets count an Error node as they counted its
+Unknown.
+
 ### 6.8.3 Panic-mode recovery, bounded
 
 When no missing token works, skip to a synchronization point. The sync-point

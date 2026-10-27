@@ -407,8 +407,11 @@ func (r *hashResolver) importPoint() {
 // call through a code reference (`&$f(...)`, `&{$f}`), or a call to
 // anything but a builtin. `BEGIN { $| = 1 }` cannot.
 func mayImport(n *Node) bool {
+	if n.Refused() {
+		return true
+	}
 	switch n.Kind {
-	case Use, Unknown:
+	case Use:
 		return true
 	case Index:
 		if n.Text == "(" {

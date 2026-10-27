@@ -125,7 +125,9 @@ func (p *parser) parseTerm() *Node {
 		if !ok || next.Kind == lexer.Semicolon || next.Kind == lexer.CloseBracket {
 			return n
 		}
-		if _, isInfix := p.infixOp(p.text(next)); isInfix {
+		// `++` and `--` are in the table as postfix operators, and begin a
+		// term too: measured on 5.42.0, `-f ++ $d` is `-f ++$d`.
+		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" {
 			return n
 		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
@@ -455,9 +457,11 @@ func (p *parser) parseTerm() *Node {
 // refuseNotATerm declines a term that begins at tok and cannot be one. Consumed
 // so the loop advances; the bytes stay in the tree, through whatever the
 // caller already read past tok -- an anonymous sub's head, for one.
+//
+// The refusal is a catch-all, so it is an Error node (recovery.go).
 func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
-	return &Node{Kind: Unknown, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}
+	return p.missingIdentifier(p.recover(&Node{Kind: Error, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}), tok)
 }
 
 // declaratorIsBareword reports whether a `my` or `our` with no variable

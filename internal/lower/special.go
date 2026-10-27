@@ -31,7 +31,7 @@ func (l *lowerer) mapGrepSort(n *parse.Node) Node {
 	rest := n.Children
 	if len(rest) > 0 {
 		switch c := rest[0]; {
-		case c.Kind == parse.Block || c.Kind == parse.Unknown && c.Refusal == parse.UnclosedBrace:
+		case c.Kind == parse.Block || c.Refused() && c.Refusal == parse.UnclosedBrace:
 			out.Block, rest = l.expr(c), rest[1:]
 		case c.Comparator:
 			out.FirstExpr, rest = l.expr(c), rest[1:]

@@ -106,7 +106,7 @@ func readDeclarationWith(p *parser) moduleFacts {
 	// raised nothing; the file is in error either way. Per-statement error
 	// spans would report both when a file has several faults.
 	for _, n := range root.Children {
-		if n.Kind == Unknown && len(p.typedErrs) == 0 {
+		if n.Refused() && len(p.typedErrs) == 0 {
 			facts.errs = append(facts.errs, fmt.Errorf("not a declaration: %q", strings.TrimSpace(n.SourceText(src))))
 		}
 	}

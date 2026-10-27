@@ -17,9 +17,11 @@ package parse
 // afterwards.
 type RefusalCode string
 
-// Sixteen codes for seventeen `&Node{Kind: Unknown, ...}` sites. The seventeenth is
-// parse.go's `expr.Kind == Unknown`, which propagates an existing code
-// outward rather than declaring one; see the note in RefusalSites.
+// Sixteen codes for seventeen construction sites -- `&Node{Kind: Unknown, ...}`,
+// or the Error or Missing node recovery builds for the four codes it
+// replaces (recovery.go). The seventeenth is parse.go's `expr.Refused()`,
+// which propagates an existing code outward rather than declaring one; see
+// the note in RefusalSites.
 //
 // Declared here rather than at the sites so that adding a site means
 // adding a constant AND an inventory entry, which is one edit in one
@@ -56,7 +58,8 @@ const (
 	NotATerm RefusalCode = "not_a_term"
 
 	// MissingOperand: an infix or prefix operator whose right operand ran
-	// out. The Unknown spans the operator.
+	// out, or stands before a `;` or `}`. A zero-width Missing node at the
+	// operator's end, and reported (R-g).
 	MissingOperand RefusalCode = "missing_operand"
 
 	// NonassocRepeated: `$a .. $b .. $c` -- a non-associative operator
@@ -99,7 +102,7 @@ const (
 
 	// AmbiguousSigil: a `&` or `*` the lexer read as a sigil and the parser
 	// as an operator, after an undeclared bareword, before a quote-op name
-	// -- `A &y` -- or a `*` before a punctuation glob name, `A*#`. perl
+	// -- `A &y` -- or a `*` before a `#` or quote glob name, `A*#`, `A*"x"`. perl
 	// reads the operator and the quote or comment it begins.
 	AmbiguousSigil RefusalCode = "ambiguous_sigil"
 
@@ -138,9 +141,9 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		What:  "the statement is not a known form and parses as no expression",
 		Where: "parse.go, parseStatement: expr == nil",
 	},
-	// The seventeenth site, parse.go's `expr.Kind == Unknown`, has no code of
-	// its own and is deliberately absent from this table. It widens an
-	// Unknown from the expression to the statement -- a change of SPAN,
+	// The seventeenth site, parse.go's `expr.Refused()`, has no code of
+	// its own and is deliberately absent from this table. It widens a
+	// refusal from the expression to the statement -- a change of SPAN,
 	// not of cause -- and carries the inner code outward unchanged. A code
 	// there would erase the distinction the codes exist to make.
 	TrailingTokens: {
@@ -157,7 +160,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 	},
 	MissingOperand: {
 		What:  "an operator whose right operand ran out",
-		Where: "expr.go, operand",
+		Where: "expr.go, operand; recovery.go, missingOperand",
 	},
 	NonassocRepeated: {
 		What:  "a non-associative operator used twice at one level",
@@ -192,7 +195,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "decl.go, parseFormatDecl",
 	},
 	AmbiguousSigil: {
-		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a punctuation glob name",
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a `#` or quote glob name",
 		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
 	},
 	NestingTooDeep: {

@@ -901,9 +901,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 			// `my $x = 1, my $y = 2` is `((my($x) = 1), (my($y) = 2))`.
 			// parseVarDeclHead reads it there for a declaration that heads
 			// its expression; in term position the enclosing list does.
-			if init := p.parseExpr(infix[p.text(eq)].rightBP()); init != nil {
-				n.Children = append(n.Children, init)
-			}
+			n.Children = append(n.Children, p.operand(infix[p.text(eq)].rightBP(), eq))
 		}
 		n.End = p.prevEnd()
 
@@ -993,15 +991,19 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	//
 	// Nothing at all after the declarator -- `my` at the end of the file --
 	// is perl's "syntax error at EOF", the declarator a prefix whose operand
-	// ran out, and operand's Unknown spanning the declarator replaces it.
+	// ran out, and its target is operand's Missing node (R-g).
 	bp := infix[","].BP
 	if operandBP > 0 {
 		bp = operandBP
 	}
-	target := p.operand(bp, word)
-	if target.Kind == Unknown && target.Start == word.Start {
-		return target
+	// `state` and `field` with nothing after them are words perl reads as
+	// bareword calls where their features are off: perl 5.44.0 compiles a
+	// buffer that is exactly either, and refuses `use v5.36; state` (R-g′).
+	if text := p.text(word); len(n.Children) == 0 && p.operandAbsent() &&
+		(text == "state" && !p.features["state"] || text == "field" && !p.features["class"]) {
+		return &Node{Kind: Call, Text: text, Start: word.Start, End: word.End}
 	}
+	target := p.operand(bp, word)
 	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
 	return n
@@ -1073,9 +1075,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
 	if eq, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(eq)]) {
 		p.advanceTo(eq)
 		n.AssignOp = compoundOp(p.text(eq))
-		if init := p.parseExpr(bpBelowComma); init != nil {
-			n.Children = append(n.Children, init)
-		}
+		n.Children = append(n.Children, p.operand(bpBelowComma, eq))
 	}
 	n.End = p.prevEnd()
 	return n

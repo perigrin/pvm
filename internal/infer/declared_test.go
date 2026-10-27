@@ -414,7 +414,7 @@ func TestMooseNamedListNoFalseArity(t *testing.T) {
 	var codes []parse.RefusalCode
 	var walk func(*parse.Node)
 	walk = func(n *parse.Node) {
-		if n.Kind == parse.Unknown {
+		if n.Refused() {
 			codes = append(codes, n.Refusal)
 		}
 		for _, c := range n.Children {

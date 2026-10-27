@@ -187,7 +187,10 @@ func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.
 //
 // Left out, because perl compiled some of theirs: trailing_tokens (299 of
 // 2130 compiled), missing_operand (6 of 85: `state`, `field`, `infix
-// isa`), not_a_term (3 of 170). ambiguous_sigil's 6 were all refused, but
+// isa`), not_a_term (3 of 170). Re-measured 2026-10-27 on 5.44.0, 7 literals
+// reaching missing_operand compile -- those three and trailing commas at
+// end of input -- and perigrin's R-g′ exempts all 7: none builds a
+// missing_operand now. ambiguous_sigil's 6 were all refused, but
 // `A &q(x);` compiles and the parser refuses it. unimplemented_statement
 // and not_an_expression have no source that reaches them to measure.
 var perlRefuses = map[parse.RefusalCode]bool{
@@ -202,14 +205,16 @@ var perlRefuses = map[parse.RefusalCode]bool{
 	parse.TernaryNoColon:      true,
 }
 
-// refusals reports each Unknown in n's tree whose code perl shares
-// (perlRefuses) as that code over its span. An Unknown inside another is
-// part of the outer refusal and is not reported again. Any other refusal
+// refusals reports each refusal in n's tree (parse.Node.Refused) whose code
+// perl shares (perlRefuses) as that code over its span. A refusal inside
+// another is part of the outer refusal and is not reported again. No
+// catch-all code is in perlRefuses, so their Error nodes report nothing
+// here (R-a′). Any other refusal
 // is a gap in the parser, not an error in the source, and is reported by
 // nothing: inference types the Hole an Unknown lowers to as Any and says
 // nothing about it.
 func refusals(n *parse.Node) []infer.Diagnostic {
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		if !perlRefuses[n.Refusal] {
 			return nil
 		}

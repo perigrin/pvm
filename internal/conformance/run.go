@@ -229,8 +229,9 @@ func askPerl(t *testing.T, source string) (compiles bool, output string) {
 	return true, string(out)
 }
 
-// refusalCodes collects the code of every Unknown in a tree, in tree
-// order.
+// refusalCodes collects the code of every refusal in a tree, in tree
+// order: each Unknown, and each Error or Missing node recovery built in an
+// Unknown's place (parse.Node.Refused).
 //
 // Replaces a plain count. The count is still here -- it is the length --
 // and the codes are what a corpus file can name, so a refusal is
@@ -240,7 +241,7 @@ func refusalCodes(n *parse.Node) []parse.RefusalCode {
 		return nil
 	}
 	var out []parse.RefusalCode
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		out = append(out, n.Refusal)
 	}
 	for _, c := range n.Children {

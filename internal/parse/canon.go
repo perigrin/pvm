@@ -230,6 +230,16 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		defer b.WriteString(n.TrailingComma)
 	}
 
+	// A refusal's own text IS the answer. It spans exactly the bytes this
+	// parser could not read and has no structure to emit -- writing the
+	// source back is what a refusal looks like. An Error or Missing node is
+	// written the same way, so a catch-all Error writes back exactly what its
+	// Unknown did, and a synthesized token, being zero-width, writes nothing.
+	if n.Refused() || n.Kind == Error || n.Kind == Missing {
+		b.WriteString(ownText(n, src))
+		return
+	}
+
 	switch n.Kind {
 	case SourceFile:
 		// The main program's last statement needs no `;`, as a block's
@@ -295,7 +305,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// braceOpensAnonHash says otherwise (`{a => 1}`, `{}`). Where it
 		// would, perl's Deparse writes `+{0};`, and so does this. The text is
 		// re-parsed to ask, so the answer is the parser's own.
-		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && n.Children[0].Kind != Unknown &&
+		if strings.HasPrefix(text, "{") && n.Children[0].Kind != Block && !n.Children[0].Refused() &&
 			rereadsAsBlock(text) {
 			b.WriteByte('+')
 		}
@@ -947,12 +957,6 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		b.WriteString(n.Text)
 		b.WriteString(": ")
 
-	case Unknown:
-		// The one kind whose own text IS the answer. Unknown spans exactly
-		// the bytes this parser could not read, and it has no structure to
-		// emit -- writing the source back is what a refusal looks like.
-		b.WriteString(ownText(n, src))
-
 	case Binary:
 		info := infix[n.Text]
 		if len(n.Children) != 2 {
@@ -1570,6 +1574,9 @@ func blockForm(n *Node) bool {
 	if last == nil {
 		return false
 	}
+	if last.Refused() {
+		return true
+	}
 	switch last.Kind {
 	case Conditional, Loop:
 		// The block forms end in a `}` and take no `;`. The STATEMENT
@@ -1583,7 +1590,7 @@ func blockForm(n *Node) bool {
 		// A phaser name with no block is a forward declaration, `sub END;`
 		// to perl's Deparse, and takes its `;` like any other.
 		return len(last.Children) > 0
-	case Block, Use, Unknown:
+	case Block, Use:
 		return true
 	case Statement:
 		// A bare block with a continue block is the pair the parser

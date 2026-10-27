@@ -768,7 +768,7 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		// and was wrong on `__CLASS__` and missing `__SUB__` -- one fault
 		// each way, from encoding a judgement perl does not make.
 		next, ok := p.peekAfter(tok)
-		if !ok || !startsTerm(next, p.src) {
+		if !ok || !startsTerm(next, p.src) && !p.globAt(next) {
 			return nil
 		}
 		// A word before a PACKAGE name is an indirect method call, which
@@ -804,6 +804,18 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
 		}
 	}
 	return nil
+}
+
+// globAt reports whether tok is a `*` glued to the name after it, the
+// lexer's glob: after a handle it begins a term, the glob perl prints.
+// Measured on 5.44.0, `print STDOUT *;` and `say STDOUT *}` compile, the
+// `*;` and `*}` the globs printed to STDOUT.
+func (p *parser) globAt(tok lexer.Token) bool {
+	if tok.Kind != lexer.Operator || p.text(tok) != "*" {
+		return false
+	}
+	name, ok := p.peekAfter(tok)
+	return ok && name.Kind == lexer.Word && name.Start == tok.End
 }
 
 // isBarewordHandle reports whether a bareword can fill a handle slot.

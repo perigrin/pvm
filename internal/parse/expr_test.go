@@ -359,7 +359,7 @@ func assertShape(t *testing.T, root *parse.Node, want string) {
 }
 
 func firstOfKind(n *parse.Node, k parse.Kind) *parse.Node {
-	if n.Kind == k {
+	if isKind(n, k) {
 		return n
 	}
 	for _, c := range n.Children {
@@ -370,8 +370,15 @@ func firstOfKind(n *parse.Node, k parse.Kind) *parse.Node {
 	return nil
 }
 
+// isKind reports whether n is of kind k, where every refusal is an
+// Unknown: an Error or Missing node recovery built in an Unknown's place is
+// still the refusal the test is looking for (parse.Node.Refused).
+func isKind(n *parse.Node, k parse.Kind) bool {
+	return n.Kind == k || k == parse.Unknown && n.Refused()
+}
+
 func containsKind(n *parse.Node, k parse.Kind) bool {
-	if n.Kind == k {
+	if isKind(n, k) {
 		return true
 	}
 	for _, c := range n.Children {
@@ -412,10 +419,11 @@ func TestNotWithParensIsATerm(t *testing.T) {
 //	print(1+)      syntax error at m.pl line 1, near "+)"
 //	print 1+2      syntax OK
 //
-// At end of file the operand ran out, so the refusal is missing_operand on
-// the operator. Before a terminator or closer the parser asks for a term and
-// finds the `;`, `}` or `)`, so the refusal is not_a_term on that token --
-// perl's "near" names the same two bytes.
+// At end of file, or before the `;` or `}` that ends the statement or block,
+// the operand is missing: missing_operand, a zero-width Missing node at the
+// operator's end (perigrin's R-g). Before a `)` the parser asks for a term
+// and finds the `)`, so the refusal is not_a_term on that token -- perl's
+// "near" names the same two bytes.
 func TestTrailingInfixAtEOFRefused(t *testing.T) {
 	cases := []struct {
 		src  string
@@ -425,8 +433,8 @@ func TestTrailingInfixAtEOFRefused(t *testing.T) {
 		{"print 1+", 1, parse.MissingOperand},
 		{"print 1 &&", 1, parse.MissingOperand},
 		{"1;\nprint 1+", 2, parse.MissingOperand},
-		{"print 1+;", 1, parse.NotATerm},
-		{"{ print 1+ }", 1, parse.NotATerm},
+		{"print 1+;", 1, parse.MissingOperand},
+		{"{ print 1+ }", 1, parse.MissingOperand},
 		{"print(1+)", 1, parse.NotATerm},
 	}
 	for _, c := range cases {
@@ -448,7 +456,7 @@ func TestTrailingInfixAtEOFRefused(t *testing.T) {
 
 // firstUnknown is the first Unknown in source order, or nil.
 func firstUnknown(n *parse.Node) *parse.Node {
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		return n
 	}
 	for _, c := range n.Children {

@@ -193,7 +193,7 @@ func TestLatencyFixtureCompiles(t *testing.T) {
 // unknowns counts the Unknown nodes under n.
 func unknowns(n *parse.Node) int {
 	total := 0
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		total = 1
 	}
 	for _, c := range n.Children {

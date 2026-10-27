@@ -674,7 +674,7 @@ func parenNodes(n *parse.Node, src []byte, argParens bool) int {
 		count++
 	}
 	switch {
-	case n.Kind == parse.Unknown,
+	case n.Refused(),
 		n.Kind == parse.Index && len(n.Children) != 2,
 		n.Kind == parse.Binary && len(n.Children) != 2,
 		n.Kind == parse.Ternary && len(n.Children) != 3:

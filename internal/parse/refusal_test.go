@@ -94,8 +94,8 @@ func TestRefusalCodeInventory(t *testing.T) {
 	sites := countUnknownSites(t)
 
 	// Sixteen codes for seventeen sites, and the seventeenth is accounted for rather
-	// than forgotten: parse.go's `expr.Kind == Unknown` widens an existing
-	// Unknown from the expression to the statement and carries the inner
+	// than forgotten: parse.go's `expr.Refused()` widens an existing
+	// refusal from the expression to the statement and carries the inner
 	// code outward. It is a change of span, not of cause, so it declares
 	// none of its own -- see the note in RefusalSites.
 	const propagating = 1
@@ -162,7 +162,16 @@ func countUnknownSites(t *testing.T) int {
 		if err != nil {
 			t.Fatal(err)
 		}
-		total += strings.Count(string(src), "&Node{Kind: Unknown, Refusal:")
+		for _, needle := range []string{
+			"&Node{Kind: Unknown, Refusal:",
+			// Recovery's replacements for the four codes it builds nodes for,
+			// and the widening site, which keeps its operand's kind.
+			"&Node{Kind: Error, Refusal:",
+			"&Node{Kind: Missing, Refusal:",
+			"&Node{Kind: expr.Kind, Refusal:",
+		} {
+			total += strings.Count(string(src), needle)
+		}
 	}
 	if total == 0 {
 		t.Fatal("found no Unknown construction sites; the scan is broken, " +
@@ -219,13 +228,14 @@ func refusingSources() []string {
 	}
 }
 
-// collectUnknown gathers every Unknown in a tree.
+// collectUnknown gathers every refusal in a tree: each Unknown, and each
+// Error or Missing node recovery built in an Unknown's place.
 func collectUnknown(n *parse.Node) []*parse.Node {
 	if n == nil {
 		return nil
 	}
 	var out []*parse.Node
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		out = append(out, n)
 	}
 	for _, c := range n.Children {

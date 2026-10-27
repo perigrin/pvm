@@ -238,7 +238,7 @@ func TestClassCorpusHasNoUseGaps(t *testing.T) {
 		var check func(*parse.Node)
 		check = func(parent *parse.Node) {
 			for _, n := range parent.Children {
-				if n.Kind == parse.Unknown {
+				if n.Refused() {
 					if startsWithHeredocBody(src, n) {
 						continue
 					}

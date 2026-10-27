@@ -22,7 +22,7 @@ func refusalsIn(root *Node) []RefusalCode {
 	var codes []RefusalCode
 	var walk func(*Node)
 	walk = func(n *Node) {
-		if n.Kind == Unknown {
+		if n.Refused() {
 			codes = append(codes, n.Refusal)
 		}
 		for _, c := range n.Children {
@@ -307,12 +307,15 @@ func TestPrintWordBeforePackageIsAMethod(t *testing.T) {
 // and perl refuses what a `\$` slot refuses. Measured on 5.42.0 with
 // `perl -c`: `++1` is "Can't modify constant item in preincrement (++)",
 // `1++` in postincrement, `--1` in predecrement, `++"a"` a constant item
-// too, `++f()` "Can't modify non-lvalue subroutine call of &main::f", and
-// `++@a` "Can't modify private array". `$h{x}++` and `$x->[0]++` compile.
+// too, `++f()` "Can't modify non-lvalue subroutine call of &main::f",
+// `++@a` "Can't modify private array", and `--!$y` "Can't modify not in
+// predecrement (--)" -- FuzzParser's `--!y=>0`, whose canon `--(!y) => 0`
+// lexed `y)` as a transliteration. `$h{x}++` and `$x->[0]++` compile.
 func TestIncDecRefusesConstant(t *testing.T) {
 	for _, src := range []string{
 		"++1;\n", "1++;\n", "--1;\n", "1--;\n", "++\"a\";\n",
 		"sub f {} ++f();\n", "my @a; ++@a;\n",
+		"my $y; --!$y;\n", "my $y; ++!$y;\n", "--!y=>0;\n",
 	} {
 		if got := refusedAs(src); !slices.Equal(got, []RefusalCode{RefScalarSlot}) {
 			t.Errorf("%q: refusals %v, want one %s", src, got, RefScalarSlot)

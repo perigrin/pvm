@@ -93,7 +93,7 @@ func TestLowerLiterals(t *testing.T) {
 func TestLowerUnknownToHole(t *testing.T) {
 	for _, src := range []string{"qw(a b", `"abc`} {
 		root := parse.Parse([]byte(src))
-		if len(root.Children) != 1 || root.Children[0].Kind != parse.Unknown {
+		if len(root.Children) != 1 || !root.Children[0].Refused() {
 			t.Fatalf("%q: want one Unknown, got %d children", src, len(root.Children))
 		}
 		u := root.Children[0]
@@ -115,7 +115,7 @@ func TestLowerUnknownToHole(t *testing.T) {
 	var u *parse.Node
 	var find func(*parse.Node)
 	find = func(n *parse.Node) {
-		if n.Kind == parse.Unknown {
+		if n.Refused() {
 			u = n
 		}
 		for _, c := range n.Children {

@@ -206,9 +206,10 @@ func TestPerlGitTRejects(t *testing.T) {
 	}
 }
 
-// firstUnknownLine is the line the first Unknown starts on, or 0.
+// firstUnknownLine is the line the first refusal starts on, or 0: an
+// Unknown, or the Error or Missing node that replaced one (Refused).
 func firstUnknownLine(n *parse.Node, src []byte) int {
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		return strings.Count(string(src[:n.Start]), "\n") + 1
 	}
 	for _, c := range n.Children {

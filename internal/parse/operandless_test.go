@@ -96,11 +96,19 @@ func TestOperandlessFiletest(t *testing.T) {
 		{"my $x = -e $f;", "my $x = -e $f;"},
 		{"my $x = -t STDIN;", "my $x = -t STDIN;"},
 		{"print -d -e $f;", "print -d -e $f;"},
+		// `++` and `--` are infix-table entries, as postfix operators, and
+		// still begin the operand: perl 5.42.0 Deparse, `'???' while -f
+		// ++$d;`. perl.git t/japh/abigail.t has both.
+		{"1 while -f ++ $d;", "1 while -f ++$d;"},
+		{"1 while -f -- $d;", "1 while -f --$d;"},
 	} {
 		b := []byte(tc.src)
 		n := parse.Parse(b)
 		if got := parse.Canon(n, b); got != tc.want {
 			t.Errorf("Canon(%q) = %q, want %q", tc.src, got, tc.want)
+		}
+		if got := countUnknown(n); got != 0 {
+			t.Errorf("Parse(%q): Unknown=%d, want 0", tc.src, got)
 		}
 	}
 }

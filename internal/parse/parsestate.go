@@ -29,9 +29,12 @@ const (
 // fails TestParserStateSnapshotCoversEveryField until it is listed here, and
 // a map or slice listed as snapshotted fails it until clone copies it.
 var parserFields = map[string]int{
-	"moduleSubs":     snapshotted,
-	"bodies":         shared,
-	"depth":          snapshotted,
+	"moduleSubs": snapshotted,
+	"bodies":     shared,
+	"depth":      snapshotted,
+	// A count, not a stack: finish walks for HasError when it is non-zero,
+	// so a resumed parse carrying the prefix's count only walks the more.
+	"recovered":      snapshotted,
 	"attrOpenAtEOF":  snapshotted,
 	"typed":          snapshotted,
 	"signatures":     snapshotted,

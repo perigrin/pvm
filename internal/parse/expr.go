@@ -131,8 +131,29 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		}
 		text := p.text(tok)
 
+		// After a word or a glob's name the lexer, with no symbol table,
+		// splits `**` as `*` and the glob `**`. Here, where an operator is
+		// read, perl's `**` is: measured on 5.44.0, `x **2`, `*x **2` and
+		// `print STDOUT *x ** 2` are exponentiation. Where no operand
+		// follows, refuseAmbiguousSigil declines it instead (endsGlobStar).
+		if star, ok := p.peekAfter(tok); ok && text == "*" && star.Kind == lexer.Word && p.text(star) == "*" &&
+			star.Start == tok.End && !p.endsGlobStar(star) {
+			tok, text = star, "**"
+			// And `**=`, the `=` glued after: Deparse has `x **=2` as
+			// `'x' **= 2`.
+			if eq, ok := p.peekAfter(star); ok && eq.Start == star.End && eq.Kind == lexer.Operator && p.text(eq) == "=" {
+				tok, text = eq, "**="
+			}
+		}
+
 		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
+			return left
+		}
+		// `isa` is infix only under its feature (operatorHere); without it
+		// and with nothing after it, `infix isa` is perl's `'isa'->infix`,
+		// not an operator missing its operand (R-g′).
+		if tok.Kind == lexer.Word && !p.operatorHere(text) && p.endsAfter(tok) {
 			return left
 		}
 
@@ -191,7 +212,9 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		// looked at in turn; `or`, `and` and `xor` are parsed as the
 		// operators they are, with this list as their left operand.
 		if text == "," || text == "=>" {
-			if next, ok := p.peekAfter(tok); ok && elementlessAfterComma(next, p.src) {
+			// End of input ends the list too: perl 5.44.0 compiles `substr
+			// $x, 0, 1, ` and `infix =>` (R-g′).
+			if next, ok := p.peekAfter(tok); !ok || elementlessAfterComma(next, p.src) {
 				p.advanceTo(tok)
 				markTrailing(left, text)
 				continue
@@ -398,18 +421,23 @@ func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
 	return ok && (p.text(next) == "," || p.text(next) == ")")
 }
 
-// operand parses a right-hand operand, substituting an explicit Unknown when
-// the input ran out.
+// operand parses a right-hand operand, substituting a zero-width Missing
+// node carrying missing_operand when there is none: the input ran out, or a
+// `;` or `}` follows, which ends the statement or block rather than being
+// read as a term that is not one (R-g, recovery.go).
 //
 // Every infix and prefix form needs this, and putting it in one place is the
 // point: a nil check repeated at eleven call sites is a nil check forgotten
-// at one of them. The Unknown spans the operator that has no operand, so the
-// bytes stay in the tree and the failure is visible rather than silent.
+// at one of them. The Missing node sits at the operator's end, so the
+// operator's bytes stay with the node that holds it.
 func (p *parser) operand(bp int, after lexer.Token) *Node {
+	if p.operandAbsent() {
+		return p.missingOperand(after)
+	}
 	if n := p.parseExpr(bp); n != nil {
 		return n
 	}
-	return &Node{Kind: Unknown, Refusal: MissingOperand, Start: after.Start, End: after.End}
+	return p.missingOperand(after)
 }
 
 // parseNonassoc builds the node and then rejects a repetition.
@@ -636,6 +664,22 @@ func autoquote(key *Node) {
 	key.Resolved = false
 }
 
+// endsAfter reports whether nothing follows tok: end of input, or a `;` or
+// `}`.
+func (p *parser) endsAfter(tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return !ok || endsStatement(next, p.src)
+}
+
+// endsGlobStar reports whether what follows tok, the glob name `*`, leaves
+// no term for the `**` perl reads there: end of input, a `;` or `}`, or a
+// glued `**`, the shapes of FuzzParser's `**` finds.
+func (p *parser) endsGlobStar(tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return !ok || endsStatement(next, p.src) ||
+		next.Start == tok.End && next.Kind == lexer.Operator && p.text(next) == "**"
+}
+
 // refuseAmbiguousSigil refuses `A &y`, `A*y` and `A*#`: a `&` or `*` read here
 // as an operator, after a bareword, with a quote-op name (or, for `*`, the
 // glob name `#`) glued after it. The lexer
@@ -655,21 +699,37 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	if text == "&" && tok.Kind != lexer.FuncSigil {
 		return nil
 	}
-	prev := p.pos - 1
-	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
-		prev--
-	}
-	if prev < 0 || p.toks[prev].Kind != lexer.Word {
-		return nil
-	}
 	name, ok := p.peekAfter(tok)
 	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
 		return nil
 	}
+	// A glob that leaves `*` no operand -- `*;`, `*}`, and `**` with nothing
+	// after it -- is the operator and a closer after ANY term, here where an
+	// operator is read: perl 5.44.0 has `{}*}{$0}` an "Unmatched right
+	// curly", and its canon `{} * }{$0}` re-read differently. The others
+	// disagree only after a word, which may be a call taking a glob.
+	closes := text == "*" && (p.text(name) == ";" || p.text(name) == "}" ||
+		p.text(name) == "*" && p.endsGlobStar(name))
+	prev := p.pos - 1
+	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
+		prev--
+	}
+	if !closes && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
+		return nil
+	}
 	// The glob `*#` is the same disagreement: `fo*#` is `fo *` and a comment
-	// to perl, measured on 5.42.0, so its canon `fo * #` re-read as one.
-	// Other punctuation after `*` multiplies at a canon fixpoint.
-	hashName := text == "*" && p.src[name.Start] == '#'
+	// to perl, measured on 5.42.0, so its canon `fo * #` re-read as one. So
+	// is a quote, `A*"3"`, `A*'3'` and A*`ls`: `'A' * 3` to perl. And `*;`
+	// and `*}`, the `;` or `}` ending an operand perl finds missing: after
+	// an undeclared word, `A*;` is a syntax error. And the glob `**` where
+	// nothing perl could take as `**`'s operand follows: measured on 5.44.0,
+	// `x****x`, `x****2`, `x**;` and `x**` are syntax errors, and their canon
+	// re-read differently. Where a term follows -- `x **2`, `*x **2`,
+	// `x***x` -- perl reads exponentiation, and the reading here is a canon
+	// fixpoint, so it stands. Other punctuation after `*` multiplies at a
+	// canon fixpoint.
+	hashName := text == "*" && (strings.ContainsRune("#\"'`;}", rune(p.src[name.Start])) ||
+		p.text(name) == "*" && p.endsGlobStar(name))
 	if !hashName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}

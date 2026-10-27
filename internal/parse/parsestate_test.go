@@ -146,7 +146,8 @@ func resumeNested(t *testing.T, src []byte, stmt string) *Node {
 				kept = append(kept, c)
 			}
 		}
-		blk.Children = append(kept, tail...)
+		kept = append(kept, tail...)
+		blk.Children = kept
 		p.finish(root)
 		return root
 	}
@@ -176,6 +177,31 @@ func snapshotAt(snaps []parserSnapshot, at int) bool {
 		}
 	}
 	return false
+}
+
+// TestParserStateResumeKeepsHasError: a parse resumed at any top-level
+// boundary of a buffer holding Error and Missing nodes, spliced and
+// finished, equals the full parse, HasError included -- finish flags the
+// spliced tree, and a clean prefix spliced to a clean tail is not flagged.
+func TestParserStateResumeKeepsHasError(t *testing.T) {
+	for _, s := range []string{
+		"my $a = 1;\nmy $x = ;\nsub f { $a $b; }\nprint f(\n",
+		"my $a = 1;\nmy $x = 1\nmy $y = 2;\nprint $\n",
+		"my $a = 1;\nprint 2;\n",
+	} {
+		src := []byte(s)
+		full := Parse(src)
+		prefix, snaps := unfinished(src, nil)
+		for _, snap := range snaps {
+			if snap.nested {
+				continue
+			}
+			p, tail := snap.resume(src, nil)
+			if d := TreeDiff(full, spliceTop(p, prefix, snap.at, tail)); d != "" {
+				t.Errorf("%q: resumed at byte %d: %s", s, snap.at, d)
+			}
+		}
+	}
 }
 
 func TestParserStateSnapshotCoversEveryField(t *testing.T) {
