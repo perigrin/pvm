@@ -60,7 +60,7 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 	// And FuzzParser's `(A*"=>)`, whose `"` no `=>` quotes, as it does the
 	// `s` of `A*s => 1`.
 	// And a quote-op name after a closer: FuzzParser's `{{}*y}`.
-	for _, src := range []string{`(A*"=>)`, "A*#=>", "{{}*y}"} {
+	for _, src := range []string{`(A*"=>)`, "A*#=>", "{{}*y}", `{{}*"}`} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}

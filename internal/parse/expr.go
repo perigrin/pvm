@@ -734,7 +734,9 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// So does a quote-op name after a closer, where the lexer read a glob:
 	// perl 5.44.0 has FuzzParser's `{{}*y}` multiply the hash by a
 	// transliteration, and the canon `{} * y` re-read as one.
-	quoteAfterCloser := text == "*" && lexer.IsQuoteOpName(p.text(name)) && prev >= 0 && p.toks[prev].Kind == lexer.CloseBracket
+	// And a quote or `#` glob name there, `{{}*"}`.
+	quoteAfterCloser := text == "*" && prev >= 0 && p.toks[prev].Kind == lexer.CloseBracket &&
+		(lexer.IsQuoteOpName(p.text(name)) || strings.ContainsRune("#\"'`", rune(p.src[name.Start])))
 	if !closes && !quoteAfterCloser && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
 		return nil
 	}
