@@ -379,8 +379,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			}
 		}
 		late := heredocBodies(n, inner)
-		if len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
-			!endsInSemicolon(src[lastForm(n).Start:late[0].Start]) {
+		// An empty statement, all bodies, has no form and ended at its `;`.
+		if lf := lastForm(n); len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
+			lf != nil && !endsInSemicolon(src[lf.Start:late[0].Start]) {
 			early, late, at = late, nil, len(text)
 		}
 		if len(early) > 0 {

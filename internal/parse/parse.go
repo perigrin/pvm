@@ -1249,9 +1249,15 @@ func (p *parser) statementForm() *Node {
 	// skipToStatementEnd runs PAST the enclosing `}` looking for a
 	// terminator it has already gone by. Measured: `map { ; $_ } @a` lost
 	// its closing brace into an Unknown, and `{};` did the same.
+	//
+	// It takes the heredoc bodies after it, as every statement form does: in
+	// FuzzParser's `<<'0';;` + newline + body, the body follows the empty
+	// statement, and left to the statement loop it was refused at EOF.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
-		return &Node{Kind: Statement, Start: start, End: p.prevEnd()}
+		n := &Node{Kind: Statement, Start: start, End: p.prevEnd(), Children: p.takeHeredocBodies()}
+		n.End = p.prevEnd()
+		return n
 	}
 
 	// Labels come first and they stack: `A: B: for (...)` is two of them.

@@ -295,6 +295,18 @@ func TestBracedNameTakesAnyBlank(t *testing.T) {
 	}
 }
 
+// TestEmptyStatementTakesHeredocBody: a heredoc body after an empty
+// statement belongs to it, as to any statement form. FuzzParser's `<<'0';;`
+// + newline + body left the body to the statement loop, which refused it
+// at EOF; with the last `;` there, the canon dropped one.
+func TestEmptyStatementTakesHeredocBody(t *testing.T) {
+	for _, src := range []string{"<<'0';;\ny\n0\n;", "<<'0';;\ny\n0\n", "print <<'0';;\ny\n0\n1;"} {
+		if got := clean(t, src); got != src {
+			t.Errorf("%q: canon %q, want it unchanged", src, got)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
