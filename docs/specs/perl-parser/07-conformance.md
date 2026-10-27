@@ -947,9 +947,24 @@ fuzzing.
 > For any source `S` and any edit `E`:
 > `reparse(parse(S), E)` ≡ `parse(apply(S, E))`
 
-Structural equality on kind, span, and children. Node identity and reuse
-bookkeeping may differ — that is the *point* of incrementality — but nothing
-observable to a consumer may.
+Equality is whole-node: `parse.TreeDiff` compares every field of every
+`parse.Node`, exported and unexported, recursively, and reports the first
+difference. Children and `InnerHeredocBodies` compare by content, error-valued
+root fields by their `Error()` text. Only two things are left out: pointer
+identity, and the cache and snapshot fields on the explicit exclusion list in
+`internal/parse/treediff.go` (token cache, lexer and parser checkpoints, a
+parent back-pointer), each commented with why a consumer cannot observe it.
+`TestTreeEqualCoversEveryNodeField` fails on a field that is neither compared
+nor excluded, so a new field cannot slip out of the property. Node identity
+and reuse bookkeeping may differ — that is the *point* of incrementality — but
+nothing observable to a consumer may.
+
+A length-changing edit moves every later subtree by the same number of bytes.
+For those, `parse.TreeDiffShifted(a, b, delta)` holds: `b` equals `a` with
+each byte-offset field (`Start`, `End`, and `InnerStart`/`InnerEnd` where set)
+increased by `delta` and every other field equal. With `delta` 0 it is
+`TreeDiff`. Callers that need "unchanged but shifted" use it, not a comparer
+of their own.
 
 This is the single most valuable property test in the project, because
 incremental parsing is where subtle, data-dependent, impossible-to-reproduce
