@@ -1256,11 +1256,13 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 			// changes what the list contains.
 			//
 			// An element that kept its separators (TrailingComma) has
-			// already written them; only a space follows.
-			switch {
-			case n.Children[i-1].TrailingComma != "":
+			// already written them; only a space follows. One it kept inside
+			// its own parens, `((A,),%y)`, is not the list's separator, and
+			// leaving that out canon'd FuzzParser's find as `((A,) %y)`.
+			switch prev := n.Children[i-1]; {
+			case prev.TrailingComma != "" && !(prev.Paren && commaInParens(prev, src)):
 				b.WriteByte(' ')
-			case n.Children[i-1].Fat:
+			case prev.Fat:
 				b.WriteString(" => ")
 			default:
 				b.WriteString(", ")

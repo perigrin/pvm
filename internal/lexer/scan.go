@@ -1346,8 +1346,11 @@ func scanAmpName(l *lexer) bool {
 // afterFuncSigil reports whether the last significant token is a sub's `&`,
 // whose name may stand apart from it: perl 5.44.0 deparses `& 0;` and `&
 // !;` as `&0;` and `&!;`.
-func (l *lexer) afterFuncSigil() bool {
-	j := l.significantBefore(len(l.toks))
+func (l *lexer) afterFuncSigil() bool { return l.afterFuncSigilAt(len(l.toks)) }
+
+// afterFuncSigilAt is afterFuncSigil for the tokens before toks[i].
+func (l *lexer) afterFuncSigilAt(i int) bool {
+	j := l.significantBefore(i)
 	return j >= 0 && l.toks[j].Kind == FuncSigil
 }
 

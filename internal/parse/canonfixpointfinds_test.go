@@ -105,6 +105,8 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 	for src, want := range map[string]string{
 		"A*&!*&%*!x &0": "A * &! * &% * !x & 0",
 		"&!*2;":         "&! * 2;",
+		// And a keyword's spelling: `&gt` is a call, not the operator.
+		"&gt*&;": "&gt * &;;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -126,6 +128,17 @@ func TestWordOperatorIsNoTerm(t *testing.T) {
 	}
 	if got := clean(t, "x*&;"); got != "x * &;;" {
 		t.Errorf("`x*&;`: canon %q, want %q", got, "x * &;;")
+	}
+}
+
+// TestListSeparatorAfterInnerTrailingComma: perl 5.44.0 compiles
+// `((A,),%y)`. The comma inside `(A,)` is that element's, and canon took it
+// for the list's separator, writing `((A,) %y)`, a modulus.
+func TestListSeparatorAfterInnerTrailingComma(t *testing.T) {
+	for src, want := range map[string]string{"((A,),%y)": "((A,), %y)", "((1,),2)": "((1,), 2)", "((A),,%y)": "((A), , %y)", "(0,A,,0)": "(0, A, , 0)"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
 	}
 }
 
