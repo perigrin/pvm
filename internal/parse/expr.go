@@ -742,7 +742,9 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	if !hashName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}
-	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
+	// `=>` quotes a quote-op's name, `A*s => 1`, but no punctuation: perl
+	// 5.44.0 reads FuzzParser's `(A*"=>)` as an unterminated string.
+	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" && !hashName {
 		return nil
 	}
 	return p.ambiguousSigil(left.Start)

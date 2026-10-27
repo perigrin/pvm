@@ -886,6 +886,10 @@ type parser struct {
 	// before the `}` is the key's string, a word operator's spelling too.
 	inHashKey bool
 
+	// derefMemo holds derefHoldsStatements' answers, by the brace's
+	// offset, while its outermost call runs; nil outside it.
+	derefMemo map[int]bool
+
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool

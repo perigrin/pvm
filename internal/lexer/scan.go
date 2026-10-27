@@ -144,6 +144,25 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
+	// Whitespace is no name: past it, perl takes one punctuation byte, so
+	// `print $ ;` and `$` then a newline then `;` are each `$;` on 5.44.0.
+	// Not across a newline a heredoc body starts after, and with nothing
+	// there the sigil stands alone, as at EOF: FuzzParser's `<<0%$` took
+	// the newline as a name, and the body after it re-read differently.
+	if isSpace(l.src[l.pos]) {
+		j := l.pos
+		for j < len(l.src) && isSpace(l.src[j]) && (l.src[j] != '\n' || len(l.pending) == 0) {
+			j++
+		}
+		if j < len(l.src) && !isSpace(l.src[j]) && l.src[j] < utf8.RuneSelf && !isWordByte(l.src[j]) && !byteIn(l.src[j], "{#") {
+			l.pos = j + 1
+			l.emit(Variable, start)
+			return true
+		}
+		l.emit(Error, start)
+		return true
+	}
+
 	l.scanVarName()
 	l.emit(Variable, start)
 	return true
@@ -1305,13 +1324,14 @@ func scanGlobName(l *lexer) bool {
 		return false
 	// After a word no keyword table settles, a sigil that begins a variable
 	// is the star's operand: measured on 5.44.0, `A*%x`, `A*@x` and `A*&x`
-	// are `'A' * %x` and its kin, and so are `got*&;` and `A*%}`, the
-	// punctuation the sigil's name as `$;` is. Only a declared sub takes the
-	// glob, and then only before a repetition: `sub A {} A*%x;` is a syntax
-	// error and `sub A {} A*%x3` is `A(*% x 3)`; the parser, which knows
-	// declarations, declines that reading. Taking `*%` as a glob read `A*%x*(%A` and its
+	// are `'A' * %x` and its kin, and so are `got*&;`, `A*%}` and `{x*$}`,
+	// the punctuation the sigil's name as `$;` is, and `A*& ;` and `A*% x`,
+	// the name apart from it. Only a declared sub takes the glob, and then
+	// only before a repetition: `sub A {} A*%x;` is a syntax error and `sub
+	// A {} A*%x3` is `A(*% x 3)`; the parser, which knows declarations,
+	// declines that reading. Taking `*%` as a glob read `A*%x*(%A` and its
 	// canon differently.
-	case byteIn(c, "%@&$") && start+1 < len(l.src) && !isSpace(next) && l.afterUserWord(len(l.toks)-1, true):
+	case byteIn(c, "%@&$") && l.afterUserWord(len(l.toks)-1, true):
 		return false
 	}
 	l.pos = end

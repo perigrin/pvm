@@ -1,10 +1,12 @@
-// ABOUTME: FuzzParser's pre-existing canon-fixpoint finds: `no &0`, `A*%x*(%A` and `;A&~ ~0`.
+// ABOUTME: FuzzParser's pre-existing finds: canon fixpoint failures from `no &0` on, and a nest that hung it.
 // ABOUTME: Each is read as perl 5.44.0 reads it, or refused where perl -c rejects it.
 
 package parse_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/parse"
 )
@@ -38,16 +40,27 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		"got*%;": "got * %;",
 		"A*@}":   "A * @}",
 		"x*$;":   "x * $;",
+		// And a name apart from its sigil: FuzzParser's `A*& ;`.
+		"A*& ;":  "A * & ;;",
+		"A*% x;": "A * % x;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
 	}
-	for _, src := range []string{"sub A {} A *%x3", "sub A {} A*$;"} {
+	for _, src := range []string{"sub A {} A *%x3", "sub A {} A*$;", "sub A {} A *% x 3"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
 	}
+	// And FuzzParser's `(A*"=>)`, whose `"` no `=>` quotes, as it does the
+	// `s` of `A*s => 1`.
+	for _, src := range []string{`(A*"=>)`, "A*#=>"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	clean(t, "A*s => 1;")
 	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0.
 	if found := collectUnknown(parse.Parse([]byte("{x*$}"))); len(found) == 0 {
 		t.Errorf("`{x*$}`: perl rejects this, but it parses")
@@ -114,6 +127,8 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 		"&!*2;":         "&! * 2;",
 		// And a keyword's spelling: `&gt` is a call, not the operator.
 		"&gt*&;": "&gt * &;;",
+		// And a glob's name: FuzzParser's `*gt*&;`.
+		"*gt*&;": "*gt * &;;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -127,12 +142,14 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 func TestWordOperatorIsNoTerm(t *testing.T) {
 	// Nor is `{ge}` a key outside a subscript: perl rejects the block and
 	// the anonymous hash alike, and FuzzParser's `{ge}` canon'd as `{ge;}`.
-	for _, src := range []string{"gt*&;", "gt*2;", "print -eq;", "CORE::eq*2", "{ge}", "my $r = {ge};"} {
+	// So is `sub`'s, FuzzParser's `{sub}`: "Illegal declaration of
+	// anonymous subroutine".
+	for _, src := range []string{"gt*&;", "gt*2;", "print -eq;", "CORE::eq*2", "{ge}", "my $r = {ge};", "{sub}", "do {sub}"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
 	}
-	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)", "$_{ge}", "my $r; $r->{eq}", "my %h; @h{lt}"} {
+	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)", "$_{ge}", "my $r; $r->{eq}", "my %h; @h{lt}", "my %h; $h{sub}"} {
 		clean(t, src)
 	}
 	if got := clean(t, "x*&;"); got != "x * &;;" {
@@ -171,6 +188,20 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 	}
 }
 
+// TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
+// a deref's braces, and the trial held the nested deref's own trial, so
+// each unclosed `${` doubled the work: FuzzParser's
+// `${${${...${&{zx` (19 levels) took 4.4 s and hung its worker. 14 levels
+// took 147 ms, so 40 would take days; held, they take milliseconds.
+func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
+	src := strings.Repeat("${", 40) + "&{zx"
+	start := time.Now()
+	parse.Parse([]byte(src))
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("40 unclosed `${` took %v: each level multiplies the work", d)
+	}
+}
+
 // TestFormFeedBeforeBrace: a form feed is whitespace to perl's lookahead
 // at a `{` as a blank is, so `A\f{0}` is `A {0}`, a block. Read as a
 // subscript, its canon `A{0}` re-read as the block.
@@ -201,12 +232,14 @@ func TestIncrementOverPrefixCanon(t *testing.T) {
 // Read as a hash subscript on 0, its canon doubled the trailing comma and
 // re-read differently. A list slice, `(1)[0]`, is no number.
 func TestNumberTakesNoSubscript(t *testing.T) {
-	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])"} {
+	// Nor is `&{}` a call: FuzzParser's `(&{},)`, perl's syntax error near
+	// "&{", read as a subscript on a bare `&`.
+	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])", "(&{},)", "&{};"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
 	}
-	for _, src := range []string{"my @a = (1)[0];", "my %x; ($x{a},)", "my @x; ($x[0],)"} {
+	for _, src := range []string{"my @a = (1)[0];", "my %x; ($x{a},)", "my @x; ($x[0],)", "my $x; (&{$x},)"} {
 		clean(t, src)
 	}
 }

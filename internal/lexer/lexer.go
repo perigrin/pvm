@@ -620,6 +620,9 @@ func (l *lexer) emit(k Kind, start int) {
 			(l.expect == XState || l.expect == XBlock)
 	}
 
+	// A glob's name, as a sub's after `&`, is a whole term whatever keyword
+	// it spells: perl 5.44.0 reads `*gt*&;` as `*gt * &;`.
+	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start
 	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
 		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
 	l.expect = l.expect.after(k, transition{
@@ -630,7 +633,7 @@ func (l *lexer) emit(k Kind, start int) {
 		afterDeclName:   afterDeclName,
 		// A sub's name after its `&` is a whole term too, whatever keyword it
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
-		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] || l.afterFuncSigilAt(len(l.toks)-1)),
+		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] || l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:

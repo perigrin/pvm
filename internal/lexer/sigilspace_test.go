@@ -63,3 +63,24 @@ func TestSigilAtEOFIsAnError(t *testing.T) {
 		}
 	}
 }
+
+// TestSpaceIsNoSigilName: past whitespace perl takes one punctuation byte as
+// the name, so `print $ ;` and `$`, a newline and `;` are `$;` on 5.44.0.
+// With nothing nameable there, or a heredoc body after the newline, the
+// sigil stands alone: FuzzParser's `<<0%$` + newlines took the newline as
+// the name, and the body began a byte late.
+func TestSpaceIsNoSigilName(t *testing.T) {
+	for src, want := range map[string]string{"print $ ;": "$ ;", "print $\n;": "$\n;", "my $x = @ ;": "@ ;"} {
+		toks := significant(Tokenize([]byte(src)))
+		last := toks[len(toks)-1]
+		if last.Kind != Variable || src[last.Start:last.End] != want {
+			t.Errorf("%q: last token %v %q, want Variable %q", src, last.Kind, src[last.Start:last.End], want)
+		}
+	}
+	src := "<<0%$\n\n\n0"
+	for _, tok := range Tokenize([]byte(src)) {
+		if tok.Kind == Variable {
+			t.Errorf("%q: %q is no variable; the newline begins the heredoc body", src, src[tok.Start:tok.End])
+		}
+	}
+}

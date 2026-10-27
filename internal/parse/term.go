@@ -349,6 +349,14 @@ func (p *parser) parseTerm() *Node {
 		// here into one term: `\&f` is a code reference, not a reference to
 		// an ampersand.
 		p.advanceTo(tok)
+		// Empty braces are no code to call: perl 5.44.0 has `(&{},)` a
+		// syntax error near "&{", and read as a subscript on a bare `&` its
+		// canon re-read differently.
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			if close, ok := p.peekAfter(open); ok && p.text(close) == "}" {
+				return p.refuseNotATerm(tok)
+			}
+		}
 		// Braces holding statements, as `${; ...}`'s do: `&{; $c }(1)`,
 		// measured on 5.42.0 to deparse as `&{$c;}(1)`.
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" && p.derefHoldsStatements(open) {
@@ -449,10 +457,10 @@ func (p *parser) parseTerm() *Node {
 			// $f = sub;`, `f(sub, 1)` and `print sub;` are each "Illegal
 			// declaration of anonymous subroutine". Before `=>` it is the
 			// string 'sub', before `}` a hash key, `$h{sub}`, and a name
-			// after it is parseWordTerm's.
-			// ponytail: `do {sub}` passes as a key would; a refusal there
-			// needs to know the brace is a subscript's.
-			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && p.text(next) != "}" {
+			// after it is parseWordTerm's. A `}` that closes no subscript
+			// is no key's: `{sub}` and `do {sub}` are refused as perl
+			// refuses them, and FuzzParser's `{sub}` canon'd as `{sub;}`.
+			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && !(p.inHashKey && p.text(next) == "}") {
 				return p.refuseNotATerm(tok)
 			}
 
@@ -590,6 +598,22 @@ func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
 // the test is what the expression reaches rather than whether a `;` follows
 // it. The cursor is left where it was.
 func (p *parser) derefHoldsStatements(open lexer.Token) bool {
+	// The trial parse below holds a nested deref's own trial, so unclosed
+	// `${${${...` doubled per level: FuzzParser hung on 19 of them. The
+	// answers are kept for the outermost call's duration.
+	if held, ok := p.derefMemo[open.Start]; ok {
+		return held
+	}
+	if p.derefMemo == nil {
+		p.derefMemo = map[int]bool{}
+		defer func() { p.derefMemo = nil }()
+	}
+	held := p.derefHoldsStatementsOnce(open)
+	p.derefMemo[open.Start] = held
+	return held
+}
+
+func (p *parser) derefHoldsStatementsOnce(open lexer.Token) bool {
 	save := p.pos
 	defer func() { p.pos = save }()
 	p.advanceTo(open)
