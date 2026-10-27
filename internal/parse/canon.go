@@ -1289,8 +1289,17 @@ func ownText(n *Node, src []byte) string {
 	case afterPair && n.SyntaxParen && n.Paren:
 		// emit writes the separator between the two pairs.
 		return string(src[n.InnerStart:n.InnerEnd])
+	case afterPair && n.TrailingComma != "" && !foldsSep(n):
+		// A node that kept its separator has emit write it: FuzzParser's
+		// `((&0()),)`, written from source with it as well, doubled it. A
+		// leaf folds the one inside its parens instead, `f((0,),)`.
+		const blanks = " \t\r\n\f\v"
+		text := strings.TrimRight(string(src[n.Start+1:n.End-1]), blanks)
+		return strings.TrimRight(strings.TrimSuffix(text, sep), blanks)
 	case afterPair:
 		return string(src[n.Start+1 : n.End-1])
+	case n.TrailingComma != "" && !foldsSep(n):
+		return string(src[n.InnerStart:n.InnerEnd])
 	}
 	return string(src[n.InnerStart:n.InnerEnd]) + sep
 }

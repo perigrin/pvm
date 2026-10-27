@@ -208,6 +208,17 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 	}
 }
 
+// TestKeptSeparatorWrittenOnce: a node that keeps its trailing separator has
+// emit write it, so the text written from source for it leaves it out.
+// FuzzParser's `((&0()),)` canon'd as `((&0()),,)`.
+func TestKeptSeparatorWrittenOnce(t *testing.T) {
+	for src, want := range map[string]string{"((&0()),)": "((&0()),)", "((&f()),)": "((&f()),)", "(&f(),)": "(&f(),)", "((1),)": "((1),)"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
