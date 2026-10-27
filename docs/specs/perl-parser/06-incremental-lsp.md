@@ -961,6 +961,28 @@ inside POD, inside `s{}{}`, the state is not safe and no checkpoint is
 recorded. Re-lexing therefore always restarts from a point where the lexer's
 world is fully known.
 
+**As landed** (`internal/lexer/checkpoint.go`). The lexer `State` is not the
+field list above but the lexer struct itself with its cursor, source and output
+cleared, so every field the lexer grows is state without a hand-kept list;
+`Clone` deep-copies it (a reflect test fails on a reference field it misses)
+and `Equal` compares clones, an empty collection equal to a missing one.
+`StartState`, `StartStateBarewords` and `StartStateTyped` are the byte-0 states
+of the three `Tokenize*` entry points, which start from them. This lexer has no
+`SublexStack`, `DelimiterStack` or `Context`: quotes, regexes, `s{}{}`, POD,
+heredoc bodies and format bodies are each one token scanned within one step,
+so no step boundary falls inside them. `Checkpoints(src, start)` returns the
+tokens with the checkpoints passed — byte 0, then at most one per 512 bytes —
+and `Resume(src, cp)` lexes from one to EOF, equal to the full stream's suffix.
+No checkpoint is recorded unless the token just emitted is a `;` or a `}` and
+`Expect == XState` with the bracket stack empty, no heredoc queued (so never
+with one pending on the line, nor inside its body), and no format body pending
+or open, and no `[` still open by count (`openSquares`) — any closer pops the
+bracket stack, so `[ )` empties it while typed Perl's `containerTypeSigil`,
+walking back over raw `[`/`]` with no stop at `;`, would still reach that `[`;
+nothing follows a `DataSection`, so none falls after `__END__` or
+`__DATA__`. Resume needs the bytes before the checkpoint unchanged: the other
+scanners look back a token or two, and none looks past a `;` or a block's `}`.
+
 ### 6.3.2 The cache
 
 ```go
