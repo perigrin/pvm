@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"tamarou.com/pvm/internal/types"
 )
 
 // diffBase is a three-level tree with a heredoc body on its middle node, so
@@ -27,13 +25,14 @@ type diffCase struct {
 	mutate func(root *Node)
 }
 
-// rootOnlyMutations change the unexported fields parseWith sets on the root
-// alone. Reflection cannot set them, so each is named.
-var rootOnlyMutations = map[string]func(root *Node){
-	"loaded":    func(r *Node) { r.loaded = append(r.loaded, "Foo") },
-	"declErrs":  func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
-	"declWarns": func(r *Node) { r.declWarns = append(r.declWarns, errors.New("odd")) },
-	"imports":   func(r *Node) { r.imports = map[string]Import{"f": {Name: "f"}} },
+// unexportedMutations change the unexported fields, which reflection cannot
+// set, so each is named. All but nestedParen are set on the root alone.
+var unexportedMutations = map[string]func(root *Node){
+	"nestedParen": func(r *Node) { deepChild(r).nestedParen = true },
+	"loaded":      func(r *Node) { r.loaded = append(r.loaded, "Foo") },
+	"declErrs":    func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
+	"declWarns":   func(r *Node) { r.declWarns = append(r.declWarns, errors.New("odd")) },
+	"imports":     func(r *Node) { r.imports = map[string]Import{"f": {Name: "f"}} },
 }
 
 // treeDiffCases builds one mutation per Node field, plus child-count and
@@ -49,12 +48,8 @@ func treeDiffCases(t *testing.T) []diffCase {
 		if _, ok := treeDiffExcluded[f.Name]; ok {
 			continue
 		}
-		if m, ok := rootOnlyMutations[f.Name]; ok {
+		if m, ok := unexportedMutations[f.Name]; ok {
 			cases = append(cases, diffCase{f.Name, m})
-			continue
-		}
-		if f.Name == "nestedParen" {
-			cases = append(cases, diffCase{f.Name, func(r *Node) { deepChild(r).nestedParen = true }})
 			continue
 		}
 		if !f.IsExported() {
@@ -87,17 +82,7 @@ func mutateValue(t *testing.T, name string, v reflect.Value) {
 	case reflect.Array:
 		mutateValue(t, name, v.Index(0))
 	case reflect.Slice:
-		elem := reflect.New(v.Type().Elem()).Elem()
-		if elem.Kind() == reflect.Pointer {
-			elem = reflect.New(v.Type().Elem().Elem())
-		}
-		if elem.Type() == reflect.TypeFor[types.Signature]() {
-			elem.Set(reflect.ValueOf(types.Signature{Returns: types.Int}))
-		}
-		if elem.Kind() == reflect.String {
-			elem.SetString("x")
-		}
-		v.Set(reflect.Append(v, elem))
+		v.Set(reflect.Append(v, reflect.Zero(v.Type().Elem())))
 	default:
 		t.Fatalf("field %s: cannot mutate a %s; add a case to mutateValue", name, v.Kind())
 	}
