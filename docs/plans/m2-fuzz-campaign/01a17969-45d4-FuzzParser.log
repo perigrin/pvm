@@ -1,0 +1,11 @@
+commit d5db1c2e96253103a94b55a1901a2b0765dd1ae6
+go version go1.24.4 linux/amd64
+fuzz: elapsed: 0s, gathering baseline coverage: 0/1238 completed
+fuzz: elapsed: 3s, gathering baseline coverage: 878/1238 completed
+fuzz: elapsed: 4s, gathering baseline coverage: 1238/1238 completed, now fuzzing with 4 workers
+fuzz: elapsed: 6s, execs: 13195 (4109/sec), new interesting: 11 (total: 1249)
+fuzz: elapsed: 9s, execs: 37187 (7996/sec), new interesting: 28 (total: 1266)
+fuzz: elapsed: 12s, execs: 39818 (877/sec), new interesting: 28 (total: 1266)
+fuzz: elapsed: 13s, execs: 50000 (9745/sec), new interesting: 29 (total: 1267)
+PASS
+ok  	tamarou.com/pvm/internal/parse	13.109s
