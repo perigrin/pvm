@@ -1,0 +1,5 @@
+go test fuzz v1
+string("use Foo; my @x = (bar 1, 2);\n")
+int(22)
+int(1)
+string("42")

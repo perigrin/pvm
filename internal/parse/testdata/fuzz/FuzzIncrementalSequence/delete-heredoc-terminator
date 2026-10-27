@@ -1,0 +1,3 @@
+go test fuzz v1
+string("sub f {\n  print <<EOF;\nbody\nEOF\n  return 1;\n}\nprint f();\n")
+[]byte("\x1c\x00\x04\x00")
