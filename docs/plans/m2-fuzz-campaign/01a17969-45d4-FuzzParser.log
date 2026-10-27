@@ -1,31 +1,30 @@
-commit 07b60956e4285b8ad11deb2ffe9f2ca828ef3cf6
+commit 80fc8a2d7207426ae78b32327450f09f54f31b8d
 go version go1.24.4 linux/amd64
-fuzz: elapsed: 0s, gathering baseline coverage: 0/1285 completed
-fuzz: elapsed: 3s, gathering baseline coverage: 540/1285 completed
-fuzz: elapsed: 6s, gathering baseline coverage: 1147/1285 completed
-fuzz: elapsed: 7s, gathering baseline coverage: 1285/1285 completed, now fuzzing with 4 workers
-fuzz: elapsed: 9s, execs: 17137 (5334/sec), new interesting: 13 (total: 1298)
-fuzz: elapsed: 12s, execs: 31094 (4642/sec), new interesting: 21 (total: 1306)
-fuzz: elapsed: 15s, execs: 37996 (2306/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 18s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 21s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 24s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 27s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 30s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 33s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 36s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 39s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 42s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 45s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 48s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 51s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 54s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 57s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 1m0s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 1m3s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 1m6s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 1m9s, execs: 37996 (0/sec), new interesting: 24 (total: 1309)
-fuzz: elapsed: 1m12s, execs: 45474 (2492/sec), new interesting: 31 (total: 1316)
-fuzz: elapsed: 1m13s, execs: 50000 (3457/sec), new interesting: 32 (total: 1317)
+fuzz: elapsed: 0s, gathering baseline coverage: 0/1317 completed
+fuzz: elapsed: 3s, gathering baseline coverage: 863/1317 completed
+fuzz: elapsed: 5s, gathering baseline coverage: 1317/1317 completed, now fuzzing with 4 workers
+fuzz: elapsed: 6s, execs: 14729 (4624/sec), new interesting: 7 (total: 1324)
+fuzz: elapsed: 9s, execs: 41781 (9018/sec), new interesting: 25 (total: 1342)
+fuzz: elapsed: 12s, execs: 46869 (1695/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 15s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 18s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 21s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 24s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 27s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 30s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 33s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 36s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 39s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 42s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 45s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 48s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 51s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 54s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 57s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 1m0s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 1m3s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 1m6s, execs: 46869 (0/sec), new interesting: 28 (total: 1345)
+fuzz: elapsed: 1m9s, execs: 47912 (348/sec), new interesting: 30 (total: 1347)
+fuzz: elapsed: 1m10s, execs: 50000 (3058/sec), new interesting: 32 (total: 1349)
 PASS
-ok  	tamarou.com/pvm/internal/parse	73.403s
+ok  	tamarou.com/pvm/internal/parse	69.763s
