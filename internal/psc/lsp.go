@@ -1,12 +1,14 @@
-// ABOUTME: LSP server skeleton for psc, managing open Perl documents.
-// ABOUTME: Provides OpenDocument/CloseDocument and type inference query methods.
+// ABOUTME: LSP server for psc: open Perl documents, each held by its owner goroutine.
+// ABOUTME: Provides OpenDocument/CloseDocument/Shutdown and type inference query methods.
 
 package psc
 
 import (
+	"context"
 	"net/url"
 	"path/filepath"
 	"sync"
+	"time"
 	"unicode"
 
 	"tamarou.com/pvm/internal/infer"
@@ -15,10 +17,12 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// document holds an open Perl source file and its analysis: the lowered
-// tree, its position map, and what inference reported over it.
+// document is one parse of an open Perl source file and its analysis: the
+// text and version it parsed, the lowered tree, its position map, and what
+// inference reported over it. It is never changed once its owner lands it.
 type document struct {
 	uri      string
+	version  int
 	text     *Document
 	analysis *infer.FileAnalysis
 
@@ -27,63 +31,119 @@ type document struct {
 	dir, why string
 }
 
-// LSPServer maintains parsed state for open Perl documents.
-// It is safe for concurrent use.
+// LSPServer maintains parsed state for open Perl documents, each held by
+// an owner goroutine of its own (owner.go). It is safe for concurrent use.
 type LSPServer struct {
 	// Options is how each open is checked, as psc check's flags set it.
 	// Set it before the first OpenDocument.
 	Options infer.Options
 
-	documents map[string]*document
-	mu        sync.RWMutex
+	// mu guards the map alone; no parse runs under it.
+	mu        sync.Mutex
+	documents map[string]*owner
+
+	// What each owner is made with; tests replace them before an open.
+	parseDelay, diagDelay time.Duration
+	clock                 clock
+	compute               func(ctx context.Context, uri string, text []byte) (*document, error)
+	publish               func(doc *document, err error)
 }
 
 // NewLSPServer creates a new LSPServer ready to manage Perl documents.
 func NewLSPServer() *LSPServer {
-	return &LSPServer{
-		documents: make(map[string]*document),
+	s := &LSPServer{
+		documents:  make(map[string]*owner),
+		parseDelay: parseDebounce,
+		diagDelay:  diagnosticsDebounce,
+		clock:      realClock{},
+	}
+	s.compute = s.analyzeSource
+	return s
+}
+
+// OpenDocument opens source under uri, replacing a document already open
+// there, and returns once it is parsed and analysed.
+func (s *LSPServer) OpenDocument(uri string, source []byte) error {
+	s.open(uri, 0, source)
+	s.snapshot(uri)
+	return nil
+}
+
+// open gives uri a new owner holding text at version, which begins parsing
+// it, and stops the owner of a document already open there.
+func (s *LSPServer) open(uri string, version int, text []byte) {
+	s.mu.Lock()
+	old := s.documents[uri]
+	s.documents[uri] = newOwner(s, uri, version, text)
+	s.mu.Unlock()
+	if old != nil {
+		old.stop()
 	}
 }
 
-// OpenDocument parses the given source, runs type inference, and stores the
-// result under uri. If the uri is already open, the document is replaced.
-//
+// change hands text at version to uri's owner. A uri that is not open has
+// no owner, and the change is dropped.
+func (s *LSPServer) change(uri string, version int, text []byte) {
+	if o := s.owner(uri); o != nil {
+		o.edit(version, text)
+	}
+}
+
+func (s *LSPServer) owner(uri string) *owner {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.documents[uri]
+}
+
+// snapshot is the tree of the latest text of the document at uri, or nil
+// if uri is not open or no parse of it has succeeded.
+func (s *LSPServer) snapshot(uri string) *document {
+	if o := s.owner(uri); o != nil {
+		return o.current()
+	}
+	return nil
+}
+
+// analyzeSource parses, lowers and analyses source as the document at uri.
 // The source is the editor's buffer, not the file on disk. A file: uri is
 // parsed as psc check parses the file at its path: its `use` resolves
 // against the path's directory and then @INC, read as text and never by
 // running perl (incRoots). Any other uri has no directory, and its `use`
-// resolves nothing. Analysis re-runs over the whole tree on every open.
+// resolves nothing. Analysis re-runs over the whole tree on every parse.
 //
-// Each open parses in a Session of its own, so every module it uses is read
-// from disk as it is now: one edited since the last open is re-read, and one
-// missing then is found once it exists.
-func (s *LSPServer) OpenDocument(uri string, source []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// Each parse runs in a Session of its own, so every module it uses is read
+// from disk as it is now: one edited since the last parse is re-read, and
+// one missing then is found once it exists.
+//
+// It polls ctx before the parse, before lowering and before analysis, and
+// returns ctx's error at the first of them after ctx is cancelled.
+func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte) (*document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var root *parse.Node
-	var dir, why string
+	doc := &document{}
 	if path, ok := uriPath(uri); ok {
-		// ponytail: @INC is resolved on every open; cache it per directory
+		// ponytail: @INC is resolved on every parse; cache it per directory
 		// if resolution shows up in a profile.
 		var roots []string
-		roots, why = incRoots(path)
-		dir = filepath.Dir(path)
-		// ponytail: every open re-reads the modules it uses; cache them by
-		// mtime, invalidating facts and seen together, if opens get slow.
+		roots, doc.why = incRoots(path)
+		doc.dir = filepath.Dir(path)
+		// ponytail: every parse re-reads the modules it uses; cache them by
+		// mtime, invalidating facts and seen together, if parses get slow.
 		root = parse.NewSession().ParseSourceFrom(path, source, roots...)
 	} else {
 		root = parse.Parse(source)
 	}
-
-	s.documents[uri] = &document{
-		uri:      uri,
-		text:     NewDocument(source),
-		analysis: analyze(root, s.Options),
-		dir:      dir,
-		why:      why,
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return nil
+	fa, err := analyze(ctx, root, s.Options)
+	if err != nil {
+		return nil, err
+	}
+	doc.analysis = fa
+	return doc, nil
 }
 
 // uriPath is the path a file: uri names, and false for a uri of any other
@@ -103,30 +163,29 @@ func uriPath(uri string) (string, bool) {
 	return filepath.FromSlash(p), true
 }
 
-// incNote returns the directory of the document at uri and incRoots' note
-// on it, why a perl its project names was not resolved: "" when one was,
-// when the project names none, or when uri is not an open file: uri.
-func (s *LSPServer) incNote(uri string) (dir, why string) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if doc, ok := s.documents[uri]; ok {
-		return doc.dir, doc.why
-	}
-	return "", ""
-}
-
-// CloseDocument removes the document for the given uri from the server,
+// CloseDocument stops the owner of the document at uri and removes it,
 // releasing its lowered tree, inference annotations, diagnostics, and
 // symbols. Closing a document that is not open is a no-op.
 func (s *LSPServer) CloseDocument(uri string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if doc, ok := s.documents[uri]; ok {
-		doc.analysis = nil
-	}
+	o := s.documents[uri]
 	delete(s.documents, uri)
+	s.mu.Unlock()
+	if o != nil {
+		o.stop()
+	}
+}
+
+// Shutdown stops every owner and cancels every parse in flight. Nothing is
+// published once it returns.
+func (s *LSPServer) Shutdown() {
+	s.mu.Lock()
+	owners := s.documents
+	s.documents = make(map[string]*owner)
+	s.mu.Unlock()
+	for _, o := range owners {
+		o.stop()
+	}
 }
 
 // Source returns the raw source bytes for the document at uri, or nil
@@ -141,61 +200,37 @@ func (s *LSPServer) Source(uri string) []byte {
 // Text returns a snapshot of the text and line table of the document at
 // uri, one later edits leave unchanged, or nil if the uri is not open.
 func (s *LSPServer) Text(uri string) *Document {
-	_, text := s.diagnosticsText(uri)
-	return text
-}
-
-// diagnosticsText is the diagnostics of the document at uri and a snapshot
-// of the text they are offsets into, read under one lock so a close or
-// reopen between the two cannot mismatch them. Both are nil if uri is not open.
-func (s *LSPServer) diagnosticsText(uri string) ([]infer.Diagnostic, *Document) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	doc, ok := s.documents[uri]
-	if !ok {
-		return nil, nil
+	if doc := s.snapshot(uri); doc != nil {
+		return doc.text.Snapshot()
 	}
-	return doc.analysis.Diagnostics, doc.text.Snapshot()
+	return nil
 }
 
 // Annotations returns the type of each lowered node of the document at uri,
 // keyed by its id, or nil if the uri is not currently open.
 func (s *LSPServer) Annotations(uri string) map[lower.ID]types.Type {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	doc, ok := s.documents[uri]
-	if !ok {
-		return nil
+	if doc := s.snapshot(uri); doc != nil {
+		return doc.analysis.Annotations
 	}
-	return doc.analysis.Annotations
+	return nil
 }
 
 // Diagnostics returns the slice of inference diagnostics for the document at
 // uri, or nil if the uri is not currently open.
 func (s *LSPServer) Diagnostics(uri string) []infer.Diagnostic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	doc, ok := s.documents[uri]
-	if !ok {
-		return nil
+	if doc := s.snapshot(uri); doc != nil {
+		return doc.analysis.Diagnostics
 	}
-	return doc.analysis.Diagnostics
+	return nil
 }
 
 // SymbolTable returns the symbol table for the document at uri, or nil if the
 // uri is not currently open.
 func (s *LSPServer) SymbolTable(uri string) *infer.SymbolTable {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	doc, ok := s.documents[uri]
-	if !ok {
-		return nil
+	if doc := s.snapshot(uri); doc != nil {
+		return doc.analysis.Symbols
 	}
-	return doc.analysis.Symbols
+	return nil
 }
 
 // nodeAt returns the innermost lowered node of the document at uri whose
@@ -203,8 +238,8 @@ func (s *LSPServer) SymbolTable(uri string) *infer.SymbolTable {
 // such as a paren, resolve to the node they belonged to. It returns nil if
 // uri is not open or no node covers offset.
 func (s *LSPServer) nodeAt(uri string, offset uint32) (*document, lower.Node) {
-	doc, ok := s.documents[uri]
-	if !ok {
+	doc := s.snapshot(uri)
+	if doc == nil {
 		return nil, nil
 	}
 	return doc, doc.analysis.Positions.At(int(offset))
@@ -215,9 +250,6 @@ func (s *LSPServer) nodeAt(uri string, offset uint32) (*document, lower.Node) {
 // typed Any and never inspected (§4.14.2), so it reports nothing.
 // Returns (Unknown, false) if uri is not open or no node has a type there.
 func (s *LSPServer) TypeAtByte(uri string, offset uint32) (types.Type, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	doc, n := s.nodeAt(uri, offset)
 	if n == nil {
 		return types.Unknown, false
@@ -239,9 +271,6 @@ func (s *LSPServer) TypeAtByte(uri string, offset uint32) (types.Type, bool) {
 // Returns (nil, false) if uri is not open, if no symbol table exists, or if
 // no symbol covers the given offset.
 func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	doc, n := s.nodeAt(uri, offset)
 	if n == nil || doc.analysis.Symbols == nil {
 		return nil, false

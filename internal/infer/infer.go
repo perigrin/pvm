@@ -19,7 +19,14 @@ import (
 // Analyze takes them.
 func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnalysis {
 	f := lower.Lower(root)
-	pos := lower.NewPositions(root, f)
+	return AnalyzeLowered(f, lower.NewPositions(root, f), idx, opts)
+}
+
+// AnalyzeLowered is AnalyzeParsed's second half: Analyze over f, which
+// lower.Lower returned, and pos, its position map. A caller that stops
+// between lowering and analysis, as the LSP does for a superseded parse,
+// runs the two halves itself.
+func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *FileAnalysis {
 	ann, diags, st := Analyze(f, pos, idx, opts)
 	return &FileAnalysis{
 		File:        f,

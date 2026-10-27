@@ -187,26 +187,27 @@ func TestDocumentApplyEditSnapshotIsolation(t *testing.T) {
 	want, wantLines := "my $x = 1;\nmy $y = 2;\n", slices.Clone(snap.Lines)
 	require.Equal(t, want, string(snap.Text))
 
-	locked, done := make(chan struct{}), make(chan struct{})
+	editing, done := make(chan struct{}), make(chan struct{})
+	o := s.owner(uri)
 	go func() {
 		defer close(done)
-		// Edits run under the server's lock, as didChange will run them.
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		close(locked)
-		doc := s.documents[uri].text
-		// Same-length edits, which fit the buffer in place, and one of them
-		// adds a line.
-		for range 50 {
-			_, err := doc.ApplyEdit(0, 1, []byte("\n"))
+		// Edits run on the owner's goroutine, as incremental didChange will.
+		o.call(func() {
+			close(editing)
+			doc := o.snap.text
+			// Same-length edits, which fit the buffer in place, and one of
+			// them adds a line.
+			for range 50 {
+				_, err := doc.ApplyEdit(0, 1, []byte("\n"))
+				assert.NoError(t, err)
+				_, err = doc.ApplyEdit(0, 1, []byte("m"))
+				assert.NoError(t, err)
+			}
+			_, err := doc.ApplyEdit(0, 2, []byte("our"))
 			assert.NoError(t, err)
-			_, err = doc.ApplyEdit(0, 1, []byte("m"))
-			assert.NoError(t, err)
-		}
-		_, err := doc.ApplyEdit(0, 2, []byte("our"))
-		assert.NoError(t, err)
+		})
 	}()
-	<-locked
+	<-editing
 	for range 1000 {
 		snap.ByteToPosition(uint32(len(snap.Text)))
 		_ = string(snap.Text)
