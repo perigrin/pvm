@@ -23,6 +23,8 @@ are make targets of their own, not part of `make test`:
   `FuzzIncrementalSequence` (internal/parse) to 10,000,000 execs each. They
   check spec §7.7's property: an incremental re-parse after one edit, or after
   each edit of a burst, equals a fresh Session parse of the edited bytes.
+  `FuzzIncremental` also checks the plain form, `ReparseIncremental` against
+  `Parse`.
 
 `make test` replays every committed seed under each package's
 `testdata/fuzz/`, the eight §7.7.3 edits among them, but never runs a

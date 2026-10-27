@@ -186,27 +186,50 @@ func TestIncrementalSessionResolverMatchesFresh(t *testing.T) {
 }
 
 // TestSessionReparseIncrementalUsesFreshSession: a Session's second parse
-// reports none of the modules its first already read, so a re-parse on the
-// receiver would lose LoadedModules. ReparseIncremental must re-parse fresh.
+// reports none of the modules, declaration errors or declaration warnings its
+// first already read, so a re-parse on the receiver would lose them.
+// ReparseIncremental must re-parse fresh. Odd's declaration, overlaid from
+// incRoot, carries one warning and one error, so each list is non-empty.
 func TestSessionReparseIncrementalUsesFreshSession(t *testing.T) {
+	t.Cleanup(parse.OverlayDeclarations(os.DirFS(incRoot)))
+	src := "use Odd;\n" + resolvedCallSrc
+	e := replaceFirst(src, "1", "42")
 	s := parse.NewSession()
-	old := s.ParseSourceFrom(incPath, []byte(resolvedCallSrc), incRoot)
-	edited := applyEdit(resolvedCallSrc, resolvedCallEdit)
-	inc := s.ReparseIncremental(old, resolvedCallEdit, incPath, []byte(edited), incRoot)
+	old := s.ParseSourceFrom(incPath, []byte(src), incRoot)
+	edited := applyEdit(src, e)
+	inc := s.ReparseIncremental(old, e, incPath, []byte(edited), incRoot)
 	fresh := freshParse(edited)
-	if !slices.Contains(parse.LoadedModules(fresh), "Foo") {
-		t.Fatalf("fresh parse loaded %v, want Foo", parse.LoadedModules(fresh))
+	reused := s.ParseSourceFrom(incPath, []byte(edited), incRoot)
+	for _, c := range []struct {
+		name string
+		of   func(*parse.Node) []string
+	}{
+		{"LoadedModules", parse.LoadedModules},
+		{"DeclarationErrors", func(n *parse.Node) []string { return errorStrings(parse.DeclarationErrors(n)) }},
+		{"DeclarationWarnings", func(n *parse.Node) []string { return errorStrings(parse.DeclarationWarnings(n)) }},
+	} {
+		if len(c.of(fresh)) == 0 {
+			t.Fatalf("%s: fresh parse has none; the fixture checks nothing", c.name)
+		}
+		if got := c.of(reused); len(got) != 0 {
+			t.Fatalf("%s: a reused Session's second parse has %v; this test assumes none", c.name, got)
+		}
+		if got, want := c.of(inc), c.of(fresh); !slices.Equal(got, want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, want)
+		}
 	}
-	if reused := s.ParseSourceFrom(incPath, []byte(edited), incRoot); len(parse.LoadedModules(reused)) != 0 {
-		t.Fatalf("a reused Session's second parse loaded %v; this test assumes it loads nothing", parse.LoadedModules(reused))
-	}
-	if !slices.Equal(parse.LoadedModules(inc), parse.LoadedModules(fresh)) {
-		t.Errorf("LoadedModules: got %v, want %v", parse.LoadedModules(inc), parse.LoadedModules(fresh))
-	}
-	// TreeDiff compares declErrs and declWarns by text, with the rest.
 	if diff := parse.TreeDiff(inc, fresh); diff != "" {
 		t.Errorf("incremental != fresh:\n%s", diff)
 	}
+}
+
+// errorStrings is errs' texts, which is how TreeDiff compares them.
+func errorStrings(errs []error) []string {
+	var out []string
+	for _, err := range errs {
+		out = append(out, err.Error())
+	}
+	return out
 }
 
 // TestIncrementalEditClamping: out-of-range integers clamp to a valid edit,
