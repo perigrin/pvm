@@ -1083,8 +1083,9 @@ func scanAmp(l *lexer) bool {
 	for next < len(l.src) && isSpace(l.src[next]) {
 		next++
 	}
+	// A bareword `x` too: FuzzParser's `x&!x*!` is `'x' & !x * !`.
 	if next < len(l.src) && !isWordByte(l.src[next]) && l.src[next] < utf8.RuneSelf && !byteIn(l.src[next], "${:'#") &&
-		l.afterUserWord(len(l.toks), false) {
+		l.afterUserWord(len(l.toks), true) {
 		return false
 	}
 	start := l.pos
