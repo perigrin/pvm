@@ -6,6 +6,7 @@ package psc
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/types"
@@ -22,18 +23,21 @@ type handler struct {
 	exitFn      func(int) // injectable for testing; defaults to os.Exit
 
 	// noted holds each directory whose incRoots note has been logged.
-	noted map[string]bool
+	notedMu sync.Mutex
+	noted   map[string]bool
 }
 
 // newHandler creates a handler wired to the given server and transport.
 // exitFn defaults to a no-op; callers may replace it for testing.
 func newHandler(server *LSPServer, tr *transport) *handler {
-	return &handler{
+	h := &handler{
 		server:    server,
 		transport: tr,
 		exitFn:    func(int) {}, // replaced by os.Exit in production
 		noted:     map[string]bool{},
 	}
+	server.publish = h.published
+	return h
 }
 
 // handle dispatches a single JSON-RPC message to the correct handler method.
@@ -124,25 +128,25 @@ func (h *handler) handleInitialize(msg *jsonRPCMessage) error {
 	return nil
 }
 
-// handleShutdown responds to the LSP shutdown request. The server remains
-// running until the subsequent "exit" notification is received.
+// handleShutdown responds to the LSP shutdown request, once every owner
+// has stopped and nothing more will be published. The process remains
+// until the subsequent "exit" notification is received.
 func (h *handler) handleShutdown(msg *jsonRPCMessage) error {
 	h.isShutdown = true
+	h.server.Shutdown()
 	h.transport.sendResponse(msg.ID, nil)
 	return nil
 }
 
-// updateDocument calls OpenDocument on the server for the given uri and
-// source. On success it publishes diagnostics. On failure it publishes a
-// single error diagnostic spanning the whole document.
-func (h *handler) updateDocument(uri string, source []byte) {
-	if err := h.server.OpenDocument(uri, source); err != nil {
-		// Publish a single error diagnostic covering the whole document.
-		docEnd := NewDocument(source).ByteToPosition(uint32(len(source)))
+// published is what an owner calls when diagnostics for doc are due:
+// those it found, or, if analysing doc failed with err, a single error
+// diagnostic spanning the whole document. Owners call it concurrently.
+func (h *handler) published(doc *document, err error) {
+	if err != nil {
 		h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
-			URI: uri,
+			URI: doc.uri,
 			Diagnostics: []lspDiagnostic{{
-				Range:    lspRange{Start: lspPosition{}, End: docEnd},
+				Range:    lspRange{Start: lspPosition{}, End: doc.text.ByteToPosition(uint32(len(doc.text.Text)))},
 				Severity: lspSeverityError,
 				Source:   "psc",
 				Message:  err.Error(),
@@ -150,41 +154,42 @@ func (h *handler) updateDocument(uri string, source []byte) {
 		})
 		return
 	}
-	h.logINCNote(uri)
-	h.publishDiagnostics(uri)
+	h.logINCNote(doc)
+	h.publishDiagnostics(doc)
 }
 
-// logINCNote sends incRoots' note on the directory of the document at uri,
-// the one psc check prints, as a window/logMessage, once per directory. It
-// is about the directory's project, not the file, so it is no diagnostic.
-func (h *handler) logINCNote(uri string) {
-	dir, why := h.server.incNote(uri)
-	if why == "" || h.noted[dir] {
+// logINCNote sends incRoots' note on the directory of doc, the one psc
+// check prints, as a window/logMessage, once per directory. It is about
+// the directory's project, not the file, so it is no diagnostic.
+func (h *handler) logINCNote(doc *document) {
+	h.notedMu.Lock()
+	defer h.notedMu.Unlock()
+	if doc.why == "" || h.noted[doc.dir] {
 		return
 	}
-	h.noted[dir] = true
+	h.noted[doc.dir] = true
 	h.transport.sendNotification("window/logMessage", lspLogMessageParams{
 		Type:    lspSeverityInformation,
-		Message: "psc: note: " + printable(why) + "; @INC is PERL5LIB alone",
+		Message: "psc: note: " + printable(doc.why) + "; @INC is PERL5LIB alone",
 	})
 }
 
-// handleDidOpen handles textDocument/didOpen notifications. It runs inference
-// via OpenDocument and publishes diagnostics. If OpenDocument fails, a single
-// error diagnostic spanning the whole document is published instead.
+// handleDidOpen handles textDocument/didOpen notifications. It gives the
+// document an owner, which parses it and publishes its diagnostics.
 func (h *handler) handleDidOpen(msg *jsonRPCMessage) error {
 	var params lspDidOpenParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return nil
 	}
 
-	h.updateDocument(params.TextDocument.URI, []byte(params.TextDocument.Text))
+	td := params.TextDocument
+	h.server.open(td.URI, td.Version, []byte(td.Text))
 	return nil
 }
 
-// handleDidChange handles textDocument/didChange notifications. It takes the
-// full text from the first content change event (full sync mode), re-runs
-// inference, and publishes diagnostics.
+// handleDidChange handles textDocument/didChange notifications. It hands the
+// full text from the first content change event (full sync mode) to the
+// document's owner, which debounces the parse and the diagnostics.
 func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 	var params lspDidChangeParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
@@ -195,12 +200,13 @@ func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 		return nil
 	}
 
-	h.updateDocument(params.TextDocument.URI, []byte(params.ContentChanges[0].Text))
+	td := params.TextDocument
+	h.server.change(td.URI, td.Version, []byte(params.ContentChanges[0].Text))
 	return nil
 }
 
-// handleDidClose handles textDocument/didClose notifications. It removes the
-// document from the LSP server.
+// handleDidClose handles textDocument/didClose notifications. It stops the
+// document's owner and removes it from the LSP server.
 func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 	var params lspDidCloseParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
@@ -211,12 +217,11 @@ func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 	return nil
 }
 
-// publishDiagnostics retrieves inference diagnostics for uri from the server,
-// converts them to LSP diagnostic format, and sends a
-// textDocument/publishDiagnostics notification to the client.
-func (h *handler) publishDiagnostics(uri string) {
-	diags := h.server.Diagnostics(uri)
-	text := h.server.Text(uri)
+// publishDiagnostics converts doc's inference diagnostics to LSP diagnostic
+// format and sends a textDocument/publishDiagnostics notification to the
+// client.
+func (h *handler) publishDiagnostics(doc *document) {
+	diags, text := doc.analysis.Diagnostics, doc.text
 
 	lspDiags := make([]lspDiagnostic, 0, len(diags))
 	for _, d := range diags {
@@ -250,7 +255,7 @@ func (h *handler) publishDiagnostics(uri string) {
 	}
 
 	h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
-		URI:         uri,
+		URI:         doc.uri,
 		Diagnostics: lspDiags,
 	})
 }
