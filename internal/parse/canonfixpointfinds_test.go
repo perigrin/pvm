@@ -118,7 +118,10 @@ func TestAmpDigitsNameASub(t *testing.T) {
 	}
 	// A longer name may not start with 0: "Numeric variables with more than
 	// one digit may not start with '0'". FuzzParser's `no n!&00`.
-	for _, src := range []string{"&00;", "f(&01)", "no n!&00", "& 00;"} {
+	// And one across a heredoc body is declined: FuzzParser's `<<'0';&` +
+	// newline + body + `A`, which perl reads as `&A` but canon wrote with
+	// the body twice.
+	for _, src := range []string{"&00;", "f(&01)", "no n!&00", "& 00;", "<<'0';&\n0\nA"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}

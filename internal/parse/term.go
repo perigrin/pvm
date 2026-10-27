@@ -349,6 +349,17 @@ func (p *parser) parseTerm() *Node {
 		// here into one term: `\&f` is a code reference, not a reference to
 		// an ampersand.
 		p.advanceTo(tok)
+		// A heredoc body between the `&` and its name is declined: perl
+		// 5.44.0 reads `<<'0';&` + newline + body + `A` as `&A`, but one
+		// leaf around the body is no node canon can write the body out of
+		// once, FuzzParser's find.
+		for i := p.pos; i < len(p.toks); i++ {
+			if k := p.toks[i].Kind; k == lexer.HeredocBody {
+				return p.refuseNotATerm(tok)
+			} else if !isTrivia(k) {
+				break
+			}
+		}
 		// Empty braces are no code to call: perl 5.44.0 has `(&{},)` a
 		// syntax error near "&{", and read as a subscript on a bare `&` its
 		// canon re-read differently.
