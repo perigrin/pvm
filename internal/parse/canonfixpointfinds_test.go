@@ -390,7 +390,7 @@ func TestNumberTakesNoSubscript(t *testing.T) {
 	// Nor is `&{}` a call: FuzzParser's `(&{},)`, perl's syntax error near
 	// "&{", read as a subscript on a bare `&`.
 	// Nor is an empty subscript one: FuzzParser's `($0{},)`.
-	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])", "(&{},)", "&{};", "($0{},)", "my %h; $h{}", "my @a; $a[]", "my $r; $r->{}"} {
+	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])", "(&{},)", "&{};", "($0{},)", "my %h; $h{}", "my @a; $a[]", "my $r; $r->{}", "0%0{y}"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
