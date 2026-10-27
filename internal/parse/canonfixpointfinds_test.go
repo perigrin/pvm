@@ -135,6 +135,10 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 	for src, want := range map[string]string{
 		"A*&!*&%*!x &0": "A * &! * &% * !x & 0",
 		"&!*2;":         "&! * 2;",
+		// And `:` alone: FuzzParser's `&:*$%%(%A0`.
+		"&: * 2;": "&: * 2;",
+		"&:*2;":   "&: * 2;",
+		"&::foo;": "&::foo;",
 		// And a keyword's spelling: `&gt` is a call, not the operator.
 		"&gt*&;": "&gt * &;;",
 		// And a glob's name: FuzzParser's `*gt*&;`.

@@ -1376,8 +1376,9 @@ func scanGlobName(l *lexer) bool {
 // sub's name, as scanGlobName does after a glob's `*`: toke.c's scan_ident
 // takes it, so `&!` calls the sub named `!` and an operator follows it.
 // Measured on 5.44.0, `A*&!*&%` is `'A' * &! * &%`; with the `!` lexed as
-// an operator, the `*` after it read as a glob. `{`, `$`, `:` and `'`
-// begin a longer name, and `#` a comment.
+// an operator, the `*` after it read as a glob. `{` and `$` begin a longer
+// name, as `::` and `'` before a word do, and `#` a comment; a lone `:`
+// is a name, `&:;` compiling on 5.44.0 (FuzzParser's `&:*$%%(%A0`).
 func scanAmpName(l *lexer) bool {
 	start := l.pos
 	// An attribute's argument is not code: `:tighter(&)` names the operator.
@@ -1385,7 +1386,10 @@ func scanAmpName(l *lexer) bool {
 		return false
 	}
 	c := l.src[start]
-	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) || byteIn(c, "{$:'#") {
+	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) || byteIn(c, "{$#") {
+		return false
+	}
+	if next := start + 1; (c == ':' || c == '\'') && next < len(l.src) && (l.src[next] == ':' || isWordByte(l.src[next])) {
 		return false
 	}
 	l.pos++
