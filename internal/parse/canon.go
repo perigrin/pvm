@@ -86,15 +86,12 @@ func (b *canonBuf) writeBodiesBefore(n *Node, src []byte) {
 	*b.bodies = pending[i:]
 }
 
-// writeBodiesAfter writes the pending heredoc bodies the source put right
-// after n, with no token between, on a line of their own: n ended its
-// opener's line, so the bodies go before the closers canon writes after it,
-// as the source has them. Measured on perl 5.44.0, `print f(<<A\nx\nA\n),
-// "\n";` is `print(f("x\n"), "\n");` under Deparse,-p. A statement's own
-// bodies are its case's to place.
-func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
+// bodiesAfter is how many pending heredoc bodies the source wrote right
+// after n, with nothing significant between: the ones writeBodiesAfter
+// writes.
+func (b *canonBuf) bodiesAfter(n *Node, src []byte) int {
 	if b.bodies == nil || n.Kind == Statement || n.Kind == SourceFile || n.Kind == Trivia || n.HeredocBody {
-		return
+		return 0
 	}
 	pending := *b.bodies
 	i, from := 0, n.End
@@ -102,9 +99,21 @@ func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
 		from = pending[i].End
 		i++
 	}
+	return i
+}
+
+// writeBodiesAfter writes the pending heredoc bodies the source put right
+// after n, with no token between, on a line of their own: n ended its
+// opener's line, so the bodies go before the closers canon writes after it,
+// as the source has them. Measured on perl 5.44.0, `print f(<<A\nx\nA\n),
+// "\n";` is `print(f("x\n"), "\n");` under Deparse,-p. A statement's own
+// bodies are its case's to place.
+func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
+	i := b.bodiesAfter(n, src)
 	if i == 0 {
 		return
 	}
+	pending := *b.bodies
 	b.WriteByte('\n')
 	for _, body := range pending[:i] {
 		b.WriteString(body.SourceText(src))
@@ -174,6 +183,13 @@ func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
 // operand by whatever follows the binary, and so on down the right edge.
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	b.writeBodiesBefore(n, src)
+	// A separator the source wrote after a heredoc body that follows the
+	// node goes after the body too: FuzzParser's `<<""` + body + `,,0`,
+	// written with the comma first, re-read with the body after it.
+	bodyFirst := n.TrailingComma != "" && !n.Paren && b.bodiesAfter(n, src) > 0
+	if bodyFirst {
+		defer b.WriteString(n.TrailingComma)
+	}
 	defer b.writeBodiesAfter(n, src)
 	f := b.follow
 	b.follow = 0
@@ -241,7 +257,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	}
 	// A separator inside the parens, the source's `(A,)`, stays inside them:
 	// `(A,)/0` is written `(A,) / 0`, not `A, / 0`.
-	if n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) && innerSep == "" {
+	if !bodyFirst && n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) && innerSep == "" {
 		defer b.WriteString(n.TrailingComma)
 	}
 

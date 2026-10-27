@@ -219,6 +219,17 @@ func TestKeptSeparatorWrittenOnce(t *testing.T) {
 	}
 }
 
+// TestSeparatorAfterHeredocBody: perl 5.44.0 compiles `<<""` + newline +
+// an empty line + `,,0`, the separators after the body. Canon wrote them
+// before it, and the re-read placed the body after them.
+func TestSeparatorAfterHeredocBody(t *testing.T) {
+	for src, want := range map[string]string{"<<\"\"\n\n,,0": "<<\"\"\n\n,, 0", "print <<\"\",1\n\n": "print <<\"\", 1\n\n"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
