@@ -176,7 +176,7 @@ func bracketGroups(toks []lexer.Token, src []byte) []int {
 	closes := make([]int, len(toks))
 	pair := map[byte]byte{')': '(', ']': '[', '}': '{'}
 	var open []int
-	count := map[byte]int{}
+	var count [256]int // openers of each kind on the stack
 	var last lexer.Token
 	for i, tok := range toks {
 		if isTrivia(tok.Kind) {

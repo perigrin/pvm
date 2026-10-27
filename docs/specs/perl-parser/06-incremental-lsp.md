@@ -2141,6 +2141,39 @@ them. What the live buffer needs from that loop is only that everything
 skipped becomes **one** error node (§6.8.2), so that §6.8.4's filter sees one
 diagnostic.
 
+**As landed (`internal/parse/recovery.go`, `panicSkip`).** Panic mode starts
+at a catch-all refusal at statement level: `trailing_tokens`,
+`not_an_expression`, and a statement that is one `not_a_term`.
+`missing_operand` starts none, since its Missing node fits. From there the
+skip stops at the nearest of §5.13.4's points: after a `;`, or after a `{
+... }` (a block form takes no `;`); before the `}` closing the enclosing
+block, a column-0 `sub`, `package`, `class`, `format` or phaser name (tier
+1), a line-start `my our local state sub package use if unless elsif else
+while until for foreach` (tier 2), or the 101st token (the cap,
+`maxSkip`). A sync point counts only once the statement holds a token, so
+every recovery advances. A heredoc body, POD or a string is one token, so a
+`sub` inside one is never a sync point.
+
+Two choices §5.13.4 leaves open are fixed here. A bracket group that closes
+(`bracketGroups`: a closer closes the innermost opener of its kind) is one
+token, skipped whole, so nothing inside it syncs and the cap never cuts it:
+catch-alls fire on Perl perl compiles (`trailing_tokens` on 318 of 620
+perl.git `t/` files), and a strict cap split 13 such T1 statements into
+fragments the canon ratchets scored worse. An opener that never closes opens
+nothing, so a lost `(` bounds no skip, and a closer with no block to close is
+stray and skipped, so a cascade of one-token refusals is one Error node.
+
+The skipped region is one Error node carrying the code that started it, and
+a specific refusal in what parsed before the skip stays its child, with its
+code. The heredoc bodies after the skip are taken into it.
+
+Tier 1's hard reset for a lost brace is `tierOneCloses`: a `{` no `}` closes
+by end of input (braces matched only with braces) closes at the first column-0
+anchor directly inside it, with a zero-width Missing `}` ending the block
+just before the anchor, and `refuseUnclosedOpener` no longer counts it. A sub
+missing its `}` leaves every column-0 sub after it at top level, each equal to
+its error-free parse; a balanced file is never touched.
+
 ### 6.8.4 The anti-cascade rule
 
 **One syntax error produces at most one diagnostic. Non-negotiable.**
