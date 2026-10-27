@@ -980,7 +980,14 @@ or open, and no `[` still open by count (`openSquares`) — any closer pops the
 bracket stack, so `[ )` empties it while typed Perl's `containerTypeSigil`,
 walking back over raw `[`/`]` with no stop at `;`, would still reach that `[`;
 nothing follows a `DataSection`, so none falls after `__END__` or
-`__DATA__`. Resume needs the bytes before the checkpoint unchanged: the other
+`__DATA__`. Nor is one recorded before `peekEnd`, the furthest byte a
+failed lookahead read and decided a token by: a `<` in term position seeking
+its `>` to the end of the line, a prototype seeking its `)` to the end of the
+line, a quoted heredoc terminator seeking its quote. Each reads past the
+token it emits and may cross a `;`, so the tokens before such a byte depend
+on the bytes after it, and an edit there would change them (review of #510).
+Every other lookahead stops at the first byte of the next token, or reads
+inside a bracket or heredoc still open, where no checkpoint falls. Resume needs the bytes before the checkpoint unchanged: the other
 scanners look back a token or two, and none looks past a `;` or a block's `}`.
 
 ### 6.3.2 The cache
@@ -1014,7 +1021,9 @@ and `Checkpoints` and no per-token states: resync is tried only at old
 checkpoints, which already carry the state, so the comparison §6.5.3 needs
 costs nothing per token. `NewTokenCache(src, start)` lexes as `Checkpoints`
 does. `Edit(src, start, oldEnd, newEnd)` re-lexes the new bytes from the last
-checkpoint at or before `start`, recording fresh checkpoints as it goes, and
+checkpoint strictly before `start` (a scanner may peek one byte past its
+token, so a checkpoint at the edit is not trusted), recording fresh
+checkpoints as it goes, and
 resyncs at the first old checkpoint past the edit where all of these hold:
 the old token ending there lies wholly after `oldEnd`, it equals the new
 stream's last token in `Kind`, shifted `Start`/`End` and Flags (the token's
@@ -1024,9 +1033,9 @@ the old prefix, the re-lexed tokens and the old tail shifted by the edit's
 delta, checkpoints likewise; a stream that never resyncs is lexed to EOF
 once. `Edit` returns the count of tokens re-lexed. The tests hold the cache
 to a fresh `Tokenize*` after every edit in all three start states, including
-the §7.7.3 edits and edit sequences, with every checkpoint resuming to the
-fresh stream's suffix; `FuzzTokenCacheEdit` holds it on any input, edit and
-undo. On edit5k.pl the latency benchmarks' 1-char edit re-lexes 261 of
+the §7.7.3 edits, the lookahead counterexamples and edit sequences, with
+every checkpoint resuming to the fresh stream's suffix; `FuzzTokenCacheEdit`
+holds it on any input after an edit, its undo and a third edit. On edit5k.pl the latency benchmarks' 1-char edit re-lexes 261 of
 37,070 tokens.
 
 ---

@@ -32,7 +32,7 @@ func newTokenCache(src []byte, start State, stride int) *TokenCache {
 // [start, oldEnd) replaced by src[start:newEnd], and returns how many tokens
 // it re-lexed.
 //
-// It re-lexes from the last checkpoint at or before start until the new stream
+// It re-lexes from the last checkpoint before start until the new stream
 // resyncs with the old one at an old checkpoint past the edit: the token
 // before it equal in Kind, Flags and shifted span, and the lexer State equal
 // to the checkpoint's. From there forward lexing is the old stream shifted,
@@ -40,8 +40,9 @@ func newTokenCache(src []byte, start State, stride int) *TokenCache {
 // once.
 func (c *TokenCache) Edit(src []byte, start, oldEnd, newEnd int) int {
 	delta := newEnd - oldEnd
-	// At or before start: Resume needs only the bytes before it unchanged.
-	ci := max(sort.Search(len(c.Checkpoints), func(i int) bool { return c.Checkpoints[i].Byte > start })-1, 0)
+	// Strictly before start: the tokens before a checkpoint depend on no byte
+	// past it except, perhaps, the one a scanner peeks at to end its token.
+	ci := max(sort.Search(len(c.Checkpoints), func(i int) bool { return c.Checkpoints[i].Byte >= start })-1, 0)
 	from := c.Checkpoints[ci]
 	firstOld := sort.Search(len(c.Tokens), func(i int) bool { return c.Tokens[i].Start >= from.Byte })
 

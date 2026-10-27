@@ -84,9 +84,8 @@ func fixtureEdits(src string) []cacheEdit {
 	}
 }
 
-// resyncEdits are edits whose new stream passes the shifted byte of an old
-// checkpoint with an equal token and state, where reusing the tail would be
-// wrong because that checkpoint lies inside the edited bytes.
+// resyncEdits are edits where reusing old tokens would be wrong although an
+// old checkpoint looks usable.
 var resyncEdits = map[string]struct {
 	src string
 	e   cacheEdit
@@ -94,6 +93,14 @@ var resyncEdits = map[string]struct {
 	// The old checkpoint after `a;` shifts to after the inserted `x;`, but
 	// what follows it is now `1`, not `b`.
 	"checkpoint inside the edit": {"a;b;c;\n", cacheEdit{2, 1, "x;1"}},
+	// A `<` in term position looked ahead past the `;` for a `>` and, finding
+	// none, was an Operator: the `>` the edit adds makes it a Readline, so
+	// the `;` after it is no checkpoint (review of #510).
+	"readline lookahead at EOF":   {"<;", cacheEdit{2, 0, ">"}},
+	"readline lookahead past a ;": {"my @l = <STDIN;\nfoo();\n", cacheEdit{len("my @l = <STDIN;"), 0, ">"}},
+	// The same for a prototype's search for its `)` (fuzz find).
+	"prototype lookahead past a ;": {"sub A(0};0", cacheEdit{len("sub A(0};0"), 0, ")"}},
+	"heredoc lookahead past a ;":   {"print <<'; foo();\nbar();\n", cacheEdit{len("print <<'; foo();\nbar();\n"), 0, "'"}},
 }
 
 func TestTokenCacheEditMatchesFull(t *testing.T) {
@@ -332,8 +339,8 @@ func TestTokenCacheEditSequenceMatchesFull(t *testing.T) {
 }
 
 // FuzzTokenCacheEdit is the cache property on any input and any edit, for
-// each of the three start states: after the edit, and after the edit that
-// undoes it, the cache equals a fresh Tokenize* of the bytes and every
+// each of the three start states: after the edit, after the edit that undoes
+// it, and after a third at the mirrored offset, the cache equals a fresh Tokenize* of the bytes and every
 // checkpoint it holds resumes to that stream's suffix.
 //
 //	go test ./internal/lexer/ -run '^$' -fuzz '^FuzzTokenCacheEdit$' -fuzztime 50000x
@@ -367,6 +374,9 @@ func FuzzTokenCacheEdit(f *testing.F) {
 			checkCache(t, cache, out, s.tokenize)
 			back, _ := editCache(cache, out, undo)
 			checkCache(t, cache, back, s.tokenize)
+			// A third edit elsewhere: the insert again, at the mirrored offset.
+			again, _ := editCache(cache, back, cacheEdit{len(back) - at, 0, ins})
+			checkCache(t, cache, again, s.tokenize)
 		}
 	})
 }
