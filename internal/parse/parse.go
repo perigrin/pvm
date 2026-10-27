@@ -1343,7 +1343,7 @@ func (p *parser) statementForm() *Node {
 			// over the whole `last or print "x"`.
 			if c.Kind == LoopControl || startsWithLoopControl(c) {
 				if mod := p.applyModifier(c, start); mod != nil {
-					return p.withLabels(labels, mod, start)
+					return p.withModifier(labels, mod, start)
 				}
 			}
 			return p.withLabels(labels, c, start)
@@ -1373,7 +1373,7 @@ func (p *parser) statementForm() *Node {
 				}
 			}
 			if mod := p.applyModifier(d, start); mod != nil {
-				return p.withLabels(labels, mod, start)
+				return p.withModifier(labels, mod, start)
 			}
 			// Tokens left before the terminator refuse the statement, as they
 			// do for an expression statement below. Unchecked, `my $w = bar
@@ -1420,7 +1420,7 @@ func (p *parser) statementForm() *Node {
 	// expression parser has already taken everything it can, and a modifier
 	// binds looser than anything it could have taken -- looser than `or`.
 	if mod := p.applyModifier(expr, start); mod != nil {
-		return p.withLabels(labels, mod, start)
+		return p.withModifier(labels, mod, start)
 	}
 
 	// Anything left BEFORE the terminator was not consumed by the expression

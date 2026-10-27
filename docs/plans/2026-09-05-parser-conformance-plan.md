@@ -688,7 +688,7 @@ from its committed file, and `TestM3DocsQuoteCommittedNumbers` and
 | Parse without error | ≥ 90% of the 593 files perl compiles | **593/593** of the files perl compiles parse without error (`compiledclean.txt`) |
 | Oracle agreement, exact, per marker site | ≥ 80% | **3181/3365** M3-dir marker sites exact (94.53%): 184 wider, 0 no-answer, 0 WRONG. **5425/5637** whole-corpus marker sites exact (96.24%): 205 wider, 7 no-answer, 0 WRONG (`sites.txt`) |
 | Oracle agreement, WRONG | 0 | 0 on the M3 dirs and the whole corpus |
-| Canonical re-emission | 100% of what parses | **347/347** M3-dir files re-emit faithfully (100%), from 178/347 at the M3 start; perl.git t/ **616/619** faithful, from 342/619 (`perlgittfaithful.ratchet`, `m3start.txt`) |
+| Canonical re-emission | 100% of what parses | **347/347** M3-dir files re-emit faithfully (100%), from 178/347 at the M3 start; perl.git t/ **617/619** faithful, from 342/619 (`perlgittfaithful.ratchet`, `m3start.txt`) |
 | `perf/opcount.t` assertions in fixtures | ≥ 200 | **345** op=>count assertions in 96 fixtures, each held to perl |
 | rv2hv reported where perl emits it | the wider count falls from 389 | rv2hv wider **194**, from 396 at the 5.44.0 re-pin (389 was the 5.42.0 count) |
 

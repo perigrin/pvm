@@ -54,6 +54,8 @@ var fuzzEdgeSeeds = []string{
 	"x*#",
 	// `--` over a `!`: the 01a17969-45d4 campaign's find.
 	"--!y=>0",
+	// Tokens after a modifier's condition: the campaign's second find.
+	"0for&000",
 }
 
 // FuzzParser is the target. Run it with

@@ -121,6 +121,27 @@ func TestModifierDoesNotCrossATerminator(t *testing.T) {
 	}
 }
 
+// TestModifierRefusesTrailingTokens: bytes left after a modifier's
+// condition, before the terminator, refuse the statement as they do an
+// expression statement's, rather than starting a statement with no `;`
+// before it. Measured on 5.42.0, `1 for $a $b;` is a syntax error; read as
+// `1 for $a;` and `$b;`, its canon was a fixpoint only by luck, and
+// FuzzParser's `0for&000` (perl: "Numeric variables with more than one
+// digit may not start with '0'") canon'd as `0 for &;000`, the `;` glued
+// onto the `&`.
+func TestModifierRefusesTrailingTokens(t *testing.T) {
+	for _, src := range []string{"1 for $a $b;\n", "print 1 if $x $y;\n", "0for&000"} {
+		if u := firstUnknown(parse.Parse([]byte(src))); u == nil || u.Refusal != parse.TrailingTokens {
+			t.Errorf("%q: want trailing_tokens: %v", src, kinds(parse.Parse([]byte(src))))
+		}
+	}
+	for _, src := range []string{"print 1 if $x;\n", "{ print 1 if $x }\n", "print 1 for @a\n"} {
+		if u := firstUnknown(parse.Parse([]byte(src))); u != nil {
+			t.Errorf("%q: refused %s, perl accepts it", src, u.Refusal)
+		}
+	}
+}
+
 // TestBlockVersusHashref is spec §4.9.2's decision.
 //
 // The issue's original example does not discriminate: `map { $_ => 1 }` and

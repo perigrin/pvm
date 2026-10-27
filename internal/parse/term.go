@@ -125,7 +125,9 @@ func (p *parser) parseTerm() *Node {
 		if !ok || next.Kind == lexer.Semicolon || next.Kind == lexer.CloseBracket {
 			return n
 		}
-		if _, isInfix := p.infixOp(p.text(next)); isInfix {
+		// `++` and `--` are in the table as postfix operators, and begin a
+		// term too: measured on 5.42.0, `-f ++ $d` is `-f ++$d`.
+		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" {
 			return n
 		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {

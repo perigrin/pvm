@@ -140,7 +140,7 @@ The M3 gate (plan §5 M3) is closed at b2142de8, measured with perl 5.44.0:
 **593/593** of the files perl compiles parse without error; **3181/3365**
 M3-dir marker sites exact (94.53%) and **5425/5637** whole-corpus marker
 sites exact (96.24%), WRONG 0 in both; **347/347** M3-dir files re-emit
-faithfully (100%), with no defects file, and perl.git t/ **616/619**
+faithfully (100%), with no defects file, and perl.git t/ **617/619**
 faithful; **345** op=>count assertions from `perf/opcount.t` held to perl;
 and rv2hv wider **194**, from 396 at the 5.44.0 re-pin.
 

@@ -1,8 +1,8 @@
-# 616/619 faithful
+# 617/619 faithful
 # perl.git t/ files whose canon emission does NOT say what the source says (1 = differs),
 # through parse.Session.ParseFileFrom; a tree holding an Unknown counts as 1.
 #
-# 619 files, 616 clean (99.5%), 3 total.
+# 619 files, 617 clean (99.7%), 2 total.
 #
 # Regenerate with -parse.update-ratchet and commit the result
 # WITH the change that moved it. A baseline updated on its own
@@ -114,7 +114,7 @@
 0 io/tell.t
 0 io/through.t
 0 io/utf8.t
-1 japh/abigail.t
+0 japh/abigail.t
 0 lib/commonsense.t
 0 lib/croak.t
 0 lib/cygwin.t

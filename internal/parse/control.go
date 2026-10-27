@@ -988,16 +988,32 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	// children tile it, so the flag carries the fact instead. Before it
 	// existed canon read the ordering as the block form's and emitted every
 	// modifier with its halves swapped.
-	if cond := p.parseExpr(0); cond != nil {
+	cond := p.parseExpr(0)
+	if cond != nil {
 		n.Children = append(n.Children, body, cond)
 	} else {
 		n.Children = append(n.Children, body)
+	}
+	// Bytes left before the terminator refuse the statement, as they do an
+	// expression statement's: measured on 5.42.0, `1 for $a $b;` is a
+	// syntax error, not `1 for $a;` and `$b;`.
+	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) && (cond == nil || !endsInBlock(cond)) {
+		return p.refuseTrailingTokens(start)
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// withModifier is withLabels for applyModifier's result, which is a refusal
+// standing for the whole statement when tokens trailed the condition.
+func (p *parser) withModifier(labels []*Node, mod *Node, start int) *Node {
+	if mod.Refused() {
+		return mod
+	}
+	return p.withLabels(labels, mod, start)
 }
 
 // parseLabels reads any run of `NAME:` before a statement.
