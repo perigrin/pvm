@@ -19,7 +19,7 @@ import (
 // tree, its position map, and what inference reported over it.
 type document struct {
 	uri      string
-	source   []byte
+	text     *Document
 	analysis *infer.FileAnalysis
 
 	// dir is the directory of a file: uri's path, and why is incRoots'
@@ -78,7 +78,7 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 
 	s.documents[uri] = &document{
 		uri:      uri,
-		source:   source,
+		text:     NewDocument(source),
 		analysis: analyze(root, s.Options),
 		dir:      dir,
 		why:      why,
@@ -132,6 +132,15 @@ func (s *LSPServer) CloseDocument(uri string) {
 // Source returns the raw source bytes for the document at uri, or nil
 // if the uri is not currently open.
 func (s *LSPServer) Source(uri string) []byte {
+	if d := s.Text(uri); d != nil {
+		return d.Text
+	}
+	return nil
+}
+
+// Text returns the text and line table of the document at uri, or nil if
+// the uri is not currently open.
+func (s *LSPServer) Text(uri string) *Document {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -139,7 +148,7 @@ func (s *LSPServer) Source(uri string) []byte {
 	if !ok {
 		return nil
 	}
-	return doc.source
+	return doc.text
 }
 
 // Annotations returns the type of each lowered node of the document at uri,

@@ -115,6 +115,9 @@ func (h *handler) handleInitialize(msg *jsonRPCMessage) error {
 			HoverProvider:          true,
 			DefinitionProvider:     true,
 			DocumentSymbolProvider: true,
+			// Pinned whatever the client offers: Document counts UTF-16
+			// alone, and an advertised encoding binds every provider (§6.6.3).
+			PositionEncoding: "utf-16",
 		},
 	}
 	h.transport.sendResponse(msg.ID, result)
@@ -135,7 +138,7 @@ func (h *handler) handleShutdown(msg *jsonRPCMessage) error {
 func (h *handler) updateDocument(uri string, source []byte) {
 	if err := h.server.OpenDocument(uri, source); err != nil {
 		// Publish a single error diagnostic covering the whole document.
-		docEnd := offsetToPosition(source, uint32(len(source)))
+		docEnd := NewDocument(source).ByteToPosition(uint32(len(source)))
 		h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
 			URI: uri,
 			Diagnostics: []lspDiagnostic{{
@@ -148,7 +151,7 @@ func (h *handler) updateDocument(uri string, source []byte) {
 		return
 	}
 	h.logINCNote(uri)
-	h.publishDiagnostics(uri, source)
+	h.publishDiagnostics(uri)
 }
 
 // logINCNote sends incRoots' note on the directory of the document at uri,
@@ -211,8 +214,9 @@ func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 // publishDiagnostics retrieves inference diagnostics for uri from the server,
 // converts them to LSP diagnostic format, and sends a
 // textDocument/publishDiagnostics notification to the client.
-func (h *handler) publishDiagnostics(uri string, source []byte) {
+func (h *handler) publishDiagnostics(uri string) {
 	diags := h.server.Diagnostics(uri)
+	text := h.server.Text(uri)
 
 	lspDiags := make([]lspDiagnostic, 0, len(diags))
 	for _, d := range diags {
@@ -235,8 +239,8 @@ func (h *handler) publishDiagnostics(uri string, source []byte) {
 
 		lspDiags = append(lspDiags, lspDiagnostic{
 			Range: lspRange{
-				Start: offsetToPosition(source, d.StartByte),
-				End:   offsetToPosition(source, d.EndByte),
+				Start: text.ByteToPosition(d.StartByte),
+				End:   text.ByteToPosition(d.EndByte),
 			},
 			Severity: severity,
 			Source:   "psc",
@@ -261,13 +265,13 @@ func (h *handler) handleHover(msg *jsonRPCMessage) error {
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.server.Source(uri)
-	if source == nil {
+	text := h.server.Text(uri)
+	if text == nil {
 		h.transport.sendResponse(msg.ID, nil)
 		return nil
 	}
 
-	offset := positionToOffset(source, params.Position.Line, params.Position.Character)
+	offset := text.PositionToByte(params.Position)
 	typ, ok := h.server.TypeAtByte(uri, offset)
 	if !ok || typ == types.Unknown {
 		h.transport.sendResponse(msg.ID, nil)
@@ -293,13 +297,13 @@ func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.server.Source(uri)
-	if source == nil {
+	text := h.server.Text(uri)
+	if text == nil {
 		h.transport.sendResponse(msg.ID, nil)
 		return nil
 	}
 
-	offset := positionToOffset(source, params.Position.Line, params.Position.Character)
+	offset := text.PositionToByte(params.Position)
 	sym, ok := h.server.DefinitionAtByte(uri, offset)
 	if !ok {
 		h.transport.sendResponse(msg.ID, nil)
@@ -309,8 +313,8 @@ func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 	h.transport.sendResponse(msg.ID, lspLocation{
 		URI: uri, // same document — single-file only
 		Range: lspRange{
-			Start: offsetToPosition(source, sym.StartByte),
-			End:   offsetToPosition(source, sym.EndByte),
+			Start: text.ByteToPosition(sym.StartByte),
+			End:   text.ByteToPosition(sym.EndByte),
 		},
 	})
 	return nil
@@ -327,9 +331,9 @@ func (h *handler) handleDocumentSymbol(msg *jsonRPCMessage) error {
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.server.Source(uri)
+	text := h.server.Text(uri)
 	st := h.server.SymbolTable(uri)
-	if st == nil || source == nil {
+	if st == nil || text == nil {
 		h.transport.sendResponse(msg.ID, []lspDocumentSymbol{})
 		return nil
 	}
@@ -338,8 +342,8 @@ func (h *handler) handleDocumentSymbol(msg *jsonRPCMessage) error {
 	result := make([]lspDocumentSymbol, 0, len(allSyms))
 	for _, sym := range allSyms {
 		r := lspRange{
-			Start: offsetToPosition(source, sym.StartByte),
-			End:   offsetToPosition(source, sym.EndByte),
+			Start: text.ByteToPosition(sym.StartByte),
+			End:   text.ByteToPosition(sym.EndByte),
 		}
 		result = append(result, lspDocumentSymbol{
 			Name:           sym.Name,
@@ -367,51 +371,4 @@ func symbolKindForInfer(kind infer.SymbolKind) int {
 	default:
 		return symbolKindVariable
 	}
-}
-
-// positionToOffset converts a zero-based line and character position to a
-// byte offset within source. Negative col values are treated as 0. If the
-// computed offset would exceed len(source) it is clamped to len(source).
-// Returns len(source) if line exceeds the document's line count.
-func positionToOffset(source []byte, line, col int) uint32 {
-	if col < 0 {
-		col = 0
-	}
-	currentLine := 0
-	for i, b := range source {
-		if currentLine == line {
-			offset := i + col
-			if offset > len(source) {
-				return uint32(len(source))
-			}
-			return uint32(offset)
-		}
-		if b == '\n' {
-			currentLine++
-		}
-	}
-	// Target line starts at end of source (e.g. after the final newline).
-	if currentLine == line {
-		offset := len(source) + col
-		if offset > len(source) {
-			return uint32(len(source))
-		}
-		return uint32(offset)
-	}
-	return uint32(len(source))
-}
-
-// offsetToPosition converts a byte offset within source to a zero-based
-// line/character LSP position.
-func offsetToPosition(source []byte, offset uint32) lspPosition {
-	line, col := 0, 0
-	for i := uint32(0); i < offset && int(i) < len(source); i++ {
-		if source[i] == '\n' {
-			line++
-			col = 0
-		} else {
-			col++
-		}
-	}
-	return lspPosition{Line: line, Character: col}
 }
