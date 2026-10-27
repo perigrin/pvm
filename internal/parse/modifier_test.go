@@ -135,7 +135,17 @@ func TestModifierRefusesTrailingTokens(t *testing.T) {
 			t.Errorf("%q: want trailing_tokens: %v", src, kinds(parse.Parse([]byte(src))))
 		}
 	}
-	for _, src := range []string{"print 1 if $x;\n", "{ print 1 if $x }\n", "print 1 for @a\n"} {
+	// A mid-line `__END__` or `__DATA__` ends the program, and so the
+	// statement: perl 5.44.0 compiles `print 1 if $x __END__`. The lexer
+	// reads a mid-line marker as a Word, so what follows `__DATA__` is still
+	// refused, as on pu; the modifier statement before it is not.
+	for _, src := range []string{"print 1 if $x __END__\n", "print 1 if $x __DATA__\nstuff\n"} {
+		root := parse.Parse([]byte(src))
+		if first := root.Children[0]; first.Kind != parse.Statement || firstOfKind(first, parse.Conditional) == nil || firstUnknown(first) != nil {
+			t.Errorf("%q: the modifier statement before the marker refused: %v", src, kinds(root))
+		}
+	}
+	for _, src := range []string{"print 1 if $x;\n", "{ print 1 if $x }\n", "print 1 for @a\n", "print 1 if $x __END__\n"} {
 		if u := firstUnknown(parse.Parse([]byte(src))); u != nil {
 			t.Errorf("%q: refused %s, perl accepts it", src, u.Refusal)
 		}

@@ -43,10 +43,10 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	// `A {}(A * ")`, which re-read as an unterminated string.
 	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;",
 		`A{} (A*" )`, `A*"3";`, "A*'3';", "A*`ls`;",
-		// And the glob `**`: `x***x` is `x ** *x` to perl 5.42.0 ("Operator
-		// or semicolon missing before *x"), `x * ** * x` to the parser.
-		// FuzzParser's `*A*x***x****$0` canon'd past a fixpoint.
-		"*A*x***x****$0", "x***x;",
+		// And the glob `**` where no glob `*x` follows it glued: perl 5.44.0
+		// rejects `x****x`, `x****2` and `x**;`, and FuzzParser's
+		// `*A*x***x****$0` canon'd past a fixpoint.
+		"*A*x***x****$0", "x****x;", "x****2;", "x**;",
 		// And the globs `*;` and `*}`, which end the operand perl reads
 		// instead: `A*;` and `{A*}` are syntax errors on 5.42.0. The
 		// merge-commit campaign's `A*}x0` canon'd as `A * } x 0`, where
@@ -63,7 +63,11 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	for _, src := range []string{
 		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
 		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",
-		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "sub A {} A*;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "sub A {} A*;",
+		// perl 5.44.0 compiles each: `x ** *x`, and a print to a bareword
+		// handle of the glob `*;`, `*}` or `*#` -- a handle is no
+		// undeclared word's call.
+		"x***x;", "x***$0;", "print STDOUT *;", "say STDOUT *};", "printf STDERR *;", "exec FOO *;", "system FOO *;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
 	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))

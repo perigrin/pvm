@@ -835,7 +835,15 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		}
 		if i < 0 || n.Children[i].End <= last.Start {
 			// No child holds the token: it is n's own, and nothing of n's
-			// follows it, since it is the file's last.
+			// follows it, since it is the file's last -- save the Missing
+			// operand of n's operator, when that is the token, `f(1 +`. The
+			// refusal stands as the operand and holds it, so the operator
+			// keeps two operands and the fault is one refusal.
+			if j := i + 1; j < len(n.Children) && n.Children[j].Kind == Missing && n.Children[j].Refusal == MissingOperand {
+				u.Children = []*Node{n.Children[j]}
+				n.Children[j] = u
+				break
+			}
 			n.Children = append(n.Children[:i+1], append([]*Node{u}, n.Children[i+1:]...)...)
 			break
 		}

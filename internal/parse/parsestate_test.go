@@ -146,7 +146,8 @@ func resumeNested(t *testing.T, src []byte, stmt string) *Node {
 				kept = append(kept, c)
 			}
 		}
-		blk.Children = append(kept, tail...)
+		kept = append(kept, tail...)
+		blk.Children = kept
 		p.finish(root)
 		return root
 	}

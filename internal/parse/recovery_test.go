@@ -553,6 +553,39 @@ func TestRecoveryEOFMidConstruct(t *testing.T) {
 	}
 }
 
+// TestRecoveryOperatorAtEOFInsideBracket: an operator with no operand at
+// end of file, inside a bracket still open, is one well-formed error. The
+// Binary keeps two children, its right operand the unclosed_opener refusal
+// on the operator's token, which holds both the Missing operand and the
+// missing closer; nothing else refuses.
+func TestRecoveryOperatorAtEOFInsideBracket(t *testing.T) {
+	for _, c := range []struct{ src, closers string }{
+		{"f(1 +", ")"},
+		{"my $r = [1, 2 *", "]"},
+		{"sub f { 2 *", "}"},
+	} {
+		root := parse.Parse([]byte(c.src))
+		bin := firstOfKind(root, parse.Binary)
+		for b := bin; b != nil && b.Text == ","; b = firstOfKind(b.Children[len(b.Children)-1], parse.Binary) {
+			bin = b.Children[len(b.Children)-1]
+		}
+		if bin == nil || len(bin.Children) != 2 {
+			t.Errorf("%q: the operator's Binary is %v, want two children: %v", c.src, bin, kinds(root))
+			continue
+		}
+		right := bin.Children[1]
+		if right.Kind != parse.Unknown || right.Refusal != parse.UnclosedOpener {
+			t.Errorf("%q: right operand is %v %s, want the unclosed_opener Unknown", c.src, right.Kind, right.Refusal)
+		}
+		if got := len(withCode(root, parse.UnclosedOpener)) + len(withCode(root, parse.MissingOperand)); got != 2 {
+			t.Errorf("%q: %d refusals, want the Unknown and the Missing operand inside it", c.src, got)
+		}
+		if got := closersIn(root); got != c.closers {
+			t.Errorf("%q: closers %q, want %q", c.src, got, c.closers)
+		}
+	}
+}
+
 // TestRecoveryDeepNestingBounded: 999 open brackets, the deepest maxDepth
 // accepts, synthesize one closer each; 10,000 terminate as one
 // nesting_too_deep refusal with no closer synthesized past maxDepth.

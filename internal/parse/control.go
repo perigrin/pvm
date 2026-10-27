@@ -997,7 +997,10 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	// Bytes left before the terminator refuse the statement, as they do an
 	// expression statement's: measured on 5.42.0, `1 for $a $b;` is a
 	// syntax error, not `1 for $a;` and `$b;`.
-	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) && (cond == nil || !endsInBlock(cond)) {
+	// A mid-line `__END__` or `__DATA__`, which lexes as a Word, ends the
+	// program and so the statement: 5.44.0 compiles `print 1 if $x __END__`.
+	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) && (cond == nil || !endsInBlock(cond)) &&
+		p.text(tok) != "__END__" && p.text(tok) != "__DATA__" {
 		return p.refuseTrailingTokens(start)
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {

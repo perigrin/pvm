@@ -641,6 +641,12 @@ func autoquote(key *Node) {
 	key.Resolved = false
 }
 
+// gluedStar reports whether a lone `*` operator follows tok with no space.
+func (p *parser) gluedStar(tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return ok && next.Start == tok.End && next.Kind == lexer.Operator && p.text(next) == "*"
+}
+
 // refuseAmbiguousSigil refuses `A &y`, `A*y` and `A*#`: a `&` or `*` read here
 // as an operator, after a bareword, with a quote-op name (or, for `*`, the
 // glob name `#`) glued after it. The lexer
@@ -673,11 +679,16 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	}
 	// The glob `*#` is the same disagreement: `fo*#` is `fo *` and a comment
 	// to perl, measured on 5.42.0, so its canon `fo * #` re-read as one. So
-	// is a quote, `A*"3"`, `A*'3'` and A*`ls`: `'A' * 3` to perl. And the
-	// glob `**`: `x***x` is `x ** *x` to perl. And `*;` and `*}`, the `;` or
-	// `}` ending an operand perl finds missing: `A*;` is a syntax error.
-	// Other punctuation after `*` multiplies at a canon fixpoint.
-	hashName := text == "*" && strings.ContainsRune("#\"'`*;}", rune(p.src[name.Start]))
+	// is a quote, `A*"3"`, `A*'3'` and A*`ls`: `'A' * 3` to perl. And `*;`
+	// and `*}`, the `;` or `}` ending an operand perl finds missing: after
+	// an undeclared word, `A*;` is a syntax error. And the glob `**` unless
+	// a `*` follows it glued, where perl reads `x***x` as `x ** *x` and the
+	// multiplications read here are a canon fixpoint: measured on 5.44.0,
+	// `x****x`, `x****2` and `x**;` are syntax errors, and their canon
+	// re-read differently. Other punctuation after `*` multiplies at a canon
+	// fixpoint.
+	hashName := text == "*" && (strings.ContainsRune("#\"'`;}", rune(p.src[name.Start])) ||
+		p.text(name) == "*" && !p.gluedStar(name))
 	if !hashName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}

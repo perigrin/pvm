@@ -392,6 +392,20 @@ func TestCheckCommandOnBrokenFile(t *testing.T) {
 	assert.Contains(t, out, "t.pl:3:", "the rest of the file is still checked")
 }
 
+// TestOperatorAtEOFInsideBracketReportedOnce: a bracket still open at end
+// of file after an operator with no operand is one fault, `syntax error at
+// EOF` to perl 5.44.0, and psc check reports it once: the operand's Missing
+// node sits inside the unclosed_opener refusal, which is not reported twice.
+func TestOperatorAtEOFInsideBracketReportedOnce(t *testing.T) {
+	isolatePerl(t)
+	for _, source := range []string{"f(1 +", "my $r = [1, 2 *", "sub f { 2 *"} {
+		out := runCheckOn(t, source)
+		if n := strings.Count(out, "t.pl:"); n != 1 {
+			t.Errorf("%q: %d diagnostics, want 1:\n%s", source, n, out)
+		}
+	}
+}
+
 // TestRefusalIsReported: code perl refuses to compile, with a refusal code
 // perl always shares (perlRefuses), is reported by psc check and the LSP,
 // each refusal as its code over its span, and psc check exits non-zero. perl 5.42 says "Not enough arguments for push" for the
