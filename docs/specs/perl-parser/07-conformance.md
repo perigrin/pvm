@@ -1000,16 +1000,16 @@ func FuzzIncremental(f *testing.F) {
 Seed these specifically. Each breaks the assumption that an edit's effect is
 *local*, which is the assumption incremental parsing rests on:
 
-| Edit | Why it is nasty |
-|---|---|
-| Insert `"` mid-file | Every subsequent token re-lexes. Maximum blast radius |
-| Insert `<<EOF` | A heredoc suspends the rest of the line; the *next* line's meaning changes |
-| Delete a heredoc terminator | The heredoc swallows the remainder of the file |
-| Insert `=pod` at column 0 | POD mode until `=cut`. Everything after becomes trivia |
-| Insert `__END__` | Everything after becomes data |
-| Change `sub f()` to `sub f(\@)` | **A prototype edit changes how every later call parses — anywhere after it in the file, outside any re-parse region** (chapter 3 §3.5.5). The one edit whose effect escapes its enclosing sub |
-| Insert `{` | Every brace after it re-associates |
-| Split a token (`$foo` -> `$f|oo`) | Edit lands inside a token, not between two |
+| Edit | Why it is nasty | Defined invalidation |
+|---|---|---|
+| Insert `"` mid-file | Every subsequent token re-lexes. Maximum blast radius | §6.1.2 A1. Quote parity of the line window changes, so triage returns `StrategyFull`: no region is re-parsed locally, Repair returns ok=false and `ReparseIncremental` parses the whole file |
+| Insert `<<EOF` | A heredoc suspends the rest of the line; the *next* line's meaning changes | §6.1.2 A2. `<<` appears in the window, a global trigger, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
+| Delete a heredoc terminator | The heredoc swallows the remainder of the file | §6.1.2 A3. The terminator line holds no global trigger, so triage returns `StrategyLocal`, anchored at the enclosing sub (§6.5.2). The seed has no later line equal to the terminator, so the re-lexed heredoc body runs to EOF, the resync loop never resyncs (§6.5.3), and Repair returns ok=false; the whole file is re-parsed |
+| Insert `=pod` at column 0 | POD mode until `=cut`. Everything after becomes trivia | §6.1.2 A7. `=pod` is not in `globalTriggers` (only `=cut` is), so triage returns `StrategyLocal`, anchored at the enclosing sub. The seed has no later `=cut`, so the POD block runs to EOF, nothing resyncs, and Repair returns ok=false; the whole file is re-parsed |
+| Insert `__END__` | Everything after becomes data | §6.1.2 A8. `__END__` appears in the window, a global trigger, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
+| Change `sub f()` to `sub f(\@)` | **A prototype edit changes how every later call parses — anywhere after it in the file, outside any re-parse region** (chapter 3 §3.5.5). The one edit whose effect escapes its enclosing sub | §6.1.2 B1. **Whole file.** Any edit that touches a prototype (the parenthesised list after `sub NAME`), or lands inside a `BEGIN` block (B6) or a `use` or `no` statement (B2, B7: either can install a prototype through `import`), is triaged `StrategyFull`: Repair returns ok=false and the whole file is re-parsed. A prototype installed by a module the file reaches through `use` is covered the same way: Repair returns ok=false when any module the old parse loaded now resolves to different bytes |
+| Insert `{` | Every brace after it re-associates | §6.1.2 C1. The window's brace delta changes, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
+| Split a token (`$foo` -> `$f\|oo`) | Edit lands inside a token, not between two | No trigger: the inserted byte `\|` splits `$foo` into `$f`, `\|`, `oo`. Triage returns `StrategyLocal`; the seed's `$foo` is inside a sub body, so the region re-parsed is that enclosing sub (§6.5.2), the lexer resyncs at the first token after the edit, and Repair returns ok=true with the sub spliced and every later node shifted by one byte |
 
 The prototype row deserves emphasis. A prototype affects only calls
 *textually after* the definition — forward calls are not list-operator
@@ -1018,6 +1018,24 @@ and a `BEGIN`/`use` can install one from anywhere. **Any incremental parser must
 invalidation story for prototype edits, and this test is what proves the
 story is true.** If your answer is "invalidate the whole file on a prototype
 change" — that is a fine answer, and this test confirms you actually do it.
+
+This parser's answer is the whole file, as the table's prototype row says.
+Note that §6.5.1's `introducesGlobalTrigger`, as sketched, does not catch
+it: `sub` is in both the old and the new line window, so its
+appear-or-disappear test sees no change, and neither quote parity nor brace
+delta moves. Triage needs the prototype, `BEGIN` and `use`/`no` checks of the
+row on top of the sketch.
+
+The "Defined invalidation" column is what the tests hold. Each row is a
+committed seed (`internal/parse/testdata/fuzz/FuzzIncremental/`), and
+`TestIncrementalEditSeeds` (`internal/parse`) asserts, per row, the triage
+outcome, the region re-parsed or Repair's ok=false, and that
+`ReparseIncremental` equals a fresh parse of the edited bytes.
+`TestRepairLocalSeedsSucceed` holds only the rows marked ok=true.
+`TestPrototypeEditInvalidation` (`internal/parse`) holds the prototype row:
+a prototype edit, an edit inside `BEGIN`, an edit to a `use` line and a
+change to a `use`d module's bytes each make Repair return ok=false, and in
+each case a later call to `f` parses as a fresh parse does.
 
 ### 7.7.4 Multi-edit sequences
 
