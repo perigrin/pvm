@@ -1009,6 +1009,26 @@ the resync loop (§6.5.3) compare lexer state and not just token kind, and it is
 the difference between an incremental lexer that is correct and one that is
 usually correct.
 
+**As landed** (`internal/lexer/tokencache.go`). `TokenCache` holds `Tokens`
+and `Checkpoints` and no per-token states: resync is tried only at old
+checkpoints, which already carry the state, so the comparison §6.5.3 needs
+costs nothing per token. `NewTokenCache(src, start)` lexes as `Checkpoints`
+does. `Edit(src, start, oldEnd, newEnd)` re-lexes the new bytes from the last
+checkpoint at or before `start`, recording fresh checkpoints as it goes, and
+resyncs at the first old checkpoint past the edit where all of these hold:
+the old token ending there lies wholly after `oldEnd`, it equals the new
+stream's last token in `Kind`, shifted `Start`/`End` and Flags (the token's
+`OpensBlock` and `TermFollows`; a regex and a division `/` already differ in
+`Kind` here), and the lexer `State` equals the checkpoint's. The cache is then
+the old prefix, the re-lexed tokens and the old tail shifted by the edit's
+delta, checkpoints likewise; a stream that never resyncs is lexed to EOF
+once. `Edit` returns the count of tokens re-lexed. The tests hold the cache
+to a fresh `Tokenize*` after every edit in all three start states, including
+the §7.7.3 edits and edit sequences, with every checkpoint resuming to the
+fresh stream's suffix; `FuzzTokenCacheEdit` holds it on any input, edit and
+undo. On edit5k.pl the latency benchmarks' 1-char edit re-lexes 261 of
+37,070 tokens.
+
 ---
 
 ## 6.4 The Parse-Node Cache and Dependency Tracking

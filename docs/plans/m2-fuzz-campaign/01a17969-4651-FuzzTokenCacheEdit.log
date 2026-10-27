@@ -1,0 +1,11 @@
+commit 1eae4fd61230d29d594fc2a99ef80b7b398ac8ca
+go version go1.24.4 linux/amd64
+fuzz: elapsed: 0s, gathering baseline coverage: 0/570 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 570/570 completed, now fuzzing with 4 workers
+fuzz: elapsed: 3s, execs: 15297 (5097/sec), new interesting: 26 (total: 596)
+fuzz: elapsed: 6s, execs: 22964 (2556/sec), new interesting: 30 (total: 600)
+fuzz: elapsed: 9s, execs: 39655 (5562/sec), new interesting: 39 (total: 609)
+fuzz: elapsed: 12s, execs: 44747 (1697/sec), new interesting: 44 (total: 614)
+fuzz: elapsed: 13s, execs: 50000 (4152/sec), new interesting: 45 (total: 615)
+PASS
+ok  	tamarou.com/pvm/internal/lexer	13.309s
