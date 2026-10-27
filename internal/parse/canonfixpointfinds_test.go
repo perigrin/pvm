@@ -166,8 +166,12 @@ func TestWordOperatorIsNoTerm(t *testing.T) {
 	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)", "$_{ge}", "my $r; $r->{eq}", "my %h; @h{lt}", "my %h; $h{sub}"} {
 		clean(t, src)
 	}
-	if got := clean(t, "x*&;"); got != "x * &;;" {
-		t.Errorf("`x*&;`: canon %q, want %q", got, "x * &;;")
+	// And after the repetition `x`, where a term is read too: FuzzParser's
+	// `1x x*$(&(())` is `1 x 'x' * $( & ()`.
+	for src, want := range map[string]string{"x*&;": "x * &;;", "1x x*$(&(())": "1 x x * $( & ()"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
 	}
 }
 

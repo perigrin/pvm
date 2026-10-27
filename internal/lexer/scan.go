@@ -1453,8 +1453,24 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 	}
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
 	if w == "x" {
-		k := l.significantBefore(j)
-		return xIsWord && (k < 0 || l.toks[k].Kind == Operator || l.toks[k].Kind == Semicolon)
+		return xIsWord && !l.endsTerm(l.significantBefore(j))
 	}
 	return !perlKeywords[w]
+}
+
+// endsTerm reports whether toks[k] ends a term, so that an operator follows
+// it: a variable, a literal, a closer, or a word no keyword table settles.
+// After a keyword, an operator or nothing, a term is read: perl 5.44.0
+// deparses `1x x*$(` as `'' * $(`, the second `x` a bareword.
+func (l *lexer) endsTerm(k int) bool {
+	if k < 0 {
+		return false
+	}
+	switch t := l.toks[k]; t.Kind {
+	case Variable, Number, Quote, Readline, CloseBracket, HeredocOpen:
+		return true
+	case Word:
+		return !perlKeywords[string(l.src[t.Start:t.End])]
+	}
+	return false
 }
