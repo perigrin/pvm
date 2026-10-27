@@ -388,6 +388,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			for _, c := range early {
 				b.WriteString(c.SourceText(src))
 			}
+			// A terminator the file ended on has no newline, and the `;`
+			// after it would join its line: FuzzParser's `<<0;A0` + body +
+			// `0` at EOF canon'd its terminator as `0;`.
+			if !strings.HasSuffix(early[len(early)-1].SourceText(src), "\n") {
+				b.WriteByte('\n')
+			}
 		}
 		b.writeFrom(&stmt, at, len(text))
 		// A HEREDOC BODY GOES AFTER THE TERMINATOR, ON ITS OWN LINE, and

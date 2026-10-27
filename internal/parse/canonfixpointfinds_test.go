@@ -285,7 +285,7 @@ func TestPostfixIncrementEndsTerm(t *testing.T) {
 // + `<<0` as `'A' % <<0`. Canon wrote `A % <<0`, where `% <` lexed as a
 // hash named `<`.
 func TestSpacedPercentAfterWordIsModulus(t *testing.T) {
-	for src, want := range map[string]string{"A% #\n<<0;;0\n0": "A % <<0;;0\n0", "A % 2;": "A % 2;"} {
+	for src, want := range map[string]string{"A% #\n<<0;;0\n0": "A % <<0;;0\n0\n", "A % 2;": "A % 2;"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
@@ -328,6 +328,16 @@ func TestSubLabel(t *testing.T) {
 	// unterminated transliteration to perl 5.44.0.
 	if found := collectUnknown(parse.Parse([]byte("sub :y"))); len(found) == 0 {
 		t.Errorf("`sub :y`: perl rejects this, but it parses")
+	}
+}
+
+// TestHeredocTerminatorAtEOFKeepsItsLine: perl 5.44.0 compiles `<<0;A0` +
+// newline + `<<0;` + newline + `0`, the terminator ending the file with no
+// newline. canon wrote the statement's `;` on the terminator's line, `0;`,
+// which terminates nothing.
+func TestHeredocTerminatorAtEOFKeepsItsLine(t *testing.T) {
+	if got := clean(t, "<<0;A0\n<<0;\n0"); got != "<<0;A0\n<<0;\n0\n;" {
+		t.Errorf("canon %q", got)
 	}
 }
 
