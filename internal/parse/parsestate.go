@@ -67,12 +67,17 @@ var parserFields = map[string]int{
 	"operatorSig":    scratch,
 	"multi":          scratch,
 	"anchorBlock":    scratch,
-	"src":            shared,
-	"toks":           shared,
+	// Set by the statementsTo the snapshot stands in: true at a nested point.
+	"inBlock": snapshotted,
+	"src":     shared,
+	"toks":    shared,
 	// The Session doing the re-parse supplies its own resolver, a fresh one
 	// per 01a17969-4629's rule; the snapshot never carries one.
 	"res":   shared,
 	"snaps": shared,
+	// Derived from toks, as bodies is; closes is built on first use.
+	"tierOne": shared,
+	"closes":  shared,
 }
 
 // clone is a copy of p holding no map or slice of p's, so neither can
@@ -129,6 +134,6 @@ func (s *parserSnapshot) resume(src []byte, res *resolver) (*parser, []*Node) {
 func (s *parserSnapshot) restore(src []byte, res *resolver) *parser {
 	fresh := newParser(src, res, s.p.typed)
 	p := s.p.clone()
-	p.src, p.toks, p.bodies, p.res = fresh.src, fresh.toks, fresh.bodies, fresh.res
+	p.src, p.toks, p.bodies, p.res, p.tierOne, p.closes = fresh.src, fresh.toks, fresh.bodies, fresh.res, fresh.tierOne, nil
 	return &p
 }

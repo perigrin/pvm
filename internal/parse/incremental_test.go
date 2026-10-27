@@ -51,7 +51,10 @@ const (
 // resolver-aware one rejects through the parser-state check.
 func TestRepairModelReadsSessionTree(t *testing.T) {
 	src := []byte(reviewPOSIX)
-	e := at(reviewPOSIX, "floor ", "1", "--")
+	// `floor 1, if }`: under the Session, floor is unary and the `if` after
+	// the comma reads past the sub's `}`. The re-review's `floor --, 2` no
+	// longer leaks, since a catch-all's skip stops before that `}` (§6.8.3).
+	e := at(reviewPOSIX, "floor ", "2", "if")
 	newSrc := []byte(edited(reviewPOSIX, e))
 	old := sessionParse(src)
 	if got := triage(old, src, e); got != StrategyLocal {

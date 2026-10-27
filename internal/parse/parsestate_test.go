@@ -275,7 +275,9 @@ func TestParserStateSnapshotCoversEveryField(t *testing.T) {
 func TestParserStateEOFPassesRerun(t *testing.T) {
 	old := "sub f($) { 1 }\nsub g { f 2 }\nsub h(\\@) { 3 }\nprint g(), \"\\n\";\n"
 	at := strings.Index(old, "sub g")
-	edited := []byte(old[:at+len("sub g {")] + " {" + old[at+len("sub g {"):])
+	// A `(`, not a `{`: a lost brace closes at the column-0 `sub h` (§5.13.4
+	// tier 1), and the EOF pass would have nothing to refuse.
+	edited := []byte(old[:at+len("sub g {")] + " (" + old[at+len("sub g {"):])
 	res := func() *resolver { return &resolver{load: DirLoader(t.TempDir()), seen: map[string]bool{}} }
 
 	full := parseRoot(edited, res())

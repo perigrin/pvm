@@ -69,7 +69,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	// "syntax error ... near "no("". `require(A)` is a call perl compiles.
 	p.advanceTo(word)
 	if next, ok := p.peekSignificant(); ok && p.text(next) == "(" && keywordName(p.text(word)) != "require" {
-		return p.refuseTrailingTokens(word.Start)
+		return p.refuseTrailingTokens(word.Start, nil)
 	}
 
 	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
