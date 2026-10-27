@@ -729,7 +729,11 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
 		prev--
 	}
-	if !closes && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
+	// So does a quote-op name after a closer, where the lexer read a glob:
+	// perl 5.44.0 has FuzzParser's `{{}*y}` multiply the hash by a
+	// transliteration, and the canon `{} * y` re-read as one.
+	quoteAfterCloser := text == "*" && lexer.IsQuoteOpName(p.text(name)) && prev >= 0 && p.toks[prev].Kind == lexer.CloseBracket
+	if !closes && !quoteAfterCloser && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
 		return nil
 	}
 	// The glob `*#` is the same disagreement: `fo*#` is `fo *` and a comment
