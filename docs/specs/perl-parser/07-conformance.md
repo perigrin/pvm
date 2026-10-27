@@ -962,6 +962,16 @@ The fuzzer generates the edits. This is exactly what fuzzing is for: the
 space of (source, edit) pairs is far too large to enumerate and far too
 structured to sample by hand.
 
+The fuzzers live in `internal/parse/incremental_fuzz_test.go`. An edit is
+`parse.Edit{Start, OldEnd int; NewText string}`: replace the old bytes
+`[Start, OldEnd)` with `NewText`. `parse.ReparseIncremental` applies one,
+calling `parse.Repair` and falling back to a full parse when `Repair` returns
+ok=false (chapter 6 §6.5.5); `parse.TreeDiff` compares the result with a fresh
+parse. The sketch below uses `parse.Parse` for brevity; the real fuzzers parse
+through a `parse.Session` with a resolver, as the LSP parses `file:` URIs, and
+compare with a fresh `parse.NewSession().ParseSourceFrom` of the edited bytes
+with the same path and roots.
+
 ```go
 // ABOUTME: Property test: incremental re-parse must equal full re-parse, for any edit.
 // ABOUTME: The fuzzer generates edit sequences; the invariant is tree equality.
@@ -981,13 +991,13 @@ func FuzzIncremental(f *testing.F) {
         delLen = clamp(delLen, 0, len(src)-offset)
         edited := src[:offset] + insert + src[offset+delLen:]
 
-        old := parser.Parse([]byte(src))
-        inc := parser.ReparseIncremental(old, parser.Edit{
+        old := parse.Parse([]byte(src))
+        inc := parse.ReparseIncremental(old, parse.Edit{
             Start: offset, OldEnd: offset + delLen, NewText: insert,
         }, []byte(edited))
-        full := parser.Parse([]byte(edited))
+        full := parse.Parse([]byte(edited))
 
-        if diff := treeDiff(inc, full); diff != "" {
+        if diff := parse.TreeDiff(inc, full); diff != "" {
             t.Fatalf("incremental != full after edit at %d (-%d, +%q):\n%s",
                 offset, delLen, insert, diff)
         }
@@ -1019,6 +1029,12 @@ invalidation story for prototype edits, and this test is what proves the
 story is true.** If your answer is "invalidate the whole file on a prototype
 change" — that is a fine answer, and this test confirms you actually do it.
 
+Each of the eight edits is a committed seed of `FuzzIncremental`, and
+`TestIncrementalEditSeeds` (`internal/parse/incremental_fuzz_test.go`) runs
+them as a table, asserting each edit's defined invalidation (the region
+`parse.Repair` re-parses, or that it returns ok=false) and that
+`parse.ReparseIncremental` equals the fresh parse.
+
 ### 7.7.4 Multi-edit sequences
 
 Single edits are the easy case. Real editors send bursts. Extend the property
@@ -1027,15 +1043,15 @@ to sequences, because state corruption often needs several edits to surface:
 ```go
 func FuzzIncrementalSequence(f *testing.F) {
     f.Fuzz(func(t *testing.T, src string, script []byte) {
-        tree := parser.Parse([]byte(src))
+        tree := parse.Parse([]byte(src))
         cur := src
-        for _, e := range decodeEdits(script, len(cur)) {  // seed -> edit list
+        for _, e := range decodeEdits(script, len(cur)) {  // seed -> []parse.Edit
             cur = applyEdit(cur, e)
-            tree = parser.ReparseIncremental(tree, e, []byte(cur))
+            tree = parse.ReparseIncremental(tree, e, []byte(cur))
             // Check after EVERY edit. Corruption compounds, and checking only
             // at the end tells you a bug exists without telling you which edit
             // caused it.
-            if diff := treeDiff(tree, parser.Parse([]byte(cur))); diff != "" {
+            if diff := parse.TreeDiff(tree, parse.Parse([]byte(cur))); diff != "" {
                 t.Fatalf("diverged after edit %+v:\n%s", e, diff)
             }
         }
