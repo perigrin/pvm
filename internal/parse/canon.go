@@ -183,7 +183,21 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// with "No comma allowed after filehandle". One the source wrote after
 	// the node's own parens, `f((0),)`, goes after them; deferred first, it
 	// is written last.
-	if n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
+	// A List's separator inside a pair around its own, `((1,2),)`, keeps
+	// that pair: written `(1, 2),`, the list ended before `x`, and
+	// FuzzParser's `((),)x*!` re-read differently.
+	// Its first separator is the one inside; any more, `((),),`, are after.
+	outerPair := n.Kind == List && n.Paren && !n.SyntaxParen && n.TrailingComma != "" && listSepInOuterPair(n, src)
+	if outerPair {
+		inside, after, _ := strings.Cut(n.TrailingComma, " ")
+		if after != "" {
+			defer b.WriteString(after)
+		}
+		defer b.WriteByte(')')
+		defer b.WriteString(inside)
+		b.WriteByte('(')
+	}
+	if !outerPair && n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
 		defer b.WriteString(n.TrailingComma)
 	}
 	innerSep := syntaxPairSep(n, src)
@@ -1166,6 +1180,18 @@ func emitCallArgs(b *canonBuf, n *Node, args []*Node, src []byte, f int) {
 func commaInParens(n *Node, src []byte) bool {
 	sep, _ := sepInParens(n, src)
 	return n.Kind != List && !foldsSep(n) && sep != ""
+}
+
+// listSepInOuterPair reports whether List n's span is a pair around the
+// list's own with its separator inside, `((1,2),)`. A List's span is its
+// outermost pair's, and it records no inner one.
+func listSepInOuterPair(n *Node, src []byte) bool {
+	toks := significantTokens(src[n.Start:n.End])
+	if len(toks) < 4 || toks[0] != "(" || toks[1] != "(" {
+		return false
+	}
+	k, ok := matchParen(toks, 1)
+	return ok && k+2 == len(toks)-1 && (toks[k+1] == "," || toks[k+1] == "=>")
 }
 
 // foldsSep reports whether n is a leaf finishList folds a separator inside

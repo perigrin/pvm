@@ -62,6 +62,7 @@ var parserFields = map[string]int{
 	"bodied":         snapshotted,
 	"pos":            snapshotted,
 	"inSignature":    scratch,
+	"inHashKey":      scratch,
 	"termBP":         scratch,
 	"declOperandBP":  scratch,
 	"operatorSig":    scratch,

@@ -1311,7 +1311,7 @@ func scanGlobName(l *lexer) bool {
 	// error and `sub A {} A*%x3` is `A(*% x 3)`; the parser, which knows
 	// declarations, declines that reading. Taking `*%` as a glob read `A*%x*(%A` and its
 	// canon differently.
-	case byteIn(c, "%@&") && start+1 < len(l.src) && !isSpace(next) && l.afterUserWord(len(l.toks)-1, true):
+	case byteIn(c, "%@&$") && start+1 < len(l.src) && !isSpace(next) && l.afterUserWord(len(l.toks)-1, true):
 		return false
 	}
 	l.pos = end

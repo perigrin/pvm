@@ -93,7 +93,7 @@ func (l *lexer) intuitCurly(emptyIsHash bool) bool {
 func skipSpaceFrom(src []byte, i int) int {
 	for ; i < len(src); i++ {
 		switch src[i] {
-		case ' ', '\t', '\n', '\r':
+		case ' ', '\t', '\n', '\r', '\f', '\v':
 		default:
 			return i
 		}

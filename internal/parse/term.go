@@ -233,8 +233,10 @@ func (p *parser) parseTerm() *Node {
 			// `*%x` after a declared word: the lexer took `%x` as the star's
 			// operand, as an undeclared word's multiplication has it, but a
 			// star read as a term is perl's glob `*%`, then `x` -- measured
-			// on 5.44.0, `sub A {} A*%x3` is `A(*% x 3)`.
-			if name.Kind == lexer.Variable && name.Start == tok.End && p.src[name.Start] != '$' {
+			// on 5.44.0, `sub A {} A*%x3` is `A(*% x 3)`. So is `*$;`, the
+			// glob `*$` before a `;`; `*$x` is the glob `$x` names.
+			if name.Kind == lexer.Variable && name.Start == tok.End && (p.src[name.Start] != '$' || name.End-name.Start == 2 &&
+				!isWordByte(p.src[name.Start+1]) && !strings.ContainsRune("${:", rune(p.src[name.Start+1]))) {
 				return p.ambiguousSigil(tok.Start)
 			}
 			p.advanceTo(name)
@@ -419,10 +421,10 @@ func (p *parser) parseTerm() *Node {
 			// `my()`, which re-read as a declaration.
 			return p.refuseNotATerm(tok)
 
-		case wordInfixOps[keywordName(text)] && !p.declaratorIsBareword(tok):
-			// Nor is a word operator: measured on 5.44.0, `gt*2;` and
-			// `print -eq;` are each a syntax error, while `$h{eq}` and `eq
-			// => 1` compile. Read as a call, `gt*&;`'s canon re-read
+		case wordInfixOps[keywordName(text)] && !p.wordOpIsString(tok):
+			// Nor is a word operator: measured on 5.44.0, `gt*2;`, `print
+			// -eq;` and `{ge}` are each a syntax error, while `$h{eq}` and
+			// `eq => 1` compile. Read as a call, `gt*&;`'s canon re-read
 			// differently.
 			return p.refuseNotATerm(tok)
 
@@ -491,6 +493,13 @@ func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 var wordInfixOps = map[string]bool{
 	"eq": true, "ne": true, "lt": true, "gt": true, "le": true, "ge": true,
 	"cmp": true, "and": true, "or": true, "xor": true,
+}
+
+// wordOpIsString reports whether a word operator read as a term is the
+// string perl makes of it: before `=>`, or alone in a hash subscript.
+func (p *parser) wordOpIsString(word lexer.Token) bool {
+	next, ok := p.peekAfter(word)
+	return ok && (p.text(next) == "=>" || p.inHashKey && p.text(next) == "}")
 }
 
 // declaratorIsBareword reports whether a `my` or `our` with no variable

@@ -37,13 +37,20 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		"got*&;": "got * &;;",
 		"got*%;": "got * %;",
 		"A*@}":   "A * @}",
+		"x*$;":   "x * $;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
 	}
-	if found := collectUnknown(parse.Parse([]byte("sub A {} A *%x3"))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
-		t.Errorf("`sub A {} A *%%x3`: want an ambiguous_sigil refusal, got %v", refusalCodes(found))
+	for _, src := range []string{"sub A {} A *%x3", "sub A {} A*$;"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0.
+	if found := collectUnknown(parse.Parse([]byte("{x*$}"))); len(found) == 0 {
+		t.Errorf("`{x*$}`: perl rejects this, but it parses")
 	}
 	if ok, why := canonMatches([]byte("A*%x*(%A")); !ok {
 		t.Errorf("`A*%%x*(%%A`: canon is not a fixpoint: %s", why)
@@ -118,12 +125,14 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 // `print -eq;`, and compiles `$h{eq}`, `{eq => 1}` and `x*&;`, the last
 // `'x' * &;`. Read as a call, `gt*&;`'s canon re-read differently.
 func TestWordOperatorIsNoTerm(t *testing.T) {
-	for _, src := range []string{"gt*&;", "gt*2;", "print -eq;", "CORE::eq*2"} {
+	// Nor is `{ge}` a key outside a subscript: perl rejects the block and
+	// the anonymous hash alike, and FuzzParser's `{ge}` canon'd as `{ge;}`.
+	for _, src := range []string{"gt*&;", "gt*2;", "print -eq;", "CORE::eq*2", "{ge}", "my $r = {ge};"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
 	}
-	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)"} {
+	for _, src := range []string{"my %h; $h{eq}", "my $r = { eq => 1 };", "f(-lt => 1)", "$_{ge}", "my $r; $r->{eq}", "my %h; @h{lt}"} {
 		clean(t, src)
 	}
 	if got := clean(t, "x*&;"); got != "x * &;;" {
@@ -136,6 +145,37 @@ func TestWordOperatorIsNoTerm(t *testing.T) {
 // for the list's separator, writing `((A,) %y)`, a modulus.
 func TestListSeparatorAfterInnerTrailingComma(t *testing.T) {
 	for src, want := range map[string]string{"((A,),%y)": "((A,), %y)", "((1,),2)": "((1,), 2)", "((A),,%y)": "((A), , %y)", "(0,A,,0)": "(0, A, , 0)"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestListSeparatorInOuterPair: perl 5.44.0 compiles `((1,2),) x 2` and
+// FuzzParser's `((),)x*!`. Canon wrote the separator after the list's own
+// pair and dropped the one around it, `(1, 2), x 2`, so the list ended
+// before the `x`.
+func TestListSeparatorInOuterPair(t *testing.T) {
+	for src, want := range map[string]string{
+		"my @a = ((1,2),) x 2;": "my @a = ((1, 2),) x 2;",
+		"my @a = ((),) x 2;":    "my @a = ((),) x 2;",
+		"((),)x*!":              "((),) x *!",
+		"f((1,2),)":             "f((1, 2),)",
+		// And one after the outer pair too: FuzzParser's `((),),`.
+		"((),),":    "((),),",
+		"((1,2),),": "((1, 2),),",
+	} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
+// TestFormFeedBeforeBrace: a form feed is whitespace to perl's lookahead
+// at a `{` as a blank is, so `A\f{0}` is `A {0}`, a block. Read as a
+// subscript, its canon `A{0}` re-read as the block.
+func TestFormFeedBeforeBrace(t *testing.T) {
+	for src, want := range map[string]string{"A\f{0}": "A {0;}", "A\v{0}": "A {0;}"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}

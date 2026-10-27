@@ -882,6 +882,10 @@ type parser struct {
 	// `overload::constant` after `use overload;`. Known, not imported.
 	moduleSubs map[string]Import
 
+	// inHashKey is set while a `{` subscript's key is read, where a word
+	// before the `}` is the key's string, a word operator's spelling too.
+	inHashKey bool
+
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
@@ -1602,6 +1606,10 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	anchor := p.anchorBlock
 	p.anchorBlock = false
+	// A block in a key, `$h{do {ge}}`, holds statements, not the key.
+	inHashKey := p.inHashKey
+	p.inHashKey = false
+	defer func() { p.inHashKey = inHashKey }()
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
 	p.depth++

@@ -619,9 +619,12 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
 	// expression, which is not a failure.
 	children := []*Node{left}
 	if c, ok := p.peekSignificant(); !ok || p.text(c) != closerFor(open) {
+		was := p.inHashKey
+		p.inHashKey = open == "{"
 		if inner := p.parseExpr(0); inner != nil {
 			children = append(children, inner)
 		}
+		p.inHashKey = was
 	}
 	if c, ok := p.peekSignificant(); ok && p.text(c) == closerFor(open) {
 		p.advanceTo(c)
