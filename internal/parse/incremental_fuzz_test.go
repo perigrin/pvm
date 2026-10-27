@@ -118,7 +118,7 @@ const (
 var incrementalSeeds = []incrementalSeed{
 	{"insert-quote", seedSub, insertAt(seedSub, "= ", `"`), "StrategyFull", false},
 	{"insert-heredoc", seedSub, insertAt(seedSub, "1;\n", "  print <<EOF;\n"), "StrategyFull", false},
-	{"delete-heredoc-terminator", heredocSub, replaceFirst(heredocSub, "EOF\n", ""), "StrategyLocal", false},
+	{"delete-heredoc-terminator", heredocSub, replaceFirst(heredocSub, "EOF\n", ""), "StrategyFull", false},
 	{"pod", seedSub, insertAt(seedSub, "1;\n", "=pod\n"), "StrategyFull", false},
 	{"end", seedSub, insertAt(seedSub, "1;\n", "__END__\n"), "StrategyFull", false},
 	{"prototype", protoSrc, insertAt(protoSrc, "sub f(", `\@`), "StrategyFull", false},

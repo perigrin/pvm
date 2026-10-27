@@ -3,6 +3,8 @@
 package parse
 
 import (
+	"fmt"
+	"math/rand"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -32,6 +34,14 @@ func TestIncrementalRepairDefaultsOff(t *testing.T) {
 
 const twoSubs = "sub f {\n  my $foo = 1; # note\n  return $foo;\n}\n\nsub g { 2 }\nprint f();\n"
 
+// The gate review's sources: a `use` added in f changes how the last line
+// reads X, and a quote-like or regex losing its closer swallows sub g.
+const (
+	reviewUse   = "sub f {\n  1;\n}\nprint X + 1;\n"
+	reviewQuote = "sub f { my $s = q|a|; }\nsub g { 'b|' }\nprint g();\n"
+	reviewRegex = "sub f { my $s = m/a/; }\nsub g { 'b/' }\nprint g();\n"
+)
+
 // TestTriageScansDeletedText: a trigger leaving the source is as structural
 // as one arriving, so the removed side is scanned as well as the new.
 func TestTriageScansDeletedText(t *testing.T) {
@@ -43,7 +53,6 @@ func TestTriageScansDeletedText(t *testing.T) {
 		{"use", "sub f {\n  1;\n}\nuse strict;\n", "use "},
 		{"BEGIN", "sub f {\n  1;\n}\nBEGIN { 1 }\n", "BEGIN"},
 		{"#", "sub f {\n  my $x = 1; # 2\n}\n", "#"},
-		{"second #", "sub f {\n  my $x = 1; # a # b\n}\n", "# b"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := at(c.src, "", c.del, "")
@@ -59,7 +68,7 @@ func TestTriageScansDeletedText(t *testing.T) {
 }
 
 // TestTriageMissedTriggers: the §6.5.1 sketch's appear-or-disappear test
-// misses a prototype edit (`sub` stays in the window) and `=pod` (only `=cut`
+// misses a prototype edit (`sub` stays in the line) and `=pod` (only `=cut`
 // is listed). Both are StrategyFull, as are edits in a sub's head, a
 // `package NAME;`, a `use` and a BEGIN block, and inside a block that
 // declares a sub.
@@ -78,6 +87,13 @@ func TestTriageMissedTriggers(t *testing.T) {
 		{"BEGIN body", "BEGIN { 1 }\nsub f { 2 }\n", at("BEGIN { 1 }\nsub f { 2 }\n", "{ ", "1", "3")},
 		{"prototype in package block", "package Q { sub x { 1 } }\nQ::x 1, 2;\n", at("package Q { sub x { 1 } }\nQ::x 1, 2;\n", "sub x", "", "($)")},
 		{"prototype in bare block", "{ sub y { 1 } }\ny 1, 2;\n", at("{ sub y { 1 } }\ny 1, 2;\n", "sub y", "", "($)")},
+		// Gate review of #512: spellings a substring trigger misses.
+		{"use and a tab", reviewUse, at(reviewUse, "sub f {\n", "", "use\tconstant X => 1;\n")},
+		{"use and a newline", reviewUse, at(reviewUse, "sub f {\n", "", "use\nconstant X => 1;\n")},
+		{"require", reviewUse, at(reviewUse, "sub f {\n", "", "require\tFoo;\n")},
+		{"q| closer deleted", reviewQuote, at(reviewQuote, "q|a", "|", "")},
+		{"regex closer deleted", reviewRegex, at(reviewRegex, "m/a", "/", "")},
+		{"}{ inserted", twoSubs, at(twoSubs, "1;", "", "}{")},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := triageOf(c.src, c.e); got != StrategyFull {
@@ -88,31 +104,31 @@ func TestTriageMissedTriggers(t *testing.T) {
 }
 
 // TestTriageNewlineEndingCommentNotReuseAll: StrategyReuseAll is an edit
-// interior to one comment or whitespace token that leaves it one token of
-// the same kind. A newline in a comment ends it, and whitespace beside a
-// token rather than inside one can join or split tokens.
+// that changes one comment, POD or whitespace token and no other, leaving it
+// one token of the same kind. A newline in a comment ends it, and whitespace
+// beside a token rather than inside one can join or split tokens.
 func TestTriageNewlineEndingCommentNotReuseAll(t *testing.T) {
 	const str = "sub f { my $s = \"ab\"; }\n"
 	for _, c := range []struct {
 		name, src string
 		e         Edit
-		want      Strategy
+		reuse     bool
 	}{
-		{"newline in comment", twoSubs, at(twoSubs, "# no", "", "\n"), StrategyLocal},
-		{"CRLF in comment", twoSubs, at(twoSubs, "# no", "", "\r\n"), StrategyLocal},
-		{"space beside a token", twoSubs, at(twoSubs, "my", "", " "), StrategyLocal},
-		{"space where there was none", twoSubs, at(twoSubs, "$foo", "", " "), StrategyLocal},
-		{"space at whitespace start", twoSubs, at(twoSubs, "sub f {", "", " "), StrategyLocal},
-		{"newline inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", "\n"), StrategyLocal},
-		{"text in a string", str, at(str, "\"a", "", "x"), StrategyLocal},
+		{"newline in comment", twoSubs, at(twoSubs, "# no", "", "\n"), false},
+		{"CRLF in comment", twoSubs, at(twoSubs, "# no", "", "\r\n"), false},
+		{"space beside a token", twoSubs, at(twoSubs, "my", "", " "), false},
+		{"space where there was none", twoSubs, at(twoSubs, "$foo", "", " "), false},
+		{"space at whitespace start", twoSubs, at(twoSubs, "sub f {", "", " "), false},
+		{"text in a string", str, at(str, "\"a", "", "x"), false},
 		// The green half.
-		{"text in comment", twoSubs, at(twoSubs, "# no", "", "x"), StrategyReuseAll},
-		{"space inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", " "), StrategyReuseAll},
-		{"tab inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", "\t"), StrategyReuseAll},
+		{"text in comment", twoSubs, at(twoSubs, "# no", "", "x"), true},
+		{"space inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", " "), true},
+		{"tab inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", "\t"), true},
+		{"newline inside whitespace", twoSubs, at(twoSubs, "f {\n ", "", "\n"), true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got := triageOf(c.src, c.e); got != c.want {
-				t.Errorf("edit %+v: %v, want %v", c.e, got, c.want)
+			if got := triageOf(c.src, c.e); (got == StrategyReuseAll) != c.reuse {
+				t.Errorf("edit %+v: %v, want reuse-all %v", c.e, got, c.reuse)
 			}
 		})
 	}
@@ -145,8 +161,9 @@ func TestTriageSizeLimitBoundaries(t *testing.T) {
 	}
 }
 
-// TestTriageLineWindowAtBufferEdges: the window is whole lines, so it starts
-// at 0 or after a '\n' and ends at EOF or after one, never mid-rune.
+// TestTriageLineWindowAtBufferEdges: triage compares token streams, so the
+// span it finds changed starts and ends on token boundaries, never mid-rune
+// in a valid source, and an edit at either edge of a buffer does not panic.
 func TestTriageLineWindowAtBufferEdges(t *testing.T) {
 	const crlf = "sub f {\r\n  my $x = 1;\r\n}\r\n"
 	const mb = "sub f {\n  my $s = \"é€\"; # ü\n}\n"
@@ -169,16 +186,11 @@ func TestTriageLineWindowAtBufferEdges(t *testing.T) {
 		{"in a multi-byte comment", mb, at(mb, "# ", "ü", "ö")},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			src := []byte(c.src)
-			before, after := lineWindows(src, c.e)
-			for _, w := range [][]byte{before, after} {
+			d := diffTokens([]byte(c.src), c.e)
+			for _, w := range [][]byte{spanOf(d.oldChanged(), d.oldSrc), spanOf(d.newChanged(), d.newSrc)} {
 				if !utf8.Valid(w) {
-					t.Errorf("window %q is not valid UTF-8", w)
+					t.Errorf("changed span %q is not valid UTF-8", w)
 				}
-			}
-			ls, le := lineBounds(src, c.e.Start, c.e.OldEnd)
-			if ls != 0 && src[ls-1] != '\n' || le != len(src) && src[le-1] != '\n' {
-				t.Errorf("window [%d, %d) of %q is not whole lines", ls, le, c.src)
 			}
 			triageOf(c.src, c.e)
 		})
@@ -209,7 +221,7 @@ var widenCases = []widenCase{
 	{"sub after the blocks", blocks, at(blocks, "my $", "foo", "baz"), "sub f"},
 	// Edits that never reach a sub's body widen to the whole file.
 	{"top-level statement", twoSubs, at(twoSubs, "print ", "f", "g"), ""},
-	{"between subs", twoSubs, at(twoSubs, "}\n", "", "\n"), ""},
+	{"between subs", twoSubs, at(twoSubs, "}\n", "", ";"), ""},
 	{"package block's own code", "package Q { my $v = 1; }\n", at("package Q { my $v = 1; }\n", "= ", "1", "2"), ""},
 	{"bare block's own code", blocks, at(blocks, "Q::x ", "1", "8"), ""},
 }
@@ -353,4 +365,191 @@ func TestWidenCheckpointNotAfterAnchorStart(t *testing.T) {
 	if !stepped {
 		t.Fatal("no anchor started after a non-zero checkpoint; the test checks nothing")
 	}
+}
+
+// leak reports how fresh, the parse of old's source after an edit shifting
+// later bytes by delta, differs from old outside old's top-level span [lo,
+// hi): each top-level statement before it must be old's, and each after it
+// old's shifted by delta, or a splice of [lo, hi) alone is wrong. "" when
+// nothing leaks. This is what Repair relies on triage and widen for.
+func leak(old, fresh *Node, lo, hi, delta int) string {
+	var ob, oa, fb, fa []*Node
+	for _, c := range old.Children {
+		if c.End <= lo {
+			ob = append(ob, c)
+		} else if c.Start >= hi {
+			oa = append(oa, c)
+		}
+	}
+	for _, c := range fresh.Children {
+		if c.End <= lo {
+			fb = append(fb, c)
+		} else if c.Start >= hi+delta {
+			fa = append(fa, c)
+		}
+	}
+	if len(ob) != len(fb) || len(oa) != len(fa) {
+		return fmt.Sprintf("statements outside the anchor: %d before and %d after, fresh has %d and %d", len(ob), len(oa), len(fb), len(fa))
+	}
+	for i := range ob {
+		if d := TreeDiff(ob[i], fb[i]); d != "" {
+			return "before the anchor: " + d
+		}
+	}
+	for i := range oa {
+		if d := TreeDiffShifted(oa[i], fa[i], delta); d != "" {
+			return "after the anchor: " + d
+		}
+	}
+	return ""
+}
+
+// reuseSpan is the span of old a splice re-parses for e, and whether triage
+// lets any of old be reused: widen's anchor for StrategyLocal, the
+// top-level statement holding the edit for StrategyReuseAll.
+func reuseSpan(old *Node, src []byte, e Edit) (lo, hi int, reused bool) {
+	switch triage(old, src, e) {
+	case StrategyLocal:
+		_, a := widen(old, src, e)
+		return a.Start, a.End, a != old
+	case StrategyReuseAll:
+		if c := childHolding(old, e); c != nil {
+			return c.Start, c.End, true
+		}
+	}
+	return 0, 0, false
+}
+
+// repairAccepts models the check §6.5.2 leaves to Repair for a local edit:
+// one statement re-parsed at the anchor [lo, hi) over the edited source ends
+// at the anchor's shifted end, and leaves the parser in the state the old
+// parse had after the anchor (its token index moved by the token count's
+// change). A parse error can swallow the anchor's `}` with every token
+// unchanged, which no token comparison sees.
+func repairAccepts(src, newSrc []byte, lo, hi, delta int) bool {
+	_, snaps := unfinished(src, nil)
+	var top []parserSnapshot
+	for _, s := range snaps {
+		if !s.nested {
+			top = append(top, s)
+		}
+	}
+	k := slices.IndexFunc(top, func(s parserSnapshot) bool { return s.at == lo })
+	if k < 0 {
+		return false
+	}
+	p := top[k].restore(newSrc, nil)
+	p.statement()
+	end := len(newSrc)
+	if p.pos < len(p.toks) {
+		end = p.toks[p.pos].Start
+	}
+	if end != hi+delta {
+		return false
+	}
+	if k+1 == len(top) {
+		return true
+	}
+	want := top[k+1].p.clone()
+	want.pos += len(p.toks) - len(top[k].p.toks)
+	return sameState(p, &want)
+}
+
+// checkNoLeak asserts that whatever triage lets a splice reuse, once Repair's
+// own check passes, equals the fresh parse of the edited source.
+func checkNoLeak(t *testing.T, src string, e Edit) {
+	t.Helper()
+	old := Parse([]byte(src))
+	lo, hi, reused := reuseSpan(old, []byte(src), e)
+	if !reused {
+		return
+	}
+	delta := len(e.NewText) - (e.OldEnd - e.Start)
+	newSrc := []byte(edited(src, e))
+	if triage(old, []byte(src), e) == StrategyLocal && !repairAccepts([]byte(src), newSrc, lo, hi, delta) {
+		return // Repair returns ok=false and parses the whole file
+	}
+	fresh := Parse(newSrc)
+	if d := leak(old, fresh, lo, hi, delta); d != "" {
+		t.Fatalf("%v edit %+v of %q leaks past [%d, %d): %s", triage(old, []byte(src), e), e, src, lo, hi, d)
+	}
+}
+
+// TestTriageLocalReusesShiftedTail: for every local case above, and the
+// gate review's inputs, the statements outside the anchor are reusable.
+func TestTriageLocalReusesShiftedTail(t *testing.T) {
+	for _, c := range widenCases {
+		checkNoLeak(t, c.src, c.e)
+		// The green half: Repair's check accepts these, so the reuse is
+		// actually exercised rather than skipped.
+		old, delta := Parse([]byte(c.src)), len(c.e.NewText)-(c.e.OldEnd-c.e.Start)
+		if _, a := widen(old, []byte(c.src), c.e); a != old && !repairAccepts([]byte(c.src), []byte(edited(c.src, c.e)), a.Start, a.End, delta) {
+			t.Errorf("%s: Repair's check rejects a plain local edit", c.name)
+		}
+	}
+	for _, c := range []struct {
+		src string
+		e   Edit
+	}{
+		{reviewUse, at(reviewUse, "sub f {\n", "", "use\tconstant X => 1;\n")},
+		{reviewQuote, at(reviewQuote, "q|a", "|", "")},
+		{reviewRegex, at(reviewRegex, "m/a", "/", "")},
+		{twoSubs, at(twoSubs, "1;", "", "}{")},
+	} {
+		checkNoLeak(t, c.src, c.e)
+	}
+	// The green half: leak sees the gate review's leak when handed it.
+	e := at(reviewQuote, "q|a", "|", "")
+	old, fresh := Parse([]byte(reviewQuote)), Parse([]byte(edited(reviewQuote, e)))
+	if leak(old, fresh, old.Children[0].Start, old.Children[0].End, -1) == "" {
+		t.Fatal("leak reports nothing for q| losing its closer; the check checks nothing")
+	}
+}
+
+// sweepInserts are the texts the sweep inserts: quote and bracket halves,
+// heredoc, POD, comment and declaration openers, and harmless text.
+var sweepInserts = []string{
+	`"`, `'`, "`", "|", "/", "q|", "s{", "m/", "{", "}", "}{", "(", ")", "[", "]",
+	"#", "\n", "<<E", "<<~E\n", "=pod\n", "=cut\n", "__END__\n", "sub ", "sub h;",
+	"use\tconstant X => 1;", "no\nstrict;", "package\tP;", "BEGIN{", "format=\n",
+	"x", " ", ";", "$", "@", "%", "&", "->", "1", "my $v;", "our @w;", ",",
+}
+
+// TestTriageSweepNoLeak is the gate reviewer's random sweep: random edits
+// of the seed sources, none of which may leak past what triage reuses.
+func TestTriageSweepNoLeak(t *testing.T) {
+	srcs := []string{twoSubs, blocks, reviewUse, reviewQuote, reviewRegex,
+		"sub f {\n  print <<EOF;\nbody\nEOF\n  return 1;\n}\nsub g { 2 }\nprint f();\n"}
+	for _, s := range incrementalSeedSources {
+		srcs = append(srcs, s)
+	}
+	slices.Sort(srcs)
+	r := rand.New(rand.NewSource(512))
+	for _, src := range srcs {
+		for range 400 {
+			start := r.Intn(len(src) + 1)
+			end := start + min(r.Intn(4), len(src)-start)
+			text := ""
+			if r.Intn(4) > 0 {
+				text = sweepInserts[r.Intn(len(sweepInserts))]
+			}
+			checkNoLeak(t, src, Edit{Start: start, OldEnd: end, NewText: text})
+		}
+	}
+}
+
+// FuzzTriage holds the sweep's property for any source and edit:
+//
+//	go test ./internal/parse/ -run '^$' -fuzz '^FuzzTriage$'
+func FuzzTriage(f *testing.F) {
+	f.Add(reviewQuote, 18, 1, "")
+	f.Add(reviewUse, 8, 0, "use\tconstant X => 1;\n")
+	f.Add(twoSubs, 20, 0, "}{")
+	f.Fuzz(func(t *testing.T, src string, offset, delLen int, insert string) {
+		if len(src) > 4096 || len(insert) > 64 {
+			t.Skip()
+		}
+		start := min(max(offset, 0), len(src))
+		checkNoLeak(t, src, Edit{Start: start, OldEnd: start + min(max(delLen, 0), len(src)-start), NewText: insert})
+	})
 }

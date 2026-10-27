@@ -1272,33 +1272,46 @@ verify the edit is interior to a single trivia token, not merely that the edited
 *bytes* are whitespace, or inserting a newline that terminates a `#` comment
 sneaks through.
 
-**As landed** (`internal/parse/incremental.go`). `triage(old, src, e)` reads
-the old source and the tree the document's `Session` parsed, resolver and
-all; the new line window is the old one with the edit applied. `Strategy` is
+**As landed** (`internal/parse/incremental.go`). Triage decides on
+**tokens, not text**: matching source text always misses a spelling
+(`use\tconstant`, `q|a|`). `triage(old, src, e)` lexes the old source and
+the edited one, and `diffTokens` finds the longest prefix the two token
+streams share (ending at or before the edit) and the longest suffix they
+share once the old tokens are shifted by the edit's delta (starting at or
+after it). Only the tokens between, on each side, are examined. It also reads
+the tree the document's `Session` parsed, resolver and all. `Strategy` is
 `StrategyReuseAll`, `StrategyLocal`, `StrategyFull`. The limits are
 `maxEditBytes` = 64 KiB and `maxLocalEdit` = 1,024 bytes, each measured as the
 larger of the bytes deleted and the bytes inserted, and `maxLocalLines` = 10
 newlines in the inserted text: 1,024 bytes and 10 newlines are still local,
-1,025 and 11 are full. The departures from the sketch:
+1,025 and 11 are full. In place of `introducesGlobalTrigger`, an edit is full
+when the changed tokens on either side:
 
-- **Counts, not presence.** A trigger is structural when its count in the
-  line window changes, so deleting one `#` of two is caught. `#` (A9) and
-  `class` (B5) join `globalTriggers`. Quotes (`"`, `'`, `` ` ``) are compared
-  by count, `{}`, `()` and `[]` by balance.
-- **POD.** Any line in either window that starts with `=` and a letter makes
-  the edit full, so `=pod` (A7) is caught where the sketch lists only `=cut`,
-  and so is `=cut` edited to `=cutx`, which changes no count.
-- **What no window sees** (chapter 7 §7.7.3's prototype row). An edit
-  touching (or abutting) a `use`/`no`/`require`, a `BEGIN` block, a prototype,
-  or a `sub`, `package` or `class` declaration anywhere but strictly inside
-  its block is full. That covers a prototype edit, where `sub` stays in both
-  windows, a sub renamed or given a prototype inside a package or bare block,
-  and an edit to a `package NAME;`.
-- **`StrategyReuseAll`** is an edit strictly inside one `#` comment, POD or
-  whitespace token that deletes and inserts no newline, and inserts only
-  spaces and tabs into whitespace. A string's body is **not** reuse-all,
-  though the paragraph above lists it: the string node's `Text` changes, so
-  shifting offsets alone would not equal a fresh parse.
+- **hold a trigger word**, a `Word` token reading `use`, `no`, `require`,
+  `BEGIN`, `sub`, `package`, `class`, `format`, `__END__` or `__DATA__`
+  (B1-B7, A8, A10), whatever whitespace follows it;
+- **hold a trigger kind**: a comment (A9), POD (A7), a heredoc introducer or
+  body (A2, A3), a format body, the data section, a prototype (B1), or a
+  construct left unterminated;
+- **do not nest**: their `(`, `[`, `{` and closers, counted as
+  `refuseUnclosedOpener` counts them, must balance without ever closing more
+  than they opened, which catches `}{` (C1, C2, C4);
+- **reach outside the anchor** `widen` would choose (old side) or its shifted
+  span (new side). The suffix runs to end of file, so this is the token
+  stream resyncing at or before the anchor's end; a quote-like or regex that
+  loses its closer (A1, A4, A5) re-lexes past it.
+
+An edit **touching** (or abutting) a `use`/`no`/`require`, a `BEGIN` block, a
+prototype, or a `sub`, `package` or `class` declaration anywhere but strictly
+inside its block is also full (chapter 7 §7.7.3's prototype row): renaming a
+sub changes only a `Word`, which no token rule sees.
+
+**`StrategyReuseAll`** is exactly one token changed on each side, strictly
+inside, into one of the same kind: whitespace, a comment or POD. Every other
+token only shifts, so a newline that ends a comment, or whitespace that joins
+or splits tokens, is not reuse-all. A string's body is **not** reuse-all,
+though the paragraph above lists it: the string node's `Text` changes, so
+shifting offsets alone would not equal a fresh parse.
 
 ### 6.5.2 Widening to a safe boundary
 
@@ -1374,6 +1387,32 @@ start. The checkpoint is the last the lexer recorded at or before the
 anchor's start, never after it; it comes from re-lexing the old source until
 the token cache (§6.3.2) exists. A call whose prototype a module installed is
 widened as the Session parsed it, and lies wholly inside its anchor.
+
+**What Repair must still check.** Triage over-approximates, but it sees only
+tokens, so the reuse it permits is safe only together with Repair's own
+checks; Repair returns ok=false when any fails:
+
+1. **The re-parsed anchor ends where the old one did.** One statement read
+   from the top-level parser snapshot at the anchor's start, over the edited
+   source, must stop at the anchor's shifted end. A parse error can make a
+   statement swallow the sub's `}` and what follows while every token is
+   unchanged (`return` edited to `re%n` inside a sub does), and no token rule
+   sees that.
+2. **The parser state there equals the old one.** The parser after that
+   statement must equal the old parse's snapshot after the anchor
+   (`sameState`, with its token index moved by the change in token count),
+   or the statements after the anchor would read differently: this is what
+   carries a `use`, a sub declaration or a lexical declared inside the
+   anchor to the rest of the file.
+3. **Modules read the same bytes** (chapter 7 §7.7.3's prototype row): any
+   module the old parse loaded that now resolves to different bytes.
+4. **The EOF passes run again** over the spliced tree (`finish`, §6.5.3).
+
+`TestTriageSweepNoLeak` and `FuzzTriage` (`internal/parse`) hold the
+property: for a random edit triaged `StrategyLocal` whose Repair checks 1 and
+2 pass, or triaged `StrategyReuseAll`, every top-level statement before the
+anchor equals the fresh parse's and every one after it equals the fresh
+parse's shifted by the delta (`TreeDiff`, `TreeDiffShifted`).
 
 ### 6.5.3 The repair loop
 

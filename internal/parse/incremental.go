@@ -3,7 +3,6 @@
 package parse
 
 import (
-	"bytes"
 	"sort"
 	"strings"
 
@@ -56,103 +55,91 @@ const (
 	maxLocalLines = 10 // newlines in the inserted text
 )
 
-// globalTriggers are byte sequences whose count changing in an edit's line
-// window can change the parse of text arbitrarily far away (§6.1.2). A
-// count, not presence: deleting one `#` of two on a line is still
-// structural. Over-approximate freely; a false positive costs a full parse.
-var globalTriggers = [][]byte{
-	[]byte("<<"),       // heredoc introducer (A2, A3)
-	[]byte("__END__"),  // A8
-	[]byte("__DATA__"), // A8
-	[]byte("=cut"),     // A7
-	[]byte("#"),        // A9
-	[]byte("use "),     // B2, B3, B7, B8
-	[]byte("no "),      // B2
-	[]byte("package"),  // B5
-	[]byte("class"),    // B5
-	[]byte("sub"),      // B1, B4
-	[]byte("format"),   // A10
-	[]byte("BEGIN"),    // B6
+// triggerWords are the words whose arrival or departure can change how text
+// arbitrarily far away parses (§6.1.2 B1-B7, A8, A10), matched as whole
+// Word tokens so no spelling of the space after one escapes.
+var triggerWords = map[string]bool{
+	"use": true, "no": true, "require": true, "BEGIN": true, "sub": true,
+	"package": true, "class": true, "format": true, "__END__": true, "__DATA__": true,
+}
+
+// triggerKinds are the token kinds that hold lexer state across lines:
+// a comment (A9), POD (A7), a heredoc (A2, A3), a format body (A10), the
+// data section (A8), a prototype (B1), and a construct left unterminated.
+var triggerKinds = map[lexer.Kind]bool{
+	lexer.Comment: true, lexer.Pod: true, lexer.HeredocOpen: true, lexer.HeredocBody: true,
+	lexer.FormatBody: true, lexer.DataSection: true, lexer.Prototype: true, lexer.UnknownRest: true,
 }
 
 // triage classifies e, an edit of src whose tree is old: the tree the
-// document's Session parsed, resolver and all.
+// document's Session parsed, resolver and all. It decides on tokens, not
+// text: src is lexed before and after e, and only the tokens that differ
+// are examined.
 func triage(old *Node, src []byte, e Edit) Strategy {
 	size := max(e.OldEnd-e.Start, len(e.NewText))
-	if size > maxEditBytes ||
-		introducesGlobalTrigger(src, e) || touchesDeclaration(old, e) ||
-		size > maxLocalEdit || strings.Count(e.NewText, "\n") > maxLocalLines {
+	if size > maxEditBytes {
 		return StrategyFull
 	}
-	if isInteriorTrivia(src, e) {
+	d := diffTokens(src, e)
+	oc, nc := d.oldChanged(), d.newChanged()
+	// One trivia token changed, strictly inside, into one of its kind: every
+	// other token only shifts.
+	if len(oc) == 1 && len(nc) == 1 && oc[0].Kind == nc[0].Kind &&
+		oc[0].Start < e.Start && e.OldEnd < oc[0].End &&
+		(oc[0].Kind == lexer.Whitespace || oc[0].Kind == lexer.Comment || oc[0].Kind == lexer.Pod) {
 		return StrategyReuseAll
+	}
+	if size > maxLocalEdit || strings.Count(e.NewText, "\n") > maxLocalLines ||
+		hasTrigger(oc, d.oldSrc) || hasTrigger(nc, d.newSrc) ||
+		!nests(oc, d.oldSrc) || !nests(nc, d.newSrc) || touchesDeclaration(old, e) {
+		return StrategyFull
+	}
+	// The change must end inside the region widen re-parses: past it, the
+	// old tree's tail is no longer the new source's.
+	a, delta := anchorOf(old, e), len(e.NewText)-(e.OldEnd-e.Start)
+	if len(oc) > 0 && (oc[0].Start < a.Start || oc[len(oc)-1].End > a.End) ||
+		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) {
+		return StrategyFull
 	}
 	return StrategyLocal
 }
 
-// introducesGlobalTrigger compares the whole lines e touches before and
-// after it: a trigger's count, a POD directive, quote counts and bracket
-// balance (§6.1.2 A1, A4, A7, C1, C2).
-func introducesGlobalTrigger(src []byte, e Edit) bool {
-	before, after := lineWindows(src, e)
-	for _, t := range globalTriggers {
-		if bytes.Count(before, t) != bytes.Count(after, t) {
-			return true
-		}
-	}
-	if hasPodDirective(before) || hasPodDirective(after) {
-		return true
-	}
-	for _, q := range []byte("\"'`") {
-		if bytes.Count(before, []byte{q}) != bytes.Count(after, []byte{q}) {
-			return true
-		}
-	}
-	for _, pair := range []string{"{}", "()", "[]"} {
-		if balance(before, pair) != balance(after, pair) {
+// hasTrigger reports a trigger word or kind among toks.
+func hasTrigger(toks []lexer.Token, src []byte) bool {
+	for _, t := range toks {
+		if triggerKinds[t.Kind] || t.Kind == lexer.Word && triggerWords[string(src[t.Start:t.End])] {
 			return true
 		}
 	}
 	return false
 }
 
-// lineBounds is the span of the whole lines holding src's bytes [start,
-// end): from a line start to just past a '\n', or to a buffer edge.
-func lineBounds(src []byte, start, end int) (int, int) {
-	ls := bytes.LastIndexByte(src[:start], '\n') + 1
-	le := len(src)
-	if i := bytes.IndexByte(src[end:], '\n'); i >= 0 {
-		le = end + i + 1
-	}
-	return ls, le
-}
-
-// lineWindows is the whole lines e touches in src, before and after e.
-func lineWindows(src []byte, e Edit) (before, after []byte) {
-	ls, le := lineBounds(src, e.Start, e.OldEnd)
-	return src[ls:le], append(append(append([]byte{}, src[ls:e.Start]...), e.NewText...), src[e.OldEnd:le]...)
-}
-
-// hasPodDirective reports a line of w that starts `=` and a letter, which
-// opens or continues POD wherever a statement may start (§6.1.2 A7). Any
-// edit on such a line is full, since `=pod` to `=cutx` changes no count.
-func hasPodDirective(w []byte) bool {
-	for line := range bytes.SplitSeq(w, []byte{'\n'}) {
-		if len(line) > 1 && line[0] == '=' && (line[1]|0x20 >= 'a' && line[1]|0x20 <= 'z') {
-			return true
+// nests reports that toks' brackets balance and never close more than they
+// opened, counted as refuseUnclosedOpener counts them, so the change can
+// neither end the anchor's block early (`}{`) nor reach past it (C1, C2, C4).
+func nests(toks []lexer.Token, src []byte) bool {
+	depth := 0
+	for _, t := range toks {
+		if t.End-t.Start != 1 {
+			continue
+		}
+		switch {
+		case t.Kind == lexer.Operator && strings.IndexByte("([{", src[t.Start]) >= 0:
+			depth++
+		case t.Kind == lexer.CloseBracket:
+			if depth--; depth < 0 {
+				return false
+			}
 		}
 	}
-	return false
-}
-
-func balance(w []byte, pair string) int {
-	return bytes.Count(w, []byte{pair[0]}) - bytes.Count(w, []byte{pair[1]})
+	return depth == 0
 }
 
 // touchesDeclaration reports e touching what can change how later text
-// parses, which no line window sees (§7.7.3's prototype row): a `use` or
-// `no`, a BEGIN block, a prototype, or a sub, package or class declaration
-// anywhere but strictly inside its block. Touching includes abutting.
+// parses (§7.7.3's prototype row): a `use` or `no`, a BEGIN block, a
+// prototype, or a sub, package or class declaration anywhere but strictly
+// inside its block. Touching includes abutting. A sub renamed changes only
+// a Word, which the token rules do not see.
 func touchesDeclaration(n *Node, e Edit) bool {
 	if n.End < e.Start || n.Start > e.OldEnd {
 		return false
@@ -182,27 +169,54 @@ func inBody(d *Node, e Edit) bool {
 	return b.Kind == Block && b.Start < e.Start && e.OldEnd < b.End
 }
 
-// isInteriorTrivia reports e strictly inside one comment, POD or whitespace
-// token, deleting and inserting no newline, and inserting only blanks into
-// whitespace: the token stays one token of its kind and no line moves.
-// A string's body is excluded although §6.5.1 lists it: its node's Text
-// changes, so shifting offsets alone would not give the fresh tree.
-func isInteriorTrivia(src []byte, e Edit) bool {
-	if bytes.IndexByte(src[e.Start:e.OldEnd], '\n') >= 0 || strings.IndexByte(e.NewText, '\n') >= 0 {
-		return false
+// tokenDiff is an edit seen as tokens: old's and new's token streams agree
+// on their first pre tokens, and on their last suf once old's are shifted.
+// What lies between is what the edit changed.
+type tokenDiff struct {
+	oldSrc, newSrc   []byte
+	oldToks, newToks []lexer.Token
+	pre, suf         int
+}
+
+// diffTokens lexes src before and after e and finds where they agree. A
+// prefix token ends at or before the edit; a suffix token starts at or
+// after it on both sides.
+//
+// shortcut: lexes both whole sources; resume from a checkpoint against the
+// token cache (§6.3.2) once it exists.
+func diffTokens(src []byte, e Edit) tokenDiff {
+	newSrc := append(append(append([]byte{}, src[:e.Start]...), e.NewText...), src[e.OldEnd:]...)
+	d := tokenDiff{oldSrc: src, newSrc: newSrc}
+	d.oldToks, _ = lexOld(src)
+	d.newToks, _ = lexOld(newSrc)
+	o, n := d.oldToks, d.newToks
+	for d.pre < min(len(o), len(n)) && o[d.pre] == n[d.pre] && o[d.pre].End <= e.Start {
+		d.pre++
 	}
-	toks, _ := lexOld(src)
-	i := sort.Search(len(toks), func(i int) bool { return toks[i].End > e.Start })
-	if i == len(toks) || !(toks[i].Start < e.Start && e.OldEnd < toks[i].End) {
-		return false
+	delta, newEnd := len(e.NewText)-(e.OldEnd-e.Start), e.Start+len(e.NewText)
+	for d.suf < min(len(o), len(n))-d.pre {
+		a, b := o[len(o)-1-d.suf], n[len(n)-1-d.suf]
+		if a.Start < e.OldEnd || b.Start < newEnd {
+			break
+		}
+		a.Start, a.End = a.Start+delta, a.End+delta
+		if a != b {
+			break
+		}
+		d.suf++
 	}
-	switch toks[i].Kind {
-	case lexer.Comment, lexer.Pod:
-		return true
-	case lexer.Whitespace:
-		return strings.Trim(e.NewText, " \t") == ""
+	return d
+}
+
+func (d tokenDiff) oldChanged() []lexer.Token { return d.oldToks[d.pre : len(d.oldToks)-d.suf] }
+func (d tokenDiff) newChanged() []lexer.Token { return d.newToks[d.pre : len(d.newToks)-d.suf] }
+
+// spanOf is the bytes of src toks cover, nil for none.
+func spanOf(toks []lexer.Token, src []byte) []byte {
+	if len(toks) == 0 {
+		return nil
 	}
-	return false
+	return src[toks[0].Start:toks[len(toks)-1].End]
 }
 
 // lexOld lexes a program source as Parse does, with its safe checkpoints.
@@ -224,16 +238,20 @@ func lexOld(src []byte) ([]lexer.Token, []lexer.Checkpoint) {
 // `}` with no post-block state, and a top-level one runs to end of file.
 // The checkpoint is the last at or before the anchor's start.
 func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
-	anchor := old
-	for _, top := range old.Children {
-		if top.Start <= e.Start && e.OldEnd <= top.End && inSubBody(top, e) {
-			anchor = top
-			break
-		}
-	}
+	anchor := anchorOf(old, e)
 	_, cps := lexOld(src)
 	i := sort.Search(len(cps), func(i int) bool { return cps[i].Byte > anchor.Start })
 	return cps[i-1], anchor
+}
+
+// anchorOf is widen's anchor for e.
+func anchorOf(old *Node, e Edit) *Node {
+	for _, top := range old.Children {
+		if top.Start <= e.Start && e.OldEnd <= top.End && inSubBody(top, e) {
+			return top
+		}
+	}
+	return old
 }
 
 // inSubBody reports that the path from n down to e enters some sub's body
