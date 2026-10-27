@@ -670,8 +670,7 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// and a comment to perl, measured on 5.42.0, so its canon `fo * #`
 	// re-read as one.
 	c := p.src[name.Start]
-	punctName := text == "*" && c < 0x80 && c != '_' &&
-		!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9')
+	punctName := text == "*" && c < 0x80 && !isWordByte(c)
 	if !punctName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}
