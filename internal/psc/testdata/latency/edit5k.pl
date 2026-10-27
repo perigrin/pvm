@@ -6,7 +6,7 @@ package Fixture::Block0;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.000';
 our %REGISTRY;
 
 my %defaults = (
@@ -78,7 +78,7 @@ package Fixture::Block1;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.001';
 our %REGISTRY;
 
 my %defaults = (
@@ -150,7 +150,7 @@ package Fixture::Block2;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.002';
 our %REGISTRY;
 
 my %defaults = (
@@ -222,7 +222,7 @@ package Fixture::Block3;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.003';
 our %REGISTRY;
 
 my %defaults = (
@@ -294,7 +294,7 @@ package Fixture::Block4;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.004';
 our %REGISTRY;
 
 my %defaults = (
@@ -366,7 +366,7 @@ package Fixture::Block5;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.005';
 our %REGISTRY;
 
 my %defaults = (
@@ -438,7 +438,7 @@ package Fixture::Block6;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.006';
 our %REGISTRY;
 
 my %defaults = (
@@ -510,7 +510,7 @@ package Fixture::Block7;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.007';
 our %REGISTRY;
 
 my %defaults = (
@@ -582,7 +582,7 @@ package Fixture::Block8;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.008';
 our %REGISTRY;
 
 my %defaults = (
@@ -654,7 +654,7 @@ package Fixture::Block9;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.009';
 our %REGISTRY;
 
 my %defaults = (
@@ -726,7 +726,7 @@ package Fixture::Block10;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.010';
 our %REGISTRY;
 
 my %defaults = (
@@ -798,7 +798,7 @@ package Fixture::Block11;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.011';
 our %REGISTRY;
 
 my %defaults = (
@@ -870,7 +870,7 @@ package Fixture::Block12;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.012';
 our %REGISTRY;
 
 my %defaults = (
@@ -942,7 +942,7 @@ package Fixture::Block13;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.013';
 our %REGISTRY;
 
 my %defaults = (
@@ -1014,7 +1014,7 @@ package Fixture::Block14;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.014';
 our %REGISTRY;
 
 my %defaults = (
@@ -1086,7 +1086,7 @@ package Fixture::Block15;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.015';
 our %REGISTRY;
 
 my %defaults = (
@@ -1158,7 +1158,7 @@ package Fixture::Block16;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.016';
 our %REGISTRY;
 
 my %defaults = (
@@ -1230,7 +1230,7 @@ package Fixture::Block17;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.017';
 our %REGISTRY;
 
 my %defaults = (
@@ -1302,7 +1302,7 @@ package Fixture::Block18;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.018';
 our %REGISTRY;
 
 my %defaults = (
@@ -1374,7 +1374,7 @@ package Fixture::Block19;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.019';
 our %REGISTRY;
 
 my %defaults = (
@@ -1446,7 +1446,7 @@ package Fixture::Block20;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.020';
 our %REGISTRY;
 
 my %defaults = (
@@ -1518,7 +1518,7 @@ package Fixture::Block21;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.021';
 our %REGISTRY;
 
 my %defaults = (
@@ -1590,7 +1590,7 @@ package Fixture::Block22;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.022';
 our %REGISTRY;
 
 my %defaults = (
@@ -1662,7 +1662,7 @@ package Fixture::Block23;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.023';
 our %REGISTRY;
 
 my %defaults = (
@@ -1734,7 +1734,7 @@ package Fixture::Block24;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.024';
 our %REGISTRY;
 
 my %defaults = (
@@ -1806,7 +1806,7 @@ package Fixture::Block25;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.025';
 our %REGISTRY;
 
 my %defaults = (
@@ -1878,7 +1878,7 @@ package Fixture::Block26;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.026';
 our %REGISTRY;
 
 my %defaults = (
@@ -1950,7 +1950,7 @@ package Fixture::Block27;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.027';
 our %REGISTRY;
 
 my %defaults = (
@@ -2022,7 +2022,7 @@ package Fixture::Block28;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.028';
 our %REGISTRY;
 
 my %defaults = (
@@ -2094,7 +2094,7 @@ package Fixture::Block29;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.029';
 our %REGISTRY;
 
 my %defaults = (
@@ -2166,7 +2166,7 @@ package Fixture::Block30;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.030';
 our %REGISTRY;
 
 my %defaults = (
@@ -2238,7 +2238,7 @@ package Fixture::Block31;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.031';
 our %REGISTRY;
 
 my %defaults = (
@@ -2310,7 +2310,7 @@ package Fixture::Block32;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.032';
 our %REGISTRY;
 
 my %defaults = (
@@ -2382,7 +2382,7 @@ package Fixture::Block33;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.033';
 our %REGISTRY;
 
 my %defaults = (
@@ -2454,7 +2454,7 @@ package Fixture::Block34;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.034';
 our %REGISTRY;
 
 my %defaults = (
@@ -2526,7 +2526,7 @@ package Fixture::Block35;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.035';
 our %REGISTRY;
 
 my %defaults = (
@@ -2598,7 +2598,7 @@ package Fixture::Block36;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.036';
 our %REGISTRY;
 
 my %defaults = (
@@ -2670,7 +2670,7 @@ package Fixture::Block37;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.037';
 our %REGISTRY;
 
 my %defaults = (
@@ -2742,7 +2742,7 @@ package Fixture::Block38;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.038';
 our %REGISTRY;
 
 my %defaults = (
@@ -2814,7 +2814,7 @@ package Fixture::Block39;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.039';
 our %REGISTRY;
 
 my %defaults = (
@@ -2886,7 +2886,7 @@ package Fixture::Block40;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.040';
 our %REGISTRY;
 
 my %defaults = (
@@ -2958,7 +2958,7 @@ package Fixture::Block41;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.041';
 our %REGISTRY;
 
 my %defaults = (
@@ -3030,7 +3030,7 @@ package Fixture::Block42;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.042';
 our %REGISTRY;
 
 my %defaults = (
@@ -3102,7 +3102,7 @@ package Fixture::Block43;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.043';
 our %REGISTRY;
 
 my %defaults = (
@@ -3174,7 +3174,7 @@ package Fixture::Block44;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.044';
 our %REGISTRY;
 
 my %defaults = (
@@ -3246,7 +3246,7 @@ package Fixture::Block45;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.045';
 our %REGISTRY;
 
 my %defaults = (
@@ -3318,7 +3318,7 @@ package Fixture::Block46;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.046';
 our %REGISTRY;
 
 my %defaults = (
@@ -3390,7 +3390,7 @@ package Fixture::Block47;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.047';
 our %REGISTRY;
 
 my %defaults = (
@@ -3462,7 +3462,7 @@ package Fixture::Block48;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.048';
 our %REGISTRY;
 
 my %defaults = (
@@ -3534,7 +3534,7 @@ package Fixture::Block49;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.049';
 our %REGISTRY;
 
 my %defaults = (
@@ -3606,7 +3606,7 @@ package Fixture::Block50;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.050';
 our %REGISTRY;
 
 my %defaults = (
@@ -3678,7 +3678,7 @@ package Fixture::Block51;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.051';
 our %REGISTRY;
 
 my %defaults = (
@@ -3750,7 +3750,7 @@ package Fixture::Block52;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.052';
 our %REGISTRY;
 
 my %defaults = (
@@ -3822,7 +3822,7 @@ package Fixture::Block53;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.053';
 our %REGISTRY;
 
 my %defaults = (
@@ -3894,7 +3894,7 @@ package Fixture::Block54;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.054';
 our %REGISTRY;
 
 my %defaults = (
@@ -3966,7 +3966,7 @@ package Fixture::Block55;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.055';
 our %REGISTRY;
 
 my %defaults = (
@@ -4038,7 +4038,7 @@ package Fixture::Block56;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.056';
 our %REGISTRY;
 
 my %defaults = (
@@ -4110,7 +4110,7 @@ package Fixture::Block57;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.057';
 our %REGISTRY;
 
 my %defaults = (
@@ -4182,7 +4182,7 @@ package Fixture::Block58;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.058';
 our %REGISTRY;
 
 my %defaults = (
@@ -4254,7 +4254,7 @@ package Fixture::Block59;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.059';
 our %REGISTRY;
 
 my %defaults = (
@@ -4326,7 +4326,7 @@ package Fixture::Block60;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.060';
 our %REGISTRY;
 
 my %defaults = (
@@ -4398,7 +4398,7 @@ package Fixture::Block61;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.061';
 our %REGISTRY;
 
 my %defaults = (
@@ -4470,7 +4470,7 @@ package Fixture::Block62;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.062';
 our %REGISTRY;
 
 my %defaults = (
@@ -4542,7 +4542,7 @@ package Fixture::Block63;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.063';
 our %REGISTRY;
 
 my %defaults = (
@@ -4614,7 +4614,7 @@ package Fixture::Block64;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.064';
 our %REGISTRY;
 
 my %defaults = (
@@ -4686,7 +4686,7 @@ package Fixture::Block65;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.065';
 our %REGISTRY;
 
 my %defaults = (
@@ -4758,7 +4758,7 @@ package Fixture::Block66;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.066';
 our %REGISTRY;
 
 my %defaults = (
@@ -4830,7 +4830,7 @@ package Fixture::Block67;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.067';
 our %REGISTRY;
 
 my %defaults = (
@@ -4902,7 +4902,7 @@ package Fixture::Block68;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.068';
 our %REGISTRY;
 
 my %defaults = (
@@ -4974,7 +4974,7 @@ package Fixture::Block69;
 use strict;
 use warnings;
 
-our $VERSION = '0.%!d(BADINDEX)';
+our $VERSION = '0.069';
 our %REGISTRY;
 
 my %defaults = (

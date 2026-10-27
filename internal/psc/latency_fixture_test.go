@@ -36,7 +36,7 @@ const latencyBlock = `package Fixture::Block%[1]d;
 use strict;
 use warnings;
 
-our $VERSION = '0.%[1]03d';
+our $VERSION = '0.%03[1]d';
 our %%REGISTRY;
 
 my %%defaults = (
