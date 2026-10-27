@@ -206,14 +206,21 @@ func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 }
 
 // handleDidClose handles textDocument/didClose notifications. It stops the
-// document's owner and removes it from the LSP server.
+// document's owner and removes it from the LSP server, then clears its
+// diagnostics: the owner may have published while the close was under way,
+// so the clear is what leaves the client holding none.
 func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 	var params lspDidCloseParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return nil
 	}
 
-	h.server.CloseDocument(params.TextDocument.URI)
+	uri := params.TextDocument.URI
+	h.server.CloseDocument(uri)
+	h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
+		URI:         uri,
+		Diagnostics: []lspDiagnostic{},
+	})
 	return nil
 }
 
