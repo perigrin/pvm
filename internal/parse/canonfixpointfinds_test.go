@@ -336,7 +336,11 @@ func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
 // `0>0` as `A: 'A' < 0 > 0`; canon wrote it on one line, where `< 0 >`
 // lexed as a readline. A declared sub's `<STDIN>` still reads a line.
 func TestSpacedAngleAfterWordCompares(t *testing.T) {
-	// And a shift, `A:A<<` + newline + `0>0`.
+	// And a shift, `A:A<<` + newline + `0>0`, and `A:A<<\ 0`, whose canon
+	// `A << \0` lexed a heredoc.
+	if got := clean(t, "A:A<<\\ 0"); got != "A: A << \\0" {
+		t.Errorf("`A:A<<\\ 0`: canon %q", got)
+	}
 	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0", "A:A<=\n0>0": "A: A <= 0 > 0"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
