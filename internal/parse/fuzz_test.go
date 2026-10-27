@@ -47,6 +47,11 @@ var fuzzEdgeSeeds = []string{
 	strings.Repeat(";", 100),
 	"'",
 	"\\",
+	// A word's star before a comment: FuzzParser's canon fixpoint finds.
+	"fo*#",
+	"A*#",
+	"A::B*#",
+	"x*#",
 }
 
 // FuzzParser is the target. Run it with
