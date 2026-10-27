@@ -43,9 +43,17 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
 	}
-	for _, src := range []string{"sub fo {} fo*#\n;", "A * 2;", "A*_;"} {
+	// `*` glued to punctuation other than `#` multiplies, measured with
+	// -MO=Deparse on 5.42.0, and only `#` has a measured fixpoint failure.
+	for _, src := range []string{
+		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
+		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",
+		"foo*+1;", "foo*[1];", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		} else if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
 		}
 	}
 }
