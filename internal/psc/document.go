@@ -116,10 +116,10 @@ func (d *Document) PositionToByte(p lspPosition) uint32 {
 	i, units := int(d.Lines[p.Line]), 0
 	for i < end {
 		r, size := utf8.DecodeRune(d.Text[i:end])
-		if units+utf16Width(r) > p.Character {
+		units += utf16Width(r)
+		if units > p.Character {
 			break
 		}
-		units += utf16Width(r)
 		i += size
 	}
 	return uint32(i)
