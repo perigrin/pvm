@@ -19,7 +19,7 @@ splicing is either indistinguishable from a fresh parse of the same bytes, or
 it is a bug. Chapter 6 exists to make that guarantee cheap.
 
 **Target: a keystroke in a 5,000-line Perl file produces a new, PSC-consumable
-tree in under 10 ms at p95.** Every recommendation below is downstream of that
+tree in under 10 ms at p99.** Every recommendation below is downstream of that
 number.
 
 ---
@@ -600,7 +600,7 @@ trivia filter belong in the lowering because they are variation.
 **What would change the decision.**
 
 - A measurement that the lowering pass does not fit the budget. §6.10.2
-  leaves `Analyze` at 0.5-2 ms against a 10 ms p95; a pass that walks 40,000
+  leaves `Analyze` at 0.5-2 ms against a 10 ms p99; a pass that walks 40,000
   CST nodes once and allocates a smaller tree should cost the same order. If
   it does not, the fallback is Pyright's shape — normalise at parse time into
   flags on CST nodes (§6.1.8) — not (c).
@@ -1429,7 +1429,8 @@ Five things in that loop earn their place:
    Two identical `/` tokens in different `Expect` states are not
    interchangeable.
 4. **`ctx.Err()`** — checked in the loop, so a superseded parse dies promptly
-   rather than finishing work nobody wants (§6.7).
+   rather than finishing work nobody wants (§6.7). The implementation departs
+   from the sketch here: the real `Repair` takes no `context` (§6.5.5).
 5. **`sub.HasError() != enclosing.HasError()`** — if re-parsing the region
    changed whether it contains an error, the damage estimate was wrong.
    Bail out.
@@ -1464,6 +1465,37 @@ Wire it into a property test as well: **for any document and any edit,
 `Repair` either returns a tree equal to the fresh parse, or returns
 `ok=false`.** There is no third outcome. Every bug in this subsystem is a
 violation of that one sentence.
+
+In this repository that test is `FuzzIncremental` and
+`FuzzIncrementalSequence` in `internal/parse/incremental_fuzz_test.go`
+(chapter 7 §7.7.2-§7.7.4), with the tree comparison done by `parse.TreeDiff`.
+
+### 6.5.5 The flag: `parse.IncrementalRepair`
+
+Damage/repair ships switched off and is switched on only once the fuzzers above
+have earned it (§6.11 step 7).
+
+`parse.IncrementalRepair` is an exported package-level `bool` in `internal/parse/incremental.go`, by default `false` until the flip.
+
+- **What it switches.** When it is false, the LSP re-parses the whole document
+  on every change, as §6.11 step 3 does. When it is true, the LSP calls
+  `parse.ReparseIncremental`, which calls `parse.Repair`; when `Repair` returns
+  ok=false, `ReparseIncremental` falls back to a full parse of the new bytes, so
+  its result always equals a fresh parse.
+- **What it does not switch.** The fuzzers and the seed tests call `Repair` and
+  `ReparseIncremental` directly, whatever the flag's value, so repair is tested
+  before it is trusted. Tests may set the flag locally and restore it.
+- **The flip condition.** `FuzzIncremental` and `FuzzIncrementalSequence` each
+  run 10,000,000 execs (`make fuzz-incremental`) with zero counterexamples,
+  recorded in plan §5 M2. The commit that flips the default to `true` cites
+  those two runs and turns `TestIncrementalRepairFlagOn`, which asserts the
+  default is `true`, green; it rewrites this section to say `true`.
+- **No `context`.** `Repair` and `ReparseIncremental` take no `context`, unlike
+  §6.5.3's sketch: cancellation is between stages only. The document's owner
+  goroutine (§6.7.1, §6.7.3) checks for a superseding edit between parse,
+  lowering and analysis, never inside a stage. The cost is accepted: a
+  superseded full-parse fallback runs to completion before the owner sees the
+  newer edit.
 
 ---
 
@@ -2142,7 +2174,18 @@ read published snapshots (§6.7.1), no locking is required.
 ### 6.10.1 The target, and the real corpus
 
 **A keystroke in a 5,000-line Perl file yields a PSC-consumable tree in under
-10 ms at p95.**
+10 ms at p99.**
+
+`TestLatencyEditBudget` (`internal/psc`) holds that gate on
+`internal/psc/testdata/latency/edit5k.pl`, a generated 5,000-line fixture: it
+drives at least 200 1-char edits through the real `didChange` path and fails
+unless the nearest-rank p99 of the re-parse, from the document's owner starting
+it (§6.7.1) to the PSC-consumable tree, is under 10 ms. The target is on the
+tree, not on analysis. The edit-to-analysis interval is a separate test,
+`TestLatencyEditAnalysisBudget`, whose budget and interval are set by
+perigrin's ruling on the step-4 numbers (issue 01a17969-45ba). Neither counts the
+§6.7.2 debounce: each timer starts when the owner starts the re-parse (or the
+analysis), not when the keystroke arrives (perigrin, 2026-10-27).
 
 The corpus is not hypothetical. In `perl5/lib` and on CPAN you will find:
 
@@ -2321,8 +2364,15 @@ oracle self-check test (plan §6).
 5. **Error recovery** (§6.8). Biggest quality win per line of code —
    completion inside a half-typed statement is what users notice.
 6. **Token cache + checkpoints** (§6.3). Now incrementality has a foundation.
-7. **Damage/repair** (§6.5), gated behind a flag, with the
-   splice-equals-fresh-parse fuzzer (§6.5.4) green before the flag flips.
+7. **Damage/repair** (§6.5), gated behind the flag `parse.IncrementalRepair`
+   (§6.5.5; `internal/parse/incremental.go`, default `false`), with the
+   splice-equals-fresh-parse fuzzer (§6.5.4) green before the flag flips. While
+   it is false the LSP re-parses fully on every change; when true it calls
+   `ReparseIncremental`. The flag flips when `FuzzIncremental` and
+   `FuzzIncrementalSequence` have each run 10,000,000 execs
+   (`make fuzz-incremental`) with zero counterexamples, recorded in plan §5 M2;
+   `TestIncrementalRepairFlagOn` asserts the default is `true` and goes green
+   in the commit that flips it.
 8. **PSC incrementality** (§6.10.5), when the numbers from step 4 demand it.
 
 The ordering is deliberate. perl-lsp built step 7 before step 3 was fast enough
