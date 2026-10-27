@@ -189,19 +189,21 @@ func (s *LSPServer) Shutdown() {
 }
 
 // Source returns the raw source bytes for the document at uri, or nil
-// if the uri is not currently open.
+// if the uri is not currently open. They have no spare capacity, so an
+// append to them copies rather than writing into bytes the document shares.
 func (s *LSPServer) Source(uri string) []byte {
 	if d := s.Text(uri); d != nil {
-		return d.Text
+		return d.Text[:len(d.Text):len(d.Text)]
 	}
 	return nil
 }
 
 // Text returns a snapshot of the text and line table of the document at
-// uri, one later edits leave unchanged, or nil if the uri is not open.
+// uri, one later edits leave unchanged, or nil if the uri is not open. The
+// owner takes it between edits (owner.view).
 func (s *LSPServer) Text(uri string) *Document {
 	if doc := s.snapshot(uri); doc != nil {
-		return doc.text.Snapshot()
+		return doc.text
 	}
 	return nil
 }

@@ -219,6 +219,58 @@ func TestDocumentApplyEditSnapshotIsolation(t *testing.T) {
 	assert.Equal(t, "our $x = 1;\nmy $y = 2;\n", string(s.Text(uri).Text))
 }
 
+// TestTextConcurrentWithOwnerEdits takes snapshots while the owner applies
+// edits one call at a time: the snapshot must be taken on the owner's
+// goroutine, between edits, or it races them.
+func TestTextConcurrentWithOwnerEdits(t *testing.T) {
+	s := NewLSPServer()
+	const uri = "untitled:race.pl"
+	require.NoError(t, s.OpenDocument(uri, []byte("my $x = 1;\nmy $y = 2;\n")))
+	o := s.owner(uri)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			o.call(func() {
+				_, err := o.snap.text.ApplyEdit(0, 1, []byte{"\nm"[i%2]})
+				assert.NoError(t, err)
+			})
+		}
+	}()
+	for {
+		select {
+		case <-done:
+			assert.Equal(t, "my $x = 1;\nmy $y = 2;\n", string(s.Source(uri)))
+			return
+		default:
+			d := s.Text(uri)
+			require.NotNil(t, d)
+			assert.Len(t, d.Text, len("my $x = 1;\nmy $y = 2;\n"))
+		}
+	}
+}
+
+// TestSourceHasNoSpareCapacity appends to two Source results: neither may
+// write into bytes the other, or the open document, shares.
+func TestSourceHasNoSpareCapacity(t *testing.T) {
+	s := NewLSPServer()
+	const uri = "untitled:cap.pl"
+	require.NoError(t, s.OpenDocument(uri, []byte("ab")))
+	o := s.owner(uri)
+	// Leave the open buffer spare capacity, as an in-place edit can.
+	o.call(func() {
+		d := o.snap.text
+		d.Text = append(make([]byte, 0, 64), d.Text...)
+	})
+
+	a := append(s.Source(uri), 'x')
+	b := append(s.Source(uri), 'y')
+	assert.Equal(t, "abx", string(a))
+	assert.Equal(t, "aby", string(b))
+	assert.Equal(t, 2, cap(s.Source(uri)))
+}
+
 func TestDocumentApplyEditRejectsBadRange(t *testing.T) {
 	const text = "ab\ncd\n"
 	for _, r := range [][2]int{{3, 1}, {-1, 2}, {2, 99}, {99, 99}, {-2, -1}} {
