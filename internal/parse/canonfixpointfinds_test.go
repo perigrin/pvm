@@ -43,6 +43,10 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		// And a name apart from its sigil: FuzzParser's `A*& ;`.
 		"A*& ;":  "A * & ;;",
 		"A*% x;": "A * % x;",
+		// And any other punctuation the operand begins with.
+		"A*/x/;":  "A * /x/;",
+		"A*<FH>;": "A * <FH>;",
+		"A*.5;":   "A * .5;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -61,9 +65,12 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		}
 	}
 	clean(t, "A*s => 1;")
-	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0.
-	if found := collectUnknown(parse.Parse([]byte("{x*$}"))); len(found) == 0 {
-		t.Errorf("`{x*$}`: perl rejects this, but it parses")
+	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0, and
+	// FuzzParser's `(A*/)` an unterminated pattern.
+	for _, src := range []string{"{x*$}", "(A*/)", "A*?;", "A*|"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
 	}
 	if ok, why := canonMatches([]byte("A*%x*(%A")); !ok {
 		t.Errorf("`A*%%x*(%%A`: canon is not a fixpoint: %s", why)
@@ -181,6 +188,10 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 		// And one after the outer pair too: FuzzParser's `((),),`.
 		"((),),":    "((),),",
 		"((1,2),),": "((1, 2),),",
+		// And the list's separator after that pair: FuzzParser's
+		// `(((),),,0)`, written `(((),) 0)`, a call of `()`.
+		"(((),),0)":  "(((),), 0)",
+		"(((),),,0)": "(((),), 0)",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -199,6 +210,17 @@ func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
 	parse.Parse([]byte(src))
 	if d := time.Since(start); d > 5*time.Second {
 		t.Errorf("40 unclosed `${` took %v: each level multiplies the work", d)
+	}
+}
+
+// TestSpacedAngleAfterWordCompares: perl 5.44.0 reads `A:A<` + newline +
+// `0>0` as `A: 'A' < 0 > 0`; canon wrote it on one line, where `< 0 >`
+// lexed as a readline. A declared sub's `<STDIN>` still reads a line.
+func TestSpacedAngleAfterWordCompares(t *testing.T) {
+	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
 	}
 }
 

@@ -187,7 +187,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// that pair: written `(1, 2),`, the list ended before `x`, and
 	// FuzzParser's `((),)x*!` re-read differently.
 	// Its first separator is the one inside; any more, `((),),`, are after.
-	outerPair := n.Kind == List && n.Paren && !n.SyntaxParen && n.TrailingComma != "" && listSepInOuterPair(n, src)
+	outerPair := listOuterPair(n, src)
 	if outerPair {
 		inside, after, _ := strings.Cut(n.TrailingComma, " ")
 		if after != "" {
@@ -1182,6 +1182,25 @@ func commaInParens(n *Node, src []byte) bool {
 	return n.Kind != List && !foldsSep(n) && sep != ""
 }
 
+// listOuterPair reports whether emit writes List n inside a pair around its
+// own, its first separator inside that pair: see listSepInOuterPair.
+func listOuterPair(n *Node, src []byte) bool {
+	return n.Kind == List && n.Paren && !n.SyntaxParen && n.TrailingComma != "" && listSepInOuterPair(n, src)
+}
+
+// writesSepAfterParens reports whether emit writes a separator of n's after
+// its parens, where a list's separator would stand: not the one in `(A,)`
+// or the only one in `((),)`, FuzzParser's `((A,),%y)` and `(((),),,0)`.
+func writesSepAfterParens(n *Node, src []byte) bool {
+	switch {
+	case n.TrailingComma == "":
+		return false
+	case listOuterPair(n, src):
+		return strings.Contains(n.TrailingComma, " ")
+	}
+	return !(n.Paren && commaInParens(n, src))
+}
+
 // listSepInOuterPair reports whether List n's span is a pair around the
 // list's own with its separator inside, `((1,2),)`. A List's span is its
 // outermost pair's, and it records no inner one.
@@ -1286,7 +1305,7 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 			// its own parens, `((A,),%y)`, is not the list's separator, and
 			// leaving that out canon'd FuzzParser's find as `((A,) %y)`.
 			switch prev := n.Children[i-1]; {
-			case prev.TrailingComma != "" && !(prev.Paren && commaInParens(prev, src)):
+			case writesSepAfterParens(prev, src):
 				b.WriteByte(' ')
 			case prev.Fat:
 				b.WriteString(" => ")

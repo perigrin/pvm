@@ -894,6 +894,14 @@ func scanAngle(l *lexer) bool {
 	// the next must not join into one token across them. Everything else is
 	// permitted, because perl accepts `<a b>` -- a glob pattern with a space
 	// in it -- as readily as `<*.c>`.
+	//
+	// After a word no keyword table settles, where the expect state is only
+	// a hedge (see afterUserWord), a `<` with a blank after it compares:
+	// perl 5.44.0 reads `A:A<` + newline + `0>0` as `'A' < 0 > 0`, which
+	// canon writes on one line, and a readline there re-read differently.
+	if l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), false) {
+		return false
+	}
 	j := l.pos + 1
 	for j < len(l.src) && l.src[j] != '>' && l.src[j] != '\n' {
 		j++
@@ -1331,7 +1339,14 @@ func scanGlobName(l *lexer) bool {
 	// A {} A*%x3` is `A(*% x 3)`; the parser, which knows declarations,
 	// declines that reading. Taking `*%` as a glob read `A*%x*(%A` and its
 	// canon differently.
-	case byteIn(c, "%@&$") && l.afterUserWord(len(l.toks)-1, true):
+	//
+	// So is any other punctuation the star's operand begins with: `A*/x/`
+	// matches, `A*<FH>` reads a line and `A*.5` multiplies, on 5.44.0, and
+	// FuzzParser's `(A*/)`, read as the glob `*/`, canon'd as `(A * /)`, an
+	// unterminated pattern. `#`, a quote, `;`, `}` and `*` keep the glob:
+	// the parser refuses those after an undeclared word (ruling R-b′), and a
+	// handle takes the glob, `print STDOUT *;`.
+	case !byteIn(c, "#\"'`;}*") && l.afterUserWord(len(l.toks)-1, true):
 		return false
 	}
 	l.pos = end
@@ -1419,13 +1434,18 @@ func scanPostDerefStar(l *lexer) bool {
 // it. A keyword keeps the split: `print **2` is the same error.
 //
 // With xIsWord, `x` counts as a user word too: where a term is read it is a
-// bareword, and measured on 5.44.0, `x*&;` is `'x' * &;`. The `**` and `*=`
-// rules leave it out, so `x**;` keeps its glob.
+// bareword, and measured on 5.44.0, `x*&;` is `'x' * &;`. After a term it
+// is the repetition, `((),)x*!` repeating by the glob `*!`. The `**` and
+// `*=` rules leave it out, so `x**;` keeps its glob.
 func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 	j := l.significantBefore(i)
 	if j < 0 || l.toks[j].Kind != Word {
 		return false
 	}
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
-	return xIsWord && w == "x" || !perlKeywords[w]
+	if w == "x" {
+		k := l.significantBefore(j)
+		return xIsWord && (k < 0 || l.toks[k].Kind == Operator || l.toks[k].Kind == Semicolon)
+	}
+	return !perlKeywords[w]
 }
