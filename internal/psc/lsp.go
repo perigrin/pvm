@@ -38,7 +38,8 @@ type LSPServer struct {
 	// Set it before the first OpenDocument.
 	Options infer.Options
 
-	// mu guards the map alone; no parse runs under it.
+	// mu guards the map alone; no parse runs under it. A replaced owner is
+	// stopped under it, which never waits on mu, so a reopen cannot race it.
 	mu        sync.Mutex
 	documents map[string]*owner
 
@@ -70,15 +71,15 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 }
 
 // open gives uri a new owner holding text at version, which begins parsing
-// it, and stops the owner of a document already open there.
+// it. The owner of a document already open there is stopped first, so it
+// cannot publish after the new one.
 func (s *LSPServer) open(uri string, version int, text []byte) {
 	s.mu.Lock()
-	old := s.documents[uri]
-	s.documents[uri] = newOwner(s, uri, version, text)
-	s.mu.Unlock()
-	if old != nil {
+	defer s.mu.Unlock()
+	if old := s.documents[uri]; old != nil {
 		old.stop()
 	}
+	s.documents[uri] = newOwner(s, uri, version, text)
 }
 
 // change hands text at version to uri's owner. A uri that is not open has
