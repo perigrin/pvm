@@ -46,7 +46,12 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 		// And the glob `**`: `x***x` is `x ** *x` to perl 5.42.0 ("Operator
 		// or semicolon missing before *x"), `x * ** * x` to the parser.
 		// FuzzParser's `*A*x***x****$0` canon'd past a fixpoint.
-		"*A*x***x****$0", "x***x;"} {
+		"*A*x***x****$0", "x***x;",
+		// And the globs `*;` and `*}`, which end the operand perl reads
+		// instead: `A*;` and `{A*}` are syntax errors on 5.42.0. The
+		// merge-commit campaign's `A*}x0` canon'd as `A * } x 0`, where
+		// the `}` ends the operator's missing operand (R-g).
+		"A*}x0", "A*;", "{A*}"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
@@ -58,7 +63,7 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	for _, src := range []string{
 		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
 		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",
-		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "sub A {} A*;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
 	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))

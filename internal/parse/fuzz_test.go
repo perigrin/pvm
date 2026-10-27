@@ -60,6 +60,8 @@ var fuzzEdgeSeeds = []string{
 	`A{} (A*" )`,
 	// And before the glob `**`: the fourth.
 	"*A*x***x****$0",
+	// And before the glob `*}`: the merge-commit campaign's find.
+	"A*}x0",
 }
 
 // FuzzParser is the target. Run it with
