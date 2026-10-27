@@ -37,14 +37,20 @@ func TestCanonFixpointOperatorBeforeComment(t *testing.T) {
 // is perl's, so it refuses the undeclared case -- even the one perl
 // compiles -- and the declared one keeps its glob argument.
 func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
-	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;"} {
+	// A quote is the same disagreement as `#`: measured on 5.42.0, `A*"3"`,
+	// `A*'3'` and A*`ls` are `'A' * 3` and `'A' * \`ls\``, a string to perl
+	// and the glob `*"` to the lexer. FuzzParser's `A{} (A*" )` canon'd as
+	// `A {}(A * ")`, which re-read as an unterminated string.
+	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;",
+		`A{} (A*" )`, `A*"3";`, "A*'3';", "A*`ls`;"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
 	}
-	// `*` glued to punctuation other than `#` multiplies, measured with
-	// -MO=Deparse on 5.42.0, and only `#` has a measured fixpoint failure.
+	// `*` glued to punctuation other than `#` or a quote multiplies,
+	// measured with -MO=Deparse on 5.42.0, and only those have a measured
+	// fixpoint failure.
 	for _, src := range []string{
 		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
 		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",

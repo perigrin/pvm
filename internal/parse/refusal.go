@@ -102,7 +102,7 @@ const (
 
 	// AmbiguousSigil: a `&` or `*` the lexer read as a sigil and the parser
 	// as an operator, after an undeclared bareword, before a quote-op name
-	// -- `A &y` -- or a `*` before a punctuation glob name, `A*#`. perl
+	// -- `A &y` -- or a `*` before a `#` or quote glob name, `A*#`, `A*"x"`. perl
 	// reads the operator and the quote or comment it begins.
 	AmbiguousSigil RefusalCode = "ambiguous_sigil"
 
@@ -195,7 +195,7 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "decl.go, parseFormatDecl",
 	},
 	AmbiguousSigil: {
-		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a punctuation glob name",
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a `#` or quote glob name",
 		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
 	},
 	NestingTooDeep: {
