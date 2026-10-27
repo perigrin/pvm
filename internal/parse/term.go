@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -171,6 +172,11 @@ func (p *parser) parseTerm() *Node {
 	// the parser knows which because parseTerm is only called where a term
 	// is expected.
 	if text == "*" {
+		// Nor a glob's name past a heredoc body, as for `&`'s: FuzzParser's
+		// `<<'0';*` + newline + body + `A`.
+		if p.bodyAfter(tok) {
+			return p.refuseNotATerm(tok)
+		}
 		// A name that is not an identifier: `*1`, `*^R`, `*-`. perl accepts
 		// any variable name here -- measured on 5.42.0, `local *a = *1;`,
 		// `*^R = *foo;` and `*X = *-;` each deparse as written -- and the
@@ -357,12 +363,8 @@ func (p *parser) parseTerm() *Node {
 		// 5.44.0 reads `<<'0';&` + newline + body + `A` as `&A`, but one
 		// leaf around the body is no node canon can write the body out of
 		// once, FuzzParser's find.
-		for i := p.pos; i < len(p.toks); i++ {
-			if k := p.toks[i].Kind; k == lexer.HeredocBody {
-				return p.refuseNotATerm(tok)
-			} else if !isTrivia(k) {
-				break
-			}
+		if p.bodyAfter(tok) {
+			return p.refuseNotATerm(tok)
 		}
 		// Empty braces are no code to call: perl 5.44.0 has `(&{},)` a
 		// syntax error near "&{", and read as a subscript on a bare `&` its
@@ -516,6 +518,19 @@ func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 var wordInfixOps = map[string]bool{
 	"eq": true, "ne": true, "lt": true, "gt": true, "le": true, "ge": true,
 	"cmp": true, "and": true, "or": true, "xor": true,
+}
+
+// bodyAfter reports whether a heredoc body stands between tok and the next
+// significant token, so a name read past it would span the body.
+func (p *parser) bodyAfter(tok lexer.Token) bool {
+	for i := sort.Search(len(p.toks), func(i int) bool { return p.toks[i].Start >= tok.End }); i < len(p.toks); i++ {
+		if k := p.toks[i].Kind; k == lexer.HeredocBody {
+			return true
+		} else if !isTrivia(k) {
+			return false
+		}
+	}
+	return false
 }
 
 // wordOpIsString reports whether a word operator read as a term is the

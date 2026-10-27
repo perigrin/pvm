@@ -123,7 +123,7 @@ func TestAmpDigitsNameASub(t *testing.T) {
 	// And one across a heredoc body is declined: FuzzParser's `<<'0';&` +
 	// newline + body + `A`, which perl reads as `&A` but canon wrote with
 	// the body twice.
-	for _, src := range []string{"&00;", "f(&01)", "no n!&00", "& 00;", "<<'0';&\n0\nA"} {
+	for _, src := range []string{"&00;", "f(&01)", "no n!&00", "& 00;", "<<'0';&\n0\nA", "<<'0';*\n0\nA"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
