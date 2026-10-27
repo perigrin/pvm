@@ -248,6 +248,17 @@ func TestFiletestTakesGlob(t *testing.T) {
 	}
 }
 
+// TestPostfixIncrementEndsTerm: perl 5.44.0 reads `A++*&;` as `A++ * &;`.
+// The lexer took a term to follow the `++`, read the glob `*&`, and the
+// re-read of canon's `A++ * &;` differed.
+func TestPostfixIncrementEndsTerm(t *testing.T) {
+	for src, want := range map[string]string{"A++*&;": "A++ * &;;", "my $x; $x++ / 2;": "my $x;$x++ / 2;", "my $x; $x++*2;": "my $x;$x++ * 2;"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's

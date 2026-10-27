@@ -652,6 +652,12 @@ func (l *lexer) emit(k Kind, start int) {
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
 	})
+	// A postfix `++` or `--`, after a term, ends the term: perl 5.44.0 reads
+	// `A++*&;` as `A++ * &;`, where the glob `*&` re-read differently.
+	if k == Operator && (l.src[start] == '+' || l.src[start] == '-') && l.pos-start == 2 && l.src[start] == l.src[start+1] &&
+		l.endsTerm(l.significantBefore(len(l.toks)-1)) {
+		l.expect = XOperator
+	}
 	if k == Variable && l.handleSlotTakesTerm(start) {
 		l.expect = XTerm
 		l.toks[len(l.toks)-1].TermFollows = true
