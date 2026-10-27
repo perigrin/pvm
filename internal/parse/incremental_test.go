@@ -40,7 +40,36 @@ const (
 	reviewUse   = "sub f {\n  1;\n}\nprint X + 1;\n"
 	reviewQuote = "sub f { my $s = q|a|; }\nsub g { 'b|' }\nprint g();\n"
 	reviewRegex = "sub f { my $s = m/a/; }\nsub g { 'b/' }\nprint g();\n"
+	// resolvedSub calls Foo.pm's `sub bar($)` inside a sub.
+	resolvedSub = "use Foo;\nsub g {\n  my @x = (bar 1, 2);\n}\nprint g();\n"
+	// reviewPOSIX is the re-review's: under a Session, floor is POSIX's.
+	reviewPOSIX = "use POSIX qw(floor);\nsub f { floor 1, 2 }\nprint floor 3, 4;"
 )
+
+// TestRepairModelReadsSessionTree: the re-review's edit leaks under a
+// Session parse, which a model parsing with no resolver accepts and the
+// resolver-aware one rejects through the parser-state check.
+func TestRepairModelReadsSessionTree(t *testing.T) {
+	src := []byte(reviewPOSIX)
+	e := at(reviewPOSIX, "floor ", "1", "--")
+	newSrc := []byte(edited(reviewPOSIX, e))
+	old := sessionParse(src)
+	if got := triage(old, src, e); got != StrategyLocal {
+		t.Fatalf("triage %v, want StrategyLocal", got)
+	}
+	_, a := widen(old, src, e)
+	delta := len(e.NewText) - (e.OldEnd - e.Start)
+	if leak(old, sessionParse(newSrc), a.Start, a.End, delta) == "" {
+		t.Fatal("no leak under a Session parse; the case checks nothing")
+	}
+	if !repairAccepts(src, newSrc, a.Start, a.End, delta, func() *resolver { return nil }) {
+		t.Fatal("the no-resolver model rejects it; the case no longer shows why the model needs one")
+	}
+	if repairAccepts(src, newSrc, a.Start, a.End, delta, incResolver) {
+		t.Fatal("the Session model accepts an edit whose tail does not match the fresh Session parse")
+	}
+	checkNoLeak(t, reviewPOSIX, e)
+}
 
 // TestTriageScansDeletedText: a trigger leaving the source is as structural
 // as one arriving, so the removed side is scanned as well as the new.
@@ -407,10 +436,10 @@ func leak(old, fresh *Node, lo, hi, delta int) string {
 // reuseSpan is the span of old a splice re-parses for e, and whether triage
 // lets any of old be reused: widen's anchor for StrategyLocal, the
 // top-level statement holding the edit for StrategyReuseAll.
-func reuseSpan(old *Node, src []byte, e Edit) (lo, hi int, reused bool) {
-	switch triage(old, src, e) {
+func reuseSpan(old *Node, s Strategy, e Edit) (lo, hi int, reused bool) {
+	switch s {
 	case StrategyLocal:
-		_, a := widen(old, src, e)
+		a := anchorOf(old, e)
 		return a.Start, a.End, a != old
 	case StrategyReuseAll:
 		if c := childHolding(old, e); c != nil {
@@ -420,14 +449,26 @@ func reuseSpan(old *Node, src []byte, e Edit) (lo, hi int, reused bool) {
 	return 0, 0, false
 }
 
+// incResolver is a fresh resolver as NewSession().ParseSourceFrom(path,
+// src, lib) builds one, for the fuzz harness's path and root: the model
+// parses as the Session triage's contract reads, not as a bare Parse.
+func incResolver() *resolver {
+	dir := filepath.Join("testdata", "incremental")
+	return &resolver{load: DirLoader(dir, filepath.Join(dir, "lib")), seen: map[string]bool{}, facts: map[string]moduleFacts{}}
+}
+
+// sessionParse is the Session tree of src under incResolver.
+func sessionParse(src []byte) *Node { return parseRoot(src, incResolver()) }
+
 // repairAccepts models the check §6.5.2 leaves to Repair for a local edit:
-// one statement re-parsed at the anchor [lo, hi) over the edited source ends
-// at the anchor's shifted end, and leaves the parser in the state the old
-// parse had after the anchor (its token index moved by the token count's
-// change). A parse error can swallow the anchor's `}` with every token
-// unchanged, which no token comparison sees.
-func repairAccepts(src, newSrc []byte, lo, hi, delta int) bool {
-	_, snaps := unfinished(src, nil)
+// one statement re-parsed at the anchor [lo, hi) over the edited source
+// leaves the next unconsumed token starting at the anchor's shifted end (or
+// at EOF), and leaves the parser in the state the old parse had after the
+// anchor (its token index moved by the token count's change). Both parses
+// use res, as Repair would its Session's. A parse error can swallow the
+// anchor's `}` with every token unchanged, which no token comparison sees.
+func repairAccepts(src, newSrc []byte, lo, hi, delta int, res func() *resolver) bool {
+	_, snaps := unfinished(src, res())
 	var top []parserSnapshot
 	for _, s := range snaps {
 		if !s.nested {
@@ -438,7 +479,7 @@ func repairAccepts(src, newSrc []byte, lo, hi, delta int) bool {
 	if k < 0 {
 		return false
 	}
-	p := top[k].restore(newSrc, nil)
+	p := top[k].restore(newSrc, res())
 	p.statement()
 	end := len(newSrc)
 	if p.pos < len(p.toks) {
@@ -459,44 +500,45 @@ func repairAccepts(src, newSrc []byte, lo, hi, delta int) bool {
 // own check passes, equals the fresh parse of the edited source.
 func checkNoLeak(t *testing.T, src string, e Edit) {
 	t.Helper()
-	old := Parse([]byte(src))
-	lo, hi, reused := reuseSpan(old, []byte(src), e)
+	old := sessionParse([]byte(src))
+	s := triage(old, []byte(src), e)
+	lo, hi, reused := reuseSpan(old, s, e)
 	if !reused {
 		return
 	}
 	delta := len(e.NewText) - (e.OldEnd - e.Start)
 	newSrc := []byte(edited(src, e))
-	if triage(old, []byte(src), e) == StrategyLocal && !repairAccepts([]byte(src), newSrc, lo, hi, delta) {
+	if s == StrategyLocal && !repairAccepts([]byte(src), newSrc, lo, hi, delta, incResolver) {
 		return // Repair returns ok=false and parses the whole file
 	}
-	fresh := Parse(newSrc)
-	if d := leak(old, fresh, lo, hi, delta); d != "" {
-		t.Fatalf("%v edit %+v of %q leaks past [%d, %d): %s", triage(old, []byte(src), e), e, src, lo, hi, d)
+	if d := leak(old, sessionParse(newSrc), lo, hi, delta); d != "" {
+		t.Fatalf("%v edit %+v of %q leaks past [%d, %d): %s", s, e, src, lo, hi, d)
 	}
 }
 
-// TestTriageLocalReusesShiftedTail: for every local case above, and the
-// gate review's inputs, the statements outside the anchor are reusable.
+// TestTriageLocalReusesShiftedTail: for every local case above, and local
+// edits of the gate review's sources, the statements outside the anchor are
+// reusable, and Repair's check accepts them, so the reuse is exercised
+// rather than skipped.
 func TestTriageLocalReusesShiftedTail(t *testing.T) {
-	for _, c := range widenCases {
+	cases := slices.Clone(widenCases)
+	for _, c := range []widenCase{
+		{"quote-like body", reviewQuote, at(reviewQuote, "q|", "a", "ab"), "sub f"},
+		{"regex body", reviewRegex, at(reviewRegex, "m/", "a", "b+"), "sub f"},
+		{"use source's sub", reviewUse, at(reviewUse, "  ", "1", "2"), "sub f"},
+		{"resolved call in a sub", resolvedSub, at(resolvedSub, "bar ", "1", "42"), "sub g"},
+	} {
+		cases = append(cases, c)
+	}
+	for _, c := range cases {
 		checkNoLeak(t, c.src, c.e)
-		// The green half: Repair's check accepts these, so the reuse is
-		// actually exercised rather than skipped.
-		old, delta := Parse([]byte(c.src)), len(c.e.NewText)-(c.e.OldEnd-c.e.Start)
-		if _, a := widen(old, []byte(c.src), c.e); a != old && !repairAccepts([]byte(c.src), []byte(edited(c.src, c.e)), a.Start, a.End, delta) {
+		old, delta := sessionParse([]byte(c.src)), len(c.e.NewText)-(c.e.OldEnd-c.e.Start)
+		if got := triage(old, []byte(c.src), c.e); got != StrategyLocal {
+			t.Errorf("%s: triage %v, want StrategyLocal", c.name, got)
+		}
+		if _, a := widen(old, []byte(c.src), c.e); a != old && !repairAccepts([]byte(c.src), []byte(edited(c.src, c.e)), a.Start, a.End, delta, incResolver) {
 			t.Errorf("%s: Repair's check rejects a plain local edit", c.name)
 		}
-	}
-	for _, c := range []struct {
-		src string
-		e   Edit
-	}{
-		{reviewUse, at(reviewUse, "sub f {\n", "", "use\tconstant X => 1;\n")},
-		{reviewQuote, at(reviewQuote, "q|a", "|", "")},
-		{reviewRegex, at(reviewRegex, "m/a", "/", "")},
-		{twoSubs, at(twoSubs, "1;", "", "}{")},
-	} {
-		checkNoLeak(t, c.src, c.e)
 	}
 	// The green half: leak sees the gate review's leak when handed it.
 	e := at(reviewQuote, "q|a", "|", "")
@@ -540,13 +582,18 @@ func TestTriageSweepNoLeak(t *testing.T) {
 
 // FuzzTriage holds the sweep's property for any source and edit:
 //
-//	go test ./internal/parse/ -run '^$' -fuzz '^FuzzTriage$'
+//	go test ./internal/parse/ -run '^$' -fuzz '^FuzzTriage$' -fuzzminimizetime 5s
+//
+// Each input lexes and parses its source several times, so the fuzzer
+// minimizing a new input at the default 60s of minimization reports 0
+// execs/s while it does. A short -fuzzminimizetime, and sources capped at
+// 1 KiB, keep it exploring.
 func FuzzTriage(f *testing.F) {
 	f.Add(reviewQuote, 18, 1, "")
 	f.Add(reviewUse, 8, 0, "use\tconstant X => 1;\n")
 	f.Add(twoSubs, 20, 0, "}{")
 	f.Fuzz(func(t *testing.T, src string, offset, delLen int, insert string) {
-		if len(src) > 4096 || len(insert) > 64 {
+		if len(src) > 1024 || len(insert) > 64 {
 			t.Skip()
 		}
 		start := min(max(offset, 0), len(src))

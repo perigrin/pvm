@@ -1392,25 +1392,35 @@ widened as the Session parsed it, and lies wholly inside its anchor.
 tokens, so the reuse it permits is safe only together with Repair's own
 checks; Repair returns ok=false when any fails:
 
-1. **The re-parsed anchor ends where the old one did.** One statement read
-   from the top-level parser snapshot at the anchor's start, over the edited
-   source, must stop at the anchor's shifted end. A parse error can make a
-   statement swallow the sub's `}` and what follows while every token is
-   unchanged (`return` edited to `re%n` inside a sub does), and no token rule
-   sees that.
+0. **A top-level parser snapshot starts at the anchor.** Repair resumes
+   from it; when none starts at the anchor's start, it returns ok=false.
+1. **The re-parsed anchor ends where the old one did.** After one statement
+   is read from that snapshot over the edited source, the first unconsumed
+   token must start at the anchor's shifted end (`End` plus the edit's
+   delta), or the parser must be at end of input when the anchor's shifted
+   end is the end of the edited source. A parse error can make a statement
+   swallow the sub's `}` and what follows while every token is unchanged
+   (`return` edited to `re%n` inside a sub does), and no token rule sees
+   that.
 2. **The parser state there equals the old one.** The parser after that
    statement must equal the old parse's snapshot after the anchor
    (`sameState`, with its token index moved by the change in token count),
    or the statements after the anchor would read differently: this is what
    carries a `use`, a sub declaration or a lexical declared inside the
-   anchor to the rest of the file.
+   anchor to the rest of the file. Both parses use the Session's resolver,
+   since that is the tree triage read: under one, a sub body edit can change
+   the state a module's prototype left (`floor 1, 2` to `floor --, 2` after
+   `use POSIX qw(floor)`) where a bare parse sees no difference. The token
+   index in that comparison already implies check 1, except when the anchor
+   is the last top-level statement and no snapshot follows it.
 3. **Modules read the same bytes** (chapter 7 §7.7.3's prototype row): any
    module the old parse loaded that now resolves to different bytes.
 4. **The EOF passes run again** over the spliced tree (`finish`, §6.5.3).
 
 `TestTriageSweepNoLeak` and `FuzzTriage` (`internal/parse`) hold the
-property: for a random edit triaged `StrategyLocal` whose Repair checks 1 and
-2 pass, or triaged `StrategyReuseAll`, every top-level statement before the
+property on Session trees: for a random edit triaged `StrategyLocal` whose
+Repair checks 0 to 2 pass (`repairAccepts`), or triaged `StrategyReuseAll`,
+every top-level statement before the
 anchor equals the fresh parse's and every one after it equals the fresh
 parse's shifted by the delta (`TreeDiff`, `TreeDiffShifted`).
 
