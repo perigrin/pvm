@@ -40,13 +40,6 @@ func scanHeredocOpen(l *lexer) bool {
 	if l.pos+2 < len(l.src) && l.src[l.pos+2] == '>' {
 		return false
 	}
-	// After a word no keyword table settles, where the expect state is only
-	// a hedge (see afterUserWord), a `<<` with a blank after it shifts: perl
-	// 5.44.0 reads `A<<\ 0` as `'A' << \0`, which canon writes `A << \0`,
-	// and a heredoc there re-read differently.
-	if l.pos+2 < len(l.src) && isSpace(l.src[l.pos+2]) && l.afterUserWord(len(l.toks), true) {
-		return false
-	}
 
 	start := l.pos
 	j := l.pos + 2
@@ -91,7 +84,12 @@ func scanHeredocOpen(l *lexer) bool {
 		j = k + 1
 	case '\\':
 		// <<\EOF is the backslash-quoted form: non-interpolating, and the
-		// terminator is the bare word after the backslash.
+		// terminator is the bare word after the backslash. Not spaced:
+		// measured on 5.44.0, `print << \EOF;` is "Use of bare << to mean
+		// <<"" is forbidden", as `<< EOF` is.
+		if spaced {
+			return false
+		}
 		j++
 		s := j
 		for j < len(l.src) && isWordByte(l.src[j]) {

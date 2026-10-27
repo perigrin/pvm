@@ -753,6 +753,17 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// canon fixpoint.
 	hashName := text == "*" && (strings.ContainsRune("#\"'`;}", rune(p.src[name.Start])) ||
 		p.text(name) == "*" && p.endsGlobStar(name))
+	// After a word, a punctuation name is a declared sub's argument -- `sub
+	// got {} got*&;` is `got(*&)`, `sub A {} A &!;` calls A with `&!` -- and
+	// an operator's operand after an undeclared one: `got*&;` is `'got' *
+	// &;`, `A*/x/` a match and `A*.5` a number, on 5.44.0. The parser has not
+	// seen which the word is, so it reads neither (R-b′). `*` before `(`,
+	// `-`, `\`, `!`, `~`, `+`, `[` or `$;` multiplies at a canon fixpoint
+	// after either, as pu read it, and `**` before a term is exponentiation.
+	if prev >= 0 && p.toks[prev].Kind == lexer.Word && p.punctName(name) &&
+		(text == "&" || !p.starMultipliesAt(name)) {
+		hashName = true
+	}
 	if !hashName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}
@@ -762,6 +773,27 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 		return nil
 	}
 	return p.ambiguousSigil(left.Start)
+}
+
+// punctName reports whether name, glued after a `&` or `*`, is one ASCII
+// punctuation byte.
+func (p *parser) punctName(name lexer.Token) bool {
+	c := p.src[name.Start]
+	return name.End-name.Start == 1 && c < 0x80 && !isWordByte(c)
+}
+
+// starMultipliesAt reports whether the glob name after a word's `*` reads,
+// in canon, as the multiplication it was parsed as.
+func (p *parser) starMultipliesAt(name lexer.Token) bool {
+	switch c := p.src[name.Start]; {
+	case strings.IndexByte("(-\\!~+[", c) >= 0:
+		return true
+	case c == '$':
+		return name.End < len(p.src) && p.src[name.End] == ';'
+	case c == '*':
+		return !p.endsGlobStar(name)
+	}
+	return false
 }
 
 // ambiguousSigil refuses from start to the end of the statement, which was

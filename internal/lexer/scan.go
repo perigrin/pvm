@@ -41,13 +41,6 @@ func scanVariable(l *lexer) bool {
 	if c == '%' && !l.expect.wantsTerm() && !l.containerTypeSigil() {
 		return false
 	}
-	// Nor after a word no keyword table settles, where the expect state is
-	// only a hedge (see afterUserWord), before a blank: perl 5.44.0 reads
-	// `A% #` + newline + `<<0` as `'A' % <<0`, which canon writes `A % <<0`,
-	// and a hash named `<` there re-read differently.
-	if c == '%' && l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), true) {
-		return false
-	}
 
 	l.pos++
 	// A sigil that ends the file has no name: perl 5.42 says "syntax error
@@ -914,15 +907,6 @@ func scanAngle(l *lexer) bool {
 	// the next must not join into one token across them. Everything else is
 	// permitted, because perl accepts `<a b>` -- a glob pattern with a space
 	// in it -- as readily as `<*.c>`.
-	//
-	// After a word no keyword table settles, where the expect state is only
-	// a hedge (see afterUserWord), a `<` with a blank after it compares,
-	// as `<=` does, and `<<` shifts: perl 5.44.0 reads `A:A<` + newline +
-	// `0>0` as `'A' < 0 > 0`, and `A<<` and `A<=` the same way, which canon
-	// writes on one line, and a readline there re-read differently.
-	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || byteIn(l.src[l.pos+1], "<=")) && l.afterUserWord(len(l.toks), true) {
-		return false
-	}
 	j := l.pos + 1
 	for j < len(l.src) && l.src[j] != '>' && l.src[j] != '\n' {
 		j++
@@ -1078,18 +1062,6 @@ func scanAmp(l *lexer) bool {
 	if l.pos+1 < len(l.src) && l.src[l.pos+1] == '&' {
 		return false
 	}
-	// Nor, after a word no keyword table settles, where the expect state is
-	// only a hedge (see afterUserWord), is one before what cannot begin a
-	// sub's name: that `&` is bitwise-and. Measured on 5.44.0, `A&~ ~0` and
-	// `A & ~~0` are `'A' & ~~0`; read as a sigil, the `~~` after it lexed as
-	// smartmatch. Elsewhere perl takes that punctuation as the name: `&;`
-	// calls the sub `;`.
-	next := skipSpaceFrom(l.src, l.pos+1)
-	// A bareword `x` too: FuzzParser's `x&!x*!` is `'x' & !x * !`.
-	if next < len(l.src) && !isWordByte(l.src[next]) && l.src[next] < utf8.RuneSelf && !byteIn(l.src[next], "${:'#") &&
-		l.afterUserWord(len(l.toks), true) {
-		return false
-	}
 	start := l.pos
 	l.pos++
 	l.emit(FuncSigil, start)
@@ -1225,8 +1197,10 @@ func scanOperator(l *lexer) bool {
 	// operators table for that reason: the table is position-blind. The
 	// smartmatch feature is on by default and the lexer does not track it;
 	// `no feature 'smartmatch'` followed by `$x ~~ $y` is the ceiling.
+	// Nor after a sub's `&`, which a name or, as bitwise-and, a term follows:
+	// measured on 5.44.0, `A & ~~0` is `'A' & ~~0`.
 	if l.src[l.pos] == '~' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '~' &&
-		(l.expect == XOperator || l.expect == XTermOrDorDor) {
+		(l.expect == XOperator || l.expect == XTermOrDorDor) && !l.afterFuncSigil() {
 		start := l.pos
 		l.pos += 2
 		l.emit(Operator, start)
@@ -1349,25 +1323,21 @@ func scanGlobName(l *lexer) bool {
 		c == ':' && next == ':',
 		c == '^' && isWordByte(next):
 		return false
-	// After a word no keyword table settles, a sigil that begins a variable
-	// is the star's operand: measured on 5.44.0, `A*%x`, `A*@x` and `A*&x`
-	// are `'A' * %x` and its kin, and so are `got*&;`, `A*%}` and `{x*$}`,
-	// the punctuation the sigil's name as `$;` is, and `A*& ;` and `A*% x`,
-	// the name apart from it. Only a declared sub takes the glob, and then
+	// After a word no keyword table settles, a sigil glued to a name is the
+	// star's operand: measured on 5.44.0, `A*%x`, `A*@x` and `A*&x` are
+	// `'A' * %x` and its kin. Only a declared sub takes the glob, and then
 	// only before a repetition: `sub A {} A*%x;` is a syntax error and `sub
 	// A {} A*%x3` is `A(*% x 3)`; the parser, which knows declarations,
-	// declines that reading. Taking `*%` as a glob read `A*%x*(%A` and its
-	// canon differently.
-	//
-	// So is any other punctuation the star's operand begins with: `A*/x/`
-	// matches, `A*<FH>` reads a line and `A*.5` multiplies, on 5.44.0, and
-	// FuzzParser's `(A*/)`, read as the glob `*/`, canon'd as `(A * /)`, an
-	// unterminated pattern. `#`, a quote, `;`, `}` and `*` keep the glob:
-	// the parser refuses those after an undeclared word (ruling R-b′), and a
-	// handle takes the glob, `print STDOUT *;`. After a closer too, which
-	// the parser reads as ending a term, `{}` an anonymous hash: FuzzParser's
-	// `{{}*$}` is `{} * $}` with its `}` missing.
-	case !byteIn(c, "#\"'`;}*") && (l.afterUserWord(len(l.toks)-1, true) || l.closerBefore(len(l.toks)-1)):
+	// declines that reading. Any other byte keeps the glob, which a declared
+	// sub's argument can be (`sub A {} A *-;`); the parser refuses it after
+	// a word not known to be declared (ruling R-b′).
+	case byteIn(c, "%@&$") && (isWordByte(next) || next >= utf8.RuneSelf || byteIn(next, "${:")) &&
+		l.afterUserWord(len(l.toks)-1, true):
+		return false
+	// After a closer, which the parser reads as ending a term, the star
+	// multiplies: FuzzParser's `{{}*$}` is `{} * $}` with its `}` missing.
+	// `#`, a quote, `;`, `}` and `*` keep the glob.
+	case !byteIn(c, "#\"'`;}*") && l.closerBefore(len(l.toks)-1):
 		return false
 	}
 	l.pos = end
@@ -1388,6 +1358,12 @@ func scanAmpName(l *lexer) bool {
 	start := l.pos
 	// An attribute's argument is not code: `:tighter(&)` names the operator.
 	if !l.afterFuncSigil() || l.attrArgDepth != 0 {
+		return false
+	}
+	// Nor after a word no keyword table settles, whose `&` is bitwise-and if
+	// the word is undeclared: `FOO&~BAR` is `'FOO' & ~BAR`. The parser, which
+	// knows declarations, reads the rest.
+	if l.afterUserWord(l.significantBefore(len(l.toks)), true) {
 		return false
 	}
 	c := l.src[start]

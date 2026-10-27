@@ -34,25 +34,21 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 		"A*@x":  "A * @x",
 		"A*&x":  "A * &x",
 		"A*%$h": "A * %$h",
-		// And a punctuation name, as perl's scan_ident takes one: `&;`
-		// calls the sub `;`, so the statement still needs its terminator.
-		"got*&;": "got * &;;",
-		"got*%;": "got * %;",
-		"A*@}":   "A * @}",
-		"x*$;":   "x * $;",
-		// And a name apart from its sigil: FuzzParser's `A*& ;`.
-		"A*& ;":  "A * & ;;",
-		"A*% x;": "A * % x;",
-		// And any other punctuation the operand begins with.
-		"A*/x/;":  "A * /x/;",
-		"A*<FH>;": "A * <FH>;",
-		"A*.5;":   "A * .5;",
+		"x*$;":  "x * $;",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
 	}
-	for _, src := range []string{"sub A {} A *%x3", "sub A {} A*$;", "sub A {} A *% x 3"} {
+	// A punctuation name, or a name apart from its sigil, is a declared
+	// sub's glob argument -- `sub A {} A *$;` and `sub A {} A *% x 3` deparse
+	// as that on 5.44.0 -- and an undeclared word's multiplication: `got*&;`
+	// is `'got' * &;`, `A*/x/` a match. Not knowing the word, the parser
+	// refuses (R-b′): FuzzParser's `A*& ;` and its kin.
+	clean(t, "sub A {} A*$;")
+	clean(t, "sub A {} A *% x 3")
+	for _, src := range []string{"sub A {} A *%x3",
+		"got*&;", "got*%;", "A*@}", "A*& ;", "A*% x;", "A*/x/;", "A*<FH>;", "A*.5;"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
@@ -96,8 +92,8 @@ func TestUseWithoutModuleRefuses(t *testing.T) {
 }
 
 // TestAmpBeforeTildeAfterWord: `;A&~ ~0` is `'A' & ~~0` to perl 5.44.0, and
-// so is its canon `;A & ~~0`. The lexer took the `&` for a sub's sigil and
-// the `~~` after it for smartmatch, so the canon refused.
+// so is its canon `;A & ~~0`. The lexer took the `~~` after a sub's sigil
+// for smartmatch, so the canon refused. A declared A is a syntax error.
 func TestAmpBeforeTildeAfterWord(t *testing.T) {
 	for _, src := range []string{";A&~ ~0", ";A & ~~0", "A & ~~0"} {
 		clean(t, src)
@@ -135,8 +131,8 @@ func TestAmpDigitsNameASub(t *testing.T) {
 // 0`; with the `!` lexed as an operator, the `*` after it read as a glob.
 func TestAmpPunctNameEndsTerm(t *testing.T) {
 	for src, want := range map[string]string{
-		"A*&!*&%*!x &0": "A * &! * &% * !x & 0",
-		"&!*2;":         "&! * 2;",
+		"(1)*&!*&%*!x &0": "(1) * &! * &% * !x & 0",
+		"&!*2;":           "&! * 2;",
 		// And `:` alone: FuzzParser's `&:*$%%(%A0`.
 		"&: * 2;": "&: * 2;",
 		"&:*2;":   "&: * 2;",
@@ -175,10 +171,15 @@ func TestWordOperatorIsNoTerm(t *testing.T) {
 		clean(t, src)
 	}
 	// And after the repetition `x`, where a term is read too: FuzzParser's
-	// `1x x*$(&(())` is `1 x 'x' * $( & ()`.
-	for src, want := range map[string]string{"x*&;": "x * &;;", "1x x*$(&(())": "1 x x * $( & ()", "x&!x*2;": "x & !x * 2;"} {
-		if got := clean(t, src); got != want {
-			t.Errorf("%q: canon %q, want %q", src, got, want)
+	// `x&!x*2;` is `'x' & !x * 2`, and `x*&;` and `1x x*$(&(())` are an
+	// undeclared x's multiplication, a declared x's glob argument: refused
+	// (R-b′).
+	if got := clean(t, "x&!x*2;"); got != "x & !x * 2;" {
+		t.Errorf("`x&!x*2;`: canon %q", got)
+	}
+	for _, src := range []string{"x*&;", "1x x*$(&(())"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
 	}
 }
@@ -368,19 +369,27 @@ func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
 	}
 }
 
-// TestSpacedAngleAfterWordCompares: perl 5.44.0 reads `A:A<` + newline +
-// `0>0` as `A: 'A' < 0 > 0`; canon wrote it on one line, where `< 0 >`
-// lexed as a readline. A declared sub's `<STDIN>` still reads a line.
-func TestSpacedAngleAfterWordCompares(t *testing.T) {
-	// And a shift, `A:A<<` + newline + `0>0`, and `A:A<<\ 0`, whose canon
-	// `A << \0` lexed a heredoc.
+// TestSpacedAngleAfterWordRefuses: perl 5.44.0 reads `A:A<` + newline +
+// `0>0` as `A: 'A' < 0 > 0`, and, A declared, as "Unterminated <>
+// operator"; canon wrote it on one line, where `< 0 >` lexed as a readline.
+// Not knowing A, the parser refuses (R-b′). A declared sub's `<STDIN>`
+// still reads a line.
+func TestSpacedAngleAfterWordRefuses(t *testing.T) {
+	for _, src := range []string{"A:A<\n0>0", "A < 0 > 0", "A:A<<\n0>0", "A:A<=\n0>0", "A:x<\n0>0"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	if got := clean(t, "sub f {} f <STDIN>;"); got != "sub f {} f <STDIN>;" {
+		t.Errorf("`sub f {} f <STDIN>;`: canon %q", got)
+	}
+	// And `A:A<<\ 0`, whose canon `A << \0` lexed a heredoc: perl 5.44.0
+	// has `print << \EOF;` "Use of bare << to mean <<"" is forbidden".
 	if got := clean(t, "A:A<<\\ 0"); got != "A: A << \\0" {
 		t.Errorf("`A:A<<\\ 0`: canon %q", got)
 	}
-	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0", "A:A<=\n0>0": "A: A <= 0 > 0", "A:x<\n0>0": "A: x < 0 > 0"} {
-		if got := clean(t, src); got != want {
-			t.Errorf("%q: canon %q, want %q", src, got, want)
-		}
+	if found := collectUnknown(parse.Parse([]byte("print << \\EOF;\nx\nEOF\n"))); len(found) == 0 {
+		t.Errorf("`print << \\EOF`: perl rejects this, but it parses")
 	}
 }
 
