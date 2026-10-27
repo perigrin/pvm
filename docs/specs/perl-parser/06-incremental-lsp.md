@@ -723,14 +723,20 @@ library has no rope, and you would be writing one.
 Do not. Use this:
 
 ```go
-// Document is the authoritative text of one open buffer.
+// Document is the text of one open buffer and the byte offset of each line
+// start: Lines[0] == 0, and only '\n' starts a line.
 type Document struct {
-    URI     string
-    Version int32   // LSP document version; monotonically increasing
-    Text    []byte  // full UTF-8 source, always valid UTF-8
-    Lines   []int32 // byte offset of each line start; Lines[0] == 0
+    Text  []byte
+    Lines []int32
 }
 ```
+
+**Implemented** in `internal/psc/document.go` as `Document`, built by
+`NewDocument(text []byte) *Document`. The LSP server's per-uri `document`
+(`internal/psc/lsp.go`) holds one, and the uri lives there, so `Document`
+carries no `URI`; it carries no `Version` until a version fence (§6.2.3)
+needs one. `Text` need not be valid UTF-8: invalid bytes count as one
+character each.
 
 A rope buys O(log n) edits instead of O(n). Three reasons that is the wrong
 trade here: a 5,000-line file is ~150 KB, so the memmove is 5–10 µs against a
@@ -803,6 +809,10 @@ func (d *Document) reindexLinesFrom(from int) {
     }
 }
 ```
+
+**Implemented** as `(*Document).reindexLinesFrom` in
+`internal/psc/document.go`, with this signature, scanning with
+`bytes.IndexByte`; `ApplyEdit` keeps the signature above.
 
 `int32` line starts cap a document at 2 GB. Take the memory: a 5,000-line file
 costs 20 KB of index instead of 40 KB, and it stays in L2.
@@ -1486,6 +1496,20 @@ column should never fail a request.
 
 Internally, byte offsets. Only convert at the JSON-RPC boundary.
 
+**Implemented** in `internal/psc/document.go` with UTF-16 alone, step 1 of
+§6.6.3, so the signatures that landed take no `PosEnc` and use the
+handler's `lspPosition` and the `uint32` offsets of `infer`:
+
+```go
+func (d *Document) ByteToPosition(off uint32) lspPosition
+func (d *Document) PositionToByte(p lspPosition) uint32
+```
+
+`ByteToPosition` also clamps an offset in a line ending to the end of the
+line's content, so the `\n` of a CRLF line has the column of its `\r`.
+Every position in `internal/psc/lsp_handler.go` goes through these two.
+The sketch below is the shape once `PosEnc` is threaded (§6.6.3 step 2).
+
 ```go
 // PosEnc is the negotiated LSP position encoding.
 type PosEnc int
@@ -1608,6 +1632,8 @@ non-ASCII identifier — and it will not show up in an ASCII test suite.
 The Go plan:
 
 1. Ship advertising `utf-16` only. Store the negotiated value but do not use it.
+   (Landed: `handleInitialize` advertises `utf-16`; nothing reads the
+   client's offer yet, so nothing stores it.)
 2. Thread `PosEnc` through **every** conversion site — one type, one parameter,
    no defaults.
 3. Only then advertise `utf-8` when offered. The win is real: with UTF-8
