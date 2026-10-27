@@ -364,7 +364,7 @@ func TestSpacedAngleAfterWordCompares(t *testing.T) {
 	if got := clean(t, "A:A<<\\ 0"); got != "A: A << \\0" {
 		t.Errorf("`A:A<<\\ 0`: canon %q", got)
 	}
-	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0", "A:A<=\n0>0": "A: A <= 0 > 0"} {
+	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0", "A:A<=\n0>0": "A: A <= 0 > 0", "A:x<\n0>0": "A: x < 0 > 0"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}

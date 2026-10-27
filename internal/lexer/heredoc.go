@@ -44,7 +44,7 @@ func scanHeredocOpen(l *lexer) bool {
 	// a hedge (see afterUserWord), a `<<` with a blank after it shifts: perl
 	// 5.44.0 reads `A<<\ 0` as `'A' << \0`, which canon writes `A << \0`,
 	// and a heredoc there re-read differently.
-	if l.pos+2 < len(l.src) && isSpace(l.src[l.pos+2]) && l.afterUserWord(len(l.toks), false) {
+	if l.pos+2 < len(l.src) && isSpace(l.src[l.pos+2]) && l.afterUserWord(len(l.toks), true) {
 		return false
 	}
 

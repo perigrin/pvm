@@ -45,7 +45,7 @@ func scanVariable(l *lexer) bool {
 	// only a hedge (see afterUserWord), before a blank: perl 5.44.0 reads
 	// `A% #` + newline + `<<0` as `'A' % <<0`, which canon writes `A % <<0`,
 	// and a hash named `<` there re-read differently.
-	if c == '%' && l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), false) {
+	if c == '%' && l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), true) {
 		return false
 	}
 
@@ -920,7 +920,7 @@ func scanAngle(l *lexer) bool {
 	// as `<=` does, and `<<` shifts: perl 5.44.0 reads `A:A<` + newline +
 	// `0>0` as `'A' < 0 > 0`, and `A<<` and `A<=` the same way, which canon
 	// writes on one line, and a readline there re-read differently.
-	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || byteIn(l.src[l.pos+1], "<=")) && l.afterUserWord(len(l.toks), false) {
+	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || byteIn(l.src[l.pos+1], "<=")) && l.afterUserWord(len(l.toks), true) {
 		return false
 	}
 	j := l.pos + 1
