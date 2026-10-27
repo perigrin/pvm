@@ -79,6 +79,7 @@ func TestLSPIntegration(t *testing.T) {
 		Params:  rawOpen,
 	}
 	require.NoError(t, h.handle(didOpenMsg), "didOpen must not error")
+	settle(h, uri)
 
 	diagNotification := readResponse(t, &out)
 	require.NotNil(t, diagNotification)

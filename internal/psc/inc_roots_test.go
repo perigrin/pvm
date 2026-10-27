@@ -155,6 +155,7 @@ func TestLSPLogsUnresolvedPerl(t *testing.T) {
 		params, err := json.Marshal(lspDidOpenParams{TextDocument: lspTextDocumentItem{URI: uri, LanguageID: "perl", Version: 1, Text: "1;\n"}})
 		require.NoError(t, err)
 		require.NoError(t, h.handle(&jsonRPCMessage{JSONRPC: "2.0", Method: "textDocument/didOpen", Params: params}))
+		settle(h, uri)
 		var logged []string
 		published := false
 		// One transport reads them all: it buffers ahead of the message it
