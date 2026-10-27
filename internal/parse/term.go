@@ -127,7 +127,11 @@ func (p *parser) parseTerm() *Node {
 		}
 		// `++` and `--` are in the table as postfix operators, and begin a
 		// term too: measured on 5.42.0, `-f ++ $d` is `-f ++$d`.
-		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" {
+		// Nor does a glob or a sub the lexer read there, where perl expects a
+		// term: `-A*y` is `-A *y` on 5.44.0, and FuzzParser's `(-A*y)`,
+		// read as `-A() * y`, canon'd with `y)` a transliteration.
+		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" &&
+			!p.globAt(next) && next.Kind != lexer.FuncSigil {
 			return n
 		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {

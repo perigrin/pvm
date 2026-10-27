@@ -233,6 +233,17 @@ func TestSeparatorAfterHeredocBody(t *testing.T) {
 	}
 }
 
+// TestFiletestTakesGlob: perl 5.44.0 deparses `(-A*y)` as `-A *y`, the
+// filetest of a glob. Read as `-A() * y`, FuzzParser's find canon'd with
+// `y)` a transliteration.
+func TestFiletestTakesGlob(t *testing.T) {
+	for src, want := range map[string]string{"(-A*y)": "(-A *y)", "-e *STDIN;": "-e *STDIN;", "-e;": "-e;"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
