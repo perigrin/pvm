@@ -686,6 +686,11 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 			decl.End = p.prevEnd()
 			decl.LoopVar = true
 			n.Children = append(n.Children, decl)
+		case next.Kind == lexer.Variable && p.src[next.Start] != '$':
+			// Only a scalar is one: perl 5.44.0 has `for%[(;;)` a syntax
+			// error near "for%[", and read with `%[` as the variable,
+			// FuzzParser's find canon'd differently.
+			return p.refuseTrailingTokens(word.Start)
 		case next.Kind == lexer.Variable:
 			// A BARE loop variable -- `for $i (@l)`, `for $pkg::i (@l)`. It
 			// occupies the same slot the `my` spelling's Declaration does, so

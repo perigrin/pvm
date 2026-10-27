@@ -342,6 +342,18 @@ func TestHeredocTerminatorAtEOFKeepsItsLine(t *testing.T) {
 	}
 }
 
+// TestLoopVariableIsScalar: perl 5.44.0 rejects `for%[(;;)` near "for%[",
+// and `for @a (1)`; only a scalar is a bare loop variable. Read with `%[`
+// as one, FuzzParser's find canon'd differently.
+func TestLoopVariableIsScalar(t *testing.T) {
+	for _, src := range []string{"for%[(;;)", "my @a; for @a (1) {}"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
+	}
+	clean(t, "my $i; for $i (1, 2) {}")
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
