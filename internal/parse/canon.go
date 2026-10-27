@@ -1317,9 +1317,13 @@ func ownText(n *Node, src []byte) string {
 		// A node that kept its separator has emit write it: FuzzParser's
 		// `((&0()),)`, written from source with it as well, doubled it. A
 		// leaf folds the one inside its parens instead, `f((0,),)`.
+		// All of them: `((&0()),,)` keeps two.
 		const blanks = " \t\r\n\f\v"
 		text := strings.TrimRight(string(src[n.Start+1:n.End-1]), blanks)
-		return strings.TrimRight(strings.TrimSuffix(text, sep), blanks)
+		for strings.HasSuffix(text, ",") || strings.HasSuffix(text, "=>") {
+			text = strings.TrimRight(strings.TrimSuffix(strings.TrimSuffix(text, ","), "=>"), blanks)
+		}
+		return text
 	case afterPair:
 		return string(src[n.Start+1 : n.End-1])
 	case n.TrailingComma != "" && !foldsSep(n):

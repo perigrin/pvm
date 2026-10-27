@@ -225,7 +225,8 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 // emit write it, so the text written from source for it leaves it out.
 // FuzzParser's `((&0()),)` canon'd as `((&0()),,)`.
 func TestKeptSeparatorWrittenOnce(t *testing.T) {
-	for src, want := range map[string]string{"((&0()),)": "((&0()),)", "((&f()),)": "((&f()),)", "(&f(),)": "(&f(),)", "((1),)": "((1),)"} {
+	// And all of them: FuzzParser's `((&0()),,)`.
+	for src, want := range map[string]string{"((&0()),)": "((&0()),)", "((&f()),)": "((&f()),)", "(&f(),)": "(&f(),)", "((1),)": "((1),)", "((&0()),,)": "((&0()), ,)"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
