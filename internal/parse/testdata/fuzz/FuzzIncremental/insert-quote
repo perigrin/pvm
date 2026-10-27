@@ -1,0 +1,5 @@
+go test fuzz v1
+string("sub f {\n  my $foo = 1;\n  return $foo;\n}\nprint f();\n")
+int(20)
+int(0)
+string("\"")

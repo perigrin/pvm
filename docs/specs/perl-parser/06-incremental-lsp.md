@@ -961,6 +961,28 @@ inside POD, inside `s{}{}`, the state is not safe and no checkpoint is
 recorded. Re-lexing therefore always restarts from a point where the lexer's
 world is fully known.
 
+**As landed** (`internal/lexer/checkpoint.go`). The lexer `State` is not the
+field list above but the lexer struct itself with its cursor, source and output
+cleared, so every field the lexer grows is state without a hand-kept list;
+`Clone` deep-copies it (a reflect test fails on a reference field it misses)
+and `Equal` compares clones, an empty collection equal to a missing one.
+`StartState`, `StartStateBarewords` and `StartStateTyped` are the byte-0 states
+of the three `Tokenize*` entry points, which start from them. This lexer has no
+`SublexStack`, `DelimiterStack` or `Context`: quotes, regexes, `s{}{}`, POD,
+heredoc bodies and format bodies are each one token scanned within one step,
+so no step boundary falls inside them. `Checkpoints(src, start)` returns the
+tokens with the checkpoints passed — byte 0, then at most one per 512 bytes —
+and `Resume(src, cp)` lexes from one to EOF, equal to the full stream's suffix.
+No checkpoint is recorded unless the token just emitted is a `;` or a `}` and
+`Expect == XState` with the bracket stack empty, no heredoc queued (so never
+with one pending on the line, nor inside its body), and no format body pending
+or open, and no `[` still open by count (`openSquares`) — any closer pops the
+bracket stack, so `[ )` empties it while typed Perl's `containerTypeSigil`,
+walking back over raw `[`/`]` with no stop at `;`, would still reach that `[`;
+nothing follows a `DataSection`, so none falls after `__END__` or
+`__DATA__`. Resume needs the bytes before the checkpoint unchanged: the other
+scanners look back a token or two, and none looks past a `;` or a block's `}`.
+
 ### 6.3.2 The cache
 
 ```go
@@ -1434,6 +1456,31 @@ Five things in that loop earn their place:
 5. **`sub.HasError() != enclosing.HasError()`** — if re-parsing the region
    changed whether it contains an error, the damage estimate was wrong.
    Bail out.
+
+**The parser's state at the re-parse point.** The lexer's checkpoint (§6.3.1)
+is half of what step 3 resumes from. The other half is the parser's own
+file-wide state — the package, the features and lexical subs in scope, the
+imports, the known packages and the declared subs — which it threads from
+statement to statement. Step 3 restores it from a `parserSnapshot`
+(`internal/parse/parsestate.go`), a copy of the `parser` struct taken before
+each statement at a re-parse point. The re-parse points are each top-level
+statement and each statement directly inside a file-level `package NAME BLOCK`,
+`class NAME BLOCK` or bare block, which are the nested anchors widening may
+choose; there is none inside a `BEGIN` block, a `use` or a `format`. A
+snapshot holds copies of every map and slice, never aliases, so one snapshot
+can be resumed from any number of times. `parserFields` classifies every field
+of `parser` as snapshotted, per-statement scratch, or the resuming parse's own
+(source, tokens and resolver: a re-parse uses its Session's resolver, never
+the snapshot's), and `TestParserStateSnapshotCoversEveryField` fails until a
+new field is classified. A resumed parse stops at end of file, or at the `}`
+of a nested snapshot's block.
+
+Two passes run over the whole file at EOF, and an edit anywhere can change
+their result, so Repair runs them again over the spliced tree (`finish`):
+`refuseUnclosedOpener`, which wraps the file's last token in
+`Unknown{UnclosedOpener}` when any opener anywhere is unclosed, and the pass
+that lifts the imports and every declared sub's prototype (`readModule`) onto
+the root.
 
 ### 6.5.4 The correctness test, and it is not optional
 

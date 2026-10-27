@@ -1,0 +1,4 @@
+package Odd;
+sub f (Int $x) Str;
+multi sub f (Str $x) Int;
+sub g (Str $x) Strng;

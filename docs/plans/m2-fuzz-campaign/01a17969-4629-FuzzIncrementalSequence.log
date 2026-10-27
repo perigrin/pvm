@@ -1,0 +1,8 @@
+commit 18fb6a141641669fba1df90c968e6810dbcefa55
+go version go1.24.4 linux/amd64
+fuzz: elapsed: 0s, gathering baseline coverage: 0/104 completed
+fuzz: elapsed: 1s, gathering baseline coverage: 104/104 completed, now fuzzing with 4 workers
+fuzz: elapsed: 3s, execs: 13201 (4399/sec), new interesting: 17 (total: 121)
+fuzz: elapsed: 4s, execs: 20000 (9097/sec), new interesting: 34 (total: 138)
+PASS
+ok  	tamarou.com/pvm/internal/parse	4.052s
