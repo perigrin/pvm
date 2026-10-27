@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/types"
 )
 
 // incrementalSeedSources are the sources of chapter 7 §7.7.3's edit rows,
@@ -200,7 +202,12 @@ func TestParserStateSnapshotCoversEveryField(t *testing.T) {
 		switch f.Kind() {
 		case reflect.Map:
 			m := reflect.MakeMap(f.Type())
-			m.SetMapIndex(reflect.Zero(f.Type().Key()), reflect.Zero(f.Type().Elem()))
+			val := reflect.Zero(f.Type().Elem())
+			if f.Type().Elem().Kind() == reflect.Slice {
+				// Spare capacity, which an append in place would share.
+				val = reflect.MakeSlice(f.Type().Elem(), 1, 2)
+			}
+			m.SetMapIndex(reflect.Zero(f.Type().Key()), val)
 			reflect.NewAt(f.Type(), f.Addr().UnsafePointer()).Elem().Set(m)
 		case reflect.Slice:
 			reflect.NewAt(f.Type(), f.Addr().UnsafePointer()).Elem().Set(reflect.MakeSlice(f.Type(), 1, 1))
@@ -215,6 +222,15 @@ func TestParserStateSnapshotCoversEveryField(t *testing.T) {
 		}
 		if k := v.Field(i).Kind(); (k == reflect.Map || k == reflect.Slice) && v.Field(i).Pointer() == cv.Field(i).Pointer() {
 			t.Errorf("snapshot aliases parser field %s", name)
+		}
+		// A map's slices are a second level: a clone sharing one's spare
+		// capacity lets two resumes append into the same element.
+		if f := v.Field(i); f.Kind() == reflect.Map && f.Type().Elem().Kind() == reflect.Slice {
+			key := reflect.Zero(f.Type().Key())
+			orig, cl := f.MapIndex(key), cv.Field(i).MapIndex(key)
+			if cl.Cap() > cl.Len() && cl.Pointer() == orig.Pointer() {
+				t.Errorf("snapshot shares spare capacity in parser field %s's slices", name)
+			}
 		}
 	}
 
@@ -351,6 +367,27 @@ func TestParserStateSnapshotNotAliased(t *testing.T) {
 	}
 	if _, ok := snap.p.lexical["l"]; len(first) == 0 || snap.p.pkg != "Foo" || !ok {
 		t.Errorf("the snapshot at sub f resumed %d statements in package %q with lexical subs %v", len(first), snap.p.pkg, snap.p.lexical)
+	}
+}
+
+// Two resumes from one snapshot each append a signature to a name that
+// already has some, as parseTypedSignature does; neither may see the other's.
+func TestParserStateSnapshotSignaturesNotShared(t *testing.T) {
+	var p parser
+	p.signatures = map[string][]types.Signature{"f": make([]types.Signature, 3, 4)}
+	snap := parserSnapshot{p: p.clone()}
+	a, b := snap.p.clone(), snap.p.clone()
+	sigA, sigB := types.Signature{Invocant: &types.Param{}}, types.Signature{Invocant: &types.Param{}}
+	a.signatures["f"] = append(a.signatures["f"], sigA)
+	b.signatures["f"] = append(b.signatures["f"], sigB)
+	if a.signatures["f"][3].Invocant != sigA.Invocant {
+		t.Error("resume A sees resume B's signature")
+	}
+	if b.signatures["f"][3].Invocant != sigB.Invocant {
+		t.Error("resume B sees resume A's signature")
+	}
+	if len(snap.p.signatures["f"]) != 3 {
+		t.Errorf("the snapshot holds %d signatures for f, not 3", len(snap.p.signatures["f"]))
 	}
 }
 

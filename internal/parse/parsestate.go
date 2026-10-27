@@ -13,7 +13,7 @@ import (
 // re-parse points §6.5.2's widening may return; a BEGIN block, a `use` and
 // a `format` have none inside them.
 type parserSnapshot struct {
-	at     int  // byte offset of the statement's first token
+	at     int  // Start of toks[pos]: the next token, trivia or a heredoc body included
 	nested bool // a resume stops at the enclosing block's `}`
 	p      parser
 }
@@ -73,12 +73,17 @@ var parserFields = map[string]int{
 }
 
 // clone is a copy of p holding no map or slice of p's, so neither can
-// change the other. The values in them are not mutated in place.
+// change the other. The values in them are not mutated in place, except
+// that signatures' slices are appended to (parseTypedSignature): each is
+// clipped, so an append copies rather than writing into shared capacity.
 func (p *parser) clone() parser {
 	c := *p
 	c.snaps = nil
 	c.moduleSubs = maps.Clone(p.moduleSubs)
 	c.signatures = maps.Clone(p.signatures)
+	for name, sigs := range c.signatures {
+		c.signatures[name] = slices.Clip(sigs)
+	}
 	c.variables = maps.Clone(p.variables)
 	c.typedErrs = slices.Clone(p.typedErrs)
 	c.operators = slices.Clone(p.operators)
