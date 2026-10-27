@@ -260,6 +260,12 @@ type lexer struct {
 	src  []byte
 	pos  int
 	toks []Token
+	// peekEnd is just past the furthest byte a lookahead read and decided a
+	// token by, beyond the bytes of the tokens already emitted: scanAngle's
+	// search for `>`, a quoted heredoc terminator's for its quote. No
+	// checkpoint falls before it (spec §6.3.1), since the tokens before one
+	// would change with the bytes after it.
+	peekEnd int
 	// barewordOps are the operators whose left operand is read as a word.
 	barewordOps []string
 	// expect is the term-vs-operator state. A file starts at a statement

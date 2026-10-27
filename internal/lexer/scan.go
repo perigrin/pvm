@@ -860,6 +860,7 @@ func scanAngle(l *lexer) bool {
 	for j < len(l.src) && l.src[j] != '>' && l.src[j] != '\n' {
 		j++
 	}
+	l.peekEnd = max(l.peekEnd, j+1)
 	if j >= len(l.src) || l.src[j] != '>' {
 		return false
 	}

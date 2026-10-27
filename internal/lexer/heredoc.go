@@ -76,6 +76,7 @@ func scanHeredocOpen(l *lexer) bool {
 		for k < len(l.src) && l.src[k] != q {
 			k++
 		}
+		l.peekEnd = max(l.peekEnd, k+1)
 		if k >= len(l.src) {
 			return false // unterminated: not a heredoc opener
 		}

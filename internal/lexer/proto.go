@@ -65,11 +65,13 @@ func scanPrototype(l *lexer) bool {
 			// Unterminated. perl croaks "Prototype not terminated"; an LSP
 			// cannot, so the cursor is put back and the parens lex as
 			// ordinary tokens. Round-trip holds either way.
+			l.peekEnd = max(l.peekEnd, l.pos)
 			l.pos = start
 			l.expectPrototype = false
 			return false
 		}
 	}
+	l.peekEnd = max(l.peekEnd, l.pos)
 	l.pos = start
 	l.expectPrototype = false
 	return false

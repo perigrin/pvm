@@ -78,11 +78,13 @@ func Resume(src []byte, cp Checkpoint) []Token {
 }
 
 // atCheckpoint reports whether the cursor sits just after a `;` or a block's
-// `}` at bracket depth 0, in a safe state.
+// `}` at bracket depth 0, in a safe state, with no lookahead having decided a
+// token by a byte past it -- so the tokens before it depend only on the bytes
+// before it, and an edit after it leaves them as they are.
 func (l *lexer) atCheckpoint() bool {
 	t := l.toks[len(l.toks)-1]
 	return t.End == l.pos && (t.Kind == Semicolon || t.Kind == CloseBracket && l.src[t.Start] == '}') &&
-		l.safe()
+		l.safe() && l.peekEnd <= l.pos
 }
 
 // safe is spec §6.3.1's safe-checkpoint condition in this lexer's terms: a
@@ -106,7 +108,7 @@ func (s State) Equal(o State) bool {
 // with reflect.DeepEqual.
 func (s State) Clone() State {
 	c := s.l
-	c.src, c.pos, c.toks = nil, 0, nil
+	c.src, c.pos, c.toks, c.peekEnd = nil, 0, nil, 0
 	c.barewordOps = cloneOrNil(c.barewordOps)
 	c.brackets = cloneOrNil(c.brackets)
 	c.lexSubs = cloneOrNil(c.lexSubs)
