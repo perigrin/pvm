@@ -604,3 +604,31 @@ func TestFileURINamesItsPath(t *testing.T) {
 		assert.Equal(t, filepath.FromSlash(path), got, path)
 	}
 }
+
+// TestPublishDiagnosticsAfterClose closes and reopens a document while its
+// diagnostics are being published: a close between reading the diagnostics
+// and reading the text must not leave the text nil under them.
+func TestPublishDiagnosticsAfterClose(t *testing.T) {
+	h, _ := newTestHandler(t)
+	const uri = "untitled:closing.pl"
+	src := []byte("my $x;\npush($x, 1);\n")
+	require.NoError(t, h.server.OpenDocument(uri, src))
+	require.NotEmpty(t, h.server.Diagnostics(uri))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 200 {
+			h.server.CloseDocument(uri)
+			_ = h.server.OpenDocument(uri, src)
+		}
+	}()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			h.publishDiagnostics(uri)
+		}
+	}
+}

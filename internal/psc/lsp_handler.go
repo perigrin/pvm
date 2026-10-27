@@ -215,8 +215,7 @@ func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 // converts them to LSP diagnostic format, and sends a
 // textDocument/publishDiagnostics notification to the client.
 func (h *handler) publishDiagnostics(uri string) {
-	diags := h.server.Diagnostics(uri)
-	text := h.server.Text(uri)
+	diags, text := h.server.diagnosticsText(uri)
 
 	lspDiags := make([]lspDiagnostic, 0, len(diags))
 	for _, d := range diags {

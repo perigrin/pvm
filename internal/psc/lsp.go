@@ -138,17 +138,25 @@ func (s *LSPServer) Source(uri string) []byte {
 	return nil
 }
 
-// Text returns the text and line table of the document at uri, or nil if
-// the uri is not currently open.
+// Text returns a snapshot of the text and line table of the document at
+// uri, one later edits leave unchanged, or nil if the uri is not open.
 func (s *LSPServer) Text(uri string) *Document {
+	_, text := s.diagnosticsText(uri)
+	return text
+}
+
+// diagnosticsText is the diagnostics of the document at uri and a snapshot
+// of the text they are offsets into, read under one lock so a close or
+// reopen between the two cannot mismatch them. Both are nil if uri is not open.
+func (s *LSPServer) diagnosticsText(uri string) ([]infer.Diagnostic, *Document) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	doc, ok := s.documents[uri]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return doc.text
+	return doc.analysis.Diagnostics, doc.text.Snapshot()
 }
 
 // Annotations returns the type of each lowered node of the document at uri,
