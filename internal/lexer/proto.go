@@ -165,7 +165,14 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			l.expectPrototype = l.sigilAttribute(word)
 			return true
 		}
+		// `sub:` at a statement's start is a label, as any word's is: perl
+		// 5.44.0 deparses `sub: ();` as written, and FuzzParser's `sub:(` +
+		// newline + `)`, canon'd `sub: ()`, re-read with a prototype.
+		labelled := l.pos+1 < len(l.src) && l.src[l.pos] == ':' && l.src[l.pos+1] != ':' &&
+			(l.expect == XState || l.expect == XBlock)
 		switch {
+		case word == "sub" && labelled:
+			l.closeDeclHead()
 		case word == "sub" || word == "method" && l.classSyntax:
 			l.sawSubWord = true
 			l.sawPackageWord = false

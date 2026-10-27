@@ -307,6 +307,17 @@ func TestEmptyStatementTakesHeredocBody(t *testing.T) {
 	}
 }
 
+// TestSubLabel: `sub:` at a statement's start is a label; perl 5.44.0
+// deparses `sub: ();` as written. FuzzParser's `sub:(` + newline + `)`
+// canon'd as `sub: ()`, which lexed `()` as a prototype.
+func TestSubLabel(t *testing.T) {
+	for src, want := range map[string]string{"sub:(\n)": "sub: ()", "sub: ();": "sub: ();", "my $f = sub :lvalue { 1 };": "my $f = sub :lvalue {1;};"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
