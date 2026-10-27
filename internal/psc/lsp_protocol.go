@@ -38,6 +38,8 @@ type lspServerCapabilities struct {
 	HoverProvider          bool `json:"hoverProvider"`
 	DefinitionProvider     bool `json:"definitionProvider"`
 	DocumentSymbolProvider bool `json:"documentSymbolProvider"`
+	// PositionEncoding is the unit of every Position.character (§6.6.3).
+	PositionEncoding string `json:"positionEncoding"`
 }
 
 // lspInitializeResult is the response body for the initialize request.

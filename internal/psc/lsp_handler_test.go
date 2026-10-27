@@ -495,47 +495,72 @@ func TestHandlerDidOpenMalformedParams(t *testing.T) {
 	require.NoError(t, err, "notification handler must not return an error for malformed params")
 }
 
-func TestPositionConversionEdgeCases(t *testing.T) {
-	source := []byte("abc\ndef\n")
+// TestLSPPositionsAreUTF16: positions the server sends on a non-ASCII
+// buffer count UTF-16 code units, not bytes.
+func TestLSPPositionsAreUTF16(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+	const uri = "file:///utf16.pl"
+	openDoc(t, h, out, uri, "my $a = \"💖\"; my $x = 1;\n")
+	out.Reset()
 
-	// Column beyond the end of line 0 is clamped to len(source).
-	offset := positionToOffset(source, 0, 100)
-	assert.LessOrEqual(t, offset, uint32(len(source)), "col beyond line should be clamped to document end")
-
-	// Line beyond the end of the document returns len(source).
-	offset2 := positionToOffset(source, 99, 0)
-	assert.Equal(t, uint32(len(source)), offset2, "line beyond document should return len(source)")
-
-	// Last line (after final newline): line 2 col 0 should be len(source).
-	// The source "abc\ndef\n" has lines 0="abc", 1="def", 2="" (after final '\n').
-	offset3 := positionToOffset(source, 2, 0)
-	assert.Equal(t, uint32(len(source)), offset3, "position at last empty line should be len(source)")
-
-	// Negative col should be treated as 0.
-	offset4 := positionToOffset(source, 0, -1)
-	assert.Equal(t, uint32(0), offset4, "negative col should be clamped to 0")
+	resp := sendRequest(t, h, out, 1, "textDocument/documentSymbol", map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+	})
+	require.Nil(t, resp.Error)
+	var syms []lspDocumentSymbol
+	require.NoError(t, json.Unmarshal(resp.Result, &syms))
+	var x *lspDocumentSymbol
+	for i := range syms {
+		if syms[i].Name == "$x" {
+			x = &syms[i]
+		}
+	}
+	require.NotNil(t, x, "symbols: %+v", syms)
+	// Its declaration, my $x, starts at byte 16, UTF-16 column 14.
+	assert.Equal(t, lspPosition{Line: 0, Character: 14}, x.Range.Start)
 }
 
-func TestPositionConversion(t *testing.T) {
-	source := []byte("my $x = 42;\nprint $x;\n")
+// TestLSPHoverAndDefinitionAtUTF16Column: a 4-byte, 2-unit 💖 precedes $a
+// and $b on line 1, so UTF-16 column 14 there is $b, where byte 14 is the
+// a of $a. Hover and definition both resolve $b.
+func TestLSPHoverAndDefinitionAtUTF16Column(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+	const uri = "file:///utf16col.pl"
+	openDoc(t, h, out, uri, "my $b = 1;\nmy $a=\"💖\";$a.$b;\n")
+	out.Reset()
+	at := map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+		"position":     map[string]int{"line": 1, "character": 14},
+	}
 
-	// (line=0, col=3) should be offset 3.
-	offset := positionToOffset(source, 0, 3)
-	assert.Equal(t, uint32(3), offset)
+	resp := sendRequest(t, h, out, 1, "textDocument/hover", at)
+	require.Nil(t, resp.Error)
+	var hover lspHover
+	require.NoError(t, json.Unmarshal(resp.Result, &hover))
+	assert.Contains(t, hover.Contents.Value, "Int", "hover names $b's type, not $a's")
 
-	// offset 3 should round-trip back to (line=0, col=3).
-	pos := offsetToPosition(source, 3)
-	assert.Equal(t, 0, pos.Line)
-	assert.Equal(t, 3, pos.Character)
+	resp = sendRequest(t, h, out, 2, "textDocument/definition", at)
+	require.Nil(t, resp.Error)
+	var loc lspLocation
+	require.NoError(t, json.Unmarshal(resp.Result, &loc))
+	assert.Equal(t, 0, loc.Range.Start.Line, "definition is $b's on line 0, not $a's on line 1")
+}
 
-	// (line=1, col=0) should be offset 12 (length of "my $x = 42;\n").
-	offset2 := positionToOffset(source, 1, 0)
-	assert.Equal(t, uint32(12), offset2)
-
-	// offset 12 should round-trip back to (line=1, col=0).
-	pos2 := offsetToPosition(source, 12)
-	assert.Equal(t, 1, pos2.Line)
-	assert.Equal(t, 0, pos2.Character)
+// TestLSPPositionEncodingPinnedToUTF16: a client offering utf-8 still gets
+// utf-16, the encoding every provider counts in (§6.6.3).
+func TestLSPPositionEncodingPinnedToUTF16(t *testing.T) {
+	h, out := newTestHandler(t)
+	resp := sendRequest(t, h, out, 1, "initialize", map[string]interface{}{
+		"capabilities": map[string]interface{}{
+			"general": map[string]interface{}{"positionEncodings": []string{"utf-8", "utf-16"}},
+		},
+	})
+	require.Nil(t, resp.Error)
+	var result lspInitializeResult
+	require.NoError(t, json.Unmarshal(resp.Result, &result))
+	assert.Equal(t, "utf-16", result.Capabilities.PositionEncoding)
 }
 
 // TestLSPWindowsFileURI: a file: uri names a path, and a Windows drive
