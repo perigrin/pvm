@@ -603,6 +603,29 @@ fuzzer."
 **Ships:** a responsive LSP. This is the milestone that makes the thing feel
 like a real editor integration rather than a batch tool.
 
+#### Measured at step 4
+
+Spec chapter 6 §6.11 step 4, on the full-reparse server of step 3: the
+benchmarks in `internal/psc/latency_bench_test.go` over the generated 5,054-line
+fixture `internal/psc/testdata/latency/edit5k.pl`, measured at a65eada7 on a
+4-vCPU VM, 200 iterations each
+(`go test ./internal/psc/ -run '^$' -bench '^BenchmarkLatency' -benchtime 200x -count=1`).
+The edit benchmark re-opens a typing sequence of 1-char inserts inside the
+fixture's 70 `sub scale` bodies, so no two iterations see the same buffer.
+
+Machine: Intel(R) Xeon(R) Processor @ 2.10GHz, 4 vCPU, go version go1.24.4 linux/amd64, idle
+
+| Benchmark | What it times | p50 | p99 |
+|---|---|---|---|
+| BenchmarkLatencyParse | `parse.Parse` | 23.89 ms | 33.42 ms |
+| BenchmarkLatencyLower | `lower.Lower` and its position map | 34.55 ms | 46.27 ms |
+| BenchmarkLatencyAnalyze | `infer.Analyze` | 20.60 ms | 34.90 ms |
+| BenchmarkLatencyOpen | LSP `OpenDocument`: parse, lower, analyze | 83.37 ms | 110.3 ms |
+| BenchmarkLatencyEdit | a 1-char edit, full re-open | 77.31 ms | 116.7 ms |
+
+The target above is < 10 ms p99 for the 1-char edit; whether these numbers
+keep it, and what step 6-7 work follows, is perigrin's ruling (01a17969-45ba).
+
 ### M3 — The oracle turns on, at scale
 
 **Corpus:** T2 + T3 volume (perl5 `op mro uni lib test_pl`, 347 files).
