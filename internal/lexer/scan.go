@@ -905,10 +905,10 @@ func scanAngle(l *lexer) bool {
 	//
 	// After a word no keyword table settles, where the expect state is only
 	// a hedge (see afterUserWord), a `<` with a blank after it compares,
-	// and `<<` shifts: perl 5.44.0 reads `A:A<` + newline + `0>0` as `'A' <
-	// 0 > 0` and `A<<` the same way as `'A' << 0 > 0`, which canon writes on
-	// one line, and a readline there re-read differently.
-	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || l.src[l.pos+1] == '<') && l.afterUserWord(len(l.toks), false) {
+	// as `<=` does, and `<<` shifts: perl 5.44.0 reads `A:A<` + newline +
+	// `0>0` as `'A' < 0 > 0`, and `A<<` and `A<=` the same way, which canon
+	// writes on one line, and a readline there re-read differently.
+	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || byteIn(l.src[l.pos+1], "<=")) && l.afterUserWord(len(l.toks), false) {
 		return false
 	}
 	j := l.pos + 1

@@ -195,7 +195,12 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 		// And the list's separator after that pair: FuzzParser's
 		// `(((),),,0)`, written `(((),) 0)`, a call of `()`.
 		"(((),),0)":  "(((),), 0)",
-		"(((),),,0)": "(((),), 0)",
+		"(((),),,0)": "(((),), , 0)",
+		// The parser keeps the one inside ahead of these: FuzzParser's
+		// `(((),),,,0)` lost it, and canon then misplaced one.
+		"(((),),,,0)": "(((),), , , 0)",
+		// And more than one inside: FuzzParser's `A:(((),,)%$!)`.
+		"A:(((),,)%$!)": "A: (((), ,) % $!)",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -222,7 +227,7 @@ func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
 // lexed as a readline. A declared sub's `<STDIN>` still reads a line.
 func TestSpacedAngleAfterWordCompares(t *testing.T) {
 	// And a shift, `A:A<<` + newline + `0>0`.
-	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0"} {
+	for src, want := range map[string]string{"A:A<\n0>0": "A: A < 0 > 0", "A < 0 > 0": "A < 0 > 0", "sub f {} f <STDIN>;": "sub f {} f <STDIN>;", "A:A<<\n0>0": "A: A << 0 > 0", "A:A<=\n0>0": "A: A <= 0 > 0"} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}

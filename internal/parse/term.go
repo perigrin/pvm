@@ -1093,7 +1093,15 @@ func keepSeps(items []*Node, seps []string, min int) {
 	if len(items) == 0 || len(seps) < min {
 		return
 	}
-	items[len(items)-1].TrailingComma = strings.Join(seps, " ")
+	// A parenthesised List keeps the separators inside its outer pair,
+	// `((),)`, ahead of these: overwritten, `(((),),,0)` lost them, and
+	// canon could not tell which of the rest stood inside.
+	last := items[len(items)-1]
+	if last.Kind == List && last.TrailingComma != "" {
+		last.TrailingComma += " " + strings.Join(seps, " ")
+		return
+	}
+	last.TrailingComma = strings.Join(seps, " ")
 }
 
 // markTrailing records a separator with no element after it on the element
