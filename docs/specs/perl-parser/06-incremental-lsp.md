@@ -1272,6 +1272,47 @@ verify the edit is interior to a single trivia token, not merely that the edited
 *bytes* are whitespace, or inserting a newline that terminates a `#` comment
 sneaks through.
 
+**As landed** (`internal/parse/incremental.go`). Triage decides on
+**tokens, not text**: matching source text always misses a spelling
+(`use\tconstant`, `q|a|`). `triage(old, src, e)` lexes the old source and
+the edited one, and `diffTokens` finds the longest prefix the two token
+streams share (ending at or before the edit) and the longest suffix they
+share once the old tokens are shifted by the edit's delta (starting at or
+after it). Only the tokens between, on each side, are examined. It also reads
+the tree the document's `Session` parsed, resolver and all. `Strategy` is
+`StrategyReuseAll`, `StrategyLocal`, `StrategyFull`. The limits are
+`maxEditBytes` = 64 KiB and `maxLocalEdit` = 1,024 bytes, each measured as the
+larger of the bytes deleted and the bytes inserted, and `maxLocalLines` = 10
+newlines in the inserted text: 1,024 bytes and 10 newlines are still local,
+1,025 and 11 are full. In place of `introducesGlobalTrigger`, an edit is full
+when the changed tokens on either side:
+
+- **hold a trigger word**, a `Word` token reading `use`, `no`, `require`,
+  `BEGIN`, `sub`, `package`, `class`, `format`, `__END__` or `__DATA__`
+  (B1-B7, A8, A10), whatever whitespace follows it;
+- **hold a trigger kind**: a comment (A9), POD (A7), a heredoc introducer or
+  body (A2, A3), a format body, the data section, a prototype (B1), or a
+  construct left unterminated;
+- **do not nest**: their `(`, `[`, `{` and closers, counted as
+  `refuseUnclosedOpener` counts them, must balance without ever closing more
+  than they opened, which catches `}{` (C1, C2, C4);
+- **reach outside the anchor** `widen` would choose (old side) or its shifted
+  span (new side). The suffix runs to end of file, so this is the token
+  stream resyncing at or before the anchor's end; a quote-like or regex that
+  loses its closer (A1, A4, A5) re-lexes past it.
+
+An edit **touching** (or abutting) a `use`/`no`/`require`, a `BEGIN` block, a
+prototype, or a `sub`, `package` or `class` declaration anywhere but strictly
+inside its block is also full (chapter 7 §7.7.3's prototype row): renaming a
+sub changes only a `Word`, which no token rule sees.
+
+**`StrategyReuseAll`** is exactly one token changed on each side, strictly
+inside, into one of the same kind: whitespace, a comment or POD. Every other
+token only shifts, so a newline that ends a comment, or whitespace that joins
+or splits tokens, is not reuse-all. A string's body is **not** reuse-all,
+though the paragraph above lists it: the string node's `Text` changes, so
+shifting offsets alone would not equal a fresh parse.
+
 ### 6.5.2 Widening to a safe boundary
 
 For `StrategyLocal`, widen the raw edit range outward until both ends sit on
@@ -1329,6 +1370,59 @@ against a budget measured in milliseconds (§6.10.2). Chapter 5 §5.14's table
 also admits bare and control-flow blocks; narrow to them only if step 4 of
 §6.11 shows sub-level re-parse missing the budget on oversized subs. Do not
 anchor at single statements — chapter 5 §5.14 says why.
+
+**As landed** (`internal/parse/incremental.go`). `widen(old, src, e)` returns
+a `lexer.Checkpoint` and the anchor node. The anchor is the **top-level
+statement** holding the edit when the path down to the edit enters a sub's
+body (strictly inside its braces) and passes through no `use`, `BEGIN` block
+or declaration head; otherwise it is the `SourceFile` root, a full reparse.
+So an edit at top level, between subs, in a `package NAME BLOCK`'s own code,
+or inside a `use`, a `BEGIN` (even inside a sub declared there) or a
+`package NAME;` widens to the whole file. A sub inside a top-level `package
+NAME BLOCK`, bare block or `if` anchors at that whole statement, past the
+block: a nested parser snapshot (§6.5.3) resumes only to the block's `}` and
+returns no post-block state, while a top-level one resumes to end of file.
+Every anchor but the root therefore holds a top-level parser snapshot at its
+start. The checkpoint is the last the lexer recorded at or before the
+anchor's start, never after it; it comes from re-lexing the old source until
+the token cache (§6.3.2) exists. A call whose prototype a module installed is
+widened as the Session parsed it, and lies wholly inside its anchor.
+
+**What Repair must still check.** Triage over-approximates, but it sees only
+tokens, so the reuse it permits is safe only together with Repair's own
+checks; Repair returns ok=false when any fails:
+
+0. **A top-level parser snapshot starts at the anchor.** Repair resumes
+   from it; when none starts at the anchor's start, it returns ok=false.
+1. **The re-parsed anchor ends where the old one did.** After one statement
+   is read from that snapshot over the edited source, the first unconsumed
+   token must start at the anchor's shifted end (`End` plus the edit's
+   delta), or the parser must be at end of input when the anchor's shifted
+   end is the end of the edited source. A parse error can make a statement
+   swallow the sub's `}` and what follows while every token is unchanged
+   (`return` edited to `re%n` inside a sub does), and no token rule sees
+   that.
+2. **The parser state there equals the old one.** The parser after that
+   statement must equal the old parse's snapshot after the anchor
+   (`sameState`, with its token index moved by the change in token count),
+   or the statements after the anchor would read differently: this is what
+   carries a `use`, a sub declaration or a lexical declared inside the
+   anchor to the rest of the file. Both parses use the Session's resolver,
+   since that is the tree triage read: under one, a sub body edit can change
+   the state a module's prototype left (`floor 1, 2` to `floor --, 2` after
+   `use POSIX qw(floor)`) where a bare parse sees no difference. The token
+   index in that comparison already implies check 1, except when the anchor
+   is the last top-level statement and no snapshot follows it.
+3. **Modules read the same bytes** (chapter 7 §7.7.3's prototype row): any
+   module the old parse loaded that now resolves to different bytes.
+4. **The EOF passes run again** over the spliced tree (`finish`, §6.5.3).
+
+`TestTriageSweepNoLeak` and `FuzzTriage` (`internal/parse`) hold the
+property on Session trees: for a random edit triaged `StrategyLocal` whose
+Repair checks 0 to 2 pass (`repairAccepts`), or triaged `StrategyReuseAll`,
+every top-level statement before the
+anchor equals the fresh parse's and every one after it equals the fresh
+parse's shifted by the delta (`TreeDiff`, `TreeDiffShifted`).
 
 ### 6.5.3 The repair loop
 

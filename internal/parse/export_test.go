@@ -96,3 +96,13 @@ func FaithfulStop(n *Node, src []byte) (w, g int, differs bool) {
 	}
 	panic("FaithfulStop: unrecognised verdict " + why)
 }
+
+// Triage is triage's strategy name, for TestTriageMatchesDefinedInvalidation
+// (incremental_fuzz_test.go), whose §7.7.3 table holds strategy names.
+func Triage(old *Node, src []byte, e Edit) string { return triage(old, src, e).String() }
+
+// WidenAnchor is the span of the node widen anchors e at, for the same test.
+func WidenAnchor(old *Node, src []byte, e Edit) (start, end int) {
+	_, n := widen(old, src, e)
+	return n.Start, n.End
+}

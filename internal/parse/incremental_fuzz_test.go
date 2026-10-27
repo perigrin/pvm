@@ -86,8 +86,8 @@ func checkIncremental(t *testing.T, src string, e parse.Edit) string {
 }
 
 // incrementalSeed is one §7.7.3 row: the edit, and the row's "Defined
-// invalidation" column, which the triage and prototype issues assert. This
-// table asserts only splice == fresh.
+// invalidation" column. TestIncrementalEditSeeds asserts splice == fresh,
+// TestTriageMatchesDefinedInvalidation the triage column.
 type incrementalSeed struct {
 	name     string
 	src      string
@@ -118,8 +118,8 @@ const (
 var incrementalSeeds = []incrementalSeed{
 	{"insert-quote", seedSub, insertAt(seedSub, "= ", `"`), "StrategyFull", false},
 	{"insert-heredoc", seedSub, insertAt(seedSub, "1;\n", "  print <<EOF;\n"), "StrategyFull", false},
-	{"delete-heredoc-terminator", heredocSub, replaceFirst(heredocSub, "EOF\n", ""), "StrategyLocal", false},
-	{"pod", seedSub, insertAt(seedSub, "1;\n", "=pod\n"), "StrategyLocal", false},
+	{"delete-heredoc-terminator", heredocSub, replaceFirst(heredocSub, "EOF\n", ""), "StrategyFull", false},
+	{"pod", seedSub, insertAt(seedSub, "1;\n", "=pod\n"), "StrategyFull", false},
 	{"end", seedSub, insertAt(seedSub, "1;\n", "__END__\n"), "StrategyFull", false},
 	{"prototype", protoSrc, insertAt(protoSrc, "sub f(", `\@`), "StrategyFull", false},
 	{"insert-brace", seedSub, insertAt(seedSub, "1;\n", "{\n"), "StrategyFull", false},
@@ -160,6 +160,27 @@ func TestIncrementalEditSeeds(t *testing.T) {
 				if err != nil || string(got) != want {
 					t.Errorf("%s/%s: want\n%s\ngot (err %v)\n%s", dir, s.name, want, err, got)
 				}
+			}
+		})
+	}
+}
+
+// TestTriageMatchesDefinedInvalidation: triage of each §7.7.3 row, on the
+// tree a Session parsed, is the row's defined invalidation, and a
+// StrategyLocal row is anchored at its enclosing sub, `sub f`.
+func TestTriageMatchesDefinedInvalidation(t *testing.T) {
+	for _, s := range incrementalSeeds {
+		t.Run(s.name, func(t *testing.T) {
+			old := parse.NewSession().ParseSourceFrom(incPath, []byte(s.src), incRoot)
+			if got := parse.Triage(old, []byte(s.src), s.edit); got != s.triage {
+				t.Fatalf("triage %s, want %s", got, s.triage)
+			}
+			if s.triage != "StrategyLocal" {
+				return
+			}
+			start, end := parse.WidenAnchor(old, []byte(s.src), s.edit)
+			if anchor := s.src[start:end]; !strings.HasPrefix(anchor, "sub f {") || !strings.HasSuffix(anchor, "}") {
+				t.Errorf("anchor %q, want the enclosing sub", anchor)
 			}
 		})
 	}
