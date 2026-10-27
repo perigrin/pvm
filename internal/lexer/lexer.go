@@ -621,8 +621,10 @@ func (l *lexer) emit(k Kind, start int) {
 	}
 
 	// A glob's name, as a sub's after `&`, is a whole term whatever keyword
-	// it spells: perl 5.44.0 reads `*gt*&;` as `*gt * &;`.
-	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start
+	// it spells: perl 5.44.0 reads `*gt*&;` as `*gt * &;`. Not after an
+	// undeclared word, whose `*` multiplies: `A*A{0}` is `'A' * A {0}`.
+	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start &&
+		!l.afterUserWord(len(l.toks)-2, true)
 	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
 		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
 	l.expect = l.expect.after(k, transition{

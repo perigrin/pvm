@@ -615,9 +615,15 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
 	tok, _ := p.peekSignificant()
 	p.advanceTo(tok)
 
-	// An empty subscript or call -- `f()`, `$r->()` -- has no inner
-	// expression, which is not a failure.
+	// An empty call -- `f()`, `$r->()` -- has no inner expression, which is
+	// not a failure. An empty subscript is: perl 5.44.0 has `$h{}`, `$a[]`
+	// and `$r->{}` each a syntax error, and FuzzParser's `($0{},)` canon'd
+	// with its comma doubled.
 	children := []*Node{left}
+	if c, ok := p.peekSignificant(); ok && open != "(" && p.text(c) == closerFor(open) {
+		children = append(children, p.refuseNotATerm(c))
+		return &Node{Kind: Index, Text: open, Start: left.Start, End: p.prevEnd(), Children: children}
+	}
 	if c, ok := p.peekSignificant(); !ok || p.text(c) != closerFor(open) {
 		was := p.inHashKey
 		p.inHashKey = open == "{"

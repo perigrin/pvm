@@ -136,6 +136,10 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 		"&gt*&;": "&gt * &;;",
 		// And a glob's name: FuzzParser's `*gt*&;`.
 		"*gt*&;": "*gt * &;;",
+		// But no word after an undeclared word's `*`, which multiplies:
+		// FuzzParser's `A*A{0}` is `'A' * A {0}`.
+		"A*A{0}": "A * A {0;}",
+		"*A{0};": "*A{0};",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)
@@ -256,7 +260,8 @@ func TestIncrementOverPrefixCanon(t *testing.T) {
 func TestNumberTakesNoSubscript(t *testing.T) {
 	// Nor is `&{}` a call: FuzzParser's `(&{},)`, perl's syntax error near
 	// "&{", read as a subscript on a bare `&`.
-	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])", "(&{},)", "&{};"} {
+	// Nor is an empty subscript one: FuzzParser's `($0{},)`.
+	for _, src := range []string{"A{},(0{},)", "(0{},)", "(0[1])", "(&{},)", "&{};", "($0{},)", "my %h; $h{}", "my @a; $a[]", "my $r; $r->{}"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
