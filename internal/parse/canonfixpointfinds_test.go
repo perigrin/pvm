@@ -259,6 +259,17 @@ func TestPostfixIncrementEndsTerm(t *testing.T) {
 	}
 }
 
+// TestSpacedPercentAfterWordIsModulus: perl 5.44.0 reads `A% #` + newline
+// + `<<0` as `'A' % <<0`. Canon wrote `A % <<0`, where `% <` lexed as a
+// hash named `<`.
+func TestSpacedPercentAfterWordIsModulus(t *testing.T) {
+	for src, want := range map[string]string{"A% #\n<<0;;0\n0": "A % <<0;;0\n0", "A % 2;": "A % 2;"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's

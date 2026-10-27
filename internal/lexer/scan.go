@@ -41,6 +41,13 @@ func scanVariable(l *lexer) bool {
 	if c == '%' && !l.expect.wantsTerm() && !l.containerTypeSigil() {
 		return false
 	}
+	// Nor after a word no keyword table settles, where the expect state is
+	// only a hedge (see afterUserWord), before a blank: perl 5.44.0 reads
+	// `A% #` + newline + `<<0` as `'A' % <<0`, which canon writes `A % <<0`,
+	// and a hash named `<` there re-read differently.
+	if c == '%' && l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), false) {
+		return false
+	}
 
 	l.pos++
 	// A sigil that ends the file has no name: perl 5.42 says "syntax error
