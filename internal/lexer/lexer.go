@@ -228,7 +228,9 @@ var BarewordOperators = []string{"=>"}
 // TokenizeBarewords is Tokenize with the operators whose left operand is
 // read as a word, `s => 1` quoting `s` rather than opening a substitution.
 func TokenizeBarewords(src []byte, barewordOps []string) []Token {
-	return tokenize(&lexer{src: src, expect: XState, barewordOps: barewordOps})
+	l := StartStateBarewords(barewordOps).l
+	l.src = src
+	return tokenize(&l)
 }
 
 // TokenizeTyped is Tokenize for typed Perl, the language of a `.tpm`
@@ -240,7 +242,9 @@ func TokenizeBarewords(src []byte, barewordOps []string) []Token {
 // An operator is declared under its symbol, `sub + :infix(ADD) ...`, so the
 // symbol after `sub` is read as the sub's name; see scanOperatorName.
 func TokenizeTyped(src []byte) []Token {
-	return tokenize(&lexer{src: src, expect: XState, signatures: true, typed: true, barewordOps: BarewordOperators})
+	l := StartStateTyped().l
+	l.src = src
+	return tokenize(&l)
 }
 
 func tokenize(l *lexer) []Token {
