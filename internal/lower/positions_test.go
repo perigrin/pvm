@@ -60,12 +60,12 @@ func TestPositionMapPreservesSourceOrder(t *testing.T) {
 	}
 }
 
-// An Unknown lowers to an opaque Hole (§4.14.2, Hole row), and every byte
-// it covers resolves to that Hole, the bytes of its own children included,
-// so the LSP answers "no information" there rather than a type. Perl
-// rejects both programs.
+// An Unknown, or the Error node a catch-all refusal builds, lowers to an
+// opaque Hole (§4.14.2, Hole row), and every byte it covers resolves to that
+// Hole, the bytes of its own children included, so the LSP answers "no
+// information" there rather than a type. Perl rejects both programs.
 func TestPositionMapInsideHole(t *testing.T) {
-	src := "$x = ;"
+	src := "$x = );"
 	_, f, p := positions(src)
 	hole := lower.Children(lower.Children(f.Stmts[0])[0])[1] // the Assign's R
 	if got := p.At(5); got != hole || reflect.TypeOf(got) != reflect.TypeOf(&lower.Hole{}) {

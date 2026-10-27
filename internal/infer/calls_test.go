@@ -316,7 +316,7 @@ func TestArityCheckReachable(t *testing.T) {
 	} {
 		var refused func(n *parse.Node) bool
 		refused = func(n *parse.Node) bool {
-			return n.Kind == parse.Unknown || slices.ContainsFunc(n.Children, refused)
+			return n.Refused() || slices.ContainsFunc(n.Children, refused)
 		}
 		if refused(parse.Parse([]byte(src))) {
 			t.Errorf("%q: the parser refuses it", src)

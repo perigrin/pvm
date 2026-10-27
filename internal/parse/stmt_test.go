@@ -48,10 +48,10 @@ func TestSourceFileIsStatements(t *testing.T) {
 		// to a single node is the regression this now catches.
 		var stmts, unknowns int
 		for _, n := range root.Children {
-			switch n.Kind {
-			case parse.Statement, parse.Block:
+			switch {
+			case n.Kind == parse.Statement, n.Kind == parse.Block:
 				stmts++
-			case parse.Unknown:
+			case n.Refused():
 				unknowns++
 			}
 		}

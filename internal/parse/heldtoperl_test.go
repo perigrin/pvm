@@ -799,7 +799,7 @@ func TestFcntlBareUseOmitsFlockConstants(t *testing.T) {
 
 // containsUnknown is whether n or any descendant is an Unknown node.
 func containsUnknown(n *Node) bool {
-	if n.Kind == Unknown {
+	if n.Refused() {
 		return true
 	}
 	for _, c := range n.Children {

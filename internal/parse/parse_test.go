@@ -156,9 +156,10 @@ func TestParserForwardProgress(t *testing.T) {
 			t.Errorf("%q: round-trip failed, output %q", src, got)
 		}
 		// Every node below the root must span at least one byte, or the loop
-		// that made it did not advance.
+		// that made it did not advance. A Missing node is zero-width by
+		// definition: a token the source did not supply (§6.8.2).
 		for _, n := range allNodes(root) {
-			if n.Kind == parse.SourceFile {
+			if n.Kind == parse.SourceFile || n.Kind == parse.Missing {
 				continue
 			}
 			if n.End <= n.Start {
@@ -182,7 +183,7 @@ func allNodes(n *parse.Node) []*parse.Node {
 func collect(n *parse.Node, k parse.Kind) []*parse.Node {
 	var out []*parse.Node
 	for _, m := range allNodes(n) {
-		if m.Kind == k {
+		if isKind(m, k) {
 			out = append(out, m)
 		}
 	}

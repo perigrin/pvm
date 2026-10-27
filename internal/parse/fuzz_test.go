@@ -110,12 +110,12 @@ func TestFuzzSeedsCanonFixpoint(t *testing.T) {
 }
 
 // checkCanonFixpoint asserts canonMatches on src when src parses with no
-// Unknown, and reports whether it did. Fixpoint only, not that the emission
-// parses: a refused emission can still be stable, and the targeted canon
-// tests carry the parse check.
+// Unknown, Error or Missing node, and reports whether it did. Fixpoint only,
+// not that the emission parses: a refused emission can still be stable, and
+// the targeted canon tests carry the parse check.
 func checkCanonFixpoint(t *testing.T, src string) bool {
 	t.Helper()
-	if firstUnknown(parse.Parse([]byte(src))) != nil {
+	if root := parse.Parse([]byte(src)); firstUnknown(root) != nil || root.HasError {
 		return false
 	}
 	if ok, why := canonMatches([]byte(src)); !ok {
@@ -147,7 +147,7 @@ func checkParseInvariants(t *testing.T, src string) {
 			t.Fatalf("%q: node %v spans [%d,%d), out of bounds for %d bytes",
 				src, n.Kind, n.Start, n.End, len(src))
 		}
-		if n.Kind != parse.SourceFile && n.End == n.Start {
+		if n.Kind != parse.SourceFile && n.Kind != parse.Missing && n.End == n.Start {
 			t.Fatalf("%q: node %v is empty; the loop that made it did not advance",
 				src, n.Kind)
 		}

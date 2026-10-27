@@ -127,7 +127,7 @@ func TestIDOverBrokenTree(t *testing.T) {
 	unclosed := parse.Parse([]byte("if ($x) {"))
 	var withChildren *parse.Node
 	for _, n := range everyNode(unclosed) {
-		if n.Kind == parse.Unknown && len(n.Children) > 0 {
+		if n.Refused() && len(n.Children) > 0 {
 			withChildren = n
 		}
 	}
@@ -143,7 +143,7 @@ func TestIDOverBrokenTree(t *testing.T) {
 
 	sawUnknown := false
 	for _, n := range everyNode(namedSubs(broken)["a"]) {
-		sawUnknown = sawUnknown || n.Kind == parse.Unknown
+		sawUnknown = sawUnknown || n.Refused()
 	}
 	if !sawUnknown {
 		t.Fatal("want an Unknown inside the broken sub a")

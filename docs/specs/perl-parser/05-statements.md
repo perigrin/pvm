@@ -2766,6 +2766,10 @@ are hardcoded constants elsewhere.
 
 Define the error vocabulary you emit. Add variants when you emit them.
 
+This parser emits two: `parse.Error` and `parse.Missing`
+(`internal/parse/recovery.go`), both constructed today, as chapter 6 §6.8.2
+describes. No other recovery kind is declared.
+
 ---
 
 ## 5.14 Safe re-parse boundaries

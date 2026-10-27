@@ -22,7 +22,7 @@ func refusalsIn(root *Node) []RefusalCode {
 	var codes []RefusalCode
 	var walk func(*Node)
 	walk = func(n *Node) {
-		if n.Kind == Unknown {
+		if n.Refused() {
 			codes = append(codes, n.Refusal)
 		}
 		for _, c := range n.Children {

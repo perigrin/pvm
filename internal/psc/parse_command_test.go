@@ -151,12 +151,13 @@ func TestParseCommandRejectsUnknownFormat(t *testing.T) {
 }
 
 // TestParseCommandOnBrokenFile: on a file perl rejects, the CST shows the
-// Unknown with its refusal code, the lowered tree a Hole, and both exit 0.
+// refusal with its code -- here a catch-all, so an Error node -- the lowered
+// tree a Hole, and both exit 0.
 func TestParseCommandOnBrokenFile(t *testing.T) {
-	src := "my $x = ;\n"
+	src := "my $x = );\n"
 	cst, err := runParse(t, src, "--tree", "cst")
 	require.NoError(t, err)
-	assert.Contains(t, cst, "unknown refusal=not_a_term")
+	assert.Contains(t, cst, "error refusal=not_a_term")
 
 	lowered, err := runParse(t, src, "--tree", "lowered")
 	require.NoError(t, err)

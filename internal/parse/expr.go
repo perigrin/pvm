@@ -398,18 +398,23 @@ func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
 	return ok && (p.text(next) == "," || p.text(next) == ")")
 }
 
-// operand parses a right-hand operand, substituting an explicit Unknown when
-// the input ran out.
+// operand parses a right-hand operand, substituting a zero-width Missing
+// node carrying missing_operand when there is none: the input ran out, or a
+// `;` or `}` follows, which ends the statement or block rather than being
+// read as a term that is not one (R-g, recovery.go).
 //
 // Every infix and prefix form needs this, and putting it in one place is the
 // point: a nil check repeated at eleven call sites is a nil check forgotten
-// at one of them. The Unknown spans the operator that has no operand, so the
-// bytes stay in the tree and the failure is visible rather than silent.
+// at one of them. The Missing node sits at the operator's end, so the
+// operator's bytes stay with the node that holds it.
 func (p *parser) operand(bp int, after lexer.Token) *Node {
+	if p.operandAbsent() {
+		return p.missingOperand(after)
+	}
 	if n := p.parseExpr(bp); n != nil {
 		return n
 	}
-	return &Node{Kind: Unknown, Refusal: MissingOperand, Start: after.Start, End: after.End}
+	return p.missingOperand(after)
 }
 
 // parseNonassoc builds the node and then rejects a repetition.

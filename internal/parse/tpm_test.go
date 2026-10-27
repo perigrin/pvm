@@ -538,7 +538,7 @@ func TestMultiOnlyInTpm(t *testing.T) {
 	// sub f { 1 }`, "syntax error at -e line 1, near "multi sub f "", and
 	// the parse does not accept it.
 	bad := Parse([]byte("multi sub f { 1 }\n"))
-	if len(bad.Children) == 0 || bad.Children[0].Kind != Unknown {
+	if len(bad.Children) == 0 || !bad.Children[0].Refused() {
 		t.Errorf("multi sub in ordinary source: got %+v, want it refused as Unknown", bad.Children)
 	}
 }

@@ -340,7 +340,7 @@ func TestContinueRejectedFormsStay(t *testing.T) {
 
 func countKind(n *parse.Node, k parse.Kind) int {
 	total := 0
-	if n.Kind == k {
+	if isKind(n, k) {
 		total++
 	}
 	for _, c := range n.Children {

@@ -261,7 +261,7 @@ func unknownNodes(n *parse.Node) []*parse.Node {
 		return nil
 	}
 	var out []*parse.Node
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		out = append(out, n)
 	}
 	for _, c := range n.Children {

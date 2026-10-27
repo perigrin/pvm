@@ -5,6 +5,7 @@ package parse
 
 import (
 	"maps"
+	"slices"
 	"sort"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -168,6 +169,20 @@ const (
 	// TypeName is the class of a typed lexical, `my Foo $f`: the first child
 	// of its Declaration, ahead of the variable.
 	TypeName
+
+	// Error is source the parser could not fit into the grammar, §6.8.2's
+	// error node: a real span, the bytes a catch-all refusal swallowed. It
+	// stands where an Unknown carrying not_a_term, trailing_tokens or
+	// not_an_expression stood, carries that code in Refusal, and is read
+	// through Refused as that Unknown was. See recovery.go.
+	Error
+
+	// Missing is a zero-width node for a token the grammar required and the
+	// source did not supply, §6.8.2's missing node. Text is the token -- `;`,
+	// `}`, `)` or `]` -- or empty for a missing identifier; one standing for
+	// an operand carries missing_operand in Refusal instead. It has no
+	// children and Start == End. See recovery.go.
+	Missing
 )
 
 func (k Kind) String() string {
@@ -224,6 +239,10 @@ func (k Kind) String() string {
 		return "phaser"
 	case TypeName:
 		return "type_name"
+	case Error:
+		return "error"
+	case Missing:
+		return "missing"
 	}
 	return "?"
 }
@@ -306,8 +325,16 @@ type Node struct {
 	// operator would start seeing refusal codes.
 	//
 	// Empty is a refusal with no code, which no site produces and
-	// TestEveryUnknownSiteHasACode forbids.
+	// TestEveryUnknownSiteHasACode forbids. An Error node, and a Missing
+	// node standing for an operand, carry the code of the Unknown they
+	// replace (recovery.go).
 	Refusal RefusalCode
+
+	// HasError is set on an Error or Missing node and on every node above
+	// one, §6.8.2's subtree-error flag, and nowhere else. Set as the tree is
+	// built (markErrors), so reading it is a field read rather than a walk:
+	// Repair tests it on every candidate subtree (§6.8.5).
+	HasError bool
 
 	// Resolved is set on a Call whose callee this parser knows -- a builtin,
 	// or a sub declared in this file. False means "a call to something I
@@ -662,8 +689,11 @@ func parseWith(p *parser) (*Node, *parser) {
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
 	res := p.res
 	for p.pos < len(p.toks) {
-		before := p.pos
+		before, recovered := p.pos, p.recovered
 		if n := p.statement(); n != nil {
+			if p.recovered != recovered && markErrors(n) {
+				root.HasError = true
+			}
 			root.Children = append(root.Children, n)
 		}
 		// Forward progress, asserted rather than assumed. The lexer learned
@@ -725,8 +755,20 @@ func parseWith(p *parser) (*Node, *parser) {
 // after a `&`, other than `{`, is neither: it is the name of the sub the `&`
 // calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
 // Nor is a Word: the lexer makes a glob's punctuation name one, `*(`.
+//
+// Each bracket still open gets its zero-width Missing closer (§6.8.2) as a
+// child of the Unknown, after the token, so the constructs it leaves open
+// close: one `}`, `)` or `]` per opener, innermost first. Where a refusal
+// already holds the last token, that refusal gains the closers instead,
+// only for the openers before it, since a bracket inside a refusal was never
+// structure. A specific refusal's own first bracket counts -- `map {`'s
+// brace opens unclosed_brace's span -- and a catch-all's does not: the
+// count can misread it, and `(&@)`, a trailing_tokens perl compiles, would
+// gain a `)` to report. A nesting_too_deep decline is a stack guard, not a
+// syntax error, and gains none, so 10,000 open brackets synthesize no
+// closer past maxDepth.
 func (p *parser) refuseUnclosedOpener(root *Node) {
-	depth := 0
+	var starts []int // where each bracket still open opened
 	var last lexer.Token
 	for _, tok := range p.toks {
 		if isTrivia(tok.Kind) {
@@ -739,17 +781,18 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		}
 		switch p.src[tok.Start] {
 		case '(', '[', '{':
-			depth++
+			starts = append(starts, tok.Start)
 		case ')', ']', '}':
-			if depth > 0 {
-				depth--
+			if len(starts) > 0 {
+				starts = starts[:len(starts)-1]
 			}
 		}
 	}
-	if depth == 0 && !p.attrOpenAtEOF {
+	if len(starts) == 0 && !p.attrOpenAtEOF {
 		return
 	}
 	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, Start: last.Start, End: last.End}
+	path := []*Node{root}
 	n := root
 	for {
 		i := len(n.Children) - 1
@@ -760,19 +803,36 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 			// No child holds the token: it is n's own, and nothing of n's
 			// follows it, since it is the file's last.
 			n.Children = append(n.Children[:i+1], append([]*Node{u}, n.Children[i+1:]...)...)
-			return
+			break
 		}
 		c := n.Children[i]
-		if c.Kind == Unknown {
+		if c.Refused() {
 			// Already refused, by a site that knew more.
-			return
+			if c.Refusal == NestingTooDeep {
+				return
+			}
+			u = c
+			for len(starts) > 0 && (starts[len(starts)-1] > c.Start ||
+				starts[len(starts)-1] == c.Start && CatchAll(c.Refusal)) {
+				starts = starts[:len(starts)-1]
+			}
+			break
 		}
 		if c.Start == last.Start && c.End == last.End {
 			u.Children = []*Node{c}
 			n.Children[i] = u
-			return
+			break
 		}
 		n = c
+		path = append(path, n)
+	}
+	if len(starts) == 0 {
+		return
+	}
+	u.Children = append(u.Children, p.closers(starts, last.End)...)
+	u.HasError = true
+	for _, n := range path {
+		n.HasError = true
 	}
 }
 
@@ -793,6 +853,10 @@ type parser struct {
 	// depth is how many parseTerm, parseInfix and parseBlock frames are
 	// active, which refuseTooDeep holds to maxDepth.
 	depth int
+
+	// recovered counts the Error and Missing nodes built so far; see
+	// recover.
+	recovered int
 
 	// attrOpenAtEOF is set when an attribute's `(` argument ran to end of
 	// file without its `)`: perl's "Unterminated attribute parameter". The
@@ -1315,10 +1379,17 @@ func (p *parser) statementForm() *Node {
 			// do for an expression statement below. Unchecked, `my $w = bar
 			// $r;` -- a call that declined its argument -- became two
 			// statements, `my $w = bar();` and `$r;`, at Unknown=0.
+			var semi *Node
 			if !p.declarationEnded(d) {
-				return p.refuseTrailingTokens(start)
+				if semi = p.missingSemicolon(); semi == nil {
+					return p.refuseTrailingTokens(start)
+				}
 			}
-			return p.withLabels(labels, d, start)
+			n := p.withLabels(labels, d, start)
+			if semi != nil {
+				n.Children = slices.Insert(n.Children, len(labels)+1, semi)
+			}
+			return n
 		}
 
 		// A statement FORM this milestone has not reached is not an
@@ -1341,7 +1412,7 @@ func (p *parser) statementForm() *Node {
 	expr := p.parseExpr(0)
 	if expr == nil {
 		p.skipToStatementEnd()
-		return &Node{Kind: Unknown, Refusal: NotAnExpression, Start: start, End: p.prevEnd()}
+		return p.recover(&Node{Kind: Error, Refusal: NotAnExpression, Start: start, End: p.prevEnd()})
 	}
 
 	// A statement modifier, which inverts the tree: `print if $x` is a
@@ -1374,9 +1445,15 @@ func (p *parser) statementForm() *Node {
 	// Without this exception `defer.t`'s test 11 refused the pair as one
 	// statement, and the `}` of the `if` was left for canon to emit after an
 	// `if` that had already taken `($i == 3)` as a modifier condition.
+	var semi *Node
 	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) &&
 		!endsInBlock(expr) {
-		return p.refuseTrailingTokens(start)
+		if !expr.Refused() {
+			semi = p.missingSemicolon()
+		}
+		if semi == nil {
+			return p.refuseTrailingTokens(start)
+		}
 	}
 
 	// Through the terminating `;` if there is one, so the statement owns its
@@ -1385,7 +1462,7 @@ func (p *parser) statementForm() *Node {
 		p.advanceTo(tok)
 	}
 
-	if expr.Kind == Unknown {
+	if expr.Refused() {
 		// The inner refusal's CODE travels out with it. This site widens
 		// an Unknown from the expression to the whole statement, which is
 		// a change of span and not a change of cause -- stamping a code of
@@ -1396,8 +1473,11 @@ func (p *parser) statementForm() *Node {
 		// The bodies are consumed even so. They belong to an opener inside
 		// the Unknown, and leaving them for the statement loop makes a
 		// SECOND Unknown out of bytes the first already accounts for.
+		//
+		// A catch-all Error widens as the Unknown did, keeping its kind and
+		// any Missing node recovery put inside it.
 		p.takeHeredocBodies()
-		return &Node{Kind: Unknown, Refusal: expr.Refusal, Start: start, End: p.prevEnd()}
+		return &Node{Kind: expr.Kind, Refusal: expr.Refusal, Start: start, End: p.prevEnd(), Children: expr.Children}
 	}
 	// The labels belong on the statement, and this site was dropping them.
 	//
@@ -1412,6 +1492,9 @@ func (p *parser) statementForm() *Node {
 	// p.prevEnd() to cover the `;` just consumed, and withLabels ends at its
 	// child. The label children are the whole of what was missing.
 	children := append(append([]*Node{}, labels...), expr)
+	if semi != nil {
+		children = append(children, semi)
+	}
 	n := &Node{Kind: Statement, Start: start, Children: children}
 	if len(labels) > 0 {
 		n.Start = labels[0].Start
@@ -1696,7 +1779,7 @@ func endsStatement(tok lexer.Token, src []byte) bool {
 // and the declaration statement both reach it.
 func (p *parser) refuseTrailingTokens(start int) *Node {
 	p.skipToStatementEnd()
-	return &Node{Kind: Unknown, Refusal: TrailingTokens, Start: start, End: p.prevEnd()}
+	return p.recover(&Node{Kind: Error, Refusal: TrailingTokens, Start: start, End: p.prevEnd()})
 }
 
 // declarationEnded reports whether a declaration statement has reached its

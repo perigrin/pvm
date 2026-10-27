@@ -122,7 +122,7 @@ func TestAutoquoteShrinksTheUnresolvedSet(t *testing.T) {
 
 // hasKind reports whether n or any descendant has the given kind.
 func hasKind(n *parse.Node, k parse.Kind) bool {
-	if n.Kind == k {
+	if isKind(n, k) {
 		return true
 	}
 	for _, c := range n.Children {

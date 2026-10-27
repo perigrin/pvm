@@ -86,14 +86,16 @@ const t1CorpusNote = "T1 graded is PerlOnJava's unit/*.t at TOP LEVEL. Walking\n
 	"recursively gives 1508 files and adding module/ gives 1935;\n" +
 	"both are different corpora. This is the 986."
 
-// countUnknown counts Unknown nodes in a tree.
+// countUnknown counts Unknown nodes in a tree, and the catch-all Error and
+// Missing nodes that replaced Unknowns (parse.Node.Refused), so recovery
+// moves no baseline.
 //
 // Every Unknown in T1 is a childless leaf as of 3c997a6b, so the recursion is
 // defensive rather than load-bearing. It stays because that is a measured
 // property of today's parser, not an invariant anything enforces.
 func countUnknown(n *parse.Node) int {
 	total := 0
-	if n.Kind == parse.Unknown {
+	if n.Refused() {
 		total = 1
 	}
 	for _, c := range n.Children {
