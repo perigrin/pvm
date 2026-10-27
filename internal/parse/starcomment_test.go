@@ -36,6 +36,18 @@ func TestCanonFixpointOperatorBeforeComment(t *testing.T) {
 // + newline + `;` is `fo *#;`. The parser cannot tell which token stream
 // is perl's, so it refuses the undeclared case -- even the one perl
 // compiles -- and the declared one keeps its glob argument.
+// TestSplitPowerIsExponentiation: where the lexer split `**` as `*` and the
+// glob `**` after a word or a glob's name, the operator perl reads is `**`
+// (perl 5.44.0 -MO=Deparse: `x **2` is `'x' ** 2`, `x***x` is `'x' ** *x`).
+func TestSplitPowerIsExponentiation(t *testing.T) {
+	for _, src := range []string{"my $g = x **2;", "my $g = *x **2;", "print STDOUT *x ** 2;", "x***x;"} {
+		root := parse.Parse([]byte(src))
+		if b := firstOfKind(root, parse.Binary); b == nil || b.Text != "**" {
+			t.Errorf("%q: want a `**` Binary: %v", src, kinds(root))
+		}
+	}
+}
+
 func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	// A quote is the same disagreement as `#`: measured on 5.42.0, `A*"3"`,
 	// `A*'3'` and A*`ls` are `'A' * 3` and `'A' * \`ls\``, a string to perl
@@ -67,7 +79,12 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 		// perl 5.44.0 compiles each: `x ** *x`, and a print to a bareword
 		// handle of the glob `*;`, `*}` or `*#` -- a handle is no
 		// undeclared word's call.
-		"x***x;", "x***$0;", "print STDOUT *;", "say STDOUT *};", "printf STDERR *;", "exec FOO *;", "system FOO *;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+		"x***x;", "x***$0;",
+		// And exponentiation the lexer split as `*` and the glob `**`
+		// before a term, after a word or a glob's name (round 2 of the
+		// gate review): each compiles on 5.44.0.
+		"my $g = x **2;", "my $g = *x **2;", "print *x **2;", "print STDOUT *x**2;", "print STDOUT *x ** 2;",
+		"print STDOUT *;", "say STDOUT *};", "printf STDERR *;", "exec FOO *;", "system FOO *;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
 	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
