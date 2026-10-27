@@ -216,7 +216,10 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 		// And more than one inside: FuzzParser's `A:(((),,)%$!)`.
 		"A:(((),,)%$!)": "A: (((), ,) % $!)",
 		// And a pair around that pair: FuzzParser's `A:(((),))x$0`.
-		"A:(((),))x$0": "A: ((),) x $0",
+		"A:(((),))x$0": "A: (((),)) x $0",
+		// And separators at two levels: FuzzParser's `(((((),),)--))`.
+		"(((),),)":       "(((),),)",
+		"(((((),),)--))": "((((),),)--)",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)

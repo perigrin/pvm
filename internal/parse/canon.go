@@ -202,17 +202,16 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// A List's separator inside a pair around its own, `((1,2),)`, keeps
 	// that pair: written `(1, 2),`, the list ended before `x`, and
 	// FuzzParser's `((),)x*!` re-read differently.
-	// Its first separators are the ones inside, `((),,)`; any more, `((),),`,
-	// are after.
+	// Its first separators are the ones inside, `((),,)`, at every level the
+	// source wrote them, `(((),),)`; any more, `((),),`, are after.
 	outerPair := listOuterPair(n, src)
 	if outerPair {
-		inside, after := splitOuterSeps(n, src)
+		opens, closing, after := splitOuterSeps(n, src)
 		if after != "" {
 			defer b.WriteString(after)
 		}
-		defer b.WriteByte(')')
-		defer b.WriteString(inside)
-		b.WriteByte('(')
+		defer b.WriteString(closing)
+		b.WriteString(strings.Repeat("(", opens))
 	}
 	if !outerPair && n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
 		defer b.WriteString(n.TrailingComma)
@@ -1200,18 +1199,76 @@ func commaInParens(n *Node, src []byte) bool {
 	return n.Kind != List && !foldsSep(n) && sep != ""
 }
 
-// listOuterPair reports whether emit writes List n inside a pair around its
-// own, its first separator inside that pair: see listSepInOuterPair.
+// listOuterPair reports whether emit writes List n inside pairs around its
+// own, with separators inside them: see listWrap.
 func listOuterPair(n *Node, src []byte) bool {
-	return n.Kind == List && n.Paren && !n.SyntaxParen && n.TrailingComma != "" && listSepInOuterPair(n, src) > 0
+	if n.Kind != List || !n.Paren || n.SyntaxParen || n.TrailingComma == "" {
+		return false
+	}
+	_, _, seps := listWrap(n, src)
+	return seps > 0
 }
 
-// splitOuterSeps splits an outer-pair List's TrailingComma into the
-// separators inside that pair and those after it.
-func splitOuterSeps(n *Node, src []byte) (inside, after string) {
+// splitOuterSeps splits an outer-pair List's TrailingComma into the source
+// text of the pairs around its own and the separators after all of them.
+func splitOuterSeps(n *Node, src []byte) (opens int, closing, after string) {
+	opens, closing, k := listWrap(n, src)
 	seps := strings.Fields(n.TrailingComma)
-	k := min(listSepInOuterPair(n, src), len(seps))
-	return strings.Join(seps[:k], " "), strings.Join(seps[k:], " ")
+	k = min(k, len(seps))
+	return opens, closing, strings.Join(seps[k:], " ")
+}
+
+// listWrap reads the pairs the source wrote around List n's own pair inside
+// n's span: how many open before it, the closers and separators after it as
+// canon writes them, and how many separators those hold. A List's span is
+// its outermost pair's, and it records no inner one; FuzzParser's
+// `(((),),)` holds a separator at each of two levels.
+func listWrap(n *Node, src []byte) (opens int, closing string, seps int) {
+	toks := significant(src[n.Start:n.End])
+	text := func(i int) string { return string(src[n.Start+toks[i].Start : n.Start+toks[i].End]) }
+	// The list's own `(`: the last before its first element, or the last of
+	// the leading run for an empty list.
+	own := -1
+	for i := range toks {
+		if text(i) != "(" {
+			break
+		}
+		if len(n.Children) > 0 && n.Start+toks[i].Start >= n.Children[0].Start {
+			break
+		}
+		own = i
+	}
+	if own < 1 {
+		return 0, "", 0
+	}
+	strs := make([]string, len(toks))
+	for i := range toks {
+		strs[i] = text(i)
+	}
+	m, ok := matchParen(strs, own)
+	if !ok {
+		return 0, "", 0
+	}
+	var b strings.Builder
+	closers := 0
+	for i, s := range strs[m+1:] {
+		switch s {
+		case ")":
+			closers++
+		case ",", "=>":
+			seps++
+			if i > 0 && strs[m+i] != ")" {
+				b.WriteByte(' ')
+			}
+		default:
+			return 0, "", 0
+		}
+		b.WriteString(s)
+	}
+	if closers != own {
+		return 0, "", 0
+	}
+	return own, b.String(), seps
 }
 
 // writesSepAfterParens reports whether emit writes a separator of n's after
@@ -1222,38 +1279,10 @@ func writesSepAfterParens(n *Node, src []byte) bool {
 	case n.TrailingComma == "":
 		return false
 	case listOuterPair(n, src):
-		_, after := splitOuterSeps(n, src)
+		_, _, after := splitOuterSeps(n, src)
 		return after != ""
 	}
 	return !(n.Paren && commaInParens(n, src))
-}
-
-// listSepInOuterPair is how many separators List n's span holds after the
-// list's own pair inside a pair around it, `((1,2),)` and `((),,)`, or 0.
-// A List's span is its outermost pair's, and it records no inner one.
-func listSepInOuterPair(n *Node, src []byte) int {
-	toks := significantTokens(src[n.Start:n.End])
-	// Pairs around the one holding the separators group nothing more, and
-	// canon writes none of them: FuzzParser's `(((),))x$0`.
-	for len(toks) >= 4 && toks[0] == "(" && toks[1] == "(" {
-		if m, ok := matchParen(toks, 1); !ok || m != len(toks)-2 {
-			break
-		}
-		toks = toks[1 : len(toks)-1]
-	}
-	if len(toks) < 4 || toks[0] != "(" || toks[1] != "(" || toks[len(toks)-1] != ")" {
-		return 0
-	}
-	k, ok := matchParen(toks, 1)
-	if !ok || k >= len(toks)-1 {
-		return 0
-	}
-	for _, sep := range toks[k+1 : len(toks)-1] {
-		if sep != "," && sep != "=>" {
-			return 0
-		}
-	}
-	return len(toks) - 2 - k
 }
 
 // foldsSep reports whether n is a leaf finishList folds a separator inside
