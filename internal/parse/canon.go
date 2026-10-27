@@ -204,9 +204,8 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// FuzzParser's `((),)x*!` re-read differently.
 	// Its first separators are the ones inside, `((),,)`, at every level the
 	// source wrote them, `(((),),)`; any more, `((),),`, are after.
-	outerPair := listOuterPair(n, src)
+	opens, closing, after, outerPair := listOuterPair(n, src)
 	if outerPair {
-		opens, closing, after := splitOuterSeps(n, src)
 		if after != "" {
 			defer b.WriteString(after)
 		}
@@ -1200,22 +1199,19 @@ func commaInParens(n *Node, src []byte) bool {
 }
 
 // listOuterPair reports whether emit writes List n inside pairs around its
-// own, with separators inside them: see listWrap.
-func listOuterPair(n *Node, src []byte) bool {
+// own, with separators inside them (see listWrap), and if so the pairs'
+// opens and closing text and the TrailingComma separators after them all.
+func listOuterPair(n *Node, src []byte) (opens int, closing, after string, ok bool) {
 	if n.Kind != List || !n.Paren || n.SyntaxParen || n.TrailingComma == "" {
-		return false
+		return 0, "", "", false
 	}
-	_, _, seps := listWrap(n, src)
-	return seps > 0
-}
-
-// splitOuterSeps splits an outer-pair List's TrailingComma into the source
-// text of the pairs around its own and the separators after all of them.
-func splitOuterSeps(n *Node, src []byte) (opens int, closing, after string) {
 	opens, closing, k := listWrap(n, src)
+	if k == 0 {
+		return 0, "", "", false
+	}
 	seps := strings.Fields(n.TrailingComma)
 	k = min(k, len(seps))
-	return opens, closing, strings.Join(seps[k:], " ")
+	return opens, closing, strings.Join(seps[k:], " "), true
 }
 
 // listWrap reads the pairs the source wrote around List n's own pair inside
@@ -1225,25 +1221,21 @@ func splitOuterSeps(n *Node, src []byte) (opens int, closing, after string) {
 // `(((),),)` holds a separator at each of two levels.
 func listWrap(n *Node, src []byte) (opens int, closing string, seps int) {
 	toks := significant(src[n.Start:n.End])
-	text := func(i int) string { return string(src[n.Start+toks[i].Start : n.Start+toks[i].End]) }
+	strs := make([]string, len(toks))
+	for i, t := range toks {
+		strs[i] = string(src[n.Start+t.Start : n.Start+t.End])
+	}
 	// The list's own `(`: the last before its first element, or the last of
 	// the leading run for an empty list.
 	own := -1
-	for i := range toks {
-		if text(i) != "(" {
-			break
-		}
-		if len(n.Children) > 0 && n.Start+toks[i].Start >= n.Children[0].Start {
+	for i, s := range strs {
+		if s != "(" || len(n.Children) > 0 && n.Start+toks[i].Start >= n.Children[0].Start {
 			break
 		}
 		own = i
 	}
 	if own < 1 {
 		return 0, "", 0
-	}
-	strs := make([]string, len(toks))
-	for i := range toks {
-		strs[i] = text(i)
 	}
 	m, ok := matchParen(strs, own)
 	if !ok {
@@ -1275,11 +1267,10 @@ func listWrap(n *Node, src []byte) (opens int, closing string, seps int) {
 // its parens, where a list's separator would stand: not the one in `(A,)`
 // or the only one in `((),)`, FuzzParser's `((A,),%y)` and `(((),),,0)`.
 func writesSepAfterParens(n *Node, src []byte) bool {
-	switch {
-	case n.TrailingComma == "":
+	if n.TrailingComma == "" {
 		return false
-	case listOuterPair(n, src):
-		_, _, after := splitOuterSeps(n, src)
+	}
+	if _, _, after, ok := listOuterPair(n, src); ok {
 		return after != ""
 	}
 	return !(n.Paren && commaInParens(n, src))

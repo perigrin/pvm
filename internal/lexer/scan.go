@@ -1084,10 +1084,7 @@ func scanAmp(l *lexer) bool {
 	// `A & ~~0` are `'A' & ~~0`; read as a sigil, the `~~` after it lexed as
 	// smartmatch. Elsewhere perl takes that punctuation as the name: `&;`
 	// calls the sub `;`.
-	next := l.pos + 1
-	for next < len(l.src) && isSpace(l.src[next]) {
-		next++
-	}
+	next := skipSpaceFrom(l.src, l.pos+1)
 	// A bareword `x` too: FuzzParser's `x&!x*!` is `'x' & !x * !`.
 	if next < len(l.src) && !isWordByte(l.src[next]) && l.src[next] < utf8.RuneSelf && !byteIn(l.src[next], "${:'#") &&
 		l.afterUserWord(len(l.toks), true) {

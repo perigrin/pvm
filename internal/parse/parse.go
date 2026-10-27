@@ -1255,9 +1255,8 @@ func (p *parser) statementForm() *Node {
 	// statement, and left to the statement loop it was refused at EOF.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
-		n := &Node{Kind: Statement, Start: start, End: p.prevEnd(), Children: p.takeHeredocBodies()}
-		n.End = p.prevEnd()
-		return n
+		bodies := p.takeHeredocBodies()
+		return &Node{Kind: Statement, Start: start, End: p.prevEnd(), Children: bodies}
 	}
 
 	// Labels come first and they stack: `A: B: for (...)` is two of them.
