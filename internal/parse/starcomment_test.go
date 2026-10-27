@@ -29,13 +29,6 @@ func TestCanonFixpointOperatorBeforeComment(t *testing.T) {
 	}
 }
 
-// TestUndeclaredWordStarBeforePunctuationRefuses: after an undeclared word
-// perl's `*` multiplies, so in `fo*#` the `#` starts a comment, while the
-// lexer, with no symbol table, read the glob `*#`. Measured on 5.42.0 with
-// -MO=Deparse: `fo*#` + newline + `1;` is `'fo' * 1`, and `sub fo {} fo*#`
-// + newline + `;` is `fo *#;`. The parser cannot tell which token stream
-// is perl's, so it refuses the undeclared case -- even the one perl
-// compiles -- and the declared one keeps its glob argument.
 // TestSplitPowerIsExponentiation: where the lexer split `**` as `*` and the
 // glob `**` after a word or a glob's name, the operator perl reads is `**`
 // (perl 5.44.0 -MO=Deparse: `x **2` is `'x' ** 2`, `x***x` is `'x' ** *x`).
@@ -46,8 +39,23 @@ func TestSplitPowerIsExponentiation(t *testing.T) {
 			t.Errorf("%q: want a `**` Binary: %v", src, kinds(root))
 		}
 	}
+	// And `**=` (Deparse: `x **=2` is `'x' **= 2`; perl then refuses to
+	// modify the constant, as it does `x = 2`).
+	for _, src := range []string{"x **=2;", "*x **=2;"} {
+		root := parse.Parse([]byte(src))
+		if b := firstOfKind(root, parse.Binary); b == nil || b.Text != "**=" {
+			t.Errorf("%q: want a `**=` Binary: %v", src, kinds(root))
+		}
+	}
 }
 
+// TestUndeclaredWordStarBeforePunctuationRefuses: after an undeclared word
+// perl's `*` multiplies, so in `fo*#` the `#` starts a comment, while the
+// lexer, with no symbol table, read the glob `*#`. Measured on 5.42.0 with
+// -MO=Deparse: `fo*#` + newline + `1;` is `'fo' * 1`, and `sub fo {} fo*#`
+// + newline + `;` is `fo *#;`. The parser cannot tell which token stream
+// is perl's, so it refuses the undeclared case -- even the one perl
+// compiles -- and the declared one keeps its glob argument.
 func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	// A quote is the same disagreement as `#`: measured on 5.42.0, `A*"3"`,
 	// `A*'3'` and A*`ls` are `'A' * 3` and `'A' * \`ls\``, a string to perl
@@ -63,7 +71,11 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 		// instead: `A*;` and `{A*}` are syntax errors on 5.42.0. The
 		// merge-commit campaign's `A*}x0` canon'd as `A * } x 0`, where
 		// the `}` ends the operator's missing operand (R-g).
-		"A*}x0", "A*;", "{A*}"} {
+		"A*}x0", "A*;", "{A*}",
+		// After any term, not only a word: FuzzParser's `{}*}{$0}` read the
+		// glob `*}` after an anonymous hash, perl 5.44.0's "Unmatched right
+		// curly", and canon wrote `{} * }{$0}`, which re-read differently.
+		"{}*}{$0}", "{}**;"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))

@@ -187,7 +187,10 @@ func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.
 //
 // Left out, because perl compiled some of theirs: trailing_tokens (299 of
 // 2130 compiled), missing_operand (6 of 85: `state`, `field`, `infix
-// isa`), not_a_term (3 of 170). ambiguous_sigil's 6 were all refused, but
+// isa`), not_a_term (3 of 170). Re-measured 2026-10-27 on 5.44.0, 7 literals
+// reaching missing_operand compile -- those three and trailing commas at
+// end of input -- and perigrin's R-g′ exempts all 7: none builds a
+// missing_operand now. ambiguous_sigil's 6 were all refused, but
 // `A &q(x);` compiles and the parser refuses it. unimplemented_statement
 // and not_an_expression have no source that reaches them to measure.
 var perlRefuses = map[parse.RefusalCode]bool{

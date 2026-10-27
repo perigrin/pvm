@@ -435,13 +435,46 @@ func TestRecoveryKeepsRefusalCodes(t *testing.T) {
 	}
 }
 
+// operandAbsentButValid are the seven test literals that parsed to
+// missing_operand and that perl compiles (perl 5.44.0 -c): `state` and
+// `field` alone are bareword calls without their features, `infix isa`
+// is `'isa'->infix` without isa's, and a comma or fat comma at end of
+// input ends a valid list. perigrin's R-g′ exempts them.
+var operandAbsentButValid = []string{
+	"state", "field", "infix isa", "infix ,", "infix =>", " files, ", "substr $x, 0, 1, ",
+}
+
+// TestRecoveryMissingOperandExemptions: none of R-g′'s seven builds a
+// Missing node or a reportable refusal, and six carry no error at all.
+// `infix isa`'s reading, `'isa'->infix`, is the unknown-class indirect
+// method call parseIndirect declines while the sub table is open, so it is
+// the quiet catch-all that decline is everywhere -- not a missing operand.
+func TestRecoveryMissingOperandExemptions(t *testing.T) {
+	for _, src := range operandAbsentButValid {
+		root := parse.Parse([]byte(src))
+		for _, n := range recoveryNodes(root) {
+			if n.Kind == parse.Missing || !parse.CatchAll(n.Refusal) || src != "infix isa" {
+				t.Errorf("%q: perl compiles it, and it holds %v %s: %v", src, n.Kind, n.Refusal, kinds(root))
+			}
+		}
+		if firstUnknown(root) != nil && src != "infix isa" {
+			t.Errorf("%q: perl compiles it, and it refuses: %v", src, kinds(root))
+		}
+	}
+	// Under their features the same words are keywords, and perl 5.44.0
+	// rejects each alone: `syntax error at EOF`.
+	for _, src := range []string{"use v5.36; state", "use v5.36; infix isa"} {
+		if root := parse.Parse([]byte(src)); len(withCode(root, parse.MissingOperand)) != 1 {
+			t.Errorf("%q: want one missing_operand: %v", src, kinds(root))
+		}
+	}
+}
+
 // TestRecoveryMissingOperandIsReported: an operator with no operand before
 // `;`, `}` or end of input yields one zero-width Missing node carrying
-// missing_operand and no not_a_term on the punctuation (R-g). A buffer that
-// is exactly `state` or `field` yields one too, although perl -c compiles
-// each as a bareword call: the cost R-g accepts, recorded for perigrin.
+// missing_operand and no not_a_term on the punctuation (R-g).
 func TestRecoveryMissingOperandIsReported(t *testing.T) {
-	for _, src := range append(append([]string{}, operandBeforeTerminator...), "print 1+", "state", "field") {
+	for _, src := range append(append([]string{}, operandBeforeTerminator...), "print 1+") {
 		root := parse.Parse([]byte(src))
 		got := withCode(root, parse.MissingOperand)
 		if len(got) != 1 {

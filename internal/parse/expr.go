@@ -139,10 +139,21 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		if star, ok := p.peekAfter(tok); ok && text == "*" && star.Kind == lexer.Word && p.text(star) == "*" &&
 			star.Start == tok.End && !p.endsGlobStar(star) {
 			tok, text = star, "**"
+			// And `**=`, the `=` glued after: Deparse has `x **=2` as
+			// `'x' **= 2`.
+			if eq, ok := p.peekAfter(star); ok && eq.Start == star.End && eq.Kind == lexer.Operator && p.text(eq) == "=" {
+				tok, text = eq, "**="
+			}
 		}
 
 		op, ok := p.infixOp(text)
 		if !ok || op.BP <= minBP {
+			return left
+		}
+		// `isa` is infix only under its feature (operatorHere); without it
+		// and with nothing after it, `infix isa` is perl's `'isa'->infix`,
+		// not an operator missing its operand (R-g′).
+		if tok.Kind == lexer.Word && !p.operatorHere(text) && p.endsAfter(tok) {
 			return left
 		}
 
@@ -201,7 +212,9 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		// looked at in turn; `or`, `and` and `xor` are parsed as the
 		// operators they are, with this list as their left operand.
 		if text == "," || text == "=>" {
-			if next, ok := p.peekAfter(tok); ok && elementlessAfterComma(next, p.src) {
+			// End of input ends the list too: perl 5.44.0 compiles `substr
+			// $x, 0, 1, ` and `infix =>` (R-g′).
+			if next, ok := p.peekAfter(tok); !ok || elementlessAfterComma(next, p.src) {
 				p.advanceTo(tok)
 				markTrailing(left, text)
 				continue
@@ -651,6 +664,13 @@ func autoquote(key *Node) {
 	key.Resolved = false
 }
 
+// endsAfter reports whether nothing follows tok: end of input, or a `;` or
+// `}`.
+func (p *parser) endsAfter(tok lexer.Token) bool {
+	next, ok := p.peekAfter(tok)
+	return !ok || endsStatement(next, p.src)
+}
+
 // endsGlobStar reports whether what follows tok, the glob name `*`, leaves
 // no term for the `**` perl reads there: end of input, a `;` or `}`, or a
 // glued `**`, the shapes of FuzzParser's `**` finds.
@@ -679,15 +699,22 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	if text == "&" && tok.Kind != lexer.FuncSigil {
 		return nil
 	}
+	name, ok := p.peekAfter(tok)
+	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
+		return nil
+	}
+	// A glob that leaves `*` no operand -- `*;`, `*}`, and `**` with nothing
+	// after it -- is the operator and a closer after ANY term, here where an
+	// operator is read: perl 5.44.0 has `{}*}{$0}` an "Unmatched right
+	// curly", and its canon `{} * }{$0}` re-read differently. The others
+	// disagree only after a word, which may be a call taking a glob.
+	closes := text == "*" && (p.text(name) == ";" || p.text(name) == "}" ||
+		p.text(name) == "*" && p.endsGlobStar(name))
 	prev := p.pos - 1
 	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
 		prev--
 	}
-	if prev < 0 || p.toks[prev].Kind != lexer.Word {
-		return nil
-	}
-	name, ok := p.peekAfter(tok)
-	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
+	if !closes && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
 		return nil
 	}
 	// The glob `*#` is the same disagreement: `fo*#` is `fo *` and a comment

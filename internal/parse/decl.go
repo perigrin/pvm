@@ -996,6 +996,13 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	if operandBP > 0 {
 		bp = operandBP
 	}
+	// `state` and `field` with nothing after them are words perl reads as
+	// bareword calls where their features are off: perl 5.44.0 compiles a
+	// buffer that is exactly either, and refuses `use v5.36; state` (R-g′).
+	if text := p.text(word); len(n.Children) == 0 && p.operandAbsent() &&
+		(text == "state" && !p.features["state"] || text == "field" && !p.features["class"]) {
+		return &Node{Kind: Call, Text: text, Start: word.Start, End: word.End}
+	}
 	target := p.operand(bp, word)
 	n.Children = append(n.Children, target)
 	n.End = p.prevEnd()
