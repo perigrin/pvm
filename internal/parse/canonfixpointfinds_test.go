@@ -212,6 +212,8 @@ func TestListSeparatorInOuterPair(t *testing.T) {
 		"(((),),,,0)": "(((),), , , 0)",
 		// And more than one inside: FuzzParser's `A:(((),,)%$!)`.
 		"A:(((),,)%$!)": "A: (((), ,) % $!)",
+		// And a pair around that pair: FuzzParser's `A:(((),))x$0`.
+		"A:(((),))x$0": "A: ((),) x $0",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)

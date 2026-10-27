@@ -1232,6 +1232,14 @@ func writesSepAfterParens(n *Node, src []byte) bool {
 // A List's span is its outermost pair's, and it records no inner one.
 func listSepInOuterPair(n *Node, src []byte) int {
 	toks := significantTokens(src[n.Start:n.End])
+	// Pairs around the one holding the separators group nothing more, and
+	// canon writes none of them: FuzzParser's `(((),))x$0`.
+	for len(toks) >= 4 && toks[0] == "(" && toks[1] == "(" {
+		if m, ok := matchParen(toks, 1); !ok || m != len(toks)-2 {
+			break
+		}
+		toks = toks[1 : len(toks)-1]
+	}
 	if len(toks) < 4 || toks[0] != "(" || toks[1] != "(" || toks[len(toks)-1] != ")" {
 		return 0
 	}
