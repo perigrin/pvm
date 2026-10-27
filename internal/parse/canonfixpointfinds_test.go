@@ -371,21 +371,29 @@ func TestUnclosedDerefNestIsNotExponential(t *testing.T) {
 
 // TestSpacedAngleAfterWordRefuses: perl 5.44.0 reads `A:A<` + newline +
 // `0>0` as `A: 'A' < 0 > 0`, and, A declared, as "Unterminated <>
-// operator"; canon wrote it on one line, where `< 0 >` lexed as a readline.
-// Not knowing A, the parser refuses (R-b′). A declared sub's `<STDIN>`
-// still reads a line.
+// operator", so the comparison is the only reading; canon wrote it on one
+// line, where `< 0 >` lexed as a readline, and groups the word now. On one
+// line, `A < 0 > 0` is a declared A's readline: not knowing A, the parser
+// refuses (R-b′). A declared sub's `<STDIN>` still reads a line.
 func TestSpacedAngleAfterWordRefuses(t *testing.T) {
-	for _, src := range []string{"A:A<\n0>0", "A < 0 > 0", "A:A<<\n0>0", "A:A<=\n0>0", "A:x<\n0>0"} {
-		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
-			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+	for src, want := range map[string]string{"A:A<\n0>0": "A: (A) < 0 > 0", "A:A<<\n0>0": "A: (A) << 0 > 0", "A:A<=\n0>0": "A: (A) <= 0 > 0",
+		"A:x<\n0>0": "A: (x) < 0 > 0", "A:A<0\n>0": "A: (A) < 0 > 0", "if (A < 3) {\n$x > 1}": "if ((A) < 3) {$x > 1;}"} {
+		if got := clean(t, src); strings.TrimSpace(got) != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
 		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
+		}
+	}
+	if found := collectUnknown(parse.Parse([]byte("A < 0 > 0"))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+		t.Errorf("`A < 0 > 0`: want an ambiguous_sigil refusal, got %v", refusalCodes(found))
 	}
 	if got := clean(t, "sub f {} f <STDIN>;"); got != "sub f {} f <STDIN>;" {
 		t.Errorf("`sub f {} f <STDIN>;`: canon %q", got)
 	}
 	// And `A:A<<\ 0`, whose canon `A << \0` lexed a heredoc: perl 5.44.0
 	// has `print << \EOF;` "Use of bare << to mean <<"" is forbidden".
-	if got := clean(t, "A:A<<\\ 0"); got != "A: A << \\0" {
+	if got := clean(t, "A:A<<\\ 0"); got != "A: (A) << \\0" {
 		t.Errorf("`A:A<<\\ 0`: canon %q", got)
 	}
 	if found := collectUnknown(parse.Parse([]byte("print << \\EOF;\nx\nEOF\n"))); len(found) == 0 {

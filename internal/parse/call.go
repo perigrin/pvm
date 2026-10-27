@@ -10,16 +10,6 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
-// angleBeforeNewline reports whether tok is a `<`, `<<` or `<=` operator
-// whose operand starts on a later line.
-func (p *parser) angleBeforeNewline(tok lexer.Token) bool {
-	if tok.Kind != lexer.Operator || !(p.text(tok) == "<" || p.text(tok) == "<<" || p.text(tok) == "<=") {
-		return false
-	}
-	after, ok := p.peekAfter(tok)
-	return ok && strings.IndexByte(string(p.src[tok.End:after.Start]), '\n') >= 0
-}
-
 // parseWordTerm turns a bareword in term position into a call, a bareword
 // term, or a declaration-like keyword the caller handles.
 // keywordName is the keyword a word names: `CORE::X` is X, the builtin
@@ -446,14 +436,9 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// a comparison, measured on 5.44.0. Undeclared and imported from a
 		// module unread look the same here, so neither reading is taken
 		// (ruling R-b′); a known sub took its argument above.
-		//
-		// So is a `<`, `<<` or `<=` the lexer read as an operator only
-		// because no term closes on its line: `A <` + newline + `0>` is a
-		// comparison after an undeclared A and "Unterminated <> operator"
-		// after a declared one, on 5.44.0.
 		// `<=>` the infix loop reads as the spaceship, as pu did.
 		if next, ok := p.peekSignificant(); ok && (next.Kind == lexer.HeredocOpen || next.Kind == lexer.Readline && p.text(next) != "<=>" ||
-			next.Kind == lexer.Variable && p.src[next.Start] == '%' || p.angleBeforeNewline(next)) {
+			next.Kind == lexer.Variable && p.src[next.Start] == '%') {
 			return p.ambiguousSigil(n.Start)
 		}
 		n.Resolved = false

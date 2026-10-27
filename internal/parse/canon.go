@@ -697,6 +697,13 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			if i == len(n.Children)-1 {
 				next = f
 			}
+			// Before `<` or `<=`, a bareword is grouped, as for a Binary.
+			if i < len(n.Ops) && (n.Ops[i] == "<" || n.Ops[i] == "<=") && endsInBareword(c) {
+				b.WriteByte('(')
+				emitBefore(b, c, src, 0, 0)
+				b.WriteByte(')')
+				continue
+			}
 			emitBefore(b, c, src, bp+1, next)
 		}
 
@@ -1045,6 +1052,15 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// parens (emitCallArgs), so the word stays a word.
 		if n.Text == "=>" {
 			emitBeforeFat(b, n.Children[0], src, l, info.BP)
+		} else if (n.Text == "<" || n.Text == "<=" || n.Text == "<<") && endsInBareword(n.Children[0]) {
+			// After a word the lexer, with no symbol table, reads `<` as a
+			// readline's start if a `>` closes it on the line, and the source
+			// may have had a newline there that canon does not keep:
+			// FuzzParser's `A<0` + newline + `>0` canon'd as `A < 0 > 0`. A
+			// closer before it leaves no term to start.
+			b.WriteByte('(')
+			emitBefore(b, n.Children[0], src, 0, 0)
+			b.WriteByte(')')
 		} else {
 			emitBefore(b, n.Children[0], src, l, info.BP)
 		}
@@ -1489,6 +1505,15 @@ func bindingPower(n *Node) int {
 	default:
 		return atomBP
 	}
+}
+
+// endsInBareword reports whether n's emission ends in a word of no known
+// sub, written bare: `A`, `1 + A`, `-A`.
+func endsInBareword(n *Node) bool {
+	for !n.Paren && !n.SyntaxParen && (n.Kind == Binary || prefixOperator(n)) && len(n.Children) > 0 {
+		n = n.Children[len(n.Children)-1]
+	}
+	return n.Kind == Call && !n.Paren && !n.SyntaxParen && !n.Resolved && !n.ArgParen && len(n.Children) == 0
 }
 
 // prefixOperator reports whether n is a symbol prefix operator applied to an
