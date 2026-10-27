@@ -203,8 +203,8 @@ func latencyEdits(src []byte, n int) [][]byte {
 		buf = slices.Concat(buf[:at], []byte{byte('1' + s%9)}, buf[at:])
 		// Every site at or after s moves right by the inserted byte; s
 		// itself too, since its next digit goes before the same `0`.
-		for t := s; t < len(zeros); t++ {
-			zeros[t]++
+		for r := s; r < len(zeros); r++ {
+			zeros[r]++
 		}
 		bufs[k] = buf
 	}
