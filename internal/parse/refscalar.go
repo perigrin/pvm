@@ -214,8 +214,10 @@ func (p *parser) notScalarLvalue(a *Node) bool {
 			return len(text) > 1
 		}
 	case Unary:
-		// `@$r`, `%{$r}`: a whole aggregate through a reference.
-		return a.Text == "@" || a.Text == "%"
+		// `@$r`, `%{$r}`: a whole aggregate through a reference. And `!$y`,
+		// whose value is no lvalue: measured on 5.42.0, `--!$y` is "Can't
+		// modify not in predecrement (--)".
+		return a.Text == "@" || a.Text == "%" || a.Text == "!"
 	case Declaration:
 		// `my @q`, `our %q`: a declared aggregate.
 		return len(a.Children) == 1 && a.Children[0].Kind == Term && p.notScalarLvalue(a.Children[0])
