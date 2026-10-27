@@ -184,8 +184,16 @@ func (l *lexer) nameAfterSpace(i int) int {
 	j := i
 	for j < len(l.src) {
 		switch c := l.src[j]; {
+		// Not across a newline a heredoc body starts after.
+		case c == '\n' && len(l.pending) > 0:
+			return i
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
 			j++
+		// skipspace runs only when a space follows the sigil, so a `#`
+		// touching it is no comment: FuzzParser's `<<0%%#x` + newline took
+		// `#x` and the next line as the name, and the body began a line late.
+		case c == '#' && j == i:
+			return i
 		case c == '#':
 			for j < len(l.src) && l.src[j] != '\n' {
 				j++
@@ -896,10 +904,11 @@ func scanAngle(l *lexer) bool {
 	// in it -- as readily as `<*.c>`.
 	//
 	// After a word no keyword table settles, where the expect state is only
-	// a hedge (see afterUserWord), a `<` with a blank after it compares:
-	// perl 5.44.0 reads `A:A<` + newline + `0>0` as `'A' < 0 > 0`, which
-	// canon writes on one line, and a readline there re-read differently.
-	if l.pos+1 < len(l.src) && isSpace(l.src[l.pos+1]) && l.afterUserWord(len(l.toks), false) {
+	// a hedge (see afterUserWord), a `<` with a blank after it compares,
+	// and `<<` shifts: perl 5.44.0 reads `A:A<` + newline + `0>0` as `'A' <
+	// 0 > 0` and `A<<` the same way as `'A' << 0 > 0`, which canon writes on
+	// one line, and a readline there re-read differently.
+	if l.pos+1 < len(l.src) && (isSpace(l.src[l.pos+1]) || l.src[l.pos+1] == '<') && l.afterUserWord(len(l.toks), false) {
 		return false
 	}
 	j := l.pos + 1

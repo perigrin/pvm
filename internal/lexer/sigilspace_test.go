@@ -84,3 +84,20 @@ func TestSpaceIsNoSigilName(t *testing.T) {
 		}
 	}
 }
+
+// TestHashCommentNeedsSpace: skipspace runs only when a space follows the
+// sigil, so `%#x` is `%#` and `x`, and nothing crosses a newline a heredoc
+// body starts after. FuzzParser's `<<0%%#x` + newline + `A` took `#x` as a
+// comment and `A` as the name, so the body began a line late.
+func TestHashCommentNeedsSpace(t *testing.T) {
+	src := "<<0%%#x\nA\n0"
+	for _, tok := range Tokenize([]byte(src)) {
+		if tok.Kind == Variable && src[tok.Start:tok.End] != "%#" {
+			t.Errorf("%q: Variable %q, want `%%#`", src, src[tok.Start:tok.End])
+		}
+	}
+	src = "my $ # c\n b = 2;"
+	if toks := significant(Tokenize([]byte(src))); src[toks[1].Start:toks[1].End] != "$ # c\n b" {
+		t.Errorf("%q: a comment after a space still stands between sigil and name", src)
+	}
+}
