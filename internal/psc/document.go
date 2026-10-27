@@ -5,7 +5,10 @@ package psc
 
 import (
 	"bytes"
+	"fmt"
+	"slices"
 	"sort"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -15,22 +18,43 @@ import (
 type Document struct {
 	Text  []byte
 	Lines []int32
+
+	// shared is set once a Snapshot may be reading Text and Lines, and makes
+	// the next ApplyEdit copy them instead of writing them in place (§6.2.3).
+	shared atomic.Bool
 }
 
-// NewDocument indexes text's lines. The Document aliases text.
+// NewDocument indexes a copy of text's lines.
 func NewDocument(text []byte) *Document {
-	d := &Document{Text: text, Lines: []int32{0}}
+	d := &Document{Text: bytes.Clone(text), Lines: []int32{0}}
 	d.reindexLinesFrom(0)
 	return d
 }
 
+// Snapshot is a Document no later ApplyEdit on d changes. It shares d's
+// buffers until the next edit of either copies them.
+func (d *Document) Snapshot() *Document {
+	d.shared.Store(true)
+	s := &Document{Text: d.Text, Lines: d.Lines}
+	s.shared.Store(true)
+	return s
+}
+
 // ApplyEdit replaces Text[start:oldEnd] with newText, reindexes the lines
-// from start on, and returns the new end offset.
-func (d *Document) ApplyEdit(start, oldEnd int, newText []byte) int {
+// from start on, and returns the new end offset. A range that is reversed
+// or outside the text is an error, and leaves the Document unchanged.
+func (d *Document) ApplyEdit(start, oldEnd int, newText []byte) (int, error) {
+	if start < 0 || start > oldEnd || oldEnd > len(d.Text) {
+		return 0, fmt.Errorf("edit range [%d, %d) is not within the text's %d bytes", start, oldEnd, len(d.Text))
+	}
+	shared := d.shared.Swap(false)
+	if shared {
+		d.Lines = slices.Clone(d.Lines)
+	}
 	newEnd := start + len(newText)
 	tail := d.Text[oldEnd:]
 	need := newEnd + len(tail)
-	if cap(d.Text) >= need {
+	if !shared && cap(d.Text) >= need {
 		// In place: copy handles the overlap of a tail shifted either way.
 		d.Text = d.Text[:need]
 		copy(d.Text[newEnd:], d.Text[oldEnd:oldEnd+len(tail)])
@@ -42,7 +66,7 @@ func (d *Document) ApplyEdit(start, oldEnd int, newText []byte) int {
 		d.Text = append(buf, tail...)
 	}
 	d.reindexLinesFrom(start)
-	return newEnd
+	return newEnd, nil
 }
 
 // reindexLinesFrom rebuilds the line starts after from. Those at or before
@@ -60,13 +84,14 @@ func (d *Document) reindexLinesFrom(from int) {
 	}
 }
 
-// lineEnd is the offset where line's content ends: before its '\n', and
-// before a '\r' ahead of that or at the end of the text.
+// lineEnd is the offset where line's content ends: before its '\n' and a
+// '\r' ahead of that. A lone '\r', even at the end of the text, is an
+// ordinary byte (§6.2.1).
 func (d *Document) lineEnd(line int) int {
-	end := len(d.Text)
-	if line+1 < len(d.Lines) {
-		end = int(d.Lines[line+1]) - 1
+	if line+1 == len(d.Lines) {
+		return len(d.Text)
 	}
+	end := int(d.Lines[line+1]) - 1
 	if end > int(d.Lines[line]) && d.Text[end-1] == '\r' {
 		end--
 	}

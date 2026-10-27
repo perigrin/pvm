@@ -18,9 +18,12 @@ import (
 
 // newTestHandler creates a handler wired to a pair of in-memory buffers and
 // returns the handler plus the output buffer so tests can inspect responses.
+// Its server parses and publishes on every change, with no debounce, so a
+// test that waits for a document's parse (settle) can read what it sent.
 func newTestHandler(t *testing.T) (*handler, *bytes.Buffer) {
 	t.Helper()
 	server := NewLSPServer()
+	server.parseDelay, server.diagDelay = 0, 0
 	var out bytes.Buffer
 	tr := newTransport(bytes.NewReader(nil), &out)
 	h := newHandler(server, tr)
@@ -167,6 +170,7 @@ func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
 		Params:  rawParams,
 	}
 	require.NoError(t, h.handle(msg))
+	settle(h, "file:///test.pl")
 
 	// The handler must send a textDocument/publishDiagnostics notification.
 	notification := readResponse(t, out)
@@ -201,6 +205,7 @@ func TestHandlerDidChange(t *testing.T) {
 		Params:  rawOpen,
 	}
 	require.NoError(t, h.handle(openMsg))
+	settle(h, "file:///test.pl")
 	// Drain the publishDiagnostics notification from didOpen.
 	_ = readResponse(t, out)
 	out.Reset()
@@ -224,6 +229,7 @@ func TestHandlerDidChange(t *testing.T) {
 		Params:  rawChange,
 	}
 	require.NoError(t, h.handle(changeMsg))
+	settle(h, "file:///test.pl")
 
 	notification := readResponse(t, out)
 	require.NotNil(t, notification)
@@ -259,6 +265,7 @@ func TestHandlerDidClose(t *testing.T) {
 		Params:  rawOpen,
 	}
 	require.NoError(t, h.handle(openMsg))
+	settle(h, uri)
 	// Drain the publishDiagnostics notification.
 	_ = readResponse(t, out)
 
@@ -303,9 +310,14 @@ func openDoc(t *testing.T, h *handler, out *bytes.Buffer, uri, text string) {
 		Params:  rawParams,
 	}
 	require.NoError(t, h.handle(msg))
+	settle(h, uri)
 	// Drain the publishDiagnostics notification.
 	_ = readResponse(t, out)
 }
+
+// settle waits for the parse of the latest text of the document at uri to
+// land, and so for whatever its owner published with it.
+func settle(h *handler, uri string) { h.server.snapshot(uri) }
 
 // sendRequest is a shared test helper that sends a JSON-RPC request with the
 // given id, method, and params to the handler and returns the response.
@@ -602,5 +614,43 @@ func TestFileURINamesItsPath(t *testing.T) {
 		got, ok := uriPath(FileURI(path))
 		assert.True(t, ok, path)
 		assert.Equal(t, filepath.FromSlash(path), got, path)
+	}
+}
+
+// TestPublishDiagnosticsAfterClose closes and reopens a document while its
+// owner publishes diagnostics and readers take its text: each publish pairs
+// diagnostics with the text of the same parse, never a nil one, and nothing
+// is published once the close has returned.
+func TestPublishDiagnosticsAfterClose(t *testing.T) {
+	h, out := newTestHandler(t)
+	const uri = "untitled:closing.pl"
+	src := []byte("my $x;\npush($x, 1);\n")
+	require.NoError(t, h.server.OpenDocument(uri, src))
+	require.NotEmpty(t, h.server.Diagnostics(uri))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			h.server.CloseDocument(uri)
+			h.server.open(uri, i, src)
+		}
+		h.server.CloseDocument(uri)
+	}()
+	for {
+		select {
+		case <-done:
+			// Read without the transport's lock: a publish after the close
+			// returned would race with it.
+			n := out.Len()
+			assert.Nil(t, h.server.Text(uri))
+			assert.Equal(t, n, out.Len())
+			assert.Contains(t, out.String(), "textDocument/publishDiagnostics")
+			return
+		default:
+			if d := h.server.Text(uri); d != nil {
+				d.ByteToPosition(uint32(len(d.Text)))
+			}
+		}
 	}
 }

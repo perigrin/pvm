@@ -1335,7 +1335,9 @@ func (p *parser) finishPackage(n *Node) {
 	if len(n.Children) > 0 && n.Children[0].Kind == Term {
 		p.pkg = n.Children[0].Text
 	}
+	p.anchorBlock = p.snaps != nil && p.depth == 0
 	p.finishBodyOrSemicolon(n)
+	p.anchorBlock = false
 	if k := len(n.Children); k > 0 && n.Children[k-1].Kind == Block {
 		p.pkg = prev
 	}

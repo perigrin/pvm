@@ -141,8 +141,11 @@ func lspSession(t *testing.T, source string, flags ...string) string {
 		}},
 	})
 	require.NoError(t, err)
+	// The documentSymbol request waits for the open's parse to land, and
+	// with it the diagnostics the open publishes.
+	symbols := `{"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///t.pl"}}}`
 	var in strings.Builder
-	for _, msg := range []string{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`, string(open)} {
+	for _, msg := range []string{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`, string(open), symbols} {
 		fmt.Fprintf(&in, "Content-Length: %d\r\n\r\n%s", len(msg), msg)
 	}
 	cmd := psc.NewCommand()

@@ -961,6 +961,28 @@ inside POD, inside `s{}{}`, the state is not safe and no checkpoint is
 recorded. Re-lexing therefore always restarts from a point where the lexer's
 world is fully known.
 
+**As landed** (`internal/lexer/checkpoint.go`). The lexer `State` is not the
+field list above but the lexer struct itself with its cursor, source and output
+cleared, so every field the lexer grows is state without a hand-kept list;
+`Clone` deep-copies it (a reflect test fails on a reference field it misses)
+and `Equal` compares clones, an empty collection equal to a missing one.
+`StartState`, `StartStateBarewords` and `StartStateTyped` are the byte-0 states
+of the three `Tokenize*` entry points, which start from them. This lexer has no
+`SublexStack`, `DelimiterStack` or `Context`: quotes, regexes, `s{}{}`, POD,
+heredoc bodies and format bodies are each one token scanned within one step,
+so no step boundary falls inside them. `Checkpoints(src, start)` returns the
+tokens with the checkpoints passed — byte 0, then at most one per 512 bytes —
+and `Resume(src, cp)` lexes from one to EOF, equal to the full stream's suffix.
+No checkpoint is recorded unless the token just emitted is a `;` or a `}` and
+`Expect == XState` with the bracket stack empty, no heredoc queued (so never
+with one pending on the line, nor inside its body), and no format body pending
+or open, and no `[` still open by count (`openSquares`) — any closer pops the
+bracket stack, so `[ )` empties it while typed Perl's `containerTypeSigil`,
+walking back over raw `[`/`]` with no stop at `;`, would still reach that `[`;
+nothing follows a `DataSection`, so none falls after `__END__` or
+`__DATA__`. Resume needs the bytes before the checkpoint unchanged: the other
+scanners look back a token or two, and none looks past a `;` or a block's `}`.
+
 ### 6.3.2 The cache
 
 ```go
@@ -1435,6 +1457,31 @@ Five things in that loop earn their place:
    changed whether it contains an error, the damage estimate was wrong.
    Bail out.
 
+**The parser's state at the re-parse point.** The lexer's checkpoint (§6.3.1)
+is half of what step 3 resumes from. The other half is the parser's own
+file-wide state — the package, the features and lexical subs in scope, the
+imports, the known packages and the declared subs — which it threads from
+statement to statement. Step 3 restores it from a `parserSnapshot`
+(`internal/parse/parsestate.go`), a copy of the `parser` struct taken before
+each statement at a re-parse point. The re-parse points are each top-level
+statement and each statement directly inside a file-level `package NAME BLOCK`,
+`class NAME BLOCK` or bare block, which are the nested anchors widening may
+choose; there is none inside a `BEGIN` block, a `use` or a `format`. A
+snapshot holds copies of every map and slice, never aliases, so one snapshot
+can be resumed from any number of times. `parserFields` classifies every field
+of `parser` as snapshotted, per-statement scratch, or the resuming parse's own
+(source, tokens and resolver: a re-parse uses its Session's resolver, never
+the snapshot's), and `TestParserStateSnapshotCoversEveryField` fails until a
+new field is classified. A resumed parse stops at end of file, or at the `}`
+of a nested snapshot's block.
+
+Two passes run over the whole file at EOF, and an edit anywhere can change
+their result, so Repair runs them again over the spliced tree (`finish`):
+`refuseUnclosedOpener`, which wraps the file's last token in
+`Unknown{UnclosedOpener}` when any opener anywhere is unclosed, and the pass
+that lifts the imports and every declared sub's prototype (`readModule`) onto
+the root.
+
 ### 6.5.4 The correctness test, and it is not optional
 
 perl-lsp got this exactly right and it is the single most important test in the
@@ -1761,6 +1808,21 @@ Why this shape:
 - Requests jump the debounce queue. A `hover` that arrives 5 ms after a
   keystroke gets a current answer rather than waiting out the timer.
 
+**As landed** (`internal/psc/owner.go`, issue 01a17969-4541): the owner is
+`owner`, one per open URI in `LSPServer.documents`, whose `sync.Mutex` now
+guards only that map — no parse runs under it, so two documents parse at once.
+Every operation on an owner is a closure run on its goroutine (`owner.call`),
+so `didChange` returns once the text is swapped and the timers reset. Requests
+are served through the owner rather than from an `atomic.Pointer`: a request
+forces a pending parse and waits for the tree of the latest version, which
+lands before the waiters are served. A `didChange` whose version is not newer
+than the owner's is dropped; one for a URI that is not open makes no owner;
+`didClose` stops the owner and waits for its goroutine to return; `shutdown`
+stops every owner, so nothing is published after it. A panic in parse, lower
+or analyze is that version's error, published as one error diagnostic over the
+document; the owner keeps the last good tree and keeps serving. An open is
+parsed at once and its diagnostics published when it lands, with no debounce.
+
 ### 6.7.2 Debouncing
 
 Two different debounces with different intervals — this is important and
@@ -1780,6 +1842,12 @@ The timer-reset dance above is the correct idiom and it is easy to get wrong.
 `Stop()` returning false means the timer already fired, so its value may be
 sitting in the channel; the non-blocking drain prevents an immediate spurious
 fire after `Reset`.
+
+**As landed** (`internal/psc/owner.go`): `parseDebounce` is 15 ms and
+`diagnosticsDebounce` 300 ms, each an owner timer (`parseT`, `diagT`). The
+intervals and the clock the timers come from are `LSPServer` fields, so tests
+shorten them or drive a fake clock; an interval of zero acts at once.
+`stopTimer` is the Stop/drain idiom, and every `Reset` follows it.
 
 ### 6.7.3 Cancellation
 
@@ -1827,6 +1895,14 @@ are microseconds apart.
 Also honour LSP `$/cancelRequest`. Map request IDs to `CancelFunc`s in the
 server's dispatcher and cancel on receipt.
 
+**As landed** (`internal/psc/owner.go`, `LSPServer.analyzeSource`, `analyze`):
+each parse gets a `context.Context` that a newer edit cancels, and the
+generation check is the only gate on landing — a result whose generation is not
+the owner's is dropped, whether or not it saw the cancel. `ctx` is polled
+before the parse, before lowering and before analysis; the parser's statement
+loop does not poll it yet, so a cancelled parse runs to the end of the current
+parse stage. `$/cancelRequest` is not handled yet.
+
 ### 6.7.4 Bounding total work
 
 `GOMAXPROCS` goroutines parsing 20 open documents at once will thrash. Gate
@@ -1849,6 +1925,10 @@ func releaseParseSlot() { <-parseSlots }
 ```
 
 Half the CPUs, minimum two. The editor's own UI needs the rest.
+
+**As landed** (`internal/psc/owner.go`): `parseSlots` has capacity
+`max(2, runtime.NumCPU()/2)`, and `owner.parse` acquires a slot with the
+parse's `ctx` around the whole parse, lower and analyze.
 
 ---
 

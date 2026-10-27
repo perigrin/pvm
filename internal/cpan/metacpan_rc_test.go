@@ -17,15 +17,15 @@ import (
 func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesRC(t *testing.T) {
 	// Test that release candidates are excluded from stable versions
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify we're requesting maturity and authorized fields
-		assert.Contains(t, r.URL.Query().Get("fields"), "maturity")
-		assert.Contains(t, r.URL.Query().Get("fields"), "authorized")
+		// Verify we're using MetaCPAN's supported source filtering parameter.
+		assert.Equal(t, "version,date,maturity,authorized", r.URL.Query().Get("_source"))
+		assert.Empty(t, r.URL.Query().Get("fields"))
 
 		mockResponse := `{
 			"hits": {
 				"hits": [
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040003",
 							"date": "2025-07-21T20:16:11",
 							"maturity": "developer",
@@ -33,7 +33,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesRC(t *testing.T) {
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040002",
 							"date": "2025-04-13T12:00:00",
 							"maturity": "released",
@@ -41,7 +41,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesRC(t *testing.T) {
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040001",
 							"date": "2025-01-18T12:00:00",
 							"maturity": "released",
@@ -49,7 +49,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesRC(t *testing.T) {
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040000",
 							"date": "2024-06-09T12:00:00",
 							"maturity": "released",
@@ -57,7 +57,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesRC(t *testing.T) {
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.039010",
 							"date": "2024-05-15T12:00:00",
 							"maturity": "developer",
@@ -124,7 +124,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_MaturityValues(t *testing.T) {
 					"hits": {
 						"hits": [
 							{
-								"fields": {
+								"_source": {
 									"version": "` + convertToMetaCPANVersion(tc.version) + `",
 									"date": "2024-06-09T12:00:00",
 									"maturity": "` + tc.maturity + `",
@@ -164,7 +164,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesUnauthorized(t *testing.T)
 			"hits": {
 				"hits": [
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040002",
 							"date": "2025-04-13T12:00:00",
 							"maturity": "released",
@@ -172,7 +172,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesUnauthorized(t *testing.T)
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040001",
 							"date": "2025-01-18T12:00:00",
 							"maturity": "released",
@@ -180,7 +180,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesUnauthorized(t *testing.T)
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040000",
 							"date": "2024-06-09T12:00:00",
 							"maturity": "released",
@@ -188,7 +188,7 @@ func TestMetaCPANProvider_GetPerlCoreVersions_ExcludesUnauthorized(t *testing.T)
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.039000",
 							"date": "2024-05-15T12:00:00",
 							"maturity": "released",

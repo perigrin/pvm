@@ -4,6 +4,7 @@
 package psc
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/perl"
 )
@@ -126,7 +128,8 @@ func checkFile(w interface{ Write([]byte) (int, error) }, sess *parse.Session, r
 	// column are found in the text its span was taken from.
 	root := sess.ParseSourceFrom(path, source, roots...)
 
-	diags := analyze(root, opts).Diagnostics
+	fa, _ := analyze(context.Background(), root, opts) // Background is never cancelled
+	diags := fa.Diagnostics
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(printable(path), source, d))
@@ -157,14 +160,19 @@ func printable(s string) string {
 
 // analyze lowers and type-checks root, and reports every refusal in it
 // beside what inference reports, in source order. psc check and the LSP
-// both analyse through it, so they report the same.
-func analyze(root *parse.Node, opts infer.Options) *infer.FileAnalysis {
-	fa := infer.AnalyzeParsed(root, nil, opts)
+// both analyse through it, so they report the same. It polls ctx between
+// lowering and analysis, and returns ctx's error if it was cancelled.
+func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.FileAnalysis, error) {
+	f := lower.Lower(root)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	fa := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
 	fa.Diagnostics = append(refusals(root), fa.Diagnostics...)
 	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
 		return int(a.StartByte) - int(b.StartByte)
 	})
-	return fa
+	return fa, nil
 }
 
 // perlRefuses holds the refusal codes that always mean perl refuses to

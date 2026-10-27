@@ -26,18 +26,18 @@ func CatchAll(code RefusalCode) bool {
 	return false
 }
 
-// recover counts a node recovery built, an Error or a Missing one, so the
-// statement holding it is marked (markErrors) and a statement without one is
-// not walked.
+// recover counts a node recovery built, an Error or a Missing one, so finish
+// marks the tree (markErrors) and a parse that built none is not walked.
 func (p *parser) recover(n *Node) *Node {
 	p.recovered++
 	return n
 }
 
 // markErrors sets HasError on n and everything under it that is, or holds,
-// an Error or Missing node, and reports whether n does. parseWith runs it on
-// each statement as the statement is finished, and only on one that built a
-// recovery node, so Perl with nothing to recover is never walked.
+// an Error or Missing node, clears it elsewhere, and reports whether n
+// does. finish runs it once over the tree it finishes, and only when the
+// parse built a recovery node or the tree holds a flagged child, so Perl
+// with nothing to recover is never walked.
 func markErrors(n *Node) bool {
 	has := n.Kind == Error || n.Kind == Missing
 	for _, c := range n.Children {
@@ -102,7 +102,7 @@ func (p *parser) closers(starts []int, at int) []*Node {
 	out := make([]*Node, 0, len(starts))
 	for i := len(starts) - 1; i >= 0; i-- {
 		text := map[byte]string{'(': ")", '[': "]", '{': "}"}[p.src[starts[i]]]
-		out = append(out, &Node{Kind: Missing, Text: text, Start: at, End: at, HasError: true})
+		out = append(out, &Node{Kind: Missing, Text: text, Start: at, End: at})
 	}
 	return out
 }
