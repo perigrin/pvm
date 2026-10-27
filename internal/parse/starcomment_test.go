@@ -42,7 +42,11 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	// and the glob `*"` to the lexer. FuzzParser's `A{} (A*" )` canon'd as
 	// `A {}(A * ")`, which re-read as an unterminated string.
 	for _, src := range []string{"fo*#", "A*#", "A::B*#", "x*#", "fo*#\n", "fo*#\n1;",
-		`A{} (A*" )`, `A*"3";`, "A*'3';", "A*`ls`;"} {
+		`A{} (A*" )`, `A*"3";`, "A*'3';", "A*`ls`;",
+		// And the glob `**`: `x***x` is `x ** *x` to perl 5.42.0 ("Operator
+		// or semicolon missing before *x"), `x * ** * x` to the parser.
+		// FuzzParser's `*A*x***x****$0` canon'd past a fixpoint.
+		"*A*x***x****$0", "x***x;"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
@@ -54,7 +58,7 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 	for _, src := range []string{
 		"sub fo {} fo*#\n;", "A * 2;", "A*_;",
 		"foo*$;;", "foo*(1);", "foo*-1;", `foo*\$x;`, "foo*!$x;", "foo*~$x;",
-		"foo*+1;", "foo*[1];", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
+		"foo*+1;", "foo*[1];", "foo**2;", "A ** 2;", "use POSIX; DBL_MAX*-1;", "$x = $y ? FOO*(2) : 0;",
 	} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) != 0 {
 			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))

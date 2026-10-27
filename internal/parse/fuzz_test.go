@@ -58,6 +58,8 @@ var fuzzEdgeSeeds = []string{
 	"0for&000",
 	// A word's star before a quote: the campaign's third find.
 	`A{} (A*" )`,
+	// And before the glob `**`: the fourth.
+	"*A*x***x****$0",
 }
 
 // FuzzParser is the target. Run it with
