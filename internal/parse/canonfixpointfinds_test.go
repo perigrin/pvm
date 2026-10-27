@@ -146,7 +146,9 @@ func TestAmpPunctNameEndsTerm(t *testing.T) {
 		// But no word after an undeclared word's `*`, which multiplies:
 		// FuzzParser's `A*A{0}` is `'A' * A {0}`.
 		"A*A{0}": "A * A {0;}",
-		"*A{0};": "*A{0};",
+		// Nor after a closer: FuzzParser's `{}*A{0}`, `{} * A {0}` to perl.
+		"{}*A{0}": "{} * A {0;}",
+		"*A{0};":  "*A{0};",
 	} {
 		if got := clean(t, src); got != want {
 			t.Errorf("%q: canon %q, want %q", src, got, want)

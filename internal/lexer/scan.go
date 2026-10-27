@@ -1469,6 +1469,13 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 	return !perlKeywords[w]
 }
 
+// closerBefore reports whether the last significant token before toks[i] is
+// a closing bracket.
+func (l *lexer) closerBefore(i int) bool {
+	j := l.significantBefore(i)
+	return j >= 0 && l.toks[j].Kind == CloseBracket
+}
+
 // endsTerm reports whether toks[k] ends a term, so that an operator follows
 // it: a variable, a literal, a closer, or a word no keyword table settles.
 // After a keyword, an operator or nothing, a term is read: perl 5.44.0
