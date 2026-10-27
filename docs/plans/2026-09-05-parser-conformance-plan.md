@@ -626,6 +626,19 @@ Machine: Intel(R) Xeon(R) Processor @ 2.10GHz, 4 vCPU, go version go1.24.4 linux
 The target above is < 10 ms p99 for the 1-char edit; whether these numbers
 keep it, and what step 6-7 work follows, is perigrin's ruling (01a17969-45ba).
 
+#### Ruling on the step-4 numbers
+
+2026-10-27
+
+Reference: the step-4 numbers above, measured at a65eada7 on the 4-vCPU VM, are the reference.
+Target: a 1-char edit to edit5k.pl reaches a re-parsed tree AND its published analysis in < 10 ms p99.
+Analysis budget: 10 ms p99, edit to published analysis (the same gate as Target)
+Debounce: excluded from every latency measurement (R-h).
+Step 8: both per-sub re-lower/re-analyze (§6.10.5 item 4) and straight speed-ups to lower/infer fixed costs.
+De-scoped: none
+Splice representation: decided after 01a17a40-4915 measures Repair's splice.
+01a14248-51da: done; the edit5k.pl benchmarks replace its T1/perl-lib measurement.
+
 ### M3 — The oracle turns on, at scale
 
 **Corpus:** T2 + T3 volume (perl5 `op mro uni lib test_pl`, 347 files).
