@@ -636,8 +636,9 @@ func autoquote(key *Node) {
 	key.Resolved = false
 }
 
-// refuseAmbiguousSigil refuses `A &y` and `A*y`: a `&` or `*` read here as an
-// operator, after a bareword, with a quote-op name glued after it. The lexer
+// refuseAmbiguousSigil refuses `A &y`, `A*y` and `A*#`: a `&` or `*` read here
+// as an operator, after a bareword, with a quote-op name (or, for `*`, a
+// punctuation glob name) glued after it. The lexer
 // has no symbol table, so it read a sigil and shielded the name as a sub's or
 // a glob's; reaching this loop, the parser reads the operator, which perl does
 // for a bareword it has not seen declared -- and then perl reads `y` as the
@@ -662,7 +663,16 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 		return nil
 	}
 	name, ok := p.peekAfter(tok)
-	if !ok || name.Kind != lexer.Word || name.Start != tok.End || !lexer.IsQuoteOpName(p.text(name)) {
+	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
+		return nil
+	}
+	// A punctuation glob name is the same disagreement: `fo*#` is `fo *`
+	// and a comment to perl, measured on 5.42.0, so its canon `fo * #`
+	// re-read as one.
+	c := p.src[name.Start]
+	punctName := text == "*" && c < 0x80 && c != '_' &&
+		!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9')
+	if !punctName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}
 	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
