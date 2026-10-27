@@ -1030,7 +1030,7 @@ Seed these specifically. Each breaks the assumption that an edit's effect is
 | Insert `"` mid-file | Every subsequent token re-lexes. Maximum blast radius | §6.1.2 A1. Quote parity of the line window changes, so triage returns `StrategyFull`: no region is re-parsed locally, Repair returns ok=false and `ReparseIncremental` parses the whole file |
 | Insert `<<EOF` | A heredoc suspends the rest of the line; the *next* line's meaning changes | §6.1.2 A2. `<<` appears in the window, a global trigger, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
 | Delete a heredoc terminator | The heredoc swallows the remainder of the file | §6.1.2 A3. The terminator line holds no global trigger, so triage returns `StrategyLocal`, anchored at the enclosing sub (§6.5.2). The seed has no later line equal to the terminator, so the re-lexed heredoc body runs to EOF, the resync loop never resyncs (§6.5.3), and Repair returns ok=false; the whole file is re-parsed |
-| Insert `=pod` at column 0 | POD mode until `=cut`. Everything after becomes trivia | §6.1.2 A7. `=pod` is not in `globalTriggers` (only `=cut` is), so triage returns `StrategyLocal`, anchored at the enclosing sub. The seed has no later `=cut`, so the POD block runs to EOF, nothing resyncs, and Repair returns ok=false; the whole file is re-parsed |
+| Insert `=pod` at column 0 | POD mode until `=cut`. Everything after becomes trivia | §6.1.2 A7. A line of the window starts with `=` and a letter, a POD directive (§6.5.1 as landed), so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
 | Insert `__END__` | Everything after becomes data | §6.1.2 A8. `__END__` appears in the window, a global trigger, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
 | Change `sub f()` to `sub f(\@)` | **A prototype edit changes how every later call parses — anywhere after it in the file, outside any re-parse region** (chapter 3 §3.5.5). The one edit whose effect escapes its enclosing sub | §6.1.2 B1. **Whole file.** Any edit that touches a prototype (the parenthesised list after `sub NAME`), or lands inside a `BEGIN` block (B6) or a `use` or `no` statement (B2, B7: either can install a prototype through `import`), is triaged `StrategyFull`: Repair returns ok=false and the whole file is re-parsed. A prototype installed by a module the file reaches through `use` is covered the same way: Repair returns ok=false when any module the old parse loaded now resolves to different bytes |
 | Insert `{` | Every brace after it re-associates | §6.1.2 C1. The window's brace delta changes, so triage returns `StrategyFull`: Repair returns ok=false and the whole file is re-parsed |
@@ -1053,9 +1053,11 @@ row on top of the sketch.
 
 The "Defined invalidation" column is what the tests hold. Each row is a
 committed seed (`internal/parse/testdata/fuzz/FuzzIncremental/`), and
-`TestIncrementalEditSeeds` (`internal/parse`) asserts, per row, the triage
-outcome, the region re-parsed or Repair's ok=false, and that
-`ReparseIncremental` equals a fresh parse of the edited bytes.
+`TestIncrementalEditSeeds` (`internal/parse`) asserts, per row, the region
+re-parsed or Repair's ok=false, and that `ReparseIncremental` equals a fresh
+parse of the edited bytes; `TestTriageMatchesDefinedInvalidation`, over the
+same table, the triage outcome and, for a `StrategyLocal` row, the enclosing
+sub it is anchored at.
 `TestRepairLocalSeedsSucceed` holds only the rows marked ok=true.
 `TestPrototypeEditInvalidation` (`internal/parse`) holds the prototype row:
 a prototype edit, an edit inside `BEGIN`, an edit to a `use` line and a

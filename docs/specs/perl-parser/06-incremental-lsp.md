@@ -1272,6 +1272,34 @@ verify the edit is interior to a single trivia token, not merely that the edited
 *bytes* are whitespace, or inserting a newline that terminates a `#` comment
 sneaks through.
 
+**As landed** (`internal/parse/incremental.go`). `triage(old, src, e)` reads
+the old source and the tree the document's `Session` parsed, resolver and
+all; the new line window is the old one with the edit applied. `Strategy` is
+`StrategyReuseAll`, `StrategyLocal`, `StrategyFull`. The limits are
+`maxEditBytes` = 64 KiB and `maxLocalEdit` = 1,024 bytes, each measured as the
+larger of the bytes deleted and the bytes inserted, and `maxLocalLines` = 10
+newlines in the inserted text: 1,024 bytes and 10 newlines are still local,
+1,025 and 11 are full. The departures from the sketch:
+
+- **Counts, not presence.** A trigger is structural when its count in the
+  line window changes, so deleting one `#` of two is caught. `#` (A9) and
+  `class` (B5) join `globalTriggers`. Quotes (`"`, `'`, `` ` ``) are compared
+  by count, `{}`, `()` and `[]` by balance.
+- **POD.** Any line in either window that starts with `=` and a letter makes
+  the edit full, so `=pod` (A7) is caught where the sketch lists only `=cut`,
+  and so is `=cut` edited to `=cutx`, which changes no count.
+- **What no window sees** (chapter 7 §7.7.3's prototype row). An edit
+  touching (or abutting) a `use`/`no`/`require`, a `BEGIN` block, a prototype,
+  or a `sub`, `package` or `class` declaration anywhere but strictly inside
+  its block is full. That covers a prototype edit, where `sub` stays in both
+  windows, a sub renamed or given a prototype inside a package or bare block,
+  and an edit to a `package NAME;`.
+- **`StrategyReuseAll`** is an edit strictly inside one `#` comment, POD or
+  whitespace token that deletes and inserts no newline, and inserts only
+  spaces and tabs into whitespace. A string's body is **not** reuse-all,
+  though the paragraph above lists it: the string node's `Text` changes, so
+  shifting offsets alone would not equal a fresh parse.
+
 ### 6.5.2 Widening to a safe boundary
 
 For `StrategyLocal`, widen the raw edit range outward until both ends sit on
@@ -1329,6 +1357,23 @@ against a budget measured in milliseconds (§6.10.2). Chapter 5 §5.14's table
 also admits bare and control-flow blocks; narrow to them only if step 4 of
 §6.11 shows sub-level re-parse missing the budget on oversized subs. Do not
 anchor at single statements — chapter 5 §5.14 says why.
+
+**As landed** (`internal/parse/incremental.go`). `widen(old, src, e)` returns
+a `lexer.Checkpoint` and the anchor node. The anchor is the **top-level
+statement** holding the edit when the path down to the edit enters a sub's
+body (strictly inside its braces) and passes through no `use`, `BEGIN` block
+or declaration head; otherwise it is the `SourceFile` root, a full reparse.
+So an edit at top level, between subs, in a `package NAME BLOCK`'s own code,
+or inside a `use`, a `BEGIN` (even inside a sub declared there) or a
+`package NAME;` widens to the whole file. A sub inside a top-level `package
+NAME BLOCK`, bare block or `if` anchors at that whole statement, past the
+block: a nested parser snapshot (§6.5.3) resumes only to the block's `}` and
+returns no post-block state, while a top-level one resumes to end of file.
+Every anchor but the root therefore holds a top-level parser snapshot at its
+start. The checkpoint is the last the lexer recorded at or before the
+anchor's start, never after it; it comes from re-lexing the old source until
+the token cache (§6.3.2) exists. A call whose prototype a module installed is
+widened as the Session parsed it, and lies wholly inside its anchor.
 
 ### 6.5.3 The repair loop
 
