@@ -167,6 +167,19 @@ func TestLatencyFixtureIs5kLOCAndParsesClean(t *testing.T) {
 	}
 }
 
+// TestLatencyFixtureHasNoCarriageReturns: the committed fixture is LF only
+// (.gitattributes checks it out eol=lf), so a Windows checkout cannot change
+// its bytes or its line count under TestLatencyFixtureMatchesGenerator.
+func TestLatencyFixtureHasNoCarriageReturns(t *testing.T) {
+	src, err := os.ReadFile(latencyFixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := bytes.Count(src, []byte("\r")); n != 0 {
+		t.Errorf("%s holds %d carriage return(s), want 0", latencyFixturePath, n)
+	}
+}
+
 // TestLatencyFixtureCompiles: perl compiles the fixture, so it is Perl and
 // not something only internal/parse accepts.
 func TestLatencyFixtureCompiles(t *testing.T) {
