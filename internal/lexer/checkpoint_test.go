@@ -372,9 +372,30 @@ func TestLexResumeCarriesUTF8AndFeatures(t *testing.T) {
 	t.Fatal("$café is not one token: the fixture does not exercise use utf8")
 }
 
-// FuzzLexResume is the resume property on any input: the checkpointing
-// lexer's stream is Tokenize's, and resuming from each of its checkpoints --
-// every safe point, no stride -- yields Tokenize's suffix.
+// TestLexResumeTypedSquareLookback is the review's counterexample (#509): a
+// mismatched closer empties the bracket stack while a `[` is still open by
+// count, and containerTypeSigil's walk back from a later `]` reaches it --
+// across the checkpoint after the `;`, which a resume cannot see past.
+func TestLexResumeTypedSquareLookback(t *testing.T) {
+	for _, src := range []string{
+		"my $y = Foo[ ); ] %h;\n",
+		"my $y = Foo[ [ ) ); ] ] %h; my $z = 1;\n",
+		"Foo[ }; x(); ] %h;\n",
+	} {
+		b := []byte(src)
+		checkResumes(t, b, StartStateTyped(), TokenizeTyped(b), 0)
+	}
+	// A balanced statement still gets its checkpoints.
+	b := []byte("my List[Str] %h; my $z = 1;\n")
+	if cps := checkResumes(t, b, StartStateTyped(), TokenizeTyped(b), 0); len(cps) < 3 {
+		t.Errorf("%d checkpoints after balanced squares, want 3", len(cps))
+	}
+}
+
+// FuzzLexResume is the resume property on any input, for each of the three
+// start states: the checkpointing lexer's stream is the Tokenize* call's, and
+// resuming from each of its checkpoints -- every safe point, no stride --
+// yields that call's suffix, from at most some 64 of them.
 //
 //	go test ./internal/lexer/ -run '^$' -fuzz '^FuzzLexResume$' -fuzztime 50000x
 func FuzzLexResume(f *testing.F) {
@@ -386,6 +407,11 @@ func FuzzLexResume(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, src string) {
 		b := []byte(src)
-		checkResumes(t, b, StartState(), Tokenize(b), 0)
+		// Every resume re-lexes to EOF, so a stride keeps an input of
+		// thousands of `;` to some 64 resumes rather than quadratic time.
+		stride := len(b) / 64
+		for _, s := range resumeStarts {
+			checkResumes(t, b, s.start, s.tokenize(b), stride)
+		}
 	})
 }

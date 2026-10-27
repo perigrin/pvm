@@ -87,10 +87,12 @@ func (l *lexer) atCheckpoint() bool {
 
 // safe is spec §6.3.1's safe-checkpoint condition in this lexer's terms: a
 // statement is starting, no bracket is open, no heredoc is queued and no
-// format body is about to begin.
+// format body is about to begin. No `[` may be open by count either:
+// containerTypeSigil walks back over raw `[`/`]` with no stop at `;`, and
+// would otherwise cross the checkpoint to reach one (review of #509).
 func (l *lexer) safe() bool {
 	return l.expect == XState && len(l.brackets) == 0 && len(l.pending) == 0 &&
-		!l.pendingFormat && !l.inFormat
+		!l.pendingFormat && !l.inFormat && l.openSquares == 0
 }
 
 // Equal reports whether s and o lex forward identically. An empty collection

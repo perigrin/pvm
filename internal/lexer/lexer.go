@@ -276,6 +276,12 @@ type lexer struct {
 	// block or subscript -- but all three are tracked so the stack stays
 	// aligned.
 	brackets []bracket
+	// openSquares is how many `[` a walk back from here could find unclosed
+	// counting bytes, as containerTypeSigil walks: the largest count of
+	// significant `[` over `]` in any run of tokens ending here. It can exceed
+	// zero with brackets empty, since any closer pops the stack, and it is
+	// what keeps a checkpoint off a point that walk would cross.
+	openSquares int
 	// closedBlock is set by trackBrackets when the token just emitted was a
 	// `}` that closed a block, and read by the expect transition. A field
 	// rather than a parameter threaded through every scanner, because emit
@@ -542,6 +548,14 @@ func scanOne(l *lexer) {
 func (l *lexer) emit(k Kind, start int) {
 	l.toks = append(l.toks, Token{Kind: k, Start: start, End: l.pos})
 	l.trackBrackets(k, start)
+	if k != Whitespace && k != Comment && start < l.pos {
+		switch l.src[start] {
+		case '[':
+			l.openSquares++
+		case ']':
+			l.openSquares = max(0, l.openSquares-1)
+		}
+	}
 	// trackBrackets has just classified this token, so the flags it set
 	// belong to the token appended above.
 	l.toks[len(l.toks)-1].OpensBlock = l.openedBlock || l.closedBlock

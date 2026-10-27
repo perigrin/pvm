@@ -976,8 +976,11 @@ and `Resume(src, cp)` lexes from one to EOF, equal to the full stream's suffix.
 No checkpoint is recorded unless the token just emitted is a `;` or a `}` and
 `Expect == XState` with the bracket stack empty, no heredoc queued (so never
 with one pending on the line, nor inside its body), and no format body pending
-or open; nothing follows a `DataSection`, so none falls after `__END__` or
-`__DATA__`. Resume needs the bytes before the checkpoint unchanged: a few
+or open, and no `[` still open by count (`openSquares`) — any closer pops the
+bracket stack, so `[ )` empties it while typed Perl's `containerTypeSigil`,
+walking back over raw `[`/`]` with no stop at `;`, would still reach that `[`;
+nothing follows a `DataSection`, so none falls after `__END__` or
+`__DATA__`. Resume needs the bytes before the checkpoint unchanged: the other
 scanners look back a token or two, and none looks past a `;` or a block's `}`.
 
 ### 6.3.2 The cache
