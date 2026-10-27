@@ -230,6 +230,13 @@ func (p *parser) parseTerm() *Node {
 				}
 				return n
 			}
+			// `*%x` after a declared word: the lexer took `%x` as the star's
+			// operand, as an undeclared word's multiplication has it, but a
+			// star read as a term is perl's glob `*%`, then `x` -- measured
+			// on 5.44.0, `sub A {} A*%x3` is `A(*% x 3)`.
+			if name.Kind == lexer.Variable && name.Start == tok.End && p.src[name.Start] != '$' {
+				return p.ambiguousSigil(tok.Start)
+			}
 			p.advanceTo(name)
 			if name.Kind == lexer.Variable {
 				// `*$glob` names the slot the SCALAR points at, so the

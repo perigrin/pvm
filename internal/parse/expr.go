@@ -736,6 +736,12 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
 		return nil
 	}
+	return p.ambiguousSigil(left.Start)
+}
+
+// ambiguousSigil refuses from start to the end of the statement, which was
+// lexed for the reading the parser declines.
+func (p *parser) ambiguousSigil(start int) *Node {
 	p.skipToStatementEnd()
-	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: left.Start, End: p.prevEnd()}
+	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: start, End: p.prevEnd()}
 }

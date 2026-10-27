@@ -64,12 +64,21 @@ func (p *parser) parseTheRest(word lexer.Token) *Node {
 // comma-separated list of literals: `{ () }` is a term, and a narrower parser
 // would decline it.
 func (p *parser) parseUse(word lexer.Token) *Node {
-	// `use` and `no` take a module name or a version, never a parenthesis:
+	// `use` and `no` take a module name or a version and nothing else:
 	// measured on 5.42.0, `no(A)`, `use (A)` and `no ( strict )` are each
-	// "syntax error ... near "no("". `require(A)` is a call perl compiles.
+	// "syntax error ... near "no("", and on 5.44.0 so are `no &0`, `use
+	// 'strict'`, `use $x`, `use +strict` and `use;`. Read on, `no &0` took
+	// `&` as an import list and canon re-read its `&;` differently.
+	// `require(A)` is a call perl compiles. `use => 1` is the string "use".
+	if next, ok := p.peekAfter(word); ok && p.text(next) == "=>" {
+		return nil
+	}
 	p.advanceTo(word)
-	if next, ok := p.peekSignificant(); ok && p.text(next) == "(" && keywordName(p.text(word)) != "require" {
-		return p.refuseTrailingTokens(word.Start)
+	if keywordName(p.text(word)) != "require" {
+		if next, ok := p.peekSignificant(); !ok || !(next.Kind == lexer.Word || next.Kind == lexer.Number ||
+			next.Kind == lexer.Quote && isVString(p.text(next))) {
+			return p.refuseTrailingTokens(word.Start)
+		}
 	}
 
 	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
