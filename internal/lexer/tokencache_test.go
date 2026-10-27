@@ -54,6 +54,27 @@ func checkCache(t *testing.T, c *TokenCache, src []byte, tokenize func([]byte) [
 			t.Fatalf("resuming the cache's checkpoint at %d of %q: %s", cp.Byte, src, firstTokenDiff(src, got, want))
 		}
 	}
+	// No failed lookahead in a fresh lex reads past a checkpoint the cache
+	// kept: the tokens before each depend on no byte after it.
+	peek := peekEnds(src, c.Checkpoints[0].State)
+	for _, cp := range c.Checkpoints {
+		if peek[cp.Byte] > cp.Byte {
+			t.Fatalf("checkpoint at %d of %q: a lookahead before it read to %d", cp.Byte, src, peek[cp.Byte])
+		}
+	}
+}
+
+// peekEnds lexes src from start and maps each token boundary to the lexer's
+// peekEnd there.
+func peekEnds(src []byte, start State) map[int]int {
+	l := start.Clone().l
+	l.src = src
+	m := map[int]int{0: 0}
+	for l.pos < len(l.src) {
+		l.step(scanOne)
+		m[l.pos] = l.peekEnd
+	}
+	return m
 }
 
 // incrementalEdits are spec §7.7.3's eight edits, the seeds of
@@ -313,7 +334,39 @@ func TestTokenCacheCheckpointsInvalidatedByNewHeredoc(t *testing.T) {
 	}
 }
 
+// lookaheadSequences are edit pairs whose first edit resyncs at an old
+// checkpoint a lookahead in the new stream reads past, and whose second then
+// edits after that checkpoint (re-review of #510).
+var lookaheadSequences = []editSequence{
+	{"a;  \nb;\n", 0, []cacheEdit{{0, 0, "<"}, {4, 0, ">"}}},
+	stdinSequence(),
+}
+
+type editSequence struct {
+	src    string
+	stride int
+	seq    []cacheEdit
+}
+
+// stdinSequence types `<` before STDIN past the first 512-byte stride, then
+// `>` after the `foo()` that follows its `;`.
+func stdinSequence() editSequence {
+	src := strings.Repeat("1;\n", 170) + "my @l = STDIN; foo();\nbar();\n"
+	foo := strings.Index(src, "foo()") + len("foo()")
+	return editSequence{src, checkpointStride, []cacheEdit{{strings.Index(src, "STDIN"), 0, "<"}, {foo + 1, 0, ">"}}}
+}
+
 func TestTokenCacheEditSequenceMatchesFull(t *testing.T) {
+	for i, c := range lookaheadSequences {
+		for _, s := range resumeStarts {
+			cur := []byte(c.src)
+			cache := newTokenCache(cur, s.start, c.stride)
+			for j, e := range c.seq {
+				cur, _ = editCache(cache, cur, e)
+				t.Run(s.name+"/lookahead"+itoa(i)+"/edit"+itoa(j), func(t *testing.T) { checkCache(t, cache, cur, s.tokenize) })
+			}
+		}
+	}
 	src := []byte("sub f {\n  print <<EOF;\nbody;\nEOF\n  return 1;\n}\nmy $x = f();\nprint $x / 2;\n")
 	term := bytes.Index(src, []byte("EOF\n  return"))
 	seq := []cacheEdit{
@@ -338,45 +391,53 @@ func TestTokenCacheEditSequenceMatchesFull(t *testing.T) {
 	}
 }
 
-// FuzzTokenCacheEdit is the cache property on any input and any edit, for
-// each of the three start states: after the edit, after the edit that undoes
-// it, and after a third at the mirrored offset, the cache equals a fresh Tokenize* of the bytes and every
-// checkpoint it holds resumes to that stream's suffix.
+// FuzzTokenCacheEdit is the cache property on any input and any two edits,
+// for each of the three start states: after the first edit, after a second
+// at an independent offset, and after the edit that undoes the second, the
+// cache equals a fresh Tokenize* of the bytes and every checkpoint it holds
+// resumes to that stream's suffix with no lookahead reading past it.
 //
-//	go test ./internal/lexer/ -run '^$' -fuzz '^FuzzTokenCacheEdit$' -fuzztime 50000x
+//	go test ./internal/lexer/ -run '^$' -fuzz '^FuzzTokenCacheEdit$' -fuzztime 2000000x
 func FuzzTokenCacheEdit(f *testing.F) {
 	for _, c := range incrementalEdits {
-		f.Add(c.src, c.e.at, c.e.del, c.e.ins)
+		f.Add(c.src, c.e.at, c.e.del, c.e.ins, 0, 0, "")
 	}
 	for _, c := range resyncEdits {
-		f.Add(c.src, c.e.at, c.e.del, c.e.ins)
+		f.Add(c.src, c.e.at, c.e.del, c.e.ins, 0, 0, "")
+	}
+	for _, c := range lookaheadSequences {
+		f.Add(c.src, c.seq[0].at, c.seq[0].del, c.seq[0].ins, c.seq[1].at, c.seq[1].del, c.seq[1].ins)
 	}
 	for _, src := range resumeFixtures {
 		for _, e := range fixtureEdits(src) {
-			f.Add(src, e.at, e.del, e.ins)
+			f.Add(src, e.at, e.del, e.ins, len(src)-e.at, 0, e.ins)
 		}
 	}
 	for _, s := range fuzzSeeds {
-		f.Add(s, len(s)/2, 1, ";")
+		f.Add(s, len(s)/2, 1, ";", len(s), 0, "x")
 	}
-	f.Fuzz(func(t *testing.T, src string, at, del int, ins string) {
+	f.Fuzz(func(t *testing.T, src string, at, del int, ins string, at2, del2 int, ins2 string) {
 		b := []byte(src)
-		at = min(max(at, 0), len(b))
-		del = min(max(del, 0), len(b)-at)
-		e := cacheEdit{at, del, ins}
-		undo := cacheEdit{at, len(ins), src[at : at+del]}
+		e := clampEdit(len(b), at, del, ins)
+		mid, _ := e.apply(b)
+		e2 := clampEdit(len(mid), at2, del2, ins2)
+		undo := cacheEdit{e2.at, len(e2.ins), string(mid[e2.at : e2.at+e2.del])}
 		// A stride keeps the checkpoints, and so checkCache's resumes, to
 		// some 64 rather than one per statement.
 		stride := (len(b) + len(ins)) / 64
 		for _, s := range resumeStarts {
 			cache := newTokenCache(b, s.start, stride)
-			out, _ := editCache(cache, b, e)
-			checkCache(t, cache, out, s.tokenize)
-			back, _ := editCache(cache, out, undo)
-			checkCache(t, cache, back, s.tokenize)
-			// A third edit elsewhere: the insert again, at the mirrored offset.
-			again, _ := editCache(cache, back, cacheEdit{len(back) - at, 0, ins})
-			checkCache(t, cache, again, s.tokenize)
+			cur := b
+			for _, e := range []cacheEdit{e, e2, undo} {
+				cur, _ = editCache(cache, cur, e)
+				checkCache(t, cache, cur, s.tokenize)
+			}
 		}
 	})
+}
+
+// clampEdit is the edit at, del, ins made valid for an n-byte source.
+func clampEdit(n, at, del int, ins string) cacheEdit {
+	at = min(max(at, 0), n)
+	return cacheEdit{at, min(max(del, 0), n-at), ins}
 }

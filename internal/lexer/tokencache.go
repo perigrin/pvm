@@ -87,7 +87,10 @@ func (c *TokenCache) Edit(src []byte, start, oldEnd, newEnd int) int {
 // lie wholly after the edit, so the bytes a resume may look back over are
 // unchanged; Flags count because a `}` that closed a block and one that
 // closed a hash leave different states, and State counts because equal
-// tokens can be lexed in states that diverge later (spec §6.3).
+// tokens can be lexed in states that diverge later (spec §6.3). And no
+// lookahead in the new stream may have read past it, the rule atCheckpoint
+// holds a recorded checkpoint to, which State.Equal cannot see because
+// peekEnd is an offset Clone clears (re-review of #510).
 func (c *TokenCache) resyncsAt(l *lexer, k, oldEnd, delta int) (int, bool) {
 	cp := c.Checkpoints[k]
 	i := sort.Search(len(c.Tokens), func(i int) bool { return c.Tokens[i].End >= cp.Byte })
@@ -97,5 +100,5 @@ func (c *TokenCache) resyncsAt(l *lexer, k, oldEnd, delta int) (int, bool) {
 	old := c.Tokens[i]
 	old.Start += delta
 	old.End += delta
-	return i + 1, old == l.toks[len(l.toks)-1] && State{*l}.Equal(cp.State)
+	return i + 1, old == l.toks[len(l.toks)-1] && State{*l}.Equal(cp.State) && l.peekEnd <= l.pos
 }

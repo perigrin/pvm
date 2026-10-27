@@ -1023,20 +1023,24 @@ costs nothing per token. `NewTokenCache(src, start)` lexes as `Checkpoints`
 does. `Edit(src, start, oldEnd, newEnd)` re-lexes the new bytes from the last
 checkpoint strictly before `start` (a scanner may peek one byte past its
 token, so a checkpoint at the edit is not trusted), recording fresh
-checkpoints as it goes, and
-resyncs at the first old checkpoint past the edit where all of these hold:
-the old token ending there lies wholly after `oldEnd`, it equals the new
-stream's last token in `Kind`, shifted `Start`/`End` and Flags (the token's
-`OpensBlock` and `TermFollows`; a regex and a division `/` already differ in
-`Kind` here), and the lexer `State` equals the checkpoint's. The cache is then
+checkpoints as it goes, and resyncs at the first old checkpoint past the edit
+where all of these hold: the old token ending there lies wholly after
+`oldEnd`, it equals the new stream's last token in `Kind`, shifted
+`Start`/`End` and Flags (the token's `OpensBlock` and `TermFollows`; a regex
+and a division `/` already differ in `Kind` here), the lexer `State` equals
+the checkpoint's, and no lookahead in the new stream has read past it — the
+§6.3.1 `peekEnd` rule, which `State.Equal` cannot see because `peekEnd` is an
+offset and is not state. So every checkpoint the cache holds, kept or fresh,
+has tokens before it that depend on no byte after it. The cache is then
 the old prefix, the re-lexed tokens and the old tail shifted by the edit's
 delta, checkpoints likewise; a stream that never resyncs is lexed to EOF
 once. `Edit` returns the count of tokens re-lexed. The tests hold the cache
 to a fresh `Tokenize*` after every edit in all three start states, including
 the §7.7.3 edits, the lookahead counterexamples and edit sequences, with
-every checkpoint resuming to the fresh stream's suffix; `FuzzTokenCacheEdit`
-holds it on any input after an edit, its undo and a third edit. On edit5k.pl the latency benchmarks' 1-char edit re-lexes 261 of
-37,070 tokens.
+every checkpoint resuming to the fresh stream's suffix and no fresh lex's
+lookahead reading past any of them; `FuzzTokenCacheEdit` holds it on any input
+after an edit, a second at an independent offset and the second's undo. On
+edit5k.pl the latency benchmarks' 1-char edit re-lexes 261 of 37,070 tokens.
 
 ---
 
