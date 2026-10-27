@@ -161,9 +161,20 @@ func (o *owner) land() {
 	}
 	o.diagDue = false
 	for _, w := range o.waiters {
-		w <- o.snap
+		w <- o.view()
 	}
 	o.waiters = nil
+}
+
+// view is the last tree that landed, with a Snapshot of its text: taken
+// here, on the owner's goroutine, so no edit of the text runs under it.
+func (o *owner) view() *document {
+	if o.snap == nil {
+		return nil
+	}
+	v := *o.snap
+	v.text = o.snap.text.Snapshot()
+	return &v
 }
 
 // startParse cancels any parse in flight and parses the current text on a
@@ -263,7 +274,7 @@ func (o *owner) current() *document {
 			o.startParse()
 		}
 		if o.finished == o.gen {
-			reply <- o.snap
+			reply <- o.view()
 			return
 		}
 		o.waiters = append(o.waiters, reply)

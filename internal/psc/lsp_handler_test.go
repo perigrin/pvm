@@ -616,3 +616,41 @@ func TestFileURINamesItsPath(t *testing.T) {
 		assert.Equal(t, filepath.FromSlash(path), got, path)
 	}
 }
+
+// TestPublishDiagnosticsAfterClose closes and reopens a document while its
+// owner publishes diagnostics and readers take its text: each publish pairs
+// diagnostics with the text of the same parse, never a nil one, and nothing
+// is published once the close has returned.
+func TestPublishDiagnosticsAfterClose(t *testing.T) {
+	h, out := newTestHandler(t)
+	const uri = "untitled:closing.pl"
+	src := []byte("my $x;\npush($x, 1);\n")
+	require.NoError(t, h.server.OpenDocument(uri, src))
+	require.NotEmpty(t, h.server.Diagnostics(uri))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			h.server.CloseDocument(uri)
+			h.server.open(uri, i, src)
+		}
+		h.server.CloseDocument(uri)
+	}()
+	for {
+		select {
+		case <-done:
+			// Read without the transport's lock: a publish after the close
+			// returned would race with it.
+			n := out.Len()
+			assert.Nil(t, h.server.Text(uri))
+			assert.Equal(t, n, out.Len())
+			assert.Contains(t, out.String(), "textDocument/publishDiagnostics")
+			return
+		default:
+			if d := h.server.Text(uri); d != nil {
+				d.ByteToPosition(uint32(len(d.Text)))
+			}
+		}
+	}
+}
