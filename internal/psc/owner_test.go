@@ -494,3 +494,86 @@ func TestShutdownWithParseInFlight(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rest, "nothing is published after shutdown")
 }
+
+func TestReopenPublishesNoStaleDiagnostics(t *testing.T) {
+	r := newRig(t, nil)
+	r.s.parseDelay, r.s.diagDelay = 0, 0
+	gate, publishing, v2 := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	r.s.compute = func(_ context.Context, _ string, text []byte) (*document, error) {
+		if string(text) == "v1" {
+			<-gate
+		}
+		return &document{analysis: &infer.FileAnalysis{}}, nil
+	}
+	var mu sync.Mutex
+	var order []int
+	r.s.publish = func(doc *document, _ error) {
+		if doc.version == 1 {
+			// The old owner is mid-publish as the reopen arrives: hold it
+			// there, so a new owner already parsing would publish first.
+			// The bound only ends the hold once the reopen is stopping
+			// this owner instead; it decides nothing.
+			close(publishing)
+			select {
+			case <-v2:
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
+		mu.Lock()
+		order = append(order, doc.version)
+		mu.Unlock()
+		if doc.version == 2 {
+			close(v2)
+		}
+	}
+
+	r.s.open(ownedURI, 1, []byte("v1"))
+	close(gate)
+	await(t, publishing, "v1's diagnostics are being published")
+	r.s.open(ownedURI, 2, []byte("v2"))
+	await(t, v2, "v2's diagnostics are published")
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []int{1, 2}, order, "the superseded owner's diagnostics never follow the new owner's")
+}
+
+func TestNoPublishAfterDidClose(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+	gate, publishing := make(chan struct{}), make(chan struct{})
+	h.server.compute = func(context.Context, string, []byte) (*document, error) {
+		<-gate
+		return nil, fmt.Errorf("stale")
+	}
+	var o *owner
+	h.server.publish = func(doc *document, err error) {
+		close(publishing)
+		<-o.quit // publish only once the close has begun stopping the owner
+		h.published(doc, err)
+	}
+	h.server.open(ownedURI, 1, []byte("my $x;\n"))
+	o = h.server.owner(ownedURI)
+	close(gate)
+	await(t, publishing, "the owner is publishing")
+
+	params, err := json.Marshal(lspDidCloseParams{TextDocument: lspTextDocumentIdentifier{URI: ownedURI}})
+	require.NoError(t, err)
+	require.NoError(t, h.handle(&jsonRPCMessage{JSONRPC: "2.0", Method: "textDocument/didClose", Params: params}))
+
+	var last *lspPublishDiagnosticsParams
+	for tr := newTransport(out, io.Discard); ; {
+		msg, err := tr.readMessage()
+		if err != nil {
+			break // the end of what was written
+		}
+		var p lspPublishDiagnosticsParams
+		require.NoError(t, json.Unmarshal(msg.Params, &p))
+		if msg.Method == "textDocument/publishDiagnostics" && p.URI == ownedURI {
+			last = &p
+		}
+	}
+	require.NotNil(t, last, "the close clears the document's diagnostics")
+	assert.NotNil(t, last.Diagnostics, "the clear is an empty array, not null")
+	assert.Empty(t, last.Diagnostics, "the client's last word for a closed document is an empty clear")
+}
