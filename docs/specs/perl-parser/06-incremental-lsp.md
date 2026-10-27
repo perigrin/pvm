@@ -1761,6 +1761,21 @@ Why this shape:
 - Requests jump the debounce queue. A `hover` that arrives 5 ms after a
   keystroke gets a current answer rather than waiting out the timer.
 
+**As landed** (`internal/psc/owner.go`, issue 01a17969-4541): the owner is
+`owner`, one per open URI in `LSPServer.documents`, whose `sync.Mutex` now
+guards only that map — no parse runs under it, so two documents parse at once.
+Every operation on an owner is a closure run on its goroutine (`owner.call`),
+so `didChange` returns once the text is swapped and the timers reset. Requests
+are served through the owner rather than from an `atomic.Pointer`: a request
+forces a pending parse and waits for the tree of the latest version, which
+lands before the waiters are served. A `didChange` whose version is not newer
+than the owner's is dropped; one for a URI that is not open makes no owner;
+`didClose` stops the owner and waits for its goroutine to return; `shutdown`
+stops every owner, so nothing is published after it. A panic in parse, lower
+or analyze is that version's error, published as one error diagnostic over the
+document; the owner keeps the last good tree and keeps serving. An open is
+parsed at once and its diagnostics published when it lands, with no debounce.
+
 ### 6.7.2 Debouncing
 
 Two different debounces with different intervals — this is important and
@@ -1780,6 +1795,12 @@ The timer-reset dance above is the correct idiom and it is easy to get wrong.
 `Stop()` returning false means the timer already fired, so its value may be
 sitting in the channel; the non-blocking drain prevents an immediate spurious
 fire after `Reset`.
+
+**As landed** (`internal/psc/owner.go`): `parseDebounce` is 15 ms and
+`diagnosticsDebounce` 300 ms, each an owner timer (`parseT`, `diagT`). The
+intervals and the clock the timers come from are `LSPServer` fields, so tests
+shorten them or drive a fake clock; an interval of zero acts at once.
+`stopTimer` is the Stop/drain idiom, and every `Reset` follows it.
 
 ### 6.7.3 Cancellation
 
@@ -1827,6 +1848,14 @@ are microseconds apart.
 Also honour LSP `$/cancelRequest`. Map request IDs to `CancelFunc`s in the
 server's dispatcher and cancel on receipt.
 
+**As landed** (`internal/psc/owner.go`, `LSPServer.analyzeSource`, `analyze`):
+each parse gets a `context.Context` that a newer edit cancels, and the
+generation check is the only gate on landing — a result whose generation is not
+the owner's is dropped, whether or not it saw the cancel. `ctx` is polled
+before the parse, before lowering and before analysis; the parser's statement
+loop does not poll it yet, so a cancelled parse runs to the end of the current
+parse stage. `$/cancelRequest` is not handled yet.
+
 ### 6.7.4 Bounding total work
 
 `GOMAXPROCS` goroutines parsing 20 open documents at once will thrash. Gate
@@ -1849,6 +1878,10 @@ func releaseParseSlot() { <-parseSlots }
 ```
 
 Half the CPUs, minimum two. The editor's own UI needs the rest.
+
+**As landed** (`internal/psc/owner.go`): `parseSlots` has capacity
+`max(2, runtime.NumCPU()/2)`, and `owner.parse` acquires a slot with the
+parse's `ctx` around the whole parse, lower and analyze.
 
 ---
 
