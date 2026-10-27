@@ -43,6 +43,8 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/release/_search", r.URL.Path)
 				assert.Equal(t, "distribution:perl", r.URL.Query().Get("q"))
+				assert.Equal(t, "version,date,maturity,authorized", r.URL.Query().Get("_source"))
+				assert.Empty(t, r.URL.Query().Get("fields"))
 				assert.Equal(t, "GET", r.Method)
 
 				// Mock response with both stable and dev versions
@@ -50,7 +52,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 					"hits": {
 						"hits": [
 							{
-								"fields": {
+								"_source": {
 									"version": "5.040000",
 									"date": "2024-06-09T12:00:00Z",
 									"maturity": "released",
@@ -58,7 +60,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 								}
 							},
 							{
-								"fields": {
+								"_source": {
 									"version": "5.039000",
 									"date": "2024-03-15T12:00:00Z",
 									"maturity": "released",
@@ -66,7 +68,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 								}
 							},
 							{
-								"fields": {
+								"_source": {
 									"version": "5.038002",
 									"date": "2024-01-10T12:00:00Z",
 									"maturity": "released",
@@ -74,7 +76,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 								}
 							},
 							{
-								"fields": {
+								"_source": {
 									"version": "5.037012",
 									"date": "2023-12-01T12:00:00Z",
 									"maturity": "released",
@@ -211,7 +213,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev_BackwardCompatibility(t *te
 			"hits": {
 				"hits": [
 					{
-						"fields": {
+						"_source": {
 							"version": "5.040000",
 							"date": "2024-06-09T12:00:00Z",
 							"maturity": "released",
@@ -219,7 +221,7 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev_BackwardCompatibility(t *te
 						}
 					},
 					{
-						"fields": {
+						"_source": {
 							"version": "5.039000",
 							"date": "2024-03-15T12:00:00Z",
 							"maturity": "released",
