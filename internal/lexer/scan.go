@@ -271,8 +271,13 @@ func (l *lexer) startsDerefExpression() bool {
 //
 // Anything else is an expression: `${$x}`, `${ $h->{k} }`, `@{[ 1, 2 ]}`.
 func (l *lexer) bracedNameFollowsAt(brace int) bool {
+	// Any whitespace, as skipspace takes it: perl 5.44.0 deparses `${0\r}`
+	// and `${ x` + newline + `}` as `$0` and `$x`, and FuzzParser's
+	// `(${0\r},,)`, read as a deref, canon'd differently. Not across a
+	// newline a heredoc body starts after.
+	blank := func(c byte) bool { return isSpace(c) && (c != '\n' || len(l.pending) == 0) }
 	i := brace + 1
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && blank(l.src[i]) {
 		i++
 	}
 
@@ -291,7 +296,7 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	if i == nameStart {
 		return false
 	}
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && blank(l.src[i]) {
 		i++
 	}
 	return i < len(l.src) && l.src[i] == '}'

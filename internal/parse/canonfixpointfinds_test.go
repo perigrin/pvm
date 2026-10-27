@@ -279,6 +279,17 @@ func TestSpacedPercentAfterWordIsModulus(t *testing.T) {
 	}
 }
 
+// TestBracedNameTakesAnyBlank: perl 5.44.0 deparses `${0\r}` and `${ x` +
+// newline + `}` as `$0` and `$x`. Read as a deref of `0`, FuzzParser's
+// `(${0\r},,)` canon'd differently.
+func TestBracedNameTakesAnyBlank(t *testing.T) {
+	for src, want := range map[string]string{"(${0\r},,)": "(${0\r},)", "my $x; my $y = ${ x\n};": "my $x;my $y = ${ x\n};"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+}
+
 // TestUnclosedDerefNestIsNotExponential: derefHoldsStatements trial-parses
 // a deref's braces, and the trial held the nested deref's own trial, so
 // each unclosed `${` doubled the work: FuzzParser's
