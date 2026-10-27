@@ -68,7 +68,8 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 	clean(t, "A*s => 1;")
 	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0, and
 	// FuzzParser's `(A*/)` an unterminated pattern.
-	for _, src := range []string{"{x*$}", "(A*/)", "A*?;", "A*|"} {
+	// And after a closer: FuzzParser's `{{}*$}`.
+	for _, src := range []string{"{x*$}", "(A*/)", "A*?;", "A*|", "{{}*$}"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}

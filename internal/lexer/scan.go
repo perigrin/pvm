@@ -1364,8 +1364,10 @@ func scanGlobName(l *lexer) bool {
 	// FuzzParser's `(A*/)`, read as the glob `*/`, canon'd as `(A * /)`, an
 	// unterminated pattern. `#`, a quote, `;`, `}` and `*` keep the glob:
 	// the parser refuses those after an undeclared word (ruling R-b′), and a
-	// handle takes the glob, `print STDOUT *;`.
-	case !byteIn(c, "#\"'`;}*") && l.afterUserWord(len(l.toks)-1, true):
+	// handle takes the glob, `print STDOUT *;`. After a closer too, which
+	// the parser reads as ending a term, `{}` an anonymous hash: FuzzParser's
+	// `{{}*$}` is `{} * $}` with its `}` missing.
+	case !byteIn(c, "#\"'`;}*") && (l.afterUserWord(len(l.toks)-1, true) || l.closerBefore(len(l.toks)-1)):
 		return false
 	}
 	l.pos = end
