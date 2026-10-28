@@ -1,9 +1,10 @@
-// ABOUTME: damageFromTreeDiff: the top-level subs an edit damages, from the old and new full-parse trees (§6.10.5 item 4).
-// ABOUTME: Class B declaration edits, non-trivia top-level edits and parse-error changes go full; a damaged sub's callers are damaged.
+// ABOUTME: analyzeEdit re-lowers and re-analyzes only the top-level subs an edit damages, keeping the rest (§6.10.5 item 4).
+// ABOUTME: damageFromTreeDiff decides which: Class B, non-trivia top-level and parse-error edits go full; callers are damaged.
 
 package psc
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"strings"
@@ -12,6 +13,38 @@ import (
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
 )
+
+// analyzeEdit is analyze(ctx, root, opts) for root, the parse of an edited
+// buffer, given prev, the analysis analyze or analyzeEdit made of prevRoot,
+// the parse before the edit. It re-lowers and re-analyzes only the subs the
+// edit damaged and keeps the lowering and analysis of the rest; an edit that
+// damaged none walks no sub. A Full damage, or a prev that cannot be reused,
+// takes analyze's path. It returns the damage it acted on.
+//
+// prev is not changed, and like analyze it polls ctx between lowering
+// and analysis.
+func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnalysis, root *parse.Node, opts infer.Options) (*infer.FileAnalysis, editDamage, error) {
+	d := damageFromTreeDiff(prevRoot, root)
+	if prev == nil || d.Full {
+		fa, err := analyze(ctx, root, opts)
+		return fa, d, err
+	}
+	f, ok := lower.Relower(prev.File, root, d.Subs)
+	if !ok {
+		fa, err := analyze(ctx, root, opts)
+		return fa, editDamage{Full: true, Reason: "a damaged sub is not in the lowered tree"}, err
+	}
+	pos := lower.NewPositions(root, f)
+	if err := ctx.Err(); err != nil {
+		return nil, d, err
+	}
+	fa, ok := infer.Reanalyze(prev, f, pos, d.Subs, nil, opts)
+	if !ok {
+		fa, err := analyze(ctx, root, opts)
+		return fa, editDamage{Full: true, Reason: "the analysis before the edit does not replay"}, err
+	}
+	return gate(fa, root), d, nil
+}
 
 // editDamage is what an edit invalidates of a file's lowering and analysis.
 //

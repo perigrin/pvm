@@ -1192,14 +1192,31 @@ named sub it lands in, so the keys inside every other sub survive it
 the edit shifted; rust-analyzer's contributor guide rejects that key by
 name, for this reason (§6.1.4).
 
-**Do not try to incrementally update PSC's annotation map.** Re-run `Analyze`
-on the whole tree after each parse. Justification: `Analyze` is a bottom-up
-walk over an in-memory tree with no I/O, and for 40,000 nodes that is a
-few milliseconds. It fits the budget. If it stops fitting, the fix is to make
-`Analyze` incremental per-sub — a much later project. Measured on 2026-09-04
-over the tree-sitter path, `Analyze` was 0.5-2 ms against a parse of 6-500 ms
-on the same files; the shipped parser, lowering and `Analyze` are not yet
-measured (01a14248-51da). See §6.10.2 and 00-findings §0.8.
+**PSC re-lowers and re-analyzes per sub.** The step-4 numbers (plan §5 M2)
+put lowering at 35 ms and `Analyze` at 21 ms p50 on edit5k.pl, so the
+whole-tree re-run does not fit the 10 ms gate, and the LSP no longer does it
+for an edit that stays inside subs. `analyzeEdit`
+(`internal/psc/incremental_analyze.go`) reads the edit's damage off the old
+and new trees (`damageFromTreeDiff`, §6.10.5 item 4): a set of damaged
+top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
+shares the rest of the old lowered tree, and `infer.Reanalyze` walks only
+those subs and the code outside every sub, which threads state into them;
+each other sub is replayed from what its last walk recorded -- its scopes,
+diagnostics and writes to the scopes around it -- and its `lower.ID`-keyed
+annotations are kept. A replayed span is read off the edited tree, never
+computed from the edit: a symbol's is its declaration's span there, and a
+diagnostic moves as its sub's declaration did. Arithmetic cannot tell, at a
+boundary, whether a node took the inserted byte in -- `my $e = (;` becoming
+`my $e = (;;` grows the declaration -- so the code outside every sub is
+walked even when no sub is damaged, as for trivia between two subs. Full --
+a Class B edit, a non-trivia top-level edit, a parse-error change -- falls
+back to the whole-tree path, as does a sub whose walk does not replay (one
+in a loop or an unreached scope, a method). `TestIncrementalAnalyzeMatchesFresh`
+and `TestIncrementalAnalyzeRealEditsMatchFresh` hold the result equal to a
+fresh open: lowered tree and ids, annotations, diagnostics and symbols. The
+damage source is the tree diff until Repair's damage region replaces it;
+the interface is the set of subs or full either way. See §6.10.2 and
+00-findings §0.8.
 
 The exception is `ProjectIndex` (`internal/infer/project.go`): cross-file
 analysis triggered from `useStmt` (`internal/infer/flow.go`). Those results
@@ -2701,10 +2718,14 @@ Mitigations, revised to match the measurement:
    edit.
 4. **Analyze only subs intersecting the damage region.** Sound when nothing in
    that region changes a declaration, which the Class B trigger scan already
-   tells you. Do this last; at 2 ms there is nothing to win yet.
+   tells you. Implemented in `internal/psc/incremental_analyze.go`: the
+   damaged subs are re-lowered and re-analyzed, every other sub keeps its
+   lowering and analysis, and a Class B edit falls back to the full path
+   (§6.4.3). The step-4 numbers asked for it: lowering and `Analyze` were
+   35 ms and 21 ms p50 on edit5k.pl, against a 10 ms gate.
 
 Ship (1) first — the numbers leave no other reading. (2) is free. (3) and (4)
-wait for evidence, per step 4 of §6.11.
+are done; (4) waited for step 4's evidence of §6.11, and got it.
 
 ---
 

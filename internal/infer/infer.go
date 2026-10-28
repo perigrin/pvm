@@ -27,14 +27,22 @@ func AnalyzeParsed(root *parse.Node, idx *ProjectIndex, opts Options) *FileAnaly
 // between lowering and analysis, as the LSP does for a superseded parse,
 // runs the two halves itself.
 func AnalyzeLowered(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *FileAnalysis {
-	ann, diags, st := Analyze(f, pos, idx, opts)
+	a := newAnalysis(f, pos, idx, opts)
+	a.walk(f)
+	return a.result(f, pos)
+}
+
+// result is the FileAnalysis of f once a has walked it.
+func (a *analysis) result(f *lower.File, pos *lower.Positions) *FileAnalysis {
 	return &FileAnalysis{
 		File:        f,
 		Positions:   pos,
-		Annotations: ann,
-		Diagnostics: diags,
-		Symbols:     st,
-		Package:     st.CurrentPackage(),
+		Annotations: a.annotations,
+		Diagnostics: a.diags,
+		Symbols:     a.st,
+		Package:     a.st.CurrentPackage(),
+		traces:      a.rec.traces,
+		assigned:    a.assigned,
 	}
 }
 
@@ -58,15 +66,23 @@ func Analyze(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Option
 // newAnalysis is pass 2's state for f, with pass 1's declarations
 // collected and nothing walked yet.
 func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options) *analysis {
+	return newAnalysisFrom(f, pos, idx, opts, &recorder{traces: map[string]*subTrace{}}, AssignedNames(f))
+}
+
+// newAnalysisFrom is newAnalysis with rec, which records each top-level
+// sub's walk and replays those it holds a trace of (reanalyze.go), and
+// assigned, AssignedNames(f).
+func newAnalysisFrom(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Options, rec *recorder, assigned map[string]bool) *analysis {
 	return &analysis{
 		pos:            pos,
 		idx:            idx,
 		opts:           opts,
-		st:             collectDeclarations(f, pos),
+		rec:            rec,
+		st:             collectDeclarations(f, pos, rec),
 		annotations:    map[lower.ID]types.Type{},
 		diags:          []Diagnostic{},
 		subs:           fileSubs(f),
-		assigned:       AssignedNames(f),
+		assigned:       assigned,
 		evalCtx:        map[lower.ID]types.Context{},
 		classTypes:     map[lower.ID]string{},
 		undecidedUndef: map[lower.ID]bool{},
@@ -78,6 +94,7 @@ type analysis struct {
 	pos         *lower.Positions
 	idx         *ProjectIndex
 	opts        Options
+	rec         *recorder
 	st          *SymbolTable
 	annotations map[lower.ID]types.Type
 	diags       []Diagnostic
@@ -126,6 +143,17 @@ type analysis struct {
 // walk types n, children first, and records the type under n's id. Unknown
 // is not recorded: an absent annotation is how "no type" reads.
 func (a *analysis) walk(n lower.Node) types.Type {
+	if d, ok := n.(*lower.Decl); ok {
+		if anchor, ok := topSub(d); ok {
+			return a.topSub(d, anchor)
+		}
+	}
+	return a.walkNode(n)
+}
+
+// walkNode is walk past its hook for a top-level sub, which that sub's
+// own walk runs through.
+func (a *analysis) walkNode(n lower.Node) types.Type {
 	if a.enterLoopPart(n) {
 		defer a.leaveLoopPart()
 	}
@@ -558,7 +586,10 @@ var sigilTypes = map[string]types.Type{"$": types.Scalar, "@": types.Array, "%":
 // A Block is a scope, a bare block's and an anonymous sub's body among
 // them, and a named sub's body is a scope of the sub's name. Each is
 // recorded under its block's id, for pass 2 to re-enter.
-func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
+//
+// rec records the scopes each top-level sub's declaration makes, and puts
+// copies of them in place for a sub it replays rather than collecting it.
+func collectDeclarations(f *lower.File, pos *lower.Positions, rec *recorder) *SymbolTable {
 	st := NewSymbolTable()
 	var walk func(n lower.Node)
 	walkStmts := func(b lower.Node) {
@@ -584,6 +615,17 @@ func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 			}
 			return
 		case *lower.Decl:
+			if anchor, ok := topSub(n); ok && rec.replays(anchor) {
+				rec.graft(st, pos, n, anchor)
+				return
+			} else if ok {
+				rec.collect(st, n, anchor, func() {
+					if !collectDecl(st, pos, n, walkStmts) {
+						walkStmts(n)
+					}
+				})
+				return
+			}
 			if collectDecl(st, pos, n, walkStmts) {
 				return
 			}
@@ -601,7 +643,7 @@ func collectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
 func collectDecl(st *SymbolTable, pos *lower.Positions, d *lower.Decl, walkStmts func(lower.Node)) bool {
 	start, end, _ := pos.Span(d.ID)
 	span := func(s Symbol) Symbol {
-		s.StartByte, s.EndByte = uint32(start), uint32(end)
+		s.StartByte, s.EndByte, s.decl = uint32(start), uint32(end), d.ID
 		return s
 	}
 	switch d.Kind {

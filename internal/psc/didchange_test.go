@@ -34,8 +34,8 @@ type flagGuard struct {
 }
 
 // syncHandler is an initialized handler made, as a client meets it, with
-// parse.IncrementalRepair set to on. reparses counts the parses that
-// reparse ran from a landed tree. The flag is restored once the server is
+// parse.IncrementalRepair set to on. reparses counts the parses compute
+// re-parsed from a landed tree, with a module cache. The flag is restored once the server is
 // shut down and no reparse is running.
 func syncHandler(t *testing.T, on bool) (h *handler, out *bytes.Buffer, init lspInitializeResult, reparses *atomic.Int32) {
 	t.Helper()
@@ -45,8 +45,8 @@ func syncHandler(t *testing.T, on bool) (h *handler, out *bytes.Buffer, init lsp
 	g := &flagGuard{}
 	g.cond = sync.NewCond(&g.mu)
 	reparses = &atomic.Int32{}
-	reparse := h.server.reparse
-	h.server.reparse = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
+	reparse := h.server.compute
+	h.server.compute = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
 		g.mu.Lock()
 		if g.closed {
 			g.mu.Unlock()
@@ -60,7 +60,7 @@ func syncHandler(t *testing.T, on bool) (h *handler, out *bytes.Buffer, init lsp
 			g.cond.Broadcast()
 			g.mu.Unlock()
 		}()
-		if prev != nil {
+		if prev != nil && cache != nil {
 			reparses.Add(1)
 		}
 		return reparse(ctx, uri, text, prev, cache)
@@ -266,15 +266,14 @@ func TestDidChangeFullParseWhenFlagOff(t *testing.T) {
 	const uri = "untitled:Untitled-3"
 	h, out, init, _ := syncHandler(t, false)
 	require.Equal(t, 1, init.Capabilities.TextDocumentSync)
-	h.server.reparse = func(context.Context, string, []byte, *document, *parse.ModuleCache) (*document, error) {
-		t.Error("reparse ran with the flag off")
-		return nil, context.Canceled
-	}
 	var computed atomic.Int32
 	compute := h.server.compute
-	h.server.compute = func(ctx context.Context, uri string, text []byte) (*document, error) {
+	h.server.compute = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
+		if cache != nil {
+			t.Error("a parse re-parsed from a module cache with the flag off")
+		}
 		computed.Add(1)
-		return compute(ctx, uri, text)
+		return compute(ctx, uri, text, prev, cache)
 	}
 	didOpen(t, h, uri, multiByte)
 	text := multiByte
@@ -342,8 +341,8 @@ func TestDidChangeMidParseUsesMatchingTree(t *testing.T) {
 	inFlight, cancelled := make(chan struct{}), make(chan struct{})
 	var mu sync.Mutex
 	var prevs []int
-	reparse := h.server.reparse
-	h.server.reparse = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
+	reparse := h.server.compute
+	h.server.compute = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
 		if prev != nil {
 			// The tree a re-parse reuses is the one its text was parsed to.
 			assert.Empty(t, parse.TreeDiff(prev.tree, parse.Parse(prev.text.Text)), "prev's tree is of prev's bytes")

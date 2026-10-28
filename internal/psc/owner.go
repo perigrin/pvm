@@ -68,13 +68,12 @@ type parseResult struct {
 type owner struct {
 	uri                   string
 	parseDelay, diagDelay time.Duration
-	compute               func(ctx context.Context, uri string, text []byte) (*document, error)
+	compute               func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
 	publish               func(doc *document, err error) // may be nil
-	// With cache set, as parse.IncrementalRepair was when the owner was
-	// made, reparse parses instead of compute, from the last tree that
-	// landed, sharing cache, the document's module cache, across parses.
-	reparse func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
-	cache   *parse.ModuleCache
+	// cache is set when parse.IncrementalRepair was as the owner was made:
+	// compute then re-parses from the last tree that landed, sharing cache,
+	// the document's module cache, across parses (LSPServer.analyze).
+	cache *parse.ModuleCache
 
 	ops     chan func()
 	results chan parseResult
@@ -105,7 +104,6 @@ func newOwner(s *LSPServer, uri string, version int, text []byte) *owner {
 		diagDelay:  s.diagDelay,
 		compute:    s.compute,
 		publish:    s.publish,
-		reparse:    s.reparse,
 		ops:        make(chan func()),
 		results:    make(chan parseResult),
 		quit:       make(chan struct{}),
@@ -197,6 +195,9 @@ func (o *owner) startParse() {
 	ctx, cancel := context.WithCancel(context.Background())
 	o.cancel = cancel
 	o.started = o.gen
+	// prev is the last tree that landed, which the parse re-parses from and
+	// whose analysis it reuses what the edit did not damage of; a landed
+	// document is never changed, so the parse may read it.
 	gen, version, text, prev := o.gen, o.version, o.text.Snapshot(), o.snap
 	go func() {
 		r := parseResult{gen: gen}
@@ -208,9 +209,9 @@ func (o *owner) startParse() {
 	}()
 }
 
-// parse runs compute, or reparse from prev, in a parse slot. A panic in it
-// is this version's error, so the owner keeps serving and the next edit
-// parses afresh.
+// parse runs compute from prev in a parse slot. A panic in it is this
+// version's error, so the owner keeps serving and the next edit parses
+// afresh.
 func (o *owner) parse(ctx context.Context, version int, text *Document, prev *document) (doc *document, err error) {
 	doc = &document{uri: o.uri, version: version, text: text}
 	defer func() {
@@ -225,12 +226,7 @@ func (o *owner) parse(ctx context.Context, version int, text *Document, prev *do
 	}
 	defer func() { <-parseSlots }()
 	src := text.Text[:len(text.Text):len(text.Text)] // an append copies, never writing the snapshot
-	var got *document
-	if o.cache != nil {
-		got, err = o.reparse(ctx, o.uri, src, prev, o.cache)
-	} else {
-		got, err = o.compute(ctx, o.uri, src)
-	}
+	got, err := o.compute(ctx, o.uri, src, prev, o.cache)
 	if err != nil {
 		return doc, err
 	}

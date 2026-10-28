@@ -37,6 +37,15 @@ type FileAnalysis struct {
 	Diagnostics []Diagnostic
 	Symbols     *SymbolTable
 	Package     string
+
+	// Walked is, for an analysis Reanalyze made, the top-level subs it
+	// walked, in walk order; it replayed every other. Nil for a full one.
+	Walked []string
+
+	// traces is what walking each top-level sub did, by anchor, for
+	// Reanalyze to replay; assigned is AssignedNames of File.
+	traces   map[string]*subTrace
+	assigned map[string]bool
 }
 
 // NewProjectIndex creates a ProjectIndex rooted at root with the default

@@ -51,6 +51,10 @@ type Symbol struct {
 	Kind      SymbolKind
 	StartByte uint32
 	EndByte   uint32
+	// decl is the id of the declaration StartByte and EndByte are the span
+	// of, so a symbol Reanalyze replays takes its span from the edited tree
+	// rather than computing one; the zero ID when it has no span.
+	decl lower.ID
 
 	// PossibleUndef carries a declared call's own possible-undef mark
 	// (markPossibleUndef, calls.go) onto the variable its result was

@@ -25,7 +25,9 @@ type document struct {
 	version  int
 	text     *Document
 	analysis *infer.FileAnalysis
-	tree     *parse.Node // parsed from text's bytes; what the next parse reuses
+	// tree is parsed from text's bytes and is what analysis was made of:
+	// the next parse re-parses from it, and reads its damage against it.
+	tree *parse.Node
 
 	// dir is the directory of a file: uri's path, and why is incRoots'
 	// note on it: why a perl its project names was not resolved.
@@ -47,10 +49,8 @@ type LSPServer struct {
 	// What each owner is made with; tests replace them before an open.
 	parseDelay, diagDelay time.Duration
 	clock                 clock
-	compute               func(ctx context.Context, uri string, text []byte) (*document, error)
-	// reparse is compute when parse.IncrementalRepair was set as an owner
-	// was made; see analyze.
-	reparse func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
+	// compute parses and analyses one text; see analyze.
+	compute func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
 	publish func(doc *document, err error)
 }
 
@@ -62,8 +62,7 @@ func NewLSPServer() *LSPServer {
 		diagDelay:  diagnosticsDebounce,
 		clock:      realClock{},
 	}
-	s.compute = s.analyzeSource
-	s.reparse = s.analyze
+	s.compute = s.analyze
 	return s
 }
 
@@ -116,30 +115,27 @@ func (s *LSPServer) snapshot(uri string) *document {
 	return nil
 }
 
-// analyzeSource parses, lowers and analyses source as the document at uri.
-// The source is the editor's buffer, not the file on disk. A file: uri is
+// analyze parses, lowers and analyses source as the document at uri. The
+// source is the editor's buffer, not the file on disk. A file: uri is
 // parsed as psc check parses the file at its path: its `use` resolves
 // against the path's directory and then @INC, read as text and never by
 // running perl (incRoots). Any other uri has no directory, and its `use`
-// resolves nothing. Analysis re-runs over the whole tree on every parse.
+// resolves nothing.
 //
-// Each parse runs in a Session of its own, so every module it uses is read
-// from disk as it is now: one edited since the last parse is re-read, and
-// one missing then is found once it exists.
+// prev is the last parse of the document that landed, or nil. With cache
+// set, as parse.IncrementalRepair was when the owner was made, each
+// parse's fresh Session shares cache, the document's module cache, and
+// source is re-parsed from prev's tree through ReparseIncremental; without
+// it each Session reads every module from disk as it is now, and source is
+// parsed afresh. prev's tree was parsed from prev's text, so the edit,
+// taken between those bytes and source, is never applied to a tree of
+// other bytes, however many changes the debounce coalesced or parses were
+// cancelled since. Either way, analysis re-lowers and re-analyzes only the
+// subs the edit from prev's tree damaged (analyzeEdit), and with no prev
+// analyses the whole tree.
 //
 // It polls ctx before the parse, before lowering and before analysis, and
 // returns ctx's error at the first of them after ctx is cancelled.
-func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte) (*document, error) {
-	return s.analyze(ctx, uri, source, nil, nil)
-}
-
-// analyze is analyzeSource, parsing incrementally when cache is set: each
-// parse's fresh Session shares cache, the document's module cache, and with
-// prev, the last parse that landed, source is re-parsed from prev's tree
-// through ReparseIncremental. prev's tree was parsed from prev's text, so
-// the edit, taken between those bytes and source, is never applied to a
-// tree of other bytes, however many changes the debounce coalesced or
-// parses were cancelled since.
 func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -171,7 +167,13 @@ func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	fa, err := analyze(ctx, root, s.Options)
+	var fa *infer.FileAnalysis
+	var err error
+	if prev != nil && prev.tree != nil {
+		fa, _, err = analyzeEdit(ctx, prev.tree, prev.analysis, root, s.Options)
+	} else {
+		fa, err = analyze(ctx, root, s.Options)
+	}
 	if err != nil {
 		return nil, err
 	}

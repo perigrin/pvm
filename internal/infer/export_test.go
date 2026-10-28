@@ -14,16 +14,20 @@ import (
 // The lowered pass 1 and the helpers the guard and parameter rules read
 // a sub with, under the names the tests call them by.
 var (
-	CollectDeclarations = collectDeclarations
-	FileSubs            = fileSubs
-	SubParam            = subParam
-	SubParams           = subParams
-	SubReturnExpr       = subReturnExpr
-	ArgVarName          = argVarName
-	Finite              = finite
-	SpaceshipResult     = spaceshipResult
-	Numified            = numified
+	FileSubs        = fileSubs
+	SubParam        = subParam
+	SubParams       = subParams
+	SubReturnExpr   = subReturnExpr
+	ArgVarName      = argVarName
+	Finite          = finite
+	SpaceshipResult = spaceshipResult
+	Numified        = numified
 )
+
+// CollectDeclarations is pass 1 over f, as a full analysis runs it.
+func CollectDeclarations(f *lower.File, pos *lower.Positions) *SymbolTable {
+	return collectDeclarations(f, pos, &recorder{traces: map[string]*subTrace{}})
+}
 
 // SortSelection is the selection the call site makes for the first sort of
 // src, analysed as Analyze analyses it.
