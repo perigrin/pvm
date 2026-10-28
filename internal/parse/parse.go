@@ -680,6 +680,11 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 	} else {
 		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
 	}
+	return newParserOn(src, toks, res, typed)
+}
+
+// newParserOn is newParser over src already lexed as toks.
+func newParserOn(src []byte, toks []lexer.Token, res *resolver, typed bool) *parser {
 	return &parser{src: src, toks: toks, bodies: heredocBodyIndices(toks), res: res, symbolsOpen: res == nil, typed: typed}
 }
 

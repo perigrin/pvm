@@ -24,13 +24,15 @@ type Edit struct {
 
 // ReparseIncremental returns the tree of src, the old source with e applied,
 // reusing old where it can. It equals Parse(src) under TreeDiff (§7.7.1).
-// With IncrementalRepair set it is Repair, or a full parse where Repair
-// returns ok=false; with it clear, always a full parse.
+// With IncrementalRepair set it is Repair, or where Repair returns ok=false
+// a full parse carrying what the next Repair resumes from; with it clear,
+// always a full parse.
 func ReparseIncremental(old *Node, e Edit, src []byte) *Node {
 	if IncrementalRepair {
 		if tree, ok := Repair(old, e, src); ok {
 			return tree
 		}
+		return parseTracked(src, nil, "")
 	}
 	return Parse(src)
 }
@@ -45,6 +47,9 @@ func (s *Session) ReparseIncremental(old *Node, e Edit, path string, src []byte,
 		if tree, ok := s.Repair(old, e, path, src, roots...); ok {
 			return tree
 		}
+		// What ParseSourceFrom would parse with, in a fresh Session.
+		dirs := searchDirs(path, roots)
+		return parseTracked(src, NewSession().resolverFor(dirs, false), resolverKey(dirs, false))
 	}
 	return NewSessionWithCache(s.cache).ParseSourceFrom(path, src, roots...)
 }
@@ -85,6 +90,12 @@ type incState struct {
 	// its own.
 	tops  []parserSnapshot
 	reads map[string]moduleRead // every Loader call the parse made
+	// toks is src's token cache. A parse's tree has none: Repair lexes src
+	// for one, and a tree it builds carries the cache the edit updated.
+	toks *lexer.TokenCache
+	// relexed is how many tokens the edit Repair built this tree for
+	// re-lexed.
+	relexed int
 }
 
 // moduleRead is what one Loader call answered.
@@ -197,7 +208,7 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 		moved[j].at += delta
 		moved[j].p.pos += dtok
 	}
-	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads}
+	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed}
 	return root, n, true
 }
 
@@ -210,15 +221,26 @@ func isEditOf(old []byte, e Edit, edited []byte) bool {
 		bytes.Equal(old[e.OldEnd:], edited[e.Start+len(e.NewText):])
 }
 
-// snapshotsOf parses old's source again with res, taking the top-level
-// snapshots and recording every Loader call, and returns them when that
-// parse equals old: old is this source's tree, and what the modules it read
-// say has not changed it. Otherwise nil.
+// snapshotsOf parses old's source again with res and returns the top-level
+// snapshots and Loader calls that parse recorded, when it equals old: old is
+// this source's tree, and what the modules it read say has not changed it.
+// Otherwise nil.
 //
 // shortcut: the first Repair of a parse's tree parses the old source again
 // for its snapshots; take them in the document's first parse once the LSP
-// owns one (§6.7.1).
+// owns one (§6.7.1). A tree ReparseIncremental built carries them already.
 func snapshotsOf(old *Node, res *resolver) ([]parserSnapshot, map[string]moduleRead) {
+	root := parseTracked(old.inc.src, res, old.inc.key)
+	if TreeDiff(old, root) != "" {
+		return nil, nil
+	}
+	return root.inc.tops, root.inc.reads
+}
+
+// parseTracked is the tree parsing src with res builds, which resolves as
+// the parse whose resolverKey is key does, carrying what Repair resumes
+// from: the top-level snapshots, every Loader call and src's token cache.
+func parseTracked(src []byte, res *resolver, key string) *Node {
 	reads := map[string]moduleRead{}
 	if res != nil {
 		load := res.load
@@ -228,21 +250,21 @@ func snapshotsOf(old *Node, res *resolver) ([]parserSnapshot, map[string]moduleR
 			return b, ok
 		}
 	}
-	p := newParser(old.inc.src, res, false)
+	src = bytes.Clone(src)
+	c := tokensOf(nil, src)
+	p := newParserOn(src, c.Tokens, res, false)
 	p.snaps = &[]parserSnapshot{}
 	root := p.parseFile()
 	tops := slices.DeleteFunc(*p.snaps, func(s parserSnapshot) bool { return s.nested })
 	tops = append(tops, parserSnapshot{at: len(p.src), p: p.clone()})
 	p.finish(root)
-	if TreeDiff(old, root) != "" {
-		return nil, nil
-	}
 	for i := range tops {
 		// The resuming parse supplies these; keeping them would hold this
 		// parse's tokens and resolver as long as the tree.
 		tops[i].p.src, tops[i].p.toks, tops[i].p.bodies, tops[i].p.res = nil, nil, nil, nil
 	}
-	return tops, reads
+	root.inc = &incState{src: src, key: key, tops: tops, reads: reads, toks: c}
+	return root
 }
 
 // sameReads reports that each Loader call in reads answers as it did,
@@ -334,8 +356,8 @@ var triggerKinds = map[lexer.Kind]bool{
 
 // triage classifies e, an edit of src whose tree is old: the tree the
 // document's Session parsed, resolver and all. It decides on tokens, not
-// text: src is lexed before and after e, and only the tokens that differ
-// are examined.
+// text: src's token cache, old's when old carries one, is updated for e,
+// and only the tokens that differ are examined.
 func triage(old *Node, src []byte, e Edit) Strategy {
 	s, _ := triageDiff(old, src, e)
 	return s
@@ -348,7 +370,7 @@ func triageDiff(old *Node, src []byte, e Edit) (Strategy, tokenDiff) {
 	if size > maxEditBytes {
 		return StrategyFull, tokenDiff{}
 	}
-	d := diffTokens(src, e)
+	d := diffTokens(tokensOf(old, src), src, e)
 	return triageTokens(old, e, d, size), d
 }
 
@@ -452,19 +474,20 @@ type tokenDiff struct {
 	oldSrc, newSrc   []byte
 	oldToks, newToks []lexer.Token
 	pre, suf         int
+	cache            *lexer.TokenCache // newSrc's, the old cache edited
+	relexed          int               // tokens the edit re-lexed
 }
 
-// diffTokens lexes src before and after e and finds where they agree. A
-// prefix token ends at or before the edit; a suffix token starts at or
-// after it on both sides.
-//
-// shortcut: lexes both whole sources; resume from a checkpoint against the
-// token cache (§6.3.2) once it exists.
-func diffTokens(src []byte, e Edit) tokenDiff {
+// diffTokens applies e to c, src's token cache, and finds where the streams
+// before and after agree. A prefix token ends at or before the edit; a
+// suffix token starts at or after it on both sides. Only the tokens from
+// the checkpoint before e to where the stream resyncs are lexed, and c is
+// left as it was.
+func diffTokens(c *lexer.TokenCache, src []byte, e Edit) tokenDiff {
 	newSrc := append(append(append([]byte{}, src[:e.Start]...), e.NewText...), src[e.OldEnd:]...)
-	d := tokenDiff{oldSrc: src, newSrc: newSrc}
-	d.oldToks, _ = lexOld(src)
-	d.newToks, _ = lexOld(newSrc)
+	nc := *c
+	relexed := nc.Edit(newSrc, e.Start, e.OldEnd, e.Start+len(e.NewText))
+	d := tokenDiff{oldSrc: src, newSrc: newSrc, oldToks: c.Tokens, newToks: nc.Tokens, cache: &nc, relexed: relexed}
 	o, n := d.oldToks, d.newToks
 	for d.pre < min(len(o), len(n)) && o[d.pre] == n[d.pre] && o[d.pre].End <= e.Start {
 		d.pre++
@@ -495,12 +518,13 @@ func spanOf(toks []lexer.Token, src []byte) []byte {
 	return src[toks[0].Start:toks[len(toks)-1].End]
 }
 
-// lexOld lexes a program source as Parse does, with its safe checkpoints.
-//
-// shortcut: re-lexes the old source on each call; read the document's token
-// cache (§6.3.2) once it exists.
-func lexOld(src []byte) ([]lexer.Token, []lexer.Checkpoint) {
-	return lexer.Checkpoints(src, lexer.StartStateBarewords(coreBarewordOperators()))
+// tokensOf is the token cache of src, lexed as Parse lexes a program: the
+// one n's tree carries when it is of src, else src lexed whole.
+func tokensOf(n *Node, src []byte) *lexer.TokenCache {
+	if n != nil && n.inc != nil && n.inc.toks != nil && bytes.Equal(n.inc.src, src) {
+		return n.inc.toks
+	}
+	return lexer.NewTokenCache(src, lexer.StartStateBarewords(coreBarewordOperators()))
 }
 
 // widen is §6.5.2: the lexer checkpoint to re-lex from and the node to
@@ -515,7 +539,7 @@ func lexOld(src []byte) ([]lexer.Token, []lexer.Checkpoint) {
 // The checkpoint is the last at or before the anchor's start.
 func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
 	anchor := anchorOf(old, e)
-	_, cps := lexOld(src)
+	cps := tokensOf(old, src).Checkpoints
 	i := sort.Search(len(cps), func(i int) bool { return cps[i].Byte > anchor.Start })
 	return cps[i-1], anchor
 }
