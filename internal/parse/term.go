@@ -384,6 +384,18 @@ func (p *parser) parseTerm() *Node {
 				Children: []*Node{blk},
 			}
 		}
+		// A dereference is the code to call: perl 5.44.0 deparses `goto&$$0`
+		// as `goto \&$$0`. Read as a bare `&`, FuzzParser's find canon'd as
+		// `goto &;$$0`.
+		if name, ok := p.peekSignificant(); ok && name.Kind == lexer.DerefSigil && p.text(name) == "$" && name.Start == tok.End {
+			if operand := p.parseTerm(); operand != nil {
+				return &Node{
+					Kind: Unary, Text: text,
+					Start: tok.Start, End: operand.End,
+					Children: []*Node{operand},
+				}
+			}
+		}
 		if name, ok := p.peekSignificant(); ok && p.ampTakes(name) {
 			p.advanceTo(name)
 			return &Node{

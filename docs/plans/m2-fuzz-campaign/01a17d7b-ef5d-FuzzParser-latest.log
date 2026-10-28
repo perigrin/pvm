@@ -1,0 +1,24 @@
+commit f519a877cef599bd8ed2e980be8202e769c2fe26
+go version go1.24.4 linux/amd64
+fuzz: elapsed: 0s, gathering baseline coverage: 0/7013 completed
+fuzz: elapsed: 3s, gathering baseline coverage: 939/7013 completed
+fuzz: elapsed: 6s, gathering baseline coverage: 2021/7013 completed
+fuzz: elapsed: 9s, gathering baseline coverage: 2934/7013 completed
+fuzz: elapsed: 12s, gathering baseline coverage: 3818/7013 completed
+fuzz: elapsed: 15s, gathering baseline coverage: 4769/7013 completed
+fuzz: elapsed: 18s, gathering baseline coverage: 5695/7013 completed
+fuzz: elapsed: 21s, gathering baseline coverage: 6634/7013 completed
+fuzz: elapsed: 22s, gathering baseline coverage: 7013/7013 completed, now fuzzing with 4 workers
+fuzz: elapsed: 24s, execs: 20772 (4713/sec), new interesting: 0 (total: 7013)
+fuzz: minimizing 35-byte failing input file
+fuzz: elapsed: 24s, minimizing
+--- FAIL: FuzzParser (24.47s)
+    --- FAIL: FuzzParser (0.00s)
+        fuzz_test.go:82: "goto&$$0": canon is not a fixpoint: token 3: first emission has "DerefSigil $", second has "Semicolon ;"
+    
+    Failing input written to testdata/fuzz/FuzzParser/fdc9c1f2ff1a821d
+    To re-run:
+    go test -run=FuzzParser/fdc9c1f2ff1a821d
+FAIL
+exit status 1
+FAIL	tamarou.com/pvm/internal/parse	24.481s

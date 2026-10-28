@@ -340,6 +340,20 @@ func TestDollarNamedVariableKeepsBlankBeforeBrace(t *testing.T) {
 	}
 }
 
+// TestAmpBeforeDerefCalls: perl 5.44.0 deparses FuzzParser's `goto&$$0` as
+// `goto \&$$0`, a call through `$$0`. Read as a bare `&`, it canon'd as
+// `goto &;$$0`.
+func TestAmpBeforeDerefCalls(t *testing.T) {
+	for src, want := range map[string]string{"goto&$$0": "goto &$$0", "my $x; \\&$$x;": "my $x;\\&$$x;", "my $x; &$$x(1);": "my $x;&$$x(1);"} {
+		if got := strings.TrimSpace(clean(t, src)); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
+		}
+	}
+}
+
 // TestBracedNameTakesAnyBlank: perl 5.44.0 deparses `${0\r}` and `${ x` +
 // newline + `}` as `$0` and `$x`. Read as a deref of `0`, FuzzParser's
 // `(${0\r},,)` canon'd differently.
