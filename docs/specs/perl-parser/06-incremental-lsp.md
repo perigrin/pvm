@@ -1622,6 +1622,51 @@ their result, so Repair runs them again over the spliced tree (`finish`):
 that lifts the imports and every declared sub's prototype (`readModule`) onto
 the root.
 
+**As landed** (`internal/parse/incremental.go`). The signatures are
+`Repair(old *Node, e Edit, src []byte) (tree *Node, ok bool)` and
+`(*Session).Repair(old *Node, e Edit, path string, src []byte, roots ...string)
+(tree *Node, ok bool)`, where `src` is the **edited** source. The resolver
+form's tree equals a fresh `NewSession().ParseSourceFrom(path, src,
+roots...)`; neither takes a `context` (§6.5.5). On ok=false the tree is nil,
+never a partial splice, and `old` is never modified.
+
+- **What it resumes from.** A parse's root carries an unexported cache
+  (`inc`, which `TreeDiff` skips): a copy of the bytes it was parsed from,
+  so Repair can check that `src` is exactly those bytes with `e` applied.
+  The first Repair of a parse's tree parses the old bytes again, with the
+  form's fresh resolver, for the top-level parser snapshots plus the parser
+  at EOF, and goes on only if that parse equals `old` under `TreeDiff`. A
+  tree Repair builds carries its own snapshots, the ones after the anchor
+  shifted, so the next Repair re-parses one statement and nothing else. A
+  cache built under a different resolver (path, roots) is rebuilt.
+- **The re-lex.** The new token stream is the one triage lexed. There is no
+  separate resync loop: triage compares whole token streams, and Repair
+  returns ok=false when more than `maxResyncTokens` (4,000) tokens changed,
+  so a runaway edit costs two linear lexes and no parse. Both still lex the
+  whole source; the token cache (§6.3.2) replaces that.
+- **The anchor.** `StrategyLocal` uses widening's anchor; `StrategyReuseAll`
+  the top-level statement holding the edit. The whole file as anchor, or none,
+  is ok=false.
+- **ok=false cases.** `old` has no cache, or `src` is not its bytes with `e`
+  applied (an edit outside the buffer included); triage says
+  `StrategyFull`; any top-level statement other than the anchor holds an
+  error (ruling R-f: no subtree with an error is reused); no top-level
+  snapshot starts at the anchor and another at its end (check 0); the
+  statement read from it does not end at the shifted end or leaves a
+  different parser state (checks 1, 2); a module the cached parse read now
+  reads different bytes, or is found where it was not (check 3, by SHA-256
+  of every `Loader` call); the anchor's statement consulted the resolver at
+  all, since a fresh parse would have read those modules with the prefix's
+  already seen; or the re-parsed statement gains or loses an error.
+- **The splice.** Every reused top-level statement is deep-copied, shifted by
+  the delta when it lies after the anchor. No offset can underflow: only
+  nodes at or after the anchor's end move, and that end, shifted, is at or
+  after the edit's new end. Then `finish` runs over the spliced root (check
+  4) from the EOF snapshot, and `loaded`, `declErrs` and `declWarns` are the
+  old root's: the anchor read no module, so a fresh parse reads the same ones.
+  Whether reused nodes are copied, shifted in place, or shared is ruling
+  R-e's, measured by 01a17a40-4915.
+
 ### 6.5.4 The correctness test, and it is not optional
 
 perl-lsp got this exactly right and it is the single most important test in the
@@ -1664,14 +1709,15 @@ have earned it (§6.11 step 7).
 
 `parse.IncrementalRepair` is an exported package-level `bool` in `internal/parse/incremental.go`, by default `false` until the flip.
 
-- **What it switches.** When it is false, the LSP re-parses the whole document
-  on every change, as §6.11 step 3 does. When it is true, the LSP calls
-  `parse.ReparseIncremental`, which calls `parse.Repair`; when `Repair` returns
-  ok=false, `ReparseIncremental` falls back to a full parse of the new bytes, so
-  its result always equals a fresh parse.
-- **What it does not switch.** The fuzzers and the seed tests call `Repair` and
-  `ReparseIncremental` directly, whatever the flag's value, so repair is tested
-  before it is trusted. Tests may set the flag locally and restore it.
+- **What it switches.** `parse.ReparseIncremental` (both forms) reads it.
+  When it is false, `ReparseIncremental` is a full parse of the new bytes, as
+  §6.11 step 3 does on every change. When it is true, `ReparseIncremental`
+  calls `Repair`; when `Repair` returns ok=false it falls back to a full
+  parse of the new bytes, so its result always equals a fresh parse.
+- **What it does not switch.** `Repair` itself ignores the flag. The fuzzers
+  and the seed tests set the flag locally and restore it (`repairOn`), so
+  `ReparseIncremental` goes through `Repair` there, and they call `Repair`
+  directly too: repair is tested before it is trusted.
 - **The flip condition.** `FuzzIncremental` and `FuzzIncrementalSequence` each
   run 10,000,000 execs (`make fuzz-incremental`) with zero counterexamples,
   recorded in plan §5 M2. The commit that flips the default to `true` cites

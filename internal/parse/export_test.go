@@ -106,3 +106,13 @@ func WidenAnchor(old *Node, src []byte, e Edit) (start, end int) {
 	_, n := widen(old, src, e)
 	return n.Start, n.End
 }
+
+// RepairedSpan is the span, in src, of the statement Session.Repair
+// re-parsed, and Repair's ok, for TestRepairInvalidationMatchesSpec.
+func RepairedSpan(old *Node, e Edit, path string, src []byte, roots ...string) (start, end int, ok bool) {
+	_, n, ok := sessionRepair(old, e, path, src, roots)
+	if !ok {
+		return 0, 0, false
+	}
+	return n.Start, n.End, true
+}
