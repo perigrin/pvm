@@ -70,7 +70,7 @@ func AssignIDs(root *parse.Node) map[*parse.Node]ID {
 
 	var walk func(n *parse.Node, anchor string)
 	walk = func(n *parse.Node, anchor string) {
-		if key, ok := anchorKey(n); ok {
+		if key, ok := AnchorKey(n); ok {
 			// ponytail: the name is unqualified, so inserting a same-named
 			// sub in an earlier package shifts a later one's disambiguator.
 			// Qualify by package if that churn shows up in practice.
@@ -91,10 +91,10 @@ func AssignIDs(root *parse.Node) map[*parse.Node]ID {
 	return ids
 }
 
-// anchorKey reports whether a node opens an anchor -- a named sub or method
+// AnchorKey reports whether a node opens an anchor -- a named sub or method
 // -- and returns its kind and name. An anonymous sub has no name to anchor
 // on, so its body is numbered within the enclosing anchor.
-func anchorKey(n *parse.Node) (string, bool) {
+func AnchorKey(n *parse.Node) (string, bool) {
 	if n.Kind != parse.Declaration || (n.Text != "sub" && n.Text != "method") {
 		return "", false
 	}
