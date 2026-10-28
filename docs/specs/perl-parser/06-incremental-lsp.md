@@ -1464,7 +1464,13 @@ checks; Repair returns ok=false when any fails:
    index in that comparison already implies check 1, except when the anchor
    is the last top-level statement and no snapshot follows it.
 3. **Modules read the same bytes** (chapter 7 §7.7.3's prototype row): any
-   module the old parse loaded that now resolves to different bytes.
+   module the old parse loaded that now resolves to different bytes. The
+   exception is a tree with no snapshots, or snapshots taken under another
+   resolver key (`tops == nil || old.inc.key != key`). There Repair
+   re-parses the old source under the current modules to take them; that
+   re-parse already reads the new bytes, so Repair goes on only if its tree
+   equals the old one. Once checks 1, 2 and 4 and the `consulted` check
+   also pass, the tree Repair returns equals a fresh parse.
 4. **The EOF passes run again** over the spliced tree (`finish`, §6.5.3).
 
 `TestTriageSweepNoLeak` and `FuzzTriage` (`internal/parse`) hold the
@@ -1659,7 +1665,10 @@ never a partial splice, and `old` is never modified.
   statement read from it does not end at the shifted end or leaves a
   different parser state (checks 1, 2); a module the cached parse read now
   reads different bytes, or is found where it was not (check 3, by SHA-256
-  of every `Loader` call); the anchor's statement consulted the resolver at
+  of every `Loader` call); where `old` has no snapshots under this resolver
+  key there are no earlier reads, the SHA-256 comparison does not run, and
+  check 3 is only that re-parsing the old source under the current modules
+  gives `old`'s tree; the anchor's statement consulted the resolver at
   all, since a fresh parse would have read those modules with the prefix's
   already seen; or the re-parsed statement gains or loses an error.
 - **The splice.** Every reused top-level statement is deep-copied, shifted by
@@ -2373,6 +2382,19 @@ Three observations that shape the design:
   result kept per document, keyed by a result id.
 - **`completion` is the only request that genuinely needs a fresh parse**, and
   the buffer is guaranteed invalid at the cursor. It is the reason §6.8 exists.
+
+**Text sync follows the flag.** The server advertises `TextDocumentSync` 2
+(incremental) exactly when `parse.IncrementalRepair` is true, and 1 (full)
+otherwise. Under 2, each content change's range is in UTF-16 line and character
+positions, converted to byte offsets through the document's line table —
+clamped as §6.6 clamps any position — and the changes of one `didChange` apply
+in order, each to the text the one before it left. Under 1, the first change's
+text replaces the document, as before. With the flag set, the owner re-parses
+through `ReparseIncremental` from the last tree that landed, its `parse.Edit`
+the common prefix and suffix of that tree's bytes and the current text, so a
+coalesced burst or a cancelled parse never pairs a tree with other bytes; a
+`file:` URI goes through `Session.ReparseIncremental`, each re-parse in a fresh
+Session sharing the document's `parse.ModuleCache`.
 
 ### 6.9.2 JSON-RPC framing by hand
 

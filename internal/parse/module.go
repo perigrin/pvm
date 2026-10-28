@@ -235,6 +235,7 @@ func ParseFileAssumingUseIf(path string, passes bool, roots ...string) (*Node, e
 // not those an earlier one already had. A Session is not for concurrent use.
 type Session struct {
 	shared map[string]*resolver
+	cache  *ModuleCache // nil for none; see NewSessionWithCache
 }
 
 // NewSession returns a Session that has read nothing yet.
@@ -273,6 +274,7 @@ func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *
 	dirs := searchDirs(path, roots)
 	r := newResolver(dirs, passes)
 	if s != nil {
+		r.withCache(s.cache)
 		key := strings.Join(dirs, "\x00")
 		if shared, ok := s.shared[key]; ok {
 			r.seen, r.facts = shared.seen, shared.facts
@@ -349,6 +351,11 @@ type resolver struct {
 	// useIfPasses answers every `use if` condition true; see
 	// ParseFileAssumingUseIf.
 	useIfPasses bool
+
+	// cache, when set, replays the modules an earlier parse read, and track
+	// is this parse's record of them (modulecache.go).
+	cache *ModuleCache
+	track *cacheTrack
 }
 
 // resolve parses a module's source once and returns what it says about
@@ -359,6 +366,9 @@ type resolver struct {
 func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	if r == nil || r.load == nil {
 		return moduleFacts{}, false
+	}
+	if r.track != nil {
+		return r.track.resolve(r, module)
 	}
 	if facts, ok := r.facts[module]; ok {
 		return facts, true
@@ -384,7 +394,15 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 		return moduleFacts{}, false
 	}
 	r.loaded = append(r.loaded, module)
+	facts := r.read(module, src, declared, func() ([]byte, bool) { return r.load(module + ".xs") })
+	r.keep(module, facts)
+	return facts, true
+}
 
+// read parses module's source, src, and returns what it says about itself,
+// appending its declaration errors and warnings to r's. xs answers the
+// module's XS source, asked for once the source is read.
+func (r *resolver) read(module string, src []byte, declared bool, xs func() ([]byte, bool)) moduleFacts {
 	var facts moduleFacts
 	switch {
 	case !declared:
@@ -403,7 +421,7 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 	}
 	// Its XS subs are as real as the ones it declares, once it has loaded.
 	// A sub the module declares in Perl keeps that declaration's prototype.
-	if xs, ok := r.load(module + ".xs"); ok {
+	if xs, ok := xs(); ok {
 		for name, proto := range XSSubs(xs) {
 			if i := strings.LastIndex(name, "::"); i > 0 && name[:i] != module &&
 				!slices.Contains(facts.packages, name[:i]) {
@@ -415,11 +433,16 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 			}
 		}
 	}
+	return facts
+}
+
+// keep records module's facts, so a later use of it in this parse reads
+// them rather than the module.
+func (r *resolver) keep(module string, facts moduleFacts) {
 	if r.facts == nil {
 		r.facts = map[string]moduleFacts{}
 	}
 	r.facts[module] = facts
-	return facts, true
 }
 
 // resolveFile parses a required `.pl` helper once and returns what it
@@ -443,6 +466,9 @@ func (r *resolver) resolve(module string) (moduleFacts, bool) {
 func (r *resolver) resolveFile(path string) (moduleFacts, bool) {
 	if r == nil || r.load == nil || r.inRequiredFile {
 		return moduleFacts{}, false
+	}
+	if r.track != nil {
+		r.track.taint() // what a helper says depends on what was read before it
 	}
 	if facts, ok := r.facts[path]; ok {
 		return facts, true

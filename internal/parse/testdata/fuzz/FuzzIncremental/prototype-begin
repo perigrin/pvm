@@ -1,0 +1,5 @@
+go test fuzz v1
+string("BEGIN { my $n = 1; }\nsub f() { 1 }\nmy @a = (1, 2);\nprint f @a;\n")
+int(16)
+int(1)
+string("2")

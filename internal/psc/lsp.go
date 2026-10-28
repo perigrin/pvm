@@ -25,9 +25,9 @@ type document struct {
 	version  int
 	text     *Document
 	analysis *infer.FileAnalysis
-	// root is the parse tree analysis was made of, which the next parse's
-	// damage is read against (analyzeEdit).
-	root *parse.Node
+	// tree is parsed from text's bytes and is what analysis was made of:
+	// the next parse re-parses from it, and reads its damage against it.
+	tree *parse.Node
 
 	// dir is the directory of a file: uri's path, and why is incRoots'
 	// note on it: why a perl its project names was not resolved.
@@ -49,8 +49,9 @@ type LSPServer struct {
 	// What each owner is made with; tests replace them before an open.
 	parseDelay, diagDelay time.Duration
 	clock                 clock
-	compute               func(ctx context.Context, uri string, text []byte, prev *document) (*document, error)
-	publish               func(doc *document, err error)
+	// compute parses and analyses one text; see analyze.
+	compute func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
+	publish func(doc *document, err error)
 }
 
 // NewLSPServer creates a new LSPServer ready to manage Perl documents.
@@ -61,7 +62,7 @@ func NewLSPServer() *LSPServer {
 		diagDelay:  diagnosticsDebounce,
 		clock:      realClock{},
 	}
-	s.compute = s.analyzeSource
+	s.compute = s.analyze
 	return s
 }
 
@@ -88,8 +89,14 @@ func (s *LSPServer) open(uri string, version int, text []byte) {
 // change hands text at version to uri's owner. A uri that is not open has
 // no owner, and the change is dropped.
 func (s *LSPServer) change(uri string, version int, text []byte) {
+	s.changes(uri, version, []lspTextDocumentContentChangeEvent{{Text: string(text)}})
+}
+
+// changes hands uri's owner content changes at version, which it applies
+// in order, each to the text the one before it left.
+func (s *LSPServer) changes(uri string, version int, changes []lspTextDocumentContentChangeEvent) {
 	if o := s.owner(uri); o != nil {
-		o.edit(version, text)
+		o.edit(version, changes)
 	}
 }
 
@@ -108,24 +115,35 @@ func (s *LSPServer) snapshot(uri string) *document {
 	return nil
 }
 
-// analyzeSource parses, lowers and analyses source as the document at uri.
-// The source is the editor's buffer, not the file on disk. A file: uri is
+// analyze parses, lowers and analyses source as the document at uri. The
+// source is the editor's buffer, not the file on disk. A file: uri is
 // parsed as psc check parses the file at its path: its `use` resolves
 // against the path's directory and then @INC, read as text and never by
 // running perl (incRoots). Any other uri has no directory, and its `use`
-// resolves nothing. Given prev, the last parse of the document that
-// landed, it re-lowers and re-analyzes only the subs the edit from prev's
-// text damaged (analyzeEdit); with none it analyzes the whole tree.
+// resolves nothing.
 //
-// Each parse runs in a Session of its own, so every module it uses is read
-// from disk as it is now: one edited since the last parse is re-read, and
-// one missing then is found once it exists.
+// prev is the last parse of the document that landed, or nil. With cache
+// set, as parse.IncrementalRepair was when the owner was made, each
+// parse's fresh Session shares cache, the document's module cache, and
+// source is re-parsed from prev's tree through ReparseIncremental; without
+// it each Session reads every module from disk as it is now, and source is
+// parsed afresh. prev's tree was parsed from prev's text, so the edit,
+// taken between those bytes and source, is never applied to a tree of
+// other bytes, however many changes the debounce coalesced or parses were
+// cancelled since. Either way, analysis re-lowers and re-analyzes only the
+// subs the edit from prev's tree damaged (analyzeEdit), and with no prev
+// analyses the whole tree.
 //
 // It polls ctx before the parse, before lowering and before analysis, and
 // returns ctx's error at the first of them after ctx is cancelled.
-func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte, prev *document) (*document, error) {
+func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	reuse := cache != nil && prev != nil && prev.tree != nil
+	var e parse.Edit
+	if reuse {
+		e = fullSyncEdit(prev.text.Text, source)
 	}
 	var root *parse.Node
 	doc := &document{}
@@ -135,9 +153,14 @@ func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte
 		var roots []string
 		roots, doc.why = incRoots(path)
 		doc.dir = filepath.Dir(path)
-		// ponytail: every parse re-reads the modules it uses; cache them by
-		// mtime, invalidating facts and seen together, if parses get slow.
-		root = parse.NewSession().ParseSourceFrom(path, source, roots...)
+		sess := parse.NewSessionWithCache(cache)
+		if reuse {
+			root = sess.ReparseIncremental(prev.tree, e, path, source, roots...)
+		} else {
+			root = sess.ParseSourceFrom(path, source, roots...)
+		}
+	} else if reuse {
+		root = parse.ReparseIncremental(prev.tree, e, source)
 	} else {
 		root = parse.Parse(source)
 	}
@@ -146,16 +169,31 @@ func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte
 	}
 	var fa *infer.FileAnalysis
 	var err error
-	if prev != nil && prev.root != nil {
-		fa, _, err = analyzeEdit(ctx, prev.root, prev.analysis, root, s.Options)
+	if prev != nil && prev.tree != nil {
+		fa, _, err = analyzeEdit(ctx, prev.tree, prev.analysis, root, s.Options)
 	} else {
 		fa, err = analyze(ctx, root, s.Options)
 	}
 	if err != nil {
 		return nil, err
 	}
-	doc.analysis, doc.root = fa, root
+	doc.analysis, doc.tree = fa, root
 	return doc, nil
+}
+
+// fullSyncEdit is the Edit turning old into text: the bytes between their
+// common prefix and, of what is left, their common suffix. The suffix stops
+// where the prefix ends, so "aa" to "a" removes one byte, not two.
+func fullSyncEdit(old, text []byte) parse.Edit {
+	p := 0
+	for p < len(old) && p < len(text) && old[p] == text[p] {
+		p++
+	}
+	s := 0
+	for s < len(old)-p && s < len(text)-p && old[len(old)-1-s] == text[len(text)-1-s] {
+		s++
+	}
+	return parse.Edit{Start: p, OldEnd: len(old) - s, NewText: string(text[p : len(text)-s])}
 }
 
 // uriPath is the path a file: uri names, and false for a uri of any other

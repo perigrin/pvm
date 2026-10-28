@@ -7,9 +7,10 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"slices"
 	"sync"
 	"time"
+
+	"tamarou.com/pvm/internal/parse"
 )
 
 // The debounce intervals of §6.7.2: a parse waits out a burst of typing,
@@ -67,8 +68,12 @@ type parseResult struct {
 type owner struct {
 	uri                   string
 	parseDelay, diagDelay time.Duration
-	compute               func(ctx context.Context, uri string, text []byte, prev *document) (*document, error)
+	compute               func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error)
 	publish               func(doc *document, err error) // may be nil
+	// cache is set when parse.IncrementalRepair was as the owner was made:
+	// compute then re-parses from the last tree that landed, sharing cache,
+	// the document's module cache, across parses (LSPServer.analyze).
+	cache *parse.ModuleCache
 
 	ops     chan func()
 	results chan parseResult
@@ -76,7 +81,7 @@ type owner struct {
 	done    chan struct{}
 	stopped sync.Once
 
-	text    []byte
+	text    *Document
 	version int
 	// gen counts the texts the owner has held; started and finished are
 	// the generations of the last parse begun and the last one landed.
@@ -103,12 +108,15 @@ func newOwner(s *LSPServer, uri string, version int, text []byte) *owner {
 		results:    make(chan parseResult),
 		quit:       make(chan struct{}),
 		done:       make(chan struct{}),
-		text:       text,
+		text:       NewDocument(text),
 		version:    version,
 		gen:        1,
 		diagDue:    true,
 		parseT:     s.clock.NewTimer(time.Hour),
 		diagT:      s.clock.NewTimer(time.Hour),
+	}
+	if parse.IncrementalRepair {
+		o.cache = parse.NewModuleCache()
 	}
 	stopTimer(o.parseT)
 	stopTimer(o.diagT)
@@ -187,9 +195,10 @@ func (o *owner) startParse() {
 	ctx, cancel := context.WithCancel(context.Background())
 	o.cancel = cancel
 	o.started = o.gen
-	// prev is the last tree that landed, which the parse reuses what the
-	// edit did not damage of; nothing changes it, so the parse may read it.
-	gen, version, text, prev := o.gen, o.version, slices.Clone(o.text), o.view()
+	// prev is the last tree that landed, which the parse re-parses from and
+	// whose analysis it reuses what the edit did not damage of; a landed
+	// document is never changed, so the parse may read it.
+	gen, version, text, prev := o.gen, o.version, o.text.Snapshot(), o.snap
 	go func() {
 		r := parseResult{gen: gen}
 		r.doc, r.err = o.parse(ctx, version, text, prev)
@@ -200,10 +209,11 @@ func (o *owner) startParse() {
 	}()
 }
 
-// parse runs compute in a parse slot. A panic in it is this version's
-// error, so the owner keeps serving and the next edit parses afresh.
-func (o *owner) parse(ctx context.Context, version int, text []byte, prev *document) (doc *document, err error) {
-	doc = &document{uri: o.uri, version: version, text: NewDocument(text)}
+// parse runs compute from prev in a parse slot. A panic in it is this
+// version's error, so the owner keeps serving and the next edit parses
+// afresh.
+func (o *owner) parse(ctx context.Context, version int, text *Document, prev *document) (doc *document, err error) {
+	doc = &document{uri: o.uri, version: version, text: text}
 	defer func() {
 		if p := recover(); p != nil {
 			err = fmt.Errorf("psc: internal error analysing version %d: %v", version, p)
@@ -215,7 +225,8 @@ func (o *owner) parse(ctx context.Context, version int, text []byte, prev *docum
 		return doc, ctx.Err()
 	}
 	defer func() { <-parseSlots }()
-	got, err := o.compute(ctx, o.uri, text, prev)
+	src := text.Text[:len(text.Text):len(text.Text)] // an append copies, never writing the snapshot
+	got, err := o.compute(ctx, o.uri, src, prev, o.cache)
 	if err != nil {
 		return doc, err
 	}
@@ -236,17 +247,35 @@ func (o *owner) call(f func()) bool {
 	}
 }
 
-// edit replaces the text with text at version, unless version is not
-// newer than the owner's, and debounces the parse and the diagnostics.
-func (o *owner) edit(version int, text []byte) {
-	o.call(func() { o.applyEdit(version, text) })
+// edit applies changes to the text at version, unless version is not newer
+// than the owner's, and debounces the parse and the diagnostics.
+func (o *owner) edit(version int, changes []lspTextDocumentContentChangeEvent) {
+	o.call(func() { o.applyChanges(version, changes) })
 }
 
+// applyEdit replaces the text with text at version, as edit does.
 func (o *owner) applyEdit(version int, text []byte) {
+	o.applyChanges(version, []lspTextDocumentContentChangeEvent{{Text: string(text)}})
+}
+
+// applyChanges applies each change in order, to the text the one before it
+// left: a change with no range replaces the text, and one with a range has
+// its UTF-16 positions clamped through the line table (§6.6) and replaces
+// the bytes between them. A reversed range, which no clamp produces from an
+// ordered one, is the client's error, and only that change is dropped.
+func (o *owner) applyChanges(version int, changes []lspTextDocumentContentChangeEvent) {
 	if version <= o.version {
 		return
 	}
-	o.text, o.version = text, version
+	for _, c := range changes {
+		if c.Range == nil {
+			o.text = NewDocument([]byte(c.Text))
+			continue
+		}
+		start, end := o.text.PositionToByte(c.Range.Start), o.text.PositionToByte(c.Range.End)
+		_, _ = o.text.ApplyEdit(int(start), int(end), []byte(c.Text))
+	}
+	o.version = version
 	o.gen++
 	if o.cancel != nil {
 		o.cancel() // supersede the parse in flight

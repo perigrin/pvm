@@ -420,11 +420,11 @@ func TestIncrementalAnalyzeCancelledLeavesConsistentState(t *testing.T) {
 	// then analyzeEdit polls after re-lowering.
 	s := NewLSPServer()
 	var cancel atomic.Bool
-	s.compute = func(ctx context.Context, uri string, text []byte, prev *document) (*document, error) {
+	s.compute = func(ctx context.Context, uri string, text []byte, prev *document, cache *parse.ModuleCache) (*document, error) {
 		if cancel.Load() {
 			ctx = &cancelAt{Context: ctx, n: 2}
 		}
-		return s.analyzeSource(ctx, uri, text, prev)
+		return s.analyze(ctx, uri, text, prev, cache)
 	}
 	live := openLiveWith(t, src, s)
 	last := live.s.snapshot(liveURI)
@@ -531,6 +531,42 @@ func TestIncrementalAnalyzeEveryOffset(t *testing.T) {
 		if at < len(src) {
 			t.Run(fmt.Sprintf("del@%d", at), func(t *testing.T) { check(t, src[:at]+src[at+1:]) })
 		}
+	}
+}
+
+// TestIncrementalAnalyzeThroughRepair: with parse.IncrementalRepair on,
+// range didChanges to edit5k.pl -- typing in a sub, breaking and fixing its
+// syntax, trivia between subs -- are re-parsed from the last landed tree
+// and analysed from its analysis, through the one compute path; after
+// each, the tree and published diagnostics equal a fresh didOpen's, and
+// the lowered tree, annotations, diagnostics and symbols a fresh one's.
+func TestIncrementalAnalyzeThroughRepair(t *testing.T) {
+	const uri = "untitled:edit5k.pl"
+	h, out, _, reparses := syncHandler(t, true)
+	text := string(readFixture(t))
+	didOpen(t, h, uri, text)
+	local := 0
+	for v, e := range [][2]string{
+		{"$_ > 0", "$_ > 10"},
+		{"$_ > 10", "$_ > 210"},
+		{"grep {", "grep ( {"},
+		{"$a <=> $b", "$a <=> $b "},
+		{"grep ( {", "grep {"},
+		{"\n\nsub describe", "\n \nsub describe"},
+		{"return $text;", "return $text . 'x';"},
+	} {
+		var c lspTextDocumentContentChangeEvent
+		c, text = replace(t, text, e[0], e[1])
+		didChange(t, h, uri, v+2, c)
+		matchesFreshOpen(t, h, out, uri, text)
+		got := h.server.snapshot(uri).analysis
+		sameAnalysis(t, got, fresh(t, []byte(text)))
+		if got.Walked != nil {
+			local++
+		}
+	}
+	if reparses.Load() == 0 || local < 4 {
+		t.Errorf("%d re-parses from a landed tree, %d incremental analyses; want both", reparses.Load(), local)
 	}
 }
 

@@ -197,7 +197,7 @@ func TestRepairEdit5kIsLocal(t *testing.T) {
 	for _, step := range []Edit{e, {Start: e.Start, OldEnd: e.Start, NewText: "2"}} {
 		sub := childHolding(tree, step)
 		newSrc := edited(src, step)
-		next, n, ok := sessionRepair(tree, step, repPath, []byte(newSrc), []string{repRoot})
+		next, n, ok := sessionRepair(tree, step, repPath, []byte(newSrc), []string{repRoot}, nil)
 		if !ok {
 			t.Fatalf("edit %+v: ok=false", step)
 		}
