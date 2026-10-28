@@ -179,18 +179,7 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 		return nil, nil, false
 	}
 
-	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
-	memo := map[*Node]*Node{}
-	for _, c := range old.Children {
-		switch {
-		case c == a:
-			root.Children = append(root.Children, n)
-		case c.Start < a.Start:
-			root.Children = append(root.Children, copyShifted(c, 0, memo))
-		default:
-			root.Children = append(root.Children, copyShifted(c, delta, memo))
-		}
-	}
+	root, _ := splice(old, a, n, delta)
 	fin := tops[len(tops)-1].restoreOn(src, d.newToks, bodies, res)
 	fin.pos += dtok
 	fin.finish(root)
@@ -286,6 +275,24 @@ func sameReads(reads map[string]moduleRead, res *resolver) bool {
 // errors would no longer be the old parse's.
 func consulted(res *resolver) bool {
 	return res != nil && (len(res.seen) > 0 || len(res.loaded) > 0 || len(res.declErrs) > 0 || len(res.declWarns) > 0)
+}
+
+// splice is old's root with its child a replaced by n and every other child
+// copied, shifted by delta past a, and the number of nodes it copied.
+func splice(old, a, n *Node, delta int) (*Node, int) {
+	root := &Node{Kind: SourceFile, Start: 0, End: old.End + delta}
+	memo := map[*Node]*Node{}
+	for _, c := range old.Children {
+		switch {
+		case c == a:
+			root.Children = append(root.Children, n)
+		case c.Start < a.Start:
+			root.Children = append(root.Children, copyShifted(c, 0, memo))
+		default:
+			root.Children = append(root.Children, copyShifted(c, delta, memo))
+		}
+	}
+	return root, len(memo)
 }
 
 // copyShifted is a deep copy of n with every byte offset moved by delta, as
