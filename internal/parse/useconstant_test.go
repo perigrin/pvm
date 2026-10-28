@@ -34,3 +34,20 @@ func TestUseConstantDeclares(t *testing.T) {
 		}
 	}
 }
+
+// TestUseConstantEmptyList: `use constant ()` names no constant -- perl
+// calls no import for an empty list, so it declares nothing -- and an
+// unclosed `use constant(`, a FuzzIncremental find, is an error, not a
+// panic.
+func TestUseConstantEmptyList(t *testing.T) {
+	root := parse.Parse([]byte("use constant ();\nprint 1;\n"))
+	if containsKind(root, parse.Unknown) {
+		t.Errorf("perl accepts this; got %s", shape(root))
+	}
+	if imps := parse.Imports(parse.ParseWithLoader([]byte("use constant ();\n"), nil)); len(imps) != 0 {
+		t.Errorf("declared %v, want nothing", imps)
+	}
+	if root := parse.Parse([]byte("use constant(")); !root.HasError {
+		t.Errorf("an unclosed list parsed clean: %s", shape(root))
+	}
+}
