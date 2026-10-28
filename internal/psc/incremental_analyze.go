@@ -98,11 +98,14 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 		}
 		damaged[i], names[newSubs[i].name] = true, true
 	}
+	if len(names) == 0 {
+		return editDamage{}
+	}
 	calls := make([]map[string]bool, len(newSubs))
 	for i, s := range newSubs {
 		calls[i] = callees(s.node, nil)
 	}
-	for grew := len(names) > 0; grew; {
+	for grew := true; grew; {
 		grew = false
 		for i, s := range newSubs {
 			if !damaged[i] && intersects(calls[i], names) {
@@ -110,7 +113,7 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 			}
 		}
 	}
-	if len(names) > 0 && intersects(callees(newRoot, newSet), names) {
+	if intersects(callees(newRoot, newSet), names) {
 		return full(false, "top-level code calls a damaged sub")
 	}
 	var out editDamage
