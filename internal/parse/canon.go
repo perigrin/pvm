@@ -1055,9 +1055,10 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// string "a" and writing `a()` calls it (§4.5.4). A call with no
 		// arguments is written as its bare name unless the source wrote its
 		// parens (emitCallArgs), so the word stays a word.
-		if n.Text == "=>" {
+		switch {
+		case n.Text == "=>":
 			emitBeforeFat(b, n.Children[0], src, l, info.BP)
-		} else if (n.Text == "<" || n.Text == "<=" || n.Text == "<<" || n.Text == "%") && endsInBareword(n.Children[0]) {
+		case (n.Text == "<" || n.Text == "<=" || n.Text == "<<" || n.Text == "%") && endsInBareword(n.Children[0]):
 			// After a word the lexer, with no symbol table, reads `<` as a
 			// readline's start if a `>` closes it on the line, and the source
 			// may have had a newline there that canon does not keep:
@@ -1068,7 +1069,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteByte('(')
 			emitBefore(b, n.Children[0], src, 0, 0)
 			b.WriteByte(')')
-		} else {
+		default:
 			emitBefore(b, n.Children[0], src, l, info.BP)
 		}
 		// No space before a comma: perl's checkcomma (toke.c) counts the
