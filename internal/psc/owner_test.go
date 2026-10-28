@@ -100,7 +100,7 @@ func newRig(t *testing.T, compute func(ctx context.Context, text string) error) 
 	t.Helper()
 	r := &rig{s: NewLSPServer(), clk: &fakeClock{}, pub: make(chan publication, 1000)}
 	r.s.clock = r.clk
-	r.s.compute = func(ctx context.Context, uri string, text []byte) (*document, error) {
+	r.s.compute = func(ctx context.Context, uri string, text []byte, _ *document) (*document, error) {
 		r.mu.Lock()
 		r.parsed = append(r.parsed, string(text))
 		r.mu.Unlock()
@@ -447,7 +447,7 @@ func TestOwnerSurvivesParsePanic(t *testing.T) {
 func TestOwnerParsePanicPublishesErrorDiagnostic(t *testing.T) {
 	h, out := newTestHandler(t)
 	h.initialized = true
-	h.server.compute = func(context.Context, string, []byte) (*document, error) { panic("boom") }
+	h.server.compute = func(context.Context, string, []byte, *document) (*document, error) { panic("boom") }
 	h.server.open(ownedURI, 1, []byte("a\nbc"))
 	settle(h, ownedURI)
 	var params lspPublishDiagnosticsParams
@@ -463,7 +463,7 @@ func TestShutdownWithParseInFlight(t *testing.T) {
 	entered, gate, left := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	release := sync.OnceFunc(func() { close(gate) })
 	t.Cleanup(release)
-	h.server.compute = func(context.Context, string, []byte) (*document, error) {
+	h.server.compute = func(context.Context, string, []byte, *document) (*document, error) {
 		defer close(left)
 		close(entered)
 		<-gate // never polls ctx, the worst case
@@ -499,7 +499,7 @@ func TestReopenPublishesNoStaleDiagnostics(t *testing.T) {
 	r := newRig(t, nil)
 	r.s.parseDelay, r.s.diagDelay = 0, 0
 	gate, publishing, v2 := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	r.s.compute = func(_ context.Context, _ string, text []byte) (*document, error) {
+	r.s.compute = func(_ context.Context, _ string, text []byte, _ *document) (*document, error) {
 		if string(text) == "v1" {
 			<-gate
 		}
@@ -542,7 +542,7 @@ func TestNoPublishAfterDidClose(t *testing.T) {
 	h, out := newTestHandler(t)
 	h.initialized = true
 	gate, publishing := make(chan struct{}), make(chan struct{})
-	h.server.compute = func(context.Context, string, []byte) (*document, error) {
+	h.server.compute = func(context.Context, string, []byte, *document) (*document, error) {
 		<-gate
 		return nil, fmt.Errorf("stale")
 	}

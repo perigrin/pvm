@@ -65,9 +65,26 @@ const (
 // well-formed shape: every child of every node is visited.
 func AssignIDs(root *parse.Node) map[*parse.Node]ID {
 	ids := map[*parse.Node]ID{}
-	next := map[string]int{} // anchor -> next Local
-	seen := map[string]int{} // anchor key without disambiguator -> uses so far
+	assignIDsFrom(ids, root, "", map[string]int{}, map[string]int{})
+	return ids
+}
 
+// subIDs is what AssignIDs gives the nodes of sub, a sub not inside another
+// named sub, whose anchor is anchor: an anchor's numbering, and that of the
+// subs nested in it, reads nothing outside the anchor.
+func subIDs(sub *parse.Node, anchor string) map[*parse.Node]ID {
+	ids := map[*parse.Node]ID{sub: {Anchor: anchor}}
+	next := map[string]int{anchor: 1}
+	seen := map[string]int{}
+	for _, c := range sub.Children {
+		assignIDsFrom(ids, c, anchor, next, seen)
+	}
+	return ids
+}
+
+// assignIDsFrom numbers n and its subtree under anchor; next is each
+// anchor's next Local, seen each anchor key's uses so far.
+func assignIDsFrom(ids map[*parse.Node]ID, n *parse.Node, anchor string, next, seen map[string]int) {
 	var walk func(n *parse.Node, anchor string)
 	walk = func(n *parse.Node, anchor string) {
 		if key, ok := AnchorKey(n); ok {
@@ -87,8 +104,7 @@ func AssignIDs(root *parse.Node) map[*parse.Node]ID {
 			walk(c, anchor)
 		}
 	}
-	walk(root, "")
-	return ids
+	walk(n, anchor)
 }
 
 // AnchorKey reports whether a node opens an anchor -- a named sub or method

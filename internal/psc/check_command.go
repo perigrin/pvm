@@ -169,13 +169,18 @@ func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	fa := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
+	return gate(infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts), root), nil
+}
+
+// gate puts root's syntax errors among fa's diagnostics and drops the type
+// diagnostics they gate, under §6.8.4 (diagfilter.go), and returns fa.
+func gate(fa *infer.FileAnalysis, root *parse.Node) *infer.FileAnalysis {
 	errs, gates := parseErrors(root)
 	fa.Diagnostics = append(filterParse(errs), gateTypes(fa.Diagnostics, gates)...)
 	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
 		return int(a.StartByte) - int(b.StartByte)
 	})
-	return fa, nil
+	return fa
 }
 
 // perlRefuses holds the refusal codes that always mean perl refuses to

@@ -67,7 +67,7 @@ type parseResult struct {
 type owner struct {
 	uri                   string
 	parseDelay, diagDelay time.Duration
-	compute               func(ctx context.Context, uri string, text []byte) (*document, error)
+	compute               func(ctx context.Context, uri string, text []byte, prev *document) (*document, error)
 	publish               func(doc *document, err error) // may be nil
 
 	ops     chan func()
@@ -187,10 +187,12 @@ func (o *owner) startParse() {
 	ctx, cancel := context.WithCancel(context.Background())
 	o.cancel = cancel
 	o.started = o.gen
-	gen, version, text := o.gen, o.version, slices.Clone(o.text)
+	// prev is the last tree that landed, which the parse reuses what the
+	// edit did not damage of; nothing changes it, so the parse may read it.
+	gen, version, text, prev := o.gen, o.version, slices.Clone(o.text), o.view()
 	go func() {
 		r := parseResult{gen: gen}
-		r.doc, r.err = o.parse(ctx, version, text)
+		r.doc, r.err = o.parse(ctx, version, text, prev)
 		select {
 		case o.results <- r:
 		case <-o.done:
@@ -200,7 +202,7 @@ func (o *owner) startParse() {
 
 // parse runs compute in a parse slot. A panic in it is this version's
 // error, so the owner keeps serving and the next edit parses afresh.
-func (o *owner) parse(ctx context.Context, version int, text []byte) (doc *document, err error) {
+func (o *owner) parse(ctx context.Context, version int, text []byte, prev *document) (doc *document, err error) {
 	doc = &document{uri: o.uri, version: version, text: NewDocument(text)}
 	defer func() {
 		if p := recover(); p != nil {
@@ -213,7 +215,7 @@ func (o *owner) parse(ctx context.Context, version int, text []byte) (doc *docum
 		return doc, ctx.Err()
 	}
 	defer func() { <-parseSlots }()
-	got, err := o.compute(ctx, o.uri, text)
+	got, err := o.compute(ctx, o.uri, text, prev)
 	if err != nil {
 		return doc, err
 	}

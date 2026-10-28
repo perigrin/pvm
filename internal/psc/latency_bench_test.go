@@ -5,6 +5,7 @@ package psc
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"slices"
 	"testing"
@@ -147,6 +148,49 @@ func BenchmarkLatencyEdit(b *testing.B) {
 			b.Fatal(err)
 		}
 	})
+}
+
+// BenchmarkLatencyAnalyzeFull: analyze, the LSP's whole-tree path after the
+// parse -- lower, position map, inference, §6.8.4 gating -- over each
+// buffer of latencyEdits' typing sequence, parsed beforehand.
+func BenchmarkLatencyAnalyzeFull(b *testing.B) {
+	roots := latencyRoots(b)
+	timeEach(b, func(i int) {
+		if _, err := analyze(context.Background(), roots[i+1], infer.Options{}); err != nil {
+			b.Fatal(err)
+		}
+	})
+}
+
+// BenchmarkLatencyAnalyzeEdit: analyzeEdit over the same sequence, each
+// buffer's analysis made from the last one's, as the owner chains them:
+// damage, re-lowering and re-analysis of the one sub each edit damages.
+func BenchmarkLatencyAnalyzeEdit(b *testing.B) {
+	src := latencySource(b)
+	bufs := append([][]byte{src}, latencyEdits(src, b.N)...)
+	roots := latencyRoots(b)
+	prev, err := analyze(context.Background(), roots[0], infer.Options{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	timeEach(b, func(i int) {
+		fa, d, err := analyzeEdit(context.Background(), roots[i], bufs[i], prev, roots[i+1], bufs[i+1], infer.Options{})
+		if err != nil || d.Full {
+			b.Fatalf("edit %d: damage %+v, err %v", i, d, err)
+		}
+		prev = fa
+	})
+}
+
+// latencyRoots is the parse of the fixture and of each of b.N buffers of
+// latencyEdits' sequence after it.
+func latencyRoots(b *testing.B) []*parse.Node {
+	src := latencySource(b)
+	roots := []*parse.Node{parse.Parse(src)}
+	for _, buf := range latencyEdits(src, b.N) {
+		roots = append(roots, parse.Parse(buf))
+	}
+	return roots
 }
 
 // scaleSubs is the offset of every `sub scale {` line in src, in order.
