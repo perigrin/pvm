@@ -113,35 +113,69 @@ func TestPrototypeEditInvalidation(t *testing.T) {
 	}
 	t.Run("edit changes the call", func(t *testing.T) { laterCallsChange(t, protoSrc, protoCases[0].edit) })
 	t.Run("module-bytes", testModuleBytesInvalidate)
+	t.Run("module-comment", testModuleCommentKeepsProperty)
 }
 
 // testModuleBytesInvalidate: a module on disk installs f's prototype, and
 // changing its bytes refuses a sub-body edit Repair would otherwise
 // accept, both from a fresh parse's tree and from a repaired tree that
 // carries its module reads.
-func testModuleBytesInvalidate(t *testing.T) {
-	repairOn(t)
+// modSrc uses Mod, which exports f, and has a sub body to edit locally.
+const modSrc = "use Mod;\nsub g {\n  my $y = 1;\n}\nmy @x = (f 1, 2);\n"
+
+// modFixture is a script path and a lib root on disk, writeMod putting Mod.pm
+// there with f's prototype proto after the lines extra, and fresh a fresh
+// Session parse of src at path.
+func modFixture(t *testing.T) (path, root string, writeMod func(proto, extra string), fresh func(src string) *parse.Node) {
 	dir := t.TempDir()
-	path, root := filepath.Join(dir, "edit.pl"), filepath.Join(dir, "lib")
+	path, root = filepath.Join(dir, "edit.pl"), filepath.Join(dir, "lib")
 	if err := os.Mkdir(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mod := filepath.Join(root, "Mod.pm")
-	writeMod := func(proto string) {
+	writeMod = func(proto, extra string) {
 		t.Helper()
-		body := "package Mod;\nour @EXPORT = qw(f);\nsub f" + proto + " { }\n1;\n"
-		if err := os.WriteFile(mod, []byte(body), 0o644); err != nil {
+		body := "package Mod;\n" + extra + "our @EXPORT = qw(f);\nsub f" + proto + " { }\n1;\n"
+		if err := os.WriteFile(filepath.Join(root, "Mod.pm"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	fresh := func(src string) *parse.Node { return parse.NewSession().ParseSourceFrom(path, []byte(src), root) }
-	const src = "use Mod;\nsub g {\n  my $y = 1;\n}\nmy @x = (f 1, 2);\n"
+	fresh = func(src string) *parse.Node { return parse.NewSession().ParseSourceFrom(path, []byte(src), root) }
+	return path, root, writeMod, fresh
+}
+
+// testModuleCommentKeepsProperty: a module change that leaves its prototype
+// alone, on a first Repair, may be accepted or refused, but an accepted tree
+// equals a fresh parse (§6.5.2 check 3). The edit adds a call to f inside
+// g, so the module's facts reach the re-parsed statement.
+func testModuleCommentKeepsProperty(t *testing.T) {
+	path, root, writeMod, fresh := modFixture(t)
+	e := replaceFirst(modSrc, "1", "f 7, 8")
+	out := applyEdit(modSrc, e)
+	writeMod("($)", "")
+	old := fresh(modSrc)
+	writeMod("($)", "# a comment\n")
+	tree, ok := parse.NewSession().Repair(old, e, path, []byte(out), root)
+	if !ok {
+		if tree != nil {
+			t.Fatal("ok=false with a tree")
+		}
+		return
+	}
+	if diff := parse.TreeDiff(tree, fresh(out)); diff != "" {
+		t.Fatalf("ok=true but repaired != fresh:\n%s", diff)
+	}
+}
+
+func testModuleBytesInvalidate(t *testing.T) {
+	repairOn(t)
+	path, root, writeMod, fresh := modFixture(t)
+	const src = modSrc
 	e1 := replaceFirst(src, "1", "2")
 	src1 := applyEdit(src, e1)
 	e2 := replaceFirst(src1, "2", "3")
 	src2 := applyEdit(src1, e2)
 
-	writeMod("($)")
+	writeMod("($)", "")
 	old := fresh(src)
 	repaired, ok := parse.NewSession().Repair(old, e1, path, []byte(src1), root)
 	if !ok {
@@ -151,7 +185,7 @@ func testModuleBytesInvalidate(t *testing.T) {
 		t.Fatalf("repaired != fresh:\n%s", diff)
 	}
 
-	writeMod("(@)")
+	writeMod("(@)", "")
 	if diff := parse.TreeDiffShifted(findCall(old, "f"), findCall(fresh(src), "f"), 0); diff == "" {
 		t.Fatal("the module's prototype change leaves the call to f unchanged; the test checks nothing")
 	}
