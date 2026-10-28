@@ -882,6 +882,14 @@ type parser struct {
 	// `overload::constant` after `use overload;`. Known, not imported.
 	moduleSubs map[string]Import
 
+	// inHashKey is set while a `{` subscript's key is read, where a word
+	// before the `}` is the key's string, a word operator's spelling too.
+	inHashKey bool
+
+	// derefMemo holds derefHoldsStatements' answers, by the brace's
+	// offset, while its outermost call runs; nil outside it.
+	derefMemo map[int]bool
+
 	// inSignature is set while a sub's signature is read, where a
 	// placeholder's `=` may have nothing after it -- see emptyDefault.
 	inSignature bool
@@ -1241,9 +1249,14 @@ func (p *parser) statementForm() *Node {
 	// skipToStatementEnd runs PAST the enclosing `}` looking for a
 	// terminator it has already gone by. Measured: `map { ; $_ } @a` lost
 	// its closing brace into an Unknown, and `{};` did the same.
+	//
+	// It takes the heredoc bodies after it, as every statement form does: in
+	// FuzzParser's `<<'0';;` + newline + body, the body follows the empty
+	// statement, and left to the statement loop it was refused at EOF.
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
-		return &Node{Kind: Statement, Start: start, End: p.prevEnd()}
+		bodies := p.takeHeredocBodies()
+		return &Node{Kind: Statement, Start: start, End: p.prevEnd(), Children: bodies}
 	}
 
 	// Labels come first and they stack: `A: B: for (...)` is two of them.
@@ -1602,6 +1615,10 @@ func (p *parser) takeHeredocBodies() []*Node {
 func (p *parser) parseBlock(open lexer.Token) *Node {
 	anchor := p.anchorBlock
 	p.anchorBlock = false
+	// A block in a key, `$h{do {ge}}`, holds statements, not the key.
+	inHashKey := p.inHashKey
+	p.inHashKey = false
+	defer func() { p.inHashKey = inHashKey }()
 	p.advanceTo(open)
 	n := &Node{Kind: Block, Start: open.Start}
 	p.depth++

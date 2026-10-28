@@ -272,6 +272,14 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			if text == "(" && !p.callsHere(left) {
 				return left
 			}
+			// Nor does a number take a subscript: measured on 5.44.0,
+			// `(0{},)` is a syntax error near "0{", and read as one its
+			// canon re-read differently. The statement is refused from the
+			// number on: left to the caller, `0%0{y}` read the braces as a
+			// block of their own (FuzzParser's find).
+			if left.Kind == Term && len(left.Children) == 0 && p.src[left.Start] >= '0' && p.src[left.Start] <= '9' {
+				return p.refuseTrailingTokens(left.Start)
+			}
 			// A list slice: the pair before `[` is the slice's.
 			if text == "[" && left.Paren && p.src[left.Start] == '(' {
 				takeSyntaxPair(left)
@@ -609,13 +617,22 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
 	tok, _ := p.peekSignificant()
 	p.advanceTo(tok)
 
-	// An empty subscript or call -- `f()`, `$r->()` -- has no inner
-	// expression, which is not a failure.
+	// An empty call -- `f()`, `$r->()` -- has no inner expression, which is
+	// not a failure. An empty subscript is: perl 5.44.0 has `$h{}`, `$a[]`
+	// and `$r->{}` each a syntax error, and FuzzParser's `($0{},)` canon'd
+	// with its comma doubled.
 	children := []*Node{left}
+	if c, ok := p.peekSignificant(); ok && open != "(" && p.text(c) == closerFor(open) {
+		children = append(children, p.refuseNotATerm(c))
+		return &Node{Kind: Index, Text: open, Start: left.Start, End: p.prevEnd(), Children: children}
+	}
 	if c, ok := p.peekSignificant(); !ok || p.text(c) != closerFor(open) {
+		was := p.inHashKey
+		p.inHashKey = open == "{"
 		if inner := p.parseExpr(0); inner != nil {
 			children = append(children, inner)
 		}
+		p.inHashKey = was
 	}
 	if c, ok := p.peekSignificant(); ok && p.text(c) == closerFor(open) {
 		p.advanceTo(c)
@@ -700,6 +717,19 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 		return nil
 	}
 	name, ok := p.peekAfter(tok)
+	prev := p.pos - 1
+	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
+		prev--
+	}
+	// A declared sub's glob `*%`, `*@` or `*&` before a repetition is an
+	// undeclared word's product: on 5.44.0, `sub A {} A *%x3` is `A(*% x
+	// 3)` and `A *%x3` is `'A' * %x3`. `A *%x;` is only the product. A
+	// word known to be declared took its argument already, or is a
+	// constant, whose `*` multiplies.
+	if ok && text == "*" && name.Start == tok.End && prev >= 0 && p.toks[prev].Kind == lexer.Word && endsInBareword(left) &&
+		p.sigilNameRepeats(name) {
+		return p.ambiguousSigil(left.Start)
+	}
 	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
 		return nil
 	}
@@ -710,11 +740,13 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// disagree only after a word, which may be a call taking a glob.
 	closes := text == "*" && (p.text(name) == ";" || p.text(name) == "}" ||
 		p.text(name) == "*" && p.endsGlobStar(name))
-	prev := p.pos - 1
-	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
-		prev--
-	}
-	if !closes && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
+	// So does a quote-op name after a closer, where the lexer read a glob:
+	// perl 5.44.0 has FuzzParser's `{{}*y}` multiply the hash by a
+	// transliteration, and the canon `{} * y` re-read as one.
+	// And a quote or `#` glob name there, `{{}*"}`.
+	quoteAfterCloser := text == "*" && prev >= 0 && p.toks[prev].Kind == lexer.CloseBracket &&
+		(lexer.IsQuoteOpName(p.text(name)) || strings.ContainsRune("#\"'`", rune(p.src[name.Start])))
+	if !closes && !quoteAfterCloser && (prev < 0 || p.toks[prev].Kind != lexer.Word) {
 		return nil
 	}
 	// The glob `*#` is the same disagreement: `fo*#` is `fo *` and a comment
@@ -730,12 +762,76 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// canon fixpoint.
 	hashName := text == "*" && (strings.ContainsRune("#\"'`;}", rune(p.src[name.Start])) ||
 		p.text(name) == "*" && p.endsGlobStar(name))
+	// After a word, a punctuation name is a declared sub's argument -- `sub
+	// got {} got*&;` is `got(*&)`, `sub A {} A &!;` calls A with `&!` -- and
+	// an operator's operand after an undeclared one: `got*&;` is `'got' *
+	// &;`, `A*/x/` a match and `A*.5` a number, on 5.44.0. The parser has not
+	// seen which the word is, so it reads neither (R-b′). `*` before `(`,
+	// `-`, `\`, `!`, `~`, `+`, `[` or `$;` multiplies at a canon fixpoint
+	// after either, as pu read it, and `**` before a term is exponentiation.
+	if prev >= 0 && p.toks[prev].Kind == lexer.Word && endsInBareword(left) && p.punctName(name) &&
+		(text == "&" || !p.starMultipliesAt(name)) {
+		hashName = true
+	}
 	if !hashName && !lexer.IsQuoteOpName(p.text(name)) {
 		return nil
 	}
-	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" {
+	// `=>` quotes a quote-op's name, `A*s => 1`, but no punctuation: perl
+	// 5.44.0 reads FuzzParser's `(A*"=>)` as an unterminated string.
+	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" && !hashName {
 		return nil
 	}
+	return p.ambiguousSigil(left.Start)
+}
+
+// sigilNameRepeats reports whether sigil, a `%` or `@` variable or a sub's
+// `&` and its name, reads as that glob sigil and a repetition: `%x3`, or
+// `%x` before a term.
+func (p *parser) sigilNameRepeats(sigil lexer.Token) bool {
+	last, t := sigil, p.text(sigil)
+	if sigil.Kind == lexer.FuncSigil {
+		w, ok := p.peekAfter(sigil)
+		if !ok || w.Kind != lexer.Word || w.Start != sigil.End {
+			return false
+		}
+		last, t = w, "&"+p.text(w)
+	} else if sigil.Kind != lexer.Variable || !strings.ContainsRune("%@", rune(t[0])) {
+		return false
+	}
+	if len(t) < 2 || t[1] != 'x' {
+		return false
+	}
+	if len(t) > 2 {
+		return strings.Trim(t[2:], "0123456789") == ""
+	}
+	next, ok := p.peekAfter(last)
+	return ok && next.Kind != lexer.Semicolon && next.Kind != lexer.CloseBracket && p.text(next) != ","
+}
+
+// punctName reports whether name, glued after a `&` or `*`, is one ASCII
+// punctuation byte.
+func (p *parser) punctName(name lexer.Token) bool {
+	c := p.src[name.Start]
+	return name.End-name.Start == 1 && c < 0x80 && !isWordByte(c)
+}
+
+// starMultipliesAt reports whether the glob name after a word's `*` reads,
+// in canon, as the multiplication it was parsed as.
+func (p *parser) starMultipliesAt(name lexer.Token) bool {
+	switch c := p.src[name.Start]; {
+	case strings.IndexByte("(-\\!~+[", c) >= 0:
+		return true
+	case c == '$':
+		return name.End < len(p.src) && p.src[name.End] == ';'
+	case c == '*':
+		return !p.endsGlobStar(name)
+	}
+	return false
+}
+
+// ambiguousSigil refuses from start to the end of the statement, which was
+// lexed for the reading the parser declines.
+func (p *parser) ambiguousSigil(start int) *Node {
 	p.skipToStatementEnd()
-	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: left.Start, End: p.prevEnd()}
+	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: start, End: p.prevEnd()}
 }

@@ -144,6 +144,25 @@ func scanVariable(l *lexer) bool {
 		return true
 	}
 
+	// Whitespace is no name: past it, perl takes one punctuation byte, so
+	// `print $ ;` and `$` then a newline then `;` are each `$;` on 5.44.0.
+	// Not across a newline a heredoc body starts after, and with nothing
+	// there the sigil stands alone, as at EOF: FuzzParser's `<<0%$` took
+	// the newline as a name, and the body after it re-read differently.
+	if isSpace(l.src[l.pos]) {
+		j := l.pos
+		for j < len(l.src) && isSpace(l.src[j]) && (l.src[j] != '\n' || len(l.pending) == 0) {
+			j++
+		}
+		if j < len(l.src) && !isSpace(l.src[j]) && l.src[j] < utf8.RuneSelf && !isWordByte(l.src[j]) && !byteIn(l.src[j], "{#") {
+			l.pos = j + 1
+			l.emit(Variable, start)
+			return true
+		}
+		l.emit(Error, start)
+		return true
+	}
+
 	l.scanVarName()
 	l.emit(Variable, start)
 	return true
@@ -165,8 +184,16 @@ func (l *lexer) nameAfterSpace(i int) int {
 	j := i
 	for j < len(l.src) {
 		switch c := l.src[j]; {
+		// Not across a newline a heredoc body starts after.
+		case c == '\n' && len(l.pending) > 0:
+			return i
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
 			j++
+		// skipspace runs only when a space follows the sigil, so a `#`
+		// touching it is no comment: FuzzParser's `<<0%%#x` + newline took
+		// `#x` and the next line as the name, and the body began a line late.
+		case c == '#' && j == i:
+			return i
 		case c == '#':
 			for j < len(l.src) && l.src[j] != '\n' {
 				j++
@@ -237,8 +264,13 @@ func (l *lexer) startsDerefExpression() bool {
 //
 // Anything else is an expression: `${$x}`, `${ $h->{k} }`, `@{[ 1, 2 ]}`.
 func (l *lexer) bracedNameFollowsAt(brace int) bool {
+	// Any whitespace, as skipspace takes it: perl 5.44.0 deparses `${0\r}`
+	// and `${ x` + newline + `}` as `$0` and `$x`, and FuzzParser's
+	// `(${0\r},,)`, read as a deref, canon'd differently. Not across a
+	// newline a heredoc body starts after.
+	blank := func(c byte) bool { return isSpace(c) && (c != '\n' || len(l.pending) == 0) }
 	i := brace + 1
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && blank(l.src[i]) {
 		i++
 	}
 
@@ -257,7 +289,7 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	if i == nameStart {
 		return false
 	}
-	for i < len(l.src) && (l.src[i] == ' ' || l.src[i] == '\t') {
+	for i < len(l.src) && blank(l.src[i]) {
 		i++
 	}
 	return i < len(l.src) && l.src[i] == '}'
@@ -737,6 +769,22 @@ func scanNumber(l *lexer) bool {
 		return false
 	}
 	start := l.pos
+	// Digits after a sub's sigil are its name, as `$0`'s are a
+	// variable's: perl 5.44.0 compiles `goto&0` and `&0` as calls of the sub
+	// named `0`. Read as a number, `goto&0` was `goto &` and then `0`. A
+	// longer name may not start with `0`: `&01` is "Numeric variables with
+	// more than one digit may not start with '0'", so it stays a refusal.
+	if l.afterFuncSigil() {
+		end := start
+		for end < len(l.src) && isDigit(l.src[end]) {
+			end++
+		}
+		if c != '0' || end-start == 1 {
+			l.pos = end
+			l.emit(Word, start)
+			return true
+		}
+	}
 	dots := l.scanNumberRun()
 	// One dot is a float; two make a v-string, which this lexer spells as a
 	// Quote because that is its kind for a string. `internal/conformance/
@@ -804,13 +852,16 @@ func (l *lexer) scanNumberRun() int {
 				l.pos += 2
 				continue
 			}
-			// A DECIMAL takes no other letter: its `e` only before a sign,
-			// a digit or `_` (toke.c:13142-13144), so `5x3` is `5 x 3` and
-			// `1if $b` is `1 if $b`, measured on 5.42.0. A radix literal's
-			// letters are its digits and prefix, and stay.
+			// A DECIMAL takes no other letter: its `e` only before a digit
+			// or `_`, or the signed digit above (toke.c:13142-13144), so
+			// `5x3` is `5 x 3` and `1if $b` is `1 if $b`, measured on
+			// 5.42.0. A sign with no digit after it ends the number before
+			// the `e`: `0e+A` is a syntax error on 5.44.0, and taking
+			// `0e` whole read it differently from its canon `0e + A`. A
+			// radix literal's letters are its digits and prefix, and stay.
 			if !radix && !isDigit(c) && c != '_' &&
 				!((c == 'e' || c == 'E') && l.pos+1 < len(l.src) &&
-					byteIn(l.src[l.pos+1], "+-0123456789_")) {
+					byteIn(l.src[l.pos+1], "0123456789_")) {
 				return dots
 			}
 		default:
@@ -1109,7 +1160,7 @@ func scanOperator(l *lexer) bool {
 	// argument is not code: `:tighter(**)` names the operator.
 	//
 	// A word no keyword table settles is the exception: see afterUserWord.
-	if l.src[l.pos] == '*' && l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0 && !l.afterUserWord() {
+	if l.src[l.pos] == '*' && l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0 && !l.afterUserWord(len(l.toks), false) {
 		start := l.pos
 		l.pos++
 		l.emit(Operator, start)
@@ -1146,8 +1197,10 @@ func scanOperator(l *lexer) bool {
 	// operators table for that reason: the table is position-blind. The
 	// smartmatch feature is on by default and the lexer does not track it;
 	// `no feature 'smartmatch'` followed by `$x ~~ $y` is the ceiling.
+	// Nor after a sub's `&`, which a name or, as bitwise-and, a term follows:
+	// measured on 5.44.0, `A & ~~0` is `'A' & ~~0`.
 	if l.src[l.pos] == '~' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '~' &&
-		(l.expect == XOperator || l.expect == XTermOrDorDor) {
+		(l.expect == XOperator || l.expect == XTermOrDorDor) && !l.afterFuncSigil() {
 		start := l.pos
 		l.pos += 2
 		l.emit(Operator, start)
@@ -1270,12 +1323,71 @@ func scanGlobName(l *lexer) bool {
 		c == ':' && next == ':',
 		c == '^' && isWordByte(next):
 		return false
+	// After a word no keyword table settles, a sigil glued to a name is the
+	// star's operand: measured on 5.44.0, `A*%x`, `A*@x` and `A*&x` are
+	// `'A' * %x` and its kin. Only a declared sub takes the glob, and then
+	// only before a repetition: `sub A {} A*%x;` is a syntax error and `sub
+	// A {} A*%x3` is `A(*% x 3)`; the parser, which knows declarations,
+	// declines that reading. Any other byte keeps the glob, which a declared
+	// sub's argument can be (`sub A {} A *-;`); the parser refuses it after
+	// a word not known to be declared (ruling R-b′).
+	case byteIn(c, "%@&$") && (isWordByte(next) || next >= utf8.RuneSelf || byteIn(next, "${:")) &&
+		l.afterUserWord(len(l.toks)-1, true):
+		return false
+	// After a closer, which the parser reads as ending a term, the star
+	// multiplies: FuzzParser's `{{}*$}` is `{} * $}` with its `}` missing.
+	// `#`, a quote, `;`, `}` and `*` keep the glob.
+	case !byteIn(c, "#\"'`;}*") && l.closerBefore(len(l.toks)-1):
+		return false
 	}
 	l.pos = end
 	l.emit(Word, start)
 	l.globStar = false
 	l.expect = XOperator
 	return true
+}
+
+// scanAmpName lexes the one punctuation byte after a sub's `&` as the
+// sub's name, as scanGlobName does after a glob's `*`: toke.c's scan_ident
+// takes it, so `&!` calls the sub named `!` and an operator follows it.
+// Measured on 5.44.0, `A*&!*&%` is `'A' * &! * &%`; with the `!` lexed as
+// an operator, the `*` after it read as a glob. `{` and `$` begin a longer
+// name, as `::` and `'` before a word do, and `#` a comment; a lone `:`
+// is a name, `&:;` compiling on 5.44.0 (FuzzParser's `&:*$%%(%A0`).
+func scanAmpName(l *lexer) bool {
+	start := l.pos
+	// An attribute's argument is not code: `:tighter(&)` names the operator.
+	if !l.afterFuncSigil() || l.attrArgDepth != 0 {
+		return false
+	}
+	// Nor after a word no keyword table settles, whose `&` is bitwise-and if
+	// the word is undeclared: `FOO&~BAR` is `'FOO' & ~BAR`. The parser, which
+	// knows declarations, reads the rest.
+	if l.afterUserWord(l.significantBefore(len(l.toks)), true) {
+		return false
+	}
+	c := l.src[start]
+	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) || byteIn(c, "{$#") {
+		return false
+	}
+	if next := start + 1; (c == ':' || c == '\'') && next < len(l.src) && (l.src[next] == ':' || isWordByte(l.src[next])) {
+		return false
+	}
+	l.pos++
+	l.emit(Word, start)
+	l.expect = XOperator
+	return true
+}
+
+// afterFuncSigil reports whether the last significant token is a sub's `&`,
+// whose name may stand apart from it: perl 5.44.0 deparses `& 0;` and `&
+// !;` as `&0;` and `&!;`.
+func (l *lexer) afterFuncSigil() bool { return l.afterFuncSigilAt(len(l.toks)) }
+
+// afterFuncSigilAt is afterFuncSigil for the tokens before toks[i].
+func (l *lexer) afterFuncSigilAt(i int) bool {
+	j := l.significantBefore(i)
+	return j >= 0 && l.toks[j].Kind == FuncSigil
 }
 
 // caretBraceNameEnd returns the end of the `{^NAME}` at src[start], or -1
@@ -1312,22 +1424,65 @@ func scanPostDerefStar(l *lexer) bool {
 	return true
 }
 
-// afterUserWord reports whether the last significant token is a word that is
-// not a perl keyword: a bareword, a constant or a user sub, whose expect
-// state the lexer leaves at XTerm only as a hedge (see expect.go). perl
-// decides with the symbol table, and an undeclared word is a value, so its
-// `**` and `*=` are operators: measured on 5.42.0 with -MO=Deparse,
-// `pi ** 2` is `'pi' ** 2` and `pi *= 2` is `'pi' *= 2`. A declared sub
+// afterUserWord reports whether the last significant token before toks[i]
+// is a word that is not a perl keyword: a bareword, a constant or a user
+// sub, whose expect state the lexer leaves at XTerm only as a hedge (see
+// expect.go). perl decides with the symbol table, and an undeclared word is
+// a value, so its `**` and `*=` are operators: measured on 5.42.0 with
+// -MO=Deparse, `pi ** 2` is `'pi' ** 2` and `pi *= 2` is `'pi' *= 2`. A declared sub
 // takes a glob there instead -- `sub foo; foo **2` is "Number found where
 // operator expected" -- and the parser, which knows declarations, refuses
 // it. A keyword keeps the split: `print **2` is the same error.
-func (l *lexer) afterUserWord() bool {
-	for i := len(l.toks) - 1; i >= 0; i-- {
-		t := l.toks[i]
-		if t.Kind == Whitespace || t.Kind == Comment {
-			continue
+//
+// With xIsWord, `x` counts as a user word too: where a term is read it is a
+// bareword, and measured on 5.44.0, `x*&;` is `'x' * &;`. After a term it
+// is the repetition, `((),)x*!` repeating by the glob `*!`. The `**` and
+// `*=` rules leave it out, so `x**;` keeps its glob.
+func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
+	j := l.significantBefore(i)
+	if j < 0 || l.toks[j].Kind != Word {
+		return false
+	}
+	w := string(l.src[l.toks[j].Start:l.toks[j].End])
+	if w == "x" {
+		return xIsWord && !l.endsTerm(l.significantBefore(j))
+	}
+	return !perlKeywords[w]
+}
+
+// closerBefore reports whether the last significant token before toks[i] is
+// a closing bracket.
+func (l *lexer) closerBefore(i int) bool {
+	j := l.significantBefore(i)
+	return j >= 0 && l.toks[j].Kind == CloseBracket
+}
+
+// endsTerm reports whether toks[k] ends a term, so that an operator follows
+// it: a variable, a literal, a closer, or a word no keyword table settles.
+// After a keyword, an operator or nothing, a term is read: perl 5.44.0
+// deparses `1x x*$(` as a product of `$(`, the second `x` a bareword.
+func (l *lexer) endsTerm(k int) bool {
+	if k < 0 {
+		return false
+	}
+	switch t := l.toks[k]; t.Kind {
+	case Variable, Number, Quote, Readline, CloseBracket, HeredocOpen:
+		return true
+	case Word:
+		// `x` is a bareword, so a term, where a term is read: FuzzParser's
+		// `(x--*y)` is `x-- * y`.
+		w := string(l.src[t.Start:t.End])
+		if w == "x" {
+			return !l.endsTerm(l.significantBefore(k))
 		}
-		return t.Kind == Word && !perlKeywords[string(l.src[t.Start:t.End])]
+		// The glob `**` split after a word is read by the parser as the
+		// operator `**` when a term follows, so it ends no term:
+		// FuzzParser's `x**x*(x&"` is `x ** x * (x & "...`.
+		if j := l.significantBefore(k); w == "*" && j == k-1 && l.toks[j].Kind == Operator && l.toks[j].End == t.Start &&
+			l.src[l.toks[j].Start] == '*' {
+			return false
+		}
+		return !perlKeywords[w]
 	}
 	return false
 }

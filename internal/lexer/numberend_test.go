@@ -7,7 +7,9 @@ import "testing"
 
 // TestDecimalEndsAtLetter: toke.c's scan_num takes a decimal's `e` only when
 // a sign, a digit or `_` follows it (toke.c:13142-13144), and no other
-// letter. Measured on 5.42.0:
+// letter. A sign with no digit after it ends the number before the `e`:
+// perl 5.44.0 rejects `0e+A` near "0e", and FuzzParser found `0e` taken
+// whole re-read differently from its canon `0e + A`. Measured on 5.42.0:
 //
 //	$ perl -MO=Deparse -e '0-5x-l{0}; $a=5x3; print 1if $b; $c = 1eq 1;'
 //	0 - 5 x (-l {0});
@@ -28,6 +30,9 @@ func TestDecimalEndsAtLetter(t *testing.T) {
 		"$d = 1.5e10;":   "1.5e10",
 		"$d = 5e-1;":     "5e-1",
 		"$d = 1e_5;":     "1e_5",
+		"$d = 1e+5;":     "1e+5",
+		"$d = 0e+A;":     "0",
+		"$d = 0E-x;":     "0",
 		"$e = 0b101;":    "0b101",
 		"$f = 0o17;":     "0o17",
 		"$g = 0x1f;":     "0x1f",

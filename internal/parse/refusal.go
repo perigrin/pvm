@@ -195,8 +195,8 @@ var RefusalSites = map[RefusalCode]RefusalSite{
 		Where: "decl.go, parseFormatDecl",
 	},
 	AmbiguousSigil: {
-		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a `#` or quote glob name",
-		Where: "expr.go, parseInfix: refuseAmbiguousSigil",
+		What:  "a `&` or `*` after an undeclared bareword, before a quote-op name or (for `*`) a `#` or quote glob name; or a declared word's `*%x`",
+		Where: "expr.go, parseInfix: refuseAmbiguousSigil; term.go, parseTerm's glob; both through ambiguousSigil",
 	},
 	NestingTooDeep: {
 		What:  "brackets, blocks or operands nested deeper than the parser's cap",
