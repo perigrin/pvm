@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -269,13 +270,8 @@ func parseFile(path string, passes bool, roots []string, s *Session) (*Node, err
 // parse searching the same directories shares; its loaded list is this
 // parse's own.
 func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *Node {
-	dirs := []string{filepath.Dir(path)}
-	for _, root := range roots {
-		if root != "" {
-			dirs = append(dirs, root)
-		}
-	}
-	r := &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}
+	dirs := searchDirs(path, roots)
+	r := newResolver(dirs, passes)
 	if s != nil {
 		key := strings.Join(dirs, "\x00")
 		if shared, ok := s.shared[key]; ok {
@@ -285,7 +281,32 @@ func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *
 			s.shared[key] = r
 		}
 	}
-	return parseRoot(src, r)
+	root := parseRoot(src, r)
+	root.inc = &incState{src: bytes.Clone(src), key: resolverKey(dirs, passes)}
+	return root
+}
+
+// searchDirs is path's directory and then each non-empty root.
+func searchDirs(path string, roots []string) []string {
+	dirs := []string{filepath.Dir(path)}
+	for _, root := range roots {
+		if root != "" {
+			dirs = append(dirs, root)
+		}
+	}
+	return dirs
+}
+
+// newResolver is the resolver a parse searching dirs starts with, sharing
+// nothing.
+func newResolver(dirs []string, passes bool) *resolver {
+	return &resolver{load: DirLoader(dirs...), seen: map[string]bool{}, useIfPasses: passes}
+}
+
+// resolverKey names how a parse resolves, so Repair reuses parser state
+// only from a parse that resolved as it will. A parse with no resolver is "".
+func resolverKey(dirs []string, passes bool) string {
+	return fmt.Sprint(passes, "\x00", strings.Join(dirs, "\x00"))
 }
 
 // ParseWithLoader parses src, resolving `use` through the given loader.

@@ -11,8 +11,10 @@ import (
 // treeDiffExcluded lists the Node fields equality skips, each with why a
 // consumer cannot observe it. Only caches and snapshots belong here (token
 // cache, lexer and parser checkpoints, a parent back-pointer); the issue that
-// adds such a field adds its entry. None exists yet.
-var treeDiffExcluded = map[string]string{}
+// adds such a field adds its entry.
+var treeDiffExcluded = map[string]string{
+	"inc": "Repair's cache of the source bytes and parser snapshots; no accessor reads it",
+}
 
 // treeDiffOffsets are the byte-offset fields TreeDiffShifted moves by delta.
 // InnerStart and InnerEnd move only where set (InnerEnd != 0): a Paren List

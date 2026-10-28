@@ -291,11 +291,11 @@ func TestDerefBraceFlagClearedEqualsBracelessTree(t *testing.T) {
 	} {
 		braced := parse.Parse([]byte(pair[0]))
 		bare := bracelessTree(parse.Parse([]byte(pair[1])))
-		if reflect.DeepEqual(bracelessTree(braced), bare) {
+		if parse.TreeDiff(bracelessTree(braced), bare) == "" {
 			t.Errorf("%q: the brace form's tree, flag set, equals %q's", pair[0], pair[1])
 		}
 		clearDerefBraces(braced)
-		if !reflect.DeepEqual(bracelessTree(braced), bare) {
+		if parse.TreeDiff(bracelessTree(braced), bare) != "" {
 			t.Errorf("%q with the flag cleared is not %q's tree", pair[0], pair[1])
 		}
 	}
