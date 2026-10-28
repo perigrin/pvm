@@ -124,10 +124,12 @@ const maxSkip = 100
 // keyword where a statement can start (tier 2, tierTwoAnchor), or the 101st
 // token. Inside a bracket the statement opened, before the skip or in it,
 // only tier 1 and the enclosing block's `}` stop it, and the cap waits for
-// the bracket to close: a statement perl compiles
-// that a catch-all declined keeps the one Error it had. A closer closes the
-// innermost opener of its kind, the ones inside it left open; one with none
-// open is stray and skipped. A sync point counts only once the statement
+// the bracket to close: a statement perl compiles that a catch-all declined
+// keeps the one Error it had. A closer closes the innermost opener of its
+// kind, the ones inside it left open. A `)` or `]` closing an opener read
+// before the skip -- the condition of an `if` whose parse stopped inside it
+// -- ends the skip after it; one with none open, before the statement or in
+// it, is stray and skipped. A sync point counts only once the statement
 // holds a token, so every recovery advances.
 //
 // Every stop is decided by the tokens already read, so the parse of a
@@ -193,8 +195,19 @@ func (p *parser) skipEnd(start int) int {
 					break
 				}
 			}
-			// A block form's `{ ... }` the skip read, not a subscript's `}`.
-			if skipping && closed && len(open) == 0 && b == '}' && opened >= p.pos {
+			switch {
+			case !skipping:
+			case b == '}':
+				// A block form's `{ ... }` the skip read, not a subscript's `}`.
+				if closed && len(open) == 0 && opened >= p.pos {
+					return end
+				}
+			case closed && opened < p.pos, !closed && p.enclosedBy(pair[b], from):
+				// The `)` or `]` of a condition, argument list or subscript
+				// the parse stopped inside, opened before the skip in the
+				// statement or before the statement: it contains the error,
+				// and what follows it -- a control statement's block -- is
+				// parsed as code.
 				return end
 			}
 		}
@@ -203,6 +216,74 @@ func (p *parser) skipEnd(start int) int {
 		}
 	}
 	return end
+}
+
+// openToEOF reports whether the statement read from token from left only
+// trivia after it with a bracket it opened still open, counted as
+// refuseUnclosedOpener counts them.
+func (p *parser) openToEOF(from int) bool {
+	for _, tok := range p.toks[p.pos:] {
+		if !isTrivia(tok.Kind) {
+			return false
+		}
+	}
+	depth := 0
+	var last lexer.Token
+	for _, tok := range p.toks[from:p.pos] {
+		if isTrivia(tok.Kind) {
+			continue
+		}
+		switch bracketOf(tok, last, p.src) {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth = max(depth-1, 0)
+		}
+		last = tok
+	}
+	return depth > 0
+}
+
+// maxEnclosingScan bounds enclosedBy's walk back, so a run of stray closers
+// costs each skip a bounded walk rather than one to the start of the file.
+const maxEnclosingScan = 1000
+
+// enclosedBy reports whether a statement beginning at token from stands
+// inside an opener of kind open read before it: walking back to the nearest
+// `;`, `{` or `}` outside brackets, an opener nothing after it closed.
+// Brackets are counted as refuseUnclosedOpener counts them, and a walk past
+// maxEnclosingScan tokens finds none.
+func (p *parser) enclosedBy(open byte, from int) bool {
+	depth := 0
+	for i, n := from-1, 0; i >= 0 && n < maxEnclosingScan; i-- {
+		tok := p.toks[i]
+		if isTrivia(tok.Kind) {
+			continue
+		}
+		n++
+		var last lexer.Token
+		for j := i - 1; j >= 0; j-- {
+			if !isTrivia(p.toks[j].Kind) {
+				last = p.toks[j]
+				break
+			}
+		}
+		switch b := bracketOf(tok, last, p.src); {
+		case b == ')' || b == ']' || b == '}':
+			if b == '}' && depth == 0 {
+				return false
+			}
+			depth++
+		case b == '(' || b == '[' || b == '{':
+			if depth == 0 {
+				return b == open
+			}
+			depth--
+		case tok.Kind == lexer.Semicolon && depth == 0:
+			return false
+		}
+	}
+	return false
 }
 
 // tierOneWords begin §5.13.4's tier-1 anchors at column 0, where Perl

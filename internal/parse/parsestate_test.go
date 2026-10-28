@@ -98,8 +98,8 @@ func TestParserStateResumeEqualsFullParse(t *testing.T) {
 // the source edited after it, gives a fresh parse of the edited source --
 // what Repair (467e) relies on. Nothing in a prefix's parse may depend on
 // the text after it, so a lost brace's recovery at a column-0 `sub` cannot
-// be a prediction made from the whole file. (A statement still open at end
-// of input is the one exception, for any parser: `$a $b (1,` + `);`.)
+// be a prediction made from the whole file, and no snapshot follows a
+// statement still open at end of input.
 func TestParserStateResumeOnEditedSource(t *testing.T) {
 	for _, c := range []struct{ old, appended string }{
 		{"sub f {\n1;\nsub g { 2 }\n", "}"},
@@ -108,6 +108,12 @@ func TestParserStateResumeOnEditedSource(t *testing.T) {
 		{"package P {\nsub a { 1 }\n", "}"},
 		{"$a $b (1,\nsub g { 2 }\n", ")"},
 		{"$a $b\nmy $x = 2;\n", "$c;"},
+		// A statement still open at end of input offers no snapshot after
+		// it, so appending its closer resumes from before it.
+		{"$a $b (1,\nmy $x = 2;\n", ");"},
+		{"$a $b (1,\nmy $y = 2;\n", ");"},
+		{"my $h = {\nsub g { 2 }\n", "};"},
+		{"my $x = (1,\nsub g { 2 }\n", ");"},
 	} {
 		old, edited := []byte(c.old), []byte(c.old+c.appended)
 		fresh := Parse(edited)

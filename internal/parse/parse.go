@@ -732,6 +732,11 @@ func (p *parser) statementsTo(inBlock, snap bool, mark *tierOneMark) []*Node {
 		if p.pos == before {
 			p.pos++
 		}
+		// A statement still open at end of input reads on into whatever is
+		// appended, so no snapshot after it can resume an append.
+		if snap && p.openToEOF(before) {
+			snap = false
+		}
 	}
 	return out
 }

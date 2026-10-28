@@ -982,6 +982,25 @@ func TestRecoveryLostBraceInsideAnExpression(t *testing.T) {
 	}
 }
 
+// TestRecoveryErrorInConditionStaysInIt: an error inside a control
+// statement's parenthesised condition ends at the condition's `)`, which
+// the skip takes as the enclosing paren's, and the block after it parses.
+func TestRecoveryErrorInConditionStaysInIt(t *testing.T) {
+	for _, head := range []string{"if (foo 'x')", "unless (foo 'x')", "while (foo 'x')", "foreach my $i (foo 'x')", "for (foo 'x')"} {
+		src := head + " {\n  my $y = 1;\n  sub inner { 1 }\n}\nmy $z = 2;\n"
+		root := parse.Parse([]byte(src))
+		paren := strings.Index(src, ")") + 1
+		for _, e := range errorNodes(root) {
+			if e.End > paren {
+				t.Errorf("%q: an Error over %q runs past the condition's `)`", src, src[e.Start:e.End])
+			}
+		}
+		if n := countKind(root, parse.Declaration); n < 3 {
+			t.Errorf("%q: %d declarations, want the body's two and `my $z`: %v", src, n, kinds(root))
+		}
+	}
+}
+
 // TestRecoveryModifierAfterExpressionIsNotASyncPoint: a statement modifier
 // first on its line continues the statement on the line before, so a skip
 // passes it: Perl perl compiles, declined by a catch-all, keeps its one

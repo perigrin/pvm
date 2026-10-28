@@ -2168,13 +2168,18 @@ Three choices §5.13.4 leaves open are fixed here.
   enclosing block's `}` stop it. The cap waits for the bracket to close:
   catch-alls fire on Perl perl compiles (`trailing_tokens` on 318 of 620
   perl.git `t/` files), and a cap that cut a group split such statements
-  into fragments. A closer closes the innermost opener of its kind. A closer
-  with none open and no block to close is stray and skipped, so a cascade of
-  one-token refusals is one Error node.
+  into fragments. A closer closes the innermost opener of its kind. A `)`
+  or `]` closing an opener read before the skip ends the skip after it.
+  That opener may be in the statement, or before it and still open
+  (`enclosedBy`, back to the nearest `;`, `{` or `}`). So an error in `if
+  (foo 'x') { ... }` stays inside the condition, and the block after it is
+  parsed. A closer with none open and no block to close is stray and
+  skipped, so a cascade of one-token refusals is one Error node.
 - **Only the tokens already read decide.** Nothing in a prefix's parse
   depends on text after it, which is what resuming a snapshot on edited
-  source (Repair) needs. A statement still open at end of input is the one
-  exception, as it is for any parser.
+  source (Repair) needs. A statement still open at end of input reads on
+  into whatever is appended, so no snapshot is taken after one
+  (`openToEOF`).
 
 The skipped region is one Error node carrying the code that started it, and
 a specific refusal in what parsed before the skip stays its child, with its
