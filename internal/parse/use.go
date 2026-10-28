@@ -564,6 +564,9 @@ func (p *parser) importConstants(list *Node) {
 		return
 	}
 	items := listItems(list)
+	if len(items) == 0 {
+		return // `use constant ()` names none
+	}
 	var names []string
 	if first := items[0]; first.Kind == AnonHash {
 		for _, c := range first.Children {
