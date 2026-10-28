@@ -326,6 +326,20 @@ func TestAmpBeforeVariableRefuses(t *testing.T) {
 	}
 }
 
+// TestDollarNamedVariableKeepsBlankBeforeBrace: perl 5.44.0 reads `$$ {A}`
+// as an element of `%$` and `$${A}` as `$$A`. Canon wrote FuzzParser's
+// `$$ {A{}}` glued, where it re-read as a dereference.
+func TestDollarNamedVariableKeepsBlankBeforeBrace(t *testing.T) {
+	for src, want := range map[string]string{"$$ {A{}}": "$$ {A {}}", "@$ {A}": "@$ {A}", "$${A}": "$${A}"} {
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
+		}
+	}
+}
+
 // TestBracedNameTakesAnyBlank: perl 5.44.0 deparses `${0\r}` and `${ x` +
 // newline + `}` as `$0` and `$x`. Read as a deref of `0`, FuzzParser's
 // `(${0\r},,)` canon'd differently.

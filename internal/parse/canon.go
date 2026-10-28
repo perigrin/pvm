@@ -753,6 +753,11 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		emitBefore(b, n.Children[0], src, base, atomBP)
 		if n.Arrow {
 			b.WriteString("->")
+		} else if c := n.Children[0]; n.Text == "{" && c.Kind == Term && len(c.Text) == 2 && c.Text[1] == '$' {
+			// `$$`, `@$` or `%$` keeps its blank before `{`: glued, perl
+			// 5.44.0 reads `$${A}` as `$$A`, a dereference, where `$$ {A}`
+			// is an element of `%$` (FuzzParser's `$$ {A{}}`).
+			b.WriteByte(' ')
 		}
 		b.WriteString(n.Text)
 		emit(b, n.Children[1], src, 0)
