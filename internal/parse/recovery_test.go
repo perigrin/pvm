@@ -710,13 +710,17 @@ func TestRecoveryPanicModeBounded(t *testing.T) {
 		{"nearest point, a `;` before a later sub", "$a $b;\n$c;\nsub g { 1 }\n", "$a $b;"},
 		{"a `;` inside parens is not one", "$a $b (1; 2);\nfoo();\n", "$a $b (1; 2);"},
 		{"line-start keyword", "$a $b $c\nmy $y = 1;\n", "$a $b $c"},
-		{"indented line-start keyword", "$a $b $c\n    if ($x) { 1 }\n", "$a $b $c"},
+		{"indented line-start keyword", "$a $b $c\n    local $x = 1;\n", "$a $b $c"},
+		{"a line-start modifier after an expression is not one", "$a $b $c\n    if $x;\nfoo();\n", "$a $b $c\n    if $x;"},
+		{"inside an open paren a line-start keyword is not one", "$a $b (1,\nmy $x);\nfoo();\n", "$a $b (1,\nmy $x);"},
 		{"column-0 sub", "$a $b $c\nsub g { 1 }\n", "$a $b $c"},
 		{"column-0 package", "$a $b $c\npackage Q;\n", "$a $b $c"},
 		{"the block's closing brace", "sub f { $a $b }\nsub g { 1 }\n", "$a $b"},
 		{"a block form ends at its brace", "$a $b { 1 }\nfoo();\n", "$a $b { 1 }"},
 		{"a stray closer is skipped", "$a ) ] $b;\nfoo();\n", "$a ) ] $b;"},
-	} {
+		// The parse stopped inside the subscript: its `}` is the statement's,
+		// not the block's, and ends no block form (Safe.pm).
+		{"a bracket the statement opened before the skip", "for (@x) {\n    next if ++$h{refaddr $i} > 1;\n    g();\n}\n", "next if ++$h{refaddr $i} > 1;"},	} {
 		root := parse.Parse([]byte(c.src))
 		errs := errorNodes(root)
 		if len(errs) != 1 {
@@ -957,6 +961,45 @@ func TestRecoveryMissingBraceBeforeLaterSubs(t *testing.T) {
 	}
 	if subs10 != 10 {
 		t.Fatalf("the error-free parse holds %d subs, want 10", subs10)
+	}
+}
+
+// TestRecoveryLostBraceInsideAnExpression: a column-0 `sub` the expression
+// parser takes as an anonymous sub, or reads inside a paren, closes nothing:
+// the brace left open gains its Missing `}` at end of input, as before
+// panic mode, in the refusal holding the last token. perl -c rejects both ("Missing right curly", "syntax
+// error near sub g").
+func TestRecoveryLostBraceInsideAnExpression(t *testing.T) {
+	for _, src := range []string{
+		"sub f {\n  my $cb = 1 &&\nsub { 1 };\n  return $cb;\n",
+		"sub f {\n  my $x = (1,\nsub g { 1 }\n",
+	} {
+		root := parse.Parse([]byte(src))
+		if !strings.Contains(closersIn(root), "}") || !root.HasError {
+			t.Errorf("%q: closers %q, HasError %v: the open brace is not refused: %v", src, closersIn(root), root.HasError, kinds(root))
+		}
+	}
+}
+
+// TestRecoveryModifierAfterExpressionIsNotASyncPoint: a statement modifier
+// first on its line continues the statement on the line before, so a skip
+// passes it: Perl perl compiles, declined by a catch-all, keeps its one
+// Error rather than splitting into fragments read as code.
+func TestRecoveryModifierAfterExpressionIsNotASyncPoint(t *testing.T) {
+	for _, word := range []string{"if", "unless", "while", "until", "for", "foreach"} {
+		src := "use Carp;\nmy $loaded;\ncroak \"x\"\n\t\t" + word + " $loaded;\n"
+		root := parse.Parse([]byte(src))
+		at := strings.Index(src, "croak")
+		end := strings.LastIndex(src, ";") + 1
+		for _, c := range root.Children {
+			if c.Start > at && c.Start < end {
+				t.Errorf("%q: the statement is split at byte %d: %v", src, c.Start, kinds(root))
+				break
+			}
+		}
+		if n := len(errorNodes(root)); n > 1 {
+			t.Errorf("%q: %d Error nodes, want at most 1", src, n)
+		}
 	}
 }
 

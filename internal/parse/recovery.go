@@ -1,11 +1,10 @@
 // ABOUTME: Error recovery for a live buffer, §6.8.2-§6.8.3: Error and Missing nodes, HasError, missing tokens, panic mode.
-// ABOUTME: CatchAll is R-a′'s quiet split; panicSkip and tierOneCloses are §5.13.4's sync points and 100-token cap.
+// ABOUTME: CatchAll is R-a′'s quiet split; panicSkip and tierOneMark are §5.13.4's sync points and 100-token cap.
 
 package parse
 
 import (
 	"bytes"
-	"maps"
 
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -120,14 +119,19 @@ const maxSkip = 100
 // sync point, and the caller's one Error node covers everything consumed.
 //
 // It stops after a `;`, or after a `{ ... }` (`if (...) { ... }` takes no
-// `;`); before a `}` closing the enclosing block, a column-0 anchor (tier
-// 1), a line-start statement keyword (tier 2), or a 101st token. A bracket
-// group that closes is one token, skipped whole, so nothing inside it is a
-// sync point and the cap never cuts it: a statement perl compiles that a
-// catch-all declined keeps the one Error it had. An opener that never
-// closes opens nothing, and a closer with no block to close is stray; both
-// are skipped as tokens. A sync point counts only once the statement holds
-// a token, so every recovery advances.
+// `;`), with no bracket it opened still open; before a `}` closing the
+// enclosing block, a column-0 anchor at any depth (tier 1), a line-start
+// keyword where a statement can start (tier 2, tierTwoAnchor), or the 101st
+// token. Inside a bracket the statement opened, before the skip or in it,
+// only tier 1 and the enclosing block's `}` stop it, and the cap waits for
+// the bracket to close: a statement perl compiles
+// that a catch-all declined keeps the one Error it had. A closer closes the
+// innermost opener of its kind, the ones inside it left open; one with none
+// open is stray and skipped. A sync point counts only once the statement
+// holds a token, so every recovery advances.
+//
+// Every stop is decided by the tokens already read, so the parse of a
+// prefix never depends on the text after it (Repair resumes on that).
 //
 // It ends on the last significant token it took, the trivia after belonging
 // to no statement, then takes the heredoc bodies that follow: their openers
@@ -140,71 +144,65 @@ func (p *parser) panicSkip(start int) {
 
 // skipEnd is the token index panicSkip stops at.
 func (p *parser) skipEnd(start int) int {
-	if p.closes == nil {
-		p.closes = bracketGroups(p.toks, p.src)
+	pair := map[byte]byte{')': '(', ']': '[', '}': '{'}
+	var open []byte    // the brackets the statement opened, innermost last
+	var at []int       // and the token index each opened at
+	var count [256]int // of each kind
+	var last lexer.Token
+	// From the statement's first token: the parse may have stopped inside a
+	// bracket it opened, `++$h{refaddr $x} > 1`, whose closer is the
+	// statement's and not the block's.
+	from := p.pos
+	for from > 0 && p.toks[from-1].Start >= start {
+		from--
+	}
+	for i := from - 1; i >= 0; i-- {
+		if !isTrivia(p.toks[i].Kind) {
+			last = p.toks[i]
+			break
+		}
 	}
 	end := p.pos
-	for i, skipped := p.pos, 0; i < len(p.toks); i++ {
+	for i, skipped := from, 0; i < len(p.toks); i++ {
 		tok := p.toks[i]
 		if isTrivia(tok.Kind) {
 			continue
 		}
-		if skipped == maxSkip || tok.Start > start && (tierOneAnchor(tok, p.src) || p.tierTwoAnchor(tok)) ||
-			tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' && p.inBlock {
+		b := bracketOf(tok, last, p.src)
+		skipping := i >= p.pos
+		if skipping && (tok.Start > start && (tierOneAnchor(tok, p.src) || len(open) == 0 && p.tierTwoAnchor(tok, last)) ||
+			len(open) == 0 && skipped >= maxSkip || b == '}' && count['{'] == 0 && p.inBlock) {
 			return end
 		}
-		skipped++
-		if j := p.closes[i]; j > i {
-			i = j
-			if p.src[p.toks[j].Start] == '}' {
-				return j + 1
+		last = tok
+		if skipping {
+			skipped++
+			end = i + 1
+		}
+		switch b {
+		case '(', '[', '{':
+			open, at = append(open, b), append(at, i)
+			count[b]++
+		case ')', ']', '}':
+			closed, opened := count[pair[b]] > 0, 0
+			for closed {
+				top := open[len(open)-1]
+				open, opened, at = open[:len(open)-1], at[len(at)-1], at[:len(at)-1]
+				count[top]--
+				if top == pair[b] {
+					break
+				}
+			}
+			// A block form's `{ ... }` the skip read, not a subscript's `}`.
+			if skipping && closed && len(open) == 0 && b == '}' && opened >= p.pos {
+				return end
 			}
 		}
-		end = i + 1
-		if tok.Kind == lexer.Semicolon {
+		if skipping && len(open) == 0 && tok.Kind == lexer.Semicolon {
 			return end
 		}
 	}
 	return end
-}
-
-// bracketGroups maps each opener in toks to the index of the closer that
-// closes it, 0 for one that never closes. A closer closes the innermost
-// opener of its own kind, and the openers inside that are left open; a
-// closer with none open is stray. Brackets are bracketOf's.
-func bracketGroups(toks []lexer.Token, src []byte) []int {
-	closes := make([]int, len(toks))
-	pair := map[byte]byte{')': '(', ']': '[', '}': '{'}
-	var open []int
-	var count [256]int // openers of each kind on the stack
-	var last lexer.Token
-	for i, tok := range toks {
-		if isTrivia(tok.Kind) {
-			continue
-		}
-		b := bracketOf(tok, last, src)
-		last = tok
-		switch b {
-		case 0:
-		case '(', '[', '{':
-			open = append(open, i)
-			count[b]++
-		default:
-			if count[pair[b]] == 0 {
-				continue
-			}
-			for {
-				top := open[len(open)-1]
-				open = open[:len(open)-1]
-				count[src[toks[top].Start]]--
-				if src[toks[top].Start] == pair[b] {
-					closes[top] = i
-					break
-				}
-			}
-		}
-	}
-	return closes
 }
 
 // tierOneWords begin §5.13.4's tier-1 anchors at column 0, where Perl
@@ -215,12 +213,13 @@ var tierOneWords = map[string]bool{
 }
 
 // tierTwoWords are §5.13.4's tier-2 anchors, perl-lsp's is_sync_point
-// keywords, taken only first on a line: mid-line they are modifiers.
+// keywords, taken only first on a line. The true ones begin a declaration
+// and nothing else; the false ones are also statement modifiers.
 var tierTwoWords = map[string]bool{
 	"my": true, "our": true, "local": true, "state": true,
 	"sub": true, "package": true, "use": true,
-	"if": true, "unless": true, "elsif": true, "else": true,
-	"while": true, "until": true, "for": true, "foreach": true,
+	"if": false, "unless": false, "elsif": false, "else": false,
+	"while": false, "until": false, "for": false, "foreach": false,
 }
 
 // tierOneAnchor reports whether tok is a tier-1 word at column 0. A word
@@ -229,69 +228,44 @@ func tierOneAnchor(tok lexer.Token, src []byte) bool {
 	return tok.Kind == lexer.Word && (tok.Start == 0 || src[tok.Start-1] == '\n') && tierOneWords[string(src[tok.Start:tok.End])]
 }
 
-// tierTwoAnchor reports whether tok is a tier-2 word first on its line.
-func (p *parser) tierTwoAnchor(tok lexer.Token) bool {
-	if tok.Kind != lexer.Word || !tierTwoWords[p.text(tok)] {
+// tierTwoAnchor reports whether tok is a tier-2 word first on its line where
+// a statement can start after last, the token before it. After a `;`, `{`
+// or `}` one always can. After a term -- a variable, number, string or
+// closing bracket -- only a declaration can, the statement before having
+// lost its `;`: a modifier there continues it (`croak "x"\n unless $ok;`),
+// and after a word or an operator a declaration may be its operand
+// (`foo\n my $x`, `$cb =\n sub { ... }`).
+func (p *parser) tierTwoAnchor(tok, last lexer.Token) bool {
+	decl, ok := tierTwoWords[p.text(tok)]
+	if tok.Kind != lexer.Word || !ok {
 		return false
 	}
 	line := bytes.LastIndexByte(p.src[:tok.Start], '\n') + 1
-	return len(bytes.TrimLeft(p.src[line:tok.Start], " \t")) == 0
+	if len(bytes.TrimLeft(p.src[line:tok.Start], " \t")) != 0 {
+		return false
+	}
+	switch {
+	case last.Kind == lexer.Semicolon, last.End-last.Start == 1 && (p.src[last.Start] == '{' || p.src[last.Start] == '}'):
+		return true
+	case !decl:
+		return false
+	}
+	switch last.Kind {
+	case lexer.Variable, lexer.Number, lexer.Quote, lexer.Readline, lexer.CloseBracket:
+		return true
+	}
+	return false
 }
 
-// tierOneCloses is §5.13.4's tier 1 for a lost brace: each `{` no `}` closes
-// by end of input closes at the first column-0 anchor directly inside it,
-// so a sub missing its `}` leaves the column-0 subs after it at top level.
-// It returns the token indexes of those anchors and of the braces they
-// close, which refuseUnclosedOpener then leaves out of its count.
-//
-// Braces are matched only with braces, so a lost `)` closes no sub; a
-// balanced file takes one pass and closes nothing.
-func tierOneCloses(toks []lexer.Token, src []byte) (anchors, closed map[int]bool) {
-	scan := func(at func(i int, open []int) []int) []int {
-		var open []int
-		var last lexer.Token
-		for i, tok := range toks {
-			if isTrivia(tok.Kind) {
-				continue
-			}
-			if at != nil {
-				open = at(i, open)
-			}
-			switch bracketOf(tok, last, src) {
-			case '{':
-				open = append(open, i)
-			case '}':
-				if len(open) > 0 {
-					open = open[:len(open)-1]
-				}
-			}
-			last = tok
-		}
-		return open
-	}
-	unclosed := scan(nil)
-	if len(unclosed) == 0 {
-		return nil, nil
-	}
-	anchors, closed = map[int]bool{}, map[int]bool{}
-	for _, i := range unclosed {
-		closed[i] = false
-	}
-	scan(func(i int, open []int) []int {
-		if !tierOneAnchor(toks[i], src) {
-			return open
-		}
-		// Popping one changes no other brace's match: nothing closed it.
-		for n := len(open); n > 0; n-- {
-			if _, ok := closed[open[n-1]]; !ok {
-				return open[:n]
-			}
-			closed[open[n-1]], anchors[i] = true, true
-		}
-		return nil
-	})
-	maps.DeleteFunc(closed, func(_ int, v bool) bool { return !v })
-	return anchors, closed
+// tierOneMark is where a block's statements met their first column-0
+// anchor (§5.13.4 tier 1): the parser as it stood there, and how many of
+// the block's children it had read. parseBlock closes a brace still open at
+// end of input at that anchor -- a decision made where the block ends, so
+// nothing before the brace depends on it.
+type tierOneMark struct {
+	set      bool
+	children int
+	p        parser
 }
 
 // bracketOf is tok's bracket as refuseUnclosedOpener counts them, or 0: a

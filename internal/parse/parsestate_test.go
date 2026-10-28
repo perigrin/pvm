@@ -94,6 +94,36 @@ func TestParserStateResumeEqualsFullParse(t *testing.T) {
 	}
 }
 
+// TestParserStateResumeOnEditedSource: every top-level snapshot, resumed on
+// the source edited after it, gives a fresh parse of the edited source --
+// what Repair (467e) relies on. Nothing in a prefix's parse may depend on
+// the text after it, so a lost brace's recovery at a column-0 `sub` cannot
+// be a prediction made from the whole file. (A statement still open at end
+// of input is the one exception, for any parser: `$a $b (1,` + `);`.)
+func TestParserStateResumeOnEditedSource(t *testing.T) {
+	for _, c := range []struct{ old, appended string }{
+		{"sub f {\n1;\nsub g { 2 }\n", "}"},
+		{"sub f {\n1;\nsub g { 2 }\nsub h { 3 }\n", "}\n"},
+		{"my $x = 1;\nsub f {\n1;\n\nsub g { 2 }\n", "\n}\n"},
+		{"package P {\nsub a { 1 }\n", "}"},
+		{"$a $b (1,\nsub g { 2 }\n", ")"},
+		{"$a $b\nmy $x = 2;\n", "$c;"},
+	} {
+		old, edited := []byte(c.old), []byte(c.old+c.appended)
+		fresh := Parse(edited)
+		prefix, snaps := unfinished(old, nil)
+		for _, snap := range snaps {
+			if snap.nested {
+				continue
+			}
+			p, tail := snap.resume(edited, nil)
+			if d := childrenDiff(fresh, spliceTop(p, prefix, snap.at, tail)); d != "" {
+				t.Errorf("%q + %q: resumed at byte %d: %s", c.old, c.appended, snap.at, d)
+			}
+		}
+	}
+}
+
 // sameState reports whether a and b agree on every field parserFields
 // does not mark shared.
 func sameState(a, b *parser) bool {
@@ -362,7 +392,7 @@ func TestParserStateResumeAfterPackageUseAndLexicalSub(t *testing.T) {
 		// restored reads the next statements differently.
 		bare := newParser(src, res(), false)
 		bare.pos = st.pos
-		if childrenDiff(full, spliceTop(bare, prefix, at, bare.statementsTo(false, false))) == "" {
+		if childrenDiff(full, spliceTop(bare, prefix, at, bare.statementsTo(false, false, nil))) == "" {
 			t.Error("a parse with no restored state matched too: the test cannot tell")
 		}
 		return

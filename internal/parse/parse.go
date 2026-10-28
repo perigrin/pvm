@@ -678,8 +678,7 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 			bodies = append(bodies, i)
 		}
 	}
-	tierOne, _ := tierOneCloses(toks, src)
-	return &parser{src: src, toks: toks, bodies: bodies, res: res, symbolsOpen: res == nil, typed: typed, tierOne: tierOne}
+	return &parser{src: src, toks: toks, bodies: bodies, res: res, symbolsOpen: res == nil, typed: typed}
 }
 
 // parseWith runs p over its source, returning the tree and p.
@@ -696,21 +695,27 @@ func (p *parser) parseFile() *Node {
 		derivePowers()
 	}
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
-	root.Children = p.statementsTo(false, p.snaps != nil)
+	root.Children = p.statementsTo(false, p.snaps != nil, nil)
 	return root
 }
 
 // statementsTo reads statements to end of file or, when inBlock is set, to
 // the `}` closing the block, which it leaves unconsumed. With snap set it
-// checkpoints the parser before each one; see checkpoint.
-func (p *parser) statementsTo(inBlock, snap bool) []*Node {
+// checkpoints the parser before each one; see checkpoint. With mark set it
+// records the parser at the first column-0 anchor it reaches, for
+// parseBlock's tier-1 close.
+func (p *parser) statementsTo(inBlock, snap bool, mark *tierOneMark) []*Node {
 	outer := p.inBlock
 	p.inBlock = inBlock
 	defer func() { p.inBlock = outer }()
 	var out []*Node
 	for p.pos < len(p.toks) {
-		if tok := p.toks[p.pos]; inBlock && (tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' || p.tierOne[p.pos]) {
+		tok := p.toks[p.pos]
+		if inBlock && tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
 			break
+		}
+		if mark != nil && !mark.set && tierOneAnchor(tok, p.src) {
+			mark.set, mark.children, mark.p = true, len(out), p.clone()
 		}
 		if snap {
 			p.checkpoint(inBlock)
@@ -794,8 +799,8 @@ func (p *parser) finish(root *Node) {
 // after a `&`, other than `{`, is neither: it is the name of the sub the `&`
 // calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
 // Nor is a Word: the lexer makes a glob's punctuation name one, `*(`
-// (bracketOf). A brace tier 1 closed at a column-0 anchor (tierOneCloses)
-// is not counted: its Missing `}` stands before the anchor already.
+// (bracketOf). A brace parseBlock closed at a column-0 anchor (tier 1,
+// closedEarly) is not counted: its Missing `}` stands before the anchor.
 //
 // Each bracket still open gets its zero-width Missing closer (§6.8.2) as a
 // child of the Unknown, after the token, so the constructs it leaves open
@@ -811,15 +816,14 @@ func (p *parser) finish(root *Node) {
 func (p *parser) refuseUnclosedOpener(root *Node) {
 	var starts []int // where each bracket still open opened
 	var last lexer.Token
-	_, closed := tierOneCloses(p.toks, p.src)
-	for i, tok := range p.toks {
+	for _, tok := range p.toks {
 		if isTrivia(tok.Kind) {
 			continue
 		}
 		b := bracketOf(tok, last, p.src)
 		last = tok
 		switch {
-		case closed[i]:
+		case b == '{' && p.closedEarly[tok.Start]:
 			// Tier 1 closed it, with a Missing `}` before its anchor.
 		case b == '(' || b == '[' || b == '{':
 			starts = append(starts, tok.Start)
@@ -1038,11 +1042,11 @@ type parser struct {
 	// inBlock is set while statementsTo reads a block's statements, where an
 	// unmatched `}` closes the block rather than being stray; see panicSkip.
 	inBlock bool
-	// tierOne holds the token indexes where a brace still open at end of
-	// input closes, a column-0 anchor directly inside it; see tierOneCloses.
-	tierOne map[int]bool
-	// closes is bracketGroups over toks, built by the first panicSkip.
-	closes []int
+	// closedEarly holds the starts of the braces parseBlock closed at a
+	// column-0 anchor (tier 1), and rescued is set once one has: what
+	// follows depends on there being no `}` later, so no snapshot is taken.
+	closedEarly map[int]bool
+	rescued     bool
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.
@@ -1654,9 +1658,30 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	lexical := maps.Clone(p.lexical)
 	defer func() { p.lexical = lexical }()
 
-	n.Children = append(n.Children, p.statementsTo(true, anchor)...)
-	if p.tierOne[p.pos] {
-		// A brace left open closes before a column-0 anchor (§5.13.4 tier 1).
+	snapsAt, pre := 0, len(n.Children)
+	if p.snaps != nil {
+		snapsAt = len(*p.snaps)
+	}
+	var mark tierOneMark
+	n.Children = append(n.Children, p.statementsTo(true, anchor, &mark)...)
+	if p.pos >= len(p.toks) && mark.set {
+		// End of input with the brace open and a column-0 anchor directly
+		// inside: it closes there (§5.13.4 tier 1), so a sub missing its `}`
+		// leaves the subs after it at top level. Decided here, where the
+		// block is seen to end, and read again from the anchor; the parser
+		// is put back as it stood there, its snapshots since the brace
+		// dropped.
+		inBlock, snaps := p.inBlock, p.snaps
+		*p = mark.p
+		p.inBlock, p.snaps, p.rescued = inBlock, snaps, true
+		if snaps != nil {
+			*snaps = (*snaps)[:snapsAt]
+		}
+		if p.closedEarly == nil {
+			p.closedEarly = map[int]bool{}
+		}
+		p.closedEarly[open.Start] = true
+		n.Children = n.Children[:pre+mark.children]
 		n.End = p.prevEnd()
 		n.Children = append(n.Children, p.recover(&Node{Kind: Missing, Text: "}", Start: n.End, End: n.End}))
 		return n
