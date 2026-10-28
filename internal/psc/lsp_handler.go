@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -19,6 +20,7 @@ type handler struct {
 	server      *LSPServer
 	transport   *transport
 	initialized bool
+	incremental bool // TextDocumentSync 2 was advertised
 	isShutdown  bool
 	exitFn      func(int) // injectable for testing; defaults to os.Exit
 
@@ -113,9 +115,15 @@ func (h *handler) handle(msg *jsonRPCMessage) error {
 // server capabilities and marking the handler as ready.
 func (h *handler) handleInitialize(msg *jsonRPCMessage) error {
 	h.initialized = true
+	// Incremental sync exactly when the parse is incremental (§6.9.1).
+	h.incremental = parse.IncrementalRepair
+	sync := 1
+	if h.incremental {
+		sync = 2
+	}
 	result := lspInitializeResult{
 		Capabilities: lspServerCapabilities{
-			TextDocumentSync:       1, // full sync
+			TextDocumentSync:       sync,
 			HoverProvider:          true,
 			DefinitionProvider:     true,
 			DocumentSymbolProvider: true,
@@ -187,9 +195,10 @@ func (h *handler) handleDidOpen(msg *jsonRPCMessage) error {
 	return nil
 }
 
-// handleDidChange handles textDocument/didChange notifications. It hands the
-// full text from the first content change event (full sync mode) to the
-// document's owner, which debounces the parse and the diagnostics.
+// handleDidChange handles textDocument/didChange notifications. Under full
+// sync it hands the full text from the first content change event to the
+// document's owner, which debounces the parse and the diagnostics; under
+// incremental sync, every change, which the owner applies in order.
 func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 	var params lspDidChangeParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
@@ -201,7 +210,12 @@ func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 	}
 
 	td := params.TextDocument
-	h.server.change(td.URI, td.Version, []byte(params.ContentChanges[0].Text))
+	changes := params.ContentChanges
+	if !h.incremental {
+		// Full sync: the first change's text, whatever range it names.
+		changes = []lspTextDocumentContentChangeEvent{{Text: changes[0].Text}}
+	}
+	h.server.changes(td.URI, td.Version, changes)
 	return nil
 }
 

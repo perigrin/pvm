@@ -46,7 +46,7 @@ func (s *Session) ReparseIncremental(old *Node, e Edit, path string, src []byte,
 			return tree
 		}
 	}
-	return NewSession().ParseSourceFrom(path, src, roots...)
+	return NewSessionWithCache(s.cache).ParseSourceFrom(path, src, roots...)
 }
 
 // Repair is §6.5.3: the tree of src, the bytes old was parsed from with e
@@ -64,15 +64,15 @@ func Repair(old *Node, e Edit, src []byte) (tree *Node, ok bool) {
 // ReparseIncremental it resolves as a fresh Session would, never with s's
 // module facts.
 func (s *Session) Repair(old *Node, e Edit, path string, src []byte, roots ...string) (tree *Node, ok bool) {
-	tree, _, ok = sessionRepair(old, e, path, src, roots)
+	tree, _, ok = sessionRepair(old, e, path, src, roots, s.cache)
 	return tree, ok
 }
 
 // sessionRepair is Session.Repair, also returning the statement it
-// re-parsed.
-func sessionRepair(old *Node, e Edit, path string, src []byte, roots []string) (*Node, *Node, bool) {
+// re-parsed. Its resolvers share cache, which may be nil.
+func sessionRepair(old *Node, e Edit, path string, src []byte, roots []string, cache *ModuleCache) (*Node, *Node, bool) {
 	dirs := searchDirs(path, roots)
-	return repair(old, e, src, resolverKey(dirs, false), func() *resolver { return newResolver(dirs, false) })
+	return repair(old, e, src, resolverKey(dirs, false), func() *resolver { return newResolver(dirs, false).withCache(cache) })
 }
 
 // incState is what Repair resumes from, kept on a parse's root.
@@ -247,9 +247,8 @@ func snapshotsOf(old *Node, res *resolver) ([]parserSnapshot, map[string]moduleR
 
 // sameReads reports that each Loader call in reads answers as it did,
 // through res's loader: check 3 for a tree that carries its snapshots.
-//
-// shortcut: reads every module again on each Repair; 01a17969-46aa's module
-// cache, keyed by a content hash, replaces this.
+// It reads every module again on each Repair: a ModuleCache saves parsing,
+// never reading, so a module edited on disk is always seen.
 func sameReads(reads map[string]moduleRead, res *resolver) bool {
 	for name, r := range reads {
 		b, ok := res.load(name)

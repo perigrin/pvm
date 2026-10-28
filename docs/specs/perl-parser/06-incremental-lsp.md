@@ -2366,6 +2366,19 @@ Three observations that shape the design:
 - **`completion` is the only request that genuinely needs a fresh parse**, and
   the buffer is guaranteed invalid at the cursor. It is the reason §6.8 exists.
 
+**Text sync follows the flag.** The server advertises `TextDocumentSync` 2
+(incremental) exactly when `parse.IncrementalRepair` is true, and 1 (full)
+otherwise. Under 2, each content change's range is in UTF-16 line and character
+positions, converted to byte offsets through the document's line table —
+clamped as §6.6 clamps any position — and the changes of one `didChange` apply
+in order, each to the text the one before it left. Under 1, the first change's
+text replaces the document, as before. With the flag set, the owner re-parses
+through `ReparseIncremental` from the last tree that landed, its `parse.Edit`
+the common prefix and suffix of that tree's bytes and the current text, so a
+coalesced burst or a cancelled parse never pairs a tree with other bytes; a
+`file:` URI goes through `Session.ReparseIncremental`, each re-parse in a fresh
+Session sharing the document's `parse.ModuleCache`.
+
 ### 6.9.2 JSON-RPC framing by hand
 
 stdlib-only means writing the transport: about 80 lines. HTTP-like headers,

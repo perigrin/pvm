@@ -110,9 +110,29 @@ func WidenAnchor(old *Node, src []byte, e Edit) (start, end int) {
 // RepairedSpan is the span, in src, of the statement Session.Repair
 // re-parsed, and Repair's ok, for TestRepairInvalidationMatchesSpec.
 func RepairedSpan(old *Node, e Edit, path string, src []byte, roots ...string) (start, end int, ok bool) {
-	_, n, ok := sessionRepair(old, e, path, src, roots)
+	_, n, ok := sessionRepair(old, e, path, src, roots, nil)
 	if !ok {
 		return 0, 0, false
 	}
 	return n.Start, n.End, true
+}
+
+// ModuleCacheParses is how many modules the parses sharing c parsed rather
+// than replayed, for modulecache_test.go.
+func ModuleCacheParses(c *ModuleCache) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.parses
+}
+
+// ModuleCacheHolds reports that c holds an entry for the module name.
+func ModuleCacheHolds(c *ModuleCache, name string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.entries {
+		if k.name == name {
+			return true
+		}
+	}
+	return false
 }
