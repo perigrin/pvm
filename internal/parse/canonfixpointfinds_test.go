@@ -47,7 +47,7 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 	// refuses (R-b′): FuzzParser's `A*& ;` and its kin.
 	clean(t, "sub A {} A*$;")
 	clean(t, "sub A {} A *% x 3")
-	for _, src := range []string{"sub A {} A *%x3",
+	for _, src := range []string{
 		"got*&;", "got*%;", "A*@}", "A*& ;", "A*% x;", "A*/x/;", "A*<FH>;", "A*.5;"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))

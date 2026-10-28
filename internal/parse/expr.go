@@ -723,8 +723,11 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	}
 	// A declared sub's glob `*%`, `*@` or `*&` before a repetition is an
 	// undeclared word's product: on 5.44.0, `sub A {} A *%x3` is `A(*% x
-	// 3)` and `A *%x3` is `'A' * %x3`. `A *%x;` is only the product.
-	if ok && text == "*" && name.Start == tok.End && prev >= 0 && p.toks[prev].Kind == lexer.Word && p.sigilNameRepeats(name) {
+	// 3)` and `A *%x3` is `'A' * %x3`. `A *%x;` is only the product. A
+	// word known to be declared took its argument already, or is a
+	// constant, whose `*` multiplies.
+	if ok && text == "*" && name.Start == tok.End && prev >= 0 && p.toks[prev].Kind == lexer.Word && endsInBareword(left) &&
+		p.sigilNameRepeats(name) {
 		return p.ambiguousSigil(left.Start)
 	}
 	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
@@ -766,7 +769,7 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// seen which the word is, so it reads neither (R-b′). `*` before `(`,
 	// `-`, `\`, `!`, `~`, `+`, `[` or `$;` multiplies at a canon fixpoint
 	// after either, as pu read it, and `**` before a term is exponentiation.
-	if prev >= 0 && p.toks[prev].Kind == lexer.Word && p.punctName(name) &&
+	if prev >= 0 && p.toks[prev].Kind == lexer.Word && endsInBareword(left) && p.punctName(name) &&
 		(text == "&" || !p.starMultipliesAt(name)) {
 		hashName = true
 	}

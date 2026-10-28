@@ -198,6 +198,15 @@ func (p *parser) parseTerm() *Node {
 				Children: []*Node{operand},
 			}
 		}
+		// The glob `*&` before a repetition, after a declared word: `sub A {}
+		// A *&x3` is `A(*& x 3)` on 5.44.0, and the lexer split the `&` from
+		// the `x`, which the caller reads as the repetition.
+		if name, ok := p.peekAfter(tok); ok && name.Kind == lexer.FuncSigil && name.Start == tok.End {
+			if w, ok := p.peekAfter(name); ok && p.text(w) == "x" && w.Start == name.End {
+				p.advanceTo(name)
+				return &Node{Kind: Term, Text: "*&", Start: tok.Start, End: name.End}
+			}
+		}
 		if name, ok := p.peekAfter(tok); ok &&
 			(name.Kind == lexer.Word || name.Kind == lexer.Variable ||
 				p.text(name) == "{") {
@@ -239,6 +248,21 @@ func (p *parser) parseTerm() *Node {
 					n.Children = append(n.Children, inner)
 				}
 				return n
+			}
+			// The glob `*%` or `*@` repeated, after a declared word: perl 5.44.0
+			// reads `sub A {} A *%x3` as `A(*% x 3)`, and the lexer, which
+			// cannot know A, took `%x3` as the star's operand. Only where
+			// nothing after it binds tighter than `x`: `*%x3 ** 2` is `*% x 9`.
+			if t := p.text(name); name.Kind == lexer.Variable && name.Start == tok.End && len(t) > 2 && strings.ContainsRune("%@", rune(t[0])) &&
+				t[1] == 'x' && strings.Trim(t[2:], "0123456789") == "" && !p.bindsTighterAfter(name, infix["x"].BP) {
+				p.advanceTo(name)
+				return &Node{
+					Kind: Binary, Text: "x", Start: tok.Start, End: name.End,
+					Children: []*Node{
+						{Kind: Term, Text: "*" + t[:1], Start: tok.Start, End: name.Start + 1},
+						{Kind: Term, Text: t[2:], Start: name.Start + 2, End: name.End},
+					},
+				}
 			}
 			// `*%x` after a declared word: the lexer took `%x` as the star's
 			// operand, as an undeclared word's multiplication has it, but a
@@ -1078,6 +1102,17 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 		}
 	}
 	return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
+}
+
+// bindsTighterAfter reports whether the operator after tok binds tighter
+// than bp.
+func (p *parser) bindsTighterAfter(tok lexer.Token, bp int) bool {
+	next, ok := p.peekAfter(tok)
+	if !ok {
+		return false
+	}
+	op, ok := infix[p.text(next)]
+	return ok && op.BP > bp
 }
 
 // ampTakes reports whether `&` joins this token as the name of the sub it

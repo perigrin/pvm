@@ -28,6 +28,11 @@ func TestDeclaredWordTakesTerm(t *testing.T) {
 		"print STDOUT *-;":                 "print",
 		"sub A {} A *$;;":                  "A",
 		"sub A {} A *%;":                   "A",
+		// The glob `*%`, `*@` or `*&` repeated: `A(*% x 3)` on 5.44.0.
+		"sub A {} A *%x3;":    "A",
+		"sub A {} A *@x3;":    "A",
+		"sub A {} A *&x3;":    "A",
+		"sub A {} A *%x3; 1;": "A",
 	} {
 		root := parse.Parse([]byte(src))
 		if found := collectUnknown(root); len(found) != 0 || root.HasError {
@@ -57,6 +62,7 @@ func TestImportedWordTakesHeredoc(t *testing.T) {
 		"use Carp; croak <<\"H\";\nx\nH\n":            "croak",
 		"use Carp; croak << \"H\", 1;\nx\nH\n":        "croak",
 		"use Carp; my %h; croak % h;":                 "croak",
+		"use Carp; croak *%x3;":                       "croak",
 	} {
 		root := parse.ParseWithLoader([]byte(src), parse.DirLoader(perl544Lib))
 		if found := collectUnknown(root); len(found) != 0 || root.HasError {
@@ -117,5 +123,21 @@ func TestFileTempParsesAsOnPu(t *testing.T) {
 	src := []byte("use Carp; croak << \"H\";\nx\nH\n")
 	if found := collectUnknown(parse.NewSession().ParseSourceFrom(path, src, perl544Lib)); len(found) != 0 {
 		t.Errorf("%q in a Session: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+	}
+}
+
+// TestConstantStarMultiplies: a constant's `*` multiplies, whatever follows
+// it -- on 5.44.0, `sub A() {3} A *%x3` is `3 * %x3` and `use constant A =>
+// 3; A*&;` is `3 * &;` -- so the refusals after a word not known to be
+// declared leave it alone.
+func TestConstantStarMultiplies(t *testing.T) {
+	for _, src := range []string{"sub A() {3} A *%x3;", "use constant A => 3; A*&;"} {
+		root := parse.Parse([]byte(src))
+		if found := collectUnknown(root); len(found) != 0 || root.HasError {
+			t.Errorf("%q: perl compiles this, but it refuses: %v", src, refusalCodes(found))
+		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
+		}
 	}
 }
