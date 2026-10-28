@@ -251,11 +251,10 @@ var widenCases = []widenCase{
 	{"sub in bare block", blocks, at(blocks, "sub y { ", "1", "6"), "{ sub y"},
 	{"sub in if block", blocks, at(blocks, "sub z { ", "1", "7"), "if (1)"},
 	{"sub after the blocks", blocks, at(blocks, "my $", "foo", "baz"), "sub f"},
-	// Edits that never reach a sub's body widen to the whole file.
-	{"top-level statement", twoSubs, at(twoSubs, "print ", "f", "g"), ""},
-	{"between subs", twoSubs, at(twoSubs, "}\n", "", ";"), ""},
-	{"package block's own code", "package Q { my $v = 1; }\n", at("package Q { my $v = 1; }\n", "= ", "1", "2"), ""},
-	{"bare block's own code", blocks, at(blocks, "Q::x ", "1", "8"), ""},
+	// Edits outside any sub's body anchor at the top-level statement too.
+	{"top-level statement", twoSubs, at(twoSubs, "print ", "f", "g"), "print f"},
+	{"package block's own code", "package Q { my $v = 1; }\n", at("package Q { my $v = 1; }\n", "= ", "1", "2"), "package Q"},
+	{"statement after a package block", blocks, at(blocks, "Q::x ", "1", "8"), "Q::x"},
 }
 
 // TestWidenToSafeBoundary: widening ends on a safe lexer checkpoint at or
@@ -319,22 +318,19 @@ func checkAnchor(t *testing.T, c widenCase, root, anchor *Node) {
 	}
 }
 
-// TestWidenTopLevelEditFallsBackToSourceFile: the file top level, a `use`,
-// a BEGIN block and a `package NAME;` are never anchors, even around a sub.
+// TestWidenTopLevelEditFallsBackToSourceFile: a `use`, a BEGIN block and a
+// `package NAME;` are never anchors, even around a sub.
 func TestWidenTopLevelEditFallsBackToSourceFile(t *testing.T) {
 	const src = "use Foo qw(bar);\npackage P;\nBEGIN { sub b { 1 } }\nmy $t = 1;\n" + twoSubs
 	for _, c := range []struct {
 		src string
 		e   Edit
 	}{
-		{src, at(src, "my $t = ", "1", "2")},
-		{src, at(src, "}\n", "", "\n")},
 		{src, at(src, "use ", "Foo", "Fob")},
 		{src, at(src, "qw(", "bar", "baz")},
 		{src, at(src, "package ", "P", "R")},
 		{src, at(src, "BEGIN { ", "", "1; ")},
 		{src, at(src, "sub b { ", "1", "2")},
-		{twoSubs, at(twoSubs, "print ", "", "1, ")},
 	} {
 		root := Parse([]byte(c.src))
 		cp, anchor := widen(root, []byte(c.src), c.e)
@@ -342,10 +338,13 @@ func TestWidenTopLevelEditFallsBackToSourceFile(t *testing.T) {
 			t.Errorf("edit %+v of %q: anchor %q at checkpoint %d, want the whole file from 0", c.e, c.src, c.src[anchor.Start:anchor.End], cp.Byte)
 		}
 	}
-	// The green half: the same file's sub body is an anchor.
+	// The green half: the same file's sub body and plain top-level
+	// statement are anchors.
 	root := Parse([]byte(src))
-	if _, anchor := widen(root, []byte(src), at(src, "my $", "foo", "x")); anchor == root {
-		t.Error("an edit in a top-level sub body widened to the whole file")
+	for _, e := range []Edit{at(src, "my $", "foo", "x"), at(src, "my $t = ", "1", "2")} {
+		if _, anchor := widen(root, []byte(src), e); anchor == root {
+			t.Errorf("edit %+v of %q widened to the whole file", e, src)
+		}
 	}
 }
 
@@ -483,6 +482,9 @@ func repairAccepts(src, newSrc []byte, lo, hi, delta int, res func() *resolver) 
 		return false
 	}
 	p := top[k].restore(newSrc, res())
+	if p.pos >= len(p.toks) {
+		return false
+	}
 	p.statement()
 	end := len(newSrc)
 	if p.pos < len(p.toks) {

@@ -992,12 +992,12 @@ type parser struct {
 	toks []lexer.Token
 	res  *resolver
 
-	// features is the gated builtins `use feature`, `no feature` and a
-	// version bundle have turned on, as the file is read. FILE-level from the
-	// statement on, the way the lexer tracks `signatures`: perl scopes a
-	// feature to its enclosing block, and a `no feature` inside a block that
-	// the file re-enables after it is the ceiling. See noteFeatures.
-	features map[string]bool
+	// features is the gated builtins and keywords `use feature`, `no
+	// feature` and a version bundle have turned on, from the statement to
+	// the end of its enclosing block, as perl scopes them, or left unknown by
+	// an import or BEGIN block this parser does not run. Absent is off.
+	// Never written in place: see setFeatures and featuresMayBeOn.
+	features map[string]featureState
 
 	// syntax are the keywords and sub prefixes imported modules declare,
 	// file-wide from their import on as features are. See declaredSyntax.
@@ -1010,7 +1010,7 @@ type parser struct {
 	libraryInfix map[string]OpInfo
 
 	// noIndirect is set where indirect object notation is off: `no feature
-	// 'indirect'`, or a 5.36+ bundle, which drops it. File-level, like
+	// 'indirect'`, or a 5.36+ bundle, which drops it. Block-scoped, like
 	// features.
 	noIndirect bool
 
@@ -1680,6 +1680,10 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	// `{ my sub BEGIN {} } BEGIN {...}` runs the phaser.
 	lexical := maps.Clone(p.lexical)
 	defer func() { p.lexical = lexical }()
+	// And so does a feature: `{use v5.10;} state` is a bareword call on
+	// 5.44.0. setFeatures replaces p.features, so the map needs no clone.
+	features, noIndirect := p.features, p.noIndirect
+	defer func() { p.features, p.noIndirect = features, noIndirect }()
 
 	snapsAt, pre := 0, len(n.Children)
 	if p.snaps != nil {

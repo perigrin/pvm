@@ -256,5 +256,5 @@ var gatedWords = map[string]string{
 // has not turned on, so that its plain spelling names a user's sub.
 func (p *parser) gatedOff(name string) bool {
 	feature, gated := gatedWords[name]
-	return gated && !p.features[feature]
+	return gated && !p.featureOn(feature)
 }

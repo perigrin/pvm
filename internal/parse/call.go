@@ -622,7 +622,7 @@ func (p *parser) braceCloses(open lexer.Token) bool {
 // feature qw(keyword_any); any( { $_ > 10 } 1 .. 20)` is true, and without
 // the feature the same line is a syntax error.
 func (p *parser) featureTakesBlock(op string) bool {
-	return (op == "any" || op == "all") && p.features["keyword_"+op]
+	return (op == "any" || op == "all") && p.featureOn("keyword_"+op)
 }
 
 // parseSortComparator reads the SUBNAME or `$subref` of `sort SUBNAME LIST`,

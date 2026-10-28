@@ -1197,8 +1197,9 @@ put lowering at 35 ms and `Analyze` at 21 ms p50 on edit5k.pl, so the
 whole-tree re-run does not fit the 10 ms gate, and the LSP no longer does it
 for an edit that stays inside subs. `analyzeEdit`
 (`internal/psc/incremental_analyze.go`) reads the edit's damage off the old
-and new trees (`damageFromTreeDiff`, §6.10.5 item 4): a set of damaged
-top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
+and new trees (`damageFromTreeDiff`, §6.10.5 item 4), or, when `Repair`
+built the new tree, off the region it re-parsed (`damageFromRepair`): a
+set of damaged top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
 shares the rest of the old lowered tree, and `infer.Reanalyze` walks only
 those subs and the code outside every sub, which threads state into them;
 each other sub is replayed from what its last walk recorded -- its scopes,
@@ -1423,17 +1424,38 @@ anchor at single statements — chapter 5 §5.14 says why.
 
 **As landed** (`internal/parse/incremental.go`). `widen(old, src, e)` returns
 a `lexer.Checkpoint` and the anchor node. The anchor is the **top-level
-statement** holding the edit when the path down to the edit enters a sub's
-body (strictly inside its braces) and passes through no `use`, `BEGIN` block
-or declaration head; otherwise it is the `SourceFile` root, a full reparse.
-So an edit at top level, between subs, in a `package NAME BLOCK`'s own code,
-or inside a `use`, a `BEGIN` (even inside a sub declared there) or a
-`package NAME;` widens to the whole file. A sub inside a top-level `package
-NAME BLOCK`, bare block or `if` anchors at that whole statement, past the
-block: a nested parser snapshot (§6.5.3) resumes only to the block's `}` and
-returns no post-block state, while a top-level one resumes to end of file.
-Every anchor but the root therefore holds a top-level parser snapshot at its
-start. The checkpoint is the last the lexer recorded at or before the
+statement** holding the edit (a run of trivia between statements counts as
+one), unless `touchesDeclaration` finds the edit in a `use`, a `BEGIN`
+block, a prototype, or the head of a sub, package or class declaration. An
+edit strictly inside a declaration's block does not count. When it does
+touch one, the anchor is the `SourceFile` root, a full reparse. So an edit in plain
+top-level code, a `package NAME BLOCK`'s own code or a sub body anchors at
+its top-level statement, and one inside a `use`, a `BEGIN` (even inside a
+sub declared there), a declaration's head or a `package NAME;` widens to the
+whole file, as triage's `touchesDeclaration` already makes it
+`StrategyFull`. A sub inside a top-level `package NAME BLOCK`, bare block or
+`if` anchors at that whole statement, past the block: a nested parser
+snapshot (§6.5.3) resumes only to the block's `}` and returns no post-block
+state, while a top-level one resumes to end of file. Every anchor but the
+root therefore holds a top-level parser snapshot at its start.
+
+This departs from the design above, which anchors only at subs and says not
+to anchor at single statements (issue 01a182e2-9623). The bookkeeping that
+rule avoided is already paid: the tracked parse snapshots the parser before
+every top-level statement whichever statements anchor, so a top-level
+anchor adds no snapshot. Chapter 5 §5.14's syntactic test, that the
+statement cannot alter parse state visible outside, is checked rather than
+assumed: check 2 below compares the whole parser state after the statement
+with the old parse's, so a statement that changes what later code reads
+returns ok=false, and check 1 refuses one that reads into the next
+statement or a statement typed where there was none. What neither check
+sees is the statement *before* the anchor, which read the anchor's first
+significant token to decide where it ends: `}` then `else` continues an
+`if`, and a statement ended by end of file reads on into text typed after
+it (a FuzzIncremental find, `0 ` edited to `0!0`). So triage returns
+`StrategyFull` when the edit changes the anchor's first significant token
+(`keepsLead`), and a run of trivia, which has none, is in effect never an
+anchor. A sub anchor never trips this: its edit is strictly inside the body. The checkpoint is the last the lexer recorded at or before the
 anchor's start, never after it; it comes from re-lexing the old source until
 the token cache (§6.3.2) exists. A call whose prototype a module installed is
 widened as the Session parsed it, and lies wholly inside its anchor.
@@ -2721,7 +2743,14 @@ Mitigations, revised to match the measurement:
    tells you. Implemented in `internal/psc/incremental_analyze.go`: the
    damaged subs are re-lowered and re-analyzed, every other sub keeps its
    lowering and analysis, and a Class B edit falls back to the full path
-   (§6.4.3). The step-4 numbers asked for it: lowering and `Analyze` were
+   (§6.4.3). The damage region comes from `Repair` on the incremental
+   path -- `parse.Damage`, the top-level statements it re-parsed, read
+   through the repaired tree's `Damage()` (`damageFromRepair`) -- and from
+   the tree diff (`damageFromTreeDiff`) on the full-parse path: when the
+   flag is off, or `Repair` returns ok=false. The two agree on every seed
+   edit (`TestRepairDamageMatchesTreeDiff`); the region compares only the
+   statements inside it, so the damage step on edit5k.pl fell from about
+   20 ms p50 to 2.5 ms (`BenchmarkLatencyDamage`). The step-4 numbers asked for it: lowering and `Analyze` were
    35 ms and 21 ms p50 on edit5k.pl, against a 10 ms gate.
 
 Ship (1) first — the numbers leave no other reading. (2) is free. (3) and (4)

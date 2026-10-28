@@ -9,15 +9,6 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// TestUseConstantEmptyParensNeverPanics: `use constant(` names no constant,
-// so importConstants has no first element to read. FuzzIncremental found it.
-func TestUseConstantEmptyParensNeverPanics(t *testing.T) {
-	for _, src := range []string{"use constant(", "use constant ();\n"} {
-		parse.ParseWithLoader([]byte(src), nil)
-		parse.Parse([]byte(src))
-	}
-}
-
 // TestUseConstantDeclares: perl's constant.pm defines each constant in the
 // caller with prototype "" -- measured on 5.42.0, `prototype "main::X"` is ""
 // for `use constant X => 2`, for `use constant { A => 1 }` and for the list
@@ -41,5 +32,22 @@ func TestUseConstantDeclares(t *testing.T) {
 		if imp, ok := imps[name]; !ok || !imp.PrototypeKnown || imp.Prototype != "()" {
 			t.Errorf("%s declared as %+v (found %v), want prototype ()", name, imp, ok)
 		}
+	}
+}
+
+// TestUseConstantEmptyList: `use constant ()` names no constant -- perl
+// calls no import for an empty list, so it declares nothing -- and an
+// unclosed `use constant(`, a FuzzIncremental find, is an error, not a
+// panic.
+func TestUseConstantEmptyList(t *testing.T) {
+	root := parse.Parse([]byte("use constant ();\nprint 1;\n"))
+	if containsKind(root, parse.Unknown) {
+		t.Errorf("perl accepts this; got %s", shape(root))
+	}
+	if imps := parse.Imports(parse.ParseWithLoader([]byte("use constant ();\n"), nil)); len(imps) != 0 {
+		t.Errorf("declared %v, want nothing", imps)
+	}
+	if root := parse.Parse([]byte("use constant(")); !root.HasError {
+		t.Errorf("an unclosed list parsed clean: %s", shape(root))
 	}
 }

@@ -96,6 +96,26 @@ type incState struct {
 	// relexed is how many tokens the edit Repair built this tree for
 	// re-lexed.
 	relexed int
+	// damage is what Repair re-parsed to build this tree; nil for a parse's.
+	damage *Damage
+}
+
+// Damage is the region of the new source Repair re-parsed: the top-level
+// statements of its tree spanning [Start, End) replace the old tree's
+// spanning [Start, End-delta), delta being how much the edit grew the
+// source, and every other top-level statement is the old tree's, its
+// offsets moved by delta past the region.
+type Damage struct {
+	Start, End int
+}
+
+// Damage is the region Repair re-parsed to build n from the tree it was
+// given, or nil when n is not a tree Repair built.
+func (n *Node) Damage() *Damage {
+	if n == nil || n.inc == nil {
+		return nil
+	}
+	return n.inc.damage
 }
 
 // moduleRead is what one Loader call answered.
@@ -163,6 +183,9 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 	delta, dtok := len(src)-len(old.inc.src), len(d.newToks)-len(d.oldToks)
 	res, bodies := mkRes(), heredocBodyIndices(d.newToks)
 	p := tops[k].restoreOn(src, d.newToks, bodies, res)
+	if p.pos >= len(p.toks) {
+		return nil, nil, false // the edit deleted the anchor, trailing trivia, whole
+	}
 	n := p.statement()
 	// Check 1: the first unconsumed token starts at the anchor's shifted
 	// end, or the parse is at EOF. The token index in check 2 implies it
@@ -197,7 +220,7 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 		moved[j].at += delta
 		moved[j].p.pos += dtok
 	}
-	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed}
+	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed, damage: &Damage{a.Start, a.End + delta}}
 	return root, n, true
 }
 
@@ -403,10 +426,24 @@ func triageTokens(old *Node, e Edit, d tokenDiff, size int) Strategy {
 	// old tree's tail is no longer the new source's.
 	a, delta := anchorOf(old, e), len(e.NewText)-(e.OldEnd-e.Start)
 	if len(oc) > 0 && (oc[0].Start < a.Start || oc[len(oc)-1].End > a.End) ||
-		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) {
+		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) ||
+		a != old && !keepsLead(d, a) {
 		return StrategyFull
 	}
 	return StrategyLocal
+}
+
+// keepsLead reports that the edit leaves anchor a's first significant
+// token as it was. The statement before a read it to decide where it ends:
+// `}` then `else` continues an `if`, and a statement ended by end of file
+// reads on into text typed after it. So a run of trivia never keeps one.
+func keepsLead(d tokenDiff, a *Node) bool {
+	for j := d.pre - 1; j >= 0 && d.oldToks[j].Start >= a.Start; j-- {
+		if !isTrivia(d.oldToks[j].Kind) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasTrigger reports a trigger word or kind among toks.
@@ -537,9 +574,10 @@ func tokensOf(n *Node, src []byte) *lexer.TokenCache {
 // widen is §6.5.2: the lexer checkpoint to re-lex from and the node to
 // re-parse whole for a StrategyLocal edit of src, whose tree is old.
 //
-// The anchor is the top-level statement holding the edit when the edit is
-// strictly inside a sub's body, and old itself otherwise: the file top
-// level, a `use`, a BEGIN block and a `package NAME;` are never anchors.
+// The anchor is the top-level statement holding the edit, and old itself
+// when none holds it or the edit touches a declaration (touchesDeclaration):
+// a `use`, a BEGIN block, a prototype, or a sub, package or class
+// declaration but strictly inside its block.
 // A sub inside a package block, bare block or `if` anchors at that whole
 // statement, past the block, because a nested resume stops at the block's
 // `}` with no post-block state, and a top-level one runs to end of file.
@@ -554,30 +592,13 @@ func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
 // anchorOf is widen's anchor for e.
 func anchorOf(old *Node, e Edit) *Node {
 	for _, top := range old.Children {
-		if top.Start <= e.Start && e.OldEnd <= top.End && inSubBody(top, e) {
+		// Anything else a statement changes for the statements after it,
+		// Repair's check 2 sees.
+		if top.Start <= e.Start && e.OldEnd <= top.End && !touchesDeclaration(top, e) {
 			return top
 		}
 	}
 	return old
-}
-
-// inSubBody reports that the path from n down to e enters some sub's body
-// and passes through no `use`, BEGIN block or declaration head.
-func inSubBody(n *Node, e Edit) bool {
-	found := false
-	for n != nil {
-		switch {
-		case n.Kind == Use, n.Kind == Phaser && n.Text == "BEGIN":
-			return false
-		case n.Kind == Declaration && n.Text == "sub":
-			if !inBody(n, e) {
-				return false
-			}
-			found = true
-		}
-		n = childHolding(n, e)
-	}
-	return found
 }
 
 // childHolding is n's first child spanning all of e, or nil.
