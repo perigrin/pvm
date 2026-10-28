@@ -665,6 +665,13 @@ for an edit in the first sub. A memo-free whole-tree copy of the same tree
 (344-byte nodes, 1839 top-level statements) took 4.25 ms at its fastest of
 200, so no copy of the reused nodes fits the 1 ms sub-budget.
 
+#### Ruling on the splice representation
+
+2026-10-28
+
+Splice representation: accessor migration
+Numbers: the stage-1 numbers above stand as measured, not idle; the 1 ms sub-budget gate is still timed on the reference 4-vCPU VM.
+
 ### M3 — The oracle turns on, at scale
 
 **Corpus:** T2 + T3 volume (perl5 `op mro uni lib test_pl`, 347 files).
