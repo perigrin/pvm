@@ -4,6 +4,8 @@ package parse
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -225,6 +227,55 @@ func TestTreeDiffShiftedRejectsNonUniformShift(t *testing.T) {
 		c.mutate(b)
 		if got, want := TreeDiffShifted(diffBase(), b, 0), TreeDiff(diffBase(), b); got != want {
 			t.Errorf("%s: delta 0 gives %q, TreeDiff %q", c.name, got, want)
+		}
+	}
+}
+
+// TestTreeDiffPaths pins the exact report text, path and all, for a
+// difference at each kind of field and depth TreeDiff walks.
+func TestTreeDiffPaths(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		delta  int
+		mutate func(r *Node)
+		want   string
+	}{
+		{"root field", 0, func(r *Node) { r.Text = "x" }, "node.Text:  != x"},
+		{"deep exported", 0, func(r *Node) { deepChild(r).Text = "$y" }, "node.Children[0].Children[0].Text: $x != $y"},
+		{"deep offset", 0, func(r *Node) { deepChild(r).End = 15 }, "node.Children[0].Children[0].End: 14+0 != 15"},
+		{"shifted offset", 3, func(r *Node) {}, "node.Start: 0+3 != 0"},
+		{"child count", 0, func(r *Node) { r.Children[0].Children = nil }, "node.Children[0].Children: 1 nodes != 0"},
+		{"nil child", 0, func(r *Node) { r.Children[0].Children[0] = nil }, "node.Children[0].Children[0]: nil != non-nil"},
+		{"heredoc body", 0, func(r *Node) { r.Children[0].InnerHeredocBodies[0].End = 45 }, "node.Children[0].InnerHeredocBodies[0].End: 44+0 != 45"},
+		{"unexported", 0, func(r *Node) { deepChild(r).nestedParen = true }, "node.Children[0].Children[0].nestedParen: false != true"},
+		{"array last element", 0, func(r *Node) { deepChild(r).ForSlots[2] = true }, "node.Children[0].Children[0].ForSlots: [false false false] != [false false true]"},
+		{"nil vs empty slice", 0, func(r *Node) { deepChild(r).Ops = []string{} }, "node.Children[0].Children[0].Ops: [] != []"},
+		{"slice element added", 0, func(r *Node) { r.Ops = []string{"+"} }, "node.Ops: [] != [+]"},
+		{"kind", 0, func(r *Node) { r.Kind = Term }, "node.Kind: " + SourceFile.String() + " != " + Term.String()},
+	} {
+		b := diffBase()
+		c.mutate(b)
+		if got := TreeDiffShifted(diffBase(), b, c.delta); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+	if got, want := TreeDiff(nil, diffBase()), "node: nil != non-nil"; got != want {
+		t.Errorf("nil root: got %q, want %q", got, want)
+	}
+}
+
+// BenchmarkTreeDiffEdit5k diffs two separately parsed, equal edit5k.pl trees,
+// the case every incremental test and fuzz target pays for most.
+func BenchmarkTreeDiffEdit5k(b *testing.B) {
+	src, err := os.ReadFile(filepath.Join("..", "psc", "testdata", "latency", "edit5k.pl"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	x, y := Parse(src), Parse(src)
+	b.ResetTimer()
+	for range b.N {
+		if d := TreeDiff(x, y); d != "" {
+			b.Fatal(d)
 		}
 	}
 }
