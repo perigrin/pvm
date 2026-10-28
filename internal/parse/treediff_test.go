@@ -248,6 +248,10 @@ func TestTreeDiffPaths(t *testing.T) {
 		{"nil child", 0, func(r *Node) { r.Children[0].Children[0] = nil }, "node.Children[0].Children[0]: nil != non-nil"},
 		{"heredoc body", 0, func(r *Node) { r.Children[0].InnerHeredocBodies[0].End = 45 }, "node.Children[0].InnerHeredocBodies[0].End: 44+0 != 45"},
 		{"unexported", 0, func(r *Node) { deepChild(r).nestedParen = true }, "node.Children[0].Children[0].nestedParen: false != true"},
+		{"array last element", 0, func(r *Node) { deepChild(r).ForSlots[2] = true }, "node.Children[0].Children[0].ForSlots: [false false false] != [false false true]"},
+		{"nil vs empty slice", 0, func(r *Node) { deepChild(r).Ops = []string{} }, "node.Children[0].Children[0].Ops: [] != []"},
+		{"slice element added", 0, func(r *Node) { r.Ops = []string{"+"} }, "node.Ops: [] != [+]"},
+		{"kind", 0, func(r *Node) { r.Kind = Term }, "node.Kind: " + SourceFile.String() + " != " + Term.String()},
 	} {
 		b := diffBase()
 		c.mutate(b)
