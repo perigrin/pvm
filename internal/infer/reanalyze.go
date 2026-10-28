@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/lower"
-	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -54,7 +53,10 @@ type recorder struct {
 	traces  map[string]*subTrace
 	prev    map[string]*subTrace
 	damaged map[string]bool
-	edit    parse.Edit
+	// oldPos and pos are prev's position map and the edited file's: a
+	// replayed span is read off the edited tree, never computed from the
+	// edit, since a node beside the edit may have grown to take it in.
+	oldPos, pos *lower.Positions
 	// walked is the top-level subs walked rather than replayed, in walk
 	// order; failed is set when a replay found the file not as its trace.
 	walked []string
@@ -101,13 +103,16 @@ func (r *recorder) collect(st *SymbolTable, d *lower.Decl, anchor string, live f
 // graft is pass 1 over the top-level sub d replayed from its trace: the
 // sub's own symbol defined as collectDecl defines it, and copies of the
 // scopes the trace holds where collectDecl would have made them.
+//
+// The copies' blocks are not put in st.blockScopes: only pass 2 reads it,
+// to re-enter a block it walks, and a replayed sub is not walked.
 func (r *recorder) graft(st *SymbolTable, pos *lower.Positions, d *lower.Decl, anchor string) {
 	p, t := r.prev[anchor], r.trace(d, anchor)
 	cur, n0 := st.current, len(st.current.children)
 	collectDecl(st, pos, d, func(lower.Node) {})
 	cur.children = cur.children[:n0]
 	for _, s := range p.pass1 {
-		cur.children = append(cur.children, copyScope(s, cur, r.edit, nil))
+		cur.children = append(cur.children, r.copyScope(s, cur))
 	}
 	t.pass1 = slices.Clone(cur.children[n0:])
 	if t.pkg = p.pkg; p.pkg != "" {
@@ -151,18 +156,30 @@ func (a *analysis) topSub(d *lower.Decl, anchor string) types.Type {
 	return typ
 }
 
-// replay does to the analysis what walking the sub p traces did, its
-// spans moved by the edit, and records it as t.
+// replay does to the analysis what walking the sub p traces did, with
+// spans read off the edited tree, and records it as t.
 func (a *analysis) replay(t, p *subTrace) {
-	e := a.rec.edit
+	r := a.rec
 	t.ok, t.outer = p.ok, p.outer
 	cur := a.st.current
 	for _, s := range p.pass2 {
-		c := copyScope(s, cur, e, nil)
+		c := r.copyScope(s, cur)
 		cur.children = append(cur.children, c)
 		t.pass2 = append(t.pass2, c)
 	}
-	t.diags = shiftDiags(p.diags, e)
+	// The sub is a copy of itself moved whole (psc's damage), and each of
+	// its diagnostics is the span of one of its nodes, so it moves as the
+	// sub's declaration did.
+	was, _, ok1 := r.oldPos.Span(p.decl.ID)
+	is, _, ok2 := r.pos.Span(t.decl.ID)
+	if !ok1 || !ok2 {
+		r.failed = true
+		return
+	}
+	for _, g := range p.diags {
+		g.StartByte, g.EndByte = uint32(int(g.StartByte)+is-was), uint32(int(g.EndByte)+is-was)
+		t.diags = append(t.diags, g)
+	}
 	a.diags = append(a.diags, t.diags...)
 	for _, w := range p.outer {
 		s := a.st.current
@@ -183,61 +200,50 @@ func (a *analysis) replay(t, p *subTrace) {
 			continue
 		}
 		sym := w.sym
-		sym.StartByte, sym.EndByte = now.StartByte, now.EndByte
+		sym.StartByte, sym.EndByte, sym.decl = now.StartByte, now.EndByte, now.decl
 		a.st.set(n, sym)
 	}
 }
 
 // copyScope is a copy of s and every scope under it, closed, under parent,
-// each symbol's span moved by e. copies, unless nil, gets each scope's copy.
-func copyScope(s, parent *Scope, e parse.Edit, copies map[*Scope]*Scope) *Scope {
+// each symbol's span its declaration's in the edited tree.
+func (r *recorder) copyScope(s, parent *Scope) *Scope {
 	c := &Scope{Name: s.Name, parent: parent, symbols: make(map[string]Symbol, len(s.symbols)), depth: s.depth}
-	if copies != nil {
-		copies[s] = c
-	}
 	for k, sym := range s.symbols {
-		sym.StartByte, sym.EndByte = shiftSpan(e, sym.StartByte, sym.EndByte)
+		if sym.decl != (lower.ID{}) {
+			start, end, ok := r.pos.Span(sym.decl)
+			if !ok {
+				r.failed = true
+			}
+			sym.StartByte, sym.EndByte = uint32(start), uint32(end)
+		}
 		c.symbols[k] = sym
 	}
 	for _, ch := range s.children {
-		c.children = append(c.children, copyScope(ch, c, e, copies))
+		c.children = append(c.children, r.copyScope(ch, c))
 	}
 	return c
 }
 
-// shiftSpan is where the bytes [start, end) of the source before e are in
-// the source after it, for a span that is not inside the bytes e replaced:
-// a start at or past the replaced bytes moves, and an end past their start,
-// which ends after them or around them, moves.
-func shiftSpan(e parse.Edit, start, end uint32) (uint32, uint32) {
-	delta := len(e.NewText) - (e.OldEnd - e.Start)
-	if int(start) >= e.OldEnd {
-		start = uint32(int(start) + delta)
-	}
-	if int(end) > e.Start {
-		end = uint32(int(end) + delta)
-	}
-	return start, end
-}
-
 // Reanalyze is AnalyzeLowered(f, pos, idx, opts) for f, a file
 // lower.Relower made from prev.File by re-lowering the top-level subs
-// damaged names, after e, the edit between their sources. Every other
-// top-level sub is not walked: what its walk in prev did is replayed, its
-// spans moved by e. That is sound only for subs the edit cannot have
-// changed the analysis of, as psc's damage decides. The code outside every
-// sub is walked, since it threads state into the subs.
+// damaged names after an edit; none is an edit to trivia between subs.
+// Every other top-level sub is not walked: what its walk in prev did is
+// replayed, its spans read off pos. That is sound only for subs the edit
+// cannot have changed the analysis of, as psc's damage decides. The code
+// outside every sub is walked, since it threads state into the subs, and
+// since only a walk of it reads its spans off the edited tree.
 //
 // It reports false when prev cannot be replayed -- it holds no trace of a
 // sub, or one that does not replay -- and the caller analyzes afresh.
 //
 // prev is not changed. Its Diagnostics are not read: every diagnostic is
 // the walk's own or a trace's, as inference raised it.
-func Reanalyze(prev *FileAnalysis, f *lower.File, pos *lower.Positions, damaged []string, e parse.Edit, idx *ProjectIndex, opts Options) (*FileAnalysis, bool) {
+func Reanalyze(prev *FileAnalysis, f *lower.File, pos *lower.Positions, damaged []string, idx *ProjectIndex, opts Options) (*FileAnalysis, bool) {
 	if prev == nil || prev.traces == nil {
 		return nil, false
 	}
-	r := &recorder{traces: map[string]*subTrace{}, prev: prev.traces, damaged: map[string]bool{}, edit: e, walked: []string{}}
+	r := &recorder{traces: map[string]*subTrace{}, prev: prev.traces, damaged: map[string]bool{}, oldPos: prev.Positions, pos: pos, walked: []string{}}
 	for _, s := range damaged {
 		r.damaged[s] = true
 	}
@@ -265,54 +271,6 @@ func Reanalyze(prev *FileAnalysis, f *lower.File, pos *lower.Positions, damaged 
 	out := a.result(f, pos)
 	out.Walked = r.walked
 	return out, true
-}
-
-// Shifted is prev moved by e, an edit that changed nothing the analysis
-// reads, such as whitespace between two subs: nothing is walked, and every
-// span prev holds -- a diagnostic's, a symbol's, a trace's -- moves by e.
-// pos is prev.File's position map over the edited tree.
-//
-// Its Diagnostics are prev's moved, whatever a caller made of them.
-func Shifted(prev *FileAnalysis, pos *lower.Positions, e parse.Edit) *FileAnalysis {
-	copies := map[*Scope]*Scope{}
-	root := copyScope(prev.Symbols.root, nil, e, copies)
-	root.open = true
-	st := &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}, holders: map[string][]*Scope{}}
-	for name := range root.symbols {
-		st.holders[name] = []*Scope{root}
-	}
-	traces := make(map[string]*subTrace, len(prev.traces))
-	for anchor, p := range prev.traces {
-		t := *p
-		t.pass1, t.pass2, t.diags = nil, nil, shiftDiags(p.diags, e)
-		for _, s := range p.pass1 {
-			t.pass1 = append(t.pass1, copies[s])
-		}
-		for _, s := range p.pass2 {
-			t.pass2 = append(t.pass2, copies[s])
-		}
-		traces[anchor] = &t
-	}
-	return &FileAnalysis{
-		File:        prev.File,
-		Positions:   pos,
-		Annotations: prev.Annotations,
-		Diagnostics: shiftDiags(prev.Diagnostics, e),
-		Symbols:     st,
-		Package:     prev.Package,
-		Walked:      []string{},
-		traces:      traces,
-		assigned:    prev.assigned,
-	}
-}
-
-func shiftDiags(diags []Diagnostic, e parse.Edit) []Diagnostic {
-	out := make([]Diagnostic, len(diags))
-	for i, g := range diags {
-		g.StartByte, g.EndByte = shiftSpan(e, g.StartByte, g.EndByte)
-		out[i] = g
-	}
-	return out
 }
 
 // forget deletes the annotation of n and of every node under it.

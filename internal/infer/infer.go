@@ -643,7 +643,7 @@ func collectDeclarations(f *lower.File, pos *lower.Positions, rec *recorder) *Sy
 func collectDecl(st *SymbolTable, pos *lower.Positions, d *lower.Decl, walkStmts func(lower.Node)) bool {
 	start, end, _ := pos.Span(d.ID)
 	span := func(s Symbol) Symbol {
-		s.StartByte, s.EndByte = uint32(start), uint32(end)
+		s.StartByte, s.EndByte, s.decl = uint32(start), uint32(end), d.ID
 		return s
 	}
 	switch d.Kind {

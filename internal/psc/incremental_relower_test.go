@@ -10,7 +10,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -234,7 +233,7 @@ func TestIncrementalAnalyzeRelowersOnlyDamagedSubs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, d, err := analyzeEdit(context.Background(), prevRoot, src, prev, root, edited, infer.Options{})
+	got, d, err := analyzeEdit(context.Background(), prevRoot, prev, root, infer.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +270,7 @@ func TestIncrementalAnalyzeClassBFallsBackToFull(t *testing.T) {
 			edited, _ := replaceOnce(t, src, c.anchor, c.old, c.new)
 			prevRoot := parse.Parse(src)
 			prev := fresh(t, src)
-			got, d, err := analyzeEdit(context.Background(), prevRoot, src, prev, parse.Parse(edited), edited, infer.Options{})
+			got, d, err := analyzeEdit(context.Background(), prevRoot, prev, parse.Parse(edited), infer.Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -287,7 +286,7 @@ func TestIncrementalAnalyzeClassBFallsBackToFull(t *testing.T) {
 // and compares it with a fresh one; it returns both, and the damage.
 func editAndCompare(t *testing.T, src, edited []byte) (got, want *infer.FileAnalysis, d editDamage) {
 	t.Helper()
-	got, d, err := analyzeEdit(context.Background(), parse.Parse(src), src, fresh(t, src), parse.Parse(edited), edited, infer.Options{})
+	got, d, err := analyzeEdit(context.Background(), parse.Parse(src), fresh(t, src), parse.Parse(edited), infer.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +407,7 @@ func TestIncrementalAnalyzeCancelledLeavesConsistentState(t *testing.T) {
 	prev := fresh(t, src)
 	shape, ann, diags, syms := loweredShape(prev.File), maps.Clone(prev.Annotations), slices.Clone(prev.Diagnostics), symbolView(prev)
 	// analyzeEdit's first poll is after re-lowering, before re-analyzing.
-	got, d, err := analyzeEdit(&cancelAt{Context: context.Background()}, prevRoot, src, prev, parse.Parse(bufs[0]), bufs[0], infer.Options{})
+	got, d, err := analyzeEdit(&cancelAt{Context: context.Background()}, prevRoot, prev, parse.Parse(bufs[0]), infer.Options{})
 	if err == nil || got != nil || d.Full {
 		t.Fatalf("analyzeEdit = %v, %+v, %v; want a local edit cancelled", got, d, err)
 	}
@@ -444,8 +443,9 @@ func TestIncrementalAnalyzeCancelledLeavesConsistentState(t *testing.T) {
 
 // TestIncrementalAnalyzeTopLevelEditGoesFull: a non-trivia edit at top
 // level, outside every sub, takes the full path; a trivia-only one
-// re-analyzes nothing, keeping the very annotations it had (fresh3 F4).
-// Both equal a fresh open.
+// re-lowers nothing and re-analyzes no sub (fresh3 F4), walking only the
+// code outside them, whose spans only the edited tree knows (review
+// finding, PR 522). Both equal a fresh open.
 func TestIncrementalAnalyzeTopLevelEditGoesFull(t *testing.T) {
 	src := readFixture(t)
 	for _, c := range []struct{ name, anchor, old, new string }{
@@ -466,18 +466,71 @@ func TestIncrementalAnalyzeTopLevelEditGoesFull(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			edited, _ := replaceOnce(t, src, c.anchor, c.old, c.new)
 			prev := fresh(t, src)
-			got, d, err := analyzeEdit(context.Background(), parse.Parse(src), src, prev, parse.Parse(edited), edited, infer.Options{})
+			got, d, err := analyzeEdit(context.Background(), parse.Parse(src), prev, parse.Parse(edited), infer.Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if d.Full || len(d.Subs) != 0 || got.Walked == nil || len(got.Walked) != 0 {
-				t.Errorf("damage %+v, walked %v; want nothing re-analyzed", d, got.Walked)
+				t.Errorf("damage %+v, walked %v; want no sub re-analyzed", d, got.Walked)
 			}
-			if reflect.ValueOf(got.Annotations).Pointer() != reflect.ValueOf(prev.Annotations).Pointer() || got.File != prev.File {
-				t.Error("the trivia edit did not keep the lowered tree and annotations it had")
+			if got.File != prev.File {
+				t.Error("the trivia edit re-lowered the file")
 			}
 			sameAnalysis(t, got, fresh(t, edited))
 		})
+	}
+}
+
+// TestIncrementalAnalyzeBoundaryGrowth: a byte inserted where a top-level
+// node ends can be taken in by that node, so its end moves though an end at
+// the insertion point would not by arithmetic -- `my $e = (;` becoming `my
+// $e = (;;` grows $e's declaration from [0,10) to [0,11) (review finding,
+// PR 522). Every span is read off the new tree, and equals a fresh open's.
+func TestIncrementalAnalyzeBoundaryGrowth(t *testing.T) {
+	for _, c := range [][2]string{
+		{"my $e = (;\nsub f { 1 }\n", "my $e = (;;\nsub f { 1 }\n"},
+		{"my $e = (;\n", "my $e = (;;\n"},
+		{"my $e = (\nsub f { 1 }\n", "my $e = ( \nsub f { 1 }\n"},
+		{"sub g { 2 }\nmy $e = (;\nsub f { 1 }\n", "sub g { 2 }\nmy $e = (;;\nsub f { 1 }\n"},
+		{"my $e = (;\nsub f { my $y = $e; 1 }\n", "my $e = (;;\nsub f { my $y = $e; 1 }\n"},
+	} {
+		t.Run(c[1], func(t *testing.T) {
+			got, _, _ := editAndCompare(t, []byte(c[0]), []byte(c[1]))
+			back, _, err := analyzeEdit(context.Background(), parse.Parse([]byte(c[1])), got, parse.Parse([]byte(c[0])), infer.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			sameAnalysis(t, back, fresh(t, []byte(c[0])))
+		})
+	}
+}
+
+// TestIncrementalAnalyzeEveryOffset: in a file that already has a parse
+// error, each of ` \n x 1 ; # } {` inserted at every offset, and one byte
+// deleted at every offset, equals a fresh open: lowered tree, annotations,
+// diagnostics and symbol spans.
+func TestIncrementalAnalyzeEveryOffset(t *testing.T) {
+	src := "use strict;\nmy $e = (;\nmy $g = 1;\nsub f {\n  my $x = 1;\n  return $x + $g;\n}\nsub h { my $y = 'a'; return $y eq $e }\n# c\nsub k { return h() . 1 }\nprint 1;\n"
+	if !parse.Parse([]byte(src)).HasError {
+		t.Fatal("the source parses without an error")
+	}
+	prev := fresh(t, []byte(src))
+	prevRoot := parse.Parse([]byte(src))
+	check := func(t *testing.T, edited string) {
+		root := parse.Parse([]byte(edited))
+		got, _, err := analyzeEdit(context.Background(), prevRoot, prev, root, infer.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sameAnalysis(t, got, fresh(t, []byte(edited)))
+	}
+	for at := 0; at <= len(src); at++ {
+		for _, ins := range []string{" ", "\n", "x", "1", ";", "#", "}", "{"} {
+			t.Run(fmt.Sprintf("%q@%d", ins, at), func(t *testing.T) { check(t, src[:at]+ins+src[at:]) })
+		}
+		if at < len(src) {
+			t.Run(fmt.Sprintf("del@%d", at), func(t *testing.T) { check(t, src[:at]+src[at+1:]) })
+		}
 	}
 }
 
@@ -513,7 +566,7 @@ func TestIncrementalAnalyzeRealEditsMatchFresh(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%q@%d", filepath.Base(path), e.repl, e.at), func(t *testing.T) {
 				edited := slices.Concat(src[:e.at], []byte(e.repl), src[e.at+e.n:])
 				root := parse.Parse(edited)
-				got, d, err := analyzeEdit(context.Background(), prevRoot, src, prev, root, edited, infer.Options{})
+				got, d, err := analyzeEdit(context.Background(), prevRoot, prev, root, infer.Options{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -522,7 +575,7 @@ func TestIncrementalAnalyzeRealEditsMatchFresh(t *testing.T) {
 					return
 				}
 				local++
-				back, _, err := analyzeEdit(context.Background(), root, edited, got, prevRoot, src, infer.Options{})
+				back, _, err := analyzeEdit(context.Background(), root, got, prevRoot, infer.Options{})
 				if err != nil {
 					t.Fatal(err)
 				}

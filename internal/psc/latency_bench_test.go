@@ -166,15 +166,13 @@ func BenchmarkLatencyAnalyzeFull(b *testing.B) {
 // buffer's analysis made from the last one's, as the owner chains them:
 // damage, re-lowering and re-analysis of the one sub each edit damages.
 func BenchmarkLatencyAnalyzeEdit(b *testing.B) {
-	src := latencySource(b)
-	bufs := append([][]byte{src}, latencyEdits(src, b.N)...)
 	roots := latencyRoots(b)
 	prev, err := analyze(context.Background(), roots[0], infer.Options{})
 	if err != nil {
 		b.Fatal(err)
 	}
 	timeEach(b, func(i int) {
-		fa, d, err := analyzeEdit(context.Background(), roots[i], bufs[i], prev, roots[i+1], bufs[i+1], infer.Options{})
+		fa, d, err := analyzeEdit(context.Background(), roots[i], prev, roots[i+1], infer.Options{})
 		if err != nil || d.Full {
 			b.Fatalf("edit %d: damage %+v, err %v", i, d, err)
 		}

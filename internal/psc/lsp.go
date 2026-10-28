@@ -147,7 +147,7 @@ func (s *LSPServer) analyzeSource(ctx context.Context, uri string, source []byte
 	var fa *infer.FileAnalysis
 	var err error
 	if prev != nil && prev.root != nil {
-		fa, _, err = analyzeEdit(ctx, prev.root, prev.text.Text, prev.analysis, root, source, s.Options)
+		fa, _, err = analyzeEdit(ctx, prev.root, prev.analysis, root, s.Options)
 	} else {
 		fa, err = analyze(ctx, root, s.Options)
 	}

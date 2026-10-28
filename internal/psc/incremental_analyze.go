@@ -14,22 +14,21 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// analyzeEdit is analyze(ctx, root, opts) for root, the parse of text,
-// given prev, the analysis analyze or analyzeEdit made of prevRoot, the
-// parse of prevText. It re-lowers and re-analyzes only the subs the edit
-// damaged and keeps the lowering and analysis of the rest; an edit that
-// damaged none re-analyzes nothing. A Full damage, or a prev that cannot
-// be reused, takes analyze's path. It returns the damage it acted on.
+// analyzeEdit is analyze(ctx, root, opts) for root, the parse of an edited
+// buffer, given prev, the analysis analyze or analyzeEdit made of prevRoot,
+// the parse before the edit. It re-lowers and re-analyzes only the subs the
+// edit damaged and keeps the lowering and analysis of the rest; an edit that
+// damaged none walks no sub. A Full damage, or a prev that cannot be reused,
+// takes analyze's path. It returns the damage it acted on.
 //
 // prev is not changed, and like analyze it polls ctx between lowering
 // and analysis.
-func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prevText []byte, prev *infer.FileAnalysis, root *parse.Node, text []byte, opts infer.Options) (*infer.FileAnalysis, editDamage, error) {
+func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnalysis, root *parse.Node, opts infer.Options) (*infer.FileAnalysis, editDamage, error) {
 	d := damageFromTreeDiff(prevRoot, root)
 	if prev == nil || d.Full {
 		fa, err := analyze(ctx, root, opts)
 		return fa, d, err
 	}
-	e := textEdit(prevText, text)
 	f, ok := lower.Relower(prev.File, root, d.Subs)
 	if !ok {
 		fa, err := analyze(ctx, root, opts)
@@ -39,29 +38,12 @@ func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prevText []byte, pre
 	if err := ctx.Err(); err != nil {
 		return nil, d, err
 	}
-	if len(d.Subs) == 0 {
-		return infer.Shifted(prev, pos, e), d, nil
-	}
-	fa, ok := infer.Reanalyze(prev, f, pos, d.Subs, e, nil, opts)
+	fa, ok := infer.Reanalyze(prev, f, pos, d.Subs, nil, opts)
 	if !ok {
 		fa, err := analyze(ctx, root, opts)
 		return fa, editDamage{Full: true, Reason: "the analysis before the edit does not replay"}, err
 	}
 	return gate(fa, root), d, nil
-}
-
-// textEdit is the one edit that turns old into new: the bytes between
-// their common prefix and their common suffix.
-func textEdit(old, new []byte) parse.Edit {
-	p := 0
-	for p < len(old) && p < len(new) && old[p] == new[p] {
-		p++
-	}
-	s := 0
-	for s < len(old)-p && s < len(new)-p && old[len(old)-1-s] == new[len(new)-1-s] {
-		s++
-	}
-	return parse.Edit{Start: p, OldEnd: len(old) - s, NewText: string(new[p : len(new)-s])}
 }
 
 // editDamage is what an edit invalidates of a file's lowering and analysis.

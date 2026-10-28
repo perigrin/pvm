@@ -1202,9 +1202,13 @@ top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
 shares the rest of the old lowered tree, and `infer.Reanalyze` walks only
 those subs and the code outside every sub, which threads state into them;
 each other sub is replayed from what its last walk recorded -- its scopes,
-diagnostics and writes to the scopes around it -- with spans moved by the
-edit, and its `lower.ID`-keyed annotations are kept. An edit that damages no
-sub, trivia between two subs, re-analyzes nothing (`infer.Shifted`). Full --
+diagnostics and writes to the scopes around it -- and its `lower.ID`-keyed
+annotations are kept. A replayed span is read off the edited tree, never
+computed from the edit: a symbol's is its declaration's span there, and a
+diagnostic moves as its sub's declaration did. Arithmetic cannot tell, at a
+boundary, whether a node took the inserted byte in -- `my $e = (;` becoming
+`my $e = (;;` grows the declaration -- so the code outside every sub is
+walked even when no sub is damaged, as for trivia between two subs. Full --
 a Class B edit, a non-trivia top-level edit, a parse-error change -- falls
 back to the whole-tree path, as does a sub whose walk does not replay (one
 in a loop or an unreached scope, a method). `TestIncrementalAnalyzeMatchesFresh`
