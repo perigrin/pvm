@@ -44,11 +44,11 @@ func Relower(f *File, root *parse.Node, anchors []string) (*File, bool) {
 	if len(repl) != len(want) {
 		return nil, false
 	}
-	out := splice(f, repl)
-	if len(repl) != 0 {
+	out, ok := splice(f, repl).(*File)
+	if !ok || len(repl) != 0 {
 		return nil, false
 	}
-	return out.(*File), true
+	return out, true
 }
 
 // splice is n with each node whose id repl holds replaced by repl's node,
