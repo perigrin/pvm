@@ -147,7 +147,15 @@ func TestNotSubscriptKey(t *testing.T) {
 	if got := clean(t, "my %h; $h{not 1}"); !strings.Contains(got, "not 1") {
 		t.Errorf("`$h{not 1}`: canon %q; `not` before a term is the operator", got)
 	}
-	if root := parse.Parse([]byte("my $x = not;")); !root.HasError {
-		t.Errorf("`my $x = not;`: perl refuses this, but it parses")
+	if got := clean(t, "my %h; $h{-not}"); !strings.Contains(got, "-not}") {
+		t.Errorf("`$h{-not}`: canon %q", got)
+	}
+	clean(t, "my %h; $h{- not}")
+	// Only a `not` first in the subscript, or after a lone `-`, is the key:
+	// perl 5.44.0 has each of these "syntax error near "not }"".
+	for _, src := range []string{"my $x = not;", "my %h; $h{1, not}", "my %h; my $x; $h{ $x ? 1 : not }", "my %h; my $x; $h{ $x // not }", "my %h; $h{(not)}"} {
+		if root := parse.Parse([]byte(src)); !root.HasError && len(collectUnknown(root)) == 0 {
+			t.Errorf("%q: perl refuses this, but it parses", src)
+		}
 	}
 }
