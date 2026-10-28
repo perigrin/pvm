@@ -548,8 +548,9 @@ func tokensOf(n *Node, src []byte) *lexer.TokenCache {
 // re-parse whole for a StrategyLocal edit of src, whose tree is old.
 //
 // The anchor is the top-level statement holding the edit, and old itself
-// when none holds it or the edit is in a `use`, a BEGIN block or a sub,
-// package or class declaration's head: those are never anchors.
+// when none holds it or the edit touches a declaration (touchesDeclaration):
+// a `use`, a BEGIN block, a prototype, or a sub, package or class
+// declaration but strictly inside its block.
 // A sub inside a package block, bare block or `if` anchors at that whole
 // statement, past the block, because a nested resume stops at the block's
 // `}` with no post-block state, and a top-level one runs to end of file.
@@ -564,27 +565,13 @@ func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
 // anchorOf is widen's anchor for e.
 func anchorOf(old *Node, e Edit) *Node {
 	for _, top := range old.Children {
-		if top.Start <= e.Start && e.OldEnd <= top.End && reparsable(top, e) {
+		// Anything else a statement changes for the statements after it,
+		// Repair's check 2 sees.
+		if top.Start <= e.Start && e.OldEnd <= top.End && !touchesDeclaration(top, e) {
 			return top
 		}
 	}
 	return old
-}
-
-// reparsable reports that the path from n down to e passes through no
-// `use`, BEGIN block, or sub, package or class declaration but strictly
-// inside its block: what touchesDeclaration refuses. Anything else a
-// statement changes for the statements after it, Repair's check 2 sees.
-func reparsable(n *Node, e Edit) bool {
-	for ; n != nil; n = childHolding(n, e) {
-		switch {
-		case n.Kind == Use, n.Kind == Phaser && n.Text == "BEGIN":
-			return false
-		case n.Kind == Declaration && (n.Text == "sub" || n.Text == "package" || n.Text == "class") && !inBody(n, e):
-			return false
-		}
-	}
-	return true
 }
 
 // childHolding is n's first child spanning all of e, or nil.
