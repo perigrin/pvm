@@ -131,8 +131,9 @@ func (s *LSPServer) snapshot(uri string) *document {
 // taken between those bytes and source, is never applied to a tree of
 // other bytes, however many changes the debounce coalesced or parses were
 // cancelled since. Either way, analysis re-lowers and re-analyzes only the
-// subs the edit from prev's tree damaged (analyzeEdit), and with no prev
-// analyses the whole tree.
+// subs the edit from prev's tree damaged (analyzeEdit), read off the region
+// Repair re-parsed when it repaired and off a diff of the two trees when it
+// refused or the flag is off; with no prev it analyses the whole tree.
 //
 // It polls ctx before the parse, before lowering and before analysis, and
 // returns ctx's error at the first of them after ctx is cancelled.
@@ -146,6 +147,7 @@ func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev
 		e = fullSyncEdit(prev.text.Text, source)
 	}
 	var root *parse.Node
+	var damage *parse.Damage
 	doc := &document{}
 	if path, ok := uriPath(uri); ok {
 		// ponytail: @INC is resolved on every parse; cache it per directory
@@ -156,11 +158,13 @@ func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev
 		sess := parse.NewSessionWithCache(cache)
 		if reuse {
 			root = sess.ReparseIncremental(prev.tree, e, path, source, roots...)
+			damage = root.Damage()
 		} else {
 			root = sess.ParseSourceFrom(path, source, roots...)
 		}
 	} else if reuse {
 		root = parse.ReparseIncremental(prev.tree, e, source)
+		damage = root.Damage()
 	} else {
 		root = parse.Parse(source)
 	}
@@ -170,7 +174,7 @@ func (s *LSPServer) analyze(ctx context.Context, uri string, source []byte, prev
 	var fa *infer.FileAnalysis
 	var err error
 	if prev != nil && prev.tree != nil {
-		fa, _, err = analyzeEdit(ctx, prev.tree, prev.analysis, root, s.Options)
+		fa, _, err = analyzeEdit(ctx, prev.tree, prev.analysis, root, damage, s.Options)
 	} else {
 		fa, err = analyze(ctx, root, s.Options)
 	}
