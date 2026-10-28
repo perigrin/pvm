@@ -399,10 +399,24 @@ func triageTokens(old *Node, e Edit, d tokenDiff, size int) Strategy {
 	// old tree's tail is no longer the new source's.
 	a, delta := anchorOf(old, e), len(e.NewText)-(e.OldEnd-e.Start)
 	if len(oc) > 0 && (oc[0].Start < a.Start || oc[len(oc)-1].End > a.End) ||
-		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) {
+		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) ||
+		a != old && !keepsLead(d, a) {
 		return StrategyFull
 	}
 	return StrategyLocal
+}
+
+// keepsLead reports that the edit leaves anchor a's first significant
+// token as it was. The statement before a read it to decide where it ends:
+// `}` then `else` continues an `if`, and a statement ended by end of file
+// reads on into text typed after it. So a run of trivia never keeps one.
+func keepsLead(d tokenDiff, a *Node) bool {
+	for j := d.pre - 1; j >= 0 && d.oldToks[j].Start >= a.Start; j-- {
+		if !isTrivia(d.oldToks[j].Kind) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasTrigger reports a trigger word or kind among toks.

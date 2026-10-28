@@ -1446,7 +1446,14 @@ statement cannot alter parse state visible outside, is checked rather than
 assumed: check 2 below compares the whole parser state after the statement
 with the old parse's, so a statement that changes what later code reads
 returns ok=false, and check 1 refuses one that reads into the next
-statement or a statement typed where there was none. The checkpoint is the last the lexer recorded at or before the
+statement or a statement typed where there was none. What neither check
+sees is the statement *before* the anchor, which read the anchor's first
+significant token to decide where it ends: `}` then `else` continues an
+`if`, and a statement ended by end of file reads on into text typed after
+it (a FuzzIncremental find, `0 ` edited to `0!0`). So triage returns
+`StrategyFull` when the edit changes the anchor's first significant token
+(`keepsLead`), and a run of trivia, which has none, is in effect never an
+anchor. A sub anchor never trips this: its edit is strictly inside the body. The checkpoint is the last the lexer recorded at or before the
 anchor's start, never after it; it comes from re-lexing the old source until
 the token cache (§6.3.2) exists. A call whose prototype a module installed is
 widened as the Session parsed it, and lies wholly inside its anchor.

@@ -577,19 +577,27 @@ func TestRepairTopLevelStatementAnchor(t *testing.T) {
 			}
 		})
 	}
-	// The red half: a statement that loses its `;` reads on into the next,
-	// and one typed on a blank line is two where one stood (check 1).
-	const two = "print 1;\nprint 2;\n"
+	// The red half. A statement that loses its `;` reads on into the next,
+	// and one typed where there was none is two where one stood: check 1.
+	// The statement before the anchor read the anchor's first token to
+	// decide where it ends, so text where end of file was (a FuzzIncremental
+	// find) or an `else` after an `if` changes it: triage.
+	const (
+		two   = "print 1;\nprint 2;\n"
+		ifEls = "if (1) { 1 }\nelsx { 2 }\n"
+	)
 	for _, c := range []struct {
 		name, src string
 		e         Edit
 	}{
 		{"statement swallows the next", two, at(two, "print 1", ";", "")},
 		{"statement typed between statements", twoSubs, at(twoSubs, "}\n", "", "f();")},
+		{"text where end of file was", "0 ", Edit{Start: 1, OldEnd: 2, NewText: "!0"}},
+		{"an else after an if", ifEls, at(ifEls, "\n", "elsx", "else")},
 	} {
 		old := sessionTree([]byte(c.src))
-		if triage(old, []byte(c.src), c.e) != StrategyLocal || anchorOf(old, c.e) == old {
-			t.Fatalf("%s: not a local edit at a top-level anchor; the case reaches no check", c.name)
+		if childHolding(old, c.e) == nil {
+			t.Fatalf("%s: no top-level statement holds the edit; the case checks nothing", c.name)
 		}
 		if checkRepair(t, c.src, c.e) {
 			t.Fatalf("%s: Repair accepted it", c.name)
