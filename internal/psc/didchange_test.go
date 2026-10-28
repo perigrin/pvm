@@ -327,7 +327,7 @@ func TestDidChangeMultipleContentChangesInOrder(t *testing.T) {
 	// to the opened text they would leave another one.
 	didChange(t, h, uri, 2,
 		at(0, 0, 0, "our $😀 = 0;\n"), // our $😀 = 0;\nmy $é = 1;\n
-		at(0, 4, 7, "$x"),             // our $x = 0;\nmy $é = 1;\n
+		at(0, 4, 7, "$x"),            // our $x = 0;\nmy $é = 1;\n
 		lspTextDocumentContentChangeEvent{Text: "my $y = 2;\n"},
 		at(1, 0, 0, "print $y;\n"),
 		at(0, 8, 9, "3"),
