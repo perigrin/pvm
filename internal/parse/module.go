@@ -272,6 +272,15 @@ func parseFile(path string, passes bool, roots []string, s *Session) (*Node, err
 // parse's own.
 func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *Node {
 	dirs := searchDirs(path, roots)
+	root := parseRoot(src, s.resolverFor(dirs, passes))
+	root.inc = &incState{src: bytes.Clone(src), key: resolverKey(dirs, passes)}
+	return root
+}
+
+// resolverFor is the resolver a parse searching dirs reads modules with:
+// with a Session, one sharing the module facts and visited set of every
+// parse searching the same directories.
+func (s *Session) resolverFor(dirs []string, passes bool) *resolver {
 	r := newResolver(dirs, passes)
 	if s != nil {
 		r.withCache(s.cache)
@@ -283,9 +292,7 @@ func parseAt(path string, src []byte, passes bool, roots []string, s *Session) *
 			s.shared[key] = r
 		}
 	}
-	root := parseRoot(src, r)
-	root.inc = &incState{src: bytes.Clone(src), key: resolverKey(dirs, passes)}
-	return root
+	return r
 }
 
 // searchDirs is path's directory and then each non-empty root.

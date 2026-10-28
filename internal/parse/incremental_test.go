@@ -218,7 +218,7 @@ func TestTriageLineWindowAtBufferEdges(t *testing.T) {
 		{"in a multi-byte comment", mb, at(mb, "# ", "ü", "ö")},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			d := diffTokens([]byte(c.src), c.e)
+			d := diffTokens(tokensOf(nil, []byte(c.src)), []byte(c.src), c.e)
 			for _, w := range [][]byte{spanOf(d.oldChanged(), d.oldSrc), spanOf(d.newChanged(), d.newSrc)} {
 				if !utf8.Valid(w) {
 					t.Errorf("changed span %q is not valid UTF-8", w)
