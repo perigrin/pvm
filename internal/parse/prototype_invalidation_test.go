@@ -114,6 +114,7 @@ func TestPrototypeEditInvalidation(t *testing.T) {
 	t.Run("edit changes the call", func(t *testing.T) { laterCallsChange(t, protoSrc, protoCases[0].edit) })
 	t.Run("module-bytes", testModuleBytesInvalidate)
 	t.Run("module-comment", testModuleCommentKeepsProperty)
+	t.Run("module-prototype-change", testModulePrototypeChangeKeepsProperty)
 }
 
 // testModuleBytesInvalidate: a module on disk installs f's prototype, and
@@ -154,6 +155,33 @@ func testModuleCommentKeepsProperty(t *testing.T) {
 	writeMod("($)", "")
 	old := fresh(modSrc)
 	writeMod("($)", "# a comment\n")
+	tree, ok := parse.NewSession().Repair(old, e, path, []byte(out), root)
+	if !ok {
+		if tree != nil {
+			t.Fatal("ok=false with a tree")
+		}
+		return
+	}
+	if diff := parse.TreeDiff(tree, fresh(out)); diff != "" {
+		t.Fatalf("ok=true but repaired != fresh:\n%s", diff)
+	}
+}
+
+// testModulePrototypeChangeKeepsProperty: like testModuleCommentKeepsProperty,
+// but the module change is to the prototype of Mod::k, which only the edit
+// calls, so a stale read of Mod.pm would parse that call wrongly while the
+// old tree, which has no call to k, re-parses equal.
+func testModulePrototypeChangeKeepsProperty(t *testing.T) {
+	path, root, writeMod, fresh := modFixture(t)
+	const src = "use Mod;\nsub g {\n  my $y = 1;\n}\n"
+	e := replaceFirst(src, "1", "Mod::k 7, 8")
+	out := applyEdit(src, e)
+	writeMod("($)", "sub k($) { }\n")
+	old, before := fresh(src), fresh(out)
+	writeMod("($)", "sub k(@) { }\n")
+	if parse.TreeDiff(before, fresh(out)) == "" {
+		t.Fatal("k's prototype change leaves the edited source's parse unchanged; the test checks nothing")
+	}
 	tree, ok := parse.NewSession().Repair(old, e, path, []byte(out), root)
 	if !ok {
 		if tree != nil {

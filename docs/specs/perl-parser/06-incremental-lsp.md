@@ -1448,10 +1448,12 @@ checks; Repair returns ok=false when any fails:
    is the last top-level statement and no snapshot follows it.
 3. **Modules read the same bytes** (chapter 7 §7.7.3's prototype row): any
    module the old parse loaded that now resolves to different bytes. The
-   exception is a first Repair of a parse's tree, which re-parses the old
-   source under the current modules for its snapshots. That re-parse
-   already reads the new bytes, so Repair goes on only if its tree equals
-   the old one, and then the tree Repair returns equals a fresh parse.
+   exception is a tree with no snapshots, or snapshots taken under another
+   resolver key (`tops == nil || old.inc.key != key`). There Repair
+   re-parses the old source under the current modules to take them; that
+   re-parse already reads the new bytes, so Repair goes on only if its tree
+   equals the old one. Once checks 1, 2 and 4 and the `consulted` check
+   also pass, the tree Repair returns equals a fresh parse.
 4. **The EOF passes run again** over the spliced tree (`finish`, §6.5.3).
 
 `TestTriageSweepNoLeak` and `FuzzTriage` (`internal/parse`) hold the
@@ -1646,8 +1648,10 @@ never a partial splice, and `old` is never modified.
   statement read from it does not end at the shifted end or leaves a
   different parser state (checks 1, 2); a module the cached parse read now
   reads different bytes, or is found where it was not (check 3, by SHA-256
-  of every `Loader` call), or, on a first Repair, re-parsing the old source
-  under the current modules gives a tree other than `old`; the anchor's statement consulted the resolver at
+  of every `Loader` call); where `old` has no snapshots under this resolver
+  key there are no earlier reads, the SHA-256 comparison does not run, and
+  check 3 is only that re-parsing the old source under the current modules
+  gives `old`'s tree; the anchor's statement consulted the resolver at
   all, since a fresh parse would have read those modules with the prefix's
   already seen; or the re-parsed statement gains or loses an error.
 - **The splice.** Every reused top-level statement is deep-copied, shifted by
