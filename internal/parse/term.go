@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -127,7 +128,11 @@ func (p *parser) parseTerm() *Node {
 		}
 		// `++` and `--` are in the table as postfix operators, and begin a
 		// term too: measured on 5.42.0, `-f ++ $d` is `-f ++$d`.
-		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" {
+		// Nor does a glob or a sub the lexer read there, where perl expects a
+		// term: `-A*y` is `-A *y` on 5.44.0, and FuzzParser's `(-A*y)`,
+		// read as `-A() * y`, canon'd with `y)` a transliteration.
+		if _, isInfix := p.infixOp(p.text(next)); isInfix && p.text(next) != "++" && p.text(next) != "--" &&
+			!p.globAt(next) && next.Kind != lexer.FuncSigil {
 			return n
 		}
 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
@@ -167,6 +172,11 @@ func (p *parser) parseTerm() *Node {
 	// the parser knows which because parseTerm is only called where a term
 	// is expected.
 	if text == "*" {
+		// Nor a glob's name past a heredoc body, as for `&`'s: FuzzParser's
+		// `<<'0';*` + newline + body + `A`.
+		if p.bodyAfter(tok) {
+			return p.refuseNotATerm(tok)
+		}
 		// A name that is not an identifier: `*1`, `*^R`, `*-`. perl accepts
 		// any variable name here -- measured on 5.42.0, `local *a = *1;`,
 		// `*^R = *foo;` and `*X = *-;` each deparse as written -- and the
@@ -186,6 +196,15 @@ func (p *parser) parseTerm() *Node {
 				Kind: Term, Text: "*",
 				Start: tok.Start, End: operand.End,
 				Children: []*Node{operand},
+			}
+		}
+		// The glob `*&` before a repetition, after a declared word: `sub A {}
+		// A *&x3` is `A(*& x 3)` on 5.44.0, and the lexer split the `&` from
+		// the `x`, which the caller reads as the repetition.
+		if name, ok := p.peekAfter(tok); ok && name.Kind == lexer.FuncSigil && name.Start == tok.End {
+			if w, ok := p.peekAfter(name); ok && p.text(w) == "x" && w.Start == name.End {
+				p.advanceTo(name)
+				return &Node{Kind: Term, Text: "*&", Start: tok.Start, End: name.End}
 			}
 		}
 		if name, ok := p.peekAfter(tok); ok &&
@@ -229,6 +248,30 @@ func (p *parser) parseTerm() *Node {
 					n.Children = append(n.Children, inner)
 				}
 				return n
+			}
+			// The glob `*%` or `*@` repeated, after a declared word: perl 5.44.0
+			// reads `sub A {} A *%x3` as `A(*% x 3)`, and the lexer, which
+			// cannot know A, took `%x3` as the star's operand. Only where
+			// nothing after it binds tighter than `x`: `*%x3 ** 2` is `*% x 9`.
+			if t := p.text(name); name.Kind == lexer.Variable && name.Start == tok.End && len(t) > 2 && strings.ContainsRune("%@", rune(t[0])) &&
+				t[1] == 'x' && strings.Trim(t[2:], "0123456789") == "" && !p.bindsTighterAfter(name, infix["x"].BP) {
+				p.advanceTo(name)
+				return &Node{
+					Kind: Binary, Text: "x", Start: tok.Start, End: name.End,
+					Children: []*Node{
+						{Kind: Term, Text: "*" + t[:1], Start: tok.Start, End: name.Start + 1},
+						{Kind: Term, Text: t[2:], Start: name.Start + 2, End: name.End},
+					},
+				}
+			}
+			// `*%x` after a declared word: the lexer took `%x` as the star's
+			// operand, as an undeclared word's multiplication has it, but a
+			// star read as a term is perl's glob `*%`, then `x` -- measured
+			// on 5.44.0, `sub A {} A*%x3` is `A(*% x 3)`. So is `*$;`, the
+			// glob `*$` before a `;`; `*$x` is the glob `$x` names.
+			if name.Kind == lexer.Variable && name.Start == tok.End && (p.src[name.Start] != '$' || name.End-name.Start == 2 &&
+				!isWordByte(p.src[name.Start+1]) && !strings.ContainsRune("${:", rune(p.src[name.Start+1]))) {
+				return p.ambiguousSigil(tok.Start)
 			}
 			p.advanceTo(name)
 			if name.Kind == lexer.Variable {
@@ -340,6 +383,21 @@ func (p *parser) parseTerm() *Node {
 		// here into one term: `\&f` is a code reference, not a reference to
 		// an ampersand.
 		p.advanceTo(tok)
+		// A heredoc body between the `&` and its name is declined: perl
+		// 5.44.0 reads `<<'0';&` + newline + body + `A` as `&A`, but one
+		// leaf around the body is no node canon can write the body out of
+		// once, FuzzParser's find.
+		if p.bodyAfter(tok) {
+			return p.refuseNotATerm(tok)
+		}
+		// Empty braces are no code to call: perl 5.44.0 has `(&{},)` a
+		// syntax error near "&{", and read as a subscript on a bare `&` its
+		// canon re-read differently.
+		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" {
+			if close, ok := p.peekAfter(open); ok && p.text(close) == "}" {
+				return p.refuseNotATerm(tok)
+			}
+		}
 		// Braces holding statements, as `${; ...}`'s do: `&{; $c }(1)`,
 		// measured on 5.42.0 to deparse as `&{$c;}(1)`.
 		if open, ok := p.peekSignificant(); ok && p.text(open) == "{" && p.derefHoldsStatements(open) {
@@ -348,6 +406,18 @@ func (p *parser) parseTerm() *Node {
 				Kind: Unary, Text: text,
 				Start: tok.Start, End: blk.End,
 				Children: []*Node{blk},
+			}
+		}
+		// A dereference is the code to call: perl 5.44.0 deparses `goto&$$0`
+		// as `goto \&$$0`. Read as a bare `&`, FuzzParser's find canon'd as
+		// `goto &;$$0`.
+		if name, ok := p.peekSignificant(); ok && name.Kind == lexer.DerefSigil && p.text(name) == "$" && name.Start == tok.End {
+			if operand := p.parseTerm(); operand != nil {
+				return &Node{
+					Kind: Unary, Text: text,
+					Start: tok.Start, End: operand.End,
+					Children: []*Node{operand},
+				}
 			}
 		}
 		if name, ok := p.peekSignificant(); ok && p.ampTakes(name) {
@@ -373,6 +443,22 @@ func (p *parser) parseTerm() *Node {
 				Kind: Term, Text: text + p.text(name),
 				Start: tok.Start, End: name.End,
 			}
+		}
+		// Digits after it that are a Number are a name perl refuses: `&00` is "Numeric
+		// variables with more than one digit may not start with '0'" on
+		// 5.44.0. Read as a bare `&`, `no n!&00`'s canon `&;00` re-read
+		// differently.
+		if name.Kind == lexer.Number {
+			return p.refuseNotATerm(tok)
+		}
+		// So is a variable the lexer split from it: after `no A`, `&@0` is
+		// `&` and `@0` -- the module name a word the lexer cannot tell from
+		// a sub -- where perl 5.44.0 reads `&@` and `0`, a syntax error. Read
+		// as a bare `&`, FuzzParser's `no A&@0` canon'd as `no A &; @0`, so
+		// the refusal takes the variable too.
+		if name.Kind == lexer.Variable {
+			p.advanceTo(name)
+			return p.refuseNotATerm(tok)
 		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
@@ -405,6 +491,13 @@ func (p *parser) parseTerm() *Node {
 			// `my()`, which re-read as a declaration.
 			return p.refuseNotATerm(tok)
 
+		case wordInfixOps[keywordName(text)] && !p.wordOpIsString(tok):
+			// Nor is a word operator: measured on 5.44.0, `gt*2;`, `print
+			// -eq;` and `{ge}` are each a syntax error, while `$h{eq}` and
+			// `eq => 1` compile. Read as a call, `gt*&;`'s canon re-read
+			// differently.
+			return p.refuseNotATerm(tok)
+
 		case text == "sub":
 			// An anonymous sub: `sub { ... }` with no name. Distinguished
 			// from a declaration by what follows -- a `{` rather than a
@@ -426,10 +519,10 @@ func (p *parser) parseTerm() *Node {
 			// $f = sub;`, `f(sub, 1)` and `print sub;` are each "Illegal
 			// declaration of anonymous subroutine". Before `=>` it is the
 			// string 'sub', before `}` a hash key, `$h{sub}`, and a name
-			// after it is parseWordTerm's.
-			// ponytail: `do {sub}` passes as a key would; a refusal there
-			// needs to know the brace is a subscript's.
-			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && p.text(next) != "}" {
+			// after it is parseWordTerm's. A `}` that closes no subscript
+			// is no key's: `{sub}` and `do {sub}` are refused as perl
+			// refuses them, and FuzzParser's `{sub}` canon'd as `{sub;}`.
+			if !ok || next.Kind != lexer.Word && p.text(next) != "=>" && !(p.inHashKey && p.text(next) == "}") {
 				return p.refuseNotATerm(tok)
 			}
 
@@ -462,6 +555,34 @@ func (p *parser) parseTerm() *Node {
 func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
 	p.advanceTo(tok)
 	return p.missingIdentifier(p.recover(&Node{Kind: Error, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}), tok)
+}
+
+// wordInfixOps are the word operators that are never a term: `x` is a
+// bareword where a term is read (`x*2` is `'x' * 2` on 5.44.0), and `isa`
+// one without its feature.
+var wordInfixOps = map[string]bool{
+	"eq": true, "ne": true, "lt": true, "gt": true, "le": true, "ge": true,
+	"cmp": true, "and": true, "or": true, "xor": true,
+}
+
+// bodyAfter reports whether a heredoc body stands between tok and the next
+// significant token, so a name read past it would span the body.
+func (p *parser) bodyAfter(tok lexer.Token) bool {
+	for i := sort.Search(len(p.toks), func(i int) bool { return p.toks[i].Start >= tok.End }); i < len(p.toks); i++ {
+		if k := p.toks[i].Kind; k == lexer.HeredocBody {
+			return true
+		} else if !isTrivia(k) {
+			return false
+		}
+	}
+	return false
+}
+
+// wordOpIsString reports whether a word operator read as a term is the
+// string perl makes of it: before `=>`, or alone in a hash subscript.
+func (p *parser) wordOpIsString(word lexer.Token) bool {
+	next, ok := p.peekAfter(word)
+	return ok && (p.text(next) == "=>" || p.inHashKey && p.text(next) == "}")
 }
 
 // declaratorIsBareword reports whether a `my` or `our` with no variable
@@ -552,6 +673,22 @@ func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
 // the test is what the expression reaches rather than whether a `;` follows
 // it. The cursor is left where it was.
 func (p *parser) derefHoldsStatements(open lexer.Token) bool {
+	// The trial parse below holds a nested deref's own trial, so unclosed
+	// `${${${...` doubled per level: FuzzParser hung on 19 of them. The
+	// answers are kept for the outermost call's duration.
+	if held, ok := p.derefMemo[open.Start]; ok {
+		return held
+	}
+	if p.derefMemo == nil {
+		p.derefMemo = map[int]bool{}
+		defer func() { p.derefMemo = nil }()
+	}
+	held := p.derefHoldsStatementsOnce(open)
+	p.derefMemo[open.Start] = held
+	return held
+}
+
+func (p *parser) derefHoldsStatementsOnce(open lexer.Token) bool {
 	save := p.pos
 	defer func() { p.pos = save }()
 	p.advanceTo(open)
@@ -967,6 +1104,17 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
 	return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
 }
 
+// bindsTighterAfter reports whether the operator after tok binds tighter
+// than bp.
+func (p *parser) bindsTighterAfter(tok lexer.Token, bp int) bool {
+	next, ok := p.peekAfter(tok)
+	if !ok {
+		return false
+	}
+	op, ok := infix[p.text(next)]
+	return ok && op.BP > bp
+}
+
 // ampTakes reports whether `&` joins this token as the name of the sub it
 // calls.
 //
@@ -1031,7 +1179,15 @@ func keepSeps(items []*Node, seps []string, min int) {
 	if len(items) == 0 || len(seps) < min {
 		return
 	}
-	items[len(items)-1].TrailingComma = strings.Join(seps, " ")
+	// A parenthesised List keeps the separators inside its outer pair,
+	// `((),)`, ahead of these: overwritten, `(((),),,0)` lost them, and
+	// canon could not tell which of the rest stood inside.
+	last := items[len(items)-1]
+	if last.Kind == List && last.TrailingComma != "" {
+		last.TrailingComma += " " + strings.Join(seps, " ")
+		return
+	}
+	last.TrailingComma = strings.Join(seps, " ")
 }
 
 // markTrailing records a separator with no element after it on the element

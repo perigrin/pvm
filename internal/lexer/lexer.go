@@ -512,6 +512,7 @@ func scanOne(l *lexer) {
 		// Before every scanner that reads punctuation: `*#`, `*"` and `*;`
 		// are globs, not a comment, a string and a statement's end.
 		scanGlobName,
+		scanAmpName,
 		scanComment,
 		// Before every scanner that reads punctuation as something else:
 		// `sub <<`, `sub /` and `sub %` name operators, not a heredoc, a
@@ -619,6 +620,13 @@ func (l *lexer) emit(k Kind, start int) {
 			(l.expect == XState || l.expect == XBlock)
 	}
 
+	// A glob's name, as a sub's after `&`, is a whole term whatever keyword
+	// it spells: perl 5.44.0 reads `*gt*&;` as `*gt * &;`. Not after an
+	// undeclared word, whose `*` multiplies: `A*A{0}` is `'A' * A {0}`. Nor
+	// after a closer, which may end a term the lexer cannot see: `{}*A{0}`
+	// is `{} * A {0}`, the braces an anonymous hash.
+	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start &&
+		!l.afterUserWord(len(l.toks)-2, true) && !l.closerBefore(len(l.toks)-2)
 	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
 		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
 	l.expect = l.expect.after(k, transition{
@@ -627,7 +635,9 @@ func (l *lexer) emit(k Kind, start int) {
 		closedTermBlock: l.closedTermBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
-		declaredNiladic: k == Word && l.constSubs[string(l.src[start:l.pos])],
+		// A sub's name after its `&` is a whole term too, whatever keyword it
+		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
+		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] || l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:
@@ -644,6 +654,12 @@ func (l *lexer) emit(k Kind, start int) {
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
 	})
+	// A postfix `++` or `--`, after a term, ends the term: perl 5.44.0 reads
+	// `A++*&;` as `A++ * &;`, where the glob `*&` re-read differently.
+	if k == Operator && (l.src[start] == '+' || l.src[start] == '-') && l.pos-start == 2 && l.src[start] == l.src[start+1] &&
+		l.endsTerm(l.significantBefore(len(l.toks)-1)) {
+		l.expect = XOperator
+	}
 	if k == Variable && l.handleSlotTakesTerm(start) {
 		l.expect = XTerm
 		l.toks[len(l.toks)-1].TermFollows = true

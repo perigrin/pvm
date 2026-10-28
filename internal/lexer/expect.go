@@ -113,8 +113,9 @@ type transition struct {
 	// nextIsOpenBrace is whether a `{` follows, ignoring whitespace. perl
 	// looks ahead exactly this far at a `)`; see yyl_rightparen.
 	nextIsOpenBrace bool
-	// declaredNiladic is set on a Word declared with the empty prototype:
-	// see lexer.constSubs.
+	// declaredNiladic is set on a Word declared with the empty prototype
+	// (see lexer.constSubs), or named after a sub's `&`: either is a whole
+	// term.
 	declaredNiladic bool
 	// afterDeclName is set on the NAME of a `sub NAME` or `package NAME`,
 	// after which a block is expected rather than a term.

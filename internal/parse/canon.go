@@ -86,15 +86,12 @@ func (b *canonBuf) writeBodiesBefore(n *Node, src []byte) {
 	*b.bodies = pending[i:]
 }
 
-// writeBodiesAfter writes the pending heredoc bodies the source put right
-// after n, with no token between, on a line of their own: n ended its
-// opener's line, so the bodies go before the closers canon writes after it,
-// as the source has them. Measured on perl 5.44.0, `print f(<<A\nx\nA\n),
-// "\n";` is `print(f("x\n"), "\n");` under Deparse,-p. A statement's own
-// bodies are its case's to place.
-func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
+// bodiesAfter is how many pending heredoc bodies the source wrote right
+// after n, with nothing significant between: the ones writeBodiesAfter
+// writes.
+func (b *canonBuf) bodiesAfter(n *Node, src []byte) int {
 	if b.bodies == nil || n.Kind == Statement || n.Kind == SourceFile || n.Kind == Trivia || n.HeredocBody {
-		return
+		return 0
 	}
 	pending := *b.bodies
 	i, from := 0, n.End
@@ -102,9 +99,21 @@ func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
 		from = pending[i].End
 		i++
 	}
+	return i
+}
+
+// writeBodiesAfter writes the pending heredoc bodies the source put right
+// after n, with no token between, on a line of their own: n ended its
+// opener's line, so the bodies go before the closers canon writes after it,
+// as the source has them. Measured on perl 5.44.0, `print f(<<A\nx\nA\n),
+// "\n";` is `print(f("x\n"), "\n");` under Deparse,-p. A statement's own
+// bodies are its case's to place.
+func (b *canonBuf) writeBodiesAfter(n *Node, src []byte) {
+	i := b.bodiesAfter(n, src)
 	if i == 0 {
 		return
 	}
+	pending := *b.bodies
 	b.WriteByte('\n')
 	for _, body := range pending[:i] {
 		b.WriteString(body.SourceText(src))
@@ -174,6 +183,13 @@ func emitBefore(b *canonBuf, n *Node, src []byte, outer, f int) {
 // operand by whatever follows the binary, and so on down the right edge.
 func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	b.writeBodiesBefore(n, src)
+	// A separator the source wrote after a heredoc body that follows the
+	// node goes after the body too: FuzzParser's `<<""` + body + `,,0`,
+	// written with the comma first, re-read with the body after it.
+	bodyFirst := n.TrailingComma != "" && !n.Paren && b.bodiesAfter(n, src) > 0
+	if bodyFirst {
+		defer b.WriteString(n.TrailingComma)
+	}
 	defer b.writeBodiesAfter(n, src)
 	f := b.follow
 	b.follow = 0
@@ -183,7 +199,20 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	// with "No comma allowed after filehandle". One the source wrote after
 	// the node's own parens, `f((0),)`, goes after them; deferred first, it
 	// is written last.
-	if n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
+	// A List's separator inside a pair around its own, `((1,2),)`, keeps
+	// that pair: written `(1, 2),`, the list ended before `x`, and
+	// FuzzParser's `((),)x*!` re-read differently.
+	// Its first separators are the ones inside, `((),,)`, at every level the
+	// source wrote them, `(((),),)`; any more, `((),),`, are after.
+	opens, closing, after, outerPair := listOuterPair(n, src)
+	if outerPair {
+		if after != "" {
+			defer b.WriteString(after)
+		}
+		defer b.WriteString(closing)
+		b.WriteString(strings.Repeat("(", opens))
+	}
+	if !outerPair && n.TrailingComma != "" && n.Paren && !n.SyntaxParen && !commaInParens(n, src) {
 		defer b.WriteString(n.TrailingComma)
 	}
 	innerSep := syntaxPairSep(n, src)
@@ -226,7 +255,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 	}
 	// A separator inside the parens, the source's `(A,)`, stays inside them:
 	// `(A,)/0` is written `(A,) / 0`, not `A, / 0`.
-	if n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) && innerSep == "" {
+	if !bodyFirst && n.TrailingComma != "" && (!n.Paren || commaInParens(n, src)) && innerSep == "" {
 		defer b.WriteString(n.TrailingComma)
 	}
 
@@ -348,8 +377,9 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			}
 		}
 		late := heredocBodies(n, inner)
-		if len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
-			!endsInSemicolon(src[lastForm(n).Start:late[0].Start]) {
+		// An empty statement, all bodies, has no form and ended at its `;`.
+		if lf := lastForm(n); len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
+			lf != nil && !endsInSemicolon(src[lf.Start:late[0].Start]) {
 			early, late, at = late, nil, len(text)
 		}
 		if len(early) > 0 {
@@ -357,6 +387,12 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			b.WriteByte('\n')
 			for _, c := range early {
 				b.WriteString(c.SourceText(src))
+			}
+			// A terminator the file ended on has no newline, and the `;`
+			// after it would join its line: FuzzParser's `<<0;A0` + body +
+			// `0` at EOF canon'd its terminator as `0;`.
+			if !strings.HasSuffix(early[len(early)-1].SourceText(src), "\n") {
+				b.WriteByte('\n')
 			}
 		}
 		b.writeFrom(&stmt, at, len(text))
@@ -608,6 +644,17 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 				}
 				break
 			}
+			// `++` or `--` over a prefix operator: the parser read the
+			// operand as a term whatever its precedence, so a blank keeps the
+			// two apart where a paren would add one the source lacks, and
+			// would split a fat comma's word from its `=>`: FuzzParser's
+			// `+++y=>` canon'd as `++(+y)=>`, `y)` a transliteration.
+			// Measured on 5.44.0, `my $y; ++ +$y;` compiles.
+			if c := n.Children[0]; (op == "++" || op == "--") && prefixOperator(c) {
+				b.WriteByte(' ')
+				emit(b, c, src, f)
+				break
+			}
 			emitBefore(b, n.Children[0], src, prefix[op], f)
 		}
 
@@ -649,6 +696,13 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 			next := bp
 			if i == len(n.Children)-1 {
 				next = f
+			}
+			// Before `<` or `<=`, a bareword is grouped, as for a Binary.
+			if i < len(n.Ops) && (n.Ops[i] == "<" || n.Ops[i] == "<=") && endsInBareword(c) {
+				b.WriteByte('(')
+				emitBefore(b, c, src, 0, 0)
+				b.WriteByte(')')
+				continue
 			}
 			emitBefore(b, c, src, bp+1, next)
 		}
@@ -699,6 +753,11 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		emitBefore(b, n.Children[0], src, base, atomBP)
 		if n.Arrow {
 			b.WriteString("->")
+		} else if c := n.Children[0]; n.Text == "{" && c.Kind == Term && len(c.Text) == 2 && c.Text[1] == '$' {
+			// `$$`, `@$` or `%$` keeps its blank before `{`: glued, perl
+			// 5.44.0 reads `$${A}` as `$$A`, a dereference, where `$$ {A}`
+			// is an element of `%$` (FuzzParser's `$$ {A{}}`).
+			b.WriteByte(' ')
 		}
 		b.WriteString(n.Text)
 		emit(b, n.Children[1], src, 0)
@@ -996,9 +1055,21 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// string "a" and writing `a()` calls it (§4.5.4). A call with no
 		// arguments is written as its bare name unless the source wrote its
 		// parens (emitCallArgs), so the word stays a word.
-		if n.Text == "=>" {
+		switch {
+		case n.Text == "=>":
 			emitBeforeFat(b, n.Children[0], src, l, info.BP)
-		} else {
+		case (n.Text == "<" || n.Text == "<=" || n.Text == "<<" || n.Text == "%") && endsInBareword(n.Children[0]):
+			// After a word the lexer, with no symbol table, reads `<` as a
+			// readline's start if a `>` closes it on the line, and the source
+			// may have had a newline there that canon does not keep:
+			// FuzzParser's `A<0` + newline + `>0` canon'd as `A < 0 > 0`. So
+			// a spaced `%` before a name, a hash: FuzzParser's `A&A%A<0`, the
+			// `%` a modulus after the sub name `&A`, canon'd as `A % A`. A
+			// closer before it leaves no term to start.
+			b.WriteByte('(')
+			emitBefore(b, n.Children[0], src, 0, 0)
+			b.WriteByte(')')
+		default:
 			emitBefore(b, n.Children[0], src, l, info.BP)
 		}
 		// No space before a comma: perl's checkcomma (toke.c) counts the
@@ -1157,6 +1228,84 @@ func commaInParens(n *Node, src []byte) bool {
 	return n.Kind != List && !foldsSep(n) && sep != ""
 }
 
+// listOuterPair reports whether emit writes List n inside pairs around its
+// own, with separators inside them (see listWrap), and if so the pairs'
+// opens and closing text and the TrailingComma separators after them all.
+func listOuterPair(n *Node, src []byte) (opens int, closing, after string, ok bool) {
+	if n.Kind != List || !n.Paren || n.SyntaxParen || n.TrailingComma == "" {
+		return 0, "", "", false
+	}
+	opens, closing, k := listWrap(n, src)
+	if k == 0 {
+		return 0, "", "", false
+	}
+	seps := strings.Fields(n.TrailingComma)
+	k = min(k, len(seps))
+	return opens, closing, strings.Join(seps[k:], " "), true
+}
+
+// listWrap reads the pairs the source wrote around List n's own pair inside
+// n's span: how many open before it, the closers and separators after it as
+// canon writes them, and how many separators those hold. A List's span is
+// its outermost pair's, and it records no inner one; FuzzParser's
+// `(((),),)` holds a separator at each of two levels.
+func listWrap(n *Node, src []byte) (opens int, closing string, seps int) {
+	toks := significant(src[n.Start:n.End])
+	strs := make([]string, len(toks))
+	for i, t := range toks {
+		strs[i] = string(src[n.Start+t.Start : n.Start+t.End])
+	}
+	// The list's own `(`: the last before its first element, or the last of
+	// the leading run for an empty list.
+	own := -1
+	for i, s := range strs {
+		if s != "(" || len(n.Children) > 0 && n.Start+toks[i].Start >= n.Children[0].Start {
+			break
+		}
+		own = i
+	}
+	if own < 1 {
+		return 0, "", 0
+	}
+	m, ok := matchParen(strs, own)
+	if !ok {
+		return 0, "", 0
+	}
+	var b strings.Builder
+	closers := 0
+	for i, s := range strs[m+1:] {
+		switch s {
+		case ")":
+			closers++
+		case ",", "=>":
+			seps++
+			if i > 0 && strs[m+i] != ")" {
+				b.WriteByte(' ')
+			}
+		default:
+			return 0, "", 0
+		}
+		b.WriteString(s)
+	}
+	if closers != own {
+		return 0, "", 0
+	}
+	return own, b.String(), seps
+}
+
+// writesSepAfterParens reports whether emit writes a separator of n's after
+// its parens, where a list's separator would stand: not the one in `(A,)`
+// or the only one in `((),)`, FuzzParser's `((A,),%y)` and `(((),),,0)`.
+func writesSepAfterParens(n *Node, src []byte) bool {
+	if n.TrailingComma == "" {
+		return false
+	}
+	if _, _, after, ok := listOuterPair(n, src); ok {
+		return after != ""
+	}
+	return !(n.Paren && commaInParens(n, src))
+}
+
 // foldsSep reports whether n is a leaf finishList folds a separator inside
 // its parens into, `(0,)`, clearing its TrailingComma: any TrailingComma
 // it carries was written after its parens, `(0),`.
@@ -1215,8 +1364,21 @@ func ownText(n *Node, src []byte) string {
 	case afterPair && n.SyntaxParen && n.Paren:
 		// emit writes the separator between the two pairs.
 		return string(src[n.InnerStart:n.InnerEnd])
+	case afterPair && n.TrailingComma != "" && !foldsSep(n):
+		// A node that kept its separator has emit write it: FuzzParser's
+		// `((&0()),)`, written from source with it as well, doubled it. A
+		// leaf folds the one inside its parens instead, `f((0,),)`.
+		// All of them: `((&0()),,)` keeps two.
+		const blanks = " \t\r\n\f\v"
+		text := strings.TrimRight(string(src[n.Start+1:n.End-1]), blanks)
+		for strings.HasSuffix(text, ",") || strings.HasSuffix(text, "=>") {
+			text = strings.TrimRight(strings.TrimSuffix(strings.TrimSuffix(text, ","), "=>"), blanks)
+		}
+		return text
 	case afterPair:
 		return string(src[n.Start+1 : n.End-1])
+	case n.TrailingComma != "" && !foldsSep(n):
+		return string(src[n.InnerStart:n.InnerEnd])
 	}
 	return string(src[n.InnerStart:n.InnerEnd]) + sep
 }
@@ -1245,11 +1407,13 @@ func emitCommaSeparated(b *canonBuf, n *Node, src []byte) {
 			// changes what the list contains.
 			//
 			// An element that kept its separators (TrailingComma) has
-			// already written them; only a space follows.
-			switch {
-			case n.Children[i-1].TrailingComma != "":
+			// already written them; only a space follows. One it kept inside
+			// its own parens, `((A,),%y)`, is not the list's separator, and
+			// leaving that out canon'd FuzzParser's find as `((A,) %y)`.
+			switch prev := n.Children[i-1]; {
+			case writesSepAfterParens(prev, src):
 				b.WriteByte(' ')
-			case n.Children[i-1].Fat:
+			case prev.Fat:
 				b.WriteString(" => ")
 			default:
 				b.WriteString(", ")
@@ -1349,6 +1513,15 @@ func bindingPower(n *Node) int {
 	default:
 		return atomBP
 	}
+}
+
+// endsInBareword reports whether n's emission ends in a word of no known
+// sub, written bare: `A`, `1 + A`, `-A`.
+func endsInBareword(n *Node) bool {
+	for !n.Paren && !n.SyntaxParen && (n.Kind == Binary || prefixOperator(n)) && len(n.Children) > 0 {
+		n = n.Children[len(n.Children)-1]
+	}
+	return n.Kind == Call && !n.Paren && !n.SyntaxParen && !n.Resolved && !n.ArgParen && len(n.Children) == 0
 }
 
 // prefixOperator reports whether n is a symbol prefix operator applied to an

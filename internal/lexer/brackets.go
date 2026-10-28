@@ -26,7 +26,9 @@ func (l *lexer) peekIsOpenBrace() bool {
 			pending = nil
 			i = j - 1
 			continue
-		case ' ', '\t', '\r':
+		// Form feed and vertical tab too, as isSpace has them: FuzzParser's
+		// `A\f{0}` read a subscript where `A {0}` reads a block.
+		case ' ', '\t', '\r', '\f', '\v':
 			continue
 		case '#':
 			// A comment, skipped as perl's skipspace skips it: `if ($x) # c`

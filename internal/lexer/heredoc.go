@@ -84,7 +84,12 @@ func scanHeredocOpen(l *lexer) bool {
 		j = k + 1
 	case '\\':
 		// <<\EOF is the backslash-quoted form: non-interpolating, and the
-		// terminator is the bare word after the backslash.
+		// terminator is the bare word after the backslash. Not spaced:
+		// measured on 5.44.0, `print << \EOF;` is "Use of bare << to mean
+		// <<"" is forbidden", as `<< EOF` is.
+		if spaced {
+			return false
+		}
 		j++
 		s := j
 		for j < len(l.src) && isWordByte(l.src[j]) {
