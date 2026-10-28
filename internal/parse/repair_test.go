@@ -9,7 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
+
+	"tamarou.com/pvm/internal/lexer"
 )
 
 // The Session form resolves as the fuzz harness does: edit.pl's directory,
@@ -165,7 +166,7 @@ func TestRepairByteShiftNoUnderflow(t *testing.T) {
 
 // latencyEdit5k is the latency benchmarks' 1-char edit (internal/psc
 // editOffset): a digit before the `0` of `$_ > 0` in the middle `sub scale`.
-func latencyEdit5k(t *testing.T) (string, Edit) {
+func latencyEdit5k(t testing.TB) (string, Edit) {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "psc", "testdata", "latency", "edit5k.pl"))
 	if err != nil {
@@ -214,6 +215,70 @@ func TestRepairEdit5kIsLocal(t *testing.T) {
 	}
 }
 
+// TestRepairUsesTokenCache: over a typing sequence on edit5k.pl, typed and
+// erased from a parse's tree, each repair re-lexes a few hundred tokens of
+// the file's thousands, and the token cache each tree carries is a fresh lex
+// of its source; a refused edit falls back as ReparseIncremental does, to a
+// tree carrying its own cache. Then a digit typed into each `$_ > 0` of the
+// file in turn, 100 edits each repaired from the last's tree: the cache they
+// carry stays a fresh lex, checkpoints and all.
+func TestRepairUsesTokenCache(t *testing.T) {
+	src, _ := latencyEdit5k(t)
+	tree, cur := Parse([]byte(src)), src
+	repaired, most := 0, 0
+	step := func(e Edit, mustRepair bool) {
+		t.Helper()
+		next := []byte(edited(cur, e))
+		got, ok := Repair(tree, e, next)
+		switch {
+		case ok:
+			repaired, most = repaired+1, max(most, got.inc.relexed)
+			if all := len(got.inc.toks.Tokens); got.inc.relexed*20 > all {
+				t.Fatalf("edit %+v re-lexed %d of %d tokens", e, got.inc.relexed, all)
+			}
+			if d := TreeDiff(got, Parse(next)); d != "" {
+				t.Fatalf("edit %+v: repaired != fresh:\n%s", e, d)
+			}
+		case mustRepair:
+			t.Fatalf("edit %+v after %d repairs: ok=false", e, repaired)
+		default:
+			got = parseTracked(next, nil, "")
+		}
+		if !slices.Equal(got.inc.toks.Tokens, lexer.TokenizeBarewords(next, coreBarewordOperators())) {
+			t.Fatalf("edit %+v after %d repairs: the cache is not a fresh lex", e, repaired)
+		}
+		tree, cur = got, string(next)
+	}
+	es := typingEdits(t, src)
+	for _, e := range es {
+		step(e, false)
+	}
+	if repaired < len(es)/2 {
+		t.Fatalf("%d of %d typing edits repaired: the sequence must mostly reach the cache", repaired, len(es))
+	}
+	typed := repaired
+	for k := range 100 {
+		var gts []int
+		for i := 0; ; {
+			j := strings.Index(cur[i:], "$_ > ")
+			if j < 0 {
+				break
+			}
+			gts, i = append(gts, i+j+len("$_ > ")), i+j+1
+		}
+		at := gts[k*7%len(gts)]
+		step(Edit{Start: at, OldEnd: at, NewText: "1"}, true)
+	}
+	c := tree.inc.toks
+	for _, cp := range c.Checkpoints {
+		i, _ := slices.BinarySearchFunc(c.Tokens, cp.Byte, func(tok lexer.Token, at int) int { return tok.Start - at })
+		if got := lexer.Resume([]byte(cur), cp); !slices.Equal(got, c.Tokens[i:]) {
+			t.Fatalf("after %d repairs, the checkpoint at %d no longer resumes to the stream's suffix", repaired-typed, cp.Byte)
+		}
+	}
+	t.Logf("%d of %d typing edits repaired; at most %d of %d tokens re-lexed", typed, len(es), most, len(c.Tokens))
+}
+
 // TestRepairDoesNotMutateOldTree: whatever Repair returns, the old tree
 // still equals an independent parse of its source, and its cache holds what
 // it held.
@@ -251,6 +316,9 @@ func TestRepairDoesNotMutateOldTree(t *testing.T) {
 		if d := TreeDiff(tree, sessionTree(newSrc)); d != "" {
 			t.Fatalf("edit %+v: the repaired tree changed when repaired again: %s", again, d)
 		}
+		if !slices.Equal(tree.inc.toks.Tokens, lexer.TokenizeBarewords(newSrc, coreBarewordOperators())) {
+			t.Fatalf("edit %+v: the repaired tree's token cache changed when repaired again", again)
+		}
 	}
 }
 
@@ -287,8 +355,9 @@ func TestRepairNotOkReturnsNoTree(t *testing.T) {
 
 // TestRepairResyncBudgetExceeded: an unterminated string near the start of
 // edit5k.pl changes tokens past its anchor, so triage refuses it and Repair
-// returns ok=false having only lexed, never re-parsing what follows: well
-// under the cost of one full parse. An edit changing more tokens than
+// returns ok=false having only lexed, never re-parsing what follows: it
+// lexes the new source at most once and never builds a resolver, which
+// every snapshot and re-parse needs. An edit changing more tokens than
 // maxResyncTokens, inside one sub, is refused on the count alone.
 func TestRepairResyncBudgetExceeded(t *testing.T) {
 	src, _ := latencyEdit5k(t)
@@ -297,18 +366,21 @@ func TestRepairResyncBudgetExceeded(t *testing.T) {
 	if s := triage(old, []byte(src), e); s != StrategyFull {
 		t.Fatalf("triage %v, want StrategyFull", s)
 	}
-	parse, refuse := time.Duration(1<<62), time.Duration(1<<62)
-	for range 3 {
-		t0 := time.Now()
-		Parse(newSrc)
-		t1 := time.Now()
-		if tree, ok := Repair(old, e, newSrc); ok || tree != nil {
-			t.Fatal("Repair accepted an unterminated string")
-		}
-		parse, refuse = min(parse, t1.Sub(t0)), min(refuse, time.Since(t1))
+	d := diffTokens(tokensOf(old, []byte(src)), []byte(src), e)
+	if d.relexed == 0 || d.relexed > len(d.newToks) {
+		t.Fatalf("re-lexed %d tokens of %d: the new source is lexed at most once", d.relexed, len(d.newToks))
 	}
-	if refuse > parse {
-		t.Fatalf("refusing took %v, a full parse %v: Repair did more than lex", refuse, parse)
+	resolvers := 0
+	if tree, _, ok := repair(old, e, newSrc, "", func() *resolver { resolvers++; return nil }); ok || tree != nil {
+		t.Fatal("Repair accepted an unterminated string")
+	}
+	if resolvers != 0 {
+		t.Fatalf("Repair built %d resolvers refusing on triage: it went on to snapshot or re-parse", resolvers)
+	}
+	// The green half of the count: an edit Repair accepts builds one.
+	closed := at(src, "sub new {\n", "", `"";`)
+	if _, _, accepted := repair(old, closed, []byte(edited(src, closed)), "", func() *resolver { resolvers++; return nil }); !accepted || resolvers == 0 {
+		t.Fatalf("accepted=%v with %d resolvers: the count sees no work", accepted, resolvers)
 	}
 	// `(1, 1, ...)` becoming `q(1, 1, ...)`: balanced, inside one sub, and
 	// local but for its size.
