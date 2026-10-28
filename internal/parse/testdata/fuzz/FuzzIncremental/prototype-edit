@@ -1,0 +1,5 @@
+go test fuzz v1
+string("sub f() { 1 }\nmy @a = (1, 2);\nprint f @a;\n")
+int(6)
+int(0)
+string("\\@")
