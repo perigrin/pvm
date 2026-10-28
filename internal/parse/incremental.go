@@ -47,9 +47,9 @@ func (s *Session) ReparseIncremental(old *Node, e Edit, path string, src []byte,
 		if tree, ok := s.Repair(old, e, path, src, roots...); ok {
 			return tree
 		}
-		// What ParseSourceFrom would parse with, in a fresh Session.
+		// What ParseSourceFrom below would parse with.
 		dirs := searchDirs(path, roots)
-		return parseTracked(src, NewSession().resolverFor(dirs, false), resolverKey(dirs, false))
+		return parseTracked(src, NewSessionWithCache(s.cache).resolverFor(dirs, false), resolverKey(dirs, false))
 	}
 	return NewSessionWithCache(s.cache).ParseSourceFrom(path, src, roots...)
 }
