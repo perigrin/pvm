@@ -658,7 +658,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 
 func TestFlowNarrowingIsaGuard(t *testing.T) {
 	// if ($x isa Foo): if-body $x → Object (isa guard narrows to Object).
-	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
+	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -672,7 +672,7 @@ func TestFlowNarrowingIsaGuard(t *testing.T) {
 
 func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 	// if ($x isa Foo): if-body → Object, else-body → Scalar (isa negation is not useful).
-	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -692,7 +692,7 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 	// elsif (!defined($x)) should narrow $x to Undef in the elsif body
 	// (negated defined guard).
 	// else-body $x → Scalar &^ Undef (positive defined guard, which removed the Undef bit).
-	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
+	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -710,7 +710,7 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 
 func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 	// Three branches: if + elsif + elsif. Each should get its own guard.
-	src := []byte("my $x = get();\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} elsif ($x isa Foo) {\n    my $c = $x;\n}\n")
+	src := []byte("use feature 'isa';\nmy $x = get();\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} elsif ($x isa Foo) {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1433,7 +1433,7 @@ func TestIsaGuardEnablesMethodResolution(t *testing.T) {
 	// The method call $x->speak() is annotated at the position of $x (the invocant).
 	// We find the $x inside the block (after "isa Dog) {") by using the last
 	// occurrence of $x before "->speak".
-	src := []byte("use Dog;\nmy $x = get();\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
+	src := []byte("use feature 'isa';\nuse Dog;\nmy $x = get();\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
 	annotations, _, _ := analyzeLowered(src, idx, infer.Options{})
 	// The method_call_expression node starts at the invocant ($x in $x->speak()).
 	// findNodeType searches for annotations whose offset matches the start of "$x->speak()".
@@ -1558,7 +1558,7 @@ func TestUserDefinedGuardFuncShift(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncIsa(t *testing.T) {
-	src := []byte("sub is_foo { $_[0] isa Foo }\nmy $x = get();\nif (is_foo($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("use feature 'isa';\nsub is_foo { $_[0] isa Foo }\nmy $x = get();\nif (is_foo($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")

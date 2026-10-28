@@ -150,10 +150,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		if !ok || op.BP <= minBP {
 			return left
 		}
-		// `isa` is infix only under its feature (operatorHere); without it
-		// and with nothing after it, `infix isa` is perl's `'isa'->infix`,
-		// not an operator missing its operand (R-g′).
-		if tok.Kind == lexer.Word && !p.operatorHere(text) && p.endsAfter(tok) {
+		// `isa` is infix only under its feature (operatorHere): without it
+		// `$x isa Y` is perl's "Bareword found where operator expected", and
+		// with nothing after it `infix isa` is `'isa'->infix`, not an
+		// operator missing its operand (R-g′).
+		if _, gated := gatedKeywords[text]; tok.Kind == lexer.Word && !p.operatorHere(text) && (gated || p.endsAfter(tok)) {
 			return left
 		}
 

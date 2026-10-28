@@ -5,6 +5,7 @@ package parse
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -243,63 +244,103 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	return n
 }
 
-// noteFeatures records what a `use` or `no` statement does to the gated
-// builtins. `use feature LIST` turns each named feature on and `no feature
-// LIST` off; `use VERSION` from 5.15 up turns on the bundle, which names both
-// `fc` and `evalbytes` -- measured, perl's %feature::feature_bundle holds them
-// from "5.15" on and not in "5.14".
+// noteFeatures records what a `use` or `no` statement does to the features
+// the parser consults (trackedFeatures). `use feature LIST` turns each named
+// feature on and `no feature LIST` off, a `:BUNDLE` or `:all` name standing
+// for every feature in it; a bare `no feature` puts back the default bundle;
+// `use VERSION` replaces every feature with its version's bundle --
+// measured on perl 5.44.0, `use feature 'state'; use v5.8; state` compiles.
+// `use experimental LIST` and `no experimental LIST` turn named features on
+// and off as `feature` does. What it records lasts to the end of the
+// enclosing block (parseBlock).
 func (p *parser) noteFeatures(verb, module string, list *Node) {
-	if p.features == nil {
-		p.features = map[string]bool{}
-	}
 	switch {
-	case module == "feature" && (verb == "use" || verb == "no") && list != nil:
+	case module == "feature" && verb == "no" && list == nil:
+		p.setFeatures(func(name string) (bool, bool) { return inBundle(name, 5, 0), true })
+	case (module == "feature" || module == "experimental") && (verb == "use" || verb == "no") && list != nil:
 		names, ok := literalNameList(list)
 		if !ok {
 			return
 		}
+		on := verb == "use"
 		for _, name := range names {
-			if gatedUnary[name] || name == "keyword_any" || name == "keyword_all" || name == "class" || name == "defer" || name == "isa" || name == "current_sub" || name == "switch" || name == "state" {
-				p.features[name] = verb == "use"
+			bundle, isBundle := strings.CutPrefix(name, ":")
+			major, minor, ok := perlVersion("v" + bundle)
+			if bundle == "default" {
+				major, minor, ok = 5, 0, true
 			}
-			if name == "indirect" {
-				p.noIndirect = verb == "no"
-			}
+			p.setFeatures(func(f string) (bool, bool) {
+				switch {
+				case !isBundle:
+					return on, f == name
+				case bundle == "all":
+					return on, true
+				}
+				return on, ok && inBundle(f, major, minor)
+			})
 		}
 	case module == "" && verb == "use" && list != nil:
 		major, minor, ok := perlVersion(list.Text)
-		if ok && (major > 5 || major == 5 && minor >= 15) {
-			for name := range gatedUnary {
-				p.features[name] = true
-			}
-			// current_sub is in the same bundle: measured, `use v5.16;
-			// __SUB__ + 1` deparses as `(__SUB__ + 1)`, the builtin.
-			p.features["current_sub"] = true
+		if !ok {
+			return
 		}
-		// The 5.10 to 5.34 bundles hold `switch`, and 5.36's drops it, so a
-		// later `use v5.36` turns it off again --
-		// measured on perl 5.44.0, under `use v5.10` and `use v5.34` `last
-		// default` is a syntax error, `default` the keyword, and under `use
-		// v5.36` it names a label.
-		if ok && (major > 5 || major == 5 && minor >= 9) {
-			p.features["switch"] = major == 5 && minor < 35
-			// And `state`, from the 5.10 bundle on; read only where it
-			// stands alone (parseVarDeclNoSemi).
-			p.features["state"] = true
-		}
-		// The 5.36 bundle drops `indirect` -- measured, `use v5.36; new
-		// Foo;` is a syntax error on 5.42.0.
-		if ok && (major > 5 || major == 5 && minor >= 35) {
-			p.noIndirect = true
-			// And takes `isa` in: feature.pm's :5.36 bundle names it.
-			p.features["isa"] = true
-		}
+		p.setFeatures(func(name string) (bool, bool) { return inBundle(name, major, minor), true })
 		// From 5.39 it imports the builtin bundle too -- measured, `use
 		// v5.40; my $r = blessed $x, 1` deparses as builtin::blessed($x).
-		if ok && (major > 5 || major == 5 && minor >= 39) {
+		if major > 5 || major == 5 && minor >= 39 {
 			p.importBuiltinBundle()
 		}
 	}
+}
+
+// trackedFeatures are the features the parser consults: the gated builtins
+// and keywords in p.features, and indirect, which is p.noIndirect.
+var trackedFeatures = []string{"fc", "evalbytes", "current_sub", "keyword_any", "keyword_all",
+	"class", "defer", "isa", "switch", "state", "indirect"}
+
+// setFeatures sets each tracked feature pick selects to the value it gives.
+// p.features is replaced rather than written, so a map an enclosing block
+// saved is never changed under it.
+func (p *parser) setFeatures(pick func(name string) (on, picked bool)) {
+	features := maps.Clone(p.features)
+	if features == nil {
+		features = map[string]bool{}
+	}
+	for _, name := range trackedFeatures {
+		on, picked := pick(name)
+		switch {
+		case !picked:
+		case name == "indirect":
+			p.noIndirect = !on
+		default:
+			features[name] = on
+		}
+	}
+	p.features = features
+}
+
+// inBundle reports whether feature.pm's bundle for perl major.minor holds
+// the tracked feature name; a version below 5.9 is the default bundle.
+// Measured from 5.44.0's %feature::feature_bundle: switch is in 5.9.5 to
+// 5.34 and indirect in default to 5.34, state from 5.9.5, fc, evalbytes and
+// current_sub from 5.15, and isa from 5.35. The rest are in none.
+func inBundle(name string, major, minor int) bool {
+	if major > 5 {
+		minor = 1000
+	}
+	switch name {
+	case "indirect":
+		return minor < 35
+	case "switch":
+		return minor >= 9 && minor < 35
+	case "state":
+		return minor >= 9
+	case "fc", "evalbytes", "current_sub":
+		return minor >= 15
+	case "isa":
+		return minor >= 35
+	}
+	return false
 }
 
 // perlVersion reads a `use VERSION` argument: `v5.16`, `5.16.0` or the
@@ -1070,10 +1111,7 @@ func (p *parser) parseClass(word lexer.Token) *Node {
 	// A class declaration means class syntax is in effect -- by the feature
 	// or by Object::Pad, which provides the same keywords -- so `method`
 	// declares from here on.
-	if p.features == nil {
-		p.features = map[string]bool{}
-	}
-	p.features["class"] = true
+	p.setFeatures(func(name string) (bool, bool) { return true, name == "class" })
 	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
 
 	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
