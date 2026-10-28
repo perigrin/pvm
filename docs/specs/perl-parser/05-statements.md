@@ -2797,7 +2797,7 @@ the parse of everything outside is unchanged. Requirements:
 | **Loop / conditional body** | same |
 | **`class` block** | plus: a new `:reader` field adds a method name |
 | **`package NAME BLOCK`** | safe; the `package NAME;` form is **not** |
-| **Single statement** | do not anchor here: the bookkeeping costs more than the parse (chapter 6 §6.5.2) |
+| **Single statement** | do not anchor here: the bookkeeping costs more than the parse (chapter 6 §6.5.2). As landed, a top-level statement is an anchor, with this table's requirement 2 checked on the parser state rather than by construct (chapter 6 §6.5.2) |
 
 **Never safe:** the file top level; anything containing a `use`, a `BEGIN`, or a
 `package NAME;`.

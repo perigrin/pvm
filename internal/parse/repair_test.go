@@ -541,3 +541,58 @@ func TestRepairEveryWideningAnchorHasSnapshot(t *testing.T) {
 		t.Fatal("no edit anchored at a package or bare block holding a sub; the nested case is unchecked")
 	}
 }
+
+// TestRepairTopLevelStatementAnchor: an edit in a top-level statement
+// outside any sub re-parses that statement alone and equals a fresh parse.
+// One that reads into the next statement, or types a statement of its own,
+// still returns ok=false.
+func TestRepairTopLevelStatementAnchor(t *testing.T) {
+	src5k, _ := latencyEdit5k(t)
+	const (
+		pkg = "package Q { my $v = 1; }\nprint 1;\n"
+		lex = "my $t = 1;\nprint $t;\n"
+	)
+	for _, c := range []struct {
+		name, src, stmt string
+		e               Edit
+	}{
+		{"print's argument", twoSubs, "print f", at(twoSubs, "print ", "f", "g")},
+		{"a hash literal in edit5k.pl", src5k, "my %defaults", at(src5k, "limit   => ", "0", "5")},
+		{"a package block's own code", pkg, "package Q", at(pkg, "= ", "1", "2")},
+		// A lexical is no parser state: the next statement reads the same.
+		{"a lexical renamed", lex, "my $t", at(lex, "my $", "t", "u")},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			old := sessionTree([]byte(c.src))
+			if a := anchorOf(old, c.e); a == old || !strings.HasPrefix(c.src[a.Start:], c.stmt) {
+				t.Fatalf("anchor is not the top-level statement starting %q", c.stmt)
+			}
+			if !checkRepair(t, c.src, c.e) {
+				t.Fatal("ok=false")
+			}
+			newSrc := edited(c.src, c.e)
+			_, n, _ := sessionRepair(old, c.e, repPath, []byte(newSrc), []string{repRoot}, nil)
+			if top := childHolding(old, c.e); n.Start != top.Start || n.End != top.End+len(newSrc)-len(c.src) {
+				t.Fatalf("re-parsed [%d, %d), want the statement [%d, %d) shifted", n.Start, n.End, top.Start, top.End)
+			}
+		})
+	}
+	// The red half: a statement that loses its `;` reads on into the next,
+	// and one typed on a blank line is two where one stood (check 1).
+	const two = "print 1;\nprint 2;\n"
+	for _, c := range []struct {
+		name, src string
+		e         Edit
+	}{
+		{"statement swallows the next", two, at(two, "print 1", ";", "")},
+		{"statement typed between statements", twoSubs, at(twoSubs, "}\n", "", "f();")},
+	} {
+		old := sessionTree([]byte(c.src))
+		if triage(old, []byte(c.src), c.e) != StrategyLocal || anchorOf(old, c.e) == old {
+			t.Fatalf("%s: not a local edit at a top-level anchor; the case reaches no check", c.name)
+		}
+		if checkRepair(t, c.src, c.e) {
+			t.Fatalf("%s: Repair accepted it", c.name)
+		}
+	}
+}

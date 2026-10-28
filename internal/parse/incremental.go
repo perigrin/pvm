@@ -163,6 +163,9 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 	delta, dtok := len(src)-len(old.inc.src), len(d.newToks)-len(d.oldToks)
 	res, bodies := mkRes(), heredocBodyIndices(d.newToks)
 	p := tops[k].restoreOn(src, d.newToks, bodies, res)
+	if p.pos >= len(p.toks) {
+		return nil, nil, false // the edit deleted the anchor, trailing trivia, whole
+	}
 	n := p.statement()
 	// Check 1: the first unconsumed token starts at the anchor's shifted
 	// end, or the parse is at EOF. The token index in check 2 implies it
@@ -530,9 +533,9 @@ func tokensOf(n *Node, src []byte) *lexer.TokenCache {
 // widen is §6.5.2: the lexer checkpoint to re-lex from and the node to
 // re-parse whole for a StrategyLocal edit of src, whose tree is old.
 //
-// The anchor is the top-level statement holding the edit when the edit is
-// strictly inside a sub's body, and old itself otherwise: the file top
-// level, a `use`, a BEGIN block and a `package NAME;` are never anchors.
+// The anchor is the top-level statement holding the edit, and old itself
+// when none holds it or the edit is in a `use`, a BEGIN block or a sub,
+// package or class declaration's head: those are never anchors.
 // A sub inside a package block, bare block or `if` anchors at that whole
 // statement, past the block, because a nested resume stops at the block's
 // `}` with no post-block state, and a top-level one runs to end of file.
@@ -547,30 +550,27 @@ func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
 // anchorOf is widen's anchor for e.
 func anchorOf(old *Node, e Edit) *Node {
 	for _, top := range old.Children {
-		if top.Start <= e.Start && e.OldEnd <= top.End && inSubBody(top, e) {
+		if top.Start <= e.Start && e.OldEnd <= top.End && reparsable(top, e) {
 			return top
 		}
 	}
 	return old
 }
 
-// inSubBody reports that the path from n down to e enters some sub's body
-// and passes through no `use`, BEGIN block or declaration head.
-func inSubBody(n *Node, e Edit) bool {
-	found := false
-	for n != nil {
+// reparsable reports that the path from n down to e passes through no
+// `use`, BEGIN block, or sub, package or class declaration but strictly
+// inside its block: what touchesDeclaration refuses. Anything else a
+// statement changes for the statements after it, Repair's check 2 sees.
+func reparsable(n *Node, e Edit) bool {
+	for ; n != nil; n = childHolding(n, e) {
 		switch {
 		case n.Kind == Use, n.Kind == Phaser && n.Text == "BEGIN":
 			return false
-		case n.Kind == Declaration && n.Text == "sub":
-			if !inBody(n, e) {
-				return false
-			}
-			found = true
+		case n.Kind == Declaration && (n.Text == "sub" || n.Text == "package" || n.Text == "class") && !inBody(n, e):
+			return false
 		}
-		n = childHolding(n, e)
 	}
-	return found
+	return true
 }
 
 // childHolding is n's first child spanning all of e, or nil.
