@@ -158,17 +158,20 @@ func printable(s string) string {
 	return b.String()
 }
 
-// analyze lowers and type-checks root, and reports every refusal in it
-// beside what inference reports, in source order. psc check and the LSP
-// both analyse through it, so they report the same. It polls ctx between
-// lowering and analysis, and returns ctx's error if it was cancelled.
+// analyze lowers and type-checks root, and reports its syntax errors beside
+// what inference reports, in source order, under §6.8.4 (diagfilter.go):
+// the syntax errors through diagFilter, and no type diagnostic from where
+// one stands. psc check and the LSP both analyse through it, so they report
+// the same. It polls ctx between lowering and analysis, and returns ctx's
+// error if it was cancelled.
 func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.FileAnalysis, error) {
 	f := lower.Lower(root)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	fa := infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts)
-	fa.Diagnostics = append(refusals(root), fa.Diagnostics...)
+	errs, gates := parseErrors(root)
+	fa.Diagnostics = append(filterParse(errs), gateTypes(fa.Diagnostics, gates)...)
 	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
 		return int(a.StartByte) - int(b.StartByte)
 	})
@@ -203,32 +206,4 @@ var perlRefuses = map[parse.RefusalCode]bool{
 	parse.UnclosedBrace:       true,
 	parse.EmptyDeref:          true,
 	parse.TernaryNoColon:      true,
-}
-
-// refusals reports each refusal in n's tree (parse.Node.Refused) whose code
-// perl shares (perlRefuses) as that code over its span. A refusal inside
-// another is part of the outer refusal and is not reported again. No
-// catch-all code is in perlRefuses, so their Error nodes report nothing
-// here (R-a′). Any other refusal
-// is a gap in the parser, not an error in the source, and is reported by
-// nothing: inference types the Hole an Unknown lowers to as Any and says
-// nothing about it.
-func refusals(n *parse.Node) []infer.Diagnostic {
-	if n.Refused() {
-		if !perlRefuses[n.Refusal] {
-			return nil
-		}
-		return []infer.Diagnostic{{
-			StartByte: uint32(n.Start),
-			EndByte:   uint32(n.End),
-			Severity:  infer.Error,
-			Code:      string(n.Refusal),
-			Message:   "perl refuses this: " + parse.RefusalSites[n.Refusal].What,
-		}}
-	}
-	var out []infer.Diagnostic
-	for _, c := range n.Children {
-		out = append(out, refusals(c)...)
-	}
-	return out
 }
