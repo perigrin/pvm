@@ -66,10 +66,11 @@ type lspVersionedTextDocumentIdentifier struct {
 	Version int    `json:"version"`
 }
 
-// lspTextDocumentContentChangeEvent carries a full-document content replacement.
-// PSC uses full sync (TextDocumentSync = 1), so range fields are omitted.
+// lspTextDocumentContentChangeEvent is one content change: the whole text,
+// or, under incremental sync (TextDocumentSync = 2), Text replacing Range.
 type lspTextDocumentContentChangeEvent struct {
-	Text string `json:"text"`
+	Range *lspRange `json:"range,omitempty"`
+	Text  string    `json:"text"`
 }
 
 // lspDidChangeParams is the params payload for textDocument/didChange notifications.

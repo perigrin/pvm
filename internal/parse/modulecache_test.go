@@ -5,6 +5,7 @@ package parse_test
 
 import (
 	"bufio"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -243,16 +244,16 @@ func fuzzSeed(t *testing.T, path string) []string {
 	return args
 }
 
-// seedEdits is every committed FuzzIncremental and FuzzIncrementalSequence
-// seed, each as its source and edits.
-func seedEdits(t *testing.T) map[string]struct {
+// seedReplay is one seed's source and the edits it makes of it.
+type seedReplay struct {
 	src   string
 	edits []parse.Edit
-} {
-	out := map[string]struct {
-		src   string
-		edits []parse.Edit
-	}{}
+}
+
+// seedEdits is every committed FuzzIncremental and FuzzIncrementalSequence
+// seed, by file.
+func seedEdits(t *testing.T) map[string]seedReplay {
+	out := map[string]seedReplay{}
 	for _, dir := range []string{"FuzzIncremental", "FuzzIncrementalSequence"} {
 		files, err := filepath.Glob(filepath.Join("testdata", "fuzz", dir, "*"))
 		if err != nil || len(files) == 0 {
@@ -274,10 +275,7 @@ func seedEdits(t *testing.T) map[string]struct {
 			default:
 				t.Fatalf("%s: unexpected arguments %q", file, args)
 			}
-			out[dir+"/"+filepath.Base(file)] = struct {
-				src   string
-				edits []parse.Edit
-			}{args[0], edits}
+			out[dir+"/"+filepath.Base(file)] = seedReplay{args[0], edits}
 		}
 	}
 	return out
@@ -293,13 +291,7 @@ func TestIncrementalSeedsEqualFreshWithModuleCacheWarmAndCold(t *testing.T) {
 	repairOn(t)
 	t.Cleanup(parse.OverlayDeclarations(os.DirFS(incRoot)))
 	seeds := seedEdits(t)
-	names := slices.Sorted(func(yield func(string) bool) {
-		for k := range seeds {
-			if !yield(k) {
-				return
-			}
-		}
-	})
+	names := slices.Sorted(maps.Keys(seeds))
 	replay := func(what string, c *parse.ModuleCache, names ...string) {
 		for _, name := range names {
 			s := seeds[name]
