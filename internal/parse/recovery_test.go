@@ -720,7 +720,7 @@ func TestRecoveryPanicModeBounded(t *testing.T) {
 		{"a stray closer is skipped", "$a ) ] $b;\nfoo();\n", "$a ) ] $b;"},
 		// The parse stopped inside the subscript: its `}` is the statement's,
 		// not the block's, and ends no block form (Safe.pm).
-		{"a bracket the statement opened before the skip", "for (@x) {\n    next if ++$h{refaddr $i} > 1;\n    g();\n}\n", "next if ++$h{refaddr $i} > 1;"},	} {
+		{"a bracket the statement opened before the skip", "for (@x) {\n    next if ++$h{refaddr $i} > 1;\n    g();\n}\n", "next if ++$h{refaddr $i} > 1;"}} {
 		root := parse.Parse([]byte(c.src))
 		errs := errorNodes(root)
 		if len(errs) != 1 {
