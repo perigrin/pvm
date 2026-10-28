@@ -1,0 +1,4528 @@
+diff --git a/docs/specs/perl-parser/06-incremental-lsp.md b/docs/specs/perl-parser/06-incremental-lsp.md
+index 34a94de5..bbb878d6 100644
+--- a/docs/specs/perl-parser/06-incremental-lsp.md
++++ b/docs/specs/perl-parser/06-incremental-lsp.md
+@@ -1160,6 +1160,35 @@ Write the test perl-lsp wrote
+ resulting token and node offset satisfies `0 <= start <= end <= len(source)`.
+ That invariant catches the whole class.
+ 
++**As landed: a root-edge delta (01a17a40-4915, perigrin's ruling R-e).**
++Repair does not shift reused nodes at all. Offsets stay absolute inside
++each top-level statement, as the parser built them, and only the root's
++child edges carry a delta: `shifts[i]` on the SourceFile root, nil after a
++full parse. Repair builds a new root whose children are the old root's,
++the re-parsed statement in place of the anchor, and moves the deltas of
++the edges after it by the edit's growth. No node under any edge is copied
++or written, so the old and new trees share every statement but one and
++both stay valid: a statement can sit at two offsets in two trees.
++
++The cost is that a node no longer knows its own file offset. `Start()`,
++`End()`, `InnerStart()` and `InnerEnd()` read the offsets a node holds,
++which are the file's only when its statement's edge carries no delta; a
++walk from the root adds `ChildShift(i)` at the top level and nothing
++below it. Inside `internal/parse` the readers that take a tree Repair may
++have built do so (TreeDiff, SourceText, Repair's own triage, the
++unclosed-opener pass), and the whole-file readers that slice the source
++by span (Canon, Sites) read `absolute(root)`, a copy of only the
++statements whose edge has a delta. Outside it, readers use the absolute
++spans `lower.AssignIDs` records during its walk, never a node's own
++offset, and no cursor type enters a signature.
++
++The underflow trap above cannot arise: nothing is shifted, and a delta is
++added only when an offset is read. Measured over 200 edits of
++`latencyEdits` on edit5k.pl, the splice stage went from 9.19 ms p50 and
++78.4 ms p99, copying every reused node, to the numbers recorded in plan §5
++M2's `#### Measured splice cost`. Arena allocation is out of scope under
++this representation, as it was under both options the ruling chose between.
++
+ ### 6.4.3 Dependency tracking
+ 
+ Three caches — text, tokens, nodes — plus PSC's annotations. The dependency
+diff --git a/internal/lower/call.go b/internal/lower/call.go
+index 0f88beff..86656f56 100644
+--- a/internal/lower/call.go
++++ b/internal/lower/call.go
+@@ -43,13 +43,13 @@ var namesCode = map[string]bool{"defined": true, "exists": true, "undef": true}
+ // `(localtime)` or a list slice's `(localtime)[0]`, widen its span, so a
+ // call with Paren or SyntaxParen is read off its inner span.
+ func parenthesized(n *parse.Node) bool {
+-	start, stop := n.Start, n.End
++	start, stop := n.Start(), n.End()
+ 	if n.Paren || n.SyntaxParen {
+-		start, stop = n.InnerStart, n.InnerEnd
++		start, stop = n.InnerStart(), n.InnerEnd()
+ 	}
+ 	end := start + len(n.Text)
+ 	if k := len(n.Children); k > 0 {
+-		end = n.Children[k-1].End
++		end = n.Children[k-1].End()
+ 	}
+ 	return stop > end
+ }
+diff --git a/internal/lower/id_test.go b/internal/lower/id_test.go
+index 22609834..f9d68ffc 100644
+--- a/internal/lower/id_test.go
++++ b/internal/lower/id_test.go
+@@ -59,7 +59,7 @@ func distinct(t *testing.T, root *parse.Node, ids map[*parse.Node]lower.ID) {
+ 	for _, n := range nodes {
+ 		id, ok := ids[n]
+ 		if !ok {
+-			t.Errorf("%s %q at %d has no id", n.Kind, n.Text, n.Start)
++			t.Errorf("%s %q at %d has no id", n.Kind, n.Text, n.Start())
+ 			continue
+ 		}
+ 		if prev, dup := byID[id]; dup {
+@@ -94,7 +94,7 @@ func TestIDDistinguishesSameSpanNodes(t *testing.T) {
+ 
+ 	atZero := 0
+ 	for _, n := range everyNode(root) {
+-		if n.Start == 0 {
++		if n.Start() == 0 {
+ 			atZero++
+ 		}
+ 	}
+@@ -163,7 +163,7 @@ func TestAnonSubWithSignatureOpensNoAnchor(t *testing.T) {
+ 	ids := lower.AssignIDs(root)
+ 	for _, n := range everyNode(root) {
+ 		if id := ids[n]; id.Anchor != "" {
+-			t.Errorf("%s %q at %d is anchored %q; an anonymous sub opens no anchor", n.Kind, n.Text, n.Start, id.Anchor)
++			t.Errorf("%s %q at %d is anchored %q; an anonymous sub opens no anchor", n.Kind, n.Text, n.Start(), id.Anchor)
+ 		}
+ 	}
+ 
+diff --git a/internal/lower/literals_test.go b/internal/lower/literals_test.go
+index 95b1be65..f244681f 100644
+--- a/internal/lower/literals_test.go
++++ b/internal/lower/literals_test.go
+@@ -97,8 +97,8 @@ func TestLowerUnknownToHole(t *testing.T) {
+ 			t.Fatalf("%q: want one Unknown, got %d children", src, len(root.Children))
+ 		}
+ 		u := root.Children[0]
+-		if u.Start != 0 || u.End != len(src) {
+-			t.Fatalf("%q: Unknown spans %d-%d, want the whole file", src, u.Start, u.End)
++		if u.Start() != 0 || u.End() != len(src) {
++			t.Fatalf("%q: Unknown spans %d-%d, want the whole file", src, u.Start(), u.End())
+ 		}
+ 		got := lower.LowerExpr(root, u)
+ 		if reflect.TypeOf(got) != reflect.TypeOf(&lower.Hole{}) {
+diff --git a/internal/lower/positions.go b/internal/lower/positions.go
+index 3d9aa727..bdb664d9 100644
+--- a/internal/lower/positions.go
++++ b/internal/lower/positions.go
+@@ -34,7 +34,7 @@ type span struct{ start, end int }
+ func NewPositions(root *parse.Node, f *File) *Positions {
+ 	p := &Positions{root: root, ids: AssignIDs(root), nodes: map[ID]Node{}, spans: map[ID]span{}, cst: map[ID]*parse.Node{}}
+ 	for n, id := range p.ids {
+-		p.spans[id] = span{n.Start, n.End}
++		p.spans[id] = span{n.Start(), n.End()}
+ 		p.cst[id] = n
+ 	}
+ 	p.spans[p.ids[root]] = statements(root)
+@@ -67,9 +67,9 @@ func statements(root *parse.Node) span {
+ 			continue
+ 		}
+ 		if first {
+-			s.start, first = c.Start, false
++			s.start, first = c.Start(), false
+ 		}
+-		s.end = c.End
++		s.end = c.End()
+ 	}
+ 	return s
+ }
+@@ -150,7 +150,7 @@ func (p *Positions) At(off int) Node {
+ 		}
+ 		var next *parse.Node
+ 		for _, c := range n.Children {
+-			if off >= c.Start && off < c.End {
++			if off >= c.Start() && off < c.End() {
+ 				next = c
+ 				break
+ 			}
+diff --git a/internal/parse/arity.go b/internal/parse/arity.go
+index e9578c3b..aac5eec6 100644
+--- a/internal/parse/arity.go
++++ b/internal/parse/arity.go
+@@ -33,7 +33,7 @@ func (p *parser) refuseArity(n *Node) *Node {
+ 	}
+ 	count, exact := argCount(n)
+ 	if exact && !p.arityAccepted(n.Text, count) {
+-		return &Node{Kind: Unknown, Refusal: CallArity, Start: n.Start, End: n.End}
++		return &Node{Kind: Unknown, Refusal: CallArity, start: n.start, end: n.end}
+ 	}
+ 	return n
+ }
+@@ -90,7 +90,7 @@ func prototypeAccepts(proto string, count int) bool {
+ // read here from the token that follows. A bare call at the end of a block,
+ // `do { each }`, is left alone with it.
+ func (p *parser) mayBeAutoquoted(n *Node) bool {
+-	if len(n.Children) > 0 || n.End-n.Start != len(n.Text) {
++	if len(n.Children) > 0 || n.end-n.start != len(n.Text) {
+ 		return false
+ 	}
+ 	next, ok := p.peekSignificant()
+@@ -107,7 +107,7 @@ func (p *parser) mayBeIndirect(n *Node) bool {
+ 	}
+ 	a := n.Children[0]
+ 	if a.Kind != Call && a.Kind != Term || len(a.Children) > 0 || a.Text == "" ||
+-		a.End-a.Start != len(a.Text) || strings.IndexByte("$@%&*", a.Text[0]) >= 0 {
++		a.end-a.start != len(a.Text) || strings.IndexByte("$@%&*", a.Text[0]) >= 0 {
+ 		return false
+ 	}
+ 	return strings.Contains(a.Text, "::") || p.packages[a.Text] || interpreterPackages[a.Text]
+diff --git a/internal/parse/call.go b/internal/parse/call.go
+index 6a36caa4..c60bee37 100644
+--- a/internal/parse/call.go
++++ b/internal/parse/call.go
+@@ -153,8 +153,8 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 				p.notePackage(p.text(name))
+ 				return &Node{
+ 					Kind: Call, Text: spelled, Resolved: true,
+-					Start: word.Start, End: name.End,
+-					Children: []*Node{{Kind: Term, Text: p.text(name), Start: name.Start, End: name.End}},
++					start: word.Start, end: name.End,
++					Children: []*Node{{Kind: Term, Text: p.text(name), start: name.Start, end: name.End}},
+ 				}
+ 			}
+ 		}
+@@ -164,12 +164,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 	// a constant without looking for a sub, so there is no callee.
+ 	if len(spelled) > 2 && strings.HasSuffix(spelled, "::") {
+ 		p.advanceTo(word)
+-		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
++		return &Node{Kind: Term, Text: spelled, start: word.Start, end: word.End}
+ 	}
+ 
+ 	if p.classInvocant(word, text) {
+ 		p.advanceTo(word)
+-		return &Node{Kind: Term, Text: spelled, Start: word.Start, End: word.End}
++		return &Node{Kind: Term, Text: spelled, start: word.Start, end: word.End}
+ 	}
+ 
+ 	// A loop control in an expression, with its label: `... and last BIN`.
+@@ -188,12 +188,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		p.advanceTo(word)
+ 		return &Node{
+ 			Kind: Call, Text: spelled, Resolved: true,
+-			Start: word.Start, End: word.End,
++			start: word.Start, end: word.End,
+ 		}
+ 	}
+ 
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Call, Text: spelled, Start: word.Start}
++	n := &Node{Kind: Call, Text: spelled, start: word.Start}
+ 
+ 	// The paren cliff, §4.8.1. A `(` immediately after the name makes this a
+ 	// FUNC1 -- the parens delimit the arguments and nothing beyond them
+@@ -238,7 +238,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+ 			p.advanceTo(close)
+ 		}
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		_, n.Resolved = p.keywordShape(spelled, text)
+ 		n.ArgParen, n.NamedUnary = true, p.namedUnaryCall(spelled, text)
+ 		if n.Resolved {
+@@ -262,7 +262,7 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 	// "BaseClass"` is `(undef) isa 'BaseClass'`.
+ 	if next, ok := p.peekSignificant(); !ok || endsArgumentList(next, p.src) ||
+ 		next.Kind == lexer.Word && p.text(next) == "isa" && p.operatorHere("isa") {
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		// An imported sub called with no arguments is as resolved as a
+ 		// builtin one: `done_testing;` and `maybe;` are calls whose callee
+ 		// this parser has seen declared.
+@@ -441,12 +441,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
+ 		// `<=>` the infix loop reads as the spaceship, as pu did.
+ 		if next, ok := p.peekSignificant(); ok && (next.Kind == lexer.HeredocOpen || next.Kind == lexer.Readline && p.text(next) != "<=>" ||
+ 			(next.Kind == lexer.Variable || next.Kind == lexer.Error) && p.src[next.Start] == '%') {
+-			return p.ambiguousSigil(n.Start)
++			return p.ambiguousSigil(n.start)
+ 		}
+ 		n.Resolved = false
+ 	}
+ 
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	if _, ok := p.keywordShape(spelled, text); ok {
+ 		p.readHandleSlots(n, text)
+ 	}
+@@ -590,7 +590,7 @@ func (p *parser) parseListOpBlock(op string) *Node {
+ 		// half-typed statement block, so map and grep refuse it here.
+ 		if !p.braceCloses(tok) {
+ 			p.pos = len(p.toks)
+-			return &Node{Kind: Unknown, Refusal: UnclosedBrace, Start: tok.Start, End: p.prevEnd()}
++			return &Node{Kind: Unknown, Refusal: UnclosedBrace, start: tok.Start, end: p.prevEnd()}
+ 		}
+ 	}
+ 	return p.parseBlock(tok)
+@@ -678,7 +678,7 @@ func (p *parser) parseSortComparator(op string, inParens bool) *Node {
+ 	p.advanceTo(tok)
+ 	return &Node{
+ 		Kind: Term, Text: p.text(tok), Comparator: true,
+-		Start: tok.Start, End: tok.End,
++		start: tok.Start, end: tok.End,
+ 	}
+ }
+ 
+@@ -796,7 +796,7 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
+ 		p.advanceTo(tok)
+ 		return &Node{
+ 			Kind: Term, Text: p.text(tok),
+-			Start: tok.Start, End: tok.End,
++			start: tok.Start, end: tok.End,
+ 		}
+ 
+ 	case tok.Kind == lexer.Variable && p.src[tok.Start] == '$':
+@@ -814,7 +814,7 @@ func (p *parser) parseFilehandleSlot(op string) *Node {
+ 		p.advanceTo(tok)
+ 		return &Node{
+ 			Kind: Term, Text: p.text(tok),
+-			Start: tok.Start, End: tok.End,
++			start: tok.Start, end: tok.End,
+ 		}
+ 	}
+ 	return nil
+@@ -875,7 +875,7 @@ func (p *parser) readHandleSlots(n *Node, name string) {
+ 	for _, c := range n.Children {
+ 		for _, a := range commaItems(c) {
+ 			if p.handleSlot(name, i) && p.bareHandleCall(a) {
+-				*a = Node{Kind: Term, Text: a.Text, Start: a.Start, End: a.End}
++				*a = Node{Kind: Term, Text: a.Text, start: a.start, end: a.end}
+ 			}
+ 			i++
+ 		}
+@@ -909,7 +909,7 @@ func (p *parser) handleSlot(name string, i int) bool {
+ // this parse does not know, written with no parens: `FH`, not `FH()`.
+ func (p *parser) bareHandleCall(a *Node) bool {
+ 	return a.Kind == Call && len(a.Children) == 0 && !a.Resolved &&
+-		a.End-a.Start == len(a.Text) && p.isBarewordHandle(a.Text)
++		a.end-a.start == len(a.Text) && p.isBarewordHandle(a.Text)
+ }
+ 
+ // startsTerm reports whether a token begins a new term rather than continuing
+diff --git a/internal/parse/canon.go b/internal/parse/canon.go
+index c7b0b4b3..dc32c51d 100644
+--- a/internal/parse/canon.go
++++ b/internal/parse/canon.go
+@@ -24,7 +24,7 @@ import (
+ // significant tokens, not bytes.
+ func Canon(n *Node, src []byte) string {
+ 	var b canonBuf
+-	emit(&b, n, src, 0)
++	emit(&b, absolute(n), src, 0)
+ 	return b.String()
+ }
+ 
+@@ -73,7 +73,7 @@ func (b *canonBuf) writeBodiesBefore(n *Node, src []byte) {
+ 	}
+ 	pending := *b.bodies
+ 	i := 0
+-	for i < len(pending) && pending[i].Start < n.Start {
++	for i < len(pending) && pending[i].start < n.start {
+ 		i++
+ 	}
+ 	if i == 0 {
+@@ -94,9 +94,9 @@ func (b *canonBuf) bodiesAfter(n *Node, src []byte) int {
+ 		return 0
+ 	}
+ 	pending := *b.bodies
+-	i, from := 0, n.End
+-	for i < len(pending) && pending[i].Start >= from && len(significant(src[from:pending[i].Start])) == 0 {
+-		from = pending[i].End
++	i, from := 0, n.end
++	for i < len(pending) && pending[i].start >= from && len(significant(src[from:pending[i].start])) == 0 {
++		from = pending[i].end
+ 		i++
+ 	}
+ 	return i
+@@ -282,7 +282,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 			}
+ 		}
+ 		for i, c := range n.Children {
+-			b.noTerm = i == last && !endsInTerminator(src[c.Start:])
++			b.noTerm = i == last && !endsInTerminator(src[c.start:])
+ 			emit(b, c, src, 0)
+ 		}
+ 		b.noTerm = false
+@@ -293,7 +293,7 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 			stmt.bodies = new([]*Node)
+ 		}
+ 		*stmt.bodies = append(*stmt.bodies, n.InnerHeredocBodies...)
+-		slices.SortFunc(*stmt.bodies, func(x, y *Node) int { return x.Start - y.Start })
++		slices.SortFunc(*stmt.bodies, func(x, y *Node) int { return x.start - y.start })
+ 		for _, c := range n.Children {
+ 			if c.HeredocBody {
+ 				continue // after the terminator; see below
+@@ -372,14 +372,14 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
+ 		var early []*Node
+ 		at := 0
+ 		if len(inner) > 0 {
+-			if cut, ok := cutBefore(text, src, inner[len(inner)-1].End, n.End); ok {
++			if cut, ok := cutBefore(text, src, inner[len(inner)-1].end, n.end); ok {
+ 				early, inner, at = inner, nil, cut
+ 			}
+ 		}
+ 		late := heredocBodies(n, inner)
+ 		// An empty statement, all bodies, has no form and ended at its `;`.
+ 		if lf := lastForm(n); len(early) == 0 && len(late) > 0 && !blockForm(n) && len(inner) == 0 &&
+-			lf != nil && !endsInSemicolon(src[lf.Start:late[0].Start]) {
++			lf != nil && !endsInSemicolon(src[lf.start:late[0].start]) {
+ 			early, late, at = late, nil, len(text)
+ 		}
+ 		if len(early) > 0 {
+@@ -1250,16 +1250,16 @@ func listOuterPair(n *Node, src []byte) (opens int, closing, after string, ok bo
+ // its outermost pair's, and it records no inner one; FuzzParser's
+ // `(((),),)` holds a separator at each of two levels.
+ func listWrap(n *Node, src []byte) (opens int, closing string, seps int) {
+-	toks := significant(src[n.Start:n.End])
++	toks := significant(src[n.start:n.end])
+ 	strs := make([]string, len(toks))
+ 	for i, t := range toks {
+-		strs[i] = string(src[n.Start+t.Start : n.Start+t.End])
++		strs[i] = string(src[n.start+t.Start : n.start+t.End])
+ 	}
+ 	// The list's own `(`: the last before its first element, or the last of
+ 	// the leading run for an empty list.
+ 	own := -1
+ 	for i, s := range strs {
+-		if s != "(" || len(n.Children) > 0 && n.Start+toks[i].Start >= n.Children[0].Start {
++		if s != "(" || len(n.Children) > 0 && n.start+toks[i].Start >= n.Children[0].start {
+ 			break
+ 		}
+ 		own = i
+@@ -1334,8 +1334,8 @@ func syntaxPairSep(n *Node, src []byte) string {
+ // whether an inner pair closed before it, `((1),)`.
+ func sepInParens(n *Node, src []byte) (string, bool) {
+ 	afterPair := false
+-	for _, tok := range significant(src[n.InnerEnd:n.End]) {
+-		switch text := string(src[n.InnerEnd+tok.Start : n.InnerEnd+tok.End]); text {
++	for _, tok := range significant(src[n.innerEnd:n.end]) {
++		switch text := string(src[n.innerEnd+tok.Start : n.innerEnd+tok.End]); text {
+ 		case ",", "=>":
+ 			return text, afterPair
+ 		case ")":
+@@ -1363,24 +1363,24 @@ func ownText(n *Node, src []byte) string {
+ 	switch {
+ 	case afterPair && n.SyntaxParen && n.Paren:
+ 		// emit writes the separator between the two pairs.
+-		return string(src[n.InnerStart:n.InnerEnd])
++		return string(src[n.innerStart:n.innerEnd])
+ 	case afterPair && n.TrailingComma != "" && !foldsSep(n):
+ 		// A node that kept its separator has emit write it: FuzzParser's
+ 		// `((&0()),)`, written from source with it as well, doubled it. A
+ 		// leaf folds the one inside its parens instead, `f((0,),)`.
+ 		// All of them: `((&0()),,)` keeps two.
+ 		const blanks = " \t\r\n\f\v"
+-		text := strings.TrimRight(string(src[n.Start+1:n.End-1]), blanks)
++		text := strings.TrimRight(string(src[n.start+1:n.end-1]), blanks)
+ 		for strings.HasSuffix(text, ",") || strings.HasSuffix(text, "=>") {
+ 			text = strings.TrimRight(strings.TrimSuffix(strings.TrimSuffix(text, ","), "=>"), blanks)
+ 		}
+ 		return text
+ 	case afterPair:
+-		return string(src[n.Start+1 : n.End-1])
++		return string(src[n.start+1 : n.end-1])
+ 	case n.TrailingComma != "" && !foldsSep(n):
+-		return string(src[n.InnerStart:n.InnerEnd])
++		return string(src[n.innerStart:n.innerEnd])
+ 	}
+-	return string(src[n.InnerStart:n.InnerEnd]) + sep
++	return string(src[n.innerStart:n.innerEnd]) + sep
+ }
+ 
+ // leadingParenCloses reports whether text, an emitted operand, either does
+diff --git a/internal/parse/canon_test.go b/internal/parse/canon_test.go
+index 9937bcfe..f392ac79 100644
+--- a/internal/parse/canon_test.go
++++ b/internal/parse/canon_test.go
+@@ -81,18 +81,18 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
+ 	//	        term 1
+ 	//	        term 2
+ 	//	      term 3
+-	mul := &parse.Node{Kind: parse.Binary, Text: "*", Start: 6, End: 13, Children: []*parse.Node{
+-		{Kind: parse.Binary, Text: "+", Start: 7, End: 10, Children: []*parse.Node{
+-			{Kind: parse.Term, Text: "1", Start: 7, End: 8},
+-			{Kind: parse.Term, Text: "2", Start: 9, End: 10},
+-		}},
+-		{Kind: parse.Term, Text: "3", Start: 12, End: 13},
+-	}}
+-	wrong := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+-		{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+-			{Kind: parse.Call, Text: "print", Resolved: true, Start: 0, End: 13, Children: []*parse.Node{mul}},
+-		}},
+-	}}
++	mul := parse.Spanned(6, 13, parse.Node{Kind: parse.Binary, Text: "*", Children: []*parse.Node{
++		parse.Spanned(7, 10, parse.Node{Kind: parse.Binary, Text: "+", Children: []*parse.Node{
++			parse.Spanned(7, 8, parse.Node{Kind: parse.Term, Text: "1"}),
++			parse.Spanned(9, 10, parse.Node{Kind: parse.Term, Text: "2"}),
++		}}),
++		parse.Spanned(12, 13, parse.Node{Kind: parse.Term, Text: "3"}),
++	}})
++	wrong := parse.Spanned(0, len(src), parse.Node{Kind: parse.SourceFile, Children: []*parse.Node{
++		parse.Spanned(0, len(src), parse.Node{Kind: parse.Statement, Children: []*parse.Node{
++			parse.Spanned(0, 13, parse.Node{Kind: parse.Call, Text: "print", Resolved: true, Children: []*parse.Node{mul}}),
++		}}),
++	}})
+ 
+ 	// Round-trip is blind to it: same leaves, same order, every byte back.
+ 	if got := wrong.SourceText(src); got != string(src) {
+@@ -114,18 +114,18 @@ func TestCanonCatchesMisgrouping(t *testing.T) {
+ 	// `\my $n`, the `=` above the backslash.
+ 	t.Run("backslash over a declaration's initialiser", func(t *testing.T) {
+ 		src := []byte(`\my $n = \$y;`)
+-		wrong := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+-			{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+-				{Kind: parse.Unary, Text: "ref", Start: 0, End: 12, Children: []*parse.Node{
+-					{Kind: parse.Declaration, Text: "my", Start: 1, End: 12, Children: []*parse.Node{
+-						{Kind: parse.Term, Text: "$n", Start: 4, End: 6},
+-						{Kind: parse.Unary, Text: "ref", Start: 9, End: 12, Children: []*parse.Node{
+-							{Kind: parse.Term, Text: "$y", Start: 10, End: 12},
+-						}},
+-					}},
+-				}},
+-			}},
+-		}}
++		wrong := parse.Spanned(0, len(src), parse.Node{Kind: parse.SourceFile, Children: []*parse.Node{
++			parse.Spanned(0, len(src), parse.Node{Kind: parse.Statement, Children: []*parse.Node{
++				parse.Spanned(0, 12, parse.Node{Kind: parse.Unary, Text: "ref", Children: []*parse.Node{
++					parse.Spanned(1, 12, parse.Node{Kind: parse.Declaration, Text: "my", Children: []*parse.Node{
++						parse.Spanned(4, 6, parse.Node{Kind: parse.Term, Text: "$n"}),
++						parse.Spanned(9, 12, parse.Node{Kind: parse.Unary, Text: "ref", Children: []*parse.Node{
++							parse.Spanned(10, 12, parse.Node{Kind: parse.Term, Text: "$y"}),
++						}}),
++					}}),
++				}}),
++			}}),
++		}})
+ 		if got := wrong.SourceText(src); got != string(src) {
+ 			t.Fatalf("the wrong tree must still round-trip: got %q", got)
+ 		}
+@@ -157,34 +157,34 @@ func TestCanonVisitsInteriorNodes(t *testing.T) {
+ 	// If the kind emits raw source, the wrong tree and the right tree produce
+ 	// the same bytes and this fails.
+ 	misgrouped := func() *parse.Node {
+-		return &parse.Node{Kind: parse.Binary, Text: "*", Start: 8, End: 17, Children: []*parse.Node{
+-			{Kind: parse.Binary, Text: "+", Start: 8, End: 13, Children: []*parse.Node{
+-				{Kind: parse.Term, Text: "1", Start: 8, End: 9},
+-				{Kind: parse.Term, Text: "2", Start: 12, End: 13},
+-			}},
+-			{Kind: parse.Term, Text: "3", Start: 16, End: 17},
+-		}}
++		return parse.Spanned(8, 17, parse.Node{Kind: parse.Binary, Text: "*", Children: []*parse.Node{
++			parse.Spanned(8, 13, parse.Node{Kind: parse.Binary, Text: "+", Children: []*parse.Node{
++				parse.Spanned(8, 9, parse.Node{Kind: parse.Term, Text: "1"}),
++				parse.Spanned(12, 13, parse.Node{Kind: parse.Term, Text: "2"}),
++			}}),
++			parse.Spanned(16, 17, parse.Node{Kind: parse.Term, Text: "3"}),
++		}})
+ 	}
+ 	correct := func() *parse.Node {
+-		return &parse.Node{Kind: parse.Binary, Text: "+", Start: 8, End: 17, Children: []*parse.Node{
+-			{Kind: parse.Term, Text: "1", Start: 8, End: 9},
+-			{Kind: parse.Binary, Text: "*", Start: 12, End: 17, Children: []*parse.Node{
+-				{Kind: parse.Term, Text: "2", Start: 12, End: 13},
+-				{Kind: parse.Term, Text: "3", Start: 16, End: 17},
+-			}},
+-		}}
++		return parse.Spanned(8, 17, parse.Node{Kind: parse.Binary, Text: "+", Children: []*parse.Node{
++			parse.Spanned(8, 9, parse.Node{Kind: parse.Term, Text: "1"}),
++			parse.Spanned(12, 17, parse.Node{Kind: parse.Binary, Text: "*", Children: []*parse.Node{
++				parse.Spanned(12, 13, parse.Node{Kind: parse.Term, Text: "2"}),
++				parse.Spanned(16, 17, parse.Node{Kind: parse.Term, Text: "3"}),
++			}}),
++		}})
+ 	}
+ 
+ 	src := []byte("my $x = 1 + 2 * 3;")
+ 	build := func(expr *parse.Node) *parse.Node {
+-		return &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+-			{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+-				{Kind: parse.Declaration, Text: "my", Start: 0, End: 17, Children: []*parse.Node{
+-					{Kind: parse.Term, Text: "$x", Start: 3, End: 5},
++		return parse.Spanned(0, len(src), parse.Node{Kind: parse.SourceFile, Children: []*parse.Node{
++			parse.Spanned(0, len(src), parse.Node{Kind: parse.Statement, Children: []*parse.Node{
++				parse.Spanned(0, 17, parse.Node{Kind: parse.Declaration, Text: "my", Children: []*parse.Node{
++					parse.Spanned(3, 5, parse.Node{Kind: parse.Term, Text: "$x"}),
+ 					expr,
+-				}},
+-			}},
+-		}}
++				}}),
++			}}),
++		}})
+ 	}
+ 
+ 	wrong := parse.Canon(build(misgrouped()), src)
+diff --git a/internal/parse/canonparenop_wrong_test.go b/internal/parse/canonparenop_wrong_test.go
+index a2911d11..c3e0493a 100644
+--- a/internal/parse/canonparenop_wrong_test.go
++++ b/internal/parse/canonparenop_wrong_test.go
+@@ -49,10 +49,10 @@ func TestCanonAddedParenOnNotKeepsLowPrecedence(t *testing.T) {
+ 	if not.Kind != Unary || not.Text != "not" {
+ 		t.Fatalf("%q: want not as the initialiser, got %v %q", src, not.Kind, not.Text)
+ 	}
+-	inner := &Node{Kind: Binary, Text: "or", Start: not.Children[0].Start, End: or.End,
++	inner := &Node{Kind: Binary, Text: "or", start: not.Children[0].start, end: or.end,
+ 		Children: []*Node{not.Children[0], or.Children[1]}}
+ 	not.Children = []*Node{inner}
+-	not.End, decl.End = or.End, or.End
++	not.end, decl.end = or.end, or.end
+ 	st.Children[0] = decl
+ 	requireUnfaithful(t, n, src)
+ }
+@@ -70,9 +70,9 @@ func TestCanonAddedParenOnNegateBindsLooserThanPow(t *testing.T) {
+ 	}
+ 	pow := neg.Children[0]
+ 	neg.Children = []*Node{pow.Children[0]}
+-	neg.End = pow.Children[0].End
++	neg.end = pow.Children[0].end
+ 	pow.Children[0] = neg
+-	pow.Start = neg.Start
++	pow.start = neg.start
+ 	st.Children[0] = pow
+ 	requireCanon(t, n, src, `(-2) ** 2;`)
+ 	requireUnfaithful(t, n, src)
+@@ -91,7 +91,7 @@ func TestCanonAddedParenAfterBackslashIsNotForgiven(t *testing.T) {
+ 		t.Fatalf("%q: want a backslash over @a, got %v %q", src, ref.Kind, ref.Text)
+ 	}
+ 	a := ref.Children[0]
+-	ref.Children = []*Node{{Kind: List, Paren: true, Start: a.Start, End: a.End, Children: []*Node{a}}}
++	ref.Children = []*Node{{Kind: List, Paren: true, start: a.start, end: a.end, Children: []*Node{a}}}
+ 	requireCanon(t, n, src, `\(@a);`)
+ 	requireUnfaithful(t, n, src)
+ }
+diff --git a/internal/parse/canonparenterm_wrong_test.go b/internal/parse/canonparenterm_wrong_test.go
+index 3f2bf7f3..8d285f99 100644
+--- a/internal/parse/canonparenterm_wrong_test.go
++++ b/internal/parse/canonparenterm_wrong_test.go
+@@ -27,8 +27,8 @@ func TestCanonAddedParenOnCmpChainIsMisgrouping(t *testing.T) {
+ 		t.Fatalf("%q: want a three-operand chain, got %v %q", src, chain.Kind, chain.Text)
+ 	}
+ 	a, x, b := chain.Children[0], chain.Children[1], chain.Children[2]
+-	inner := &Node{Kind: Binary, Text: "<", Start: a.Start, End: x.End, Children: []*Node{a, x}}
+-	st.Children[0] = &Node{Kind: Binary, Text: "<", Start: a.Start, End: b.End, Children: []*Node{inner, b}}
++	inner := &Node{Kind: Binary, Text: "<", start: a.start, end: x.end, Children: []*Node{a, x}}
++	st.Children[0] = &Node{Kind: Binary, Text: "<", start: a.start, end: b.end, Children: []*Node{inner, b}}
+ 	requireCanon(t, n, src, `(1 < $x) < 3;`)
+ 	requireUnfaithful(t, n, src)
+ }
+@@ -49,10 +49,10 @@ func TestCanonArgParenDoesNotCoverInnerTermParens(t *testing.T) {
+ 	sum := print.Children[0]
+ 	sum.Paren = true
+ 	mul.Children[0] = sum
+-	mul.Start = sum.Start
++	mul.start = sum.start
+ 	print.Children = []*Node{mul}
+ 	print.ArgParen = false
+-	print.End = mul.End
++	print.end = mul.end
+ 	st.Children[0] = print
+ 	requireUnfaithful(t, n, src)
+ }
+diff --git a/internal/parse/chain.go b/internal/parse/chain.go
+index 13c75b48..0488ad41 100644
+--- a/internal/parse/chain.go
++++ b/internal/parse/chain.go
+@@ -85,7 +85,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
+ 		right := p.operand(op.BP, tok)
+ 		left.Children = append(left.Children, right)
+ 		left.Ops = append(left.Ops, text)
+-		left.End = right.End
++		left.end = right.end
+ 		return left
+ 	}
+ 
+@@ -111,7 +111,7 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
+ 	}
+ 	n := &Node{
+ 		Kind: Binary, Text: text,
+-		Start: left.Start, End: right.End,
++		start: left.start, end: right.end,
+ 		Children: []*Node{left, right},
+ 	}
+ 	if chainable {
+@@ -124,9 +124,9 @@ func (p *parser) parseComparison(left *Node, op OpInfo, cls cmpClass, minBP int)
+ // refuseComparison refuses the comparisons begun at left, through to the
+ // statement's end.
+ func (p *parser) refuseComparison(left *Node) *Node {
+-	start := left.Start
++	start := left.start
+ 	p.skipToStatementEnd()
+-	return &Node{Kind: Unknown, Refusal: ChainClassMismatch, Start: start, End: p.prevEnd()}
++	return &Node{Kind: Unknown, Refusal: ChainClassMismatch, start: start, end: p.prevEnd()}
+ }
+ 
+ // comparisonClass reports the class of the operator a comparison node was
+diff --git a/internal/parse/control.go b/internal/parse/control.go
+index 3b284010..8e4579d0 100644
+--- a/internal/parse/control.go
++++ b/internal/parse/control.go
+@@ -57,11 +57,11 @@ func (p *parser) parseDefer(word lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Conditional, Text: p.text(word), start: word.Start}
+ 	if blk := p.parseBlockOrDecline(); blk != nil {
+ 		n.Children = append(n.Children, blk)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -92,7 +92,7 @@ func (p *parser) parseTry(word lexer.Token) *Node {
+ 	}
+ 	save := p.pos
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Conditional, Text: p.text(word), start: word.Start}
+ 
+ 	body := p.parseBlockOrDecline()
+ 	c, ok := p.peekSignificant()
+@@ -107,28 +107,28 @@ func (p *parser) parseTry(word lexer.Token) *Node {
+ 	n.Children = append(n.Children, body)
+ 
+ 	p.advanceTo(c)
+-	catch := &Node{Kind: Conditional, Text: p.text(c), Start: c.Start}
++	catch := &Node{Kind: Conditional, Text: p.text(c), start: c.Start}
+ 	if v := p.parseParenCondition(); v != nil {
+ 		catch.Children = append(catch.Children, v)
+ 	}
+ 	if blk := p.parseBlockOrDecline(); blk != nil {
+ 		catch.Children = append(catch.Children, blk)
+ 	}
+-	catch.End = p.prevEnd()
++	catch.end = p.prevEnd()
+ 	n.Children = append(n.Children, catch)
+ 
+ 	if f, ok := p.peekSignificant(); ok && f.Kind == lexer.Word && p.text(f) == "finally" {
+ 		if brace, ok := p.peekAfter(f); ok && p.text(brace) == "{" {
+ 			p.advanceTo(f)
+-			fin := &Node{Kind: Conditional, Text: p.text(f), Start: f.Start}
++			fin := &Node{Kind: Conditional, Text: p.text(f), start: f.Start}
+ 			if blk := p.parseBlockOrDecline(); blk != nil {
+ 				fin.Children = append(fin.Children, blk)
+ 			}
+-			fin.End = p.prevEnd()
++			fin.end = p.prevEnd()
+ 			n.Children = append(n.Children, fin)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -196,11 +196,11 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
+ 			return nil
+ 		}
+ 		p.advanceTo(word)
+-		n := &Node{Kind: Conditional, Text: text, Start: word.Start}
++		n := &Node{Kind: Conditional, Text: text, start: word.Start}
+ 		if blk := p.parseBlockOrDecline(); blk != nil {
+ 			n.Children = append(n.Children, blk)
+ 		}
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		return n
+ 	}
+ 
+@@ -221,7 +221,7 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
+ 	// save/restore parseLabels uses, for the same reason.
+ 	save := p.pos
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Conditional, Text: text, Start: word.Start}
++	n := &Node{Kind: Conditional, Text: text, start: word.Start}
+ 
+ 	// `when`'s argument is an ORDINARY expression, not a shape of its own.
+ 	// The smartmatch that interprets it is runtime semantics; syntactically a
+@@ -242,7 +242,7 @@ func (p *parser) parseSwitch(word lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	n.Children = append(n.Children, blk)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -262,14 +262,14 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
+ 	// A word operator after it took the loop control as its left operand
+ 	// (parseLoopControlTerm), and reads its right one here: measured on
+ 	// perl 5.44.0, `last and print "x"` is `(last and print("x"))`.
+-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word && tok.Start >= n.End &&
++	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Word && tok.Start >= n.end &&
+ 		p.text(tok) != "x" && p.operatorHere(p.text(tok)) {
+ 		n = p.parseInfix(n, 0)
+ 	}
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -279,11 +279,11 @@ func (p *parser) parseLoopControl(word lexer.Token) *Node {
+ // deparse as written.
+ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: LoopControl, Text: p.text(word), start: word.Start}
+ 
+ 	next, ok := p.peekSignificant()
+ 	if !ok {
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		return n
+ 	}
+ 
+@@ -313,7 +313,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
+ 	// names a label unless `use feature "switch"` or a 5.10 to 5.34 bundle
+ 	// is in effect.
+ 	if next.Kind == lexer.Word && p.text(next) != "x" && p.operatorHere(p.text(next)) {
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		return n
+ 	}
+ 	if next.Kind == lexer.Word && !statementKeywords[p.text(next)] &&
+@@ -321,7 +321,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
+ 		p.advanceTo(next)
+ 		label := &Node{
+ 			Kind: Label, Text: p.text(next),
+-			Start: next.Start, End: next.End,
++			start: next.Start, end: next.End,
+ 		}
+ 		// The label is a term, forced as a bareword, so an operator tighter
+ 		// than the comma after it continues the operand: measured on perl
+@@ -336,7 +336,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
+ 		} else {
+ 			n.Children = append(n.Children, label)
+ 		}
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 		return n
+ 	}
+ 
+@@ -351,7 +351,7 @@ func (p *parser) parseLoopControlTerm(word lexer.Token) *Node {
+ 			n.Children = append(n.Children, arg)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -436,8 +436,8 @@ func (p *parser) parseRefaliasVar(slash lexer.Token) *Node {
+ 		}
+ 		p.advanceTo(v)
+ 		target = &Node{
+-			Kind: Declaration, Text: p.text(w), Start: w.Start, End: v.End,
+-			Children: []*Node{{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}},
++			Kind: Declaration, Text: p.text(w), start: w.Start, end: v.End,
++			Children: []*Node{{Kind: Term, Text: p.text(v), start: v.Start, end: v.End}},
+ 		}
+ 	} else if v, ok := p.peekSignificant(); ok && (v.Kind == lexer.Variable || v.Kind == lexer.FuncSigil) {
+ 		target = p.parseTerm()
+@@ -448,7 +448,7 @@ func (p *parser) parseRefaliasVar(slash lexer.Token) *Node {
+ 	}
+ 	return &Node{
+ 		Kind: Unary, Text: "ref",
+-		Start: slash.Start, End: target.End,
++		start: slash.Start, end: target.end,
+ 		Children: []*Node{target},
+ 	}
+ }
+@@ -459,7 +459,7 @@ func (p *parser) parseReturn(word lexer.Token) *Node {
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -468,7 +468,7 @@ func (p *parser) parseReturn(word lexer.Token) *Node {
+ // stands, so parseWordTerm reads it here too: `$a and return 1` returns 1.
+ func (p *parser) parseReturnTerm(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: LoopControl, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: LoopControl, Text: p.text(word), start: word.Start}
+ 
+ 	// A bare `return` at the end of a block has no operand, and the `}` that
+ 	// follows is not one. `last`, `next` and `redo` never had this bug because
+@@ -494,7 +494,7 @@ func (p *parser) parseReturnTerm(word lexer.Token) *Node {
+ 			n.Children = append(n.Children, arg)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -505,7 +505,7 @@ func (p *parser) parseReturnTerm(word lexer.Token) *Node {
+ // the tree disagree with the source an LSP has to render.
+ func (p *parser) parseConditional(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Conditional, Text: p.text(word), start: word.Start}
+ 
+ 	if cond := p.parseParenCondition(); cond != nil {
+ 		n.Children = append(n.Children, cond)
+@@ -522,31 +522,31 @@ func (p *parser) parseConditional(word lexer.Token) *Node {
+ 		switch p.text(next) {
+ 		case "elsif":
+ 			p.advanceTo(next)
+-			branch := &Node{Kind: Conditional, Text: "elsif", Start: next.Start}
++			branch := &Node{Kind: Conditional, Text: "elsif", start: next.Start}
+ 			if cond := p.parseParenCondition(); cond != nil {
+ 				branch.Children = append(branch.Children, cond)
+ 			}
+ 			if blk := p.parseBlockOrDecline(); blk != nil {
+ 				branch.Children = append(branch.Children, blk)
+ 			}
+-			branch.End = p.prevEnd()
++			branch.end = p.prevEnd()
+ 			n.Children = append(n.Children, branch)
+ 		case "else":
+ 			p.advanceTo(next)
+-			branch := &Node{Kind: Conditional, Text: "else", Start: next.Start}
++			branch := &Node{Kind: Conditional, Text: "else", start: next.Start}
+ 			if blk := p.parseBlockOrDecline(); blk != nil {
+ 				branch.Children = append(branch.Children, blk)
+ 			}
+-			branch.End = p.prevEnd()
++			branch.end = p.prevEnd()
+ 			n.Children = append(n.Children, branch)
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			return n
+ 		default:
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			return n
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -605,18 +605,18 @@ func (p *parser) parseContinueOrDecline() *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Loop, Text: p.text(word), start: word.Start}
+ 	if blk := p.parseBlockOrDecline(); blk != nil {
+ 		n.Children = append(n.Children, blk)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+ // parseWhile: `while (EXPR) BLOCK`, and `until` which differs only in Text.
+ func (p *parser) parseWhile(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Loop, Text: p.text(word), start: word.Start}
+ 
+ 	if cond := p.parseParenCondition(); cond != nil {
+ 		n.Children = append(n.Children, cond)
+@@ -627,7 +627,7 @@ func (p *parser) parseWhile(word lexer.Token) *Node {
+ 	if cont := p.parseContinueOrDecline(); cont != nil {
+ 		n.Children = append(n.Children, cont)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -640,7 +640,7 @@ func (p *parser) parseWhile(word lexer.Token) *Node {
+ // semicolons settles it without lookahead over the whole parenthesised group.
+ func (p *parser) parseFor(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Loop, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Loop, Text: p.text(word), start: word.Start}
+ 
+ 	// An optional loop variable: `for my $x (...)`, `for $x (...)`.
+ 	//
+@@ -662,7 +662,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
+ 			}
+ 		case next.Kind == lexer.Word && declarators[keywordName(p.text(next))]:
+ 			p.advanceTo(next)
+-			decl := &Node{Kind: Declaration, Text: p.text(next), Start: next.Start}
++			decl := &Node{Kind: Declaration, Text: p.text(next), start: next.Start}
+ 			// `for my ($k, $v) (LIST)` iterates several variables at once,
+ 			// perl 5.36 onward. The FIRST parenthesised group after a
+ 			// declarator is the variable list and the second is the loop's
+@@ -675,7 +675,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
+ 			} else if ok && v.Kind == lexer.Variable {
+ 				p.advanceTo(v)
+ 				decl.Children = append(decl.Children, &Node{
+-					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
++					Kind: Term, Text: p.text(v), start: v.Start, end: v.End,
+ 				})
+ 			} else if ok && p.text(v) == "\\" {
+ 				// `for my \$x (...)`, perly.y's `KW_MY REFGEN`.
+@@ -683,7 +683,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
+ 					decl.Children = append(decl.Children, ref)
+ 				}
+ 			}
+-			decl.End = p.prevEnd()
++			decl.end = p.prevEnd()
+ 			decl.LoopVar = true
+ 			n.Children = append(n.Children, decl)
+ 		case next.Kind == lexer.Variable && p.src[next.Start] != '$':
+@@ -700,7 +700,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
+ 			// Unknown = 0. See Node.LoopVar.
+ 			p.advanceTo(next)
+ 			n.Children = append(n.Children, &Node{
+-				Kind: Term, Text: p.text(next), Start: next.Start, End: next.End,
++				Kind: Term, Text: p.text(next), start: next.Start, end: next.End,
+ 				LoopVar: true,
+ 			})
+ 		case next.Kind == lexer.DerefSigil && p.src[next.Start] == '$':
+@@ -745,7 +745,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
+ 			n.Children = append(n.Children, cont)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -974,7 +974,7 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
+ 	if text == "if" || text == "unless" || text == "when" {
+ 		kind = Conditional
+ 	}
+-	n := &Node{Kind: kind, Text: text, Start: start, Modifier: true}
++	n := &Node{Kind: kind, Text: text, start: start, Modifier: true}
+ 
+ 	// The condition is a bare expression here, not a parenthesised one:
+ 	// `$y = 1 if $x` has no parens and `$y = 1 if ($x)` merely has a
+@@ -1011,7 +1011,7 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1056,7 +1056,7 @@ func (p *parser) parseLabels() []*Node {
+ 		p.advanceTo(colon)
+ 		labels = append(labels, &Node{
+ 			Kind: Label, Text: p.text(word),
+-			Start: word.Start, End: p.prevEnd(),
++			start: word.Start, end: p.prevEnd(),
+ 		})
+ 	}
+ }
+diff --git a/internal/parse/decl.go b/internal/parse/decl.go
+index b47220a3..f1651476 100644
+--- a/internal/parse/decl.go
++++ b/internal/parse/decl.go
+@@ -90,7 +90,7 @@ func (p *parser) parseMultiSubDecl(word lexer.Token) *Node {
+ 	p.multi = true
+ 	inner := p.parseSubDecl(sub)
+ 	p.multi = false
+-	return &Node{Kind: Declaration, Text: p.text(word), Start: word.Start, End: inner.End, Children: []*Node{inner}}
++	return &Node{Kind: Declaration, Text: p.text(word), start: word.Start, end: inner.end, Children: []*Node{inner}}
+ }
+ 
+ // parseSignature reads a sub's signature as the parenthesised list it is
+@@ -123,7 +123,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
+ 	name, _ := declaredSub(n)
+ 	open, _ := p.peekSignificant()
+ 	p.advanceTo(open)
+-	sig := &Node{Kind: List, Paren: true, Start: open.Start}
++	sig := &Node{Kind: List, Paren: true, start: open.Start}
+ 	var s types.Signature
+ 	var ret *Node
+ 	err := func() error {
+@@ -141,7 +141,7 @@ func (p *parser) parseTypedSignature(n *Node) bool {
+ 			tok, ok := p.peekSignificant()
+ 			if ok && p.text(tok) == ")" {
+ 				p.advanceTo(tok)
+-				sig.End = p.prevEnd()
++				sig.end = p.prevEnd()
+ 				// A named unary takes at most one operand, and an
+ 				// invocant is one.
+ 				operands := len(s.Params)
+@@ -362,7 +362,7 @@ func (p *parser) typeExpr() (typ, elem types.Type, node *Node, err error) {
+ 		p.advanceTo(bar)
+ 	}
+ 	text := string(p.src[start:p.prevEnd()])
+-	return typ, elem, &Node{Kind: TypeName, Text: text, Start: start, End: p.prevEnd()}, nil
++	return typ, elem, &Node{Kind: TypeName, Text: text, start: start, end: p.prevEnd()}, nil
+ }
+ 
+ // wrapperType reads a wrapper type, `Maybe[Int]`, whose name tok is next:
+@@ -506,8 +506,8 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
+ 	if slurpy && typ != types.Unknown && !list {
+ 		return types.Param{}, nil, fmt.Errorf("slurpy %s has a bare element type %s; write a container type, List[%s] %s", param.Variable(), tn.Text, tn.Text, param.Variable())
+ 	}
+-	node := &Node{Kind: Declaration, Text: tn.Text, Start: start, Children: []*Node{
+-		{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End},
++	node := &Node{Kind: Declaration, Text: tn.Text, start: start, Children: []*Node{
++		{Kind: Term, Text: p.text(v), start: v.Start, end: v.End},
+ 	}}
+ 	if eq, ok := p.peekSignificant(); ok && p.text(eq) == "=" {
+ 		p.advanceTo(eq)
+@@ -531,10 +531,10 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
+ 		// to what perl accepts there: `Scalar \$x = 1` derives `;\$`, and
+ 		// `sref(1)` is "must be scalar (not constant item)".
+ 		if alias && param.Sigil == '$' && p.notScalarLvalue(def) {
+-			return types.Param{}, nil, fmt.Errorf(`aliased \%s defaults to %s, which a \$ slot refuses; it takes a scalar lvalue`, p.text(v), p.src[def.Start:def.End])
++			return types.Param{}, nil, fmt.Errorf(`aliased \%s defaults to %s, which a \$ slot refuses; it takes a scalar lvalue`, p.text(v), p.src[def.start:def.end])
+ 		}
+ 		if !param.Required {
+-			param.Default = string(p.src[def.Start:def.End])
++			param.Default = string(p.src[def.start:def.end])
+ 		}
+ 	}
+ 	// `:bareword` is the one parameter attribute (RFC 0001, "Operator
+@@ -552,7 +552,7 @@ func (p *parser) typedParam() (types.Param, *Node, error) {
+ 		}
+ 		p.advanceTo(end)
+ 	}
+-	node.End = p.prevEnd()
++	node.end = p.prevEnd()
+ 	return param, node, nil
+ }
+ 
+@@ -658,7 +658,7 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
+ 	}
+ 	return &Node{
+ 		Kind: Declaration, Text: p.text(word),
+-		Start: word.Start, End: inner.End, Children: []*Node{inner},
++		start: word.Start, end: inner.end, Children: []*Node{inner},
+ 	}
+ }
+ 
+@@ -697,13 +697,13 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
+ // The name is optional: `format =` is the STDOUT default, and perl accepts it.
+ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 
+ 	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+ 		p.advanceTo(name)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: Term, Text: p.text(name),
+-			Start: name.Start, End: name.End,
++			start: name.Start, end: name.End,
+ 		})
+ 	}
+ 
+@@ -724,14 +724,14 @@ func (p *parser) parseFormatDecl(word lexer.Token) *Node {
+ 		if ok && body.Kind == lexer.UnknownRest {
+ 			p.advanceTo(body)
+ 		}
+-		return &Node{Kind: Unknown, Refusal: FormatNotTerminated, Start: word.Start, End: p.prevEnd()}
++		return &Node{Kind: Unknown, Refusal: FormatNotTerminated, start: word.Start, end: p.prevEnd()}
+ 	}
+ 	p.advanceTo(body)
+ 	n.Children = append(n.Children, &Node{
+-		Kind: Term, Start: body.Start, End: body.End,
++		Kind: Term, start: body.Start, end: body.End,
+ 	})
+ 
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -748,7 +748,7 @@ func (p *parser) parseVarDecl(word lexer.Token) *Node {
+ 	// the leftover becomes an Unknown sitting beside a perfectly good tree.
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 	}
+ 	return n
+ }
+@@ -800,7 +800,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 	operandBP := p.declOperandBP
+ 	p.declOperandBP = 0
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 
+ 	// A typed lexical: `my Foo $f`, `our Foo::Bar ($a, $b)`. toke.c's KEY_my
+ 	// branch takes a package name after `my`, `our` or `state` as the
+@@ -830,7 +830,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 				p.advanceTo(class)
+ 				n.Children = append(n.Children, &Node{
+ 					Kind: TypeName, Text: p.text(class),
+-					Start: class.Start, End: class.End,
++					start: class.Start, end: class.End,
+ 				})
+ 			}
+ 		}
+@@ -843,7 +843,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 	if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
+ 		p.advanceTo(v)
+ 		target := &Node{
+-			Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
++			Kind: Term, Text: p.text(v), start: v.Start, end: v.End,
+ 		}
+ 
+ 		// A subscript belongs to the TARGET, not to a statement of its own.
+@@ -879,7 +879,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 		// (toke.c:250), so the test is the level rather than a list of
+ 		// nineteen spellings.
+ 		if operandBP > 0 {
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			return n
+ 		}
+ 		hadInit := false
+@@ -905,7 +905,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 			// its expression; in term position the enclosing list does.
+ 			n.Children = append(n.Children, p.operand(infix[p.text(eq)].rightBP(), eq))
+ 		}
+-		n.End = p.prevEnd()
++		n.end = p.prevEnd()
+ 
+ 		// With NO initialiser, any other infix operator takes the whole
+ 		// declaration as its left operand. Measured on 5.42.0, each
+@@ -969,14 +969,14 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 			list := p.parseTerm()
+ 			if operandBP > 0 {
+ 				n.Children = append(n.Children, list)
+-				n.End = p.prevEnd()
++				n.end = p.prevEnd()
+ 				return n
+ 			}
+ 			if op, ok := p.peekSignificant(); ok && isAssignment(infix[p.text(op)]) {
+ 				list = p.parseInfix(list, infix[","].BP)
+ 			}
+ 			n.Children = append(n.Children, list)
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			return p.parseInfix(n, infix[","].BP)
+ 		}
+ 	}
+@@ -1003,11 +1003,11 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
+ 	// buffer that is exactly either, and refuses `use v5.36; state` (R-g′).
+ 	if text := p.text(word); len(n.Children) == 0 && p.operandAbsent() &&
+ 		(text == "state" && !p.featureOn("state") || text == "field" && !p.featureOn("class")) {
+-		return &Node{Kind: Call, Text: text, Start: word.Start, End: word.End}
++		return &Node{Kind: Call, Text: text, start: word.Start, end: word.End}
+ 	}
+ 	target := p.operand(bp, word)
+ 	n.Children = append(n.Children, target)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1079,7 +1079,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
+ 		n.AssignOp = compoundOp(p.text(eq))
+ 		n.Children = append(n.Children, p.operand(bpBelowComma, eq))
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1091,7 +1091,7 @@ func (p *parser) listDeclWithAttributes(n *Node) *Node {
+ // the language.
+ func (p *parser) parseSubDecl(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 	errsBefore := len(p.typedErrs)
+ 
+ 	// The name. An anonymous sub has none, and `sub { ... }` is an
+@@ -1101,7 +1101,7 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
+ 		p.advanceTo(name)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: Term, Text: p.text(name),
+-			Start: name.Start, End: name.End,
++			start: name.Start, end: name.End,
+ 		})
+ 	}
+ 
+@@ -1112,7 +1112,7 @@ func (p *parser) parseSubDecl(word lexer.Token) *Node {
+ 		p.advanceTo(proto)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: PrototypeNode, Text: p.text(proto),
+-			Start: proto.Start, End: proto.End,
++			start: proto.Start, end: proto.End,
+ 		})
+ 	} else if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+ 		// A SIGNATURE. With `use v5.36` the lexer declines to scan a
+@@ -1311,13 +1311,13 @@ func (p *parser) parsePackageDecl(word lexer.Token) *Node {
+ 		return p.refuseNotATerm(word)
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 
+ 	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+ 		p.advanceTo(name)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: Term, Text: p.text(name),
+-			Start: name.Start, End: name.End,
++			start: name.Start, end: name.End,
+ 		})
+ 		p.notePackage(p.text(name))
+ 	}
+@@ -1327,7 +1327,7 @@ func (p *parser) parsePackageDecl(word lexer.Token) *Node {
+ 		p.advanceTo(v)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: Term, Text: p.text(v),
+-			Start: v.Start, End: v.End,
++			start: v.Start, end: v.End,
+ 		})
+ 	}
+ 
+@@ -1372,7 +1372,7 @@ func (p *parser) finishBodyOrSemicolon(n *Node) {
+ 			p.advanceTo(tok)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ }
+ 
+ // touchesWord reports whether a word begins right where tok ends, with no
+diff --git a/internal/parse/decl_test.go b/internal/parse/decl_test.go
+index 7a394c06..f5d11b99 100644
+--- a/internal/parse/decl_test.go
++++ b/internal/parse/decl_test.go
+@@ -133,7 +133,7 @@ func TestDeclarationCarriesItsPrototype(t *testing.T) {
+ 	if p == nil {
+ 		t.Fatalf("the declaration must carry its prototype: %v", kinds(d))
+ 	}
+-	if got := string(src[p.Start:p.End]); got != "($$)" {
++	if got := string(src[p.Start():p.End()]); got != "($$)" {
+ 		t.Errorf("prototype spans %q, want %q", got, "($$)")
+ 	}
+ }
+@@ -205,7 +205,7 @@ func TestFormatDoesNotSwallowTheNextStatement(t *testing.T) {
+ 		t.Fatalf("no Declaration: %v", kinds(root))
+ 	}
+ 	want := "format STDOUT =\na fixed report line\n.\n"
+-	if got := string(src[d.Start:d.End]); got != want {
++	if got := string(src[d.Start():d.End()]); got != want {
+ 		t.Errorf("the declaration spans %q, want %q", got, want)
+ 	}
+ }
+diff --git a/internal/parse/declarations.go b/internal/parse/declarations.go
+index 91d1c95c..3423ffb7 100644
+--- a/internal/parse/declarations.go
++++ b/internal/parse/declarations.go
+@@ -460,13 +460,13 @@ func useVarsNames(use *Node) []*Node {
+ 			}
+ 		case strings.HasPrefix(n.Text, "qw") && len(n.Text) > 3:
+ 			for _, w := range strings.Fields(n.Text[3 : len(n.Text)-1]) {
+-				names = append(names, &Node{Kind: Term, Text: w, Start: n.Start, End: n.End})
++				names = append(names, &Node{Kind: Term, Text: w, start: n.start, end: n.end})
+ 			}
+ 		case len(n.Text) > 1 && (n.Text[0] == '\'' || n.Text[0] == '"'):
+-			names = append(names, &Node{Kind: Term, Text: strings.Trim(n.Text, `'"`), Start: n.Start, End: n.End})
++			names = append(names, &Node{Kind: Term, Text: strings.Trim(n.Text, `'"`), start: n.start, end: n.end})
+ 		default:
+ 			if body, _, ok := genericQuoteBody(n.Text); ok {
+-				names = append(names, &Node{Kind: Term, Text: body, Start: n.Start, End: n.End})
++				names = append(names, &Node{Kind: Term, Text: body, start: n.start, end: n.end})
+ 			}
+ 		}
+ 	}
+@@ -487,7 +487,7 @@ func refuseInDeclaration(root *Node, src []byte) []error {
+ 	// assigned, pushed onto, package-qualified, inside a block, by `use
+ 	// vars`, or by an element of it.
+ 	listed := func(n *Node, v string) {
+-		errs = append(errs, fmt.Errorf("line %d: %s: a .tpm marks each export :export or :export_ok, not in a list", lineIndex(src).at(n.Start), v))
++		errs = append(errs, fmt.Errorf("line %d: %s: a .tpm marks each export :export or :export_ok, not in a list", lineIndex(src).at(n.start), v))
+ 	}
+ 	var walk func(n *Node, prefix string)
+ 	walk = func(n *Node, prefix string) {
+@@ -555,7 +555,7 @@ func refuseInDeclaration(root *Node, src []byte) []error {
+ 				} else if i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Kind == Term }); i >= 0 {
+ 					name = n.Children[i].Text
+ 				}
+-				errs = append(errs, fmt.Errorf("line %d: %s %s: %s is not read here; a .tpm reads an export mark only on a declaration ending its own statement", lineIndex(src).at(c.Start), n.Text, name, c.Text))
++				errs = append(errs, fmt.Errorf("line %d: %s %s: %s is not read here; a .tpm reads an export mark only on a declaration ending its own statement", lineIndex(src).at(c.start), n.Text, name, c.Text))
+ 			}
+ 		}
+ 	}
+diff --git a/internal/parse/export_test.go b/internal/parse/export_test.go
+index 3390f440..e9b95bb2 100644
+--- a/internal/parse/export_test.go
++++ b/internal/parse/export_test.go
+@@ -9,6 +9,19 @@ import (
+ 	"tamarou.com/pvm/internal/types"
+ )
+ 
++// Spanned is n spanning [start, end), for a tree a test builds by hand:
++// a Node's offsets are unexported (§6.4.2).
++func Spanned(start, end int, n Node) *Node {
++	n.start, n.end = start, end
++	return &n
++}
++
++// SetSpan moves n's span, for a test that regroups a parsed tree by hand.
++func (n *Node) SetSpan(start, end int) { n.start, n.end = start, end }
++
++// ClearSpans zeroes every offset n holds, so trees compare by shape alone.
++func (n *Node) ClearSpans() { n.start, n.end, n.innerStart, n.innerEnd = 0, 0, 0, 0 }
++
+ // CoreTable is coreTable, for TestCoreDeclarationsArePerls (coretable_test.go): its test asks
+ // perl through conformance, which imports this package.
+ var CoreTable = coreTable
+@@ -104,7 +117,7 @@ func Triage(old *Node, src []byte, e Edit) string { return triage(old, src, e).S
+ // WidenAnchor is the span of the node widen anchors e at, for the same test.
+ func WidenAnchor(old *Node, src []byte, e Edit) (start, end int) {
+ 	_, n := widen(old, src, e)
+-	return n.Start, n.End
++	return n.start, n.end
+ }
+ 
+ // RepairedSpan is the span, in src, of the statement Session.Repair
+@@ -114,7 +127,7 @@ func RepairedSpan(old *Node, e Edit, path string, src []byte, roots ...string) (
+ 	if !ok {
+ 		return 0, 0, false
+ 	}
+-	return n.Start, n.End, true
++	return n.start, n.end, true
+ }
+ 
+ // ModuleCacheParses is how many modules the parses sharing c parsed rather
+diff --git a/internal/parse/expr.go b/internal/parse/expr.go
+index 377f5886..26411b88 100644
+--- a/internal/parse/expr.go
++++ b/internal/parse/expr.go
+@@ -59,7 +59,7 @@ func markFatOperand(left *Node) {
+ 		n.Kind == Call && n.NamedUnary && !n.ArgParen && len(n.Children) == 1) {
+ 		n = n.Children[len(n.Children)-1]
+ 	}
+-	if n != left && !n.Paren && !n.SyntaxParen && n.Kind == Call && len(n.Children) == 0 && n.End == left.End && n.End-n.Start == len(n.Text) {
++	if n != left && !n.Paren && !n.SyntaxParen && n.Kind == Call && len(n.Children) == 0 && n.end == left.end && n.end-n.start == len(n.Text) {
+ 		n.Fat = true
+ 	}
+ }
+@@ -267,7 +267,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 			p.advanceTo(tok)
+ 			left = p.refuseAliasedOperand(&Node{
+ 				Kind: Postfix, Text: text,
+-				Start: left.Start, End: p.prevEnd(),
++				start: left.start, end: p.prevEnd(),
+ 				Children: []*Node{left},
+ 			}, text, "postfix")
+ 		case "(", "[", "{":
+@@ -281,11 +281,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 			// canon re-read differently. The statement is refused from the
+ 			// number on: left to the caller, `0%0{y}` read the braces as a
+ 			// block of their own (FuzzParser's find).
+-			if left.Kind == Term && len(left.Children) == 0 && p.src[left.Start] >= '0' && p.src[left.Start] <= '9' {
+-				return p.refuseTrailingTokens(left.Start, nil)
++			if left.Kind == Term && len(left.Children) == 0 && p.src[left.start] >= '0' && p.src[left.start] <= '9' {
++				return p.refuseTrailingTokens(left.start, nil)
+ 			}
+ 			// A list slice: the pair before `[` is the slice's.
+-			if text == "[" && left.Paren && p.src[left.Start] == '(' {
++			if text == "[" && left.Paren && p.src[left.start] == '(' {
+ 				takeSyntaxPair(left)
+ 			}
+ 			left = p.parseSubscript(left, text)
+@@ -362,7 +362,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 				p.advanceTo(name)
+ 				right := &Node{
+ 					Kind: Term, Text: p.text(name),
+-					Start: name.Start, End: name.End,
++					start: name.Start, end: name.End,
+ 				}
+ 				// Only a paren IMMEDIATELY after the name is this method's
+ 				// argument list. Anything else -- another `->`, an operator,
+@@ -383,11 +383,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 					if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+ 						p.advanceTo(close)
+ 					}
+-					right.End = p.prevEnd()
++					right.end = p.prevEnd()
+ 				}
+ 				left = &Node{
+ 					Kind: Binary, Text: text,
+-					Start: left.Start, End: right.End,
++					start: left.start, end: right.end,
+ 					Children: []*Node{left, right},
+ 				}
+ 				continue
+@@ -396,7 +396,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 			right := p.operand(op.rightBP(), tok)
+ 			left = &Node{
+ 				Kind: Binary, Text: text,
+-				Start: left.Start, End: right.End,
++				start: left.start, end: right.end,
+ 				Children: []*Node{left, right},
+ 			}
+ 		default:
+@@ -404,7 +404,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 			if p.emptyDefault(left, op) {
+ 				left = &Node{
+ 					Kind: Binary, Text: text,
+-					Start: left.Start, End: tok.End,
++					start: left.start, end: tok.End,
+ 					Children: []*Node{left},
+ 				}
+ 				continue
+@@ -412,7 +412,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ 			right := p.operand(op.rightBP(), tok)
+ 			left = p.refuseAliasedOperand(&Node{
+ 				Kind: Binary, Text: text,
+-				Start: left.Start, End: right.End,
++				start: left.start, end: right.end,
+ 				Children: []*Node{left, right},
+ 			}, text, "infix")
+ 		}
+@@ -426,7 +426,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
+ // expression". The Binary keeps its one child and canon writes its source.
+ func (p *parser) emptyDefault(left *Node, op OpInfo) bool {
+ 	if !p.inSignature || !isAssignment(op) || left.Kind != Term ||
+-		len(p.src[left.Start:left.End]) != 1 {
++		len(p.src[left.start:left.end]) != 1 {
+ 		return false
+ 	}
+ 	next, ok := p.peekSignificant()
+@@ -463,7 +463,7 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
+ 	right := p.operand(op.BP, tok)
+ 	n := &Node{
+ 		Kind: Binary, Text: text,
+-		Start: left.Start, End: right.End,
++		start: left.start, end: right.end,
+ 		Children: []*Node{left, right},
+ 	}
+ 
+@@ -472,9 +472,9 @@ func (p *parser) parseNonassoc(left *Node, op OpInfo, tok lexer.Token) *Node {
+ 		return n
+ 	}
+ 	if nextOp, isOp := p.infixOp(p.text(next)); isOp && nextOp.BP == op.BP {
+-		start := n.Start
++		start := n.start
+ 		p.skipToStatementEnd()
+-		return &Node{Kind: Unknown, Refusal: NonassocRepeated, Start: start, End: p.prevEnd()}
++		return &Node{Kind: Unknown, Refusal: NonassocRepeated, start: start, end: p.prevEnd()}
+ 	}
+ 	return n
+ }
+@@ -496,14 +496,14 @@ func (p *parser) parseTernary(cond *Node, op OpInfo) *Node {
+ 	if !ok || p.text(colon) != ":" {
+ 		// A `?` with no `:` is not a ternary. Declining rather than
+ 		// inventing the missing branch.
+-		return &Node{Kind: Unknown, Refusal: TernaryNoColon, Start: cond.Start, End: then.End}
++		return &Node{Kind: Unknown, Refusal: TernaryNoColon, start: cond.start, end: then.end}
+ 	}
+ 	p.advanceTo(colon)
+ 
+ 	els := p.operand(op.rightBP(), colon)
+ 	return &Node{
+ 		Kind: Ternary, Text: "?:",
+-		Start: cond.Start, End: els.End,
++		start: cond.start, end: els.end,
+ 		Children: []*Node{cond, then, els},
+ 	}
+ }
+@@ -559,13 +559,13 @@ func (p *parser) callsHere(left *Node) bool {
+ 	}
+ 	// A bareword whose parens are its own argument list: `time ()`,
+ 	// `__PACKAGE__()`, `CORE::time()`.
+-	if left.Kind == Call && len(left.Children) == 0 && p.src[left.End-1] != ')' {
++	if left.Kind == Call && len(left.Children) == 0 && p.src[left.end-1] != ')' {
+ 		return true
+ 	}
+ 	// The method name or the arrow call's own parens: `$x->$m` or the `(1)`
+ 	// of `$x->(1)`, not a postfix slice, `$x->@[0]`. Once called,
+ 	// `$x->$m()` is a term, and its `(1)` is read by subscripted.
+-	return p.afterArrow(left) && (left.SyntaxParen || p.src[left.Start] == '$') &&
++	return p.afterArrow(left) && (left.SyntaxParen || p.src[left.start] == '$') &&
+ 		!(left.Kind == Index && left.Text == "(")
+ }
+ 
+@@ -584,7 +584,7 @@ func (p *parser) subscripted(n *Node) bool {
+ 	}
+ 	// A slice -- `@x[0]`, `%$x{a}`, `$x->@[0]` -- or a block dereference
+ 	// read as a subscript on its sigil, `${$x}` and `&{$x}`.
+-	if c := p.src[n.Start]; c == '@' || c == '%' {
++	if c := p.src[n.start]; c == '@' || c == '%' {
+ 		return false
+ 	}
+ 	return !(base.Kind == Term && len(base.Text) == 1 && strings.ContainsAny(base.Text, "$&@%*"))
+@@ -607,7 +607,7 @@ func (p *parser) ampersandCallee(n *Node) bool {
+ // afterArrow reports whether n is the first term after a `->`.
+ func (p *parser) afterArrow(n *Node) bool {
+ 	i := p.pos - 1
+-	for i >= 0 && p.toks[i].Start >= n.Start {
++	for i >= 0 && p.toks[i].Start >= n.start {
+ 		i--
+ 	}
+ 	for i >= 0 && (isTrivia(p.toks[i].Kind) || p.toks[i].Kind == lexer.HeredocBody) {
+@@ -628,7 +628,7 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
+ 	children := []*Node{left}
+ 	if c, ok := p.peekSignificant(); ok && open != "(" && p.text(c) == closerFor(open) {
+ 		children = append(children, p.refuseNotATerm(c))
+-		return &Node{Kind: Index, Text: open, Start: left.Start, End: p.prevEnd(), Children: children}
++		return &Node{Kind: Index, Text: open, start: left.start, end: p.prevEnd(), Children: children}
+ 	}
+ 	if c, ok := p.peekSignificant(); !ok || p.text(c) != closerFor(open) {
+ 		was := p.inHashKey
+@@ -646,7 +646,7 @@ func (p *parser) parseSubscript(left *Node, open string) *Node {
+ 	}
+ 	return &Node{
+ 		Kind: Index, Text: open,
+-		Start: left.Start, End: p.prevEnd(),
++		start: left.start, end: p.prevEnd(),
+ 		Children: children,
+ 	}
+ }
+@@ -678,7 +678,7 @@ func autoquote(key *Node) {
+ 	// covers its parentheses too, while a bareword covers only the word.
+ 	// Children cannot answer this -- an empty argument list leaves none, so
+ 	// `$h{k()}` and `$h{k}` have the same child count and different extents.
+-	if key.Kind != Call || key.End-key.Start != len(key.Text) {
++	if key.Kind != Call || key.end-key.start != len(key.Text) {
+ 		return
+ 	}
+ 	key.Kind = Term
+@@ -732,7 +732,7 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string)
+ 	// constant, whose `*` multiplies.
+ 	if ok && text == "*" && name.Start == tok.End && prev >= 0 && p.toks[prev].Kind == lexer.Word && endsInBareword(left) &&
+ 		p.sigilNameRepeats(name) {
+-		return p.ambiguousSigil(left.Start)
++		return p.ambiguousSigil(left.start)
+ 	}
+ 	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
+ 		return nil
+@@ -785,7 +785,7 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string)
+ 	if after, ok := p.peekAfter(name); ok && p.text(after) == "=>" && !hashName {
+ 		return nil
+ 	}
+-	return p.ambiguousSigil(left.Start)
++	return p.ambiguousSigil(left.start)
+ }
+ 
+ // sigilNameRepeats reports whether sigil, a `%` or `@` variable or a sub's
+@@ -837,5 +837,5 @@ func (p *parser) starMultipliesAt(name lexer.Token) bool {
+ // lexed for the reading the parser declines.
+ func (p *parser) ambiguousSigil(start int) *Node {
+ 	p.skipToStatementEnd()
+-	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, Start: start, End: p.prevEnd()}
++	return &Node{Kind: Unknown, Refusal: AmbiguousSigil, start: start, end: p.prevEnd()}
+ }
+diff --git a/internal/parse/faithful_queue_test.go b/internal/parse/faithful_queue_test.go
+index e25da338..caa2b22a 100644
+--- a/internal/parse/faithful_queue_test.go
++++ b/internal/parse/faithful_queue_test.go
+@@ -618,8 +618,9 @@ func fixtureQueueRows(t *testing.T) []queueRow {
+ 	neg := decl.Children[1]
+ 	pow := neg.Children[0]
+ 	neg.Children = []*parse.Node{pow.Children[0]}
+-	neg.End = pow.Children[0].End
+-	pow.Children[0], pow.Start = neg, neg.Start
++	neg.SetSpan(neg.Start(), pow.Children[0].End())
++	pow.Children[0] = neg
++	pow.SetSpan(neg.Start(), pow.End())
+ 	decl.Children[1] = pow
+ 	r, differs := firstDifference("op/regrouped.t", n, []byte(src))
+ 	if !differs {
+diff --git a/internal/parse/fidelity.go b/internal/parse/fidelity.go
+index 98c9ea8c..cface017 100644
+--- a/internal/parse/fidelity.go
++++ b/internal/parse/fidelity.go
+@@ -51,7 +51,7 @@ func Faithful(n *Node, src []byte) (bool, string) {
+ // a node's Paren flag marked ParenNode.
+ func canonTokens(n *Node, src []byte) []CanonToken {
+ 	var b canonBuf
+-	emit(&b, n, src, 0)
++	emit(&b, absolute(n), src, 0)
+ 	text := []byte(b.String())
+ 	var out []CanonToken
+ 	for _, tok := range significant(text) {
+diff --git a/internal/parse/fidelity_test.go b/internal/parse/fidelity_test.go
+index a82d8757..d01447d4 100644
+--- a/internal/parse/fidelity_test.go
++++ b/internal/parse/fidelity_test.go
+@@ -34,18 +34,18 @@ func TestCanonFidelityCatchesMisgrouping(t *testing.T) {
+ 
+ 	// The wrong tree: print swallowing the whole product. Same leaves, same
+ 	// order -- round-trip and the stability sweep both accept it.
+-	mul := &parse.Node{Kind: parse.Binary, Text: "*", Start: 6, End: 13, Children: []*parse.Node{
+-		{Kind: parse.Binary, Text: "+", Start: 7, End: 10, Children: []*parse.Node{
+-			{Kind: parse.Term, Text: "1", Start: 7, End: 8},
+-			{Kind: parse.Term, Text: "2", Start: 9, End: 10},
+-		}},
+-		{Kind: parse.Term, Text: "3", Start: 12, End: 13},
+-	}}
+-	wrong := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+-		{Kind: parse.Statement, Start: 0, End: len(src), Children: []*parse.Node{
+-			{Kind: parse.Call, Text: "print", Resolved: true, Start: 0, End: 13, Children: []*parse.Node{mul}},
+-		}},
+-	}}
++	mul := parse.Spanned(6, 13, parse.Node{Kind: parse.Binary, Text: "*", Children: []*parse.Node{
++		parse.Spanned(7, 10, parse.Node{Kind: parse.Binary, Text: "+", Children: []*parse.Node{
++			parse.Spanned(7, 8, parse.Node{Kind: parse.Term, Text: "1"}),
++			parse.Spanned(9, 10, parse.Node{Kind: parse.Term, Text: "2"}),
++		}}),
++		parse.Spanned(12, 13, parse.Node{Kind: parse.Term, Text: "3"}),
++	}})
++	wrong := parse.Spanned(0, len(src), parse.Node{Kind: parse.SourceFile, Children: []*parse.Node{
++		parse.Spanned(0, len(src), parse.Node{Kind: parse.Statement, Children: []*parse.Node{
++			parse.Spanned(0, 13, parse.Node{Kind: parse.Call, Text: "print", Resolved: true, Children: []*parse.Node{mul}}),
++		}}),
++	}})
+ 
+ 	if ok, _ := parse.Faithful(wrong, src); ok {
+ 		t.Errorf("Faithful accepted a tree that is not a parse of its source; "+
+@@ -268,8 +268,9 @@ func TestCanonMarksParenNodePairs(t *testing.T) {
+ 	neg := n.Children[0].Children[0]
+ 	pow := neg.Children[0]
+ 	neg.Children = []*parse.Node{pow.Children[0]}
+-	neg.End = pow.Children[0].End
+-	pow.Children[0], pow.Start = neg, neg.Start
++	neg.SetSpan(neg.Start(), pow.Children[0].End())
++	pow.Children[0] = neg
++	pow.SetSpan(neg.Start(), pow.End())
+ 	n.Children[0].Children[0] = pow
+ 	if got, want := markedTokens(n, src), `( - 2 ) ** 2 ;`; got != want {
+ 		t.Errorf("canon tokens of the regrouped %q are %q, want %q", src, got, want)
+@@ -681,7 +682,7 @@ func parenNodes(n *parse.Node, src []byte, argParens bool) int {
+ 		return count
+ 	}
+ 	for i, c := range n.Children {
+-		call := n.Kind == parse.Binary && n.Text == "->" && i == 1 && c.Paren && src[c.Start] == '(' ||
++		call := n.Kind == parse.Binary && n.Text == "->" && i == 1 && c.Paren && src[c.Start()] == '(' ||
+ 			n.Kind == parse.Unary && n.Text == "not" && len(n.Children) == 1 && c.Paren ||
+ 			n.Kind == parse.Index && !n.Arrow && n.Text == "[" && i == 0 && c.Paren
+ 		count += parenNodes(c, src, call)
+diff --git a/internal/parse/fuzz_test.go b/internal/parse/fuzz_test.go
+index 1ab46d7b..1467781d 100644
+--- a/internal/parse/fuzz_test.go
++++ b/internal/parse/fuzz_test.go
+@@ -157,21 +157,21 @@ func checkParseInvariants(t *testing.T, src string) {
+ 	// their children exactly.
+ 	var check func(*parse.Node)
+ 	check = func(n *parse.Node) {
+-		if n.Start < 0 || n.End > len(src) || n.End < n.Start {
++		if n.Start() < 0 || n.End() > len(src) || n.End() < n.Start() {
+ 			t.Fatalf("%q: node %v spans [%d,%d), out of bounds for %d bytes",
+-				src, n.Kind, n.Start, n.End, len(src))
++				src, n.Kind, n.Start(), n.End(), len(src))
+ 		}
+-		if n.Kind != parse.SourceFile && n.Kind != parse.Missing && n.End == n.Start {
++		if n.Kind != parse.SourceFile && n.Kind != parse.Missing && n.End() == n.Start() {
+ 			t.Fatalf("%q: node %v is empty; the loop that made it did not advance",
+ 				src, n.Kind)
+ 		}
+-		prev := n.Start
++		prev := n.Start()
+ 		for _, c := range n.Children {
+-			if c.Start < prev {
++			if c.Start() < prev {
+ 				t.Fatalf("%q: child of %v starts at %d, before %d",
+-					src, n.Kind, c.Start, prev)
++					src, n.Kind, c.Start(), prev)
+ 			}
+-			prev = c.End
++			prev = c.End()
+ 			check(c)
+ 		}
+ 	}
+diff --git a/internal/parse/hashscope_test.go b/internal/parse/hashscope_test.go
+index 99afc582..c56356c9 100644
+--- a/internal/parse/hashscope_test.go
++++ b/internal/parse/hashscope_test.go
+@@ -22,7 +22,7 @@ func resolvedHashes(src string, withState bool) []string {
+ 	for n := range uses {
+ 		nodes = append(nodes, n)
+ 	}
+-	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Start < nodes[j].Start })
++	sort.Slice(nodes, func(i, j int) bool { return nodes[i].start < nodes[j].start })
+ 	var got []string
+ 	for _, n := range nodes {
+ 		u := uses[n]
+@@ -445,7 +445,7 @@ func TestHashScopeImportPoints(t *testing.T) {
+ 		uses, _ := hashScopes(root)
+ 		var last *Node
+ 		for n, u := range uses {
+-			if !u.Declares && (last == nil || n.Start > last.Start) {
++			if !u.Declares && (last == nil || n.start > last.start) {
+ 				last = n
+ 			}
+ 		}
+diff --git a/internal/parse/incremental.go b/internal/parse/incremental.go
+index f23c29b5..3e780ee1 100644
+--- a/internal/parse/incremental.go
++++ b/internal/parse/incremental.go
+@@ -133,8 +133,8 @@ const maxResyncTokens = 4000
+ // fresh resolver for it: nil for none.
+ //
+ // It re-parses the anchor's statement from the parser snapshot before it
+-// and keeps every other top-level statement, copied and, past the edit,
+-// shifted, when §6.5.2's checks hold: a top-level snapshot starts at the
++// and shares every other top-level statement with old, its root edge's
++// delta moved past the edit (splice), when §6.5.2's checks hold: a top-level snapshot starts at the
+ // anchor (0); one statement read from it over src ends at the anchor's
+ // shifted end and leaves the parser as the old parse's snapshot after the
+ // anchor stood, its token index moved (1, 2); the modules the old parse
+@@ -143,10 +143,6 @@ const maxResyncTokens = 4000
+ // The EOF passes then run over the spliced tree (4). Under ruling R-f
+ // nothing holding an error is reused, and a statement that gains or loses
+ // one returns ok=false (§6.8.5).
+-//
+-// shortcut: copies and shifts every reused node, the simplest splice; ruling
+-// R-e chooses an in-place shift or shared subtrees once 01a17a40-4915
+-// measures them.
+ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (*Node, *Node, bool) {
+ 	if old == nil || old.inc == nil || !isEditOf(old.inc.src, e, src) {
+ 		return nil, nil, false
+@@ -175,8 +171,10 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
+ 	} else if !sameReads(reads, mkRes()) {
+ 		return nil, nil, false
+ 	}
+-	k := sort.Search(len(tops), func(i int) bool { return tops[i].at >= a.Start })
+-	if k+1 >= len(tops) || tops[k].at != a.Start || tops[k+1].at != a.End {
++	ia := slices.Index(old.Children, a)
++	as, ae := a.start+old.ChildShift(ia), a.end+old.ChildShift(ia)
++	k := sort.Search(len(tops), func(i int) bool { return tops[i].at >= as })
++	if k+1 >= len(tops) || tops[k].at != as || tops[k+1].at != ae {
+ 		return nil, nil, false
+ 	}
+ 
+@@ -198,11 +196,11 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
+ 	}
+ 	want := tops[k+1].p.clone()
+ 	want.pos += dtok
+-	if n == nil || end != a.End+delta || !sameState(p, &want) || consulted(res) {
++	if n == nil || end != ae+delta || !sameState(p, &want) || consulted(res) {
+ 		return nil, nil, false
+ 	}
+ 
+-	root, _ := splice(old, a, n, delta)
++	root := splice(old, ia, n, delta)
+ 	fin := tops[len(tops)-1].restoreOn(src, d.newToks, bodies, res)
+ 	fin.pos += dtok
+ 	fin.finish(root)
+@@ -220,7 +218,7 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
+ 		moved[j].at += delta
+ 		moved[j].p.pos += dtok
+ 	}
+-	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed, damage: &Damage{a.Start, a.End + delta}}
++	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed, damage: &Damage{as, ae + delta}}
+ 	return root, n, true
+ }
+ 
+@@ -300,38 +298,94 @@ func consulted(res *resolver) bool {
+ 	return res != nil && (len(res.seen) > 0 || len(res.loaded) > 0 || len(res.declErrs) > 0 || len(res.declWarns) > 0)
+ }
+ 
+-// splice is old's root with its child a replaced by n and every other child
+-// copied, shifted by delta past a, and the number of nodes it copied.
+-func splice(old, a, n *Node, delta int) (*Node, int) {
+-	root := &Node{Kind: SourceFile, Start: 0, End: old.End + delta, Children: make([]*Node, 0, len(old.Children))}
++// splice is old's root with its i-th child replaced by n, a statement
++// parsed in the new source's offsets, and every other child shared: the
++// edges after it move by delta, and no node under any edge is copied or
++// written (§6.4.2's root-edge delta).
++func splice(old *Node, i int, n *Node, delta int) *Node {
++	root := &Node{Kind: SourceFile, start: 0, end: old.end + delta, Children: slices.Clone(old.Children), shifts: make([]int, len(old.Children))}
++	copy(root.shifts, old.shifts)
++	root.Children[i], root.shifts[i] = n, 0
++	for j := i + 1; j < len(root.shifts); j++ {
++		root.shifts[j] += delta
++	}
++	return root
++}
++
++// ChildShift is the delta on n's i-th child edge: what reading that child
++// and every node under it adds to the offsets they hold to give the file's.
++// It is 0 but on a SourceFile root Repair built (§6.4.2).
++func (n *Node) ChildShift(i int) int {
++	if i < len(n.shifts) {
++		return n.shifts[i]
++	}
++	return 0
++}
++
++// Start and End are n's span as n holds it: the file's offsets after a full
++// parse, and on a tree Repair built short by its top-level statement's
++// ChildShift. A walk from the root adds that at the top level, nothing
++// below it (§6.4.2).
++func (n *Node) Start() int { return n.start }
++func (n *Node) End() int   { return n.end }
++
++// InnerStart and InnerEnd are, on a node with Paren, its span before the
++// grouping parens widened it, held as Start and End are. Both are 0 where
++// unset.
++func (n *Node) InnerStart() int { return n.innerStart }
++func (n *Node) InnerEnd() int   { return n.innerEnd }
++
++// framed is e in the offsets n's i-th child and every node under it hold.
++func (n *Node) framed(i int, e Edit) Edit {
++	s := n.ChildShift(i)
++	e.Start, e.OldEnd = e.Start-s, e.OldEnd-s
++	return e
++}
++
++// spanIn is c's span in the file whose tree is root: c one of root's
++// children, or root itself.
++func spanIn(root, c *Node) (start, end int) {
++	s := 0
++	if root.shifts != nil {
++		if i := slices.Index(root.Children, c); i >= 0 {
++			s = root.shifts[i]
++		}
++	}
++	return c.start + s, c.end + s
++}
++
++// absolute is root with every edge's delta applied to the nodes under it,
++// copying only the statements whose edge has one: a tree in the file's
++// offsets throughout, for the whole-file readers that slice the source by
++// node spans (Canon, Sites). It is root itself after a full parse.
++func absolute(root *Node) *Node {
++	if !slices.ContainsFunc(root.shifts, func(s int) bool { return s != 0 }) {
++		return root
++	}
++	out := *root
++	out.Children, out.shifts = slices.Clone(root.Children), nil
+ 	memo := map[*Node]*Node{}
+-	for _, c := range old.Children {
+-		switch {
+-		case c == a:
+-			root.Children = append(root.Children, n)
+-		case c.Start < a.Start:
+-			root.Children = append(root.Children, copyShifted(c, 0, memo))
+-		default:
+-			root.Children = append(root.Children, copyShifted(c, delta, memo))
++	for i, c := range out.Children {
++		if s := root.shifts[i]; s != 0 {
++			out.Children[i] = copyShifted(c, s, memo)
+ 		}
+ 	}
+-	return root, len(memo)
++	return &out
+ }
+ 
+ // copyShifted is a deep copy of n with every byte offset moved by delta, as
+-// TreeDiffShifted compares them. A node reached twice is copied once. Only
+-// nodes past the edit's end move, so no offset can underflow (§6.4.2).
++// TreeDiffShifted compares them. A node reached twice is copied once.
+ func copyShifted(n *Node, delta int, memo map[*Node]*Node) *Node {
+ 	if c, ok := memo[n]; ok {
+ 		return c
+ 	}
+ 	c := *n
+ 	memo[n] = &c
+-	c.Start += delta
+-	c.End += delta
+-	if c.InnerEnd != 0 {
+-		c.InnerStart += delta
+-		c.InnerEnd += delta
++	c.start += delta
++	c.end += delta
++	if c.innerEnd != 0 {
++		c.innerStart += delta
++		c.innerEnd += delta
+ 	}
+ 	c.Children = copyAll(n.Children, delta, memo)
+ 	c.InnerHeredocBodies = copyAll(n.InnerHeredocBodies, delta, memo)
+@@ -425,20 +479,22 @@ func triageTokens(old *Node, e Edit, d tokenDiff, size int) Strategy {
+ 	// The change must end inside the region widen re-parses: past it, the
+ 	// old tree's tail is no longer the new source's.
+ 	a, delta := anchorOf(old, e), len(e.NewText)-(e.OldEnd-e.Start)
+-	if len(oc) > 0 && (oc[0].Start < a.Start || oc[len(oc)-1].End > a.End) ||
+-		len(nc) > 0 && (nc[0].Start < a.Start || nc[len(nc)-1].End > a.End+delta) ||
+-		a != old && !keepsLead(d, a) {
++	as, ae := spanIn(old, a)
++	if len(oc) > 0 && (oc[0].Start < as || oc[len(oc)-1].End > ae) ||
++		len(nc) > 0 && (nc[0].Start < as || nc[len(nc)-1].End > ae+delta) ||
++		a != old && !keepsLead(d, as) {
+ 		return StrategyFull
+ 	}
+ 	return StrategyLocal
+ }
+ 
+-// keepsLead reports that the edit leaves anchor a's first significant
+-// token as it was. The statement before a read it to decide where it ends:
+-// `}` then `else` continues an `if`, and a statement ended by end of file
+-// reads on into text typed after it. So a run of trivia never keeps one.
+-func keepsLead(d tokenDiff, a *Node) bool {
+-	for j := d.pre - 1; j >= 0 && d.oldToks[j].Start >= a.Start; j-- {
++// keepsLead reports that the edit leaves the first significant token of
++// the anchor starting at start as it was. The statement before it read it
++// to decide where it ends: `}` then `else` continues an `if`, and a
++// statement ended by end of file reads on into text typed after it. So a
++// run of trivia never keeps one.
++func keepsLead(d tokenDiff, start int) bool {
++	for j := d.pre - 1; j >= 0 && d.oldToks[j].Start >= start; j-- {
+ 		if !isTrivia(d.oldToks[j].Kind) {
+ 			return true
+ 		}
+@@ -483,7 +539,7 @@ func nests(toks []lexer.Token, src []byte) bool {
+ // inside its block. Touching includes abutting. A sub renamed changes only
+ // a Word, which the token rules do not see.
+ func touchesDeclaration(n *Node, e Edit) bool {
+-	if n.End < e.Start || n.Start > e.OldEnd {
++	if n.end < e.Start || n.start > e.OldEnd {
+ 		return false
+ 	}
+ 	switch {
+@@ -494,8 +550,8 @@ func touchesDeclaration(n *Node, e Edit) bool {
+ 			return true
+ 		}
+ 	}
+-	for _, c := range n.Children {
+-		if touchesDeclaration(c, e) {
++	for i, c := range n.Children {
++		if touchesDeclaration(c, n.framed(i, e)) {
+ 			return true
+ 		}
+ 	}
+@@ -508,7 +564,7 @@ func inBody(d *Node, e Edit) bool {
+ 		return false
+ 	}
+ 	b := d.Children[len(d.Children)-1]
+-	return b.Kind == Block && b.Start < e.Start && e.OldEnd < b.End
++	return b.Kind == Block && b.start < e.Start && e.OldEnd < b.end
+ }
+ 
+ // tokenDiff is an edit seen as tokens: old's and new's token streams agree
+@@ -584,17 +640,18 @@ func tokensOf(n *Node, src []byte) *lexer.TokenCache {
+ // The checkpoint is the last at or before the anchor's start.
+ func widen(old *Node, src []byte, e Edit) (lexer.Checkpoint, *Node) {
+ 	anchor := anchorOf(old, e)
++	start, _ := spanIn(old, anchor)
+ 	cps := tokensOf(old, src).Checkpoints
+-	i := sort.Search(len(cps), func(i int) bool { return cps[i].Byte > anchor.Start })
++	i := sort.Search(len(cps), func(i int) bool { return cps[i].Byte > start })
+ 	return cps[i-1], anchor
+ }
+ 
+ // anchorOf is widen's anchor for e.
+ func anchorOf(old *Node, e Edit) *Node {
+-	for _, top := range old.Children {
++	for i, top := range old.Children {
+ 		// Anything else a statement changes for the statements after it,
+ 		// Repair's check 2 sees.
+-		if top.Start <= e.Start && e.OldEnd <= top.End && !touchesDeclaration(top, e) {
++		if e := old.framed(i, e); top.start <= e.Start && e.OldEnd <= top.end && !touchesDeclaration(top, e) {
+ 			return top
+ 		}
+ 	}
+@@ -603,8 +660,8 @@ func anchorOf(old *Node, e Edit) *Node {
+ 
+ // childHolding is n's first child spanning all of e, or nil.
+ func childHolding(n *Node, e Edit) *Node {
+-	for _, c := range n.Children {
+-		if c.Start <= e.Start && e.OldEnd <= c.End {
++	for i, c := range n.Children {
++		if e := n.framed(i, e); c.start <= e.Start && e.OldEnd <= c.end {
+ 			return c
+ 		}
+ 	}
+diff --git a/internal/parse/incremental_test.go b/internal/parse/incremental_test.go
+index cf8383ab..76e2d605 100644
+--- a/internal/parse/incremental_test.go
++++ b/internal/parse/incremental_test.go
+@@ -62,13 +62,13 @@ func TestRepairModelReadsSessionTree(t *testing.T) {
+ 	}
+ 	_, a := widen(old, src, e)
+ 	delta := len(e.NewText) - (e.OldEnd - e.Start)
+-	if leak(old, sessionParse(newSrc), a.Start, a.End, delta) == "" {
++	if leak(old, sessionParse(newSrc), a.start, a.end, delta) == "" {
+ 		t.Fatal("no leak under a Session parse; the case checks nothing")
+ 	}
+-	if !repairAccepts(src, newSrc, a.Start, a.End, delta, func() *resolver { return nil }) {
++	if !repairAccepts(src, newSrc, a.start, a.end, delta, func() *resolver { return nil }) {
+ 		t.Fatal("the no-resolver model rejects it; the case no longer shows why the model needs one")
+ 	}
+-	if repairAccepts(src, newSrc, a.Start, a.End, delta, incResolver) {
++	if repairAccepts(src, newSrc, a.start, a.end, delta, incResolver) {
+ 		t.Fatal("the Session model accepts an edit whose tail does not match the fresh Session parse")
+ 	}
+ 	checkNoLeak(t, reviewPOSIX, e)
+@@ -275,8 +275,8 @@ func TestWidenToSafeBoundary(t *testing.T) {
+ 			if !slices.ContainsFunc(cps, func(k lexer.Checkpoint) bool { return k.Byte == cp.Byte && k.State.Equal(cp.State) }) {
+ 				t.Fatalf("checkpoint at %d is not one the lexer recorded", cp.Byte)
+ 			}
+-			if cp.Byte > anchor.Start {
+-				t.Fatalf("checkpoint %d after anchor start %d", cp.Byte, anchor.Start)
++			if cp.Byte > anchor.start {
++				t.Fatalf("checkpoint %d after anchor start %d", cp.Byte, anchor.start)
+ 			}
+ 			newSrc := []byte(edited(c.src, c.e))
+ 			full := lexer.TokenizeBarewords(newSrc, coreBarewordOperators())
+@@ -291,12 +291,12 @@ func TestWidenToSafeBoundary(t *testing.T) {
+ 				return
+ 			}
+ 			prefix, snaps := unfinished(src, nil)
+-			k := slices.IndexFunc(snaps, func(s parserSnapshot) bool { return s.at == anchor.Start && !s.nested })
++			k := slices.IndexFunc(snaps, func(s parserSnapshot) bool { return s.at == anchor.start && !s.nested })
+ 			if k < 0 {
+-				t.Fatalf("no top-level parser snapshot at the anchor's start %d", anchor.Start)
++				t.Fatalf("no top-level parser snapshot at the anchor's start %d", anchor.start)
+ 			}
+ 			p, tail := snaps[k].resume(newSrc, nil)
+-			if diff := TreeDiff(spliceTop(p, prefix, anchor.Start, tail), Parse(newSrc)); diff != "" {
++			if diff := TreeDiff(spliceTop(p, prefix, anchor.start, tail), Parse(newSrc)); diff != "" {
+ 				t.Fatalf("resumed at the anchor over the edited source != fresh parse:\n%s", diff)
+ 			}
+ 		})
+@@ -309,12 +309,12 @@ func checkAnchor(t *testing.T, c widenCase, root, anchor *Node) {
+ 	t.Helper()
+ 	if c.anchor == "" {
+ 		if anchor != root {
+-			t.Fatalf("anchor %q, want the whole file", c.src[anchor.Start:anchor.End])
++			t.Fatalf("anchor %q, want the whole file", c.src[anchor.start:anchor.end])
+ 		}
+ 		return
+ 	}
+-	if !slices.Contains(root.Children, anchor) || !strings.HasPrefix(c.src[anchor.Start:], c.anchor) {
+-		t.Fatalf("anchor %q, want the top-level statement starting %q", c.src[anchor.Start:anchor.End], c.anchor)
++	if !slices.Contains(root.Children, anchor) || !strings.HasPrefix(c.src[anchor.start:], c.anchor) {
++		t.Fatalf("anchor %q, want the top-level statement starting %q", c.src[anchor.start:anchor.end], c.anchor)
+ 	}
+ }
+ 
+@@ -335,7 +335,7 @@ func TestWidenTopLevelEditFallsBackToSourceFile(t *testing.T) {
+ 		root := Parse([]byte(c.src))
+ 		cp, anchor := widen(root, []byte(c.src), c.e)
+ 		if anchor != root || cp.Byte != 0 {
+-			t.Errorf("edit %+v of %q: anchor %q at checkpoint %d, want the whole file from 0", c.e, c.src, c.src[anchor.Start:anchor.End], cp.Byte)
++			t.Errorf("edit %+v of %q: anchor %q at checkpoint %d, want the whole file from 0", c.e, c.src, c.src[anchor.start:anchor.end], cp.Byte)
+ 		}
+ 	}
+ 	// The green half: the same file's sub body and plain top-level
+@@ -368,8 +368,8 @@ func TestWidenResolvedPrototypeCallKeepsWholeCall(t *testing.T) {
+ 			t.Fatalf("%q: triage %v, want StrategyLocal", src, got)
+ 		}
+ 		_, anchor := widen(old, []byte(src), e)
+-		if anchor.Start > call.Start || call.End > anchor.End {
+-			t.Errorf("%q: anchor [%d, %d) does not hold the call [%d, %d)", src, anchor.Start, anchor.End, call.Start, call.End)
++		if anchor.start > call.start || call.end > anchor.end {
++			t.Errorf("%q: anchor [%d, %d) does not hold the call [%d, %d)", src, anchor.start, anchor.end, call.start, call.end)
+ 		}
+ 	}
+ }
+@@ -388,10 +388,10 @@ func TestWidenCheckpointNotAfterAnchorStart(t *testing.T) {
+ 	for i := 0; i < len(src); i += 37 {
+ 		e := Edit{Start: i, OldEnd: i, NewText: "1"}
+ 		cp, anchor := widen(root, []byte(src), e)
+-		if cp.Byte > anchor.Start {
+-			t.Fatalf("edit at %d: checkpoint %d after anchor start %d", i, cp.Byte, anchor.Start)
++		if cp.Byte > anchor.start {
++			t.Fatalf("edit at %d: checkpoint %d after anchor start %d", i, cp.Byte, anchor.start)
+ 		}
+-		stepped = stepped || cp.Byte > 0 && cp.Byte < anchor.Start
++		stepped = stepped || cp.Byte > 0 && cp.Byte < anchor.start
+ 	}
+ 	if !stepped {
+ 		t.Fatal("no anchor started after a non-zero checkpoint; the test checks nothing")
+@@ -406,16 +406,16 @@ func TestWidenCheckpointNotAfterAnchorStart(t *testing.T) {
+ func leak(old, fresh *Node, lo, hi, delta int) string {
+ 	var ob, oa, fb, fa []*Node
+ 	for _, c := range old.Children {
+-		if c.End <= lo {
++		if c.end <= lo {
+ 			ob = append(ob, c)
+-		} else if c.Start >= hi {
++		} else if c.start >= hi {
+ 			oa = append(oa, c)
+ 		}
+ 	}
+ 	for _, c := range fresh.Children {
+-		if c.End <= lo {
++		if c.end <= lo {
+ 			fb = append(fb, c)
+-		} else if c.Start >= hi+delta {
++		} else if c.start >= hi+delta {
+ 			fa = append(fa, c)
+ 		}
+ 	}
+@@ -442,10 +442,10 @@ func reuseSpan(old *Node, s Strategy, e Edit) (lo, hi int, reused bool) {
+ 	switch s {
+ 	case StrategyLocal:
+ 		a := anchorOf(old, e)
+-		return a.Start, a.End, a != old
++		return a.start, a.end, a != old
+ 	case StrategyReuseAll:
+ 		if c := childHolding(old, e); c != nil {
+-			return c.Start, c.End, true
++			return c.start, c.end, true
+ 		}
+ 	}
+ 	return 0, 0, false
+@@ -541,14 +541,14 @@ func TestTriageLocalReusesShiftedTail(t *testing.T) {
+ 		if got := triage(old, []byte(c.src), c.e); got != StrategyLocal {
+ 			t.Errorf("%s: triage %v, want StrategyLocal", c.name, got)
+ 		}
+-		if _, a := widen(old, []byte(c.src), c.e); a != old && !repairAccepts([]byte(c.src), []byte(edited(c.src, c.e)), a.Start, a.End, delta, incResolver) {
++		if _, a := widen(old, []byte(c.src), c.e); a != old && !repairAccepts([]byte(c.src), []byte(edited(c.src, c.e)), a.start, a.end, delta, incResolver) {
+ 			t.Errorf("%s: Repair's check rejects a plain local edit", c.name)
+ 		}
+ 	}
+ 	// The green half: leak sees the gate review's leak when handed it.
+ 	e := at(reviewQuote, "q|a", "|", "")
+ 	old, fresh := Parse([]byte(reviewQuote)), Parse([]byte(edited(reviewQuote, e)))
+-	if leak(old, fresh, old.Children[0].Start, old.Children[0].End, -1) == "" {
++	if leak(old, fresh, old.Children[0].start, old.Children[0].end, -1) == "" {
+ 		t.Fatal("leak reports nothing for q| losing its closer; the check checks nothing")
+ 	}
+ }
+diff --git a/internal/parse/indirect.go b/internal/parse/indirect.go
+index e4e2bb77..d74322bb 100644
+--- a/internal/parse/indirect.go
++++ b/internal/parse/indirect.go
+@@ -101,12 +101,12 @@ func (p *parser) parseIndirect(word lexer.Token, spelled, text string) *Node {
+ // word. A bareword invocant takes a list after it, as toke.c's METHCALL0
+ // does; a scalar one only a list that begins with a term.
+ func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Token, bareword bool) *Node {
+-	invocant := &Node{Kind: Term, Text: p.text(next), Start: next.Start, End: next.End}
++	invocant := &Node{Kind: Term, Text: p.text(next), start: next.Start, end: next.End}
+ 
+ 	p.advanceTo(next)
+ 	n := &Node{
+ 		Kind: Call, Text: spelled, Indirect: true, Resolved: true,
+-		Start: word.Start, Children: []*Node{invocant},
++		start: word.Start, Children: []*Node{invocant},
+ 	}
+ 	// The arguments: parenthesised when a `(` follows the invocant, a list
+ 	// otherwise -- toke.c's METHCALL and METHCALL0.
+@@ -125,7 +125,7 @@ func (p *parser) finishIndirect(word lexer.Token, spelled string, next lexer.Tok
+ 			n.Children = append(n.Children, arg)
+ 		}
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+diff --git a/internal/parse/keyword_test.go b/internal/parse/keyword_test.go
+index 6812e6c1..2b1dcebc 100644
+--- a/internal/parse/keyword_test.go
++++ b/internal/parse/keyword_test.go
+@@ -108,9 +108,9 @@ func TestListOperatorExtent(t *testing.T) {
+ 	if call == nil {
+ 		t.Fatalf("no Call: %v", kinds(root))
+ 	}
+-	if call.End > len("my $s = (join $a, $b)") {
++	if call.End() > len("my $s = (join $a, $b)") {
+ 		t.Errorf("the list operator ran past its closing paren: ends at %d",
+-			call.End)
++			call.End())
+ 	}
+ }
+ 
+diff --git a/internal/parse/leadingdecimal_measure_test.go b/internal/parse/leadingdecimal_measure_test.go
+index b6faa928..eca6ae1b 100644
+--- a/internal/parse/leadingdecimal_measure_test.go
++++ b/internal/parse/leadingdecimal_measure_test.go
+@@ -58,12 +58,12 @@ func TestMeasureLeadingDecimalUnknowns(t *testing.T) {
+ 		var total, withDecimal int
+ 		for _, u := range collectUnknownNodes(parse.Parse(raw)) {
+ 			total++
+-			if u.Start < 0 || u.End > len(src) || u.Start >= u.End {
++			if u.Start() < 0 || u.End() > len(src) || u.Start() >= u.End() {
+ 				continue
+ 			}
+-			if reLeadingDecimal.MatchString(src[u.Start:u.End]) {
++			if reLeadingDecimal.MatchString(src[u.Start():u.End()]) {
+ 				withDecimal++
+-				span := strings.TrimSpace(src[u.Start:u.End])
++				span := strings.TrimSpace(src[u.Start():u.End()])
+ 				if len(span) > 60 {
+ 					span = span[:60] + "..."
+ 				}
+diff --git a/internal/parse/modifier_test.go b/internal/parse/modifier_test.go
+index 422fd284..c4fe777e 100644
+--- a/internal/parse/modifier_test.go
++++ b/internal/parse/modifier_test.go
+@@ -40,9 +40,9 @@ func TestStatementModifierForms(t *testing.T) {
+ 		}
+ 		// The modifier owns the statement: its span covers the whole thing,
+ 		// which is what "inverts the tree" means concretely.
+-		if n.Start != 0 {
++		if n.Start() != 0 {
+ 			t.Errorf("%q: the modifier node starts at %d, want 0 -- it must own "+
+-				"the statement, not sit inside it", tc.src, n.Start)
++				"the statement, not sit inside it", tc.src, n.Start())
+ 		}
+ 	}
+ }
+@@ -72,8 +72,8 @@ func TestModifierBindsLoosest(t *testing.T) {
+ 		t.Errorf("the `or` belongs inside the modifier's body: %v", kinds(cond))
+ 	}
+ 	// And the conditional owns the whole statement.
+-	if cond.Start != 0 {
+-		t.Errorf("the modifier starts at %d, want 0", cond.Start)
++	if cond.Start() != 0 {
++		t.Errorf("the modifier starts at %d, want 0", cond.Start())
+ 	}
+ }
+ 
+diff --git a/internal/parse/namedunary_test.go b/internal/parse/namedunary_test.go
+index 535a3d7d..0394fc2c 100644
+--- a/internal/parse/namedunary_test.go
++++ b/internal/parse/namedunary_test.go
+@@ -91,10 +91,10 @@ func rotate(t *testing.T, x *Node) *Node {
+ 	a := l.Children[0]
+ 	inner := *x
+ 	inner.Children = []*Node{a, r}
+-	inner.Start = a.Start
++	inner.start = a.start
+ 	c := *l
+ 	c.Children = []*Node{&inner}
+-	c.End = r.End
++	c.end = r.end
+ 	return &c
+ }
+ 
+diff --git a/internal/parse/namelesspackage_test.go b/internal/parse/namelesspackage_test.go
+index 672ef28b..33c07841 100644
+--- a/internal/parse/namelesspackage_test.go
++++ b/internal/parse/namelesspackage_test.go
+@@ -34,6 +34,6 @@ func TestNamelessPackageDoesNotPanic(t *testing.T) {
+ 		}
+ 	}
+ 	if u := firstUnknown(parse.Parse([]byte("package Foo;\nmy $x;"))); u != nil {
+-		t.Errorf("control `package Foo;`: refused at %d", u.Start)
++		t.Errorf("control `package Foo;`: refused at %d", u.Start())
+ 	}
+ }
+diff --git a/internal/parse/notop_test.go b/internal/parse/notop_test.go
+index a1306832..1180bf80 100644
+--- a/internal/parse/notop_test.go
++++ b/internal/parse/notop_test.go
+@@ -57,10 +57,10 @@ func notOver(t *testing.T, x *Node) *Node {
+ 	}
+ 	inner := *x
+ 	inner.Children = []*Node{l.Children[0], r}
+-	inner.Start = l.Children[0].Start
++	inner.start = l.Children[0].start
+ 	not := *l
+ 	not.Children = []*Node{&inner}
+-	not.End = r.End
++	not.end = r.end
+ 	return &not
+ }
+ 
+@@ -77,10 +77,10 @@ func notUnder(t *testing.T, not *Node) *Node {
+ 	}
+ 	inner := *not
+ 	inner.Children = []*Node{x.Children[0]}
+-	inner.End = x.Children[0].End
++	inner.end = x.Children[0].end
+ 	outer := *x
+ 	outer.Children = []*Node{&inner, x.Children[1]}
+-	outer.Start = not.Start
++	outer.start = not.start
+ 	return &outer
+ }
+ 
+diff --git a/internal/parse/parse.go b/internal/parse/parse.go
+index 3c203aea..35337a53 100644
+--- a/internal/parse/parse.go
++++ b/internal/parse/parse.go
+@@ -259,7 +259,7 @@ func (k Kind) String() string {
+ // leaf's text reproduces the input, Unknown included.
+ type Node struct {
+ 	Kind       Kind
+-	Start, End int
++	start, end int
+ 	Children   []*Node
+ 
+ 	// loaded names the modules reached while parsing, and is set on the
+@@ -289,6 +289,14 @@ type Node struct {
+ 	// no accessor reads, so TreeDiff skips it.
+ 	inc *incState
+ 
++	// shifts is the delta on each child edge of a root Repair built, nil
++	// after a full parse (§6.4.2's root-edge delta): child i and every node
++	// under it hold offsets that read shifts[i] short of the file's. Repair
++	// shares the old tree's statements and moves only these, so a shared
++	// statement can sit at two offsets in two trees. Root only; TreeDiff
++	// compares it as the offsets it moves.
++	shifts []int
++
+ 	// Text is the operator or literal that names this node -- "+", "?:",
+ 	// "$x". Empty for nodes whose meaning is entirely their kind and
+ 	// children, such as a List.
+@@ -415,12 +423,12 @@ type Node struct {
+ 	// still a grouping. Parser state, not read outside it.
+ 	nestedParen bool
+ 
+-	// InnerStart and InnerEnd are, on a node with Paren, its span before
++	// innerStart and innerEnd are, on a node with Paren, its span before
+ 	// the grouping parens widened it: `(localtime)` starts and ends at the
+ 	// parens, and its inner span is `localtime`'s. A fact read off the
+ 	// span, such as whether a call's arguments stand in parentheses, is
+ 	// read off this one, since the space inside the parens is unknown.
+-	InnerStart, InnerEnd int
++	innerStart, innerEnd int
+ 
+ 	// Fat is set on a list element that was followed by `=>`.
+ 	//
+@@ -622,21 +630,23 @@ type Node struct {
+ // said so would force every consumer to filter it back out.
+ func (n *Node) SourceText(src []byte) string {
+ 	var b []byte
+-	var walk func(*Node)
+-	walk = func(n *Node) {
+-		at := n.Start
+-		for _, c := range n.Children {
+-			if c.Start > at {
+-				b = append(b, src[at:c.Start]...)
++	// base is what the edge above n adds to its offsets (§6.4.2).
++	var walk func(n *Node, base int)
++	walk = func(n *Node, base int) {
++		at := n.start + base
++		for i, c := range n.Children {
++			cb := base + n.ChildShift(i)
++			if c.start+cb > at {
++				b = append(b, src[at:c.start+cb]...)
+ 			}
+-			walk(c)
+-			at = c.End
++			walk(c, cb)
++			at = c.end + cb
+ 		}
+-		if n.End > at {
+-			b = append(b, src[at:n.End]...)
++		if n.end+base > at {
++			b = append(b, src[at:n.end+base]...)
+ 		}
+ 	}
+-	walk(n)
++	walk(n, 0)
+ 	return string(b)
+ }
+ 
+@@ -712,7 +722,7 @@ func (p *parser) parseFile() *Node {
+ 	if !p.derivingPowers {
+ 		derivePowers()
+ 	}
+-	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
++	root := &Node{Kind: SourceFile, start: 0, end: len(p.src)}
+ 	root.Children = p.statementsTo(false, p.snaps != nil, nil)
+ 	return root
+ }
+@@ -857,14 +867,22 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
+ 	if len(starts) == 0 && !p.attrOpenAtEOF {
+ 		return
+ 	}
+-	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, Start: last.Start, End: last.End}
+-	n := root
++	u := &Node{Kind: Unknown, Refusal: UnclosedOpener, start: last.Start, end: last.End}
++	n, off := root, 0
+ 	for {
+ 		i := len(n.Children) - 1
+-		for i >= 0 && n.Children[i].Start > last.Start {
++		for i >= 0 && n.Children[i].start+n.ChildShift(i) > last.Start {
+ 			i--
+ 		}
+-		if i < 0 || n.Children[i].End <= last.Start {
++		// From here on, offsets are child i's: on a root Repair built its
++		// edge carries a delta (§6.4.2), and nodes under it read that short.
++		// starts stay the file's, since closers reads the source at them.
++		s := 0
++		if i >= 0 {
++			s = n.ChildShift(i)
++		}
++		last.Start, last.End, u.start, u.end, off = last.Start-s, last.End-s, u.start-s, u.end-s, off+s
++		if i < 0 || n.Children[i].end <= last.Start {
+ 			// No child holds the token: it is n's own, and nothing of n's
+ 			// follows it, since it is the file's last -- save the Missing
+ 			// operand of n's operator, when that is the token, `f(1 +`. The
+@@ -876,6 +894,9 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
+ 				break
+ 			}
+ 			n.Children = append(n.Children[:i+1], append([]*Node{u}, n.Children[i+1:]...)...)
++			if n.shifts != nil {
++				n.shifts = slices.Insert(n.shifts, i+1, s)
++			}
+ 			break
+ 		}
+ 		c := n.Children[i]
+@@ -885,13 +906,13 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
+ 				return
+ 			}
+ 			u = c
+-			for len(starts) > 0 && (starts[len(starts)-1] > c.Start ||
+-				starts[len(starts)-1] == c.Start && CatchAll(c.Refusal)) {
++			for len(starts) > 0 && (starts[len(starts)-1]-off > c.start ||
++				starts[len(starts)-1]-off == c.start && CatchAll(c.Refusal)) {
+ 				starts = starts[:len(starts)-1]
+ 			}
+ 			break
+ 		}
+-		if c.Start == last.Start && c.End == last.End {
++		if c.start == last.Start && c.end == last.End {
+ 			u.Children = []*Node{c}
+ 			n.Children[i] = u
+ 			break
+@@ -1152,7 +1173,7 @@ scan:
+ 		return nil
+ 	}
+ 	p.pos = end
+-	return &Node{Kind: Unknown, Refusal: NestingTooDeep, Start: first.Start, End: p.prevEnd()}
++	return &Node{Kind: Unknown, Refusal: NestingTooDeep, start: first.Start, end: p.prevEnd()}
+ }
+ 
+ // skipToStatementEnd consumes to the next `;` or unmatched `}`, which is
+@@ -1241,7 +1262,7 @@ func (p *parser) innerHeredocBodies(from int, n *Node) []*Node {
+ 			continue
+ 		}
+ 		inner = append(inner, &Node{
+-			Kind: Term, HeredocBody: true, Start: tok.Start, End: tok.End,
++			Kind: Term, HeredocBody: true, start: tok.Start, end: tok.End,
+ 		})
+ 	}
+ 	return inner
+@@ -1251,16 +1272,16 @@ func (p *parser) innerHeredocBodies(from int, n *Node) []*Node {
+ // under n: as a trailing HeredocBody child of any statement, or as an inner
+ // body of a nested one.
+ func ownsBody(n *Node, start int) bool {
+-	if n.HeredocBody && n.Start == start {
++	if n.HeredocBody && n.start == start {
+ 		return true
+ 	}
+ 	for _, b := range n.InnerHeredocBodies {
+-		if b.Start == start {
++		if b.start == start {
+ 			return true
+ 		}
+ 	}
+ 	for _, c := range n.Children {
+-		if start >= c.Start && start < c.End && ownsBody(c, start) {
++		if start >= c.start && start < c.end && ownsBody(c, start) {
+ 			return true
+ 		}
+ 	}
+@@ -1276,7 +1297,7 @@ func (p *parser) statementForm() *Node {
+ 			end = p.toks[p.pos].End
+ 			p.pos++
+ 		}
+-		return &Node{Kind: Trivia, Start: start, End: end}
++		return &Node{Kind: Trivia, start: start, end: end}
+ 	}
+ 
+ 	start := p.toks[p.pos].Start
+@@ -1296,7 +1317,7 @@ func (p *parser) statementForm() *Node {
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 		bodies := p.takeHeredocBodies()
+-		return &Node{Kind: Statement, Start: start, End: p.prevEnd(), Children: bodies}
++		return &Node{Kind: Statement, start: start, end: p.prevEnd(), Children: bodies}
+ 	}
+ 
+ 	// Labels come first and they stack: `A: B: for (...)` is two of them.
+@@ -1332,9 +1353,9 @@ func (p *parser) statementForm() *Node {
+ 	// at t/class/field.t:289.
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+-		n := &Node{Kind: Statement, Start: start, End: p.prevEnd()}
++		n := &Node{Kind: Statement, start: start, end: p.prevEnd()}
+ 		if len(labels) > 0 {
+-			n.Start = labels[0].Start
++			n.start = labels[0].start
+ 			n.Children = labels
+ 		}
+ 		return n
+@@ -1348,7 +1369,7 @@ func (p *parser) statementForm() *Node {
+ 	if len(labels) > 0 {
+ 		if tok, ok := p.peekSignificant(); !ok || (tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}') {
+ 			return &Node{
+-				Kind: Statement, Start: labels[0].Start, End: labels[len(labels)-1].End,
++				Kind: Statement, start: labels[0].start, end: labels[len(labels)-1].end,
+ 				Children: labels,
+ 			}
+ 		}
+@@ -1362,12 +1383,12 @@ func (p *parser) statementForm() *Node {
+ 	if tok, ok := p.peekSignificant(); ok && p.text(tok) == "..." {
+ 		if next, ok := p.peekAfter(tok); !ok || endsStatement(next, p.src) {
+ 			p.advanceTo(tok)
+-			yada := &Node{Kind: Term, Text: "...", Start: tok.Start, End: tok.End}
++			yada := &Node{Kind: Term, Text: "...", start: tok.Start, end: tok.End}
+ 			if semi, ok := p.peekSignificant(); ok && semi.Kind == lexer.Semicolon {
+ 				p.advanceTo(semi)
+ 			}
+ 			n := p.withLabels(labels, yada, start)
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			return n
+ 		}
+ 	}
+@@ -1409,9 +1430,9 @@ func (p *parser) statementForm() *Node {
+ 			// it -- `last` inside the body skips the continue, so nesting it
+ 			// would put a statement that does not run inside the one that does.
+ 			if cont := p.parseContinueOrDecline(); cont != nil {
+-				pair := &Node{Kind: Statement, Start: blk.Start,
++				pair := &Node{Kind: Statement, start: blk.start,
+ 					Children: []*Node{blk, cont}}
+-				pair.End = p.prevEnd()
++				pair.end = p.prevEnd()
+ 				return p.withLabels(labels, pair, start)
+ 			}
+ 			return p.withLabels(labels, blk, start)
+@@ -1470,7 +1491,7 @@ func (p *parser) statementForm() *Node {
+ 				d = p.parseInfix(d, bpBelowComma)
+ 				if semi, ok := p.peekSignificant(); ok && semi.Kind == lexer.Semicolon {
+ 					p.advanceTo(semi)
+-					d.End = p.prevEnd()
++					d.end = p.prevEnd()
+ 				}
+ 			}
+ 			if mod := p.applyModifier(d, start); mod != nil {
+@@ -1506,14 +1527,14 @@ func (p *parser) statementForm() *Node {
+ 		// as each issue lands is the milestone's progress.
+ 		if statementKeywords[p.text(tok)] {
+ 			p.skipToStatementEnd()
+-			return &Node{Kind: Unknown, Refusal: UnimplementedStatement, Start: start, End: p.prevEnd()}
++			return &Node{Kind: Unknown, Refusal: UnimplementedStatement, start: start, end: p.prevEnd()}
+ 		}
+ 	}
+ 
+ 	expr := p.parseExpr(0)
+ 	if expr == nil {
+ 		p.panicSkip(start)
+-		return p.recover(&Node{Kind: Error, Refusal: NotAnExpression, Start: start, End: p.prevEnd()})
++		return p.recover(&Node{Kind: Error, Refusal: NotAnExpression, start: start, end: p.prevEnd()})
+ 	}
+ 
+ 	// A statement modifier, which inverts the tree: `print if $x` is a
+@@ -1581,7 +1602,7 @@ func (p *parser) statementForm() *Node {
+ 		// A catch-all Error widens as the Unknown did, keeping its kind and
+ 		// any Missing node recovery put inside it.
+ 		p.takeHeredocBodies()
+-		return &Node{Kind: expr.Kind, Refusal: expr.Refusal, Start: start, End: p.prevEnd(), Children: expr.Children}
++		return &Node{Kind: expr.Kind, Refusal: expr.Refusal, start: start, end: p.prevEnd(), Children: expr.Children}
+ 	}
+ 	// The labels belong on the statement, and this site was dropping them.
+ 	//
+@@ -1599,12 +1620,12 @@ func (p *parser) statementForm() *Node {
+ 	if semi != nil {
+ 		children = append(children, semi)
+ 	}
+-	n := &Node{Kind: Statement, Start: start, Children: children}
++	n := &Node{Kind: Statement, start: start, Children: children}
+ 	if len(labels) > 0 {
+-		n.Start = labels[0].Start
++		n.start = labels[0].start
+ 	}
+ 	n.Children = append(n.Children, p.takeHeredocBodies()...)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1644,7 +1665,7 @@ func (p *parser) takeHeredocBodies() []*Node {
+ 		p.advanceTo(tok)
+ 		bodies = append(bodies, &Node{
+ 			Kind: Term, HeredocBody: true,
+-			Start: tok.Start, End: tok.End,
++			start: tok.Start, end: tok.End,
+ 		})
+ 	}
+ 	return bodies
+@@ -1663,7 +1684,7 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
+ 	p.inHashKey = false
+ 	defer func() { p.inHashKey = inHashKey }()
+ 	p.advanceTo(open)
+-	n := &Node{Kind: Block, Start: open.Start}
++	n := &Node{Kind: Block, start: open.Start}
+ 	p.depth++
+ 	defer func() { p.depth-- }()
+ 	if p.depth > maxDepth {
+@@ -1709,20 +1730,20 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
+ 		}
+ 		p.closedEarly[open.Start] = true
+ 		n.Children = n.Children[:pre+mark.children]
+-		n.End = p.prevEnd()
+-		n.Children = append(n.Children, p.recover(&Node{Kind: Missing, Text: "}", Start: n.End, End: n.End}))
++		n.end = p.prevEnd()
++		n.Children = append(n.Children, p.recover(&Node{Kind: Missing, Text: "}", start: n.end, end: n.end}))
+ 		return n
+ 	}
+ 	if p.pos < len(p.toks) {
+ 		// statementsTo stopped on the block's `}`.
+-		n.End = p.toks[p.pos].End
++		n.end = p.toks[p.pos].End
+ 		p.pos++
+ 		return n
+ 	}
+ 
+ 	// Unterminated. The block still spans what it consumed, so round-trip
+ 	// holds; an LSP sees this constantly while someone is typing.
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1872,14 +1893,14 @@ func (p *parser) withLabels(labels []*Node, n *Node, start int) *Node {
+ 	// whether that is a `;` or a `}`, so the only place that knows they are
+ 	// next is the place the form has just finished.
+ 	bodies := p.takeHeredocBodies()
+-	end := n.End
++	end := n.end
+ 	if len(bodies) > 0 {
+-		end = bodies[len(bodies)-1].End
++		end = bodies[len(bodies)-1].end
+ 	}
+ 
+ 	if len(labels) == 0 {
+ 		return &Node{
+-			Kind: Statement, Start: start, End: end,
++			Kind: Statement, start: start, end: end,
+ 			Children: append([]*Node{n}, bodies...),
+ 		}
+ 	}
+@@ -1891,7 +1912,7 @@ func (p *parser) withLabels(labels []*Node, n *Node, start int) *Node {
+ 	children := append(append([]*Node{}, labels...), n)
+ 	children = append(children, bodies...)
+ 	return &Node{
+-		Kind: Statement, Start: labels[0].Start, End: end,
++		Kind: Statement, start: labels[0].start, end: end,
+ 		Children: children,
+ 	}
+ }
+@@ -1911,7 +1932,7 @@ func endsStatement(tok lexer.Token, src []byte) bool {
+ // stays a child of the Error, with its code (§6.8.3).
+ func (p *parser) refuseTrailingTokens(start int, parsed *Node) *Node {
+ 	p.panicSkip(start)
+-	return p.recover(&Node{Kind: Error, Refusal: TrailingTokens, Start: start, End: p.prevEnd(), Children: specificRefusals(parsed)})
++	return p.recover(&Node{Kind: Error, Refusal: TrailingTokens, start: start, end: p.prevEnd(), Children: specificRefusals(parsed)})
+ }
+ 
+ // specificRefusals is the outermost refusals under n, n included, that are
+diff --git a/internal/parse/parse_test.go b/internal/parse/parse_test.go
+index 249c96c1..b6a51dc5 100644
+--- a/internal/parse/parse_test.go
++++ b/internal/parse/parse_test.go
+@@ -68,8 +68,8 @@ func TestParseEmpty(t *testing.T) {
+ 	if len(root.Children) != 0 {
+ 		t.Errorf("root has %d children, want 0", len(root.Children))
+ 	}
+-	if root.Start != 0 || root.End != 0 {
+-		t.Errorf("root spans [%d,%d), want [0,0)", root.Start, root.End)
++	if root.Start() != 0 || root.End() != 0 {
++		t.Errorf("root spans [%d,%d), want [0,0)", root.Start(), root.End())
+ 	}
+ }
+ 
+@@ -91,7 +91,7 @@ func TestUnknownSpansItsSource(t *testing.T) {
+ 	// trivia node carries it.
+ 	u := unknowns[0]
+ 	want := strings.TrimSuffix(unimplementedStatement, "\n")
+-	if got := string(src[u.Start:u.End]); got != want {
++	if got := string(src[u.Start():u.End()]); got != want {
+ 		t.Errorf("Unknown spans %q, want %q", got, want)
+ 	}
+ }
+@@ -162,9 +162,9 @@ func TestParserForwardProgress(t *testing.T) {
+ 			if n.Kind == parse.SourceFile || n.Kind == parse.Missing {
+ 				continue
+ 			}
+-			if n.End <= n.Start {
++			if n.End() <= n.Start() {
+ 				t.Errorf("%q: node %v spans [%d,%d), which is empty",
+-					src, n.Kind, n.Start, n.End)
++					src, n.Kind, n.Start(), n.End())
+ 			}
+ 		}
+ 	}
+diff --git a/internal/parse/parsestate_test.go b/internal/parse/parsestate_test.go
+index c0925426..54608c30 100644
+--- a/internal/parse/parsestate_test.go
++++ b/internal/parse/parsestate_test.go
+@@ -36,9 +36,9 @@ func unfinished(src []byte, res *resolver) (*Node, []parserSnapshot) {
+ // spliceTop is a SourceFile over src holding prefix's top-level children
+ // that start before at, then tail, with the EOF passes run by p.
+ func spliceTop(p *parser, prefix *Node, at int, tail []*Node) *Node {
+-	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
++	root := &Node{Kind: SourceFile, start: 0, end: len(p.src)}
+ 	for _, c := range prefix.Children {
+-		if c.Start < at {
++		if c.start < at {
+ 			root.Children = append(root.Children, c)
+ 		}
+ 	}
+@@ -135,7 +135,7 @@ func blockAt(n *Node, at int) *Node {
+ 	for _, c := range n.Children {
+ 		if c.Kind == Block {
+ 			for _, g := range c.Children {
+-				if g.Start == at {
++				if g.start == at {
+ 					return c
+ 				}
+ 			}
+@@ -168,7 +168,7 @@ func resumeNested(t *testing.T, src []byte, stmt string) *Node {
+ 		}
+ 		var kept []*Node
+ 		for _, c := range blk.Children {
+-			if c.Start < at {
++			if c.start < at {
+ 				kept = append(kept, c)
+ 			}
+ 		}
+diff --git a/internal/parse/perlgitt_faithful_test.go b/internal/parse/perlgitt_faithful_test.go
+index 47c2a240..39764b52 100644
+--- a/internal/parse/perlgitt_faithful_test.go
++++ b/internal/parse/perlgitt_faithful_test.go
+@@ -175,9 +175,9 @@ func TestFaithfulRatchetFailsOnUnvisitedFile(t *testing.T) {
+ 
+ func TestFaithfulWalkCountsUnknownTreeUnfaithful(t *testing.T) {
+ 	src := []byte("print 1;")
+-	tree := &parse.Node{Kind: parse.SourceFile, Start: 0, End: len(src), Children: []*parse.Node{
+-		{Kind: parse.Unknown, Text: string(src), Start: 0, End: len(src)},
+-	}}
++	tree := parse.Spanned(0, len(src), parse.Node{Kind: parse.SourceFile, Children: []*parse.Node{
++		parse.Spanned(0, len(src), parse.Node{Kind: parse.Unknown, Text: string(src)}),
++	}})
+ 	// The guard matters only because Faithful cannot see the refusal.
+ 	if ok, why := parse.Faithful(tree, src); !ok {
+ 		t.Fatalf("Faithful now rejects a verbatim Unknown (%s); this fixture no longer proves the guard", why)
+diff --git a/internal/parse/perlgitt_test.go b/internal/parse/perlgitt_test.go
+index 2fda4cd0..2729794c 100644
+--- a/internal/parse/perlgitt_test.go
++++ b/internal/parse/perlgitt_test.go
+@@ -210,7 +210,7 @@ func TestPerlGitTRejects(t *testing.T) {
+ // Unknown, or the Error or Missing node that replaced one (Refused).
+ func firstUnknownLine(n *parse.Node, src []byte) int {
+ 	if n.Refused() {
+-		return strings.Count(string(src[:n.Start]), "\n") + 1
++		return strings.Count(string(src[:n.Start()]), "\n") + 1
+ 	}
+ 	for _, c := range n.Children {
+ 		if line := firstUnknownLine(c, src); line != 0 {
+diff --git a/internal/parse/powerafterterm_test.go b/internal/parse/powerafterterm_test.go
+index fd29144f..ceb6e05f 100644
+--- a/internal/parse/powerafterterm_test.go
++++ b/internal/parse/powerafterterm_test.go
+@@ -46,7 +46,7 @@ func TestPowerAfterNiladicTerm(t *testing.T) {
+ 	} {
+ 		root := parse.Parse([]byte(src))
+ 		if u := firstUnknown(root); u != nil {
+-			t.Errorf("%q: refused as %s at %d", src, u.Refusal, u.Start)
++			t.Errorf("%q: refused as %s at %d", src, u.Refusal, u.Start())
+ 			continue
+ 		}
+ 		if !hasBinary(root, op) {
+diff --git a/internal/parse/prototype_invalidation_test.go b/internal/parse/prototype_invalidation_test.go
+index e952ddac..6fa4c717 100644
+--- a/internal/parse/prototype_invalidation_test.go
++++ b/internal/parse/prototype_invalidation_test.go
+@@ -97,7 +97,7 @@ func laterCallsChange(t *testing.T, src string, e parse.Edit) {
+ 	if before == nil && after == nil {
+ 		t.Fatal("no call to f before or after the edit")
+ 	}
+-	if before != nil && after != nil && parse.TreeDiffShifted(before, after, after.Start-before.Start) == "" {
++	if before != nil && after != nil && parse.TreeDiffShifted(before, after, after.Start()-before.Start()) == "" {
+ 		t.Fatal("the call to f parses the same before and after; the edit checks nothing")
+ 	}
+ }
+diff --git a/internal/parse/recovery.go b/internal/parse/recovery.go
+index d1b787d4..9871bf2f 100644
+--- a/internal/parse/recovery.go
++++ b/internal/parse/recovery.go
+@@ -45,7 +45,9 @@ func markErrors(n *Node) bool {
+ 			has = true
+ 		}
+ 	}
+-	n.HasError = has
++	if n.HasError != has { // a statement Repair shares is never written
++		n.HasError = has
++	}
+ 	return has
+ }
+ 
+@@ -54,7 +56,7 @@ func markErrors(n *Node) bool {
+ // ends the statement or block, `my $x = ;` and `sub f { 2 * }`. The `;` or
+ // `}` is left to end what it ends (R-g).
+ func (p *parser) missingOperand(after lexer.Token) *Node {
+-	return p.recover(&Node{Kind: Missing, Refusal: MissingOperand, Start: after.End, End: after.End})
++	return p.recover(&Node{Kind: Missing, Refusal: MissingOperand, start: after.End, end: after.End})
+ }
+ 
+ // operandAbsent reports whether no operand follows: end of input, or a `;`
+@@ -69,8 +71,8 @@ func (p *parser) operandAbsent() bool {
+ // zero-width Missing identifier §6.8.2 synthesizes there, so the variable
+ // or declaration is still recognizable inside the Error.
+ func (p *parser) missingIdentifier(n *Node, tok lexer.Token) *Node {
+-	if text := p.text(tok); n.End == tok.End && (text == "$" || text == "sub") {
+-		n.Children = []*Node{p.recover(&Node{Kind: Missing, Start: tok.End, End: tok.End})}
++	if text := p.text(tok); n.end == tok.End && (text == "$" || text == "sub") {
++		n.Children = []*Node{p.recover(&Node{Kind: Missing, start: tok.End, end: tok.End})}
+ 	}
+ 	return n
+ }
+@@ -95,7 +97,7 @@ func (p *parser) missingSemicolon() *Node {
+ 	if last.Kind == lexer.Word || !bytes.Contains(p.src[last.End:next.Start], []byte("\n")) {
+ 		return nil
+ 	}
+-	return p.recover(&Node{Kind: Missing, Text: ";", Start: last.End, End: last.End})
++	return p.recover(&Node{Kind: Missing, Text: ";", start: last.End, end: last.End})
+ }
+ 
+ // closers are the zero-width Missing closers for the brackets still open at
+@@ -105,7 +107,7 @@ func (p *parser) closers(starts []int, at int) []*Node {
+ 	out := make([]*Node, 0, len(starts))
+ 	for i := len(starts) - 1; i >= 0; i-- {
+ 		text := map[byte]string{'(': ")", '[': "]", '{': "}"}[p.src[starts[i]]]
+-		out = append(out, &Node{Kind: Missing, Text: text, Start: at, End: at})
++		out = append(out, &Node{Kind: Missing, Text: text, start: at, end: at})
+ 	}
+ 	return out
+ }
+diff --git a/internal/parse/recovery_test.go b/internal/parse/recovery_test.go
+index 6984aa12..163573aa 100644
+--- a/internal/parse/recovery_test.go
++++ b/internal/parse/recovery_test.go
+@@ -68,7 +68,7 @@ func recoveryNodes(n *parse.Node) []*parse.Node {
+ // zero-width node's included.
+ func holder(root *parse.Node, at int) *parse.Node {
+ 	for _, c := range root.Children {
+-		if c.Start <= at && at <= c.End && c.End > c.Start {
++		if c.Start() <= at && at <= c.End() && c.End() > c.Start() {
+ 			return c
+ 		}
+ 	}
+@@ -110,9 +110,9 @@ func TestRecoveryMissingTokens(t *testing.T) {
+ 			continue
+ 		}
+ 		m := got[0]
+-		if m.Text != c.text || m.Refusal != c.code || m.Start != c.at || m.End != c.at {
++		if m.Text != c.text || m.Refusal != c.code || m.Start() != c.at || m.End() != c.at {
+ 			t.Errorf("%s: %q: Missing %q %q at [%d,%d), want %q %q at %d",
+-				c.name, c.src, m.Text, m.Refusal, m.Start, m.End, c.text, c.code, c.at)
++				c.name, c.src, m.Text, m.Refusal, m.Start(), m.End(), c.text, c.code, c.at)
+ 		}
+ 		if h := holder(root, c.at); h == nil || h.Kind != parse.Statement {
+ 			t.Errorf("%s: %q: the statement holding the Missing node did not complete: %v", c.name, c.src, kinds(root))
+@@ -145,7 +145,7 @@ func TestHasErrorPropagatedAtConstruction(t *testing.T) {
+ 		root := parse.Parse([]byte(src))
+ 		for _, n := range nodesOf(root) {
+ 			if w := want(n); n.HasError != w {
+-				t.Errorf("%q: %v [%d,%d) HasError = %v, want %v", src, n.Kind, n.Start, n.End, n.HasError, w)
++				t.Errorf("%q: %v [%d,%d) HasError = %v, want %v", src, n.Kind, n.Start(), n.End(), n.HasError, w)
+ 			}
+ 		}
+ 	}
+@@ -169,10 +169,10 @@ func TestRecoveryCoversEveryByte(t *testing.T) {
+ 		root := parse.Parse([]byte(src))
+ 		at := 0
+ 		for _, c := range root.Children {
+-			if c.Start != at {
+-				t.Errorf("%q: bytes [%d,%d) belong to no node", src, at, c.Start)
++			if c.Start() != at {
++				t.Errorf("%q: bytes [%d,%d) belong to no node", src, at, c.Start())
+ 			}
+-			at = c.End
++			at = c.End()
+ 		}
+ 		if at != len(src) {
+ 			t.Errorf("%q: bytes [%d,%d) belong to no node", src, at, len(src))
+@@ -482,8 +482,8 @@ func TestRecoveryMissingOperandIsReported(t *testing.T) {
+ 			t.Errorf("%q: %d missing_operand nodes, want 1: %v", src, len(got), kinds(root))
+ 			continue
+ 		}
+-		if m := got[0]; m.Kind != parse.Missing || m.Start != m.End || len(m.Children) != 0 {
+-			t.Errorf("%q: missing_operand is a %v [%d,%d), want a zero-width Missing node", src, m.Kind, m.Start, m.End)
++		if m := got[0]; m.Kind != parse.Missing || m.Start() != m.End() || len(m.Children) != 0 {
++			t.Errorf("%q: missing_operand is a %v [%d,%d), want a zero-width Missing node", src, m.Kind, m.Start(), m.End())
+ 		}
+ 		if n := withCode(root, parse.NotATerm); len(n) != 0 {
+ 			t.Errorf("%q: not_a_term on the punctuation, %v", src, kinds(root))
+@@ -654,18 +654,18 @@ func TestRecoveryNodeSpansInBounds(t *testing.T) {
+ 	for _, src := range bufs {
+ 		root := parse.Parse([]byte(src))
+ 		for _, n := range nodesOf(root) {
+-			if n.Start < 0 || n.Start > n.End || n.End > len(src) {
+-				t.Errorf("%q: %v spans [%d,%d), out of bounds for %d bytes", src, n.Kind, n.Start, n.End, len(src))
++			if n.Start() < 0 || n.Start() > n.End() || n.End() > len(src) {
++				t.Errorf("%q: %v spans [%d,%d), out of bounds for %d bytes", src, n.Kind, n.Start(), n.End(), len(src))
+ 			}
+-			if n.Kind == parse.Missing && (n.Start != n.End || len(n.Children) != 0) {
+-				t.Errorf("%q: Missing node [%d,%d) with %d children", src, n.Start, n.End, len(n.Children))
++			if n.Kind == parse.Missing && (n.Start() != n.End() || len(n.Children) != 0) {
++				t.Errorf("%q: Missing node [%d,%d) with %d children", src, n.Start(), n.End(), len(n.Children))
+ 			}
+-			prev := n.Start
++			prev := n.Start()
+ 			for _, c := range n.Children {
+-				if c.Start < prev || c.End > n.End {
+-					t.Errorf("%q: %v [%d,%d) overlaps its sibling or leaves its %v [%d,%d)", src, c.Kind, c.Start, c.End, n.Kind, n.Start, n.End)
++				if c.Start() < prev || c.End() > n.End() {
++					t.Errorf("%q: %v [%d,%d) overlaps its sibling or leaves its %v [%d,%d)", src, c.Kind, c.Start(), c.End(), n.Kind, n.Start(), n.End())
+ 				}
+-				prev = c.End
++				prev = c.End()
+ 			}
+ 		}
+ 	}
+@@ -686,12 +686,12 @@ func errorNodes(root *parse.Node) []*parse.Node {
+ // tree's text differing from src; "" when neither.
+ func tiles(root *parse.Node, src string) string {
+ 	for _, n := range nodesOf(root) {
+-		at := n.Start
++		at := n.Start()
+ 		for _, c := range n.Children {
+-			if c.Start < at || c.End > n.End {
+-				return fmt.Sprintf("%v [%d,%d) in %v [%d,%d)", c.Kind, c.Start, c.End, n.Kind, n.Start, n.End)
++			if c.Start() < at || c.End() > n.End() {
++				return fmt.Sprintf("%v [%d,%d) in %v [%d,%d)", c.Kind, c.Start(), c.End(), n.Kind, n.Start(), n.End())
+ 			}
+-			at = c.End
++			at = c.End()
+ 		}
+ 	}
+ 	if root.SourceText([]byte(src)) != src {
+@@ -729,8 +729,8 @@ func TestRecoveryPanicModeBounded(t *testing.T) {
+ 			continue
+ 		}
+ 		start := strings.Index(c.src, c.region)
+-		if e := errs[0]; e.Start != start || e.End != start+len(c.region) {
+-			t.Errorf("%s: %q: the skip covers %q, want %q", c.name, c.src, c.src[e.Start:e.End], c.region)
++		if e := errs[0]; e.Start() != start || e.End() != start+len(c.region) {
++			t.Errorf("%s: %q: the skip covers %q, want %q", c.name, c.src, c.src[e.Start():e.End()], c.region)
+ 		}
+ 		if n := len(recoveryNodes(root)); n != 1 {
+ 			t.Errorf("%s: %q: %d recovery nodes, want the one Error, so what follows the sync point parses: %v", c.name, c.src, n, kinds(root))
+@@ -747,7 +747,7 @@ func TestRecoveryPanicModeBounded(t *testing.T) {
+ 	if len(errs) != 2 {
+ 		t.Fatalf("150 tokens: %d Error nodes, want 2", len(errs))
+ 	}
+-	if got := errs[0].End - errs[0].Start; got != 101*3-1 {
++	if got := errs[0].End() - errs[0].Start(); got != 101*3-1 {
+ 		t.Errorf("150 tokens: the first skip spans %d bytes, want 101 tokens' %d", got, 101*3-1)
+ 	}
+ }
+@@ -773,7 +773,7 @@ func TestRecoverySkippedRegionIsOneErrorNode(t *testing.T) {
+ 			continue
+ 		}
+ 		e := errs[0]
+-		if got := c.src[e.Start:e.End]; got != c.region || e.Refusal != c.code {
++		if got := c.src[e.Start():e.End()]; got != c.region || e.Refusal != c.code {
+ 			t.Errorf("%q: Error %s over %q, want %s over %q", c.src, e.Refusal, got, c.code, c.region)
+ 		}
+ 		if !e.HasError || !root.HasError {
+@@ -827,23 +827,23 @@ func TestRecoveryErrorStaysInItsSub(t *testing.T) {
+ 		}
+ 		byStart := map[int]*parse.Node{}
+ 		for _, n := range got.Children {
+-			byStart[n.Start] = n
++			byStart[n.Start()] = n
+ 		}
+ 		for _, sub := range want.Children {
+-			if sub.Kind != parse.Statement || sub.Start <= at && at < sub.End {
++			if sub.Kind != parse.Statement || sub.Start() <= at && at < sub.End() {
+ 				continue
+ 			}
+ 			shift := 0
+-			if sub.Start > at {
++			if sub.Start() > at {
+ 				shift = delta
+ 			}
+-			other := byStart[sub.Start+shift]
++			other := byStart[sub.Start()+shift]
+ 			if other == nil {
+-				t.Errorf("%s: the sub at byte %d is no longer a top-level statement: %v", c.name, sub.Start, kinds(got))
++				t.Errorf("%s: the sub at byte %d is no longer a top-level statement: %v", c.name, sub.Start(), kinds(got))
+ 				continue
+ 			}
+ 			if d := parse.TreeDiffShifted(sub, other, shift); d != "" {
+-				t.Errorf("%s: the sub at byte %d differs from the error-free parse: %s", c.name, sub.Start, d)
++				t.Errorf("%s: the sub at byte %d differs from the error-free parse: %s", c.name, sub.Start(), d)
+ 			}
+ 		}
+ 	}
+@@ -861,8 +861,8 @@ func TestRecoveryCapOnSyncFreeInput(t *testing.T) {
+ 			t.Errorf("%q x 10,000: %d Error nodes, want 1 to 100", tok, len(errs))
+ 		}
+ 		for _, e := range errs {
+-			if e.End-e.Start > 101*len(tok) {
+-				t.Errorf("%q x 10,000: an Error spans %d bytes, more than 101 tokens", tok, e.End-e.Start)
++			if e.End()-e.Start() > 101*len(tok) {
++				t.Errorf("%q x 10,000: an Error spans %d bytes, more than 101 tokens", tok, e.End()-e.Start())
+ 				break
+ 			}
+ 		}
+@@ -884,8 +884,8 @@ func TestRecoveryAlwaysAdvances(t *testing.T) {
+ 				t.Errorf("%q: %s", word+sep, d)
+ 			}
+ 			for _, e := range errorNodes(root) {
+-				if e.End <= e.Start {
+-					t.Errorf("%q: an empty Error node at %d", word+sep, e.Start)
++				if e.End() <= e.Start() {
++					t.Errorf("%q: an empty Error node at %d", word+sep, e.Start())
+ 					break
+ 				}
+ 			}
+@@ -935,15 +935,15 @@ func TestRecoveryMissingBraceBeforeLaterSubs(t *testing.T) {
+ 	if got := closersIn(root); got != "}" {
+ 		t.Errorf("closers %q, want one `}`: %v", got, kinds(root))
+ 	}
+-	if f := root.Children[0]; f.End > len(head) {
+-		t.Errorf("sub f spans [%d,%d), past the column-0 sub at %d", f.Start, f.End, len(head))
++	if f := root.Children[0]; f.End() > len(head) {
++		t.Errorf("sub f spans [%d,%d), past the column-0 sub at %d", f.Start(), f.End(), len(head))
+ 	}
+ 	if n := len(withCode(root, parse.UnclosedOpener)); n != 0 {
+ 		t.Errorf("%d unclosed_opener refusals; the brace closes at the column-0 sub", n)
+ 	}
+ 	top := map[int]*parse.Node{}
+ 	for _, n := range root.Children {
+-		top[n.Start] = n
++		top[n.Start()] = n
+ 	}
+ 	subs10 := 0
+ 	for _, sub := range parse.Parse([]byte(subs.String())).Children {
+@@ -951,13 +951,13 @@ func TestRecoveryMissingBraceBeforeLaterSubs(t *testing.T) {
+ 			continue
+ 		}
+ 		subs10++
+-		got := top[sub.Start+len(head)]
++		got := top[sub.Start()+len(head)]
+ 		if got == nil {
+-			t.Errorf("the sub at byte %d is not at top level: %v", sub.Start+len(head), kinds(root))
++			t.Errorf("the sub at byte %d is not at top level: %v", sub.Start()+len(head), kinds(root))
+ 			continue
+ 		}
+ 		if d := parse.TreeDiffShifted(sub, got, len(head)); d != "" {
+-			t.Errorf("the sub at byte %d: %s", got.Start, d)
++			t.Errorf("the sub at byte %d: %s", got.Start(), d)
+ 		}
+ 	}
+ 	if subs10 != 10 {
+@@ -991,8 +991,8 @@ func TestRecoveryErrorInConditionStaysInIt(t *testing.T) {
+ 		root := parse.Parse([]byte(src))
+ 		paren := strings.Index(src, ")") + 1
+ 		for _, e := range errorNodes(root) {
+-			if e.End > paren {
+-				t.Errorf("%q: an Error over %q runs past the condition's `)`", src, src[e.Start:e.End])
++			if e.End() > paren {
++				t.Errorf("%q: an Error over %q runs past the condition's `)`", src, src[e.Start():e.End()])
+ 			}
+ 		}
+ 		if n := countKind(root, parse.Declaration); n < 3 {
+@@ -1012,8 +1012,8 @@ func TestRecoveryModifierAfterExpressionIsNotASyncPoint(t *testing.T) {
+ 		at := strings.Index(src, "croak")
+ 		end := strings.LastIndex(src, ";") + 1
+ 		for _, c := range root.Children {
+-			if c.Start > at && c.Start < end {
+-				t.Errorf("%q: the statement is split at byte %d: %v", src, c.Start, kinds(root))
++			if c.Start() > at && c.Start() < end {
++				t.Errorf("%q: the statement is split at byte %d: %v", src, c.Start(), kinds(root))
+ 				break
+ 			}
+ 		}
+@@ -1038,8 +1038,8 @@ func TestRecoveryErrorAtEOF(t *testing.T) {
+ 			t.Errorf("%q: %d Error nodes, want 1: %v", src, len(errs), kinds(root))
+ 			continue
+ 		}
+-		if errs[0].End != len(src) {
+-			t.Errorf("%q: the Error ends at %d, want %d", src, errs[0].End, len(src))
++		if errs[0].End() != len(src) {
++			t.Errorf("%q: the Error ends at %d, want %d", src, errs[0].End(), len(src))
+ 		}
+ 	}
+ }
+diff --git a/internal/parse/refscalar.go b/internal/parse/refscalar.go
+index 1cb9876a..3cfae02b 100644
+--- a/internal/parse/refscalar.go
++++ b/internal/parse/refscalar.go
+@@ -123,7 +123,7 @@ func (p *parser) refuseAliasedOperand(n *Node, op, fixity string) *Node {
+ // refusedScalarLvalue is the Unknown spanning n that a `\$` slot or
+ // operand refuses it as.
+ func refusedScalarLvalue(n *Node) *Node {
+-	return &Node{Kind: Unknown, Refusal: RefScalarSlot, Start: n.Start, End: n.End}
++	return &Node{Kind: Unknown, Refusal: RefScalarSlot, start: n.start, end: n.end}
+ }
+ 
+ // protoSlot is one argument slot of a prototype: whether it is `\$`,
+diff --git a/internal/parse/repair_test.go b/internal/parse/repair_test.go
+index 2bf15857..32fd6b53 100644
+--- a/internal/parse/repair_test.go
++++ b/internal/parse/repair_test.go
+@@ -53,14 +53,14 @@ func checkRepaired(t *testing.T, form, src string, e Edit, tree *Node, ok bool,
+ 	if d := TreeDiff(tree, fresh); d != "" {
+ 		t.Fatalf("%s: edit %+v of %q: repaired != fresh:\n%s", form, e, src, d)
+ 	}
+-	if bad := badOffset(tree, fresh.End); bad != nil {
+-		t.Fatalf("%s: edit %+v of %q: node [%d, %d) outside [0, %d]", form, e, src, bad.Start, bad.End, fresh.End)
++	if bad := badOffset(absolute(tree), fresh.end); bad != nil {
++		t.Fatalf("%s: edit %+v of %q: node [%d, %d) outside [0, %d]", form, e, src, bad.start, bad.end, fresh.end)
+ 	}
+ }
+ 
+ // badOffset is a node under n not within 0 <= Start <= End <= size, or nil.
+ func badOffset(n *Node, size int) *Node {
+-	if n.Start < 0 || n.Start > n.End || n.End > size {
++	if n.start < 0 || n.start > n.end || n.end > size {
+ 		return n
+ 	}
+ 	for _, c := range slices.Concat(n.Children, n.InnerHeredocBodies) {
+@@ -124,12 +124,12 @@ func TestRepairLastStatementEndsAtAnchorEnd(t *testing.T) {
+ 				t.Fatalf("%q %+v: triage %v, want StrategyLocal: the case must reach Repair's checks", src, e, s)
+ 			}
+ 			a := anchorOf(old, e)
+-			if !strings.HasPrefix(src[a.Start:], "sub f") || strings.Contains(src[a.End:], "sub") {
++			if !strings.HasPrefix(src[a.start:], "sub f") || strings.Contains(src[a.end:], "sub") {
+ 				t.Fatalf("%q %+v: the anchor is not the last sub", src, e)
+ 			}
+ 			// The premise: the fresh parse's sub f really ends past the
+ 			// anchor's shifted end.
+-			if f := childHolding(Parse(newSrc), Edit{Start: a.Start, OldEnd: a.Start}); f.End == a.End+len(newSrc)-len(src) {
++			if f := childHolding(Parse(newSrc), Edit{Start: a.start, OldEnd: a.start}); f.end == a.end+len(newSrc)-len(src) {
+ 				t.Fatalf("%q %+v: the edited sub ends where it did; the case checks nothing", src, e)
+ 			}
+ 			if checkRepair(t, src, e) {
+@@ -158,7 +158,7 @@ func TestRepairByteShiftNoUnderflow(t *testing.T) {
+ 	}
+ 	// copyShifted moves InnerStart and InnerEnd only where set, as
+ 	// TreeDiffShifted compares them.
+-	n := &Node{Start: 9, End: 20, Children: []*Node{{Start: 9, End: 12, InnerStart: 10, InnerEnd: 11}, {Start: 13, End: 20}}}
++	n := &Node{start: 9, end: 20, Children: []*Node{{start: 9, end: 12, innerStart: 10, innerEnd: 11}, {start: 13, end: 20}}}
+ 	if d := TreeDiffShifted(n, copyShifted(n, -9, map[*Node]*Node{}), -9); d != "" {
+ 		t.Fatal(d)
+ 	}
+@@ -202,8 +202,8 @@ func TestRepairEdit5kIsLocal(t *testing.T) {
+ 		if !ok {
+ 			t.Fatalf("edit %+v: ok=false", step)
+ 		}
+-		if n.Start != sub.Start || n.End != sub.End+len(step.NewText) || !strings.HasPrefix(newSrc[n.Start:], "sub scale {") {
+-			t.Fatalf("re-parsed [%d, %d), want the enclosing sub [%d, %d) shifted", n.Start, n.End, sub.Start, sub.End)
++		if n.start != sub.start || n.end != sub.end+len(step.NewText) || !strings.HasPrefix(newSrc[n.start:], "sub scale {") {
++			t.Fatalf("re-parsed [%d, %d), want the enclosing sub [%d, %d) shifted", n.start, n.end, sub.start, sub.end)
+ 		}
+ 		if d := TreeDiff(next, sessionTree([]byte(newSrc))); d != "" {
+ 			t.Fatalf("edit %+v: repaired != fresh:\n%s", step, d)
+@@ -463,7 +463,7 @@ func TestRepairMismatchedOldTreeNeverPanics(t *testing.T) {
+ 		{"negative start", Parse(src), Edit{Start: -1, OldEnd: 2}, src},
+ 		{"start after end", Parse(src), Edit{Start: 5, OldEnd: 2}, src},
+ 		{"nil tree", nil, Edit{}, src},
+-		{"tree with no source", &Node{Kind: SourceFile, End: len(twoSubs)}, Edit{}, src},
++		{"tree with no source", &Node{Kind: SourceFile, end: len(twoSubs)}, Edit{}, src},
+ 		{"loader tree", ParseWithLoader(src, nil), at(twoSubs, "my $", "foo", "bar"), []byte(edited(twoSubs, at(twoSubs, "my $", "foo", "bar")))},
+ 		{"Session tree, plain Repair", sessionTree([]byte(resolvedSub)), at(resolvedSub, "bar ", "1", "42"), []byte(edited(resolvedSub, at(resolvedSub, "bar ", "1", "42")))},
+ 	} {
+@@ -526,14 +526,14 @@ func TestRepairEveryWideningAnchorHasSnapshot(t *testing.T) {
+ 			if a == old {
+ 				continue
+ 			}
+-			if slices.ContainsFunc(tops, func(s parserSnapshot) bool { return s.at == a.Start }) {
+-				if strings.HasPrefix(src[a.Start:], "package Q {") || strings.HasPrefix(src[a.Start:], "{ sub y") {
++			if slices.ContainsFunc(tops, func(s parserSnapshot) bool { return s.at == a.start }) {
++				if strings.HasPrefix(src[a.start:], "package Q {") || strings.HasPrefix(src[a.start:], "{ sub y") {
+ 					nested++
+ 				}
+ 				continue
+ 			}
+ 			if _, ok := NewSession().Repair(old, e, repPath, []byte(edited(src, e)), repRoot); ok {
+-				t.Fatalf("%s: edit at %d anchors at %d, which has no snapshot, and Repair accepted it", name, i, a.Start)
++				t.Fatalf("%s: edit at %d anchors at %d, which has no snapshot, and Repair accepted it", name, i, a.start)
+ 			}
+ 		}
+ 	}
+@@ -564,7 +564,7 @@ func TestRepairTopLevelStatementAnchor(t *testing.T) {
+ 	} {
+ 		t.Run(c.name, func(t *testing.T) {
+ 			old := sessionTree([]byte(c.src))
+-			if a := anchorOf(old, c.e); a == old || !strings.HasPrefix(c.src[a.Start:], c.stmt) {
++			if a := anchorOf(old, c.e); a == old || !strings.HasPrefix(c.src[a.start:], c.stmt) {
+ 				t.Fatalf("anchor is not the top-level statement starting %q", c.stmt)
+ 			}
+ 			if !checkRepair(t, c.src, c.e) {
+@@ -572,8 +572,8 @@ func TestRepairTopLevelStatementAnchor(t *testing.T) {
+ 			}
+ 			newSrc := edited(c.src, c.e)
+ 			_, n, _ := sessionRepair(old, c.e, repPath, []byte(newSrc), []string{repRoot}, nil)
+-			if top := childHolding(old, c.e); n.Start != top.Start || n.End != top.End+len(newSrc)-len(c.src) {
+-				t.Fatalf("re-parsed [%d, %d), want the statement [%d, %d) shifted", n.Start, n.End, top.Start, top.End)
++			if top := childHolding(old, c.e); n.start != top.start || n.end != top.end+len(newSrc)-len(c.src) {
++				t.Fatalf("re-parsed [%d, %d), want the statement [%d, %d) shifted", n.start, n.end, top.start, top.end)
+ 			}
+ 		})
+ 	}
+diff --git a/internal/parse/sites.go b/internal/parse/sites.go
+index d225de4e..df5ccd09 100644
+--- a/internal/parse/sites.go
++++ b/internal/parse/sites.go
+@@ -56,11 +56,12 @@ func Sites(root *Node, src []byte) []parseoracle.SubjectCallSite {
+ 	// found none" from "I did not look", and a nil slice marshals to JSON
+ 	// null, which decodes as absent. See SubjectFacts.CallSites.
+ 	sites := []parseoracle.SubjectCallSite{}
++	root = absolute(root)
+ 
+ 	lines := lineIndex(src)
+ 	decls := newNamedHashes(root, src)
+ 	for _, n := range root.Children {
+-		start, end := lines.at(n.Start), lines.at(n.End-1)
++		start, end := lines.at(n.start), lines.at(n.end-1)
+ 
+ 		// An Unknown statement reports through decidedMarkers too, which
+ 		// hedges every marker for it.
+@@ -248,12 +249,12 @@ func unreadHashNames(root *Node, src []byte) map[string]bool {
+ 		text := ""
+ 		switch {
+ 		case n.Refused():
+-			text = string(src[n.Start:n.End])
++			text = string(src[n.start:n.end])
+ 		case n.Kind == Term && (hidesStructure(n.Text) ||
+ 			isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)):
+ 			text = n.Text
+-		case n.HeredocBody && interpolatesCode(string(src[n.Start:n.End])):
+-			text = string(src[n.Start:n.End])
++		case n.HeredocBody && interpolatesCode(string(src[n.start:n.end])):
++			text = string(src[n.start:n.end])
+ 		}
+ 		for _, m := range unreadHashName.FindAllStringSubmatch(text, -1) {
+ 			names[m[1]] = true
+@@ -616,7 +617,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
+ 			// `<<'EOF'` body holding `@{[` hedges too. perl reports nothing
+ 			// there, so the hedge is never spent; pairing each body with its
+ 			// opener is the upgrade if the precision ever matters.
+-			if (n.HeredocBody && interpolatesCode(string(src[n.Start:n.End]))) ||
++			if (n.HeredocBody && interpolatesCode(string(src[n.start:n.end]))) ||
+ 				(isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)) {
+ 				hedgeAll(n, reasonInterpolatedCode)
+ 			}
+diff --git a/internal/parse/splice_bench_test.go b/internal/parse/splice_bench_test.go
+index 0b64c2da..5f2a9bb7 100644
+--- a/internal/parse/splice_bench_test.go
++++ b/internal/parse/splice_bench_test.go
+@@ -1,5 +1,5 @@
+-// ABOUTME: BenchmarkRepairSplice times Repair's splice stage alone over latencyEdits on edit5k.pl (01a17a40-4915 stage 1).
+-// ABOUTME: copy-shift is the splice as landed; in-place-shift a prototype shifting the old tree's reused nodes with no copy.
++// ABOUTME: BenchmarkRepairSplice times Repair's splice stage alone over latencyEdits on edit5k.pl (01a17a40-4915).
++// ABOUTME: spliceEdits duplicates internal/psc's latencyEdits rule as Edits, which internal/parse cannot import.
+ package parse
+ 
+ import (
+@@ -39,106 +39,32 @@ func spliceEdits(tb testing.TB, src []byte, n int) []Edit {
+ 	return es
+ }
+ 
+-// spliceInPlace is the in-place prototype: old's root with a replaced by n
+-// and every child past a shifted by delta where it stands. It consumes old.
+-func spliceInPlace(old, a, n *Node, delta int) (*Node, int) {
+-	root := &Node{Kind: SourceFile, Start: 0, End: old.End + delta, Children: slices.Clone(old.Children)}
+-	written := 0
+-	var shift func(*Node)
+-	shift = func(c *Node) {
+-		written++
+-		c.Start += delta
+-		c.End += delta
+-		if c.InnerEnd != 0 {
+-			c.InnerStart += delta
+-			c.InnerEnd += delta
+-		}
+-		for _, k := range c.Children {
+-			shift(k)
+-		}
+-		for _, k := range c.InnerHeredocBodies {
+-			shift(k)
+-		}
+-	}
+-	for i, c := range root.Children {
+-		switch {
+-		case c == a:
+-			root.Children[i] = n
+-		case c.Start > a.Start:
+-			shift(c)
+-		}
+-	}
+-	return root, written
+-}
+-
+-// anchorReplaced is the old child that n, a child of tree, replaced.
+-func anchorReplaced(old, tree, n *Node) *Node {
+-	return old.Children[slices.Index(tree.Children, n)]
+-}
+-
+ // BenchmarkRepairSplice runs one latencyEdits edit per iteration through
+ // Repair, carrying the tree on, and times only the splice of the reused
+-// nodes around the statement Repair re-parsed. nodes/op is the nodes the
+-// splice allocated, copied or wrote.
++// statements around the one Repair re-parsed.
+ func BenchmarkRepairSplice(b *testing.B) {
+ 	src, _ := latencyEdit5k(b)
+-	for _, mode := range []string{"copy-shift", "in-place-shift"} {
+-		b.Run(mode, func(b *testing.B) {
+-			es := spliceEdits(b, []byte(src), b.N)
+-			tree, cur := parseTracked([]byte(src), nil, ""), []byte(src)
+-			var times []time.Duration
+-			nodes := 0
+-			b.ResetTimer()
+-			for _, e := range es {
+-				next := []byte(edited(string(cur), e))
+-				t1, n, ok := repair(tree, e, next, "", func() *resolver { return nil })
+-				if !ok {
+-					b.Fatalf("Repair refused %+v", e)
+-				}
+-				a, delta := anchorReplaced(tree, t1, n), len(next)-len(cur)
+-				var k int
+-				t0 := time.Now()
+-				if mode == "copy-shift" {
+-					_, k = splice(tree, a, n, delta)
+-				} else {
+-					_, k = spliceInPlace(tree, a, n, delta) // tree is consumed: t1 carries on
+-				}
+-				times = append(times, time.Since(t0))
+-				nodes += k
+-				tree, cur = t1, next
+-			}
+-			b.StopTimer()
+-			slices.Sort(times)
+-			at := func(p int) float64 {
+-				return float64(times[max((p*len(times)+99)/100-1, 0)]) / float64(time.Millisecond)
+-			}
+-			b.ReportMetric(at(50), "ms/p50")
+-			b.ReportMetric(at(99), "ms/p99")
+-			b.ReportMetric(float64(nodes)/float64(len(es)), "nodes/op")
+-		})
+-	}
+-}
+-
+-// TestSpliceInPlaceEqualsFresh: the prototype BenchmarkRepairSplice times
+-// builds the tree a fresh parse does, for edits in the first, middle and
+-// last `sub scale`, so its timing is of a correct splice.
+-func TestSpliceInPlaceEqualsFresh(t *testing.T) {
+-	src, _ := latencyEdit5k(t)
+-	es := spliceEdits(t, []byte(src), 140)
+-	for _, k := range []int{0, 35, 69} {
+-		cur := []byte(src)
+-		for _, e := range es[:k] {
+-			cur = []byte(edited(string(cur), e))
+-		}
+-		tree, e := parseTracked(cur, nil, ""), es[k]
++	es := spliceEdits(b, []byte(src), b.N)
++	tree, cur := parseTracked([]byte(src), nil, ""), []byte(src)
++	times := make([]time.Duration, 0, b.N)
++	b.ResetTimer()
++	for _, e := range es {
+ 		next := []byte(edited(string(cur), e))
+ 		t1, n, ok := repair(tree, e, next, "", func() *resolver { return nil })
+ 		if !ok {
+-			t.Fatalf("edit %d: Repair refused", k)
+-		}
+-		got, _ := spliceInPlace(tree, anchorReplaced(tree, t1, n), n, len(next)-len(cur))
+-		if d := TreeDiff(got, Parse(next)); d != "" {
+-			t.Errorf("edit %d: in-place splice differs from a fresh parse:\n%s", k, d)
++			b.Fatalf("Repair refused %+v", e)
+ 		}
++		i := slices.Index(t1.Children, n)
++		t0 := time.Now()
++		splice(tree, i, n, len(next)-len(cur))
++		times = append(times, time.Since(t0))
++		tree, cur = t1, next
++	}
++	b.StopTimer()
++	slices.Sort(times)
++	at := func(p int) float64 {
++		return float64(times[max((p*len(times)+99)/100-1, 0)]) / float64(time.Millisecond)
+ 	}
++	b.ReportMetric(at(50), "ms/p50")
++	b.ReportMetric(at(99), "ms/p99")
+ }
+diff --git a/internal/parse/splice_budget_test.go b/internal/parse/splice_budget_test.go
+new file mode 100644
+index 00000000..be91e643
+--- /dev/null
++++ b/internal/parse/splice_budget_test.go
+@@ -0,0 +1,58 @@
++// ABOUTME: TestRepairSpliceP99WithinBudget times Repair's splice stage over latencyEdits on edit5k.pl against 45ba's 1 ms sub-budget.
++// ABOUTME: Opt-in with PSC_LATENCY_BUDGET=1, like the psc latency gate; it logs the machine it ran on.
++package parse
++
++import (
++	"bytes"
++	"os"
++	"runtime"
++	"slices"
++	"testing"
++	"time"
++)
++
++// spliceBudget is the splice stage's sub-budget per the 01a17969-45ba
++// ruling: 1 ms unless `#### Ruling on the step-4 numbers` sets another.
++const spliceBudget = time.Millisecond
++
++// cpuModel is /proc/cpuinfo's first model name, "unknown" without one.
++func cpuModel() string {
++	b, _ := os.ReadFile("/proc/cpuinfo")
++	for _, line := range bytes.Split(b, []byte("\n")) {
++		if k, v, ok := bytes.Cut(line, []byte(":")); ok && string(bytes.TrimSpace(k)) == "model name" {
++			return string(bytes.TrimSpace(v))
++		}
++	}
++	return "unknown"
++}
++
++// TestRepairSpliceP99WithinBudget: over 200 edits of latencyEdits, the
++// splice of the reused statements around the one Repair re-parsed takes
++// under spliceBudget at p99. Timing depends on the machine, so it runs only
++// with PSC_LATENCY_BUDGET=1, on the reference 4-vCPU VM.
++func TestRepairSpliceP99WithinBudget(t *testing.T) {
++	if os.Getenv("PSC_LATENCY_BUDGET") != "1" {
++		t.Skip("timing gate: set PSC_LATENCY_BUDGET=1 to run it on the reference VM")
++	}
++	src, _ := latencyEdit5k(t)
++	tree, cur := parseTracked([]byte(src), nil, ""), []byte(src)
++	var times []time.Duration
++	for _, e := range spliceEdits(t, cur, 200) {
++		next := []byte(edited(string(cur), e))
++		t1, n, ok := repair(tree, e, next, "", func() *resolver { return nil })
++		if !ok {
++			t.Fatalf("Repair refused %+v", e)
++		}
++		i := slices.Index(t1.Children, n)
++		t0 := time.Now()
++		splice(tree, i, n, len(next)-len(cur))
++		times = append(times, time.Since(t0))
++		tree, cur = t1, next
++	}
++	slices.Sort(times)
++	p99 := times[(99*len(times)+99)/100-1]
++	t.Logf("cpu=%s nproc=%d go=%s p99=%.3fms", cpuModel(), runtime.NumCPU(), runtime.Version(), float64(p99)/float64(time.Millisecond))
++	if p99 >= spliceBudget {
++		t.Errorf("splice p99 %v, want under %v", p99, spliceBudget)
++	}
++}
+diff --git a/internal/parse/splice_test.go b/internal/parse/splice_test.go
+new file mode 100644
+index 00000000..a90bc654
+--- /dev/null
++++ b/internal/parse/splice_test.go
+@@ -0,0 +1,142 @@
++// ABOUTME: Repair's splice under the root-edge-delta ruling (§6.4.2): it touches only the damaged path and shares the rest.
++// ABOUTME: Old and new trees both read as fresh parses of their own bytes, through ten successive repairs.
++package parse
++
++import (
++	"slices"
++	"strings"
++	"testing"
++)
++
++// scaleEdits is a 1-char edit in the first, middle and last `sub scale`
++// of src, each of src itself: spliceEdits' edits 0, n/2 and n-1.
++func scaleEdits(t *testing.T, src []byte) []Edit {
++	t.Helper()
++	n := strings.Count(string(src), "\nsub scale {")
++	es := spliceEdits(t, src, n)
++	// Edit k of the sequence applies to the buffer edits 0..k-1 left; each
++	// of these first moves left by the digits inserted before it.
++	first, mid, last := es[0], es[n/2], es[n-1]
++	mid.Start, mid.OldEnd = mid.Start-n/2, mid.OldEnd-n/2
++	last.Start, last.OldEnd = last.Start-(n-1), last.OldEnd-(n-1)
++	return []Edit{first, mid, last}
++}
++
++// reachable is every node reachable from n, children and inner heredoc
++// bodies alike, each once.
++func reachable(n *Node) map[*Node]bool {
++	seen := map[*Node]bool{}
++	var walk func(*Node)
++	walk = func(n *Node) {
++		if seen[n] {
++			return
++		}
++		seen[n] = true
++		for _, c := range n.Children {
++			walk(c)
++		}
++		for _, c := range n.InnerHeredocBodies {
++			walk(c)
++		}
++	}
++	walk(n)
++	return seen
++}
++
++// nodeImage is what a write to n could change: its fields, and the
++// contents of its child slices, which share their backing array with any
++// node copied from it.
++type nodeImage struct {
++	n                Node
++	children, bodies []*Node
++}
++
++func imageOf(ns map[*Node]bool) map[*Node]nodeImage {
++	out := make(map[*Node]nodeImage, len(ns))
++	for n := range ns {
++		out[n] = nodeImage{*n, slices.Clone(n.Children), slices.Clone(n.InnerHeredocBodies)}
++	}
++	return out
++}
++
++// touched is how many nodes Repair allocated, copied or wrote building
++// tree: those reachable from tree that the old tree did not hold, and
++// old's nodes whose fields or child slices differ from before.
++func touched(tree *Node, before map[*Node]nodeImage) int {
++	k := 0
++	for n := range reachable(tree) {
++		if _, ok := before[n]; !ok {
++			k++
++		}
++	}
++	for n, img := range before {
++		if !nodeFieldsEqual(n, &img.n) || !slices.Equal(n.Children, img.children) || !slices.Equal(n.InnerHeredocBodies, img.bodies) {
++			k++
++		}
++	}
++	return k
++}
++
++// nodeFieldsEqual compares a and b field by field, children by identity.
++func nodeFieldsEqual(a, b *Node) bool {
++	x, y := *a, *b
++	x.Children, y.Children, x.InnerHeredocBodies, y.InnerHeredocBodies = nil, nil, nil, nil
++	x.inc, y.inc = nil, nil
++	return TreeDiff(&x, &y) == ""
++}
++
++// TestRepairSpliceTouchesOnlyDamagedPath: for a 1-char edit in the first,
++// middle and last `sub scale` of edit5k.pl, Repair allocates, copies or
++// writes under 5% of the file's nodes. Machine-independent: it counts, it
++// does not time.
++func TestRepairSpliceTouchesOnlyDamagedPath(t *testing.T) {
++	src, _ := latencyEdit5k(t)
++	for i, e := range scaleEdits(t, []byte(src)) {
++		old := parseTracked([]byte(src), nil, "")
++		all := reachable(old)
++		before := imageOf(all)
++		tree, ok := Repair(old, e, []byte(edited(src, e)))
++		if !ok {
++			t.Fatalf("edit %d: Repair refused %+v", i, e)
++		}
++		if k, n := touched(tree, before), len(all); k*20 >= n {
++			t.Errorf("edit %d: Repair touched %d of %d nodes (%.1f%%), want under 5%%", i, k, n, 100*float64(k)/float64(n))
++		}
++	}
++}
++
++// TestRepairSharedSubtreesReadSameInOldAndNew: the statements Repair kept
++// are the old tree's own nodes, and both trees read as fresh parses of
++// their own bytes -- equal under TreeDiff, and SourceText the bytes back.
++// Ten successive repairs leave every earlier tree reading so.
++func TestRepairSharedSubtreesReadSameInOldAndNew(t *testing.T) {
++	src, _ := latencyEdit5k(t)
++	es := spliceEdits(t, []byte(src), 10)
++	trees, srcs := []*Node{parseTracked([]byte(src), nil, "")}, []string{src}
++	for k, e := range es {
++		prev := trees[len(trees)-1]
++		next := edited(srcs[len(srcs)-1], e)
++		tree, ok := Repair(prev, e, []byte(next))
++		if !ok {
++			t.Fatalf("edit %d: Repair refused %+v", k, e)
++		}
++		shared := 0
++		for _, c := range tree.Children {
++			if slices.Contains(prev.Children, c) {
++				shared++
++			}
++		}
++		if shared != len(prev.Children)-1 {
++			t.Errorf("edit %d: %d of %d top-level statements shared, want all but the anchor", k, shared, len(prev.Children))
++		}
++		trees, srcs = append(trees, tree), append(srcs, next)
++		for j, tr := range trees {
++			if d := TreeDiff(tr, Parse([]byte(srcs[j]))); d != "" {
++				t.Fatalf("after edit %d, tree %d differs from a fresh parse of its bytes: %s", k, j, d)
++			}
++			if got := tr.SourceText([]byte(srcs[j])); got != srcs[j] {
++				t.Fatalf("after edit %d, tree %d's SourceText is not its bytes", k, j)
++			}
++		}
++	}
++}
+diff --git a/internal/parse/stmt_test.go b/internal/parse/stmt_test.go
+index 4ba1b9d5..9bd829fa 100644
+--- a/internal/parse/stmt_test.go
++++ b/internal/parse/stmt_test.go
+@@ -28,11 +28,11 @@ func TestSourceFileIsStatements(t *testing.T) {
+ 		root := parse.Parse([]byte(src))
+ 		at := 0
+ 		for i, n := range root.Children {
+-			if n.Start != at {
++			if n.Start() != at {
+ 				t.Errorf("%q: child %d starts at %d, want %d (gap or overlap)",
+-					src, i, n.Start, at)
++					src, i, n.Start(), at)
+ 			}
+-			at = n.End
++			at = n.End()
+ 		}
+ 		if at != len(src) {
+ 			t.Errorf("%q: children end at %d, want %d", src, at, len(src))
+@@ -94,9 +94,9 @@ func TestDataSectionIsTrivia(t *testing.T) {
+ 				src, kinds(root))
+ 		}
+ 		last := root.Children[len(root.Children)-1]
+-		if last.Kind != parse.Trivia || last.End != len(src) {
++		if last.Kind != parse.Trivia || last.End() != len(src) {
+ 			t.Errorf("%q: the section must be trailing Trivia ending at %d, "+
+-				"got %v ending at %d", src, len(src), last.Kind, last.End)
++				"got %v ending at %d", src, len(src), last.Kind, last.End())
+ 		}
+ 	}
+ }
+@@ -174,11 +174,11 @@ func TestRecoveryDoesNotCascade(t *testing.T) {
+ 			len(badStmts), len(goodStmts), kinds(badRoot))
+ 	}
+ 	for i := range goodStmts {
+-		wantStart := goodStmts[i].Start + offset
+-		wantEnd := goodStmts[i].End + offset
+-		if badStmts[i].Start != wantStart || badStmts[i].End != wantEnd {
++		wantStart := goodStmts[i].Start() + offset
++		wantEnd := goodStmts[i].End() + offset
++		if badStmts[i].Start() != wantStart || badStmts[i].End() != wantEnd {
+ 			t.Errorf("statement %d spans [%d,%d), want [%d,%d): the bad line shifted it",
+-				i, badStmts[i].Start, badStmts[i].End, wantStart, wantEnd)
++				i, badStmts[i].Start(), badStmts[i].End(), wantStart, wantEnd)
+ 		}
+ 	}
+ }
+diff --git a/internal/parse/stmtboundary_test.go b/internal/parse/stmtboundary_test.go
+index 6d2e1309..4d898959 100644
+--- a/internal/parse/stmtboundary_test.go
++++ b/internal/parse/stmtboundary_test.go
+@@ -267,7 +267,7 @@ func TestDerefBraceFlagLeavesSitesUnchanged(t *testing.T) {
+ // compare by shape and flags alone.
+ func bracelessTree(n *parse.Node) *parse.Node {
+ 	cp := *n
+-	cp.Start, cp.End, cp.InnerStart, cp.InnerEnd = 0, 0, 0, 0
++	cp.ClearSpans()
+ 	cp.Children = nil
+ 	for _, c := range n.Children {
+ 		cp.Children = append(cp.Children, bracelessTree(c))
+diff --git a/internal/parse/syntax.go b/internal/parse/syntax.go
+index dc677cad..2721ec8d 100644
+--- a/internal/parse/syntax.go
++++ b/internal/parse/syntax.go
+@@ -69,9 +69,9 @@ func (p *parser) parseDeclaredStatement(word lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Conditional, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Conditional, Text: p.text(word), start: word.Start}
+ 	p.parsePieces(n, s.pieces)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -83,9 +83,9 @@ func (p *parser) parseDeclaredExpression(word lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Call, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Call, Text: p.text(word), start: word.Start}
+ 	p.parsePieces(n, s.pieces)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -112,7 +112,7 @@ func (p *parser) parsePrefixedSubDecl(word lexer.Token) *Node {
+ 	}
+ 	p.advanceTo(word)
+ 	inner := p.parseSubDecl(sub)
+-	return &Node{Kind: Declaration, Text: p.text(word), Start: word.Start, End: inner.End, Children: []*Node{inner}}
++	return &Node{Kind: Declaration, Text: p.text(word), start: word.Start, end: inner.end, Children: []*Node{inner}}
+ }
+ 
+ // parsePrefixedAnonSub: `async sub { ... }` in an expression, or nil.
+@@ -127,7 +127,7 @@ func (p *parser) parsePrefixedAnonSub(word lexer.Token) *Node {
+ 	}
+ 	p.advanceTo(word)
+ 	inner := p.parseAnonSub(sub)
+-	return &Node{Kind: Declaration, Text: p.text(word), Start: word.Start, End: inner.End, Children: []*Node{inner}}
++	return &Node{Kind: Declaration, Text: p.text(word), start: word.Start, end: inner.end, Children: []*Node{inner}}
+ }
+ 
+ // piecesStart reports whether what follows word can begin the first piece: a
+diff --git a/internal/parse/term.go b/internal/parse/term.go
+index 7c7fedfa..93f9b492 100644
+--- a/internal/parse/term.go
++++ b/internal/parse/term.go
+@@ -44,8 +44,8 @@ func (p *parser) parseTerm() *Node {
+ 		if v, ok := p.peekAfter(tok); ok && v.Kind == lexer.Variable && strings.HasPrefix(p.text(v), "$") {
+ 			p.advanceTo(v)
+ 			return &Node{
+-				Kind: Unary, Text: ":", Start: tok.Start, End: v.End,
+-				Children: []*Node{{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}},
++				Kind: Unary, Text: ":", start: tok.Start, end: v.End,
++				Children: []*Node{{Kind: Term, Text: p.text(v), start: v.Start, end: v.End}},
+ 			}
+ 		}
+ 	}
+@@ -77,7 +77,7 @@ func (p *parser) parseTerm() *Node {
+ 		p.advanceTo(tok)
+ 		n := &Node{
+ 			Kind: Call, Text: text, Resolved: true, NamedUnary: true,
+-			Start: tok.Start, End: tok.End,
++			start: tok.Start, end: tok.End,
+ 		}
+ 		if next, ok := p.peekSignificant(); ok && p.text(next) == "(" {
+ 			p.advanceTo(next)
+@@ -88,7 +88,7 @@ func (p *parser) parseTerm() *Node {
+ 			if close, ok := p.peekSignificant(); ok && p.text(close) == ")" {
+ 				p.advanceTo(close)
+ 			}
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 			p.readHandleSlots(n, text)
+ 			return n
+ 		}
+@@ -137,7 +137,7 @@ func (p *parser) parseTerm() *Node {
+ 		}
+ 		if arg := p.parseExpr(bpNamedUnary); arg != nil {
+ 			n.Children = append(n.Children, arg)
+-			n.End = p.prevEnd()
++			n.end = p.prevEnd()
+ 		}
+ 		p.readHandleSlots(n, text)
+ 		return n
+@@ -151,7 +151,7 @@ func (p *parser) parseTerm() *Node {
+ 	// the subscript, or after a lone `-`: `$h{1, not}` is a syntax error.
+ 	if next, ok := p.peekAfter(tok); text == "not" && p.inHashKey && ok && p.text(next) == "}" && p.firstInKey() {
+ 		p.advanceTo(tok)
+-		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
++		return &Node{Kind: Term, Text: text, start: tok.Start, end: tok.End}
+ 	}
+ 	if bp, isPrefix := prefix[text]; isPrefix && p.prefixAllowed(text) {
+ 		p.advanceTo(tok)
+@@ -165,12 +165,12 @@ func (p *parser) parseTerm() *Node {
+ 		}
+ 		operand := p.operand(bp, tok)
+ 		// The `not (` pair is not's, as a call's parens are the call's.
+-		if text == "not" && bp == bpDeref && operand.Paren && p.src[operand.Start] == '(' {
++		if text == "not" && bp == bpDeref && operand.Paren && p.src[operand.start] == '(' {
+ 			takeSyntaxPair(operand)
+ 		}
+ 		return p.refuseAliasedOperand(&Node{
+ 			Kind: Unary, Text: prefixName(text),
+-			Start: tok.Start, End: operand.End,
++			start: tok.Start, end: operand.end,
+ 			Children: []*Node{operand},
+ 		}, text, "prefix")
+ 	}
+@@ -201,7 +201,7 @@ func (p *parser) parseTerm() *Node {
+ 			operand := p.operand(bpDeref, tok)
+ 			return &Node{
+ 				Kind: Term, Text: "*",
+-				Start: tok.Start, End: operand.End,
++				start: tok.Start, end: operand.end,
+ 				Children: []*Node{operand},
+ 			}
+ 		}
+@@ -211,7 +211,7 @@ func (p *parser) parseTerm() *Node {
+ 		if name, ok := p.peekAfter(tok); ok && name.Kind == lexer.FuncSigil && name.Start == tok.End {
+ 			if w, ok := p.peekAfter(name); ok && p.text(w) == "x" && w.Start == name.End {
+ 				p.advanceTo(name)
+-				return &Node{Kind: Term, Text: "*&", Start: tok.Start, End: name.End}
++				return &Node{Kind: Term, Text: "*&", start: tok.Start, end: name.End}
+ 			}
+ 		}
+ 		if name, ok := p.peekAfter(tok); ok &&
+@@ -228,7 +228,7 @@ func (p *parser) parseTerm() *Node {
+ 				blk := p.parseBlock(name)
+ 				return &Node{
+ 					Kind: Term, Text: "*",
+-					Start: tok.Start, End: blk.End,
++					start: tok.Start, end: blk.end,
+ 					Children: []*Node{blk},
+ 				}
+ 			}
+@@ -249,7 +249,7 @@ func (p *parser) parseTerm() *Node {
+ 					p.advanceTo(close)
+ 				}
+ 				n := &Node{
+-					Kind: Term, Text: "*", Start: tok.Start, End: p.prevEnd(),
++					Kind: Term, Text: "*", start: tok.Start, end: p.prevEnd(),
+ 				}
+ 				if inner != nil {
+ 					n.Children = append(n.Children, inner)
+@@ -264,10 +264,10 @@ func (p *parser) parseTerm() *Node {
+ 				t[1] == 'x' && strings.Trim(t[2:], "0123456789") == "" && !p.bindsTighterAfter(name, infix["x"].BP) {
+ 				p.advanceTo(name)
+ 				return &Node{
+-					Kind: Binary, Text: "x", Start: tok.Start, End: name.End,
++					Kind: Binary, Text: "x", start: tok.Start, end: name.End,
+ 					Children: []*Node{
+-						{Kind: Term, Text: "*" + t[:1], Start: tok.Start, End: name.Start + 1},
+-						{Kind: Term, Text: t[2:], Start: name.Start + 2, End: name.End},
++						{Kind: Term, Text: "*" + t[:1], start: tok.Start, end: name.Start + 1},
++						{Kind: Term, Text: t[2:], start: name.Start + 2, end: name.End},
+ 					},
+ 				}
+ 			}
+@@ -291,16 +291,16 @@ func (p *parser) parseTerm() *Node {
+ 				//	my $x = *$g{'IO'};
+ 				return &Node{
+ 					Kind: Term, Text: "*",
+-					Start: tok.Start, End: name.End,
++					start: tok.Start, end: name.End,
+ 					Children: []*Node{{
+ 						Kind: Term, Text: p.text(name),
+-						Start: name.Start, End: name.End,
++						start: name.Start, end: name.End,
+ 					}},
+ 				}
+ 			}
+ 			return &Node{
+ 				Kind: Term, Text: "*" + p.text(name),
+-				Start: tok.Start, End: name.End,
++				start: tok.Start, end: name.End,
+ 			}
+ 		}
+ 	}
+@@ -355,7 +355,7 @@ func (p *parser) parseTerm() *Node {
+ 				blk := p.parseBlock(open)
+ 				return &Node{
+ 					Kind: Unary, Text: text,
+-					Start: tok.Start, End: blk.End,
++					start: tok.Start, end: blk.end,
+ 					Children: []*Node{blk},
+ 				}
+ 			}
+@@ -367,11 +367,11 @@ func (p *parser) parseTerm() *Node {
+ 			if inner == nil {
+ 				// `${}` -- nothing to dereference. The bytes stay in the
+ 				// tree as an Unknown rather than a Unary with no operand.
+-				return &Node{Kind: Unknown, Refusal: EmptyDeref, Start: tok.Start, End: p.prevEnd()}
++				return &Node{Kind: Unknown, Refusal: EmptyDeref, start: tok.Start, end: p.prevEnd()}
+ 			}
+ 			return &Node{
+ 				Kind: Unary, Text: text, DerefBraces: true,
+-				Start: tok.Start, End: p.prevEnd(),
++				start: tok.Start, end: p.prevEnd(),
+ 				Children: []*Node{inner},
+ 			}
+ 		}
+@@ -379,7 +379,7 @@ func (p *parser) parseTerm() *Node {
+ 		operand := p.operand(bpDeref, tok)
+ 		return &Node{
+ 			Kind: Unary, Text: text,
+-			Start: tok.Start, End: operand.End,
++			start: tok.Start, end: operand.end,
+ 			Children: []*Node{operand},
+ 		}
+ 
+@@ -411,7 +411,7 @@ func (p *parser) parseTerm() *Node {
+ 			blk := p.parseBlock(open)
+ 			return &Node{
+ 				Kind: Unary, Text: text,
+-				Start: tok.Start, End: blk.End,
++				start: tok.Start, end: blk.end,
+ 				Children: []*Node{blk},
+ 			}
+ 		}
+@@ -422,7 +422,7 @@ func (p *parser) parseTerm() *Node {
+ 			if operand := p.parseTerm(); operand != nil {
+ 				return &Node{
+ 					Kind: Unary, Text: text,
+-					Start: tok.Start, End: operand.End,
++					start: tok.Start, end: operand.end,
+ 					Children: []*Node{operand},
+ 				}
+ 			}
+@@ -431,7 +431,7 @@ func (p *parser) parseTerm() *Node {
+ 			p.advanceTo(name)
+ 			return &Node{
+ 				Kind: Term, Text: text + p.text(name),
+-				Start: tok.Start, End: name.End,
++				start: tok.Start, end: name.End,
+ 			}
+ 		}
+ 		// perl has no bare `&`: toke.c's scan_ident takes one punctuation
+@@ -448,7 +448,7 @@ func (p *parser) parseTerm() *Node {
+ 			p.advanceTo(name)
+ 			return &Node{
+ 				Kind: Term, Text: text + p.text(name),
+-				Start: tok.Start, End: name.End,
++				start: tok.Start, end: name.End,
+ 			}
+ 		}
+ 		// Digits after it that are a Number are a name perl refuses: `&00` is "Numeric
+@@ -467,7 +467,7 @@ func (p *parser) parseTerm() *Node {
+ 			p.advanceTo(name)
+ 			return p.refuseNotATerm(tok)
+ 		}
+-		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
++		return &Node{Kind: Term, Text: text, start: tok.Start, end: tok.End}
+ 
+ 	case lexer.Word:
+ 		text := p.text(tok)
+@@ -547,7 +547,7 @@ func (p *parser) parseTerm() *Node {
+ 		p.advanceTo(tok)
+ 		return &Node{
+ 			Kind: Term, Text: text,
+-			Start: tok.Start, End: tok.End,
++			start: tok.Start, end: tok.End,
+ 		}
+ 	}
+ 
+@@ -561,7 +561,7 @@ func (p *parser) parseTerm() *Node {
+ // The refusal is a catch-all, so it is an Error node (recovery.go).
+ func (p *parser) refuseNotATerm(tok lexer.Token) *Node {
+ 	p.advanceTo(tok)
+-	return p.missingIdentifier(p.recover(&Node{Kind: Error, Refusal: NotATerm, Start: tok.Start, End: p.prevEnd()}), tok)
++	return p.missingIdentifier(p.recover(&Node{Kind: Error, Refusal: NotATerm, start: tok.Start, end: p.prevEnd()}), tok)
+ }
+ 
+ // wordInfixOps are the word operators that are never a term: `x` is a
+@@ -654,7 +654,7 @@ func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
+ 	}
+ 	save := p.pos
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Term, Text: text + name, Start: sigil.Start, End: word.End}
++	n := &Node{Kind: Term, Text: text + name, start: sigil.Start, end: word.End}
+ 	for {
+ 		sub, ok := p.peekSignificant()
+ 		if !ok || p.text(sub) != "[" && p.text(sub) != "{" {
+@@ -668,7 +668,7 @@ func (p *parser) bracedSubscriptedName(sigil, open lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(shut)
+-	n.End = shut.End
++	n.end = shut.End
+ 	n.NameBraces = true
+ 	return n
+ }
+@@ -720,14 +720,14 @@ func (p *parser) derefHoldsStatementsOnce(open lexer.Token) bool {
+ // about its children, not about what kind of node it is.
+ func (p *parser) parseAnonSub(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 
+ 	// A prototype or signature, if the lexer found one.
+ 	if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
+ 		p.advanceTo(proto)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: PrototypeNode, Text: p.text(proto),
+-			Start: proto.Start, End: proto.End,
++			start: proto.Start, end: proto.End,
+ 		})
+ 	} else if open, ok := p.peekSignificant(); ok && p.text(open) == "(" {
+ 		// A signature: the lexer leaves the parens as code when the feature
+@@ -757,7 +757,7 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
+ 		return p.refuseNotATerm(word)
+ 	}
+ 	n.Children = append(n.Children, blk)
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -772,12 +772,12 @@ func (p *parser) parseAnonSub(word lexer.Token) *Node {
+ // what separates them, which is also how perl decides.
+ func (p *parser) parseBlockOperator(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Call, Text: p.text(word), Resolved: true, Start: word.Start}
++	n := &Node{Kind: Call, Text: p.text(word), Resolved: true, start: word.Start}
+ 
+ 	if blk := p.parseBlockOrDecline(); blk != nil {
+ 		n.Children = append(n.Children, blk)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -835,7 +835,7 @@ func (p *parser) globWithSpecialName(star lexer.Token) *Node {
+ 	p.advanceTo(last)
+ 	return &Node{
+ 		Kind: Term, Text: string(p.src[star.Start:last.End]),
+-		Start: star.Start, End: last.End,
++		start: star.Start, end: last.End,
+ 	}
+ }
+ 
+@@ -978,13 +978,13 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
+ 		// Paren, and an Indirect on `(method $obj ())` in t/op/method.t:79.
+ 		c := *items[0]
+ 		if !c.Paren {
+-			c.InnerStart, c.InnerEnd = c.Start, c.End
++			c.innerStart, c.innerEnd = c.start, c.end
+ 		}
+ 		// The inner pair is a grouping of the same node even with a
+ 		// separator after it: measured on perl 5.44.0, `((0),)[0]` is
+ 		// `const[IV 0] sP` and `(0,)[0]` is `const[IV 0] s`.
+ 		c.nestedParen = c.Paren
+-		c.Start, c.End = open.Start, p.prevEnd()
++		c.start, c.end = open.Start, p.prevEnd()
+ 		c.Paren = true
+ 		// A leaf is written as its source text, which now holds any
+ 		// trailing comma inside the parens: `(0,)`. Kept as well, canon
+@@ -996,7 +996,7 @@ func (p *parser) finishList(items []*Node, open lexer.Token) *Node {
+ 		return &c
+ 	}
+ 	return &Node{
+-		Kind: List, Start: open.Start, End: p.prevEnd(),
++		Kind: List, start: open.Start, end: p.prevEnd(),
+ 		Children: items,
+ 		Paren:    true,
+ 	}
+@@ -1032,7 +1032,7 @@ func (p *parser) commaList(items []*Node) *Node {
+ 		return items[0]
+ 	}
+ 	return &Node{
+-		Kind: List, Start: items[0].Start, End: p.prevEnd(),
++		Kind: List, start: items[0].start, end: p.prevEnd(),
+ 		Children: items,
+ 	}
+ }
+@@ -1086,7 +1086,7 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
+ 			seps = []string{p.text(next)}
+ 		case closer:
+ 			p.advanceTo(next)
+-			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
++			return &Node{Kind: kind, start: open.Start, end: p.prevEnd(), Children: items}
+ 		default:
+ 			// The same resume parseParenList's default arm describes, and for
+ 			// the same reason: a bracket holds a full `expr`, not a comma
+@@ -1120,10 +1120,10 @@ func (p *parser) parseBracketed(open lexer.Token, closer string, kind Kind) *Nod
+ 					p.advanceTo(c)
+ 				}
+ 			}
+-			return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
++			return &Node{Kind: kind, start: open.Start, end: p.prevEnd(), Children: items}
+ 		}
+ 	}
+-	return &Node{Kind: kind, Start: open.Start, End: p.prevEnd(), Children: items}
++	return &Node{Kind: kind, start: open.Start, end: p.prevEnd(), Children: items}
+ }
+ 
+ // bindsTighterAfter reports whether the operator after tok binds tighter
+diff --git a/internal/parse/treediff.go b/internal/parse/treediff.go
+index a5f85465..649ea9fb 100644
+--- a/internal/parse/treediff.go
++++ b/internal/parse/treediff.go
+@@ -18,9 +18,14 @@ var treeDiffExcluded = map[string]string{
+ }
+ 
+ // treeDiffOffsets are the byte-offset fields TreeDiffShifted moves by delta.
+-// InnerStart and InnerEnd move only where set (InnerEnd != 0): a Paren List
++// innerStart and innerEnd move only where set (innerEnd != 0): a Paren List
+ // leaves them 0, and only finishList's single-item copy sets them.
+-var treeDiffOffsets = []string{"Start", "End", "InnerStart", "InnerEnd"}
++var treeDiffOffsets = []string{"start", "end", "innerStart", "innerEnd"}
++
++// treeDiffEdges is the root's per-child-edge delta field (§6.4.2): two
++// trees are equal when each child's offsets, read with its edge's delta,
++// are, whatever deltas carry them.
++const treeDiffEdges = "shifts"
+ 
+ // treeDiffByName compares the unexported fields, which reflection can list
+ // but not read through Interface(). All but nestedParen are set on the root
+@@ -58,8 +63,9 @@ type treeDiffHow int
+ 
+ const (
+ 	nodes    treeDiffHow = iota // []*Node, compared node by node
++	edges                       // a root's per-child deltas, compared as the children's offsets they move
+ 	offset                      // int shifted by delta
+-	inner                       // int shifted by delta only where InnerEnd != 0
++	inner                       // int shifted by delta only where innerEnd != 0
+ 	byName                      // unexported, compared by treeDiffByName
+ 	unknown                     // unexported with no comparer: TreeDiff panics on it
+ 	scalar                      // bool, integer or string, or an array of them: compared by same
+@@ -79,12 +85,14 @@ var treeDiffFields = func() []treeDiffField {
+ 		switch k := f.Type.Kind(); {
+ 		case f.Type == reflect.TypeFor[[]*Node]():
+ 			d.how = nodes
++		case f.Name == treeDiffEdges:
++			d.how = edges
+ 		case slices.Contains(treeDiffOffsets, f.Name):
+ 			if k != reflect.Int {
+ 				panic("parse.TreeDiff: offset field " + f.Name + " is not an int")
+ 			}
+ 			d.how = offset
+-			if f.Name == "InnerStart" || f.Name == "InnerEnd" {
++			if f.Name == "innerStart" || f.Name == "innerEnd" {
+ 				d.how = inner
+ 			}
+ 		case !f.IsExported():
+@@ -180,18 +188,24 @@ func treeDiff(a, b *Node, delta int) string {
+ 				return fmt.Sprintf(".%s: %d nodes != %d", f.name, len(xs), len(ys))
+ 			}
+ 			for j := range xs {
+-				if d := treeDiff(xs[j], ys[j], delta); d != "" {
++				dj := delta
++				if f.name == "Children" {
++					dj += a.ChildShift(j) - b.ChildShift(j)
++				}
++				if d := treeDiff(xs[j], ys[j], dj); d != "" {
+ 					return fmt.Sprintf(".%s[%d]%s", f.name, j, d)
+ 				}
+ 			}
+ 		case offset, inner:
+ 			shift := delta
+-			if f.how == inner && a.InnerEnd == 0 {
++			if f.how == inner && a.innerEnd == 0 {
+ 				shift = 0
+ 			}
+ 			if x, y := fieldAt[int](pa, f.offset), fieldAt[int](pb, f.offset); x+shift != y {
+ 				return fmt.Sprintf(".%s: %d%+d != %d", f.name, x, shift, y)
+ 			}
++		case edges:
++			// Compared through Children: each child's offsets read with them.
+ 		case unknown:
+ 			panic("parse.TreeDiff: unexported Node field " + f.name + " has no comparer")
+ 		case byName:
+diff --git a/internal/parse/treediff_test.go b/internal/parse/treediff_test.go
+index cd43bdaf..7c9db2d2 100644
+--- a/internal/parse/treediff_test.go
++++ b/internal/parse/treediff_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"os"
+ 	"path/filepath"
+ 	"reflect"
++	"slices"
+ 	"strings"
+ 	"testing"
+ )
+@@ -14,10 +15,10 @@ import (
+ // diffBase is a three-level tree with a heredoc body on its middle node, so
+ // a mutation of the grandchild is a change deep in the tree.
+ func diffBase() *Node {
+-	body := &Node{Kind: Term, Start: 40, End: 44, HeredocBody: true}
+-	grand := &Node{Kind: Term, Start: 12, End: 14, Text: "$x"}
+-	child := &Node{Kind: Call, Start: 10, End: 20, Children: []*Node{grand}, InnerHeredocBodies: []*Node{body}}
+-	return &Node{Kind: SourceFile, Start: 0, End: 50, Children: []*Node{child}}
++	body := &Node{Kind: Term, start: 40, end: 44, HeredocBody: true}
++	grand := &Node{Kind: Term, start: 12, end: 14, Text: "$x"}
++	child := &Node{Kind: Call, start: 10, end: 20, Children: []*Node{grand}, InnerHeredocBodies: []*Node{body}}
++	return &Node{Kind: SourceFile, start: 0, end: 50, Children: []*Node{child}}
+ }
+ 
+ func deepChild(root *Node) *Node { return root.Children[0].Children[0] }
+@@ -28,8 +29,13 @@ type diffCase struct {
+ }
+ 
+ // unexportedMutations change the unexported fields, which reflection cannot
+-// set, so each is named. All but nestedParen are set on the root alone.
++// set, so each is named. The offsets and nestedParen are set on the deep
++// child; the rest on the root alone.
+ var unexportedMutations = map[string]func(root *Node){
++	"start":       func(r *Node) { deepChild(r).start++ },
++	"end":         func(r *Node) { deepChild(r).end++ },
++	"innerStart":  func(r *Node) { deepChild(r).innerStart++ },
++	"innerEnd":    func(r *Node) { deepChild(r).innerEnd++ },
+ 	"nestedParen": func(r *Node) { deepChild(r).nestedParen = true },
+ 	"loaded":      func(r *Node) { r.loaded = append(r.loaded, "Foo") },
+ 	"declErrs":    func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
+@@ -54,6 +60,11 @@ func treeDiffCases(t *testing.T) []diffCase {
+ 			cases = append(cases, diffCase{f.Name, m})
+ 			continue
+ 		}
++		if f.Name == treeDiffEdges {
++			// Reported as the child offset it moves, not by its own name.
++			cases = append(cases, diffCase{"edge delta moved", func(r *Node) { r.shifts = []int{1} }})
++			continue
++		}
+ 		if !f.IsExported() {
+ 			t.Fatalf("unexported field %s has no mutation in treeDiffCases", f.Name)
+ 		}
+@@ -69,7 +80,7 @@ func treeDiffCases(t *testing.T) []diffCase {
+ 			c.Children = append(c.Children, &Node{Kind: Term})
+ 		}},
+ 		diffCase{"child removed", func(r *Node) { r.Children = nil }},
+-		diffCase{"heredoc body changed", func(r *Node) { r.Children[0].InnerHeredocBodies[0].End++ }},
++		diffCase{"heredoc body changed", func(r *Node) { r.Children[0].InnerHeredocBodies[0].end++ }},
+ 	)
+ }
+ 
+@@ -130,7 +141,7 @@ func TestTreeEqualCoversEveryNodeField(t *testing.T) {
+ 		if excluded && why == "" {
+ 			t.Errorf("excluded field %s carries no reason", f.Name)
+ 		}
+-		if !f.IsExported() && !named && !excluded {
++		if !f.IsExported() && !named && !excluded && f.Name != treeDiffEdges && !slices.Contains(treeDiffOffsets, f.Name) {
+ 			t.Errorf("unexported field %s is neither compared by name nor excluded", f.Name)
+ 		}
+ 		if named && excluded {
+@@ -147,7 +158,7 @@ func TestTreeEqualCoversEveryNodeField(t *testing.T) {
+ 			t.Errorf("by-name comparer %s is not a Node field", name)
+ 		}
+ 	}
+-	for _, name := range treeDiffOffsets {
++	for _, name := range append(slices.Clone(treeDiffOffsets), treeDiffEdges) {
+ 		if !fields[name] {
+ 			t.Errorf("offset name %s is not a Node field", name)
+ 		}
+@@ -166,8 +177,8 @@ func TestTreeDiffShiftedAcceptsUniformShift(t *testing.T) {
+ 	var inner, parenNoInner bool
+ 	var walk func(*Node)
+ 	walk = func(n *Node) {
+-		inner = inner || n.InnerEnd != 0
+-		parenNoInner = parenNoInner || n.Paren && n.InnerEnd == 0
++		inner = inner || n.innerEnd != 0
++		parenNoInner = parenNoInner || n.Paren && n.innerEnd == 0
+ 		for _, c := range n.Children {
+ 			walk(c)
+ 		}
+@@ -208,7 +219,7 @@ func TestTreeDiffShiftedRejectsNonUniformShift(t *testing.T) {
+ 		return n
+ 	}
+ 	for name, mutate := range map[string]func(s *Node){
+-		"offset shifted by delta+1": func(s *Node) { leaf(s).End++ },
++		"offset shifted by delta+1": func(s *Node) { leaf(s).end++ },
+ 		"non-offset field changed":  func(s *Node) { leaf(s).Text += "x" },
+ 		"child added":               func(s *Node) { s.Children = append(s.Children, &Node{Kind: Term}) },
+ 		"child removed":             func(s *Node) { s.Children = s.Children[:len(s.Children)-1] },
+@@ -242,11 +253,11 @@ func TestTreeDiffPaths(t *testing.T) {
+ 	}{
+ 		{"root field", 0, func(r *Node) { r.Text = "x" }, "node.Text:  != x"},
+ 		{"deep exported", 0, func(r *Node) { deepChild(r).Text = "$y" }, "node.Children[0].Children[0].Text: $x != $y"},
+-		{"deep offset", 0, func(r *Node) { deepChild(r).End = 15 }, "node.Children[0].Children[0].End: 14+0 != 15"},
+-		{"shifted offset", 3, func(r *Node) {}, "node.Start: 0+3 != 0"},
++		{"deep offset", 0, func(r *Node) { deepChild(r).end = 15 }, "node.Children[0].Children[0].end: 14+0 != 15"},
++		{"shifted offset", 3, func(r *Node) {}, "node.start: 0+3 != 0"},
+ 		{"child count", 0, func(r *Node) { r.Children[0].Children = nil }, "node.Children[0].Children: 1 nodes != 0"},
+ 		{"nil child", 0, func(r *Node) { r.Children[0].Children[0] = nil }, "node.Children[0].Children[0]: nil != non-nil"},
+-		{"heredoc body", 0, func(r *Node) { r.Children[0].InnerHeredocBodies[0].End = 45 }, "node.Children[0].InnerHeredocBodies[0].End: 44+0 != 45"},
++		{"heredoc body", 0, func(r *Node) { r.Children[0].InnerHeredocBodies[0].end = 45 }, "node.Children[0].InnerHeredocBodies[0].end: 44+0 != 45"},
+ 		{"unexported", 0, func(r *Node) { deepChild(r).nestedParen = true }, "node.Children[0].Children[0].nestedParen: false != true"},
+ 		{"array last element", 0, func(r *Node) { deepChild(r).ForSlots[2] = true }, "node.Children[0].Children[0].ForSlots: [false false false] != [false false true]"},
+ 		{"nil vs empty slice", 0, func(r *Node) { deepChild(r).Ops = []string{} }, "node.Children[0].Children[0].Ops: [] != []"},
+diff --git a/internal/parse/use.go b/internal/parse/use.go
+index 7a7899b7..a2019985 100644
+--- a/internal/parse/use.go
++++ b/internal/parse/use.go
+@@ -82,7 +82,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
+ 		}
+ 	}
+ 
+-	n := &Node{Kind: Use, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Use, Text: p.text(word), start: word.Start}
+ 	var module string
+ 
+ 	// The module name is a BAREWORD, not an expression.
+@@ -97,7 +97,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
+ 		p.advanceTo(name)
+ 		term := &Node{
+ 			Kind: Term, Text: p.text(name),
+-			Start: name.Start, End: name.End,
++			start: name.Start, end: name.End,
+ 		}
+ 
+ 		// A version bundle USED TO BE three tokens: `use v5.36;` lexed as
+@@ -123,7 +123,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
+ 					break
+ 				}
+ 				p.advanceTo(num)
+-				term.End = num.End
++				term.end = num.End
+ 			}
+ 		}
+ 		module = term.Text
+@@ -166,7 +166,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
+ 			if next, ok := p.peekAfter(v); !ok || p.text(next) != "," {
+ 				p.advanceTo(v)
+ 				n.Children = append(n.Children, &Node{
+-					Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
++					Kind: Term, Text: p.text(v), start: v.Start, end: v.End,
+ 				})
+ 			}
+ 		}
+@@ -240,7 +240,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -767,7 +767,7 @@ func useIfTarget(list *Node) (module string, rest *Node, ok bool) {
+ 			rest = n
+ 			continue
+ 		}
+-		rest = &Node{Kind: Binary, Text: ",", Start: rest.Start, End: n.End, Children: []*Node{rest, n}}
++		rest = &Node{Kind: Binary, Text: ",", start: rest.start, end: n.end, Children: []*Node{rest, n}}
+ 	}
+ 	return module, rest, true
+ }
+@@ -980,7 +980,7 @@ func isVString(text string) bool {
+ // parsePhaser: `BEGIN { ... }` and the other four.
+ func (p *parser) parsePhaser(word lexer.Token) *Node {
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Phaser, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Phaser, Text: p.text(word), start: word.Start}
+ 
+ 	outer := p.inBegin
+ 	p.inBegin = outer || n.Text == "BEGIN"
+@@ -997,7 +997,7 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
+ 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+ 		p.advanceTo(tok)
+ 	}
+-	n.End = p.prevEnd()
++	n.end = p.prevEnd()
+ 	return n
+ }
+ 
+@@ -1092,11 +1092,11 @@ func beginImport(n *Node) (module string, list *Node, ok bool) {
+ 	case method.Kind != Call:
+ 		return "", nil, false
+ 	case len(method.Children) == 0:
+-		return module, &Node{Kind: List, Paren: true, Start: method.End, End: method.End}, true
++		return module, &Node{Kind: List, Paren: true, start: method.end, end: method.end}, true
+ 	case len(method.Children) == 1:
+ 		return module, method.Children[0], true
+ 	}
+-	return module, &Node{Kind: List, Paren: true, Start: method.Start, End: method.End, Children: method.Children}, true
++	return module, &Node{Kind: List, Paren: true, start: method.start, end: method.end, Children: method.Children}, true
+ }
+ 
+ // parseSpecialSub: `DESTROY { ... }` and `AUTOLOAD { ... }`, which declare the
+@@ -1118,9 +1118,9 @@ func (p *parser) parseSpecialSub(word lexer.Token) *Node {
+ 		return nil
+ 	}
+ 	p.advanceTo(word)
+-	n := &Node{Kind: Declaration, Text: "sub", Subless: true, Start: word.Start}
++	n := &Node{Kind: Declaration, Text: "sub", Subless: true, start: word.Start}
+ 	n.Children = append(n.Children, &Node{
+-		Kind: Term, Text: p.text(word), Start: word.Start, End: word.End,
++		Kind: Term, Text: p.text(word), start: word.Start, end: word.End,
+ 	})
+ 	p.declareSub(n)
+ 	p.finishBodyOrSemicolon(n)
+@@ -1141,13 +1141,13 @@ func (p *parser) parseClass(word lexer.Token) *Node {
+ 	// or by Object::Pad, which provides the same keywords -- so `method`
+ 	// declares from here on.
+ 	p.setFeatures(func(name string) (bool, bool) { return true, name == "class" })
+-	n := &Node{Kind: Declaration, Text: p.text(word), Start: word.Start}
++	n := &Node{Kind: Declaration, Text: p.text(word), start: word.Start}
+ 
+ 	if name, ok := p.peekSignificant(); ok && name.Kind == lexer.Word {
+ 		p.advanceTo(name)
+ 		n.Children = append(n.Children, &Node{
+ 			Kind: Term, Text: p.text(name),
+-			Start: name.Start, End: name.End,
++			start: name.Start, end: name.End,
+ 		})
+ 		p.notePackage(p.text(name))
+ 	}
+@@ -1156,7 +1156,7 @@ func (p *parser) parseClass(word lexer.Token) *Node {
+ 	if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Number {
+ 		p.advanceTo(v)
+ 		n.Children = append(n.Children, &Node{
+-			Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
++			Kind: Term, Text: p.text(v), start: v.Start, end: v.End,
+ 		})
+ 	}
+ 
+@@ -1186,7 +1186,7 @@ func (p *parser) parseAttributes(n *Node) {
+ 		p.advanceTo(name)
+ 		attr := &Node{
+ 			Kind: Attribute, Text: ":" + p.text(name),
+-			Start: colon.Start, End: name.End,
++			start: colon.Start, end: name.End,
+ 		}
+ 
+ 		// An optional parenthesised argument, taken as an opaque span: an
+@@ -1200,7 +1200,7 @@ func (p *parser) parseAttributes(n *Node) {
+ 		if proto, ok := p.peekSignificant(); ok && proto.Kind == lexer.Prototype {
+ 			p.advanceTo(proto)
+ 			attr.Text += p.text(proto)
+-			attr.End = proto.End
++			attr.end = proto.End
+ 			n.Children = append(n.Children, attr)
+ 			continue
+ 		}
+@@ -1226,13 +1226,13 @@ func (p *parser) parseAttributes(n *Node) {
+ 			if depth > 0 {
+ 				p.attrOpenAtEOF = true
+ 			}
+-			attr.End = p.prevEnd()
++			attr.end = p.prevEnd()
+ 			// Text, not just the span. Canon writes Text, so extending only
+ 			// End DROPPED the argument: measured, `class Point :isa(Shape)`
+ 			// re-emitted as `class Point :isa` and lost its parent class.
+ 			// Unknown could not see it -- the tree was right and only the
+ 			// emission was wrong -- so the count stayed at zero.
+-			attr.Text = string(p.src[attr.Start:attr.End])
++			attr.Text = string(p.src[attr.start:attr.end])
+ 		}
+ 		n.Children = append(n.Children, attr)
+ 	}
+diff --git a/internal/parse/use_test.go b/internal/parse/use_test.go
+index c5daec02..e70c2ea6 100644
+--- a/internal/parse/use_test.go
++++ b/internal/parse/use_test.go
+@@ -246,7 +246,7 @@ func TestClassCorpusHasNoUseGaps(t *testing.T) {
+ 					case "use", "no", "require", "class", "BEGIN", "field":
+ 						t.Errorf("%s: a form this issue owns is Unknown: %q",
+ 							path, truncate(strings.TrimSpace(
+-								string(src[n.Start:min(n.End, n.Start+40)])), 40))
++								string(src[n.Start():min(n.End(), n.Start()+40)])), 40))
+ 					}
+ 					continue
+ 				}
+@@ -266,7 +266,7 @@ func TestClassCorpusHasNoUseGaps(t *testing.T) {
+ // appears inside a heredoc body or a string is not mistaken for one that
+ // opens a statement.
+ func firstWordOf(src []byte, n *parse.Node) string {
+-	for _, tok := range lexer.Tokenize(src[n.Start:n.End]) {
++	for _, tok := range lexer.Tokenize(src[n.Start():n.End()]) {
+ 		switch tok.Kind {
+ 		// DataSection joins the other three: `isTrivia` in parse.go is the
+ 		// authority and this is the fourth copy of its set. A span holding
+@@ -278,7 +278,7 @@ func firstWordOf(src []byte, n *parse.Node) string {
+ 		case lexer.Whitespace, lexer.Comment, lexer.Pod, lexer.DataSection:
+ 			continue
+ 		case lexer.Word:
+-			return string(src[n.Start+tok.Start : n.Start+tok.End])
++			return string(src[n.Start()+tok.Start : n.Start()+tok.End])
+ 		}
+ 		return ""
+ 	}
+@@ -294,7 +294,7 @@ func firstWordOf(src []byte, n *parse.Node) string {
+ // span begins mid-body is skipped.
+ func startsWithHeredocBody(src []byte, n *parse.Node) bool {
+ 	for _, tok := range lexer.Tokenize(src) {
+-		if tok.Kind == lexer.HeredocBody && tok.Start <= n.Start && n.Start < tok.End {
++		if tok.Kind == lexer.HeredocBody && tok.Start <= n.Start() && n.Start() < tok.End {
+ 			return true
+ 		}
+ 	}
+diff --git a/internal/parse/wrongtrees_test.go b/internal/parse/wrongtrees_test.go
+index 172dc632..886bd523 100644
+--- a/internal/parse/wrongtrees_test.go
++++ b/internal/parse/wrongtrees_test.go
+@@ -81,9 +81,9 @@ func definedOverParenDot(t *testing.T, n *Node, src string) {
+ 	dot := wrong.Children[0]
+ 	x := *dot.Children[0]
+ 	x.Paren = true
+-	x.InnerStart, x.InnerEnd = x.Start, x.End // as finishList records them
+-	x.Start = strings.Index(src, "(")
+-	x.End = strings.Index(src, ")") + 1
++	x.innerStart, x.innerEnd = x.start, x.end // as finishList records them
++	x.start = strings.Index(src, "(")
++	x.end = strings.Index(src, ")") + 1
+ 	dot.Children[0] = &x
+ 	st.Children[0] = wrong
+ }
+@@ -115,9 +115,9 @@ func printOverParenList(t *testing.T, n *Node, src string) {
+ 	comma := wrong.Children[0]
+ 	a := *comma.Children[0]
+ 	a.Paren = true
+-	a.InnerStart, a.InnerEnd = a.Start, a.End // as finishList records them
+-	a.Start = strings.Index(src, "(")
+-	a.End = strings.Index(src, ")") + 1
++	a.innerStart, a.innerEnd = a.start, a.end // as finishList records them
++	a.start = strings.Index(src, "(")
++	a.end = strings.Index(src, ")") + 1
+ 	comma.Children[0] = &a
+ 	st.Children[0] = wrong
+ }
