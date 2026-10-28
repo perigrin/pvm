@@ -1,0 +1,5 @@
+go test fuzz v1
+string("use v5.36;\nsub f {\n  my $n = 1;\n}\nmy $r = $main::x isa Y;\n")
+int(19)
+int(0)
+string("  no feature 'isa';\n")
