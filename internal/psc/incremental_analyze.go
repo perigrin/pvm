@@ -1,5 +1,5 @@
 // ABOUTME: analyzeEdit re-lowers and re-analyzes only the top-level subs an edit damages, keeping the rest (§6.10.5 item 4).
-// ABOUTME: damageFromTreeDiff decides which: Class B, non-trivia top-level and parse-error edits go full; callers are damaged.
+// ABOUTME: Damage is read off Repair's re-parsed region, or a tree diff after a full parse; Class B, top-level and error edits go full.
 
 package psc
 
@@ -21,10 +21,19 @@ import (
 // damaged none walks no sub. A Full damage, or a prev that cannot be reused,
 // takes analyze's path. It returns the damage it acted on.
 //
+// r is the region parse.Repair re-parsed to build root from prevRoot, and
+// the damage is read off it (damageFromRepair); nil, for a root parsed
+// whole, reads it off the two trees (damageFromTreeDiff).
+//
 // prev is not changed, and like analyze it polls ctx between lowering
 // and analysis.
-func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnalysis, root *parse.Node, opts infer.Options) (*infer.FileAnalysis, editDamage, error) {
-	d := damageFromTreeDiff(prevRoot, root)
+func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnalysis, root *parse.Node, r *parse.Damage, opts infer.Options) (*infer.FileAnalysis, editDamage, error) {
+	var d editDamage
+	if r != nil {
+		d = damageFromRepair(prevRoot, root, *r)
+	} else {
+		d = damageFromTreeDiff(prevRoot, root)
+	}
 	if prev == nil || d.Full {
 		fa, err := analyze(ctx, root, opts)
 		return fa, d, err
@@ -99,9 +108,6 @@ type editDamage struct {
 // method to a sub of the file, add `->name` to callees.
 func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 	oldRoot, newRoot = orEmpty(oldRoot), orEmpty(newRoot)
-	full := func(classB bool, format string, args ...any) editDamage {
-		return editDamage{Full: true, ClassB: classB, Reason: fmt.Sprintf(format, args...)}
-	}
 	if oldRoot.HasError != newRoot.HasError {
 		return full(false, "parse error status changed")
 	}
@@ -124,16 +130,100 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 	}
 
 	damaged := make([]bool, len(newSubs))
-	names := map[string]bool{}
 	for i := range newSubs {
-		o, n := oldSubs[i].node, newSubs[i].node
-		if parse.TreeDiffShifted(o, n, n.Start-o.Start) == "" {
+		changed, why := subChanged(oldSubs[i], newSubs[i])
+		if why != "" {
+			return full(false, "%s", why)
+		}
+		damaged[i] = changed
+	}
+	return spread(newRoot, newSubs, newSet, damaged)
+}
+
+// damageFromRepair is damageFromTreeDiff(oldRoot, newRoot) for newRoot,
+// the tree parse.Repair built from oldRoot, re-parsing only r: outside r
+// every top-level statement is a shifted copy of oldRoot's, so only the
+// statements inside it are compared, and the rules that read the whole file
+// -- callers, top-level calls, file-scoped variables -- run over newRoot.
+func damageFromRepair(oldRoot, newRoot *parse.Node, r parse.Damage) editDamage {
+	if oldRoot.HasError != newRoot.HasError {
+		return full(false, "parse error status changed")
+	}
+	delta := newRoot.End - oldRoot.End
+	// The region's statements, as a file of their own on each side.
+	region := func(root *parse.Node, end int) *parse.Node {
+		f := &parse.Node{Kind: parse.SourceFile, Start: r.Start, End: end}
+		for _, c := range root.Children {
+			if r.Start <= c.Start && c.End <= end {
+				f.Children = append(f.Children, c)
+			}
+		}
+		return f
+	}
+	oldReg, newReg := region(oldRoot, r.End-delta), region(newRoot, r.End)
+	if d := declarationDiff(oldReg, newReg); d != "" {
+		return full(true, "a declaration changed: %s", d)
+	}
+	oldIn, newIn := outerSubs(oldReg), outerSubs(newReg)
+	if len(oldIn) != len(newIn) {
+		return full(false, "%d subs in the re-parsed region became %d", len(oldIn), len(newIn))
+	}
+	oldSet, inSet := map[*parse.Node]bool{}, map[*parse.Node]bool{}
+	for i := range oldIn {
+		if oldIn[i].anchor != newIn[i].anchor {
+			return full(false, "top-level sub %s became %s", oldIn[i].anchor, newIn[i].anchor)
+		}
+		oldSet[oldIn[i].node], inSet[newIn[i].node] = true, true
+	}
+	if d := skeletonDiff(oldReg, newReg, delta, oldSet, inSet); d != "" {
+		return full(false, "top-level edit: %s", d)
+	}
+	newSubs := outerSubs(newRoot)
+	newSet := map[*parse.Node]bool{}
+	damaged := make([]bool, len(newSubs))
+	j := 0
+	for i, s := range newSubs {
+		newSet[s.node] = true
+		if !inSet[s.node] {
 			continue
 		}
-		if !maps.Equal(writes(o), writes(n)) {
-			return full(false, "%s changes which variables it assigns", newSubs[i].anchor)
+		changed, why := subChanged(oldIn[j], newIn[j])
+		if why != "" {
+			return full(false, "%s", why)
 		}
-		damaged[i], names[newSubs[i].name] = true, true
+		damaged[i] = changed
+		j++
+	}
+	return spread(newRoot, newSubs, newSet, damaged)
+}
+
+// subChanged reports that the top-level sub n differs from o, its old
+// self, and why the edit goes full when n assigns other variables than o.
+func subChanged(o, n outerSub) (changed bool, full string) {
+	if parse.TreeDiffShifted(o.node, n.node, n.node.Start-o.node.Start) == "" {
+		return false, ""
+	}
+	if !maps.Equal(writes(o.node), writes(n.node)) {
+		return true, n.anchor + " changes which variables it assigns"
+	}
+	return true, ""
+}
+
+// full is the Full damage of an edit, ClassB when a declaration changed.
+func full(classB bool, format string, args ...any) editDamage {
+	return editDamage{Full: true, ClassB: classB, Reason: fmt.Sprintf(format, args...)}
+}
+
+// spread is the damage of the subs of newRoot marked in damaged, newRoot's
+// top-level subs in order, newSet their nodes: the subs calling them,
+// transitively, are damaged too, and top-level code calling one, or one
+// assigning a file-scoped variable, makes the edit full.
+func spread(newRoot *parse.Node, newSubs []outerSub, newSet map[*parse.Node]bool, damaged []bool) editDamage {
+	names := map[string]bool{}
+	for i, s := range newSubs {
+		if damaged[i] {
+			names[s.name] = true
+		}
 	}
 	if len(names) == 0 {
 		return editDamage{}

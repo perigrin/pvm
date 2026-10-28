@@ -1197,8 +1197,9 @@ put lowering at 35 ms and `Analyze` at 21 ms p50 on edit5k.pl, so the
 whole-tree re-run does not fit the 10 ms gate, and the LSP no longer does it
 for an edit that stays inside subs. `analyzeEdit`
 (`internal/psc/incremental_analyze.go`) reads the edit's damage off the old
-and new trees (`damageFromTreeDiff`, §6.10.5 item 4): a set of damaged
-top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
+and new trees (`damageFromTreeDiff`, §6.10.5 item 4), or, when `Repair`
+built the new tree, off the region it re-parsed (`damageFromRepair`): a
+set of damaged top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
 shares the rest of the old lowered tree, and `infer.Reanalyze` walks only
 those subs and the code outside every sub, which threads state into them;
 each other sub is replayed from what its last walk recorded -- its scopes,
@@ -2742,7 +2743,14 @@ Mitigations, revised to match the measurement:
    tells you. Implemented in `internal/psc/incremental_analyze.go`: the
    damaged subs are re-lowered and re-analyzed, every other sub keeps its
    lowering and analysis, and a Class B edit falls back to the full path
-   (§6.4.3). The step-4 numbers asked for it: lowering and `Analyze` were
+   (§6.4.3). The damage region comes from `Repair` on the incremental
+   path -- `parse.Damage`, the top-level statements it re-parsed, read
+   through the repaired tree's `Damage()` (`damageFromRepair`) -- and from
+   the tree diff (`damageFromTreeDiff`) on the full-parse path: when the
+   flag is off, or `Repair` returns ok=false. The two agree on every seed
+   edit (`TestRepairDamageMatchesTreeDiff`); the region compares only the
+   statements inside it, so the damage step on edit5k.pl fell from about
+   20 ms p50 to 2.5 ms (`BenchmarkLatencyDamage`). The step-4 numbers asked for it: lowering and `Analyze` were
    35 ms and 21 ms p50 on edit5k.pl, against a 10 ms gate.
 
 Ship (1) first — the numbers leave no other reading. (2) is free. (3) and (4)

@@ -96,6 +96,26 @@ type incState struct {
 	// relexed is how many tokens the edit Repair built this tree for
 	// re-lexed.
 	relexed int
+	// damage is what Repair re-parsed to build this tree; nil for a parse's.
+	damage *Damage
+}
+
+// Damage is the region of the new source Repair re-parsed: the top-level
+// statements of its tree spanning [Start, End) replace the old tree's
+// spanning [Start, End-delta), delta being how much the edit grew the
+// source, and every other top-level statement is the old tree's, its
+// offsets moved by delta past the region.
+type Damage struct {
+	Start, End int
+}
+
+// Damage is the region Repair re-parsed to build n from the tree it was
+// given, or nil when n is not a tree Repair built.
+func (n *Node) Damage() *Damage {
+	if n == nil || n.inc == nil {
+		return nil
+	}
+	return n.inc.damage
 }
 
 // moduleRead is what one Loader call answered.
@@ -211,7 +231,7 @@ func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (
 		moved[j].at += delta
 		moved[j].p.pos += dtok
 	}
-	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed}
+	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads, toks: d.cache, relexed: d.relexed, damage: &Damage{a.Start, a.End + delta}}
 	return root, n, true
 }
 
