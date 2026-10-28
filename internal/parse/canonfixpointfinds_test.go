@@ -299,6 +299,19 @@ func TestSpacedPercentAfterWordRefuses(t *testing.T) {
 	}
 }
 
+// TestModulusAfterBarewordIsGrouped: perl 5.44.0 reads FuzzParser's
+// `A&A%A<0` as `'A' & 'A' % 'A' < 0`, the `%` glued after the sub name `&A`
+// a modulus. Canon wrote `A % A`, where `% A` lexed as a hash; it groups the
+// word now.
+func TestModulusAfterBarewordIsGrouped(t *testing.T) {
+	if got := clean(t, "A&A%A<0"); got != "A & ((A) % A) < 0" {
+		t.Errorf("`A&A%%A<0`: canon %q", got)
+	}
+	if ok, why := canonMatches([]byte("A&A%A<0")); !ok {
+		t.Errorf("`A&A%%A<0`: canon is not a fixpoint: %s", why)
+	}
+}
+
 // TestBracedNameTakesAnyBlank: perl 5.44.0 deparses `${0\r}` and `${ x` +
 // newline + `}` as `$0` and `$x`. Read as a deref of `0`, FuzzParser's
 // `(${0\r},,)` canon'd differently.

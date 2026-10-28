@@ -1052,11 +1052,13 @@ func emit(b *canonBuf, n *Node, src []byte, outer int) {
 		// parens (emitCallArgs), so the word stays a word.
 		if n.Text == "=>" {
 			emitBeforeFat(b, n.Children[0], src, l, info.BP)
-		} else if (n.Text == "<" || n.Text == "<=" || n.Text == "<<") && endsInBareword(n.Children[0]) {
+		} else if (n.Text == "<" || n.Text == "<=" || n.Text == "<<" || n.Text == "%") && endsInBareword(n.Children[0]) {
 			// After a word the lexer, with no symbol table, reads `<` as a
 			// readline's start if a `>` closes it on the line, and the source
 			// may have had a newline there that canon does not keep:
-			// FuzzParser's `A<0` + newline + `>0` canon'd as `A < 0 > 0`. A
+			// FuzzParser's `A<0` + newline + `>0` canon'd as `A < 0 > 0`. So
+			// a spaced `%` before a name, a hash: FuzzParser's `A&A%A<0`, the
+			// `%` a modulus after the sub name `&A`, canon'd as `A % A`. A
 			// closer before it leaves no term to start.
 			b.WriteByte('(')
 			emitBefore(b, n.Children[0], src, 0, 0)
