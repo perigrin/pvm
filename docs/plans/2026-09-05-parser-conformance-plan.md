@@ -639,6 +639,32 @@ De-scoped: none
 Splice representation: decided after 01a17a40-4915 measures Repair's splice.
 01a14248-51da: done; the edit5k.pl benchmarks replace its T1/perl-lib measurement.
 
+#### Measured splice cost
+
+01a17a40-4915 stage 1: `BenchmarkRepairSplice` in
+`internal/parse/splice_bench_test.go` times Repair's splice stage alone,
+the reused nodes shared, copied or shifted around the statement Repair
+re-parsed, over 200 edits of `latencyEdits` on edit5k.pl, measured at
+b9b38221, median of five runs
+(`go test ./internal/parse/ -run '^$' -bench '^BenchmarkRepairSplice$' -benchtime 200x -count=5`).
+`copy-shift` is the splice as landed; `in-place-shift` is a prototype that
+shifts the old tree's reused nodes where they stand, without the
+copy-on-write check against published trees, whose cost is not measured.
+
+Machine: Intel(R) Xeon(R) Processor @ 2.80GHz, 4 vCPU, go version go1.24.4 linux/amd64, not idle: load average 12-14 throughout, shared with other workers, so the p99s carry scheduling noise
+
+| Sub-benchmark | p50 (ms) | p99 (ms) | nodes/op |
+|---|---|---|---|
+| copy-shift | 9.187 | 78.44 | 22061 |
+| in-place-shift | 0.6287 | 6.469 | 11558 |
+
+`copy-shift` copies every top-level statement but the anchor, those before
+the edit included, so its nodes/op is the whole tree; `in-place-shift`
+writes only the nodes past the edit, half the tree on average and all of it
+for an edit in the first sub. A memo-free whole-tree copy of the same tree
+(344-byte nodes, 1839 top-level statements) took 4.25 ms at its fastest of
+200, so no copy of the reused nodes fits the 1 ms sub-budget.
+
 ### M3 — The oracle turns on, at scale
 
 **Corpus:** T2 + T3 volume (perl5 `op mro uni lib test_pl`, 347 files).
