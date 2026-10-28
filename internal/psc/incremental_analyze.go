@@ -38,12 +38,11 @@ func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnal
 		fa, err := analyze(ctx, root, opts)
 		return fa, d, err
 	}
-	f, ok := lower.Relower(prev.File, root, d.Subs)
+	f, pos, ok := lower.Relower(prev.File, prev.Positions, root, d.Subs)
 	if !ok {
 		fa, err := analyze(ctx, root, opts)
 		return fa, editDamage{Full: true, Reason: "a damaged sub is not in the lowered tree"}, err
 	}
-	pos := lower.NewPositions(root, f)
 	if err := ctx.Err(); err != nil {
 		return nil, d, err
 	}
@@ -52,7 +51,11 @@ func analyzeEdit(ctx context.Context, prevRoot *parse.Node, prev *infer.FileAnal
 		fa, err := analyze(ctx, root, opts)
 		return fa, editDamage{Full: true, Reason: "the analysis before the edit does not replay"}, err
 	}
-	return gate(fa, root), d, nil
+	syn, ok := prev.Syntax.([]stmtErrors)
+	if !ok {
+		return gate(fa, root, syntaxErrors(root)), d, nil
+	}
+	return gate(fa, root, resyntax(syn, root, pos.Renumbered())), d, nil
 }
 
 // editDamage is what an edit invalidates of a file's lowering and analysis.
