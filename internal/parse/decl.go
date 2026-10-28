@@ -43,7 +43,7 @@ func (p *parser) parseDeclaration(word lexer.Token) *Node {
 	// `method` declares only under the class feature; elsewhere it is an
 	// ordinary name -- op/method.t calls a sub named method as
 	// `method Pack ("a")`, which is `'Pack'->method('a')`, measured on 5.42.0.
-	case text == "sub" || text == "method" && p.features["class"]:
+	case text == "sub" || text == "method" && p.featureOn("class"):
 		// `sub {` with no name is an anonymous sub, which is an EXPRESSION
 		// and not a declaration. Declining here sends it to parseTerm, whose
 		// anon-sub branch (`term.go:126-132`) has always read it correctly --
@@ -620,7 +620,7 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	}
 	// `my method NAME` under class syntax is the lexical method, 5.42's, as
 	// `my sub NAME` is the lexical sub.
-	if kw := p.text(sub); kw != "sub" && (kw != "method" || !p.features["class"]) {
+	if kw := p.text(sub); kw != "sub" && (kw != "method" || !p.featureOn("class")) {
 		return nil
 	}
 	if name, ok := p.peekAfter(sub); !ok || name.Kind != lexer.Word {
@@ -1002,7 +1002,7 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// bareword calls where their features are off: perl 5.44.0 compiles a
 	// buffer that is exactly either, and refuses `use v5.36; state` (R-g′).
 	if text := p.text(word); len(n.Children) == 0 && p.operandAbsent() &&
-		(text == "state" && !p.features["state"] || text == "field" && !p.features["class"]) {
+		(text == "state" && !p.featureOn("state") || text == "field" && !p.featureOn("class")) {
 		return &Node{Kind: Call, Text: text, Start: word.Start, End: word.End}
 	}
 	target := p.operand(bp, word)

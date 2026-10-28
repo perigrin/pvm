@@ -58,6 +58,19 @@ func TestFeatureScopeIsLexical(t *testing.T) {
 		{`{use experimental 'isa';} $x isa Y`, false},
 		{`use v5.36; no experimental 'isa'; $x isa Y`, false},
 		{`use experimental 'state'; state`, false},
+
+		// An import or BEGIN block the parser does not run may turn `isa`
+		// on, so `isa` there is the operator, never refused. Modern::Perl
+		// is not installed here; its '2023' import turns on the :5.36
+		// bundle, `isa` among it. With the feature known off again, or the
+		// import's block closed, `isa` is still refused.
+		{`use if 1, feature => 'isa'; $::x isa Y;`, true},
+		{`BEGIN { require feature; feature->import('isa') } $::x isa Y;`, true},
+		{`use Modern::Perl '2023'; my $r = $::x isa Y;`, true},
+		{`use strict; $::x isa Y;`, false},
+		{`use if 1, feature => 'isa'; no feature 'isa'; $::x isa Y;`, false},
+		{`{ use if 1, feature => 'isa'; } $::x isa Y;`, false},
+		{`{ BEGIN { require feature; feature->import('isa') } } $::x isa Y;`, false},
 	} {
 		root := parse.Parse([]byte(tc.src))
 		refused := root.HasError || len(collectUnknown(root)) != 0

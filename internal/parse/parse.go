@@ -994,9 +994,10 @@ type parser struct {
 
 	// features is the gated builtins and keywords `use feature`, `no
 	// feature` and a version bundle have turned on, from the statement to
-	// the end of its enclosing block, as perl scopes them. Never written in
-	// place: see setFeatures and noteFeatures.
-	features map[string]bool
+	// the end of its enclosing block, as perl scopes them, or left unknown by
+	// an import or BEGIN block this parser does not run. Absent is off.
+	// Never written in place: see setFeatures and featuresMayBeOn.
+	features map[string]featureState
 
 	// syntax are the keywords and sub prefixes imported modules declare,
 	// file-wide from their import on as features are. See declaredSyntax.

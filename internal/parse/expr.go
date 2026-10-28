@@ -153,8 +153,11 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 		// `isa` is infix only under its feature (operatorHere): without it
 		// `$x isa Y` is perl's "Bareword found where operator expected", and
 		// with nothing after it `infix isa` is `'isa'->infix`, not an
-		// operator missing its operand (R-g′).
-		if _, gated := gatedKeywords[text]; tok.Kind == lexer.Word && !p.operatorHere(text) && (gated || p.endsAfter(tok)) {
+		// operator missing its operand (R-g′). Where an import may have
+		// turned the feature on, `isa` with an operand after it is read as
+		// the operator, so it is never refused.
+		if feature, gated := gatedKeywords[text]; tok.Kind == lexer.Word && !p.operatorHere(text) &&
+			(gated && p.features[feature] == stateOff || p.endsAfter(tok)) {
 			return left
 		}
 

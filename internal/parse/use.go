@@ -260,6 +260,7 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 	case (module == "feature" || module == "experimental") && (verb == "use" || verb == "no") && list != nil:
 		names, ok := literalNameList(list)
 		if !ok {
+			p.featuresMayBeOn()
 			return
 		}
 		on := verb == "use"
@@ -290,7 +291,30 @@ func (p *parser) noteFeatures(verb, module string, list *Node) {
 		if major > 5 || major == 5 && minor >= 39 {
 			p.importBuiltinBundle()
 		}
+	case verb == "use" && module != "" && !isVersionPrefix(module) && !quietPragmas[module]:
+		// An import this parser does not run may turn features on in this
+		// scope: `use if 1, feature => 'isa'`, `use Modern::Perl '2023'`.
+		p.featuresMayBeOn()
 	}
+}
+
+// featureOn reports whether the tracked feature name is known on here.
+func (p *parser) featureOn(name string) bool { return p.features[name] == stateOn }
+
+// featuresMayBeOn marks every tracked feature known off as unknown, after
+// an import or BEGIN block that may have turned it on. One known on stays
+// on: an import turning a feature off is not what this guards against.
+func (p *parser) featuresMayBeOn() {
+	features := maps.Clone(p.features)
+	if features == nil {
+		features = map[string]featureState{}
+	}
+	for _, name := range trackedFeatures {
+		if name != "indirect" && features[name] == stateOff {
+			features[name] = stateUnknown
+		}
+	}
+	p.features = features
 }
 
 // trackedFeatures are the features the parser consults: the gated builtins
@@ -304,7 +328,7 @@ var trackedFeatures = []string{"fc", "evalbytes", "current_sub", "keyword_any", 
 func (p *parser) setFeatures(pick func(name string) (on, picked bool)) {
 	features := maps.Clone(p.features)
 	if features == nil {
-		features = map[string]bool{}
+		features = map[string]featureState{}
 	}
 	for _, name := range trackedFeatures {
 		on, picked := pick(name)
@@ -313,7 +337,7 @@ func (p *parser) setFeatures(pick func(name string) (on, picked bool)) {
 		case name == "indirect":
 			p.noIndirect = !on
 		default:
-			features[name] = on
+			features[name] = onIf(on)
 		}
 	}
 	p.features = features
@@ -967,6 +991,8 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 		n.Children = append(n.Children, blk)
 		if n.Text == "BEGIN" {
 			p.noteBeginEffects(blk)
+			// `BEGIN { require feature; feature->import('isa') }`.
+			p.featuresMayBeOn()
 		}
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
