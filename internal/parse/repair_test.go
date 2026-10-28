@@ -604,3 +604,23 @@ func TestRepairTopLevelStatementAnchor(t *testing.T) {
 		}
 	}
 }
+
+// TestRepairFeatureInsideSub: a `no feature` in a sub body ends at the
+// body's `}`, so the parser state after the sub matches the snapshot there
+// and an edit in the body repairs, equal to a fresh parse. Were the feature
+// file-level, the `isa` after the sub would be no operator and an error.
+func TestRepairFeatureInsideSub(t *testing.T) {
+	for _, src := range []string{
+		"use v5.36;\nsub f {\n  no feature 'isa';\n  my $n = 1;\n}\nmy $r = $main::x isa Y;\n",
+		"use v5.36;\nsub f {\n  no feature ':all';\n  my $n = 1;\n}\nmy $r = $main::x isa Y;\n",
+		"use v5.10;\nsub f {\n  no feature 'state';\n  my $n = 1;\n}\nstate $s;\n",
+	} {
+		e := at(src, "my $n = ", "", "2 + ")
+		if hasError(Parse([]byte(edited(src, e)))) {
+			t.Fatalf("%q: the edited source holds an error; the case checks nothing", src)
+		}
+		if !checkRepair(t, src, e) {
+			t.Errorf("%q: an edit in a sub body scoping its own feature returned ok=false", src)
+		}
+	}
+}

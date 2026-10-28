@@ -366,7 +366,7 @@ func TestParserStateResumeAfterPackageUseAndLexicalSub(t *testing.T) {
 			continue
 		}
 		st := snap.p
-		if st.pkg != "Foo" || !st.features["fc"] {
+		if st.pkg != "Foo" || !st.featureOn("fc") {
 			t.Errorf("snapshot has package %q, features %v", st.pkg, st.features)
 		}
 		if _, ok := st.imports["Foo::m1"]; !ok {
