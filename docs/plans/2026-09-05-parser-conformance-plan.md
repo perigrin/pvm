@@ -671,6 +671,9 @@ for an edit in the first sub. A memo-free whole-tree copy of the same tree
 
 Splice representation: accessor migration
 Numbers: the stage-1 numbers above stand as measured, not idle; the 1 ms sub-budget gate is still timed on the reference 4-vCPU VM.
+Accessor form: a root-edge delta. Offsets stay absolute inside each top-level statement, as parsed; only the root's child edges carry a delta, 0 after a full parse.
+Readers outside internal/parse: absolute spans recorded in the walk (lower.AssignIDs by ID); map-keyed readers use those spans, not a node's own offset; no Cursor type in signatures. 01a17969-4702 lands first and 4915 migrates on top.
+Size: about 1,040 sites (656 offset reads, 384 Node literals) in one issue.
 
 ### M3 — The oracle turns on, at scale
 
