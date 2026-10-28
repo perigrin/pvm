@@ -4,7 +4,6 @@
 package parse_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,17 +38,22 @@ var protoCases = []protoCase{
 	{"edit", protoSrc, insertAt(protoSrc, "sub f(", `\@`)},
 	{"begin", protoBeginSrc, replaceFirst(protoBeginSrc, "1", "2")},
 	{"use", protoUseSrc, replaceFirst(protoUseSrc, "use Foo;", "use Foo ();")},
-	{"use-constant", "use constant f => 1;\nmy @a = (1, 2);\nprint f @a;\n", parse.Edit{Start: 13, OldEnd: 14, NewText: "g"}},
-	{"attribute", "sub f :prototype($) { 1 }\nmy @x = (f 1, 2);\n", parse.Edit{Start: 17, OldEnd: 18, NewText: "@"}},
-	{"declared-twice", "sub f($);\nsub f($) { 1 }\nmy @x = (f 1, 2);\n", parse.Edit{Start: 16, OldEnd: 17, NewText: "@"}},
-	{"nested-sub", "sub g {\n  sub f($) { 1 }\n}\nmy @x = (f 1, 2);\n", parse.Edit{Start: 16, OldEnd: 17, NewText: "@"}},
-	{"lexical-sub", "my sub f($) { 1 }\nmy @x = (f 1, 2);\n", parse.Edit{Start: 9, OldEnd: 10, NewText: "@"}},
-	{"glob-in-begin", "BEGIN { *f = sub ($) { 1 } }\nmy @x = (f 1, 2);\n", parse.Edit{Start: 18, OldEnd: 19, NewText: "@"}},
-	{"glob-in-sub", "sub g {\n  *f = sub ($) { 1 };\n}\nmy @x = (f 1, 2);\n", parse.Edit{Start: 20, OldEnd: 21, NewText: "@"}},
+	protoRow("use-constant", "use constant f => 1;\nmy @a = (1, 2);\nprint f @a;\n", "f =>", "g =>"),
+	protoRow("attribute", "sub f :prototype($) { 1 }\nmy @x = (f 1, 2);\n", "($)", "(@)"),
+	protoRow("declared-twice", "sub f($);\nsub f($) { 1 }\nmy @x = (f 1, 2);\n", "($) {", "(@) {"),
+	protoRow("nested-sub", "sub g {\n  sub f($) { 1 }\n}\nmy @x = (f 1, 2);\n", "($)", "(@)"),
+	protoRow("lexical-sub", "my sub f($) { 1 }\nmy @x = (f 1, 2);\n", "($)", "(@)"),
+	protoRow("glob-in-begin", "BEGIN { *f = sub ($) { 1 } }\nmy @x = (f 1, 2);\n", "($)", "(@)"),
+	protoRow("glob-in-sub", "sub g {\n  *f = sub ($) { 1 };\n}\nmy @x = (f 1, 2);\n", "($)", "(@)"),
 	{"remove", protoLaterSrc, replaceFirst(protoLaterSrc, "sub f($)", "sub f")},
 	{"add", protoNoneSrc, replaceFirst(protoNoneSrc, "sub f ", "sub f($) ")},
 	{"predeclaration", protoPredeclSrc, replaceFirst(protoPredeclSrc, "($)", "(@)")},
 	{"definition", protoDefSrc, replaceFirst(protoDefSrc, "($)", "(@)")},
+}
+
+// protoRow is the protoCase replacing the first old in src with text.
+func protoRow(name, src, old, text string) protoCase {
+	return protoCase{name, src, replaceFirst(src, old, text)}
 }
 
 // protoCaseNamed is the protoCases entry called name.
@@ -243,8 +247,7 @@ func TestPrototypeEditToggleSequence(t *testing.T) {
 		t.Fatalf("toggled back != the original fresh parse:\n%s", diff)
 	}
 	got, err := os.ReadFile(filepath.Join("testdata", "fuzz", "FuzzIncrementalSequence", "prototype-toggle"))
-	want := fmt.Sprintf("go test fuzz v1\nstring(%q)\n[]byte(%q)\n", protoSrc, append(encodeEdit(there), encodeEdit(back)...))
-	if err != nil || string(got) != want {
+	if want := fuzzSequenceCorpus(protoSrc, there, back); err != nil || string(got) != want {
 		t.Errorf("seed prototype-toggle: want\n%s\ngot (err %v)\n%s", want, err, got)
 	}
 }
