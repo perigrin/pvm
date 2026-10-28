@@ -172,12 +172,43 @@ func BenchmarkLatencyAnalyzeEdit(b *testing.B) {
 		b.Fatal(err)
 	}
 	timeEach(b, func(i int) {
-		fa, d, err := analyzeEdit(context.Background(), roots[i], prev, roots[i+1], infer.Options{})
+		fa, d, err := analyzeEdit(context.Background(), roots[i], prev, roots[i+1], nil, infer.Options{})
 		if err != nil || d.Full {
 			b.Fatalf("edit %d: damage %+v, err %v", i, d, err)
 		}
 		prev = fa
 	})
+}
+
+// BenchmarkLatencyDamage: the damage step alone over latencyEdits' typing
+// sequence, each tree Repair'd from the last as the owner does with
+// parse.IncrementalRepair on, read off the two trees (TreeDiff) and off
+// Repair's region (Region).
+func BenchmarkLatencyDamage(b *testing.B) {
+	for _, c := range []struct {
+		name   string
+		damage func(old, root *parse.Node) editDamage
+	}{
+		{"TreeDiff", damageFromTreeDiff},
+		{"Region", func(old, root *parse.Node) editDamage { return damageFromRepair(old, root, *root.Damage()) }},
+	} {
+		b.Run(c.name, func(b *testing.B) {
+			src := latencySource(b)
+			roots := []*parse.Node{parse.Parse(src)}
+			for _, buf := range latencyEdits(src, b.N) {
+				tree, ok := parse.Repair(roots[len(roots)-1], fullSyncEdit(src, buf), buf)
+				if !ok {
+					b.Fatal("Repair refused a typing edit")
+				}
+				roots, src = append(roots, tree), buf
+			}
+			timeEach(b, func(i int) {
+				if d := c.damage(roots[i], roots[i+1]); d.Full || len(d.Subs) != 1 {
+					b.Fatalf("edit %d: damage %+v", i, d)
+				}
+			})
+		})
+	}
 }
 
 // latencyRoots is the parse of the fixture and of each of b.N buffers of
