@@ -16,7 +16,7 @@ fuzz: elapsed: 28s, minimizing
 --- FAIL: FuzzParser (28.25s)
     --- FAIL: FuzzParser (0.00s)
         fuzz_test.go:82: "* A*&;": canon is not a fixpoint: first emission has 5 significant tokens, second has 6
-    
+
     Failing input written to testdata/fuzz/FuzzParser/284fecd931781ba4
     To re-run:
     go test -run=FuzzParser/284fecd931781ba4
