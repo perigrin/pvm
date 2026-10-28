@@ -312,6 +312,20 @@ func TestModulusAfterBarewordIsGrouped(t *testing.T) {
 	}
 }
 
+// TestAmpBeforeVariableRefuses: perl 5.44.0 has FuzzParser's `no A&@0`, `&@`
+// and then `0`, a syntax error. After the module name the lexer split it as
+// `&` and `@0`, and a bare `&` canon'd as `no A &; @0`.
+func TestAmpBeforeVariableRefuses(t *testing.T) {
+	for _, src := range []string{"no A&@0", "no A & @x;", "use A &@x;"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
+		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
+		}
+	}
+}
+
 // TestBracedNameTakesAnyBlank: perl 5.44.0 deparses `${0\r}` and `${ x` +
 // newline + `}` as `$0` and `$x`. Read as a deref of `0`, FuzzParser's
 // `(${0\r},,)` canon'd differently.

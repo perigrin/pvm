@@ -415,6 +415,15 @@ func (p *parser) parseTerm() *Node {
 		if name.Kind == lexer.Number {
 			return p.refuseNotATerm(tok)
 		}
+		// So is a variable the lexer split from it: after `no A`, `&@0` is
+		// `&` and `@0` -- the module name a word the lexer cannot tell from
+		// a sub -- where perl 5.44.0 reads `&@` and `0`, a syntax error. Read
+		// as a bare `&`, FuzzParser's `no A&@0` canon'd as `no A &; @0`, so
+		// the refusal takes the variable too.
+		if name.Kind == lexer.Variable {
+			p.advanceTo(name)
+			return p.refuseNotATerm(tok)
+		}
 		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
 
 	case lexer.Word:
