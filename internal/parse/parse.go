@@ -4,6 +4,7 @@
 package parse
 
 import (
+	"bytes"
 	"maps"
 	"slices"
 	"sort"
@@ -282,6 +283,11 @@ type Node struct {
 	// the subs it declares itself. Root only, same reasoning as loaded.
 	// Read through Imports.
 	imports map[string]Import
+
+	// inc is what Repair resumes from: the bytes this tree was parsed from
+	// and, on a tree Repair built, its parser snapshots. Root only, a cache
+	// no accessor reads, so TreeDiff skips it.
+	inc *incState
 
 	// Text is the operator or literal that names this node -- "+", "?:",
 	// "$x". Empty for nodes whose meaning is entirely their kind and
@@ -645,7 +651,9 @@ func (n *Node) SourceText(src []byte) string {
 // replace Unknown with real nodes one construct at a time, and the round-trip
 // test is what keeps each replacement honest.
 func Parse(src []byte) *Node {
-	return parseRoot(src, nil)
+	root := parseRoot(src, nil)
+	root.inc = &incState{src: bytes.Clone(src)}
+	return root
 }
 
 // parseRoot is Parse with a resolver threaded through it. A nil resolver
@@ -672,13 +680,18 @@ func newParser(src []byte, res *resolver, typed bool) *parser {
 	} else {
 		toks = lexer.TokenizeBarewords(src, coreBarewordOperators())
 	}
+	return &parser{src: src, toks: toks, bodies: heredocBodyIndices(toks), res: res, symbolsOpen: res == nil, typed: typed}
+}
+
+// heredocBodyIndices is the indices of toks' heredoc bodies.
+func heredocBodyIndices(toks []lexer.Token) []int {
 	var bodies []int
 	for i, tok := range toks {
 		if tok.Kind == lexer.HeredocBody {
 			bodies = append(bodies, i)
 		}
 	}
-	return &parser{src: src, toks: toks, bodies: bodies, res: res, symbolsOpen: res == nil, typed: typed}
+	return bodies
 }
 
 // parseWith runs p over its source, returning the tree and p.

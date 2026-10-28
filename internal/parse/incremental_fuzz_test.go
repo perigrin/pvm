@@ -1,5 +1,5 @@
 // ABOUTME: Property test (§7.7): an incremental re-parse equals a fresh Session parse of the edited bytes.
-// ABOUTME: FuzzIncremental fuzzes one edit, FuzzIncrementalSequence a burst; the §7.7.3 seeds are a table here.
+// ABOUTME: FuzzIncremental fuzzes one edit, FuzzIncrementalSequence a burst, both through Repair; the §7.7.3 seeds are a table here.
 
 package parse_test
 
@@ -66,11 +66,20 @@ func freshParse(src string) *parse.Node {
 	return parse.NewSession().ParseSourceFrom(incPath, []byte(src), incRoot)
 }
 
-// checkIncremental asserts the property for one edit of src, in both forms:
-// the Session form against a fresh Session parse, and the plain form against
-// Parse. It returns the edited source.
+// repairOn sets parse.IncrementalRepair for tb, so ReparseIncremental goes
+// through Repair, and restores it after.
+func repairOn(tb testing.TB) {
+	was := parse.IncrementalRepair
+	parse.IncrementalRepair = true
+	tb.Cleanup(func() { parse.IncrementalRepair = was })
+}
+
+// checkIncremental asserts the property for one edit of src, in both forms,
+// through Repair: the Session form against a fresh Session parse, and the
+// plain form against Parse. It returns the edited source.
 func checkIncremental(t *testing.T, src string, e parse.Edit) string {
 	t.Helper()
+	repairOn(t)
 	edited := applyEdit(src, e)
 	s := parse.NewSession()
 	old := s.ParseSourceFrom(incPath, []byte(src), incRoot)
@@ -342,6 +351,7 @@ func FuzzIncrementalSequence(f *testing.F) {
 		if len(src) > 64*1024 || len(script) > 4096 {
 			t.Skip()
 		}
+		repairOn(t)
 		s := parse.NewSession()
 		tree := s.ParseSourceFrom(incPath, []byte(src), incRoot)
 		cur := src
@@ -353,4 +363,149 @@ func FuzzIncrementalSequence(f *testing.F) {
 			}
 		}
 	})
+}
+
+// repairSub's edit is in a sub body, so Repair re-parses that sub alone;
+// the root's loaded modules and declaration errors come from the `use`
+// statements outside it, which only the old parse read.
+const repairSub = "use Odd;\nuse Foo;\nsub g {\n  my @x = (bar 1, 2);\n}\nprint g();\n"
+
+// repairEqualsFresh asserts Session.Repair's property for e of src and
+// returns its ok: the tree equals a fresh Session parse, or is nil.
+func repairEqualsFresh(t *testing.T, src string, e parse.Edit) bool {
+	t.Helper()
+	edited := applyEdit(src, e)
+	old := parse.NewSession().ParseSourceFrom(incPath, []byte(src), incRoot)
+	tree, ok := parse.NewSession().Repair(old, e, incPath, []byte(edited), incRoot)
+	if !ok {
+		if tree != nil {
+			t.Fatalf("edit %+v of %q: ok=false with a tree", e, src)
+		}
+		return false
+	}
+	if diff := parse.TreeDiff(tree, freshParse(edited)); diff != "" {
+		t.Fatalf("edit %+v of %q: repaired != fresh:\n%s", e, src, diff)
+	}
+	return true
+}
+
+// TestRepairSpliceEqualsFresh: on the seed table, and on a sub body edit
+// in a file whose modules carry a declaration error and warning, Repair's
+// tree equals a fresh Session parse, root fields included, or Repair
+// returns ok=false.
+func TestRepairSpliceEqualsFresh(t *testing.T) {
+	t.Cleanup(parse.OverlayDeclarations(os.DirFS(incRoot)))
+	for _, s := range incrementalSeeds {
+		t.Run(s.name, func(t *testing.T) { repairEqualsFresh(t, s.src, s.edit) })
+	}
+	e := replaceFirst(repairSub, "1", "42")
+	if !repairEqualsFresh(t, repairSub, e) {
+		t.Fatal("a sub body edit returned ok=false; the root fields are unchecked")
+	}
+	fresh := freshParse(applyEdit(repairSub, e))
+	if len(parse.LoadedModules(fresh)) == 0 || len(parse.DeclarationErrors(fresh)) == 0 || len(parse.DeclarationWarnings(fresh)) == 0 {
+		t.Fatal("the fresh parse loads nothing or has no declaration error and warning; the root fields are unchecked")
+	}
+}
+
+// TestRepairLocalSeedsSucceed: every row of the seed table, but
+// 01a17969-4696's prototype row, whose defined invalidation is a local
+// repair returns ok=true.
+func TestRepairLocalSeedsSucceed(t *testing.T) {
+	local := 0
+	for _, s := range incrementalSeeds {
+		if !s.repairOK || s.name == "prototype" {
+			continue
+		}
+		local++
+		if !repairEqualsFresh(t, s.src, s.edit) {
+			t.Errorf("%s: ok=false, want a local repair", s.name)
+		}
+	}
+	if local == 0 {
+		t.Fatal("no local row; the test checks nothing")
+	}
+}
+
+// TestRepairInvalidationMatchesSpec: for the seven rows other than the
+// prototype row, the region Repair re-parses is the defined invalidation's:
+// the enclosing sub for a local row, and ok=false for a full one.
+func TestRepairInvalidationMatchesSpec(t *testing.T) {
+	rows := 0
+	for _, s := range incrementalSeeds {
+		if s.name == "prototype" {
+			continue
+		}
+		rows++
+		t.Run(s.name, func(t *testing.T) {
+			edited := applyEdit(s.src, s.edit)
+			old := parse.NewSession().ParseSourceFrom(incPath, []byte(s.src), incRoot)
+			start, end, ok := parse.RepairedSpan(old, s.edit, incPath, []byte(edited), incRoot)
+			if ok != s.repairOK {
+				t.Fatalf("ok=%v, want %v", ok, s.repairOK)
+			}
+			if ok {
+				if region := edited[start:end]; !strings.HasPrefix(region, "sub f {") || !strings.HasSuffix(region, "}") {
+					t.Fatalf("re-parsed %q, want the enclosing sub", region)
+				}
+			}
+		})
+	}
+	if rows != 7 {
+		t.Fatalf("%d non-prototype rows, want 7", rows)
+	}
+}
+
+// TestRepairSessionResolvedCallEqualsFresh: an edit in a module-prototype
+// call's arguments repairs to a fresh Session parse's tree, bar still
+// Resolved with Prototype ($), or returns ok=false. Inside a sub it repairs.
+func TestRepairSessionResolvedCallEqualsFresh(t *testing.T) {
+	const inSub = "use Foo;\nsub g {\n  my @x = (bar 1, 2);\n}\nprint g();\n"
+	for _, c := range []struct {
+		src    string
+		mustOK bool
+	}{{resolvedCallSrc, false}, {inSub, true}} {
+		e := replaceFirst(c.src, "1", "42")
+		edited := applyEdit(c.src, e)
+		old := parse.NewSession().ParseSourceFrom(incPath, []byte(c.src), incRoot)
+		tree, ok := parse.NewSession().Repair(old, e, incPath, []byte(edited), incRoot)
+		if !ok {
+			if c.mustOK || tree != nil {
+				t.Fatalf("%q: ok=false (tree %v)", c.src, tree != nil)
+			}
+			continue
+		}
+		if diff := parse.TreeDiff(tree, freshParse(edited)); diff != "" {
+			t.Fatalf("%q: repaired != fresh:\n%s", c.src, diff)
+		}
+		if call := findCall(tree, "bar"); call == nil || !call.Resolved || call.Prototype != "($)" {
+			t.Fatalf("%q: bar is not a Resolved call with Prototype ($): %+v", c.src, call)
+		}
+	}
+}
+
+// TestReparseIncrementalFallsBackOnNotOk: every seed edit Repair refuses
+// gives, from ReparseIncremental, a tree equal to a fresh parse.
+func TestReparseIncrementalFallsBackOnNotOk(t *testing.T) {
+	repairOn(t)
+	refused := 0
+	for _, s := range incrementalSeeds {
+		edited := applyEdit(s.src, s.edit)
+		old := parse.NewSession().ParseSourceFrom(incPath, []byte(s.src), incRoot)
+		if _, ok := parse.NewSession().Repair(old, s.edit, incPath, []byte(edited), incRoot); ok {
+			continue
+		}
+		refused++
+		inc := parse.NewSession().ReparseIncremental(old, s.edit, incPath, []byte(edited), incRoot)
+		if diff := parse.TreeDiff(inc, freshParse(edited)); diff != "" {
+			t.Errorf("%s: fallback != fresh:\n%s", s.name, diff)
+		}
+		plain := parse.ReparseIncremental(parse.Parse([]byte(s.src)), s.edit, []byte(edited))
+		if diff := parse.TreeDiff(plain, parse.Parse([]byte(edited))); diff != "" {
+			t.Errorf("%s: plain fallback != fresh:\n%s", s.name, diff)
+		}
+	}
+	if refused == 0 {
+		t.Fatal("Repair refused no seed; the fallback is unchecked")
+	}
 }

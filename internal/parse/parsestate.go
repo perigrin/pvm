@@ -4,7 +4,10 @@ package parse
 
 import (
 	"maps"
+	"reflect"
 	"slices"
+
+	"tamarou.com/pvm/internal/lexer"
 )
 
 // parserSnapshot is the parser as it stood just before one statement: a
@@ -136,7 +139,23 @@ func (s *parserSnapshot) resume(src []byte, res *resolver) (*parser, []*Node) {
 // restore is a parser over src standing where s was taken, not yet run.
 func (s *parserSnapshot) restore(src []byte, res *resolver) *parser {
 	fresh := newParser(src, res, s.p.typed)
+	return s.restoreOn(src, fresh.toks, fresh.bodies, res)
+}
+
+// restoreOn is restore over src already lexed as toks, whose heredoc
+// bodies are at the indices bodies.
+func (s *parserSnapshot) restoreOn(src []byte, toks []lexer.Token, bodies []int, res *resolver) *parser {
 	p := s.p.clone()
-	p.src, p.toks, p.bodies, p.res = fresh.src, fresh.toks, fresh.bodies, fresh.res
+	p.src, p.toks, p.bodies, p.res = src, toks, bodies, res
 	return &p
+}
+
+// sameState reports whether a and b agree on every field parserFields
+// does not mark shared.
+func sameState(a, b *parser) bool {
+	ca, cb := a.clone(), b.clone()
+	for _, c := range []*parser{&ca, &cb} {
+		c.src, c.toks, c.bodies, c.res = nil, nil, nil, nil
+	}
+	return reflect.DeepEqual(ca, cb)
 }

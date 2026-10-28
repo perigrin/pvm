@@ -1,17 +1,19 @@
-// ABOUTME: Edit, ReparseIncremental, the IncrementalRepair flag, edit triage and widening (spec §6.5, §7.7).
-// ABOUTME: ReparseIncremental is still a full re-parse; triage and widen are what Repair will start from.
+// ABOUTME: Edit, Repair and ReparseIncremental, the IncrementalRepair flag, edit triage and widening (spec §6.5, §7.7).
+// ABOUTME: Repair re-parses the one top-level statement widening anchors at and splices it between copied neighbours.
 package parse
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"slices"
 	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// IncrementalRepair switches the LSP from a full re-parse on every change to
-// ReparseIncremental's Repair (spec §6.5.5). Triage and widening are reached
-// only through Repair, so they too sit behind it. Tests may set it locally.
+// IncrementalRepair switches ReparseIncremental from a full re-parse on
+// every change to Repair (spec §6.5.5). Tests may set it locally.
 var IncrementalRepair = false
 
 // Edit replaces the old source's bytes [Start, OldEnd) with NewText.
@@ -22,8 +24,14 @@ type Edit struct {
 
 // ReparseIncremental returns the tree of src, the old source with e applied,
 // reusing old where it can. It equals Parse(src) under TreeDiff (§7.7.1).
-// Until Repair lands it reuses nothing.
+// With IncrementalRepair set it is Repair, or a full parse where Repair
+// returns ok=false; with it clear, always a full parse.
 func ReparseIncremental(old *Node, e Edit, src []byte) *Node {
+	if IncrementalRepair {
+		if tree, ok := Repair(old, e, src); ok {
+			return tree
+		}
+	}
 	return Parse(src)
 }
 
@@ -33,7 +41,261 @@ func ReparseIncremental(old *Node, e Edit, src []byte) *Node {
 // none of the LoadedModules, DeclarationErrors or DeclarationWarnings its
 // first already read, and a module edited on disk must be read again.
 func (s *Session) ReparseIncremental(old *Node, e Edit, path string, src []byte, roots ...string) *Node {
+	if IncrementalRepair {
+		if tree, ok := s.Repair(old, e, path, src, roots...); ok {
+			return tree
+		}
+	}
 	return NewSession().ParseSourceFrom(path, src, roots...)
+}
+
+// Repair is §6.5.3: the tree of src, the bytes old was parsed from with e
+// applied, built by re-parsing only the top-level statement widening
+// anchors at. Its tree equals Parse(src) under TreeDiff, root fields
+// included, or ok is false and the tree nil, never a partial splice. It
+// leaves old unchanged.
+func Repair(old *Node, e Edit, src []byte) (tree *Node, ok bool) {
+	tree, _, ok = repair(old, e, src, "", func() *resolver { return nil })
+	return tree, ok
+}
+
+// Repair is the resolver form: its tree equals a fresh
+// NewSession().ParseSourceFrom(path, src, roots...), or ok is false. Like
+// ReparseIncremental it resolves as a fresh Session would, never with s's
+// module facts.
+func (s *Session) Repair(old *Node, e Edit, path string, src []byte, roots ...string) (tree *Node, ok bool) {
+	tree, _, ok = sessionRepair(old, e, path, src, roots)
+	return tree, ok
+}
+
+// sessionRepair is Session.Repair, also returning the statement it
+// re-parsed.
+func sessionRepair(old *Node, e Edit, path string, src []byte, roots []string) (*Node, *Node, bool) {
+	dirs := searchDirs(path, roots)
+	return repair(old, e, src, resolverKey(dirs, false), func() *resolver { return newResolver(dirs, false) })
+}
+
+// incState is what Repair resumes from, kept on a parse's root.
+type incState struct {
+	src []byte // the bytes the tree was parsed from
+	key string // resolverKey of the parse, "" for none
+	// tops is the parser before each top-level statement, while the parse
+	// took snapshots, then at EOF before finish. A parse's tree has none:
+	// Repair takes them by parsing src again, and a tree it builds carries
+	// its own.
+	tops  []parserSnapshot
+	reads map[string]moduleRead // every Loader call the parse made
+}
+
+// moduleRead is what one Loader call answered.
+type moduleRead struct {
+	ok  bool
+	sum [sha256.Size]byte
+}
+
+// maxResyncTokens bounds the tokens an edit may change: past it, the
+// change is not local and a full parse is cheaper (§6.5.3).
+const maxResyncTokens = 4000
+
+// repair is Repair, also returning the statement it re-parsed. It resolves
+// as the parse whose resolverKey is key does, each mkRes call returning a
+// fresh resolver for it: nil for none.
+//
+// It re-parses the anchor's statement from the parser snapshot before it
+// and keeps every other top-level statement, copied and, past the edit,
+// shifted, when §6.5.2's checks hold: a top-level snapshot starts at the
+// anchor (0); one statement read from it over src ends at the anchor's
+// shifted end and leaves the parser as the old parse's snapshot after the
+// anchor stood, its token index moved (1, 2); the modules the old parse
+// read read the same bytes (3); and the statement consulted no resolver,
+// so the root's loaded modules and declaration errors are the old parse's.
+// The EOF passes then run over the spliced tree (4). Under ruling R-f
+// nothing holding an error is reused, and a statement that gains or loses
+// one returns ok=false (§6.8.5).
+//
+// shortcut: copies and shifts every reused node, the simplest splice; ruling
+// R-e chooses an in-place shift or shared subtrees once 01a17a40-4915
+// measures them.
+func repair(old *Node, e Edit, src []byte, key string, mkRes func() *resolver) (*Node, *Node, bool) {
+	if old == nil || old.inc == nil || !isEditOf(old.inc.src, e, src) {
+		return nil, nil, false
+	}
+	strategy, d := triageDiff(old, old.inc.src, e)
+	var a *Node
+	switch strategy {
+	case StrategyLocal:
+		a = anchorOf(old, e)
+	case StrategyReuseAll:
+		a = childHolding(old, e)
+	}
+	if a == nil || a == old {
+		return nil, nil, false
+	}
+	for _, c := range old.Children {
+		if c != a && c.HasError {
+			return nil, nil, false
+		}
+	}
+	tops, reads := old.inc.tops, old.inc.reads
+	if tops == nil || old.inc.key != key {
+		if tops, reads = snapshotsOf(old, mkRes()); tops == nil {
+			return nil, nil, false
+		}
+	} else if !sameReads(reads, mkRes()) {
+		return nil, nil, false
+	}
+	k := sort.Search(len(tops), func(i int) bool { return tops[i].at >= a.Start })
+	if k+1 >= len(tops) || tops[k].at != a.Start || tops[k+1].at != a.End {
+		return nil, nil, false
+	}
+
+	delta, dtok := len(src)-len(old.inc.src), len(d.newToks)-len(d.oldToks)
+	res, bodies := mkRes(), heredocBodyIndices(d.newToks)
+	p := tops[k].restoreOn(src, d.newToks, bodies, res)
+	n := p.statement()
+	// Check 1: the first unconsumed token starts at the anchor's shifted
+	// end, or the parse is at EOF. The token index in check 2 implies it
+	// only while a snapshot follows the anchor. tops ends with an EOF
+	// snapshot so one always does, but check 1 is kept outright rather
+	// than resting on that (gate review of #512).
+	end := len(src)
+	if p.pos < len(p.toks) {
+		end = p.toks[p.pos].Start
+	}
+	want := tops[k+1].p.clone()
+	want.pos += dtok
+	if n == nil || end != a.End+delta || !sameState(p, &want) || consulted(res) {
+		return nil, nil, false
+	}
+
+	root := &Node{Kind: SourceFile, Start: 0, End: len(src)}
+	memo := map[*Node]*Node{}
+	for _, c := range old.Children {
+		switch {
+		case c == a:
+			root.Children = append(root.Children, n)
+		case c.Start < a.Start:
+			root.Children = append(root.Children, copyShifted(c, 0, memo))
+		default:
+			root.Children = append(root.Children, copyShifted(c, delta, memo))
+		}
+	}
+	fin := tops[len(tops)-1].restoreOn(src, d.newToks, bodies, res)
+	fin.pos += dtok
+	fin.finish(root)
+	if n.HasError != a.HasError {
+		return nil, nil, false
+	}
+	if res != nil {
+		root.loaded = slices.Clone(old.loaded)
+		root.declErrs = slices.Clone(old.declErrs)
+		root.declWarns = slices.Clone(old.declWarns)
+	}
+
+	moved := slices.Clone(tops)
+	for j := k + 1; j < len(moved); j++ {
+		moved[j].at += delta
+		moved[j].p.pos += dtok
+	}
+	root.inc = &incState{src: bytes.Clone(src), key: key, tops: moved, reads: reads}
+	return root, n, true
+}
+
+// isEditOf reports that edited is old with e applied.
+func isEditOf(old []byte, e Edit, edited []byte) bool {
+	return 0 <= e.Start && e.Start <= e.OldEnd && e.OldEnd <= len(old) &&
+		len(edited) == len(old)-(e.OldEnd-e.Start)+len(e.NewText) &&
+		bytes.Equal(old[:e.Start], edited[:e.Start]) &&
+		string(edited[e.Start:e.Start+len(e.NewText)]) == e.NewText &&
+		bytes.Equal(old[e.OldEnd:], edited[e.Start+len(e.NewText):])
+}
+
+// snapshotsOf parses old's source again with res, taking the top-level
+// snapshots and recording every Loader call, and returns them when that
+// parse equals old: old is this source's tree, and what the modules it read
+// say has not changed it. Otherwise nil.
+//
+// shortcut: the first Repair of a parse's tree parses the old source again
+// for its snapshots; take them in the document's first parse once the LSP
+// owns one (§6.7.1).
+func snapshotsOf(old *Node, res *resolver) ([]parserSnapshot, map[string]moduleRead) {
+	reads := map[string]moduleRead{}
+	if res != nil {
+		load := res.load
+		res.load = func(name string) ([]byte, bool) {
+			b, ok := load(name)
+			reads[name] = moduleRead{ok, sha256.Sum256(b)}
+			return b, ok
+		}
+	}
+	p := newParser(old.inc.src, res, false)
+	p.snaps = &[]parserSnapshot{}
+	root := p.parseFile()
+	tops := slices.DeleteFunc(*p.snaps, func(s parserSnapshot) bool { return s.nested })
+	tops = append(tops, parserSnapshot{at: len(p.src), p: p.clone()})
+	p.finish(root)
+	if TreeDiff(old, root) != "" {
+		return nil, nil
+	}
+	for i := range tops {
+		// The resuming parse supplies these; keeping them would hold this
+		// parse's tokens and resolver as long as the tree.
+		tops[i].p.src, tops[i].p.toks, tops[i].p.bodies, tops[i].p.res = nil, nil, nil, nil
+	}
+	return tops, reads
+}
+
+// sameReads reports that each Loader call in reads answers as it did,
+// through res's loader: check 3 for a tree that carries its snapshots.
+//
+// shortcut: reads every module again on each Repair; 01a17969-46aa's module
+// cache, keyed by a content hash, replaces this.
+func sameReads(reads map[string]moduleRead, res *resolver) bool {
+	for name, r := range reads {
+		b, ok := res.load(name)
+		if ok != r.ok || sha256.Sum256(b) != r.sum {
+			return false
+		}
+	}
+	return true
+}
+
+// consulted reports that a parse used res. A fresh parse would have met the
+// old parse's modules already read, so its loaded list and declaration
+// errors would no longer be the old parse's.
+func consulted(res *resolver) bool {
+	return res != nil && (len(res.seen) > 0 || len(res.loaded) > 0 || len(res.declErrs) > 0 || len(res.declWarns) > 0)
+}
+
+// copyShifted is a deep copy of n with every byte offset moved by delta, as
+// TreeDiffShifted compares them. A node reached twice is copied once. Only
+// nodes past the edit's end move, so no offset can underflow (§6.4.2).
+func copyShifted(n *Node, delta int, memo map[*Node]*Node) *Node {
+	if c, ok := memo[n]; ok {
+		return c
+	}
+	c := *n
+	memo[n] = &c
+	c.Start += delta
+	c.End += delta
+	if c.InnerEnd != 0 {
+		c.InnerStart += delta
+		c.InnerEnd += delta
+	}
+	c.Children = copyAll(n.Children, delta, memo)
+	c.InnerHeredocBodies = copyAll(n.InnerHeredocBodies, delta, memo)
+	return &c
+}
+
+func copyAll(ns []*Node, delta int, memo map[*Node]*Node) []*Node {
+	if ns == nil {
+		return nil
+	}
+	out := make([]*Node, len(ns))
+	for i, n := range ns {
+		out[i] = copyShifted(n, delta, memo)
+	}
+	return out
 }
 
 // Strategy is how much work an edit needs (spec §6.5.1).
@@ -76,12 +338,27 @@ var triggerKinds = map[lexer.Kind]bool{
 // text: src is lexed before and after e, and only the tokens that differ
 // are examined.
 func triage(old *Node, src []byte, e Edit) Strategy {
+	s, _ := triageDiff(old, src, e)
+	return s
+}
+
+// triageDiff is triage, also returning the token streams it compared,
+// empty when it did not lex.
+func triageDiff(old *Node, src []byte, e Edit) (Strategy, tokenDiff) {
 	size := max(e.OldEnd-e.Start, len(e.NewText))
 	if size > maxEditBytes {
-		return StrategyFull
+		return StrategyFull, tokenDiff{}
 	}
 	d := diffTokens(src, e)
+	return triageTokens(old, e, d, size), d
+}
+
+// triageTokens is triage once src is lexed before and after e.
+func triageTokens(old *Node, e Edit, d tokenDiff, size int) Strategy {
 	oc, nc := d.oldChanged(), d.newChanged()
+	if max(len(oc), len(nc)) > maxResyncTokens {
+		return StrategyFull
+	}
 	// One trivia token changed, strictly inside, into one of its kind: every
 	// other token only shifts.
 	if len(oc) == 1 && len(nc) == 1 && oc[0].Kind == nc[0].Kind &&

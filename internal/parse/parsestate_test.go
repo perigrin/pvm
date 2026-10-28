@@ -130,16 +130,6 @@ func TestParserStateResumeOnEditedSource(t *testing.T) {
 	}
 }
 
-// sameState reports whether a and b agree on every field parserFields
-// does not mark shared.
-func sameState(a, b *parser) bool {
-	ca, cb := a.clone(), b.clone()
-	for _, c := range []*parser{&ca, &cb} {
-		c.src, c.toks, c.bodies, c.res = nil, nil, nil, nil
-	}
-	return reflect.DeepEqual(ca, cb)
-}
-
 // blockAt is the Block under n with a direct child starting at at.
 func blockAt(n *Node, at int) *Node {
 	for _, c := range n.Children {
