@@ -148,10 +148,14 @@ func fuzzIncrementalCorpus(src string, e parse.Edit) string {
 	return fmt.Sprintf("go test fuzz v1\nstring(%q)\nint(%d)\nint(%d)\nstring(%q)\n", src, e.Start, e.OldEnd-e.Start, e.NewText)
 }
 
-// fuzzSequenceCorpus is the same edit as FuzzIncrementalSequence's (src,
+// fuzzSequenceCorpus is the same edits as FuzzIncrementalSequence's (src,
 // script).
-func fuzzSequenceCorpus(src string, e parse.Edit) string {
-	return fmt.Sprintf("go test fuzz v1\nstring(%q)\n[]byte(%q)\n", src, encodeEdit(e))
+func fuzzSequenceCorpus(src string, es ...parse.Edit) string {
+	var script []byte
+	for _, e := range es {
+		script = append(script, encodeEdit(e)...)
+	}
+	return fmt.Sprintf("go test fuzz v1\nstring(%q)\n[]byte(%q)\n", src, script)
 }
 
 // TestIncrementalEditSeeds holds each §7.7.3 row: splice == fresh, and the

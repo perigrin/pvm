@@ -1,0 +1,5 @@
+go test fuzz v1
+string("sub f { 1 }\nsub g { my @x = (f 1, 2); }\nsub h { return f 3, 4; }\nmy @y = (f 5, 6);\n")
+int(0)
+int(6)
+string("sub f($) ")

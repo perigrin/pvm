@@ -1,0 +1,5 @@
+go test fuzz v1
+string("sub g {\n  sub f($) { 1 }\n}\nmy @x = (f 1, 2);\n")
+int(15)
+int(3)
+string("(@)")
