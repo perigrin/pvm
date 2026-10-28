@@ -107,7 +107,7 @@ func (r *recorder) graft(st *SymbolTable, pos *lower.Positions, d *lower.Decl, a
 	collectDecl(st, pos, d, func(lower.Node) {})
 	cur.children = cur.children[:n0]
 	for _, s := range p.pass1 {
-		cur.children = append(cur.children, copyScope(s, cur, r.edit))
+		cur.children = append(cur.children, copyScope(s, cur, r.edit, nil))
 	}
 	t.pass1 = slices.Clone(cur.children[n0:])
 	if t.pkg = p.pkg; p.pkg != "" {
@@ -158,7 +158,7 @@ func (a *analysis) replay(t, p *subTrace) {
 	t.ok, t.outer = p.ok, p.outer
 	cur := a.st.current
 	for _, s := range p.pass2 {
-		c := copyScope(s, cur, e)
+		c := copyScope(s, cur, e, nil)
 		cur.children = append(cur.children, c)
 		t.pass2 = append(t.pass2, c)
 	}
@@ -189,15 +189,18 @@ func (a *analysis) replay(t, p *subTrace) {
 }
 
 // copyScope is a copy of s and every scope under it, closed, under parent,
-// each symbol's span moved by e.
-func copyScope(s, parent *Scope, e parse.Edit) *Scope {
+// each symbol's span moved by e. copies, unless nil, gets each scope's copy.
+func copyScope(s, parent *Scope, e parse.Edit, copies map[*Scope]*Scope) *Scope {
 	c := &Scope{Name: s.Name, parent: parent, symbols: make(map[string]Symbol, len(s.symbols)), depth: s.depth}
+	if copies != nil {
+		copies[s] = c
+	}
 	for k, sym := range s.symbols {
 		sym.StartByte, sym.EndByte = shiftSpan(e, sym.StartByte, sym.EndByte)
 		c.symbols[k] = sym
 	}
 	for _, ch := range s.children {
-		c.children = append(c.children, copyScope(ch, c, e))
+		c.children = append(c.children, copyScope(ch, c, e, copies))
 	}
 	return c
 }
@@ -272,20 +275,7 @@ func Reanalyze(prev *FileAnalysis, f *lower.File, pos *lower.Positions, damaged 
 // Its Diagnostics are prev's moved, whatever a caller made of them.
 func Shifted(prev *FileAnalysis, pos *lower.Positions, e parse.Edit) *FileAnalysis {
 	copies := map[*Scope]*Scope{}
-	var cp func(s, parent *Scope) *Scope
-	cp = func(s, parent *Scope) *Scope {
-		c := copyScope(s, parent, e)
-		var pair func(s, c *Scope)
-		pair = func(s, c *Scope) {
-			copies[s] = c
-			for i := range s.children {
-				pair(s.children[i], c.children[i])
-			}
-		}
-		pair(s, c)
-		return c
-	}
-	root := cp(prev.Symbols.root, nil)
+	root := copyScope(prev.Symbols.root, nil, e, copies)
 	root.open = true
 	st := &SymbolTable{root: root, current: root, blockScopes: map[lower.ID]*Scope{}, holders: map[string][]*Scope{}}
 	for name := range root.symbols {

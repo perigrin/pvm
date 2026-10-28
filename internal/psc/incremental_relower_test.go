@@ -202,7 +202,7 @@ func TestIncrementalAnalyzeMatchesFresh(t *testing.T) {
 	})
 }
 
-// scaleDecls is each top-level `sub scale`'s lowered Decl in f, by anchor.
+// topDecls is each top-level sub's lowered Decl in f, by anchor.
 func topDecls(f *lower.File) map[string]lower.Node {
 	out := map[string]lower.Node{}
 	var walk func(n lower.Node)

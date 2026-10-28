@@ -1,4 +1,4 @@
-// ABOUTME: M2's latency measurement (spec chapter 6 §6.11 step 4): parse, lower, analyze and a 1-char edit on edit5k.pl.
+// ABOUTME: M2's latency measurement (spec chapter 6 §6.11 step 4): parse, lower, analyze, a 1-char edit, and its incremental analysis.
 // ABOUTME: Each benchmark times every iteration and reports p50 and p99 in ms, the percentiles §6.10's budget is set in.
 
 package psc
