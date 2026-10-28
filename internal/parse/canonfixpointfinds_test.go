@@ -283,13 +283,18 @@ func TestPostfixIncrementEndsTerm(t *testing.T) {
 	}
 }
 
-// TestSpacedPercentAfterWordIsModulus: perl 5.44.0 reads `A% #` + newline
-// + `<<0` as `'A' % <<0`. Canon wrote `A % <<0`, where `% <` lexed as a
-// hash named `<`.
-func TestSpacedPercentAfterWordIsModulus(t *testing.T) {
-	for src, want := range map[string]string{"A% #\n<<0;;0\n0": "A % <<0;;0\n0\n", "A % 2;": "A % 2;"} {
-		if got := clean(t, src); got != want {
-			t.Errorf("%q: canon %q, want %q", src, got, want)
+// TestSpacedPercentAfterWordRefuses: perl 5.44.0 reads `A% #` + newline
+// + `<<0` as `'A' % <<0` and, A declared, as `A %<`, the hash `%<` taken
+// past the comment; `A % 2` is `'A' % 2` or `A %2`. Read as a modulus, the
+// canon `A % <<0` re-read with `% <` a hash. Not knowing A, the parser
+// refuses (R-b′), FuzzParser's `A% #` + newline + `<<0;x;0` among them.
+func TestSpacedPercentAfterWordRefuses(t *testing.T) {
+	for _, src := range []string{"A% #\n<<0;;0\n0", "A% #\n<<0;x;0\n0", "A % #\n<<0;\n0\n", "A % 2;"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
+			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+		}
+		if ok, why := canonMatches([]byte(src)); !ok {
+			t.Errorf("%q: canon is not a fixpoint: %s", src, why)
 		}
 	}
 }

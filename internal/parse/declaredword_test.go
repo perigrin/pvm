@@ -76,6 +76,9 @@ func TestImportedWordTakesHeredoc(t *testing.T) {
 func TestUndeclaredWordRefuses(t *testing.T) {
 	for _, src := range []string{
 		"croak << \"H\";\nx\nH\n", "A % h;", "A < 0 > 0;", "A <= 0 > 0;", "A */x/;", "A *.5;", "A *%;",
+		// A declared A's glob `*%`, `*@` or `*&` before a repetition: `sub A
+		// {} A *%x3` is `A(*% x 3)` and `A *%x3` is `'A' * %x3`, on 5.44.0.
+		"A *%x3;", "A *@x3;", "A*&x3;", "A *%x .5;", "A *%x $n;", "A *&x $n;",
 	} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
@@ -96,15 +99,23 @@ func TestUndeclaredWordRefuses(t *testing.T) {
 	}
 }
 
-// TestFileTempParsesAsOnPu: core File/Temp.pm, read with its imports, has
-// no refusal, as it had before the canon fixpoint finds were fixed.
+// TestFileTempParsesAsOnPu: core File/Temp.pm, read as a file with its
+// imports, has no refusal, as on pu: its `croak << "HERE";` is a heredoc.
 func TestFileTempParsesAsOnPu(t *testing.T) {
 	path := perl544Lib + "/File/Temp.pm"
-	src, err := os.ReadFile(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		t.Skip("perl 5.44.0's File/Temp.pm is not installed")
 	}
-	if found := collectUnknown(parse.ParseWithLoader(src, parse.DirLoader(perl544Lib))); len(found) != 0 {
+	root, err := parse.ParseFileFrom(path, perl544Lib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found := collectUnknown(root); len(found) != 0 || root.HasError {
 		t.Errorf("File/Temp.pm: %d refusals, want 0: %v", len(found), refusalCodes(found))
+	}
+	// And a Session's parse of the same shape, as an editor's buffer reads.
+	src := []byte("use Carp; croak << \"H\";\nx\nH\n")
+	if found := collectUnknown(parse.NewSession().ParseSourceFrom(path, src, perl544Lib)); len(found) != 0 {
+		t.Errorf("%q in a Session: perl compiles this, but it refuses: %v", src, refusalCodes(found))
 	}
 }

@@ -717,6 +717,16 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 		return nil
 	}
 	name, ok := p.peekAfter(tok)
+	prev := p.pos - 1
+	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
+		prev--
+	}
+	// A declared sub's glob `*%`, `*@` or `*&` before a repetition is an
+	// undeclared word's product: on 5.44.0, `sub A {} A *%x3` is `A(*% x
+	// 3)` and `A *%x3` is `'A' * %x3`. `A *%x;` is only the product.
+	if ok && text == "*" && name.Start == tok.End && prev >= 0 && p.toks[prev].Kind == lexer.Word && p.sigilNameRepeats(name) {
+		return p.ambiguousSigil(left.Start)
+	}
 	if !ok || name.Kind != lexer.Word || name.Start != tok.End {
 		return nil
 	}
@@ -727,10 +737,6 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 	// disagree only after a word, which may be a call taking a glob.
 	closes := text == "*" && (p.text(name) == ";" || p.text(name) == "}" ||
 		p.text(name) == "*" && p.endsGlobStar(name))
-	prev := p.pos - 1
-	for prev >= 0 && (p.toks[prev].Kind == lexer.Whitespace || p.toks[prev].Kind == lexer.Comment) {
-		prev--
-	}
 	// So does a quote-op name after a closer, where the lexer read a glob:
 	// perl 5.44.0 has FuzzParser's `{{}*y}` multiply the hash by a
 	// transliteration, and the canon `{} * y` re-read as one.
@@ -773,6 +779,30 @@ func (p *parser) refuseAmbiguousSigil(left *Node, tok lexer.Token, text string) 
 		return nil
 	}
 	return p.ambiguousSigil(left.Start)
+}
+
+// sigilNameRepeats reports whether sigil, a `%` or `@` variable or a sub's
+// `&` and its name, reads as that glob sigil and a repetition: `%x3`, or
+// `%x` before a term.
+func (p *parser) sigilNameRepeats(sigil lexer.Token) bool {
+	last, t := sigil, p.text(sigil)
+	if sigil.Kind == lexer.FuncSigil {
+		w, ok := p.peekAfter(sigil)
+		if !ok || w.Kind != lexer.Word || w.Start != sigil.End {
+			return false
+		}
+		last, t = w, "&"+p.text(w)
+	} else if sigil.Kind != lexer.Variable || !strings.ContainsRune("%@", rune(t[0])) {
+		return false
+	}
+	if len(t) < 2 || t[1] != 'x' {
+		return false
+	}
+	if len(t) > 2 {
+		return strings.Trim(t[2:], "0123456789") == ""
+	}
+	next, ok := p.peekAfter(last)
+	return ok && next.Kind != lexer.Semicolon && next.Kind != lexer.CloseBracket && p.text(next) != ","
 }
 
 // punctName reports whether name, glued after a `&` or `*`, is one ASCII

@@ -435,10 +435,12 @@ func (p *parser) parseWordTerm(word lexer.Token) *Node {
 		// undeclared: `croak << "H"` a shift, `A % h` a modulus, `A < 0 > 0`
 		// a comparison, measured on 5.44.0. Undeclared and imported from a
 		// module unread look the same here, so neither reading is taken
-		// (ruling R-b′); a known sub took its argument above.
+		// (ruling R-b′); a known sub took its argument above. So is a `%`
+		// the lexer could give no name, a blank before it: `A % 2` is `A %2`
+		// declared, and `A % #` + newline + `<<0` is `A %<`.
 		// `<=>` the infix loop reads as the spaceship, as pu did.
 		if next, ok := p.peekSignificant(); ok && (next.Kind == lexer.HeredocOpen || next.Kind == lexer.Readline && p.text(next) != "<=>" ||
-			next.Kind == lexer.Variable && p.src[next.Start] == '%') {
+			(next.Kind == lexer.Variable || next.Kind == lexer.Error) && p.src[next.Start] == '%') {
 			return p.ambiguousSigil(n.Start)
 		}
 		n.Resolved = false
