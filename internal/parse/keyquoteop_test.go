@@ -130,3 +130,32 @@ func TestQuoteOpStillLexesWithBraceDelimiter(t *testing.T) {
 		}
 	}
 }
+
+// TestNotSubscriptKey: `not` filling a subscript is the key "not", as every
+// lone word there is, and builds no missing_operand (R-g′). perl 5.44.0's
+// own B/Op_private.pm holds `$bits{not}{0} = $bf[0];`, and -MO=Deparse
+// prints `$h{not}` as `$h{'not'}`. Outside a subscript, and before anything
+// but the `}`, it is still the operator.
+func TestNotSubscriptKey(t *testing.T) {
+	// Each canons as the same source with another word for the key does.
+	for _, src := range []string{"my %h; $h{not}", "$bits{not}{0} = $bf[0];", "my %h; $h{ not } = 1;", "my $r; $r->{not}"} {
+		want := strings.ReplaceAll(clean(t, strings.ReplaceAll(src, "not", "and")), "and", "not")
+		if got := clean(t, src); got != want {
+			t.Errorf("%q: canon %q, want %q", src, got, want)
+		}
+	}
+	if got := clean(t, "my %h; $h{not 1}"); !strings.Contains(got, "not 1") {
+		t.Errorf("`$h{not 1}`: canon %q; `not` before a term is the operator", got)
+	}
+	if got := clean(t, "my %h; $h{-not}"); !strings.Contains(got, "-not}") {
+		t.Errorf("`$h{-not}`: canon %q", got)
+	}
+	clean(t, "my %h; $h{- not}")
+	// Only a `not` first in the subscript, or after a lone `-`, is the key:
+	// perl 5.44.0 has each of these "syntax error near "not }"".
+	for _, src := range []string{"my $x = not;", "my %h; $h{1, not}", "my %h; my $x; $h{ $x ? 1 : not }", "my %h; my $x; $h{ $x // not }", "my %h; $h{(not)}"} {
+		if root := parse.Parse([]byte(src)); !root.HasError && len(collectUnknown(root)) == 0 {
+			t.Errorf("%q: perl refuses this, but it parses", src)
+		}
+	}
+}
