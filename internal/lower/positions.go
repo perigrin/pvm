@@ -47,6 +47,7 @@ type Positions struct {
 type chunk struct {
 	node  *parse.Node
 	ids   map[*parse.Node]ID
+	spans map[ID]span        // every CST node's span, recorded as it was numbered
 	cst   map[ID]*parse.Node // every CST node, by its id
 	nodes map[ID]Node        // every lowered node, by its id
 	order []Node             // every lowered node with bytes, by start
@@ -97,8 +98,8 @@ func (p *Positions) Work() (numbered, indexed int) {
 // seen being AssignIDs' state before it, and returns its chunk, not yet
 // indexed.
 func (p *Positions) number(n *parse.Node, next, seen map[string]int) *chunk {
-	c := &chunk{node: n, ids: map[*parse.Node]ID{}, nodes: map[ID]Node{}}
-	assignIDsFrom(c.ids, n, "", next, seen)
+	c := &chunk{node: n, ids: map[*parse.Node]ID{}, spans: map[ID]span{}, nodes: map[ID]Node{}}
+	assignIDsFrom(c.ids, c.spans, n, "", next, seen)
 	c.cst = make(map[ID]*parse.Node, len(c.ids))
 	for n, id := range c.ids {
 		c.cst[id] = n
@@ -135,10 +136,7 @@ func (c *chunk) sort() {
 // lowered node with no parse node of its own has its parent's.
 func (c *chunk) span(id ID) span {
 	id.Role = 0
-	if n := c.cst[id]; n != nil {
-		return span{n.Start, n.End}
-	}
-	return span{}
+	return c.spans[id]
 }
 
 // chunkOf is the index of the chunk id is in: -1 for the root's, and
