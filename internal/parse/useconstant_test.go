@@ -9,6 +9,15 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
+// TestUseConstantEmptyParensNeverPanics: `use constant(` names no constant,
+// so importConstants has no first element to read. FuzzIncremental found it.
+func TestUseConstantEmptyParensNeverPanics(t *testing.T) {
+	for _, src := range []string{"use constant(", "use constant ();\n"} {
+		parse.ParseWithLoader([]byte(src), nil)
+		parse.Parse([]byte(src))
+	}
+}
+
 // TestUseConstantDeclares: perl's constant.pm defines each constant in the
 // caller with prototype "" -- measured on 5.42.0, `prototype "main::X"` is ""
 // for `use constant X => 2`, for `use constant { A => 1 }` and for the list

@@ -280,7 +280,7 @@ func consulted(res *resolver) bool {
 // splice is old's root with its child a replaced by n and every other child
 // copied, shifted by delta past a, and the number of nodes it copied.
 func splice(old, a, n *Node, delta int) (*Node, int) {
-	root := &Node{Kind: SourceFile, Start: 0, End: old.End + delta}
+	root := &Node{Kind: SourceFile, Start: 0, End: old.End + delta, Children: make([]*Node, 0, len(old.Children))}
 	memo := map[*Node]*Node{}
 	for _, c := range old.Children {
 		switch {
