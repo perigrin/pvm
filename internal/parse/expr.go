@@ -278,7 +278,7 @@ func (p *parser) parseInfix(left *Node, minBP int) *Node {
 			// number on: left to the caller, `0%0{y}` read the braces as a
 			// block of their own (FuzzParser's find).
 			if left.Kind == Term && len(left.Children) == 0 && p.src[left.Start] >= '0' && p.src[left.Start] <= '9' {
-				return p.refuseTrailingTokens(left.Start)
+				return p.refuseTrailingTokens(left.Start, nil)
 			}
 			// A list slice: the pair before `[` is the slice's.
 			if text == "[" && left.Paren && p.src[left.Start] == '(' {

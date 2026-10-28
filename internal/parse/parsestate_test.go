@@ -94,6 +94,42 @@ func TestParserStateResumeEqualsFullParse(t *testing.T) {
 	}
 }
 
+// TestParserStateResumeOnEditedSource: every top-level snapshot, resumed on
+// the source edited after it, gives a fresh parse of the edited source --
+// what Repair (467e) relies on. Nothing in a prefix's parse may depend on
+// the text after it, so a lost brace's recovery at a column-0 `sub` cannot
+// be a prediction made from the whole file, and no snapshot follows a
+// statement still open at end of input.
+func TestParserStateResumeOnEditedSource(t *testing.T) {
+	for _, c := range []struct{ old, appended string }{
+		{"sub f {\n1;\nsub g { 2 }\n", "}"},
+		{"sub f {\n1;\nsub g { 2 }\nsub h { 3 }\n", "}\n"},
+		{"my $x = 1;\nsub f {\n1;\n\nsub g { 2 }\n", "\n}\n"},
+		{"package P {\nsub a { 1 }\n", "}"},
+		{"$a $b (1,\nsub g { 2 }\n", ")"},
+		{"$a $b\nmy $x = 2;\n", "$c;"},
+		// A statement still open at end of input offers no snapshot after
+		// it, so appending its closer resumes from before it.
+		{"$a $b (1,\nmy $x = 2;\n", ");"},
+		{"$a $b (1,\nmy $y = 2;\n", ");"},
+		{"my $h = {\nsub g { 2 }\n", "};"},
+		{"my $x = (1,\nsub g { 2 }\n", ");"},
+	} {
+		old, edited := []byte(c.old), []byte(c.old+c.appended)
+		fresh := Parse(edited)
+		prefix, snaps := unfinished(old, nil)
+		for _, snap := range snaps {
+			if snap.nested {
+				continue
+			}
+			p, tail := snap.resume(edited, nil)
+			if d := childrenDiff(fresh, spliceTop(p, prefix, snap.at, tail)); d != "" {
+				t.Errorf("%q + %q: resumed at byte %d: %s", c.old, c.appended, snap.at, d)
+			}
+		}
+	}
+}
+
 // sameState reports whether a and b agree on every field parserFields
 // does not mark shared.
 func sameState(a, b *parser) bool {
@@ -275,7 +311,9 @@ func TestParserStateSnapshotCoversEveryField(t *testing.T) {
 func TestParserStateEOFPassesRerun(t *testing.T) {
 	old := "sub f($) { 1 }\nsub g { f 2 }\nsub h(\\@) { 3 }\nprint g(), \"\\n\";\n"
 	at := strings.Index(old, "sub g")
-	edited := []byte(old[:at+len("sub g {")] + " {" + old[at+len("sub g {"):])
+	// A `(`, not a `{`: a lost brace closes at the column-0 `sub h` (§5.13.4
+	// tier 1), and the EOF pass would have nothing to refuse.
+	edited := []byte(old[:at+len("sub g {")] + " (" + old[at+len("sub g {"):])
 	res := func() *resolver { return &resolver{load: DirLoader(t.TempDir()), seen: map[string]bool{}} }
 
 	full := parseRoot(edited, res())
@@ -360,7 +398,7 @@ func TestParserStateResumeAfterPackageUseAndLexicalSub(t *testing.T) {
 		// restored reads the next statements differently.
 		bare := newParser(src, res(), false)
 		bare.pos = st.pos
-		if childrenDiff(full, spliceTop(bare, prefix, at, bare.statementsTo(false, false))) == "" {
+		if childrenDiff(full, spliceTop(bare, prefix, at, bare.statementsTo(false, false, nil))) == "" {
 			t.Error("a parse with no restored state matched too: the test cannot tell")
 		}
 		return

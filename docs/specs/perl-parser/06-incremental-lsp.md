@@ -2141,6 +2141,65 @@ them. What the live buffer needs from that loop is only that everything
 skipped becomes **one** error node (§6.8.2), so that §6.8.4's filter sees one
 diagnostic.
 
+**As landed (`internal/parse/recovery.go`, `panicSkip`).** Panic mode starts
+at a catch-all refusal at statement level: `trailing_tokens`,
+`not_an_expression`, and a statement that is one `not_a_term`.
+`missing_operand` starts none, since its Missing node fits. From there the
+skip stops at the nearest of §5.13.4's points: after a `;`, or after a `{
+... }` the skip read (a block form takes no `;`); before the `}` closing the
+enclosing block, a column-0 `sub`, `package`, `class`, `format` or phaser
+name (tier 1), a line-start tier-2 keyword where a statement can start, or
+the 101st token (the cap, `maxSkip`). A sync point counts only once the
+statement holds a token, so every recovery advances. A heredoc body, POD or
+a string is one token, so a `sub` inside one is never a sync point.
+
+Three choices §5.13.4 leaves open are fixed here.
+
+- **Where a statement can start.** A tier-2 word syncs after a `;`, `{` or
+  `}`. After a term (a variable, number, string or closing bracket), only a
+  declaration word syncs (`my our local state sub package use`), since the
+  statement before it lost its `;`. A modifier word (`if unless elsif else
+  while until for foreach`) there continues the statement, as in `croak
+  "x"\n\t\tunless $loaded;`. After a word or an operator, nothing syncs:
+  `$cb =\n sub { ... }` is one statement.
+- **Brackets.** The skip counts brackets from the statement's first token,
+  so a closer the parse stopped short of, as in `++$h{refaddr $x} > 1`, is
+  the statement's and not the block's. Inside a bracket only tier 1 and the
+  enclosing block's `}` stop it. The cap waits for the bracket to close:
+  catch-alls fire on Perl perl compiles (`trailing_tokens` on 318 of 620
+  perl.git `t/` files), and a cap that cut a group split such statements
+  into fragments. A closer closes the innermost opener of its kind. A `)`
+  or `]` closing an opener read before the skip ends the skip after it.
+  That opener may be in the statement, or before it and still open
+  (`enclosedBy`, back to the nearest `;`, `{` or `}`). So an error in `if
+  (foo 'x') { ... }` stays inside the condition, and the block after it is
+  parsed. A closer with none open and no block to close is stray and
+  skipped, so a cascade of one-token refusals is one Error node.
+- **Only the tokens already read decide.** Nothing in a prefix's parse
+  depends on text after it, which is what resuming a snapshot on edited
+  source (Repair) needs. A statement still open at end of input reads on
+  into whatever is appended, so no snapshot is taken after one
+  (`openToEOF`).
+
+The skipped region is one Error node carrying the code that started it, and
+a specific refusal in what parsed before the skip stays its child, with its
+code. The heredoc bodies after the skip are taken into it.
+
+Tier 1's hard reset for a lost brace is decided in `parseBlock`, where the
+block is seen to end. A block that reaches end of input with its `{` open
+closes at the first column-0 anchor its own statement loop met directly
+inside it (`tierOneMark`). The parser is put back as it stood there, its
+snapshots since the brace are dropped, and the block ends with a zero-width
+Missing `}` before the anchor. `refuseUnclosedOpener` leaves that brace out
+of its count (`closedEarly`). A sub missing its `}` leaves every column-0 sub
+after it at top level, each equal to its error-free parse.
+
+A column-0 `sub` the expression parser takes, as an anonymous sub or inside
+a paren, is not a statement of the block, so it closes nothing: the brace
+gains its Missing `}` at end of input as before. What follows a tier-1 close
+depends on there being no `}` later, so no snapshot is taken after one
+(`rescued`). A balanced file is never touched.
+
 ### 6.8.4 The anti-cascade rule
 
 **One syntax error produces at most one diagnostic. Non-negotiable.**

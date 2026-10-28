@@ -5,6 +5,7 @@ package parse_test
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -666,6 +667,421 @@ func TestRecoveryNodeSpansInBounds(t *testing.T) {
 				}
 				prev = c.End
 			}
+		}
+	}
+}
+
+// errorNodes is every Error node of the tree.
+func errorNodes(root *parse.Node) []*parse.Node {
+	var out []*parse.Node
+	for _, n := range nodesOf(root) {
+		if n.Kind == parse.Error {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// tiles reports the first node whose children overlap or leave it, or the
+// tree's text differing from src; "" when neither.
+func tiles(root *parse.Node, src string) string {
+	for _, n := range nodesOf(root) {
+		at := n.Start
+		for _, c := range n.Children {
+			if c.Start < at || c.End > n.End {
+				return fmt.Sprintf("%v [%d,%d) in %v [%d,%d)", c.Kind, c.Start, c.End, n.Kind, n.Start, n.End)
+			}
+			at = c.End
+		}
+	}
+	if root.SourceText([]byte(src)) != src {
+		return "the tree's text is not the buffer's"
+	}
+	return ""
+}
+
+// TestRecoveryPanicModeBounded: a catch-all's skip stops at the nearest
+// §5.13.4 sync point -- a `;` at its depth (taken), the `}` closing the
+// block it is in, a line-start statement keyword, a column-0 `sub` -- and
+// never skips more than 100 tokens; what follows the sync point parses.
+func TestRecoveryPanicModeBounded(t *testing.T) {
+	for _, c := range []struct{ name, src, region string }{
+		{"semicolon", "$a $b $c;\nfoo();\n", "$a $b $c;"},
+		{"nearest point, a `;` before a later sub", "$a $b;\n$c;\nsub g { 1 }\n", "$a $b;"},
+		{"a `;` inside parens is not one", "$a $b (1; 2);\nfoo();\n", "$a $b (1; 2);"},
+		{"line-start keyword", "$a $b $c\nmy $y = 1;\n", "$a $b $c"},
+		{"indented line-start keyword", "$a $b $c\n    local $x = 1;\n", "$a $b $c"},
+		{"a line-start modifier after an expression is not one", "$a $b $c\n    if $x;\nfoo();\n", "$a $b $c\n    if $x;"},
+		{"inside an open paren a line-start keyword is not one", "$a $b (1,\nmy $x);\nfoo();\n", "$a $b (1,\nmy $x);"},
+		{"column-0 sub", "$a $b $c\nsub g { 1 }\n", "$a $b $c"},
+		{"column-0 package", "$a $b $c\npackage Q;\n", "$a $b $c"},
+		{"the block's closing brace", "sub f { $a $b }\nsub g { 1 }\n", "$a $b"},
+		{"a block form ends at its brace", "$a $b { 1 }\nfoo();\n", "$a $b { 1 }"},
+		{"a stray closer is skipped", "$a ) ] $b;\nfoo();\n", "$a ) ] $b;"},
+		// The parse stopped inside the subscript: its `}` is the statement's,
+		// not the block's, and ends no block form (Safe.pm).
+		{"a bracket the statement opened before the skip", "for (@x) {\n    next if ++$h{refaddr $i} > 1;\n    g();\n}\n", "next if ++$h{refaddr $i} > 1;"},
+	} {
+		root := parse.Parse([]byte(c.src))
+		errs := errorNodes(root)
+		if len(errs) != 1 {
+			t.Errorf("%s: %q: %d Error nodes, want 1: %v", c.name, c.src, len(errs), kinds(root))
+			continue
+		}
+		start := strings.Index(c.src, c.region)
+		if e := errs[0]; e.Start != start || e.End != start+len(c.region) {
+			t.Errorf("%s: %q: the skip covers %q, want %q", c.name, c.src, c.src[e.Start:e.End], c.region)
+		}
+		if n := len(recoveryNodes(root)); n != 1 {
+			t.Errorf("%s: %q: %d recovery nodes, want the one Error, so what follows the sync point parses: %v", c.name, c.src, n, kinds(root))
+		}
+		if d := tiles(root, c.src); d != "" {
+			t.Errorf("%s: %q: %s", c.name, c.src, d)
+		}
+	}
+
+	// The cap: 150 tokens with no sync point skip 100 after the term that
+	// failed, and the outer loop resumes there.
+	src := strings.Repeat("$a ", 150) + ";\n"
+	errs := errorNodes(parse.Parse([]byte(src)))
+	if len(errs) != 2 {
+		t.Fatalf("150 tokens: %d Error nodes, want 2", len(errs))
+	}
+	if got := errs[0].End - errs[0].Start; got != 101*3-1 {
+		t.Errorf("150 tokens: the first skip spans %d bytes, want 101 tokens' %d", got, 101*3-1)
+	}
+}
+
+// TestRecoverySkippedRegionIsOneErrorNode: everything one skip passes over
+// is one Error node, carrying the catch-all code that started it (R-a′),
+// where it was a cascade of one-token refusals.
+func TestRecoverySkippedRegionIsOneErrorNode(t *testing.T) {
+	for _, c := range []struct {
+		src, region string
+		code        parse.RefusalCode
+	}{
+		{"$a $b $c $d $e;\nfoo();\n", "$a $b $c $d $e;", parse.TrailingTokens},
+		{") ) ) ) ;\nfoo();\n", ") ) ) ) ;", parse.TrailingTokens},
+		{"} } } }\nmy $x = 1;\n", "} } } }", parse.NotATerm},
+		{"sub f {\n  ) ) ) )\n}\nfoo();\n", ") ) ) )", parse.TrailingTokens},
+		{")\nmy $x = 1;\n", ")", parse.TrailingTokens},
+	} {
+		root := parse.Parse([]byte(c.src))
+		errs := errorNodes(root)
+		if len(errs) != 1 {
+			t.Errorf("%q: %d Error nodes, want 1: %v", c.src, len(errs), kinds(root))
+			continue
+		}
+		e := errs[0]
+		if got := c.src[e.Start:e.End]; got != c.region || e.Refusal != c.code {
+			t.Errorf("%q: Error %s over %q, want %s over %q", c.src, e.Refusal, got, c.code, c.region)
+		}
+		if !e.HasError || !root.HasError {
+			t.Errorf("%q: HasError is not set on the Error node and the root", c.src)
+		}
+	}
+
+	// A specific refusal in the region is never hidden: its Unknown stays a
+	// child of the Error node, with its code.
+	src := "$a ? $b $c;\n"
+	root := parse.Parse([]byte(src))
+	errs := errorNodes(root)
+	if len(errs) != 1 || len(errs[0].Children) != 1 || errs[0].Children[0].Kind != parse.Unknown || errs[0].Children[0].Refusal != parse.TernaryNoColon {
+		t.Errorf("%q: want one Error holding the ternary_no_colon Unknown: %v", src, kinds(root))
+	}
+}
+
+// subsSource is n subs at column 0, each a few statements and a loop.
+func subsSource(n int) string {
+	var b strings.Builder
+	for i := range n {
+		fmt.Fprintf(&b, "sub s%d {\n    my ($self, @v) = @_;\n    my $n = scalar @v;\n    for my $x (@v) {\n        $n += $x;\n    }\n    return $n;\n}\n\n", i)
+	}
+	return b.String()
+}
+
+// TestRecoveryErrorStaysInItsSub: an error inside one sub leaves every
+// other sub's subtree equal to the error-free parse (§6.8.1 "Local"): by
+// TreeDiff before the error, and after it by TreeDiffShifted by the length
+// change.
+func TestRecoveryErrorStaysInItsSub(t *testing.T) {
+	clean := subsSource(6)
+	stmt := "    my $n = scalar @v;\n"
+	at := strings.Index(clean, "sub s3 {")
+	at += strings.Index(clean[at:], stmt)
+	want := parse.Parse([]byte(clean))
+	for _, c := range []struct{ name, broken string }{
+		{"trailing tokens", "    my $n = scalar @v $self;\n"},
+		{"stray closer", "    my $n = ) scalar @v;\n"},
+		{"cascade", "    ) ) ] ) $n\n"},
+		{"missing operand", "    my $n = ;\n"},
+		{"missing semicolon", "    my $n = scalar @v\n"},
+		{"lost brace", stmt + "    {\n"},
+		{"extra closing brace", "    my $n = scalar @v; }\n"},
+	} {
+		src := clean[:at] + c.broken + clean[at+len(stmt):]
+		delta := len(src) - len(clean)
+		got := parse.Parse([]byte(src))
+		if len(recoveryNodes(got)) == 0 && firstUnknown(got) == nil {
+			t.Errorf("%s: the injected error was not noticed", c.name)
+		}
+		byStart := map[int]*parse.Node{}
+		for _, n := range got.Children {
+			byStart[n.Start] = n
+		}
+		for _, sub := range want.Children {
+			if sub.Kind != parse.Statement || sub.Start <= at && at < sub.End {
+				continue
+			}
+			shift := 0
+			if sub.Start > at {
+				shift = delta
+			}
+			other := byStart[sub.Start+shift]
+			if other == nil {
+				t.Errorf("%s: the sub at byte %d is no longer a top-level statement: %v", c.name, sub.Start, kinds(got))
+				continue
+			}
+			if d := parse.TreeDiffShifted(sub, other, shift); d != "" {
+				t.Errorf("%s: the sub at byte %d differs from the error-free parse: %s", c.name, sub.Start, d)
+			}
+		}
+	}
+}
+
+// TestRecoveryCapOnSyncFreeInput: 10,000 tokens with no sync point
+// terminate, each skip spans at most 100 tokens after the one that failed,
+// and the tree holds at most one Error node per skip, so at most 100.
+func TestRecoveryCapOnSyncFreeInput(t *testing.T) {
+	for _, tok := range []string{"$a ", ") ", "} ", "] "} {
+		src := strings.Repeat(tok, 10000)
+		root := parse.Parse([]byte(src))
+		errs := errorNodes(root)
+		if len(errs) == 0 || len(errs) > 100 {
+			t.Errorf("%q x 10,000: %d Error nodes, want 1 to 100", tok, len(errs))
+		}
+		for _, e := range errs {
+			if e.End-e.Start > 101*len(tok) {
+				t.Errorf("%q x 10,000: an Error spans %d bytes, more than 101 tokens", tok, e.End-e.Start)
+				break
+			}
+		}
+		if d := tiles(root, src); d != "" {
+			t.Errorf("%q x 10,000: %s", tok, d)
+		}
+	}
+}
+
+// TestRecoveryAlwaysAdvances: a sync point the statement parser rejects
+// again at once still costs each recovery at least one token, so the parse
+// terminates with every byte in a node and no empty Error node.
+func TestRecoveryAlwaysAdvances(t *testing.T) {
+	for _, word := range []string{"my", "our", "sub", "package", "if", "for", "use", "else", ")", "}"} {
+		for _, sep := range []string{"\n", " ", "\n    "} {
+			src := strings.Repeat(word+sep, 500)
+			root := parse.Parse([]byte(src))
+			if d := tiles(root, src); d != "" {
+				t.Errorf("%q: %s", word+sep, d)
+			}
+			for _, e := range errorNodes(root) {
+				if e.End <= e.Start {
+					t.Errorf("%q: an empty Error node at %d", word+sep, e.Start)
+					break
+				}
+			}
+		}
+	}
+}
+
+// TestRecoverySyncIgnoresSubInsideHeredocPODOrString: a column-0 `sub` in a
+// heredoc body, POD or a string is one token's text, not a sync point, so
+// neither the skip nor the brace recovery stops at it.
+func TestRecoverySyncIgnoresSubInsideHeredocPODOrString(t *testing.T) {
+	for _, c := range []struct {
+		src   string
+		decls int
+	}{
+		{"$a $b, <<EOF, 1;\nsub g { 1 }\nEOF\n", 0},
+		{"$a $b,\n\n=pod\n\nsub g { 1 }\n\n=cut\n\n$c;\n", 0},
+		{"$a $b \"\nsub g { 1 }\n\";\n", 0},
+		{"$a $b q{\nsub g { 1 }\n};\n", 0},
+		{"sub f {\n    print <<EOF;\nsub g { 1 }\nEOF\n", 1},
+		{"sub f {\n    my $s = '\nsub g { 1 }\n';\n", 1},
+	} {
+		root := parse.Parse([]byte(c.src))
+		if n := countKind(root, parse.Declaration); n != c.decls+strings.Count(c.src, "my ") {
+			t.Errorf("%q: %d declarations: the `sub` inside was read as one: %v", c.src, n, kinds(root))
+		}
+		if n := len(errorNodes(root)); n > 1 {
+			t.Errorf("%q: %d Error nodes, want at most 1: %v", c.src, n, kinds(root))
+		}
+		if c.decls == 1 && closersIn(root) != "}" {
+			t.Errorf("%q: closers %q, want the one `}` at end of input", c.src, closersIn(root))
+		}
+	}
+}
+
+// TestRecoveryMissingBraceBeforeLaterSubs: a sub missing its `}` before ten
+// column-0 subs closes at the first of them with a Missing `}`, and the ten
+// stay at top level, each equal to its error-free parse.
+func TestRecoveryMissingBraceBeforeLaterSubs(t *testing.T) {
+	var subs strings.Builder
+	for i := range 10 {
+		fmt.Fprintf(&subs, "sub g%d {\n    my $x = %d;\n    return $x;\n}\n", i, i)
+	}
+	head := "sub f {\n    my $x = 1;\n    if ($x) {\n        print $x;\n    }\n\n"
+	src := head + subs.String()
+	root := parse.Parse([]byte(src))
+	if got := closersIn(root); got != "}" {
+		t.Errorf("closers %q, want one `}`: %v", got, kinds(root))
+	}
+	if f := root.Children[0]; f.End > len(head) {
+		t.Errorf("sub f spans [%d,%d), past the column-0 sub at %d", f.Start, f.End, len(head))
+	}
+	if n := len(withCode(root, parse.UnclosedOpener)); n != 0 {
+		t.Errorf("%d unclosed_opener refusals; the brace closes at the column-0 sub", n)
+	}
+	top := map[int]*parse.Node{}
+	for _, n := range root.Children {
+		top[n.Start] = n
+	}
+	subs10 := 0
+	for _, sub := range parse.Parse([]byte(subs.String())).Children {
+		if sub.Kind != parse.Statement {
+			continue
+		}
+		subs10++
+		got := top[sub.Start+len(head)]
+		if got == nil {
+			t.Errorf("the sub at byte %d is not at top level: %v", sub.Start+len(head), kinds(root))
+			continue
+		}
+		if d := parse.TreeDiffShifted(sub, got, len(head)); d != "" {
+			t.Errorf("the sub at byte %d: %s", got.Start, d)
+		}
+	}
+	if subs10 != 10 {
+		t.Fatalf("the error-free parse holds %d subs, want 10", subs10)
+	}
+}
+
+// TestRecoveryLostBraceInsideAnExpression: a column-0 `sub` the expression
+// parser takes as an anonymous sub, or reads inside a paren, closes nothing:
+// the brace left open gains its Missing `}` at end of input, as before
+// panic mode, in the refusal holding the last token. perl -c rejects both ("Missing right curly", "syntax
+// error near sub g").
+func TestRecoveryLostBraceInsideAnExpression(t *testing.T) {
+	for _, src := range []string{
+		"sub f {\n  my $cb = 1 &&\nsub { 1 };\n  return $cb;\n",
+		"sub f {\n  my $x = (1,\nsub g { 1 }\n",
+	} {
+		root := parse.Parse([]byte(src))
+		if !strings.Contains(closersIn(root), "}") || !root.HasError {
+			t.Errorf("%q: closers %q, HasError %v: the open brace is not refused: %v", src, closersIn(root), root.HasError, kinds(root))
+		}
+	}
+}
+
+// TestRecoveryErrorInConditionStaysInIt: an error inside a control
+// statement's parenthesised condition ends at the condition's `)`, which
+// the skip takes as the enclosing paren's, and the block after it parses.
+func TestRecoveryErrorInConditionStaysInIt(t *testing.T) {
+	for _, head := range []string{"if (foo 'x')", "unless (foo 'x')", "while (foo 'x')", "foreach my $i (foo 'x')", "for (foo 'x')"} {
+		src := head + " {\n  my $y = 1;\n  sub inner { 1 }\n}\nmy $z = 2;\n"
+		root := parse.Parse([]byte(src))
+		paren := strings.Index(src, ")") + 1
+		for _, e := range errorNodes(root) {
+			if e.End > paren {
+				t.Errorf("%q: an Error over %q runs past the condition's `)`", src, src[e.Start:e.End])
+			}
+		}
+		if n := countKind(root, parse.Declaration); n < 3 {
+			t.Errorf("%q: %d declarations, want the body's two and `my $z`: %v", src, n, kinds(root))
+		}
+	}
+}
+
+// TestRecoveryModifierAfterExpressionIsNotASyncPoint: a statement modifier
+// first on its line continues the statement on the line before, so a skip
+// passes it: Perl perl compiles, declined by a catch-all, keeps its one
+// Error rather than splitting into fragments read as code.
+func TestRecoveryModifierAfterExpressionIsNotASyncPoint(t *testing.T) {
+	for _, word := range []string{"if", "unless", "while", "until", "for", "foreach"} {
+		src := "use Carp;\nmy $loaded;\ncroak \"x\"\n\t\t" + word + " $loaded;\n"
+		root := parse.Parse([]byte(src))
+		at := strings.Index(src, "croak")
+		end := strings.LastIndex(src, ";") + 1
+		for _, c := range root.Children {
+			if c.Start > at && c.Start < end {
+				t.Errorf("%q: the statement is split at byte %d: %v", src, c.Start, kinds(root))
+				break
+			}
+		}
+		if n := len(errorNodes(root)); n > 1 {
+			t.Errorf("%q: %d Error nodes, want at most 1", src, n)
+		}
+	}
+}
+
+// TestRecoveryErrorAtEOF: an error in the last statement with no sync point
+// before end of input is one Error node ending at len(src).
+func TestRecoveryErrorAtEOF(t *testing.T) {
+	for _, src := range []string{
+		"my $x = 1;\nfoo $a $b",
+		"my $x = 1;\n$a $b $c $d",
+		"sub f { 1 }\n) ) )",
+		"my $x = 1;\n$a $b (1, 2",
+	} {
+		root := parse.Parse([]byte(src))
+		errs := errorNodes(root)
+		if len(errs) != 1 {
+			t.Errorf("%q: %d Error nodes, want 1: %v", src, len(errs), kinds(root))
+			continue
+		}
+		if errs[0].End != len(src) {
+			t.Errorf("%q: the Error ends at %d, want %d", src, errs[0].End, len(src))
+		}
+	}
+}
+
+// TestRecoveryEdit5kOneErrorAtMostThreeNodes: edit5k.pl with one injected
+// syntax error, of each shape a live buffer passes through, holds at most 3
+// Error nodes in the whole tree.
+func TestRecoveryEdit5kOneErrorAtMostThreeNodes(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "psc", "testdata", "latency", "edit5k.pl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clean := string(raw)
+	if n := len(errorNodes(parse.Parse(raw))); n != 0 {
+		t.Fatalf("edit5k.pl holds %d Error nodes before any is injected", n)
+	}
+	// The 40th of its 80 `sub scale` bodies, mid-file.
+	stmt := "    my @kept = grep { defined && $_ > 0 } @values;\n"
+	if n := strings.Count(clean, stmt); n < 40 {
+		t.Fatalf("edit5k.pl holds the statement %d times, want at least 40", n)
+	}
+	at := -1
+	for range 40 {
+		at += 1 + strings.Index(clean[at+1:], stmt)
+	}
+	for _, c := range []struct{ name, broken string }{
+		{"trailing tokens", "    my @kept = grep { defined && $_ > 0 } @values $x;\n"},
+		{"stray closer", "    my @kept = ) grep { defined && $_ > 0 } @values;\n"},
+		{"cascade", "    ) ) ] ) @values\n"},
+		{"missing operand", "    my @kept = ;\n"},
+		{"missing semicolon", "    my @kept = grep { defined && $_ > 0 } @values\n"},
+		{"unclosed brace", "    my @kept = grep { defined && $_ > 0 @values;\n"},
+		{"lost brace", stmt + "    {\n"},
+		{"extra closing brace", "    my @kept = grep { defined && $_ > 0 } @values; }\n"},
+	} {
+		src := clean[:at] + c.broken + clean[at+len(stmt):]
+		root := parse.Parse([]byte(src))
+		if n := len(errorNodes(root)); n > 3 {
+			t.Errorf("%s: %d Error nodes, want at most 3", c.name, n)
+		}
+		if len(recoveryNodes(root)) == 0 && firstUnknown(root) == nil {
+			t.Errorf("%s: the injected error was not noticed", c.name)
 		}
 	}
 }

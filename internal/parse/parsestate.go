@@ -69,12 +69,17 @@ var parserFields = map[string]int{
 	"operatorSig":    scratch,
 	"multi":          scratch,
 	"anchorBlock":    scratch,
-	"src":            shared,
-	"toks":           shared,
+	// Set by the statementsTo the snapshot stands in: true at a nested point.
+	"inBlock": snapshotted,
+	"src":     shared,
+	"toks":    shared,
 	// The Session doing the re-parse supplies its own resolver, a fresh one
 	// per 01a17969-4629's rule; the snapshot never carries one.
 	"res":   shared,
 	"snaps": shared,
+	// Cloned, though no snapshot follows a tier-1 close (rescued).
+	"closedEarly": snapshotted,
+	"rescued":     scratch,
 }
 
 // clone is a copy of p holding no map or slice of p's, so neither can
@@ -105,13 +110,14 @@ func (p *parser) clone() parser {
 	c.lexical = maps.Clone(p.lexical)
 	c.imports = maps.Clone(p.imports)
 	c.bodied = maps.Clone(p.bodied)
+	c.closedEarly = maps.Clone(p.closedEarly)
 	return c
 }
 
 // checkpoint records a snapshot before the statement at p.pos, when p is
-// collecting them.
+// collecting them and no brace has closed at a column-0 anchor before it.
 func (p *parser) checkpoint(nested bool) {
-	if p.snaps == nil {
+	if p.snaps == nil || p.rescued {
 		return
 	}
 	*p.snaps = append(*p.snaps, parserSnapshot{at: p.toks[p.pos].Start, nested: nested, p: p.clone()})
@@ -124,7 +130,7 @@ func (p *parser) checkpoint(nested bool) {
 // the caller has spliced them into a root.
 func (s *parserSnapshot) resume(src []byte, res *resolver) (*parser, []*Node) {
 	p := s.restore(src, res)
-	return p, p.statementsTo(s.nested, false)
+	return p, p.statementsTo(s.nested, false, nil)
 }
 
 // restore is a parser over src standing where s was taken, not yet run.

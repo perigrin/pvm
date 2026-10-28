@@ -695,18 +695,27 @@ func (p *parser) parseFile() *Node {
 		derivePowers()
 	}
 	root := &Node{Kind: SourceFile, Start: 0, End: len(p.src)}
-	root.Children = p.statementsTo(false, p.snaps != nil)
+	root.Children = p.statementsTo(false, p.snaps != nil, nil)
 	return root
 }
 
 // statementsTo reads statements to end of file or, when inBlock is set, to
 // the `}` closing the block, which it leaves unconsumed. With snap set it
-// checkpoints the parser before each one; see checkpoint.
-func (p *parser) statementsTo(inBlock, snap bool) []*Node {
+// checkpoints the parser before each one; see checkpoint. With mark set it
+// records the parser at the first column-0 anchor it reaches, for
+// parseBlock's tier-1 close.
+func (p *parser) statementsTo(inBlock, snap bool, mark *tierOneMark) []*Node {
+	outer := p.inBlock
+	p.inBlock = inBlock
+	defer func() { p.inBlock = outer }()
 	var out []*Node
 	for p.pos < len(p.toks) {
-		if tok := p.toks[p.pos]; inBlock && tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
+		tok := p.toks[p.pos]
+		if inBlock && tok.Kind == lexer.CloseBracket && p.src[tok.Start] == '}' {
 			break
+		}
+		if mark != nil && !mark.set && tierOneAnchor(tok, p.src) {
+			mark.set, mark.children, mark.p = true, len(out), p.clone()
 		}
 		if snap {
 			p.checkpoint(inBlock)
@@ -722,6 +731,11 @@ func (p *parser) statementsTo(inBlock, snap bool) []*Node {
 		// up, so the guard is here rather than in a comment.
 		if p.pos == before {
 			p.pos++
+		}
+		// A statement still open at end of input reads on into whatever is
+		// appended, so no snapshot after it can resume an append.
+		if snap && p.openToEOF(before) {
+			snap = false
 		}
 	}
 	return out
@@ -789,7 +803,9 @@ func (p *parser) finish(root *Node) {
 // one-byte token, and a closer with nothing open closes nothing. A bracket
 // after a `&`, other than `{`, is neither: it is the name of the sub the `&`
 // calls (see ampTakesPunct), so `f(&);` is a `(` perl never sees closed.
-// Nor is a Word: the lexer makes a glob's punctuation name one, `*(`.
+// Nor is a Word: the lexer makes a glob's punctuation name one, `*(`
+// (bracketOf). A brace parseBlock closed at a column-0 anchor (tier 1,
+// closedEarly) is not counted: its Missing `}` stands before the anchor.
 //
 // Each bracket still open gets its zero-width Missing closer (§6.8.2) as a
 // child of the Unknown, after the token, so the constructs it leaves open
@@ -809,18 +825,15 @@ func (p *parser) refuseUnclosedOpener(root *Node) {
 		if isTrivia(tok.Kind) {
 			continue
 		}
-		afterAmp := last.Kind == lexer.FuncSigil
+		b := bracketOf(tok, last, p.src)
 		last = tok
-		if tok.End-tok.Start != 1 || tok.Kind == lexer.Word || afterAmp && p.src[tok.Start] != '{' {
-			continue
-		}
-		switch p.src[tok.Start] {
-		case '(', '[', '{':
+		switch {
+		case b == '{' && p.closedEarly[tok.Start]:
+			// Tier 1 closed it, with a Missing `}` before its anchor.
+		case b == '(' || b == '[' || b == '{':
 			starts = append(starts, tok.Start)
-		case ')', ']', '}':
-			if len(starts) > 0 {
-				starts = starts[:len(starts)-1]
-			}
+		case b != 0 && len(starts) > 0:
+			starts = starts[:len(starts)-1]
 		}
 	}
 	if len(starts) == 0 && !p.attrOpenAtEOF {
@@ -1030,6 +1043,15 @@ type parser struct {
 	// parsestate.go.
 	snaps       *[]parserSnapshot
 	anchorBlock bool
+
+	// inBlock is set while statementsTo reads a block's statements, where an
+	// unmatched `}` closes the block rather than being stray; see panicSkip.
+	inBlock bool
+	// closedEarly holds the starts of the braces parseBlock closed at a
+	// column-0 anchor (tier 1), and rescued is set once one has: what
+	// follows depends on there being no `}` later, so no snapshot is taken.
+	closedEarly map[int]bool
+	rescued     bool
 }
 
 // peekSignificant returns the next non-trivia token without consuming it.
@@ -1443,7 +1465,7 @@ func (p *parser) statementForm() *Node {
 			var semi *Node
 			if !p.declarationEnded(d) {
 				if semi = p.missingSemicolon(); semi == nil {
-					return p.refuseTrailingTokens(start)
+					return p.refuseTrailingTokens(start, d)
 				}
 			}
 			n := p.withLabels(labels, d, start)
@@ -1472,7 +1494,7 @@ func (p *parser) statementForm() *Node {
 
 	expr := p.parseExpr(0)
 	if expr == nil {
-		p.skipToStatementEnd()
+		p.panicSkip(start)
 		return p.recover(&Node{Kind: Error, Refusal: NotAnExpression, Start: start, End: p.prevEnd()})
 	}
 
@@ -1513,13 +1535,16 @@ func (p *parser) statementForm() *Node {
 			semi = p.missingSemicolon()
 		}
 		if semi == nil {
-			return p.refuseTrailingTokens(start)
+			return p.refuseTrailingTokens(start, expr)
 		}
 	}
 
 	// Through the terminating `;` if there is one, so the statement owns its
-	// punctuation and the next statement starts clean.
-	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
+	// punctuation and the next statement starts clean. A catch-all Error
+	// skips on from there (panicSkip), past a `}` with no block to close.
+	if expr.Kind == Error && CatchAll(expr.Refusal) {
+		p.panicSkip(start)
+	} else if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
 	}
 
@@ -1638,7 +1663,34 @@ func (p *parser) parseBlock(open lexer.Token) *Node {
 	lexical := maps.Clone(p.lexical)
 	defer func() { p.lexical = lexical }()
 
-	n.Children = append(n.Children, p.statementsTo(true, anchor)...)
+	snapsAt, pre := 0, len(n.Children)
+	if p.snaps != nil {
+		snapsAt = len(*p.snaps)
+	}
+	var mark tierOneMark
+	n.Children = append(n.Children, p.statementsTo(true, anchor, &mark)...)
+	if p.pos >= len(p.toks) && mark.set {
+		// End of input with the brace open and a column-0 anchor directly
+		// inside: it closes there (§5.13.4 tier 1), so a sub missing its `}`
+		// leaves the subs after it at top level. Decided here, where the
+		// block is seen to end, and read again from the anchor; the parser
+		// is put back as it stood there, its snapshots since the brace
+		// dropped.
+		inBlock, snaps := p.inBlock, p.snaps
+		*p = mark.p
+		p.inBlock, p.snaps, p.rescued = inBlock, snaps, true
+		if snaps != nil {
+			*snaps = (*snaps)[:snapsAt]
+		}
+		if p.closedEarly == nil {
+			p.closedEarly = map[int]bool{}
+		}
+		p.closedEarly[open.Start] = true
+		n.Children = n.Children[:pre+mark.children]
+		n.End = p.prevEnd()
+		n.Children = append(n.Children, p.recover(&Node{Kind: Missing, Text: "}", Start: n.End, End: n.End}))
+		return n
+	}
 	if p.pos < len(p.toks) {
 		// statementsTo stopped on the block's `}`.
 		n.End = p.toks[p.pos].End
@@ -1830,12 +1882,30 @@ func endsStatement(tok lexer.Token, src []byte) bool {
 		(tok.Kind == lexer.CloseBracket && src[tok.Start] == '}')
 }
 
-// refuseTrailingTokens makes the whole statement from start one Unknown: it
-// parsed, but bytes remain before its terminator. The expression statement
-// and the declaration statement both reach it.
-func (p *parser) refuseTrailingTokens(start int) *Node {
-	p.skipToStatementEnd()
-	return p.recover(&Node{Kind: Error, Refusal: TrailingTokens, Start: start, End: p.prevEnd()})
+// refuseTrailingTokens makes the statement from start, through the
+// panic-mode skip after it, one Error: it parsed, but bytes remain before
+// its terminator. The expression statement and the declaration statement
+// both reach it. A specific refusal in what parsed is never hidden: it
+// stays a child of the Error, with its code (§6.8.3).
+func (p *parser) refuseTrailingTokens(start int, parsed *Node) *Node {
+	p.panicSkip(start)
+	return p.recover(&Node{Kind: Error, Refusal: TrailingTokens, Start: start, End: p.prevEnd(), Children: specificRefusals(parsed)})
+}
+
+// specificRefusals is the outermost refusals under n, n included, that are
+// not catch-alls.
+func specificRefusals(n *Node) []*Node {
+	if n == nil {
+		return nil
+	}
+	if n.Refused() && !CatchAll(n.Refusal) {
+		return []*Node{n}
+	}
+	var out []*Node
+	for _, c := range n.Children {
+		out = append(out, specificRefusals(c)...)
+	}
+	return out
 }
 
 // declarationEnded reports whether a declaration statement has reached its

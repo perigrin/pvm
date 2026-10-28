@@ -77,7 +77,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 	if keywordName(p.text(word)) != "require" {
 		if next, ok := p.peekSignificant(); !ok || !(next.Kind == lexer.Word || next.Kind == lexer.Number ||
 			next.Kind == lexer.Quote && isVString(p.text(next))) {
-			return p.refuseTrailingTokens(word.Start)
+			return p.refuseTrailingTokens(word.Start, nil)
 		}
 	}
 

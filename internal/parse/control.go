@@ -690,7 +690,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 			// Only a scalar is one: perl 5.44.0 has `for%[(;;)` a syntax
 			// error near "for%[", and read with `%[` as the variable,
 			// FuzzParser's find canon'd differently.
-			return p.refuseTrailingTokens(word.Start)
+			return p.refuseTrailingTokens(word.Start, nil)
 		case next.Kind == lexer.Variable:
 			// A BARE loop variable -- `for $i (@l)`, `for $pkg::i (@l)`. It
 			// occupies the same slot the `my` spelling's Declaration does, so
@@ -717,7 +717,7 @@ func (p *parser) parseFor(word lexer.Token) *Node {
 
 	head, ok := p.parseForHead(n)
 	if !ok {
-		return p.refuseTrailingTokens(word.Start)
+		return p.refuseTrailingTokens(word.Start, nil)
 	}
 	if !n.CStyle {
 		// A list head's one part was counted into slot 0 before the head
@@ -1006,7 +1006,7 @@ func (p *parser) applyModifier(body *Node, start int) *Node {
 	// program and so the statement: 5.44.0 compiles `print 1 if $x __END__`.
 	if tok, ok := p.peekSignificant(); ok && !endsStatement(tok, p.src) && (cond == nil || !endsInBlock(cond)) &&
 		p.text(tok) != "__END__" && p.text(tok) != "__DATA__" {
-		return p.refuseTrailingTokens(start)
+		return p.refuseTrailingTokens(start, nil)
 	}
 	if tok, ok := p.peekSignificant(); ok && tok.Kind == lexer.Semicolon {
 		p.advanceTo(tok)
