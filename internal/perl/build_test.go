@@ -395,14 +395,12 @@ func TestBuildPerlCancellation(t *testing.T) {
 				cancel()
 			}()
 
-			// Simulate the command running
-			time.Sleep(100 * time.Millisecond)
-
-			// Check if context was cancelled
+			// Simulate a command that runs until it is cancelled. A fixed sleep
+			// raced the cancelling goroutine and lost on a loaded machine.
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			default:
+			case <-time.After(10 * time.Second):
 				return nil
 			}
 		}
