@@ -2799,8 +2799,9 @@ the parse of everything outside is unchanged. Requirements:
 | **`package NAME BLOCK`** | safe; the `package NAME;` form is **not** |
 | **Single statement** | do not anchor here: the bookkeeping costs more than the parse (chapter 6 §6.5.2). As landed, a top-level statement is an anchor, with this table's requirement 2 checked on the parser state rather than by construct (chapter 6 §6.5.2) |
 
-**Never safe:** the file top level; anything containing a `use`, a `BEGIN`, or a
-`package NAME;`.
+**Never safe:** the file top level as a whole; anything containing a `use`, a
+`BEGIN`, or a `package NAME;`. One top-level statement that contains none of
+them is an anchor as landed (the table's last row).
 
 To re-parse a boundary in isolation the parser must restore the `ParseState`
 (§5.0) in effect at its opening brace — feature set, strict bits, current

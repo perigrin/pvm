@@ -1424,10 +1424,10 @@ anchor at single statements — chapter 5 §5.14 says why.
 **As landed** (`internal/parse/incremental.go`). `widen(old, src, e)` returns
 a `lexer.Checkpoint` and the anchor node. The anchor is the **top-level
 statement** holding the edit (a run of trivia between statements counts as
-one) when the edit touches no declaration in it (`touchesDeclaration`: a
-`use`, a `BEGIN` block, a prototype, or a sub, package or class declaration
-but strictly inside its block); otherwise it is the `SourceFile` root, a
-full reparse. So an edit in plain
+one), unless `touchesDeclaration` finds the edit in a `use`, a `BEGIN`
+block, a prototype, or the head of a sub, package or class declaration. An
+edit strictly inside a declaration's block does not count. When it does
+touch one, the anchor is the `SourceFile` root, a full reparse. So an edit in plain
 top-level code, a `package NAME BLOCK`'s own code or a sub body anchors at
 its top-level statement, and one inside a `use`, a `BEGIN` (even inside a
 sub declared there), a declaration's head or a `package NAME;` widens to the
