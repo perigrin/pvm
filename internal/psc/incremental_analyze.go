@@ -108,9 +108,6 @@ type editDamage struct {
 // method to a sub of the file, add `->name` to callees.
 func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 	oldRoot, newRoot = orEmpty(oldRoot), orEmpty(newRoot)
-	full := func(classB bool, format string, args ...any) editDamage {
-		return editDamage{Full: true, ClassB: classB, Reason: fmt.Sprintf(format, args...)}
-	}
 	if oldRoot.HasError != newRoot.HasError {
 		return full(false, "parse error status changed")
 	}
@@ -134,11 +131,11 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 
 	damaged := make([]bool, len(newSubs))
 	for i := range newSubs {
-		if d, ok := subChanged(oldSubs[i], newSubs[i]); d != nil {
-			return *d
-		} else if ok {
-			damaged[i] = true
+		changed, why := subChanged(oldSubs[i], newSubs[i])
+		if why != "" {
+			return full(false, "%s", why)
 		}
+		damaged[i] = changed
 	}
 	return spread(newRoot, newSubs, newSet, damaged)
 }
@@ -150,7 +147,7 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 // -- callers, top-level calls, file-scoped variables -- run over newRoot.
 func damageFromRepair(oldRoot, newRoot *parse.Node, r parse.Damage) editDamage {
 	if oldRoot.HasError != newRoot.HasError {
-		return editDamage{Full: true, Reason: "parse error status changed"}
+		return full(false, "parse error status changed")
 	}
 	delta := newRoot.End - oldRoot.End
 	// The region's statements, as a file of their own on each side.
@@ -165,21 +162,21 @@ func damageFromRepair(oldRoot, newRoot *parse.Node, r parse.Damage) editDamage {
 	}
 	oldReg, newReg := region(oldRoot, r.End-delta), region(newRoot, r.End)
 	if d := declarationDiff(oldReg, newReg); d != "" {
-		return editDamage{Full: true, ClassB: true, Reason: "a declaration changed: " + d}
+		return full(true, "a declaration changed: %s", d)
 	}
 	oldIn, newIn := outerSubs(oldReg), outerSubs(newReg)
 	if len(oldIn) != len(newIn) {
-		return editDamage{Full: true, Reason: fmt.Sprintf("%d subs in the re-parsed region became %d", len(oldIn), len(newIn))}
+		return full(false, "%d subs in the re-parsed region became %d", len(oldIn), len(newIn))
 	}
 	oldSet, inSet := map[*parse.Node]bool{}, map[*parse.Node]bool{}
 	for i := range oldIn {
 		if oldIn[i].anchor != newIn[i].anchor {
-			return editDamage{Full: true, Reason: fmt.Sprintf("top-level sub %s became %s", oldIn[i].anchor, newIn[i].anchor)}
+			return full(false, "top-level sub %s became %s", oldIn[i].anchor, newIn[i].anchor)
 		}
 		oldSet[oldIn[i].node], inSet[newIn[i].node] = true, true
 	}
 	if d := skeletonDiff(oldReg, newReg, delta, oldSet, inSet); d != "" {
-		return editDamage{Full: true, Reason: "top-level edit: " + d}
+		return full(false, "top-level edit: %s", d)
 	}
 	newSubs := outerSubs(newRoot)
 	newSet := map[*parse.Node]bool{}
@@ -190,26 +187,31 @@ func damageFromRepair(oldRoot, newRoot *parse.Node, r parse.Damage) editDamage {
 		if !inSet[s.node] {
 			continue
 		}
-		if d, ok := subChanged(oldIn[j], newIn[j]); d != nil {
-			return *d
-		} else if ok {
-			damaged[i] = true
+		changed, why := subChanged(oldIn[j], newIn[j])
+		if why != "" {
+			return full(false, "%s", why)
 		}
+		damaged[i] = changed
 		j++
 	}
 	return spread(newRoot, newSubs, newSet, damaged)
 }
 
 // subChanged reports that the top-level sub n differs from o, its old
-// self, or the full damage of its assigning other variables than it did.
-func subChanged(o, n outerSub) (*editDamage, bool) {
+// self, and why the edit goes full when n assigns other variables than o.
+func subChanged(o, n outerSub) (changed bool, full string) {
 	if parse.TreeDiffShifted(o.node, n.node, n.node.Start-o.node.Start) == "" {
-		return nil, false
+		return false, ""
 	}
 	if !maps.Equal(writes(o.node), writes(n.node)) {
-		return &editDamage{Full: true, Reason: n.anchor + " changes which variables it assigns"}, true
+		return true, n.anchor + " changes which variables it assigns"
 	}
-	return nil, true
+	return true, ""
+}
+
+// full is the Full damage of an edit, ClassB when a declaration changed.
+func full(classB bool, format string, args ...any) editDamage {
+	return editDamage{Full: true, ClassB: classB, Reason: fmt.Sprintf(format, args...)}
 }
 
 // spread is the damage of the subs of newRoot marked in damaged, newRoot's
@@ -217,9 +219,6 @@ func subChanged(o, n outerSub) (*editDamage, bool) {
 // transitively, are damaged too, and top-level code calling one, or one
 // assigning a file-scoped variable, makes the edit full.
 func spread(newRoot *parse.Node, newSubs []outerSub, newSet map[*parse.Node]bool, damaged []bool) editDamage {
-	full := func(format string, args ...any) editDamage {
-		return editDamage{Full: true, Reason: fmt.Sprintf(format, args...)}
-	}
 	names := map[string]bool{}
 	for i, s := range newSubs {
 		if damaged[i] {
@@ -242,12 +241,12 @@ func spread(newRoot *parse.Node, newSubs []outerSub, newSet map[*parse.Node]bool
 		}
 	}
 	if intersects(callees(newRoot, newSet), names) {
-		return full("top-level code calls a damaged sub")
+		return full(false, "top-level code calls a damaged sub")
 	}
 	file := fileVars(newRoot, newSet)
 	for i, s := range newSubs {
 		if damaged[i] && intersects(writes(s.node), file) {
-			return full("%s assigns a file-scoped variable", s.anchor)
+			return full(false, "%s assigns a file-scoped variable", s.anchor)
 		}
 	}
 	var out editDamage
