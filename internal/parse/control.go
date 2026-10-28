@@ -40,7 +40,7 @@ func (p *parser) parseControlFlow(word lexer.Token) *Node {
 	case "try":
 		return p.parseTry(word)
 	case "defer":
-		if p.features["defer"] {
+		if p.featureOn("defer") {
 			return p.parseDefer(word)
 		}
 	}
@@ -395,7 +395,7 @@ func (p *parser) labelWordHere(word string) bool {
 	case "x":
 		return true
 	case "given", "default", "break":
-		return !p.features["switch"]
+		return !p.featureOn("switch")
 	}
 	return false
 }

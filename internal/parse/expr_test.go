@@ -170,6 +170,9 @@ func TestComparisonAcrossLevels(t *testing.T) {
 // chain, so an unparenthesised `isa` and a relational operator never stand
 // together, whichever is written first: binding tighter than `<` is never
 // seen as a grouping, only as the refusal.
+//
+// Each source is parsed under `use v5.36`, as it was measured: without the
+// feature `isa` is no operator (TestFeatureScopeIsLexical).
 func TestIsaPrecedenceMatchesPerl(t *testing.T) {
 	for src, want := range map[string]string{
 		"$x isa Foo == 1":    "(== (isa $x Foo) 1)",
@@ -181,12 +184,12 @@ func TestIsaPrecedenceMatchesPerl(t *testing.T) {
 		"($x isa Foo) < 1":   "(< (isa $x Foo) 1)",
 		"$a < ($b isa Foo)":  "(< $a (isa $b Foo))",
 	} {
-		root := parseOneExpr(t, src)
+		root := parseOneExpr(t, "use v5.36; "+src)
 		if containsKind(root, parse.Unknown) {
 			t.Errorf("%q: perl accepts this; got %s", src, shape(root))
 			continue
 		}
-		if got := shape(skipWrappers(root)); got != want {
+		if got := shape(skipWrappers(root.Children[len(root.Children)-1])); got != want {
 			t.Errorf("%q: shape = %s, want %s", src, got, want)
 		}
 	}
@@ -197,7 +200,7 @@ func TestIsaPrecedenceMatchesPerl(t *testing.T) {
 		"$x lt $y isa Foo",
 		"$x isa Foo isa Bar",
 	} {
-		if root := parseOneExpr(t, src); !containsKind(root, parse.Unknown) {
+		if root := parseOneExpr(t, "use v5.36; "+src); !containsKind(root, parse.Unknown) {
 			t.Errorf("%q: perl refuses this; got %s", src, shape(root))
 		}
 	}

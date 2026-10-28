@@ -144,7 +144,7 @@ var gatedKeywords = map[string]string{
 // `require mro` are keywords, never a method on TEST16 or mro.
 func (p *parser) keywordHere(word string) bool {
 	if feature, gated := gatedKeywords[word]; gated {
-		return p.features[feature]
+		return p.featureOn(feature)
 	}
 	return lexer.IsKeyword(word)
 }
@@ -153,7 +153,7 @@ func (p *parser) keywordHere(word string) bool {
 // `isa` is one only under its feature.
 func (p *parser) operatorHere(word string) bool {
 	if feature, gated := gatedKeywords[word]; gated {
-		return infix[word].BP > 0 && p.features[feature]
+		return infix[word].BP > 0 && p.featureOn(feature)
 	}
 	return infix[word].BP > 0
 }
