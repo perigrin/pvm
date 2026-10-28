@@ -146,6 +146,13 @@ func (p *parser) parseTerm() *Node {
 	// Prefix operators. `\` is one of these, and §4.4.5 is not optional
 	// scaffolding: it is the reference perl reports with srefgen, which is
 	// the signal the whole fidelity harness was built to measure.
+	// `$h{not}` is the key "not", as every lone word in a subscript is: perl
+	// 5.44.0's B/Op_private.pm holds `$bits{not}{0}` (R-g′). Only first in
+	// the subscript, or after a lone `-`: `$h{1, not}` is a syntax error.
+	if next, ok := p.peekAfter(tok); text == "not" && p.inHashKey && ok && p.text(next) == "}" && p.firstInKey() {
+		p.advanceTo(tok)
+		return &Node{Kind: Term, Text: text, Start: tok.Start, End: tok.End}
+	}
 	if bp, isPrefix := prefix[text]; isPrefix && p.prefixAllowed(text) {
 		p.advanceTo(tok)
 		// `not (` is a function of the parenthesised list alone: toke.c's
@@ -772,6 +779,21 @@ func (p *parser) parseBlockOperator(word lexer.Token) *Node {
 	}
 	n.End = p.prevEnd()
 	return n
+}
+
+// firstInKey reports whether the significant tokens before the current one
+// are a subscript's `{`, or that `{` and a lone `-` (`$h{-not}`).
+func (p *parser) firstInKey() bool {
+	prev := func(i int) int {
+		for i--; i >= 0 && (isTrivia(p.toks[i].Kind) || p.toks[i].Kind == lexer.HeredocBody); i-- {
+		}
+		return i
+	}
+	i := prev(p.pos)
+	if i >= 0 && p.text(p.toks[i]) == "-" {
+		i = prev(i)
+	}
+	return i >= 0 && p.text(p.toks[i]) == "{"
 }
 
 // prefixAllowed keeps an infix operator from being read as a prefix one.
