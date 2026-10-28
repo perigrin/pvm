@@ -66,7 +66,7 @@ func newAnalysis(f *lower.File, pos *lower.Positions, idx *ProjectIndex, opts Op
 		annotations:    map[lower.ID]types.Type{},
 		diags:          []Diagnostic{},
 		subs:           fileSubs(f),
-		assigned:       assignedNames(f),
+		assigned:       AssignedNames(f),
 		evalCtx:        map[lower.ID]types.Context{},
 		classTypes:     map[lower.ID]string{},
 		undecidedUndef: map[lower.ID]bool{},
@@ -362,7 +362,7 @@ func (a *analysis) decl(d *lower.Decl) types.Type {
 					ret = explicit | implicit
 				}
 			}
-			writes := assignedNames(d.Init)
+			writes := AssignedNames(d.Init)
 			a.st.ExitScope()
 			// After the declaration a variable the sub writes holds what
 			// it held before, or what the sub wrote, as the sub has run
@@ -408,7 +408,7 @@ func (a *analysis) anonSub(n *lower.AnonSub) {
 	a.walkChildren(n)
 	a.st.ExitScope()
 	a.restore(pre)
-	writes := assignedNames(n)
+	writes := AssignedNames(n)
 	for name, typ := range widened {
 		if writes[name] {
 			a.st.UpdateType(name, typ)
@@ -417,7 +417,7 @@ func (a *analysis) anonSub(n *lower.AnonSub) {
 }
 
 // widenWritten shadows, in the sub scope just entered, each variable body
-// reads from outside it that assignedNames holds, with the variable's
+// reads from outside it that AssignedNames holds, with the variable's
 // sigil type, and returns those it shadowed. A sub reads such a variable
 // at the value it has when the sub is called, which any assignment to it
 // may have set: perl 5.42 -w is silent on `my $p = undef;
@@ -454,14 +454,14 @@ func (a *analysis) widenWritten(body lower.Node) map[string]types.Type {
 	return widened
 }
 
-// assignedNames is the name of every variable an assignment writes, by
+// AssignedNames is the name of every variable an assignment writes, by
 // name and not by the scope it resolves to: `$x = ...`, `$x .= ...`, and
 // each variable of `($x, $y) = ...`. A declaration's initialiser is not
 // an assignment. Every variable `our` declares is in it too: a package
 // variable may be assigned by any code, through its full name or a
 // symbolic reference, as Math::BigInt's downgrade() sets
 // ${"${class}::downgrade"}.
-func assignedNames(f lower.Node) map[string]bool {
+func AssignedNames(f lower.Node) map[string]bool {
 	names := map[string]bool{}
 	var find func(n lower.Node)
 	find = func(n lower.Node) {

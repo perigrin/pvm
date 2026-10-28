@@ -317,74 +317,152 @@ func TestDamageNewAssignmentGoesFull(t *testing.T) {
 	if d := damageOf(old, edited); !d.Full {
 		t.Errorf("damage = %+v, want Full", d)
 	}
-	same := []byte("my $p = undef; sub r { return $p eq 'n' } sub w { $p = 'n'; return 1 }\n")
+	same := []byte("my $p = undef; sub r { return $p eq 'n' } sub w { my $z; $z = 'n'; return 1 }\n")
 	edited, _ = replaceOnce(t, same, "sub w", "return 1", "return 2")
 	if d := damageOf(same, edited); d.Full || !slices.Equal(d.Subs, []string{"sub w#0"}) {
-		t.Errorf("an edit keeping w's assignments: damage = %+v, want [sub w#0]", d)
+		t.Errorf("an edit keeping w's assignments, all to its own variable: damage = %+v, want [sub w#0]", d)
 	}
 }
 
-// realEdits is a sample of edits to src, each one byte inserted at an
-// offset: a digit after a digit of a number, a space after a whitespace
-// byte, and a letter after a `$` sigil, which renames a variable.
-func realEdits(root *parse.Node, src []byte, perKind int) [][2]int {
-	var digits, spaces, sigils []int
-	for i := 0; i < len(src); i++ {
-		leaf := leafAt(root, i)
-		switch {
-		case leaf.Kind == parse.Term && src[i] >= '0' && src[i] <= '9':
-			digits = append(digits, i)
-		case leaf.Kind == parse.Trivia && (src[i] == ' ' || src[i] == '\n'):
-			spaces = append(spaces, i)
-		case leaf.Kind == parse.Term && src[i] == '$' && i+1 < len(src) && src[i+1] >= 'a' && src[i+1] <= 'z':
-			sigils = append(sigils, i)
-		}
+// TestDamageAssignmentInDeclaration: an assignment inside a declaration's
+// initialiser writes its variable as any other does, so a sub that starts
+// writing a file-scoped variable that way goes full (review finding 1).
+func TestDamageAssignmentInDeclaration(t *testing.T) {
+	src := []byte("my $p = 5;\nsub w { my $q = 1 }\nsub r { return $p + 1 }\n")
+	for _, repl := range []string{
+		"my $q = $p = undef", "state $q = $p = undef", "my $q = ($p = undef)", "my @q = ($p = undef)",
+		"my $q = ($p ||= undef)", "local $_ = $p = undef", "my ($q) = ($p) = (undef)", "my $q = [$p = undef]",
+	} {
+		t.Run(repl, func(t *testing.T) {
+			if d := checkEdit(t, src, bytes.Index(src, []byte("my $q = 1")), len("my $q = 1"), repl); !d.Full {
+				t.Errorf("damage = %+v, want Full", d)
+			}
+		})
 	}
-	var edits [][2]int
-	for b, at := range [][]int{digits, spaces, sigils} {
-		for k := range min(perKind, len(at)) {
-			edits = append(edits, [2]int{at[k*len(at)/min(perKind, len(at))] + 1, b})
-		}
-	}
-	return edits
 }
 
-// TestDamageUndamagedSubsAnalyzeUnchanged: on real files, edited in place,
-// every node outside the damaged subs has the same type before and after
-// the edit and every diagnostic outside them is the same, shifted; an edit
-// that goes full is not checked. This is the definition's soundness check:
-// a sub reported undamaged must be one whose analysis the edit cannot change.
-func TestDamageUndamagedSubsAnalyzeUnchanged(t *testing.T) {
+// TestDamageAggregateAssignmentGoesFull: what a sub assigns a file-scoped
+// array or hash is the element type every later reader sees, so an edit to
+// a sub that assigns one goes full (review finding 2).
+func TestDamageAggregateAssignmentGoesFull(t *testing.T) {
+	for _, c := range []struct{ src, old, new string }{
+		{"my %h;\nsub w { %h = () }\nsub r { return $h{a} }\n", "()", "undef"},
+		{"my @c;\nsub w { @c = caller }\nsub r { return $c[0] }\n", "caller", "undef"},
+		{"my @c;\n{ sub w { @c = caller } }\nmy $z = $c[0];\n", "caller", "undef"},
+	} {
+		t.Run(c.src, func(t *testing.T) {
+			src := []byte(c.src)
+			if d := checkEdit(t, src, bytes.Index(src, []byte(c.old)), len(c.old), c.new); !d.Full {
+				t.Errorf("damage = %+v, want Full", d)
+			}
+		})
+	}
+	// A file-scoped scalar goes full too: its class and possible-undef
+	// mark are set on the file's symbol the same way.
+	src := []byte("my $s;\nsub w { $s = 1 }\nsub r { return $s + 1 }\n")
+	if d := checkEdit(t, src, bytes.Index(src, []byte("= 1")), len("= 1"), "= undef"); !d.Full {
+		t.Errorf("a file-scoped scalar: damage = %+v, want Full", d)
+	}
+	// A sub's own hash is its own: that edit stays local.
+	src = []byte("my %h;\nsub w { my %g; %g = () }\nsub r { return $h{a} }\n")
+	if d := checkEdit(t, src, bytes.Index(src, []byte("()")), len("()"), "undef"); d.Full || !slices.Equal(d.Subs, []string{"sub w#0"}) {
+		t.Errorf("a sub's own hash: damage = %+v, want [sub w#0]", d)
+	}
+}
+
+// realEdit replaces src[at:at+n] with repl.
+type realEdit struct {
+	at, n int
+	repl  string
+}
+
+// realEdits is a sample of up to perKind edits of each kind to src, inside
+// its subs: a digit inserted in a number, a space in whitespace, a letter
+// after a `$`, which renames a variable; a statement deleted, a literal set
+// to undef and to 's', a call renamed, and an assignment's right side set
+// to undef.
+func realEdits(root *parse.Node, src []byte, perKind int) []realEdit {
+	kinds := make([][]realEdit, 8)
+	var walk func(n *parse.Node, in bool)
+	walk = func(n *parse.Node, in bool) {
+		if in {
+			switch {
+			case n.Kind == parse.Statement:
+				kinds[0] = append(kinds[0], realEdit{n.Start, n.End - n.Start, ""})
+			case n.Kind == parse.Term && len(n.Children) == 0 && n.End > n.Start && strings.ContainsRune("0123456789'\"", rune(src[n.Start])):
+				kinds[1] = append(kinds[1], realEdit{n.Start, n.End - n.Start, "undef"})
+				kinds[2] = append(kinds[2], realEdit{n.Start, n.End - n.Start, "'s'"})
+				if src[n.Start] >= '0' && src[n.Start] <= '9' {
+					kinds[3] = append(kinds[3], realEdit{n.Start + 1, 0, "7"})
+				}
+			case n.Kind == parse.Term && len(n.Text) > 1 && n.Text[0] == '$' && src[n.Start] == '$':
+				kinds[4] = append(kinds[4], realEdit{n.Start + 1, 0, "q"})
+			case n.Kind == parse.Trivia && src[n.Start] == ' ':
+				kinds[5] = append(kinds[5], realEdit{n.Start, 0, " "})
+			case n.Kind == parse.Call && n.Text != "":
+				if i := bytes.Index(src[n.Start:n.End], []byte(n.Text)); i >= 0 {
+					kinds[6] = append(kinds[6], realEdit{n.Start + i + len(n.Text), 0, "zz"})
+				}
+			case n.Kind == parse.Binary && n.Text == "=" && len(n.Children) > 1:
+				r := n.Children[len(n.Children)-1]
+				kinds[7] = append(kinds[7], realEdit{r.Start, r.End - r.Start, "undef"})
+			}
+		}
+		_, sub := lower.AnchorKey(n)
+		for _, c := range n.Children {
+			walk(c, in || sub)
+		}
+	}
+	walk(root, false)
+	var out []realEdit
+	for _, k := range kinds {
+		m := min(perKind, len(k))
+		for j := range m {
+			out = append(out, k[j*len(k)/m])
+		}
+	}
+	return out
+}
+
+// realFiles is edit5k.pl, and with $PERL5_CORPUS set perl5's lib/*.pm
+// and the two files review finding 2 was seen in.
+func realFiles() []string {
 	files := []string{latencyFixturePath}
 	if dir := os.Getenv("PERL5_CORPUS"); dir != "" {
 		more, _ := filepath.Glob(filepath.Join(dir, "lib", "*.pm"))
 		files = append(files, more...)
+		for _, f := range []string{"cpan/Locale-Maketext-Simple/lib/Locale/Maketext/Simple.pm", "cpan/Test-Simple/t/Legacy/use_ok.t"} {
+			if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+				files = append(files, filepath.Join(dir, f))
+			}
+		}
 	}
-	insert := [][]byte{[]byte("7"), []byte(" "), []byte("q")}
-	checked := 0
+	return files
+}
+
+// TestDamageUndamagedSubsAnalyzeUnchanged: on real files, edited in place,
+// every node outside the damaged subs has the same type before and after
+// the edit, and every diagnostic and symbol outside them is the same,
+// shifted; an edit that goes full is not checked. This is the definition's
+// soundness check: a sub reported undamaged must be one whose analysis the
+// edit cannot change.
+func TestDamageUndamagedSubsAnalyzeUnchanged(t *testing.T) {
+	checked, files := 0, realFiles()
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := parse.Parse(src)
 		perKind := 4
 		if path == latencyFixturePath {
-			perKind = 2
+			perKind = 1
 		}
-		before := infer.AnalyzeParsed(root, nil, infer.Options{})
-		for _, e := range realEdits(root, src, perKind) {
-			at := e[0]
-			edited := slices.Concat(src[:at], insert[e[1]], src[at:])
-			newRoot := parse.Parse(edited)
-			d := damageFromTreeDiff(root, newRoot)
-			if d.Full {
-				continue
-			}
-			checked++
-			after := infer.AnalyzeParsed(newRoot, nil, infer.Options{})
-			name := fmt.Sprintf("%s +%q@%d", filepath.Base(path), insert[e[1]], at)
-			checkUndamagedUnchanged(t, name, d, root, newRoot, before, after, at)
+		for _, e := range realEdits(parse.Parse(src), src, perKind) {
+			t.Run(fmt.Sprintf("%s/%q@%d", filepath.Base(path), e.repl, e.at), func(t *testing.T) {
+				if !checkEdit(t, src, e.at, e.n, e.repl).Full {
+					checked++
+				}
+			})
 		}
 	}
 	if checked == 0 {
@@ -393,10 +471,22 @@ func TestDamageUndamagedSubsAnalyzeUnchanged(t *testing.T) {
 	t.Logf("%d local edits checked over %d files", checked, len(files))
 }
 
-// checkUndamagedUnchanged fails t when an annotation or diagnostic outside
-// d's subs differs between before and after, for a 1-byte insert at at.
-func checkUndamagedUnchanged(t *testing.T, name string, d editDamage, oldRoot, newRoot *parse.Node, before, after *infer.FileAnalysis, at int) {
+// checkEdit replaces src[at:at+n] with repl and returns the damage; when it
+// is not full, t fails for every annotation, diagnostic or symbol outside
+// the damaged subs that differs between the analyses before and after.
+func checkEdit(t *testing.T, src []byte, at, n int, repl string) editDamage {
 	t.Helper()
+	if at < 0 {
+		t.Fatal("the edit's text is not in the source")
+	}
+	edited := slices.Concat(src[:at], []byte(repl), src[at+n:])
+	oldRoot, newRoot := parse.Parse(src), parse.Parse(edited)
+	d := damageFromTreeDiff(oldRoot, newRoot)
+	if d.Full {
+		return d
+	}
+	before := infer.AnalyzeParsed(oldRoot, nil, infer.Options{})
+	after := infer.AnalyzeParsed(newRoot, nil, infer.Options{})
 	damaged := map[string]bool{}
 	for _, s := range d.Subs {
 		damaged[s] = true
@@ -407,41 +497,77 @@ func checkUndamagedUnchanged(t *testing.T, name string, d editDamage, oldRoot, n
 	}
 	for id, typ := range before.Annotations {
 		if outside(id) && after.Annotations[id] != typ {
-			t.Errorf("%s: damage %v, but %v's type moved %v -> %v", name, d.Subs, id, typ, after.Annotations[id])
+			t.Errorf("damage %v, but %v's type moved %v -> %v", d.Subs, id, typ, after.Annotations[id])
 		}
 	}
 	for id, typ := range after.Annotations {
 		if _, ok := before.Annotations[id]; outside(id) && !ok {
-			t.Errorf("%s: damage %v, but %v gained type %v", name, d.Subs, id, typ)
+			t.Errorf("damage %v, but %v gained type %v", d.Subs, id, typ)
 		}
 	}
-	spans := func(root *parse.Node) [][2]int {
-		var out [][2]int
+	// keep is what of a side's diagnostics and symbols lies outside its
+	// damaged subs, the old side's moved to where the edit put it.
+	keep := func(root *parse.Node, starts []uint32, show func(i int, shift int) string, old bool) []string {
+		var spans [][2]int
 		for _, s := range outerSubs(root) {
 			if damaged[s.anchor] {
-				out = append(out, [2]int{s.node.Start, s.node.End})
+				spans = append(spans, [2]int{s.node.Start, s.node.End})
 			}
 		}
-		return out
-	}
-	keep := func(diags []infer.Diagnostic, in [][2]int, shift bool) []string {
 		var out []string
 	next:
-		for _, g := range diags {
-			for _, s := range in {
-				if int(g.StartByte) >= s[0] && int(g.StartByte) < s[1] {
+		for i, start := range starts {
+			for _, s := range spans {
+				if int(start) >= s[0] && int(start) < s[1] {
 					continue next
 				}
 			}
-			if shift && int(g.StartByte) >= at {
-				g.StartByte++
-				g.EndByte++
+			shift := 0
+			if old && int(start) >= at+n {
+				shift = len(repl) - n
 			}
-			out = append(out, fmt.Sprintf("%+v", g))
+			out = append(out, show(i, shift))
 		}
 		return out
 	}
-	if b, a := keep(before.Diagnostics, spans(oldRoot), true), keep(after.Diagnostics, spans(newRoot), false); !slices.Equal(b, a) {
-		t.Errorf("%s: damage %v, but the diagnostics outside it moved:\n%v\n->\n%v", name, d.Subs, b, a)
+	diags := func(fa *infer.FileAnalysis, root *parse.Node, old bool) []string {
+		var starts []uint32
+		for _, g := range fa.Diagnostics {
+			starts = append(starts, g.StartByte)
+		}
+		return keep(root, starts, func(i, shift int) string {
+			g := fa.Diagnostics[i]
+			g.StartByte, g.EndByte = uint32(int(g.StartByte)+shift), uint32(int(g.EndByte)+shift)
+			return fmt.Sprintf("%+v", g)
+		}, old)
 	}
+	// symbols is the file scope's: after the walk the table's current
+	// scope is the root, so Lookup finds what a sub left a file-scoped
+	// variable as. A sub's own scope holds shadows carrying the outer
+	// declaration's span, which no span test could tell apart.
+	symbols := func(fa *infer.FileAnalysis, root *parse.Node, old bool) []string {
+		var syms []infer.Symbol
+		var starts []uint32
+		seen := map[string]bool{}
+		for _, s := range fa.Symbols.AllSymbols() {
+			if sym, ok := fa.Symbols.Lookup(s.Name); ok && !seen[s.Name] {
+				seen[s.Name] = true
+				syms, starts = append(syms, sym), append(starts, sym.StartByte)
+			}
+		}
+		out := keep(root, starts, func(i, shift int) string {
+			s := syms[i]
+			s.StartByte, s.EndByte = uint32(int(s.StartByte)+shift), uint32(int(s.EndByte)+shift)
+			return fmt.Sprintf("%+v", s)
+		}, old)
+		slices.Sort(out)
+		return out
+	}
+	if b, a := diags(before, oldRoot, true), diags(after, newRoot, false); !slices.Equal(b, a) {
+		t.Errorf("damage %v, but the diagnostics outside it moved:\n%v\n->\n%v", d.Subs, b, a)
+	}
+	if b, a := symbols(before, oldRoot, true), symbols(after, newRoot, false); !slices.Equal(b, a) {
+		t.Errorf("damage %v, but the symbols outside it moved:\n%v\n->\n%v", d.Subs, b, a)
+	}
+	return d
 }

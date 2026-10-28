@@ -8,6 +8,7 @@ import (
 	"maps"
 	"strings"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/lower"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -49,8 +50,11 @@ type editDamage struct {
 //   - whether the file has a parse error, which gates what is published and
 //     is how a missing `}` that re-nests later subs shows;
 //   - the set of top-level subs, or any non-trivia node outside them;
-//   - which variables a damaged sub assigns, which widens their type for
-//     every other sub that reads them (infer's assignedNames);
+//   - which variables a damaged sub assigns (infer.AssignedNames), which
+//     widens their type for every other sub that reads them;
+//   - a damaged sub assigning a variable declared at file scope: what it
+//     assigns an aggregate is the element type every later reader sees,
+//     and a scalar keeps its class and possible-undef mark the same way;
 //   - top-level code calling a damaged sub.
 //
 // An edit inside top-level trivia, whitespace or a comment between two subs,
@@ -115,6 +119,12 @@ func damageFromTreeDiff(oldRoot, newRoot *parse.Node) editDamage {
 	}
 	if intersects(callees(newRoot, newSet), names) {
 		return full(false, "top-level code calls a damaged sub")
+	}
+	file := fileVars(newRoot, newSet)
+	for i, s := range newSubs {
+		if damaged[i] && intersects(writes(s.node), file) {
+			return full(false, "%s assigns a file-scoped variable", s.anchor)
+		}
 	}
 	var out editDamage
 	for i, s := range newSubs {
@@ -244,38 +254,29 @@ func skeletonDiff(o, n *parse.Node, delta int, oldSubs, newSubs map[*parse.Node]
 	return ""
 }
 
-// assignOps are the operators infer's assignedNames reads as an
-// assignment once lowered: `=` and every compound form.
-var assignOps = map[string]bool{
-	"=": true, "+=": true, "-=": true, "*=": true, "/=": true, ".=": true, "%=": true,
-	"x=": true, "**=": true, "&=": true, "|=": true, "^=": true, "<<=": true, ">>=": true,
-	"&&=": true, "||=": true, "//=": true, "&.=": true, "|.=": true, "^.=": true,
+// writes is the name of every variable an assignment under the sub n
+// writes, as infer.AssignedNames reads it off n lowered on its own.
+func writes(n *parse.Node) map[string]bool {
+	return infer.AssignedNames(lower.Lower(&parse.Node{Kind: parse.SourceFile, Start: n.Start, End: n.End, Children: []*parse.Node{n}}))
 }
 
-// writes is the name of every variable an assignment under n writes, as
-// infer's assignedNames reads the lowered tree: the variable, or each of a
-// list's, left of an assignment operator that is not a declaration's
-// initialiser.
-func writes(n *parse.Node) map[string]bool {
+// fileVars is the name of every variable named outside the nodes in subs,
+// which includes every variable declared at file scope.
+func fileVars(n *parse.Node, subs map[*parse.Node]bool) map[string]bool {
 	out := map[string]bool{}
-	var walk func(n *parse.Node, decl bool)
-	walk = func(n *parse.Node, decl bool) {
-		if n.Kind == parse.Binary && assignOps[n.Text] && !decl && len(n.Children) > 0 {
-			targets := []*parse.Node{n.Children[0]}
-			if l := n.Children[0]; l.Kind == parse.List {
-				targets = l.Children
-			}
-			for _, t := range targets {
-				if t.Kind == parse.Term && t.Text != "" && strings.ContainsRune("$@%", rune(t.Text[0])) {
-					out[t.Text] = true
-				}
-			}
+	var walk func(n *parse.Node)
+	walk = func(n *parse.Node) {
+		if subs[n] {
+			return
+		}
+		if n.Kind == parse.Term && n.Text != "" && strings.ContainsRune("$@%", rune(n.Text[0])) {
+			out[n.Text] = true
 		}
 		for _, c := range n.Children {
-			walk(c, n.Kind == parse.Declaration)
+			walk(c)
 		}
 	}
-	walk(n, false)
+	walk(n)
 	return out
 }
 
