@@ -5,6 +5,7 @@ package lower
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 
 	"tamarou.com/pvm/internal/parse"
@@ -44,11 +45,20 @@ func Relower(f *File, root *parse.Node, anchors []string) (*File, bool) {
 	if len(repl) != len(want) {
 		return nil, false
 	}
-	out, ok := splice(f, repl).(*File)
-	if !ok || len(repl) != 0 {
+	if len(repl) == 0 {
+		return f, true
+	}
+	out := *f
+	out.Stmts = slices.Clone(f.Stmts)
+	for i, s := range out.Stmts {
+		if s != nil {
+			out.Stmts[i] = splice(s, repl)
+		}
+	}
+	if len(repl) != 0 {
 		return nil, false
 	}
-	return out, true
+	return &out, true
 }
 
 // splice is n with each node whose id repl holds replaced by repl's node,
