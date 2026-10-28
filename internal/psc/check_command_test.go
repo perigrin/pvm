@@ -381,14 +381,14 @@ func TestCheckCommandWithoutPerl(t *testing.T) {
 
 // TestCheckCommandOnBrokenFile verifies psc check on a file perl rejects
 // (`my $x = ;` is a syntax error) neither panics nor reports a type
-// diagnostic inside the Hole the parser leaves for the missing term. Its
-// refusal, not_a_term, is one the parser also makes on code perl
-// compiles, so it is not reported either (perlRefuses).
+// diagnostic from the broken statement: its one diagnostic is the
+// missing_operand error on the operand's Missing node (R-g).
 func TestCheckCommandOnBrokenFile(t *testing.T) {
 	isolatePerl(t)
 	var out string
 	require.NotPanics(t, func() { out = runCheckOn(t, "my $x = ;\nmy $u = undef;\nmy $y = $u + 1;\n") })
-	assert.NotContains(t, out, "t.pl:1:", "nothing is reported inside the Hole")
+	assert.Equal(t, 1, strings.Count(out, "t.pl:1:"), "one diagnostic for the broken statement:\n%s", out)
+	assert.Contains(t, out, "t.pl:1:8: error: perl refuses this: an operator whose right operand ran out [missing_operand]")
 	assert.Contains(t, out, "t.pl:3:", "the rest of the file is still checked")
 }
 

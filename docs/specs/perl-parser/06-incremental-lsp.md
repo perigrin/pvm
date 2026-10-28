@@ -2249,6 +2249,22 @@ PSC's `Diagnostic` struct (`internal/infer/diagnostics.go:39-47`) has
 `StartByte`/`EndByte`, so subtree gating is a range test against the error
 nodes' spans. Cheap.
 
+**As landed (`internal/psc/diagfilter.go`).** `diagFilter` is the filter
+above, with the 40-byte cooldown (`errorCooldownBytes`) measured from the end
+of the last *admitted* error and the cap of 20 (`maxParseDiagnostics`). One
+is made per analysis, so neither carries over between publications or
+documents; psc check and the LSP both report through it (`analyze`). Its
+input, `parseErrors`, is the reported errors only: each Missing node for a
+token, each Error or Missing node whose code `parse.CatchAll` does not
+classify catch-all (`missing_operand` among them, R-g), and each `Unknown`
+whose code perl always shares (`perlRefuses`). Nothing inside a reported or
+catch-all node is reported again, so a Missing `}` inside an
+`unclosed_brace` refusal is one diagnostic, and a catch-all node publishes
+none (R-a′). Gating is the range test, against the innermost statement
+holding each reported error, so a type error in `$u + 1 + ;` is gated though
+its Missing operand is zero-width after it. Catch-all nodes gate nothing.
+`HasError` is not the gate, since it also covers catch-all nodes.
+
 ### 6.8.5 Recovery interacts with incremental parsing
 
 Two rules that are easy to miss:
