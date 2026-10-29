@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -125,6 +125,7 @@ committed to the baseline with the component.
 | `rd-parse-ms-std5k` | `parse.Parse` on `std5k.pl`, best of 5, in ms | reported only |
 | `rd-parse-ms-corpus` | `parse.Parse` over the scored `parses` cases, best of 3, in ms | reported only |
 | `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
+| `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
 
 Keys the later issues add, and the rule each is held to:
 `defect-yield-chart-exact` may not fall, and `lex-unmapped`, `leo-disagree`
@@ -209,6 +210,31 @@ Every line is space-separated numbers and names:
   in symbol order. The target is always a kernel state. A transition's items
   are the state's items whose dot is before the symbol, so they are not
   written out.
+
+## The CORE.tpm cross-check
+
+Builtin shapes come from G1's per-keyword `OpKeyword<X>Expr` rules
+(`grammar.G1Shapes`). A builtin's shape is the widest any of its alternatives
+takes, by the symbols after the keyword: `niladic` (nothing, `()` or a label),
+`unary` (one term), `assign` (Guacamole's assign keyword operators, which
+CORE.tpm has no shape for) or `list`. An argument symbol with no width is an
+error, not a default.
+
+`grammar/testdata/core-tpm-differences.txt` is committed and lists every
+builtin whose shape in `internal/parse`'s CORE.tpm table (`parse.CoreShapes`)
+differs from G1's, one per line: the builtin, G1's shape, CORE.tpm's. A
+builtin only one side has is listed with `none` on the other side, never
+skipped. `TestCoreTpmGuacamole` holds the list equal to what the cross-check
+computes, byte for byte, and its failure names the list and the first line
+that differs. The ratchet reports the count as `core-tpm-differences`. After
+an intended change, regenerate the list:
+
+```
+go test ./internal/chart/grammar/ -run TestCoreTpmGuacamole -grammar.update-core-tpm
+```
+
+The list's review is the pull request's: a pull request that changes it walks
+the changed lines in its description.
 
 ## Known divergences from Guacamole
 
