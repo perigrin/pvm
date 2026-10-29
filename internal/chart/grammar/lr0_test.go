@@ -39,7 +39,7 @@ func TestLR0Golden(t *testing.T) {
 				t.Fatalf("%v (regenerate with -grammar.update-golden)", err)
 			}
 			if got != string(want) {
-				t.Errorf("%s: tables differ from the golden file:\n%s", path, firstDifference(path, lines([]byte(got)), lines(want)))
+				t.Errorf("%s: tables differ from the golden file:\n%s", path, firstDifference(path, "the generator", lines([]byte(got)), lines(want)))
 			}
 		})
 	}

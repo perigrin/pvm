@@ -121,15 +121,7 @@ func BuildTables(c *CutGrammar) (*Tables, error) {
 // GenerateTables reads the grammar at slifPath, applies GuacamoleCut and
 // builds the tables.
 func GenerateTables(slifPath string) ([]TableFile, error) {
-	src, err := os.ReadFile(slifPath)
-	if err != nil {
-		return nil, err
-	}
-	g, err := ReadSLIF(filepath.Base(slifPath), src)
-	if err != nil {
-		return nil, err
-	}
-	c, err := ApplyCut(g, GuacamoleCut)
+	c, err := readGuacamoleCut(slifPath)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +130,19 @@ func GenerateTables(slifPath string) ([]TableFile, error) {
 		return nil, err
 	}
 	return t.Files(), nil
+}
+
+// readGuacamoleCut reads the grammar at slifPath and applies GuacamoleCut.
+func readGuacamoleCut(slifPath string) (*CutGrammar, error) {
+	src, err := os.ReadFile(slifPath)
+	if err != nil {
+		return nil, err
+	}
+	g, err := ReadSLIF(filepath.Base(slifPath), src)
+	if err != nil {
+		return nil, err
+	}
+	return ApplyCut(g, GuacamoleCut)
 }
 
 // WriteTables writes files into dir, creating it, and removes any other

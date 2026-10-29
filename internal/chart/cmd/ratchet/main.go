@@ -52,7 +52,7 @@ var keys = []string{
 	"defect-yield-listed", "defect-yield-sites", "defect-yield-settled",
 	"oracle-sites-decided", "expect-states-unreproduced",
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
-	"tables-drift",
+	"tables-drift", "core-tpm-differences",
 }
 
 func main() {
@@ -169,6 +169,12 @@ func measure(ctx context.Context) (map[string]string, error) {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: tables-drift: %s\n", d)
 	}
 	m["tables-drift"] = strconv.Itoa(len(drift))
+
+	diffs, err := grammar.GuacamoleCoreTpmDifferences(grammarSLIF)
+	if err != nil {
+		return nil, fmt.Errorf("core-tpm-differences: %w", err)
+	}
+	m["core-tpm-differences"] = strconv.Itoa(len(diffs))
 
 	std5k, err := os.ReadFile(std5kFile)
 	if err != nil {
