@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -53,8 +54,8 @@ func Parse(text string) ([]Measure, error) {
 		if !strings.HasPrefix(line, linePrefix) || len(f) != 2 {
 			return nil, fmt.Errorf("line %d is not %q<key> <value>: %q", i+1, linePrefix, line)
 		}
-		if _, err := strconv.ParseFloat(f[1], 64); err != nil && f[1] != na {
-			return nil, fmt.Errorf("line %d: %s's value %q is neither a number nor %s", i+1, f[0], f[1], na)
+		if v, err := strconv.ParseFloat(f[1], 64); f[1] != na && (err != nil || math.IsNaN(v) || math.IsInf(v, 0)) {
+			return nil, fmt.Errorf("line %d: %s's value %q is neither a finite number nor %s", i+1, f[0], f[1], na)
 		}
 		ms = append(ms, Measure{f[0], f[1]})
 	}
@@ -79,7 +80,9 @@ func Compare(baseline, measured []Measure) []string {
 		switch {
 		case !ok:
 			regress(m.Key, "absent", m.Value, "every key the ratchet prints must be in baseline.txt")
+		case b == na && m.Value == na:
 		case b == na:
+			regress(m.Key, b, m.Value, "baseline still na; take a baseline")
 		case m.Value == na:
 			regress(m.Key, b, m.Value, "a number may not become na")
 		case mayNotRise[m.Key] && number(m.Value) > number(b):

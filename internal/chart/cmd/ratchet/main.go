@@ -9,7 +9,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,7 +35,6 @@ var (
 	std5kFile    = filepath.Join(testdata, "std5k.pl")
 	editsFile    = filepath.Join(testdata, "convergence-edits.jsonl")
 	defectList   = filepath.Join(testdata, "defect-yield.txt")
-	defectDir    = filepath.Join(testdata, "defect-yield")
 	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
 )
 
@@ -44,7 +46,7 @@ var keys = []string{
 	"std5k-refused", "parsent-accepted", "rejects-disagree",
 	"speed-ratio-aggregate", "speed-ratio-std5k", "set-reuse",
 	"convergence-edits", "convergence-within-8",
-	"defect-yield-listed", "defect-yield-sites", "defect-yield-settled", "defect-yield-rd-settled",
+	"defect-yield-listed", "defect-yield-sites", "defect-yield-settled",
 	"oracle-sites-decided", "expect-states-unreproduced",
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
 }
@@ -173,46 +175,28 @@ func measure(ctx context.Context) (map[string]string, error) {
 	}))
 
 	// Recursive descent through the oracle, its default subject.
-	cache, err := parseoracle.OpenCache(oracleCacheDir(), "")
+	dir, err := oracleCacheDir(stubs)
 	if err != nil {
 		return nil, err
 	}
-	rep, err := oracle(ctx, cache, scored)
+	cache, err := parseoracle.OpenCache(dir, "")
 	if err != nil {
 		return nil, err
 	}
-	if n := rep.Measured(); n > 0 {
-		m["rd-oracle-exact"] = rate(rep.Totals[parseoracle.BucketExact], n)
-		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
-	}
-
-	// Settled by recursive descent: a frozen case graded exact with a marker in play.
-	var cases []string
-	for _, l := range listed {
-		c := filepath.Join(defectDir, strings.Fields(l)[0]+".pl")
-		if _, err := os.Stat(c); err == nil {
-			cases = append(cases, c)
-		}
-	}
-	if rep, err = oracle(ctx, cache, cases); err != nil {
-		return nil, err
-	}
-	m["defect-yield-rd-settled"] = strconv.Itoa(rep.VerifiedExact())
-	return m, nil
-}
-
-// oracle grades recursive descent on files, naming each runner error on stderr.
-func oracle(ctx context.Context, cache *parseoracle.Cache, files []string) (parseoracle.Report, error) {
-	rep, err := parseoracle.Run(ctx, files, parseoracle.RunOptions{Cache: cache})
+	rep, err := parseoracle.Run(ctx, scored, parseoracle.RunOptions{Cache: cache})
 	if err != nil {
-		return rep, fmt.Errorf("rd oracle: %w", err)
+		return nil, fmt.Errorf("rd oracle: %w", err)
 	}
 	for _, r := range rep.Files {
 		if r.Err != "" {
 			fmt.Fprintf(os.Stderr, "chart-ratchet: rd oracle runner error: %s: %s\n", r.Path, r.Err)
 		}
 	}
-	return rep, nil
+	if n := rep.Measured(); n > 0 {
+		m["rd-oracle-exact"] = rate(rep.Totals[parseoracle.BucketExact], n)
+		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
+	}
+	return m, nil
 }
 
 func rate(k, n int) string {
@@ -220,13 +204,31 @@ func rate(k, n int) string {
 }
 
 // oracleCacheDir is the ratchet's own oracle cache, never DefaultCacheDir:
-// the cache key omits the environment, and these answers depend on PERL5LIB.
-func oracleCacheDir() string {
-	base := os.Getenv("XDG_CACHE_HOME")
-	if base == "" {
-		base = filepath.Join(os.Getenv("HOME"), ".cache")
+// the cache key omits the environment, and these answers depend on PERL5LIB,
+// so the directory is keyed on a hash of the stubs it names.
+func oracleCacheDir(stubs string) (string, error) {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("locating the oracle cache: %w", err)
 	}
-	return filepath.Join(base, "pvm", "chart-ratchet-oracle")
+	h := sha256.New()
+	err = filepath.WalkDir(stubs, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(stubs, path)
+		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(b))
+		h.Write(b)
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("hashing the stubs: %w", err)
+	}
+	return filepath.Join(base, "pvm", "chart-ratchet-oracle", hex.EncodeToString(h.Sum(nil))[:16]), nil
 }
 
 // lines returns a file's non-empty lines that are not # comments.

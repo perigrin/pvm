@@ -15,7 +15,6 @@ chart-ratchet: convergence-within-8 na
 chart-ratchet: defect-yield-listed 50
 chart-ratchet: defect-yield-sites na
 chart-ratchet: defect-yield-settled na
-chart-ratchet: defect-yield-rd-settled 0
 chart-ratchet: oracle-sites-decided na
 chart-ratchet: expect-states-unreproduced na
 chart-ratchet: rd-oracle-exact 0.9920

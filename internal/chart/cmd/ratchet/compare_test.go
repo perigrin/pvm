@@ -29,7 +29,8 @@ func TestCompareRules(t *testing.T) {
 		{"defect-yield-settled falls", "defect-yield-settled", "3", "2", true},
 		{"defect-yield-chart-exact falls", "defect-yield-chart-exact", "3", "2", true},
 		{"number becomes na", "speed-ratio-std5k", "1.2", "na", true},
-		{"na becomes a number", "speed-ratio-std5k", "na", "1.2", false},
+		{"na becomes a number without a baseline", "speed-ratio-std5k", "na", "1.2", true},
+		{"na stays na", "speed-ratio-std5k", "na", "na", false},
 		{"reported-only key moves", "speed-ratio-std5k", "1.2", "9.9", false},
 		{"defect-yield-sites falls, reported only", "defect-yield-sites", "7", "3", false},
 		{"rd-oracle-exact falls, reported only", "rd-oracle-exact", "0.9", "0.1", false},
@@ -41,6 +42,9 @@ func TestCompareRules(t *testing.T) {
 			}
 			if tc.regress && !(strings.Contains(got[0], tc.key) && strings.Contains(got[0], tc.base) && strings.Contains(got[0], tc.measure)) {
 				t.Fatalf("regression %q does not name the key, the baseline and the value", got[0])
+			}
+			if tc.base == "na" && tc.regress && !strings.Contains(got[0], "baseline still na; take a baseline") {
+				t.Fatalf("regression %q does not say to take a baseline", got[0])
 			}
 		})
 	}
@@ -79,6 +83,11 @@ func TestFormatAndParseRoundTrip(t *testing.T) {
 	}
 	if _, err := Parse("chart-ratchet: parses-scored many\n"); err == nil {
 		t.Fatal("Parse accepted a value that is neither a number nor na")
+	}
+	for _, v := range []string{"NaN", "nan", "Inf", "+Inf", "-inf", "infinity"} {
+		if _, err := Parse("chart-ratchet: rd-oracle-exact " + v + "\n"); err == nil {
+			t.Fatalf("Parse accepted %s, which no comparison can order", v)
+		}
 	}
 	if _, err := Parse("parses-scored 746\n"); err == nil {
 		t.Fatal("Parse accepted a line without the chart-ratchet: prefix")

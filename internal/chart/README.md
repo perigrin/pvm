@@ -64,7 +64,11 @@ until perigrin accepts the spike.
   `testdata/ratchet/baseline.txt`, never because the spike's exit is still
   unmet. A regression names the key, the baseline and the value on stderr. A
   measurement that cannot be taken, such as a missing `std5k.pl`, exits
-  non-zero and names what is missing, rather than printing a number.
+  non-zero and names what is missing, rather than printing a number. The two
+  layers return different codes. `cmd/ratchet` exits 1 on a regression and 2
+  on a missing or malformed input. `make` exits 2 whenever its recipe fails,
+  so `make chart-ratchet` returns 2 for both, and only stderr tells them
+  apart.
 - **Speed** is reported and never gated, so the target stays deterministic.
 - **Keys** may be added and are never renamed. `baseline.txt` holds every key
   the ratchet prints, one line each in the line form, reported-only keys
@@ -75,8 +79,12 @@ until perigrin accepts the spike.
   `refs/zhi`, no network. Defect yield reads `testdata/defect-yield.txt` and
   `testdata/defect-yield/`, never the chain. The ratchet sets `PERL5LIB` to
   the corpus stubs itself. Its oracle cache is its own directory,
-  `${XDG_CACHE_HOME:-$HOME/.cache}/pvm/chart-ratchet-oracle`, and never
-  `parseoracle.DefaultCacheDir`, because the cache key omits the environment.
+  `pvm/chart-ratchet-oracle/<hash of stubs/>` under Go's `os.UserCacheDir()`
+  (`${XDG_CACHE_HOME:-$HOME/.cache}` on Linux), and never
+  `parseoracle.DefaultCacheDir`. The cache key omits the environment, so
+  changing the stubs moves the run to a fresh directory. Where no user cache
+  directory exists, the ratchet exits 2 rather than writing the cache into
+  the tree.
 - **Budget.** One run takes at most 120 s on the development machine. A cold
   cache takes about 25 s today.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
@@ -86,7 +94,10 @@ until perigrin accepts the spike.
 
 The regression rules are **may not rise** for an exit count, **may not fall**
 for a corpus size or the chart's defect-yield side, and **reported only** for
-everything else. Under every rule, a number may not become `na`.
+everything else. Under every rule, a number may not become `na`, and a key
+whose baseline is still `na` may not print a number. That fails with
+"baseline still na; take a baseline", so a component's first number is
+committed to the baseline with the component.
 
 | Key | Meaning | Rule |
 |---|---|---|
@@ -107,7 +118,6 @@ everything else. Under every rule, a number may not become `na`.
 | `defect-yield-listed` | issues in `testdata/defect-yield.txt` | reported only |
 | `defect-yield-sites` | oracle sites exact for the chart and WRONG for recursive descent | reported only |
 | `defect-yield-settled` | listed issues the chart settles where recursive descent does not | may not fall |
-| `defect-yield-rd-settled` | frozen defect-yield cases recursive descent is graded exact on with a marker in play | reported only |
 | `oracle-sites-decided` | sites the chart reports decided (§7.1) | reported only |
 | `expect-states-unreproduced` | in-force `PL_expect` states the expectation classes do not reproduce | reported only |
 | `rd-oracle-exact` | recursive descent's oracle exact rate on the scored `parses` cases | reported only |
