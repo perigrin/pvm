@@ -1,0 +1,52 @@
+# ABOUTME: Runs the chart spike's ratchet, make chart-ratchet, on changes to the chart or the lexer.
+# ABOUTME: Advisory: continue-on-error, and mainline does not gate on it (chart-parser design §10).
+
+name: Chart Ratchet
+
+on:
+  push:
+    branches: [ pu ]
+    paths:
+      - 'internal/chart/**'
+      - 'internal/lexer/**'
+  pull_request:
+    branches: [ pu ]
+    paths:
+      - 'internal/chart/**'
+      - 'internal/lexer/**'
+
+concurrency:
+  group: chart-ratchet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chart-ratchet:
+    name: Chart ratchet (advisory)
+    runs-on: ubuntu-latest
+    # Advisory: the spike's ratchet reports on mainline and never blocks it.
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.24.4'
+
+    # The corpus's perl -c verdicts and the std5k.pl compile check are perl
+    # 5.42's, so install the perl 5.42's pin names, read by the same script
+    # as every other pinned job rather than named here.
+    - name: Read the perl pin
+      id: perlpin
+      run: sh .github/scripts/parseoracle-pin.sh internal/perltest/testdata/perl542.pin >> "$GITHUB_OUTPUT"
+
+    - name: Install the pinned perl
+      uses: shogo82148/actions-setup-perl@v1
+      with:
+        perl-version: ${{ steps.perlpin.outputs.perl_version }}
+        multi-thread: ${{ steps.perlpin.outputs.threads == 'define' }}
+
+    - name: Run the chart ratchet
+      run: make chart-ratchet

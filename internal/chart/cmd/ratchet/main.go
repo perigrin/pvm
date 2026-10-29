@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -79,6 +80,11 @@ func main() {
 // report lays measured values out in the fixed order, na for every key
 // nothing measured yet. A measured key with no slot is a bug, so it panics.
 func report(measured map[string]string) []Measure {
+	for k := range measured {
+		if !slices.Contains(keys, k) {
+			panic("chart-ratchet: measured key " + k + " has no place in the print order")
+		}
+	}
 	ms := make([]Measure, len(keys))
 	for i, k := range keys {
 		v, ok := measured[k]
@@ -86,10 +92,6 @@ func report(measured map[string]string) []Measure {
 			v = na
 		}
 		ms[i] = Measure{k, v}
-		delete(measured, k)
-	}
-	for k := range measured {
-		panic("chart-ratchet: measured key " + k + " has no place in the print order")
 	}
 	return ms
 }
@@ -170,57 +172,51 @@ func measure(ctx context.Context) (map[string]string, error) {
 		}
 	}))
 
-	// Recursive descent through the oracle: the scored parses cases, and
-	// the defect-yield list's frozen cases, in one run.
-	var cases []string
-	for _, l := range listed {
-		ref := strings.Fields(l)[0]
-		c := filepath.Join(defectDir, ref+".pl")
-		if _, err := os.Stat(c); err == nil {
-			cases = append(cases, c)
-		}
-	}
+	// Recursive descent through the oracle, its default subject.
 	cache, err := parseoracle.OpenCache(oracleCacheDir(), "")
 	if err != nil {
 		return nil, err
 	}
-	rep, err := parseoracle.Run(ctx, append(append([]string{}, scored...), cases...), parseoracle.RunOptions{Cache: cache})
+	rep, err := oracle(ctx, cache, scored)
 	if err != nil {
-		return nil, fmt.Errorf("rd oracle: %w", err)
+		return nil, err
 	}
-	isCase := map[string]bool{}
-	for _, c := range cases {
-		isCase[c] = true
+	if n := rep.Measured(); n > 0 {
+		m["rd-oracle-exact"] = rate(rep.Totals[parseoracle.BucketExact], n)
+		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
 	}
-	var measuredN, exact, answered, settled int
+
+	// Settled by recursive descent: a frozen case graded exact with a marker in play.
+	var cases []string
+	for _, l := range listed {
+		c := filepath.Join(defectDir, strings.Fields(l)[0]+".pl")
+		if _, err := os.Stat(c); err == nil {
+			cases = append(cases, c)
+		}
+	}
+	if rep, err = oracle(ctx, cache, cases); err != nil {
+		return nil, err
+	}
+	m["defect-yield-rd-settled"] = strconv.Itoa(rep.VerifiedExact())
+	return m, nil
+}
+
+// oracle grades recursive descent on files, naming each runner error on stderr.
+func oracle(ctx context.Context, cache *parseoracle.Cache, files []string) (parseoracle.Report, error) {
+	rep, err := parseoracle.Run(ctx, files, parseoracle.RunOptions{Cache: cache})
+	if err != nil {
+		return rep, fmt.Errorf("rd oracle: %w", err)
+	}
 	for _, r := range rep.Files {
 		if r.Err != "" {
 			fmt.Fprintf(os.Stderr, "chart-ratchet: rd oracle runner error: %s: %s\n", r.Path, r.Err)
 		}
-		if r.Excluded || r.Err != "" {
-			continue
-		}
-		if isCase[r.Path] {
-			// Settled by recursive descent: graded exact with a marker in play.
-			if r.Verdict.Bucket == parseoracle.BucketExact && sites(r.Facts) > 0 {
-				settled++
-			}
-			continue
-		}
-		measuredN++
-		if r.Verdict.Bucket == parseoracle.BucketExact {
-			exact++
-		}
-		if r.Verdict.Bucket != parseoracle.BucketNoAnswer {
-			answered++
-		}
 	}
-	if measuredN > 0 {
-		m["rd-oracle-exact"] = strconv.FormatFloat(float64(exact)/float64(measuredN), 'f', 4, 64)
-		m["rd-oracle-coverage"] = strconv.FormatFloat(float64(answered)/float64(measuredN), 'f', 4, 64)
-	}
-	m["defect-yield-rd-settled"] = strconv.Itoa(settled)
-	return m, nil
+	return rep, nil
+}
+
+func rate(k, n int) string {
+	return strconv.FormatFloat(float64(k)/float64(n), 'f', 4, 64)
 }
 
 // oracleCacheDir is the ratchet's own oracle cache, never DefaultCacheDir:
@@ -242,21 +238,12 @@ func lines(path string) ([]string, error) {
 	defer f.Close()
 	var out []string
 	s := bufio.NewScanner(f)
-	s.Buffer(nil, 1<<20)
 	for s.Scan() {
 		if l := strings.TrimSpace(s.Text()); l != "" && !strings.HasPrefix(l, "#") {
 			out = append(out, l)
 		}
 	}
 	return out, s.Err()
-}
-
-func sites(f parseoracle.Facts) int {
-	n := 0
-	for _, lines := range f.Sites {
-		n += len(lines)
-	}
-	return n
 }
 
 func bestOf(n int, f func()) time.Duration {

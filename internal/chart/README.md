@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -47,6 +47,82 @@ each edit inside its statement and require the edited file to parse with no
 refusal. **The lists are fixed once committed.** A later step may add a list,
 but must never redraw one: `-chart.update-convergence-edits` exists only to
 write a list for the first time.
+
+## The `make chart-ratchet` output contract
+
+`make chart-ratchet` runs `cmd/ratchet`. Every later issue in the spike closes
+against it, so this section is a contract. The spec stays in `docs/plans`
+until perigrin accepts the spike.
+
+- **Line form.** `make -s chart-ratchet` prints one line per measure on
+  stdout, `chart-ratchet: <key> <value>`, and nothing else there. Diagnostics
+  go to stderr.
+- **`na`.** A key whose component has not been built prints `na`. The issue
+  that builds the component makes it a number and updates the baseline in the
+  same commit.
+- **Exit rule.** The target exits non-zero only on a regression against
+  `testdata/ratchet/baseline.txt`, never because the spike's exit is still
+  unmet. A regression names the key, the baseline and the value on stderr. A
+  measurement that cannot be taken, such as a missing `std5k.pl`, exits
+  non-zero and names what is missing, rather than printing a number.
+- **Speed** is reported and never gated, so the target stays deterministic.
+- **Keys** may be added and are never renamed. `baseline.txt` holds every key
+  the ratchet prints, one line each in the line form, reported-only keys
+  included. A key is added to it in the commit that adds the key. A key
+  printed without a baseline line, or a baseline line no key prints, is a
+  regression.
+- **Inputs.** The ratchet reads only the working tree: no commit, no
+  `refs/zhi`, no network. Defect yield reads `testdata/defect-yield.txt` and
+  `testdata/defect-yield/`, never the chain. The ratchet sets `PERL5LIB` to
+  the corpus stubs itself. Its oracle cache is its own directory,
+  `${XDG_CACHE_HOME:-$HOME/.cache}/pvm/chart-ratchet-oracle`, and never
+  `parseoracle.DefaultCacheDir`, because the cache key omits the environment.
+- **Budget.** One run takes at most 120 s on the development machine. A cold
+  cache takes about 25 s today.
+- **Mainline.** `make test` never runs the ratchet. Its CI job,
+  `.github/workflows/chart-ratchet.yml`, runs on changes under
+  `internal/chart/**` and `internal/lexer/**` and is advisory
+  (`continue-on-error: true`).
+
+The regression rules are **may not rise** for an exit count, **may not fall**
+for a corpus size or the chart's defect-yield side, and **reported only** for
+everything else. Under every rule, a number may not become `na`.
+
+| Key | Meaning | Rule |
+|---|---|---|
+| `parses-scored` | Guacamole `parses` cases less `perl-rejects.txt` | may not fall |
+| `parsent-scored` | Guacamole `parsent` cases | may not fall |
+| `parses-refused` | scored `parses` cases the chart refuses | may not rise |
+| `parses-wrong-sites` | oracle sites graded WRONG for the chart | may not rise |
+| `yield-violations` | forest yields that are not their input | may not rise |
+| `oracle-below-rd` | the chart's oracle scores below recursive descent's, 0 to 2 | may not rise |
+| `std5k-refused` | statements of `std5k.pl` the chart refuses | may not rise |
+| `parsent-accepted` | `parsent` cases the chart accepts | may not rise |
+| `rejects-disagree` | `parses` cases where `perl -c`, with the stubs, disagrees with `perl-rejects.txt` (`chart.RejectsDisagree`); stderr names each | may not rise |
+| `speed-ratio-aggregate` | chart time over `parse.Parse` time, across the corpus | reported only |
+| `speed-ratio-std5k` | the same on `std5k.pl` | reported only |
+| `set-reuse` | the share of Earley sets served by interning | reported only |
+| `convergence-edits` | edits in `testdata/convergence-edits.jsonl` | reported only |
+| `convergence-within-8` | the share of those edits converging within the statement plus 8 tokens | reported only |
+| `defect-yield-listed` | issues in `testdata/defect-yield.txt` | reported only |
+| `defect-yield-sites` | oracle sites exact for the chart and WRONG for recursive descent | reported only |
+| `defect-yield-settled` | listed issues the chart settles where recursive descent does not | may not fall |
+| `defect-yield-rd-settled` | frozen defect-yield cases recursive descent is graded exact on with a marker in play | reported only |
+| `oracle-sites-decided` | sites the chart reports decided (§7.1) | reported only |
+| `expect-states-unreproduced` | in-force `PL_expect` states the expectation classes do not reproduce | reported only |
+| `rd-oracle-exact` | recursive descent's oracle exact rate on the scored `parses` cases | reported only |
+| `rd-oracle-coverage` | recursive descent's share of those cases graded anything but no-answer | reported only |
+| `rd-parse-ms-std5k` | `parse.Parse` on `std5k.pl`, best of 5, in ms | reported only |
+| `rd-parse-ms-corpus` | `parse.Parse` over the scored `parses` cases, best of 3, in ms | reported only |
+
+Keys the later issues add, and the rule each is held to:
+`defect-yield-chart-exact` may not fall, and `lex-unmapped`, `leo-disagree`
+and `recovery-on-accepted` may not rise.
+
+To take a baseline after an intended change, run
+`go run ./internal/chart/cmd/ratchet > internal/chart/testdata/ratchet/baseline.txt`
+and review the diff. That run exits 1, because the redirect empties the
+baseline before the ratchet reads it, but its stdout is complete.
 
 ## The token cut and its rewrite list
 
