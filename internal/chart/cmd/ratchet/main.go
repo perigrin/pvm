@@ -22,6 +22,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -53,6 +54,7 @@ var keys = []string{
 	"oracle-sites-decided", "expect-states-unreproduced",
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
 	"tables-drift", "core-tpm-differences",
+	"lex-unmapped",
 }
 
 func main() {
@@ -192,6 +194,27 @@ func measure(ctx context.Context) (map[string]string, error) {
 			parse.Parse(s)
 		}
 	}))
+
+	// lex-unmapped: files whose up-front stream has a token no predicate
+	// admits, or does not concatenate back to the source.
+	x, err := lex.Guacamole(grammarSLIF)
+	if err != nil {
+		return nil, fmt.Errorf("lex-unmapped: %w", err)
+	}
+	unmapped := 0
+	for i, src := range append([][]byte{std5k}, srcs...) {
+		name := std5kFile
+		if i > 0 {
+			name = scored[i-1]
+		}
+		if _, err := x.Lex(src); err != nil {
+			unmapped++
+			for _, line := range strings.Split(err.Error(), "\n") {
+				fmt.Fprintf(os.Stderr, "chart-ratchet: lex-unmapped: %s: %s\n", name, line)
+			}
+		}
+	}
+	m["lex-unmapped"] = strconv.Itoa(unmapped)
 
 	// Recursive descent through the oracle, its default subject.
 	dir, err := oracleCacheDir(stubs)
