@@ -37,7 +37,8 @@ checkout afterwards. `TestGuacamoleCasesUnique` and
 `testdata/convergence-edits.jsonl` holds the 200 single-statement edits to
 `testdata/std5k.pl` that §8 fixes before the first step.
 `testdata/convergence-edits-guacamole.jsonl` holds the same kind of edits to
-the corpus's one multi-statement `parses` case. Each line is one edit:
+the corpus's three multi-statement `parses` cases, those with at least two
+editable statements after the preamble. Each line is one edit:
 `offset`, `removed` and `inserted` bytes, and the statement span
 `stmt_start`..`stmt_end` it lies in. The corpus list also names its `case`.
 `drawEdits` draws both lists with a fixed seed, over recursive descent's

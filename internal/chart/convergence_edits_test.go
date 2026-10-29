@@ -337,9 +337,18 @@ var (
 	convergenceCorpusPath = filepath.Join("testdata", "convergence-edits-guacamole.jsonl")
 )
 
+// multiStatementCasesRecorded are the multi-statement cases, in file-name
+// order, as recorded in the milestone.
+var multiStatementCasesRecorded = []string{
+	"Statements-Block-007.pl",
+	"Statements-Ellipsis-005.pl",
+	"bugs-rt_132920_regex_subset-001.pl",
+}
+
 // multiStatementCases returns the perl-accepted parses cases, by bare file
-// name, whose recursive-descent tree holds more than one top-level statement
-// after the preamble, with each case's bytes and tree.
+// name, that hold more than one editable statement after the preamble (the
+// draw's own unit, so the count and the draw share one rule), with each
+// case's bytes and tree.
 func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, roots map[string]*parse.Node, preambleLen int) {
 	t.Helper()
 	preamble, err := os.ReadFile(guacamolePreamblePath)
@@ -369,13 +378,7 @@ func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, 
 			t.Fatal(err)
 		}
 		root := parse.Parse(src)
-		top := 0
-		for _, c := range root.Children {
-			if c.Kind == parse.Statement && c.Start >= len(preamble) {
-				top++
-			}
-		}
-		if top > 1 {
+		if len(editableStatements(root, src, len(preamble))) > 1 {
 			names = append(names, name)
 			srcs[name], roots[name] = src, root
 		}
@@ -389,10 +392,16 @@ func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, 
 // and is held to the same guard.
 func TestConvergenceCorpusEditsWhereNeeded(t *testing.T) {
 	names, srcs, roots, preambleLen := multiStatementCases(t)
-	t.Logf("%d perl-accepted parses case(s) hold more than one statement: %v", len(names), names)
+	t.Logf("%d perl-accepted parses case(s) hold more than one editable statement: %v", len(names), names)
+	// The count recorded under chart-waypoint's ## Records; a corpus or
+	// parser change that moves it must be recorded there, not absorbed.
+	if !slices.Equal(names, multiStatementCasesRecorded) {
+		t.Errorf("multi-statement parses cases are %d %v, want the %d recorded %v",
+			len(names), names, len(multiStatementCasesRecorded), multiStatementCasesRecorded)
+	}
 	if len(names) == 0 {
 		if _, err := os.Stat(convergenceCorpusPath); !os.IsNotExist(err) {
-			t.Fatalf("no parses case holds more than one statement, so %s should not exist (stat: %v)", convergenceCorpusPath, err)
+			t.Fatalf("no parses case holds more than one editable statement, so %s should not exist (stat: %v)", convergenceCorpusPath, err)
 		}
 		return
 	}
