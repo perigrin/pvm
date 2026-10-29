@@ -6,6 +6,7 @@ package lex
 import (
 	"bytes"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -120,6 +121,35 @@ func TestArrayTopSplit(t *testing.T) {
 	}
 	if got := s.Text(src); !bytes.Equal(got, src) {
 		t.Errorf("stream is %q, want the source", got)
+	}
+}
+
+// TestArrayTopNeedsFileState: a `$#{` interior is re-lexed from a blank
+// state, so where the file's state could differ from blank before it the
+// file is refused, naming the `$#{`, rather than lexed. perl reads the probe's
+// `/2/` as two divisions, because N is a constant; a blank re-lex reads a
+// pattern (gate review of #541, F1).
+func TestArrayTopNeedsFileState(t *testing.T) {
+	x := guacamole(t)
+	for _, src := range []string{
+		"use constant N => 2; my @n = $#{ [ N /2/ 1 ] };",
+		"sub N () { 2 } $#{$r};",
+		"use utf8; $#{$r};",
+		"use feature 'say'; $#{$r};",
+		"no feature 'say'; $#{$r};",
+		"use v5.36; $#{$r};",
+		"use 5.036; $#{$r};",
+		"no 5.036; $#{$r};",
+	} {
+		_, err := x.Lex([]byte(src))
+		at := "byte " + strconv.Itoa(strings.Index(src, "$#{"))
+		if err == nil || !strings.Contains(err.Error(), at) || !strings.Contains(err.Error(), "needs the lexer's file state (01a1882d-d8a4)") {
+			t.Errorf("%q: got %v, want a refusal at %s naming 01a1882d-d8a4", src, err, at)
+		}
+	}
+	// A `use` that changes no lexer state does not refuse.
+	if _, err := x.Lex([]byte("use strict; $#{$r};")); err != nil {
+		t.Errorf("use strict before $#{: %v", err)
 	}
 }
 

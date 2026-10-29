@@ -5,6 +5,9 @@ internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-Literal-03
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-Literal-038.pl 01a18582-65bf
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-Literal-039.pl 01a18582-65bf
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-Literal-040.pl 01a18582-65bf
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DerefVariable-005.pl 01a1882d-d8a4
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DerefVariable-010.pl 01a1882d-d8a4
+internal/chart/testdata/guacamole/parses/Statements-Expressions-variable-003.pl 01a1882d-d8a4
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-005.pl 01a18582-65d3
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-006.pl 01a18582-65d3
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-007.pl 01a18582-65d3

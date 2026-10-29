@@ -33,23 +33,33 @@ func TestDeclaredSubLater(t *testing.T) {
 // TestConstantSubAsTheLexerDecides: each form the production lexer reads as
 // a constant sub is one here, and the lexer's own decision follows: after the
 // name it expects an operator, so `/ 2` is division and not a pattern.
+//
+// The facts come from the production lexer's own tokens, before the `$#{`
+// split: the split's `}` would close the `{` of `use constant {` early and
+// lose B (gate review of #541, F2). That file is refused for its `$#{`
+// interior (F1), and its facts still hold.
 func TestConstantSubAsTheLexerDecides(t *testing.T) {
 	x := guacamole(t)
-	for _, decl := range []string{"sub PI () { 3 }", "use constant PI => 3;", "use constant { PI => 3, E => 2 };"} {
-		src := decl + " my $r = PI / 2; # /"
+	for _, c := range []struct{ decl, name string }{
+		{"sub PI () { 3 }", "PI"},
+		{"use constant PI => 3;", "PI"},
+		{"use constant { PI => 3, E => 2 };", "PI"},
+		{"use constant { A => $#{$r}, B => 2 };", "B"},
+	} {
+		src := c.decl + " my $q = " + c.name + " / 2; # /"
 		s, err := x.Lex([]byte(src))
-		if err != nil {
-			t.Errorf("%s: %v", decl, err)
+		if err != nil && !strings.Contains(err.Error(), "01a1882d-d8a4") {
+			t.Errorf("%s: %v", c.decl, err)
 			continue
 		}
-		at := strings.LastIndex(src, "PI")
-		if !s.Facts.Constant("PI", at) {
-			t.Errorf("%s: PI is not a constant sub at byte %d", decl, at)
+		at := strings.LastIndex(src, c.name)
+		if !s.Facts.Constant(c.name, at) {
+			t.Errorf("%s: %s is not a constant sub at byte %d", c.decl, c.name, at)
 		}
 		slash := strings.Index(src[at:], "/") + at
 		for _, tok := range s.Tokens {
 			if tok.Start == slash && tok.Kind != lexer.Operator {
-				t.Errorf("%s: the lexer read `/` after PI as %v; the fact disagrees with it", decl, tok.Kind)
+				t.Errorf("%s: the lexer read `/` after %s as %v; the fact disagrees with it", c.decl, c.name, tok.Kind)
 			}
 		}
 	}

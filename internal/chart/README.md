@@ -134,10 +134,18 @@ Keys the later issues add, and the rule each is held to:
 
 `lex-unmapped`'s baseline is not 0. Twelve scored cases that perl accepts are
 lexed wrongly by the production lexer, which this milestone may not change.
-`testdata/lex-unmapped-known.txt` lists each, one per line as `<file> <lexer
-issue>`, and the count equals its lines. The lexer issues are mainline work.
-As each lands, its files leave the list and the baseline falls with them.
-`std5k.pl` is never listed.
+Three more are refused because `chart/lex` re-lexes a `$#{` interior from a
+blank lexer state. Where the file's state could differ from blank before the
+`$#{`, `chart/lex` refuses rather than guess: after a constant sub, `use
+utf8`, `use` or `no feature`, or a `use` or `no` of a version. Every corpus
+case's preamble is a `use feature`, so every corpus `$#{` is refused until
+01a1882d-d8a4 lets the production lexer lex the interior in place.
+
+`testdata/lex-unmapped-known.txt` lists each unmapped file, one per line as
+`<file> <lexer issue>`. The ratchet holds the failing files to that list as a
+set, and names any file that fails unlisted, or is listed and no longer fails,
+as a regression. The lexer issues are mainline work. As each lands, its files
+leave the list and the baseline falls with them. `std5k.pl` is never listed.
 
 To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > internal/chart/testdata/ratchet/baseline.txt`

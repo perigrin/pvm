@@ -103,10 +103,21 @@ func Guacamole(slif string) (*Lexer, error) {
 // offset of every token no predicate admits, and of any byte the stream
 // fails to cover; the stream is returned whole either way.
 func (x *Lexer) Lex(src []byte) (*Stream, error) {
-	s := &Stream{}
+	raw := lexer.TokenizeBarewords(src, BarewordOperators)
+	// The facts come from the lexer's own tokens: the split's `}` would
+	// close a `use constant {` early.
+	s := &Stream{Facts: facts(src, raw)}
 	var errs []error
+	refused := map[int]bool{}
+	from := fileStateFrom(src, raw, s.Facts)
+	for _, t := range raw {
+		if isArrayTop(src, t) && t.Start >= from {
+			refused[t.Start] = true
+			errs = append(errs, fmt.Errorf("byte %d: `$#{` interior needs the lexer's file state (01a1882d-d8a4)", t.Start))
+		}
+	}
 	var lead []lexer.Token
-	for _, t := range splitArrayTop(src, lexer.TokenizeBarewords(src, BarewordOperators)) {
+	for _, t := range splitArrayTop(src, raw, refused) {
 		if x.trivia[t.Kind] {
 			lead = append(lead, t)
 			continue
@@ -119,7 +130,7 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 				tok.Terminals = append(tok.Terminals, term.name)
 			}
 		}
-		if tok.Terminals == nil {
+		if tok.Terminals == nil && !refused[t.Start] {
 			errs = append(errs, fmt.Errorf("byte %d: %s token %q maps to no predicate", t.Start, t.Kind, text))
 		}
 		s.Tokens = append(s.Tokens, tok)
@@ -128,7 +139,6 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 	if err := s.covers(len(src)); err != nil {
 		errs = append(errs, err)
 	}
-	s.Facts = facts(src, s.all())
 	return s, errors.Join(errs...)
 }
 
@@ -151,11 +161,11 @@ func (s *Stream) covers(n int) error {
 // (Guacamole's SigilArrayTop BlockNonEmpty): a Variable `$#{`, the interior
 // re-lexed by the production lexer with its offsets in the file, and the
 // closing `}` as the production lexer's CloseBracket. An unterminated one has
-// no closer.
-func splitArrayTop(src []byte, toks []lexer.Token) []lexer.Token {
+// no closer. One whose start is refused stays whole, and unmapped.
+func splitArrayTop(src []byte, toks []lexer.Token, refused map[int]bool) []lexer.Token {
 	var out []lexer.Token
 	for _, t := range toks {
-		if t.Kind != lexer.Variable || !bytes.HasPrefix(src[t.Start:t.End], []byte("$#{")) {
+		if !isArrayTop(src, t) || refused[t.Start] {
 			out = append(out, t)
 			continue
 		}
@@ -170,10 +180,44 @@ func splitArrayTop(src []byte, toks []lexer.Token) []lexer.Token {
 			inner[i].Start += open
 			inner[i].End += open
 		}
-		out = append(out, splitArrayTop(src, inner)...)
+		out = append(out, splitArrayTop(src, inner, refused)...)
 		if closed {
 			out = append(out, lexer.Token{Kind: lexer.CloseBracket, Start: end, End: t.End})
 		}
 	}
 	return out
+}
+
+func isArrayTop(src []byte, t lexer.Token) bool {
+	return t.Kind == lexer.Variable && bytes.HasPrefix(src[t.Start:t.End], []byte("$#{"))
+}
+
+// fileStateFrom is the first byte from which the lexer's file state could
+// differ from the blank state a `$#{` interior is re-lexed in: a constant
+// sub's declaration, or the name after a `use utf8`, a `use` or `no` of
+// feature, or a `use` or `no` of a version. len(src) if none appears.
+//
+// shortcut: refuses rather than re-lexing in the file's state, until
+// 01a1882d-d8a4 lets the production lexer lex the interior in place.
+func fileStateFrom(src []byte, raw []lexer.Token, c *Context) int {
+	from := len(src)
+	for _, off := range c.constant {
+		from = min(from, off)
+	}
+	pragma := ""
+	for _, t := range raw {
+		if lexer.IsTrivia(t.Kind) {
+			continue
+		}
+		text := string(src[t.Start:t.End])
+		version := t.Kind == lexer.Number || len(text) > 1 && text[0] == 'v' && text[1] >= '0' && text[1] <= '9'
+		if pragma == "use" && text == "utf8" || pragma != "" && (text == "feature" || version) {
+			from = min(from, t.Start)
+		}
+		pragma = ""
+		if t.Kind == lexer.Word && (text == "use" || text == "no") {
+			pragma = text
+		}
+	}
+	return from
 }
