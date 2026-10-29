@@ -1,14 +1,16 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart-parser research spike design. -->
-<!-- ABOUTME: Covers rounds 1 and 2: declared outcomes, rulings, the findings ledger, clusters, and what was not checked. -->
+<!-- ABOUTME: Covers rounds 1 to 3: declared outcomes, rulings, the findings ledger, clusters, and what was not checked. -->
 
 # Assessment: chart-parser research spike design
 
 **Subject:** `docs/plans/2026-10-29-chart-parser-design.md`
-**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a. Branch `design/chart-parser-spike`.
+**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165). Branch `design/chart-parser-spike`.
 **Author:** the orchestrating AI session. **Decision-maker:** perigrin.
 **Drafter:** a recording role that holds no view. It raises no finding.
 
-Section references in round-1 rows use 4ec0955a's numbering. R1 renumbered the phases at 47951e0a: phase 2 is now the early measures, phase 3 the M4–M6 probes, and phase 4 full parity.
+Section and phase references in each row use the numbering of the revision that row was raised against.
+- At 47951e0a, R1 renumbered the phases: phase 2 became the early measures, phase 3 the M4–M6 probes, and phase 4 full parity.
+- At b5b10428, the round-2 response renumbered them again: 0 measure, 1 Standard Perl, 2 probes, 3 parity, 4 incremental.
 
 ## Outcome of round 1
 
@@ -62,7 +64,11 @@ Section references in round-1 rows use 4ec0955a's numbering. R1 renumbered the p
 
 ## Rulings
 
-As recorded in the author's round-1 response. The response says perigrin "ruled on five questions on 2026-10-29" and lists six, R1–R6.
+Rulings are perigrin's, as recorded or relayed by the author. They are not findings and they release nothing. Only the raiser of a finding can release it.
+
+The round-1 response says perigrin "ruled on five questions on 2026-10-29", but it lists six rulings. All six are recorded here.
+
+### From the round-1 response (R1–R6)
 
 - **R1, phase order.** After phase 1: early measures (phase 2) and the M4–M6 probes (phase 3). Full parity (phase 4) runs only if both verdicts are positive.
 - **R2, seed.** Guacamole v0.008's grammar directly, not Chalk's perl.bnf@00399607.
@@ -70,6 +76,20 @@ As recorded in the author's round-1 response. The response says perigrin "ruled 
 - **R4, lexer.** Refactor `internal/lexer` so scanners take their expectation as a parameter. This is mainline work.
 - **R5, notation.** The subset of Marpa SLIF that Guacamole uses replaces Chalk's notation. Guacamole has no SLIF prioritised (`||`) rules; its two `||` occurrences are lexeme strings.
 - **R6, labels.** `parsent` means "not Standard Perl", so its labels are correct by definition. Only a `parses` case perl rejects is an erratum.
+
+### From the round-2 response (R7–R10, 2026-10-29)
+
+- **R7, probes.** Each phase-2 probe builds the Standard-Perl exclusions it needs, charged to that probe. The milestone-corpus head-to-head moves to phase 3 (parity). The response gives this as its answer to A16, C-N1 and D3.
+- **R8, verdicts.** A positive M4–M6 verdict alone unlocks parity. A negative incremental verdict means M2 keeps its snapshot design and phase 4 is skipped. The response gives this as its answer to D6.
+- **R9, phase 0.** A cheap phase 0 measures first: recognition only, over Guacamole's G1, on tokens from today's production lexer. The lexer refactor (R4) and interleaved lexing come in phase 1, only if phase 0 passes. The response gives this as its answer to B-N3, D1, A17 and D19.
+- **R10, token cut.** G1 rules below pvm's token level are collapsed into token predicates, listed and reviewed. The response gives this as its answer to B-N2 and B12.
+
+### After round 3 (R11–R12, 2026-10-29)
+
+perigrin made these after round 3 was complete. They are given in his words as relayed by the author. They were made after the round, so no participant assessed them in it.
+
+- **R11.** Standard Perl stays only as an interstitial state, the first waypoint. The spike is one ratchet towards parity, with speed measured at every step. The speed kill: the aggregate chart-to-recursive-descent ratio, end to end, on every file both parsers accept, above 3× at any ratchet step. The trend is recorded throughout.
+- **R12.** Ratchet steps are the probes. Each step is costed on both parsers. M4–M6 cases are scheduled as early steps. The verdicts are read off step costs, with a checkpoint after the first M4–M6 steps.
 
 ## Outcome of round 2
 
@@ -123,6 +143,62 @@ As recorded in the author's round-1 response. The response says perigrin "ruled 
 ### Round outcome
 
 **Another round owed.** Blocks are held by A, B, C and D.
+
+## Outcome of round 3
+
+### Recommendations, as declared
+
+- **A: modify, narrowly.** "Round 2 left three blocks: A2, A7 and A16. All three are now met." The revision opens one new block, A21. "The rest is stand-asides."
+- **B: modify.** "The rejoin rule, the up-front driver and the collapse itself now hold." The revision introduced two problems: the phase-0 fixed input is not Standard Perl (B-N11, block), and the token cut drops Guacamole's lexeme priorities (B-N10, stand-aside "but it must land before phase 0").
+- **C: modify.** "Most of round 2 has landed." Three blocks remain or are new: F2, C-N10 and C-N11.
+- **D: modify.** "14 of my 20 rows are released." Three blocks stand in narrower form (D4, D5, D1) and the revision introduced one more (D-N1). "Each needs a paragraph of edits. None changes the spike's direction."
+- **E: modify.** "The question is worth asking, and most of the document's references hold up." Two parts cannot do their jobs as written: the arbiter (§7.4) and phase 0. "All of these can be fixed inside the current shape."
+
+### Blocks held, as declared
+
+| participant | blocks |
+|---|---|
+| A | A21 |
+| B | B-N11 |
+| C | F2 (held, changed form), C-N10, C-N11 |
+| D | D1 (re-raised, narrowed), D4 (re-raised), D5 (re-raised), D-N1 |
+| E | E1, E2, E3, E4, E5, E6 |
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A22 | Add a re-time of the full cold parse at phase 1's gate, against the same 3×. |
+| A23 | One line in the token-cut list. |
+| A24 | Drop the parenthesis or replace it with "new: Deparse of canon against Deparse of source". |
+| A25 | Harmless now. The counts should stand on their own procedure. |
+| B-N7 (re-raised) | Count over a fixed unit, e.g. the product of readings over all packed nodes inside one statement node. |
+| B-N8 | Implementing issue. |
+| B-N9 | No further grounds given. |
+| B-N10 | Stand-aside, but it must land in the cut's list before phase 0. |
+| B-N12 | No further grounds given. |
+| C-N12 | State that a positive incremental verdict without a positive M4–M6 verdict ends at the recommendation. |
+| C-N13 | perigrin may accept the tilt. If so, say it; otherwise report probe cost with and without the feature-building share. |
+| C-N14 | Say "after optimising the named hot spots, re-timed". |
+| C-N15 | Restore a hard cap that collapses to an Error node, independent of decidability. |
+| C-N16 | No further grounds given. |
+| C-N17 | Say where the code lives, and that `make test-chart` runs on any change under `internal/lexer`. |
+| D3 (residue) | Released. The residual bias needs no action: it is conservative, and perigrin ruled it. |
+| D14 (re-raised) | Recount 68/N on the phase-1 corpus as defined, or drop the number and keep the argument. |
+| D-N2 | "Stubs declare a `$VERSION` satisfying every request." |
+| D-N3 | State that phase 4 requires phase 3, or give phase 4 a Standard-Perl corpus. |
+| D-N4 | Belongs to the implementing issue for the token cut. |
+| E7 | Add error recovery to phase 1 Build. |
+| E8 | Matters at phase 3. |
+| E9, E12, E15, E16, E17 | No further grounds given. |
+| E10 | Partly an implementing issue. |
+| E11 | Reword rule 3 to admit perl's deterministic lexer heuristics. |
+| E13 | Implementing issue. List it as a third isolation exception. |
+| E14 | Implementing issue. |
+
+### Round outcome
+
+**Another round owed.** Blocks are held by A, B, C, D and E. Rulings R11 and R12 came after this round, and no participant has assessed them.
 
 ## Ledger
 
@@ -220,6 +296,109 @@ Round-1 status uses the participant's round-1 word. Round-2 status uses the rais
 | D19 | D | 2 | §8 overall | The first evaluable kill (speed, phase 2) comes after phase 1, the largest phase (grammar reader and generator, production lexer refactor, recognizer, forest, compare, oracle adapter, Deparse arbiter, parity on about 768 cases). A recognizer-only speed and set-reuse measurement over Guacamole's grammar on today's tokens could come first. See also A17, B-N3, C-N5, D1. | The most expensive work, including a production change, is spent before any kill signal. | Inferred from §8 Build lists and §9. | open, stand-aside | 47951e0a |
 | D20 | D | 2 | §8 Budgets | "A phase open beyond twice its budget forces a decision" names no owner and no check, and the issue-count half has no clock. See also F7. | An obligation nobody will check. | Read §8 Budgets. | open, stand-aside | 47951e0a |
 
+### Round-3 status of rows open at 47951e0a
+
+Each status is in the raiser's own word, with its reason, as declared at b5b10428. Rows released in round 1 or round 2 are not repeated here.
+
+| id | raiser | round-3 status | reason given |
+|---|---|---|---|
+| A2 | A | **released** (with it, A1's asserted-reading half) | §7.4 compares Deparse of RD's canon with Deparse of the source, with at most 10% undecided as a §9 kill row. A re-ran it over the 730 snippets: 722 equal, 1 differs (`$# { $foo->{'bar'} }`), 7 canons fail to compile (`1e_+_1`, `1e_+__1`, `07p-2`, `0xfp-1`, `0x_ap+2`, `0xap+2_`, `while () {}` → `while (){}})`), so 8/730 (1.1%) are undecidable. Phase-3 rates are unmeasured. Remaining error: "pvm's existing Faithful check" is wrong (A24). See also D4, C-N10, E1–E3. |
+| A4 | A | **released** | Stubs on `@INC`; errata excluded per 07 §7.5.2. Re-run: bare stubs make 20 of 38 compile, and the other 18 need an `our $VERSION` set high enough. That is an implementation detail for the corpus issue. See also D-N2. |
+| A6 | A | **released** | Shapes come from G1's per-keyword rules; CORE.tpm is a reviewed cross-check; the generator's import of `internal/parse` is stated. See also E13. |
+| A7 | A | **released** | §5 rejoins only on equal byte offset and full lexer state, citing `resyncsAt`/`State.Equal`, with the `foo <<EOF;` test in §10 and no transition cache inside a branch. Not re-run, since no lattice exists. The rule applies only where a lexer can branch (A21). |
+| B1 | B | **released** via B-N1 | See B-N1. |
+| B10 | B | **re-raised (stand-aside)** via B-N7 | See B-N7. |
+| B12 | B | **released for the collapse; re-raised as B-N10 for predicate overlap**, via B-N2 | See B-N2. |
+| F2 | C | **held, changed form (block)** | `edit5k-standard.pl` rewrites only heredocs. Guacamole `lib/standard.pm:88-100` bans auto-quoting, and edit5k.pl has 281 lines with a bareword before `=>` (e.g. l.13-16) and 350 with a `{bareword}` subscript (e.g. l.22), so G1 refuses it at line 13. Secondary: edit5k.pl is generated ("do not edit by hand"), so a hand copy drifts. Bar: the whole file made Standard Perl (or generated as a variant), with phase 0's recognizer accepting it before timing counts. See also D5, E4, B-N11, A23. |
+| F4 | C | **released** | §7.4 caps undecided at 10% of all disagreements, with a §9 row: direction and cap. Released against C's own bar; it misfires with the arbiter's asymmetry (C-N10). |
+| F7 | C | **released** | The calendar governs, "continue" records a new budget and re-arms, checked at every issue close. Released against C's own bar. |
+| F9 | C | **released** | Phase 0: fewer than 80% of 200 edits converging within the statement plus 8 tokens. Hot-spot clause close to C's wording; residue C-N14; the mode is C-N11. See also E12. |
+| A16 | A | **released** | Head-to-heads run in phase 3 "once the chart parses those files"; phase-2 probes build the features they need, charged to the probe. |
+| A17 | A | **released**, but superseded by A21 | Up front uses the production lexer with no refactor; the refactor comes only if phase 0 keeps interleaving viable. |
+| A18 | A | **released** | `edit5k-standard.pl` is fixed, with RD timed on the same file. A's re-run: heredocs are the only part G1 lacks a rule for. POD is under A23. (C, D, E and B hold that auto-quoting is also excluded: F2, D5, E4, B-N11.) |
+| A19 | A | **released** | §12: 14 places. (E15 counts 18.) |
+| A20 | A | **released** | §5 compare: a trivia attachment rule is part of the normalisation fixed before phase 1. |
+| B-N1 | B | **released** | `State` is the whole lexer minus cursor and output, so `pending`, `brackets`, `expect`, `pendingFormat`, declared names and carries all take part in `Equal` (checkpoint.go); `resyncsAt` also requires `peekEnd <= pos`. Side effects in B-N8, B-N9. |
+| B-N2 | B | **released for the collapse; re-raised as B-N10 for predicate overlap** | `collapse.py` leaves no sub-token lexemes; `1 2`, `$x $y`, `$x = 1 $y = 2` give 0 derivations, and a further ten inputs give exactly 1. This is B's own reading of the cut. |
+| B-N3 | B | **released** | §5: up front means the production `expect` machine, no classes; §1's property is assigned to interleaved mode only. Knock-on in B-N12. |
+| B-N4 | B | **released** | "Lookahead 0 and no cache inside a branch" is stated; the lattice-edge walk is accepted as the implementing issue's. |
+| B-N5 | B | **released** | "Lower set reuse by construction"; phase 0 re-measures. |
+| B-N6 | B | **released**, with a sibling in B-N9 | `{` removed, for the right reason; `<<` fails the same test. |
+| B-N7 | B | **re-raised (stand-aside)**, against B's own suggestion | "Stopping at nested packed nodes" counts one node's local fan-out, so 2^10 needs over 1024 packed children; the kill has gone from over-sensitive to blind. Count over a fixed unit, e.g. one statement node. See also C-N15. |
+| C-N1 | C | **released** | Evidence 3 is "phase 3, once the chart parses those files". |
+| C-N2 | C | **released** | Phase 4 defines (a), (b), (c) inline. |
+| C-N3 | C | **released** | §2 asks "Is an Earley chart parser worth taking to parity". |
+| C-N4 | C | **released** | "A fired kill ends the spike unless perigrin records an override and its reason." |
+| C-N5 | C | **released** | The refactor counts in phase 1's budget, is done only if phase 0 passes, and is kept only on its own merits. |
+| C-N6 | C | **released** | Rule 3 now says facts obtainable only by running code stay ambiguous. Side effect on §9's forest row: C-N15. |
+| C-N7 | C | **released** | Every case has a disposition. Note for the implementing issue: a stub with no prototypes or exports can change perl's own parse. |
+| C-N8 | C | **released** | §7.1: "at or above recursive descent's measured score on the same corpus". |
+| C-N9 | C | **released** | The phase-1 gate and §9 both count states. |
+| D1 | D | **re-raised (narrowed), block** | The circularity is gone, but phase 1 builds interleaved `chart/lex` only "if phase 0 kept interleaving viable", and phase 0 has no viability criterion; it never runs recognition at lookahead 0 with Leo on G1. Fix: run that on `edit5k-standard.pl` under the same 3× bar as the viability test, and name it in §5. See also C-N11, E6, B-N12, D-N1. |
+| D2 | D | **released** | Perl-rejected cases are excluded from scoring per 07 §7.5.2. Re-run: with stubs defining `$VERSION = 999`, exactly 23 of 769 unique (23 of 791) are rejected. See D-N2. |
+| D3 | D | **released** | R7 makes the verdict evaluable. Residual bias, stand-aside with no action required: a chart probe pays the whole feature while a closed RD issue pays only its PR; and "no Perl construct justifies" is a weak hack test. See also C-N13, E17. |
+| D4 | D | **re-raised, block** | (a) False about pvm: `parse.Faithful` (`internal/parse/fidelity.go:45`) compares tokens and never invokes perl; no production code in `internal/parse` or `internal/parseoracle` runs Deparse. (b) Circular: where canon is token-equal to the source, the two Deparse outputs are trivially equal, so the arbiter decides for RD wherever RD is Faithful (347/347 M3 files). D ran `parse.Faithful` and got true for `my $y = ${$h->{k}};` (cited as a known one-childless-leaf defect, issue 01a0ad52) and for `my $y = 1 + 2 * 3;`. The arbiter decides on literal snippets by textual identity, so the 10% ceiling is easy. Fix: compare Deparse,-p of the source with a fully parenthesised emission of each tree, or Concise op shapes, not resting on Faithful; update phase-1 Build, §9's undecided row, and §10's arbiter test. See also A24, C-N10, E1, E2, E3. **Author's note (not a release; only D can release D4):** on origin/pu ad7faf79, recursive descent parses `${$h->{k}}` as `unary` over `index($h, k)`, and issue 01a0ad52, which described the leaf, is closed (done). |
+| D5 | D | **re-raised, block** | Heredocs are not edit5k.pl's only exclusion: about 350 bareword `{key}` subscripts and about 281 `word =>` pairs, which `standard.pm` forbids. It is also generated ("do not edit by hand"). Fix: rewrite under named rules with an acceptance test (Guacamole's grammar or the phase-0 recognizer accepts it), preferably generated behind a flag; update §9's Speed row and phase 0's convergence corpus. See also F2, E4, B-N11, A23. |
+| D6 | D | **released (block); residue is D-N3** | R8: a positive M4–M6 verdict alone unlocks phase 3. |
+| D7 | D | **released** | The generator may import `internal/parse` at `go generate` time. See also E13. |
+| D8 | D | **released** | Shapes from G1's per-keyword rules; CORE.tpm a reviewed cross-check. |
+| D9 | D | **released** | Rule 6 scoped to ordering readings; lexeme priority restated as a deterministic tiebreak. See also B-N10. |
+| D10 | D | **released** | Rule 3 now admits facts obtainable only by execution. See also E11. |
+| D11 | D | **released** | §2: "no result here establishes M2's latency gate"; phase 4 reports the parse share. |
+| D12 | D | **released** | Lattice nodes carry full lexer state; `checkpoint.go:102` uses `reflect.DeepEqual` over the cloned lexer. See also B-N8. |
+| D13 | D | **released** | 14 writes, re-verified. (E15 counts 18.) |
+| D14 | D | **re-raised, stand-aside** | 730 is 791 minus 61 rejections without stubs; under the revision's own stub rule the count is 768 with repeats or 746 unique, so 68 is measured on a corpus the doc no longer uses. "Participant A's count" should not be cited in the design. See also E9, A25. |
+| D15 | D | **released** | §5 labels the probe a toy and phase 0 re-measures, acceptable given D1's fix. |
+| D16 | D | **released** | Numeric threshold. Residue for the implementing issue: how the 200 edits are drawn. See also E12. |
+| D17 | D | **released** | The silent-misparse kill fires on an observed fix; class rows count states. Under D4 as written, the arbiter signal is biased toward RD. |
+| D18 | D | **released** | `chart` build tag, `make test-chart`, generation through a Makefile target. See also C-N17, E14. |
+| D19 | D | **released** | Phase 0 comes first. See D-N1 for what it no longer covers. |
+| D20 | D | **released** | The calendar governs, checked at every issue close, re-armed on continue. |
+
+### Round-3 findings
+
+| id | raiser | round | section of the subject | finding | consequence if it ships | evidence | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| A21 | A | 3 | §5 chart/lex "Two modes", "Ties"; §8 phase 1 Build; rule 3 | Up-front mode cannot emit token branches: it is the production lexer, a single linear machine that picks term for `foo / 2` and hedges ("That one stays a hedge"). Branches, the lattice and the rejoin rule exist only in interleaved mode, yet phase 1 lists "one token-branch case" whatever phase 0 decides. If phase 0 picks up front, rule 3's lexical conditions disappear and the chart inherits the production lexer's guesses. See also E6, C-N11, D1, A7. | Phase 2's lexical probes (named unary vs list operator with unknown prototype, `sort $coderef @list`) are measured on a chart that can't represent their ambiguity, so the M4–M6 verdict is about a weaker design than §3 describes. | Read subject §5; `internal/lexer/expect.go` `case Word`; `internal/lexer/lexer.go` `tokenize` (one `l.step(scanOne)` loop, one state). | open, block | b5b10428 |
+| A22 | A | 3 | §8 Fixed inputs, Phase 0 gate | The speed kill only ever measures recognition: the chart's "cold parse" is defined as lexing, recognition and forest construction, but the only speed gate is phase 0's "recognition alone above 3×"; forest construction and interleaved lexing are never gated, and §9 cites phase 0 only. See also D-N1, E5, C-N11. | A chart that recognizes at 2× but parses at 5× passes every gate to phase 3. | Read §8 "Fixed inputs", phase 0 gate, §9 Speed row. | open, stand-aside | b5b10428 |
+| A23 | A | 3 | §5 "The token cut" | pvm emits `Pod`, `DataSection` and `FormatBody` tokens; G1 has no rule for them and `:discard` covers only whitespace and `#` comments. `edit5k-standard.pl` keeps edit5k.pl's 70 POD blocks. The cut must declare these kinds trivia. See also F2, D5, E4, B-N11. | Phase 0's fixed input fails on its first POD block, or is rewritten again unrecorded. | `grep -c "^=" internal/psc/testdata/latency/edit5k.pl` → 140; Guacamole.pm:1871–1875. | open, stand-aside | b5b10428 |
+| A24 | A | 3 | §7.4 "(pvm's existing Faithful check)" | Misattributed: `Faithful` is a token comparison of canon against source ("forgives exactly two differences") and never runs perl; the conformance plan's description of `TestCanonFidelityRatchet` as Deparse-based is stale. `Faithful` = true on 6 snippets (e.g. `0xfp-1`, tokenized as `0xfp - 1`) where Deparse shows RD's tree is wrong. Byproduct: 7 RD defects to file. See also D4, E3. | A reader reuses `Faithful` as the arbiter, which then passes the wrong trees it exists to catch. | `r3/faithful.txt`, `r3/arb.txt`; `internal/parse/fidelity.go` `Faithful`; `fidelity_test.go` `TestCanonFidelityRatchet`. | open, stand-aside | b5b10428 |
+| A25 | A | 3 | §7.1 "participant A's count"; §10 "the round-1 ambiguity probes" | Review residue in a live design: the counts should stand on their own reproducible procedure. See also E16, D14, E9. | Harmless now; the design will be read without the minute, and these phrases point into an archive the reader lacks. | Subject lines 269 and 418. | open, stand-aside | b5b10428 |
+| B-N8 | B | 3 | §5 Input model, rejoin on `State.Equal` | `State` includes the production `expect` machine; in interleaved mode expectation should come from the Earley set, so two paths perl's grammar would merge can differ in `expect`, never rejoin, and be refused at the length bound. Sound, but costs coverage. Drop `expect` from the compared state, or measure how often the bound refuses. See also D12, B-N1. | Avoidable refusals on branch cases. | Read checkpoint.go: `State` is the whole lexer, `expect` included. | open, stand-aside | b5b10428 |
+| B-N9 | B | 3 | §5 conflict list; §10 "`foo <<EOF;` does not rejoin early" | In G1 `<<` is only `OpShift` and `DoubleDiamond` (`<<>>`), and Standard Perl excludes heredocs, so `<<` is not a lexical conflict, as with `{`. The §10 lattice test can't arise under G1 in phase 1; it needs a toy grammar or phase 3. `?` is likewise only `OpTriThen`. See also B-N6, A7. | A class component with nothing in it, and a phase-1 test that can't be written against the real grammar. | Read Guacamole.pm l.346-347, 1596, 1604; no G1 heredoc rule. | open, stand-aside | b5b10428 |
+| B-N10 | B | 3 | §5 "The token cut" | Lexeme priority is part of the cut and is not encoded: G0 `SubNameNonQLike` and `SubName` match any identifier, and Marpa's `latm` with `:lexeme ~ OpKeywordX priority => 1` lets the keyword win. Letting keyword text satisfy `SubNameNonQLike` gives 2 derivations for `print(1);`, `time();`, `length($x);`; forbidding it refuses `$x->print()`. Statically fixable (keyword text satisfies `SubName` but not `SubNameNonQLike`), but the cut must say so; "Ties" covers interleaved only. Re-raises B-N2. See also D9, E10. | Phase 0 recognises every parenthesised builtin call twice, inflating speed and set numbers; phase 1's forest carries a spurious reading at each. | Ran collapse.py: `print(1)` 2; `time()` 2, or 1 keyword-only; `$x->print()` 1 or 0. Read Guacamole.pm l.405-425, `:lexeme … priority => 1` from l.1884. | open, stand-aside (must land in the cut's list before phase 0) | b5b10428 |
+| B-N11 | B | 3 | §8 "Fixed inputs"; phase 0 gate | `edit5k-standard.pl` is not Standard Perl: only the 70 heredocs are rewritten, but edit5k.pl auto-quotes throughout (`name => 'block0'` at l.13; `$self->{name}`, `$_[0]->{limit}`); 351 lines match `\{[a-z_]+\}` or `\b[a-z_]+ =>`. standard.pm excludes auto-quoting and collapsed G1 refuses both forms. Everything the fixture needs must be rewritten and validated: G1 accepts the whole file and perl -c still passes. See also F2, D5, E4, A23. | The speed kill, the spike's first gate, fires or passes on a meaningless number. | Read edit5k.pl l.1-40, `grep -cE` → 351; standard.pm l.88-100. Ran collapse.py: `$x->{WORD};` 0, `$x->{'a'};` 1, `my %h = (WORD => 'a');` 0, `('a' => 'a')` 1. | open, block | b5b10428 |
+| B-N12 | B | 3 | §8 phase 0 gate; §5 "One coupled choice" | Phase 0 lexes up front (lookahead 1 available) and decides whether interleaving "stays viable", but interleaving means lookahead 0 with Leo, a different cost regime (toy: 0.009 s vs 87.6 s). The kill doesn't say which lookahead; recognition over up-front tokens can run at lookahead 0 with Leo to emulate interleaving's recogniser cost, and the gate should require that figure before phase 1. See also D1, C-N11, E6. | Phase 0 passes on lookahead-1 numbers, and phase 1 builds an unmeasured lookahead-0 recogniser. | Read §5, §8 phase 0; ran rec probe in round 2. | open, stand-aside | b5b10428 |
+| C-N10 | C | 3 | §7.4; §9 "Undecided" row; §8 phase 2 | The arbiter is one-sided: it decides only where RD's canon Deparses like the source, and then the differing chart span is wrong; no branch finds the chart right. Phase 2's probes come from open "perl disagrees" issues, where RD is wrong, so every disagreement there is undecided and the 10% kill fires at the phase-2 gate whether the chart is right or not. See also E1, E2, D4, F4. | The phase-2 gate kills the spike on its own probe corpus, or probes are scored elsewhere unstated; defect yield can't be verified and the M4–M6 evidence goes ungraded. | §7.4; §2 evidence 2; §8 phase 2 "drawn from open issues"; `internal/parse/fidelity.go:1-2`. | open, block | b5b10428 |
+| C-N11 | C | 3 | §5 "Two modes"; §8 phase 0 and phase 1 | Speed and convergence are measured once, up front, in phase 0; phase 1 may switch to interleaved, which §5 says is quadratic without Leo and reuses fewer sets. Phase 0 has no "viable" criterion, phase 1 has no speed gate, and the 47951e0a every-step tripwire is gone. See also D1, D-N1, E6, A22, B-N12, A21. | Both the speed kill and the incremental verdict are decided on up-front numbers; §1's headline ("Whether that is affordable is the first thing this spike measures") has no pass condition. | §5 l.169-188; §8 phase 0 and 1 build lists; diff 47951e0a→b5b10428 (tripwire removed). | open, block | b5b10428 |
+| C-N12 | C | 3 | §2 Output; §8 phase 4 | Under R8, M4–M6 negative with incremental positive means phase 3 never runs, so phase 4 ("over phase 3's corpora") has no corpus and no parity-level chart to fuzz. See also D-N3. | Whoever reaches that state decides what "positive incremental" leads to. | §2 Output; phase 3 and 4 headings; phase 4's first sentence. | open, stand-aside | b5b10428 |
+| C-N13 | C | 3 | §8 phase 2 | Charging excluded features to each probe ("prototype-driven parses or paren-less calls for `first { ... } @list`") against a bar of "at most half the lines and half the places touched" of a mature RD biases the verdict and may decide it in advance; the equal split spreads cost only over probes that share it. See also D3, E17, F6. | The M4–M6 verdict can be negative for maturity reasons, not architectural ones; then the spike can't answer its question. | §8 phase 2, R7; round-1 F6(i). | open, stand-aside | b5b10428 |
+| C-N14 | C | 3 | §8 phase 0 speed kill | "Unless removing the named hot spots brings it under 3×": if "removing" means subtracting profile time, any gap escapes by naming enough hot spots; if it means optimising and re-timing, it is sound. See also E5, F9. | The one cheap kill can be argued away after the numbers. | Phase 0 gate text. | open, stand-aside | b5b10428 |
+| C-N15 | C | 3 | §9 Forest row; §3 rule 4 | The forest kill fires only "where perl's reading is decidable from facts pvm has", which is a resolver bug, not growth; readings ambiguous for lack of facts have no cap, and 4ec0955a rule 4's "A cap collapses runaway regions to an Error node" is removed. See also B-N7. | Many uses of an unknown imported sub can grow the forest without bound, with no kill or cap. | §9 row; 4ec0955a §3 rule 4 vs b5b10428 §3 rule 4. | open, stand-aside | b5b10428 |
+| C-N16 | C | 3 | §10 Fuzzing | Stale phase reference: "recognizer and forest invariants from phase 0", but `chart/forest` is built in phase 1 and phase 0 is "recognition only". | Minor; whoever wires phase 0's CI looks for a forest fuzzer that can't exist yet. | §10; §8 phase 0 and 1. | open, stand-aside | b5b10428 |
+| C-N17 | C | 3 | §10 Ratchets | `internal/chart` builds behind a `chart` tag so mainline `make test` doesn't run it, yet the lexer refactor it depends on is mainline work, so a mainline lexer change can break the chart unnoticed; where the chart code lives is unstated. See also E14, D18. | The chart rots silently, or untested tagged code sits beside pvm's 100% `make test` rule, close to the workaround CLAUDE.md forbids. | §10; pvm CLAUDE.md "Build/Test Commands", "Problem-Solving Philosophy". | open, stand-aside | b5b10428 |
+| D-N1 | D | 3 | §8 Fixed inputs, phase 0 gate; §9 Speed | The revision deleted the every-step tripwire (47951e0a: "A cold-parse tripwire on Standard Perl inputs runs at every step, as a warning"). Speed is gated only in phase 0, on recognition alone over up-front tokens; the defined full cold parse is never used by a gate, and forest construction, interleaved lexing and `chart/resolve` are never measured against a threshold. See also A22, C-N11, E5, D1. | The configuration delivering §1's property could be 10× slower than RD and still reach parity with no kill. | Read `git diff 47951e0a b5b10428`; §8 Fixed inputs; phase 0 gate; §9 Speed row. | open, block | b5b10428 |
+| D-N2 | D | 3 | §8 phase 1 corpus | Stub contents are unspecified: stubs without `$VERSION` give 41 errata (`use Module 4.10` fails the version check), stubs with `$VERSION = 999` give 23. See also A4, C-N7, D2. | The errata set, and so the scored corpus, depends on an unstated choice. | Ran: `D/rejects3.txt` (41) vs `D/rej999.txt` (23). | open, stand-aside | b5b10428 |
+| D-N3 | D | 3 | §2 Output vs §8 phase 4 | R8 made M4–M6 independent of the incremental verdict but not the reverse: phase 4 runs over phase 3's corpora, and FuzzIncremental on the chart needs parity-level coverage, so incremental positive with M4–M6 negative can't run phase 4. See also C-N12, D6. | One-way coupling the doc doesn't state. | Read §2 Output; phase 4 first sentence. | open, stand-aside | b5b10428 |
+| D-N4 | D | 3 | §5 token cut; §8 phase 1 gate | Several Standard Perl exclusions are lexical (limited delimiters such as `q@...@`, no space before a delimiter such as `q <foo>`, no nested delimiters), which pvm's lexer accepts; "every `parsent` case refused" then depends on the reviewed predicates encoding those limits, which the doc never requires. See also B-N10, E10. | Some parsent cases are accepted and the failure looks like a grammar fault, not a predicate list. | Read `standard.pm` "Limited delimiters", "No spaces ... before delimiters". | open, stand-aside | b5b10428 |
+| E1 | E | 3 | §7.4; §9 "Undecided disagreements" | The 10% cap is incoherent, since a decided disagreement always means the chart is wrong. (a) If chart-lost disagreements are fixed, every remaining one is undecided, so the cap is really "zero disagreements". (b) If not fixed (phase 1 needs only that an arbiter exists; §9 kills only on fix-by-refusal), every extra chart error lowers the undecided ratio. See also C-N10, E2, D4. | Under (a) a hidden zero-tolerance rule nobody chose; under (b) it rewards misparses; either way 10% decides nothing. | Read §7.4, §8 phase 1 gate, §9 Silent misparse row; arithmetic inferred. | open, block | b5b10428 |
+| E2 | E | 3 | §7.4; §9 | The arbiter only ever rules against the chart: it decides only where RD's canon is perl-equivalent, and then RD wins; where RD is wrong the case is undecided, so every chart-right/RD-wrong case pushes toward the kill. See also C-N10, E1, D4. | In phase 3 and on M4–M6 material the "more than 10% undecided" kill fires in proportion to how much better the chart is; the chart can never be credited a win. | Read §7.4; inferred. | open, block | b5b10428 |
+| E3 | E | 3 | §7.4 | (1) "pvm's existing Faithful check" is a token comparison, not Deparse; Deparse,-p of canon exists only in a few tests. (2) "Where Deparse loses the form" goes to undecided, but the test is equality, which can't see a lost form: both sides fold equal and the case is decided for RD. (3) Granularity is unstated: Faithful and Deparse are per file, a disagreement is a span, so one unfaithful construct makes a whole file undecided. See also A24, D4. | Wrong-associativity cases are decided for RD; the implementer must choose between two checks, and the choice changes the verdict. | Read `fidelity.go` `Faithful`; `heredocsubless_test.go:39-51`, `canon_test.go:431`. Ran perl 5.44.0 Deparse,-p: `print((1+2)+3)` and `print 1+(2+3)` both → `print(6);`; `1+2*3` and `1+(2*3)` both → `print(7);`. Read `docs/measurements/2026-10-23-precedence-aware-canon/README.md`: perl.git t/ is 342/619 faithful. | open, block | b5b10428 |
+| E4 | E | 3 | §8 Fixed inputs, Phase 0 | `edit5k-standard.pl` (heredocs rewritten) is not Standard Perl: the file auto-quotes throughout and uses brace-less prefix deref (`%$s`), both excluded; a G1 recognizer rejects it within 15 lines. See also F2, D5, B-N11, A23. | Phase 0's numbers time a recognizer that dies early, which is meaningless and looks "fast". | Ran on edit5k.pl: 281 bareword-before-`=>` lines, 350 bareword `{key}` lines, `%$s` at l.62, 134, 206…; l.13 `name    => 'block0',`. Read standard.pm ("`$foo{key}` # not ok", "`( foo => 'bar' )` # not ok", "`@$foo` # not ok"). Marpa::R2 not installed. | open, block (fix: "rewritten until it is Standard Perl", gated on the chart recognising the whole file) | b5b10428 |
+| E5 | E | 3 | §8 Phase 0 gate, Fixed inputs; §9 Speed | The speed kill compares chart recognition alone with RD's `parse.Parse` (lex + parse + tree); the defined chart cold parse (lex + recognition + forest) is used by no gate, no later phase has a speed gate, and "unless removing the named hot spots…" can't be evaluated (measured after removal, or projected). See also A22, D-N1, C-N11, C-N14. | The comparison favours the chart, and the full cold path, including Leo recovery, is never held to a threshold. | Read §8, §9; RD's 23.89/33.42 ms is `BenchmarkLatencyParse` = `parse.Parse` (`docs/plans/2026-09-05-parser-conformance-plan.md:620`). | open, block (fix: re-run the same 3× gate on the defined cold parse at phase 1's gate) | b5b10428 |
+| E6 | E | 3 | §5 chart/lex "Two modes, chosen by phase 0"; §8 phase 0/1 | Nothing in phase 0's gate chooses the mode, and "viable" has no criterion. Three things hang on it: (a) the mainline `internal/lexer` refactor; (b) phase 1's token-branch case, since the up-front lexer emits a flat stream, not a lattice; (c) phase 1's expectation-class gate, moot up front. §1 calls this "the first thing this spike measures". See also D1, C-N11, A21, B-N12. | Whether the refactor happens, and what phase 1 builds, becomes an unrecorded judgement. | Read §1 last sentence; §5 "Up front … No expectation classes are involved"; §8 phase 0 gate; phase 1 Build. | open, block | b5b10428 |
+| E7 | E | 3 | §8 Phase 1 gate; §6 | The gate requires "every `parsent` case refused, with an Error node", but no phase builds error recovery (only §6's diagram: "`error` symbol, minimal skip"), and G1 has no `error` symbol, so adding one is an unowned grammar extension. | The gate can't be met with the listed components. | Read §8 phase 0/1 Build; ran `grep -n -i error lib/Guacamole.pm` → only `CHILD_ERROR_NATIVE`. | open, stand-aside | b5b10428 |
+| E8 | E | 3 | §3 rule 4; §7.1; §7.3 | Rule 4 says "§7 says how each is measured", but the span diff and arbiter apply only where both produce one reading; inside ambiguous regions, "perl's reading is among the live ones" is checked only at marker sites ("necessary, not sufficient"), and the yield check is met by any well-formed forest. | Phase 1 is mostly unambiguous (Guacamole's `parses` asserts one tree), but in phase 3 and M4 "covered" is unmeasured except at marker sites. | Read §7.1, §7.3; Guacamole `Test.pm` `parses`: `is(scalar(@trees), 1, "parsed unambiguously")`. | open, stand-aside | b5b10428 |
+| E9 | E | 3 | §7.1; §8 phase 1 Corpus | §7.1's 730 and its 68 marker sites were counted without the module stubs §8 prescribes (38 of 61 rejections are missing modules), and cite "participant A's count", which a reader can't look up. See also D14, A25. | §7.1's baseline and denominator differ from the corpus phase 1 scores. | Ran recorder with stub `Guacamole::Test` (and stub `Test::Fatal` for three files): 791/126, 769/124 unique, matching §8; `perl -c` under `:5.36`: parses 730/61, of which 38 "Can't locate"; parsent 80 accepted / 46 rejected. | open, stand-aside | b5b10428 |
+| E10 | E | 3 | §4; §5 token cut, chart/grammar | "G1 rules are used as written above pvm's token level" is untrue of the doc's own example: `VarScalar ::= SigilScalar VarIdentExpr ElemSeq0` straddles the cut (`$x` one `Variable` token; `ElemSeq0 ::= Element*` the subscripts), so it must be rewritten, and the doc doesn't say which others straddle. The listed SLIF subset omits sequence rules (`X ::= Y*`, used twice), `:default ::= action =>` and `name =>` (4 uses). See also B-N2, B-N10, D-N4. | "As written" hides a set of grammar edits from review. | Read Guacamole.pm l.355, 384, 1512, 15; `internal/lexer/lexer.go` `Variable`. Ran a count of SLIF adverbs. | open, stand-aside | b5b10428 |
+| E11 | E | 3 | §3 rule 3 vs §5 Ties | Rule 3 says "only compile-time facts may prune" and "Perl decides every case from such facts", but §5 Ties resolves with "perl's own heuristics (`{` and `intuit_more`)", which are textual heuristics; rule 6 covers lexeme priorities, not these. See also C-N6, D10. | A rule §5 breaks invites reading rule 3 as decorative. | Read §3 rules 3 and 6, §5 Ties; spec 03 §3.3; `internal/lexer/intuit.go`. | open, stand-aside | b5b10428 |
+| E12 | E | 3 | §8 phase 0 convergence | "80% of 200 single-statement edits converge within the statement + 8 tokens", but the edit set is not fixed in advance and dominates the outcome (a token-count-preserving rename converges trivially); the metric takes the first matching set, so later divergence (e.g. right-recursive completion cascade at `}` with Leo off) is invisible until phase 4's measure (b). See also F9, D16. | The verdict can be steered by the choice of edits. | Read §8 phase 0, phase 4 (a)–(c); inferred. | open, stand-aside | b5b10428 |
+| E13 | E | 3 | §5 Builtin shapes; §10 Isolation | The CORE.tpm cross-check imports `internal/parse`, but the shape table `coreShapes()` is unexported, so the check needs an `internal/parse` API change, contrary to §10's no-change clause. See also D7, A6. | A small, unlisted mainline change. | Read `internal/parse/declarations.go:712` `func coreShapes() map[string]Shape`. | open, stand-aside | b5b10428 |
+| E14 | E | 3 | §10 Ratchets | The `chart` build tag keeps the code out of `make test` and also out of the pre-commit `go-vet-custom`, `staticcheck-linting` and `quick-go-check` hooks, which pass no tags. See also C-N17, D18. | Spike code escapes hooks CLAUDE.md calls non-negotiable. | Read `.pre-commit-config.yaml` hook ids; Makefile `test: go test ./... -count=1`. | open, stand-aside | b5b10428 |
+| E15 | E | 3 | §12 | "`perly.y` writes `parser->expect` in 14 places" does not match E's count of 18 assignment lines at 94e5086608. Spec 03's eleven states are correct. See also A19, D13, B4 (A and D count 14 writes and 4 `==` reads). | A stale reference; it doesn't affect the spike. | Ran `grep -n "parser->expect" /opt/corpora/perl5/perly.y` → 18. | open, stand-aside | b5b10428 |
+| E16 | E | 3 | Status line; §4; §7; §11; §12 | Dead weight answering critics: the Status line pointing at `docs/assessments/`; "participant A's count"; the Chalk `perl.bnf` lineage (28c6029e); "Chalk's re-emission lowers its SoN IR … does not serve here"; §11's B::SoN schema detail; "Kegel … Cited from memory". See also A25. | The document grows and goes stale as reviews accumulate (E9, E15 are symptoms). | Read those passages. | open, stand-aside | b5b10428 |
+| E17 | E | 3 | §8 phase 2 | "Clearly cheaper" (at most half the lines and half the places touched) compares grammar-rule lines in a generated-table system with hand-written Go; "places touched" is undefined; who judges "a rule … that no Perl construct justifies" is unassigned. See also C-N13, D3, F6. | With 6–9 probes, a definitional choice can decide the M4–M6 verdict. | Read §8 phase 2. | open, stand-aside | b5b10428 |
+
 ## Clusters
 
 Counted by the first section each finding names in its "section" column. Many findings name more than one. Round-1 counts use 4ec0955a's section numbering.
@@ -268,6 +447,39 @@ B1, B10 and B12 are re-raised as B-N1, B-N7 and B-N2, so they appear in this cou
 | §9 | 6 | B10, F7 |
 | §10 | 1 | none |
 
+### Round 3 new findings (39, at b5b10428)
+
+| section | count | findings |
+|---|---|---|
+| §2 | 2 | C-N12, D-N3 |
+| §3 | 2 | E8, E11 |
+| §4 | 1 | E10 |
+| §5 | 9 | A21, A23, B-N8, B-N9, B-N10, C-N11, D-N4, E6, E13 |
+| §7 | 7 | A24, A25, C-N10, E1, E2, E3, E9 |
+| §8 | 12 | A22, B-N11, B-N12, C-N13, C-N14, D-N1, D-N2, E4, E5, E7, E12, E17 |
+| §9 | 1 | C-N15 |
+| §10 | 3 | C-N16, C-N17, E14 |
+| §12 | 1 | E15 |
+| Status line | 1 | E16 |
+
+### Rows open at b5b10428 (46: the 39 round-3 findings plus 7 carried rows)
+
+B10 is carried by B-N7, so it appears in this count twice, once under each id.
+
+| section | count | carried rows |
+|---|---|---|
+| §1 | 1 | D1 |
+| §2 | 2 | none |
+| §3 | 2 | none |
+| §4 | 1 | none |
+| §5 | 9 | none |
+| §7 | 9 | D4, D14 |
+| §8 | 14 | F2, D5 |
+| §9 | 3 | B10, B-N7 |
+| §10 | 3 | none |
+| §12 | 1 | none |
+| Status line | 1 | none |
+
 ## Participants
 
 **Round 1.** Dispatched: A (codebase and architecture), B (parsing theory and technical feasibility), C (spec and plan quality, via paad:pushback v2.0.2). All three reported in full, and none appears truncated. C also recorded six candidates it dropped: Leo-by-reference against Chalk's `top_origin`; the "about 49" open-issues count; the semiring-separability assumption; the cold-parse extrapolation; security (no trust boundary); and the §11 SoN oracle.
@@ -281,7 +493,15 @@ Round-2 evidence A re-ran (code unchanged since round 1):
 - round-trip held on all 917 snippets;
 - Deparse matches the source on 409 of 730 snippets after rough normalisation.
 
-Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/` and `A/r2/`, `B/probe/` and `B/r2/`, and `D/`.
+**Round 3.** Dispatched: A, B, C and D (resumed) and E (new, reading cold). E states that it did not read prior findings, `docs/assessments/` or the design branch's commit messages. All five reported in full, and none appears truncated: A ends with "Not re-examined", B, C and D with "What I did not re-examine", and E with "What I did not check".
+- **Scope.** B read sections 4 to 10 in full and skimmed the rest. D only skimmed the ledger at 69582c78, and says a conflict between its releases and other participants' holds is possible.
+- **Bias.** A, B, C and D each disclosed a bias. B found its own round-2 B-N7 proposal wrong. C wrote that C-N10 and C-N11 are failures of its own remedies.
+- **Perl versions.** E used perl 5.44.0. The other participants cite 5.42.0.
+- **Document growth.** The author asked whether the growth from 429 to 469 lines is earned. A and C both answered "mostly", with about 10–15 lines of review residue. A also named budget checking, the build tag and the duplicated override clause as not earned. E16 is E's view of the same residue.
+- **E's verified-accurate list.** E recorded these as accurate: every cited symbol (`TokenCache.resyncsAt`, `State.Equal`, `TestLexerRatchet`, `sameState`, `keepsLead`, `compareMarkers`, `FuzzIncremental`, `FuzzIncrementalSequence`); the `expect.go` Word hedge at l.288–309; RD lexing up front (`parse.go:679-681`); 23.89/33.42 ms; 791/126/769/124; spec 03's eleven states; and Chalk's seven ambiguity classes, `LR0DFA.pm` and the Aycock thesis.
+- **Counts that differ.** For perly.y, A and D count 14 writes and E counts 18 lines. For edit5k.pl, A releases A18 with heredocs as the only part G1 lacks a rule for, while B, C, D and E hold that its auto-quoting is excluded too. The minute records both positions and does not decide between them.
+
+Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/`, `A/r2/` and `A/r3/`; `B/probe/` and `B/r2/`; and `D/`. D's probe `internal/parse/zz_d_probe_test.go` exists only in D's scratch extraction, not in any repository.
 
 ## Not checked
 
@@ -297,3 +517,11 @@ Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c32
 - **B:** B did not re-examine the A- and F-series rows, the Deparse arbiter, the oracle subject, budgets, probe costing or the corpus extraction counts. B did not check whether `TestLexerRatchet` can carry the lexer refactor, the B::SoN material, or real Marpa behaviour (latm, lexeme priorities): B's G1 probe ignores G0 and priorities. B built no lattice recogniser, so B-N1 and B-N4 rest on the heredoc probe and on reading YAEP.
 - **C:** C did not re-examine §4 or §5's recognizer and forest internals. C did not verify the YAEP probe numbers, the 23.89/33.42 ms baseline or the 791/126 counts (taken from ledger A4), and did not check whether `perl -MO=Deparse,-p` preserves grouping on the probe constructs (`s///e`, `(?{ })`). C did not re-examine §11, or §12 beyond the Kegel citation.
 - **D:** the 49-issue count (`git zhi` is not installed in D's container). Anything in YAEP (no local copy), including the D15 figures. Guacamole's pass rate on its own suite (Marpa::R2 is not installed). Chalk's claims beyond the existence of the files, the commits and the seven ambiguity classes. Whether RD accepts the 23 errata, and how the per-file span diff treats snippets. B::SoN beyond the existence of its design doc.
+
+### Round 3
+
+- **A:** interleaved-mode feasibility, Leo side tables and the YAEP/Chalk claims (B's lens). The R5 SLIF subset, and whether "about 200 per-keyword rules" survive the token cut. Deparse-equality rates on phase-3 corpora: 722/730 is phase 1 only. Whether §7.4's normalisation turns legitimate shape differences into chart "wrong" verdicts now that round 2's "both match → legitimate" clause is gone. A left that to the compare tests and raised no finding on it yet. Whether the round-1 and round-2 RD defects were filed. The ledger at 69582c78 beyond the response's summary.
+- **B:** phase-0 tokens against G1 lexemes beyond the `Kind` enum. The `HeredocOpen`/`HeredocBody`, `Prototype` and `FormatBody` tokens, which have no G1 rules, so a Standard-Perl fixture must not contain them. B did not run the production lexer on edit5k.pl. `collapse.py` is B's reading of R10 over 31 inputs, with G0 and priorities otherwise ignored and Marpa not run. B also did not re-examine the arbiter, budgets, phase 2/3 costing, the corpus counts, the A, C and D rows, or whether 10% undecided is a sound threshold.
+- **C:** §4, §5's recognizer and forest internals, the token cut and the rejoin rule. C did not verify the 769/124 counts, the 13.6 ms extrapolation or perly.y's 14 writes. C did not run Guacamole's grammar on edit5k.pl: F2 rests on documented exclusions and grep counts. C did not check whether Faithful holds on the Guacamole snippets, which bears on C-N10's phase-1 side.
+- **D:** D read the ledger only to its header, and did not read the other participants' rows. D did not re-examine phase-2 cost accounting beyond the D3 note. YAEP (no local copy). Guacamole's own pass rate (no Marpa::R2). Whether pvm canon has a fully parenthesised mode, which D's D4 fix would want. How many `parsent` cases are lexical (D-N4). The 49-issue count (no git-zhi).
+- **E:** E did not run Guacamole (no Marpa::R2), so E4 rests on standard.pm's exclusions and grep counts, not a parse. E did not reproduce the YAEP toy probe or the 13.6 ms extrapolation. E did not verify the "about 49" count: E's own keyword grep over 143 open v0.1 lines gives 15, with different keywords. E did not check Chalk's `perl.bnf`@00399607 claims, YAEP at 7aba93e, or the commonplacebook reference. E did not check whether the 68 marker-site figure holds with stubs, or whether Deparse,-p of RD canon equals the source on the Guacamole corpus.
