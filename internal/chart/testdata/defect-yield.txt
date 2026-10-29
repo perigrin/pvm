@@ -7,7 +7,12 @@
 # it refuses what perl compiles, accepts what perl refuses, or builds a tree
 # perl does not. Disagreements only in typing, lowering, canon re-emission,
 # line numbering or .tpm declarations are not listed.
-# 50 listed; 43 have a frozen case in defect-yield/<ref>.pl.
+# 50 listed; 44 have a frozen case in defect-yield/<ref>.pl.
+# 01a174d8-40e3 and 01a17591-1a24 share one title and one defect family, so that
+# family counts twice in the yield; both stay listed because their cases differ.
+# Already settled by recursive descent at 0e8c32fd (the cases no longer disagree):
+# 01a0d0b1-2343 01a0dccb-5c5f 01a122e2-3982 01a11263-4044 01a11254-136b
+# 01a12204-5275 01a128ad-18f3 01a13216-6a20 01a16b2b-44dd 01a11106-b336 01a16a7a-a71c
 # The list is fixed: settling an issue changes its state, not this file.
 01a0d0b1-2343 The block form of the filehandle slot refuses
 01a0dc72-2609 Bare v5 is a v-string in perl, and a lexer cannot tell it from a bareword
@@ -45,11 +50,11 @@
 01a1448a-e64a package Foo v1.2.3 { } is refused, though perl accepts a v-string version
 01a146bc-6132 A scalar typed our outside a .tpm is not refused, though perl dies No such class
 01a15ad0-13e2 psc check reports nothing for programs perl refuses to compile: my $x = ; and a typed our
-01a15f6b-dfd1 Redesign the export syntax: a declaration derives or declares the module's import itself
 01a16a7a-a71c \my swallows the assignment that follows it
 01a16ab2-e045 A builtin overridden by an import still parses as the builtin
 01a16b2b-44dd A bareword operator word as a hash subscript key parses as the operator
 01a16ba6-d445 print FH (LIST) parses the filehandle as a call
+01a16bfc-f90d Canon writes () after an unresolved bareword, turning a string into a call
 01a16e21-3460 Parse the inner { of hash_ref_disambiguation.t's `sub { {1,2,3,4} }` as perl does
 01a16e21-348d Parse the inner { of cpan_ceph_tie_runtime.t's `map { { $_->get_columns } } @x` as perl does
 01a16e4f-b570 Deref braces around a quote word, or a subscript that stops short, read wrongly
