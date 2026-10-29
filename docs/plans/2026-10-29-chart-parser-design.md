@@ -3,197 +3,214 @@
 
 # A chart parser for Perl: design for a research spike
 
-**Status:** design for a spike, written 2026-10-29. Not a decision. If the
-spike is accepted, this becomes a chapter of `docs/specs/perl-parser/`; until
-then nothing here describes the parser pvm ships.
+**Status:** design for a spike, written 2026-10-29, revised after
+crochet:assess round 1 (`docs/assessments/2026-10-29-chart-parser-design.md`).
+Not a decision. If the spike is accepted, this becomes a chapter of
+`docs/specs/perl-parser/`; until then nothing here describes the parser pvm
+ships.
 
 ## 1. Why
 
 `docs/plans/2026-09-05-parser-prior-art.md` §A1.3 chose hand-written recursive
-descent because it was the only measured architecture in which *"the lexer
-can ask the parser what it is looking at."* That choice has held: T2 56/56,
-perl.git `t/` 619/619, M3-directory re-emission 347/347, WRONG = 0.
+descent because it was the only measured architecture in which *"the lexer can
+ask the parser what it is looking at."* pvm's parser as shipped keeps that
+choice's results (T2 56/56, perl.git `t/` 619/619, M3-directory re-emission
+347/347, WRONG = 0), but not its mechanism: its lexer runs up front, with its
+own `expect` approximation, and hedges where it cannot know
+(`internal/lexer/expect.go`, the `Word` case). An interleaved chart lexer
+would give pvm that property for the first time.
 
 What strains is context. How Perl parses depends on what is known at that
 point: declared subs, prototypes, features, imports. In the current parser
-that knowledge is implicit parser state. Two kinds of evidence show the cost:
+that knowledge is implicit state. About 49 open v0.1 issues are cases where
+the parser disagrees with perl, most of them context-dependent (a
+title-keyword count, approximate). The M2 incremental work needed hand-written
+invalidation (`sameState`, `keepsLead`, `peekEnd`, `openSquares`), and nearly
+every gate review found another piece of hidden state.
 
-- About 49 of the open v0.1 issues are cases where the parser disagrees with
-  perl, and most of them are context-dependent (a bareword the lexer cannot
-  know is declared, `say` read as the builtin whatever the feature state, a
-  bare `v5`, an imported builtin override). The count is from a title-keyword
-  sort and is approximate.
-- The M2 incremental work needed hand-written invalidation (`sameState`,
-  `keepsLead`, `peekEnd`, `openSquares`), and nearly every gate review found
-  another piece of hidden parser state.
-
-An Earley chart parser can make the dependency explicit instead of implicit:
-the parser reports every reading and the condition that selects it, and
-something outside the parser decides.
+An Earley chart parser can make the dependency explicit: the parser reports
+every reading and the condition that selects it, and something outside the
+parser decides.
 
 ## 2. The question
 
 > Can an Earley chart parser reach parity with the floor pvm stands on, at a
 > speed worth pursuing, and does it have a better chance than the current
-> parser at M2 (incremental, correct under edit) and M4–M6 (prototypes and
-> ambiguity, real-world code, conformance)?
+> parser at the parse half of M2 (incremental, correct under edit) and at
+> M4–M6 (prototypes and ambiguity, real-world code, conformance)?
 
-The answer rests on four kinds of evidence, each measured in a phase of §8:
+Four kinds of evidence answer it, each assigned to a phase in §8:
 
-1. **Defect yield.** For each open "perl disagrees" issue: can the chart fix
-   it, where does the fix land (lexer tiebreak, resolver rule or grammar),
-   and how big is the fix?
-2. **Head-to-head on milestone corpora.** M4: `t/comp/proto.t`,
-   `t/op/signatures.t`, T1. M5: the T4 regex files and CPAN. M6: `t/op`.
-3. **Cost of change.** For each contextual piece rebuilt in phase 2, and for
-   each M4–M6 probe: lines, places touched, where it landed, review cycles.
-4. **Incremental potential,** measured last: how soon Earley sets match again
-   after an edit, and M2's own equivalence contract.
+1. **Defect yield** (phase 3). For each open "perl disagrees" issue a probe
+   touches: can the chart fix it, where does the fix land (lexer tiebreak,
+   resolver rule or grammar), and how big is it?
+2. **Head-to-head on milestone corpora** (phase 3). M4: `t/comp/proto.t`,
+   `t/op/signatures.t`, T1. M5: the T4 regex files and CPAN. M6: `t/op`, with
+   re-emission excluded, because the chart has no canon.
+3. **Cost of change** (phase 3), for each M4–M6 probe, measured on both
+   parsers.
+4. **Incremental potential** (phase 2 early; phase 5 in full): how soon
+   Earley sets match again after an edit, then M2's equivalence contract.
+   This covers the parse half of M2 only. The chart cannot feed analysis
+   (§11), and M2's ruled target is tree plus published analysis.
 
 ### Out of scope
 
-- Replacing the production parser.
-- Choosing the downstream IR (pvm's lowered tree or B::SoN).
-- Feeding `lower`, `infer` or `psc`.
-- A B::SoN semantic oracle (§11, future work).
+Replacing the production parser; choosing the downstream IR; feeding `lower`,
+`infer` or `psc`; a B::SoN semantic oracle (§11).
 
 ### Output
 
-A written recommendation with every number. It gives two verdicts, which may
-differ: one on the M4–M6 route and one on the incremental route. The code
-built along the way is kept, but stays experimental until the spike is
-accepted.
+A recommendation after phase 3, with two verdicts that may differ: one on the
+M4–M6 route and one on the incremental route. Phases 4 and 5 run only if
+perigrin rules both positive. The code is kept, and stays experimental until
+the spike is accepted.
 
 ## 3. Design rules
-
-These were settled while designing and every component follows them.
 
 1. **The grammar is static; the context is dynamic.** Imports and pragmas do
    not change the grammar. They change how tokens are classified and which
    reading applies.
 2. **Context enters at two places only:** before the chart (token
    classification, in `chart/lex`) and after it (pruning, in
-   `chart/resolve`). Never inside the chart. Facts inside Earley items would
-   make otherwise-identical sets differ, which kills set interning and with
-   it both the speed and the incremental route (rebel's YAEP analysis, §12).
+   `chart/resolve`). Never inside the chart. Facts in Earley items would make
+   otherwise-identical sets differ, which kills set interning and with it the
+   speed and the incremental route.
 3. **Only compile-time facts may prune.** A reading may be removed only by a
-   fact perl itself could have known at compile time: a prototype, a declared
-   sub, a feature, an import, a library declaration the oracle has vetted.
-   An inferred runtime type never prunes, because perl never consults one
-   when parsing. Where perl's reading fails to type-check and another reading
-   would, that becomes a diagnostic.
+   fact perl could know at compile time: a prototype, a declared sub, a
+   feature, an import, a library declaration the oracle has vetted. Perl
+   always decides from such facts (`foo / 2` divides unless `sub foo` has been
+   seen; toke.c `yyl_just_a_word`); an ambiguity in pvm is a fact pvm lacks,
+   so every branch has a resolvable condition. Inferred runtime types never
+   prune; where they contradict perl's reading, that is a diagnostic.
 4. **Ambiguity may stay.** A language server needs the facts true in every
-   reading, not one parse. A WRONG parse is one that *asserts* a reading perl
-   does not take; leaving perl's reading among several is *covered but
-   undecided*. A cap collapses runaway regions to an Error node.
+   reading, not one parse. A reading is WRONG if it asserts what perl does
+   not; perl's reading among several live ones is *covered but undecided*. §7
+   says how each is measured.
 5. **Outside the accepted language, refuse; never misparse.** Pest scored
    99.996% and still lost (prior-art §A1.3) because it misparsed silently.
-   Error recovery produces an Error node over the smallest skipped region.
-6. **Weights may order, never decide.** Corpus frequencies may order
-   suggestions shown to a user. They never select the tree.
+6. **Weights may order, never decide.**
 
-## 4. What is borrowed and what diverges
+## 4. Sources
 
-Chalk (`perigrin/chalk`) already implements an Earley parser with most of the
-techniques below, in Perl. pvm's chart parser is an independent design in Go
-that borrows Chalk's proven answers where the constraints match.
+pvm's chart parser is an independent design in Go. It borrows from three
+sources where the constraints match.
 
-| Borrowed | Diverges, because pvm's constraints differ |
-|---|---|
-| Integer core-item IDs, nullable sets, Aycock–Horspool dot advancement, terminal clustering per automaton state (`LR0DFA.pm`, `CoreItemIndex.pm`) | Terminals are `internal/lexer` token kinds, not inline regexes. Chalk is scanless; pvm keeps its lexer |
-| The relative-distance chart, `chart[pos][core][dist]` | Whole sets are also interned, YAEP-style, which Chalk does not do |
-| Leo, and Chalk's Leo-equivalence test as a practice (`t/bootstrap/leo-graph-equivalence.t`) | Leo memos are stored by reference ("the top of the chain I continue, *d* tokens back"), never as the absolute top origin, so they cannot break interning. Chalk's Leo items store `top_origin` |
-| The BNF notation, rules only. The semantic actions live separately in `Actions.pm` and are not used | No in-parse semirings. Chalk resolves ambiguity while parsing because it builds IR directly; pvm builds a forest and resolves afterwards |
-| The seven ambiguity classes (`docs/architecture/ambiguity-classes.md`) as test categories and bracket labels | — |
-| "The grammar over-generates; later layers narrow" | The narrowing happens after the chart, under rule 3 |
+**Guacamole v0.008** (`xsawyerx/guacamole` at 2838253) is the grammar and the
+definition of Standard Perl (perigrin's ruling, 2026-10-29). Its G1 rules are
+used as written: the `Statement`/`BlockStatement` split, the four-way
+precedence clones (`ExprValueU`/`0`/`L`/`R`) and the `NonBrace*` hierarchy for
+block versus hash. Chalk's `perl.bnf`@00399607 is not the seed: it had lost
+the clones and `NonBrace*` in earlier simplifications (28c6029e and after),
+and accepts `1 2` and `$x $y`.
 
-From YAEP (`vnmakarov/yaep` at 7aba93e, per rebel's reading of the source):
-interned situations, cores deduplicated by their kernel, distance vectors
-deduplicated, whole sets interned as (core, distances), the per-(core, symbol)
-transition and reduce lists, and the (set, token, lookahead) transition cache.
-YAEP's DAG is not borrowed: it is per rule instance, carries costs rather than
-conditions, and discards the concrete tree.
+**Chalk** (`perigrin/chalk`) contributes proven techniques: integer core-item
+IDs, nullable sets and Aycock–Horspool dot advancement (`LR0DFA.pm`), terminal
+clustering, the relative-distance chart, its seven ambiguity classes
+(`docs/architecture/ambiguity-classes.md`), and Leo with an equivalence test.
+It diverges in being scanless, resolving ambiguity during the parse through
+semirings (it builds IR directly), and having no forest.
+
+**YAEP** (`vnmakarov/yaep` at 7aba93e) contributes set interning: situations,
+kernel-deduplicated cores, deduplicated distance vectors, whole sets interned
+as (core, distances), per-(core, symbol) transition and reduce lists, and the
+(set, token, lookahead) transition cache. Its forest is post-hoc: it stores no
+links in items and finds origins by walking the shared sets (`make_parse`).
+Its DAG is not borrowed: it is per rule instance, carries costs rather than
+conditions, and drops the concrete tree.
 
 ## 5. Components
 
-A new tree, `internal/chart/`, that depends only on `internal/lexer`. The
-recursive-descent parser is untouched.
+A new tree, `internal/chart/`. It depends on `internal/lexer`; only
+`chart/compare` also imports `internal/parse`.
 
 ### `chart/grammar`
 
-A `.bnf` file in Chalk's notation, rules only, with terminals named as lexer
-token kinds, plus a generator run by `go generate`. The tables are built ahead
-of time because the grammar never changes at runtime (rule 1).
+Reads the **subset of Marpa's SLIF notation that Guacamole uses** (perigrin's
+ruling, 2026-10-29): G1 rules (`::=`, `|`), `:lexeme ~ X priority => n`,
+`:discard`, and `lexeme default = latm => 1`. `action =>` adverbs are
+ignored. G0 rules (`~`) are not run: each lexeme name maps to a **token
+predicate** (lexer kind plus text), because one lexer kind covers many
+lexemes (every bracket is `Operator`, every quote-like is `Quote`) and keyword
+sets overlap. Builtin shapes (named unary, list operator, niladic) come from
+CORE.tpm, the one source `internal/parse` already reads, not from a second
+table.
 
-- **Seed:** `grammar/perl.bnf` at Chalk commit 00399607 (2025-10-20), the last
-  full Guacamole-derived grammar before Chalk simplified it. It has 374 rules
-  and 227 nonterminals, Guacamole's naming (`ExprAssign` … `ExprValue`,
-  `OpListKeywordExpr`), and a right-recursive statement list, the shape set
-  interning wants.
-- **Translation:** from its `A -> B C` syntax to the current `::=` notation;
-  drop `WS_OPT`, because the lexer carries trivia; map its `%PATTERN_n%`
-  regexes to token kinds; add Guacamole v0.008's four-way precedence clones
-  (e.g. `ExprAddU`/`ExprAdd0`/`ExprAddL`/`ExprAddR`), which stop list
-  operators producing double parses and which the seed lacks.
-- **Generated tables:** core items; the LR(0) automaton with Aycock–Horspool
-  nullable closure; per-state transition and reduce lists; per-state
-  expected-terminal sets; per-state Leo eligibility; and **expectation
-  classes** (below).
-- **Expectation classes.** The expected-terminal sets come in far fewer shapes
-  than there are states. The generator compresses them into a small set of
-  classes, which is `PL_expect` derived from the grammar rather than written
-  by hand.
-- **Assumption to confirm first:** the notation parses cleanly with its
-  semiring parts ignored. perigrin believes it is separable.
+A generator run by `go generate` builds the tables ahead of time: core items,
+the LR(0) automaton with nullable closure, per-state transition and reduce
+lists, per-state expected-terminal sets and Leo eligibility, and expectation
+classes.
+
+**Expectation classes** are the projection of a position's expected-terminal
+set onto the token pairs that conflict lexically: `/` as division or regex,
+`{` as block or hash, `<` as less-than or readline, and `%`, `&`, `*`, `?`,
+`-X`, `<<`, `x`. A class says which side or sides are expected. The lexer
+sees the union over every state in the Earley set at that position.
 
 ### `chart/lex`
 
-Reuses `internal/lexer`'s scanners (quote-likes, heredocs, numbers and so on)
-but not its hand-written `PL_expect` state machine. At each position it reads
-the expectation class and scans only the token kinds that class allows.
+The scanners of `internal/lexer`, refactored so a scanner takes its
+expectation as a parameter instead of reading and advancing the lexer's own
+state (perigrin's ruling, 2026-10-29). That is a production change: it goes
+through mainline gates and `TestLexerRatchet` as ordinary pvm work, outside
+the spike's isolation (§10). There is then one lexer, driven by its own
+`expect` machine for `internal/parse` and by expectation classes for the
+chart.
 
-- **Earliest failure.** If only `=` can continue and the next character is
-  `*`, that reading dies at that position. Earley's valid-prefix property
-  makes this exact.
-- **Perl's tiebreaks stay.** Where several expected kinds match and perl
-  decides heuristically (`{` through `intuit_more` and its weighting, spec
-  chapter 3), the lexer keeps just those heuristics. That is pruning by a
-  rule perl applies at compile time, so rule 3 allows it.
-- **Token branches.** Where even perl cannot decide statically, the lexer
-  emits both readings as a two-way branch, and the forest carries the
-  condition.
-- **Up front or interleaved.** Perl's own `PL_expect` runs standalone from the
-  previous token plus a bracket stack. If the generated classes can be driven
-  the same way, lexing stays up front, keeping today's token cache. If not,
-  lexing interleaves with the recognizer. Phase 1 decides by measurement
-  (§8).
+The lexer scans only the kinds its class allows (Marpa's `latm`), so a reading
+dies at its first unexpected token. Where several expected kinds match and
+perl decides by heuristic (`{` through `intuit_more`), Guacamole's lexeme
+priorities and perl's tiebreaks decide. Where pvm lacks a fact perl would
+have (rule 3), the lexer emits a **token branch**.
+
+**Input model.** Positions are the nodes of a token lattice: the byte offsets
+of token boundaries. A branch forks the lattice into paths of possibly
+different token counts and rejoins it at the first byte offset both paths
+reach; a branch that has not rejoined after a bounded number of tokens is
+refused. Relative distances count lattice nodes along a topological
+numbering. Sets intern in branch-free regions; sets inside a branch are not
+expected to.
+
+**One coupled choice: lexing mode, lookahead, list shape and Leo.** Lookahead
+needs the next token before the current set is built. Interleaved lexing
+cannot supply it, because lexing token *k+1* needs the set at *k+1*. So:
+
+- up front, with lookahead 1 and the right-recursive statement list, is the
+  default. A YAEP probe ran 100k tokens in 0.007 s with 11 unique sets;
+- interleaved forces lookahead 0, where the same list ran 87.6 s with 20,007
+  unique sets. Leo must then work from phase 1, verified by the test in §10
+  that fails when Leo does nothing.
+
+Perl's own `PL_expect` is not evidence for up-front lexing: perly.y writes
+`parser->expect` in 18 places, and toke.c sets it from the symbol table.
+Whether grammar-derived classes can run up front is measured in phase 1.
 
 ### `chart/recognize`
 
-A YAEP-style Earley recognizer over the generated tables: sets interned as
-(state, distances), relative distances, the transition cache, and Leo memos
-by reference. It exposes `Expected(pos)` for `chart/lex`.
+A YAEP-style Earley recognizer over the generated tables and the lattice:
+interned sets, relative distances, the transition cache, and Leo memos stored
+by reference, with each resolved top cached in a per-position side table
+outside the set's identity. It exposes `Expected(pos)`.
 
 ### `chart/forest`
 
-A Scott SPPF built from the chart, over the lexer's tokens, so round-trip is
-lossless. Packed nodes may carry a condition; in phase 1 none do. Leo's
-shortcut must still yield the intermediate nodes the forest needs: Chalk
-disabled Leo chain extension because baking intermediate completions into a
-value made Leo trees differ from non-Leo ones.
+A Scott-style SPPF built **after** recognition, by walking the interned sets
+the way YAEP's `make_parse` does. Items never hold forest pointers: Scott's
+in-recognition construction would defeat interning. Packed nodes may carry a
+condition, and Leo's skipped intermediate nodes are recovered during the
+walk.
 
-### `chart/resolve` (phase 2)
+### `chart/resolve`
 
-Prunes packed nodes using compile-time facts (rule 3): prototypes, declared
-subs, features, imports, vetted type-library declarations. Whatever it cannot
-decide stays ambiguous.
+Prunes packed nodes using compile-time facts (rule 3); the rest stays
+ambiguous. Built only as the probes in phase 3 need it.
 
-### `chart/compare` (harness)
+### `chart/compare`
 
-Exports each parser's tree as labelled spans (first token, last token,
-label), PARSEVAL-style, and diffs the two parsers per file. Labels cover
-Chalk's seven ambiguity classes, so a same-span disagreement such as block
-versus hash still shows. It feeds the existing oracle and ratchet harness.
+Exports each parser's tree as spans and diffs the two per file, under a
+normalisation fixed before phase 1: byte spans, unary-chain collapse,
+statement-list flattening, and a label map that is explicit for Chalk's seven
+ambiguity classes and coarse elsewhere.
 
 ## 6. Data flow
 
@@ -201,228 +218,212 @@ versus hash still shows. It feeds the existing oracle and ratchet harness.
 source bytes
    │
    ▼
-chart/lex ── expectation class per position ──────────────────┐
-   │  scans only the expected kinds; perl's tiebreaks;        │
-   │  a two-way token branch where perl cannot decide          │
-   ▼                                                           │
-token stream (lossless: trivia attached)                       │
-   │                                                           │
-   ▼                                                           │
-chart/recognize ── interned sets (state, distances) ───────────┘
+chart/lex ── expectation class per lattice node ───────────────┐
+   │  scans only the expected kinds; lexeme priorities and      │
+   │  perl's tiebreaks; a token branch where pvm lacks a fact    │
+   ▼                                                            │
+token lattice (lossless: trivia attached)                       │
+   │                                                            │
+   ▼                                                            │
+chart/recognize ── interned sets (state, distances) ────────────┘
    │  a reading dies at its first unexpected token
    │  if every reading dies: error recovery (`error` symbol, minimal skip)
    ▼
-chart/forest ── Scott SPPF; packed nodes may carry conditions
+chart/forest ── post-hoc SPPF; packed nodes may carry conditions
    │
    ▼
 chart/resolve ── compile-time facts only; the rest stays ambiguous
    │
-   ├──▶ chart/compare: labelled spans → bracket diff against recursive descent
-   │                    → oracle and ratchet harness
+   ├──▶ chart/compare: normalised spans → diff against recursive descent;
+   │                    a disagreement → perl -MO=Deparse,-p decides
+   ├──▶ parseoracle: forest → SubjectFacts (§7)
    └──▶ future: LSP features ask "do all readings agree?"
-        future: a resolver-to-SoN builder → B::SoN semantic oracle
 ```
-
-How each outcome is graded:
-
-- **Input outside the accepted language:** an Error node; the oracle counts it
-  as a refusal, not WRONG.
-- **Both readings of a token branch die:** an ordinary syntax error, located
-  at the earliest token where no reading continues.
-- **Ambiguity left after resolution:** not an error. It counts towards
-  coverage if perl's reading is among the live ones, and not towards
-  decisiveness.
 
 ## 7. The parity contract
 
-Parity with the recursive-descent parser means all three of:
+Parity with the recursive-descent parser means all four:
 
-1. **The oracle:** WRONG = 0, with coverage and exactness at or above the
-   current ratchet levels.
-2. **Lossless round-trip** from the forest's tokens.
-3. **A per-file bracket diff** against recursive descent, wherever both
-   produce one reading: identical labelled spans. A difference is a finding
-   for one parser or the other, and the oracle decides which.
+1. **The oracle,** with the forest reported as a subject. A marker site
+   present in every live reading is reported decided. A site present in only
+   some readings is reported unresolved, which scores *wider*, never exact.
+   Coverage and exactness must be at or above the recursive-descent ratchet,
+   and WRONG = 0. The oracle sees only five marker kinds and never sees
+   surplus (`compareMarkers`): on the phase-1 corpus only 68 of 730 snippets
+   carry a marker site. So it is necessary, not sufficient.
+2. **Yield.** The yield of every packed node is exactly its byte span, and
+   the root's yield is the source. (A round-trip from the tokens alone would
+   pass by construction.)
+3. **A per-file span diff** against recursive descent, under §5's
+   normalisation, wherever both produce one reading.
+4. **An arbiter for every disagreement:** perl's own grouping, from
+   `perl -MO=Deparse,-p` (perigrin's ruling, 2026-10-29). The parser whose
+   grouping matches perl's is right. If both match, the shape difference is
+   legitimate (07 §7.5.2). Where Deparse loses the form, the disagreement is
+   recorded as undecided, reported by count, and does not count towards
+   parity. The same check catches an asserted reading perl does not take,
+   which the oracle cannot see.
 
-Canon re-emission stays the recursive-descent parser's. The chart parser
-inherits its guarantee on every file where their brackets agree. A canon for
-the chart is needed only if recursive descent is retired, and is decided
-then. Chalk's re-emission is a lowering from the SoN IR, not from a CST, so it
-does not serve here.
+Canon re-emission stays the recursive-descent parser's, so the chart's M6
+verdict is on M6 without re-emission. Chalk's re-emission lowers its SoN IR,
+not a CST, and does not serve here.
 
 ## 8. Phases and gates
 
-The phase order is perigrin's: Standard Perl first, then parity, then
-performance, then incremental.
+The order is perigrin's ruling (2026-10-29): Standard Perl, then cheap early
+measures and the probes, then full parity only if those come back positive.
+
+**Budgets.** Before each phase starts, refinement records its budget in the
+milestone as an issue count and a calendar estimate. A phase open beyond
+twice its budget forces a decision, continue or stop, recorded with its
+reason. A cold-parse tripwire on Standard Perl inputs runs at every step,
+as a warning.
 
 ### Phase 1: Standard Perl
 
-- **Build:**
-  - the grammar translation and generator (tables and expectation classes);
-  - `chart/lex`, `chart/recognize`, `chart/forest`;
-  - the minimal token-branch case: an undeclared word followed by `/`, with
-    both readings branched and chosen by `Expected`. Building it now proves
-    the interface, the lookahead handling and conditional packed nodes early;
-  - `chart/compare`.
-- **Corpus:** Guacamole v0.008's own test suite, taken as valid: about 546
-  `parses(...)` cases (must parse) and 87 `parsent(...)` cases (must refuse),
-  in 38 files. Guacamole is not run.
+- **Build:** the grammar reader and generator, `chart/lex` (with the lexer
+  refactor), `chart/recognize`, `chart/forest`, `chart/compare`, the oracle
+  subject adapter, and one token-branch case (an undeclared word followed by
+  `/`) that exercises the lattice.
+- **Corpus:** Guacamole's suite, extracted by running its tests with a
+  recording `Guacamole::Test` (791 `parses`, 126 `parsent` by A's count),
+  checked in, and reviewed. The feature bundle Standard Perl assumes is
+  declared as a preamble (`use feature ':5.36'`). `parsent` means "not
+  Standard Perl", not "not Perl", so its labels are correct by definition. A
+  `parses` case perl rejects (23 under perl 5.42.0) is a Guacamole erratum:
+  recorded, and refused (rule 5).
 - **Gate:**
-  - every `parses` case accepted, WRONG = 0 against perl, round-trip lossless,
-    and the bracket diff agreeing with recursive descent, or every
-    disagreement decided by the oracle;
-  - every `parsent` case refused with an Error node, never a plausible tree;
-  - the expectation classes compared against spec chapter 3's eleven
-    `PL_expect` states. The result is recorded, and decides up-front versus
-    interleaved lexing. Agreement is evidence the grammar models Perl
-    correctly; each difference is a grammar bug or a place perl's lexer knows
-    something the grammar does not.
+  - every `parses` case perl accepts, accepted, under all four parts of §7;
+  - every `parsent` case and every erratum refused, with an Error node;
+  - the expectation-class comparison done: an explicit map from each of
+    spec 03's eleven `PL_expect` states to the conflicts it settles, and the
+    count of conflict decisions where the generated classes differ. The
+    lexing mode (up front or interleaved) is recorded from it.
 
-### Phase 2: parity
+### Phase 2: early measures, on Standard Perl
 
-- **Ratchet order:** Guacamole's exclusion list, one feature at a time:
-  auto-quoting; `print {$fh}` forms and bareword filehandles; unusual quote
-  delimiters; heredocs; paren-less calls; prototype-driven parses; indirect
-  objects; `given`/`when`. The order may change by yield.
-- **Each step records:** where the fix landed, its size, the places it
-  touched, the open defects it settled, and the `parsent` cases it flipped
-  into correct, oracle-verified parses.
-- **M4–M6 probes.** A sample of two or three per milestone, fixed before
-  phase 2 starts and drawn from open issues, is implemented and costed on
-  both sides. Candidates:
-  - **M4:** `first { ... } @list`; a named unary versus a list operator with
-    an unknown prototype; `sort $coderef @list`;
-  - **M5:** `s///e`; `(?{ ... })`; unusual or nested delimiters;
-  - **M6:** failing constructs from `t/base/lex.t` and `t/comp/parser.t`.
+- Cold parse time and memory against recursive descent on the accepted
+  phase-1 corpus, and on Standard-Perl source files.
+- Leo on and off, set-reuse rate, automaton state count; Aycock–Horspool
+  automaton states against per-item cores, as a measured option.
+- Incremental measure (a): tokens past an edit until the new sets match the
+  old ones again, over single-statement edits.
+- **Gate:** perigrin's ruling, against thresholds written here before the
+  numbers arrive: a cold parse above 3× recursive descent on the same input,
+  with no single hot spot accounting for half the gap, is a speed kill;
+  sets that rarely match again within one statement of the edit make the
+  incremental verdict "keep the snapshot design".
 
-  On the recursive-descent side, the cost is the fixing PR's diff and review
-  rounds where the issue is already closed, or the same measures from
-  implementing it where it is open. Only probes whose issues are open in M4–M6
-  anyway are implemented on the recursive-descent side, so that work is not
-  wasted. Which side goes first alternates, against learning bias, and some
-  probes sit late in the phase, to show whether chart costs fall as it
-  matures. **"Noticeably easier"** means at least half the probes cost
-  clearly less on the chart and none needs a grammar hack.
-- **Gate:** parity (§7) with the current floor: T2 56/56, perl.git `t/`
-  619/619, T1, and the corpus and site ratchets no lower.
+### Phase 3: M4–M6 probes
 
-### Phase 3: performance
+- **The sample** is fixed before the phase starts: two or three probes per
+  milestone, drawn from open issues. Candidates: `first { ... } @list`; a
+  named unary versus a list operator with an unknown prototype; `sort
+  $coderef @list`; `s///e`; `(?{ ... })`; unusual delimiters; failing
+  constructs from `t/base/lex.t` and `t/comp/parser.t`.
+- **Each probe** is built on the Standard grammar plus only the context
+  pieces it needs (`chart/resolve` and lexer facts), and measured on both
+  parsers: lines changed, places touched, where the fix landed. Shared chart
+  infrastructure is charged in equal parts to every probe that uses it. On
+  the recursive-descent side, a closed issue's cost is its PR; an open one is
+  implemented as ordinary mainline work through mainline gates, outside the
+  spike's isolation. Which side goes first alternates.
+- **"Clearly cheaper"** means at most half the lines and half the places
+  touched. The M4–M6 verdict is positive if at least half the probes are
+  clearly cheaper on the chart and none needed a grammar rule written for a
+  single probe.
+- The defect-yield and head-to-head evidence (§2, 1 and 2) is collected here.
+- **Gate:** the recommendation, with both verdicts.
 
-- Leo on and off, with ahead-of-time tables throughout.
-- Cold-parse time and memory against recursive descent, on edit5k.pl and the
-  corpora.
-- Set-reuse rate (YAEP reports about 70% on a cold parse) and the automaton's
-  state count.
-- A deep chained-ternary file, which is where Leo's worst-case value shows.
-- **Gate:** perigrin rules on the numbers, which also sets a cold-open budget.
-  A cold parse cannot meet 10 ms: YAEP-class C extrapolates to about 11 ms for
-  5 kLOC, and a Go port will probably be slower. So M2's 10 ms target can only
-  be met on the incremental path.
+### Phase 4: parity (only if both verdicts are positive)
 
-### Phase 4: incremental
+Guacamole's exclusion list, one feature at a time: auto-quoting; `print
+{$fh}` forms and bareword filehandles; unusual quote delimiters; heredocs;
+paren-less calls; prototype-driven parses; indirect objects;
+`given`/`when`. Then require/use loading, which perl.git `t/`'s 619/619
+depends on. Each step records `parsent` cases flipped to correct parses.
+**Gate:** §7 parity with the floor: T2 56/56, perl.git `t/` 619/619, T1 and
+the corpus and site ratchets at or above recursive descent's.
 
-- How many tokens past an edit until the new sets match the old ones again,
-  what fraction match after that, and the cache hit rate (rebel's measures
-  a to c).
-- Then M2's contract: a repair returns a tree equal to a fresh parse or
-  refuses, under FuzzIncremental and FuzzIncrementalSequence retargeted at
-  the chart.
-- Context edits (prototype, `use`, feature) correctly invalidate everything
-  after them and get no incremental benefit.
-- **Gate:** the evidence goes into the recommendation.
+### Phase 5: incremental (after phase 4)
 
-### Phase 5: recommendation
-
-The M4, M5 and M6 head-to-heads, the defect-yield and cost-of-change
-summaries, and the two verdicts.
-
-### Throughout
-
-A tripwire records cold-parse time on edit5k.pl at every step. It is an early
-warning, not a gate.
+Measures (b) and (c), then M2's contract: a repair returns a tree equal to a
+fresh parse or refuses, under FuzzIncremental and FuzzIncrementalSequence
+retargeted at the chart. Context edits invalidate everything after them, by
+design.
 
 ## 9. Risks and kill criteria
 
-Fixed before any work starts. A kill ends the spike early and the
-recommendation says why.
+Fixed before work starts.
 
 | Risk | Early signal | Kill or decline criterion |
 |---|---|---|
-| Silent misparse | A `parsent` case accepted, or WRONG > 0 | Any WRONG that cannot be fixed by refusing |
-| Forest blow-up | Ambiguity nodes per file, and the largest region | Real files needing more than 2^10 readings in one region after resolution, where perl's reading is not decidable by compile-time facts |
-| Speed | The tripwire | At phase 3, a cold parse more than about 3× recursive descent's with no credible route to closing it; perigrin rules |
-| Expectation classes differ from perl's | The phase-1 comparison | Not a kill. It decides the lexing mode. A large mismatch is investigated before phase 2 |
-| Context leaking into the chart | Set reuse falling as phase 2 adds pieces | Any fix needing facts inside items breaks rule 2: a design review, not a patch |
-| No incremental convergence (Wiren 1989) | Measure (a) in phase 4 | Not a kill. The incremental verdict becomes "keep the snapshot design for M2" |
-| Probes show no advantage | The per-probe cost table | Fewer than half clearly cheaper, or any needing a grammar hack: evidence to decline |
-| Drift and stall | Each phase gate's date | A gate open far longer than estimated triggers a decision on whether to continue |
+| Silent misparse | A `parsent` case or erratum accepted; WRONG > 0; a Deparse-decided disagreement lost by the chart | A WRONG or lost disagreement whose only fix is a refusal that drops coverage below recursive descent's on that file |
+| Forest blow-up | Readings per symbol node, counted by sum-product over packed nodes | A symbol node in a real file with more than 2^10 readings after resolution, where perl's reading is not decidable by compile-time facts |
+| Speed | Phase 2; the tripwire | Phase 2's threshold. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50 and 33.42 ms p99; a YAEP-class extrapolation for 5 kLOC is about 13.6 ms. Both are hypotheses for phase 2 to test |
+| Expectation classes differ | The phase-1 count | More than 2 of the 11 states' conflict decisions unmatched: investigated before phase 2 |
+| Context leaking into the chart | Set reuse falling as probes add pieces | Any fix needing facts inside items: a design review |
+| No incremental convergence (Wiren 1989) | Phase 2's measure (a) | The incremental verdict becomes "keep the snapshot design" |
+| Probes show no advantage | The phase-3 table | Phase 3's threshold not met |
+| Drift and stall | Budgets (§8) | A phase beyond twice its budget forces a recorded decision |
 
 ## 10. Testing
 
-pvm's conventions apply: TDD, `make test` at 100%, the pre-commit hooks.
+pvm's conventions apply: TDD, the pre-commit hooks, `make test` for code.
 
-- **`chart/grammar` generator:** golden tests on small grammars covering
-  nullables, left and right recursion; generating twice gives byte-identical
-  tables; expectation classes match hand computation on a toy grammar.
-- **`chart/recognize`:** accept and reject sets of every toy grammar; Leo on
-  and off give identical forests on everything (Chalk's practice); two
-  positions with equal content share one interned set.
-- **`chart/forest`:** span consistency of every packed node; lossless token
-  round-trip; a known-ambiguous toy input yields exactly its readings.
-- **`chart/lex`:** each reused scanner yields today's tokens on the existing
-  lexer corpus under each class; the token-branch case carries both readings
-  and a condition.
-- **`chart/compare`:** bracket export against hand-built trees, with one check
-  that must pass for each that must fail (CONTRIBUTING): a known disagreement
-  is reported, and identical trees report none.
-- **Ratchets,** in the existing harness: Guacamole `parses` accepted and
-  `parsent` refused, bracket agreement, `parsent` cases flipped, probe costs,
-  the tripwire. They are reported, but are not `make test` gates until the
-  spike is accepted, so the experiment cannot block mainline work.
-- **Fuzzing:** a recognizer and forest invariant fuzzer in phase 1; the
-  incremental fuzzers in phase 4.
-- **Isolation:** everything lives in `internal/chart/` and new test files.
-  Nothing in `internal/parse`, `lower`, `infer` or `psc` changes.
+- **Generator:** golden tests on small grammars (nullables, left and right
+  recursion); byte-identical tables on regeneration; expectation classes
+  matching a hand computation.
+- **Recognizer:** accept and reject sets of toy grammars; positions with
+  equal content share one interned set; Leo on and off give identical
+  forests; and a test that **fails if Leo does nothing**: item count or time
+  on `S → a S` at lookahead 0 must be linear.
+- **Forest:** every packed node's yield is its span; known-ambiguous toy
+  inputs yield exactly their readings.
+- **Lexer refactor:** `TestLexerRatchet` and the existing lexer corpus,
+  unchanged under the refactor; each scanner yields today's tokens under the
+  expectation it is given.
+- **Compare:** the normalisation tested against hand-built trees, with one
+  check that must pass for each that must fail: a known disagreement is
+  reported, identical trees report none.
+- **Ratchets:** chart ratchets fail in both directions, like pvm's, and gate
+  the spike's branch, not mainline `make test`.
+- **Fuzzing:** recognizer and forest invariants in phase 1; the incremental
+  fuzzers in phase 5.
+- **Isolation:** `internal/parse`, `lower`, `infer` and `psc` do not change
+  for the chart. Two things are outside the isolation and are ordinary
+  mainline work: the `internal/lexer` refactor, and recursive-descent probe
+  work. `chart/compare` imports `internal/parse` to export its trees.
 
 ## 11. Future work, not in this spike
 
 - **A B::SoN semantic oracle.** B::SoN (`perigrin/perl5-son`) turns perl's
-  compiled op tree into a Sea-of-Nodes graph, serialized as deterministic
-  JSON (`docs/plans/2026-04-07-son-json-serialization-design.md` there).
-  Chalk produces the same IR from source. A resolver-to-SoN builder would let
-  pvm diff a resolved reading's *semantics* against
-  `perl -MO=SoN,json`, a stronger check than markers. Two limits: the v1
-  wire schema carries no source positions, so the IR cannot replace the
-  forest for position-based LSP features; and a graph is one resolved
-  meaning, so it can only be built after resolution.
-- **The downstream IR.** Whether the chart's output eventually feeds pvm's
-  lowered tree or the SoN IR is open. Until it is settled, the chart parser
-  cannot feed analysis, so M2's tree-plus-analysis budget is measured for the
-  parse half only.
+  compiled op tree into a Sea-of-Nodes graph, serialized as deterministic JSON
+  (`docs/plans/2026-04-07-son-json-serialization-design.md` there). A
+  resolver-to-SoN builder would let pvm diff a reading's semantics against
+  `perl -MO=SoN,json`. The v1 schema carries no source positions, so the IR
+  cannot replace the forest for position-based LSP features, and a graph is
+  one resolved meaning.
+- **The downstream IR.** Until it is settled the chart cannot feed analysis,
+  which is why §2 covers only the parse half of M2.
 
 ## 12. References
 
-- Aycock and Horspool, "Practical Earley Parsing" (2002); Aycock's PhD thesis
-  (2001), also in Chalk as `docs/Aycock_JohnDaniel_PhD_2001.pdf`.
-- Leo (1991), right-recursion optimization.
-- Scott (2008), "SPPF-style parsing from Earley recognisers".
-- Wiren (1989), incremental chart parsing (EACL); the non-locality of
-  top-down prediction under edit.
-- Wagner and Graham (PLDI 1997): keeping C/C++ ambiguity in a parse DAG cost
-  under 0.5% space and 1% time.
-- YAEP, `github.com/vnmakarov/yaep`. Its README's own benchmarks: 67K lines of
-  C in 0.18 s parse-only against YACC's 0.07 s, at 26 MB; Marpa 3.48 s at
-  516 MB. These are the author's numbers.
-- Guacamole v0.008, `github.com/xsawyerx/guacamole` at 2838253: the definition
-  of Standard Perl (`lib/standard.pm`) and its test suite.
-- Chalk, `github.com/perigrin/chalk`: `ARCHITECTURE.md`,
-  `docs/architecture/earley-parser.md`,
-  `docs/architecture/ambiguity-classes.md`, and the seed grammar at 00399607.
+- Aycock and Horspool, "Practical Earley Parsing" (2002); Aycock's thesis
+  (2001), in Chalk as `docs/Aycock_JohnDaniel_PhD_2001.pdf`.
+- Leo (1991). Scott (2008), "SPPF-style parsing from Earley recognisers".
+  Wiren (1989), EACL. Wagner and Graham (PLDI 1997).
+- YAEP at 7aba93e: `src/yaep.c`, `doc/Internals.txt`; README benchmarks are
+  the author's own.
+- Guacamole v0.008 at 2838253: `lib/Guacamole.pm`, `lib/standard.pm`, `t/`.
+- Chalk: `ARCHITECTURE.md`, `docs/architecture/earley-parser.md`,
+  `docs/architecture/ambiguity-classes.md`.
 - Rebel's YAEP analysis: `pages/incremental-chart-parsing.md` in perigrin's
-  commonplacebook, commit 48d0d34, with each claim marked as read in the
-  source, from YAEP's docs, or inferred.
-- Kegel, the argument that Perl cannot be statically parsed (BEGIN plus
-  prototypes). Cited from memory.
+  commonplacebook, commit 48d0d34.
+- Kegel, the argument that Perl cannot be statically parsed. Cited from
+  memory.
 - pvm: `docs/plans/2026-09-05-parser-prior-art.md` §A1.3,
   `docs/plans/2026-09-04-perl-parser-decision.md`,
-  `docs/specs/perl-parser/03-lexer-feedback.md`.
+  `docs/plans/2026-09-21-cst-is-the-source-of-truth.md`,
+  `docs/specs/perl-parser/03-lexer-feedback.md`, `07-conformance.md`,
+  `internal/parseoracle/README.md`.
