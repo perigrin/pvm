@@ -184,8 +184,12 @@ Horspool's ε-DFA:
   state holds the items a kernel state predicts. Both are closed under dot
   advancement past nullable symbols.
 - An Earley item's origin is its kernel's origin in a kernel state, and the
-  current position in a predicted state. The start state is the start
-  symbol's predicted state.
+  current position in a predicted state.
+- **The start state is state 0**, the start symbol's predicted state. The
+  grammar has no augmented start rule, so the recognizer **accepts** when the
+  last Earley set holds a complete item of one of the start symbol's rules
+  whose origin is 0, meaning the item's rule appears in the reduce list of a
+  state in that set.
 
 Every line is space-separated numbers and names:
 
