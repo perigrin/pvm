@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/chart"
+	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -36,6 +37,8 @@ var (
 	editsFile    = filepath.Join(testdata, "convergence-edits.jsonl")
 	defectList   = filepath.Join(testdata, "defect-yield.txt")
 	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
+	grammarSLIF  = filepath.Join("internal", "chart", "grammar", "testdata", "guacamole", "guacamole.slif")
+	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
 )
 
 // keys is the fixed print order: the milestone's contract keys, then the
@@ -49,6 +52,7 @@ var keys = []string{
 	"defect-yield-listed", "defect-yield-sites", "defect-yield-settled",
 	"oracle-sites-decided", "expect-states-unreproduced",
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
+	"tables-drift",
 }
 
 func main() {
@@ -157,6 +161,15 @@ func measure(ctx context.Context) (map[string]string, error) {
 	}
 	m["defect-yield-listed"] = strconv.Itoa(len(listed))
 
+	drift, err := tablesDrift(tablesDir, grammarSLIF)
+	if err != nil {
+		return nil, fmt.Errorf("tables-drift: %w", err)
+	}
+	for _, d := range drift {
+		fmt.Fprintf(os.Stderr, "chart-ratchet: tables-drift: %s\n", d)
+	}
+	m["tables-drift"] = strconv.Itoa(len(drift))
+
 	std5k, err := os.ReadFile(std5kFile)
 	if err != nil {
 		return nil, fmt.Errorf("std5k: %w", err)
@@ -197,6 +210,24 @@ func measure(ctx context.Context) (map[string]string, error) {
 		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
 	}
 	return m, nil
+}
+
+// tablesDrift regenerates the tables from slif into a temporary directory
+// and names each file that differs from the committed ones in dir.
+func tablesDrift(dir, slif string) ([]string, error) {
+	files, err := grammar.GenerateTables(slif)
+	if err != nil {
+		return nil, err
+	}
+	tmp, err := os.MkdirTemp("", "chart-tables-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	if err := grammar.WriteTables(tmp, files); err != nil {
+		return nil, err
+	}
+	return grammar.TablesDrift(dir, tmp)
 }
 
 func rate(k, n int) string {
