@@ -148,11 +148,32 @@ func TestArrayTopNeedsFileState(t *testing.T) {
 		"BEGIN { 1 } $#{$r};",
 		"class Foo; $#{$r};",                // classSyntax, with no use
 		"print <<EOF, $#{$r};\nbody\nEOF\n", // a heredoc body pending
+		"my $n = $#{ [ $#{$r} ] };",         // a nested $#{, with no trigger
 	} {
 		_, err := x.Lex([]byte(src))
 		at := "byte " + strconv.Itoa(strings.Index(src, "$#{"))
 		if err == nil || !strings.Contains(err.Error(), at) || !strings.Contains(err.Error(), "needs the lexer's file state (01a1882d-d8a4)") {
 			t.Errorf("%q: got %v, want a refusal at %s naming 01a1882d-d8a4", src, err, at)
+		}
+	}
+	// A trigger inside a `$#{` interior is a trigger too: that `$#{` is
+	// refused, and so is every `$#{` after it. perl reads each `/2/` here as
+	// two divisions (gate review of #541, H1 in pass 3).
+	for _, src := range []string{
+		"my $a = $#{ sub N () { 2 } [] }; my $b = $#{ [ N /2/ 1 ] };",
+		"my $a = $#{ use constant N => 2; [] }; my $b = $#{ [ N /2/ 1 ] };",
+		"my $a = $#{ use constant M => 2; [ $#{ [ M /2/ 1 ] } ] };",
+	} {
+		s, err := x.Lex([]byte(src))
+		if err == nil || !strings.Contains(err.Error(), "needs the lexer's file state (01a1882d-d8a4)") {
+			t.Errorf("%q: got %v, want a refusal naming 01a1882d-d8a4", src, err)
+		}
+		// The `/2/` stays inside a whole, unmapped `$#{` token: never lexed.
+		at := strings.Index(src, "/2/")
+		for _, tok := range s.Tokens {
+			if tok.Start <= at && at < tok.End && (!strings.HasPrefix(src[tok.Start:tok.End], "$#{") || tok.Terminals != nil) {
+				t.Errorf("%q: `/2/` was lexed, inside %q", src, src[tok.Start:tok.End])
+			}
 		}
 	}
 	// strict and warnings, either way and with import lists, and statements

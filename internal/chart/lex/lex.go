@@ -109,9 +109,15 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 	s := &Stream{Facts: facts(src, raw)}
 	var errs []error
 	refused := map[int]bool{}
+	// A `$#{` is refused after a trigger, when its own interior holds one or
+	// a nested `$#{`, and after any refused `$#{`, whose interior went unread.
 	from := fileStateFrom(src, raw)
 	for _, t := range raw {
-		if isArrayTop(src, t) && t.Start >= from {
+		if !isArrayTop(src, t) {
+			continue
+		}
+		if t.Start >= from || interiorUnsafe(src, t) {
+			from = min(from, t.Start)
 			refused[t.Start] = true
 			errs = append(errs, fmt.Errorf("byte %d: `$#{` interior needs the lexer's file state (01a1882d-d8a4)", t.Start))
 		}
@@ -161,7 +167,8 @@ func (s *Stream) covers(n int) error {
 // (Guacamole's SigilArrayTop BlockNonEmpty): a Variable `$#{`, the interior
 // re-lexed by the production lexer with its offsets in the file, and the
 // closing `}` as the production lexer's CloseBracket. An unterminated one has
-// no closer. One whose start is refused stays whole, and unmapped.
+// no closer. One whose start is refused stays whole, and unmapped. A nested
+// `$#{` is always refused with its outer one, so the interior never holds one.
 func splitArrayTop(src []byte, toks []lexer.Token, refused map[int]bool) []lexer.Token {
 	var out []lexer.Token
 	for _, t := range toks {
@@ -169,19 +176,14 @@ func splitArrayTop(src []byte, toks []lexer.Token, refused map[int]bool) []lexer
 			out = append(out, t)
 			continue
 		}
-		open, end := t.Start+3, t.End
-		closed := end > open && src[end-1] == '}'
-		if closed {
-			end--
-		}
+		open, end, inner := interior(src, t)
 		out = append(out, lexer.Token{Kind: lexer.Variable, Start: t.Start, End: open})
-		inner := lexer.TokenizeBarewords(src[open:end], BarewordOperators)
-		for i := range inner {
-			inner[i].Start += open
-			inner[i].End += open
+		for _, it := range inner {
+			it.Start += open
+			it.End += open
+			out = append(out, it)
 		}
-		out = append(out, splitArrayTop(src, inner, refused)...)
-		if closed {
+		if end < t.End {
 			out = append(out, lexer.Token{Kind: lexer.CloseBracket, Start: end, End: t.End})
 		}
 	}
@@ -190,6 +192,25 @@ func splitArrayTop(src []byte, toks []lexer.Token, refused map[int]bool) []lexer
 
 func isArrayTop(src []byte, t lexer.Token) bool {
 	return t.Kind == lexer.Variable && bytes.HasPrefix(src[t.Start:t.End], []byte("$#{"))
+}
+
+// interior is a `$#{` token's interior: its bytes open..end, past the `$#{`
+// and before any closing `}`, and their tokens from a blank lexer state,
+// with offsets relative to open.
+func interior(src []byte, t lexer.Token) (open, end int, toks []lexer.Token) {
+	open, end = t.Start+3, t.End
+	if end > open && src[end-1] == '}' {
+		end--
+	}
+	return open, end, lexer.TokenizeBarewords(src[open:end], BarewordOperators)
+}
+
+// interiorUnsafe reports whether a `$#{` interior holds what the rule
+// refuses before a `$#{`, or a nested `$#{`.
+func interiorUnsafe(src []byte, t lexer.Token) bool {
+	open, end, toks := interior(src, t)
+	in := src[open:end]
+	return fileStateFrom(in, toks) < len(in) || slices.ContainsFunc(toks, func(it lexer.Token) bool { return isArrayTop(in, it) })
 }
 
 // fileStateFrom is the first byte from which the lexer's file state might

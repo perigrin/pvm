@@ -139,7 +139,9 @@ blank lexer state. The rule fails closed. It lexes the interior only when
 nothing before the `$#{` can have moved the file's state off blank: `use` or
 `no` of strict or warnings, and statements with no `use`, `no`, `sub`,
 `class`, `BEGIN` or heredoc opener. Anything else refuses rather than guess,
-an unknown module included. Every corpus case's preamble is a `use feature`,
+an unknown module included. A `$#{` whose own interior holds one of those, or
+a nested `$#{`, refuses too, and so does every `$#{` after a refused one,
+whose interior went unread. Every corpus case's preamble is a `use feature`,
 so every corpus `$#{` is refused until 01a1882d-d8a4 lets the production
 lexer lex the interior in place.
 
