@@ -20,11 +20,12 @@ chart what it expects would give pvm that property for the first time.
 
 What strains is context. How Perl parses depends on what is known at that
 point: declared subs, prototypes, features, imports. In the current parser
-that knowledge is implicit state. About 49 open v0.1 issues are cases where
-the parser disagrees with perl, most of them context-dependent (a
-title-keyword count, approximate). The M2 incremental work needed hand-written
-invalidation (`sameState`, `keepsLead`, `peekEnd`, `openSquares`), and nearly
-every gate review found another piece of hidden state.
+that knowledge is implicit state. Many open v0.1 issues are cases where the
+parser disagrees with perl, most of them context-dependent; the list that
+defect yield counts against is fixed before the first step (§8). The M2
+incremental work needed hand-written invalidation (`sameState`, `keepsLead`,
+`peekEnd`, `openSquares`), and nearly every gate review found another piece of
+hidden state.
 
 An Earley chart parser can make the dependency explicit: the parser reports
 every reading and the condition that selects it, and something outside the
@@ -82,13 +83,15 @@ and stays experimental until the spike is accepted.
 3. **Only perl's own rules may prune.** A reading may be removed by a fact
    perl had at compile time (a prototype, a declared sub, a feature, an
    import, a library declaration the oracle has vetted), or by a deterministic
-   rule perl's lexer applies (`intuit_more` for `{`). Some compile-time facts
+   rule perl's lexer applies (`yyl_leftcurly` for `{`). Some compile-time facts
    pvm can obtain only by running code (a prototype installed by a string
    `eval` in `BEGIN`; spec 03 §3.0), and those readings stay ambiguous.
    Inferred runtime types never prune; where they contradict perl's reading,
    that is a diagnostic.
 4. **Ambiguity may stay.** A language server needs the facts true in every
-   reading. A reading is WRONG if it asserts what perl does not; perl's
+   reading. A reading is WRONG if it asserts what perl does not, as graded
+   at the oracle's markers (§7.1); grouping that changes only a value is not
+   graded, and elsewhere disagreements are recorded (§7.3). Perl's
    reading among several live ones is *covered but undecided*. A statement
    whose readings, after `chart/resolve`, exceed 2^10 collapses to an Error
    node. Readings are counted by sum-product over the statement's own packed
@@ -105,7 +108,9 @@ sources where the constraints match.
 
 **Guacamole v0.008** (`xsawyerx/guacamole` at 2838253) is the starting
 grammar, and its definition of Standard Perl is the ratchet's first waypoint.
-Its G1 rules supply the `Statement`/
+Standard Perl is mostly a subset, but it also imposes a few readings perl does
+not take ("left of arrow is always an invocant"); those are replaced by
+perl's on the parity steps. Its G1 rules supply the `Statement`/
 `BlockStatement` split, the four-way precedence clones (`ExprValueU`/`0`/`L`/
 `R`), the `NonBrace*` hierarchy for block versus hash, and per-keyword
 builtin rules (about 200, e.g. `OpKeywordTimeExpr ::= OpKeywordTime LParen
@@ -131,9 +136,10 @@ and the grammar generator also import `internal/parse`.
 
 ### `chart/grammar`
 
-Reads the **subset of Marpa's SLIF notation that Guacamole uses**: G1 rules (`::=`, `|`), sequence rules (`X ::= Y*`),
+Reads the **subset of Marpa's SLIF notation that Guacamole uses**: G1 rules
+(`::=`, `|`), sequence rules (`X ::= Y*`, `X ::= Y+`),
 `:lexeme ~ X priority => n`, `:discard`, and `lexeme default = latm => 1`.
-`action =>` and `name =>` adverbs are ignored.
+`action =>` and `name =>` adverbs and `:default` are ignored.
 
 **The token cut.** G1 builds some single pvm
 tokens from several lexemes. Every rule at or below pvm's token level is
@@ -183,8 +189,7 @@ production lexer does; the chart never feeds them back (rule 2).
 **One coupled choice: lexing mode, lookahead, list shape and Leo.** An
 interleaved lexer cannot supply lookahead, because lexing token *k+1* needs
 the set at *k+1*. So interleaved means lookahead 0, where G1's right-recursive
-`StatementSeq` is quadratic without Leo (a toy YAEP probe: 0.007 s at
-lookahead 1 against 87.6 s at lookahead 0, over 100k tokens). Interleaved
+`StatementSeq` is quadratic without Leo. Interleaved
 therefore needs working Leo, and has lower set reuse by construction. The
 every-step speed measure (§8) times whichever mode is in force.
 
@@ -267,14 +272,25 @@ recorded.
    present in every live reading is reported decided; one present in only some
    readings is reported unresolved, which scores *wider*, never exact.
    Coverage and exactness must be at or above recursive descent's measured
-   score on the same corpus, and WRONG = 0. The oracle grades five marker
-   kinds today (srefgen, rv2hv, match, readline, anonhash). Before the M4–M6
-   steps it gains a sixth, **argument structure**, from perl's op tree: the
-   argument count of each call, and whether each `print`/`say` took a
-   filehandle. That is mainline oracle work, graded on recursive descent too,
-   in both directions. Grouping that changes only an evaluated value is not
-   graded: pvm is a linter and language server, not an interpreter. The oracle
-   never sees surplus (`compareMarkers`), so it is necessary, not sufficient.
+   score on the same corpus, and WRONG = 0 on the five marker kinds the oracle
+   grades today (srefgen, rv2hv, match, readline, anonhash). For those five
+   the oracle never sees surplus (`compareMarkers`), so it is necessary, not
+   sufficient. Grouping that changes only an evaluated value is not graded:
+   pvm is a linter and language server, not an interpreter.
+
+   Before the M4–M6 steps the oracle gains a sixth kind, **argument
+   structure**, read from perl's op tree. One site per call: a sub call,
+   `&`-call or method call, indirect ones included. A site is identified by
+   its statement, the callee's name and its order among that statement's
+   calls, and it records the call kind, the number of direct argument
+   expressions (the call's list children, less `pushmark` and the callee: so
+   `foo((1,2),3)` has two), and the special first slot where a builtin has
+   one: a filehandle for `print`/`say`, a comparator for `sort`, a block for
+   `map`/`grep`. A site graded against perl is WRONG if any of those
+   differs, in either direction, so surplus arguments count. It is mainline
+   oracle work: the kind lands with recursive descent's measured score as its
+   ratchet baseline, and its own budget line under the ratchet's. On this kind
+   parity means the chart's WRONG at or below recursive descent's.
 2. **Yield.** The yield of every packed node is exactly its byte span, and the
    root's yield is the source.
 3. **A per-file span diff** against recursive descent, under §5's
@@ -291,10 +307,15 @@ everything already accepted accepted, and is measured before the next begins.
 
 **A realistic input from the start.** Before the checkpoint every corpus is
 snippet-sized, and snippets time setup rather than throughput. So the first
-step also generates **std5k.pl**: several thousand lines of Standard Perl,
-written by `latencyFixture` (`internal/psc/latency_fixture_test.go`, which
-writes edit5k.pl) with Standard Perl's exclusions written out, committed, and
-valid only while both parsers accept it and perl compiles it.
+step also generates **std5k.pl**: several thousand lines of Standard Perl from
+a generator in `internal/chart`, modelled on `latencyFixture`
+(`internal/psc/latency_fixture_test.go`, which writes edit5k.pl) but with its
+own template, since edit5k.pl's uses heredocs, auto-quoting and paren-less
+calls. It is committed, and valid only while both parsers accept it and perl
+compiles it. It repeats one template, which flatters set interning and the
+transition cache, so its ratio is a lower bound. That is accepted: the speed
+kill applies at every step, so perl.git `t/` catches the bias once it joins at
+parity.
 
 **Every step measures,** against recursive descent, on std5k.pl and on every
 other file both parsers accept:
@@ -305,13 +326,16 @@ other file both parsers accept:
   file set, so a step that only admits heavier files is visible as such.
   edit5k.pl joins as soon as the chart accepts it;
 - **set reuse:** the fraction of positions whose set is an interned hit;
-- **cost of change:** lines changed (Go and grammar counted and reported
-  separately) and files touched on each side. For a feature recursive descent
-  already has, its cost is the sum over every PR whose title or `Implements:`
-  trailer names the feature, with the list recorded. The share of a step spent
-  on infrastructure later steps reuse is reported beside the total;
-- **defect yield:** open issues settled, and oracle sites decided for the
-  chart;
+- **cost of change:** lines changed (Go plus grammar, each also reported
+  alone) and files touched on each side. Each side is charged its own delta
+  from where it stands: the chart's includes the exclusions a step builds and
+  the `internal/lexer` refactor; recursive descent's is the work on its
+  mainline code. For a feature recursive descent already has, its cost is the
+  sum over the PRs that built it, listed by hand and reviewed when the step is
+  refined. The share of a step spent on infrastructure later steps reuse is
+  reported beside the total;
+- **defect yield:** settled issues from a list of open "perl disagrees" issues
+  fixed before the first step, and oracle sites decided for the chart;
 - **convergence,** over 200 single-statement edits to std5k.pl and to each
   corpus with multi-statement files, fixed before the first step: the number
   of tokens past the edit until the new sets match the old.
@@ -327,8 +351,9 @@ continuing records a new estimate, and the rule applies again.
 The first step builds the recognizer, the forest, error recovery,
 `chart/compare` and the oracle adapter, with the production lexer up front.
 The speed kill (§9) is live from the moment the recognizer runs on std5k.pl,
-inside the step, before the forest and the rest are built. Its corpus is Guacamole's suite, extracted by running its tests with
-a recording `Guacamole::Test` (791 `parses` and 126 `parsent` calls), checked
+inside the step, before the forest and the rest are built. Its corpus is
+Guacamole's suite, extracted by running its tests with a recording
+`Guacamole::Test` (791 `parses` and 126 `parsent` calls), checked
 in and reviewed, under a declared preamble (`use feature ':5.36'`).
 
 - Cases needing a missing module run with stub modules on `@INC`, each
@@ -337,7 +362,9 @@ in and reviewed, under a declared preamble (`use feature ':5.36'`).
   definition. A `parses` case perl still rejects is excluded from scoring, as
   spec 07 §7.5.2 excludes any input perl fails to compile. A `parses` case
   perl accepts with a different reading is caught only by §7.
-- **Exit:** every perl-accepted `parses` case accepted under §7, and every
+- **Exit:** every perl-accepted `parses` case accepted with no WRONG site and
+  its yield intact, the corpus's oracle score at or above recursive
+  descent's (§7.1), and every
   `parsent` case refused with an Error node. The expectation classes are then
   compared with those of spec 03's eleven `PL_expect` states whose conflicts
   are in the grammar in force, through an explicit map from each state to the
@@ -368,9 +395,10 @@ statement plus 8 tokens. The recommendation is made here.
 ### On to parity (only if the M4–M6 verdict is positive)
 
 The rest of Guacamole's exclusion list, one feature per step, skipping what
-the M4–M6 steps built: auto-quoting; `print {$fh}` forms and bareword
+the M4–M6 steps built: auto-quoting; `print $fh` without braces and bareword
 filehandles; unusual quote delimiters; heredocs; paren-less calls;
-prototype-driven parses; indirect objects; `given`/`when`. Then require/use
+prototype-driven parses; indirect objects; `given`/`when`; and perl's own
+readings where Standard Perl imposes another. Then require/use
 loading, which perl.git `t/`'s 619/619 depends on. Each step records `parsent`
 cases flipped to correct parses. The milestone-corpus head-to-heads (M4
 `t/comp/proto.t`, `t/op/signatures.t`, T1; M5 the T4 regex files and CPAN; M6
@@ -395,7 +423,7 @@ convergence and advantage are §8's and are not restated here.
 
 | Risk | Signal | Kill criterion |
 |---|---|---|
-| Speed | Every step's ratios | The aggregate ratio, or std5k.pl's, above 3× at any step. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50, 33.42 ms p99; a YAEP-class extrapolation for 5 kLOC is about 13.6 ms |
+| Speed | Every step's ratios | The aggregate ratio, or std5k.pl's, above 3× at any step. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50, 33.42 ms p99 |
 | Silent misparse | A `parsent` case accepted; WRONG > 0 | One that is fixed only by a refusal which drops coverage below recursive descent's on that file |
 | Forest blow-up | Readings per statement (rule 4) | More than 1% of a corpus's statements, and at least 5 of them, collapsed by the cap |
 | Context leaking into the chart | Set reuse falling as steps add features | Any fix needing facts inside items: a design review |
@@ -426,16 +454,19 @@ orchestrating session runs it at every step's close.
 - **Compare:** the normalisation tested against hand-built trees, with one
   check that must pass for each that must fail; identical trees report no
   disagreement.
-- **Argument marker:** for each of `foo $x, $y` under no prototype, `($)` and
-  a declared sub, and `print $fh $x` against `print $x`, the marker matches
-  perl's op tree, and a deliberately wrong reading is graded WRONG.
+- **Argument marker:** for `foo $x, $y` with `foo` undeclared (an indirect
+  method call in perl), with `sub foo($)` and with `sub foo`, for
+  `print $fh $x` against `print $x`, and for `sort $c @l` against
+  `sort($c, @l)`, the site matches perl's op tree, and a deliberately wrong
+  reading is graded WRONG.
 - **Fuzzing:** recognizer invariants from the first step, forest invariants
   from the step that builds the forest, and the incremental fuzzers after
   parity.
 - **Isolation:** `internal/parse`, `lower`, `infer` and `psc` do not change for
-  the chart, with three exceptions that are ordinary mainline work: the
-  `internal/lexer` refactor, recursive-descent probe work, and exporting
-  `internal/parse`'s builtin shape table.
+  the chart, with four exceptions that are ordinary mainline work: the
+  `internal/lexer` refactor, recursive-descent probe work, exporting
+  `internal/parse`'s builtin shape table, and the argument marker's sites in
+  `internal/parse` and `internal/parseoracle`.
 
 ## 11. Future work, not in this spike
 
