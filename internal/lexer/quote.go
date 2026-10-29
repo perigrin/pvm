@@ -107,7 +107,11 @@ func scanQuoteLike(l *lexer) bool {
 	// already the lexer's record that the next word is one. `method y { }`
 	// in t/class/field.t:166 was reading as a transliteration whose
 	// delimiter was `{`, which swallowed the rest of the class body.
-	if l.expect == XPostDeref || l.sawSubWord {
+	//
+	// The NAME after `package` or `class` is one too, and sawPackageWord is
+	// the same record: perl 5.44.0 compiles `package q;`, `package y 1.2;` and
+	// `package tr { 1 }` (Guacamole's Statements-PackageStatement-005.pl).
+	if l.expect == XPostDeref || l.sawSubWord || l.sawPackageWord {
 		return false
 	}
 	// After the `&` sigil the word is a sub's NAME as well: `&m('x')` calls
