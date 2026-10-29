@@ -21,7 +21,7 @@ split DerefVariable ::= SigilScalar BlockNonEmpty => DerefVariable ::= DerefScal
 split DerefVariable ::= SigilArray BlockNonEmpty ElemSeq0 => DerefVariable ::= DerefArraySigil BlockNonEmpty ElemSeq0
 split DerefVariable ::= SigilHash BlockNonEmpty ElemSeq0 => DerefVariable ::= DerefHashSigil BlockNonEmpty ElemSeq0
 split DerefVariable ::= SigilGlob BlockNonEmpty => DerefVariable ::= GlobSigil BlockNonEmpty
-split DerefVariable ::= SigilArrayTop BlockNonEmpty => DerefVariable ::= ArrayTopBlockVar
+split DerefVariable ::= SigilArrayTop BlockNonEmpty => DerefVariable ::= ArrayTopOpen StatementSeq RBrace
 absorb VarIdentExpr ::= VarIdent | VarIdentExpr PackageSep VarIdent
 token ScalarVar => Variable ~ SigilScalar VarIdentExpr
 token ArrayVar => Variable ~ SigilArray VarIdentExpr
@@ -40,7 +40,7 @@ token SpecialGlobName => Word ~ GlobalVariables | Number ~ GlobalVariables
 token DerefScalarSigil => DerefSigil ~ SigilScalar
 token DerefArraySigil => DerefSigil ~ SigilArray
 token DerefHashSigil => DerefSigil ~ SigilHash
-token ArrayTopBlockVar => Variable ~ SigilArrayTop '{' ScalarVar '}' | Variable ~ SigilArrayTop '{' SpecialScalarVar '}'
+token ArrayTopOpen => Variable ~ SigilArrayTop LBrace
 token SliceArraySigil => Variable ~ SigilArray
 token SliceHashSigil => Variable ~ SigilHash
 token SubDefName => Word ~ SubNameExpr except PhaseName

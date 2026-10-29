@@ -102,14 +102,13 @@ var GuacamoleCut = CutSpec{
 		{Name: "GlobName", Kind: "Word", Def: "VarIdentExpr"},
 		{Name: "SpecialGlobName", Kind: "Word", Def: "GlobalVariables"},
 		{Name: "SpecialGlobName", Kind: "Number", Def: "GlobalVariables"},
-		// A sigil before a block is a DerefSigil token. pvm lexes $#{...} as
-		// one Variable whatever the block holds, so only blocks the token's
-		// text can show Guacamole derives are admitted: a lone scalar.
+		// A sigil before a block is a DerefSigil token. $#{ opens a block as
+		// one Variable token: pvm's lexer emits all of $#{...} as one Variable,
+		// which no predicate admits, and chart/lex (01a18656-2ec0) splits it.
 		{Name: "DerefScalarSigil", Kind: "DerefSigil", Def: "SigilScalar"},
 		{Name: "DerefArraySigil", Kind: "DerefSigil", Def: "SigilArray"},
 		{Name: "DerefHashSigil", Kind: "DerefSigil", Def: "SigilHash"},
-		{Name: "ArrayTopBlockVar", Kind: "Variable", Def: "SigilArrayTop '{' ScalarVar '}'"},
-		{Name: "ArrayTopBlockVar", Kind: "Variable", Def: "SigilArrayTop '{' SpecialScalarVar '}'"},
+		{Name: "ArrayTopOpen", Kind: "Variable", Def: "SigilArrayTop LBrace"},
 		// After ->, a slice's sigil is a Variable token and its bracket another.
 		{Name: "SliceArraySigil", Kind: "Variable", Def: "SigilArray"},
 		{Name: "SliceHashSigil", Kind: "Variable", Def: "SigilHash"},
@@ -162,7 +161,8 @@ var GuacamoleCut = CutSpec{
 		{From: "SigilArray BlockNonEmpty", To: "DerefArraySigil BlockNonEmpty"},
 		{From: "SigilHash BlockNonEmpty", To: "DerefHashSigil BlockNonEmpty"},
 		{From: "SigilGlob BlockNonEmpty", To: "GlobSigil BlockNonEmpty"},
-		{From: "SigilArrayTop BlockNonEmpty", To: "ArrayTopBlockVar"},
+		// BlockNonEmpty is LBrace StatementSeq RBrace; its LBrace joins $#.
+		{From: "SigilArrayTop BlockNonEmpty", To: "ArrayTopOpen StatementSeq RBrace"},
 		{From: "'$#'", To: "DollarHashVar"},
 		{From: "'$#_'", To: "ArgsTopVar"},
 		{From: "'@['", To: "SliceArraySigil LBracket"},

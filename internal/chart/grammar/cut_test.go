@@ -214,18 +214,23 @@ func TestCutRejectsBadPriority(t *testing.T) {
 	hasRewrite(t, c, "priority A 1 => not encoded")
 }
 
-// TestCutArrayTopBlock: pvm lexes $#{...} as one Variable token whatever the
-// braces hold, so the cut admits only the forms Guacamole derives that it can
-// check from the token's text, and refuses the rest rather than misparse.
+// TestCutArrayTopBlock: the cut splits $#{BLOCK} as Guacamole does, into an
+// ArrayTopOpen token for "$#{", the block's statements, and "}". pvm's lexer
+// emits the whole construct as one Variable token, which no predicate admits:
+// chart/lex (01a18656-2ec0) splits it into those three parts.
 func TestCutArrayTopBlock(t *testing.T) {
 	c := guacamoleCut(t)
-	for src, want := range map[string]bool{
-		"my $n = $#{$x};":   true,
-		"my $n = $#{ $x };": true,
-		"my $n = $#{$_};":   true,
-		"my $n = $#{1+};":   false,
-		"my $n = $#{$x+};":  false,
-	} {
+	want := Rule{LHS: "DerefVariable", RHS: []Symbol{name("ArrayTopOpen"), name("StatementSeq"), name("RBrace")}}
+	if !slices.ContainsFunc(c.G1, func(r Rule) bool { return ruleEqual(r, want) }) {
+		t.Errorf("G1 lacks %s", ruleText(want, "::="))
+	}
+	if !matches(c, "ArrayTopOpen", lexer.Variable, "$#{") {
+		t.Error(`ArrayTopOpen refuses Variable "$#{"`)
+	}
+	// Each composite token below is one Variable from pvm's lexer; the first
+	// two are Guacamole parses cases and perl accepts them, the last perl and
+	// Guacamole refuse. None may get through as one token.
+	for _, src := range []string{"$#{ $foo->{'bar'} };", "$#{$r->[0]};", "$#{$x};", "$#{foo};", "my $n = $#{1+};"} {
 		var tok string
 		for _, tk := range lexer.Tokenize([]byte(src)) {
 			if tk.Kind == lexer.Variable && strings.HasPrefix(src[tk.Start:], "$#{") {
@@ -235,12 +240,10 @@ func TestCutArrayTopBlock(t *testing.T) {
 		if !strings.HasSuffix(tok, "}") {
 			t.Fatalf("%s: the lexer gave no single $#{...} Variable token", src)
 		}
-		admitted := false
 		for sym := range c.Terminals {
-			admitted = admitted || matches(c, sym, lexer.Variable, tok)
-		}
-		if admitted != want {
-			t.Errorf("%s: Variable %q admitted = %v, want %v", src, tok, admitted, want)
+			if matches(c, sym, lexer.Variable, tok) {
+				t.Errorf("%s: %s admits the composite Variable %q", src, sym, tok)
+			}
 		}
 	}
 }

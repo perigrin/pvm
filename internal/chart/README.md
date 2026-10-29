@@ -33,10 +33,15 @@ admits less, so the chart refuses rather than misparses:
 - **`Diamond` and `DoubleDiamond`** use `ScalarVar`, where Guacamole has
   `VarScalar`. A readline holds a name, not subscripts, so `<$x[0]>` is
   refused. perl reads it as a glob.
-- **`ArrayTopBlockVar`** admits only `$#{$x}` and `$#{$_}` (a lone scalar,
-  spaces allowed). Guacamole's `SigilArrayTop BlockNonEmpty` admits any block,
-  but pvm lexes `$#{...}` as one `Variable` token whatever it holds. So the
-  block can't be parsed, and anything else, such as `$#{1+}`, is refused.
+- **`$#{BLOCK}`** is split as Guacamole splits it:
+  `DerefVariable ::= ArrayTopOpen StatementSeq RBrace`, where `ArrayTopOpen`
+  is a `Variable` token whose text is `$#{`. pvm's lexer emits the whole
+  construct as one `Variable` token, and no predicate admits that composite
+  token. `chart/lex` (issue 01a18656-2ec0) owns splitting it into
+  `ArrayTopOpen`, the re-lexed interior and `}`. Until that lands, nothing
+  recognizes `$#{...}`, which is expected. After the split, the grammar
+  checks the block, so `$#{ $foo->{'bar'} }` parses and `$#{1+}` is refused.
+  `internal/lexer` does not change.
 
 ## Known divergences from Guacamole
 
