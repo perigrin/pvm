@@ -60,10 +60,6 @@ var CanonTokens = canonTokens
 // (fidelity_test.go).
 var DroppedKinds = droppedKinds
 
-// CoreShapes is coreShapes, for the faithful queue's word categories
-// (faithful_queue_test.go).
-var CoreShapes = coreShapes
-
 // FaithfulStop is where Faithful stops on n: the source and canon token
 // indexes of the first difference it could not forgive, for the faithful
 // queue (faithful_queue_test.go). differs is false on a faithful tree.
