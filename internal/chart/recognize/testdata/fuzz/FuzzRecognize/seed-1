@@ -1,0 +1,2 @@
+go test fuzz v1
+string("package Foo;\nsub new { my ($c, %a) = @_; return bless({ %a }, $c); }\n1;\n")

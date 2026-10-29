@@ -25,6 +25,10 @@ are make targets of their own, not part of `make test`:
   each edit of a burst, equals a fresh Session parse of the edited bytes.
   `FuzzIncremental` also checks the plain form, `ReparseIncremental` against
   `Parse`.
+- `make fuzz-chart-recognize` runs `FuzzRecognize` (internal/chart/recognize)
+  to 1,000,000 execs, or `FUZZTIME` (`make fuzz-chart-recognize
+  FUZZTIME=10000x`). It checks that the chart's recognizer never panics and
+  accepts the same inputs with and without its transition cache and lookahead.
 
 `make test` replays every committed seed under each package's
 `testdata/fuzz/`, the eight §7.7.3 edits among them, but never runs a

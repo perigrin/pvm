@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental chart-ratchet chart-tables
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental fuzz-chart-recognize chart-ratchet chart-tables
 
 BINARIES = pvm pvx pm psc
 
@@ -42,6 +42,14 @@ fuzz-parser:
 fuzz-incremental:
 	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncremental$$' -fuzztime 10000000x
 	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncrementalSequence$$' -fuzztime 10000000x
+
+# The chart recognizer's fuzz target (internal/chart/recognize): it never
+# panics, and acceptance agrees with and without the transition cache and
+# lookahead. Seeds in internal/chart/recognize/testdata/fuzz/ replay in make
+# test. FUZZTIME=10000x for a short run.
+fuzz-chart-recognize: FUZZTIME ?= 1000000x
+fuzz-chart-recognize:
+	go test ./internal/chart/recognize/ -run '^$$' -fuzz '^FuzzRecognize$$' -fuzztime $(FUZZTIME)
 
 # The chart spike's ratchet (internal/chart/README.md has its output
 # contract). Mainline does not gate on it: `test` never runs it, and its CI
