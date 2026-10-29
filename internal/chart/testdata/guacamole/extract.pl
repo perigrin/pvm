@@ -64,12 +64,12 @@ for my $kind (qw(parses parsent)) {
 remove_tree($stubs);
 make_path($stubs);
 my @parses = map {"$here/parses/$_->[0]"} @{ $cases{parses} };
-my %without = map { $_ => 1 } rejected_by_perl( undef, @parses );
-my %stubbed;
+my %without = rejected_by_perl( undef, @parses );
+my ( %stubbed, %rejected );
 while (1) {
+    %rejected = rejected_by_perl( $stubs, @parses );
     my $added = 0;
-    for my $f ( rejected_by_perl( $stubs, @parses ) ) {
-        my ( undef, $out ) = perl_c( $stubs, $f );
+    for my $out ( values %rejected ) {
         while ( $out =~ /Can't locate (\S+)\.pm in \@INC/g ) {
             my $path = "$stubs/$1.pm";
             ( my $mod = $1 ) =~ s{/}{::}g;
@@ -83,7 +83,7 @@ while (1) {
 }
 
 # 4. The parses cases perl still rejects, by bare file name.
-my @rejects = sort map { ( File::Spec->splitpath($_) )[2] } rejected_by_perl( $stubs, @parses );
+my @rejects = sort map { ( File::Spec->splitpath($_) )[2] } keys %rejected;
 spew( "$here/perl-rejects.txt", join '', map {"$_\n"} @rejects );
 
 my $recovered = keys(%without) - @rejects;
@@ -92,9 +92,15 @@ printf "unique: parses %d, parsent %d\n", scalar @{ $cases{parses} }, scalar @{ 
 printf "perl rejects: %d without stubs, %d with %d stubs (%d recovered)\n",
     scalar keys %without, scalar @rejects, scalar keys %stubbed, $recovered;
 
+# rejected_by_perl returns (file => perl's output) for each file perl -c rejects.
 sub rejected_by_perl {
     my ( $lib, @files ) = @_;
-    return grep { !( perl_c( $lib, $_ ) )[0] } @files;
+    my %rejected;
+    for my $f (@files) {
+        my ( $ok, $out ) = perl_c( $lib, $f );
+        $rejected{$f} = $out unless $ok;
+    }
+    return %rejected;
 }
 
 # perl_c runs perl -c on $file with $lib (or nothing) as PERL5LIB.

@@ -6,8 +6,7 @@ use strict;
 use warnings;
 
 use Exporter "import";
-our @EXPORT_OK = qw(exception);
-our @EXPORT    = qw(exception);
+our @EXPORT = qw(exception);
 
 sub exception (&) { die "Test::Fatal stand-in: exception() is not recorded\n" }
 
