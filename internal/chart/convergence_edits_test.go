@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -325,4 +326,133 @@ func TestConvergenceEditsHold(t *testing.T) {
 	stmts := spanSet(editableStatements(parse.Parse(src), src, 0))
 	checkEdits(t, convergenceEditsPath, edits,
 		map[string][]byte{"": src}, map[string]map[stmtSpan]bool{"": stmts})
+}
+
+// The Guacamole corpus's parses cases, the list over them, and the preamble
+// every case starts with.
+var (
+	guacamoleParsesDir    = filepath.Join("testdata", "guacamole", "parses")
+	guacamoleRejectsPath  = filepath.Join("testdata", "guacamole", "perl-rejects.txt")
+	guacamolePreamblePath = filepath.Join("testdata", "guacamole", "preamble.pl")
+	convergenceCorpusPath = filepath.Join("testdata", "convergence-edits-guacamole.jsonl")
+)
+
+// multiStatementCases returns the perl-accepted parses cases, by bare file
+// name, whose recursive-descent tree holds more than one top-level statement
+// after the preamble, with each case's bytes and tree.
+func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, roots map[string]*parse.Node, preambleLen int) {
+	t.Helper()
+	preamble, err := os.ReadFile(guacamolePreamblePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := os.ReadFile(guacamoleRejectsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected := map[string]bool{}
+	for _, name := range strings.Fields(string(list)) {
+		rejected[name] = true
+	}
+	files, err := filepath.Glob(filepath.Join(guacamoleParsesDir, "*.pl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srcs, roots = map[string][]byte{}, map[string]*parse.Node{}
+	for _, f := range files {
+		name := filepath.Base(f)
+		if rejected[name] {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := parse.Parse(src)
+		top := 0
+		for _, c := range root.Children {
+			if c.Kind == parse.Statement && c.Start >= len(preamble) {
+				top++
+			}
+		}
+		if top > 1 {
+			names = append(names, name)
+			srcs[name], roots[name] = src, root
+		}
+	}
+	return names, srcs, roots, len(preamble)
+}
+
+// TestConvergenceCorpusEditsWhereNeeded: the Guacamole corpus has a fixed
+// edit list exactly when it has multi-statement cases. The list is drawn
+// as std5k.pl's is, over those cases' editable statements, up to 200 edits,
+// and is held to the same guard.
+func TestConvergenceCorpusEditsWhereNeeded(t *testing.T) {
+	names, srcs, roots, preambleLen := multiStatementCases(t)
+	t.Logf("%d perl-accepted parses case(s) hold more than one statement: %v", len(names), names)
+	if len(names) == 0 {
+		if _, err := os.Stat(convergenceCorpusPath); !os.IsNotExist(err) {
+			t.Fatalf("no parses case holds more than one statement, so %s should not exist (stat: %v)", convergenceCorpusPath, err)
+		}
+		return
+	}
+	var stmts []caseStmt
+	spans := map[string]map[stmtSpan]bool{}
+	for _, name := range names {
+		nodes := editableStatements(roots[name], srcs[name], preambleLen)
+		spans[name] = spanSet(nodes)
+		for _, n := range nodes {
+			stmts = append(stmts, caseStmt{Case: name, Node: n})
+		}
+	}
+	want := drawEdits(stmts, srcs, min(convergenceEditCount, len(editKinds)*len(stmts)))
+	if *updateConvergenceEdits {
+		if err := writeConvergenceEdits(convergenceCorpusPath, want); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := readConvergenceEdits(convergenceCorpusPath, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || len(got) > convergenceEditCount {
+		t.Errorf("%s holds %d edits, want 1 to %d", convergenceCorpusPath, len(got), convergenceEditCount)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("%s differs from drawEdits's draw over the multi-statement cases", convergenceCorpusPath)
+	}
+	checkEdits(t, convergenceCorpusPath, got, srcs, spans)
+}
+
+// TestConvergenceEditsRejectOutOfRange: checkEdit refuses hand-built edits
+// that run past the end of std5k.pl or cross from one statement into the
+// next, and admits the in-statement edit beside them.
+func TestConvergenceEditsRejectOutOfRange(t *testing.T) {
+	src, err := os.ReadFile(std5kPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes := editableStatements(parse.Parse(src), src, 0)
+	stmts := spanSet(nodes)
+	a, b := nodes[0], nodes[1]
+	cases := []struct {
+		name string
+		edit convergenceEdit
+		want string
+	}{
+		{"past the end", convergenceEdit{Kind: "delete", Offset: len(src) + 1, Removed: 1, StmtStart: a.Start, StmtEnd: a.End}, "outside the file"},
+		{"ends past the end", convergenceEdit{Kind: "delete", Offset: len(src) - 1, Removed: 2, StmtStart: a.Start, StmtEnd: a.End}, "outside the file"},
+		{"crosses into the next", convergenceEdit{Kind: "delete", Offset: a.End - 1, Removed: b.Start - a.End + 2, StmtStart: a.Start, StmtEnd: a.End}, "cross out of statement"},
+		{"names two statements", convergenceEdit{Kind: "delete", Offset: a.Start, Removed: b.End - a.Start, StmtStart: a.Start, StmtEnd: b.End}, "not one of recursive descent's statements"},
+	}
+	for _, c := range cases {
+		err := checkEdit(src, stmts, c.edit)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: checkEdit = %v, want an error saying %q", c.name, err, c.want)
+		}
+	}
+	inside := convergenceEdit{Kind: "delete", Offset: a.Start, Removed: a.End - a.Start, StmtStart: a.Start, StmtEnd: a.End}
+	if err := checkEdit(src, stmts, inside); err != nil {
+		t.Errorf("an edit inside one statement: checkEdit = %v, want nil", err)
+	}
 }

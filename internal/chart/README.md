@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -31,6 +31,21 @@ rule that list obeys.
 checkout afterwards. `TestGuacamoleCasesUnique` and
 `TestGuacamoleCasesStartWithPreamble` guard the files, and the ratchet's
 `rejects-disagree` holds the list to perl's verdicts across the whole corpus.
+
+## The convergence edits
+
+`testdata/convergence-edits.jsonl` holds the 200 single-statement edits to
+`testdata/std5k.pl` that §8 fixes before the first step.
+`testdata/convergence-edits-guacamole.jsonl` holds the same kind of edits to
+the corpus's one multi-statement `parses` case. Each line is one edit:
+`offset`, `removed` and `inserted` bytes, and the statement span
+`stmt_start`..`stmt_end` it lies in. The corpus list also names its `case`.
+`drawEdits` draws both lists with a fixed seed, over recursive descent's
+`;`-terminated statements that hold no other such statement. The guards hold
+each edit inside its statement and require the edited file to parse with no
+refusal. **The lists are fixed once committed.** A later step may add a list,
+but must never redraw one: `-chart.update-convergence-edits` exists only to
+write a list for the first time.
 
 ## The token cut and its rewrite list
 
