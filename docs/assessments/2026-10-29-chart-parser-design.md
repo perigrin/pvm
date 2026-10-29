@@ -1,10 +1,10 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart-parser research spike design. -->
-<!-- ABOUTME: Covers rounds 1 to 5: declared outcomes, rulings, the findings ledger, clusters, and what was not checked. -->
+<!-- ABOUTME: Covers rounds 1 to 6: declared outcomes, rulings, author calls, the findings ledger, clusters, and what was not checked. -->
 
 # Assessment: chart-parser research spike design
 
 **Subject:** `docs/plans/2026-10-29-chart-parser-design.md`
-**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165); round 4 at e34f8233 (e34f8233a2582c9f6749b03f25448e661083a10f); round 5 at 7a430aa4 (7a430aa43f21a012ae01c3c0955005fc0522ea88). Branch `design/chart-parser-spike`.
+**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165); round 4 at e34f8233 (e34f8233a2582c9f6749b03f25448e661083a10f); round 5 at 7a430aa4 (7a430aa43f21a012ae01c3c0955005fc0522ea88); round 6 at 723440f1 (723440f115a34f1d4ef0bde74796ccfc555270a5). Round 7 is briefed on f82e7dd9. Branch `design/chart-parser-spike`.
 **Author:** the orchestrating AI session. **Decision-maker:** perigrin.
 **Drafter:** a recording role that holds no view. It raises no finding.
 
@@ -115,6 +115,12 @@ perigrin made R16 during round 5. B, C, D and E had already raised the repetitio
 - **R16.** std5k.pl's repetition (one template about 70 times, raised by B's N15, C's C-N23, D, and E's E25) is accepted. perigrin's reasoning: the bias is caught later, when perl.git `t/` is parsed, because the speed kill fires at any step including the parity steps. §8 records std5k.pl's ratio as optimistic (a lower bound) until real files join. The author named a residual cost and perigrin accepted it: a false pass at the checkpoint costs the parity steps built before `t/` exposes it, bounded by the per-step budgets.
 
 R16 is recorded against B-N15, C-N23, D-N7 and E25 as a ruling made after those rows were raised. It is not a release, because only a raiser can release a row. F-16 and G-4 also raise std5k.pl's repetition, but R16 does not name them.
+
+### Author calls (not rulings)
+
+An author call is the author's decision on a point perigrin has not ruled on. perigrin may overturn it. It is recorded here so the record is complete, and it is not a ruling.
+
+- **Argument-marker parity (round-5 response).** The author wrote: "on the argument marker, parity is the chart's WRONG at or below recursive descent's, not WRONG = 0. Recursive descent has known attachment defects, so WRONG = 0 would make parity stricter than the floor it is measured against (C-N26, A30)." Round 6 assessed this call at 723440f1. The author's withdrawal of it is recorded under "Outcome of round 6".
 
 ### Facts the author checked
 
@@ -343,6 +349,78 @@ R16 is recorded against B-N15, C-N23, D-N7 and E25 as a ruling made after those 
 ### Round outcome
 
 **Another round owed.** Blocks are held by C, F and G. R16 came during the round, after the repetition rows were raised, and it released none of them.
+
+## Outcome of round 6
+
+The round-6 brief asked each participant for one status per open row, any new rows, and, optionally, a view on the author call. It had a 20-minute time box. Rulings were not to be reopened, though participants could say whether the text implements them faithfully.
+
+### Recommendations, as declared
+
+- **A: accept.** "My three open rows (A30–A32) are met." A33 is a view on the author call, given as a stand-aside. "The revision breaks nothing I can find in my lens."
+- **B: accept.** "My lens has nothing left that blocks." B-N16 is a view on the author call.
+- **C: modify, with no blocks.** "Nothing left in my series stops the spike from starting." The argument-marker definition has two gaps, C-N27 and C-N28, which are stand-asides because "§10's test cases show what is intended".
+- **D: accept.** "All five of my round-5 stand-asides are carried out in the text." D-N11 and D-N12 are stand-asides. "I hold no blocks."
+- **E: accept, with stand-asides.** "All my open rows are released." The marker definition has three defects, E27–E29: "None of these blocks."
+- **F: accept.** "None of my open rows blocks any more." Four stand-asides remain.
+- **G: modify (narrowly).** "Ten of my eleven rows are released." G-1 is re-raised in narrower form as G-12 and G-13. "Two sentences fix it."
+
+### Blocks held, as declared
+
+| participant | blocks |
+|---|---|
+| A | none |
+| B | none |
+| C | none |
+| D | none |
+| E | none |
+| F | none |
+| G | G-12, G-13 (with G-1 re-raised through them) |
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A33 | perigrin's to rule on; A would take "subset of RD's WRONG sites" over "count at or below". |
+| B-N16 | A view on the author call; perigrin's to rule. |
+| F2 (held) | Define the aggregate as total chart time over total RD time, or apply only std5k.pl's arm before the checkpoint. |
+| C-N21 (held) | Record a whole-leg estimate at the checkpoint, under the same 2× rule. |
+| C-N27 | Add "and each call of a builtin that has a special first slot" to the site list. |
+| C-N28 | Grade a subject site with no perl counterpart only where perl cannot have folded it; matching does not depend on order alone. How belongs to the implementing issue. |
+| C-N29 | The author's call; C recommends "every site the chart gets WRONG, recursive descent also gets WRONG". |
+| C-N30 | One sentence: the convergence figure on std5k.pl is optimistic, and the incremental verdict is provisional until re-measured after parity. |
+| C-N31 | Scope it as "WRONG > 0 on the five older kinds, or above recursive descent's on argument structure". |
+| D-N11 | "Less `pushmark` or `padrange` and the callee; nulled (`ex-`) children count"; add a lexicals-only case to §10; say the invocant counts. |
+| D-N12 | "One site per sub, `&`- or method call, and per `print`, `say`, `sort`, `map` and `grep`". |
+| E27 | Add "and each `print`, `say`, `sort`, `map`, `grep`" to the site set. |
+| E28 | Implementing issue: count tree children including nulled list ops, less `pushmark` or `padrange` and the callee; add a padrange case to §10. |
+| E29 | Scope the waypoint's "no WRONG site" to the five older kinds, or state the order. |
+| F-16 (held in part) | Make the chart's acceptance of std5k.pl an exit criterion of the first step. |
+| F-18 (re-raised) | Add "and the builtins `print`, `say`, `sort`, `map`, `grep`" to the site list. |
+| F-19 | The what belongs here (a missing or extra site is WRONG); matching and the invocant convention belong to the implementing issue. |
+| F-20 | Scope §9's "WRONG > 0" and §8's "no WRONG site" to the five older kinds, or to sites where RD is not WRONG. |
+| G-14 | An author call; perigrin's to make. |
+
+### Views on the author call, as given
+
+Each participant's view is recorded in its own words. They are not tallied.
+
+- **A (A33):** "I'd take 'subset of RD's WRONG sites' over 'count at or below'." A cites `TestSiteRatchetDetectsSwapAtEqualTotals`.
+- **B (B-N16):** a set rule: "every site that is WRONG for the chart is WRONG for recursive descent too, and any other chart WRONG is a finding".
+- **C (C-N29):** "accept the relaxation, but make it per site": "every site the chart gets WRONG, recursive descent also gets WRONG".
+- **D (in its report, not as a row):** "every site the chart gets WRONG must also be WRONG for recursive descent, with the chart's count at or below recursive descent's".
+- **E (in its report, not as a row):** E agrees with the direction, and would keep the count gate with one sentence added: "every site WRONG on the chart and right on RD is listed and reviewed at each step".
+- **F (in its report, not as a row):** F agrees, with one tightening: "Chart WRONG ≤ RD WRONG, and no site WRONG for the chart that RD gets right".
+- **G (G-14):** relaxing to the floor is right, but "the site-level form costs nothing extra: the chart's WRONG sites are a subset of RD's, per file and site".
+
+### The author's action after round 6
+
+The author's round-6 response withdraws the author call. It says: "A, B, D and G independently proposed judging parity site by site, and the revision takes that: on the argument kind, every site that is WRONG for the chart must be WRONG for recursive descent too, per file and site. Any other chart WRONG is a finding, and an RD WRONG the chart gets right is defect yield." The author says this "narrows the earlier call rather than reversing a ruling", and that "perigrin may still rule otherwise".
+
+The response moves the subject from 723440f1 to f82e7dd9, which goes from 495 to 505 lines. It also lists text changes against G-12, G-13, D-N11, E28, E29, F-20 and F-16, among others. The participants judge the withdrawal and those changes in round 7, and nothing here is released by them. The round-7 brief has a 15-minute time box.
+
+### Round outcome
+
+**Another round owed.** G holds blocks G-12 and G-13.
 
 ## Ledger
 
@@ -724,6 +802,71 @@ Each status is in the raiser's own word, with its reason, as declared at 7a430aa
 | G-10 | G | 5 | §7.1 "mainline oracle work" | A sixth kind changes the oracle's frozen baselines: a subject reporting no site of a kind scores `no-answer`, so RD goes no-answer on every file with calls until `internal/parse/sites.go` reports arguments; a sizeable mainline milestone gating M4–M6 with no budget line. See also A30, C-N26. | The checkpoint slips for reasons outside the spike, unseen by the budget rule. | Read README ("A subject that reports no site of a kind anywhere … scores `no-answer`"); `testdata/ratchet/sites.txt` ("A move in either direction fails"). | open, stand-aside | 7a430aa4 |
 | G-11 | G | 5 | §9 Speed row; §5 Leo paragraph | Dead weight: the "about 13.6 ms" YAEP-class extrapolation and the "toy YAEP probe" timings have no source or reproduction and feed no gate; the edit5k.pl RD numbers check out. See also D15. | Readers anchor on numbers nobody can re-run. | Read conformance plan BenchmarkLatencyParse 23.89/33.42 ms (matches); no source found for 13.6 ms. | open, stand-aside | 7a430aa4 |
 
+### Round-6 status of rows open at 7a430aa4
+
+Each status is in the raiser's own word, with its reason, as declared at 723440f1.
+
+| id | raiser | round-6 status | reason given |
+|---|---|---|---|
+| A30 | A | **released** | §7.1: the kind "lands with recursive descent's measured score as its ratchet baseline, and its own budget line", a ratchet not a gate. Ran Concise (5.42.0): `foo((1,2), 3)` keeps an `ex-list` child, giving 2; undeclared `foo $x, $y` is `method_named`; with `sub foo($){}` it has 1 argument. Note: spec 07 §7.5.5 needs a doc-first update in the same mainline PR. (D-N11 and E28 find the count rule wrong under `padrange`.) |
+| A31 | A | **released** | std5k.pl's generator is in `internal/chart` with its own template; `psc` unchanged. A's round-5 inference that the heredoc was edit5k.pl's only exclusion was wrong. |
+| A32 | A | **released** | Rule 4 now scopes WRONG to the oracle's markers and states that grouping changing only a value is not graded. R14 implemented faithfully. |
+| B-N15 | B | **released** (R16) | §8 says std5k.pl's ratio is a lower bound because repetition flatters interning and the cache; the direction is right. B's cache-off remedy was not adopted; set reuse still shows the bias. |
+| F2 | C | **held (stand-aside)** | "Aggregate ratio" still undefined; pre-checkpoint snippets "time setup rather than throughput", so the aggregate arm can fire on setup cost. |
+| C-N20 | C | **released** via C-N23 | See C-N23. |
+| C-N21 | C | **held (stand-aside)** | Budgets unchanged; the parity leg (about 10 features plus require/use loading) has per-step estimates only. |
+| C-N23 | C | **released (by ruling R16)** | §8: "its ratio is a lower bound. That is accepted…". C released it because rulings are not C's to reopen, not because the bias is gone. Implemented faithfully for speed; the convergence half is C-N30. Implicit fact: edit5k.pl comes from the same one-template generator, so only perl.git `t/` catches the bias, at the last parity step. |
+| C-N24 | C | **released** | Generator in `internal/chart`; §10 lists a fourth exception for the marker's sites in `internal/parse` and `internal/parseoracle`. |
+| C-N25 | C | **released** | Rule 4 states R14's consequence, and the waypoint exit spells out its grading. |
+| C-N26 | C | **released** | The kind lands with RD's measured score as its ratchet baseline and its own budget line. Parity rule view in C-N29. |
+| D-N7 | D | **released** | R16 implemented faithfully: "its ratio is a lower bound", with perl.git `t/` at parity as the backstop. |
+| D-N8 | D | **released** | Generator in `internal/chart`; four exceptions, matching `internal/parse/sites.go` and `internal/parse/cmd/subject/main.go`. |
+| D-N9 | D | **released, residue in D-N11 and D-N12** | §7.1 defines identity, count, special slot, two-way WRONG and an RD baseline. Ran: `foo((1,2),3)` two direct operands; undeclared `foo $x, $y` → `($x->foo, $y)`. |
+| D-N10 | D | **released** | Rule 4 now scopes WRONG to the markers; rule 5 is unqualified but rule 4's clause, one line above, is enough. |
+| E11 | E | **released** | Rule 3 now says "(`yyl_leftcurly` for `{`)". |
+| E17 | E | **released** | "Go plus grammar, each also reported alone", so "half the lines" is the sum. |
+| E24 | E | **released** | Generator in `internal/chart`; four exceptions listed. |
+| E25 | E | **released** (R16) | R16 implemented faithfully; "lower bound" is the right direction. |
+| E26 | E | **released** | "Never sees surplus" scoped to the five older kinds; the sixth is WRONG "in either direction". |
+| F-5 | F | **released** | Rule 4 no longer claims more than is measured. |
+| F-15 | F | **released** | §7.1 grades the sort comparator slot, and §10 tests `sort $c @l` vs `sort($c, @l)` (Concise: `sort lKS` vs `sort lK`). Depends on builtins actually being sites (F-18). |
+| F-16 | F | **released in part, held in part (stand-aside)** | R16 implemented faithfully. Held: std5k.pl is still "valid only while both parsers accept it", so if the chart fails it the measure silently disappears; make acceptance an exit criterion of the first step. |
+| F-17 | F | **released** | Parity list now reads "`print $fh` without braces and bareword filehandles". |
+| F-18 | F | **re-raised, stand-aside** | §7.1's site list ("a sub call, `&`-call or method call") excludes `print`, `sort`, `map`, `grep`, so their slots are never graded, against §10's tests. Ran: map's block and expression forms are distinguishable (`null → scope` vs expression under `mapstart`). See also C-N27, D-N12, E27, G-12. |
+| G-1 | G | **re-raised, narrower** (see G-12 and G-13) | §7.1 now defines identity, kind, count and slot, which answers round 5; what it newly says is defective. |
+| G-2 | G | **released** | §10 lists undeclared `foo $x, $y` as an indirect method call. |
+| G-3 | G | **released** | Lines are "Go plus grammar, each also reported alone"; each side is charged its own delta; the chart's includes the `internal/lexer` refactor; RD's PRs are listed by hand and reviewed. |
+| G-4 | G | **released** | Generator in `internal/chart` with its own template; R16's lower bound is the right direction, and set interning is named. |
+| G-5 | G | **released** | Rule 4 states the limit. G's objection is "a matter of preference, not of honesty". |
+| G-6 | G | **released** | "`print $fh` without braces"; §4 and §8 add perl's readings where Standard Perl imposes others. |
+| G-7 | G | **released** | §1 drops the count; the defect-yield list is fixed before the first step. |
+| G-8 | G | **released** | §5 lists `X ::= Y+` and `:default`. |
+| G-9 | G | **released** | The exit is per case plus per corpus. |
+| G-10 | G | **released** | RD's measured score as the ratchet baseline, with its own budget line. |
+| G-11 | G | **released** | The 13.6 ms and toy-probe figures are removed. |
+
+### Round-6 findings
+
+| id | raiser | round | section of the subject | finding | consequence if it ships | evidence | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| A33 | A | 6 | §7.1 last sentence (the author call) | A view, not a defect: measuring parity against RD is right for a kind RD doesn't meet, but as a count it hides swaps (the chart WRONG at different sites with the same total). pvm's site ratchet is per site for this reason. The stricter form, the chart's WRONG sites a subset of RD's, costs nothing extra; new chart WRONG becomes a regression and fixed RD WRONG defect yield. See also B-N16, C-N29, G-14. | A chart trading one class of argument misparse for another passes parity unseen. | Read §7.1; `internal/parseoracle/sites_test.go` `TestSiteRatchetDetectsSwapAtEqualTotals`; `siteratchet.go` `CheckSites` ("compared both ways"). | open, stand-aside | 723440f1 |
+| B-N16 | B | 6 | §7.1 argument marker (the author call); §4 "Standard Perl … imposes a few readings perl does not take" | B's view: a count rule lets the chart trade errors. Through the M4–M6 steps the chart carries known-wrong sites of its own from Standard Perl's imposed readings (e.g. `foo->bar` with `sub foo` declared, where perl calls `foo()` first), which RD's attachment defects can offset under a count. A set rule keeps the author's reason without the trade. (B's own id: N16.) See also A33, C-N29, G-14. | M4–M6 verdicts can call a step at parity while it introduces argument errors RD doesn't make. | Read §4 para 1, §7.1 last sentence, round-5 response. Trade inferred. Ran Concise: `foo((1,2),3)` 2, `foo((),3)` 2 (`stub`), `foo(1,2,)` 2, `foo(1 ? (2,3) : 4)` 1, `foo(1x2, 3)` 2, each matching if nulled `ex-*` ops count. Ran: `yyl_leftcurly` at toke.c l.6643. | open, stand-aside | 723440f1 |
+| C-N27 | C | 6 | §7.1 argument marker | The site definition ("One site per call: a sub call, `&`-call or method call") excludes the builtins whose slots it then records ("a filehandle for `print`/`say`, a comparator for `sort`, a block for `map`/`grep`"), while §10 tests `print $fh $x` and `sort $c @l`. See also D-N12, E27, F-18, G-12. | An implementer following the first sentence doesn't grade the filehandle or comparator slots, the M4–M6 cases the marker exists for. | Read §7.1 para 2; §10; round-5 response R15 text. | open, stand-aside | 723440f1 |
+| C-N28 | C | 6 | §7.1 vs parseoracle convention | Grading surplus "in either direction" contradicts the oracle's own reason for never grading surplus ("Perl's optree is post-peephole and only ever loses marker ops"): calls fold away too, and with matching by statement, name and order, one folded or surplus call shifts and misattributes every later site. See also G-13, F-19. | Spurious WRONG for both parsers on every inlined constant sub and dead-code call, cascading. | Ran perl 5.42.0: `use constant PI=>3; my $z = PI * 2;` → 0 `entersub`; `perl -MO=Deparse -e 'use constant PI=>3; my $z = PI * 2; foo() if 0;'` → `my $z = 6; '???';`. Read `internal/parseoracle/README.md` "Five questions, five kinds". | open, stand-aside | 723440f1 |
+| C-N29 | C | 6 | §7.1, author call | C's view: accept the relaxation but make it per site; as a count the chart can be WRONG where RD is right, offset where RD is wrong, and still pass, which is a regression for users; defect yield already credits the second set. See also A33, B-N16, G-14. | Parity on argument structure passes with new misparses if the chart fixes as many as it breaks. | Read §7.1 last sentence; §8 defect-yield bullet. | open, stand-aside | 723440f1 |
+| C-N30 | C | 6 | §8 std5k.pl paragraph; Checkpoint | R16's lower-bound text covers speed ("its ratio") but not convergence, which is also drawn from std5k.pl, the only multi-statement Standard input before the checkpoint; repetition flatters re-convergence too. See also C-N23, F-16. | The incremental verdict reads as measured when it is optimistic; low cost, since it only gates post-parity work, but the reader isn't told. | Read §8 std5k.pl, convergence bullet, Checkpoint; §2 Output. Flattery of convergence inferred, not measured. | open, stand-aside | 723440f1 |
+| C-N31 | C | 6 | §9 Silent-misparse row vs §7.1 | The signal reads "WRONG > 0" unqualified, while §7.1 accepts WRONG > 0 on argument structure up to RD's level. See also E29, F-20, G-14. | Read literally the signal fires as soon as the marker lands. | Read §9 row; §7.1. | open, stand-aside | 723440f1 |
+| D-N11 | D | 6 | §7.1 count rule | "The call's list children, less `pushmark` and the callee" is wrong under perl's `padrange` optimisation (any argument list starting with lexicals), which replaces `pushmark` and keeps nulled `padsv`s, so `padrange` is counted as an argument. Also say the invocant counts (`$o->m(1)` → 2). See also E28, A30. | The commonest call shape, `foo($x, $y)` on lexicals, is graded as 3 arguments; both parsers WRONG and RD's baseline polluted. | Ran `perl -MO=Concise -e 'my ($x,$y); sub foo {} foo($x,$y);'` → `padrange[$x; $y] /range=2`, `ex-padsv`, `ex-padsv`, `ex-rv2cv`, no `pushmark`; nested `foo(($x,$y),$z)` → `padrange`, `ex-list`, `ex-padsv`. | open, stand-aside | 723440f1 |
+| D-N12 | D | 6 | §7.1 site scope vs special slot | Sites are "a sub call, `&`-call or method call" (`entersub`), yet the same paragraph records builtin special slots, and §10 tests `print $fh $x` and `sort $c @l`; those builtins aren't sites under the stated scope. See also C-N27, E27, F-18, G-12. | An implementer skips the builtin slots (losing two §10 tests) or widens the scope silently. | Read §7.1 para 2; §10. Op-level claim inferred, not re-run. | open, stand-aside | 723440f1 |
+| E27 | E | 6 | §7.1 argument marker; §10 | The site set is `entersub` only, yet its fields include the builtin special slots and §10 tests them; under the stated set those builtins have no site. See also C-N27, D-N12, F-18, G-12. | The filehandle and comparator cases R15 was ruled for go ungraded, or the set widens without review. | Read §7.1, §10. Ran `perl -MO=Concise,-exec`: `print $fh $x` is `<@> print`, `sort $c @l` is `<@> sort`, not `entersub`. | open, stand-aside | 723440f1 |
+| E28 | E | 6 | §7.1 | The count rule is right for `foo((1,2),3)` only if nulled ops count, and wrong when `padrange` replaces `pushmark`: `foo(($a,$b),$c)` children are `padrange`, `ex-list`, `padsv $c`, `ex-rv2cv`, so the rule gives 3 where the document's reading gives 2. See also D-N11, A30. | Lexical-argument calls, most real calls, are miscounted; both parsers graded against a mis-derived value, or errors cancel and hide defects. | Ran `perl -MO=Concise` (tree): `foo((1,2),3)` → `pushmark`, `ex-list lKPM`, `const 3`, `ex-rv2cv`; `foo(($a,$b),$c)` → `padrange … /range=3`, `ex-list lKPM`, `padsv $c`, `ex-rv2cv`. | open, stand-aside | 723440f1 |
+| E29 | E | 6 | §8 waypoint exit vs §7.1 | The waypoint requires every `parses` case "accepted with no WRONG site", while §7.1's author call makes argument parity "the chart's WRONG at or below recursive descent's"; if the kind lands before the waypoint exits, the waypoint demands zero argument WRONG while later parity does not. See also F-20, C-N31. | The waypoint is stricter than parity, or ambiguous on which kinds "no WRONG site" covers. | Read §7.1 last sentence; §8 waypoint Exit. | open, stand-aside | 723440f1 |
+| F-19 | F | 6 | §7.1 argument marker | The text doesn't say what happens to a site present on one side and absent on the other; identity by "statement, callee name and order" means one added or dropped call shifts every later site, and perl's `nextstate` anchor carries file and line but no column, so two statements on one line share an anchor. The invocant convention needs stating. See also C-N28, G-13. | An unmatched site may be dropped rather than counted WRONG (restoring surplus blindness), or one extra call cascades into several WRONG sites. | Ran: `my ($x,$y); foo $x, $y;` → one `entersub` with `method_named "foo"`, `$y` outside; `foo((1,2),3)` → outer `ex-list` over inner `ex-list` and `const 3`; a method invocant (`padsv $o`) is a child. | open, stand-aside | 723440f1 |
+| F-20 | F | 6 | §7.1; §8 exit; §9 | WRONG now means three things: argument parity "at or below recursive descent's" (§7.1), "no WRONG site" per case (§8 exit), and §9's "WRONG > 0"; with RD's nonzero baseline every step trips §9 while meeting parity, and whether "keep everything already accepted accepted" applies the no-WRONG rule retroactively is unclear. See also E29, C-N31, G-14. | The signal becomes permanent noise, and the gate is ambiguous on the cases that matter. | Read §7.1 final sentence; §8 waypoint Exit; §9 Silent misparse row. | open, stand-aside | 723440f1 |
+| G-12 | G | 6 | §7.1 sixth kind | Builtins both have sites and do not: "One site per call: a sub call, `&`-call or method call" excludes `print`, `sort`, `map`, `grep`, yet the paragraph records their special slots and §10 tests them; nothing says how a builtin site is identified (no callee name). Fix: a fourth site kind, identified by the builtin's name. Re-raises G-1. See also C-N27, D-N12, E27, F-18. | The §10 tests can't be built from §7.1 without inventing the builtin site. | Read §7.1, §10. Ran: `sort $c @l` → `sort lKS` with `$c` under a `null`; `sort($c, @l)` → `sort lK`; `map { $_ } @l` keeps a `scope` null under `mapstart`, `map $_, @l` doesn't; `grep { }` the same; `print $fh $x` → `print vKS`. Perl 5.44.0. | open, block | 723440f1 |
+| G-13 | G | 6 | §7.1 sixth kind | Perl's folding is graded WRONG: a site is WRONG "if any of those differs, in either direction", but perl removes calls at compile time (constant subs inlined, dead branches dropped), and with identity by "its order among that statement's calls" one call missing on perl's side shifts every later call. Source vs op-tree order is unstated (they differ for nested calls: `foo(bar(1))` runs `bar` first), and "callee's name" is undefined for `$o->$m(1)` and `$c->(1,2)`. The five older kinds forgive folding; this kind reverses that silently. Fix: a site perl has no op for is not graded, and an order rule that survives a missing site (order among calls to the same callee, in source order; dynamic callees by position). Re-raises G-1. See also C-N28, F-19. | Spurious WRONG on both parsers; RD's baseline absorbs them, but every WRONG becomes triage noise, and the author call compares one noise floor with another. | Ran: `sub PI() {3} my $x = PI;` → `const[IV 3] s*/FOLD`, no entersub; `sub foo{} if (0) { foo() } foo(1);` and `my $x = 0 && foo(); foo(1);` leave only `foo(1)`; `$o->$m(1)` → `method K/1` over `padsv[$m]`, no name; `$c->(1,2)` and `&$c` → `ex-rv2cv` over `padsv[$c]`. | open, block | 723440f1 |
+| G-14 | G | 6 | §7.1 last sentence; §9 "Silent misparse" | G's view on the author call: relaxing WRONG = 0 to the floor is right, but a count lets the chart be WRONG where RD is right if its total is no higher, the silent misparse rule 5 forbids; the site-level form (the chart's WRONG sites a subset of RD's, per file and site) costs nothing extra. Separately, §9's "WRONG > 0" reads as unconditional, so §7.1 and §9 disagree on the sixth kind. See also A33, B-N16, C-N29, C-N31, F-20. | The sixth-kind parity gate admits new misparses for fixed ones, and §9 contradicts §7.1. | Read §7.1; §9 row; §3 rule 5. Trade-off inferred. | open, stand-aside | 723440f1 |
+
 ## Clusters
 
 Counted by the first section each finding names in its "section" column. Many findings name more than one. Round-1 counts use 4ec0955a's section numbering.
@@ -857,6 +1000,24 @@ C-N20 is re-raised through C-N23, so it appears in this count twice, once under 
 | §9 | 1 | none |
 | §10 | 4 | none |
 
+### Round 6 new findings (17, at 723440f1)
+
+| section | count | findings |
+|---|---|---|
+| §7 | 14 | A33, B-N16, C-N27, C-N28, C-N29, D-N11, D-N12, E27, E28, F-19, F-20, G-12, G-13, G-14 |
+| §8 | 2 | C-N30, E29 |
+| §9 | 1 | C-N31 |
+
+### Rows open at 723440f1 (22: the 17 round-6 findings and 5 carried rows)
+
+G-1 is re-raised through G-12 and G-13, so it appears in this count beside them.
+
+| section | count | carried rows |
+|---|---|---|
+| §7 | 16 | F-18, G-1 |
+| §8 | 5 | F2, C-N21, F-16 |
+| §9 | 1 | none |
+
 ## Participants
 
 **Round 1.** Dispatched: A (codebase and architecture), B (parsing theory and technical feasibility), C (spec and plan quality, via paad:pushback v2.0.2). All three reported in full, and none appears truncated. C also recorded six candidates it dropped: Leo-by-reference against Chalk's `top_origin`; the "about 49" open-issues count; the semiring-separability assumption; the cold-parse extrapolation; security (no trust boundary); and the §11 SoN oracle.
@@ -899,6 +1060,13 @@ Round-2 evidence A re-ran (code unchanged since round 1):
   - On `Implements:` trailers, C released C-N22, and G reads pvm's trailers as carrying issue UUIDs rather than feature names (G-3).
   - The minute records each reading and does not decide between them.
 - **R16** came in during round 5, after B, C, D and E had raised the repetition finding.
+
+**Round 6.** Dispatched: A to G, all resumed, with no new participant. All seven reported in full, and none appears truncated: each ends with "What I did not check". The round-6 brief is quoted under "Outcome of round 6".
+- **Scope.** Most participants read the 7a430aa4..723440f1 diff together with `round5-response.md`. B read the whole diff, and E also read the changed sections in full. D read the diff on top of its earlier full reads. F did not read the minute.
+- **Perl versions.** A, C and D used perl 5.42.0. G used 5.44.0.
+- **Document growth.** The subject grew from 464 to 495 lines.
+- **Bias.** C and D each disclosed a bias. C released C-N23 "by ruling" rather than on its own bar. D checked its own D-N9 harder, which is how D-N11 surfaced.
+- **Readings that differ.** On the count rule, A (A30) and B (B-N16) ran Concise on their own cases and found that it matches, provided nulled ops count. D (D-N11) and E (E28) found it wrong under `padrange`. The minute records both and does not reconcile them.
 
 Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/`, `A/r2/`, `A/r3/` and `A/r4/`; `B/probe/` and `B/r2/`; `D/`; `E/`; `F/`; and `G/`. D's probe `internal/parse/zz_d_probe_test.go` exists only in D's scratch extraction, not in any repository.
 
@@ -943,3 +1111,13 @@ Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c32
 - **E:** whether the op tree yields an argument count for every listed call shape. Whether line-keyed sites can tell two calls on one line apart. Whether the template can be written as Standard Perl without changing its token mix. Rows A–F and the F-9/F-10 rewording beyond reading them. E ran no perl or Guacamole this round.
 - **F:** whether the existing markers (especially `match`) grade `s///e`, `(?{ … })` or unusual delimiters (F read neither `parse_facts.pl` nor the call_sites protocol). The size of the repetition effect. The minute, which F was told not to read. The parts the diff left unchanged. F ran no Go code and no `make` target.
 - **G:** Guacamole's suite under perl. A recording over the 32 files that load without `Test::Fatal` gave 567 `parses` and 76 `parsent`, which fits 791/126 but does not confirm it. No grouping probe (G-5 is inferred). The size of the interning effect (G-4 is inferred). Spec 03's eleven states and the perly.y 14/4 claim. YAEP and Chalk sources. `make test`.
+
+### Round 6
+
+- **A:** B-series internals. The SLIF additions against Guacamole.pm. The "left of arrow is always an invocant" claim and how many cases it affects. The defect-yield list, which doesn't exist yet. The minute change beyond the response. Whether A's earlier RD defects were filed: the 9 refusals, the 6 number-literal mis-lexes such as `0xfp-1`, `$# {…}`, and the `while () {}` canon.
+- **B:** method calls under the marker (indirect object, `->$name`, `->SUPER::`) and how `&foo;` is counted. Whether site identity stays stable when the parsers disagree about which calls exist. std5k.pl's new template, which doesn't exist yet. Cost accounting, defect-yield lists, budgets, §10's exceptions, and other participants' rows.
+- **C:** the six §10 marker cases against perl's op tree, except `foo $x, $y`, which C ran (it deparses to `$x->foo, $y`). Whether the op tree reports direct-argument counts uniformly for method calls. §4, §5 additions, the lattice and the recognizer. Whether a Standard-Perl std5k.pl that both parsers accept can be built.
+- **D:** the text outside the diff hunks. Concise for `print $fh $x`, `sort $c @l` and block `map`/`grep`, so D-N12's op-level claim is inferred. Whether start-line attribution carries call order stably across multi-line calls. The minute's recording of R16 and the cost-accounting changes. YAEP, Guacamole's pass rate, and other participants' rows.
+- **E:** whether `method_named` and indirect-method sites keep a stable op-tree order. Whether `map`/`grep` blocks and `sort` comparators are recoverable from nulled ops in every form. Other participants' rows. Sections the diff did not touch. E did not run Guacamole (Marpa::R2 absent).
+- **F:** how pvm's oracle identifies call sites (`parse_facts.pl`, the call_sites protocol), so F-19 is inferred from the op tree. Whether a Standard-Perl std5k.pl template is accepted by perl and RD. Unchanged parts of the document. The minute. F ran no Go code.
+- **G:** whether `internal/parse` can report call order and kind cheaply. Whether `parse_facts.pl`'s B walk reaches non-exec `null`/`scope` ops for the map-block slot, which G saw only in Concise's tree view. The document outside the diff. `make test`.
