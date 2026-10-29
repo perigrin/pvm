@@ -1,0 +1,2 @@
+use feature ':5.36';
+${^RE_COMPILE_RECURSION_LIMIT}
