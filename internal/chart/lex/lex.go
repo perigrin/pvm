@@ -29,16 +29,12 @@ type Token struct {
 }
 
 // Stream is a source's tokens in order, with the trivia after the last one
-// in Tail.
+// in Tail, and the context facts derived from them.
 type Stream struct {
 	Tokens []Token
 	Tail   []lexer.Token
+	Facts  *Context
 }
-
-// BarewordOperators are the operators whose left operand is lexed as a word.
-// They are the production lexer's, which internal/parse holds equal to
-// CORE.tpm's `:bareword` operators.
-var BarewordOperators = lexer.BarewordOperators
 
 // Text is every byte the stream's tokens and trivia span, in order. For a
 // lossless stream it is the source.
@@ -132,6 +128,7 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 	if err := s.covers(len(src)); err != nil {
 		errs = append(errs, err)
 	}
+	s.Facts = facts(src, s.all())
 	return s, errors.Join(errs...)
 }
 
