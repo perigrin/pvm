@@ -289,11 +289,17 @@ recorded.
    argument expressions, which are the call's tree children including nulled
    (`ex-`) lists, less `pushmark` or `padrange` and the callee, with a method's
    invocant counted (so `foo((1,2),3)` and `foo($x,$y)` have two); and the
-   special first slot: a filehandle for `print`/`say`, a comparator for
-   `sort`, a block for `map`/`grep`. A site is WRONG if any of those differs,
-   or if it exists on one side only, so surplus counts. The one exception
-   follows the older kinds: a site perl folded away (an inlined constant sub,
-   a dead branch) is not graded. It is mainline oracle work: the kind lands
+   special first slot, which is not counted as an argument: a filehandle for
+   `print`/`say`, a comparator for `sort`, a block for `map`/`grep`. A site is WRONG if any of those differs,
+   or if it exists on one side only, so surplus counts. Where the chart's live
+   readings disagree on a site's fields, as for a named unary against a list
+   operator, the site is unresolved and scores wider, as above; it is WRONG
+   only if no live reading matches perl. The one exception follows the older
+   kinds: a site perl folded away is not graded. Perl leaves a trace of each
+   kind of fold: an inlined constant sub leaves a `const` where the call
+   stood, and a dead branch leaves no statement, so a parser-only site is
+   graded only where perl compiled its statement and left no `const` in its
+   place. It is mainline oracle work: the kind lands
    with recursive descent's measured sites as its ratchet baseline, and its
    own budget line under the ratchet's. On this kind parity means **every
    site WRONG for the chart is WRONG for recursive descent too**, per file and
