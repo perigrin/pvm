@@ -71,9 +71,7 @@ func G1Shapes(c *CutGrammar) (map[string]string, error) {
 			}
 			w = max(w, sw)
 		}
-		if prev, seen := width[name]; !seen || w > prev {
-			width[name] = w
-		}
+		width[name] = max(width[name], w) // niladic is 0, the missing value
 	}
 	shapes := make(map[string]string, len(width))
 	for name, w := range width {

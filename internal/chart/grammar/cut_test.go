@@ -250,17 +250,9 @@ func TestCutArrayTopBlock(t *testing.T) {
 
 func guacamoleCut(t *testing.T) *CutGrammar {
 	t.Helper()
-	src, err := os.ReadFile(guacamolePath)
+	c, err := readGuacamoleCut(guacamolePath)
 	if err != nil {
-		t.Fatal(err)
-	}
-	g, err := ReadSLIF("guacamole.slif", src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := ApplyCut(g, GuacamoleCut)
-	if err != nil {
-		t.Fatalf("ApplyCut(Guacamole): %v", err)
+		t.Fatalf("reading and cutting Guacamole: %v", err)
 	}
 	return c
 }
@@ -300,15 +292,15 @@ func TestCutGuacamole(t *testing.T) {
 // firstDifference describes where the listed lines first differ from the
 // lines maker makes. A line is quoted as the list writes it, unescaped, so
 // grep -F finds it.
-func firstDifference(path, maker string, cut, listed []string) string {
-	for i := 0; i < len(cut) || i < len(listed); i++ {
+func firstDifference(path, maker string, made, listed []string) string {
+	for i := 0; i < len(made) || i < len(listed); i++ {
 		switch {
-		case i >= len(cut):
+		case i >= len(made):
 			return fmt.Sprintf(`%s: line %d lists "%s", which %s no longer makes`, path, i+1, listed[i], maker)
 		case i >= len(listed):
-			return fmt.Sprintf(`%s: %s makes "%s", which is not listed (after line %d)`, path, maker, cut[i], i)
-		case cut[i] != listed[i]:
-			return fmt.Sprintf(`%s: line %d lists "%s", but %s makes "%s"`, path, i+1, listed[i], maker, cut[i])
+			return fmt.Sprintf(`%s: %s makes "%s", which is not listed (after line %d)`, path, maker, made[i], i)
+		case made[i] != listed[i]:
+			return fmt.Sprintf(`%s: line %d lists "%s", but %s makes "%s"`, path, i+1, listed[i], maker, made[i])
 		}
 	}
 	return path + ": the lines match, but the bytes differ: the list must end in exactly one newline"
