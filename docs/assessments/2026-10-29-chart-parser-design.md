@@ -1,10 +1,10 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart-parser research spike design. -->
-<!-- ABOUTME: Covers rounds 1 to 6: declared outcomes, rulings, author calls, the findings ledger, clusters, and what was not checked. -->
+<!-- ABOUTME: Covers rounds 1 to 8 and the fixed point: outcomes, rulings, author calls, the ledger, clusters, and what was not checked. -->
 
 # Assessment: chart-parser research spike design
 
 **Subject:** `docs/plans/2026-10-29-chart-parser-design.md`
-**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165); round 4 at e34f8233 (e34f8233a2582c9f6749b03f25448e661083a10f); round 5 at 7a430aa4 (7a430aa43f21a012ae01c3c0955005fc0522ea88); round 6 at 723440f1 (723440f115a34f1d4ef0bde74796ccfc555270a5). Round 7 is briefed on f82e7dd9. Branch `design/chart-parser-spike`.
+**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165); round 4 at e34f8233 (e34f8233a2582c9f6749b03f25448e661083a10f); round 5 at 7a430aa4 (7a430aa43f21a012ae01c3c0955005fc0522ea88); round 6 at 723440f1 (723440f115a34f1d4ef0bde74796ccfc555270a5); round 7 at f82e7dd9 (f82e7dd94942ff6226f1e37ebc160137cb558be0); round 8, the final round, at 4ff7facf (4ff7facf873c93cb3f09d3064a963b0fd8824f91). Branch `design/chart-parser-spike`.
 **Author:** the orchestrating AI session. **Decision-maker:** perigrin.
 **Drafter:** a recording role that holds no view. It raises no finding.
 
@@ -115,6 +115,10 @@ perigrin made R16 during round 5. B, C, D and E had already raised the repetitio
 - **R16.** std5k.pl's repetition (one template about 70 times, raised by B's N15, C's C-N23, D, and E's E25) is accepted. perigrin's reasoning: the bias is caught later, when perl.git `t/` is parsed, because the speed kill fires at any step including the parity steps. §8 records std5k.pl's ratio as optimistic (a lower bound) until real files join. The author named a residual cost and perigrin accepted it: a false pass at the checkpoint costs the parity steps built before `t/` exposes it, bounded by the per-step budgets.
 
 R16 is recorded against B-N15, C-N23, D-N7 and E25 as a ruling made after those rows were raised. It is not a release, because only a raiser can release a row. F-16 and G-4 also raise std5k.pl's repetition, but R16 does not name them.
+
+### After the fixed point (R17)
+
+R17 (2026-10-29) deletes the fold exception from §7.1, in commit 88e539e8. It came after the fixed point at 4ff7facf and was not assessed. It is recorded in full under "Ruling after the fixed point (R17)".
 
 ### Author calls (not rulings)
 
@@ -421,6 +425,102 @@ The response moves the subject from 723440f1 to f82e7dd9, which goes from 495 to
 ### Round outcome
 
 **Another round owed.** G holds blocks G-12 and G-13.
+
+## Outcome of round 7
+
+Round 7 assessed f82e7dd9. The round-7 brief asked for one status per open row and any new rows, with rulings not to be reopened, and it had a 15-minute time box. The author's round-6 response, recorded under round 6, says every change from 723440f1 is to §7.1's argument marker, the waypoint exit, §9's silent-misparse row and §10's marker tests.
+
+### Recommendations, as declared
+
+- **A: accept.** "A33 is met." A34 is a stand-aside that "belongs to the marker's implementing issue, not to this design".
+- **B: accept.** "The two stand-asides below are precision points for the implementing issue of the argument marker. They do not hold the design."
+- **C: accept, carrying three stand-asides.** "None of the four makes the spike's deliverable unreachable or its verdicts undecidable. … I have no blocks open."
+- **D: accept.** "Both of my round-6 rows are fixed in the text, and the per-site parity rule I argued for is adopted." D-N13 is a stand-aside. "I hold no blocks."
+- **E: accept.** "All three of my open rows are released, on evidence I re-ran." E30 is an implementing-issue stand-aside.
+- **F: accept.** "Every open row of mine is released. The per-site parity rule is the right replacement for the count rule." F-21 is a stand-aside.
+- **G: modify (one sentence).** "My three open rows are released. One case the revision leaves undefined blocks" (G-15). G-16 is a stand-aside.
+
+### Views on the per-site rule (the author's round-6 action), as given
+
+- **A** released A33 against the new §7.1 text and ran Concise against it.
+- **B** released N16: "That is the subset rule."
+- **C** released C-N29: "Per site, as I recommended."
+- **D**: "settled … That is the form I proposed."
+- **E** noted that its listing proposal "the per-site rule now implies".
+- **F**: "Agreed. It is the tightening I proposed in round 6."
+- **G** released G-14: "That is the subset rule I proposed."
+
+### Blocks held, as declared
+
+| participant | blocks |
+|---|---|
+| A, B, C, D, E, F | none |
+| G | G-15 |
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A34 | For the marker's implementing issue: drop "a dead branch" from the exception, or name how it is detected; say whether the filehandle is counted. |
+| B-N17 | Implementing issue. |
+| B-N18 | Implementing issue: name the order, and test one chain and one modifier. |
+| F2 (held) | The std5k.pl arm is well defined and the override exists, so C does not block. |
+| C-N21 (held) | Unchanged; no whole-leg estimate for the parity leg. |
+| C-N30 (held) | Not addressed. |
+| C-N32 | One clause, e.g. "against recursive descent at the same mainline revision the step is measured on". |
+| D-N13 | One clause: "the special slot counts among the argument expressions". |
+| E30 | Implementing issue: read the comparator slot from `sort`'s flags as well as its children; add `sort { $a <=> $b } @l` to §10. |
+| F-21 | Limit the exception to inlined constant subs, and let dead-branch sites fall to the per-site rule. The detection mechanism belongs to the implementing issue. |
+| G-16 | The mechanism belongs to the implementing issue; the property belongs in the design. |
+
+### Round outcome
+
+**Another round owed.** G holds block G-15.
+
+## Outcome of round 8
+
+Round 8 assessed 4ff7facf, and the round-8 brief calls it "the final round", with a 10-minute time box. The author's round-7 response says all three changes from f82e7dd9 are in §7.1's argument-marker paragraph:
+- G-15 is answered with a site unresolved where live readings disagree;
+- D-N13 and B N17 are answered with "the special first slot is not counted as an argument";
+- A34 and F-21 are answered with fold detection by trace: "a dead branch leaves no statement. A parser-only site is graded only where perl compiled its statement and left no `const` in the call's place".
+
+The response sends B N18, C-N32 and E30 to the marker's implementing issue, with "The text is unchanged".
+
+### Recommendations, as declared
+
+- **A: accept.** "A34 is mostly answered. What remains is a stand-aside for the marker's own implementing issue, and it doesn't touch the design."
+- **B: accept.**
+- **C: accept, with four stand-asides.** "I hold no blocks. Refinement should carry the open stand-asides onto the milestone as acceptance criteria, so that they are not lost when this session closes."
+- **D: accept.** "D-N13 is fixed." D-N14 is "a stand-aside for the marker's implementing issue, not a block. I hold no blocks."
+- **E: accept.** "My one open row is released to the marker's implementing issue." E31 is a stand-aside.
+- **F: accept.** "My one open row, F-21, is re-raised as a stand-aside, not a block."
+- **G: accept.** "I hold no block." G-16 is re-raised as a stand-aside.
+
+### Blocks held, as declared
+
+None. No participant holds a block at 4ff7facf.
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A34 (re-raised, narrowed) | For the marker's issue: excuse a parser-only site only against a `const` carrying `FOLD` or `SHORT` in the same statement, one site per such `const`, never against a plain literal. |
+| B-N19 | Implementing issue. |
+| F2, C-N21, C-N30 (held) | Each "a one-sentence clarification". |
+| C-N32 (held, deferral accepted) | Accepted only if the implementing issue's acceptance criteria name the revision rule: "The answer changes what the per-site parity verdict means, so it is not purely a 'how'." |
+| C-N33 | Implementing issue. C marks it a stand-aside because "its harm falls on recursive descent's baseline, not on the chart's parity verdict". |
+| D-N14 | For the implementing issue, or one clause now. |
+| E31 | "Under the per-site rule both parsers are graded alike, so parity is unaffected, but the text should be corrected or carried into the same implementing issue." |
+| F-21 (re-raised) | "That can be done in the marker's implementing issue." |
+| G-16 (re-raised) | "The spurious WRONGs it produces fall on both parsers alike, so the per-site parity rule absorbs them and the verdict is unaffected. The sentence is still wrong, and the implementing issue should correct it." |
+
+### A fact about the fold rule
+
+Seven round-8 rows find the fold rule that 4ff7facf added to §7.1 false or uncomputable: B-N19 (B's N19), A34, D-N14, E31, F-21, G-16 and C-N33. The rule reads "a dead branch leaves no statement, so a parser-only site is graded only where perl compiled its statement and left no `const` in its place". The minute records this without judging it. The subject was not revised after round 8. Whatever perigrin decides about that text is to be recorded later.
+
+### Round outcome
+
+**No block is held.** Round 8 was the final round the session allows.
 
 ## Ledger
 
@@ -867,6 +967,84 @@ Each status is in the raiser's own word, with its reason, as declared at 723440f
 | G-13 | G | 6 | §7.1 sixth kind | Perl's folding is graded WRONG: a site is WRONG "if any of those differs, in either direction", but perl removes calls at compile time (constant subs inlined, dead branches dropped), and with identity by "its order among that statement's calls" one call missing on perl's side shifts every later call. Source vs op-tree order is unstated (they differ for nested calls: `foo(bar(1))` runs `bar` first), and "callee's name" is undefined for `$o->$m(1)` and `$c->(1,2)`. The five older kinds forgive folding; this kind reverses that silently. Fix: a site perl has no op for is not graded, and an order rule that survives a missing site (order among calls to the same callee, in source order; dynamic callees by position). Re-raises G-1. See also C-N28, F-19. | Spurious WRONG on both parsers; RD's baseline absorbs them, but every WRONG becomes triage noise, and the author call compares one noise floor with another. | Ran: `sub PI() {3} my $x = PI;` → `const[IV 3] s*/FOLD`, no entersub; `sub foo{} if (0) { foo() } foo(1);` and `my $x = 0 && foo(); foo(1);` leave only `foo(1)`; `$o->$m(1)` → `method K/1` over `padsv[$m]`, no name; `$c->(1,2)` and `&$c` → `ex-rv2cv` over `padsv[$c]`. | open, block | 723440f1 |
 | G-14 | G | 6 | §7.1 last sentence; §9 "Silent misparse" | G's view on the author call: relaxing WRONG = 0 to the floor is right, but a count lets the chart be WRONG where RD is right if its total is no higher, the silent misparse rule 5 forbids; the site-level form (the chart's WRONG sites a subset of RD's, per file and site) costs nothing extra. Separately, §9's "WRONG > 0" reads as unconditional, so §7.1 and §9 disagree on the sixth kind. See also A33, B-N16, C-N29, C-N31, F-20. | The sixth-kind parity gate admits new misparses for fixed ones, and §9 contradicts §7.1. | Read §7.1; §9 row; §3 rule 5. Trade-off inferred. | open, stand-aside | 723440f1 |
 
+### Round-7 status of rows open at 723440f1
+
+Each status is in the raiser's own word, with its reason, as declared at f82e7dd9.
+
+| id | raiser | round-7 status | reason given |
+|---|---|---|---|
+| A33 | A | **released** | §7.1: "every site WRONG for the chart is WRONG for recursive descent too, per file and site"; §9 and the waypoint exit point back to it; sites identified by name so a missing call shifts no other name. Ran Concise (5.42.0): `foo($x,$y)` → 2; `$o->m($a)` → 2 with invocant; `sub PI() {3} … PI` → `const[IV 3] s*/FOLD`, no `entersub`; `map { $_ } @l` block observable. |
+| B-N16 | B | **released** | §7.1 is the subset rule; §9 reads "a WRONG site (§7.1)", and "a WRONG site" is defined as the chart-only kind. The count rule is gone. Ran Concise: `foo($x,$y)` 2; `$o->m(1)` 2; `$o->$m(1)` 2; `foo(PI)` 1. |
+| F2 | C | **held (stand-aside)** | Unchanged; "aggregate ratio" still undefined. |
+| C-N21 | C | **held (stand-aside)** | Budgets unchanged; no whole-leg estimate for the parity leg. |
+| C-N27 | C | **released** | Sites now include `print`, `say`, `sort`, `map`, `grep`, identified by name. |
+| C-N28 | C | **released** | Matching by source order among same-name sites; "a site perl folded away (an inlined constant sub, a dead branch) is not graded"; §10 adds the `PI` case. For the implementing issue: "folded" must be established from perl's side (e.g. `CvCONST`, or the `'???'` Deparse marker), not from the subject's claim. |
+| C-N29 | C | **released** | Per site, as C recommended. Residue C-N32. |
+| C-N30 | C | **held (stand-aside)** | The lower-bound sentence still covers "its ratio" only. |
+| C-N31 | C | **released** | §9 "a WRONG site (§7.1)", scoped to chart-only WRONG sites. |
+| D-N11 | D | **released** | §7.1's count rule now names `padrange`, nulled children and the invocant. Re-ran: `foo($x,$y)` 2, `foo(($x,$y),$z)` 2, `$o->m(1)` 2. §10 adds the lexicals case. |
+| D-N12 | D | **released** | The site set now matches its fields and §10. D also recorded the author call as "settled" in the form D proposed. |
+| E27 | E | **released** | Sites include the five builtins. |
+| E28 | E | **released** | Ran Concise on three calls: each counts as stated. Wording nit: under `padrange` the nulled arguments are `padsv`, not `ex-` lists; "tree children" covers them. |
+| E29 | E | **released** | "A WRONG site" now has one meaning in §7.1, §8 and §9. Ran: `foo(1) if 0` folds to `ex-const`, no `entersub`. |
+| F-16 | F | **released** | The waypoint exit includes "std5k.pl accepted". |
+| F-18 | F | **released** | Builtin sites added, completing F-15. |
+| F-19 | F | **released** | Matching by statement, name and same-name source order; a one-sided site is WRONG; the invocant counts. Read `parse_facts.pl:59`: statements grouped by first line. |
+| F-20 | F | **released** | "A WRONG site" has one meaning; "the former" is a fragile but readable antecedent. |
+| G-1 | G | **released** via G-12 and G-13 | See G-12, G-13. |
+| G-12 | G | **released** | Sites include the builtins, identified by "the callee's or builtin's name". |
+| G-13 | G | **released** | Same-name ordering, `dynamic` callees, and the folded-site exception cover the order cascade, nameless callees and folding. Residue G-16. |
+| G-14 | G | **released** | The subset rule; §9 now agrees. |
+
+### Round-7 findings
+
+| id | raiser | round | section of the subject | finding | consequence if it ships | evidence | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| A34 | A | 7 | §7.1, "a site perl folded away (an inlined constant sub, a dead branch) is not graded" | An inlined constant sub leaves a detectable `const … /FOLD`; a dead branch (`if (0) { foo() }`) leaves no op, so the walk can't tell "perl folded this" from "the subject invented a call" (inferred), and since surplus is now WRONG the exception needs a mechanism. Also unstated: whether `print`'s filehandle counts among the direct arguments. See also F-21, G-16, B-N17, D-N13. | Dead-branch calls graded WRONG on both parsers (they cancel per site but inflate baselines); an off-by-one between adapters on the filehandle. | Ran Concise on `sub PI() {3} … PI` and `print $fh $x, $y` (`pushmark`, `rv2gv`, two args). Read `compare_facts.go` ("A subject surplus … is never consulted"). | open, stand-aside | f82e7dd9 |
+| B-N17 | B | 7 | §7.1 count vs special first slot | For builtins there is no callee to subtract, so the stated rule includes the filehandle, comparator or block in the count, and the slot is recorded again as its own field; `print STDOUT 1, 2` is 3 by the rule, or 2 if "argument expressions" means the list after the slot. Say which. (B's own id: N17.) See also D-N13, A34. | Spurious WRONG at every special-slot builtin depending on how each adapter reads one sentence. | Ran `perl -MO=Concise -e 'print STDOUT 1, 2'`. | open, stand-aside | f82e7dd9 |
+| B-N18 | B | 7 | §7.1 site identity, "source order among that statement's sites with the same name" | Perl's op tree carries no column, so "source order" must come from tree or execution order, and neither always matches: in `$o->m(1)->m(2,3)` preorder puts the outer `m(2,3)` first while source and exec put `m(1)` first; in `m(1) if m(2)` exec runs `m(2)` first (inferred). The pvm side must emulate whichever order perl's side uses. (B's own id: N18.) | Same-name ordinals swap in method chains and modifiers, planting spurious WRONGs in RD's baseline at the call shapes M4–M6 probes. | Ran `-MO=Concise` and `-MO=Concise,-exec` on `my $o; $o->m(1)->m(2,3)`. Modifier case inferred, not run. | open, stand-aside | f82e7dd9 |
+| C-N32 | C | 7 | §7.1 argument-marker parity; §8 M4–M6 steps | The RD side of the per-site rule moves: parity requires each chart-WRONG site to be "WRONG for recursive descent too", without saying which RD revision, while RD keeps improving on mainline during the spike; an RD fix turns a tolerated site into a finding after the fact, and the landing baseline would tolerate WRONGs RD has since fixed. | The parity verdict on this kind depends on when it is run. | Read §7.1 last sentences; §8 M4–M6. Inferred that RD probe fixes land during the ratchet. | open, stand-aside | f82e7dd9 |
+| D-N13 | D | 7 | §7.1 builtin sites | The count rule and the special-slot field overlap: `print $fh $x` → `pushmark`, `rv2gv`, `padsv`; `sort $c @l` → `pushmark`, `null` over `padsv $c`, `padav`; `map { $_ } @l` → `mapstart` with `pushmark` and `null`/`scope`. Under the rule each counts 2 with the slot; a reader treating the slot as separate counts 1. See also B-N17, A34. | The two sides compute different counts, so every builtin site is WRONG, or both agree wrongly and hide `print $fh, $x` vs `print $fh $x` behind the slot. | Ran `perl -MO=Concise` (5.42.0). Also ran: `if (0) { foo(1) }` and `foo(1) if DEBUG` compile to an `ex-const` flagged `SHORT`/`FOLD`. | open, stand-aside | f82e7dd9 |
+| E30 | E | 7 | §7.1 special first slot | Perl optimises a simple comparator away: `sort { $a <=> $b } @l` leaves only a `NUM` flag on `sort` (children `pushmark`, `padav`), so the slot can't be read as a child for the commonest forms and must come from `sort`'s private flags. | Correct readings of `sort { $a <=> $b }` and `sort { $b cmp $a }` graded WRONG on both parsers; symmetric, but false defects. | Ran `perl -MO=Concise -e 'my(@l); sort { $a <=> $b } @l;'` → `<@> sort vK/NUM`, no block; `map { $_ } @l` keeps its block. | open, stand-aside | f82e7dd9 |
+| F-21 | F | 7 | §7.1 fold exception | "A site perl folded away … is not graded" assumes the oracle can tell which call perl folded, but a dead branch leaves only an `ex-const` with no trace of the call, and on a shared line the folded site shifts same-name ordering; the older kinds never needed a fold rule since they never see surplus. Fix: limit to inlined constant subs (detectable by prototype and `CvCONST`). See also A34, G-16. | Unimplementable as written: excuse every possibly-folded chart-only site (surplus blindness) or grade dead code WRONG; in practice the per-site rule neutralises it (inferred). | Ran `sub foo {} foo(1) if 0; foo(2);` → one `entersub` and `ex-const v/SHORT`; `use constant DEBUG => 0; if (DEBUG) { foo(1) }` → `ex-const …/FOLD`; `sub PI() {3} my $r = PI + 1;` → `const[IV 4] s/FOLD`. | open, stand-aside | f82e7dd9 |
+| G-15 | G | 7 | §7.1 first and second paragraphs | How a site whose fields differ between live readings is scored is unstated: decided vs unresolved is defined by presence, but the M4–M6 named-unary case gives one `foo` site in both readings (`foo($x), $y` vs `foo($x, $y)`), so it counts as decided while its count is 1 or 2; likewise call kind and special slot. Fix: such a site is unresolved and scores wider. | The headline M4–M6 case scores WRONG or exact depending on which reading the adapter emits. | Read §7.1; §8 M4–M6 list. Ran (round 5): `sub foo($); foo $x, $y` → 1 argument; `sub foo; foo $x, $y` → 2. Read `compare_facts.go` hedge. | open, block | f82e7dd9 |
+| G-16 | G | 7 | §7.1 "a site perl folded away … is not graded" | The exception names a property the oracle must observe, folding vs surplus; folding is observable (`const …/FOLD`; a dead branch's condition as `ex-const …/SHORT` at the statement), and the doc should say that is the evidence used. Mechanism belongs to the implementing issue. See also A34, F-21. | A misbuilt exception floods RD's baseline with spurious WRONGs or reverts to "never sees surplus". | Ran: `foo(1) if 0;` and `foo(1) unless 1;` → `ex-const v/SHORT`; `use constant DEBUG=>0; … if (DEBUG) { foo(2) }` → `ex-const v*/SHORT,FOLD`; no entersub remains. Perl 5.44.0. | open, stand-aside | f82e7dd9 |
+
+### Round-8 status of rows open at f82e7dd9
+
+Each status is in the raiser's own word, with its reason, as declared at 4ff7facf.
+
+| id | raiser | round-8 status | reason given |
+|---|---|---|---|
+| A34 | A | **re-raised, narrowed. Stand-aside.** | Answered: the slot "is not counted as an argument"; dead branches are detected "by their trace". Ran (5.42.0, `-exec`): `if (0) { foo(); }`, `foo() if 0` and `use constant D=>0; foo() if D` leave no `entersub` or `nextstate` for foo; `0 && foo()` leaves `const[IV 0] s/SHORT`; `1 ? 2 : foo()` leaves `const[IV 2] s/FOLD`. Remains: ops carry only a line, so "left no `const` in its place" is per statement, and every literal is a `const` (a surplus loophole); `foo() if 0; bar();` on one line grades the dead `foo` WRONG on both parsers. |
+| B-N17 | B | **released** | "The special first slot, which is not counted as an argument" settles it (`print STDOUT 1, 2` counts 2). |
+| B-N18 | B | **released** (deferred) | Sent to the marker's implementing issue, the disposition B asked for; the issue must name the order and test a same-name chain and a modifier. |
+| F2 | C | **held (stand-aside)** | "Aggregate ratio" still undefined. |
+| C-N21 | C | **held (stand-aside)** | Still no whole-leg estimate for the parity leg. |
+| C-N30 | C | **held (stand-aside)** | The lower-bound sentence still covers only speed. |
+| C-N32 | C | **held (stand-aside), deferral accepted** | Accepted on condition that the issue's acceptance criteria name the revision rule. |
+| D-N13 | D | **released** | "Not counted as an argument": `print $fh $x` 1 with filehandle slot, `sort $c @l` 1 with comparator, `map { $_ } @l` 1 with block. D also checked G-15's addition for coherence: "no objection". |
+| E30 | E | **released** to the implementing issue | The author places it in the marker's implementing issue, where E said it belongs; the issue must carry it with `sort { $a <=> $b } @l`. |
+| F-21 | F | **re-raised, stand-aside** | "In its place" can only mean "in its statement", and almost every statement has a `const`, reopening surplus blindness (ran: `foo(2);` has `const[IV 2]`). The dead-branch half is mis-stated: `foo(1) if DEBUG;` leaves `ex-nextstate` and `ex-const v*/SHORT,FOLD`, excused for the wrong reason. |
+| G-15 | G | **released** | §7.1: "Where the chart's live readings disagree on a site's fields … the site is unresolved and scores wider … it is WRONG only if no live reading matches perl." |
+| G-16 | G | **re-raised, stand-aside** | Ran (5.44.0): (1) a dead `if (0)` block leaves no `nextstate` for the call's line, so the rule holds; (2) `foo(1) if 0;` keeps `nextstate` with only `ex-const v/SHORT`, so the parser-only site is graded WRONG; (3) `my $x = 0 && foo(2);` → `padsv_store` over `const[IV 0] s/SHORT`, "in its place" indeterminate; (4) `bar(0 ? foo(4) : 5);` → `const[IV 5] sM/FOLD` for the ternary, not `foo`. |
+
+### Round-8 findings
+
+| id | raiser | round | section of the subject | finding | consequence if it ships | evidence | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| B-N19 | B | 8 | §7.1 fold exception: "graded only where perl compiled its statement and left no `const` in its place" | "In its place" can't be read from perl's tree without aligning it to the parser's (no columns): (a) a constant sub folds with its context (`PI + 1` → one `const[IV 4] /FOLD`); (b) literals are also `const`, so "a `const` anywhere in the statement" excuses nearly every chart-only call. Narrower rule: excuse only if perl's `const` at that statement carries `/FOLD`, or the callee has an empty prototype. (c) `if (0) { foo(1) }` leaves an `ex-nextstate`, not nothing. (B's own id: N19.) See also A34, C-N33, D-N14, E31, F-21, G-16. | The surplus-call check is silently weakened in any statement with a literal. | Ran `perl -MO=Concise -e 'sub PI() {3} my $x = PI + 1'` → `const[IV 4] s/FOLD`; `-e 'if (0) { foo(1) } bar(2)'` → `ex-nextstate` then a live `nextstate` for `bar` only. | open, stand-aside | 4ff7facf |
+| C-N33 | C | 8 | §7.1 fold traces | "A dead branch leaves no statement" is true for a block but false for a statement modifier: `foo() if 0;` keeps its `nextstate` and drops the call with no `const`, so the `foo` site is graded WRONG on both parsers. The `const` trace is positional ("in its place") but ops carry only a line, so any `const` satisfies it. See also B-N19, A34, D-N14, E31, F-21, G-16. | Every `EXPR if 0` / `unless 1` call site scores a spurious WRONG on both parsers (tolerated per site), falsely loading RD's baseline; parser-only sites in any literal-bearing statement go ungraded. | Ran (5.42.0) `perl -MO=Concise,-exec -e 'foo() if 0;'` → `nextstate … leave`, no call, no const; `-e 'if (0) { foo() } bar();'` → one `nextstate`, for `bar`; `-e 'sub PI() {3} my $z = PI * 2;'` → `const[IV 6] s/FOLD`. | open, stand-aside | 4ff7facf |
+| D-N14 | D | 8 | §7.1 fold exception | "Left no `const` in its place" can't be located without columns: `my $x = 0 && foo(1);` keeps a live `nextstate` with `const[IV 0] s/SHORT` standing for the whole `&&`; `if (0) { foo(1) }` and `foo(1) if DEBUG` leave `ex-nextstate` and an `ex-const` flagged `SHORT` (and `FOLD`). The traces are flags on a folded op, not positions; read as "the statement contains a `const`", every parser-only site in a literal-bearing statement is exempt. See also B-N19, A34, C-N33, E31, F-21, G-16. | Surplus sites in literal-bearing statements go ungraded, and the per-site rule loses most of its surplus half unnoticed. | Ran `perl -MO=Concise` on the three cases. | open, stand-aside | 4ff7facf |
+| E31 | E | 8 | §7.1 fold traces | "A dead branch leaves no statement" is not what perl does: the statement survives as a `nextstate`, and the folded conditional becomes a `const`/`ex-const` flagged `SHORT` or `FOLD`. For `0 ? foo(1) : 2` the `const` stands where the ternary stood, not `foo(1)`, so a literal reading grades `foo` WRONG. Suggested: "a fold leaves a `const`/`ex-const` flagged `FOLD` or `SHORT` where the folded expression stood, and a parser-only site inside that expression is not graded". See also B-N19, A34, C-N33, D-N14, F-21, G-16. | Calls in dead code (`... if DEBUG` under `use constant DEBUG => 0`) graded as false WRONG on both parsers; parity survives, but yield and RD's baseline are polluted. | Ran `perl -MO=Concise`: `foo(1) if 0` → `nextstate`, `ex-const v/SHORT`; `if (0) { foo(1) }` → `nextstate`, `ex-const v/SHORT`; `my $x = 0 ? foo(1) : 2` → `const[IV 2] s/FOLD`; `use constant DEBUG => 0; foo(1) if DEBUG` → `ex-const v*/SHORT,FOLD`; `sub PI() {3} my $x = PI` → `const[IV 3] s*/FOLD`. | open, stand-aside | 4ff7facf |
+
+The round-8 traces from perl differ in detail between participants. On the dead `if (0) { … }` block:
+- A, C and G (the block case) report no `nextstate` for the call.
+- B and D report an `ex-nextstate`.
+- E reports a `nextstate` with `ex-const v/SHORT`.
+
+The minute records each as reported and does not reconcile them.
+
 ## Clusters
 
 Counted by the first section each finding names in its "section" column. Many findings name more than one. Round-1 counts use 4ec0955a's section numbering.
@@ -1018,6 +1196,32 @@ G-1 is re-raised through G-12 and G-13, so it appears in this count beside them.
 | §8 | 5 | F2, C-N21, F-16 |
 | §9 | 1 | none |
 
+### Round 7 new findings (9, at f82e7dd9)
+
+| section | count | findings |
+|---|---|---|
+| §7 | 9 | A34, B-N17, B-N18, C-N32, D-N13, E30, F-21, G-15, G-16 |
+
+### Rows open at f82e7dd9 (12: the 9 round-7 findings and 3 carried rows)
+
+| section | count | carried rows |
+|---|---|---|
+| §7 | 9 | none |
+| §8 | 3 | F2, C-N21, C-N30 |
+
+### Round 8 new findings (4, at 4ff7facf)
+
+| section | count | findings |
+|---|---|---|
+| §7 | 4 | B-N19, C-N33, D-N14, E31 |
+
+### Rows open at 4ff7facf (11: the 4 round-8 findings and 7 carried rows)
+
+| section | count | rows |
+|---|---|---|
+| §7 | 8 | A34, B-N19, C-N32, C-N33, D-N14, E31, F-21, G-16 |
+| §8 | 3 | F2, C-N21, C-N30 |
+
 ## Participants
 
 **Round 1.** Dispatched: A (codebase and architecture), B (parsing theory and technical feasibility), C (spec and plan quality, via paad:pushback v2.0.2). All three reported in full, and none appears truncated. C also recorded six candidates it dropped: Leo-by-reference against Chalk's `top_origin`; the "about 49" open-issues count; the semiring-separability assumption; the cold-parse extrapolation; security (no trust boundary); and the §11 SoN oracle.
@@ -1067,6 +1271,18 @@ Round-2 evidence A re-ran (code unchanged since round 1):
 - **Document growth.** The subject grew from 464 to 495 lines.
 - **Bias.** C and D each disclosed a bias. C released C-N23 "by ruling" rather than on its own bar. D checked its own D-N9 harder, which is how D-N11 surfaced.
 - **Readings that differ.** On the count rule, A (A30) and B (B-N16) ran Concise on their own cases and found that it matches, provided nulled ops count. D (D-N11) and E (E28) found it wrong under `padrange`. The minute records both and does not reconcile them.
+
+**Round 7.** Dispatched: A to G, all resumed. All seven reported in full, and none appears truncated: each ends with "What I did not check".
+- **Scope.** Each read the 723440f1..f82e7dd9 diff and `round6-response.md`. C read the changed sections and their neighbours. F did not read the minute, and neither did A ("The minute" is in its not-checked list).
+- **Perl versions.** A and D used perl 5.42.0. G used 5.44.0.
+- **Document growth.** The subject went from 495 to 505 lines (author's response). A measured +27/−17 in the plan.
+
+**Round 8, the final round.** Dispatched: A to G, all resumed. All seven reported in full, and none appears truncated: each ends with "What I did not check".
+- **Scope.** Each read the f82e7dd9..4ff7facf diff, a single §7.1 hunk (+16/−9, per A), and `round7-response.md`.
+- **Perl versions.** A, C and D used perl 5.42.0. G used 5.44.0.
+- **The minute.** A and D note a 211-line minute change in the same commit range, which neither read.
+- **Bias.** D and E each wrote that in the final round they may be inclined to release. Each ran the fold cases rather than take the sentence on trust.
+- **Cosmetics.** C and E each note an unwrapped long line in the edited §7.1 paragraph.
 
 Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/`, `A/r2/`, `A/r3/` and `A/r4/`; `B/probe/` and `B/r2/`; `D/`; `E/`; `F/`; and `G/`. D's probe `internal/parse/zz_d_probe_test.go` exists only in D's scratch extraction, not in any repository.
 
@@ -1121,3 +1337,67 @@ Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c32
 - **E:** whether `method_named` and indirect-method sites keep a stable op-tree order. Whether `map`/`grep` blocks and `sort` comparators are recoverable from nulled ops in every form. Other participants' rows. Sections the diff did not touch. E did not run Guacamole (Marpa::R2 absent).
 - **F:** how pvm's oracle identifies call sites (`parse_facts.pl`, the call_sites protocol), so F-19 is inferred from the op tree. Whether a Standard-Perl std5k.pl template is accepted by perl and RD. Unchanged parts of the document. The minute. F ran no Go code.
 - **G:** whether `internal/parse` can report call order and kind cheaply. Whether `parse_facts.pl`'s B walk reaches non-exec `null`/`scope` ops for the map-block slot, which G saw only in Concise's tree view. The document outside the diff. `make test`.
+
+### Round 7
+
+- **A:** B-series internals. `dynamic` callee names in perl's tree. Statement grouping for blocks inside calls. `say`, `sort` and `grep` shapes beyond `map` and `print`. The minute. Whether A's earlier RD defects were filed.
+- **B:** `print {$fh} …` and `sort SUBNAME @l` slot shapes. `&foo;` with implicit `@_`. Indirect-object sites (`new Foo(1)`). Whether statement grouping matches perl's `nextstate` boundaries for modifiers. B did not run the `m(1) if m(2)` exec order. The unchanged rest of the document, and other participants' rows.
+- **C:** the new §10 cases against perl's op tree. Whether the count rule gives two for `foo((1,2),3)` on 5.42. Whether `dynamic` naming collides with several dynamic calls in one statement. Sections outside §7.1, §8 waypoint, §9 and §10.
+- **D:** text outside the diff hunks. `say` and `grep` trees. `dynamic` names. Multi-line calls under statement grouping. Whether surplus sites need a shared key. YAEP, Guacamole's pass rate, other participants' rows.
+- **E:** `sort SUBNAME @l` and `reverse sort`. `say` under `use feature 'say'`. `print {$fh}` at parity. Whether `groupByStatement` keeps order stable across `padrange`-merged statements. Other participants' rows. Untouched sections.
+- **F:** the oracle's statement grouping beyond `parse_facts.pl`'s comment at line 59. Whether `print $x` and `print $fh $x` differ only by the `rv2gv` child: both showed `print vKS` in F's runs. Unchanged parts. The minute. F ran no Go code.
+- **G:** whether `parse_facts.pl`'s B walk sees `ex-const` flags at a statement whose block perl dropped. Whether the subset rule interacts with RD's baseline moving: G infers the chart's allowance only shrinks. Anything outside the diff.
+
+### Round 8
+
+- **A:** the per-site rule on nested statements under the oracle's grouping. How unresolved argument sites interact with the existing hedge rule, since surplus is a new direction for it. The minute's 211-line change. B-series internals. Whether A's earlier RD defects were filed: the 9 refusals, the number-literal mis-lexes such as `0xfp-1`, `$# {…}`, and the `while () {}` canon.
+- **B:** the "unresolved where live readings disagree" sentence against the oracle's wider scoring code. `sort`'s comparator flag (C-N32, E30). Which RD revision is the baseline. Anything outside the §7.1 hunk, and other participants' rows.
+- **C:** the G-15 rule against a real named-unary/list-operator forest. Whether `unless 1`, `0 and foo()` or `foo() while 0` leave the same trace as `foo() if 0`. `sort`'s comparator flag, which is deferred. Sections outside §7.1.
+- **D:** text outside the 16-line hunk. Whether an inlined constant's `const` carries a flag marking it as an inlined sub. The deferred items (order numbering, RD baseline revision, `sort`'s comparator flag). The 211-line minute update. YAEP, Guacamole's pass rate, other participants' rows.
+- **E:** G-15's "unresolved, scores wider" against `compareMarkers`' bucket logic. Whether "the special first slot is not counted" interacts with `print {$fh}` at parity. Order numbering and the RD baseline revision, both deferred, and E accepts the deferral. Other participants' rows. Untouched sections.
+- **F:** whether the oracle treats `ex-nextstate` as a statement (F did not read the code behind the "nearest enclosing nextstate/dbstate" comment). How the three deferred items interact with F-21. Unchanged parts. F ran no Go code.
+- **G:** whether `parse_facts.pl`'s B walk exposes `SHORT`/`FOLD` flags at statement level: G saw them in Concise only. The three deferred items, which G agrees belong in the implementing issue. Anything outside the diff.
+
+## Fixed point
+
+**The acceptance condition.** This repository's architecture document states it: "A decision is accepted when assessment reaches a fixed point among participants of whom at least one is neither the author nor a role that holds no view." The rule this minute has applied at the end of each round is that another round is owed if any block is held.
+
+**After round 8, at 4ff7facf, the declared record is:**
+- **Blocks.** No participant holds a block. No block is open in the ledger.
+- **Recommendations.** A: accept. B: accept. C: accept, with four stand-asides. D: accept. E: accept. F: accept. G: accept.
+- **Participants.** A to G are neither the author (the orchestrating session) nor the drafter (the role that holds no view).
+- **Activity in round 8.** Round 8 still raised 4 new rows (B-N19, C-N33, D-N14, E31) and re-raised 3 (A34, F-21, G-16), all as stand-asides. Seven of those rows find the fold rule that 4ff7facf added false or uncomputable, as recorded under "Outcome of round 8".
+- **The subject.** The subject was not revised between the close of round 8 and this section.
+
+On the declared recommendations and open blocks, the condition as stated is met at 4ff7facf: no block is held, every participant declared "accept", and every participant is neither the author nor the drafter.
+
+**The decision is perigrin's.** This minute records the state of the assessment and decides nothing.
+
+**Open stand-asides at 4ff7facf (11):**
+
+| id | raiser | open on |
+|---|---|---|
+| F2 | C | "Aggregate ratio" undefined; the aggregate arm of the §9 speed kill can fire on snippet setup cost before the checkpoint. |
+| C-N21 | C | No whole-leg estimate for the parity leg after the checkpoint. |
+| C-N30 | C | R16's lower-bound sentence covers std5k.pl's speed ratio, not its convergence figure. |
+| C-N32 | C | Which RD revision the per-site parity rule compares against; the deferral is accepted only if the implementing issue's acceptance criteria name the rule. |
+| A34 | A | Fold exception: excuse a parser-only site only against a `FOLD`/`SHORT` const in the same statement, never a plain literal. |
+| B-N19 | B | Fold exception: "in its place" can't be read without columns; literals are `const`; `if (0)` leaves an `ex-nextstate`. |
+| C-N33 | C | Fold exception: "a dead branch leaves no statement" is false for statement modifiers; the `const` test is positional, but ops carry only lines. |
+| D-N14 | D | Fold exception: the traces are flags, not positions; read as "contains a `const`", it exempts surplus in literal-bearing statements. |
+| E31 | E | Fold exception: dead statements survive as `nextstate` with a `SHORT`/`FOLD` const; `0 ? foo(1) : 2` grades `foo` WRONG on a literal reading. |
+| F-21 | F | Fold exception: "in its place" can only mean "in its statement", which excuses almost any parser-only site. |
+| G-16 | G | Fold exception: false for statement-modifier and expression-level dead branches; `warn … if DEBUG;` scores WRONG on both parsers. |
+
+C recorded that refinement should carry the open stand-asides onto the milestone as acceptance criteria. The deferred implementing-issue items (B-N18's order numbering, C-N32's baseline revision and E30's `sort` comparator flag) are recorded in their rows.
+
+## Ruling after the fixed point (R17)
+
+**R17** (perigrin, 2026-10-29): delete the fold exception from §7.1.
+
+- **The author's reasoning:** a folded call is WRONG for both parsers alike, so the per-site parity rule absorbs it.
+- **What was done:** the exception was deleted, and §10's `PI` test now expects "WRONG on both, no parity finding". The change is commit 88e539e8 (88e539e82613d6a6fd41c8028291a7cd159803c0, "docs(chart): drop the fold exception from the argument marker"), the HEAD of `design/chart-parser-spike`. It changes 1 file, with 5 insertions and 7 deletions.
+
+**This change came after the fixed point at 4ff7facf, and it was not assessed.** No participant has read 88e539e8.
+
+The round-8 rows that R17 answers (B-N19, A34, D-N14, E31, F-21, G-16 and C-N33) stay as their raisers left them: open, stand-aside. A ruling releases nothing. Only a raiser can release its row.
