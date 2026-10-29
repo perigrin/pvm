@@ -279,18 +279,27 @@ recorded.
    pvm is a linter and language server, not an interpreter.
 
    Before the M4–M6 steps the oracle gains a sixth kind, **argument
-   structure**, read from perl's op tree. One site per call: a sub call,
-   `&`-call or method call, indirect ones included. A site is identified by
-   its statement, the callee's name and its order among that statement's
-   calls, and it records the call kind, the number of direct argument
-   expressions (the call's list children, less `pushmark` and the callee: so
-   `foo((1,2),3)` has two), and the special first slot where a builtin has
-   one: a filehandle for `print`/`say`, a comparator for `sort`, a block for
-   `map`/`grep`. A site graded against perl is WRONG if any of those
-   differs, in either direction, so surplus arguments count. It is mainline
-   oracle work: the kind lands with recursive descent's measured score as its
-   ratchet baseline, and its own budget line under the ratchet's. On this kind
-   parity means the chart's WRONG at or below recursive descent's.
+   structure**, read from perl's op tree. One site per sub call, `&`-call or
+   method call (indirect ones included), and per `print`, `say`, `sort`,
+   `map` and `grep`. A site is identified by its statement (grouped as the
+   oracle groups statements today), the callee's or builtin's name
+   (`dynamic` for `$o->$m` and `$c->()`), and its source order among that
+   statement's sites with the same name, so one extra or missing call shifts
+   no other name's sites. It records the call kind; the number of direct
+   argument expressions, which are the call's tree children including nulled
+   (`ex-`) lists, less `pushmark` or `padrange` and the callee, with a method's
+   invocant counted (so `foo((1,2),3)` and `foo($x,$y)` have two); and the
+   special first slot: a filehandle for `print`/`say`, a comparator for
+   `sort`, a block for `map`/`grep`. A site is WRONG if any of those differs,
+   or if it exists on one side only, so surplus counts. The one exception
+   follows the older kinds: a site perl folded away (an inlined constant sub,
+   a dead branch) is not graded. It is mainline oracle work: the kind lands
+   with recursive descent's measured sites as its ratchet baseline, and its
+   own budget line under the ratchet's. On this kind parity means **every
+   site WRONG for the chart is WRONG for recursive descent too**, per file and
+   site; a chart WRONG anywhere else is a finding, and a recursive-descent
+   WRONG the chart gets right is defect yield. Elsewhere in this document,
+   "a WRONG site" on this kind means one of the former.
 2. **Yield.** The yield of every packed node is exactly its byte span, and the
    root's yield is the source.
 3. **A per-file span diff** against recursive descent, under §5's
@@ -364,8 +373,8 @@ in and reviewed, under a declared preamble (`use feature ':5.36'`).
   perl accepts with a different reading is caught only by §7.
 - **Exit:** every perl-accepted `parses` case accepted with no WRONG site and
   its yield intact, the corpus's oracle score at or above recursive
-  descent's (§7.1), and every
-  `parsent` case refused with an Error node. The expectation classes are then
+  descent's (§7.1), std5k.pl accepted, and every `parsent` case refused with
+  an Error node. The expectation classes are then
   compared with those of spec 03's eleven `PL_expect` states whose conflicts
   are in the grammar in force, through an explicit map from each state to the
   conflicts it settles. The number of those states the classes do not
@@ -424,7 +433,7 @@ convergence and advantage are §8's and are not restated here.
 | Risk | Signal | Kill criterion |
 |---|---|---|
 | Speed | Every step's ratios | The aggregate ratio, or std5k.pl's, above 3× at any step. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50, 33.42 ms p99 |
-| Silent misparse | A `parsent` case accepted; WRONG > 0 | One that is fixed only by a refusal which drops coverage below recursive descent's on that file |
+| Silent misparse | A `parsent` case accepted; a WRONG site (§7.1) | One that is fixed only by a refusal which drops coverage below recursive descent's on that file |
 | Forest blow-up | Readings per statement (rule 4) | More than 1% of a corpus's statements, and at least 5 of them, collapsed by the cap |
 | Context leaking into the chart | Set reuse falling as steps add features | Any fix needing facts inside items: a design review |
 | No incremental convergence (Wiren 1989) | Every step's convergence measure | The checkpoint's incremental threshold |
@@ -457,8 +466,9 @@ orchestrating session runs it at every step's close.
 - **Argument marker:** for `foo $x, $y` with `foo` undeclared (an indirect
   method call in perl), with `sub foo($)` and with `sub foo`, for
   `print $fh $x` against `print $x`, and for `sort $c @l` against
-  `sort($c, @l)`, the site matches perl's op tree, and a deliberately wrong
-  reading is graded WRONG.
+  `sort($c, @l)`, for `foo($x, $y)` on lexicals (`padrange`), and for
+  `sub PI() {3} PI` (folded, ungraded), the site matches perl's op tree, and
+  a deliberately wrong reading is graded WRONG.
 - **Fuzzing:** recognizer invariants from the first step, forest invariants
   from the step that builds the forest, and the incremental fuzzers after
   parity.
