@@ -714,6 +714,13 @@ func coreShapes() map[string]Shape {
 	return coreShp
 }
 
+// CoreShapes is coreShapes, as a copy: mutating it leaves the parser's table
+// as it was. It exists for the chart's CORE.tpm cross-check, one of the chart
+// parser spec's §10 isolation exceptions.
+func CoreShapes() map[string]Shape {
+	return maps.Clone(coreShapes())
+}
+
 // deriveShapes is the parse shape of each builtin CORE.tpm declares. A
 // builtin with a prototype parses as a sub with that prototype would
 // (ShapeOf); one with none is a named unary when `:unary` says so (RFC 0001,
