@@ -125,10 +125,11 @@ func TestArrayTopSplit(t *testing.T) {
 }
 
 // TestArrayTopNeedsFileState: a `$#{` interior is re-lexed from a blank
-// state, so where the file's state could differ from blank before it the
-// file is refused, naming the `$#{`, rather than lexed. perl reads the probe's
-// `/2/` as two divisions, because N is a constant; a blank re-lex reads a
-// pattern (gate review of #541, F1).
+// state, so it is lexed only when nothing before it can have moved the file's
+// lexer state off blank. Anything else refuses, naming the `$#{`, and the rule
+// fails closed: an unknown `use` refuses. perl reads the first probe's `/2/`
+// as two divisions, because N is a constant; a blank re-lex reads a pattern
+// (gate review of #541, F1, and G1 and G2 in pass 2).
 func TestArrayTopNeedsFileState(t *testing.T) {
 	x := guacamole(t)
 	for _, src := range []string{
@@ -140,6 +141,13 @@ func TestArrayTopNeedsFileState(t *testing.T) {
 		"use v5.36; $#{$r};",
 		"use 5.036; $#{$r};",
 		"no 5.036; $#{$r};",
+		"use experimental 'signatures'; $#{$r};", // G1
+		"my sub y { 1 } my @n = $#{ [ y(1) ] };", // G2
+		"use Foo::Bar; $#{$r};",                  // unknown: fails closed
+		"sub f { 1 } $#{$r};",
+		"BEGIN { 1 } $#{$r};",
+		"class Foo; $#{$r};",                // classSyntax, with no use
+		"print <<EOF, $#{$r};\nbody\nEOF\n", // a heredoc body pending
 	} {
 		_, err := x.Lex([]byte(src))
 		at := "byte " + strconv.Itoa(strings.Index(src, "$#{"))
@@ -147,9 +155,11 @@ func TestArrayTopNeedsFileState(t *testing.T) {
 			t.Errorf("%q: got %v, want a refusal at %s naming 01a1882d-d8a4", src, err, at)
 		}
 	}
-	// A `use` that changes no lexer state does not refuse.
-	if _, err := x.Lex([]byte("use strict; $#{$r};")); err != nil {
-		t.Errorf("use strict before $#{: %v", err)
+	// strict and warnings, either way and with import lists, and statements
+	// with no sub and no use, change no lexer state.
+	safe := "use strict; use warnings; no strict 'refs'; no warnings qw(once); my $r = [1]; print $r; $#{$r};"
+	if _, err := x.Lex([]byte(safe)); err != nil {
+		t.Errorf("%q: %v", safe, err)
 	}
 }
 

@@ -109,7 +109,7 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 	s := &Stream{Facts: facts(src, raw)}
 	var errs []error
 	refused := map[int]bool{}
-	from := fileStateFrom(src, raw, s.Facts)
+	from := fileStateFrom(src, raw)
 	for _, t := range raw {
 		if isArrayTop(src, t) && t.Start >= from {
 			refused[t.Start] = true
@@ -192,32 +192,36 @@ func isArrayTop(src []byte, t lexer.Token) bool {
 	return t.Kind == lexer.Variable && bytes.HasPrefix(src[t.Start:t.End], []byte("$#{"))
 }
 
-// fileStateFrom is the first byte from which the lexer's file state could
-// differ from the blank state a `$#{` interior is re-lexed in: a constant
-// sub's declaration, or the name after a `use utf8`, a `use` or `no` of
-// feature, or a `use` or `no` of a version. len(src) if none appears.
+// fileStateFrom is the first byte from which the lexer's file state might
+// differ from the blank state a `$#{` interior is re-lexed in, or len(src).
+// It fails closed: only what is known to leave the state alone passes. That
+// is `use` or `no` of strict or warnings, and anything that is not one of
+// these, which are what move the production lexer's file state:
+//
+//   - any other `use` or `no`: utf8, feature and experimental (signatures,
+//     class, the apostrophe separator), versions, constant, and any module;
+//   - `sub`, which declares a constant or a lexical sub;
+//   - `class`, which turns class syntax on with no `use`;
+//   - `BEGIN`;
+//   - a heredoc opener, whose body is pending until the next newline.
 //
 // shortcut: refuses rather than re-lexing in the file's state, until
 // 01a1882d-d8a4 lets the production lexer lex the interior in place.
-func fileStateFrom(src []byte, raw []lexer.Token, c *Context) int {
-	from := len(src)
-	for _, off := range c.constant {
-		from = min(from, off)
-	}
-	pragma := ""
+func fileStateFrom(src []byte, raw []lexer.Token) int {
+	pragma := false
 	for _, t := range raw {
 		if lexer.IsTrivia(t.Kind) {
 			continue
 		}
 		text := string(src[t.Start:t.End])
-		version := t.Kind == lexer.Number || len(text) > 1 && text[0] == 'v' && text[1] >= '0' && text[1] <= '9'
-		if pragma == "use" && text == "utf8" || pragma != "" && (text == "feature" || version) {
-			from = min(from, t.Start)
+		word := t.Kind == lexer.Word
+		switch {
+		case pragma && !(word && (text == "strict" || text == "warnings")),
+			word && (text == "sub" || text == "class" || text == "BEGIN"),
+			t.Kind == lexer.HeredocOpen:
+			return t.Start
 		}
-		pragma = ""
-		if t.Kind == lexer.Word && (text == "use" || text == "no") {
-			pragma = text
-		}
+		pragma = word && (text == "use" || text == "no")
 	}
-	return from
+	return len(src)
 }
