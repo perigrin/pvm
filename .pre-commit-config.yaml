@@ -94,4 +94,4 @@ repos:
     hooks:
       - id: commitlint
         stages: [commit-msg]
-        additional_dependencies: ['@commitlint/config-conventional']
+        additional_dependencies: ['@commitlint/config-conventional@16']  # matches the hook's commitlint 16; unpinned it resolves to an ESM-only release (21.2.4) that 16 cannot load, and every message fails
