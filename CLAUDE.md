@@ -7,6 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 All test files MUST pass 100% before committing, even tests that appear
 unrelated to the current work.
 
+A commit that changes only documentation — files under `docs/`, or the
+top-level `README.md`, `CONTRIBUTING.md` and `CLAUDE.md` — does not need
+`make test`; the pre-commit hooks still run. Markdown anywhere else is test
+data (the conformance corpus's `README.md` and `mdtest/*.md`, the embedded
+help templates under `internal/data/`) and needs the tests.
+
 ### Basic Commands
 - Build all: `make`
 - Build individual components:
@@ -84,7 +90,8 @@ with standard `GOOS`/`GOARCH` environment variables.
 ## PVM Project Patterns
 
 ### Test Failure Protocol
-- ALWAYS run `make test` before and after changes
+- ALWAYS run `make test` before and after changes, except documentation-only
+  commits (see Build/Test Commands)
 - NO compromises on 100% test pass rate - this is non-negotiable
 
 ### Build Dependencies Management
