@@ -1,16 +1,19 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart-parser research spike design. -->
-<!-- ABOUTME: Covers rounds 1 to 3: declared outcomes, rulings, the findings ledger, clusters, and what was not checked. -->
+<!-- ABOUTME: Covers rounds 1 to 4: declared outcomes, rulings, the findings ledger, clusters, and what was not checked. -->
 
 # Assessment: chart-parser research spike design
 
 **Subject:** `docs/plans/2026-10-29-chart-parser-design.md`
-**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165). Branch `design/chart-parser-spike`.
+**Revisions assessed:** round 1 at 4ec0955a (4ec0955a58637fc7b69fd41414fe53c7c8cc0665); round 2 at 47951e0a; round 3 at b5b10428 (b5b10428f51ff8a2caf4f3d5b65410eb8700a165); round 4 at e34f8233 (e34f8233a2582c9f6749b03f25448e661083a10f). Branch `design/chart-parser-spike`.
 **Author:** the orchestrating AI session. **Decision-maker:** perigrin.
 **Drafter:** a recording role that holds no view. It raises no finding.
 
 Section and phase references in each row use the numbering of the revision that row was raised against.
 - At 47951e0a, R1 renumbered the phases: phase 2 became the early measures, phase 3 the M4–M6 probes, and phase 4 full parity.
 - At b5b10428, the round-2 response renumbered them again: 0 measure, 1 Standard Perl, 2 probes, 3 parity, 4 incremental.
+- At e34f8233, the round-3 response says "Phases are gone": §8 runs a waypoint, then the M4–M6 steps, then a checkpoint, then the steps to parity, then incremental.
+
+Participant F (round 4) uses the IDs F-1 to F-14. These are distinct from C's F1 to F13.
 
 ## Outcome of round 1
 
@@ -90,6 +93,24 @@ perigrin made these after round 3 was complete. They are given in his words as r
 
 - **R11.** Standard Perl stays only as an interstitial state, the first waypoint. The spike is one ratchet towards parity, with speed measured at every step. The speed kill: the aggregate chart-to-recursive-descent ratio, end to end, on every file both parsers accept, above 3× at any ratchet step. The trend is recorded throughout.
 - **R12.** Ratchet steps are the probes. Each step is costed on both parsers. M4–M6 cases are scheduled as early steps. The verdicts are read off step costs, with a checkpoint after the first M4–M6 steps.
+
+The round-3 response restates R11 and R12, and says §8 was rewritten around them. Round 4 assessed e34f8233, which carries that rewrite.
+
+### After round 4 (R13–R15, 2026-10-29)
+
+perigrin made these after round 4 was complete, and they are relayed by the author. They were made after the round, so no participant assessed them in it.
+
+- **R13.** Before the checkpoint, speed and convergence also run on a generated Standard-Perl file of several thousand lines. pvm's existing fixture generator makes it, with Standard Perl's excluded features written out. It is validated by both parsers accepting it and by perl compiling it. The ratchet order is unchanged.
+- **R14.** The Deparse arbiter is dropped. perigrin's reasoning is that pvm is a linter and LSP, not an interpreter, so pure operator-precedence grouping that affects only evaluated values doesn't matter. Parity gates on the oracle. Other span disagreements are recorded, not gated.
+- **R15.** The oracle gains a sixth marker for argument structure, taken from perl's op tree: the argument count per call, and filehandle-or-not per print/say. It is mainline oracle work, done before the M4–M6 steps, and it grades both parsers.
+
+The open rows that name §7.4, the arbiter R14 drops, are A26, D4, E18, E20, F-1, F-2, F-3 and F-4.
+
+### Facts the author checked
+
+- **On D4's example (round-3 response).** On origin/pu ad7faf79, recursive descent parses `${$h->{k}}` as `unary` over `index($h, k)`. Issue 01a0ad52, which described the childless leaf, is done. The author says this "bears on D4's example, not on its argument". It is recorded on the D4 row and is not a release.
+- **perly.y (round-3 response).** `/opt/corpora/perl5/perly.y` has 18 occurrences of `parser->expect`: 14 writes and 4 `==` tests. §12 says so at e34f8233.
+- **Behind R15.** The oracle's call_sites protocol carries only the five existing markers (srefgen, match, anonhash, readline, rv2hv), graded per statement against perl's op tree (`internal/parseoracle/README.md`, `compare_facts.go`). It does not grade argument count or print filehandles. The author had said earlier that call sites covered argument attachment, and the author now records that this was wrong.
 
 ## Outcome of round 2
 
@@ -199,6 +220,63 @@ perigrin made these after round 3 was complete. They are given in his words as r
 ### Round outcome
 
 **Another round owed.** Blocks are held by A, B, C, D and E. Rulings R11 and R12 came after this round, and no participant has assessed them.
+
+## Outcome of round 4
+
+### Recommendations, as declared
+
+- **A: modify.** "My open items, A21 to A25, are met. The restructure into one ratchet fits better than phases did." Two things block: A26 and A27.
+- **B: modify.** "The token-cut priority rule, the rejoin state and the conflict list now hold, and I release them." Before the checkpoint every input is too short for either failure mode to appear (B-N13, block, re-raising B-N11). "The per-statement cap as written still collapses whole subs" (B-N14).
+- **C: modify, with two narrow blocks.** "Most of the structure is sounder for it." The two blocks are "both short text fixes": F2 and C-N18.
+- **D: modify.** The restructure "settles D1 and D-N1 properly, and the two-sided arbiter is the right shape". Two blocks remain, "both narrower than before": D4 and D5. "Each fix is a paragraph."
+- **E: modify.** "The revision fixes what I blocked on." The restructure "has moved two problems rather than removed them, and has added one": E18 and E19 (blocks), plus stand-asides.
+- **F: modify.** "The question is a good one", and the isolation and kill structure are sound. "But the two instruments that decide the outcome do not work as written": the arbiter (§7.4) and the checkpoint (§8).
+
+### Blocks held, as declared
+
+| participant | blocks |
+|---|---|
+| A | A26, A27 (A27 carries A18, re-raised) |
+| B | B-N13 (re-raising B-N11) |
+| C | F2 (held, changed form), C-N18 (re-raising C-N13) |
+| D | D4 (held, narrowed), D5 (re-raised, narrowed) |
+| E | E18, E19 (E19 carries E12, re-raised) |
+| F | F-1, F-2, F-3 ("folds into F-1/F-2 rewrite"), F-6, F-7 |
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A28 | R11 is perigrin's later ruling, so this is his trade. The document should say R11 supersedes R1's early kill. |
+| A29 | State it as intended, or keep chart unit tests behind the tag. |
+| B-N14 (re-raising B-N7) | Count over the innermost statement, and use an exact sum-product. |
+| C-N19 | Also record each step's ratio on the previous step's file set. |
+| C-N20 | Draw the edits from a multi-statement file, or state that the incremental verdict is provisional until parity. |
+| C-N21 | Give the waypoint sub-estimates per component, and give the checkpoint a cumulative estimate. |
+| C-N22 | Implementing issue: say how the PR set is chosen, and record the list. |
+| D19 (re-raised) | Let the speed kill fire as soon as the recognizer runs on production tokens over D5's long input, within the waypoint. |
+| D-N5 | D5's long input also serves the convergence measure. |
+| D-N6 | Name the runner, and say the tax is accepted. |
+| E1 (residue) | Released. Not re-raised: say whether "both right" shape differences count in the denominator. |
+| E8 (held) | Name a measure for covered-ness in ambiguous statements, or say that the M4–M6 verdict does not rest on it. |
+| E17 (held) | "Places touched" is undefined; grammar lines are compared with Go lines; who judges "a rule no Perl construct justifies" is unassigned. |
+| E20 | Implementing issue for the emitter; (b) to be listed as a known-undecidable class. |
+| E21 | Add set reuse to the every-step list. |
+| E22 | No further grounds given. |
+| E23 | Restrict the exclusion to a call's first segment. |
+| F-4 | The how belongs to the implementing issue; the what (an emitter whose output perl compiles to the same op tree) belongs in the design. |
+| F-5 | For a multi-reading statement, check that some live reading matches perl, otherwise record WRONG. |
+| F-8 | Fix with F-7's file. |
+| F-9 | Count only the states whose conflicts are in force, and repeat as conflicts join. |
+| F-10 | Harmless for scoring, since both kinds are excluded. |
+| F-11 | A minimum count, or a count instead of a ratio; the product definition belongs to the implementing issue. |
+| F-12 | No further grounds given. |
+| F-13 | Implementing issue that introduces interleaving; the doc should say which side owns those facts. |
+| F-14 | Sizing belongs to refinement. Split the waypoint into a recognizer-only speed probe, then the full stack. |
+
+### Round outcome
+
+**Another round owed.** Blocks are held by A, B, C, D, E and F. Rulings R13, R14 and R15 came after this round, and no participant has assessed them.
 
 ## Ledger
 
@@ -399,6 +477,99 @@ Each status is in the raiser's own word, with its reason, as declared at b5b1042
 | E16 | E | 3 | Status line; §4; §7; §11; §12 | Dead weight answering critics: the Status line pointing at `docs/assessments/`; "participant A's count"; the Chalk `perl.bnf` lineage (28c6029e); "Chalk's re-emission lowers its SoN IR … does not serve here"; §11's B::SoN schema detail; "Kegel … Cited from memory". See also A25. | The document grows and goes stale as reviews accumulate (E9, E15 are symptoms). | Read those passages. | open, stand-aside | b5b10428 |
 | E17 | E | 3 | §8 phase 2 | "Clearly cheaper" (at most half the lines and half the places touched) compares grammar-rule lines in a generated-table system with hand-written Go; "places touched" is undefined; who judges "a rule … that no Perl construct justifies" is unassigned. See also C-N13, D3, F6. | With 6–9 probes, a definitional choice can decide the M4–M6 verdict. | Read §8 phase 2. | open, stand-aside | b5b10428 |
 
+### Round-4 status of rows open at b5b10428, and of released rows re-raised
+
+Each status is in the raiser's own word, with its reason, as declared at e34f8233. Rows still released and not mentioned again are not repeated here.
+
+| id | raiser | round-4 status | reason given |
+|---|---|---|---|
+| A18 | A | **re-raised** inside A27 (was released in round 3) | `edit5k-standard.pl` was removed (R11). Until the chart accepts edit5k.pl, which comes after the checkpoint, every speed ratio is on one-line snippets. |
+| A21 | A | **released** | §5: up front "cannot express a lexical ambiguity; it resolves each one by its own default", and interleaved mode "arrives at the first ratchet step whose feature needs a token branch", timed by the every-step measure. Consequence accepted: at the waypoint both parsers share that lexer, so a disagreement from its defaults can't show there. |
+| A22 | A | **released** | Speed end to end at every step. |
+| A23 | A | **released** | `Pod`, `DataSection`, `FormatBody` are trivia. |
+| A24 | A | **released** | The `Faithful` attribution is gone. Byproduct still open: the 7 round-3 RD defects, which A hasn't seen filed. |
+| A25 | A | **released** | Review references removed. |
+| B10 | B | **re-raised (stand-aside)** via B-N7 → B-N14 | See B-N14. |
+| B-N7 | B | **re-raised as B-N14 (stand-aside)** | The cap is now per statement, as asked, but the product is an upper bound once packed nodes nest, and "inside" includes nested statements. |
+| B-N8 | B | **released** | The compared state excludes the production `expect` field; the rest of `State` still takes part, so B-N1's soundness argument holds. |
+| B-N9 | B | **released** | Conflict list is `/`, `<`, `%`, `&`, `*`, `-X`, `x`; `{`, `<<`, `?` join as the ratchet adds them; rejoin tested on a toy grammar. |
+| B-N10 | B | **released** | collapse.py under the static rule gives 1 derivation each for `print(1);`, `time();`, `length($x);`, `return(1);`, `shift;`, `print 1, 2;`, `$x->print();`, `$x->print;`, `sub print {}`, `print->foo();`, `foo(1);`; §10 tests `print(1)`. (E23 raises the rule as too strict.) |
+| B-N11 | B | **re-raised as B-N13 (block)** | The fixed input is gone, which was the bar, but nothing reaches file scale before the checkpoint. |
+| B-N12 | B | **released**, remainder folded into B-N13 | Interleaved mode is timed when in force, at lookahead 0 with Leo; on what input is B-N13. |
+| F2 | C | **held, changed form (block)** | Speed runs "on every file both parsers accept", but edit5k.pl needs auto-quoting (281 + 350 lines) and heredocs (70), both on the parity list after the checkpoint, so the pre-checkpoint speed set is one-liners measuring per-call setup. "Aggregate" is undefined (total time, mean of ratios, geometric mean). Bar: define the aggregate; add one realistic-size Standard-Perl file from the waypoint on. See also A27, B-N13, D5, E19, F-7, C-N19. |
+| C-N10 | C | **released** | §7.4 is two-sided, with a branch deciding for the chart counted as defect yield, and §10 tests both directions. Note: the chart needs its own fully parenthesised emitter, and "the renaming changes the parse" needs a detection method. |
+| C-N11 | C | **released** | The every-step speed measure times whichever mode is in force. |
+| C-N12 | C | **released** | §2 Output: a positive incremental verdict without a positive M4–M6 verdict ends at the recommendation. |
+| C-N13 | C | **re-raised as C-N18 (block)** | Both comparisons are reported and RD is costed from its PR, but the verdict rule doesn't say which comparison it uses. |
+| C-N14 | C | **released** | The hot-spot clause is removed; plain 3×. Input problem is F2. |
+| C-N15 | C | **released** | Rule 4's per-statement cap is restored, and §9 fires on more than 1% of statements collapsed, independent of decidability. |
+| C-N16 | C | **released** | Forest invariants from the step that builds the forest. |
+| C-N17 | C | **released** | `internal/chart` is mainline code in `make test` and the hooks; numeric ratchets run under `make chart-ratchet`. Accepted cost: chart tests can block mainline lexer work. See also A29, D-N6. |
+| D1 | D | **released** | Interleaving arrives at the first step needing a branch and is timed every step against the 3× kill, which is the viability criterion asked for; its value depends on D5's fix. |
+| D4 | D | **held, block (narrowed)** | Works: the renamed `my $y = $k1 + $k2 * $k3;` case decides for the chart. Fails: (a) `Deparse,-p` erases `my $x = @a` vs `my ($x) = @a` (Concise shows `aassign` only for the second), a silent "both legitimate" pass; (b) full parenthesisation changes meaning (`$x x 3` vs `(($x) x 3)`), flooding undecided, and "and so is the source" needs a reading; (c) statement scope loses context (`first { $_ } @l` with and without `use List::Util "first"`). Fix: Deparse the whole file with the disputed statement replaced; parens only where perl builds the same op tree, tested by Concise round-trip; compare with plain Deparse plus Concise op names; "the renamed source". Minor: string literals are not renamed. D accepts that the `${$h->{k}}` example is stale (author's check on 01a0ad52) and says it no longer matters, because §7.4 no longer rests on Faithful. See also A26, E18, E20, F-1, F-2, F-3, F-4. |
+| D5 | D | **re-raised (narrowed), block** | Until parity the speed kill and convergence see only one-liners and M4–M6 case files; Earley's failure modes show only on long input; "aggregate ratio" undefined. Fix: at the waypoint, one long Standard-Perl input (concatenated accepted cases to at least 5 kLOC, or edit5k.pl rewritten until accepted), and aggregate = total chart time over total RD time on the same bytes; also change the convergence corpus (D-N5) and §9's Speed row. See also F2, A27, B-N13, E19, F-7. |
+| D14 | D | **released** | The 730 figure and "participant A's count" are removed. |
+| D19 | D | **re-raised, stand-aside** (was released in round 3) | R11 removed phase 0, so the first speed ratio comes after the waypoint, the largest step. Fix: let §9's speed kill fire once the recognizer runs on production tokens over D5's long input, within the waypoint. See also A28, F-14, C-N21. |
+| D-N1 | D | **released** | End-to-end speed at every step in either mode; hot-spot escape gone. Input problem is D5. |
+| D-N2 | D | **released** | §8 stub rule reproduces 23. |
+| D-N3 | D | **released** | §2 Output states the one-way coupling. |
+| D-N4 | D | **released** | Deferred to the token-cut implementing issue, where D placed it. |
+| E1 | E | **released** | Four outcomes keep decided and both-legitimate entries in the denominator; "no disagreement decided against the chart" removes the reward reading. Residual (stand-aside, not re-raised): whether legitimate differences count in the denominator. |
+| E2 | E | **released** | Two-sided; chart wins count as defect yield; §10 tests each direction. |
+| E3 | E | **released** as raised; residue in E18 and E20 | Faithful attribution gone. Re-ran renamed: `print(($k1+$k2)+$k3)` vs `print($k1+($k2+$k3))` differ, the source matches the left form; `-` and `**` likewise distinguished. Per-statement granularity creates E18. |
+| E4 | E | **released**, superseded by E19 | Fixed input gone, but edit5k.pl can't join before the recommendation. |
+| E5 | E | **released**, superseded by E19 | End to end defined, every step, hot-spot clause removed. |
+| E6 | E | **released** | The trigger is defined. Noted, not blocked: an M4 case needs a branch, so the mainline lexer refactor lands before the checkpoint while `m2-incremental` is in flight (30/38); that is perigrin's ruling to make. |
+| E7 | E | **released** | An `error` terminal added by the generator, built at the waypoint. |
+| E8 | E | **held (stand-aside)** | Under R12 the ambiguous M4 case (named unary vs list operator, unknown prototype) comes before the checkpoint, so "covered but undecided" is evaluated with only marker sites. See also F-5. |
+| E9 | E | **released** | 730 and "participant A" removed; stubs declare a satisfying `$VERSION`. |
+| E10 | E | **released** | Straddling rules split (`VarScalar ::= ScalarVar ElemSeq0`); SLIF subset covers sequences and `name =>`. |
+| E11 | E | **released**, with a correction | Rule 3 admits deterministic lexer rules, but the example is wrong: `S_intuit_more` decides subscript `[`/`{` after a variable mainly inside patterns; the block-vs-hash heuristic is `yyl_leftcurly` (spec 03 §3.3). A one-word fix. |
+| E12 | E | **re-raised**, folded into E19 | Edits are fixed in advance, but drawn from one-statement snippets (mean 13 bytes), so there are no tokens after the edit. |
+| E13 | E | **released** | Listed as the third isolation exception in §5 and §10. |
+| E14 | E | **released** | Build tag gone; `make chart-ratchet` separate. |
+| E15 | E | **released**: E's round-3 count was wrong | `grep -c`: 18 occurrences, 14 writes, 4 `==` tests; E's round-3 pattern matched `==`. §12 is correct. |
+| E16 | E | **released** | Status line, "participant A", Chalk lineage, re-emission sentence, B::SoN detail and Kegel removed. (F-12 counts 7 remaining ruling attributions.) |
+| E17 | E | **held (stand-aside)** | "Places touched" undefined; grammar lines vs Go lines; who judges "a rule no Perl construct justifies" unassigned. See also C-N18, C-N22, F-6. |
+
+### Round-4 findings
+
+| id | raiser | round | section of the subject | finding | consequence if it ships | evidence | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| A26 | A | 4 | §7.4, the two-sided arbiter | "Emitted fully parenthesised" and "the renaming changes the parse" are undefined, and the obvious readings are unsound: (a) parens are not neutral (`(my $x) = …` list assignment, `(1) x 3`, print's first slot), and at statement level `Deparse,-p` maps `my $x = E` and `(my $x) = E` alike, so an over-parenthesising emitter passes; (b) no test for a renaming-caused parse change, and renaming can make a literal a filehandle (`print 1 -2` vs `print $k1 -$k2`); (c) renaming depends on pvm's literal boundaries (it splits `v1.4.0`); (d) strings are not renamed; (e) statement emitted alone or in place is unstated. See also D4, E18, E20, F-1, F-2, F-3, F-4. | Disagreements get "decided" when they shouldn't be, feeding defect yield and the silent-misparse kill. | Ran `cmd/rename` over 242 renamed `parses` snippets (225 perl-accepted): 3 stop compiling (`package Foo v1.$k1;`, its `{1}` form, `use $k1`); `print $k1 -$k2;` → `print($k1 (-$k2))`; `my $x = "a" . "b" x 3;` → `(my($x) = 'abbb')`; `while ((my $line) = (<>))` deparses as list assignment vs source's `defined((my $line = readline(ARGV)))`; `my $x = $k1;`, `my ($x) = $k1;`, `((my $x) = ($k1));` all → `(my($x) = $k1);`, Concise `aassign` for the last two. Perl 5.42.0. | open, block (parens around operator expressions only; compare with plain Deparse too; a mechanical `B::Concise,-exec` op-sequence check for renaming; never rename version/`use`/`require`/`package`/prototype positions; emit in place) | e34f8233 |
+| A27 | A | 4 | §8 "Every step measures"; §8 Checkpoint; §9 speed and convergence rows | The checkpoint's incremental verdict has no multi-statement input: convergence edits come from the corpora's statements, which before the checkpoint are one-statement snippets and M4–M6 cases, so an edit reaches end of input and holds trivially or is undefined; speed times setup. edit5k.pl joins only after heredocs, after the checkpoint. Re-raises A18. See also B-N13, F2, D5, E19, F-7, F-8, C-N20, D-N5. | One of the spike's two verdicts is decided on inputs that can't fail; the 3× kill judged on setup cost. | Subject §8; response row F2/B-N11/D5/E4; rounds 2–3: edit5k.pl has 70 heredocs. | open, block (name a pre-checkpoint multi-statement input, e.g. restore `edit5k-standard.pl` as a corpus) | e34f8233 |
+| A28 | A | 4 | §8 waypoint, against R1 | The first speed number now comes after the waypoint builds the recognizer, forest, error recovery, `chart/compare`, the arbiter and the oracle adapter; the recognition-only early kill is gone. The document should say R11 supersedes R1's early kill. See also D19, F-14, C-N21. | The cheapest exit comes after most of the old phase 1 is built. | Diff: "Phase 0: measure first" removed; §8 waypoint "The first step builds …". | open, stand-aside | e34f8233 |
+| A29 | A | 4 | §10, first paragraph | `internal/chart` tests now run in mainline `make test`; under CLAUDE.md's 100% rule a mainline `internal/lexer` change that breaks a chart test blocks mainline, reversing the round-1 "cannot block mainline work" property unstated. See also D-N6, C-N17. | Coupling by surprise during the lexer refactor and later lexer work. | Subject §10; pvm CLAUDE.md "All test files MUST pass 100% before committing". | open, stand-aside | e34f8233 |
+| B-N13 | B | 4 | §8 "Every step measures"; §8 Checkpoint; §9 Speed and convergence | Before the checkpoint every input is snippet-sized (Guacamole `parses` strings; M4–M6 steps add constructs, not files; edit5k.pl, `t/op`, CPAN only on parity steps). (a) Snippet speed measures constant cost, while quadratic right recursion at lookahead 0 needs long statement lists (25k tokens to reach 3 s). (b) Convergence on one-statement snippets holds by construction, so the incremental verdict can't say "keep the snapshot design". (c) §9 cites edit5k.pl figures no pre-checkpoint step measures. Fix: a validated file-scale Standard-Perl fixture, or a generated one. Re-raises B-N11. See also A27, F2, D5, E19, F-7. | Both checkpoint verdicts come from inputs where their failure modes can't appear. | Read §8; ran round-3 collapse.py: `$x->{WORD}` and `WORD =>` give 0; round-2 rec R la=0 25k tokens 3.0 s, 100k tokens 87.6 s. | open, block | e34f8233 |
+| B-N14 | B | 4 | §3 rule 4; §9 Forest row | The per-statement count collapses whole subs and overcounts: (a) statements nest, so a `SubStatement` or `Condition` multiplies every ambiguity in its body and collapses at 2^10 though no inner statement nears the cap — count over the innermost statement; (b) the product of fan-outs is an upper bound (k nested two-way levels: k+1 readings vs 2^k); use an exact sum-product. Re-raises B-N7. See also E22, F-11, C-N15. | Spurious Error nodes over large constructs, and a 1% kill that may fire on a counting artefact. | Read §3 rule 4, §9; G1 `BlockStatement ::= … SubStatement \| Condition \| BlockNonEmpty`, `BlockNonEmpty ::= LBrace StatementSeq RBrace`. Arithmetic inferred. | open, stand-aside | e34f8233 |
+| C-N18 | C | 4 | §8 Checkpoint | The verdict reports cost "with and without the reusable-infrastructure share" but doesn't say which decides "at least half these steps are clearly cheaper"; M4–M6 steps build exactly the share parity reuses, so the two can disagree on the steps in question. Re-raises C-N13. See also F-6, E17. | Whoever reads the table first picks the number; the parity commitment is decided after the data. | §8 Checkpoint; "On to parity" first sentence; "Every step measures" cost bullet. | open, block (name the deciding comparison; C suggests "with the share") | e34f8233 |
+| C-N19 | C | 4 | §8 "Every step measures"; §9 Speed | "Every file both parsers accept" grows each step, so each aggregate is over a different set; a step admitting heavier files shifts the ratio by composition, and the 3× kill can fire on a step that made nothing slower. See also F2. | A kill or override rests on a number with no like-for-like baseline. | §8 speed bullet; §9 Speed row. | open, stand-aside | e34f8233 |
+| C-N20 | C | 4 | §8 convergence; Checkpoint | The incremental verdict is vacuous at the checkpoint (one-statement files always converge because the file ends) and decides nothing there, since it only gates incremental work after parity, where it is re-measured. See also A27, D-N5, F-8, E19. | The 80% threshold can't fire where it is evaluated; low harm, but §2 calls it one of two verdicts. | §8 convergence bullet; Checkpoint; §2 Output; §8 Incremental heading. | open, stand-aside | e34f8233 |
+| C-N21 | C | 4 | §8 Budgets; §8 Waypoint | Budgets are per step, with no cap on the whole and an oversized waypoint (recognizer, forest, error recovery, `chart/compare`, arbiter, oracle adapter, generator, token cut) under one estimate; about 6–9 M4–M6 and 9 parity steps follow, each estimated just before it starts, so the 2× rule may never trip while the total grows. See also F-14, D19, A28. | The "80–90% migration" shape: every step on budget, the spike never ends. | §8 Budgets, Waypoint; /home/user/perigrin/chalk/CLAUDE.md:293. | open, stand-aside | e34f8233 |
+| C-N22 | C | 4 | §8 "Every step measures", cost bullet | RD's historical cost "from the PR that added them" is ill-defined for features built over many PRs (862 commits on `internal/parse` since 2026-09-15); "the PR" undercounts RD. See also E17, C-N18. | The comparison varies with which PRs are counted. | §8 cost bullet; `git log origin/pu -- internal/parse \| wc -l` = 862. | open, stand-aside | e34f8233 |
+| D-N5 | D | 4 | §8 convergence; checkpoint | Convergence over "200 single-statement edits per corpus, chosen ... from the corpus's statements" on one-statement Guacamole snippets is satisfied trivially within "the edited statement plus 8 tokens" because the file ends. (D's own id: N1.) See also C-N20, F-8, A27, E12. | The checkpoint's incremental verdict is vacuously positive; harmless only because incremental waits for parity. | Read §8; ran round-2 recorder: cases are single statements. | open, stand-aside | e34f8233 |
+| D-N6 | D | 4 | §10 | With `internal/chart` in mainline `make test` and the hooks, every `internal/lexer` change must keep the spike's tests green; `make chart-ratchet` "runs on any change under `internal/chart` or `internal/lexer`", but nothing says what runs it. (D's own id: N2.) See also A29, C-N17. | Spike maintenance taxes mainline lexer work, and the ratchet is an obligation with no runner. | Read §10 para 2; CLAUDE.md "Test Failure Protocol". | open, stand-aside | e34f8233 |
+| E18 | E | 4 | §7.4 | The arbiter deparses "the statement a disagreement falls in" alone, losing the compile-time context (prototypes, imports, declared subs, features) that decides the M4 cases, so it can rule for the wrong parser; "renaming changes the parse" doesn't catch it, since isolation changes the parse, not renaming. Carrying context means substituting into the file or carrying preceding declarations, then declaring `$kN` under `use strict`, and stating the renaming test. See also F-3, D4, A26. | Spurious "decided against the chart" entries in a parity rule requiring zero, and spurious defect yield. | Ran Deparse,-p: `first { $_ } @l;` → indirect method, with `use List::Util 'first';` → `&first(sub { $_; } , @l)`; `f $k1, $k2;` → `($k1->f, $k2)`, after `sub f($);` → `(&f($k1), $k2)`; `use strict; print $k1+1;` → `Global symbol "$k1" requires explicit package name`. | open, block | e34f8233 |
+| E19 | E | 4 | §8 "Every step measures", Checkpoint; §9 Speed, No incremental convergence | Before the checkpoint "every file both parsers accept" is only Guacamole snippets and M4–M6 repros (edit5k.pl and T1 need auto-quoting and heredocs, after the checkpoint); on 13-byte inputs the 3× ratio measures fixed overhead, not Leo at lookahead 0, right-recursive `StatementSeq` or interning, and convergence is degenerate (E12). Adding a Standard-Perl rewrite of edit5k.pl (auto-quotes, `%$s`, heredocs) satisfies R11; moving the incremental verdict to parity would fit §2. Re-raises E4, E5, E12. See also A27, B-N13, F2, D5, F-7. | The verdicts that fund parity rest on toy timings and toy edits; a slow-asymptote chart is found only after parity is paid for. | Ran: recorded `parses` corpus, 791 cases, mean 13.1 bytes, max 70. Read §8 "On to parity". Round 3: edit5k.pl 281 + 350 lines. | open, block | e34f8233 |
+| E20 | E | 4 | §7.4 | Residual blind spots: (a) only literals outside quote-likes are renamed, so strings, `use constant` subs and `__LINE__` still fold; (b) Deparse,-p is not injective (`my $x = @a` vs `(my $x) = @a`); (c) "fully parenthesised" is unsafe (`($x) x 3` vs `$x x 3`), and neither the chart's emitter nor a fully-parenthesising RD emitter exists (RD's `Canon` parenthesises by binding power); §5 lists neither. See also D4, A26, F-1, F-4. | Real disagreements waved through as "legitimate"; a naive emitter makes correct readings lose. | Ran: `print 'a'.('b'.'c')` and `print(('a'.'b').'c')` both → `print('abc')`; `use constant {A=>1,B=>2,C=>3}; print A+(B+C)` and `print((A+B)+C)` both → `print(6)`; `my $x = @a` and `(my $x) = @a` both → `(my($x) = @a)`; `($x) x 3` → `(($x) x 3)`, `$x x 3` → `($x x 3)`. Read `internal/parse/canon.go`. | open, stand-aside | e34f8233 |
+| E21 | E | 4 | §9 Context leaking row vs §8 | §9's signal "Set reuse falling as steps add features" refers to a measure §8 no longer takes (every-step measures are speed, cost, yield, convergence); the old phase 0 measured set reuse. | The context-leak risk has no signal. | Read §8 bullets; §9 row; diff. | open, stand-aside | e34f8233 |
+| E22 | E | 4 | §3 rule 4; §9 Forest blow-up | "The product over the packed nodes inside it" overcounts nested ambiguity (a two-way node with a two-way node in each alternative has 4 readings, product 8); round 3's sum-product wording was correct. Whether counted before or after `chart/resolve` is unstated. See also B-N14, F-11. | Early collapse under the 2^10 cap; the 1% kill fires on a counting artefact. | Read §3 rule 4, §9; arithmetic inferred. | open, stand-aside | e34f8233 |
+| E23 | E | 4 | §5 token cut | "Keyword text satisfies `SubName` … but not `SubNameNonQLike`" is stricter than Marpa's priority, which arbitrates only among lexemes acceptable at a position: after `PackageSep` in `SubNameCallExpr ::= SubNameCallExpr PackageSep SubNameNonQLike` no keyword lexeme is acceptable, so Guacamole accepts `Time::HiRes::time()` and `POSIX::exit(0)` and the static rule rejects them; Guacamole's suite has no such case. See also B-N10. | Package-qualified calls to keyword-named subs are refused from the waypoint on. | Read Guacamole.pm l.400–431; 217 `OpKeyword… ~ '…'` lexemes. Ran grep of the recorded corpus for `::name(`. Guacamole not run. | open, stand-aside | e34f8233 |
+| F-1 | F | 4 | §7.4 | Deparse,-p text can't tell apart readings perl builds differently: scalar and list assignment deparse alike, so "the parser whose emission deparses as the source does is right" calls both right. See also D4, A26, E20. | A real misparse on either side is classed a legitimate shape difference; WRONG undercounted. | Ran: `my @a; my $x = @a;` and `my @a; ((my $x) = @a);` both → `(my($x) = @a);`; Concise `padsv_store` vs `aassign`; at runtime `$x` gets 3 and `($y)` gets 5. `internal/parseoracle/README.md` compares op trees for this reason. | open, block | e34f8233 |
+| F-2 | F | 4 | §7.4 | Renaming literals changes perl's own parse of the disputed ambiguity, and no procedure detects "the renaming changes the parse" (the original folds, so deparses can't be compared). See also A26, D4. | The arbiter decides against the correct parser: a wrong "against the chart" fires the silent-misparse row; a wrong "for the chart" inflates defect yield. | Ran: `sub f { { 1, 2 } }` → `+{1, 2}`, renamed `{ $k1, $k2 }` → bare block; `map { 1, 2 } @x` a syntax error, renamed parses. Inferred: `use Module 4.10` → `use Module $k1`, `require 5.006` → `require $k1`; autoquoted barewords unclear. | open, block | e34f8233 |
+| F-3 | F | 4 | §7.4 | The arbiter's scope is "the statement a disagreement falls in", but perl's reading depends on the rest of the file, exactly in the context-dependent M4 cases. Fix: whole file with one statement substituted. See also E18, D4, A26. | The arbiter adjudicates a different program; M4 evidence arbitrated wrongly. | Ran: `my ($x,$y); my @r = (foo $x, $y);` → `($x->foo, $y)`; with `sub foo($){}` → `(foo($x), $y)`; with `sub foo{}` → `foo($x, $y)`; `first { … } @l` without/with `use List::Util qw(first)`. | open, block ("folds into F-1/F-2 rewrite") | e34f8233 |
+| F-4 | F | 4 | §7.4; §5 | The arbiter needs an emitter per parser that writes a reading as Perl without changing its meaning; neither exists and §5 lists neither. Parens aren't neutral (`(my $x) =`, `($k1) x $k2`, `print (…) .`), and block vs hash and indirect objects are not grouping questions, so "fully parenthesised" is the wrong specification. See also E20, A26, D4. | An emitter bug makes a parser "wrong"; two new trusted emitters tested only by §10's hand-built trees. | Read `internal/parse/canon.go` (parens "only where the source had them or binding power requires", README.md:134-137); grep of `internal/` found no fully-parenthesised mode. Ran `(($k1) x $k2)` stays list repetition. | open, stand-aside | e34f8233 |
+| F-5 | F | 4 | §7.3; §7.4; rule 4 | Disagreements are diffed only "wherever both produce one reading"; when the chart is ambiguous, nothing checks perl's reading is among the live ones except the oracle's five marker kinds. See also E8. | An ambiguous chart escapes the arbiter; rule 4's WRONG is unmeasured outside marker sites. | Read §7.1 "necessary, not sufficient"; §7.3. | open, stand-aside | e34f8233 |
+| F-6 | F | 4 | §8 Checkpoint | The M4–M6 verdict has two inputs (with and without the reusable share) and one threshold, and the doc doesn't say which counts; the chart builds exclusions RD already has, so the readings may give opposite verdicts. See also C-N18, E17. | The main verdict is not decidable from the document; a post-data judgment. | Read §8 Checkpoint and M4–M6 paragraph; inferred: `first { … } @list` alone needs paren-less user-sub calls plus `&`-prototype parsing on the chart side. | open, block | e34f8233 |
+| F-7 | F | 4 | §8; §9 Speed | No real file is measured for speed before the checkpoint: edit5k.pl has 70 heredocs, which come after the checkpoint; until then fixed overhead dominates. Fix: a fixed realistic Standard-Perl file (e.g. edit5k with heredocs lowered to strings, generated once and checked in) from the waypoint on. See also F2, A27, B-N13, D5, E19. | The 3× kill fires or not on noise; the YAEP 13.6 ms extrapolation remains the only speed number at the decision point. | Ran `grep -cE "<<['\"A-Z~]" internal/psc/testdata/latency/edit5k.pl` → 70. Read §8 parity list; 23.89/33.42 ms match conformance-plan:620. | open, block | e34f8233 |
+| F-8 | F | 4 | §8 convergence | Convergence is degenerate on pre-checkpoint corpora (single statements); edits are "chosen before the first step" but M4–M6 cases are "fixed before the waypoint exits", later; "keep the snapshot design" is undefined. See also C-N20, D-N5, A27, E12. | The checkpoint's incremental verdict is trivially positive or undefined. | Ran recorder with stub `Guacamole::Test`: every case one statement or fragment. Read §8 bullets. | open, stand-aside | e34f8233 |
+| F-9 | F | 4 | §8 waypoint exit | The expectation-class check is undefined for states whose conflicts aren't in the grammar yet: five of the eleven states (XBLOCK, XATTRBLOCK, XATTRTERM, XTERMBLOCK, XBLOCKTERM) settle `{` or attribute questions, and `{` is deferred, so either ">2" fires by construction or the check covers about six states. | A gate that always fires or can't. | Read spec 03 §3.1.2; §5. | open, stand-aside | e34f8233 |
+| F-10 | F | 4 | §8 waypoint | "A `parses` case perl still rejects is a Guacamole erratum" mislabels most: rejections are mostly compile-time semantics or BEGIN execution; the real errata are where perl parses differently (`<<$fh>>`, `<<STDIN>>` are heredocs to perl). A `parses` case perl accepts with a different tree is caught only by §7. See also A4, D2. | Harmless for scoring; Guacamole's labels are weaker evidence than implied. | Ran each unique case under `use feature ':5.36'`, perl 5.44.0: 708 of 769 `parses` accepted; 61 rejected = 38 missing module + 23 (12 invalid `:attr`, `no 5.010`, `Can't modify logical and`, `$#`/`$*`, `1.4.0` version format, `<<STDIN>>` heredoc readings); 79 of 124 `parsent` compile; 791/126 confirmed. | open, stand-aside | e34f8233 |
+| F-11 | F | 4 | §9 | The 10% undecided threshold sits on a small denominator at the checkpoint (1 of 5 kills the spike), and "the product over the packed nodes inside it" overcounts nested ambiguity. See also B-N14, E22. | The cap's 1% is computed on an inflated count. | Inferred from §8 corpus sizes. | open, stand-aside | e34f8233 |
+| F-12 | F | 4 | §1–§12 (whole document) | Dead weight: "(perigrin's ruling, 2026-10-29)" 7 times; §4's YAEP/Chalk inventory and §11 B::SoN written for a reviewer; five of §9's nine rows restate §8 thresholds. See also E16, A25. | Drift between §8 and §9; readers spend effort on provenance. | Read the section texts. | open, stand-aside | e34f8233 |
+| F-13 | F | 4 | §5 chart/lex | Interleaved mode doesn't say who maintains the context facts the lexer consumes (declared subs, constant subs, bareword ops): today the lexer derives them; in interleaved mode the chart recognises declarations, so facts flow chart → lexer, which rule 2 doesn't address. | Rule 2's "two places only" is violated or carried silently by the lexer. | Read `internal/lexer/checkpoint.go` `State.Clone` (clones `barewordOps`, `lexSubs`, `constSubs`). | open, stand-aside | e34f8233 |
+| F-14 | F | 4 | §8 first step | Not startable at a measurable size: the first step builds the grammar reader, the token cut (389 G0 `~` rules; the SLIF subset omits G0 rules and character classes), generator, recognizer, forest, error recovery, compare, arbiter and oracle adapter before any number exists; the only control is the 2× budget. See also C-N21, D19, A28. | The first evidence arrives after the most expensive step. | Ran `grep -cE '^\s*[A-Za-z0-9_]+\s+~' lib/Guacamole.pm` → 389; `::=` lines 440; `OpKeyword*Expr ::=` 197. | open, stand-aside | e34f8233 |
+
 ## Clusters
 
 Counted by the first section each finding names in its "section" column. Many findings name more than one. Round-1 counts use 4ec0955a's section numbering.
@@ -480,6 +651,32 @@ B10 is carried by B-N7, so it appears in this count twice, once under each id.
 | §12 | 1 | none |
 | Status line | 1 | none |
 
+### Round 4 new findings (33, at e34f8233)
+
+| section | count | findings |
+|---|---|---|
+| §3 | 2 | B-N14, E22 |
+| §5 | 2 | E23, F-13 |
+| §7 | 8 | A26, E18, E20, F-1, F-2, F-3, F-4, F-5 |
+| §8 | 16 | A27, A28, B-N13, C-N18, C-N19, C-N20, C-N21, C-N22, D-N5, E19, F-6, F-7, F-8, F-9, F-10, F-14 |
+| §9 | 2 | E21, F-11 |
+| §10 | 2 | A29, D-N6 |
+| whole document | 1 | F-12 |
+
+### Rows open at e34f8233 (45: the 33 round-4 findings, 10 carried rows and 2 re-raised released rows)
+
+Six rows are re-raised through a newer row and so appear in this count twice, once under each id: B10 and B-N7 (B-N14), B-N11 (B-N13), C-N13 (C-N18), E12 (E19) and A18 (A27).
+
+| section | count | carried or re-raised rows |
+|---|---|---|
+| §3 | 3 | E8 |
+| §5 | 2 | none |
+| §7 | 9 | D4 |
+| §8 | 23 | F2, D5, B-N11, C-N13, E12, E17, D19 |
+| §9 | 5 | B10, B-N7, A18 |
+| §10 | 2 | none |
+| whole document | 1 | none |
+
 ## Participants
 
 **Round 1.** Dispatched: A (codebase and architecture), B (parsing theory and technical feasibility), C (spec and plan quality, via paad:pushback v2.0.2). All three reported in full, and none appears truncated. C also recorded six candidates it dropped: Leo-by-reference against Chalk's `top_origin`; the "about 49" open-issues count; the semiring-separability assumption; the cold-parse extrapolation; security (no trust boundary); and the §11 SoN oracle.
@@ -501,7 +698,16 @@ Round-2 evidence A re-ran (code unchanged since round 1):
 - **E's verified-accurate list.** E recorded these as accurate: every cited symbol (`TokenCache.resyncsAt`, `State.Equal`, `TestLexerRatchet`, `sameState`, `keepsLead`, `compareMarkers`, `FuzzIncremental`, `FuzzIncrementalSequence`); the `expect.go` Word hedge at l.288–309; RD lexing up front (`parse.go:679-681`); 23.89/33.42 ms; 791/126/769/124; spec 03's eleven states; and Chalk's seven ambiguity classes, `LR0DFA.pm` and the Aycock thesis.
 - **Counts that differ.** For perly.y, A and D count 14 writes and E counts 18 lines. For edit5k.pl, A releases A18 with heredocs as the only part G1 lacks a rule for, while B, C, D and E hold that its auto-quoting is excluded too. The minute records both positions and does not decide between them.
 
-Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/`, `A/r2/` and `A/r3/`; `B/probe/` and `B/r2/`; and `D/`. D's probe `internal/parse/zz_d_probe_test.go` exists only in D's scratch extraction, not in any repository.
+**Round 4.** Dispatched: A, B, C, D and E (resumed) and F (new, reading cold with no prior findings). F states that it did not read the design branch history, `docs/assessments/` or other participants' files. All six reported in full, and none appears truncated: A ends with "Not re-examined", B, C, D and E with "What I did not re-examine", and F with "What I did not check".
+- **Scope.** B read §3 rule 4, §5 chart/grammar and chart/lex, §8, §9 and §10 in full, and skimmed the rest. D read §1–§10 in full, and used only the author's D4 check from the ledger. E read its own rows and R11/R12 in the ledger at 1d929dd4.
+- **Bias.** A to E each disclosed a bias. B found its per-statement idea flawed again as written. C wrote that C-N18 is partly its own wording's defect. E retracted its round-3 E15 count.
+- **Perl versions.** A and D used perl 5.42.0. E and F used 5.44.0. A notes that its arbiter probes ran on 5.42.0, while the author's ran on 5.44.0.
+- **Document growth.** A and C record that the document shrank from 469 to 447 lines. C counts about eight remaining ruling attributions, and F-12 counts seven.
+- **C's answers to the coordinator.** C answered questions from the coordinator about the checkpoint thresholds, the denominator, budgets, stale cross-references and growth. C found no stale phase references.
+- **F's verified list.** F verified these: the cited symbols (`TokenCache.resyncsAt` at tokencache.go:94, `State.Equal` at checkpoint.go:102, and the others); `perlgitt.ratchet` "619 files, 619 clean"; 347/347; the edit5k timings at conformance-plan:620; the perly.y counts of 14 writes and 4 tests; Guacamole 2838253 at v0.008; and CORE.tpm at `internal/parse/declarations/CORE.tpm`.
+- **Counts that differ.** For the attribute errata, F counts 12 invalid `:attr` cases among the 23 under perl 5.44.0, where D counted 10 in round 2. F also counts 708 of 769 unique `parses` cases accepted with stubs absent. The minute records both counts and does not reconcile them.
+
+Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/assess-chart/`: `A/`, `A/r2/`, `A/r3/` and `A/r4/`; `B/probe/` and `B/r2/`; `D/`; and `F/`. D's probe `internal/parse/zz_d_probe_test.go` exists only in D's scratch extraction, not in any repository.
 
 ## Not checked
 
@@ -525,3 +731,12 @@ Scratch evidence is under `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c32
 - **C:** §4, §5's recognizer and forest internals, the token cut and the rejoin rule. C did not verify the 769/124 counts, the 13.6 ms extrapolation or perly.y's 14 writes. C did not run Guacamole's grammar on edit5k.pl: F2 rests on documented exclusions and grep counts. C did not check whether Faithful holds on the Guacamole snippets, which bears on C-N10's phase-1 side.
 - **D:** D read the ledger only to its header, and did not read the other participants' rows. D did not re-examine phase-2 cost accounting beyond the D3 note. YAEP (no local copy). Guacamole's own pass rate (no Marpa::R2). Whether pvm canon has a fully parenthesised mode, which D's D4 fix would want. How many `parsent` cases are lexical (D-N4). The 49-issue count (no git-zhi).
 - **E:** E did not run Guacamole (no Marpa::R2), so E4 rests on standard.pm's exclusions and grep counts, not a parse. E did not reproduce the YAEP toy probe or the 13.6 ms extrapolation. E did not verify the "about 49" count: E's own keyword grep over 143 open v0.1 lines gives 15, with different keywords. E did not check Chalk's `perl.bnf`@00399607 claims, YAEP at 7aba93e, or the commonplacebook reference. E did not check whether the 68 marker-site figure holds with stubs, or whether Deparse,-p of RD canon equals the source on the Guacamole corpus.
+
+### Round 4
+
+- **A:** B-series internals (Leo side tables, interning across the lattice, error recovery through the `error` terminal). The token-cut rewrites and the `SubName`/`SubNameNonQLike` claim. The forest-cap kill. The ledger at 1d929dd4 beyond the response. Whether the arbiter probes hold on perl 5.44.0.
+- **B:** §1, §2, §4, §6 and §7 (the arbiter, the oracle, the 10% threshold). Budgets, cost accounting, the isolation exceptions and `make chart-ratchet`. The A, C, D and E rows. B did not probe whether the production lexer's default for each lexical conflict agrees with G1's single reading of Standard Perl, which B calls "worth one probe at the waypoint". All of B's derivation counts come from its own extractor, not Marpa or pvm's lexer.
+- **C:** §4, and §5's token cut, rejoin and recognizer internals. C did not run the literal-renaming Deparse check itself, whether the waypoint corpus needs any token branch, or a re-verification of the edit5k.pl counts beyond round 3.
+- **D:** the ledger beyond the D4 note, and other participants' rows. §4 and §11–§12, apart from the perly.y line. The forest cap and the token-cut rewrites, taken on the doc's word. Whether pvm canon can emit paren-minimal or fully parenthesised output. M4–M6 cost fairness beyond D3. The 49-issue count, YAEP, and Guacamole's pass rate.
+- **E:** rows A–F and their releases. The `{`/`<<`/`?` deferral: whether XBLOCK, XTERMBLOCK, XATTRBLOCK, XATTRTERM and XBLOCKTERM count as "unreproduced" by construction (see F-9). The error-terminal design beyond its presence. Budgets and §2 Output beyond a read. E23 rests on reading the SLIF: Marpa::R2 is not installed.
+- **F:** the "about 49" count (no `git zhi`). The YAEP 0.007 s / 87.6 s probe and the Chalk references (YAEP not on disk). Whether Guacamole's exclusion list matches `standard.pm` and its POD in full. The stub-module approach beyond the 38 cases. F ran no `make test` or Go code. F did not read the design branch history, `docs/assessments/` or other participants' files.
