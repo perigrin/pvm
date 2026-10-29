@@ -23,7 +23,7 @@ type TableFile struct {
 // describes each file. A transition's items are not written: they are the
 // state's items with that symbol after the dot.
 func (t *Tables) Files() []TableFile {
-	var sym, rules, items, states, trans bytes.Buffer
+	var sym, rules, items, states, trans, expected, leo, probes, conflicts bytes.Buffer
 	for i, s := range t.Symbols {
 		kind := "nonterminal"
 		switch {
@@ -52,6 +52,18 @@ func (t *Tables) Files() []TableFile {
 			fmt.Fprintf(&trans, " %d:%d", tr.Symbol, tr.Target)
 		}
 		trans.WriteByte('\n')
+		fmt.Fprintf(&expected, "%d%s\n", i, ints(s.Expected))
+		if s.Leo {
+			fmt.Fprintf(&leo, "%d %d\n", i, s.Items[0])
+		}
+	}
+	for _, p := range t.Probes {
+		if p.Sample {
+			fmt.Fprintf(&probes, "%s %q\n", p.Terminal, p.Text)
+		}
+	}
+	for _, c := range t.Conflicts {
+		fmt.Fprintf(&conflicts, "%s\n", c)
 	}
 	return []TableFile{
 		{"symbols.txt", sym.Bytes()},
@@ -59,6 +71,10 @@ func (t *Tables) Files() []TableFile {
 		{"items.txt", items.Bytes()},
 		{"states.txt", states.Bytes()},
 		{"transitions.txt", trans.Bytes()},
+		{"expected.txt", expected.Bytes()},
+		{"leo.txt", leo.Bytes()},
+		{"probes.txt", probes.Bytes()},
+		{"conflicts.txt", conflicts.Bytes()},
 	}
 }
 
@@ -115,7 +131,12 @@ func BuildTables(c *CutGrammar) (*Tables, error) {
 	for name := range c.Terminals {
 		terminals = append(terminals, name)
 	}
-	return BuildLR0(c.G1[0].LHS, c.G1, terminals)
+	t, err := BuildLR0(c.G1[0].LHS, c.G1, terminals)
+	if err != nil {
+		return nil, err
+	}
+	t.Probes, t.Conflicts = Probes(c), FindConflicts(c)
+	return t, nil
 }
 
 // GenerateTables reads the grammar at slifPath, applies GuacamoleCut and
