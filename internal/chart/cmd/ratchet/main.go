@@ -25,6 +25,7 @@ import (
 	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -204,17 +205,20 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 
 	// lex-unmapped: files whose up-front stream has a token no predicate
 	// admits, or does not concatenate back to the source.
-	x, err := lex.Guacamole(grammarSLIF)
+	tab, x, err := recognize.Guacamole(grammarSLIF)
 	if err != nil {
 		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
 	}
 	var failing []string
+	streams := make([]*lex.Stream, 0, len(srcs)+1)
 	for i, src := range append([][]byte{std5k}, srcs...) {
 		name := std5kFile
 		if i > 0 {
 			name = scored[i-1]
 		}
-		if _, err := x.Lex(src); err != nil {
+		s, err := x.Lex(src)
+		streams = append(streams, s)
+		if err != nil {
 			failing = append(failing, name)
 			for _, line := range strings.Split(err.Error(), "\n") {
 				fmt.Fprintf(os.Stderr, "chart-ratchet: lex-unmapped: %s: %s\n", name, line)
@@ -222,6 +226,9 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 		}
 	}
 	m["lex-unmapped"] = strconv.Itoa(len(failing))
+	if err := recognizeAll(m, recognize.New(tab, recognize.Options{}), x, streams, scored, parsent); err != nil {
+		return nil, nil, err
+	}
 	known, err := os.ReadFile(knownFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
@@ -251,6 +258,48 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
 	}
 	return m, mismatches, nil
+}
+
+// recognizeAll measures the recognizer: std5k-refused, parses-refused,
+// parsent-accepted, and set-reuse over std5k.pl and the scored cases, whose
+// streams are std5k's then the scored cases'. One recognizer serves every
+// file, so a set interned in one file is a hit in the next.
+func recognizeAll(m map[string]string, r *recognize.Recognizer, x *lex.Lexer, streams []*lex.Stream, scored, parsent []string) error {
+	var hits, positions int
+	accepted := func(s *lex.Stream) bool {
+		c := recognize.Recognize(r, lex.Linear(s))
+		h, n := c.Reuse()
+		hits, positions = hits+h, positions+n
+		return c.Accepted()
+	}
+	m["std5k-refused"] = "0"
+	if !accepted(streams[0]) {
+		m["std5k-refused"] = "1"
+		fmt.Fprintf(os.Stderr, "chart-ratchet: std5k-refused: the recognizer refuses %s\n", std5kFile)
+	}
+	refused := 0
+	for i, s := range streams[1:] {
+		if !accepted(s) {
+			refused++
+			fmt.Fprintf(os.Stderr, "chart-ratchet: parses-refused: %s\n", scored[i])
+		}
+	}
+	m["parses-refused"] = strconv.Itoa(refused)
+	m["set-reuse"] = rate(hits, positions)
+	n := 0
+	for _, p := range parsent {
+		src, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		s, _ := x.Lex(src) // an unmapped token is refused by the recognizer
+		if recognize.Recognize(r, lex.Linear(s)).Accepted() {
+			n++
+			fmt.Fprintf(os.Stderr, "chart-ratchet: parsent-accepted: %s\n", p)
+		}
+	}
+	m["parsent-accepted"] = strconv.Itoa(n)
+	return nil
 }
 
 // knownMismatch holds lex-unmapped's failing files to the known list, whose

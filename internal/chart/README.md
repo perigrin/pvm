@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -103,16 +103,16 @@ committed to the baseline with the component.
 |---|---|---|
 | `parses-scored` | Guacamole `parses` cases less `perl-rejects.txt` | may not fall |
 | `parsent-scored` | Guacamole `parsent` cases | may not fall |
-| `parses-refused` | scored `parses` cases the chart refuses | may not rise |
+| `parses-refused` | scored `parses` cases the recognizer rejects; stderr names each | may not rise |
 | `parses-wrong-sites` | oracle sites graded WRONG for the chart | may not rise |
 | `yield-violations` | forest yields that are not their input | may not rise |
 | `oracle-below-rd` | the chart's oracle scores below recursive descent's, 0 to 2 | may not rise |
-| `std5k-refused` | statements of `std5k.pl` the chart refuses | may not rise |
-| `parsent-accepted` | `parsent` cases the chart accepts | may not rise |
+| `std5k-refused` | 1 if the recognizer rejects `std5k.pl`, else 0; stderr names it | may not rise |
+| `parsent-accepted` | `parsent` cases the recognizer accepts; with no error recovery yet, every rejection counts as refused; stderr names each accepted | may not rise |
 | `rejects-disagree` | `parses` cases where `perl -c`, with the stubs, disagrees with `perl-rejects.txt` (`chart.RejectsDisagree`); stderr names each | may not rise |
 | `speed-ratio-aggregate` | chart time over `parse.Parse` time, across the corpus | reported only |
 | `speed-ratio-std5k` | the same on `std5k.pl` | reported only |
-| `set-reuse` | the share of Earley sets served by interning | reported only |
+| `set-reuse` | the share of lattice positions, over `std5k.pl` and the scored `parses` cases, whose Earley set was already interned; one recognizer serves every file | reported only |
 | `convergence-edits` | edits in `testdata/convergence-edits.jsonl` | reported only |
 | `convergence-within-8` | the share of those edits converging within the statement plus 8 tokens | reported only |
 | `defect-yield-listed` | issues in `testdata/defect-yield.txt` | reported only |
@@ -154,6 +154,35 @@ To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > internal/chart/testdata/ratchet/baseline.txt`
 and review the diff. That run exits 1, because the redirect empties the
 baseline before the ratchet reads it, but its stdout is complete.
+
+## The recognizer: `recognize`
+
+`recognize.Recognize` runs a YAEP-style Earley recognizer over the generated
+tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
+
+- **Items** are an LR(0) state and the distance in lattice nodes back to the
+  item's origin. A set is its items, sorted, interned as a (core, distances)
+  pair, so two positions with equal content share one `*Set`. A node that an
+  edge passes over is inside a branch: its set is built but not interned.
+- **Lookahead.** In up-front mode a complete item's rule completes only if
+  the next token, or the end of input, can follow its LHS. That stops
+  right-recursive `StatementSeq` from completing back through every earlier
+  statement, which is what keeps sets equal from one statement to the next.
+  `Expected(pos)` is the union of the expected terminals of every state in
+  the set at `pos`, so it lacks what only a pruned completion would expect.
+- **The transition cache** is keyed by (set, token, lookahead) and the
+  edge's span. A key alone does not fix the result: completion reads the
+  sets where complete items began, which are not part of the source set. So
+  each entry records those sets, and a hit requires them to be the same.
+  `TestCacheChecksOriginSets` fails without that check. The cache is not
+  used inside a branch, nor where two edges meet.
+- **The empty program.** A lattice with no tokens, a source of only
+  whitespace, comments and POD, is accepted, as perl accepts it. Guacamole's
+  `Program ::= StatementSeq` does not derive it.
+
+`make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
+never panics and that acceptance is the same with and without the cache and
+the lookahead.
 
 ## The token cut and its rewrite list
 
