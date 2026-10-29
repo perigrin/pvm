@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -127,6 +127,7 @@ committed to the baseline with the component.
 | `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
 | `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
 | `lex-unmapped` | files among `std5k.pl` and the scored `parses` cases whose up-front `chart/lex` stream has a token no predicate admits, or does not concatenate back to the source; stderr names each file and byte offset | may not rise |
+| `expectation-conflicts` | conflicting pairs the generator observed, the lines of `grammar/testdata/tables/conflicts.txt` (see "Expected terminals, Leo and the conflicting pairs") | reported only |
 
 Keys the later issues add, and the rule each is held to:
 `defect-yield-chart-exact` may not fall, and `leo-disagree` and
@@ -228,6 +229,42 @@ Every line is space-separated numbers and names:
   in symbol order. The target is always a kernel state. A transition's items
   are the state's items whose dot is before the symbol, so they are not
   written out.
+- **`expected.txt`**: one line per state, `<id> <terminal ids>`, the
+  terminals after a dot in the state's items, in symbol order.
+- **`leo.txt`**: one line per Leo-eligible state, `<id> <item>`: a state
+  whose one item has its dot before its rule's last symbol, a nonterminal
+  that derives the rule's own LHS at its right edge (`S ::= A . S`).
+- **`probes.txt`**: `<terminal> "<text>"`, the generated samples the
+  conflict finder lexed, one per printable character a pattern terminal's
+  texts can start with. Literal texts are probed too and are not listed.
+- **`conflicts.txt`**: one conflicting pair per line,
+  `<text> <operator terminals> <term terminals> "<probe>"`.
+
+These are separate files so that `states.txt` stays under the
+check-added-large-files limit.
+
+### Expected terminals, Leo and the conflicting pairs
+
+An expectation class is formed at run time: `Expected(pos)`, the union of
+the expected terminals of every state in a position's Earley set, projected
+onto the conflicting pairs (spec §5). The pairs are observed, not derived
+(perigrin's ruling, "Observe the lexer"). The generator lexes every probe
+with the production lexer, once after `$a ` (`XOperator`) and once after
+`$a = ` (`XTerm`); `internal/lexer` has no constructor for an expect state,
+so its own state machine sets them. Where the two token streams differ, the
+first differing tokens are mapped to the cut's terminals, and if both map to
+some terminal that pair is listed, named by the text where the two readings
+diverge. A reading no terminal admits, such as an unterminated regex, makes
+no pair. A terminal list joined by commas is a token several terminals
+admit.
+
+A lexer bug therefore shows up as a wrong entry, and the review of
+`conflicts.txt` is where it is caught: a pull request that changes the list
+justifies each entry as one meaning in operator position and another in term
+position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
+`%`, `&`, `*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses
+`{` and `?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
+`$a -e` is a syntax error, and pvm's lexer agrees.
 
 ## The CORE.tpm cross-check
 

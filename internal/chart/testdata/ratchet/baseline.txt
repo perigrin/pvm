@@ -24,3 +24,4 @@ chart-ratchet: rd-parse-ms-corpus 8.793
 chart-ratchet: tables-drift 0
 chart-ratchet: core-tpm-differences 23
 chart-ratchet: lex-unmapped 3
+chart-ratchet: expectation-conflicts 15

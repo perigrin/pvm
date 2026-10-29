@@ -66,16 +66,24 @@ func TestKnownMismatchNamesFiles(t *testing.T) {
 }
 
 // TestTablesDrift: the committed tables are what the generator writes, and
-// one byte added to one of them, in a copy, is one file of drift.
+// one byte added to one of them, in a copy, is one file of drift. The count
+// of conflicting pairs is the committed conflicts.txt's line count.
 func TestTablesDrift(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "..")
 	slif := filepath.Join(root, grammarSLIF)
-	drift, err := tablesDrift(filepath.Join(root, tablesDir), slif)
+	drift, conflicts, err := tablesDrift(filepath.Join(root, tablesDir), slif)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(drift) != 0 {
 		t.Fatalf("drift on the committed tables: %v", drift)
+	}
+	committed, err := os.ReadFile(filepath.Join(root, tablesDir, "conflicts.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.Count(string(committed), "\n"); conflicts != want || conflicts == 0 {
+		t.Errorf("tablesDrift counted %d conflicting pairs, want the %d lines of conflicts.txt", conflicts, want)
 	}
 
 	copied := t.TempDir()
@@ -95,7 +103,7 @@ func TestTablesDrift(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	drift, err = tablesDrift(copied, slif)
+	drift, _, err = tablesDrift(copied, slif)
 	if err != nil {
 		t.Fatal(err)
 	}
