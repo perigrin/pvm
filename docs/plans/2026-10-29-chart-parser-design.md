@@ -42,7 +42,7 @@ parser decides.
 The spike is one ratchet towards parity, and every step produces evidence.
 The shape of the ratchet, the seed, the notation and the oracle's scope are
 perigrin's rulings of 2026-10-29, recorded in the assessment minute
-(`docs/assessments/2026-10-29-chart-parser-design.md`).
+(`docs/assessments/chart-waypoint.md`).
 
 1. **Speed,** end to end against recursive descent, at every step (§8).
 2. **Cost of change,** for every step, measured on both parsers. The M4–M6
