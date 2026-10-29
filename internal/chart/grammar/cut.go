@@ -103,12 +103,13 @@ var GuacamoleCut = CutSpec{
 		{Name: "SpecialGlobName", Kind: "Word", Def: "GlobalVariables"},
 		{Name: "SpecialGlobName", Kind: "Number", Def: "GlobalVariables"},
 		// A sigil before a block is a DerefSigil token. pvm lexes $#{...} as
-		// one Variable, so its block is opaque here.
+		// one Variable whatever the block holds, so only blocks the token's
+		// text can show Guacamole derives are admitted: a lone scalar.
 		{Name: "DerefScalarSigil", Kind: "DerefSigil", Def: "SigilScalar"},
 		{Name: "DerefArraySigil", Kind: "DerefSigil", Def: "SigilArray"},
 		{Name: "DerefHashSigil", Kind: "DerefSigil", Def: "SigilHash"},
-		{Name: "ArrayTopBlockVar", Kind: "Variable", Def: "SigilArrayTop '{' AnyText '}'"},
-		{Name: "AnyText", Def: `[\s\S]*`},
+		{Name: "ArrayTopBlockVar", Kind: "Variable", Def: "SigilArrayTop '{' ScalarVar '}'"},
+		{Name: "ArrayTopBlockVar", Kind: "Variable", Def: "SigilArrayTop '{' SpecialScalarVar '}'"},
 		// After ->, a slice's sigil is a Variable token and its bracket another.
 		{Name: "SliceArraySigil", Kind: "Variable", Def: "SigilArray"},
 		{Name: "SliceHashSigil", Kind: "Variable", Def: "SigilHash"},

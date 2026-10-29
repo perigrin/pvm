@@ -27,6 +27,53 @@ Each predicate's text is the language of the grammar symbols it stands for, so
 whitespace Guacamole discards may appear, because pvm's lexer folds it into the
 one token (`$ foo`, `< $fh >`). Inside a G0 rule it may not.
 
+Where a Guacamole rule derives more than pvm's token can show, the predicate
+admits less, so the chart refuses rather than misparses:
+
+- **`Diamond` and `DoubleDiamond`** use `ScalarVar`, where Guacamole has
+  `VarScalar`. A readline holds a name, not subscripts, so `<$x[0]>` is
+  refused. perl reads it as a glob.
+- **`ArrayTopBlockVar`** admits only `$#{$x}` and `$#{$_}` (a lone scalar,
+  spaces allowed). Guacamole's `SigilArrayTop BlockNonEmpty` admits any block,
+  but pvm lexes `$#{...}` as one `Variable` token whatever it holds. So the
+  block can't be parsed, and anything else, such as `$#{1+}`, is refused.
+
+## Known divergences from Guacamole
+
+Keyword priority is static here. Marpa arbitrates it only among the lexemes
+acceptable at a position, so the two differ at a few positions:
+
+- `$x = BEGIN()` is refused, though Marpa admits it.
+- `print->foo` is admitted, though Marpa refuses it, because keyword text
+  satisfies `SubNameExpr`.
+- `print::foo()` is admitted. It is one pvm `Word`, which no keyword matches,
+  while Marpa reads the keyword `print` first.
+- `print: 1;`, a keyword as a label, diverges too. The gate review of #534
+  found it.
+
+Other divergences:
+
+- `${foo}` is refused, though Guacamole accepts it through `DerefVariable`.
+  pvm lexes it as one `Variable` token, and no predicate admits it.
+- `Foo :: Bar`, with spaces, is refused. pvm lexes it as three tokens and
+  perl refuses it. Guacamole accepts it.
+- `:foo(bar)` is refused. pvm lexes the `(...)` of `:prototype(...)` as one
+  `Prototype` token, which is what `SubAttrArgs` admits, but other attributes'
+  arguments it lexes as code.
+
+## Known ambiguities left for resolve or the interleaved lexer
+
+Two lexeme priorities are not encoded. Marpa arbitrates them among the
+lexemes acceptable at a position, which depends on the Earley set rather
+than on any one rule, so they wait for `chart/resolve` or the interleaved
+lexer. Until then the forest carries both readings:
+
+- **`VersionNumber`**: `use Foo 1.2;` reads both as a version and as an
+  import list, as do `no Foo 1.2;` and `require 1.2;`. **perl and Marpa read
+  it only as a version**, and the chart must come to the same reading.
+- **`OpAdd`**: where `OpUnary` is also acceptable, as after `sort $x`, `+`
+  and `-` read both as binary and as unary. Marpa prefers the binary reading.
+
 Every rewrite the cut makes is listed in
 `grammar/testdata/token-cut-rewrites.txt`. It holds one rewrite per line and
 nothing else. The first word of each line names the rewrite's form:

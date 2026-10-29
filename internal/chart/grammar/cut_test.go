@@ -6,6 +6,7 @@ package grammar
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -213,6 +214,37 @@ func TestCutRejectsBadPriority(t *testing.T) {
 	hasRewrite(t, c, "priority A 1 => not encoded")
 }
 
+// TestCutArrayTopBlock: pvm lexes $#{...} as one Variable token whatever the
+// braces hold, so the cut admits only the forms Guacamole derives that it can
+// check from the token's text, and refuses the rest rather than misparse.
+func TestCutArrayTopBlock(t *testing.T) {
+	c := guacamoleCut(t)
+	for src, want := range map[string]bool{
+		"my $n = $#{$x};":   true,
+		"my $n = $#{ $x };": true,
+		"my $n = $#{$_};":   true,
+		"my $n = $#{1+};":   false,
+		"my $n = $#{$x+};":  false,
+	} {
+		var tok string
+		for _, tk := range lexer.Tokenize([]byte(src)) {
+			if tk.Kind == lexer.Variable && strings.HasPrefix(src[tk.Start:], "$#{") {
+				tok = src[tk.Start:tk.End]
+			}
+		}
+		if !strings.HasSuffix(tok, "}") {
+			t.Fatalf("%s: the lexer gave no single $#{...} Variable token", src)
+		}
+		admitted := false
+		for sym := range c.Terminals {
+			admitted = admitted || matches(c, sym, lexer.Variable, tok)
+		}
+		if admitted != want {
+			t.Errorf("%s: Variable %q admitted = %v, want %v", src, tok, admitted, want)
+		}
+	}
+}
+
 func guacamoleCut(t *testing.T) *CutGrammar {
 	t.Helper()
 	src, err := os.ReadFile(guacamolePath)
@@ -258,16 +290,39 @@ func TestCutGuacamole(t *testing.T) {
 		t.Fatalf("%v (regenerate with go test ./internal/chart/grammar/ -run TestCutGuacamole -grammar.update-rewrites)", err)
 	}
 	if !bytes.Equal(got, want) {
-		gl, wl := lines(got), lines(want)
-		for i := 0; ; i++ {
-			switch {
-			case i >= len(gl):
-				t.Fatalf("%s: line %d lists %q, which the cut no longer makes", rewritesPath, i+1, wl[i])
-			case i >= len(wl):
-				t.Fatalf("%s: the cut makes %q, which is not listed (after line %d)", rewritesPath, gl[i], i)
-			case gl[i] != wl[i]:
-				t.Fatalf("%s: line %d lists %q, but the cut makes %q", rewritesPath, i+1, wl[i], gl[i])
-			}
+		t.Fatal(firstDifference(rewritesPath, lines(got), lines(want)))
+	}
+}
+
+// firstDifference describes where the listed lines first differ from the
+// lines the cut makes. A line is quoted as the list writes it, unescaped, so
+// grep -F finds it.
+func firstDifference(path string, cut, listed []string) string {
+	for i := 0; i < len(cut) || i < len(listed); i++ {
+		switch {
+		case i >= len(cut):
+			return fmt.Sprintf(`%s: line %d lists "%s", which the cut no longer makes`, path, i+1, listed[i])
+		case i >= len(listed):
+			return fmt.Sprintf(`%s: the cut makes "%s", which is not listed (after line %d)`, path, cut[i], i)
+		case cut[i] != listed[i]:
+			return fmt.Sprintf(`%s: line %d lists "%s", but the cut makes "%s"`, path, i+1, listed[i], cut[i])
+		}
+	}
+	return path + ": the lines match, but the bytes differ: the list must end in exactly one newline"
+}
+
+func TestCutListDifferences(t *testing.T) {
+	for _, tc := range []struct {
+		cut, listed []string
+		want        string
+	}{
+		{[]string{"a", `b '\'`}, []string{"a"}, `p: the cut makes "b '\'", which is not listed (after line 1)`},
+		{[]string{"a"}, []string{"a", "SqeFake"}, `p: line 2 lists "SqeFake", which the cut no longer makes`},
+		{[]string{`x '\'`}, []string{"y"}, `p: line 1 lists "y", but the cut makes "x '\'"`},
+		{[]string{"a"}, []string{"a"}, "p: the lines match, but the bytes differ: the list must end in exactly one newline"},
+	} {
+		if got := firstDifference("p", tc.cut, tc.listed); got != tc.want {
+			t.Errorf("firstDifference(%q, %q) = %s, want %s", tc.cut, tc.listed, got, tc.want)
 		}
 	}
 }
