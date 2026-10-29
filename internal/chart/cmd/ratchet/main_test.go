@@ -46,6 +46,25 @@ func TestReportPrintsEveryKeyOnceInOrder(t *testing.T) {
 	}
 }
 
+// TestKnownMismatchNamesFiles: lex-unmapped's failing files are held to the
+// known list as a set, not by count. Swapping one listed file for another
+// keeps the count and is still reported, naming both files (gate review of
+// #541, F3).
+func TestKnownMismatchNamesFiles(t *testing.T) {
+	listed := "a.pl 01a18582-65bf\nb.pl 01a18582-65d3\n"
+	if got := knownMismatch([]string{"b.pl", "a.pl"}, listed); len(got) != 0 {
+		t.Errorf("the same set reported %q", got)
+	}
+	got := knownMismatch([]string{"a.pl", "c.pl"}, listed)
+	want := []string{
+		"lex-unmapped: b.pl is listed in lex-unmapped-known.txt but no longer fails",
+		"lex-unmapped: c.pl fails but is not listed in lex-unmapped-known.txt",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("knownMismatch = %q, want %q", got, want)
+	}
+}
+
 // TestTablesDrift: the committed tables are what the generator writes, and
 // one byte added to one of them, in a copy, is one file of drift.
 func TestTablesDrift(t *testing.T) {

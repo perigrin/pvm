@@ -23,3 +23,4 @@ chart-ratchet: rd-parse-ms-std5k 32.112
 chart-ratchet: rd-parse-ms-corpus 8.793
 chart-ratchet: tables-drift 0
 chart-ratchet: core-tpm-differences 23
+chart-ratchet: lex-unmapped 3

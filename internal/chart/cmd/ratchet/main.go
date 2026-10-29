@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,6 +23,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -39,6 +41,7 @@ var (
 	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
 	grammarSLIF  = filepath.Join("internal", "chart", "grammar", "testdata", "guacamole", "guacamole.slif")
 	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
+	knownFile    = filepath.Join(testdata, "lex-unmapped-known.txt")
 )
 
 // keys is the fixed print order: the milestone's contract keys, then the
@@ -53,10 +56,11 @@ var keys = []string{
 	"oracle-sites-decided", "expect-states-unreproduced",
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
 	"tables-drift", "core-tpm-differences",
+	"lex-unmapped",
 }
 
 func main() {
-	measured, err := measure(context.Background())
+	measured, mismatches, err := measure(context.Background())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
@@ -74,7 +78,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %s: %v\n", baselineFile, err)
 		os.Exit(2)
 	}
-	regressions := Compare(baseline, ms)
+	// A known-defect list that disagrees with the failing files is a
+	// regression too: the list is lex-unmapped's baseline, file by file.
+	regressions := append(Compare(baseline, ms), mismatches...)
 	for _, r := range regressions {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %s\n", r)
 	}
@@ -103,7 +109,7 @@ func report(measured map[string]string) []Measure {
 }
 
 // measure takes every measurement the skeleton has a component for.
-func measure(ctx context.Context) (map[string]string, error) {
+func measure(ctx context.Context) (map[string]string, []string, error) {
 	m := map[string]string{}
 
 	// The stubs reach perl, and every compile perl starts, through PERL5LIB.
@@ -111,21 +117,21 @@ func measure(ctx context.Context) (map[string]string, error) {
 	// environment, so a run without the stubs would poison the cache.
 	stubs, err := filepath.Abs(stubsDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	os.Setenv("PERL5LIB", stubs)
 
 	parses, err := filepath.Glob(filepath.Join(parsesDir, "*.pl"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	parsent, err := filepath.Glob(filepath.Join(parsentDir, "*.pl"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rejected, err := lines(rejectsFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	isRejected := map[string]bool{}
 	for _, r := range rejected {
@@ -142,7 +148,7 @@ func measure(ctx context.Context) (map[string]string, error) {
 
 	disagree, err := chart.RejectsDisagree("perl", parsesDir, rejectsFile, stubs)
 	if err != nil {
-		return nil, fmt.Errorf("rejects-disagree: %w", err)
+		return nil, nil, fmt.Errorf("rejects-disagree: %w", err)
 	}
 	for _, d := range disagree {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: rejects-disagree: %s\n", d)
@@ -151,19 +157,19 @@ func measure(ctx context.Context) (map[string]string, error) {
 
 	edits, err := lines(editsFile)
 	if err != nil {
-		return nil, fmt.Errorf("convergence-edits: %w", err)
+		return nil, nil, fmt.Errorf("convergence-edits: %w", err)
 	}
 	m["convergence-edits"] = strconv.Itoa(len(edits))
 
 	listed, err := lines(defectList)
 	if err != nil {
-		return nil, fmt.Errorf("defect-yield-listed: %w", err)
+		return nil, nil, fmt.Errorf("defect-yield-listed: %w", err)
 	}
 	m["defect-yield-listed"] = strconv.Itoa(len(listed))
 
 	drift, err := tablesDrift(tablesDir, grammarSLIF)
 	if err != nil {
-		return nil, fmt.Errorf("tables-drift: %w", err)
+		return nil, nil, fmt.Errorf("tables-drift: %w", err)
 	}
 	for _, d := range drift {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: tables-drift: %s\n", d)
@@ -172,19 +178,19 @@ func measure(ctx context.Context) (map[string]string, error) {
 
 	diffs, err := grammar.GuacamoleCoreTpmDifferences(grammarSLIF)
 	if err != nil {
-		return nil, fmt.Errorf("core-tpm-differences: %w", err)
+		return nil, nil, fmt.Errorf("core-tpm-differences: %w", err)
 	}
 	m["core-tpm-differences"] = strconv.Itoa(len(diffs))
 
 	std5k, err := os.ReadFile(std5kFile)
 	if err != nil {
-		return nil, fmt.Errorf("std5k: %w", err)
+		return nil, nil, fmt.Errorf("std5k: %w", err)
 	}
 	m["rd-parse-ms-std5k"] = millis(bestOf(5, func() { parse.Parse(std5k) }))
 	srcs := make([][]byte, len(scored))
 	for i, p := range scored {
 		if srcs[i], err = os.ReadFile(p); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	m["rd-parse-ms-corpus"] = millis(bestOf(3, func() {
@@ -193,18 +199,44 @@ func measure(ctx context.Context) (map[string]string, error) {
 		}
 	}))
 
+	// lex-unmapped: files whose up-front stream has a token no predicate
+	// admits, or does not concatenate back to the source.
+	x, err := lex.Guacamole(grammarSLIF)
+	if err != nil {
+		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
+	}
+	var failing []string
+	for i, src := range append([][]byte{std5k}, srcs...) {
+		name := std5kFile
+		if i > 0 {
+			name = scored[i-1]
+		}
+		if _, err := x.Lex(src); err != nil {
+			failing = append(failing, name)
+			for _, line := range strings.Split(err.Error(), "\n") {
+				fmt.Fprintf(os.Stderr, "chart-ratchet: lex-unmapped: %s: %s\n", name, line)
+			}
+		}
+	}
+	m["lex-unmapped"] = strconv.Itoa(len(failing))
+	known, err := os.ReadFile(knownFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
+	}
+	mismatches := knownMismatch(failing, string(known))
+
 	// Recursive descent through the oracle, its default subject.
 	dir, err := oracleCacheDir(stubs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cache, err := parseoracle.OpenCache(dir, "")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rep, err := parseoracle.Run(ctx, scored, parseoracle.RunOptions{Cache: cache})
 	if err != nil {
-		return nil, fmt.Errorf("rd oracle: %w", err)
+		return nil, nil, fmt.Errorf("rd oracle: %w", err)
 	}
 	for _, r := range rep.Files {
 		if r.Err != "" {
@@ -215,7 +247,32 @@ func measure(ctx context.Context) (map[string]string, error) {
 		m["rd-oracle-exact"] = rate(rep.Totals[parseoracle.BucketExact], n)
 		m["rd-oracle-coverage"] = rate(n-rep.Totals[parseoracle.BucketNoAnswer], n)
 	}
-	return m, nil
+	return m, mismatches, nil
+}
+
+// knownMismatch holds lex-unmapped's failing files to the known list, whose
+// lines are `<file> <lexer issue>`, as sets: each failing file the list
+// lacks, and each listed file that no longer fails, by name.
+func knownMismatch(failing []string, known string) []string {
+	listed := map[string]bool{}
+	for _, line := range strings.Split(known, "\n") {
+		if f := strings.Fields(line); len(f) > 0 {
+			listed[f[0]] = true
+		}
+	}
+	base := filepath.Base(knownFile)
+	var out []string
+	for _, f := range failing {
+		if !listed[f] {
+			out = append(out, fmt.Sprintf("lex-unmapped: %s fails but is not listed in %s", f, base))
+		}
+		delete(listed, f)
+	}
+	for _, f := range slices.Sorted(maps.Keys(listed)) {
+		out = append(out, fmt.Sprintf("lex-unmapped: %s is listed in %s but no longer fails", f, base))
+	}
+	slices.Sort(out)
+	return out
 }
 
 // tablesDrift regenerates the tables from slif into a temporary directory

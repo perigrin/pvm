@@ -1,0 +1,3 @@
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DerefVariable-005.pl 01a1882d-d8a4
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DerefVariable-010.pl 01a1882d-d8a4
+internal/chart/testdata/guacamole/parses/Statements-Expressions-variable-003.pl 01a1882d-d8a4

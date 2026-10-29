@@ -126,10 +126,28 @@ committed to the baseline with the component.
 | `rd-parse-ms-corpus` | `parse.Parse` over the scored `parses` cases, best of 3, in ms | reported only |
 | `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
 | `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
+| `lex-unmapped` | files among `std5k.pl` and the scored `parses` cases whose up-front `chart/lex` stream has a token no predicate admits, or does not concatenate back to the source; stderr names each file and byte offset | may not rise |
 
 Keys the later issues add, and the rule each is held to:
-`defect-yield-chart-exact` may not fall, and `lex-unmapped`, `leo-disagree`
-and `recovery-on-accepted` may not rise.
+`defect-yield-chart-exact` may not fall, and `leo-disagree` and
+`recovery-on-accepted` may not rise.
+
+`lex-unmapped`'s baseline is not 0. Three scored cases are refused because
+`chart/lex` re-lexes a `$#{` interior from a blank lexer state. The rule fails closed. It lexes the interior only when
+nothing before the `$#{` can have moved the file's state off blank: `use` or
+`no` of strict or warnings, and statements with no `use`, `no`, `sub`,
+`class`, `BEGIN` or heredoc opener. Anything else refuses rather than guess,
+an unknown module included. A `$#{` whose own interior holds one of those, or
+a nested `$#{`, refuses too, and so does every `$#{` after a refused one,
+whose interior went unread. Every corpus case's preamble is a `use feature`,
+so every corpus `$#{` is refused until 01a1882d-d8a4 lets the production
+lexer lex the interior in place.
+
+`testdata/lex-unmapped-known.txt` lists each unmapped file, one per line as
+`<file> <lexer issue>`. The ratchet holds the failing files to that list as a
+set, and names any file that fails unlisted, or is listed and no longer fails,
+as a regression. The lexer issues are mainline work. As each lands, its files
+leave the list and the baseline falls with them. `std5k.pl` is never listed.
 
 To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > internal/chart/testdata/ratchet/baseline.txt`
