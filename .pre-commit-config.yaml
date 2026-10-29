@@ -8,10 +8,11 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
     hooks:
+      # The Guacamole corpus cases are Guacamole's test inputs byte for byte.
       - id: trailing-whitespace
-        exclude: ^vendor/
+        exclude: ^(vendor/|internal/chart/testdata/guacamole/(parses|parsent)/)
       - id: end-of-file-fixer
-        exclude: ^vendor/
+        exclude: ^(vendor/|internal/chart/testdata/guacamole/(parses|parsent)/)
       - id: check-yaml
       - id: check-added-large-files
   - repo: https://github.com/dnephin/pre-commit-golang

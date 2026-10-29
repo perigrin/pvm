@@ -1,0 +1,23 @@
+Source: xsawyerx/guacamole (Guacamole v0.008) at 2838253, its t/ suite.
+
+Produced by running, from the pvm repository root, with perl 5.42.0:
+
+    perl internal/chart/testdata/guacamole/extract.pl <checkout of xsawyerx/guacamole at 2838253>
+
+extract.pl runs every t/**/*.t with this directory ahead of Guacamole's own
+lib on @INC, so the recording Guacamole/Test.pm here writes each parses and
+parsent argument instead of parsing it. Test/Fatal.pm is a load-only
+stand-in: three tests import Test::Fatal and none call it.
+
+- parses/, parsent/: one case file per unique argument text, first
+  occurrence wins, named <test path>-<NNN>.pl. Each file is preamble.pl (one
+  line) followed by the argument byte for byte, so trailing whitespace and a
+  missing final newline are Guacamole's, and the whitespace pre-commit hooks
+  exclude these directories.
+- stubs/: one module for each module a parses case uses that perl cannot
+  find, each with $VERSION '9999', above every version a case requests.
+- perl-rejects.txt: the parses cases `perl -c` rejects with stubs/ as
+  PERL5LIB, by bare file name, one per line.
+
+Nothing in pvm reads the Guacamole checkout after extraction; rerunning the
+command above regenerates this directory exactly.

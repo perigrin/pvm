@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance and the token cut's committed, reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -13,6 +13,24 @@ spike consumes this tree.
 `grammar/testdata/guacamole/guacamole.slif` is Guacamole's Marpa SLIF grammar,
 vendored at a fixed revision. `grammar/testdata/guacamole/PROVENANCE` says
 where it came from. `grammar.ReadSLIF` reads the subset of SLIF it uses.
+
+## The Guacamole corpus
+
+`testdata/guacamole/` holds the waypoint's corpus: every `parses` and
+`parsent` argument of Guacamole's own suite, recorded by running it with the
+stand-in `testdata/guacamole/Guacamole/Test.pm`, one case file per unique
+text. Each case is `preamble.pl` (one line) followed by Guacamole's bytes
+unchanged, so the whitespace pre-commit hooks skip the case directories.
+`stubs/` supplies the modules cases `use` that perl cannot find, and
+`perl-rejects.txt` lists the `parses` cases `perl -c` still rejects with the
+stubs as `PERL5LIB`. Those cases are not scored. `RejectsDisagree` is the
+rule that list obeys.
+
+`extract.pl` regenerates the whole directory from a Guacamole checkout.
+`PROVENANCE` gives the revision and the command. Nothing here reads the
+checkout afterwards. `TestGuacamoleCasesUnique` and
+`TestGuacamoleCasesStartWithPreamble` guard the files, and the ratchet's
+`rejects-disagree` holds the list to perl's verdicts across the whole corpus.
 
 ## The token cut and its rewrite list
 
