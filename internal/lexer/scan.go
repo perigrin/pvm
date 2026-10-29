@@ -834,6 +834,16 @@ func (l *lexer) scanNumberRun() int {
 			}
 			dots++
 		case isWordByte(c):
+			// A radix float's exponent is `p`, and it takes a sign the way a
+			// decimal `e` does: perl 5.44.0 prints 7.5 for `0xfp-1` and 1.75
+			// for `07p-2`.
+			if radix && (c == 'p' || c == 'P') &&
+				l.pos+2 < len(l.src) &&
+				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
+				isDigit(l.src[l.pos+2]) {
+				l.pos += 2
+				continue
+			}
 			// The SIGN OF AN EXPONENT is part of the literal, and this is
 			// the only place a sign ever is. Measured 5.42.0:
 			//
@@ -844,34 +854,22 @@ func (l *lexer) scanNumberRun() int {
 			//
 			// So `Number("5e")` is a token perl would reject, which is
 			// what makes the old split wrong rather than merely different.
-			// The sign must be ADJACENT to the `e`: `5-1` is arithmetic,
-			// and so is the second `-` of `5e-1-1`.
-			// A radix float's exponent is `p`, and it takes a sign the same
-			// way: perl 5.44.0 prints 7.5 for `0xfp-1` and 1.75 for `07p-2`.
-			if radix && (c == 'p' || c == 'P') &&
-				l.pos+2 < len(l.src) &&
-				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
-				isDigit(l.src[l.pos+2]) {
-				l.pos += 2
-				continue
+			// The sign belongs to the `e`, with only underscores between:
+			// `5-1` is arithmetic, and so is the second `-` of `5e-1-1`.
+			if !hex && (c == 'e' || c == 'E') {
+				if end := exponentEnd(l.src, l.pos); end > 0 {
+					l.pos = end
+					continue
+				}
 			}
-			if !hex && (c == 'e' || c == 'E') &&
-				l.pos+2 < len(l.src) &&
-				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
-				isDigit(l.src[l.pos+2]) {
-				l.pos += 2
-				continue
-			}
-			// A DECIMAL takes no other letter: its `e` only before a digit
-			// or `_`, or the signed digit above (toke.c:13142-13144), so
+			// A DECIMAL takes no other letter (toke.c:13142-13144), so
 			// `5x3` is `5 x 3` and `1if $b` is `1 if $b`, measured on
-			// 5.42.0. A sign with no digit after it ends the number before
-			// the `e`: `0e+A` is a syntax error on 5.44.0, and taking
-			// `0e` whole read it differently from its canon `0e + A`. A
-			// radix literal's letters are its digits and prefix, and stay.
-			if !radix && !isDigit(c) && c != '_' &&
-				!((c == 'e' || c == 'E') && l.pos+1 < len(l.src) &&
-					byteIn(l.src[l.pos+1], "0123456789_")) {
+			// 5.42.0, and an `e` that does not start an exponent ends the
+			// number before it: `0e+A` and `1e_+_A` are syntax errors on
+			// 5.44.0, and taking `0e` whole read it differently from its
+			// canon `0e + A`. A radix literal's letters are its digits and
+			// prefix, and stay.
+			if !radix && !isDigit(c) && c != '_' {
 				return dots
 			}
 		default:
@@ -880,6 +878,29 @@ func (l *lexer) scanNumberRun() int {
 		l.pos++
 	}
 	return dots
+}
+
+// exponentEnd reports where the exponent prefix starting at src[pos], an `e`
+// or `E`, ends, and 0 when it is not one. The prefix is the marker, any
+// underscores, an optional sign and any underscores again, and it counts only
+// when a digit follows. Measured on 5.44.0, Deparse gives `1e_+_1`, `1e__+1`,
+// `1e+_1` and `1e_1` as 10, and `1e_-_1` as 0.1, while `1e_`, `1e_+_` and
+// `1e+_` are "Bareword found where operator expected" before the `e`.
+func exponentEnd(src []byte, pos int) int {
+	i := pos + 1
+	for i < len(src) && src[i] == '_' {
+		i++
+	}
+	if i < len(src) && (src[i] == '+' || src[i] == '-') {
+		i++
+		for i < len(src) && src[i] == '_' {
+			i++
+		}
+	}
+	if i < len(src) && isDigit(src[i]) {
+		return i
+	}
+	return 0
 }
 
 // scanAngle lexes `<FH>` in term position, and reports false in operator
