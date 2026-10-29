@@ -37,14 +37,17 @@ parser decides.
 > (prototypes and ambiguity, real-world code, conformance) and at the parse
 > half of M2 (incremental, correct under edit), at a speed worth pursuing?
 
-The spike is one ratchet towards parity (perigrin's ruling, 2026-10-29), and
-every step produces evidence:
+The spike is one ratchet towards parity, and every step produces evidence.
+The shape of the ratchet, the seed, the notation and the oracle's scope are
+perigrin's rulings of 2026-10-29, recorded in the assessment minute
+(`docs/assessments/2026-10-29-chart-parser-design.md`).
 
 1. **Speed,** end to end against recursive descent, at every step (§8).
 2. **Cost of change,** for every step, measured on both parsers. The M4–M6
    cases are early steps, so their costs are the M4–M6 evidence.
 3. **Defect yield:** the open "perl disagrees" issues each step settles, and
-   every disagreement the arbiter (§7.4) decides in the chart's favour.
+   every oracle site where perl agrees with the chart and not with recursive
+   descent.
 4. **Incremental convergence,** at every step: how soon Earley sets match
    again after an edit. Then, once parity is reached, M2's equivalence
    contract.
@@ -87,7 +90,9 @@ and stays experimental until the spike is accepted.
 4. **Ambiguity may stay.** A language server needs the facts true in every
    reading. A reading is WRONG if it asserts what perl does not; perl's
    reading among several live ones is *covered but undecided*. A statement
-   whose readings exceed a fixed cap collapses to an Error node.
+   whose readings, after `chart/resolve`, exceed 2^10 collapses to an Error
+   node. Readings are counted by sum-product over the statement's own packed
+   nodes; a nested statement is counted, and collapses, on its own.
 5. **Outside the accepted language, refuse; never misparse.** Pest scored
    99.996% and still lost (prior-art §A1.3) because it misparsed silently.
 6. **Weights may order readings, never decide them.** A lexeme priority is a
@@ -99,8 +104,8 @@ pvm's chart parser is an independent design in Go, borrowing from three
 sources where the constraints match.
 
 **Guacamole v0.008** (`xsawyerx/guacamole` at 2838253) is the starting
-grammar, and its definition of Standard Perl is the ratchet's first waypoint
-(perigrin's rulings, 2026-10-29). Its G1 rules supply the `Statement`/
+grammar, and its definition of Standard Perl is the ratchet's first waypoint.
+Its G1 rules supply the `Statement`/
 `BlockStatement` split, the four-way precedence clones (`ExprValueU`/`0`/`L`/
 `R`), the `NonBrace*` hierarchy for block versus hash, and per-keyword
 builtin rules (about 200, e.g. `OpKeywordTimeExpr ::= OpKeywordTime LParen
@@ -126,20 +131,20 @@ and the grammar generator also import `internal/parse`.
 
 ### `chart/grammar`
 
-Reads the **subset of Marpa's SLIF notation that Guacamole uses** (perigrin's
-ruling, 2026-10-29): G1 rules (`::=`, `|`), sequence rules (`X ::= Y*`),
+Reads the **subset of Marpa's SLIF notation that Guacamole uses**: G1 rules (`::=`, `|`), sequence rules (`X ::= Y*`),
 `:lexeme ~ X priority => n`, `:discard`, and `lexeme default = latm => 1`.
 `action =>` and `name =>` adverbs are ignored.
 
-**The token cut** (perigrin's ruling, 2026-10-29). G1 builds some single pvm
+**The token cut.** G1 builds some single pvm
 tokens from several lexemes. Every rule at or below pvm's token level is
 rewritten in terms of **token predicates** (lexer kind plus text): a rule
 wholly below it collapses into a predicate, and a rule that straddles it is
 split (`VarScalar ::= SigilScalar VarIdentExpr ElemSeq0` becomes `VarScalar
 ::= ScalarVar ElemSeq0`). Every rewrite is listed beside the grammar and
 reviewed. The cut also carries G0's lexeme priorities as static rules: keyword
-text satisfies `SubName` (method names, definitions) but not
-`SubNameNonQLike` (calls), so `print(1)` has one derivation. `Pod`,
+text satisfies `SubName` (method names, definitions) but not an unqualified
+`SubNameNonQLike` (calls), so `print(1)` has one derivation and
+`POSIX::exit(0)` still has one. `Pod`,
 `DataSection` and `FormatBody` tokens are trivia.
 
 **Builtin shapes** come from G1's per-keyword rules. CORE.tpm is a
@@ -169,9 +174,11 @@ first ratchet step whose feature needs a token branch: before each token the
 lexer reads the expectation class from the current Earley set and scans only
 the kinds it allows (Marpa's `latm`). That step includes refactoring
 `internal/lexer` so a scanner takes its expectation and context as parameters
-instead of advancing its own state (perigrin's ruling, 2026-10-29). The
-refactor is mainline work through `TestLexerRatchet`, and is kept after a
-stopped spike only on its own merits.
+instead of advancing its own state. The refactor is mainline work through
+`TestLexerRatchet`, and is kept after a stopped spike only on its own merits.
+In both modes `chart/lex` owns the context facts the lexer consumes (declared
+subs, constant subs, bareword operators), deriving them from tokens as the
+production lexer does; the chart never feeds them back (rule 2).
 
 **One coupled choice: lexing mode, lookahead, list shape and Leo.** An
 interleaved lexer cannot supply lookahead, because lexing token *k+1* needs
@@ -246,89 +253,97 @@ chart/forest ── post-hoc SPPF; packed nodes may carry conditions
 chart/resolve ── perl's own rules only; the rest stays ambiguous
    │
    ├──▶ chart/compare: normalised spans → diff against recursive descent
-   │                    → disagreement → the arbiter (§7.4)
-   ├──▶ parseoracle: forest → SubjectFacts (§7.1)
+   │                    (recorded, §7.3)
+   ├──▶ parseoracle: forest → SubjectFacts, graded by perl (§7.1)
    └──▶ future: LSP features ask "do all readings agree?"
 ```
 
 ## 7. The parity contract
 
-Parity with the recursive-descent parser means all four:
+Parity with the recursive-descent parser gates on the first two; the third is
+recorded.
 
 1. **The oracle,** with the forest reported as a subject. A marker site
    present in every live reading is reported decided; one present in only some
    readings is reported unresolved, which scores *wider*, never exact.
    Coverage and exactness must be at or above recursive descent's measured
-   score on the same corpus, and WRONG = 0. The oracle sees only five marker
-   kinds and never sees surplus (`compareMarkers`), so it is necessary, not
-   sufficient.
+   score on the same corpus, and WRONG = 0. The oracle grades five marker
+   kinds today (srefgen, rv2hv, match, readline, anonhash). Before the M4–M6
+   steps it gains a sixth, **argument structure**, from perl's op tree: the
+   argument count of each call, and whether each `print`/`say` took a
+   filehandle. That is mainline oracle work, graded on recursive descent too,
+   in both directions. Grouping that changes only an evaluated value is not
+   graded: pvm is a linter and language server, not an interpreter. The oracle
+   never sees surplus (`compareMarkers`), so it is necessary, not sufficient.
 2. **Yield.** The yield of every packed node is exactly its byte span, and the
    root's yield is the source.
 3. **A per-file span diff** against recursive descent, under §5's
-   normalisation, wherever both produce one reading.
-4. **An arbiter for every disagreement,** on perl's own `B::Deparse`
-   (perigrin's ruling, 2026-10-29). It is two-sided. For the statement a
-   disagreement falls in, each parser's reading is emitted fully parenthesised,
-   and so is the source. Every literal outside a quote-like is first replaced
-   by a distinct variable (`1+2*3` becomes `$k1+$k2*$k3`), so constant folding
-   cannot hide grouping. All three go through `perl -MO=Deparse,-p`. The parser
-   whose emission deparses as the source does is right. If both do, the shape
-   difference is legitimate. If neither does, or the renaming changes the
-   parse, the disagreement is **undecided**. Parity needs no disagreement
-   decided against the chart, and undecided disagreements at no more than 10%
-   of the corpus's disagreements. A disagreement decided for the chart is a
-   finding against recursive descent, and counts as defect yield.
+   normalisation, wherever both produce one reading. Disagreements are
+   recorded and reviewed, not gated.
 
 Canon re-emission stays recursive descent's, so the chart's M6 verdict is on
 M6 without re-emission.
 
 ## 8. The ratchet
 
-One ratchet from Standard Perl to parity (perigrin's rulings, 2026-10-29).
-Each step adds one feature, keeps everything already accepted accepted, and is
-measured before the next begins.
+One ratchet from Standard Perl to parity. Each step adds one feature, keeps
+everything already accepted accepted, and is measured before the next begins.
 
-**Every step measures,** against recursive descent, on every file both parsers
-accept:
+**A realistic input from the start.** Before the checkpoint every corpus is
+snippet-sized, and snippets time setup rather than throughput. So the first
+step also generates **std5k.pl**: several thousand lines of Standard Perl,
+written by `latencyFixture` (`internal/psc/latency_fixture_test.go`, which
+writes edit5k.pl) with Standard Perl's exclusions written out, committed, and
+valid only while both parsers accept it and perl compiles it.
+
+**Every step measures,** against recursive descent, on std5k.pl and on every
+other file both parsers accept:
 
 - **speed,** end to end: lexing, recognition and forest construction on the
-  chart's side, `parse.Parse` on recursive descent's. The aggregate ratio is
-  recorded at every step, so the trend is visible, and edit5k.pl joins the set
-  as soon as the chart accepts it;
-- **cost of change:** lines changed and places touched on each side, where the
-  fix landed, and, for features recursive descent already has, its cost from
-  the PR that added them. The share of a step spent building infrastructure
-  later steps reuse is reported separately;
-- **defect yield:** open issues settled, and arbiter decisions for the chart;
-- **convergence,** over a fixed set of 200 single-statement edits per corpus,
-  chosen before the first step from the corpus's statements: the number of
-  tokens past the edit until the new sets match the old.
+  chart's side, `parse.Parse` on recursive descent's. Each step records the
+  aggregate ratio, std5k.pl's ratio, and the ratio over the previous step's
+  file set, so a step that only admits heavier files is visible as such.
+  edit5k.pl joins as soon as the chart accepts it;
+- **set reuse:** the fraction of positions whose set is an interned hit;
+- **cost of change:** lines changed (Go and grammar counted and reported
+  separately) and files touched on each side. For a feature recursive descent
+  already has, its cost is the sum over every PR whose title or `Implements:`
+  trailer names the feature, with the list recorded. The share of a step spent
+  on infrastructure later steps reuse is reported beside the total;
+- **defect yield:** open issues settled, and oracle sites decided for the
+  chart;
+- **convergence,** over 200 single-statement edits to std5k.pl and to each
+  corpus with multi-statement files, fixed before the first step: the number
+  of tokens past the edit until the new sets match the old.
 
 **Budgets.** Before a step starts, refinement records its calendar estimate in
-the milestone. A step open beyond twice its estimate forces a decision by
-perigrin, continue or stop, recorded with its reason; continuing records a new
-estimate, and the rule applies again.
+the milestone, and before the first step it records one for the whole ratchet
+to the checkpoint. A step, or the ratchet, open beyond twice its estimate
+forces a decision by perigrin, continue or stop, recorded with its reason;
+continuing records a new estimate, and the rule applies again.
 
 ### The waypoint: Standard Perl
 
 The first step builds the recognizer, the forest, error recovery,
-`chart/compare`, the arbiter and the oracle adapter, with the production lexer
-up front. Its corpus is Guacamole's suite, extracted by running its tests with
+`chart/compare` and the oracle adapter, with the production lexer up front.
+The speed kill (§9) is live from the moment the recognizer runs on std5k.pl,
+inside the step, before the forest and the rest are built. Its corpus is Guacamole's suite, extracted by running its tests with
 a recording `Guacamole::Test` (791 `parses` and 126 `parsent` calls), checked
 in and reviewed, under a declared preamble (`use feature ':5.36'`).
 
 - Cases needing a missing module run with stub modules on `@INC`, each
   declaring a `$VERSION` that satisfies every request.
 - `parsent` means "not Standard Perl", so its labels are correct by
-  definition. A `parses` case perl still rejects is a Guacamole erratum,
-  excluded from scoring, as spec 07 §7.5.2 excludes any input perl fails to
-  compile.
+  definition. A `parses` case perl still rejects is excluded from scoring, as
+  spec 07 §7.5.2 excludes any input perl fails to compile. A `parses` case
+  perl accepts with a different reading is caught only by §7.
 - **Exit:** every perl-accepted `parses` case accepted under §7, and every
   `parsent` case refused with an Error node. The expectation classes are then
-  compared with spec 03's eleven `PL_expect` states, through an explicit map
-  from each state to the conflicts it settles, and the number of states whose
-  decisions the classes do not reproduce is recorded. More than 2 forces a
-  recorded decision by perigrin.
+  compared with those of spec 03's eleven `PL_expect` states whose conflicts
+  are in the grammar in force, through an explicit map from each state to the
+  conflicts it settles. The number of those states the classes do not
+  reproduce is recorded, and the comparison is repeated as conflicts join.
+  More than 2 forces a recorded decision by perigrin.
 
 ### The M4–M6 steps, then the checkpoint
 
@@ -342,11 +357,12 @@ an open issue is ordinary mainline work through mainline gates. Which side
 goes first alternates.
 
 **Checkpoint.** A step is *clearly cheaper* on the chart if it needs at most
-half the lines and half the places touched; the comparison is reported with
-and without the reusable-infrastructure share. The M4–M6 verdict is positive
-if at least half these steps are clearly cheaper and none needed a rule no
-Perl construct justifies. The incremental verdict is "keep the snapshot
-design" if fewer than 80% of the convergence edits converge within the edited
+half the lines and half the files touched, counting its whole cost including
+the infrastructure share; the figure without that share is reported beside
+it. The M4–M6 verdict is positive if at least half these steps are clearly
+cheaper and none needed a grammar rule that perigrin judges no Perl construct
+justifies. The incremental verdict is negative, and M2 keeps its snapshot
+design, if fewer than 80% of the convergence edits converge within the edited
 statement plus 8 tokens. The recommendation is made here.
 
 ### On to parity (only if the M4–M6 verdict is positive)
@@ -374,28 +390,27 @@ against the parse share of M2's 10 ms.
 ## 9. Risks and kill criteria
 
 Fixed before work starts. A fired kill ends the spike unless perigrin records
-an override and its reason.
+an override and its reason. The thresholds for expectation classes, budgets,
+convergence and advantage are §8's and are not restated here.
 
 | Risk | Signal | Kill criterion |
 |---|---|---|
-| Speed | Every step's ratio | The aggregate ratio above 3× at any step. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50, 33.42 ms p99; a YAEP-class extrapolation for 5 kLOC is about 13.6 ms |
-| Silent misparse | A `parsent` case accepted; WRONG > 0; a disagreement decided against the chart | One that is fixed only by a refusal which drops coverage below recursive descent's on that file |
-| Undecided disagreements | The arbiter's undecided count | More than 10% of disagreements undecided at the checkpoint or at parity |
-| Forest blow-up | Readings per statement: the product over the packed nodes inside it | More than 1% of a corpus's statements collapsed by rule 4's cap (2^10 readings) |
-| Expectation classes | The waypoint's state count | More than 2 of 11 states unreproduced: a recorded decision |
+| Speed | Every step's ratios | The aggregate ratio, or std5k.pl's, above 3× at any step. Recursive descent's cold parse on edit5k.pl is 23.89 ms p50, 33.42 ms p99; a YAEP-class extrapolation for 5 kLOC is about 13.6 ms |
+| Silent misparse | A `parsent` case accepted; WRONG > 0 | One that is fixed only by a refusal which drops coverage below recursive descent's on that file |
+| Forest blow-up | Readings per statement (rule 4) | More than 1% of a corpus's statements, and at least 5 of them, collapsed by the cap |
 | Context leaking into the chart | Set reuse falling as steps add features | Any fix needing facts inside items: a design review |
 | No incremental convergence (Wiren 1989) | Every step's convergence measure | The checkpoint's incremental threshold |
-| No advantage | The M4–M6 step costs | The checkpoint's M4–M6 threshold |
-| Drift and stall | Budgets (§8) | A step beyond twice its estimate forces a recorded decision |
 
 ## 10. Testing
 
 pvm's conventions apply: TDD, the pre-commit hooks, `make test` for code.
 `internal/chart` is ordinary mainline code: its tests run in `make test` and
-the hooks like any package's. The spike's numeric ratchets (speed ratio, cost
-tables, corpus counts) run under `make chart-ratchet`, which mainline does not
-gate on, and which runs on any change under `internal/chart` or
-`internal/lexer`.
+the hooks like any package's. That couples mainline lexer work to the spike's
+unit tests, and the coupling is intended: it is how the lexer refactor stays
+honest. The spike's numeric ratchets (speed ratios, cost tables, corpus
+counts) run under `make chart-ratchet`, which mainline does not gate on. A CI
+job runs it on any change under `internal/chart` or `internal/lexer`, and the
+orchestrating session runs it at every step's close.
 
 - **Generator:** golden tests on small grammars (nullables, left and right
   recursion); byte-identical tables on regeneration.
@@ -408,10 +423,12 @@ gate on, and which runs on any change under `internal/chart` or
   yield is its span.
 - **Lexer refactor:** `TestLexerRatchet` and the existing lexer corpus,
   unchanged; each scanner yields today's tokens given today's context.
-- **Compare and arbiter:** the normalisation tested against hand-built trees,
-  with one check that must pass for each that must fail: a disagreement where
-  the chart is right is decided for it, one where recursive descent is right
-  is decided for recursive descent, and identical trees report none.
+- **Compare:** the normalisation tested against hand-built trees, with one
+  check that must pass for each that must fail; identical trees report no
+  disagreement.
+- **Argument marker:** for each of `foo $x, $y` under no prototype, `($)` and
+  a declared sub, and `print $fh $x` against `print $x`, the marker matches
+  perl's op tree, and a deliberately wrong reading is graded WRONG.
 - **Fuzzing:** recognizer invariants from the first step, forest invariants
   from the step that builds the forest, and the incremental fuzzers after
   parity.
