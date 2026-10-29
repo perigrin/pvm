@@ -132,10 +132,8 @@ Keys the later issues add, and the rule each is held to:
 `defect-yield-chart-exact` may not fall, and `leo-disagree` and
 `recovery-on-accepted` may not rise.
 
-`lex-unmapped`'s baseline is not 0. Twelve scored cases that perl accepts are
-lexed wrongly by the production lexer, which this milestone may not change.
-Three more are refused because `chart/lex` re-lexes a `$#{` interior from a
-blank lexer state. The rule fails closed. It lexes the interior only when
+`lex-unmapped`'s baseline is not 0. Three scored cases are refused because
+`chart/lex` re-lexes a `$#{` interior from a blank lexer state. The rule fails closed. It lexes the interior only when
 nothing before the `$#{` can have moved the file's state off blank: `use` or
 `no` of strict or warnings, and statements with no `use`, `no`, `sub`,
 `class`, `BEGIN` or heredoc opener. Anything else refuses rather than guess,
