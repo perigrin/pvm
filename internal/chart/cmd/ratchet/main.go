@@ -8,6 +8,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -57,6 +58,7 @@ var keys = []string{
 	"rd-oracle-exact", "rd-oracle-coverage", "rd-parse-ms-std5k", "rd-parse-ms-corpus",
 	"tables-drift", "core-tpm-differences",
 	"lex-unmapped",
+	"expectation-conflicts",
 }
 
 func main() {
@@ -167,10 +169,11 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 	}
 	m["defect-yield-listed"] = strconv.Itoa(len(listed))
 
-	drift, err := tablesDrift(tablesDir, grammarSLIF)
+	drift, conflicts, err := tablesDrift(tablesDir, grammarSLIF)
 	if err != nil {
 		return nil, nil, fmt.Errorf("tables-drift: %w", err)
 	}
+	m["expectation-conflicts"] = strconv.Itoa(conflicts)
 	for _, d := range drift {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: tables-drift: %s\n", d)
 	}
@@ -276,21 +279,29 @@ func knownMismatch(failing []string, known string) []string {
 }
 
 // tablesDrift regenerates the tables from slif into a temporary directory
-// and names each file that differs from the committed ones in dir.
-func tablesDrift(dir, slif string) ([]string, error) {
+// and names each file that differs from the committed ones in dir. It also
+// counts the conflicting pairs the generator found, the lines of its
+// conflicts.txt.
+func tablesDrift(dir, slif string) (drift []string, conflicts int, err error) {
 	files, err := grammar.GenerateTables(slif)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	for _, f := range files {
+		if f.Name == "conflicts.txt" {
+			conflicts = bytes.Count(f.Data, []byte("\n"))
+		}
 	}
 	tmp, err := os.MkdirTemp("", "chart-tables-")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer os.RemoveAll(tmp)
 	if err := grammar.WriteTables(tmp, files); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return grammar.TablesDrift(dir, tmp)
+	drift, err = grammar.TablesDrift(dir, tmp)
+	return drift, conflicts, err
 }
 
 func rate(k, n int) string {

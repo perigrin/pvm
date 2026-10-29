@@ -42,21 +42,28 @@ type Transition struct {
 // transition's source items began. A predicted state holds the items the
 // kernel predicts, closed the same way: their origin is the current position.
 // Epsilon is a kernel state's predicted state, -1 if it predicts nothing.
+// Expected is the terminals after a dot in Items, in symbol order; Leo marks
+// a state eligible for Leo's memo (leo.go).
 type State struct {
 	Items       []int
 	Predicted   bool
 	Epsilon     int
 	Transitions []Transition
 	Reduces     []int
+	Expected    []int
+	Leo         bool
 }
 
-// Tables are the generator's output.
+// Tables are the generator's output. Probes and Conflicts are set by
+// BuildTables, from a cut's terminals.
 type Tables struct {
-	Start   int
-	Symbols []TableSymbol
-	Rules   []BNFRule
-	Items   []CoreItem
-	States  []State
+	Start     int
+	Symbols   []TableSymbol
+	Rules     []BNFRule
+	Items     []CoreItem
+	States    []State
+	Probes    []Probe
+	Conflicts []Conflict
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting
@@ -117,6 +124,8 @@ func BuildLR0(start string, rules []Rule, terminals []string) (*Tables, error) {
 		}
 	}
 	t.automaton(itemOf)
+	t.expected()
+	t.leo()
 	return t, nil
 }
 

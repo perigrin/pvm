@@ -166,10 +166,26 @@ expectation classes.
 
 **Expectation classes** project a position's expected-terminal set, the union
 over every state in the Earley set there, onto the token pairs that conflict
-lexically in the grammar in force. In Standard Perl those are `/` as division
-or regex and `<` as less-than or readline, plus `%`, `&`, `*`, `-X` and `x`.
-`{`, `<<` and `?` join the list only as the ratchet adds what makes them
-conflict (block/hash in perl's sense, heredocs, `?PATTERN?`).
+lexically in the grammar in force. A **conflicting pair** is observed, not
+derived. The generator probes every text a cut terminal can start: each
+literal text, and for each pattern terminal one short generated sample per
+printable character its texts can start with (`/x/x`, `<<>>`, `%x::x`). It
+lexes each probe with the production lexer (`internal/lexer`, read only)
+once in `XOperator` and once in `XTerm`. Where the two token streams differ,
+the pair is the two terminals the cut maps the first differing tokens to,
+named by the text where the two readings diverge. A reading the cut maps to
+no terminal, such as an unterminated regex, makes no pair. This is perl's
+`PL_expect` split read from the lexer that models it, so a lexer bug shows up
+as a wrong entry, and the review of the committed list is where it is caught:
+each listed text must mean one thing in operator position and another in term
+position. The count is whatever the lexer yields. In Standard Perl the pairs
+include `/` as division or regex and `<` as less-than or readline, plus `%`,
+`&`, `*` and `x`, and `<<`, which in term position starts `<<>>`, the double
+diamond. `-X` is not among them: perl 5.42 lexes a filetest by its text, not
+its position, so `$a -e` and `$a -e $f` are syntax errors, and pvm's lexer
+agrees. `{` and `?` join only as the ratchet adds what makes them conflict
+(block/hash in perl's sense, `?PATTERN?`); heredocs add no further pair to
+`<<`.
 
 ### `chart/lex`
 

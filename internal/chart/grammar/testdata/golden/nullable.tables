@@ -52,3 +52,17 @@ start 0
 7 5:9
 8
 9
+== expected.txt ==
+0 4 6
+1 6
+2 4
+3
+4
+5 5
+6
+7 5
+8
+9
+== leo.txt ==
+== probes.txt ==
+== conflicts.txt ==
