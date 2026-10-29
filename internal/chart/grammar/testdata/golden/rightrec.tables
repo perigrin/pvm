@@ -1,0 +1,21 @@
+== symbols.txt ==
+0 nonterminal S
+1 terminal A
+== rules.txt ==
+0 S ::= A S
+1 S ::= A
+== items.txt ==
+0 0 0
+1 0 1
+2 0 2
+3 1 0
+4 1 1
+== states.txt ==
+start 0
+0 predicted -1 items 0 3 reduce
+1 kernel 0 items 1 4 reduce 1
+2 kernel -1 items 2 reduce 0
+== transitions.txt ==
+0 1:1
+1 0:2
+2

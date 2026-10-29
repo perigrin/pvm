@@ -1,0 +1,4 @@
+# Left recursion.
+E ::= E P T | T
+T ~ 't'
+P ~ '+'

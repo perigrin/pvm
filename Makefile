@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental chart-ratchet
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental chart-ratchet chart-tables
 
 BINARIES = pvm pvx pm psc
 
@@ -49,6 +49,12 @@ fuzz-incremental:
 # internal/chart/testdata/ratchet/baseline.txt.
 chart-ratchet:
 	go run ./internal/chart/cmd/ratchet
+
+# The chart grammar's generated tables (internal/chart/README.md describes
+# them). They are committed; the ratchet's tables-drift key holds them to
+# what this writes.
+chart-tables:
+	go run ./internal/chart/grammar/cmd/gen
 
 # Docker-based user-journey smoke test. Simulates a fresh install against
 # bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.

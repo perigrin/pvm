@@ -1,0 +1,8 @@
+# Nullable through two levels: A is nullable because C is, and C because D* is.
+S ::= A X B
+A ::= C
+C ::= D*
+B ::= E+
+D ~ 'd'
+E ~ 'e'
+X ~ 'x'
