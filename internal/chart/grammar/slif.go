@@ -162,7 +162,7 @@ func scan(file, s string) ([]token, error) {
 			kind, text, i = tLiteral, s[i+1:end], end+1
 		case c == '[':
 			for i++; i < len(s) && s[i] != ']' && s[i] != '\n'; i++ {
-				if s[i] == '\\' {
+				if s[i] == '\\' && i+1 < len(s) && s[i+1] != '\n' {
 					i++
 				}
 			}
@@ -264,7 +264,11 @@ func (r *reader) statement() error {
 		if _, dup := r.g.Priority[sym]; dup {
 			return r.errf(t.line, "second :lexeme for %s", sym)
 		}
-		r.g.Priority[sym], _ = strconv.Atoi(adv[0].val)
+		n, err := strconv.Atoi(adv[0].val)
+		if err != nil {
+			return r.errf(t.line, "priority %s is out of range", adv[0].val)
+		}
+		r.g.Priority[sym] = n
 		return nil
 	case t.kind == tPseudo && t.text == ":discard":
 		sym, err := r.pseudoHead(t)

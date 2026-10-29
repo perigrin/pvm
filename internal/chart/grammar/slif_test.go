@@ -158,6 +158,12 @@ func TestReaderRejectsUnsupported(t *testing.T) {
 		{"A ~ 'a' action => ::first\n", 1},
 		{"lexeme default = action => ::first\n", 1},
 		{"A ~ 'a'\n:lexeme ~ A priority => 1\n:lexeme ~ A priority => 2\n", 3},
+		{"A ~ 'a'\n:lexeme ~ A priority => 99999999999999999999\n", 2},
+		{"A ~ <a\n>\n", 1},
+		{"A ~ 'a\n'\n", 1},
+		{"A ~ [a\n]\n", 1},
+		// A backslash before the newline does not escape it: the class is unterminated.
+		{"B ~ 'b'\nA ~ [a\\\n]\n", 2},
 	} {
 		if e := readErr(t, tc.src); e.Line != tc.line {
 			t.Errorf("ReadSLIF(%q) error %q names line %d, want %d", tc.src, e, e.Line, tc.line)
