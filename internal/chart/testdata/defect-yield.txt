@@ -1,0 +1,66 @@
+# The defect-yield list (spec 2026-10-29-chart-parser-design.md, sections 2.3 and 8).
+# Fixed 2026-10-29 from `git zhi list --format json` (every open issue on the chain).
+# 182 open issues; 152 bodies read (the 30 chart-waypoint and
+# m2-incremental issues are planned work, not defects, and were excluded by title).
+# Rule: an issue is listed when its body records a Perl source on which
+# internal/parse or internal/lexer reaches a different verdict than perl's:
+# it refuses what perl compiles, accepts what perl refuses, or builds a tree
+# perl does not. Disagreements only in typing, lowering, canon re-emission,
+# line numbering or .tpm declarations are not listed.
+# 50 listed; 44 have a frozen case in defect-yield/<ref>.pl.
+# 01a174d8-40e3 and 01a17591-1a24 share one title and one defect family, so that
+# family counts twice in the yield; both stay listed because their cases differ.
+# Already settled by recursive descent at 0e8c32fd (the cases no longer disagree):
+# 01a0d0b1-2343 01a0dccb-5c5f 01a122e2-3982 01a11263-4044 01a11254-136b
+# 01a12204-5275 01a128ad-18f3 01a13216-6a20 01a16b2b-44dd 01a11106-b336 01a16a7a-a71c
+# The list is fixed: settling an issue changes its state, not this file.
+01a0d0b1-2343 The block form of the filehandle slot refuses
+01a0dc72-2609 Bare v5 is a v-string in perl, and a lexer cannot tell it from a bareword
+01a0dccb-5c5f A malformed format declaration loses canon's fixpoint, and one perl rejects parses clean
+01a10e49-133f Refuse map/grep forms perl rejects: hash brace then a term-position operator, block at EOF
+01a110de-6b63 sub g : method lvalue {} is refused; perl accepts space-separated attributes after one colon
+01a110e9-e23e Two declaration comma shapes still disagree with perl: list declarations, and a later low-precedence operator
+01a110e9-e33b A \$ slot still accepts non-lvalue expressions perl refuses
+01a11106-b1e8 Read IO::File's computed export list, so T1's indirect_object_constructor.t returns to 0
+01a11106-b336 A lexical sub is also recorded in its package and outlives its block
+01a11254-136b Four trees that disagree with perl, found building the arity refusal: pipe my(...) or die, indirect new/is, f { } for (&@), canon (&$)
+01a11263-4044 The arity refusal misses XS subs whose prototypes are not in readable source (blessed, first)
+01a112f8-4f6c CORE::any { } @a without its feature is left unparsed; perl accepts it
+01a11317-84f4 A niladic builtin called with arguments is not refused: time(1) parses as time()(1)
+01a1201b-1f6e say is read as the builtin whether or not the say feature is on
+01a1201c-36fa An undeclared bareword argument is read as a sub call where perl reads a string
+01a121e3-0f49 state is always a declarator in internal/parse, but perl reads it as a bareword when its feature is off
+01a12204-5275 The lexer cannot know a bareword is a declared sub, so & and * after one are read as perl reads them only when it is
+01a12204-533c A heredoc with no terminator parses, though perl cannot find the string terminator
+01a122e2-3982 use 'A', use $x, use;, use {A} and use 5.010 (1) parse, though perl refuses each
+01a12312-774d my $0 parses, though perl cannot use a global in my
+01a123c3-5915 Three neighbours of print's handle rule: - A is a string, a bareword handle before -1/&y, and the rule after any list operator
+01a1244d-a4b2 while(){} is refused by internal/parse, though perl reads the empty condition as while (1)
+01a12573-eb8a Canon is not a fixpoint on *+ ++ (a fuzz find)
+01a128ad-18f3 &2 and &== 2 are accepted by perl, which names the sub by one character; internal/parse refuses or misreads them
+01a12a7a-db26 A sub declared in another package is refused as a call from main, where perl reads an indirect method call
+01a12a7a-dbdf Unfeatured fc $x is refused, where perl reads the indirect call $x->fc
+01a13216-6a20 use Foo 1.2 qw(a) splits its import list into a separate statement
+01a1335d-9738 A chained comparison draws a false operand warning, as legacy read it pairwise
+01a13e28-6ad8 The parser ignores use lib, so imports from a use lib directory go unresolved
+01a142d2-5f8d A compound operator after declaration attributes is accepted, though perl refuses it
+01a142d2-602e print STDOUT **2 produces a tree, though perl refuses it
+01a1447f-7f64 A fully-qualified call with a parenless argument list is refused: Carp::croak sprintf(...)
+01a1447f-80d7 print FH &{...}(...) is refused
+01a1448a-e64a package Foo v1.2.3 { } is refused, though perl accepts a v-string version
+01a146bc-6132 A scalar typed our outside a .tpm is not refused, though perl dies No such class
+01a15ad0-13e2 psc check reports nothing for programs perl refuses to compile: my $x = ; and a typed our
+01a16a7a-a71c \my swallows the assignment that follows it
+01a16ab2-e045 A builtin overridden by an import still parses as the builtin
+01a16b2b-44dd A bareword operator word as a hash subscript key parses as the operator
+01a16ba6-d445 print FH (LIST) parses the filehandle as a call
+01a16bfc-f90d Canon writes () after an unresolved bareword, turning a string into a call
+01a16e21-3460 Parse the inner { of hash_ref_disambiguation.t's `sub { {1,2,3,4} }` as perl does
+01a16e21-348d Parse the inner { of cpan_ceph_tie_runtime.t's `map { { $_->get_columns } } @x` as perl does
+01a16e4f-b570 Deref braces around a quote word, or a subscript that stops short, read wrongly
+01a16f31-369d A lexical sub named use or package is still misread
+01a1737f-bb5e sub :lvalue {} at statement start reads as a label; $#{...} is opaque
+01a174d8-40e3 Loop-control, declaration and canon defects found by the M3 per-fix reviews
+01a17591-1a24 Loop-control, declaration and canon defects found by the M3 per-fix reviews
+01a18582-65bf A non-decimal floating-point literal (0_.4p1, which perl reads as 1.0) is refused
+01a18582-65d3 package q; (and qq, qw, qx, qr) is refused: after package, perl reads a quote-like word as the name
