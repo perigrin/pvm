@@ -919,6 +919,7 @@ var workflowPerls = map[string]string{
 	"ci.yml/test":                     perl542Pin,
 	"ci.yml/ratchets":                 perl542Pin,
 	"ci.yml/smoke-test":               "",
+	"chart-ratchet.yml/chart-ratchet": perl542Pin,
 	"parse-fidelity.yml/ratchet":      oraclePin,
 	"parser-fuzz.yml/fuzz-parser":     "",
 	"release.yml/build-matrix":        "",

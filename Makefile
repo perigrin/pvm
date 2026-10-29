@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental chart-ratchet
 
 BINARIES = pvm pvx pm psc
 
@@ -42,6 +42,13 @@ fuzz-parser:
 fuzz-incremental:
 	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncremental$$' -fuzztime 10000000x
 	go test ./internal/parse/ -run '^$$' -fuzz '^FuzzIncrementalSequence$$' -fuzztime 10000000x
+
+# The chart spike's ratchet (internal/chart/README.md has its output
+# contract). Mainline does not gate on it: `test` never runs it, and its CI
+# job, chart-ratchet.yml, is advisory. It fails only on a regression against
+# internal/chart/testdata/ratchet/baseline.txt.
+chart-ratchet:
+	go run ./internal/chart/cmd/ratchet
 
 # Docker-based user-journey smoke test. Simulates a fresh install against
 # bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.
