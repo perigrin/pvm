@@ -294,12 +294,9 @@ recorded.
    or if it exists on one side only, so surplus counts. Where the chart's live
    readings disagree on a site's fields, as for a named unary against a list
    operator, the site is unresolved and scores wider, as above; it is WRONG
-   only if no live reading matches perl. The one exception follows the older
-   kinds: a site perl folded away is not graded. Perl leaves a trace of each
-   kind of fold: an inlined constant sub leaves a `const` where the call
-   stood, and a dead branch leaves no statement, so a parser-only site is
-   graded only where perl compiled its statement and left no `const` in its
-   place. It is mainline oracle work: the kind lands
+   only if no live reading matches perl. A call perl folds away is WRONG for
+   both parsers alike, so the per-site rule below absorbs it. It is mainline
+   oracle work: the kind lands
    with recursive descent's measured sites as its ratchet baseline, and its
    own budget line under the ratchet's. On this kind parity means **every
    site WRONG for the chart is WRONG for recursive descent too**, per file and
@@ -473,7 +470,8 @@ orchestrating session runs it at every step's close.
   method call in perl), with `sub foo($)` and with `sub foo`, for
   `print $fh $x` against `print $x`, and for `sort $c @l` against
   `sort($c, @l)`, for `foo($x, $y)` on lexicals (`padrange`), and for
-  `sub PI() {3} PI` (folded, ungraded), the site matches perl's op tree, and
+  `sub PI() {3} PI` (folded: WRONG on both, no parity finding), the site
+  matches perl's op tree, and
   a deliberately wrong reading is graded WRONG.
 - **Fuzzing:** recognizer invariants from the first step, forest invariants
   from the step that builds the forest, and the incremental fuzzers after
