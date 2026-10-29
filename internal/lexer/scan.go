@@ -804,6 +804,7 @@ func scanNumber(l *lexer) bool {
 // Shared with scanVString, which differs only in the `v` it consumes first.
 func (l *lexer) scanNumberRun() int {
 	dots := 0
+	start := l.pos
 	// A RADIX PREFIX rules the exponent sign out, because `e` is a hex
 	// digit there rather than an exponent marker. Measured 5.42.0:
 	// `print 0x1e-1` is 29, so that `-` is subtraction.
@@ -861,6 +862,14 @@ func (l *lexer) scanNumberRun() int {
 					l.pos = end
 					continue
 				}
+			}
+			// An octal or binary literal takes only its digits, `_`, the
+			// `p` of a float and its prefix letter, so `07x3` is `07 x 3`:
+			// perl 5.44.0 prints 777 for it, 777 for `0_7x3` and 111 for
+			// `0b1x3`.
+			if radix && !hex && !isDigit(c) && c != '_' && c != 'p' && c != 'P' &&
+				!(l.pos == start+1 && byteIn(c, "bBoO")) {
+				return dots
 			}
 			// A DECIMAL takes no other letter (toke.c:13142-13144), so
 			// `5x3` is `5 x 3` and `1if $b` is `1 if $b`, measured on

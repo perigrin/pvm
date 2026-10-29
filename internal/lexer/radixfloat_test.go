@@ -40,6 +40,25 @@ func TestRadixFloatLiterals(t *testing.T) {
 			t.Errorf("%q: value %v (ok %v), perl gives %v", tc.lit, v, ok, tc.want)
 		}
 	}
+	// An octal or binary literal ends at a letter that is not its own, so a
+	// repetition after it is an operator. perl 5.44.0, Deparse:
+	// `print 0_7x3` is '777', `07x3` '777', `0b1x3` '111', `0o7x3` '777',
+	// `0_x3` '000'.
+	for _, tc := range []struct{ src, num string }{
+		{"print 0_7x3;", "0_7"}, {"print 07x3;", "07"}, {"print 0b1x3;", "0b1"},
+		{"print 0o7x3;", "0o7"}, {"print 0_x3;", "0_"},
+	} {
+		toks := significant(Tokenize([]byte(tc.src)))
+		if len(toks) != 5 || toks[1].Kind != Number ||
+			tc.src[toks[1].Start:toks[1].End] != tc.num ||
+			tc.src[toks[2].Start:toks[2].End] != "x" {
+			var got []string
+			for _, tok := range toks {
+				got = append(got, tc.src[tok.Start:tok.End])
+			}
+			t.Errorf("%q: want Number %q then `x 3`, got %q", tc.src, tc.num, got)
+		}
+	}
 	// In a hex literal `e` is a digit, so a sign after it still subtracts:
 	// perl 5.44.0 prints 29 for `0x1e-1`.
 	toks := significant(Tokenize([]byte("print 0x1e-1;")))
