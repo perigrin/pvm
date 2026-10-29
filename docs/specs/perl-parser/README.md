@@ -30,11 +30,9 @@ is the definition, the other two are approximations of it.
 | 5 | [Statements and declarations](05-statements.md) | ~3.2k | Program structure, recovery, re-parse anchors |
 | 6 | [Incremental parsing and LSP](06-incremental-lsp.md) | ~2.2k | The architecture, the latency budget; what inference walks and what the prior art says (§6.1.5–6.1.8) |
 | 7 | [Conformance](07-conformance.md) | ~1k | How "correct" is measured: the oracle, the four metrics, differential testing |
-| 8 | [The chart-parser spike](08-chart-parser.md) | ~500 | An Earley parser beside recursive descent: the ratchet, its gates and kill criteria |
 
-Nine documents, roughly 13,100 lines. Chapters 2-5 specify the language; 6
-specifies the machine; 7 specifies how you know it works; 8 is an accepted
-experiment, not the parser pvm ships.
+Eight documents, roughly 12,600 lines. Chapters 2-5 specify the language; 6
+specifies the machine; 7 specifies how you know it works.
 
 ## Moved out of the specification
 

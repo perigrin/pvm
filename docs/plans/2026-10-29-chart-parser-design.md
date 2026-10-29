@@ -1,12 +1,11 @@
-<!-- ABOUTME: Chapter 8 of the Perl parser specification: the Earley chart-parser spike, built beside recursive descent. -->
+<!-- ABOUTME: Design for a research spike: an Earley chart parser for Perl, built beside the recursive-descent parser. -->
 <!-- ABOUTME: States the question, the architecture, the ratchet with its gates, and the kill criteria; the verdict is perigrin's. -->
 
-# 8. A chart parser for Perl: the research spike
+# A chart parser for Perl: design for a research spike
 
-**Status:** accepted by perigrin on 2026-10-29 as a spike, after assessment.
-It describes an experimental parser in `internal/chart`, not the parser pvm
-ships; the spike's verdict at the checkpoint (§8) decides whether it goes
-further.
+**Status:** design for a spike, written 2026-10-29. Not a decision. If the
+spike is accepted, this becomes a chapter of `docs/specs/perl-parser/`; until
+then nothing here describes the parser pvm ships.
 
 ## 1. Why
 
