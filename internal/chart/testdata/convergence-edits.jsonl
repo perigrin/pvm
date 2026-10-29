@@ -1,0 +1,200 @@
+{"kind":"insert","offset":453,"removed":0,"inserted":" my $edit = 1;","stmt_start":425,"stmt_end":453}
+{"kind":"delete","offset":764,"removed":23,"inserted":"","stmt_start":764,"stmt_end":787}
+{"kind":"replace","offset":1498,"removed":14,"inserted":"my $edit = 1;","stmt_start":1498,"stmt_end":1512}
+{"kind":"token","offset":1885,"removed":2,"inserted":"$ne","stmt_start":1885,"stmt_end":1890}
+{"kind":"insert","offset":2274,"removed":0,"inserted":" my $edit = 1;","stmt_start":2242,"stmt_end":2274}
+{"kind":"delete","offset":2908,"removed":22,"inserted":"","stmt_start":2908,"stmt_end":2930}
+{"kind":"replace","offset":3505,"removed":14,"inserted":"my $edit = 1;","stmt_start":3505,"stmt_end":3519}
+{"kind":"token","offset":4018,"removed":7,"inserted":"'edited'","stmt_start":3971,"stmt_end":4093}
+{"kind":"insert","offset":4625,"removed":0,"inserted":" my $edit = 1;","stmt_start":4602,"stmt_end":4625}
+{"kind":"delete","offset":5082,"removed":15,"inserted":"","stmt_start":5082,"stmt_end":5097}
+{"kind":"replace","offset":5290,"removed":14,"inserted":"my $edit = 1;","stmt_start":5290,"stmt_end":5304}
+{"kind":"token","offset":6071,"removed":9,"inserted":"$REGISTRYe","stmt_start":6071,"stmt_end":6108}
+{"kind":"insert","offset":6374,"removed":0,"inserted":" my $edit = 1;","stmt_start":6324,"stmt_end":6374}
+{"kind":"delete","offset":6880,"removed":14,"inserted":"","stmt_start":6880,"stmt_end":6894}
+{"kind":"replace","offset":7667,"removed":22,"inserted":"my $edit = 1;","stmt_start":7667,"stmt_end":7689}
+{"kind":"token","offset":8085,"removed":5,"inserted":"$selfe","stmt_start":8078,"stmt_end":8102}
+{"kind":"insert","offset":8865,"removed":0,"inserted":" my $edit = 1;","stmt_start":8831,"stmt_end":8865}
+{"kind":"delete","offset":8981,"removed":42,"inserted":"","stmt_start":8981,"stmt_end":9023}
+{"kind":"replace","offset":9599,"removed":13,"inserted":"my $edit = 1;","stmt_start":9599,"stmt_end":9612}
+{"kind":"token","offset":10056,"removed":6,"inserted":"'edited'","stmt_start":10038,"stmt_end":10066}
+{"kind":"insert","offset":10546,"removed":0,"inserted":" my $edit = 1;","stmt_start":10519,"stmt_end":10546}
+{"kind":"delete","offset":11365,"removed":5,"inserted":"","stmt_start":11365,"stmt_end":11370}
+{"kind":"replace","offset":11801,"removed":28,"inserted":"my $edit = 1;","stmt_start":11801,"stmt_end":11829}
+{"kind":"token","offset":12415,"removed":6,"inserted":"$cleane","stmt_start":12415,"stmt_end":12442}
+{"kind":"insert","offset":12815,"removed":0,"inserted":" my $edit = 1;","stmt_start":12773,"stmt_end":12815}
+{"kind":"delete","offset":13341,"removed":10,"inserted":"","stmt_start":13341,"stmt_end":13351}
+{"kind":"replace","offset":13830,"removed":28,"inserted":"my $edit = 1;","stmt_start":13830,"stmt_end":13858}
+{"kind":"token","offset":14147,"removed":7,"inserted":"'edited'","stmt_start":14140,"stmt_end":14155}
+{"kind":"insert","offset":14960,"removed":0,"inserted":" my $edit = 1;","stmt_start":14950,"stmt_end":14960}
+{"kind":"delete","offset":15302,"removed":23,"inserted":"","stmt_start":15302,"stmt_end":15325}
+{"kind":"replace","offset":16180,"removed":22,"inserted":"my $edit = 1;","stmt_start":16180,"stmt_end":16202}
+{"kind":"token","offset":16766,"removed":1,"inserted":"42","stmt_start":16731,"stmt_end":16768}
+{"kind":"insert","offset":17182,"removed":0,"inserted":" my $edit = 1;","stmt_start":17171,"stmt_end":17182}
+{"kind":"delete","offset":17243,"removed":122,"inserted":"","stmt_start":17243,"stmt_end":17365}
+{"kind":"replace","offset":18005,"removed":60,"inserted":"my $edit = 1;","stmt_start":18005,"stmt_end":18065}
+{"kind":"token","offset":18750,"removed":1,"inserted":"42","stmt_start":18742,"stmt_end":18752}
+{"kind":"insert","offset":19264,"removed":0,"inserted":" my $edit = 1;","stmt_start":19140,"stmt_end":19264}
+{"kind":"delete","offset":19436,"removed":16,"inserted":"","stmt_start":19436,"stmt_end":19452}
+{"kind":"replace","offset":20279,"removed":16,"inserted":"my $edit = 1;","stmt_start":20279,"stmt_end":20295}
+{"kind":"token","offset":20936,"removed":2,"inserted":"$ne","stmt_start":20929,"stmt_end":20939}
+{"kind":"insert","offset":21416,"removed":0,"inserted":" my $edit = 1;","stmt_start":21400,"stmt_end":21416}
+{"kind":"delete","offset":21499,"removed":50,"inserted":"","stmt_start":21499,"stmt_end":21549}
+{"kind":"replace","offset":22361,"removed":15,"inserted":"my $edit = 1;","stmt_start":22361,"stmt_end":22376}
+{"kind":"token","offset":22719,"removed":5,"inserted":"$selfe","stmt_start":22681,"stmt_end":22740}
+{"kind":"insert","offset":23522,"removed":0,"inserted":" my $edit = 1;","stmt_start":23454,"stmt_end":23522}
+{"kind":"delete","offset":24079,"removed":16,"inserted":"","stmt_start":24079,"stmt_end":24095}
+{"kind":"replace","offset":24442,"removed":10,"inserted":"my $edit = 1;","stmt_start":24442,"stmt_end":24452}
+{"kind":"token","offset":25108,"removed":6,"inserted":"$classe","stmt_start":25088,"stmt_end":25116}
+{"kind":"insert","offset":25422,"removed":0,"inserted":" my $edit = 1;","stmt_start":25354,"stmt_end":25422}
+{"kind":"delete","offset":25855,"removed":14,"inserted":"","stmt_start":25855,"stmt_end":25869}
+{"kind":"replace","offset":26457,"removed":5,"inserted":"my $edit = 1;","stmt_start":26457,"stmt_end":26462}
+{"kind":"token","offset":26807,"removed":7,"inserted":"'edited'","stmt_start":26740,"stmt_end":26864}
+{"kind":"insert","offset":27750,"removed":0,"inserted":" my $edit = 1;","stmt_start":27726,"stmt_end":27750}
+{"kind":"delete","offset":28102,"removed":16,"inserted":"","stmt_start":28102,"stmt_end":28118}
+{"kind":"replace","offset":28503,"removed":5,"inserted":"my $edit = 1;","stmt_start":28503,"stmt_end":28508}
+{"kind":"token","offset":29125,"removed":2,"inserted":"$_e","stmt_start":29099,"stmt_end":29149}
+{"kind":"insert","offset":29346,"removed":0,"inserted":" my $edit = 1;","stmt_start":29331,"stmt_end":29346}
+{"kind":"delete","offset":30142,"removed":10,"inserted":"","stmt_start":30142,"stmt_end":30152}
+{"kind":"replace","offset":30746,"removed":37,"inserted":"my $edit = 1;","stmt_start":30746,"stmt_end":30783}
+{"kind":"token","offset":31238,"removed":7,"inserted":"'edited'","stmt_start":31231,"stmt_end":31246}
+{"kind":"insert","offset":31802,"removed":0,"inserted":" my $edit = 1;","stmt_start":31760,"stmt_end":31802}
+{"kind":"delete","offset":32303,"removed":5,"inserted":"","stmt_start":32303,"stmt_end":32308}
+{"kind":"replace","offset":32580,"removed":24,"inserted":"my $edit = 1;","stmt_start":32580,"stmt_end":32604}
+{"kind":"token","offset":33537,"removed":5,"inserted":"$worde","stmt_start":33510,"stmt_end":33544}
+{"kind":"insert","offset":33818,"removed":0,"inserted":" my $edit = 1;","stmt_start":33802,"stmt_end":33818}
+{"kind":"delete","offset":34480,"removed":24,"inserted":"","stmt_start":34480,"stmt_end":34504}
+{"kind":"replace","offset":34927,"removed":23,"inserted":"my $edit = 1;","stmt_start":34927,"stmt_end":34950}
+{"kind":"token","offset":35588,"removed":5,"inserted":"$seene","stmt_start":35560,"stmt_end":35602}
+{"kind":"insert","offset":36139,"removed":0,"inserted":" my $edit = 1;","stmt_start":36129,"stmt_end":36139}
+{"kind":"delete","offset":36180,"removed":13,"inserted":"","stmt_start":36180,"stmt_end":36193}
+{"kind":"replace","offset":37226,"removed":24,"inserted":"my $edit = 1;","stmt_start":37226,"stmt_end":37250}
+{"kind":"token","offset":37482,"removed":3,"inserted":"'edited'","stmt_start":37460,"stmt_end":37502}
+{"kind":"insert","offset":38079,"removed":0,"inserted":" my $edit = 1;","stmt_start":38068,"stmt_end":38079}
+{"kind":"delete","offset":38654,"removed":68,"inserted":"","stmt_start":38654,"stmt_end":38722}
+{"kind":"replace","offset":38831,"removed":15,"inserted":"my $edit = 1;","stmt_start":38831,"stmt_end":38846}
+{"kind":"token","offset":39813,"removed":4,"inserted":"$keye","stmt_start":39781,"stmt_end":39840}
+{"kind":"insert","offset":40283,"removed":0,"inserted":" my $edit = 1;","stmt_start":40246,"stmt_end":40283}
+{"kind":"delete","offset":40357,"removed":24,"inserted":"","stmt_start":40357,"stmt_end":40381}
+{"kind":"replace","offset":40902,"removed":27,"inserted":"my $edit = 1;","stmt_start":40902,"stmt_end":40929}
+{"kind":"token","offset":41545,"removed":2,"inserted":"$ne","stmt_start":41542,"stmt_end":41552}
+{"kind":"insert","offset":41918,"removed":0,"inserted":" my $edit = 1;","stmt_start":41895,"stmt_end":41918}
+{"kind":"delete","offset":42926,"removed":24,"inserted":"","stmt_start":42926,"stmt_end":42950}
+{"kind":"replace","offset":43442,"removed":10,"inserted":"my $edit = 1;","stmt_start":43442,"stmt_end":43452}
+{"kind":"token","offset":43984,"removed":6,"inserted":"$classe","stmt_start":43980,"stmt_end":44004}
+{"kind":"insert","offset":44083,"removed":0,"inserted":" my $edit = 1;","stmt_start":44046,"stmt_end":44083}
+{"kind":"delete","offset":44702,"removed":27,"inserted":"","stmt_start":44702,"stmt_end":44729}
+{"kind":"replace","offset":45629,"removed":10,"inserted":"my $edit = 1;","stmt_start":45629,"stmt_end":45639}
+{"kind":"token","offset":45710,"removed":7,"inserted":"'edited'","stmt_start":45695,"stmt_end":45718}
+{"kind":"insert","offset":46396,"removed":0,"inserted":" my $edit = 1;","stmt_start":46373,"stmt_end":46396}
+{"kind":"delete","offset":46755,"removed":14,"inserted":"","stmt_start":46755,"stmt_end":46769}
+{"kind":"replace","offset":47503,"removed":5,"inserted":"my $edit = 1;","stmt_start":47503,"stmt_end":47508}
+{"kind":"token","offset":47972,"removed":7,"inserted":"'edited'","stmt_start":47957,"stmt_end":47981}
+{"kind":"insert","offset":48497,"removed":0,"inserted":" my $edit = 1;","stmt_start":48475,"stmt_end":48497}
+{"kind":"delete","offset":49281,"removed":59,"inserted":"","stmt_start":49281,"stmt_end":49340}
+{"kind":"replace","offset":49429,"removed":10,"inserted":"my $edit = 1;","stmt_start":49429,"stmt_end":49439}
+{"kind":"token","offset":50238,"removed":7,"inserted":"'edited'","stmt_start":50231,"stmt_end":50246}
+{"kind":"insert","offset":50802,"removed":0,"inserted":" my $edit = 1;","stmt_start":50760,"stmt_end":50802}
+{"kind":"delete","offset":51157,"removed":5,"inserted":"","stmt_start":51157,"stmt_end":51162}
+{"kind":"replace","offset":51736,"removed":16,"inserted":"my $edit = 1;","stmt_start":51736,"stmt_end":51752}
+{"kind":"token","offset":52430,"removed":5,"inserted":"$selfe","stmt_start":52426,"stmt_end":52450}
+{"kind":"insert","offset":52952,"removed":0,"inserted":" my $edit = 1;","stmt_start":52942,"stmt_end":52952}
+{"kind":"delete","offset":53243,"removed":23,"inserted":"","stmt_start":53243,"stmt_end":53266}
+{"kind":"replace","offset":53657,"removed":24,"inserted":"my $edit = 1;","stmt_start":53657,"stmt_end":53681}
+{"kind":"token","offset":54141,"removed":3,"inserted":"'edited'","stmt_start":54104,"stmt_end":54164}
+{"kind":"insert","offset":54764,"removed":0,"inserted":" my $edit = 1;","stmt_start":54727,"stmt_end":54764}
+{"kind":"delete","offset":55409,"removed":32,"inserted":"","stmt_start":55409,"stmt_end":55441}
+{"kind":"replace","offset":55931,"removed":15,"inserted":"my $edit = 1;","stmt_start":55931,"stmt_end":55946}
+{"kind":"token","offset":56158,"removed":6,"inserted":"$cleane","stmt_start":56134,"stmt_end":56206}
+{"kind":"insert","offset":57008,"removed":0,"inserted":" my $edit = 1;","stmt_start":57003,"stmt_end":57008}
+{"kind":"delete","offset":57095,"removed":23,"inserted":"","stmt_start":57095,"stmt_end":57118}
+{"kind":"replace","offset":58126,"removed":24,"inserted":"my $edit = 1;","stmt_start":58126,"stmt_end":58150}
+{"kind":"token","offset":58545,"removed":5,"inserted":"$stepe","stmt_start":58527,"stmt_end":58564}
+{"kind":"insert","offset":58840,"removed":0,"inserted":" my $edit = 1;","stmt_start":58781,"stmt_end":58840}
+{"kind":"delete","offset":59288,"removed":28,"inserted":"","stmt_start":59288,"stmt_end":59316}
+{"kind":"replace","offset":59731,"removed":15,"inserted":"my $edit = 1;","stmt_start":59731,"stmt_end":59746}
+{"kind":"token","offset":60719,"removed":5,"inserted":"$selfe","stmt_start":60681,"stmt_end":60740}
+{"kind":"insert","offset":61281,"removed":0,"inserted":" my $edit = 1;","stmt_start":61257,"stmt_end":61281}
+{"kind":"delete","offset":61321,"removed":28,"inserted":"","stmt_start":61321,"stmt_end":61349}
+{"kind":"replace","offset":62373,"removed":14,"inserted":"my $edit = 1;","stmt_start":62373,"stmt_end":62387}
+{"kind":"token","offset":62736,"removed":2,"inserted":"$ne","stmt_start":62729,"stmt_end":62739}
+{"kind":"insert","offset":62964,"removed":0,"inserted":" my $edit = 1;","stmt_start":62840,"stmt_end":62964}
+{"kind":"delete","offset":63473,"removed":23,"inserted":"","stmt_start":63473,"stmt_end":63496}
+{"kind":"replace","offset":64481,"removed":59,"inserted":"my $edit = 1;","stmt_start":64481,"stmt_end":64540}
+{"kind":"token","offset":64699,"removed":8,"inserted":"$VERSIONe","stmt_start":64695,"stmt_end":64718}
+{"kind":"insert","offset":65052,"removed":0,"inserted":" my $edit = 1;","stmt_start":65036,"stmt_end":65052}
+{"kind":"delete","offset":65960,"removed":42,"inserted":"","stmt_start":65960,"stmt_end":66002}
+{"kind":"replace","offset":66173,"removed":14,"inserted":"my $edit = 1;","stmt_start":66173,"stmt_end":66187}
+{"kind":"token","offset":67039,"removed":6,"inserted":"'edited'","stmt_start":67021,"stmt_end":67049}
+{"kind":"insert","offset":67464,"removed":0,"inserted":" my $edit = 1;","stmt_start":67404,"stmt_end":67464}
+{"kind":"delete","offset":67710,"removed":34,"inserted":"","stmt_start":67710,"stmt_end":67744}
+{"kind":"replace","offset":68540,"removed":124,"inserted":"my $edit = 1;","stmt_start":68540,"stmt_end":68664}
+{"kind":"token","offset":68864,"removed":5,"inserted":"$selfe","stmt_start":68857,"stmt_end":68881}
+{"kind":"insert","offset":69550,"removed":0,"inserted":" my $edit = 1;","stmt_start":69526,"stmt_end":69550}
+{"kind":"delete","offset":69973,"removed":14,"inserted":"","stmt_start":69973,"stmt_end":69987}
+{"kind":"replace","offset":70380,"removed":13,"inserted":"my $edit = 1;","stmt_start":70380,"stmt_end":70393}
+{"kind":"token","offset":71138,"removed":7,"inserted":"'edited'","stmt_start":71131,"stmt_end":71146}
+{"kind":"insert","offset":71739,"removed":0,"inserted":" my $edit = 1;","stmt_start":71713,"stmt_end":71739}
+{"kind":"delete","offset":72243,"removed":23,"inserted":"","stmt_start":72243,"stmt_end":72266}
+{"kind":"replace","offset":72588,"removed":28,"inserted":"my $edit = 1;","stmt_start":72588,"stmt_end":72616}
+{"kind":"token","offset":73248,"removed":9,"inserted":"$REGISTRYe","stmt_start":73234,"stmt_end":73306}
+{"kind":"insert","offset":73602,"removed":0,"inserted":" my $edit = 1;","stmt_start":73560,"stmt_end":73602}
+{"kind":"delete","offset":74195,"removed":23,"inserted":"","stmt_start":74195,"stmt_end":74218}
+{"kind":"replace","offset":74488,"removed":28,"inserted":"my $edit = 1;","stmt_start":74488,"stmt_end":74516}
+{"kind":"token","offset":75180,"removed":6,"inserted":"$cleane","stmt_start":75134,"stmt_end":75206}
+{"kind":"insert","offset":75954,"removed":0,"inserted":" my $edit = 1;","stmt_start":75949,"stmt_end":75954}
+{"kind":"delete","offset":76119,"removed":19,"inserted":"","stmt_start":76119,"stmt_end":76138}
+{"kind":"replace","offset":76521,"removed":28,"inserted":"my $edit = 1;","stmt_start":76521,"stmt_end":76549}
+{"kind":"token","offset":77130,"removed":5,"inserted":"$selfe","stmt_start":77126,"stmt_end":77150}
+{"kind":"insert","offset":77652,"removed":0,"inserted":" my $edit = 1;","stmt_start":77642,"stmt_end":77652}
+{"kind":"delete","offset":78246,"removed":37,"inserted":"","stmt_start":78246,"stmt_end":78283}
+{"kind":"replace","offset":78934,"removed":72,"inserted":"my $edit = 1;","stmt_start":78934,"stmt_end":79006}
+{"kind":"token","offset":79325,"removed":3,"inserted":"'edited'","stmt_start":79313,"stmt_end":79339}
+{"kind":"insert","offset":79879,"removed":0,"inserted":" my $edit = 1;","stmt_start":79868,"stmt_end":79879}
+{"kind":"delete","offset":80300,"removed":16,"inserted":"","stmt_start":80300,"stmt_end":80316}
+{"kind":"replace","offset":80834,"removed":72,"inserted":"my $edit = 1;","stmt_start":80834,"stmt_end":80906}
+{"kind":"token","offset":81627,"removed":4,"inserted":"$keye","stmt_start":81581,"stmt_end":81640}
+{"kind":"insert","offset":82083,"removed":0,"inserted":" my $edit = 1;","stmt_start":82046,"stmt_end":82083}
+{"kind":"delete","offset":82855,"removed":14,"inserted":"","stmt_start":82855,"stmt_end":82869}
+{"kind":"replace","offset":83342,"removed":10,"inserted":"my $edit = 1;","stmt_start":83342,"stmt_end":83352}
+{"kind":"token","offset":83710,"removed":7,"inserted":"'edited'","stmt_start":83695,"stmt_end":83718}
+{"kind":"insert","offset":84116,"removed":0,"inserted":" my $edit = 1;","stmt_start":84100,"stmt_end":84116}
+{"kind":"delete","offset":84879,"removed":16,"inserted":"","stmt_start":84879,"stmt_end":84895}
+{"kind":"replace","offset":85127,"removed":37,"inserted":"my $edit = 1;","stmt_start":85127,"stmt_end":85164}
+{"kind":"token","offset":85610,"removed":7,"inserted":"'edited'","stmt_start":85595,"stmt_end":85618}
+{"kind":"insert","offset":86296,"removed":0,"inserted":" my $edit = 1;","stmt_start":86273,"stmt_end":86296}
+{"kind":"delete","offset":87002,"removed":16,"inserted":"","stmt_start":87002,"stmt_end":87018}
+{"kind":"replace","offset":87403,"removed":5,"inserted":"my $edit = 1;","stmt_start":87403,"stmt_end":87408}
+{"kind":"token","offset":87588,"removed":7,"inserted":"'edited'","stmt_start":87540,"stmt_end":87664}
+{"kind":"insert","offset":88644,"removed":0,"inserted":" my $edit = 1;","stmt_start":88610,"stmt_end":88644}
+{"kind":"delete","offset":88813,"removed":26,"inserted":"","stmt_start":88813,"stmt_end":88839}
+{"kind":"replace","offset":89440,"removed":124,"inserted":"my $edit = 1;","stmt_start":89440,"stmt_end":89564}
+{"kind":"token","offset":89657,"removed":5,"inserted":"$selfe","stmt_start":89646,"stmt_end":89683}
+{"kind":"insert","offset":90544,"removed":0,"inserted":" my $edit = 1;","stmt_start":90510,"stmt_end":90544}
+{"kind":"delete","offset":90873,"removed":14,"inserted":"","stmt_start":90873,"stmt_end":90887}
+{"kind":"replace","offset":91268,"removed":11,"inserted":"my $edit = 1;","stmt_start":91268,"stmt_end":91279}
+{"kind":"token","offset":91837,"removed":1,"inserted":"42","stmt_start":91799,"stmt_end":91849}
+{"kind":"insert","offset":92837,"removed":0,"inserted":" my $edit = 1;","stmt_start":92815,"stmt_end":92837}
+{"kind":"delete","offset":92842,"removed":10,"inserted":"","stmt_start":92842,"stmt_end":92852}
+{"kind":"replace","offset":93600,"removed":16,"inserted":"my $edit = 1;","stmt_start":93600,"stmt_end":93616}
+{"kind":"token","offset":93877,"removed":5,"inserted":"$selfe","stmt_start":93873,"stmt_end":93896}
+{"kind":"insert","offset":94576,"removed":0,"inserted":" my $edit = 1;","stmt_start":94561,"stmt_end":94576}
+{"kind":"delete","offset":95068,"removed":11,"inserted":"","stmt_start":95068,"stmt_end":95079}
+{"kind":"replace","offset":95599,"removed":50,"inserted":"my $edit = 1;","stmt_start":95599,"stmt_end":95649}
+{"kind":"token","offset":96130,"removed":5,"inserted":"$selfe","stmt_start":96126,"stmt_end":96150}
+{"kind":"insert","offset":96908,"removed":0,"inserted":" my $edit = 1;","stmt_start":96903,"stmt_end":96908}
+{"kind":"delete","offset":97180,"removed":24,"inserted":"","stmt_start":97180,"stmt_end":97204}
+{"kind":"replace","offset":97627,"removed":23,"inserted":"my $edit = 1;","stmt_start":97627,"stmt_end":97650}
+{"kind":"token","offset":98294,"removed":5,"inserted":"$kinde","stmt_start":98260,"stmt_end":98302}
+{"kind":"insert","offset":98808,"removed":0,"inserted":" my $edit = 1;","stmt_start":98803,"stmt_end":98808}
+{"kind":"delete","offset":99109,"removed":32,"inserted":"","stmt_start":99109,"stmt_end":99141}
+{"kind":"replace","offset":99802,"removed":27,"inserted":"my $edit = 1;","stmt_start":99802,"stmt_end":99829}
+{"kind":"token","offset":100736,"removed":2,"inserted":"$ne","stmt_start":100729,"stmt_end":100739}
+{"kind":"insert","offset":100793,"removed":0,"inserted":" my $edit = 1;","stmt_start":100780,"stmt_end":100793}
+{"kind":"delete","offset":101427,"removed":23,"inserted":"","stmt_start":101427,"stmt_end":101450}
+{"kind":"replace","offset":101826,"removed":24,"inserted":"my $edit = 1;","stmt_start":101826,"stmt_end":101850}
+{"kind":"token","offset":102710,"removed":7,"inserted":"'edited'","stmt_start":102695,"stmt_end":102718}
+{"kind":"insert","offset":102983,"removed":0,"inserted":" my $edit = 1;","stmt_start":102946,"stmt_end":102983}
+{"kind":"delete","offset":103504,"removed":60,"inserted":"","stmt_start":103504,"stmt_end":103564}
+{"kind":"replace","offset":103879,"removed":16,"inserted":"my $edit = 1;","stmt_start":103879,"stmt_end":103895}
+{"kind":"token","offset":104883,"removed":1,"inserted":"42","stmt_start":104883,"stmt_end":104885}
