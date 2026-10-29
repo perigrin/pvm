@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"tamarou.com/pvm/internal/parse"
 )
 
 // The shapes in order of width. G1's shape for a builtin is the widest any
@@ -106,4 +108,22 @@ func orNone(m map[string]string, k string) string {
 		return v
 	}
 	return noShape
+}
+
+// GuacamoleCoreTpmDifferences cross-checks the grammar at slifPath, after
+// GuacamoleCut, against internal/parse's CORE.tpm shape table.
+func GuacamoleCoreTpmDifferences(slifPath string) ([]string, error) {
+	c, err := readGuacamoleCut(slifPath)
+	if err != nil {
+		return nil, err
+	}
+	g1, err := G1Shapes(c)
+	if err != nil {
+		return nil, err
+	}
+	core := map[string]string{}
+	for name, s := range parse.CoreShapes() {
+		core[name] = s.String()
+	}
+	return CoreTpmDifferences(g1, core), nil
 }
