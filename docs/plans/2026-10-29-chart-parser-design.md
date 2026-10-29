@@ -3,9 +3,10 @@
 
 # A chart parser for Perl: design for a research spike
 
-**Status:** design for a spike, written 2026-10-29. Not a decision. If the
-spike is accepted, this becomes a chapter of `docs/specs/perl-parser/`; until
-then nothing here describes the parser pvm ships.
+**Status:** design for a spike, written and accepted for execution on
+2026-10-29. If the spike's result is accepted, this becomes a chapter of
+`docs/specs/perl-parser/`; until then nothing here describes the parser pvm
+ships.
 
 ## 1. Why
 
