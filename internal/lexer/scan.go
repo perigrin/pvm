@@ -809,9 +809,10 @@ func (l *lexer) scanNumberRun() int {
 	// `print 0x1e-1` is 29, so that `-` is subtraction.
 	hex := l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
 		(l.src[l.pos+1] == 'x' || l.src[l.pos+1] == 'X')
-	// Octal too, spelled `0o17` or `017`: `01.1p0` is an octal float.
+	// Octal too, spelled `0o17`, `017` or `0_17`: `01.1p0` is an octal
+	// float, and so is `0_.4p1`, which perl 5.44.0 prints as 1.
 	radix := hex || l.pos+1 < len(l.src) && l.src[l.pos] == '0' &&
-		(byteIn(l.src[l.pos+1], "bBoO") || isDigit(l.src[l.pos+1]))
+		(byteIn(l.src[l.pos+1], "bBoO_") || isDigit(l.src[l.pos+1]))
 	for l.pos < len(l.src) {
 		c := l.src[l.pos]
 		switch {
@@ -845,6 +846,15 @@ func (l *lexer) scanNumberRun() int {
 			// what makes the old split wrong rather than merely different.
 			// The sign must be ADJACENT to the `e`: `5-1` is arithmetic,
 			// and so is the second `-` of `5e-1-1`.
+			// A radix float's exponent is `p`, and it takes a sign the same
+			// way: perl 5.44.0 prints 7.5 for `0xfp-1` and 1.75 for `07p-2`.
+			if radix && (c == 'p' || c == 'P') &&
+				l.pos+2 < len(l.src) &&
+				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
+				isDigit(l.src[l.pos+2]) {
+				l.pos += 2
+				continue
+			}
 			if !hex && (c == 'e' || c == 'E') &&
 				l.pos+2 < len(l.src) &&
 				(l.src[l.pos+1] == '-' || l.src[l.pos+1] == '+') &&
