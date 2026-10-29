@@ -1,0 +1,20 @@
+{"case":"Statements-Block-007.pl","kind":"insert","offset":26,"removed":0,"inserted":" my $edit = 1;","stmt_start":22,"stmt_end":26}
+{"case":"Statements-Block-007.pl","kind":"delete","offset":22,"removed":4,"inserted":"","stmt_start":22,"stmt_end":26}
+{"case":"Statements-Block-007.pl","kind":"replace","offset":22,"removed":4,"inserted":"my $edit = 1;","stmt_start":22,"stmt_end":26}
+{"case":"Statements-Ellipsis-005.pl","kind":"token","offset":33,"removed":1,"inserted":"42","stmt_start":33,"stmt_end":35}
+{"case":"Statements-Block-007.pl","kind":"insert","offset":31,"removed":0,"inserted":" my $edit = 1;","stmt_start":27,"stmt_end":31}
+{"case":"Statements-Block-007.pl","kind":"delete","offset":27,"removed":4,"inserted":"","stmt_start":27,"stmt_end":31}
+{"case":"Statements-Block-007.pl","kind":"replace","offset":27,"removed":4,"inserted":"my $edit = 1;","stmt_start":27,"stmt_end":31}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"token","offset":45,"removed":1,"inserted":"42","stmt_start":45,"stmt_end":47}
+{"case":"Statements-Ellipsis-005.pl","kind":"insert","offset":35,"removed":0,"inserted":" my $edit = 1;","stmt_start":33,"stmt_end":35}
+{"case":"Statements-Ellipsis-005.pl","kind":"delete","offset":33,"removed":2,"inserted":"","stmt_start":33,"stmt_end":35}
+{"case":"Statements-Ellipsis-005.pl","kind":"replace","offset":33,"removed":2,"inserted":"my $edit = 1;","stmt_start":33,"stmt_end":35}
+{"case":"Statements-Ellipsis-005.pl","kind":"insert","offset":40,"removed":0,"inserted":" my $edit = 1;","stmt_start":36,"stmt_end":40}
+{"case":"Statements-Ellipsis-005.pl","kind":"delete","offset":36,"removed":4,"inserted":"","stmt_start":36,"stmt_end":40}
+{"case":"Statements-Ellipsis-005.pl","kind":"replace","offset":36,"removed":4,"inserted":"my $edit = 1;","stmt_start":36,"stmt_end":40}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"insert","offset":44,"removed":0,"inserted":" my $edit = 1;","stmt_start":26,"stmt_end":44}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"delete","offset":26,"removed":18,"inserted":"","stmt_start":26,"stmt_end":44}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"replace","offset":26,"removed":18,"inserted":"my $edit = 1;","stmt_start":26,"stmt_end":44}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"insert","offset":47,"removed":0,"inserted":" my $edit = 1;","stmt_start":45,"stmt_end":47}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"delete","offset":45,"removed":2,"inserted":"","stmt_start":45,"stmt_end":47}
+{"case":"bugs-rt_132920_regex_subset-001.pl","kind":"replace","offset":45,"removed":2,"inserted":"my $edit = 1;","stmt_start":45,"stmt_end":47}
