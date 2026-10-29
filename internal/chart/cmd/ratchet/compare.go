@@ -25,7 +25,7 @@ var mayNotRise = map[string]bool{
 	"parses-refused": true, "parses-wrong-sites": true, "yield-violations": true,
 	"oracle-below-rd": true, "std5k-refused": true, "parsent-accepted": true,
 	"rejects-disagree": true, "lex-unmapped": true, "leo-disagree": true,
-	"recovery-on-accepted": true,
+	"recovery-on-accepted": true, "tables-drift": true,
 }
 
 // mayNotFall are the corpus sizes and the chart's side of defect yield.

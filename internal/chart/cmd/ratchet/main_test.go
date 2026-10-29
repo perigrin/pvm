@@ -4,6 +4,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +43,45 @@ func TestReportPrintsEveryKeyOnceInOrder(t *testing.T) {
 	}
 	if values["set-reuse"] != "na" || values["std5k-refused"] != "na" {
 		t.Fatalf("an unmeasured key must print na: %v", values)
+	}
+}
+
+// TestTablesDrift: the committed tables are what the generator writes, and
+// one byte added to one of them, in a copy, is one file of drift.
+func TestTablesDrift(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "..")
+	slif := filepath.Join(root, grammarSLIF)
+	drift, err := tablesDrift(filepath.Join(root, tablesDir), slif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drift) != 0 {
+		t.Fatalf("drift on the committed tables: %v", drift)
+	}
+
+	copied := t.TempDir()
+	paths, err := filepath.Glob(filepath.Join(root, tablesDir, "*.txt"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no committed tables: %v", err)
+	}
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p == paths[0] {
+			b = append(b, '\n')
+		}
+		if err := os.WriteFile(filepath.Join(copied, filepath.Base(p)), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drift, err = tablesDrift(copied, slif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drift) != 1 || !strings.Contains(drift[0], filepath.Base(paths[0])) {
+		t.Fatalf("drift after altering %s = %v, want that one file", filepath.Base(paths[0]), drift)
 	}
 }
 

@@ -124,6 +124,7 @@ committed to the baseline with the component.
 | `rd-oracle-coverage` | recursive descent's share of those cases graded anything but no-answer | reported only |
 | `rd-parse-ms-std5k` | `parse.Parse` on `std5k.pl`, best of 5, in ms | reported only |
 | `rd-parse-ms-corpus` | `parse.Parse` over the scored `parses` cases, best of 3, in ms | reported only |
+| `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
 
 Keys the later issues add, and the rule each is held to:
 `defect-yield-chart-exact` may not fall, and `lex-unmapped`, `leo-disagree`
@@ -162,6 +163,52 @@ admits less, so the chart refuses rather than misparses:
   recognizes `$#{...}`, which is expected. After the split, the grammar
   checks the block, so `$#{ $foo->{'bar'} }` parses and `$#{1+}` is refused.
   `internal/lexer` does not change.
+
+## The generated tables: `make chart-tables`
+
+`make chart-tables` runs `grammar/cmd/gen`. It reads the vendored grammar,
+applies the token cut, builds the tables (`grammar.BuildTables`), and writes
+them to `grammar/testdata/tables/`, where they are committed. That directory
+holds exactly the generator's files. The output depends only on the grammar's
+rule order, never on map iteration or the clock, so regenerating it is
+byte-identical (§10). `TestTablesGuacamole` and the ratchet's `tables-drift`
+both hold the committed files to the generator's output. After a change to the
+grammar or the cut, run `make chart-tables` and commit the result.
+
+The tables are the split LR(0) automaton with nullable closure, Aycock and
+Horspool's ε-DFA:
+
+- A sequence rule is expanded first: `X ::= Y*` becomes `X ::=` and
+  `X ::= X Y`, and `X ::= Y+` becomes `X ::= Y` and `X ::= X Y`.
+- A **kernel** state holds the items a transition reached. A **predicted**
+  state holds the items a kernel state predicts. Both are closed under dot
+  advancement past nullable symbols.
+- An Earley item's origin is its kernel's origin in a kernel state, and the
+  current position in a predicted state.
+- **The start state is state 0**, the start symbol's predicted state. The
+  grammar has no augmented start rule, so the recognizer **accepts** when the
+  last Earley set holds a complete item of one of the start symbol's rules
+  whose origin is 0, meaning the item's rule appears in the reduce list of a
+  state in that set.
+
+Every line is space-separated numbers and names:
+
+- **`symbols.txt`**: `<id> <kind> <name>`, where kind is `terminal`,
+  `nonterminal` or `nullable` (a nonterminal that derives the empty string).
+  The nonterminals come first, in order of their first rule, then the
+  terminals in name order.
+- **`rules.txt`**: `<id> <LHS> ::= <RHS>`, with sequences expanded. An empty
+  RHS is an empty alternative.
+- **`items.txt`**: `<id> <rule> <dot>`, the integer core items, rule by rule
+  and dot by dot.
+- **`states.txt`**: `start <symbol>`, then one line per state:
+  `<id> kernel|predicted <ε-state> items <item ids> reduce <rule ids>`. The
+  ε-state is a kernel state's predicted state, or `-1`. The reduce list holds
+  the rules of the state's complete items.
+- **`transitions.txt`**: one line per state, `<id> <symbol>:<target> ...`,
+  in symbol order. The target is always a kernel state. A transition's items
+  are the state's items whose dot is before the symbol, so they are not
+  written out.
 
 ## Known divergences from Guacamole
 
