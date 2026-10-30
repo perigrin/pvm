@@ -128,7 +128,8 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 	for pos := 1; pos < n; pos++ {
 		la := r.lookahead(out[pos])
 		var key cacheKey
-		cacheable := !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil
+		// The key names the source set by its id, so it must be interned.
+		cacheable := !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
 		if cacheable {
 			e := in[pos][0]
 			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: r.class(r.ids(e.Token.Terminals)), la: la}
@@ -141,7 +142,11 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 		for _, e := range in[pos] {
 			b.scan(e)
 		}
-		b.complete(r.bits[la])
+		var follows bitset // nil completes everything
+		if !r.opts.NoLookahead {
+			follows = r.bits[la]
+		}
+		b.complete(follows)
 		if len(b.items) == 0 {
 			continue
 		}
@@ -218,6 +223,7 @@ func (b *builder) scan(e lex.Edge) {
 	if src == nil {
 		return
 	}
+	b.read(e.From, src)
 	terms := b.r.ids(e.Token.Terminals)
 	for _, it := range src.items {
 		for _, t := range terms {
@@ -230,8 +236,8 @@ func (b *builder) scan(e lex.Edge) {
 
 // complete closes the set under completion. An item from this node is a
 // prediction: its completions are empty, and the automaton's nullable
-// closure already made them. With lookahead, a rule completes only if
-// something la holds can follow its LHS.
+// closure already made them. With la, a rule completes only if something
+// la holds can follow its LHS; a nil la completes every rule.
 func (b *builder) complete(la bitset) {
 	for i := 0; i < len(b.items); i++ {
 		state, origin := b.items[i][0], b.items[i][1]
@@ -239,7 +245,7 @@ func (b *builder) complete(la bitset) {
 			continue
 		}
 		for _, lhs := range b.r.lhs[state] {
-			if !b.r.opts.NoLookahead && !b.r.follow[lhs].intersects(la) {
+			if la != nil && !b.r.follow[lhs].intersects(la) {
 				continue
 			}
 			src := b.c.Sets[origin]
@@ -253,7 +259,7 @@ func (b *builder) complete(la bitset) {
 	}
 }
 
-// read records that completion read the set at origin.
+// read records that the set at origin was read, by scan or completion.
 func (b *builder) read(origin int, s *Set) {
 	if s.id < 0 {
 		b.interned = false

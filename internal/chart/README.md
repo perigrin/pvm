@@ -169,20 +169,24 @@ tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
   right-recursive `StatementSeq` from completing back through every earlier
   statement, which is what keeps sets equal from one statement to the next.
   `Expected(pos)` is the union of the expected terminals of every state in
-  the set at `pos`, so it lacks what only a pruned completion would expect.
+  the set at `pos` as recognition without lookahead builds it: it closes
+  the set again under every completion, outside the interned content, so a
+  refusal point still names what was expected there.
 - **The transition cache** is keyed by (set, token, lookahead) and the
   edge's span. A key alone does not fix the result: completion reads the
   sets where complete items began, which are not part of the source set. So
   each entry records those sets, and a hit requires them to be the same.
   `TestCacheChecksOriginSets` fails without that check. The cache is not
-  used inside a branch, nor where two edges meet.
+  used inside a branch, nor where two edges meet, and a transition that read
+  any set inside a branch is never cached (`TestCacheNotKeyedOnBranchSet`).
 - **The empty program.** A source of only whitespace, comments and POD is
   accepted, as perl accepts it: the cut gives `Program` an empty
   alternative, which Guacamole's `Program ::= StatementSeq` lacks.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
-never panics and that acceptance is the same with and without the cache and
-the lookahead.
+never panics, that acceptance is the same with and without the cache and
+the lookahead and with a dead-end branch added, and that `Expected` is the
+same with and without lookahead.
 
 ## The token cut and its rewrite list
 

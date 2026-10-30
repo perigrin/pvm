@@ -122,3 +122,23 @@ func TestCacheChecksOriginSets(t *testing.T) {
 		t.Errorf("node 2 shared %v, node 3 cached %v; want the same set before b, and no cache hit after it", q.Sets[2] == p.Sets[2], q.Cached[3])
 	}
 }
+
+// TestCacheNotKeyedOnBranchSet: a node with one in-edge from a node inside
+// a branch reads a set that is not interned. Its result must not be cached:
+// every branch set has id -1, so a key on it would serve the B lattice's
+// set to the D lattice, which needs a further X. Warm and cold must agree.
+func TestCacheNotKeyedOnBranchSet(t *testing.T) {
+	tab := toyTables(t, "S ::= B T | D T X\nB ~ 'b'\nD ~ 'd'\nT ~ 't'\nX ~ 'x'\nZ ~ 'z'\nS ::= Z\n")
+	// 0 -first-> 1 -T-> 3, and a path 0 -Z-> 2 that goes nowhere, which puts
+	// node 1 inside a branch.
+	branched := func(first string) *lex.Lattice[lex.None] {
+		return toyLinear([]int{0, 1, 2, 3}, toyEdge(0, 1, first, 0, 1), toyEdge(1, 3, "T", 1, 2), toyEdge(0, 2, "Z", 0, 1))
+	}
+	warm := New(tab, Options{})
+	Recognize(warm, branched("B"))
+	d := Recognize(warm, branched("D"))
+	cold := Recognize(New(tab, Options{NoCache: true}), branched("D"))
+	if d.Accepted() != cold.Accepted() || d.Cached[3] {
+		t.Errorf("d t: accepted %v warm, %v cold; cached at node 3 %v, want no cache hit", d.Accepted(), cold.Accepted(), d.Cached[3])
+	}
+}

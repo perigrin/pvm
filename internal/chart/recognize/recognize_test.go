@@ -238,3 +238,32 @@ func TestExpectedAfterAssign(t *testing.T) {
 		t.Errorf("Expected after `my $x =` = %v, want ScalarVar and no Semicolon", exp)
 	}
 }
+
+// TestExpectedIgnoresLookahead: Expected(pos) is the union over the Earley
+// set as recognition without lookahead builds it, at every node, refusal
+// points included: after `my $x = 1` before `2`, lookahead prunes every
+// completion, but an operator is still expected there.
+func TestExpectedIgnoresLookahead(t *testing.T) {
+	r, x := guacamole(t)
+	for _, src := range []string{"my $x = 1 2;", "my $x = 1;\nprint($x + 2);\nsub f { return [1, 2]; }\n"} {
+		la := run(t, r, x, src)
+		no := run(t, New(guacTab, Options{NoLookahead: true}), x, src)
+		for pos := range la.Sets {
+			a, err := la.Expected(pos)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := no.Expected(pos)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(a, b) {
+				t.Errorf("%q node %d: Expected has %d terminals with lookahead, %d without", src, pos, len(a), len(b))
+			}
+		}
+	}
+	c := run(t, r, x, "my $x = 1 2;")
+	if exp, _ := c.Expected(4); !slices.Contains(exp, "OpAdd") {
+		t.Errorf("Expected after `my $x = 1` = %v, want OpAdd among them", exp)
+	}
+}

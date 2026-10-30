@@ -8,16 +8,29 @@ import (
 	"slices"
 )
 
-// Expected is the terminals some state in the set at node pos expects, by
-// name, sorted. A node with no set expects nothing; a pos outside the
-// lattice is an error. With lookahead on, a completion the next token
-// cannot follow was not made, so its expectations are absent.
+// Expected is the terminals some item in the Earley set at node pos expects,
+// by name, sorted: the union over every state in the set (§5). Lookahead
+// prunes completions the next token cannot follow, so with it on the set is
+// first closed again under every completion. The closure is not stored and
+// changes neither the interned set nor the cache. A pruned completion is
+// never needed by a later set, so this is the set recognition without
+// lookahead builds. A node with no set expects nothing; a pos outside the
+// lattice is an error.
 func (c *Chart) Expected(pos int) ([]string, error) {
 	if pos < 0 || pos >= len(c.Sets) {
 		return nil, fmt.Errorf("recognize: node %d is outside the lattice's %d nodes", pos, len(c.Sets))
 	}
+	items := c.Sets[pos].Items()
+	if items != nil && !c.r.opts.NoLookahead {
+		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}}
+		for _, it := range items {
+			b.add(it.State, pos-it.Dist)
+		}
+		b.complete(nil)
+		items = b.relative()
+	}
 	var ids []int
-	for _, it := range c.Sets[pos].Items() {
+	for _, it := range items {
 		ids = append(ids, c.r.tab.States[it.State].Expected...)
 	}
 	slices.Sort(ids)
