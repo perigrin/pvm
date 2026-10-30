@@ -9,24 +9,28 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/lexer"
 )
 
 // Pred is a token predicate: a lexer kind, and the text a token of that
 // kind must have. The text is the language of Def, a SLIF right-hand side,
-// less any text Except matches.
+// less any text Except matches, and with Tight, less any text holding
+// whitespace.
 type Pred struct {
 	Kind   lexer.Kind
 	Def    string
 	Except string
+	Tight  bool
 
 	text, except *regexp.Regexp
 }
 
 // Match reports whether a token of kind k and text text satisfies p.
 func (p Pred) Match(k lexer.Kind, text string) bool {
-	return k == p.Kind && p.text.MatchString(text) && (p.except == nil || !p.except.MatchString(text))
+	return k == p.Kind && p.text.MatchString(text) && (p.except == nil || !p.except.MatchString(text)) &&
+		!(p.Tight && strings.ContainsFunc(text, unicode.IsSpace))
 }
 
 // String is the predicate as the rewrite list writes it: `Operator '->'`
@@ -39,6 +43,9 @@ func (p Pred) String() string {
 	if p.Except != "" {
 		s += " except " + p.Except
 	}
+	if p.Tight {
+		s += " without whitespace"
+	}
 	return s
 }
 
@@ -49,8 +56,12 @@ func (p Pred) String() string {
 // for other Defs to name. Except, if set, is a right-hand side whose text the
 // predicate refuses; ":priority" there is every word a priority lexeme
 // matches, which is how keyword priority is carried.
+//
+// Tight refuses any text with whitespace in it, where Def's symbols would
+// otherwise admit the gap a G1 sequence allows.
 type TokenDef struct {
 	Name, Kind, Def, Except string
+	Tight                   bool
 }
 
 // Split replaces the symbol sequence From, wherever it appears in a G1
@@ -72,11 +83,14 @@ type TriviaDef struct {
 }
 
 // CutSpec is the reviewed table a cut applies.
+//
+// Empty names G1 symbols the cut gives an empty alternative.
 type CutSpec struct {
 	Tokens     []TokenDef
 	Splits     []Split
 	Priorities []PriorityNote
 	Trivia     []TriviaDef
+	Empty      []string
 }
 
 // GuacamoleCut is the reviewed cut of Guacamole's grammar. Every G0 lexeme
@@ -120,15 +134,18 @@ var GuacamoleCut = CutSpec{
 		{Name: "SubDefName", Kind: "Word", Def: "SubNameExpr", Except: "PhaseName"},
 		{Name: "IdentComp", Kind: "Word"},
 		// A string or quote-like is one Quote token, and <FH> one Readline.
+		// perl reads <...> as readline only around a bare filehandle or a
+		// simple scalar (toke.c, scan_inputsymbol), so a Diamond is tight:
+		// `< $fh >` is a glob, which the chart refuses.
 		{Name: "LitString", Kind: "Quote"},
 		{Name: "InterpolString", Kind: "Quote"},
 		{Name: "QLikeValueExpr", Kind: "Quote"},
 		{Name: "QLikeValueExprWithMods", Kind: "Quote"},
-		{Name: "Diamond", Kind: "Readline", Def: "'<' ScalarVar '>'"},
-		{Name: "Diamond", Kind: "Readline", Def: "'<' BuiltinFilehandle '>'"},
+		{Name: "Diamond", Kind: "Readline", Def: "'<' ScalarVar '>'", Tight: true},
+		{Name: "Diamond", Kind: "Readline", Def: "'<' BuiltinFilehandle '>'", Tight: true},
 		{Name: "Diamond", Kind: "Readline", Def: "'<>'"},
-		{Name: "DoubleDiamond", Kind: "Readline", Def: "'<<' ScalarVar '>>'"},
-		{Name: "DoubleDiamond", Kind: "Readline", Def: "'<<' BuiltinFilehandle '>>'"},
+		{Name: "DoubleDiamond", Kind: "Readline", Def: "'<<' ScalarVar '>>'", Tight: true},
+		{Name: "DoubleDiamond", Kind: "Readline", Def: "'<<' BuiltinFilehandle '>>'", Tight: true},
 		{Name: "DoubleDiamond", Kind: "Readline", Def: "'<<>>'"},
 		// ->@* and the like are one Variable token, as is $_.
 		{Name: "DerefVariableArgsAll", Kind: "Variable"},
@@ -186,6 +203,9 @@ var GuacamoleCut = CutSpec{
 		{Kind: "DataSection"},
 		{Kind: "FormatBody"},
 	},
+	// A source of only whitespace, comments and POD is a program to perl;
+	// Guacamole's Program ::= StatementSeq does not derive it.
+	Empty: []string{"Program"},
 }
 
 // CutGrammar is a grammar after the cut: G1 rules whose every right-hand
@@ -299,6 +319,14 @@ func (c *cutter) split(spec CutSpec) error {
 		}
 		c.rules = append(c.rules, r)
 	}
+	for _, name := range spec.Empty {
+		if c.g1[name] == nil {
+			return cutErrorf("empty %s: %s has no G1 rules", name, name)
+		}
+		r := Rule{LHS: name}
+		c.rewrite("empty %s ::=", nameText(name))
+		c.rules = append(c.rules, r)
+	}
 	return nil
 }
 
@@ -336,7 +364,7 @@ func (c *cutter) collapse(CutSpec) error {
 			if err != nil {
 				return err
 			}
-			c.out.Terminals[name] = append(c.out.Terminals[name], Pred{Kind: k, Def: def, Except: d.Except, text: text})
+			c.out.Terminals[name] = append(c.out.Terminals[name], Pred{Kind: k, Def: def, Except: d.Except, Tight: d.Tight, text: text})
 		}
 	}
 	c.rules = slices.DeleteFunc(c.rules, func(r Rule) bool { return c.out.Terminals[r.LHS] != nil })

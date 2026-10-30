@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"os"
 	"slices"
 	"sync"
 	"testing"
@@ -78,6 +79,23 @@ func TestRecognizeEmptyAndTruncated(t *testing.T) {
 	}
 	if slices.Contains(exp, "Semicolon") {
 		t.Errorf("Expected at the end of `my $x =` holds Semicolon: %v", exp)
+	}
+}
+
+// TestRecognizeSpacedDiamondRefused: perl parses `< $fh >` as a glob, not a
+// readline, so the Guacamole parsent case holding it is refused, and the
+// readline itself is accepted.
+func TestRecognizeSpacedDiamondRefused(t *testing.T) {
+	r, x := guacamole(t)
+	src, err := os.ReadFile("../testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-001.pl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run(t, r, x, string(src)).Accepted() {
+		t.Errorf("%q accepted, want refused", src)
+	}
+	if !run(t, r, x, "my $l = <$fh>;").Accepted() {
+		t.Error("`my $l = <$fh>;` refused, want accepted")
 	}
 }
 
