@@ -1,35 +1,68 @@
-// ABOUTME: Per-state Leo eligibility: a state whose single item is a right-recursive completion candidate.
-// ABOUTME: The recognizer memoizes Leo items only for these states (spec §5); the generator writes them to leo.txt.
+// ABOUTME: Static Leo eligibility per (state, symbol): the state's one item awaiting B, A ::= α . B, B last.
+// ABOUTME: The recognizer memoizes Leo items only for these (spec §5); the generator writes them to leo.txt.
 
 package grammar
 
-// leo marks each state whose one item has its dot before the last symbol
-// of its rule, that symbol a nonterminal that derives the rule's own LHS at
-// its right edge. Completing such an item is the step a right recursion
-// repeats, which Leo's memo skips.
+// leo sets each state's Leo items: for a nonterminal B, the state's one
+// item awaiting B, A ::= α . B, where B is the rule's last symbol and
+// derives A at its right edge. Completing such an item is the step a right
+// recursion repeats, which Leo's memo skips. Other items in the state do not
+// matter: S ::= A . S is eligible beside S ::= A . (Leo 1991). This is
+// necessary, not sufficient: the recognizer memoizes only where the whole
+// Earley set holds one item awaiting B.
+//
+// B must be last, not followed by nullables. The memo skips the item
+// A ::= α B . β, and one whose β can still read a token would lose the
+// parses that read it. Trailing nullables count only in the right edge.
 func (t *Tables) leo() {
 	right := t.rightEdges()
 	for s := range t.States {
 		st := &t.States[s]
-		if len(st.Items) != 1 {
-			continue
+		awaiting := map[int]int{} // nonterminal to the items awaiting it
+		for _, i := range st.Items {
+			if b, ok := t.postdot(i); ok {
+				awaiting[b]++
+			}
 		}
-		it := t.Items[st.Items[0]]
-		rhs := t.Rules[it.Rule].RHS
-		if it.Dot != len(rhs)-1 || t.Symbols[rhs[it.Dot]].Terminal {
-			continue
+		for _, i := range st.Items {
+			b, ok := t.postdot(i)
+			if !ok || awaiting[b] != 1 {
+				continue
+			}
+			it := t.Items[i]
+			rule := t.Rules[it.Rule]
+			if it.Dot == len(rule.RHS)-1 && right[b][rule.LHS] {
+				st.Leo = append(st.Leo, i)
+			}
 		}
-		st.Leo = right[rhs[it.Dot]][t.Rules[it.Rule].LHS]
 	}
 }
 
+// postdot is the nonterminal after item i's dot, if there is one.
+func (t *Tables) postdot(i int) (int, bool) {
+	it := t.Items[i]
+	rhs := t.Rules[it.Rule].RHS
+	if it.Dot >= len(rhs) || t.Symbols[rhs[it.Dot]].Terminal {
+		return 0, false
+	}
+	return rhs[it.Dot], true
+}
+
 // rightEdges is, for each nonterminal, the nonterminals that can be the last
-// symbol of something it derives: its rules' last symbols, transitively.
+// non-empty symbol of something it derives: each rule's last symbol, and the
+// one before it while those after are nullable, transitively.
 func (t *Tables) rightEdges() map[int]map[int]bool {
 	last := map[int][]int{}
 	for _, r := range t.Rules {
-		if n := len(r.RHS); n > 0 && !t.Symbols[r.RHS[n-1]].Terminal {
-			last[r.LHS] = append(last[r.LHS], r.RHS[n-1])
+		for i := len(r.RHS) - 1; i >= 0; i-- {
+			x := r.RHS[i]
+			if t.Symbols[x].Terminal {
+				break
+			}
+			last[r.LHS] = append(last[r.LHS], x)
+			if !t.Symbols[x].Nullable {
+				break
+			}
 		}
 	}
 	edges := map[int]map[int]bool{}

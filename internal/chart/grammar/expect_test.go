@@ -40,12 +40,12 @@ func TestExpectedTerminals(t *testing.T) {
 	}
 }
 
-// leoStates is the item text of each Leo-eligible state's item.
+// leoStates is the item text of each Leo-eligible item.
 func leoStates(tab *Tables) []string {
 	var out []string
 	for _, s := range tab.States {
-		if s.Leo {
-			out = append(out, tab.itemText(s.Items[0]))
+		for _, it := range s.Leo {
+			out = append(out, tab.itemText(it))
 		}
 	}
 	return out
@@ -63,13 +63,35 @@ func TestLeoEligibility(t *testing.T) {
 	}
 }
 
+// TestLeoEligibilityPerSymbol: eligibility is per (state, symbol), so the
+// other items in a state do not matter. In S ::= A S | A the kernel after A
+// holds S ::= A . S beside S ::= A ., and S ::= A . S is eligible. A right
+// edge reaches past trailing nullables (2e94's gate note F2), but an item
+// with anything after B is never eligible: its β could still read a token.
+func TestLeoEligibilityPerSymbol(t *testing.T) {
+	for src, want := range map[string][]string{
+		"S ::= A S | A\nA ~ 'a'\n":                               {"S ::= A . S"},
+		"S ::= A T | A\nT ::= S O\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n": {"S ::= A . T"},
+		"S ::= A S O | A\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n":          nil,
+	} {
+		tab, err := BuildTables(cut(t, src, CutSpec{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := leoStates(tab); !slices.Equal(got, want) {
+			t.Errorf("%q: Leo-eligible items = %q, want %q\n%s", src, got, want, tab.Dump())
+		}
+	}
+}
+
 // TestLeoEligibilityRefusals: a left-recursive rule's single item L ::= L . X
-// has a nonterminal last, but X never derives L at its right edge; and in
-// S ::= A S | A the kernel after A holds two items, S ::= A . S and S ::= A .
+// has a nonterminal last, but X never derives L at its right edge; and a
+// state with two items awaiting S, S ::= A . S and S ::= A . S B, has no
+// Leo item for S.
 func TestLeoEligibilityRefusals(t *testing.T) {
 	for _, src := range []string{
 		"L ::= L X | Y\nX ::= C\nC ~ 'c'\nY ~ 'y'\n",
-		"S ::= A S | A\nA ~ 'a'\n",
+		"S ::= A S | A S B | A\nA ~ 'a'\nB ~ 'b'\n",
 	} {
 		tab, err := BuildTables(cut(t, src, CutSpec{}))
 		if err != nil {

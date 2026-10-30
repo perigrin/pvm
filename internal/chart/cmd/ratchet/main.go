@@ -60,6 +60,7 @@ var keys = []string{
 	"tables-drift", "core-tpm-differences",
 	"lex-unmapped",
 	"expectation-conflicts",
+	"leo-disagree",
 }
 
 func main() {
@@ -229,6 +230,7 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 	if err := recognizeAll(m, recognize.New(tab, recognize.Options{}), x, streams, scored, parsent); err != nil {
 		return nil, nil, err
 	}
+	m["leo-disagree"] = strconv.Itoa(leoDisagree(tab, streams, append([]string{std5kFile}, scored...)))
 	known, err := os.ReadFile(knownFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
@@ -300,6 +302,33 @@ func recognizeAll(m map[string]string, r *recognize.Recognizer, x *lex.Lexer, st
 	}
 	m["parsent-accepted"] = strconv.Itoa(n)
 	return nil
+}
+
+// leoDisagree is how many of the files, named by names, are recognized
+// differently with Leo on and off: in acceptance, or in the number of
+// distinct sets. Each recognition gets a fresh recognizer, so the count is
+// the file's own. stderr names each file that differs.
+func leoDisagree(tab *grammar.Tables, streams []*lex.Stream, names []string) int {
+	recog := func(s *lex.Stream, noLeo bool) (bool, int) {
+		c := recognize.Recognize(recognize.New(tab, recognize.Options{NoLeo: noLeo}), lex.Linear(s))
+		distinct := map[*recognize.Set]bool{}
+		for _, set := range c.Sets {
+			if set != nil {
+				distinct[set] = true
+			}
+		}
+		return c.Accepted(), len(distinct)
+	}
+	n := 0
+	for i, s := range streams {
+		a, x := recog(s, false)
+		b, y := recog(s, true)
+		if a != b || x != y {
+			n++
+			fmt.Fprintf(os.Stderr, "chart-ratchet: leo-disagree: %s: accepted %v and %d sets with Leo, %v and %d without\n", names[i], a, x, b, y)
+		}
+	}
+	return n
 }
 
 // knownMismatch holds lex-unmapped's failing files to the known list, whose

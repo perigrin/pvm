@@ -7,7 +7,8 @@
 // content is position-free and equal sets intern to one (sets.go). A new set
 // is the old one advanced over a token and closed under completion; the
 // transition cache (cache.go) serves a repeat of that step. Items hold no
-// context facts (rule 2). Leo and error recovery are not built here.
+// context facts (rule 2). Leo memos (leo.go) live beside the sets, not in
+// them. Error recovery is not built here.
 package recognize
 
 import (
@@ -27,6 +28,8 @@ type Options struct {
 	NoCache bool
 	// NoLookahead completes every complete item, whatever follows.
 	NoLookahead bool
+	// NoLeo makes no Leo memo, so a right recursion completes link by link.
+	NoLeo bool
 }
 
 // Recognizer recognizes lattices over one grammar's tables. Its intern
@@ -47,6 +50,7 @@ type Recognizer struct {
 	bits    []bitset
 	sets    interner
 	cache   map[cacheKey][]cacheEntry
+	leo     map[[2]int]int // (state, symbol) to the LHS of its Leo item
 }
 
 // New is a recognizer over tab.
@@ -69,6 +73,7 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 		r.lhs[s] = slices.Compact(r.lhs[s])
 	}
 	r.follow = follow(tab)
+	r.leo = leoItems(r)
 	return r
 }
 
@@ -102,6 +107,7 @@ type Chart struct {
 	Sets     []*Set
 	Interned []bool
 	Cached   []bool
+	leo      []map[int]*memo // the side table: per node, Leo memos by symbol
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
@@ -110,7 +116,7 @@ type Chart struct {
 // branches only").
 func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 	n := len(l.Nodes)
-	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n)}
+	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
 	if n == 0 {
 		return c
 	}
@@ -138,7 +144,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 				continue
 			}
 		}
-		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: true}
+		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: cacheable}
 		for _, e := range in[pos] {
 			b.scan(e)
 		}
@@ -201,7 +207,8 @@ type builder struct {
 	items    [][2]int
 	seen     map[[2]int]bool
 	deps     []dep
-	interned bool // every set read is interned, so the result may be cached
+	depSeen  map[dep]bool
+	interned bool // the node is cacheable and every set read is interned
 }
 
 // add adds an item, and a kernel state's predicted state at this node.
@@ -237,7 +244,8 @@ func (b *builder) scan(e lex.Edge) {
 // complete closes the set under completion. An item from this node is a
 // prediction: its completions are empty, and the automaton's nullable
 // closure already made them. With la, a rule completes only if something
-// la holds can follow its LHS; a nil la completes every rule.
+// la holds can follow its LHS; a nil la completes every rule. Where a Leo
+// memo applies, the top of the recursion is added in one step.
 func (b *builder) complete(la bitset) {
 	for i := 0; i < len(b.items); i++ {
 		state, origin := b.items[i][0], b.items[i][1]
@@ -250,6 +258,10 @@ func (b *builder) complete(la bitset) {
 			}
 			src := b.c.Sets[origin]
 			b.read(origin, src)
+			if top, ok := b.leo(origin, lhs, la); ok {
+				b.add(top[0], top[1])
+				continue
+			}
 			for _, it := range src.items {
 				if k, ok := b.r.goTo(it.State, lhs); ok {
 					b.add(k, origin-it.Dist)
@@ -266,7 +278,11 @@ func (b *builder) read(origin int, s *Set) {
 		return
 	}
 	d := dep{dist: b.pos - origin, set: s.id}
-	if !slices.Contains(b.deps, d) {
+	if b.depSeen == nil {
+		b.depSeen = map[dep]bool{}
+	}
+	if !b.depSeen[d] {
+		b.depSeen[d] = true
 		b.deps = append(b.deps, d)
 	}
 }
