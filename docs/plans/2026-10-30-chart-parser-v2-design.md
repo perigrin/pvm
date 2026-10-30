@@ -45,7 +45,10 @@ recursive-descent parser was built from.
 
 **Up-front only.** The lexer runs ahead of the chart with its own PL_expect
 machine, exactly as for recursive descent, so the comparison isolates the
-parsing algorithm.
+parsing algorithm. That machine is the feedback from toke.c that
+`docs/specs/perl-parser/01-scope.md` §1.2 said a transcription of `perly.y`
+would lack; `perly.y`'s conflicts are kept as ambiguity and resolved in the
+forest (§8), not inherited as an LALR table.
 
 **What a verdict decides.**
 - *Positive:* waypoint 2 builds the forest and resolve and re-measures speed
@@ -81,7 +84,7 @@ context dynamic; context enters only before the chart and after it, never
 inside Earley items; only perl's own rules may prune; ambiguity may stay;
 outside the accepted language, refuse, never misparse; weights may order
 readings, never decide them. Rule 5 holds at waypoint 1 except for
-refusals that depend on precedence, which hold from waypoint 2 (§8). Rule 6 is sharpened, not relaxed: a constraint
+refusals that depend on precedence or scope, which hold from waypoint 2 (§8, §9.4). Rule 6 is sharpened, not relaxed: a constraint
 derived from perl's own declarations may decide which readings exist, and
 refuse a span where none does, after the chart (§8); a weight may still only order. This attempt adds:
 
@@ -168,7 +171,11 @@ assessment lists what they involve.
   terminals what the lexer emits as one token, the rule is fitted to the
   token (a token maps to a *set* of terminals, never a sequence); where the
   lexer emits several tokens for one terminal, the rule is fitted to the
-  tokens. The families needing fitting are in the hand-off (H4).
+  tokens. The families needing fitting are variables and indirect objects;
+  braces and the `;` toke.c inserts; quote-likes and interpolation;
+  formats, labels, attributes and postfix dereference; heredocs; forced
+  version tokens; `NOAMP` and method-call tokens; the scope-decided `*SUB`
+  and `PRIVATEREF`; phasers. Their detail is in the hand-off (H4).
 - **Start forms.** The `GRAM*` tokens are start selectors, not lexed tokens
   (`perly.y:187-268`). All seven are ported as start rules. Waypoint 1 grades
   the program form; the others are tested only where they lex the same from
@@ -223,7 +230,7 @@ forest (§8, §9.4) → the oracle.
 the flags the lexer has already computed (`OpensBlock` and `TermFollows`),
 its sigil or quote-prefix class, the classes of the **two** previous
 significant tokens, and the class of the next. A neighbour's class is its
-lexer kind, its flags and, for words and operators, its text: never its own
+lexer kind, its flags and, for words, operators and closing brackets, its text: never its own
 terminal set, so the key does not recurse. The two previous tokens are what
 make a lone word inside `{}` a string in `$h{foo}`, `$h->{foo}` and
 `f()->{foo}` and a call in `+{ foo }`; the lexer's `OpensBlock` is false on
@@ -301,9 +308,13 @@ committed fixtures, and the Go tests read the fixtures, as the perl labels
 are read. Each sentence is stored as `perly.y` terminals and as source text
 rendered from them, one sample lexeme per terminal from a committed rendering
 table; the chart is run on the source text through `internal/lexer`, so the
-fitted grammar is tested as it will run. A terminal with no single-lexeme
-rendering is on a reviewed list, and sentences needing it are counted, not
-dropped silently. Perl is the oracle on the
+fitted grammar is tested as it will run. A sentence is kept only if its
+rendering lexes back to tokens whose classes map to the same terminals (an
+inserted `;`, or `UNIOP (` read as `FUNC1`, fails this); a terminal with no
+single-lexeme rendering, and every sentence that fails to round-trip, are
+counted on a reviewed list, never dropped silently. The referee's grammar
+omits `catch_paren: empty`, as the port does (§5.2), rather than reproduce
+the action that refuses it. Perl is the oracle on the
 corpora: waypoint 2's WRONG 0 grades accepted files, and §9.2's refusal gate
 grades refused ones. The constraint covers every conflict bison resolves by
 precedence, not only the operator ladder: `%prec` on a rule that is not an
@@ -311,13 +322,15 @@ operator (`indirob: scalar %prec PREC_LOW`, which refuses `print $fh []`) is
 resolved the same way. Which forms are refused is found, not listed: the
 tests generate sentences that `perly.y` with its precedence and `perly.y`
 without it (GLR, every derivation kept) disagree on, and each disagreement is
-a refusal or grouping test. Generation is driven to cover every conflict bison
-resolves by precedence, with sentences on both sides of each: some bison
-refuses and some it accepts (`print $fh []` and `print $$fh[0]`), so an
-over-refusing constraint fails as surely as an under-refusing one. Coverage
-of the resolved conflicts may not fall, and at waypoint 2's exit every
-resolved conflict is covered on both sides or is on a reviewed list with a
-reason (generation timed out, or the rendering cannot reach it). The `PLUGIN_*` operators' refusals are
+a refusal or grouping test. The unit of coverage is a (rule, token)
+resolution in bison's report. A resolution is covered by a sentence whose
+verdict or grouping depends on it; one resolved as an error is covered only
+with an accepted neighbour as well (`print $fh []` and `print $$fh[0]`), so
+an over-refusing constraint fails as surely as an under-refusing one.
+Coverage may not fall, and at waypoint 2's exit every resolution is covered
+or is on a reviewed list with a reason (generation timed out, or the
+rendering cannot reach it). Resolutions involving `PLUGIN_*` terminals are
+counted separately until §9.4 decides how library operators reach them. The `PLUGIN_*` operators' refusals are
 in scope with the library operators in waypoint 2 (§9.4); only the keyword
 plugins `PLUGEXPR`/`PLUGSTMT` are excluded (§2).
 
@@ -335,8 +348,8 @@ the assessment).
 
 | Corpus | Labels |
 |---|---|
-| Guacamole snippets (`parses`, `parsent`) | perl 5.42's verdict under the declared preamble (perl accepts 78 of the 124 `parsent`) |
-| `std5k.pl`, `edit5k.pl` | both compile under perl |
+| Guacamole snippets (`parses`, `parsent`) | the pinned perl's verdict under the declared preamble (perl 5.42 accepted 78 of the 124 `parsent`; blead 94e50866 accepts 79, so labels and counts are regenerated) |
+| `std5k.pl`, `edit5k.pl` (`internal/psc/testdata/latency/`, read as files) | both compile under perl |
 | T1 (`PerlOnJava/unit`, 986 files, top level) | perl's verdict and recursive descent's (it refuses 236) |
 | perl.git `t/` (waypoint 2) | perl's verdict; the oracle's marker sites |
 
@@ -359,7 +372,9 @@ toke.c's fatal lexing errors); **precedence** (refused only by bison's
 precedence resolution, §8, which the label shows by evidence rather than
 judgment: perl's token stream for the file, aligned as §12 states and taken
 up to the token where perl refused, is a viable prefix of `perly.y` without
-precedence, and bison with precedence refuses at that token); **scope** (refused in an action under scope or features, §5.2);
+precedence, and bison with precedence refuses at that token; this speaks for
+perl's first error only, so a later grammar error in the same file is not
+seen, and is recorded as a known limit); **scope** (refused in an action under scope or features, §5.2);
 **semantic** (a compile-time check after parsing,
 such as arity, prototypes or op.c's "Can't modify"); or **environment** (a
 missing module, `-T`, a runtime failure). The `isa` and similar feature-gated
@@ -447,7 +462,8 @@ from run to run. The exit gates are the final issue's (§9.2), with one
 exception the postmortem asked for: `lex-overhead`, chart/lex's total time
 (including its call to `lexer.Tokenize`) over `lexer.Tokenize`'s on the same
 files over the aggregate, is gated at an absolute 1.3, as the median of three
-measurements, in every issue that touches chart/lex or the token table, from
+measurements over the aggregate (std5k's figure is reported, since one file
+is noisier), in every issue that touches chart/lex or the token table, from
 the first. Benchmarks for lexing, recognition
 and `Expected` run in the ratchet, not in `make test`.
 
@@ -473,8 +489,9 @@ access to `internal/parse` that needs, is waypoint 2's decision (perigrin,
 | `lex-overhead` | ≤ 1.3 (median of three) in every issue touching chart/lex or the table |
 | `chart-accepted-both-refused` | may not rise; 0 at the exit |
 | `speed-ratio-{std5k,aggregate}-{longlived,cold}` | reported; the kill reads long-lived |
-| `terminals-per-token` | reported until the port is complete; may not rise from the issue that completes it, which takes its baseline |
-| `tdt-aligned`, `tdt-unseen` | may not fall / may not rise (§12) |
+| `terminals-per-token`, `tdt-unseen` | reported until the port is complete; may not rise without review from the issue that completes it, which takes their baselines; every `tdt-unseen` pair is on a reviewed list at the exit (§12) |
+| `tdt-mismatch` | reported until the port is complete; 0 from then on |
+| `tdt-aligned` | may not fall; at the exit every unaligned token is in a reviewed fitting family (§12) |
 | `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
 | `speed-ratio-*`, `lex-overhead` | timing: never compared strictly between issues |
 
@@ -526,12 +543,16 @@ a file leaves both gates' populations.
   are matched in order by text; toke.c's split, invented and sublexed tokens
   (the `$` and name of a variable, `force_next` tokens, quote interiors) are
   folded by the reviewed fitting families (H4) onto the pvm token they belong
-  to. Two keys, both gated: **`tdt-aligned`**, the fraction of pvm tokens
-  aligned, may not fall, so the check cannot pass by aligning less; and every
-  aligned token's toke.c type is a member of the chart's set for it.
-  **`tdt-unseen`**, the (key, terminal) pairs in the table that toke.c never
-  produced over the corpora, may not rise without review, so an over-wide
-  table shows as surely as a too-narrow one. This is the table's outside
+  to. Three keys (§9.5): **`tdt-aligned`**, the fraction of pvm tokens
+  aligned, may not fall, and at the exit every unaligned token belongs to a
+  reviewed fitting family, so the check cannot pass by aligning less;
+  **`tdt-mismatch`**, aligned tokens whose toke.c type is not in the chart's
+  set, 0 once the port is complete; and **`tdt-unseen`**, the (key,
+  terminal) pairs in the table that toke.c never produced over the corpora,
+  each on a reviewed list at the exit, so an over-wide table shows as surely
+  as a too-narrow one. These are the width limit waypoint 1 otherwise lacks:
+  T1 holds no grammar refusals, so the refusal gate grades little at
+  waypoint 1. This is the table's outside
   reference under rule 11.
 - **Grammar:** the port ledger; the level cross-check; the CORE.tpm
   cross-check.
