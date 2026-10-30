@@ -8,6 +8,10 @@
 `docs/specs/perl-parser/`; until then nothing here describes the parser pvm
 ships.
 
+**Superseded in execution:** the spike was stopped by its §9 speed kill on
+2026-10-30 (`docs/postmortems/chart-waypoint.md`). The second attempt is
+`docs/plans/2026-10-30-chart-parser-v2-design.md`.
+
 ## 1. Why
 
 `docs/plans/2026-09-05-parser-prior-art.md` §A1.3 chose hand-written recursive
