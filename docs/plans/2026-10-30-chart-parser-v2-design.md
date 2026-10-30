@@ -456,6 +456,22 @@ hypothesised count is written into a criterion as a fixed number.
   This runs at lookahead 0, with Leo memos interned (the `shortcut:` in
   `recognize/leo.go`). It is required before the chart approach as a whole
   can be judged (§2).
+
+  On complete files, ruby slippers mostly re-decides what the lexer's own
+  PL_expect machine already decides. **Its larger payoff is M2, where the
+  file is being edited:**
+  - **Recovery by insertion.** Mid-edit code is usually incomplete. Where the
+    parser expects a token the source lacks — a `;`, a `}`, a closing
+    delimiter — the lexer can supply it as a virtual token, so the rest of
+    the file still parses. This complements recovery by skipping through an
+    `error` terminal.
+  - **Re-lexing from the chart.** After an edit, the lexer restarts at the
+    edit point from `Expected(pos)` and the scope record there, not from a
+    replay of its own state from the top of the file, and stops when the
+    sets converge with the old chart.
+
+  That is why `Expected(pos)` is memoized (§5.3, Q2) and the scope record is
+  an interface (§9.4): both are on M2's latency path.
 - Incremental reparse and convergence, after parity.
 
 ## 14. Process and budget
