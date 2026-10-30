@@ -1,0 +1,51 @@
+# Each of spec 03's eleven PL_expect states (docs/specs/perl-parser/03-lexer-feedback.md
+# §3.1.2, perl.h order) and the conflicts it settles: one state per line, its name, then
+# each conflict by its text as the generator names it (grammar/testdata/tables/conflicts.txt),
+# or a late joiner the generator emits once the grammar makes it conflict: { and ?.
+# A state's conflicts are the ones spec 03 names it as deciding, in §3.1.2's "question it
+# answers" column and §3.2's per-state columns. A text spec 03 names that no generator pair
+# can carry (a label's or attribute's :, ~~, the $ and @ sigils, -X, which perl lexes by its
+# text) is left out and named in the comment. Read by chart.ReadPLExpectMap.
+
+# §3.1.2: "A complete term was just consumed; an infix/postfix operator must follow."
+# §3.2 XOPERATOR column: / divide, // defined-or, ? ternary, { subscript, < less-than,
+# << shift, * multiply, % modulo, & bitwise and, and a bareword (x) is an operator. Every
+# pair the generator emits is an XOperator/XTerm split (spec §5), so . and %= are settled
+# here too.
+XOPERATOR % %= & * . / // < << x { ?
+
+# §3.1.2: "A value is required here." §3.2 XTERM column: / starts a match, { an anon
+# hash, < a readline, <<>>, * glob, % hash, & sub call, x a bareword; the other side of
+# every XOperator/XTerm pair.
+XTERM % %= & * . / // < << x { ?
+
+# §3.1.2: "{ after a bare sigil is a deref block, never an anon hash".
+XREF {
+
+# §3.1.2: "A bareword followed by : is a label; { goes through the §3.3 heuristic".
+# The label's : is no pair.
+XSTATE {
+
+# §3.1.2: "{ is a block, never a hashref".
+XBLOCK {
+
+# §3.1.2: ": is an attribute marker, not the ternary colon"; §3.2 { row: block.
+# The attribute's : is no pair.
+XATTRBLOCK {
+
+# §3.1.2: "same, in an expression"; §3.2 { row: block. The attribute's : is no pair.
+XATTRTERM {
+
+# §3.1.2: "eval {, do { — the { is a block, never a hash".
+XTERMBLOCK {
+
+# §3.1.2: "foo {...} / foo $x as an indirect method call"; §3.2 { row: block.
+XBLOCKTERM {
+
+# §3.1.2: "$ @ % & * are postfix-deref, not operators"; §3.2 * % & rows: postfix deref,
+# { row: the §3.3 heuristic. $ and @ are no pair.
+XPOSTDEREF % & * {
+
+# §3.1.2: "-e $f // die, shift // 0 — is // an empty regex or defined-or?"; §3.1.2 also:
+# yyl_leftcurly treats { as an anon hash exactly as in XTERM. ~~ is no pair.
+XTERMORDORDOR // {
