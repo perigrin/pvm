@@ -29,7 +29,8 @@ Guacamole's scanless lexemes to pvm's tokens ran a regexp per terminal per
 token, 110 ms of 150 on std5k.pl against the production lexer's 9 ms. The
 recognizer held up: an independent textbook recognizer agreed with it on 770
 corpus files, 3,000 mutated files and 11 adversarial grammars, and recognition
-alone was about 1.5–1.9× recursive descent untuned.
+alone fell from 34.9 to 18.3 ms on std5k.pl once its keys were bytes, against
+recursive descent's 16–31 ms on the same machine (postmortem).
 
 So this attempt keeps the machinery and replaces the grammar and the token
 interface with ones fitted to pvm's components: **perl's own grammar,
@@ -79,9 +80,10 @@ Rules 1–6 of the first attempt's §3 carry over: the grammar is static and
 context dynamic; context enters only before the chart and after it, never
 inside Earley items; only perl's own rules may prune; ambiguity may stay;
 outside the accepted language, refuse, never misparse; weights may order
-readings, never decide them. Rule 6 is sharpened, not relaxed: a constraint
-derived from perl's own declarations may decide which readings exist, after
-the chart (§8); a weight may still only order. This attempt adds:
+readings, never decide them. Rule 5 holds at waypoint 1 except for
+refusals that depend on precedence, which hold from waypoint 2 (§8). Rule 6 is sharpened, not relaxed: a constraint
+derived from perl's own declarations may decide which readings exist, and
+refuse a span where none does, after the chart (§8); a weight may still only order. This attempt adds:
 
 7. **Fitted, not faithful.** The grammar is stated in the vocabulary of the
    tokens `internal/lexer` actually emits. Where toke.c invents or reshapes
@@ -114,11 +116,14 @@ the chart (§8); a weight may still only order. This attempt adds:
 | `docs/specs/perl-parser/` chapters 2–6 | on `pu` | The recursive-descent parser's derivation from the same sources; chapter 4's levels; chapter 6's lexer checkpoints |
 | `internal/lexer` | on `pu` | The tokens and flags the grammar is stated over |
 | Aycock & Horspool (2002, 2001) | | The split LR(0) automaton; tokens with several types ("Schrödinger's Token") |
-| Afroozeh et al. (2013); Afroozeh & Izmaylova (2016) | | Safe operator precedence: declarative rules that remove ambiguity without removing sentences (§8) |
+| Afroozeh et al. (2013); Afroozeh & Izmaylova (2016) | | Operator precedence as declarative constraints over a forest; this design departs from their safety property and refuses as bison does (§8) |
 | Goodman (1999) | | Semiring parsing: values computed over a parse forest (§8) |
 | YAEP 7aba93e; Leo (1991) | | Interning, the transition cache; linear right recursion |
 
-`perly.y` is read and cited by people; no build step reads it.
+`perly.y` is read and cited by people; no build step reads it. The
+precedence referee (§8) is generated from it offline and committed.
+Hand-off items H1–H5 are listed in the assessment minute,
+`docs/assessments/chart-parser-v2-design.md`, under "Handed to refinement".
 
 ## 5. Components
 
@@ -149,10 +154,15 @@ assessment lists what they involve.
   instead>`) for a rule restated over the lexer's stream. Bison actions and
   mid-rule actions are not ported. An alternative whose action refuses
   *unconditionally* is not ported as an accepting rule; the ledger marks it
-  "refused in action". An action that refuses only under a condition (a
-  `catch` without a variable) becomes a
-  fitted rule that excludes that case. Refusals that depend on precedence are
-  not stated here; they are the forest's (§8). Where `perly.y` spells as several
+  "refused in action". The four comparison-chain alternatives among them
+  (`perly.y:1466-1487`) are reached only through bison's precedence, so the
+  rules as written derive the same sentences another way; the ledger marks
+  them "refused by precedence" and their refusal is §8's. An action that
+  refuses only under a syntactic condition (a `catch` without a variable)
+  becomes a fitted rule that excludes that case, and the alternative that
+  case needs (`catch_paren: empty`) is excluded with that reason. An action
+  that refuses under scope or features (`method` and `ADJUST` outside a
+  class, signatures not enabled) is a scope refusal, waypoint 2's (§9.4). Where `perly.y` spells as several
   terminals what the lexer emits as one token, the rule is fitted to the
   token (a token maps to a *set* of terminals, never a sequence); where the
   lexer emits several tokens for one terminal, the rule is fitted to the
@@ -216,7 +226,11 @@ terminal set, so the key does not recurse. The two previous tokens are what
 make a lone word inside `{}` a string in `$h{foo}`, `$h->{foo}` and
 `f()->{foo}` and a call in `+{ foo }`; the lexer's `OpensBlock` is false on
 those braces and cannot, and which pairs mean which is the grammar's to state
-and the table's to hold. Heredoc bodies are not neighbours. Where the lexer has already
+and the table's to hold. A `{` neighbour's class carries whether it opens a
+subscript or an anonymous hash, derived from its own predecessor as toke.c
+does, so `$h{-foo}` and `+{-foo}` get different keys at `foo` though both are
+three tokens back from it; this is still a class, not a terminal set, so the
+key does not recurse. Heredoc bodies are not neighbours. Where the lexer has already
 decided block-or-hash at `{`, the key keeps that decision. The next token's
 class is what toke.c reads to tell `FUNC` from `LSTOP`, `FUNC1` from
 `UNIOP`, and an auto-quoted word before `=>`.
@@ -256,23 +270,31 @@ non-chaining comparisons' `%prec` act on the forest in two steps. First,
 where two derivations of one nonterminal cover one span, the one bison's
 resolution would build is kept. Second, a derivation bison's resolution would
 never build is forbidden: a `%nonassoc` operator chained with its own level
-where bison shifts into the conflict (infix after infix, prefix with postfix,
+where bison's resolution is an error action (infix after infix, prefix with postfix,
 but not prefix after prefix), and a non-chaining comparison chained with
 another, including chains split by a tighter operator
 (`1 .. 2 + 3 .. 4`, `$a <=> $b + 1 <=> $c`). A span whose every derivation is
-forbidden is refused, and so is a file whose root is. The value carried up
-the forest is each derivation's exposed operator context at both edges, not
-one bit per node.
+forbidden is refused, and so is a file whose root is. These shapes are
+examples; the definition is bison's resolution of each conflict, and the
+generated tests below are what pin it. The value carried up the forest is
+each derivation's exposed operator context at both edges, not one bit per
+node.
 
 This is narrower than the safe semantics of Afroozeh et al., which never
-refuse: perl is bison, and bison refuses these on purpose. The precedence
-probe recorded in the assessment kept exactly bison's readings on every string
-bison accepts, and refused exactly what bison refuses, with this definition.
+refuse: perl is bison, and bison refuses these on purpose. Participant E's
+probe (minute, row E18 and round 6) showed this definition bison-exact on a
+six-level operator ladder; that it holds over all of `perly.y` is what the
+referee tests below establish, and §10 says what happens if it does not.
 
-**Bison is the referee.** The constraint is tested against a bison-built
-parser of the pinned `perly.y` on generated operator sentences: same
-acceptance and same grouping, which is the outside reference rule 11 requires
-(the oracle's marker sites do not cover grouping). Perl is the oracle on the
+**Bison is the referee, offline.** The constraint is tested against a
+bison-built parser of the pinned `perly.y` (actions stripped except `YYERROR`
+refusals): same acceptance and same grouping, which is the outside reference
+rule 11 requires (the oracle's marker sites do not cover grouping). Bison and
+a C compiler are needed only to regenerate the referee's output, never by
+`make test` or the ratchet: a script, pinned to the `perly.y` revision,
+writes the generated sentences (as terminal strings, so no re-lexing is
+involved), bison's verdict and bison's grouping to committed fixtures, and the
+Go tests read the fixtures, as the perl labels are read. Perl is the oracle on the
 corpora: waypoint 2's WRONG 0 grades accepted files, and §9.2's refusal gate
 grades refused ones. The constraint covers every conflict bison resolves by
 precedence, not only the operator ladder: `%prec` on a rule that is not an
@@ -280,13 +302,19 @@ operator (`indirob: scalar %prec PREC_LOW`, which refuses `print $fh []`) is
 resolved the same way. Which forms are refused is found, not listed: the
 tests generate sentences that `perly.y` with its precedence and `perly.y`
 without it (GLR, every derivation kept) disagree on, and each disagreement is
-a refusal or grouping test. Refusals that need `PLUGIN_*` tokens are outside
-scope with the keyword plugins (§2).
+a refusal or grouping test. Generation is driven to cover every conflict bison
+resolves by precedence, with sentences on both sides of each: some bison
+refuses and some it accepts (`print $fh []` and `print $$fh[0]`), so an
+over-refusing constraint fails as surely as an under-refusing one. Coverage
+of the resolved conflicts is reported. The `PLUGIN_*` operators' refusals are
+in scope with the library operators in waypoint 2 (§9.4); only the keyword
+plugins `PLUGEXPR`/`PLUGSTMT` are excluded (§2).
 
 **Waypoint 1 does no precedence, and over-accepts.** Precedence-dependent
 refusals are waypoint 2's, so waypoint 1 accepts files perl refuses for
 precedence alone; its refusal gate excludes them by their label (§9.1), and
-their tests are waypoint 2's. The ambiguous chains' cost shows in
+their tests are waypoint 2's, the four comparison-chain alternatives of §5.2
+included. The ambiguous chains' cost shows in
 `items-per-token`; operator chains in real Perl are short (a probe recorded in
 the assessment).
 
@@ -315,7 +343,11 @@ with the machine that runs the ratchet. Each perl refusal carries a category
 that is reviewed when the file is committed: **grammar** (the construct is not
 in `perly.y`'s language, including its unconditional action refusals and
 toke.c's fatal lexing errors); **precedence** (refused only by bison's
-precedence resolution, §8); **semantic** (a compile-time check after parsing,
+precedence resolution, §8, which the label shows by evidence rather than
+judgment: perl's own token stream for the file, from a `-DDEBUGGING` build of
+the pinned revision, is accepted by `perly.y` without precedence and refused
+with it); **scope** (refused in an action under scope or features, §5.2);
+**semantic** (a compile-time check after parsing,
 such as arity, prototypes or op.c's "Can't modify"); or **environment** (a
 missing module, `-T`, a runtime failure). The `isa` and similar feature-gated
 forms are labelled under the feature set the preamble declares. Syntax only the newer perl accepts shows in
@@ -343,7 +375,7 @@ Exit, all at once:
   perl.git `t/` arrives.
 - **Exclusions are bounded:** an alternative may be excluded from the port
   only for a reason on a closed list (a keyword plugin, an unconditional
-  action refusal, a start selector with no consumer), and the count of
+  action refusal, the alternative a fitted conditional refusal needs), and the count of
   exclusions is reported.
 - **Builtins and levels:** the CORE.tpm cross-check runs and its differences
   are listed; the levels declared in the grammar are compared with chapter
@@ -362,8 +394,11 @@ that issue's commit.
 
 **Ratios.** Every ratio is chart over recursive descent, timed **alternately**
 in one process (chart, RD, chart, RD…) so machine load affects both sides
-alike. A GC is forced between runs, outside the timed span, so each side pays
-for the collection its own run triggers and none of the other's. A **measurement** is 2 warm-up pairs then 9 timed pairs;
+alike. Within a timed run, collection is left to the runtime, so a side
+pays for the collection its own allocation causes during the run; a GC is
+forced between runs, outside the timed span, so neither inherits the other's
+garbage. Allocation per token is reported for both sides, since a run too
+short to trigger a collection would otherwise hide it. A **measurement** is 2 warm-up pairs then 9 timed pairs;
 the ratio is the median of the 9 per-pair ratios, with min and max reported.
 `lex-overhead` is timed the same alternating way.
 
@@ -422,7 +457,8 @@ access to `internal/parse` that needs, is waypoint 2's decision (perigrin,
 | `lex-overhead` | ≤ 1.3 (median of three) in every issue touching chart/lex or the table |
 | `chart-accepted-both-refused` | may not rise; 0 at the exit |
 | `speed-ratio-{std5k,aggregate}-{longlived,cold}` | reported; the kill reads long-lived |
-| `terminals-per-token`, `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
+| `terminals-per-token` | may not rise |
+| `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
 | `speed-ratio-*`, `lex-overhead` | timing: never compared strictly between issues |
 
 The baseline is reset for this attempt: keys may be added or retired when the
@@ -437,6 +473,9 @@ Each kills **up-front mode** (§2).
 - **Speed:** a long-lived ratio above **3×** on std5k or the aggregate, as the
   median of three measurements at a checkpoint (§9.3).
 - **Facts in items:** a fix would need facts inside Earley items.
+- **Precedence not expressible:** a precedence resolution bison makes cannot
+  be stated over the forest from a span's derivations and its neighbouring
+  tokens (a stop to perigrin, not a kill until ruled).
 - **Waypoint 2:** a WRONG site fixable only by a refusal that drops coverage
   below recursive descent's; or more than 1% (and at least 5) of a corpus's
   statements collapsing.
@@ -450,22 +489,32 @@ no hypothesised count is written into a criterion as a fixed number.
 Only `internal/chart` changes. Every other package is read through what it
 already exports, never changed; where something needed is not exported, that
 is reported, not worked around. A lexer defect found here is filed against the
-v0.1 milestone and listed on `lex-unmapped`'s known list until fixed.
+v0.1 milestone and listed on `lex-unmapped`'s known list until fixed. The
+known list also takes a file whose chart verdict, accept or refuse, traces to
+a lexer token that is wrong but mapped, under the same review; such a file
+leaves both gates' populations.
 
 ## 12. Testing
 
 - **Generator:** toy grammars for the token table (each key part, unions,
   multi-terminal tokens) and each refusal; each test shown to fail before it
   passes.
+- **Token table, against toke.c:** a `-DDEBUGGING` build of the pinned perl,
+  run offline, records `-DT`'s token type for each token over the corpora to
+  committed fixtures; a test checks that each is a member of the chart's
+  terminal set for that token and reports set sizes. This is the table's
+  outside reference under rule 11.
 - **Grammar:** the port ledger; the level cross-check; the CORE.tpm
   cross-check.
 - **Recognizer:** the carried-over tests and fuzz target over integer ids,
   with branched copies, Leo on/off and warm/cold, and the reference
   recognizer as an oracle for acceptance and `Expected`.
 - **Superset, start forms, speed:** §9.
-- **Precedence (waypoint 2):** §8's contract on toy grammars, with perl as
-  the oracle.
-- **Refusals:** each alternative the ledger marks "refused in action" has a
+- **Precedence (waypoint 2):** §8's generated sentences against the bison
+  referee's fixtures; toy grammars for the edge-context mechanism, with a
+  bison build of each toy as their referee.
+- **Refusals:** each alternative the ledger marks "refused in action" (not
+  "refused by precedence") has a
   waypoint-1 test that the chart refuses it, beside a nearby form perl
   accepts. Precedence refusals (§8), adjacent and split chains alike, are
   waypoint 2's tests, against the bison-built parser and perl.
