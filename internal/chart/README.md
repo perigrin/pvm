@@ -128,10 +128,11 @@ committed to the baseline with the component.
 | `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
 | `lex-unmapped` | files among `std5k.pl` and the scored `parses` cases whose up-front `chart/lex` stream has a token no predicate admits, or does not concatenate back to the source; stderr names each file and byte offset | may not rise |
 | `expectation-conflicts` | conflicting pairs the generator observed, the lines of `grammar/testdata/tables/conflicts.txt` (see "Expected terminals, Leo and the conflicting pairs") | reported only |
+| `leo-disagree` | files among `std5k.pl` and the scored `parses` cases recognized differently with Leo on and off, in acceptance or in the number of distinct sets; stderr names each | may not rise (baseline 0) |
 
 Keys the later issues add, and the rule each is held to:
-`defect-yield-chart-exact` may not fall, and `leo-disagree` and
-`recovery-on-accepted` may not rise.
+`defect-yield-chart-exact` may not fall, and `recovery-on-accepted` may not
+rise.
 
 `lex-unmapped`'s baseline is not 0. Three scored cases are refused because
 `chart/lex` re-lexes a `$#{` interior from a blank lexer state. The rule fails closed. It lexes the interior only when
@@ -158,7 +159,7 @@ baseline before the ratchet reads it, but its stdout is complete.
 ## The recognizer: `recognize`
 
 `recognize.Recognize` runs a YAEP-style Earley recognizer over the generated
-tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
+tables and a `chart/lex` lattice. Error recovery is not built yet.
 
 - **Items** are an LR(0) state and the distance in lattice nodes back to the
   item's origin. A set is its items, sorted, interned as a (core, distances)
@@ -179,13 +180,28 @@ tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
   `TestCacheChecksOriginSets` fails without that check. The cache is not
   used inside a branch, nor where two edges meet, and a transition that read
   any set inside a branch is never cached (`TestCacheNotKeyedOnBranchSet`).
+- **Leo memos** (Leo 1991) complete a right recursion in one step. A memo is
+  made at a node for a symbol B only where the node's whole set holds one
+  item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It
+  resolves the chain of completions to its top item, by reference to the
+  memo at the item's origin. Memos live in a per-node side table, never in
+  a set, so two nodes whose sets differ only in their tops share one set
+  (`TestLeoTopOutsideSetIdentity`). With lookahead, a chain whose top cannot
+  be followed by the next token is completed link by link, as without Leo.
+  Every set a chain read is a transition-cache dependency. Leo never changes
+  acceptance. At lookahead 0, where interleaved mode will run, it makes
+  `S ::= A S | A` and Guacamole's `StatementSeq` linear, where without it
+  they are quadratic (`TestLeoLinearAtLookaheadZero`,
+  `TestLeoStatementSeqAtLookaheadZero`). `Options.NoLeo` turns it off, and
+  the `chart_noleo` build tag makes the memo step a no-op whatever the
+  options say, so `go test -tags chart_noleo` shows those tests failing.
 - **The empty program.** A source of only whitespace, comments and POD is
   accepted, as perl accepts it: the cut gives `Program` an empty
   alternative, which Guacamole's `Program ::= StatementSeq` lacks.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
-never panics, that acceptance is the same with and without the cache and
-the lookahead and with a dead-end branch added, and that `Expected` is the
+never panics, that acceptance is the same with and without the cache, the
+lookahead and Leo and with a dead-end branch added, and that `Expected` is the
 same with and without lookahead.
 
 ## The token cut and its rewrite list
@@ -268,9 +284,15 @@ Every line is space-separated numbers and names:
   written out.
 - **`expected.txt`**: one line per state, `<id> <terminal ids>`, the
   terminals after a dot in the state's items, in symbol order.
-- **`leo.txt`**: one line per Leo-eligible state, `<id> <item>`: a state
-  whose one item has its dot before its rule's last symbol, a nonterminal
-  that derives the rule's own LHS at its right edge (`S ::= A . S`).
+- **`leo.txt`**: one line per Leo item, `<id> <item>`. A Leo item is a
+  state's one item awaiting some nonterminal B, with B its rule's last
+  symbol and deriving the rule's own LHS at its right edge (`S ::= A . S`).
+  Other items in the state do not matter, so `S ::= A . S` is a Leo item
+  beside `S ::= A .`. The right edge reaches past trailing nullables, but an
+  item with anything after B is not a Leo item: what follows B could still
+  read a token, and the memo skips the item that would read it. This is
+  necessary, not sufficient: the recognizer also requires the whole Earley
+  set to hold one item awaiting B.
 - **`probes.txt`**: `<terminal> "<text>"`, the generated samples the
   conflict finder lexed, one per printable character a pattern terminal's
   texts can start with. Literal texts are probed too and are not listed.

@@ -1,5 +1,5 @@
 // ABOUTME: FuzzRecognize, the recognizer's fuzz target: it never panics, and acceptance does not depend on the cache.
-// ABOUTME: Nor on lookahead or a dead-end branch, and Expected ignores lookahead. Run by `make fuzz-chart-recognize`.
+// ABOUTME: Nor on lookahead, Leo or a dead-end branch, and Expected ignores lookahead. Run by `make fuzz-chart-recognize`.
 
 package recognize
 
@@ -59,6 +59,11 @@ func FuzzRecognize(f *testing.F) {
 		no := Recognize(New(guacTab, Options{NoCache: true, NoLookahead: true}), lattices[0])
 		if no.Accepted() != want {
 			t.Fatalf("%q: accepted %v without lookahead, %v with", src, no.Accepted(), want)
+		}
+		for _, la := range []bool{false, true} {
+			if got := Recognize(New(guacTab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
+				t.Fatalf("%q: accepted %v without Leo (lookahead off %v), %v with", src, got, la, want)
+			}
 		}
 		for pos := range cold.Sets {
 			a, _ := cold.Expected(pos)
