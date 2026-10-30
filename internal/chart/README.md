@@ -8,6 +8,20 @@ recursive-descent parser in `internal/parse` and measured against it. The
 design is `docs/plans/2026-10-29-chart-parser-design.md`. Nothing outside the
 spike consumes this tree.
 
+## Status: stopped by the speed kill
+
+The `chart-waypoint` milestone was stopped on 2026-10-30 by its §9 speed
+kill: lexing and recognition ran 3.9–5.0× recursive descent over the corpus,
+against a 3× line. `docs/postmortems/chart-waypoint.md` records why. perigrin
+decided to re-attempt the spike with a grammar ported from `perly.y` over
+`internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
+the ratchet carry over; the committed tables will be regenerated from the
+new grammar. The SLIF reader, the token cut, `chart/lex`'s
+predicate mapping, the observed-conflict probes and the CORE.tpm cross-check
+are Guacamole-specific and will be removed; the sections below that describe
+them describe what was built, not the plan. The forest, error recovery,
+`chart/compare` and the oracle adapter were never built.
+
 ## The grammar
 
 `grammar/testdata/guacamole/guacamole.slif` is Guacamole's Marpa SLIF grammar,
@@ -234,10 +248,11 @@ admits less, so the chart refuses rather than misparses:
   `DerefVariable ::= ArrayTopOpen StatementSeq RBrace`, where `ArrayTopOpen`
   is a `Variable` token whose text is `$#{`. pvm's lexer emits the whole
   construct as one `Variable` token, and no predicate admits that composite
-  token. `chart/lex` (issue 01a18656-2ec0) owns splitting it into
-  `ArrayTopOpen`, the re-lexed interior and `}`. Until that lands, nothing
-  recognizes `$#{...}`, which is expected. After the split, the grammar
-  checks the block, so `$#{ $foo->{'bar'} }` parses and `$#{1+}` is refused.
+  token. `chart/lex` (issue 01a18656-2ec0) splits it into `ArrayTopOpen`,
+  the re-lexed interior and `}`, so the grammar checks the block:
+  `$#{ $foo->{'bar'} }` parses and `$#{1+}` is refused. Where the interior
+  needs the lexer's file state, the `$#{` is refused instead, until
+  01a1882d-d8a4 lands.
   `internal/lexer` does not change.
 
 ## The generated tables: `make chart-tables`
@@ -383,7 +398,7 @@ Other divergences:
 Two lexeme priorities are not encoded. Marpa arbitrates them among the
 lexemes acceptable at a position, which depends on the Earley set rather
 than on any one rule, so they wait for `chart/resolve` or the interleaved
-lexer. Until then the forest carries both readings:
+lexer. Until then the grammar admits both readings (no forest was built):
 
 - **`VersionNumber`**: `use Foo 1.2;` reads both as a version and as an
   import list, as do `no Foo 1.2;` and `require 1.2;`. **perl and Marpa read
