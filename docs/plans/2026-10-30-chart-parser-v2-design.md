@@ -30,7 +30,7 @@ token, 110 ms of 150 on std5k.pl against the production lexer's 9 ms. The
 recognizer held up: an independent textbook recognizer agreed with it on 770
 corpus files, 3,000 mutated files and 11 adversarial grammars, and recognition
 alone fell from 34.9 to 18.3 ms on std5k.pl once its keys were bytes, against
-recursive descent's 16–31 ms on the same machine (postmortem).
+recursive descent's 18.6–30.8 ms on the same machine (postmortem).
 
 So this attempt keeps the machinery and replaces the grammar and the token
 interface with ones fitted to pvm's components: **perl's own grammar,
@@ -155,9 +155,11 @@ assessment lists what they involve.
   mid-rule actions are not ported. An alternative whose action refuses
   *unconditionally* is not ported as an accepting rule; the ledger marks it
   "refused in action". The four comparison-chain alternatives among them
-  (`perly.y:1466-1487`) are reached only through bison's precedence, so the
-  rules as written derive the same sentences another way; the ledger marks
-  them "refused by precedence" and their refusal is §8's. An action that
+  (`perly.y:1466-1487`) derive a dangling operator (`$a <=> $b <=>`), which
+  the rules as written already refuse; the chained *sentence* they exist to
+  refuse (`$a <=> $b <=> $c`) has another derivation, so its refusal is §8's.
+  The ledger marks them "refused by precedence"; the dangling form keeps a
+  waypoint-1 refusal test (§12). An action that
   refuses only under a syntactic condition (a `catch` without a variable)
   becomes a fitted rule that excludes that case, and the alternative that
   case needs (`catch_paren: empty`) is excluded with that reason. An action
@@ -287,14 +289,21 @@ six-level operator ladder; that it holds over all of `perly.y` is what the
 referee tests below establish, and §10 says what happens if it does not.
 
 **Bison is the referee, offline.** The constraint is tested against a
-bison-built parser of the pinned `perly.y` (actions stripped except `YYERROR`
-refusals): same acceptance and same grouping, which is the outside reference
+bison-built parser of the pinned `perly.y`, with every action stripped
+except those that call `yyerror`, which are kept as refusals. A sentence is
+refused if bison reports any error, whatever `yyparse` returns, since
+`sideff: error` recovers and returns success. Same acceptance and same grouping, which is the outside reference
 rule 11 requires (the oracle's marker sites do not cover grouping). Bison and
 a C compiler are needed only to regenerate the referee's output, never by
 `make test` or the ratchet: a script, pinned to the `perly.y` revision,
-writes the generated sentences (as terminal strings, so no re-lexing is
-involved), bison's verdict and bison's grouping to committed fixtures, and the
-Go tests read the fixtures, as the perl labels are read. Perl is the oracle on the
+writes each generated sentence, bison's verdict and bison's grouping to
+committed fixtures, and the Go tests read the fixtures, as the perl labels
+are read. Each sentence is stored as `perly.y` terminals and as source text
+rendered from them, one sample lexeme per terminal from a committed rendering
+table; the chart is run on the source text through `internal/lexer`, so the
+fitted grammar is tested as it will run. A terminal with no single-lexeme
+rendering is on a reviewed list, and sentences needing it are counted, not
+dropped silently. Perl is the oracle on the
 corpora: waypoint 2's WRONG 0 grades accepted files, and §9.2's refusal gate
 grades refused ones. The constraint covers every conflict bison resolves by
 precedence, not only the operator ladder: `%prec` on a rule that is not an
@@ -306,7 +315,9 @@ a refusal or grouping test. Generation is driven to cover every conflict bison
 resolves by precedence, with sentences on both sides of each: some bison
 refuses and some it accepts (`print $fh []` and `print $$fh[0]`), so an
 over-refusing constraint fails as surely as an under-refusing one. Coverage
-of the resolved conflicts is reported. The `PLUGIN_*` operators' refusals are
+of the resolved conflicts may not fall, and at waypoint 2's exit every
+resolved conflict is covered on both sides or is on a reviewed list with a
+reason (generation timed out, or the rendering cannot reach it). The `PLUGIN_*` operators' refusals are
 in scope with the library operators in waypoint 2 (§9.4); only the keyword
 plugins `PLUGEXPR`/`PLUGSTMT` are excluded (§2).
 
@@ -333,20 +344,22 @@ the assessment).
 tree reports a refusal (`Node.Refused()` false at every node), the measure
 behind the 236 above. The **superset population** is every file in the
 waypoint-1 corpora that **both perl and recursive descent accept**, less files
-on `lex-unmapped`'s known list (§9.2). Files recursive descent accepts but
+on `lex-unmapped`'s known list or the lexer-defect list (§9.2, §11). Files recursive descent accepts but
 perl refuses are reported, not gated, since accepting them would break rule 5.
 
 **Perl's labels are pinned, not live.** They are produced once and
 committed as a label file recording how they were made (the perl binary and
-version, working directory, `PERL5LIB`, timeout), so populations do not change
+version, working directory, `PERL5LIB`, timeout). One perl produces both the
+labels and their evidence: a `-DDEBUGGING` build of the pinned blead, built
+offline (refinement sizes it). Populations do not change
 with the machine that runs the ratchet. Each perl refusal carries a category
 that is reviewed when the file is committed: **grammar** (the construct is not
 in `perly.y`'s language, including its unconditional action refusals and
 toke.c's fatal lexing errors); **precedence** (refused only by bison's
 precedence resolution, §8, which the label shows by evidence rather than
-judgment: perl's own token stream for the file, from a `-DDEBUGGING` build of
-the pinned revision, is accepted by `perly.y` without precedence and refused
-with it); **scope** (refused in an action under scope or features, §5.2);
+judgment: perl's token stream for the file, aligned as §12 states and taken
+up to the token where perl refused, is a viable prefix of `perly.y` without
+precedence, and bison with precedence refuses at that token); **scope** (refused in an action under scope or features, §5.2);
 **semantic** (a compile-time check after parsing,
 such as arity, prototypes or op.c's "Can't modify"); or **environment** (a
 missing module, `-T`, a runtime failure). The `isa` and similar feature-gated
@@ -360,22 +373,25 @@ Exit, all at once:
 - **The port is complete:** every `perly.y` alternative is in the port ledger
   as ported, fitted or excluded with a reason, and every grammar citation is in
   the ledger. The generator's refusals pass; `tables-drift 0`.
-- **`lex-unmapped`** equals a known list. Each entry names an open lexer
+- **`lex-unmapped`** equals its known list. Each entry names an open lexer
   issue and the byte where the chart refuses, and the gate review confirms
   the construct there is that issue's, so a gap in the chart's own table
-  cannot be listed away. No unlisted file is unmapped.
+  cannot be listed away. No unlisted file is unmapped. Files whose verdict
+  traces to a wrong but mapped token are a separate list (§11), not this one.
 - **Superset:** `rd-accepted-chart-refused 0` over the superset population,
   with the list printed on failure.
 - **Refusal (rule 5):** `chart-accepted-both-refused 0`: the chart accepts no
   file labelled a **grammar** refusal that recursive descent also refuses,
-  less files on `lex-unmapped`'s known list. Precedence refusals join this
-  gate at waypoint 2; semantic and environment refusals are reported
+  less files on either lexer list. Precedence and scope refusals are
+  reported at waypoint 1 and join this gate at waypoint 2; semantic and
+  environment refusals are reported
   (`chart-accepted-perl-refused`), never gated. The corpora hold few such
   files at waypoint 1, so §12's refusal tests carry most of rule 5 until
   perl.git `t/` arrives.
 - **Exclusions are bounded:** an alternative may be excluded from the port
   only for a reason on a closed list (a keyword plugin, an unconditional
-  action refusal, the alternative a fitted conditional refusal needs), and the count of
+  action refusal, the alternative a fitted conditional refusal needs, bison's
+  `error` recovery rule `sideff: error`), and the count of
   exclusions is reported.
 - **Builtins and levels:** the CORE.tpm cross-check runs and its differences
   are listed; the levels declared in the grammar are compared with chapter
@@ -457,7 +473,8 @@ access to `internal/parse` that needs, is waypoint 2's decision (perigrin,
 | `lex-overhead` | ≤ 1.3 (median of three) in every issue touching chart/lex or the table |
 | `chart-accepted-both-refused` | may not rise; 0 at the exit |
 | `speed-ratio-{std5k,aggregate}-{longlived,cold}` | reported; the kill reads long-lived |
-| `terminals-per-token` | may not rise |
+| `terminals-per-token` | reported until the port is complete; may not rise from the issue that completes it, which takes its baseline |
+| `tdt-aligned`, `tdt-unseen` | may not fall / may not rise (§12) |
 | `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
 | `speed-ratio-*`, `lex-overhead` | timing: never compared strictly between issues |
 
@@ -489,21 +506,33 @@ no hypothesised count is written into a criterion as a fixed number.
 Only `internal/chart` changes. Every other package is read through what it
 already exports, never changed; where something needed is not exported, that
 is reported, not worked around. A lexer defect found here is filed against the
-v0.1 milestone and listed on `lex-unmapped`'s known list until fixed. The
-known list also takes a file whose chart verdict, accept or refuse, traces to
-a lexer token that is wrong but mapped, under the same review; such a file
-leaves both gates' populations.
+v0.1 milestone and listed on `lex-unmapped`'s known list until fixed. A file
+whose chart verdict, accept or refuse, traces to a lexer token that is wrong
+but mapped goes on a separate **lexer-defect list**, each entry naming the
+open lexer issue and the byte of the wrong token, under the same review; such
+a file leaves both gates' populations.
 
 ## 12. Testing
 
 - **Generator:** toy grammars for the token table (each key part, unions,
   multi-terminal tokens) and each refusal; each test shown to fail before it
   passes.
-- **Token table, against toke.c:** a `-DDEBUGGING` build of the pinned perl,
-  run offline, records `-DT`'s token type for each token over the corpora to
-  committed fixtures; a test checks that each is a member of the chart's
-  terminal set for that token and reports set sizes. This is the table's
-  outside reference under rule 11.
+- **Token table, against toke.c:** the pinned `-DDEBUGGING` perl, run
+  offline, records `-DT`'s token stream over the corpora, and a committed
+  script aligns it to `internal/lexer`'s tokens; the aligned pairs are
+  committed fixtures. Alignment is the real work and is stated here, not left
+  to an issue: modules a file loads are stubbed or their tokens dropped by
+  toke.c's nested-EOF bracketing, so only the file's own tokens remain; tokens
+  are matched in order by text; toke.c's split, invented and sublexed tokens
+  (the `$` and name of a variable, `force_next` tokens, quote interiors) are
+  folded by the reviewed fitting families (H4) onto the pvm token they belong
+  to. Two keys, both gated: **`tdt-aligned`**, the fraction of pvm tokens
+  aligned, may not fall, so the check cannot pass by aligning less; and every
+  aligned token's toke.c type is a member of the chart's set for it.
+  **`tdt-unseen`**, the (key, terminal) pairs in the table that toke.c never
+  produced over the corpora, may not rise without review, so an over-wide
+  table shows as surely as a too-narrow one. This is the table's outside
+  reference under rule 11.
 - **Grammar:** the port ledger; the level cross-check; the CORE.tpm
   cross-check.
 - **Recognizer:** the carried-over tests and fuzz target over integer ids,
@@ -513,8 +542,8 @@ leaves both gates' populations.
 - **Precedence (waypoint 2):** §8's generated sentences against the bison
   referee's fixtures; toy grammars for the edge-context mechanism, with a
   bison build of each toy as their referee.
-- **Refusals:** each alternative the ledger marks "refused in action" (not
-  "refused by precedence") has a
+- **Refusals:** each alternative the ledger marks "refused in action", and
+  the dangling form of each "refused by precedence" one, has a
   waypoint-1 test that the chart refuses it, beside a nearby form perl
   accepts. Precedence refusals (§8), adjacent and split chains alike, are
   waypoint 2's tests, against the bison-built parser and perl.
