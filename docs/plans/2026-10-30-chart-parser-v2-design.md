@@ -147,11 +147,11 @@ assessment lists what they involve.
   line. Each rule carries a citation: `perly.y:N` for a rule ported as
   written, or a *fitted* citation (`perly.y:N, fitted: <what the lexer emits
   instead>`) for a rule restated over the lexer's stream. Bison actions and
-  mid-rule actions are not ported, with one exception: an alternative whose
-  action *refuses* (`yyerror` and `YYERROR`, as for the non-chaining
-  comparisons at `perly.y:1466-1487` and an anonymous `sub` without a body) is
-  not ported as an accepting rule; the ledger marks it "refused in action" and
-  a test checks the chart refuses it. Where `perly.y` spells as several
+  mid-rule actions are not ported. An alternative whose action refuses
+  *unconditionally* is not ported as an accepting rule; the ledger marks it
+  "refused in action". An action that refuses only under a condition (a
+  `catch` without a variable, a slurpy parameter with a default) becomes a
+  fitted rule that excludes that case. Where `perly.y` spells as several
   terminals what the lexer emits as one token, the rule is fitted to the
   token (a token maps to a *set* of terminals, never a sequence); where the
   lexer emits several tokens for one terminal, the rule is fitted to the
@@ -169,7 +169,8 @@ assessment lists what they involve.
   grammar: an uncited rule or a citation outside the reference list; a literal
   the lexer does not lex to its class's kind and text inside a short context
   string for that class; a terminal with no token class (the `PLUGIN_*`
-  terminals, waypoint 2's, and the `GRAM*` start selectors excepted); an
+  terminals, waypoint 2's, the `GRAM*` start selectors, and the keyword-plugin
+  tokens `PLUGEXPR`/`PLUGSTMT`, excluded, excepted); an
   unreachable or unproductive nonterminal; a precedence token used by no rule
   and no `%prec`. The exact checks are in the hand-off (H5).
 - **The port ledger.** A committed reference list of `perly.y`'s alternatives
@@ -177,7 +178,8 @@ assessment lists what they involve.
   fitted or excluded with a reason, and a test holds the grammar's citations
   and the ledger equal (§9.2).
 - **A thin chart/lex:** the production lexer up front, trivia attached to the
-  next significant token, then one table lookup per token.
+  next significant token (heredoc bodies to their heredoc's opening token
+  instead), then one table lookup per token.
 - **A reference recognizer (test-only):** a plain Earley recognizer used by
   the fuzz target, toy grammars and a corpus sample.
 
@@ -209,18 +211,19 @@ the flags the lexer has already computed (`OpensBlock` and `TermFollows`),
 its sigil or quote-prefix class, the classes of the **two** previous
 significant tokens, and the class of the next. A neighbour's class is its
 lexer kind, its flags and, for words and operators, its text: never its own
-terminal set, so the key does not recurse. The second previous token is what
-makes a lone word inside `{}` a string in `$h{foo}` (a term before the `{`)
-and a call in `+{ foo }` (an operator before it); the lexer's `OpensBlock`
-is false on both braces and cannot. Heredoc bodies are attached to their
-heredoc's opening token and are not neighbours. Where the lexer has already
+terminal set, so the key does not recurse. The two previous tokens are what
+make a lone word inside `{}` a string in `$h{foo}`, `$h->{foo}` and
+`f()->{foo}` and a call in `+{ foo }`; the lexer's `OpensBlock` is false on
+those braces and cannot, and which pairs mean which is the grammar's to state
+and the table's to hold. Heredoc bodies are not neighbours. Where the lexer has already
 decided block-or-hash at `{`, the key keeps that decision. The next token's
 class is what toke.c reads to tell `FUNC` from `LSTOP`, `FUNC1` from
 `UNIOP`, and an auto-quoted word before `=>`.
 
 **Compiled.** The generator builds the table from the grammar's token classes,
 with unions precomputed, so the lookup is constant-time, allocation-free and
-regexp-free, and yields an integer terminal-set id. The recognizer works only
+regexp-free (a sparse table refined by a neighbour only where a rule needs
+it), and yields an integer terminal-set id. The recognizer works only
 in ids. An empty set refuses the file at that byte (`lex-unmapped`).
 
 **Several terminals.** Where the key still cannot decide (a bareword that may
@@ -234,39 +237,48 @@ decide are covered by the key, not left to scope.
 recognizer, so §9 reports terminals per token and Earley items per token
 alongside chart/lex's own overhead.
 
-## 8. Precedence: a constraint over the forest
+## 8. Precedence: refusals in recognition, readings in the forest
 
 This section is the only statement of how precedence works; other sections
-refer to it.
+refer to it. The line it draws: **recognition decides what is Perl; the forest
+decides which reading.**
 
 `perly.y`'s precedence declarations do not stratify the grammar; bison applies
 them only where a shift/reduce conflict arises. Imitating that resolution
-inside an Earley recognizer would be faithful, not fitted. So precedence moves
-out of recognition (perigrin, 2026-10-30): recognition uses `perly.y`'s rules
-as written and is ambiguous on operator chains.
+inside an Earley recognizer would be faithful, not fitted. So precedence's
+*ordering* leaves recognition (perigrin, 2026-10-30): recognition uses
+`perly.y`'s rules as written and is ambiguous on operator chains.
 
-**The contract (safe precedence, Afroozeh et al.).** In waypoint 2, the
-declared levels and associativity act on the forest. Where two derivations of
-the same nonterminal cover the same span, the one the declarations prefer is
-kept and the other removed. A derivation is never removed when it is the only
-one for its span, so precedence removes ambiguity and never a sentence; the
-one exception is a `%nonassoc` chain, which is refused (`1..2..3`). The value
-carried up the forest is each derivation's exposed operator context at both
-edges, not one bit per node, since a deep operand can expose an operator
-several levels down.
+**Refusals stay in recognition, as fitted rules.** Where bison's precedence
+makes perl refuse a sentence, the refusal is stated in the grammar, so the
+recognizer refuses it and the forest never sees it:
 
-**What it does not cover.** `%prec` on rules that are not operators settles a
-shift/reduce choice, not a precedence; it is not part of the constraint. Where
-the chart's reading differs from perl's on such a rule, the oracle finds the
-difference and a fitted rule answers it.
+- a `%nonassoc` operator chained with one of its own level where bison
+  shifts into a conflict: infix after infix (`1..2..3`), and prefix with
+  postfix (`++$x++`); prefix after prefix is accepted, as perl accepts
+  `defined ref $x`;
+- the non-chaining comparisons, which bison refuses through `%prec
+  PREC_LOW` on `%left` rules (`$a <=> $b <=> $c`, `$a <=> $b == $c`,
+  `$x isa A < 1`).
+
+Each is a fitted rule with its citation, and each has a refusal test (§12).
+
+**The forest disambiguates and never refuses (safe precedence, Afroozeh et
+al.).** In waypoint 2, the declared levels and associativity act on the
+forest: where two derivations of the same nonterminal cover the same span, the
+one the declarations prefer is kept and the other removed, and a span's only
+derivation is never removed. The value carried up the forest is each
+derivation's exposed operator context at both edges, not one bit per node.
 
 **Bison is the referee, not the mechanism.** Perl is the oracle: waypoint 2's
-WRONG 0 grades accepted files, and §9.2's refusal gate grades refused ones.
-Where bison removes a sentence beyond `%nonassoc`, the chart accepts it, and
-that shows in the refusal gate's report.
+WRONG 0 grades accepted files, §9.2's refusal gate and §12's refusal tests
+grade refused ones. `%prec` on rules that are not operators settles a
+shift/reduce choice and is not part of the forest constraint; where the
+chart's reading differs from perl's on such a rule, the oracle finds it and a
+fitted rule answers it.
 
-**Waypoint 1 does no precedence.** It changes acceptance only at `%nonassoc`,
-so waypoint 1's gates are unaffected; the ambiguous chains' cost shows in
+**Waypoint 1 does no ordering.** Its acceptance is already perl's, refusals
+included, so its gates are meaningful; the ambiguous chains' cost shows in
 `items-per-token`. Operator chains in real Perl are short (a probe recorded in
 the assessment).
 
@@ -288,8 +300,15 @@ waypoint-1 corpora that **both perl and recursive descent accept**, less files
 on `lex-unmapped`'s known list (§9.2). Files recursive descent accepts but
 perl refuses are reported, not gated, since accepting them would break rule 5.
 
-The label perl's version is recorded beside the grammar's revision; syntax
-only the newer one accepts shows in `chart-accepted-perl-refused`.
+**Perl's labels are pinned, not live.** They are produced once and
+committed as a label file recording how they were made (the perl binary and
+version, working directory, `PERL5LIB`, timeout), so populations do not change
+with the machine that runs the ratchet. Each perl refusal carries a category
+that is reviewed when the file is committed: **syntax** (a compile-time refusal
+of the construct, whatever perl's message says, including perly.y's own action
+refusals and toke.c's fatal lexing errors) or **environment** (a missing
+module, `-T`, a runtime failure). Syntax only the newer perl accepts shows in
+`chart-accepted-perl-refused`.
 
 ### 9.2 Waypoint 1: recognizes Perl
 
@@ -305,27 +324,31 @@ Exit, all at once:
 - **Superset:** `rd-accepted-chart-refused 0` over the superset population,
   with the list printed on failure.
 - **Refusal (rule 5):** `chart-accepted-both-refused 0`: the chart accepts no
-  file that both perl refuses with a syntax error and recursive descent
-  refuses. Other perl-refused files the chart accepts are reported
-  (`chart-accepted-perl-refused`), since perl refuses some for reasons that
-  are not syntax.
+  file labelled a **syntax** refusal that recursive descent also refuses.
+  Other perl-refused files the chart accepts are reported
+  (`chart-accepted-perl-refused`). The corpora hold few such files at
+  waypoint 1, so §12's refusal tests carry most of rule 5 until perl.git
+  `t/` arrives in waypoint 2.
 - **Builtins and levels:** the CORE.tpm cross-check runs and its differences
   are listed; the levels declared in the grammar are compared with chapter
   4's table and `parse.LevelsAccountedFor()`, and differences listed.
 - **`leo-disagree 0`**, defined as Leo on and off agreeing on acceptance and
-  on `Expected` at every node.
+  on `Expected` at every position.
 - **Speed:** measured at the checkpoints of §9.3; `lex-overhead` gated.
 
 These are the waypoint's exit, met by its final issue. Every issue before it
 holds the ratchet's no-regression rule, so it may not make any key worse, but
-is not required to meet an exit gate the unfinished port cannot meet yet.
+is not required to meet an exit gate the unfinished port cannot meet yet. A
+key's baseline is taken by the first issue that makes it print a number.
 
 ### 9.3 Speed protocol
 
 **Ratios.** Every ratio is chart over recursive descent, timed **alternately**
 in one process (chart, RD, chart, RD…) so machine load affects both sides
-alike. A **measurement** is 2 warm-up pairs then 9 timed pairs; the ratio is
-the median of the 9 per-pair ratios, with min and max reported.
+alike, with a GC before each timed run so neither side's collection lands in
+the other's time. A **measurement** is 2 warm-up pairs then 9 timed pairs;
+the ratio is the median of the 9 per-pair ratios, with min and max reported.
+`lex-overhead` is timed the same alternating way.
 
 **Two lifetimes,** each covering every file exactly once per timed pass, so
 no pass replays a cache warmed on its own inputs:
@@ -421,8 +444,10 @@ v0.1 milestone and listed on `lex-unmapped`'s known list until fixed.
 - **Superset, start forms, speed:** §9.
 - **Precedence (waypoint 2):** §8's contract on toy grammars, with perl as
   the oracle.
-- **Refused in action:** each alternative the ledger marks so is refused by
-  the chart.
+- **Refusals (waypoint 1):** each alternative the ledger marks "refused in
+  action", and each refusal §8 states as a fitted rule, has a test that the
+  chart refuses it and that perl does, alongside a test that a nearby form
+  perl accepts is accepted.
 
 ## 13. Future work, not in this spike
 
