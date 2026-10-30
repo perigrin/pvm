@@ -14,8 +14,9 @@ The `chart-waypoint` milestone was stopped on 2026-10-30 by its §9 speed
 kill: lexing and recognition ran 3.9–5.0× recursive descent over the corpus,
 against a 3× line. `docs/postmortems/chart-waypoint.md` records why. perigrin
 decided to re-attempt the spike with a grammar ported from `perly.y` over
-`internal/lexer`'s own tokens. The generator's LR(0) tables, the recognizer,
-Leo and the ratchet carry over. The SLIF reader, the token cut, `chart/lex`'s
+`internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
+the ratchet carry over; the committed tables will be regenerated from the
+new grammar. The SLIF reader, the token cut, `chart/lex`'s
 predicate mapping, the observed-conflict probes and the CORE.tpm cross-check
 are Guacamole-specific and will be removed; the sections below that describe
 them describe what was built, not the plan. The forest, error recovery,
@@ -397,7 +398,7 @@ Other divergences:
 Two lexeme priorities are not encoded. Marpa arbitrates them among the
 lexemes acceptable at a position, which depends on the Earley set rather
 than on any one rule, so they wait for `chart/resolve` or the interleaved
-lexer. Until then the recognizer carries both readings (no forest was built):
+lexer. Until then the grammar admits both readings (no forest was built):
 
 - **`VersionNumber`**: `use Foo 1.2;` reads both as a version and as an
   import list, as do `no Foo 1.2;` and `require 1.2;`. **perl and Marpa read
