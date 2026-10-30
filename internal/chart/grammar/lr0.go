@@ -42,8 +42,8 @@ type Transition struct {
 // transition's source items began. A predicted state holds the items the
 // kernel predicts, closed the same way: their origin is the current position.
 // Epsilon is a kernel state's predicted state, -1 if it predicts nothing.
-// Expected is the terminals after a dot in Items, in symbol order; Leo marks
-// a state eligible for Leo's memo (leo.go).
+// Expected is the terminals after a dot in Items, in symbol order; Leo is
+// the items eligible for Leo's memo, at most one per awaited symbol (leo.go).
 type State struct {
 	Items       []int
 	Predicted   bool
@@ -51,7 +51,7 @@ type State struct {
 	Transitions []Transition
 	Reduces     []int
 	Expected    []int
-	Leo         bool
+	Leo         []int
 }
 
 // Tables are the generator's output. Probes and Conflicts are set by

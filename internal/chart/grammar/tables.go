@@ -53,8 +53,8 @@ func (t *Tables) Files() []TableFile {
 		}
 		trans.WriteByte('\n')
 		fmt.Fprintf(&expected, "%d%s\n", i, ints(s.Expected))
-		if s.Leo {
-			fmt.Fprintf(&leo, "%d %d\n", i, s.Items[0])
+		for _, it := range s.Leo {
+			fmt.Fprintf(&leo, "%d %d\n", i, it)
 		}
 	}
 	for _, p := range t.Probes {
