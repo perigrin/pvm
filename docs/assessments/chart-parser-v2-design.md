@@ -1444,15 +1444,15 @@ New findings. Columns as in the earlier ledgers.
 | B18 | B | 6 | §8 | The non-operator `%prec` constraint depends on the parent context, not only exposed edges; a forest rule keyed on (rule, next token) refuses `print $$fh[0]`, which perl accepts; disagreement-driven generation never produces it, so the tests pass before the work. See also F13, J4. | `consist.py`: (rule 370 `indirob: scalar`, `[`) suppressed in state 193 (LSTOP), reduced in state 153 (inside `$`); `bisonp2` ACCEPT on `print $$fh[0]` (`r6.tok`); perl refuses `print $fh []`, accepts `print $fh [1]`, `print {$fh} []`, `print STDOUT []`, `print $fh +[]`. | stand aside | released, against the strict form of B's bar at c7146ac6 | 5fe8dc4b |
 | B19 | B | 6 | §9.2; §9.1 | The precedence label decides which perl refusals the waypoint-1 gate counts, and perl's message cannot tell it from grammar; a wrongly accepted grammar refusal can be cleared by relabelling. See also C23, D30, I10. | perl 5.42: `1 .. 2 + 3 .. 4` (precedence) and `$a isa B <;` (grammar) both "syntax error". | stand aside | released, on reading (`-DT` not run) at c7146ac6 | 5fe8dc4b |
 | C23 | C | 6 | §9.1 (precedence category); §8 | Whether a refusal is precedence or grammar is a reviewer's judgment though §8 builds the tool that decides it; a mislabel either makes the waypoint-1 gate unpassable or excludes a real grammar refusal. Latent. See also B19, D30, I10. | `na/p.pl`, `na/r8.pl`, `na/r9.pl`: perl syntax error, RD refused=true; `perly.y:1462-1487`. | stand aside | released, against C's own bar at c7146ac6 | 5fe8dc4b |
-| D28 | D | 6 | §8 ("same acceptance and same grouping"); §5.2; H4 | For fitted families the referee (perly.y tokens) and the chart (lexer tokens) do not share an alphabet; "same grouping" is undefined, and the outside reference is missing where fitting could be wrong. | §8's own example `indirob: scalar %prec PREC_LOW` is in H4's variables-and-indirob family; `perl -c -e 'print $fh [];'` syntax error. | stand aside | held, re-scoped (the fold for fitted families, referee and `-DT`); block at c7146ac6 | 5fe8dc4b |
+| D28 | D | 6 | §8 ("same acceptance and same grouping"); §5.2; H4 | For fitted families the referee (perly.y tokens) and the chart (lexer tokens) do not share an alphabet; "same grouping" is undefined, and the outside reference is missing where fitting could be wrong. | §8's own example `indirob: scalar %prec PREC_LOW` is in H4's variables-and-indirob family; `perl -c -e 'print $fh [];'` syntax error. | stand aside | held, re-scoped (the fold for fitted families, referee and `-DT`); block at c7146ac6; released at fe27debd | 5fe8dc4b |
 | D29 | D | 6 | §3 rule 6; §6; §12 | Rule 6, §6 and §12 restate §8 more narrowly than §8 now says (no refusal; "the oracle"; perl as oracle on toy grammars). See also G18, I2. | Spec text, lines 82–84, 205–206, 466–467. | stand aside | released, against D's bar at c7146ac6 | 5fe8dc4b |
 | D30 | D | 6 | §9.1 categories; §9.2 refusal gate | The precedence label decides whether a file is gated and nothing fixes it before chart work starts; a chart grammar defect can be "explained" by relabelling. See also B19, C23, I10. | §9.1 and §9.2 text; compare §9.2's `lex-unmapped` review confirmation. | stand aside | released at c7146ac6 | 5fe8dc4b |
 | D31 | D | 6 | §8 against §2 and §9.4 | `PLUGIN_*` tokens are library operators, in scope at waypoint 2 by ruling, but §8 puts their precedence refusals out of scope with keyword plugins; a chained `PLUGIN_REL_OP` would be accepted with no test. See also G19, H13, I8. | perly.y:153-178 (`PLUGIN_LOW_OP`, `PLUGIN_REL_OP` `%nonassoc`); §2 lines 60–65; §9.4. | stand aside | released at c7146ac6 | 5fe8dc4b |
-| D32 | D | 6 | §9.3; §9.5 (D24 partly reopened) | A wall-clock gate near its threshold on every chart/lex issue; a correct issue can fail and be re-run until it passes. See also I3, A22, C16. | §9.3; minute A9, C5. Not re-measured. | stand aside | held; stand aside at c7146ac6 | 5fe8dc4b |
+| D32 | D | 6 | §9.3; §9.5 (D24 partly reopened) | A wall-clock gate near its threshold on every chart/lex issue; a correct issue can fail and be re-run until it passes. See also I3, A22, C16. | §9.3; minute A9, C5. Not re-measured. | stand aside | held; stand aside at c7146ac6; held; stand aside at fe27debd | 5fe8dc4b |
 | E19 | E | 6 | §8 | Read as a closed list of chain shapes, "forbidden" is not bison-exact: `t:t^t:t+t` keeps `(t:(((t^t):t)+t))`. See also F13. | `E/r6/literal.py` (3,000 strings × 3 seeds): every bison-accepted string gets bison's reading; of bison-refused, the chart accepts 270/447, 254/443, 254/445; `strict.py` 0. | stand aside | released at c7146ac6 | 5fe8dc4b |
 | E20 | E | 6 | §8 | §8 cites "the precedence probe recorded in the assessment" for exactness; it was a six-level toy, so the sentence reads as evidence for Perl. See also I9, J8. | The probe is E's `strict.py` (one `%nonassoc` binary level, two prefix operators, three other binary levels). | stand aside | released at c7146ac6 | 5fe8dc4b |
 | E21 | E | 6 | §5.2; §9.1; §9.2; §12 | The four comparison `yyerror` alternatives are "refused in action" and labelled grammar, but recognition keeps every derivation, so waypoint 1 accepts their sentences: the §12 waypoint-1 test cannot pass, and a grammar-labelled file holds the gate above 0. E17's failure returned. See also I7; E17, F12, D21. | `grep -n YYERROR perly.y` (1467, 1469, 1485, 1487); `E/r4/eqop.py` re-run: 2 derivations each for `T NCEQOP T NCEQOP T`, `T NCEQOP T CHEQOP T`, `T NCRELOP T CHRELOP T`; perl and RD refuse `$a <=> $b <=> $c`, `$a <=> $b == $c`. | block | released at c7146ac6 | 5fe8dc4b |
-| F13 | F | 6 | §8 ("found, not listed"); §12 | The forbidden set has no completeness measure; the only differential on record is ≤ 5 tokens under `GRAMEXPR`; a conflict with a longer or statement-level witness leaves the forest accepting what bison refuses, with green tests. See also B18, E19, J4; I1. | `bison --report=all perly.y`: 1,347 resolutions, 1,347 distinct (rule, token) pairs, 57 states; perl refuses `print $fh []`, accepts `print $fh [1]`. | stand aside | held, re-scoped (coverage as a waypoint-2 exit gate); stand aside at c7146ac6 | 5fe8dc4b |
+| F13 | F | 6 | §8 ("found, not listed"); §12 | The forbidden set has no completeness measure; the only differential on record is ≤ 5 tokens under `GRAMEXPR`; a conflict with a longer or statement-level witness leaves the forest accepting what bison refuses, with green tests. See also B18, E19, J4; I1. | `bison --report=all perly.y`: 1,347 resolutions, 1,347 distinct (rule, token) pairs, 57 states; perl refuses `print $fh []`, accepts `print $fh [1]`. | stand aside | held, re-scoped (coverage as a waypoint-2 exit gate); stand aside at c7146ac6; released at fe27debd | 5fe8dc4b |
 | G17 | G | 6 | §8 "Bison is the referee"; §12 | The referee is a C program and the doc does not say where it runs; wired into `make test` it fails on a pure-Go machine, never re-run it goes stale. See also A28, H12, J6. | §8, §12; minute I1, I2 (scratch, "~100 lines"); CLAUDE.md "No CGO, no C compiler". | stand aside | released at c7146ac6 | 5fe8dc4b |
 | G18 | G | 6 | §4 Afroozeh row; §12 "Precedence (waypoint 2)" | Two sentences left by the rewrite contradict §8: §4 "without removing sentences"; §12 "perl as the oracle" on toy grammars. See also I2, D29. | §4 table; §12 bullet 5 against §8 paragraph 4. | stand aside | released at c7146ac6 | 5fe8dc4b |
 | G19 | G | 6 | §8; §2; §9.4 | `PLUGIN_*` is conflated with keyword plugins; a library operator at `PLUGIN_LOW_OP` would be accepted with no refusal anywhere. See also D31, H13, I8. | §2 l.60–65; §8; §9.4; §5.2 lists `PLUGIN_*` and `PLUGEXPR`/`PLUGSTMT` separately. | stand aside | released at c7146ac6 | 5fe8dc4b |
@@ -1746,37 +1746,37 @@ New findings. Columns as in the earlier ledgers. J's report numbers its new rows
 
 | id | raiser | round | section of the subject | consequence if it ships | evidence | block/stand-aside as declared | status | revision |
 |---|---|---|---|---|---|---|---|---|
-| A30 | A | 7 | §11; §9.2 | Wrong-but-mapped files on `lex-unmapped`'s known list are listed but never fail; the exit's "equals a known list" and the ratchet's set check disagree on every run, or the check is weakened so a fixed lexer issue sits on the list unnoticed. See also D33, J17. | `cmd/ratchet/main.go` `knownMismatch` holds failing files to the list as sets and reports "listed … but no longer fails" (`main.go:334-355`), counted as regressions (`main.go:86-87`); `m["lex-unmapped"]` counts only files that fail to map (`main.go:207-229`). | block | open | c7146ac6 |
-| A31 | A | 7 | §9.5 | `terminals-per-token` "may not rise" rises with honest port work (a class gets mapped, a superposition reading is added), so port issues fail the no-regression rule; A18's failure in a new key. See also B21, C24, D34, F15, G20, H17, I11, J11. | §7 "the token maps to every terminal it could be"; §9.2 "may not make any key worse"; §9.5; `compare.go:88` strict `>`. | block | open | c7146ac6 |
-| A32 | A | 7 | §12 (token table against toke.c) | Membership of each `-DT` type in the chart's set cannot pass for fitted tokens (toke.c emits several types for one pvm token, e.g. `$x`), so the test fails everywhere or is narrowed silently. See also B20, D28, F14, G22, H16, I12, J15. | `perly.y:1846` `scalar : PERLY_DOLLAR indirob`, 1888-1896; toke.c returns `PERLY_DOLLAR` (`toke.c:5652, 5658`) then the identifier; pvm emits one `Variable`; no DEBUGGING perl here. | stand aside | open | c7146ac6 |
-| B20 | B | 7 | §12 | The `-DT` check needs an alignment §12 does not define; the natural one (H4's families) is the table's own logic, weakening rule 11 for reshaped tokens. See also A32, D28, F14, G22, H16, I12, J15. | Listed many-to-one and one-to-many forms (`$x`, `foo:`, inserted `;`, sublex, forced version `BAREWORD`, `FORMRBRACK`); `-DT` offsets "from memory", not observed. | stand aside | open | c7146ac6 |
-| B21 | B | 7 | §9.5 | `terminals-per-token` "may not rise" blocks correct port issues, since adding a class only grows unions, and invites leaving a needed terminal out. See also A31, C24, F15, G20, H17, I11, J11, D34. | Argued from §7's union rule and §9.2's baseline rule; examples METHCALL0/NOAMP on a `Word`, KW_SUB_anon_sig beside KW_SUB_anon. Not measured. | stand aside | open | c7146ac6 |
-| C24 | C | 7 | §9.5 (`terminals-per-token`) | Porting raises this key, so "may not rise" fails the port's own issues (C15's shape); no population is named. See also A31, B21, F15, G20, H17, I11, J11, D34. | Argued from §7 ("An empty set refuses the file") and §9.2's baseline rule; `compare.go:89` strict. Not measured. | block | open | c7146ac6 |
-| C25 | C | 7 | §12 | The `-DT` membership check is one-sided: a table mapping every token to every terminal passes; nothing red pairs with it. See also C24; A32, G22, J15. | Read §12 and §9.5; development-workflow: "Write one check that passes today for every check that fails today." | stand aside ("folds into C24" if C24 is unfixed) | open | c7146ac6 |
-| C26 | C | 7 | §9.1; §12 (which perl) | Labels come from perl 5.42.0, evidence and `-DT` fixtures from a `-DDEBUGGING` build of blead 94e50866; a construct whose verdict differs gets label and evidence from different perls. See also G21. | §4 pins blead 94e50866; §9.1 "perl 5.42's verdict"; installed `perl -V` has no `-DDEBUGGING`. | stand aside | open | c7146ac6 |
-| D33 | D | 7 | §11 against §9.2 | Using §11's new known-list route makes the exit gate unpassable: a wrong-but-mapped file is not unmapped, so `lex-unmapped` no longer equals the list, and §9.2's entry (a refusal byte) cannot describe an accepted file. See also A30, J17; D27. | §9.2 lines 363–366; §11 lines 492–495; §9.5 "equals its known list at the exit". | block | open | c7146ac6 |
-| D34 | D | 7 | §9.5; §9.2 | Completing the port can raise `terminals-per-token`, and the ratchet then blocks the issue doing it; dissolves if the baseline issue lands every token class at once. See also A31, B21, C24, F15, G20, H17, I11, J11. | §9.2 lines 387–391; §9.5 line 460; H4. | stand aside (conditional on port order) | open | c7146ac6 |
-| D35 | D | 7 | §3 rule 5; §9.2; §9.1 scope label | Scope refusals are missing from rule 5's exception and from the gate; whether a scope-labelled file is gated at waypoint 2 is undefined. See also G23, J12. | `perl -c -e 'use v5.38; use experimental "class"; method m {}'` → "Cannot 'method' outside of a 'class'"; spec lines 83–84, 163–165, 349, 369–375. | stand aside | open | c7146ac6 |
-| E22 | E | 7 | §5.2; §9.2; §8; §9.1 | (a) `sideff: error` (perly.y:933), the grammar's only `error` alternative, can be neither ported (no token class) nor excluded (not on the closed list), so "the port is complete" cannot pass. (b) With it kept, bison returns success after recovering, so a verdict read from `yyparse()` reports refusals as accepted and no file gets the precedence label. | `grep -n 'error' perly.y \| grep -v -i 'yyerror\|error message\|useful error\|errors'` → line 933 only; `E/r7/err.y` (bison 3.8.2 toy): `t:t;` `yyparse=0 yynerrs=0`; `t:t:t;` `yyparse=0 yynerrs=1`; `t:t:t;t;` `yyparse=0 yynerrs=1`. | block on (a); stand aside on (b) | open | c7146ac6 |
-| F14 | F | 7 | §12; §9.1 precedence label | The token-type check needs an alignment and a perl-type-to-fitted-terminal map, and without them can pass vacuously; the precedence label is fed perl's recovered stream after a `yyerror`. See also A32, B20, D28, G22, H16, I12, J15; G21, H15. | toke.c `S_tokereport` (no offset), `force_next(BAREWORD)`, `TOKEN(NOAMP)`, sublex start/end tokens. | stand aside | open | c7146ac6 |
-| F15 | F | 7 | §9.5 `terminals-per-token` | A gate correct port work must fail: superposition grows by design, files leaving `lex-unmapped` add tokens, and the baseline is taken when the table is smallest; pushes execute into amending the definition. See also A31, B21, C24, D34, G20, H17, I11, J11. | §7 "Several terminals"; H4's families; §9.2's baseline rule; §9.5's row. | block | open | c7146ac6 |
-| G20 | G | 7 | §9.5 `terminals-per-token` | A gated key the port's normal work must raise, with no legal remedy since a baseline is allowed only from `na`; postmortem change 6. See also A31, B21, C24, D34, F15, H17, I11, J11. | §9.2 baseline sentence; §9.5 `na` sentence; §7. | block | open | c7146ac6 |
-| G21 | G | 7 | §9.1 precedence label | The evidence as written cannot be produced: perl stops at the first syntax error, so the stream is truncated and a precedence-free parser refuses it; precedence refusals fall to grammar and enter a gate waypoint 1 cannot pass. Also two perls. Latent. See also H15, F14; C26. | `printf 'my $x = 1 +;\nmy $y = 2 +;\nmy $z = 3 +;\n' \| perl -c` reports only line 1; same for `1 .. 2 .. 3` / `1 <=> 2 <=> 3`; toke.c `S_tokereport` (l.566–622). | stand aside | open | c7146ac6 |
-| G22 | G | 7 | §12 | Nothing defines how toke.c's tokens align with pvm's; the membership test has no "that token" in exactly the fitted families. See also A32, B20, D28, F14, H16, I12, J15. | toke.c l.566–622; §5.2's fitting directions; pvm lexes `"a$x"` as one `Quote`. | stand aside | open | c7146ac6 |
-| G23 | G | 7 | §5.2; §9.1 scope label; §9.2 | Scope refusals are never gated; `method foo {}` outside a class may be accepted forever. See also D35, J12. | §9.2 refusal bullet; §9.4; perly.y:579, 614, 1193. | stand aside | open | c7146ac6 |
-| H15 | H | 7 | §9.1 (precedence label evidence) | perl stops lexing at a syntax error, so the evidence can be produced only when the error is at end of file; other precedence-refused files get labelled grammar and turn `chart-accepted-both-refused` red. See also G21, F14. | perl 5.42: `H/r5/m5.pl` (`BEGIN` after the error never runs), `m3.pl`, `m4.pl` (second error never reported), control `m7.pl`; `-DT` not run. | stand aside | open | c7146ac6 |
-| H16 | H | 7 | §12 | The test needs one-to-one alignment; an alignment that drops what it cannot match passes on whatever subset aligned. See also A32, B20, D28, F14, G22, I12, J15. | `perly.y:1536`; §5.2's fitting rules; `-DT` format from memory. | stand aside | open | c7146ac6 |
-| H17 | H | 7 | §9.5 | `terminals-per-token` rises as rules are ported and files leave `lex-unmapped`, unless the token table is complete before the rules land, which is not stated. See also A31, B21, C24, D34, F15, G20, I11, J11. | §5.2 (classes arrive with rules); §9.2; minute J2 and its response. | stand aside | open | c7146ac6 |
-| I11 | I | 7 | §9.5; §9.2 | The gate cannot be held across the work it measures; workers either keep sets narrow (toward misparse) or stop. See also A31, B21, C24, D34, F15, G20, H17, J11. | `compare.go` `mayNotRise[key] && number(m.Value) > number(b)`; §9.2's baseline rule; §7. | block | open | c7146ac6 |
-| I12 | I | 7 | §12; §9.1 | The raw `-DT` stream is not a one-to-one stream that can be aligned with pvm's tokens or fed to bison; unstated, each worker invents an alignment mid-milestone (the 2e94 pattern). See also A32, B20, D28, F14, G22, H16, J15. | `-DDEBUGGING` miniperl of 94e5086608: (a) 601 tokens for a 4-line file with `use strict;`, no file name or byte offset; (b) `my $x` 3 entries, an interpolated string 40; (c) `HASHBRACK … PERLY_SEMICOLON PERLY_BRACE_CLOSE`, two `PERLY_SEMICOLON` before EOF; (d) `?? N` for unnamed codes, one `?? 33554820`. | stand aside | open | c7146ac6 |
-| J11 | J | 7 | §9.5; §12; §9.2 | `terminals-per-token` may not rise from a mid-port baseline, yet porting and the toke.c membership check push sets up; population and statistic unstated. See also A31, B21, C24, D34, F15, G20, H17, I11; J2. | §9.5 row; §9.2; §12 membership. | stand aside | open | c7146ac6 |
-| J12 | J | 7 | §9.1; §9.2; §9.4 | Scope-labelled refusals sit in no gate and no reported list at either waypoint. See also D35, G23; J3. | §9.2's refusal bullet; §9.4. | stand aside | open | c7146ac6 |
-| J15 | J | 7 | §12 (J7's mechanism) | The membership check can pass on the tokens that aligned when most did not: `-DT` has no byte offsets or file names, includes `use`d modules' tokens inline, and has tokens with no pvm counterpart. See also A32, B20, D28, F14, G22, H16, I12; J7. | toke.c:566, 10035 (line number and up to 60 bytes of buffer, no offset, no file name). | block | open | c7146ac6 |
-| J16 | J | 7 | §1 | §1 quotes RD as 16–31 ms; the postmortem says 18.6–30.8 ms, misquoted in the favourable direction. See also J8. | `docs/postmortems/chart-waypoint.md:71`. | stand aside | open | c7146ac6 |
-| J17 | J | 7 | §9.2; §9.5; §11 | §11's wrong-but-mapped entries against §9.2's "equals" and "the byte where the chart refuses": the first such entry makes the exit unpassable or forces it off the list. See also A30, D33; J10. | §9.2 bullet and §9.5 row unchanged in the diff; §11's added sentence. | stand aside | open | c7146ac6 |
-| J18 | J | 7 | §5.2 | The four comparison alternatives yield a dangling operator perl refuses without precedence; "derive the same sentences another way" is true of the chained sentences, not the alternatives; the dangling form loses its waypoint-1 test. See also E21, I7. | perly.y:1466–1487; `perl -c` on `$a <=> $b <=>;` → syntax error. | stand aside | open | c7146ac6 |
-| J19 | J | 7 | §8 | The referee keeps only `YYERROR` refusals; `sigslurpelem`'s `yyerror` without `YYERROR` is stripped, so the referee accepts slurpy defaults perl refuses. See also B16, A26, H11. | perly.y:1107, 1111. | stand aside | open | c7146ac6 |
-| J20 | J | 7 | §8 | Referee fixtures are perly.y terminal strings while the chart's grammar is fitted; the mapping is unstated, and coverage is reported, not gated, so the referee test can pass on the ladder alone. See also D28, F13. | §8 text; `bison -Wcounterexamples` on the precedence-free grammar: 7 examples, 19 time-limit notices in ~4 minutes. | stand aside | open | c7146ac6 |
+| A30 | A | 7 | §11; §9.2 | Wrong-but-mapped files on `lex-unmapped`'s known list are listed but never fail; the exit's "equals a known list" and the ratchet's set check disagree on every run, or the check is weakened so a fixed lexer issue sits on the list unnoticed. See also D33, J17. | `cmd/ratchet/main.go` `knownMismatch` holds failing files to the list as sets and reports "listed … but no longer fails" (`main.go:334-355`), counted as regressions (`main.go:86-87`); `m["lex-unmapped"]` counts only files that fail to map (`main.go:207-229`). | block | released at fe27debd | c7146ac6 |
+| A31 | A | 7 | §9.5 | `terminals-per-token` "may not rise" rises with honest port work (a class gets mapped, a superposition reading is added), so port issues fail the no-regression rule; A18's failure in a new key. See also B21, C24, D34, F15, G20, H17, I11, J11. | §7 "the token maps to every terminal it could be"; §9.2 "may not make any key worse"; §9.5; `compare.go:88` strict `>`. | block | released at fe27debd | c7146ac6 |
+| A32 | A | 7 | §12 (token table against toke.c) | Membership of each `-DT` type in the chart's set cannot pass for fitted tokens (toke.c emits several types for one pvm token, e.g. `$x`), so the test fails everywhere or is narrowed silently. See also B20, D28, F14, G22, H16, I12, J15. | `perly.y:1846` `scalar : PERLY_DOLLAR indirob`, 1888-1896; toke.c returns `PERLY_DOLLAR` (`toke.c:5652, 5658`) then the identifier; pvm emits one `Variable`; no DEBUGGING perl here. | stand aside | released (feasibility note on `-DT` text) at fe27debd | c7146ac6 |
+| B20 | B | 7 | §12 | The `-DT` check needs an alignment §12 does not define; the natural one (H4's families) is the table's own logic, weakening rule 11 for reshaped tokens. See also A32, D28, F14, G22, H16, I12, J15. | Listed many-to-one and one-to-many forms (`$x`, `foo:`, inserted `;`, sublex, forced version `BAREWORD`, `FORMRBRACK`); `-DT` offsets "from memory", not observed. | stand aside | released, against B's bar at fe27debd | c7146ac6 |
+| B21 | B | 7 | §9.5 | `terminals-per-token` "may not rise" blocks correct port issues, since adding a class only grows unions, and invites leaving a needed terminal out. See also A31, C24, F15, G20, H17, I11, J11, D34. | Argued from §7's union rule and §9.2's baseline rule; examples METHCALL0/NOAMP on a `Word`, KW_SUB_anon_sig beside KW_SUB_anon. Not measured. | stand aside | released at fe27debd | c7146ac6 |
+| C24 | C | 7 | §9.5 (`terminals-per-token`) | Porting raises this key, so "may not rise" fails the port's own issues (C15's shape); no population is named. See also A31, B21, F15, G20, H17, I11, J11, D34. | Argued from §7 ("An empty set refuses the file") and §9.2's baseline rule; `compare.go:89` strict. Not measured. | block | released, against C's own bar at fe27debd | c7146ac6 |
+| C25 | C | 7 | §12 | The `-DT` membership check is one-sided: a table mapping every token to every terminal passes; nothing red pairs with it. See also C24; A32, G22, J15. | Read §12 and §9.5; development-workflow: "Write one check that passes today for every check that fails today." | stand aside ("folds into C24" if C24 is unfixed) | released, against C's own bar at fe27debd | c7146ac6 |
+| C26 | C | 7 | §9.1; §12 (which perl) | Labels come from perl 5.42.0, evidence and `-DT` fixtures from a `-DDEBUGGING` build of blead 94e50866; a construct whose verdict differs gets label and evidence from different perls. See also G21. | §4 pins blead 94e50866; §9.1 "perl 5.42's verdict"; installed `perl -V` has no `-DDEBUGGING`. | stand aside | released, against C's own bar at fe27debd | c7146ac6 |
+| D33 | D | 7 | §11 against §9.2 | Using §11's new known-list route makes the exit gate unpassable: a wrong-but-mapped file is not unmapped, so `lex-unmapped` no longer equals the list, and §9.2's entry (a refusal byte) cannot describe an accepted file. See also A30, J17; D27. | §9.2 lines 363–366; §11 lines 492–495; §9.5 "equals its known list at the exit". | block | released at fe27debd | c7146ac6 |
+| D34 | D | 7 | §9.5; §9.2 | Completing the port can raise `terminals-per-token`, and the ratchet then blocks the issue doing it; dissolves if the baseline issue lands every token class at once. See also A31, B21, C24, F15, G20, H17, I11, J11. | §9.2 lines 387–391; §9.5 line 460; H4. | stand aside (conditional on port order) | released at fe27debd | c7146ac6 |
+| D35 | D | 7 | §3 rule 5; §9.2; §9.1 scope label | Scope refusals are missing from rule 5's exception and from the gate; whether a scope-labelled file is gated at waypoint 2 is undefined. See also G23, J12. | `perl -c -e 'use v5.38; use experimental "class"; method m {}'` → "Cannot 'method' outside of a 'class'"; spec lines 83–84, 163–165, 349, 369–375. | stand aside | held; stand aside (one word in rule 5) at fe27debd | c7146ac6 |
+| E22 | E | 7 | §5.2; §9.2; §8; §9.1 | (a) `sideff: error` (perly.y:933), the grammar's only `error` alternative, can be neither ported (no token class) nor excluded (not on the closed list), so "the port is complete" cannot pass. (b) With it kept, bison returns success after recovering, so a verdict read from `yyparse()` reports refusals as accepted and no file gets the precedence label. | `grep -n 'error' perly.y \| grep -v -i 'yyerror\|error message\|useful error\|errors'` → line 933 only; `E/r7/err.y` (bison 3.8.2 toy): `t:t;` `yyparse=0 yynerrs=0`; `t:t:t;` `yyparse=0 yynerrs=1`; `t:t:t;t;` `yyparse=0 yynerrs=1`. | block on (a); stand aside on (b) | released (both parts) at fe27debd | c7146ac6 |
+| F14 | F | 7 | §12; §9.1 precedence label | The token-type check needs an alignment and a perl-type-to-fitted-terminal map, and without them can pass vacuously; the precedence label is fed perl's recovered stream after a `yyerror`. See also A32, B20, D28, G22, H16, I12, J15; G21, H15. | toke.c `S_tokereport` (no offset), `force_next(BAREWORD)`, `TOKEN(NOAMP)`, sublex start/end tokens. | stand aside | released, against F's own bar at fe27debd | c7146ac6 |
+| F15 | F | 7 | §9.5 `terminals-per-token` | A gate correct port work must fail: superposition grows by design, files leaving `lex-unmapped` add tokens, and the baseline is taken when the table is smallest; pushes execute into amending the definition. See also A31, B21, C24, D34, G20, H17, I11, J11. | §7 "Several terminals"; H4's families; §9.2's baseline rule; §9.5's row. | block | released at fe27debd | c7146ac6 |
+| G20 | G | 7 | §9.5 `terminals-per-token` | A gated key the port's normal work must raise, with no legal remedy since a baseline is allowed only from `na`; postmortem change 6. See also A31, B21, C24, D34, F15, H17, I11, J11. | §9.2 baseline sentence; §9.5 `na` sentence; §7. | block | released at fe27debd | c7146ac6 |
+| G21 | G | 7 | §9.1 precedence label | The evidence as written cannot be produced: perl stops at the first syntax error, so the stream is truncated and a precedence-free parser refuses it; precedence refusals fall to grammar and enter a gate waypoint 1 cannot pass. Also two perls. Latent. See also H15, F14; C26. | `printf 'my $x = 1 +;\nmy $y = 2 +;\nmy $z = 3 +;\n' \| perl -c` reports only line 1; same for `1 .. 2 .. 3` / `1 <=> 2 <=> 3`; toke.c `S_tokereport` (l.566–622). | stand aside | released; residual raised as G27 at fe27debd | c7146ac6 |
+| G22 | G | 7 | §12 | Nothing defines how toke.c's tokens align with pvm's; the membership test has no "that token" in exactly the fitted families. See also A32, B20, D28, F14, H16, I12, J15. | toke.c l.566–622; §5.2's fitting directions; pvm lexes `"a$x"` as one `Quote`. | stand aside | released at fe27debd | c7146ac6 |
+| G23 | G | 7 | §5.2; §9.1 scope label; §9.2 | Scope refusals are never gated; `method foo {}` outside a class may be accepted forever. See also D35, J12. | §9.2 refusal bullet; §9.4; perly.y:579, 614, 1193. | stand aside | released at fe27debd | c7146ac6 |
+| H15 | H | 7 | §9.1 (precedence label evidence) | perl stops lexing at a syntax error, so the evidence can be produced only when the error is at end of file; other precedence-refused files get labelled grammar and turn `chart-accepted-both-refused` red. See also G21, F14. | perl 5.42: `H/r5/m5.pl` (`BEGIN` after the error never runs), `m3.pl`, `m4.pl` (second error never reported), control `m7.pl`; `-DT` not run. | stand aside | released at fe27debd | c7146ac6 |
+| H16 | H | 7 | §12 | The test needs one-to-one alignment; an alignment that drops what it cannot match passes on whatever subset aligned. See also A32, B20, D28, F14, G22, I12, J15. | `perly.y:1536`; §5.2's fitting rules; `-DT` format from memory. | stand aside | held, narrowed (no floor at the exit); stand aside at fe27debd | c7146ac6 |
+| H17 | H | 7 | §9.5 | `terminals-per-token` rises as rules are ported and files leave `lex-unmapped`, unless the token table is complete before the rules land, which is not stated. See also A31, B21, C24, D34, F15, G20, I11, J11. | §5.2 (classes arrive with rules); §9.2; minute J2 and its response. | stand aside | released at fe27debd | c7146ac6 |
+| I11 | I | 7 | §9.5; §9.2 | The gate cannot be held across the work it measures; workers either keep sets narrow (toward misparse) or stop. See also A31, B21, C24, D34, F15, G20, H17, J11. | `compare.go` `mayNotRise[key] && number(m.Value) > number(b)`; §9.2's baseline rule; §7. | block | released at fe27debd | c7146ac6 |
+| I12 | I | 7 | §12; §9.1 | The raw `-DT` stream is not a one-to-one stream that can be aligned with pvm's tokens or fed to bison; unstated, each worker invents an alignment mid-milestone (the 2e94 pattern). See also A32, B20, D28, F14, G22, H16, J15. | `-DDEBUGGING` miniperl of 94e5086608: (a) 601 tokens for a 4-line file with `use strict;`, no file name or byte offset; (b) `my $x` 3 entries, an interpolated string 40; (c) `HASHBRACK … PERLY_SEMICOLON PERLY_BRACE_CLOSE`, two `PERLY_SEMICOLON` before EOF; (d) `?? N` for unnamed codes, one `?? 33554820`. | stand aside | released, against I's bar at fe27debd | c7146ac6 |
+| J11 | J | 7 | §9.5; §12; §9.2 | `terminals-per-token` may not rise from a mid-port baseline, yet porting and the toke.c membership check push sets up; population and statistic unstated. See also A31, B21, C24, D34, F15, G20, H17, I11; J2. | §9.5 row; §9.2; §12 membership. | stand aside | held; stand aside (one-sentence fix) at fe27debd | c7146ac6 |
+| J12 | J | 7 | §9.1; §9.2; §9.4 | Scope-labelled refusals sit in no gate and no reported list at either waypoint. See also D35, G23; J3. | §9.2's refusal bullet; §9.4. | stand aside | released at fe27debd | c7146ac6 |
+| J15 | J | 7 | §12 (J7's mechanism) | The membership check can pass on the tokens that aligned when most did not: `-DT` has no byte offsets or file names, includes `use`d modules' tokens inline, and has tokens with no pvm counterpart. See also A32, B20, D28, F14, G22, H16, I12; J7. | toke.c:566, 10035 (line number and up to 60 bytes of buffer, no offset, no file name). | block | held; block (one-sentence fix) at fe27debd | c7146ac6 |
+| J16 | J | 7 | §1 | §1 quotes RD as 16–31 ms; the postmortem says 18.6–30.8 ms, misquoted in the favourable direction. See also J8. | `docs/postmortems/chart-waypoint.md:71`. | stand aside | released at fe27debd | c7146ac6 |
+| J17 | J | 7 | §9.2; §9.5; §11 | §11's wrong-but-mapped entries against §9.2's "equals" and "the byte where the chart refuses": the first such entry makes the exit unpassable or forces it off the list. See also A30, D33; J10. | §9.2 bullet and §9.5 row unchanged in the diff; §11's added sentence. | stand aside | released at fe27debd | c7146ac6 |
+| J18 | J | 7 | §5.2 | The four comparison alternatives yield a dangling operator perl refuses without precedence; "derive the same sentences another way" is true of the chained sentences, not the alternatives; the dangling form loses its waypoint-1 test. See also E21, I7. | perly.y:1466–1487; `perl -c` on `$a <=> $b <=>;` → syntax error. | stand aside | released at fe27debd | c7146ac6 |
+| J19 | J | 7 | §8 | The referee keeps only `YYERROR` refusals; `sigslurpelem`'s `yyerror` without `YYERROR` is stripped, so the referee accepts slurpy defaults perl refuses. See also B16, A26, H11. | perly.y:1107, 1111. | stand aside | released at fe27debd | c7146ac6 |
+| J20 | J | 7 | §8 | Referee fixtures are perly.y terminal strings while the chart's grammar is fitted; the mapping is unstated, and coverage is reported, not gated, so the referee test can pass on the ladder alone. See also D28, F13. | §8 text; `bison -Wcounterexamples` on the precedence-free grammar: 7 examples, 19 time-limit notices in ~4 minutes. | stand aside | released, against J's own bar on coverage; re-scoped into J22 at fe27debd | c7146ac6 |
 
 ### Round-7 clusters
 
@@ -1932,3 +1932,316 @@ The author is the orchestrating agent. Release is each raiser's to give. No ruli
 ### Handed to refinement (added)
 
 - **H6.** Build a `-DDEBUGGING` perl of the pinned blead offline (I's scratch build of miniperl at 94e50866 shows it is feasible); write the label, `-DT` alignment and referee scripts that produce committed fixtures; size each.
+
+## Round 8
+
+**Revision assessed:** fe27debd (fe27debd609ed7869ae9533243547582e51d89cd). All eleven participants name this revision as the one they read. Code read at `origin/pu` 4fffe4d6; perl at 94e5086608; perl 5.42.0 (not a `-DDEBUGGING` build) and bison 3.8.2 on the box. I used its own `-DDEBUGGING` miniperl of 94e5086608 again.
+**Participants:** A–J resumed. **K** joins as this round's cold reader: it read the subject without the prior findings and did not open this minute or any other report.
+**Round 8 dispatched:** 2026-10-30. **This is the eighth round, the bound** crochet:discernment sets ("bound at eight rounds, and report non-convergence rather than spinning").
+
+The status column of earlier rows above now carries each raiser's round-8 word. New findings are below. Section references are to the subject at fe27debd.
+
+### Recommendations, as declared
+
+- **A: "Modify, narrowly."** "I hold one block, A34, and the author can fix it in the one sentence above. With that sentence I would accept."
+- **B: accept.** "Plainly: I hold no block. B22 and B23 are each fixable in one sentence."
+- **C: accept.** "I hold no blocks."
+- **D: accept.** "Nothing I hold is a block."
+- **E: accept.** "No blocks. No open stand-asides of mine."
+- **F: accept.** "I hold no block. One new stand-aside (F16) is a one-sentence clarification and not a reason to hold the decision."
+- **G: "Modify, with one block: G24."** "If G24's sentence lands as written above, I release it without another round."
+- **H: accept.** "I hold nothing as a block."
+- **I: modify.** "If I13's sentence lands as proposed, I would accept."
+- **J: modify.** "I still hold one block, J15, and one added sentence would clear it."
+- **K: modify.** "Two of its gates can pass before their work is done (K1, K4), and those two should be fixed before refinement. The other findings are wording or sizing fixes."
+
+### Blocks open after round 8, as declared
+
+| participant | blocks |
+|---|---|
+| A | A34 ("fixable in that one sentence") |
+| B, C, D, E, F, H | none |
+| G | G24 ("Block, fixable in one sentence") |
+| I | I13 ("block (one sentence)") |
+| J | J15 (held; "held, block, one-sentence fix") |
+| K | K1, K4 |
+
+Six blocks are open: A34, G24, I13, J15, K1, K4.
+
+A34, G24 and I13 describe the same defect: §12's membership check ("every aligned token's toke.c type is a member of the chart's set for it") has no key and no timing, so it fails the port's own issues. F16 and K5 stand aside on the same point. J15 is `tdt-aligned` having no floor at the exit; C28, H16 and K5 stand aside on the same point. K1 (the "both sides" coverage requirement) and K4 (waypoint 1's gates passing with an over-wide table) are the cold reader's.
+
+### One-sentence fixes and release without another round, as declared
+
+The coordinator asked which participants said they would release on a one-sentence fix without another round. Each answer is quoted; none is inferred.
+
+| block | the fix as its raiser states it | what the raiser said about release |
+|---|---|---|
+| A34 | "Membership is the count key `tdt-nonmember`, may not rise and 0 at the exit, and `tdt-unseen` is reported until the port is complete, then may not rise, like `terminals-per-token`." | "With that sentence I would accept." |
+| G24 | "membership failures are counted as `tdt-missing`: reported until the port is complete, then may not rise, and 0 at waypoint 1's exit" | "If G24's sentence lands as written above, I release it without another round." |
+| I13 | "Membership failures are counted as `tdt-mismatch`, reported until the port is complete and 0 from the issue that completes it." Plus a matching §9.5 row. | "If I13's sentence lands as proposed, I would accept." |
+| J15 | "at waypoint 1's exit, every unaligned pvm token belongs to a reviewed fitting family, and the unaligned count by family is reported." | "one added sentence would clear it". J does not say whether it would release without another round. |
+| K1 | Define the two sides per conflict as "the kept grouping and the discarded grouping, each observed"; require a refused sentence only where the GLR/LALR language differs; add "no refusing sentence exists" to the reviewed-list reasons. | Not stated. |
+| K4 | Give one width measure an absolute exit condition (`tdt-unseen` reviewed to a listed set at exit, or `terminals-per-token` against a reviewed target), or state §12's refusal tests as the waypoint-1 rule-5 gate and list them as an exit item. | Not stated. |
+
+Of these, only G uses the words "without another round". A and I say they "would accept" on the stated sentence.
+
+Participants who say each of their stand-asides is a one-sentence fix: A (A33), B (B22, B23), C (C27, C28, C29: "each with a one-sentence fix the author can make, or that refinement can carry"), D (D32: "A failure near 1.3 is re-measured once, then goes to perigrin"; D35: "one word in rule 5: 'precedence or scope'"), F (F16: "one clause"), G (G25 one sentence; G26 "implementation"; G27 "editorial"), H (H16, H18, H19), I (I14: "a one-line wording fix"), J (J11, J22, J23). K: "The other findings are wording or sizing fixes."
+
+### Stand-asides, as declared, with grounds
+
+| id | grounds given by the participant |
+|---|---|
+| A33 | One sentence; "A33 is about a list that doesn't exist yet, so its harm is prospective." |
+| B22, B23 | "Both are defects in how the referee's fixtures are built, not in the decision. Left unfixed, each fails a correct implementation the first time the fixtures run, rather than letting a wrong one pass." |
+| C27, C28, C29 | "None changes a verdict the spike would reach." |
+| D32 (held) | "C's lens owns the numbers. This is not a block." |
+| D35 (held) | "Not a block, because §9.2, the operative gate text, is right." |
+| F16 | "A one-sentence clarification and not a reason to hold the decision." |
+| G25 | One sentence. |
+| G26 | "Implementation." |
+| G27 | "Editorial." |
+| H16 (held, narrowed), H18, H19 | "Each can be fixed in one sentence." H19: "the risk is low." |
+| I14 | "A one-line wording fix." |
+| J11 (held), J22, J23 | "Yes", fixable in one sentence. J23: "This is rare." |
+| K2, K3, K5–K11 | "Wording or sizing fixes." |
+
+### Releases the participant said were against its own bar
+
+- **B20:** "released, against my bar". "For folded tokens the pairing still runs through the table's own fitting logic … I release because both new gates bound the risk."
+- **C24, C25, C26:** "I release C24, C25 and C26 against my own bar."
+- **F14:** "released, against my own bar". "I asked for a floor, and 'may not fall' from the first measurement is a ratchet, not a floor … I accept it because the fraction is reported and reviewed, and a floor would be a hypothesised number, which §10 forbids."
+- **I12:** "released, against my bar". The alignment's details "are details of the script, not of the decision".
+- **J20:** "Released against my own bar on coverage, because a reviewed timeout list is honest." Re-scoped into J22.
+
+E: "Every release below is the one I asked for, so none is against my bar." A, D, G and H mark no single release as against their bar. Residues noted with a release, not held: A32 (`-DT` text must be reconstructed from line previews, not read from a field); D28 (the rendering table's juxtaposition rule: `$$fh[0]` space-joined lexes as the pid variable); E22 (§1 still gives "principled error recovery" as a reason; §9.1's **grammar** wording); G21 (§9.1's table, raised as G27); C24 (the population "is still not named", but "the risk I raised … is gone").
+
+### Earlier rows not addressed in round 8
+
+None. Every row open at c7146ac6 was given a round-8 word by its raiser.
+
+### Disagreements with a ruling's consequences, as recorded
+
+None outstanding. E: "The one I recorded in round 2 stands as recorded; it is not a finding." D: "I record no disagreement with any of perigrin's rulings. In particular, 'Forest refuses (bison-exact)' now has an offline outside reference that covers both sides of every resolved conflict." I and J: no disagreement with any ruling.
+
+### Measurements and views that differ between reports
+
+Recorded as reported. The drafter does not reconcile them.
+
+- **Whether `tdt-unseen`'s "may not rise without review" fails the port.** A34 (part 2) and C27: it rises by design as superposed classes are added, and a strict comparator "has no review state". H (on H17): "gated only 'without review', so it does not repeat H17's defect." G: "gives it a legal channel." D: "This is the right shape."
+- **Whether `tdt-aligned` needs a floor.** J15 (block), and H16, C28 and K5 (stand aside): "may not fall" from a first baseline lets the check finish at whatever fraction it first aligns. F14 (released): a floor "would be a hypothesised number, which §10 forbids". B20 (released): "both new gates bound the risk".
+- **What `-DT` gives to match "by text".** I (observed on miniperl): "Operator tokens carry no text in `-DT`", text recoverable from the 60-character look-ahead; forced tokens have no snippet; one "Tokener got EOF" per compilation, but the start of a nested stream is not marked. A32 (from toke.c source): text only for `OP_CONST`; variable names from "Pending identifier". G22 (released, from source): matching by text "is feasible from those buffer excerpts". H16 (from memory): a `THING` shows its value, not its source text. B: "punctuation tokens print as types only, as far as I remember". J (not re-examined): the module start "would have to be inferred".
+- **Where perl's refusal shows.** I (hunt note, miniperl): "the `-DT` stream runs on to `EOF`, and the syntax error is printed only after it. `-Dp` marks the refusal." G and H (re-run on 5.42): perl still reports only the first syntax error, and a later `BEGIN` never runs.
+- **`parsent` under the labelling perl.** I: blead miniperl accepts 79, perl 5.42 accepts 78; the difference is `Statements-Expressions-Value-Literal-004.pl` (`1e__+_1`). C and K: 78 under 5.42. C29, G27, H18, I14 and K3 each find §9.1's table still names perl 5.42; F (hunt note): "a stale cell, not a finding".
+- **Rendering terminal strings to source.** B23, G25 and J22: a rendering can re-lex as a different terminal (`print ( 1 ) , 2` becomes `FUNC`), and B23 adds terminals toke.c inserts. B23: a correct chart fails the grouping test. J22: "A false pass is possible whenever the substitute sentence happens to share the verdict." E (hunt, six renderings with the pu lexer): "Each came back as the intended tokens … This is six samples, not a proof." F (hunt note): it "shows as a failing test, not a silent pass". H: "it cannot pass by dropping sentences."
+- **Coverage "on both sides of every conflict".** K1 (block): only 10 of 1,347 resolutions are error actions, so most conflicts have no refused sentence and the exit cannot pass. F13 (released) and D28 (released) accept the stated coverage gate. K2: 588 of the 1,347 resolutions involve a `PLUGIN_*` token.
+- **Counting `yyerror` at all.** I (`prec2`): identical to `prec` on all 1.08M enumerated `GRAMEXPR` strings (20,255 accepted); statement-level recovery not tested.
+- **`lex-overhead`.** C (alternating stand-in, aggregate): 1.099–1.308, one trial of ten at 1.308, median of three near 1.15. K (`klex`, not alternating): median 1.19 on std5k (single runs 0.80–1.61), 1.15 on T1 (0.97–1.21). D32 (held) and K8 (stand aside): what a result near 1.3 triggers.
+
+### Round-8 ledger
+
+New findings. Columns as in the earlier ledgers. D and E raise no new findings.
+
+| id | raiser | round | section of the subject | consequence if it ships | evidence | block/stand-aside as declared | status | revision |
+|---|---|---|---|---|---|---|---|---|
+| A33 | A | 8 | §11 | The lexer-defect list has no staleness check; an entry whose issue is fixed or whose verdict no longer traces to the wrong token keeps its file out of both gates, quietly narrowing them. | §11's entry rule; no §9.5 key or exit condition reads the list; `main.go:353` is the existing check for the other list. | stand aside | open | fe27debd |
+| A34 | A | 8 | §12; §9.5 | (1) The membership check is stated as a gate but has no key; as a test it fails every issue before the port is complete, against `make test` at 100%. (2) `tdt-unseen` rises by design as table entries are added, and a strict comparator has no review. See also G24, I13, F16, K5; C27. | §9.5 lists `tdt-aligned` and `tdt-unseen` only; `compare.go:88` strict `>`; `CLAUDE.md:7`; §9.2's no-regression rule. | block ("fixable in that one sentence") | open | fe27debd |
+| B22 | B | 8 | §8 | "Keep every action that calls `yyerror`" keeps perly.y:666-671's conditional check, which reads a stripped semantic value, so the referee refuses valid `try … catch ($e)`. See also G26, H19. | `r2/g3.y` / `bisonp3`: `try {} catch ($e) {}` REJECT (perl accepts); `try {} catch {}` REJECT (perl refuses). | stand aside | open | fe27debd |
+| B23 | B | 8 | §8 | Rendered sentences can carry terminals toke.c would not produce there: (i) inserted terminals (`;` before `}`, NULL version `BAREWORD`) have a lexeme but render wrongly; (ii) `UNIOP ( $x ) + 1` and `LSTOP ( 1 ) , 2` re-lex as `FUNC1`/`FUNC`, so a correct chart fails the grouping test. See also G25, J22. | `HASHBRACK THING , THING ; }` renders `{ 1 , 1 ; } ;`, refused by perl, lexed as a block; perl groups `defined ( $x ) + 1` as `(defined($x)) + 1`, bison's fixture `defined(($x) + 1)`. | stand aside | open | fe27debd |
+| C27 | C | 8 | §12; §9.5 (`tdt-unseen`) | `tdt-unseen` rises with every issue that adds a superposed class; "without review" means re-taking the baseline in practice. See also A34 (2). | §12; `compare.go:89` has no review state. | stand aside | open | fe27debd |
+| C28 | C | 8 | §12 (`tdt-aligned`) | No floor: the outside reference can pass by aligning little from the first baseline; mappings outside the aligned fraction go unseen. See also J15, H16, K5. | §12. | stand aside | open | fe27debd |
+| C29 | C | 8 | §9.1 (corpus table) | The table says "perl 5.42's verdict" with 5.42's count while labels now come from the debug blead; a reader cannot tell which perl the gated populations come from. See also G27, H18, I14, K3. | `perl -v` 5.42.0; re-count 78/124 under 5.42; §4 pins blead 94e50866. | stand aside | open | fe27debd |
+| F16 | F | 8 | §12 | The membership check has no stated timing; as a Go test under `make test` it fails until the table holds every class the corpora use (the F15 pattern). See also A34, G24, I13, K5. | §12 line 531; §14 "`make test` at 100%"; §9.2's closing paragraph. | stand aside | open | fe27debd |
+| G24 | G | 8 | §12 (membership) | G20's defect moved to another key: membership has no key or timing, and §12's tests run in `make test`, so every issue before the port is complete fails or the test is deferred by unstated convention (postmortem change 6). See also A34, I13, F16, K5. | §12 l.~520–530; §9.5's `tdt-*` row; §9.2's closing paragraph; CLAUDE.md "100% before committing". | block ("fixable in one sentence") | open | fe27debd |
+| G25 | G | 8 | §8 (rendering) | A rendered sentence can re-lex to different terminals than bison judged (`LSTOP` before `(` becomes `FUNC`; `*SUB` terminals need a declared sub; `PRIVATEREF` needs a `my`); spurious failures or chance agreements. See also B23, J22. | §8 paragraph 4; toke.c `S_lop` (l.2187–2190); `gprobe 'print (1), 2;'`. | stand aside | open | fe27debd |
+| G26 | G | 8 | §8 (kept `yyerror` actions) | Kept actions read values stripped actions no longer set (perly.y:666–671 reads `$scalar`); the referee script must shim them. See also B22, H19. | perly.y:660–681, 812–820. | stand aside ("implementation") | open | fe27debd |
+| G27 | G | 8 | §9.1 corpus table | The single-perl change left "perl 5.42's verdict", "78 of the 124" and "the newer perl" behind. See also C29, H18, I14, K3. | §9.1 l.338 and the paragraph's last sentence. | stand aside ("editorial") | open | fe27debd |
+| H18 | H | 8 | §9.1 | §9.1 names two labelling perls (the debug blead in the text, 5.42 in the table), and the "newer perl" sentence only makes sense if they differ; every count may move under blead. See also C29, G27, I14, K3. | §9.1 table row 1 and "Perl's labels are pinned"; 78/29/17 and 912/74 measured on 5.42.0. | stand aside | open | fe27debd |
+| H19 | H | 8 | §8 | The only conditional `yyerror` (perly.y:668-671, `if(!$scalar)`) reads `catch_paren`'s stripped value, so the referee's verdict on `try {} catch {}` depends on an uninitialised value. Low risk. See also B22, G26. | `grep -n "yyerror\|croak" perly.y`: conditional `yyerror` only at 669. | stand aside | open | fe27debd |
+| I13 | I | 8 | §12; §9.5 | The membership check has no key and no time, repeating I11's shape: as a test from the first issue it fails every issue; as an exit gate §9.2 does not list it. See also A34, G24, F16, K5. | §9.5 rows for `tdt-aligned` and `tdt-unseen` only; §9.2's exit list has no membership item. | block ("one sentence") | open | fe27debd |
+| I14 | I | 8 | §9.1 | The table and the text name two perls, and the count no longer matches the labelling perl: a fixed number in a criterion, against §10. See also C29, G27, H18, K3. | Blead miniperl accepts 79, perl 5.42 78; `Literal-004.pl` (`1e__+_1`) accepted by blead, refused by 5.42. | stand aside | open | fe27debd |
+| J22 | J | 8 | §8 | One sample lexeme per terminal can lex as a different sentence (`print ($x), 1` is `FUNC`), so the chart tests another sentence against bison's verdict, concentrated in the non-ladder conflicts. See also B23, G25; J20. | Deparse `print ($x), 1;` → `print($x), '???'`; §7's next-token class. | stand aside | open | fe27debd |
+| J23 | J | 8 | §9.1 | A viable prefix up to perl's first error does not show "refused only by precedence": a file with a precedence-only first error and a later grammar error is labelled precedence and leaves the waypoint-1 gate. Rare. | §9.1 text. | stand aside | open | fe27debd |
+| K1 | K | 8 | §8; §12 | Waypoint 2's exit requires every resolved conflict covered on both sides, but most reduce/shift resolutions have no refused sentence; the gate cannot pass, or ~1,300 conflicts go on a reviewed list whose stated reasons do not cover this, inviting an ad-hoc reason in execute. See also F13. | `--report=all`: 1,347 resolutions, only 10 as an error action. | block | open | fe27debd |
+| K2 | K | 8 | §8 | The coverage metric's denominator is undefined, and 44% of it is unreachable until waypoint 2 decides library operators. | 588 of 1,347 (rule, token) resolutions involve `PLUGIN_*`. | stand aside | open | fe27debd |
+| K3 | K | 8 | §9.1 table vs text | The table and `PROVENANCE` say 5.42, the text says one pinned debug blead; the superset population depends on which. See also C29, G27, H18, I14. | Table row 1; `PROVENANCE`: "with perl 5.42.0". | stand aside | open | fe27debd |
+| K4 | K | 8 | §9.2; §9.5 | Waypoint 1's gates can all pass with an over-wide token table: the superset gate catches only too-narrow tables, the refusal gate grades almost nothing, `tdt-unseen` ratchets from the first issue's width, `terminals-per-token` is only reported until completion. See also J2, H3; J15, C28. | T1 labelling (`K/t1-perl.txt`): 0 grammar refusals (68 missing modules, 5 `-T`, 1 strict subs); std5k and edit5k compile; Guacamole's 46 `parsent` and 23 `parses`. | block | open | fe27debd |
+| K5 | K | 8 | §12; §9.5 | `tdt-aligned` has no floor, and the membership check has no key and no exit line. See also J15, C28, H16; A34, G24, I13, F16. | §12; absent from §9.2 and §9.5. | stand aside | open | fe27debd |
+| K6 | K | 8 | §9.1; §8 | The precedence label needs §8's referee tooling at waypoint 1, which the design places in waypoint 2; refinement could size waypoint 1 without it. | §9.1. | stand aside | open | fe27debd |
+| K7 | K | 8 | §7 | A neighbour's class takes text only for words and operators, but `)`, `]` and `}` are all `CloseBracket`; telling subscript braces after each needs the closer's text. | `cmd/kdump` output. | stand aside | open | fe27debd |
+| K8 | K | 8 | §9.3 | A minimal prototype sits at 1.15–1.19, so the real chart/lex may sit near 1.3 and the median of three flake on unchanged code. See also D32. | `cmd/klex` medians; single-run spread 0.80–1.61 on std5k. | stand aside | open | fe27debd |
+| K9 | K | 8 | §4; §5.2 | H4 and H5 live in the minute; the decision cannot be read for fitting's feasibility alone. See also J8. | §4 last paragraph; §5.2 "in the hand-off (H4/H5)". | stand aside | open | fe27debd |
+| K10 | K | 8 | §1 | `01-scope.md` §1.2 argued against transcribing `perly.y`; the design never names or answers the argument. | `01-scope.md:36-40`. | stand aside | open | fe27debd |
+| K11 | K | 8 | §9.1; §5.1 | edit5k.pl lives in `internal/psc/testdata/latency/`, and the design names neither the path nor the cross-package read. | `find`. | stand aside | open | fe27debd |
+
+### Round-8 clusters
+
+Counted by the first section each finding names, as in earlier rounds.
+
+**Round-8 new findings (29, at fe27debd)**
+
+| section | count | findings |
+|---|---|---|
+| §1 | 1 | K10 |
+| §4 | 1 | K9 |
+| §7 | 1 | K7 |
+| §8 | 8 | B22, B23, G25, G26, H19, J22, K1, K2 |
+| §9 | 10 | C29, G27, H18, I14, J23, K3, K4, K6, K8, K11 |
+| §11 | 1 | A33 |
+| §12 | 7 | A34, C27, C28, F16, G24, I13, K5 |
+
+Within §9: §9.1 8 (C29, G27, H18, I14, J23, K3, K6, K11), §9.2 1 (K4), §9.3 1 (K8).
+
+By raiser: A 2, B 2, C 3, D 0, E 0, F 1, G 4, H 2, I 2, J 2, K 11.
+
+Four groups account for 17 of the 29: the membership check's key (A34, F16, G24, I13, K5); §9.1's table naming perl 5.42 (C29, G27, H18, I14, K3); rendering re-lexing as a different terminal (B23, G25, J22); and the kept conditional `yyerror` (B22, G26, H19).
+
+**Rows open at fe27debd (34: the 29 round-8 findings plus D32, D35, H16, J11 and J15)**
+
+| section | count | findings |
+|---|---|---|
+| §1 | 1 | K10 |
+| §3 | 1 | D35 |
+| §4 | 1 | K9 |
+| §7 | 1 | K7 |
+| §8 | 8 | B22, B23, G25, G26, H19, J22, K1, K2 |
+| §9 | 12 | C29, D32, G27, H18, I14, J11, J23, K3, K4, K6, K8, K11 |
+| §11 | 1 | A33 |
+| §12 | 9 | A34, C27, C28, F16, G24, H16, I13, J15, K5 |
+
+**Open blocks by section (6):** §8 1 (K1), §9 1 (K4), §12 4 (A34, G24, I13, J15).
+
+### Per participant, round 8
+
+#### A (codebase and architecture)
+
+- **Recommendation:** modify, narrowly; "With that sentence I would accept."
+- **Released:** A30, A31, A32 (feasibility note: `-DT`'s token line carries no source text; text must be reconstructed from line previews and "Pending identifier"). "Every other row I raised over eight rounds is released."
+- **Held:** none.
+- **New:** A34 (block), A33 (stand aside).
+- **Other checks:** §8's referee (every `yyerror` kept, any reported error a refusal; rendering feasible; coverage `na` until fixtures exist); §9.1's evidence computable offline with the same two bison builds.
+- **Did not re-examine:** §1 and §5.2's rationale; the referee's generation and coverage in practice; `-DT` output (no DEBUGGING perl).
+
+#### B (grammar fit)
+
+- **Recommendation:** accept.
+- **Released:** B20 (against its bar), B21. B1–B19 released.
+- **Held:** none.
+- **New:** B22, B23 (stand aside).
+- **Re-runs:** `bisonp2` on `r6.tok` and `r5.tok`, `grep -c YYERROR` 8, `lx/subkey` 1,757 / 12, all unchanged.
+- **Did not re-examine:** §1 and §5.2's rationale beyond reading; §9.1's debug perl; §11's lexer-defect list; §9.3; whether generation reaches `catch` ("If it never does, B22 is latent"); blead's verdicts.
+
+#### C (measurement and kill design)
+
+- **Recommendation:** accept.
+- **Released:** C24, C25, C26, each against its own bar. C1, C3–C23, C5's remainder still released.
+- **Held:** none.
+- **New:** C27, C28, C29 (stand aside).
+- **Re-runs:** `lex-overhead` 1.099–1.308 (one trial of ten at 1.308); `parsent` 78/124 under 5.42.
+- **Did not re-examine:** §8's referee changes; §5.2's rationale and §1; the `-DT` alignment's feasibility on real files; the chart side of timing.
+
+#### D (spec quality)
+
+- **Recommendation:** accept. "Across eight rounds I raised D1–D35. All the blocks are released, D28 and D33 this round."
+- **Released:** D28, D33, D34.
+- **Held:** D32 and D35 (stand aside; one sentence and one word).
+- **New:** none. Two discards (the rendering join rule, made visible by the counted list; `tdt-aligned` moving only on a regeneration commit).
+- **New mechanisms checked:** the referee's error predicate; the precedence evidence up to perl's error; §5.2's comparison-chain rationale; `tdt-aligned`/`tdt-unseen` ("the right shape").
+- **Did not re-examine:** `-DT`'s output format; toke.c's nested-EOF bracketing; bison-exactness across perly.y; §9.3 and §1; blead's verdicts.
+
+#### E (architecture and direction)
+
+- **Recommendation:** accept. "I hold no blocks. Nothing I hold needs another sentence from the author."
+- **Released:** E22, both parts. E1–E21 released.
+- **Held:** none.
+- **New:** none.
+- **Hunted, no finding:** six renderings through the pu lexer came back as intended ("six samples, not a proof"); the viable-prefix test feasible once the debug perl exists; coverage cannot pass before the generator exists.
+- **Did not re-examine:** §9.5's `terminals-per-token`, `tdt-aligned` and `tdt-unseen`; the lexer-defect list; §12's alignment; §5.2 beyond E21; H6's sizing; any perly.y-derived measurement.
+
+#### F
+
+- **Recommendation:** accept.
+- **Released:** F13, F14 (against its own bar), F15. F1–F12 stay released.
+- **Held:** none.
+- **New:** F16 (stand aside).
+- **Hunt notes (no finding):** rendering through `internal/lexer` "the right choice"; the separate lexer-defect list cannot help the chart pass; `sideff: error` on the closed list correct; one pinned debug perl removes the skew F8 raised, with §9.1's table "a stale cell, not a finding".
+- **Did not re-examine:** a DEBUGGING perl run; the edge-context algorithm; §1, §9.3–§9.4, other rows, H4/H5, the budget.
+
+#### G
+
+- **Recommendation:** modify, block on G24; "If G24's sentence lands as written above, I release it without another round."
+- **Released:** G20, G21 (residual raised as G27), G22, G23. G1–G19 released.
+- **Held:** none.
+- **New:** G24 (block); G25, G26, G27 (stand aside).
+- **New mechanisms checked:** §5.2's rationale correct; the referee counting every reported error right; §11's list fine; §1's figures fine. Re-run: perl 5.42 still stops at the first syntax error.
+- **Did not re-examine:** the edge-context value's bison-exactness; whether nested-EOF bracketing separates module tokens; `-DT` fixture size; other rows; the speed protocol.
+
+#### H
+
+- **Recommendation:** accept.
+- **Released:** H15, H17. H1–H14 remain released.
+- **Held:** H16, narrowed to "the exit has no floor", stand aside.
+- **New:** H18, H19 (stand aside).
+- **New mechanisms checked (no row):** the referee's error predicate; rendering feasible and "cannot pass by dropping sentences"; coverage "may not fall" closes round 7's hole; the separate lexer-defect list; the dangling-form test "passes even for an empty grammar. Its pairing with an accepted neighbour … is what gives it meaning"; §1's figures match the postmortem.
+- **Did not re-examine:** `-DT`'s format (H16 "from memory"); the offline blead build; E's probe, the generator, the 667 reduce resolutions; §2–§4, §13, §14; other rows.
+
+#### I
+
+- **Recommendation:** modify; "If I13's sentence lands as proposed, I would accept."
+- **Released:** I11, I12 (against its bar).
+- **Held:** none.
+- **New:** I13 (block), I14 (stand aside).
+- **Re-runs and new measurements:** `prec`/`noprec`/`noprec_err` unchanged; the dangling forms 0/0; `prec2` identical to `prec` on 1.08M strings; `-DT` and `-Dp` on the miniperl (nested EOF per compilation; operator tokens carry no text; the refusal shows under `-Dp`, not `-DT`); `parsent` 79 under blead, 78 under 5.42.
+- **Did not re-examine:** unchanged sections; other rows; `-DT` on the real corpora with a full perl; generation speed; statement-level `error` recovery; speed and `make test`.
+
+#### J
+
+- **Recommendation:** modify; J15 "one added sentence would clear it".
+- **Released:** J12, J16, J17, J18, J19, J20 (against its bar on coverage; re-scoped into J22).
+- **Held:** J11 (stand aside), J15 (block).
+- **New:** J22, J23 (stand aside).
+- **Did not re-examine:** whether nested-EOF bracketing marks a module's start; whether stubbing modules changes toke.c's token types; whether any conflict needs an LSTOP-before-`(` sentence; speed and corpus counts; other rows.
+
+#### K (cold reader)
+
+- **Recommendation:** modify.
+- **Released / held:** none; K had no prior findings.
+- **New:** K1, K4 (block); K2, K3, K5–K11 (stand aside).
+- **Claims measured:** 348/114, 32/39, `PERL_VERSION 45`; the precedence-free grammar has 1,347 S/R and 0 R/R conflicts; 10 of 1,347 resolutions are errors, 588 involve `PLUGIN_*`; §8's shapes hold on perl 5.42; 78/124 and 23 `parses` refused; RD refuses 236 of 986; std5k and edit5k compile; the named APIs exist; `lex-overhead` prototype 1.15–1.19.
+- **Classification, as given:** Ready: the port ledger, the offline bison referee, the superset gate, the carried code, waypoint 1's speed as a lower bound. Partial: precedence coverage ("unpassable as written", K1, K2), the token key (K7), `lex-overhead` (K8), the refusal gate ("near-vacuous", K4), labels (K3, K6), `tdt` alignment (K5). Missing: the `-DDEBUGGING` pinned blead.
+- **Axes, as given:** codebase aligned; architecture aligned, relaxing rule 5 at waypoint 1 openly, with `01-scope.md` §1.2 unanswered (K10); direction aligned.
+- **Did not check:** the minute, E's probe and H1–H5; whether the edge-context constraint matches bison on non-operator conflicts; `-DT` alignment; blead's verdicts, perl.git `t/`; `items-per-token`; lexer correctness, budgets, `PLUGIN_*` rendering.
+
+### Round outcome
+
+**Not converged at the bound.** Round 8 is the eighth round, the bound crochet:discernment sets. Six blocks are open: A34, G24, I13, J15, K1, K4. No participant has released any of them. 34 rows are open in all.
+
+- A34, G24 and I13 describe one defect, the membership check's missing key. Each raiser states a one-sentence fix; G says it would release "without another round", and A and I say they "would accept" on their sentence.
+- J15 is held from round 7. J says one sentence "would clear it" and gives the sentence.
+- K1 and K4 are the cold reader's, raised in the bound round. K gives a resolution for each and says nothing about releasing without another round.
+- No participant describes its view as irreconcilable.
+- B, C, D, E, F and H recommend accept; A ("narrowly"), G, I, J and K recommend modify.
+
+The drafter does not decide what follows the bound; that is the decision-maker's.
+
+## Author's response to round 8 (revision 01b3b2e9)
+
+The author is the orchestrating agent. Release is each raiser's to give. Round 8 is the bound; how the assessment closes is perigrin's (below). The subject grew from about 5,490 to about 5,770 words.
+
+| id | response | where |
+|---|---|---|
+| A34, G24, I13, F16 | A count key `tdt-mismatch`: reported until the port is complete, 0 from then on. | §9.5, §12 |
+| J15, H16, C28, K5 | `tdt-aligned` may not fall, and at the exit every unaligned token is in a reviewed fitting family. | §9.5, §12 |
+| K4, C27, J11, A34 (tdt-unseen) | `tdt-unseen` and `terminals-per-token` are reported until the port is complete, may not rise without review after, and every `tdt-unseen` pair is on a reviewed list at the exit. §12 states these are waypoint 1's width limit, since T1 holds no grammar refusals. | §9.5, §12 |
+| K1, K2 | The coverage unit is a (rule, token) resolution in bison's report; a resolution is covered by a sentence whose verdict or grouping depends on it, and an error resolution also needs an accepted neighbour. `PLUGIN_*` resolutions are counted separately until §9.4. | §8 |
+| B23, G25, J22, D (note) | A rendered sentence is kept only if it lexes back to tokens mapping to the same terminals; failures are counted on the reviewed list. | §8 |
+| B22, H19 | The referee's grammar omits `catch_paren: empty`, as the port does. G26's shims are implementation. | §8 |
+| K3, G27, H18, C29, I14 | All corpora are labelled by the pinned perl; the Guacamole counts are regenerated (blead accepts 79 of 124). | §9.1 |
+| J23 | The precedence evidence speaks for perl's first error only; recorded as a known limit. | §9.1 |
+| D35 | Rule 5's exception names scope as well as precedence. | §3 |
+| K7 | A neighbour's text is kept for words, operators and closing brackets. | §7 |
+| K8, D32 | `lex-overhead` is gated on the aggregate; std5k's figure is reported. | §9.3 |
+| K9 | §5.2 names the H4 families inline. | §5.2 |
+| K10 | §2 says the lexer's PL_expect machine is the toke.c feedback `01-scope.md` §1.2 said a transcription lacks, and conflicts are kept as ambiguity. | §2 |
+| K11 | edit5k's path is named. | §9.1 |
+| K6 | Precedence labels at waypoint 1 need the debug perl and the referee scripts; H6 is therefore waypoint 1's first work. | H6 |
+| A33 | Not changed: a stale lexer-defect entry is caught at the gate review that confirms each entry. | — |
