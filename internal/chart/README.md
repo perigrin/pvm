@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs and the PL_expect comparison, the recognizer, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -119,7 +119,7 @@ committed to the baseline with the component.
 | `defect-yield-sites` | oracle sites exact for the chart and WRONG for recursive descent | reported only |
 | `defect-yield-settled` | listed issues the chart settles where recursive descent does not | may not fall |
 | `oracle-sites-decided` | sites the chart reports decided (§7.1) | reported only |
-| `expect-states-unreproduced` | in-force `PL_expect` states the expectation classes do not reproduce | reported only |
+| `expect-states-unreproduced` | in-force `PL_expect` states the expectation classes do not reproduce (see "The `PL_expect` comparison"); a state whose conflicts are all out of force is not counted, and more than 2 forces a recorded decision by perigrin before the milestone completes; stderr names each | reported only |
 | `rd-oracle-exact` | recursive descent's oracle exact rate on the scored `parses` cases | reported only |
 | `rd-oracle-coverage` | recursive descent's share of those cases graded anything but no-answer | reported only |
 | `rd-parse-ms-std5k` | `parse.Parse` on `std5k.pl`, best of 5, in ms | reported only |
@@ -302,6 +302,32 @@ position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
 `%`, `&`, `*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses
 `{` and `?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
 `$a -e` is a syntax error, and pvm's lexer agrees.
+
+### The `PL_expect` comparison
+
+`testdata/pl-expect-map.txt` maps each of spec 03's eleven `PL_expect`
+states (`docs/specs/perl-parser/03-lexer-feedback.md` §3.1.2) to the
+conflicts it settles, by text, citing the spec for each. It is written by
+hand. `chart.ReadPLExpectMap` holds it to every state exactly once and to
+conflicts the generator emits or the late joiners `{` and `?`; a failure
+names the map and the state. A text spec 03 names that no pair can carry,
+such as a label's `:`, is left out and named in the map's comments.
+
+The ratchet reads a class at every lattice node of `std5k.pl` and the scored
+cases: `chart.Class`, which is `Expected(pos)` projected onto the pairs,
+never a per-state projection. The recognizer runs with lookahead, and that
+gives the same class as without it, because `Expected` closes a pruned set
+again. A pair is settled when `Expected(pos)` holds a terminal of exactly
+one of its readings, and a text when every pair it names is. A state is out
+of force when none of its conflicts is in `conflicts.txt`, and is not
+counted. A counted state is reproduced when some class settles exactly its
+in-force conflicts. The comparison is of which conflicts are settled, not of
+which reading wins, so `XOPERATOR` and `XTERM` map to the same set.
+
+The map does not close an unterminated quote-like probe (`/=` as `/=/`,
+2e94's F1). The (OpAssign, QLikeValueExprWithMods) pair it would add is
+already in force through `//=`, and a pair's settling depends only on its
+terminals.
 
 ## The CORE.tpm cross-check
 

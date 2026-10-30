@@ -44,6 +44,7 @@ var (
 	grammarSLIF  = filepath.Join("internal", "chart", "grammar", "testdata", "guacamole", "guacamole.slif")
 	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
 	knownFile    = filepath.Join(testdata, "lex-unmapped-known.txt")
+	plExpectMap  = filepath.Join(testdata, "pl-expect-map.txt")
 )
 
 // keys is the fixed print order: the milestone's contract keys, then the
@@ -229,6 +230,9 @@ func measure(ctx context.Context) (map[string]string, []string, error) {
 	if err := recognizeAll(m, recognize.New(tab, recognize.Options{}), x, streams, scored, parsent); err != nil {
 		return nil, nil, err
 	}
+	if err := expectStates(m, recognize.New(tab, recognize.Options{}), streams, tab.Conflicts); err != nil {
+		return nil, nil, fmt.Errorf("expect-states-unreproduced: %w", err)
+	}
 	known, err := os.ReadFile(knownFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("lex-unmapped: %w", err)
@@ -299,6 +303,38 @@ func recognizeAll(m map[string]string, r *recognize.Recognizer, x *lex.Lexer, st
 		}
 	}
 	m["parsent-accepted"] = strconv.Itoa(n)
+	return nil
+}
+
+// expectStates measures expect-states-unreproduced: the in-force PL_expect
+// states of plExpectMap that no expectation class settles exactly, the
+// classes read at every node of std5k.pl and the scored cases.
+func expectStates(m map[string]string, r *recognize.Recognizer, streams []*lex.Stream, conflicts []grammar.Conflict) error {
+	text, err := os.ReadFile(plExpectMap)
+	if err != nil {
+		return err
+	}
+	pl, err := chart.ReadPLExpectMap(plExpectMap, text, conflicts)
+	if err != nil {
+		return err
+	}
+	classes := map[string]bool{}
+	for _, s := range streams {
+		c := recognize.Recognize(r, lex.Linear(s))
+		for pos := range c.Sets {
+			class, err := chart.Class(c, pos, conflicts)
+			if err != nil {
+				return err
+			}
+			classes[chart.ClassKey(class)] = true
+		}
+	}
+	states, counted := chart.Unreproduced(pl, conflicts, classes)
+	for _, s := range states {
+		fmt.Fprintf(os.Stderr, "chart-ratchet: expect-states-unreproduced: %s (%s)\n", s, strings.Join(pl[s], " "))
+	}
+	fmt.Fprintf(os.Stderr, "chart-ratchet: expect-states-unreproduced: %d of %d in-force states; %d classes seen\n", len(states), counted, len(classes))
+	m["expect-states-unreproduced"] = strconv.Itoa(len(states))
 	return nil
 }
 

@@ -16,7 +16,7 @@ chart-ratchet: defect-yield-listed 50
 chart-ratchet: defect-yield-sites na
 chart-ratchet: defect-yield-settled na
 chart-ratchet: oracle-sites-decided na
-chart-ratchet: expect-states-unreproduced na
+chart-ratchet: expect-states-unreproduced 2
 chart-ratchet: rd-oracle-exact 0.9920
 chart-ratchet: rd-oracle-coverage 0.9960
 chart-ratchet: rd-parse-ms-std5k 32.112
