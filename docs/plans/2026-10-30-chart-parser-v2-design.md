@@ -206,16 +206,17 @@ forest (§8, §9.4) → the oracle.
 
 **The key.** A token's terminal set is looked up by its lexer kind, its text,
 the flags the lexer has already computed (`OpensBlock` and `TermFollows`),
-its sigil or quote-prefix class, and the classes of the previous and the next
-significant tokens. A neighbour's class is its lexer kind, its flags and,
-for words and operators, its text: never its own terminal set, so the key
-does not recurse. The flags are what tell a subscript's `{` from an
-anonymous hash's or a block's. Heredoc bodies are attached to their heredoc's
-opening token and are not neighbours. The lexer has already decided block-or-hash at `{`; the key keeps
-that decision. The next token's class is what toke.c reads to tell `FUNC`
-from `LSTOP`, `FUNC1` from `UNIOP`, and an auto-quoted word before `=>`; the
-previous token's class is what makes a lone word inside a subscript's `{}` a
-string.
+its sigil or quote-prefix class, the classes of the **two** previous
+significant tokens, and the class of the next. A neighbour's class is its
+lexer kind, its flags and, for words and operators, its text: never its own
+terminal set, so the key does not recurse. The second previous token is what
+makes a lone word inside `{}` a string in `$h{foo}` (a term before the `{`)
+and a call in `+{ foo }` (an operator before it); the lexer's `OpensBlock`
+is false on both braces and cannot. Heredoc bodies are attached to their
+heredoc's opening token and are not neighbours. Where the lexer has already
+decided block-or-hash at `{`, the key keeps that decision. The next token's
+class is what toke.c reads to tell `FUNC` from `LSTOP`, `FUNC1` from
+`UNIOP`, and an auto-quoted word before `=>`.
 
 **Compiled.** The generator builds the table from the grammar's token classes,
 with unions precomputed, so the lookup is constant-time, allocation-free and
