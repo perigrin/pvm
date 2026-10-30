@@ -180,6 +180,31 @@ func BenchmarkLatencyAnalyzeEdit(b *testing.B) {
 	})
 }
 
+// BenchmarkLatencyIncrementalEdit: the incremental path for each edit of
+// latencyEdits' typing sequence, as the owner runs it with
+// parse.IncrementalRepair on: Repair from the last tree, then analyzeEdit
+// from the last analysis with Repair's region -- edit to published analysis.
+func BenchmarkLatencyIncrementalEdit(b *testing.B) {
+	src := latencySource(b)
+	bufs := latencyEdits(src, b.N)
+	root := parse.Parse(src)
+	prev, err := analyze(context.Background(), root, infer.Options{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	timeEach(b, func(i int) {
+		next, ok := parse.Repair(root, fullSyncEdit(src, bufs[i]), bufs[i])
+		if !ok {
+			b.Fatalf("edit %d: Repair refused a typing edit", i)
+		}
+		fa, d, err := analyzeEdit(context.Background(), root, prev, next, next.Damage(), infer.Options{})
+		if err != nil || d.Full {
+			b.Fatalf("edit %d: damage %+v, err %v", i, d, err)
+		}
+		root, prev, src = next, fa, bufs[i]
+	})
+}
+
 // BenchmarkLatencyDamage: the damage step alone over latencyEdits' typing
 // sequence, each tree Repair'd from the last as the owner does with
 // parse.IncrementalRepair on, read off the two trees (TreeDiff) and off

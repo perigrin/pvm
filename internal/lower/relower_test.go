@@ -70,12 +70,32 @@ sub d;
 			oldRoot, newRoot := parse.Parse([]byte(src)), parse.Parse([]byte(edited))
 			old := lower.Lower(oldRoot)
 			before := shape(old)
-			got, ok := lower.Relower(old, newRoot, c.anchors)
+			got, pos, ok := lower.Relower(old, lower.NewPositions(oldRoot, old), newRoot, c.anchors)
 			if !ok {
 				t.Fatal("Relower reported false")
 			}
-			if want := shape(lower.Lower(newRoot)); shape(got) != want {
+			fresh := lower.Lower(newRoot)
+			if want := shape(fresh); shape(got) != want {
 				t.Errorf("Relower = %s\nwant      %s", shape(got), want)
+			}
+			// Its position map answers as a fresh one of the edited tree.
+			freshPos := lower.NewPositions(newRoot, fresh)
+			var spans func(n lower.Node)
+			spans = func(n lower.Node) {
+				gs, ge, gok := pos.Span(n.Meta().ID)
+				ws, we, wok := freshPos.Span(n.Meta().ID)
+				if gs != ws || ge != we || gok != wok {
+					t.Errorf("Span(%v) = %d, %d, %v; want %d, %d, %v", n.Meta().ID, gs, ge, gok, ws, we, wok)
+				}
+				for _, k := range lower.Children(n) {
+					spans(k)
+				}
+			}
+			spans(fresh)
+			for off := range len(edited) + 1 {
+				if g, w := pos.At(off), freshPos.At(off); (g == nil) != (w == nil) || g != nil && g.Meta().ID != w.Meta().ID {
+					t.Errorf("At(%d) = %v, want %v", off, g, w)
+				}
 			}
 			if shape(old) != before {
 				t.Error("Relower changed the old tree")
@@ -97,12 +117,13 @@ sub d;
 func TestRelowerUnknownAnchor(t *testing.T) {
 	root := parse.Parse([]byte("sub a { 1 }\n"))
 	f := lower.Lower(root)
+	pos := lower.NewPositions(root, f)
 	for _, anchors := range [][]string{{"sub z#0"}, {"sub a#1"}, {"sub a#0", "sub z#0"}} {
-		if got, ok := lower.Relower(f, root, anchors); ok || got != nil {
-			t.Errorf("Relower(%v) = %v, %v; want nil, false", anchors, got, ok)
+		if got, p, ok := lower.Relower(f, pos, root, anchors); ok || got != nil || p != nil {
+			t.Errorf("Relower(%v) = %v, %v, %v; want nil, nil, false", anchors, got, p, ok)
 		}
 	}
-	if got, ok := lower.Relower(f, root, nil); !ok || got != f {
+	if got, _, ok := lower.Relower(f, pos, root, nil); !ok || got != f {
 		t.Errorf("Relower(nil) = %v, %v; want f itself, true", got, ok)
 	}
 }
