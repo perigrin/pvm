@@ -274,9 +274,14 @@ parser of the pinned `perly.y` on generated operator sentences: same
 acceptance and same grouping, which is the outside reference rule 11 requires
 (the oracle's marker sites do not cover grouping). Perl is the oracle on the
 corpora: waypoint 2's WRONG 0 grades accepted files, and §9.2's refusal gate
-grades refused ones. `%prec` on rules that are not operators settles a
-shift/reduce choice outside this constraint; where the chart differs from
-perl on such a rule, the oracle finds it and a fitted rule answers it.
+grades refused ones. The constraint covers every conflict bison resolves by
+precedence, not only the operator ladder: `%prec` on a rule that is not an
+operator (`indirob: scalar %prec PREC_LOW`, which refuses `print $fh []`) is
+resolved the same way. Which forms are refused is found, not listed: the
+tests generate sentences that `perly.y` with its precedence and `perly.y`
+without it (GLR, every derivation kept) disagree on, and each disagreement is
+a refusal or grouping test. Refusals that need `PLUGIN_*` tokens are outside
+scope with the keyword plugins (§2).
 
 **Waypoint 1 does no precedence, and over-accepts.** Precedence-dependent
 refusals are waypoint 2's, so waypoint 1 accepts files perl refuses for
