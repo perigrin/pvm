@@ -14,15 +14,14 @@ func (c *Chart) memoAt(at, sym int) *memo {
 		return m
 	}
 	var m *memo
-	n, state, origin := 0, 0, 0
+	n, state, origin, k := 0, 0, 0, 0
 	for _, it := range c.Sets[at].Items() {
-		if _, ok := c.r.goTo(it.State, sym); ok {
+		if to, ok := c.r.goTo(it.State, sym); ok {
 			n++
-			state, origin = it.State, at-it.Dist
+			state, origin, k = it.State, at-it.Dist, to
 		}
 	}
 	if lhs, ok := c.r.leo[[2]int{state, sym}]; ok && n == 1 {
-		k, _ := c.r.goTo(state, sym)
 		m = &memo{at: at, origin: origin, top: [2]int{k, origin}}
 		// A predicted item's origin is this node; its chain stops here.
 		if origin < at {

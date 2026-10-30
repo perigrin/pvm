@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func items(c *Chart) int {
 // (§10), on S ::= A S | A at lookahead 0.
 func TestLeoLinearAtLookaheadZero(t *testing.T) {
 	tab := toyTables(t, rightRec)
-	checkLinear(t, tab, func(n int) *lex.Lattice[lex.None] { return tokens(slicesRepeat("A", n)...) }, 200)
+	checkLinear(t, tab, func(n int) *lex.Lattice[lex.None] { return tokens(slices.Repeat([]string{"A"}, n)...) }, 200)
 }
 
 // TestLeoStatementSeqAtLookaheadZero: Guacamole's right-recursive
@@ -75,17 +76,13 @@ func checkLinear(t *testing.T, tab *grammar.Tables, input func(int) *lex.Lattice
 	}
 }
 
-func slicesRepeat(s string, n int) []string {
-	return strings.Fields(strings.Repeat(s+" ", n))
-}
-
 // TestLeoTopOutsideSetIdentity: with lookahead, the sets after each A but
 // the last hold the same items, so they intern to one set, while their memos
 // resolve to tops at different distances. The top is in the side table, not
 // in the set.
 func TestLeoTopOutsideSetIdentity(t *testing.T) {
 	tab := toyTables(t, rightRec)
-	c := Recognize(New(tab, Options{}), tokens(slicesRepeat("A", 5)...))
+	c := Recognize(New(tab, Options{}), tokens(slices.Repeat([]string{"A"}, 5)...))
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -105,7 +102,7 @@ func TestLeoTopOutsideSetIdentity(t *testing.T) {
 // is made and the item count is the same with Leo on and off.
 func TestLeoLeftRecursiveNoMemo(t *testing.T) {
 	tab := toyTables(t, "L ::= L X | Y\nX ::= C\nC ~ 'c'\nY ~ 'y'\n")
-	l := tokens(append([]string{"Y"}, slicesRepeat("C", 20)...)...)
+	l := tokens(append([]string{"Y"}, slices.Repeat([]string{"C"}, 20)...)...)
 	for _, la := range []bool{false, true} {
 		on := Recognize(New(tab, Options{NoLookahead: la}), l)
 		off := Recognize(New(tab, Options{NoLookahead: la, NoLeo: true}), l)
