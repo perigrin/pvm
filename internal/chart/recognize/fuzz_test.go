@@ -31,14 +31,17 @@ func withDeadEnd(l *lex.Lattice[lex.None], i int) *lex.Lattice[lex.None] {
 	return out
 }
 
+// fuzzSeeds is FuzzRecognize's seed corpus.
+var fuzzSeeds = []string{
+	"", "my $x = 1;", "print(1)", "1 2", "$x $y", "my $x =",
+	"sub f { my ($a) = @_; return $a + 1; }\nf(2);\n",
+	"my @a = map { $_ * 2 } grep { defined($_) } @b;",
+	"if ($x) { 1 } elsif ($y) { 2 } else { 3 }",
+	"=pod\n\nx\n\n=cut\n",
+}
+
 func FuzzRecognize(f *testing.F) {
-	for _, s := range []string{
-		"", "my $x = 1;", "print(1)", "1 2", "$x $y", "my $x =",
-		"sub f { my ($a) = @_; return $a + 1; }\nf(2);\n",
-		"my @a = map { $_ * 2 } grep { defined($_) } @b;",
-		"if ($x) { 1 } elsif ($y) { 2 } else { 3 }",
-		"=pod\n\nx\n\n=cut\n",
-	} {
+	for _, s := range fuzzSeeds {
 		f.Add(s)
 	}
 	// warm is shared across inputs, so its cache serves earlier inputs'
