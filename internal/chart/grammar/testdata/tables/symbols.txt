@@ -1,4 +1,4 @@
-0 nonterminal Program
+0 nullable Program
 1 nonterminal StatementSeq
 2 nonterminal BlockStatement
 3 nonterminal Statement

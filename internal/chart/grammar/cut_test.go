@@ -358,3 +358,38 @@ func lexesAs(k lexer.Kind, text string) bool {
 func ruleEqual(a, b Rule) bool {
 	return a.LHS == b.LHS && slices.Equal(a.RHS, b.RHS) && a.Seq == b.Seq
 }
+
+// TestCutDiamondTight: perl reads <...> as readline only around a bare
+// filehandle or a simple scalar (scan_inputsymbol); `< $fh >` is a glob. So
+// no Diamond predicate admits whitespace inside the token, and the plain
+// forms still match.
+func TestCutDiamondTight(t *testing.T) {
+	c := guacamoleCut(t)
+	for sym, texts := range map[string][]string{"Diamond": {"<$fh>", "<STDIN>", "<>"}, "DoubleDiamond": {"<<$fh>>", "<<STDIN>>", "<<>>"}} {
+		for _, text := range texts {
+			if !matches(c, sym, lexer.Readline, text) {
+				t.Errorf("%s refuses %q", sym, text)
+			}
+		}
+	}
+	for _, text := range []string{"< $fh >", "<$fh >", "< STDIN>", "<<\t$fh>>", "<$\nfh>"} {
+		for sym := range c.Terminals {
+			if matches(c, sym, lexer.Readline, text) {
+				t.Errorf("%s admits the spaced Readline %q", sym, text)
+			}
+		}
+	}
+}
+
+// TestCutEmpty: an Empty name gains an empty alternative, listed as a
+// rewrite; a name with no G1 rules is an error.
+func TestCutEmpty(t *testing.T) {
+	c := cut(t, "S ::= A\nA ~ 'a'\n", CutSpec{Empty: []string{"S"}})
+	if !slices.ContainsFunc(c.G1, func(r Rule) bool { return r.LHS == "S" && len(r.RHS) == 0 }) {
+		t.Error("S has no empty alternative")
+	}
+	hasRewrite(t, c, "empty S ::=")
+	if err := cutErr(t, "S ::= A\nA ~ 'a'\n", CutSpec{Empty: []string{"T"}}); !strings.Contains(err, "T has no G1 rules") {
+		t.Errorf("error %q does not name T", err)
+	}
+}

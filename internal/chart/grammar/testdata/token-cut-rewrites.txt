@@ -22,6 +22,7 @@ split DerefVariable ::= SigilArray BlockNonEmpty ElemSeq0 => DerefVariable ::= D
 split DerefVariable ::= SigilHash BlockNonEmpty ElemSeq0 => DerefVariable ::= DerefHashSigil BlockNonEmpty ElemSeq0
 split DerefVariable ::= SigilGlob BlockNonEmpty => DerefVariable ::= GlobSigil BlockNonEmpty
 split DerefVariable ::= SigilArrayTop BlockNonEmpty => DerefVariable ::= ArrayTopOpen StatementSeq RBrace
+empty Program ::=
 absorb VarIdentExpr ::= VarIdent | VarIdentExpr PackageSep VarIdent
 token ScalarVar => Variable ~ SigilScalar VarIdentExpr
 token ArrayVar => Variable ~ SigilArray VarIdentExpr
@@ -44,8 +45,8 @@ token ArrayTopOpen => Variable ~ SigilArrayTop LBrace
 token SliceArraySigil => Variable ~ SigilArray
 token SliceHashSigil => Variable ~ SigilHash
 token SubDefName => Word ~ SubNameExpr except PhaseName
-collapse Diamond ::= '<' VarScalar '>' | '<' BuiltinFilehandle '>' | '<>' => Readline ~ '<' ScalarVar '>' | Readline ~ '<' BuiltinFilehandle '>' | Readline '<>'
-collapse DoubleDiamond ::= '<<' VarScalar '>>' | '<<' BuiltinFilehandle '>>' | '<<>>' => Readline ~ '<<' ScalarVar '>>' | Readline ~ '<<' BuiltinFilehandle '>>' | Readline '<<>>'
+collapse Diamond ::= '<' VarScalar '>' | '<' BuiltinFilehandle '>' | '<>' => Readline ~ '<' ScalarVar '>' without whitespace | Readline ~ '<' BuiltinFilehandle '>' without whitespace | Readline '<>'
+collapse DoubleDiamond ::= '<<' VarScalar '>>' | '<<' BuiltinFilehandle '>>' | '<<>>' => Readline ~ '<<' ScalarVar '>>' without whitespace | Readline ~ '<<' BuiltinFilehandle '>>' without whitespace | Readline '<<>>'
 collapse SubNameCallExpr ::= SubNameNonQLike | SubNameCallExpr PackageSep SubNameNonQLike => Word ~ SubNameCallExpr except :priority
 collapse SubNameExpr ::= SubName | SubNameExpr PackageSep SubName => Word ~ SubNameExpr
 collapse VarDefaultArg ::= '$_' => Variable ~ VarDefaultArg

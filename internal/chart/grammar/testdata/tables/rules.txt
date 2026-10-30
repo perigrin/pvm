@@ -1047,3 +1047,4 @@
 1046 LitNumberOct ::= NumberOct
 1047 LitNumberHex ::= NumberHex
 1048 LitNumberBin ::= NumberBin
+1049 Program ::=

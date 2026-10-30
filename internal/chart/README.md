@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -103,16 +103,16 @@ committed to the baseline with the component.
 |---|---|---|
 | `parses-scored` | Guacamole `parses` cases less `perl-rejects.txt` | may not fall |
 | `parsent-scored` | Guacamole `parsent` cases | may not fall |
-| `parses-refused` | scored `parses` cases the chart refuses | may not rise |
+| `parses-refused` | scored `parses` cases the recognizer rejects; stderr names each | may not rise |
 | `parses-wrong-sites` | oracle sites graded WRONG for the chart | may not rise |
 | `yield-violations` | forest yields that are not their input | may not rise |
 | `oracle-below-rd` | the chart's oracle scores below recursive descent's, 0 to 2 | may not rise |
-| `std5k-refused` | statements of `std5k.pl` the chart refuses | may not rise |
-| `parsent-accepted` | `parsent` cases the chart accepts | may not rise |
+| `std5k-refused` | 1 if the recognizer rejects `std5k.pl`, else 0; stderr names it | may not rise |
+| `parsent-accepted` | `parsent` cases the recognizer accepts; with no error recovery yet, every rejection counts as refused; stderr names each accepted | may not rise |
 | `rejects-disagree` | `parses` cases where `perl -c`, with the stubs, disagrees with `perl-rejects.txt` (`chart.RejectsDisagree`); stderr names each | may not rise |
 | `speed-ratio-aggregate` | chart time over `parse.Parse` time, across the corpus | reported only |
 | `speed-ratio-std5k` | the same on `std5k.pl` | reported only |
-| `set-reuse` | the share of Earley sets served by interning | reported only |
+| `set-reuse` | the share of lattice positions, over `std5k.pl` and the scored `parses` cases, whose Earley set was already interned; one recognizer serves every file | reported only |
 | `convergence-edits` | edits in `testdata/convergence-edits.jsonl` | reported only |
 | `convergence-within-8` | the share of those edits converging within the statement plus 8 tokens | reported only |
 | `defect-yield-listed` | issues in `testdata/defect-yield.txt` | reported only |
@@ -155,6 +155,39 @@ To take a baseline after an intended change, run
 and review the diff. That run exits 1, because the redirect empties the
 baseline before the ratchet reads it, but its stdout is complete.
 
+## The recognizer: `recognize`
+
+`recognize.Recognize` runs a YAEP-style Earley recognizer over the generated
+tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
+
+- **Items** are an LR(0) state and the distance in lattice nodes back to the
+  item's origin. A set is its items, sorted, interned as a (core, distances)
+  pair, so two positions with equal content share one `*Set`. A node that an
+  edge passes over is inside a branch: its set is built but not interned.
+- **Lookahead.** In up-front mode a complete item's rule completes only if
+  the next token, or the end of input, can follow its LHS. That stops
+  right-recursive `StatementSeq` from completing back through every earlier
+  statement, which is what keeps sets equal from one statement to the next.
+  `Expected(pos)` is the union of the expected terminals of every state in
+  the set at `pos` as recognition without lookahead builds it: it closes
+  the set again under every completion, outside the interned content, so a
+  refusal point still names what was expected there.
+- **The transition cache** is keyed by (set, token, lookahead) and the
+  edge's span. A key alone does not fix the result: completion reads the
+  sets where complete items began, which are not part of the source set. So
+  each entry records those sets, and a hit requires them to be the same.
+  `TestCacheChecksOriginSets` fails without that check. The cache is not
+  used inside a branch, nor where two edges meet, and a transition that read
+  any set inside a branch is never cached (`TestCacheNotKeyedOnBranchSet`).
+- **The empty program.** A source of only whitespace, comments and POD is
+  accepted, as perl accepts it: the cut gives `Program` an empty
+  alternative, which Guacamole's `Program ::= StatementSeq` lacks.
+
+`make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
+never panics, that acceptance is the same with and without the cache and
+the lookahead and with a dead-end branch added, and that `Expected` is the
+same with and without lookahead.
+
 ## The token cut and its rewrite list
 
 Guacamole's grammar builds some single pvm tokens out of several lexemes: `$x`
@@ -166,14 +199,18 @@ Each predicate's text is the language of the grammar symbols it stands for, so
 `Quote ~ LitString` admits exactly the quoted strings Guacamole's
 `LitString` rules derive. Inside a sequence that was G1 in Guacamole, the
 whitespace Guacamole discards may appear, because pvm's lexer folds it into the
-one token (`$ foo`, `< $fh >`). Inside a G0 rule it may not.
+one token (`$ foo`). Inside a G0 rule it may not, nor inside a predicate
+marked `without whitespace`.
 
 Where a Guacamole rule derives more than pvm's token can show, the predicate
 admits less, so the chart refuses rather than misparses:
 
 - **`Diamond` and `DoubleDiamond`** use `ScalarVar`, where Guacamole has
   `VarScalar`. A readline holds a name, not subscripts, so `<$x[0]>` is
-  refused. perl reads it as a glob.
+  refused. perl reads it as a glob. Their predicates are also `without
+  whitespace`: perl reads `<...>` as a readline only around a bare
+  filehandle or a simple scalar (`scan_inputsymbol`), so `< $fh >` is a glob
+  too, and refused (perigrin's ruling on 01a18656-2eec).
 - **`$#{BLOCK}`** is split as Guacamole splits it:
   `DerefVariable ::= ArrayTopOpen StatementSeq RBrace`, where `ArrayTopOpen`
   is a `Variable` token whose text is `$#{`. pvm's lexer emits the whole
@@ -306,6 +343,8 @@ acceptable at a position, so the two differ at a few positions:
 
 Other divergences:
 
+- A source with no tokens, only whitespace, comments and POD, is accepted
+  through `empty Program ::=`. Guacamole refuses it; perl accepts it.
 - `${foo}` is refused, though Guacamole accepts it through `DerefVariable`.
   pvm lexes it as one `Variable` token, and no predicate admits it.
 - `Foo :: Bar`, with spaces, is refused. pvm lexes it as three tokens and
@@ -355,6 +394,8 @@ nothing else. The first word of each line names the rewrite's form:
   keyword matches, so it is still admitted. Keyword text still satisfies
   `SubNameExpr`, which names methods and definitions. Other lines say the lexer
   settles the priority, or that it is not encoded, and why.
+- **`empty`**: an empty alternative the cut adds to a G1 symbol.
+  `empty Program ::=` lets the grammar derive a source with no tokens.
 - **`trivia`**: a lexer kind the recognizer skips, and the `:discard` it stands
   for, if any. `Pod`, `DataSection` and `FormatBody` are trivia because
   Guacamole has no rule for them.
