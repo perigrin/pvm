@@ -79,6 +79,17 @@ order readings, never decide them. This attempt adds:
     `lex-overhead`, not left to a single checkpoint.
 11. **Algorithmic components are tested against an outside reference**, not
     only against themselves under different options.
+12. **A token is a superposition of what it could be; grammar and scope
+    collapse it.** What a token *could be* is fixed by perl (the static table)
+    or by a library's declarations (the declaration-time extension, §7.1).
+    The **grammar** collapses it during recognition: a reading no item expects
+    dies there. **Scope** — which declarations are in force at this position,
+    whether `foo` is a declared sub, which features are on — collapses it
+    after the chart in up-front mode (resolve, §9.4), or at lexing in
+    interleaved mode (ruby slippers, §13). Scope is held by the parser beside
+    the chart, never in Earley items, so interning is untouched. This refines
+    rule 2: "before the chart" is only ever *what a token could be*; "after"
+    decides *what it is here*.
 
 ## 4. Sources
 
@@ -92,6 +103,7 @@ order readings, never decide them. This attempt adds:
 | Aycock & Horspool, "Schrödinger's Token" (2001) | | Tokens with several types at once, resolved by the parser (§7.3) |
 | YAEP | 7aba93e | Set interning, the transition cache, integer terminal codes |
 | Leo (1991) | | Right recursion in linear items (carried over) |
+| Kegler, Ruby Slippers (Marpa) | | The lexer asking the parser what is expected, for interleaved mode (§13) |
 
 `perly.y` is read, cited and hand-ported. It is not vendored and not read by
 any tool.
@@ -139,11 +151,27 @@ On `pu` at 4fffe4d6, verified by the milestone review:
   }
   ```
 
-  It is reviewed like code. Bison actions, mid-rule actions, the `GRAM*`
-  start-token tricks (only `GRAMPROG`'s program form is ported) and the
-  `PLUGIN_*` operators (XS::Parse::Infix extensions, which pvm's lexer does
-  not produce) are not ported. Where `perly.y` relies on `toke.c` having
-  already decided something, the port says so in a comment beside the rule.
+  It is reviewed like code. Bison actions and mid-rule actions are not
+  ported. Where `perly.y` relies on `toke.c` having already decided
+  something, the port says so in a comment beside the rule. Two token
+  families are ported with a different mechanism:
+
+  - **`GRAM*` start forms** (`perly.y:187-268`). `toke.c` never lexes these;
+    the caller pushes one to choose what `yyparse` parses: a program
+    (`perl.c:2701`, string `eval` at `pp_ctl.c:4337`), or a block, statement,
+    statement sequence, expression or signature for the `parse_*` perlapi
+    entry points that XS keyword plugins use (`toke.c:14216-14642`). In the
+    chart they are **start symbols**: all seven are ported as start rules,
+    and `Recognize` takes the start symbol as a parameter. `fullstmt` is
+    also recursive descent's `Repair` unit, which incremental work needs
+    later.
+  - **`PLUGIN_*` operators** (`perly.y:153-178`, rules at `1256-1470`):
+    infix operators registered through XS::Parse::Infix, tokenised by
+    precedence class (`tokentype_for_plugop`, `toke.c:9264`). Recursive
+    descent supports them through `.tpm` declarations (`sub ⊕ :infix(ADD)`,
+    `internal/parse/operators.go`), and `internal/lexer` emits such a symbol
+    as an `Operator` wherever it stands (`scan.go:1227`). All eleven classes
+    and their rules are ported; §7.1 says how a symbol reaches them.
 
 - **The precedence rewrite (generator):** `%left`/`%right`/`%nonassoc` and
   `%prec` become one nonterminal per level, giving an unambiguous expression
@@ -231,6 +259,15 @@ The generator builds, from `perl.go`'s token classes:
 Unions are precomputed. An exact entry already includes every whole-kind
 class that also admits its text, so a lookup never unions at run time.
 
+**The declaration-time extension.** When `.tpm` declarations load, every
+library operator they declare adds an exact entry from (`Operator`, its
+symbol) to the `PLUGIN_*_OP` terminal of its class, unioned with whatever
+the static table already gives that text. If two libraries declare the same
+symbol at different classes, the entry holds both terminals. The extension
+depends on which declarations are *available*, never on which are *in scope*
+in a file, so it is built once per declaration load, not per file, and the
+tables stay free of per-file state.
+
 ### 7.2 The lookup
 
 Per significant token: if the kind's flag is set, look the text up in the
@@ -244,11 +281,15 @@ sees names. An empty set refuses the file at that byte offset
 
 Where `toke.c` decides a token's type from facts pvm does not have while
 lexing — whether a bareword is a declared sub, what a prototype makes it,
-block or anonymous hash at `{`, method call or indirect object — the table
-maps the token to every terminal it could be. The recognizer carries all
-readings ("Schrödinger's Token"). Waypoint 1 grades acceptance only, so this
-is allowed there; in waypoint 2 resolve picks the reading with facts held
-outside the items, and the oracle grades the pick.
+block or anonymous hash at `{`, method call or indirect object, whether a
+library operator's module is in scope — the table maps the token to every
+terminal it could be: the token is in superposition ("Schrödinger's Token",
+rule 12). The grammar collapses it during recognition, since only items
+expecting one of its terminals advance. Whatever scope must still decide is
+carried as separate readings. Waypoint 1 grades acceptance only, so those
+readings are allowed there, and a scope-dependent acceptance appears as
+`chart-accepted-perl-refused`. In waypoint 2, resolve collapses them using
+the scope record (§9.4), and the oracle grades the result.
 
 ### 7.4 The overhead gate
 
@@ -292,8 +333,14 @@ silently accepted.
 
 Exit, all at once:
 
-- `perl.go` complete for the program form; the generator's refusals pass;
-  `tables-drift 0`.
+- `perl.go` complete, with all seven start forms and all eleven `PLUGIN_*`
+  classes; the generator's refusals pass; `tables-drift 0`. The corpora
+  grade the program form; a test recognizes a sample of each other start
+  form (a block, a statement, an expression, a signature).
+- **A library operator:** a test with a `.tpm`-declared infix operator in
+  scope is accepted, as recursive descent accepts it. With the library out
+  of scope, the chart's acceptance is recorded as
+  `chart-accepted-perl-refused`, to be collapsed by waypoint 2's resolve.
 - `lex-unmapped`: every unmapped file is on a known list naming an open
   `internal/lexer` issue, and no unlisted file is unmapped. (A criterion may
   not require another milestone's issue to close.)
@@ -330,6 +377,16 @@ above 2^10; the oracle's per-site grading with **WRONG 0** and exact sites at
 or above recursive descent's; parity on perl.git `t/`. Its detailed issues
 are refined only after waypoint 1's verdict.
 
+**The scope record** is waypoint 2's interface, and the hook for interleaved
+mode. It holds the facts in force at a position: declarations and imports
+(including `.tpm` library operators), declared subs and their prototypes,
+features and pragmas. The parser maintains it beside the chart as it
+completes `use`, `no`, `package` and `sub` statements, never inside Earley
+items. Waypoint 2's resolve reads it after the chart to collapse the
+readings §7.3 carried. Interleaved mode's lexer will read the same record
+while lexing (§13), so it is defined as an interface with those two
+consumers, not as resolve's private state.
+
 ### 9.5 Ratchet keys
 
 | Key | Rule |
@@ -363,7 +420,10 @@ hypothesised count is written into a criterion as a fixed number.
 
 - Only `internal/chart` changes.
 - `internal/lexer`, `internal/parse`, `internal/lower`, `internal/infer`,
-  `internal/psc` and `internal/parseoracle` are read, never changed. A lexer
+  `internal/psc` and `internal/parseoracle` are read, never changed. The
+  declaration-time extension (§7.1) reads `.tpm` operator declarations
+  through whatever `internal/parse` already exports; if nothing suitable is
+  exported, that is reported, not worked around. A lexer
   defect found here is filed against the v0.1 milestone, as
   01a1882d-d8a4 was, and appears on `lex-unmapped`'s known list until fixed.
 - Nothing outside `internal/chart` imports it.
@@ -379,13 +439,23 @@ hypothesised count is written into a criterion as a fixed number.
   set ids, keeping branched copies, Leo on/off and warm/cold comparisons, and
   adding the reference recognizer as an oracle for acceptance and `Expected`.
 - **Superset:** the listed `rd-accepted-chart-refused` test.
+- **Start forms and library operators:** a sample of each non-program start
+  form; a `.tpm`-declared operator in and out of scope (§9.2).
 - **Benchmarks:** §9.3's three, from the first recognizer issue.
 
 ## 13. Future work, not in this spike
 
-- Interleaved lexing: the lexer asking `Expected(pos)`, at lookahead 0, with
-  Leo memos interned (the `shortcut:` in `recognize/leo.go`). Required before
-  the chart approach as a whole can be judged.
+- **Interleaved lexing, through ruby slippers.** Before lexing at a
+  position, the lexer asks the parser what is expected there
+  (`Expected(pos)`) and what is in scope there (the scope record, §9.4). It
+  intersects the two with what the token could be (§7.1), so the token
+  arrives already collapsed, with fewer readings and nothing to prune
+  afterwards. As in Marpa's ruby slippers, the lexer may also produce the
+  token the parser expects: perl's `/` (divide or regex) and `{` (block or
+  hash) decided by the grammar rather than by the lexer's own heuristics.
+  This runs at lookahead 0, with Leo memos interned (the `shortcut:` in
+  `recognize/leo.go`). It is required before the chart approach as a whole
+  can be judged (§2).
 - Incremental reparse and convergence, after parity.
 
 ## 14. Process and budget
@@ -410,6 +480,9 @@ reported to perigrin.
   Computer Journal* 45(6).
 - Aycock, J. and Horspool, R. N. (2001), "Schrödinger's Token", *Software:
   Practice and Experience* 31(8).
+- Kegler, J., "Ruby Slippers parsing" (Marpa; Ocean of Awareness, 2011) and
+  the Marpa::R2 documentation of `terminals_expected` and alternative
+  tokens.
 - Leo, J. (1991), "A general context-free parsing algorithm running in
   linear time on every LR(k) grammar without using lookahead", *TCS* 82.
 - YAEP at 7aba93e: `src/yaep.c`.
