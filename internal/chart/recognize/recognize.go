@@ -207,6 +207,7 @@ type builder struct {
 	items    [][2]int
 	seen     map[[2]int]bool
 	deps     []dep
+	depSeen  map[dep]bool
 	interned bool // the node is cacheable and every set read is interned
 }
 
@@ -277,7 +278,11 @@ func (b *builder) read(origin int, s *Set) {
 		return
 	}
 	d := dep{dist: b.pos - origin, set: s.id}
-	if !slices.Contains(b.deps, d) {
+	if b.depSeen == nil {
+		b.depSeen = map[dep]bool{}
+	}
+	if !b.depSeen[d] {
+		b.depSeen[d] = true
 		b.deps = append(b.deps, d)
 	}
 }

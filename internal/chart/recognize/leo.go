@@ -47,7 +47,9 @@ func (b *builder) leo(origin, sym int, la bitset) ([2]int, bool) {
 	}
 	// The chain read the set at every link and at its end; a cache hit
 	// needs them all to be the same (2eec's F1).
-	// shortcut: walks the chain, O(chain) per use; intern memos when lookahead 0 runs with the cache.
+	// shortcut: walks the chain, O(chain) per use, so a right recursion at
+	// lookahead 0 with the cache on is quadratic in time though linear in
+	// items; intern memos when interleaved mode runs at lookahead 0.
 	if b.interned {
 		for l := m; l != nil; l = l.next {
 			b.read(l.at, b.c.Sets[l.at])

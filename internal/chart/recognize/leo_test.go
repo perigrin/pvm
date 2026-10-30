@@ -158,9 +158,15 @@ func leoAgree(tab *grammar.Tables, l *lex.Lattice[lex.None]) string {
 // and intern the same number of distinct sets, on toy right recursions and
 // on Guacamole over small cases and the fuzz seeds.
 func TestLeoKeepsAcceptance(t *testing.T) {
-	for _, g := range []string{rightRec, "S ::= A T | A\nT ::= S O\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n"} {
+	// The third grammar's chain runs up through S ::= V B T from node 0, a
+	// start-rule item that acceptance needs to see (#549's gate, F1).
+	for _, g := range []string{
+		rightRec,
+		"S ::= A T | A\nT ::= S O\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n",
+		"S ::= V B T\nT ::= A | V\nV ::= A | S\nA ~ 'a'\nB ~ 'b'\n",
+	} {
 		tab := toyTables(t, g)
-		for _, in := range [][]string{nil, {"A"}, {"A", "A", "A"}, {"A", "C", "A"}, {"A", "A", "C", "C"}, {"C"}, {"A", "A", "A", "A", "A", "A", "A", "C"}} {
+		for _, in := range [][]string{nil, {"A"}, {"A", "A", "A"}, {"A", "C", "A"}, {"A", "A", "C", "C"}, {"C"}, {"A", "A", "A", "A", "A", "A", "A", "C"}, {"A", "B", "A"}, {"A", "B", "A", "B", "A"}} {
 			if d := leoAgree(tab, tokens(in...)); d != "" {
 				t.Errorf("%q on %v: %s", g, in, d)
 			}
@@ -175,6 +181,24 @@ func TestLeoKeepsAcceptance(t *testing.T) {
 		s, _ := x.Lex([]byte(src))
 		if d := leoAgree(guacTab, lex.Linear(s)); d != "" {
 			t.Errorf("%q: %s", src, d)
+		}
+	}
+}
+
+// TestLeoChainReadsAreCacheDeps: a memo chain reads sets beyond the origin
+// sets completion reads, and each is a transition-cache dependency. A
+// recognizer warmed on A A B A caches transitions whose chains read sets B
+// A B A does not have there, so without those dependencies it serves B A B A
+// a wrong set (#549's gate, F2).
+func TestLeoChainReadsAreCacheDeps(t *testing.T) {
+	tab := toyTables(t, "S ::= U U T | N V\nT ::= A\nU ::= V | T U\nV ::= V N | B | V S S\nN ::= C*\nA ~ 'a'\nB ~ 'b'\nC ~ 'c'\n")
+	warm := New(tab, Options{})
+	Recognize(warm, tokens("A", "A", "B", "A"))
+	l := tokens("B", "A", "B", "A")
+	c, cold := Recognize(warm, l), Recognize(New(tab, Options{NoCache: true}), l)
+	for pos := range c.Sets {
+		if !slices.Equal(c.Sets[pos].Items(), cold.Sets[pos].Items()) {
+			t.Errorf("node %d: items %v with the warm cache, %v without", pos, c.Sets[pos].Items(), cold.Sets[pos].Items())
 		}
 	}
 }

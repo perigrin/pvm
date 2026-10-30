@@ -192,7 +192,10 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   acceptance. At lookahead 0, where interleaved mode will run, it makes
   `S ::= A S | A` and Guacamole's `StatementSeq` linear, where without it
   they are quadratic (`TestLeoLinearAtLookaheadZero`,
-  `TestLeoStatementSeqAtLookaheadZero`). `Options.NoLeo` turns it off, and
+  `TestLeoStatementSeqAtLookaheadZero`). Linear here means the item count,
+  not time: with the cache on, each use of a chain walks it to record its
+  sets, so time stays quadratic until memos are interned. A chain stops at
+  a start-rule item from node 0, which acceptance must see. `Options.NoLeo` turns it off, and
   the `chart_noleo` build tag makes the memo step a no-op whatever the
   options say, so `go test -tags chart_noleo` shows those tests failing.
 - **The empty program.** A source of only whitespace, comments and POD is
