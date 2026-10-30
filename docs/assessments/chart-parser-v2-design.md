@@ -526,3 +526,68 @@ The held round-1 rows are A9, A14, C1, C4, C5 (remainder), C9 and E5. Their sect
 ### Round outcome
 
 **Another round owed.** Fourteen blocks are open: A17, A18, B10, B11, C1, C4, C9, C12, C13, C15, D15, E12, F1, F2. No participant has released them. 38 rows are open in all.
+
+## Rulings during round 2 (perigrin, 2026-10-30)
+
+- **Precedence (B10, D15, E12, F1, A19):** "Option 2". Precedence leaves recognition entirely. Recognition uses `perly.y`'s rules as written and is ambiguous on operator chains. In waypoint 2, precedence and associativity are a Boolean constraint evaluated over the forest (semiring-style), with safe semantics (Afroozeh et al.). Bison is the referee, not the mechanism; perl is the oracle. This supersedes round 1's "conflict filter" ruling.
+  - **Evidence given before the ruling (author's probe, 2026-10-30, not a participant's).** Recursive descent's trees counted maximal chains of binary, `?:` and comparison operators without grouping parens; list commas were excluded, since `listexpr` is unambiguous (`perly.y:1266-1273`).
+
+    | Corpus | Chains | Mean | p99 | Max |
+    |---|---|---|---|---|
+    | std5k.pl | 1,217 | 1.45 | 5 | 5 |
+    | Guacamole snippets | 123 | 1.11 | 3 | 4 |
+    | T1 (1,508 files) | 26,034 | 1.26 | 3 | 10 |
+    | perl's dual-life modules (947) | 60,537 | 1.29 | 4 | 22 |
+    | Debian `/usr/share/perl5` (212) | 8,545 | 1.24 | 4 | 15 |
+
+    Σn²/Σn is 1.3–2.1. The longest chains are `and`/`or` cascades, `&&`/`||` guard ladders, `.` assembly and `?:` ladders. Mainstream CPAN (Moose, Mojolicious, DBI) could not be fetched: the container has no CPAN access.
+- **Recursive descent follows bison (asked, answered):** RD's Pratt loop comes from `perly.y`'s precedence block (chapter 4), refuses `%nonassoc` chains as perl does (`internal/parse/expr.go:11-21`), and is graded against perl by the oracle.
+
+## Author's response to round 2 (revision after d6cb49c7)
+
+The author is the orchestrating agent. Release is each raiser's to give.
+
+The subject grew from 3,247 to about 3,640 words. Most of the growth is the ruling-driven rewrite of §8 and its consequences in rule 6 and §6. The rest answers findings that asked for a definition (A17, C12, C13, C4), not for added mechanism. Mechanics moved to H4 and H5 below.
+
+| id | response | where |
+|---|---|---|
+| A17 / C1 | "Accepts" now means no node in the tree reports a refusal, the measure behind the 236. | §9.1 |
+| A18 / C15 | The absolute values are the waypoint's exit, met by its final issue. Every earlier issue holds only the ratchet's no-regression rule. The key table now says "may not rise; X at the exit". | §9.2, §9.3, §9.5 |
+| A19, B10, D15, E12, F1 | Ruling: option 2. There is no filter in recognition; the recognizer stays Boolean; the precedence contract is safe semantics over the forest, with bison as referee. | §8, rule 6, §6 |
+| A20, B13, D14, F4 | A literal is checked where its class can stand (an operator between two terms, a keyword at statement start); the exact checks are in H5. | §5.2; H5 |
+| A21 / D9 | The CORE.tpm cross-check states a shape-to-token-type correspondence; its table is in H5. | §5.3; H5 |
+| B11 | The key adds the previous significant token's class, for a lone word in a subscript's `{}`. | §7 |
+| B12, F2, D18 | Token-to-sequence is ruled out: rules are fitted to the single token. The families are in H4 (variables and indirob, the inserted `;` at `}` and EOF, forced version tokens, NOAMP, method calls, scope-decided `*SUB`/`PRIVATEREF` as superpositions, phasers, keyword plugins excluded). A terminal with no token class is now a refusal, with `PLUGIN_*` excepted as waypoint 2's. | §5.2; H4, H5 |
+| C4 | The aggregate excludes any file taking more than 10% of RD's time (`code_too_large.t`), and reports it. | §9.3 |
+| C9, D16, F5 | The port ledger is anchored by a committed reference list of `perly.y`'s alternatives at the pinned revision, which is also what citations are checked against. | §5.2 |
+| C12, F7 (numerator) | `lex-overhead` is a ratio of totals on the same files (chart/lex including its `Tokenize` call, over `Tokenize`), so token counts don't enter. | §9.3 |
+| C13, E5 | Checkpoint 1 is "as soon as std5k.pl is recognized", with the aggregate over the recognized part and that fraction reported. The kill may fire at any checkpoint. | §9.3 |
+| C14 | A known-list entry must name an open lexer issue and show a lexer error token in that file. | §9.2 |
+| D17, F8 | The label perl's version is recorded beside the grammar's revision; differences show in `chart-accepted-perl-refused`. | §9.1 |
+| E9 | The interleaved spike is judged on M2's measure: an edit to a re-parsed tree under 10 ms at p99. | §13 |
+| E10 | The convergence edits are kept as fixtures; a positive verdict makes the chart an M2 candidate only once convergence is measured. | §5.1, §13 |
+| E11 | Re-attributed to this assessment, with the lookahead-off figure (94 ms). | §13 |
+| F3 | A neighbour's class is defined (kind plus text for words and operators, never a terminal set). The flags are named exactly. Unary/binary `-` and `x` are decided by position in the grammar. | §7 |
+| F6 | Covered by H2 (Q1, integer class ids). | H2 |
+| F7 (std5k) | For std5k.pl, long-lived and cold coincide; the first attempt's figure was warmer. | §9.3 |
+| F9 | Interleaved mode needs its own token key, since §7's reads the next token. | §13 |
+
+## Handed to refinement (additions)
+
+- **H4, rule families needing fitting:**
+  - variables and indirect objects (the lexer's single `Variable` token for `PERLY_DOLLAR` plus a name; 17 alternatives);
+  - braces, and the `;` toke.c inserts before `}` and at end of file;
+  - quote-likes and interpolation (single tokens);
+  - formats, labels, attributes and postfix dereference;
+  - heredocs (bodies are trivia);
+  - version tokens toke.c forces (5 alternatives);
+  - `NOAMP` calls and method-call tokens;
+  - scope-decided `*SUB` and `PRIVATEREF`, as superpositions;
+  - phasers;
+  - keyword plugins, excluded, with that reason in the ledger.
+- **H5, the generator's exact checks:**
+  - a literal is lexed in a short context where its class stands (for example `$a OP $b`), or through the lexer's checkpoint and resume from an operator-position state (A20);
+  - every terminal a rule uses has a token class, with `PLUGIN_*` excepted (D18);
+  - citations fall within the reference list;
+  - the CORE.tpm correspondence: niladic ↔ `FUNC0`, unary ↔ `UNIOP`/`FUNC1`, list ↔ `LSTOP` (A21);
+  - unused precedence tokens include `%prec`-only uses (B9).
