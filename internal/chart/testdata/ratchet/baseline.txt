@@ -5,7 +5,7 @@ chart-ratchet: parses-wrong-sites na
 chart-ratchet: yield-violations na
 chart-ratchet: oracle-below-rd na
 chart-ratchet: std5k-refused 0
-chart-ratchet: parsent-accepted 1
+chart-ratchet: parsent-accepted 0
 chart-ratchet: rejects-disagree 0
 chart-ratchet: speed-ratio-aggregate na
 chart-ratchet: speed-ratio-std5k na

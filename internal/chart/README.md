@@ -176,9 +176,9 @@ tables and a `chart/lex` lattice. Leo and error recovery are not built yet.
   each entry records those sets, and a hit requires them to be the same.
   `TestCacheChecksOriginSets` fails without that check. The cache is not
   used inside a branch, nor where two edges meet.
-- **The empty program.** A lattice with no tokens, a source of only
-  whitespace, comments and POD, is accepted, as perl accepts it. Guacamole's
-  `Program ::= StatementSeq` does not derive it.
+- **The empty program.** A source of only whitespace, comments and POD is
+  accepted, as perl accepts it: the cut gives `Program` an empty
+  alternative, which Guacamole's `Program ::= StatementSeq` lacks.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics and that acceptance is the same with and without the cache and
@@ -195,14 +195,18 @@ Each predicate's text is the language of the grammar symbols it stands for, so
 `Quote ~ LitString` admits exactly the quoted strings Guacamole's
 `LitString` rules derive. Inside a sequence that was G1 in Guacamole, the
 whitespace Guacamole discards may appear, because pvm's lexer folds it into the
-one token (`$ foo`, `< $fh >`). Inside a G0 rule it may not.
+one token (`$ foo`). Inside a G0 rule it may not, nor inside a predicate
+marked `without whitespace`.
 
 Where a Guacamole rule derives more than pvm's token can show, the predicate
 admits less, so the chart refuses rather than misparses:
 
 - **`Diamond` and `DoubleDiamond`** use `ScalarVar`, where Guacamole has
   `VarScalar`. A readline holds a name, not subscripts, so `<$x[0]>` is
-  refused. perl reads it as a glob.
+  refused. perl reads it as a glob. Their predicates are also `without
+  whitespace`: perl reads `<...>` as a readline only around a bare
+  filehandle or a simple scalar (`scan_inputsymbol`), so `< $fh >` is a glob
+  too, and refused (perigrin's ruling on 01a18656-2eec).
 - **`$#{BLOCK}`** is split as Guacamole splits it:
   `DerefVariable ::= ArrayTopOpen StatementSeq RBrace`, where `ArrayTopOpen`
   is a `Variable` token whose text is `$#{`. pvm's lexer emits the whole
@@ -335,6 +339,8 @@ acceptable at a position, so the two differ at a few positions:
 
 Other divergences:
 
+- A source with no tokens, only whitespace, comments and POD, is accepted
+  through `empty Program ::=`. Guacamole refuses it; perl accepts it.
 - `${foo}` is refused, though Guacamole accepts it through `DerefVariable`.
   pvm lexes it as one `Variable` token, and no predicate admits it.
 - `Foo :: Bar`, with spaces, is refused. pvm lexes it as three tokens and
@@ -384,6 +390,8 @@ nothing else. The first word of each line names the rewrite's form:
   keyword matches, so it is still admitted. Keyword text still satisfies
   `SubNameExpr`, which names methods and definitions. Other lines say the lexer
   settles the priority, or that it is not encoded, and why.
+- **`empty`**: an empty alternative the cut adds to a G1 symbol.
+  `empty Program ::=` lets the grammar derive a source with no tokens.
 - **`trivia`**: a lexer kind the recognizer skips, and the `:discard` it stands
   for, if any. `Pod`, `DataSection` and `FormatBody` are trivia because
   Guacamole has no rule for them.

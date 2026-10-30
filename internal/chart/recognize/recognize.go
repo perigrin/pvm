@@ -102,7 +102,6 @@ type Chart struct {
 	Sets     []*Set
 	Interned []bool
 	Cached   []bool
-	empty    bool
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
@@ -111,7 +110,7 @@ type Chart struct {
 // branches only").
 func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 	n := len(l.Nodes)
-	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), empty: len(l.Edges) == 0}
+	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n)}
 	if n == 0 {
 		return c
 	}
@@ -160,12 +159,10 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 }
 
 // Accepted reports whether the last node's set holds a complete item of a
-// start-symbol rule from node 0. A lattice with no tokens, a source of only
-// whitespace, comments and POD, is the empty program: perl accepts it,
-// though Guacamole's Program ::= StatementSeq does not derive it.
+// start-symbol rule from node 0.
 func (c *Chart) Accepted() bool {
-	if c.empty {
-		return true
+	if len(c.Sets) == 0 {
+		return false
 	}
 	last := len(c.Sets) - 1
 	for _, it := range c.Sets[last].Items() {
