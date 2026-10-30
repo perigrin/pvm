@@ -58,10 +58,15 @@ parsing algorithm.
   that spike to weigh, not as its verdict.
 
 **Scope is all of Perl** at parity with recursive descent or a superset of it;
-the corpus labels are perl's verdicts. Two parity limits are stated, not
+the corpus labels are perl's verdicts. Three parity limits are stated, not
 hidden: quote-like bodies are single tokens (interpolated code, `s///e`
 bodies and `qw` lists are not recognized), as they are for recursive descent
-today; and library-declared operators are waypoint 2's (§9.4).
+today; library-declared operators are waypoint 2's (§9.4); and keyword
+plugins, whose syntax is defined by loaded XS code, are excluded.
+
+**Waypoint 1's speed figure is a lower bound.** Precedence, the forest and
+scope all cost time after recognition (§8), so waypoint 1 can kill the spike
+but cannot pass it; the verdict on speed is waypoint 2's checkpoint 3.
 
 ### Out of scope
 
@@ -124,7 +129,8 @@ the chart (§8); a weight may still only order. This attempt adds:
   byte-identical regeneration.
 - **`recognize`:** interned sets, the transition cache with its dependency
   rule, lookahead pruning, `Expected(pos)`, Leo memos outside set identity,
-  and the `Options` switches the differential tests are built on.
+  and the `Options` switches the differential tests are built on. Its input
+  changes from terminal names to terminal-set ids (hand-off H2).
 - **`cmd/ratchet`'s comparison,** with its keys reset to a new baseline.
 - **Fixtures:** `std5k.pl` and its generator; the Guacamole snippets,
   relabelled by perl's verdict; the 200 convergence edits, unused until §13.
@@ -141,10 +147,15 @@ assessment lists what they involve.
   line. Each rule carries a citation: `perly.y:N` for a rule ported as
   written, or a *fitted* citation (`perly.y:N, fitted: <what the lexer emits
   instead>`) for a rule restated over the lexer's stream. Bison actions and
-  mid-rule actions are not ported; `%prec` annotations are, for §8. Where
-  `perly.y` spells as several terminals what the lexer emits as one token,
-  the rule is fitted to the token: a token maps to a *set* of terminals, never
-  a sequence. The families needing fitting are in the hand-off (H4).
+  mid-rule actions are not ported, with one exception: an alternative whose
+  action *refuses* (`yyerror` and `YYERROR`, as for the non-chaining
+  comparisons at `perly.y:1466-1487` and an anonymous `sub` without a body) is
+  not ported as an accepting rule; the ledger marks it "refused in action" and
+  a test checks the chart refuses it. Where `perly.y` spells as several
+  terminals what the lexer emits as one token, the rule is fitted to the
+  token (a token maps to a *set* of terminals, never a sequence); where the
+  lexer emits several tokens for one terminal, the rule is fitted to the
+  tokens. The families needing fitting are in the hand-off (H4).
 - **Start forms.** The `GRAM*` tokens are start selectors, not lexed tokens
   (`perly.y:187-268`). All seven are ported as start rules. Waypoint 1 grades
   the program form; the others are tested only where they lex the same from
@@ -155,11 +166,12 @@ assessment lists what they involve.
   waypoint 2's (§9.4).
 - **The token table (§7).**
 - **Generator refusals.** The generator emits no tables for an inconsistent
-  grammar: an uncited rule or a citation outside the reference list; a token
-  class the lexer cannot produce where the class stands; a terminal with no
-  token class (the `PLUGIN_*` terminals excepted, as waypoint 2's); an
-  unreachable or unproductive nonterminal; an unused precedence token. The
-  exact checks are in the hand-off (H5).
+  grammar: an uncited rule or a citation outside the reference list; a literal
+  the lexer does not lex to its class's kind and text inside a short context
+  string for that class; a terminal with no token class (the `PLUGIN_*`
+  terminals, waypoint 2's, and the `GRAM*` start selectors excepted); an
+  unreachable or unproductive nonterminal; a precedence token used by no rule
+  and no `%prec`. The exact checks are in the hand-off (H5).
 - **The port ledger.** A committed reference list of `perly.y`'s alternatives
   at the pinned revision anchors it; every alternative is marked ported,
   fitted or excluded with a reason, and a test holds the grammar's citations
@@ -195,9 +207,11 @@ forest (§8, §9.4) → the oracle.
 **The key.** A token's terminal set is looked up by its lexer kind, its text,
 the flags the lexer has already computed (`OpensBlock` and `TermFollows`),
 its sigil or quote-prefix class, and the classes of the previous and the next
-significant tokens. A neighbour's class is its lexer kind plus, for words and
-operators, its text: never its own terminal set, so the key does not
-recurse. The lexer has already decided block-or-hash at `{`; the key keeps
+significant tokens. A neighbour's class is its lexer kind, its flags and,
+for words and operators, its text: never its own terminal set, so the key
+does not recurse. The flags are what tell a subscript's `{` from an
+anonymous hash's or a block's. Heredoc bodies are attached to their heredoc's
+opening token and are not neighbours. The lexer has already decided block-or-hash at `{`; the key keeps
 that decision. The next token's class is what toke.c reads to tell `FUNC`
 from `LSTOP`, `FUNC1` from `UNIOP`, and an auto-quoted word before `=>`; the
 previous token's class is what makes a lone word inside a subscript's `{}` a
@@ -221,27 +235,39 @@ alongside chart/lex's own overhead.
 
 ## 8. Precedence: a constraint over the forest
 
+This section is the only statement of how precedence works; other sections
+refer to it.
+
 `perly.y`'s precedence declarations do not stratify the grammar; bison applies
 them only where a shift/reduce conflict arises. Imitating that resolution
 inside an Earley recognizer would be faithful, not fitted. So precedence moves
 out of recognition (perigrin, 2026-10-30): recognition uses `perly.y`'s rules
-as written and is ambiguous on operator chains, and in waypoint 2 precedence
-and associativity are a **Boolean constraint evaluated over the forest**, in
-the semiring sense, removing each derivation the declared levels forbid. The
-semantics are **safe** (Afroozeh et al.): ambiguity is removed, never a
-sentence the grammar accepts, except where `perly.y` says so (`%nonassoc`;
-`1..2..3` is refused).
+as written and is ambiguous on operator chains.
 
-**Bison is the referee, not the mechanism.** Where bison removes a sentence
-beyond `%nonassoc`, the chart accepts it and that is reported; where `%prec`
-settles a non-operator conflict, the oracle finds the difference and a fitted
-rule answers it. Perl is the oracle, and waypoint 2's WRONG 0 grades the
-result as it grades recursive descent.
+**The contract (safe precedence, Afroozeh et al.).** In waypoint 2, the
+declared levels and associativity act on the forest. Where two derivations of
+the same nonterminal cover the same span, the one the declarations prefer is
+kept and the other removed. A derivation is never removed when it is the only
+one for its span, so precedence removes ambiguity and never a sentence; the
+one exception is a `%nonassoc` chain, which is refused (`1..2..3`). The value
+carried up the forest is each derivation's exposed operator context at both
+edges, not one bit per node, since a deep operand can expose an operator
+several levels down.
 
-**Waypoint 1 does no precedence.** Safe precedence changes acceptance only at
-`%nonassoc`, so waypoint 1's gates are unaffected; the ambiguous chains' cost
-shows in `items-per-token`. Operator chains in real Perl are short (a probe
-recorded in the assessment), and that key checks the expectation.
+**What it does not cover.** `%prec` on rules that are not operators settles a
+shift/reduce choice, not a precedence; it is not part of the constraint. Where
+the chart's reading differs from perl's on such a rule, the oracle finds the
+difference and a fitted rule answers it.
+
+**Bison is the referee, not the mechanism.** Perl is the oracle: waypoint 2's
+WRONG 0 grades accepted files, and §9.2's refusal gate grades refused ones.
+Where bison removes a sentence beyond `%nonassoc`, the chart accepts it, and
+that shows in the refusal gate's report.
+
+**Waypoint 1 does no precedence.** It changes acceptance only at `%nonassoc`,
+so waypoint 1's gates are unaffected; the ambiguous chains' cost shows in
+`items-per-token`. Operator chains in real Perl are short (a probe recorded in
+the assessment).
 
 ## 9. Waypoints and the ratchet
 
@@ -271,13 +297,20 @@ Exit, all at once:
 - **The port is complete:** every `perly.y` alternative is in the port ledger
   as ported, fitted or excluded with a reason, and every grammar citation is in
   the ledger. The generator's refusals pass; `tables-drift 0`.
-- **`lex-unmapped`** equals a known list, each entry naming an open lexer
-  issue *and* showing a lexer error token (`Error` or `UnknownRest`) in that
-  file, so a gap in the chart's own table cannot be listed away; no unlisted
-  file is unmapped.
+- **`lex-unmapped`** equals a known list. Each entry names an open lexer
+  issue and the byte where the chart refuses, and the gate review confirms
+  the construct there is that issue's, so a gap in the chart's own table
+  cannot be listed away. No unlisted file is unmapped.
 - **Superset:** `rd-accepted-chart-refused 0` over the superset population,
   with the list printed on failure.
-- **Builtins:** the CORE.tpm cross-check runs and its differences are listed.
+- **Refusal (rule 5):** `chart-accepted-both-refused 0`: the chart accepts no
+  file that both perl refuses with a syntax error and recursive descent
+  refuses. Other perl-refused files the chart accepts are reported
+  (`chart-accepted-perl-refused`), since perl refuses some for reasons that
+  are not syntax.
+- **Builtins and levels:** the CORE.tpm cross-check runs and its differences
+  are listed; the levels declared in the grammar are compared with chapter
+  4's table and `parse.LevelsAccountedFor()`, and differences listed.
 - **`leo-disagree 0`**, defined as Leo on and off agreeing on acceptance and
   on `Expected` at every node.
 - **Speed:** measured at the checkpoints of §9.3; `lex-overhead` gated.
@@ -309,16 +342,19 @@ aggregate ratios. For std5k.pl, long-lived and cold coincide, since one file
 is one pass; the first attempt's std5k figure was warmer than either.
 
 **Checkpoints.** A speed measurement is taken (1) as soon as std5k.pl is
-recognized, with the aggregate over the recognized part of the population and
-that fraction reported; (2) at waypoint 1's exit; (3) at waypoint 2's exit,
-forest and constraints included. Earlier issues report speed for warning. The
-kill may fire at any checkpoint.
+recognized; (2) at waypoint 1's exit; (3) at waypoint 2's exit, forest and
+constraints included. At checkpoint 1 the kill reads std5k, and reads the
+aggregate only once at least half the population is recognized; the 10%
+exclusion is always computed over the whole population. Earlier issues report
+speed for warning. The kill may fire at any checkpoint.
 
 **Gates that can fail.** The ratchet (`make chart-ratchet`) is in every
-recognizer issue's acceptance criteria, with its no-regression rule; the exit
-gates are the final issue's (§9.2). `lex-overhead` is chart/lex's total time
+recognizer issue's acceptance criteria, with its no-regression rule on count
+keys; timing keys are never compared strictly, since unchanged code varies
+from run to run. The exit gates are the final issue's (§9.2). `lex-overhead` is chart/lex's total time
 (including its call to `lexer.Tokenize`) over `lexer.Tokenize`'s, on the same
-files over the aggregate, gated at 1.3. Benchmarks for lexing, recognition
+files over the aggregate, gated at 1.3 at the exit as the median of three
+measurements. Benchmarks for lexing, recognition
 and `Expected` run in the ratchet, not in `make test`.
 
 ### 9.4 Waypoint 2: parses Perl as recursive descent does
@@ -339,9 +375,11 @@ access to `internal/parse` that needs, is waypoint 2's decision (perigrin,
 | `tables-drift`, `leo-disagree` | may not rise; 0 at the waypoint exit |
 | `rd-accepted-chart-refused` | may not rise; 0 at the waypoint exit |
 | `lex-unmapped` | may not rise; equals its known list at the exit |
-| `lex-overhead` | may not rise; ≤ 1.3 at the exit |
+| `lex-overhead` | reported per issue; ≤ 1.3 at the exit (median of three) |
+| `chart-accepted-both-refused` | may not rise; 0 at the exit |
 | `speed-ratio-{std5k,aggregate}-{longlived,cold}` | reported; the kill reads long-lived |
 | `terminals-per-token`, `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
+| `speed-ratio-*`, `lex-overhead` | timing: never compared strictly between issues |
 
 The baseline is reset for this attempt: keys may be added or retired when the
 reset lands, and never afterwards. A regression on a gated key fails the
@@ -380,9 +418,10 @@ v0.1 milestone and listed on `lex-unmapped`'s known list until fixed.
   with branched copies, Leo on/off and warm/cold, and the reference
   recognizer as an oracle for acceptance and `Expected`.
 - **Superset, start forms, speed:** §9.
-- **Precedence (waypoint 2):** the constraint on toy grammars (each
-  associativity, `%nonassoc`, lower-precedence prefix operands on the right,
-  `%prec` on non-operator rules), with perl as the oracle.
+- **Precedence (waypoint 2):** §8's contract on toy grammars, with perl as
+  the oracle.
+- **Refused in action:** each alternative the ledger marks so is refused by
+  the chart.
 
 ## 13. Future work, not in this spike
 
@@ -393,11 +432,9 @@ v0.1 milestone and listed on `lex-unmapped`'s known list until fixed.
   supply an expected `;` or `}` recovers by insertion. It is judged against
   chapter 6's design, in which re-lexing resumes from captured lexer
   checkpoints and converges on state equality; whether the chart's expected
-  sets are a better resumption point is a hypothesis for that spike, not a
-  premise here. It is judged on M2's measure (an edit to a re-parsed tree
-  under 10 ms at p99), runs at lookahead 0 so `Expected(pos)` must be cheap
-  (this assessment measured 94 ms over std5k.pl against 37 ms for
-  recognition), and needs its own token key, since §7's reads the next token.
+  sets are a better resumption point is a hypothesis for that spike. It is
+  judged on M2's measure (an edit to a re-parsed tree under 10 ms at p99), and
+  its known costs are recorded in the assessment.
 - **Incremental reparse and convergence,** after parity, using the carried
   convergence edits. A positive verdict here makes the chart a candidate for
   M2 only once convergence is measured.
