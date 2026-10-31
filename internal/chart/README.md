@@ -299,8 +299,18 @@ terminal string.
 `make chart-tables` runs `grammar/cmd/gen`, which builds the tables
 (`grammar.BuildTables`) of the committed grammar and writes them to
 `grammar/testdata/tables/`. With no grammar committed there is nothing to
-generate: it writes no table file, says so on stderr and exits 0. The output
-depends only on the grammar's rule order, never on map iteration or the clock,
+generate: it writes no table file, says so on stderr and exits 0.
+
+The generator refuses an inconsistent grammar (`grammar/refuse.go`, spec §5.2):
+it prints every offence to stderr, writes no table, leaves those already there
+as they were and exits 1. The offences are a rule without a citation, or one
+outside the reference list (`testdata/perly/alternatives.txt`); a class literal
+the lexer does not lex to the class's kind and text, between two terms or from
+a statement's start through `lexer.Checkpoints` and `lexer.Resume`; a terminal
+no class admits, but `PLUGIN_*`, the seven `GRAM*` start selectors, `PLUGEXPR`
+and `PLUGSTMT`; an unreachable or unproductive nonterminal; and a precedence
+token no rule and no `%prec` uses. `TestCommittedGrammarConsistent` holds the
+committed grammar to them. The output depends only on the grammar's rule order, never on map iteration or the clock,
 so regenerating it is byte-identical (§10).
 
 The tables are the split LR(0) automaton with nullable closure, Aycock and
