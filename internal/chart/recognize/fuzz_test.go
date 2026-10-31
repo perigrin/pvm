@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 )
 
@@ -35,14 +36,15 @@ func withDeadEnd(l *lex.Lattice[lex.None], i int) *lex.Lattice[lex.None] {
 // stmtTerms are stmtGrammar's terminals; a fuzz input byte b is stmtTerms[b % 9].
 var stmtTerms = []string{"My", "Var", "Assign", "Num", "Semi", "Print", "Add", "LBrace", "RBrace"}
 
-// fuzzLattice is src, a byte to a terminal, as a linear lattice, so every
-// input the fuzzer produces is a valid terminal string.
-func fuzzLattice(src string) *lex.Lattice[lex.None] {
+// fuzzLattice is src, a byte to a terminal's singleton set, as a linear
+// lattice over tab, so every input the fuzzer produces is a valid terminal
+// string.
+func fuzzLattice(tab *grammar.Tables, src string) *lex.Lattice[lex.None] {
 	terms := make([]string, len(src))
 	for i := range src {
 		terms[i] = stmtTerms[int(src[i])%len(stmtTerms)]
 	}
-	return tokens(terms...)
+	return tokens(tab, terms...)
 }
 
 // enc is the fuzz input for the terminal names in words.
@@ -68,13 +70,13 @@ func TestFuzzInputsAreTerminalStrings(t *testing.T) {
 		term[s.Name] = s.Terminal
 	}
 	for _, src := range append([]string{"Print Num SQmi Semi", "0A", "\xff\x00 z"}, fuzzSeeds...) {
-		l := fuzzLattice(src)
+		l := fuzzLattice(tab, src)
 		if len(l.Edges) != len(src) {
 			t.Errorf("%q: %d tokens, want one per byte", src, len(l.Edges))
 		}
 		for _, e := range l.Edges {
-			if !term[e.Token.Terminals[0]] {
-				t.Errorf("%q: token %q is no terminal", src, e.Token.Terminals[0])
+			if set := tab.TerminalSets[e.Token.TerminalSet]; len(set) != 1 || !term[tab.Symbols[set[0]].Name] {
+				t.Errorf("%q: token set %v is not one terminal", src, set)
 			}
 		}
 	}
@@ -98,18 +100,18 @@ func FuzzRecognize(f *testing.F) {
 	var mu sync.Mutex
 	warm := New(tab, Options{})
 	f.Fuzz(func(t *testing.T, src string) {
-		lattices := []*lex.Lattice[lex.None]{fuzzLattice(src)}
+		lattices := []*lex.Lattice[lex.None]{fuzzLattice(tab, src)}
 		if n := len(lattices[0].Edges); n >= 2 {
 			lattices = append(lattices, withDeadEnd(lattices[0], len(src)%(n-1)))
 		}
-		cold := Recognize(New(tab, Options{NoCache: true}), lattices[0])
+		cold := mustRecognize(t, New(tab, Options{NoCache: true}), lattices[0])
 		want := cold.Accepted()
-		no := Recognize(New(tab, Options{NoCache: true, NoLookahead: true}), lattices[0])
+		no := mustRecognize(t, New(tab, Options{NoCache: true, NoLookahead: true}), lattices[0])
 		if no.Accepted() != want {
 			t.Fatalf("%q: accepted %v without lookahead, %v with", src, no.Accepted(), want)
 		}
 		for _, la := range []bool{false, true} {
-			if got := Recognize(New(tab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
+			if got := mustRecognize(t, New(tab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
 				t.Fatalf("%q: accepted %v without Leo (lookahead off %v), %v with", src, got, la, want)
 			}
 		}
@@ -123,11 +125,11 @@ func FuzzRecognize(f *testing.F) {
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
-			if got := Recognize(New(tab, Options{NoCache: true}), l).Accepted(); got != want {
+			if got := mustRecognize(t, New(tab, Options{NoCache: true}), l).Accepted(); got != want {
 				t.Fatalf("%q lattice %d: accepted %v cold, want %v", src, i, got, want)
 			}
 			for range 2 {
-				c := Recognize(warm, l)
+				c := mustRecognize(t, warm, l)
 				if c.Accepted() != want {
 					t.Fatalf("%q lattice %d: accepted %v with the cache, %v without", src, i, c.Accepted(), want)
 				}
@@ -146,8 +148,8 @@ func TestFuzzSeedsAcceptAndRefuse(t *testing.T) {
 	tab := toyStmt(t)
 	var accepted, refused int
 	for _, src := range fuzzSeeds {
-		l := fuzzLattice(src)
-		want := Recognize(New(tab, Options{}), l).Accepted()
+		l := fuzzLattice(tab, src)
+		want := mustRecognize(t, New(tab, Options{}), l).Accepted()
 		if want {
 			accepted++
 		} else {
@@ -160,7 +162,7 @@ func TestFuzzSeedsAcceptAndRefuse(t *testing.T) {
 		if len(d.Nodes) != len(l.Nodes)+1 {
 			t.Errorf("%q: the dead end added %d nodes, want 1", src, len(d.Nodes)-len(l.Nodes))
 		}
-		if got := Recognize(New(tab, Options{}), d).Accepted(); got != want {
+		if got := mustRecognize(t, New(tab, Options{}), d).Accepted(); got != want {
 			t.Errorf("%q: accepted %v with a dead end, %v without", src, got, want)
 		}
 	}

@@ -1,7 +1,5 @@
-//go:build !chart_noleo
-
 // ABOUTME: The Leo memo step: a memo where the whole Earley set holds one item awaiting a symbol, and it is a Leo item.
-// ABOUTME: Its pair, leo_memo_noleo.go under the chart_noleo tag, makes no memo, so the Leo test can be shown to fail.
+// ABOUTME: Options.NoLeo, checked in leo.go before this is called, is the only switch that turns it off.
 
 package recognize
 

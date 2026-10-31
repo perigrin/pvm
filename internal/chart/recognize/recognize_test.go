@@ -25,8 +25,9 @@ var stmtGrammar = []string{
 func toyStmt(tb testing.TB) *grammar.Tables { return toyTables(tb, stmtGrammar...) }
 
 // run recognizes src, terminal names separated by spaces, with r.
-func run(r *Recognizer, src string) *Chart {
-	return Recognize(r, tokens(strings.Fields(src)...))
+func run(tb testing.TB, r *Recognizer, src string) *Chart {
+	tb.Helper()
+	return mustRecognize(tb, r, tokens(r.tab, strings.Fields(src)...))
 }
 
 const decl = "My Var Assign Num Semi" // a five-token statement
@@ -37,7 +38,7 @@ const decl = "My Var Assign Num Semi" // a five-token statement
 func TestRecognizeDerivations(t *testing.T) {
 	r := New(toyStmt(t), Options{})
 	for src, want := range map[string]bool{"Num Num": false, "Var Var": false, "Print Num": false, "Print Num Semi": true, decl + " Print Var Semi": true} {
-		if got := run(r, src).Accepted(); got != want {
+		if got := run(t, r, src).Accepted(); got != want {
 			t.Errorf("Accepted(%q) = %v, want %v", src, got, want)
 		}
 	}
@@ -48,10 +49,10 @@ func TestRecognizeDerivations(t *testing.T) {
 // its end includes a term.
 func TestRecognizeEmptyAndTruncated(t *testing.T) {
 	r := New(toyStmt(t), Options{})
-	if !run(r, "").Accepted() {
+	if !run(t, r, "").Accepted() {
 		t.Error("the empty program was refused, want accepted")
 	}
-	c := run(r, "My Var Assign")
+	c := run(t, r, "My Var Assign")
 	if c.Accepted() {
 		t.Fatal("`My Var Assign` accepted, want refused")
 	}
@@ -71,7 +72,7 @@ func TestRecognizeEmptyAndTruncated(t *testing.T) {
 // never a panic.
 func TestExpectedPastEnd(t *testing.T) {
 	r := New(toyStmt(t), Options{})
-	c := run(r, "Print Num Semi")
+	c := run(t, r, "Print Num Semi")
 	if _, err := c.Expected(len(c.Sets) - 1); err != nil {
 		t.Fatalf("Expected at the last node: %v", err)
 	}
@@ -81,7 +82,7 @@ func TestExpectedPastEnd(t *testing.T) {
 		}
 	}
 	// A refused input's dead positions have no set: empty, not a panic.
-	d := run(r, "Num Num Num Num")
+	d := run(t, r, "Num Num Num Num")
 	for pos := range d.Sets {
 		if _, err := d.Expected(pos); err != nil {
 			t.Errorf("Expected(%d) on a refused input: %v", pos, err)
@@ -94,7 +95,7 @@ func TestExpectedPastEnd(t *testing.T) {
 func TestInternSharesEqualSets(t *testing.T) {
 	r := New(toyStmt(t), Options{})
 	// A fourth statement, so the third ends before the same lookahead.
-	c := run(r, strings.Repeat(decl+" ", 4))
+	c := run(t, r, strings.Repeat(decl+" ", 4))
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -116,7 +117,7 @@ func TestInternSharesEqualSets(t *testing.T) {
 // share an interned set.
 func TestInternDistinctSets(t *testing.T) {
 	r := New(toyStmt(t), Options{})
-	c := run(r, decl+" Print Var Semi LBrace My Var Assign Var Add Num Semi RBrace")
+	c := run(t, r, decl+" Print Var Semi LBrace My Var Assign Var Add Num Semi RBrace")
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -137,7 +138,7 @@ func TestInternDistinctSets(t *testing.T) {
 func TestCacheHitsOnSecondRecognition(t *testing.T) {
 	r := New(toyStmt(t), Options{})
 	src := decl + " Print Var Semi LBrace " + decl + " RBrace"
-	first, second := run(r, src), run(r, src)
+	first, second := run(t, r, src), run(t, r, src)
 	if !first.Accepted() || !second.Accepted() {
 		t.Fatal("refused")
 	}
@@ -164,8 +165,8 @@ func TestCacheHitKeepsAcceptance(t *testing.T) {
 	hits := 0
 	for range 2 {
 		for _, src := range srcs {
-			c := run(warm, src)
-			cold := run(New(tab, Options{NoCache: true}), src)
+			c := run(t, warm, src)
+			cold := run(t, New(tab, Options{NoCache: true}), src)
 			if c.Accepted() != cold.Accepted() {
 				t.Errorf("%q: accepted %v with the cache, %v without", src, c.Accepted(), cold.Accepted())
 			}
@@ -186,8 +187,8 @@ func TestCacheHitKeepsAcceptance(t *testing.T) {
 func TestLookaheadKeepsAcceptance(t *testing.T) {
 	tab := toyStmt(t)
 	for _, src := range []string{decl, "My Var Assign", "Print Num", "Num Num", "LBrace Print Num Semi RBrace Num Semi", "LBrace RBrace"} {
-		la := run(New(tab, Options{}), src).Accepted()
-		no := run(New(tab, Options{NoLookahead: true}), src).Accepted()
+		la := run(t, New(tab, Options{}), src).Accepted()
+		no := run(t, New(tab, Options{NoLookahead: true}), src).Accepted()
 		if la != no {
 			t.Errorf("%q: accepted %v with lookahead, %v without", src, la, no)
 		}
@@ -197,7 +198,7 @@ func TestLookaheadKeepsAcceptance(t *testing.T) {
 // TestExpectedAfterAssign: after `My Var Assign` a term is expected, and
 // `Semi` is not.
 func TestExpectedAfterAssign(t *testing.T) {
-	c := run(New(toyStmt(t), Options{}), decl)
+	c := run(t, New(toyStmt(t), Options{}), decl)
 	exp, err := c.Expected(3)
 	if err != nil {
 		t.Fatal(err)
@@ -214,8 +215,8 @@ func TestExpectedAfterAssign(t *testing.T) {
 func TestExpectedIgnoresLookahead(t *testing.T) {
 	tab := toyStmt(t)
 	for _, src := range []string{"My Var Assign Num Num Semi", decl + " Print Var Add Num Semi LBrace " + decl + " RBrace"} {
-		la := run(New(tab, Options{}), src)
-		no := run(New(tab, Options{NoLookahead: true}), src)
+		la := run(t, New(tab, Options{}), src)
+		no := run(t, New(tab, Options{NoLookahead: true}), src)
 		for pos := range la.Sets {
 			a, err := la.Expected(pos)
 			if err != nil {
@@ -230,7 +231,7 @@ func TestExpectedIgnoresLookahead(t *testing.T) {
 			}
 		}
 	}
-	c := run(New(tab, Options{}), "My Var Assign Num Num Semi")
+	c := run(t, New(tab, Options{}), "My Var Assign Num Num Semi")
 	if exp, _ := c.Expected(4); !slices.Contains(exp, "Add") {
 		t.Errorf("Expected after `My Var Assign Num` = %v, want Add among them", exp)
 	}

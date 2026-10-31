@@ -64,6 +64,10 @@ type Tables struct {
 	// the last symbol, is the end of input and appears only in Follow.
 	First, Follow [][]int
 	EOF           int
+	// TerminalSets is the terminal-set table a token's id indexes, each entry
+	// the sorted ids of the terminals that admit the token. BuildTables
+	// leaves it empty; whoever builds the lattice fills it.
+	TerminalSets [][]int
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting
