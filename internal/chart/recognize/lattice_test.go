@@ -21,6 +21,15 @@ import (
 // per terminal, in symbol order.
 func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
 	tb.Helper()
+	tab, err := buildToy(statements)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return tab
+}
+
+// buildToy is toyTables' work, with the generator's refusal returned.
+func buildToy(statements []string) (*grammar.Tables, error) {
 	g := &grammar.Grammar{}
 	defined := map[string]bool{}
 	for _, st := range statements {
@@ -51,7 +60,7 @@ func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
 	}
 	tab, err := grammar.BuildTables(g)
 	if err != nil {
-		tb.Fatal(err)
+		return nil, err
 	}
 	tab.TerminalSets = [][]int{{}}
 	for id, s := range tab.Symbols {
@@ -59,7 +68,7 @@ func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
 			tab.TerminalSets = append(tab.TerminalSets, []int{id})
 		}
 	}
-	return tab
+	return tab, nil
 }
 
 // termSet is the id of the singleton terminal set toyTables gave name, or 0,
