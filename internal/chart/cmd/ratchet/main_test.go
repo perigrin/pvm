@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/chart/grammar"
 )
 
 // resetKeys is spec §9.5's key set, fixed at the reset and never changed afterwards.
@@ -71,5 +73,26 @@ func TestRatchetBaselineErrorsExit2(t *testing.T) {
 	// A regression is exit 1, which the baseline errors above are not.
 	if code := check(report(map[string]string{"tdt-aligned": "1"}), nil, good, "", io.Discard); code != 1 {
 		t.Errorf("na -> a number without a baseline exits %d, want 1", code)
+	}
+}
+
+// A grammar the generator refuses is an error, which main turns into exit 2: it
+// never measures past the refusal into a smaller count.
+func TestGeneratorRefusalIsAnError(t *testing.T) {
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, _, err := measure(g, ref); err != nil || m["ledger-gaps"] == "" {
+		t.Fatalf("the committed grammar measures %v, %v; want its counts", m, err)
+	}
+	g.G1 = append(g.G1, grammar.Rule{LHS: "s", RHS: []grammar.Symbol{{Kind: grammar.Name, Text: "A"}}}) // uncited, A classless
+	g.G0 = append(g.G0, grammar.Rule{LHS: "A"})
+	m, unmapped, err := measure(g, ref)
+	if err == nil || !strings.Contains(err.Error(), "s ::= A") {
+		t.Fatalf("a refused grammar measured %v, %v, %v; want an error naming the rule", m, unmapped, err)
+	}
+	if m != nil {
+		t.Errorf("a refused grammar still measured %v", m)
 	}
 }
