@@ -32,7 +32,8 @@ func run(r *Recognizer, src string) *Chart {
 const decl = "My Var Assign Num Semi" // a five-token statement
 
 // TestRecognizeDerivations: spec §10's three, on the toy grammar. `Num Num`
-// and `Var Var` have no derivation; `Print Num` has one.
+// and `Var Var` have no derivation, nor has the unterminated `Print Num`;
+// `Print Num Semi` has one.
 func TestRecognizeDerivations(t *testing.T) {
 	r := New(toyStmt(t), Options{})
 	for src, want := range map[string]bool{"Num Num": false, "Var Var": false, "Print Num": false, "Print Num Semi": true, decl + " Print Var Semi": true} {
