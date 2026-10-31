@@ -5,6 +5,7 @@ package grammar
 
 import (
 	"bytes"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -248,6 +249,27 @@ func TestTokenClassWithNoPartsMatchesEverything(t *testing.T) {
 	}
 	if err := (&Tables{}).FillTerminalSets(tt.Sets); err != nil {
 		t.Errorf("sets refused: %v", err)
+	}
+}
+
+// The refined subtree is shared by every keyword, so the table's size does
+// not grow with the number of text-keyed classes.
+func TestTokenNodesSharedAcrossKeywords(t *testing.T) {
+	semi, brace := ClassOf(op(";"), none), ClassOf(op("{"), none)
+	size := func(keywords int) int {
+		classes := []TokenClass{
+			{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &semi},
+			{Terminals: []int{2}, Kind: ptr(lexer.Word), Prev2: &brace, Next: &semi},
+			{Terminals: []int{3}, Kind: ptr(lexer.Word), Next: &brace},
+		}
+		for i := range keywords {
+			classes = append(classes, TokenClass{Terminals: []int{4 + i%7}, Text: ptr(fmt.Sprintf("kw%d", i))})
+		}
+		return mustCompile(t, classes...).Nodes()
+	}
+	small, large := size(20), size(400)
+	if large > small {
+		t.Errorf("nodes grew from %d to %d for 20 -> 400 keywords: refined subtrees are copied", small, large)
 	}
 }
 
