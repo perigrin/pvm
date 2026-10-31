@@ -65,8 +65,9 @@ type Tables struct {
 	First, Follow [][]int
 	EOF           int
 	// TerminalSets is the terminal-set table a token's id indexes, each entry
-	// the sorted ids of the terminals that admit the token. BuildTables
-	// leaves it empty; whoever builds the lattice fills it.
+	// the sorted ids of the terminals that admit the token; id 0 is the empty
+	// set. BuildTables leaves it empty; the generator fills it from the
+	// grammar's token classes, complete before recognize.New.
 	TerminalSets [][]int
 }
 
