@@ -20,8 +20,7 @@ type TableFile struct {
 
 // Files renders the tables, one file per section, in a fixed order. Every
 // line is space-separated, with no trailing space; internal/chart/README.md
-// describes each file. A transition's items are not written: they are the
-// state's items with that symbol after the dot.
+// describes each file.
 func (t *Tables) Files() []TableFile {
 	var sym, rules, items, states, trans, expected, leo bytes.Buffer
 	for i, s := range t.Symbols {
@@ -125,28 +124,15 @@ func BuildTables(g *Grammar) (*Tables, error) {
 	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
 }
 
-// WriteTables writes files into dir, creating it, and removes any other
-// .txt file there, so the directory holds exactly the generator's output.
+// WriteTables writes files into dir, creating it. It replaces the files it
+// writes and touches nothing else there.
 func WriteTables(dir string, files []TableFile) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	keep := map[string]bool{}
 	for _, f := range files {
-		keep[f.Name] = true
 		if err := os.WriteFile(filepath.Join(dir, f.Name), f.Data, 0o644); err != nil {
 			return err
-		}
-	}
-	old, err := filepath.Glob(filepath.Join(dir, "*.txt"))
-	if err != nil {
-		return err
-	}
-	for _, p := range old {
-		if !keep[filepath.Base(p)] {
-			if err := os.Remove(p); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

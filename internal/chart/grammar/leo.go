@@ -16,16 +16,20 @@ package grammar
 // parses that read it. Trailing nullables count only in the right edge.
 func (t *Tables) leo() {
 	right := t.rightEdges()
+	postdot := func(i int) (int, bool) {
+		b, ok := t.after(i)
+		return b, ok && !t.Symbols[b].Terminal
+	}
 	for s := range t.States {
 		st := &t.States[s]
 		awaiting := map[int]int{} // nonterminal to the items awaiting it
 		for _, i := range st.Items {
-			if b, ok := t.postdot(i); ok {
+			if b, ok := postdot(i); ok {
 				awaiting[b]++
 			}
 		}
 		for _, i := range st.Items {
-			b, ok := t.postdot(i)
+			b, ok := postdot(i)
 			if !ok || awaiting[b] != 1 {
 				continue
 			}
@@ -36,16 +40,6 @@ func (t *Tables) leo() {
 			}
 		}
 	}
-}
-
-// postdot is the nonterminal after item i's dot, if there is one.
-func (t *Tables) postdot(i int) (int, bool) {
-	it := t.Items[i]
-	rhs := t.Rules[it.Rule].RHS
-	if it.Dot >= len(rhs) || t.Symbols[rhs[it.Dot]].Terminal {
-		return 0, false
-	}
-	return rhs[it.Dot], true
 }
 
 // rightEdges is, for each nonterminal, the nonterminals that can be the last
