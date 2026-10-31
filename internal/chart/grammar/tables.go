@@ -1,5 +1,5 @@
 // ABOUTME: Writes the generator's tables as deterministic text files, and finds drift against committed ones.
-// ABOUTME: GenerateTables runs the whole chain: read the vendored grammar, apply the cut, build the LR(0) tables.
+// ABOUTME: BuildTables takes the generator's own input; GenerateTables feeds it Guacamole's grammar through the cut.
 
 package grammar
 
@@ -23,7 +23,7 @@ type TableFile struct {
 // describes each file. A transition's items are not written: they are the
 // state's items with that symbol after the dot.
 func (t *Tables) Files() []TableFile {
-	var sym, rules, items, states, trans, expected, leo, probes, conflicts bytes.Buffer
+	var sym, rules, items, states, trans, expected, leo bytes.Buffer
 	for i, s := range t.Symbols {
 		kind := "nonterminal"
 		switch {
@@ -57,14 +57,6 @@ func (t *Tables) Files() []TableFile {
 			fmt.Fprintf(&leo, "%d %d\n", i, it)
 		}
 	}
-	for _, p := range t.Probes {
-		if p.Sample {
-			fmt.Fprintf(&probes, "%s %q\n", p.Terminal, p.Text)
-		}
-	}
-	for _, c := range t.Conflicts {
-		fmt.Fprintf(&conflicts, "%s\n", c)
-	}
 	return []TableFile{
 		{"symbols.txt", sym.Bytes()},
 		{"rules.txt", rules.Bytes()},
@@ -73,8 +65,6 @@ func (t *Tables) Files() []TableFile {
 		{"transitions.txt", trans.Bytes()},
 		{"expected.txt", expected.Bytes()},
 		{"leo.txt", leo.Bytes()},
-		{"probes.txt", probes.Bytes()},
-		{"conflicts.txt", conflicts.Bytes()},
 	}
 }
 
@@ -122,21 +112,27 @@ func (t *Tables) Dump() string {
 	return b.String()
 }
 
-// BuildTables builds the tables of a cut grammar, from its first rule's LHS.
-func BuildTables(c *CutGrammar) (*Tables, error) {
-	if len(c.G1) == 0 {
-		return nil, fmt.Errorf("lr0: the grammar has no G1 rules")
+// BuildTables builds the tables of g, from its first G1 rule's LHS. The
+// terminals are the left-hand sides of g.G0.
+func BuildTables(g *Grammar) (*Tables, error) {
+	if g == nil || len(g.G1) == 0 {
+		return nil, fmt.Errorf("lr0: the grammar has no G1 rules, so no start rule")
 	}
 	var terminals []string
+	for _, r := range g.G0 {
+		terminals = append(terminals, r.LHS)
+	}
+	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
+}
+
+// GeneratorInput states a cut grammar as BuildTables' input: its G1 rules and
+// one empty G0 rule per terminal.
+func GeneratorInput(c *CutGrammar) *Grammar {
+	g := &Grammar{G1: c.G1}
 	for name := range c.Terminals {
-		terminals = append(terminals, name)
+		g.G0 = append(g.G0, Rule{LHS: name})
 	}
-	t, err := BuildLR0(c.G1[0].LHS, c.G1, terminals)
-	if err != nil {
-		return nil, err
-	}
-	t.Probes, t.Conflicts = Probes(c), FindConflicts(c)
-	return t, nil
+	return g
 }
 
 // GenerateTables reads the grammar at slifPath, applies GuacamoleCut and
@@ -146,7 +142,7 @@ func GenerateTables(slifPath string) ([]TableFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	t, err := BuildTables(c)
+	t, err := BuildTables(GeneratorInput(c))
 	if err != nil {
 		return nil, err
 	}
