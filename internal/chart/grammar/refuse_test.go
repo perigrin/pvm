@@ -172,6 +172,16 @@ func TestGeneratorRefusesSplitLiteral(t *testing.T) {
 			t.Errorf("%v %q is refused: %v", ok.kind, ok.text, err)
 		}
 	}
+	// A class with a text and no kind is held to the text alone, in any kind.
+	textOnly := func(text string) error {
+		r := consistentToy()
+		r.g.Classes[0].Key = TokenClass{Text: &text}
+		return r.generate()
+	}
+	wantErr(t, "text-only ~~~", textOnly("~~~"), "~~~")
+	if err := textOnly("~~"); err != nil {
+		t.Errorf("text-only ~~ is refused: %v", err)
+	}
 	// __END__ lexes as a word between two terms and as a data section only from a statement's start:
 	// the lexer's checkpoint and resume reach it, a string around it does not.
 	if err := literal(lexer.DataSection, "__END__"); err != nil {
