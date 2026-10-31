@@ -14,10 +14,11 @@ import (
 
 // fakeWorld is a deterministic clock that only moves when a side runs a
 // file: rd costs cost[path], the chart cost[path] times chartMult(pair),
-// where pair counts the reference passes started so far.
+// where pair counts pairs from pass starts (a pass reads Now twice, a pair
+// four times), so a stray GC shows in the event log rather than in pair.
 type fakeWorld struct {
 	t         time.Duration
-	gcs       int
+	nows      int
 	log       []string
 	cost      map[string]time.Duration
 	chartMult func(pair int) float64
@@ -32,7 +33,7 @@ func (w *fakeWorld) protocol() Protocol {
 				w.log = append(w.log, name+" "+path)
 				c := w.cost[path]
 				if name == "chart" {
-					c = time.Duration(float64(c) * w.chartMult(w.gcs/2))
+					c = time.Duration(float64(c) * w.chartMult(w.nows/4))
 				}
 				w.t += c
 			}
@@ -41,8 +42,8 @@ func (w *fakeWorld) protocol() Protocol {
 	return Protocol{
 		Chart:  side("chart"),
 		Ref:    side("rd"),
-		Now:    func() time.Duration { w.log = append(w.log, "now"); return w.t },
-		GC:     func() { w.log = append(w.log, "gc"); w.gcs++ },
+		Now:    func() time.Duration { w.log = append(w.log, "now"); w.nows++; return w.t },
+		GC:     func() { w.log = append(w.log, "gc") },
 		Stderr: &w.stderr,
 	}
 }
@@ -60,6 +61,9 @@ func TestSpeedProtocol(t *testing.T) {
 	}
 	mult := func(pair int) float64 {
 		m, i := pair/11, pair%11
+		if m >= len(timed) {
+			return 1 // a pair beyond the protocol's 33; the event log reports it
+		}
 		if i < 2 {
 			return 0.01
 		}
