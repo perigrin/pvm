@@ -1,2 +1,2 @@
 go test fuzz v1
-string("{ { { 1; } } }")
+string("LBrace LBrace LBrace Print Num Semi RBrace RBrace RBrace")

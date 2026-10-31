@@ -1,2 +1,2 @@
 go test fuzz v1
-string("my %h = (a => 1); print $h{a};")
+string("My Var Assign Num Semi Print Var Semi")
