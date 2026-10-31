@@ -1,5 +1,5 @@
 <!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the pinned -DDEBUGGING perl build, the bison referees and the perl labels, and what each costs to run. -->
+<!-- ABOUTME: Covers the perl build, the bison referees, the perl labels and the -DT capture, and what each costs to run. -->
 
 # internal/chart/offline
 
@@ -88,3 +88,66 @@ and writes `testdata/labels/in-tree.txt` (the Guacamole `parses` and
 
 Cost (K6): one run labels 1,881 files in about 42 s wall clock on this
 machine (41.6 s; 4 cores, files one at a time).
+
+## tdt-capture.sh
+
+`sh internal/chart/offline/tdt-capture.sh <perl> <file>` runs `<perl> -c -DpT
+<file>` and prints the file's own toke.c token stream on stdout. `PERL5LIB`
+passes through from the environment (the Guacamole snippets need
+`testdata/guacamole/stubs` on it); the snippets carry their preamble in-file,
+so the script takes none. Perl's stdin is `/dev/null`.
+
+The form, one token per line, in the order toke.c delivered them to the parser:
+
+- `TYPE` or `TYPE<TAB>VALUE`. `TYPE` is the `perly.y` terminal name; `-DT`
+  prints `?? N` for the few terminals toke.c's `debug_tokens` lacks
+  (`PERLY_DOLLAR`, `PERLY_PAREN_CLOSE`, ...), and the script names them from the
+  perl's own `CORE/perly.h`.
+- `VALUE` is what `-DT` shows, first match wins: a constant's `SvPEEK`
+  (`PV("greeting"\0)`, `IV(1)`), else the pending identifier toke.c resolved
+  for the token (`$name`, `%h`), else the op (`op_concat`, `op_null` for a
+  plain `=`). Integer `ival`s are dropped: most are addresses or line numbers
+  that change between runs. `-DT` shows no source text.
+- Tokens reported under `### forced token:` are skipped there; they print
+  where toke.c delivers them. `EOF` is not printed; the `;` toke.c inserts
+  before a `}` and at end of file are.
+- A file perl refuses ends with the line `# refused: perl exited N`, and the
+  script exits 1. A syntax error stops toke.c, so the stream ends at the token
+  perl refused; a deferred error (strict, "Can't modify") leaves the whole
+  stream before the marker.
+- A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
+  `plan skip_all` does) ends with `# truncated: perl exited 0 before the file
+  reached EOF`, and the script exits 2. A stream whose last line starts with
+  `#` is never a whole one.
+- Exit 2 otherwise is a capture failure with nothing useful on stdout: a
+  missing file, a perl without `-DDEBUGGING` (which warns about `-D` and runs
+  on, so it would otherwise yield an empty stream), or lost bracketing.
+
+Only the first compilation unit's tokens print. Each unit (a loaded file, or a
+string `eval` run at compile time, as modules do) starts where `-Dp` prints
+`lookahead token is token GRAMPROG` and ends at its `-DT` `EOF`, and units nest.
+`-DT` alone marks no start: a file starts at line 0 but a string eval at line
+1 like any line, which is why `p` is on. Units run after the main file's `EOF`
+(`CHECK` blocks) are dropped, and a `require` in a sub that `-c` never runs
+contributes nothing. A file perl accepts whose units do not all close is
+exit 2, never a silently short stream.
+
+`testdata/tdt-sample.pl` and its hand-checked `testdata/tdt-sample.expected`
+cover a `use` of a stub module (`testdata/tdt-stubs/TdtStub.pm`, itself
+loading `strict` and running a string eval in `BEGIN`; its `TDT_SENTINEL_word`
+must not appear), `use lib` with `FindBin` (real modules), a variable, `qq{}`
+interpolation, a `=>` word, an interpolating heredoc and a `require` inside a
+sub.
+
+Known limit: perl `-Dp` spins without end once `BEGIN` puts an `:encoding`
+layer on STDERR (`perl -Dp -e 'BEGIN { binmode STDERR, ":encoding(UTF-8)" }'`
+never returns, Encode preloaded or not; `-DT` alone returns). T1's
+`io_pipe.t` and `io_layers.t` do this, so the script never returns on them;
+run it under a timeout over a corpus.
+
+Cost (K6), measured 2026-10-31 on the 4-core machine while other jobs ran:
+the sample takes 0.5 s; `std5k.pl` and `edit5k.pl` 0.9 s each; the 893
+Guacamole snippets 60 s in all (0.07 s each); T1's other 984 top-level `.t`
+files 1,966 s in all (2.0 s each on average, at most 10 s), almost all of it
+perl loading `Test::More` and friends under `-DpT`. Over those, 819 captures are
+whole, 133 refused and 32 truncated by an `exit` in `BEGIN`.
