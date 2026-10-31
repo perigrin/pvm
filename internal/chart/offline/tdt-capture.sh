@@ -67,8 +67,11 @@ BEGIN {
 	else v = ""
 	print (v == "" ? t : t "\t" v)
 }
+n == 0 { why = $0 }   # before any unit: env or timeout saying why perl never ran
 END {
 	if (bad == "" && st == "") bad = "perl exit status missing"
+	# 125-127 are timeout and env failing to run perl; with no unit begun, perl never ran.
+	if (bad == "" && st >= 125 && st <= 127 && n == 0) bad = "perl never ran, env or timeout exited " st (why == "" ? "" : ": " why)
 	# timeout kills perl mid-parse; a file that itself exits 124 has closed its units.
 	if (bad == "" && st == 124 && d != 0) { print "# timeout: perl ran past " limit " s"; exit 1 }
 	if (bad == "" && st == 0 && d != 0) bad = d " unit(s) never ended"
