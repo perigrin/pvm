@@ -224,6 +224,33 @@ func TestTokenKeyDoesNotRecurse(t *testing.T) {
 	}
 }
 
+// A variable's name is not part of its class, so $x and $y key alike.
+func TestTokenNeighbourTextOnlyForWordsOperatorsBrackets(t *testing.T) {
+	x, y := TokenView{Kind: lexer.Variable, Text: "$x"}, TokenView{Kind: lexer.Variable, Text: "$y"}
+	if a, b := ClassOf(x, none), ClassOf(y, none); a != b {
+		t.Errorf("$x and $y classes differ: %+v vs %+v", a, b)
+	}
+	if a, b := ClassOf(word("if"), none), ClassOf(word("my"), none); a == b {
+		t.Error("two words share a class")
+	}
+	cx := ClassOf(x, none)
+	tt := mustCompile(t, TokenClass{Terminals: []int{1}, Text: ptr("foo"), Prev1: &cx})
+	if got := tt.set(word("foo"), none, ClassOf(y, none), none); !slices.Equal(got, []int{1}) {
+		t.Errorf("foo after $y = %v, want the class naming $x's class", got)
+	}
+}
+
+// A class naming no part matches every key; set 0 stays the reserved empty set.
+func TestTokenClassWithNoPartsMatchesEverything(t *testing.T) {
+	tt := mustCompile(t, TokenClass{Terminals: []int{1}})
+	if id := tt.Lookup(word("anything"), none, none, none); !slices.Equal(tt.Sets[id], []int{1}) || id == 0 {
+		t.Errorf("lookup = id %d, sets %v", id, tt.Sets)
+	}
+	if err := (&Tables{}).FillTerminalSets(tt.Sets); err != nil {
+		t.Errorf("sets refused: %v", err)
+	}
+}
+
 func TestTokenTableDeterministic(t *testing.T) {
 	semi := ClassOf(op(";"), none)
 	classes := []TokenClass{
