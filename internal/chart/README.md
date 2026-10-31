@@ -295,9 +295,11 @@ recognizer's (`recognize/reference_test.go`). The reference is a textbook
 Earley recognizer, test-only: predict, scan and complete over the grammar's
 rules, run to a fixed point, with no LR(0) states, interning, cache or Leo, and
 sharing no code with `recognize` (`TestReferenceSharesNoCode`), so it fails
-independently of the recognizer it checks. Each input byte is the singleton set
-id of one terminal of the toy statement grammar, so every input is a valid
-terminal string.
+independently of the recognizer it checks. With no grammar argument each input
+byte is the singleton set id of one terminal of the toy statement grammar, so
+every input is a valid terminal string; with one, its bytes decode to a small
+grammar (the start symbol may sit on a right-hand side) and the input's bytes
+pick among that grammar's terminals.
 
 ## The generated tables: `make chart-tables`
 
