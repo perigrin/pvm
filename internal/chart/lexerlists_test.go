@@ -25,9 +25,11 @@ var inTreeCorpus = []string{
 	"internal/chart/testdata/guacamole/parsent/*.pl",
 }
 
-// issueRef is a git-zhi id through its second segment, the shortest form
-// that resolves reliably (crochet's how-to-use-git-zhi).
-var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}$`)
+// issueRef is a git-zhi uuid prefix of whole segments, at least two. The
+// first two are the creation time to the millisecond and issues from one run
+// share them, so a ref is extended segment by segment until unique; that it
+// resolves to one issue is checked by git zhi, never here.
+var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-f]{12})?)?)?$`)
 
 // lexerListErrors returns one message per malformed entry of the lexer list
 // called name: an entry is `<path> <byte> <issue ref>`, the path a corpus
@@ -46,7 +48,7 @@ func lexerListErrors(name, list, root, t1 string) []string {
 			continue
 		}
 		if !issueRef.MatchString(f[2]) {
-			bad("the issue ref is not an id through its second segment, like 01a1882d-d8a4")
+			bad("the issue ref is not a uuid prefix of two or more whole segments, like 01a1882d-d8a4")
 		}
 		var file string
 		if t1name, ok := strings.CutPrefix(f[0], "T1/"); ok {
@@ -122,6 +124,10 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		{"missing ref", std5k + " 0", false},
 		{"missing byte", std5k + " 01a1882d-d8a4", false},
 		{"extra field", std5k + " 0 01a1882d-d8a4 x", false},
+		{"ref through the third segment", std5k + " 0 01a18fdc-bf40-7928", true},
+		{"ref through the fourth segment", std5k + " 0 01a18fdc-bf40-7928-8d9a", true},
+		{"ref as the full uuid", std5k + " 0 01a18fdc-bf40-7928-8d9a-618bb50324da", true},
+		{"ref cut inside a segment", std5k + " 0 01a18fdc-bf40-79", false},
 		{"ref as the second segment", std5k + " 0 d8a4", false},
 		{"ref as the short id", std5k + " 0 01a1882d", false},
 	} {
