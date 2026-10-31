@@ -43,8 +43,7 @@ rule that list obeys.
 `extract.pl` regenerates the whole directory from a Guacamole checkout.
 `PROVENANCE` gives the revision and the command. Nothing here reads the
 checkout afterwards. `TestGuacamoleCasesUnique` and
-`TestGuacamoleCasesStartWithPreamble` guard the files, and the ratchet's
-`rejects-disagree` holds the list to perl's verdicts across the whole corpus.
+`TestGuacamoleCasesStartWithPreamble` guard the files.
 
 ## The convergence edits
 
@@ -64,111 +63,96 @@ write a list for the first time.
 
 ## The `make chart-ratchet` output contract
 
-`make chart-ratchet` runs `cmd/ratchet`. Every later issue in the spike closes
-against it, so this section is a contract. The spec stays in `docs/plans`
-until perigrin accepts the spike.
+`make chart-ratchet` runs `cmd/ratchet`. Every issue of the spike closes
+against it, so this section is a contract. The key set below was fixed by the
+reset of `docs/plans/2026-10-30-chart-parser-v2-design.md` §9.5: **no key is
+added, renamed or retired after it.** Every key of the first attempt is
+retired.
 
-- **Line form.** `make -s chart-ratchet` prints one line per measure on
-  stdout, `chart-ratchet: <key> <value>`, and nothing else there. Diagnostics
-  go to stderr.
-- **`na`.** A key whose component has not been built prints `na`. The issue
-  that builds the component makes it a number and updates the baseline in the
-  same commit.
-- **Exit rule.** The target exits non-zero only on a regression against
-  `testdata/ratchet/baseline.txt`, never because the spike's exit is still
-  unmet. A regression names the key, the baseline and the value on stderr. A
-  measurement that cannot be taken, such as a missing `std5k.pl`, exits
-  non-zero and names what is missing, rather than printing a number. The two
-  layers return different codes. `cmd/ratchet` exits 1 on a regression and 2
-  on a missing or malformed input. `make` exits 2 whenever its recipe fails,
-  so `make chart-ratchet` returns 2 for both, and only stderr tells them
-  apart.
-- **Speed** is reported and never gated, so the target stays deterministic.
-- **Keys** may be added and are never renamed. `baseline.txt` holds every key
-  the ratchet prints, one line each in the line form, reported-only keys
-  included. A key is added to it in the commit that adds the key. A key
-  printed without a baseline line, or a baseline line no key prints, is a
-  regression.
+- **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
+  `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
+  table below, and nothing else there. Diagnostics go to stderr.
+- **`na`.** A key nothing measures yet prints `na`. The issue that makes it
+  print a number takes its baseline in the same commit. A key whose baseline
+  is `na` and that prints a number fails with "baseline still na; take a
+  baseline", and a number may not become `na`.
+- **Exit rule.** `cmd/ratchet` exits 1 on a regression against
+  `testdata/ratchet/baseline.txt`, naming the key, the baseline and the value
+  on stderr, and 2 on an error: a measurement that cannot be taken, a missing
+  corpus or label, a generator refusal, or a baseline that is malformed,
+  names a key the ratchet does not print, or omits one. It never exits
+  non-zero because the waypoint's exit is still unmet. `go run` turns every
+  non-zero exit into 1 and `make` then returns 2, so through `make` only the
+  stderr text (`exit status 2`) tells an error from a regression.
 - **Inputs.** The ratchet reads only the working tree: no commit, no
-  `refs/zhi`, no network. Defect yield reads `testdata/defect-yield.txt` and
-  `testdata/defect-yield/`, never the chain. The ratchet sets `PERL5LIB` to
-  the corpus stubs itself. Its oracle cache is its own directory,
-  `pvm/chart-ratchet-oracle/<hash of stubs/>` under Go's `os.UserCacheDir()`
-  (`${XDG_CACHE_HOME:-$HOME/.cache}` on Linux), and never
-  `parseoracle.DefaultCacheDir`. The cache key omits the environment, so
-  changing the stubs moves the run to a fresh directory. Where no user cache
-  directory exists, the ratchet exits 2 rather than writing the cache into
-  the tree.
-- **Budget.** One run takes at most 120 s on the development machine. A cold
-  cache takes about 25 s today.
+  `refs/zhi`, no network. It reads nothing under Guacamole's paths and
+  imports neither `chart/lex` nor the token cut.
+- **Budget.** One run takes at most 300 s on the development machine.
+  Corpus-wide sweeps and benchmarks belong here, never in `make test`.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
   (`continue-on-error: true`).
 
-The regression rules are **may not rise** for an exit count, **may not fall**
-for a corpus size or the chart's defect-yield side, and **reported only** for
-everything else. Under every rule, a number may not become `na`, and a key
-whose baseline is still `na` may not print a number. That fails with
-"baseline still na; take a baseline", so a component's first number is
-committed to the baseline with the component.
+**Isolation (§11).** The chart reads `internal/lexer` and `internal/parse`
+and never changes them. A lexer defect found here is filed against the v0.1
+milestone and listed — on `lex-unmapped`'s known list, or on the lexer-defect
+list — never worked around.
+
+### The rules
+
+- **May not rise:** `tables-drift`, `leo-disagree`, `ledger-gaps`,
+  `rd-accepted-chart-refused`, `chart-accepted-both-refused`, `lex-unmapped`.
+  **May not fall:** `tdt-aligned`.
+- **Timing** keys (`lex-overhead*`, `speed-ratio-*`, `alloc-per-token-*`) are
+  never compared with the baseline. `lex-overhead` fails **absolutely** when
+  it prints a number above 1.3, whatever its baseline.
+- **From the port's completion**, read from the same run's `ledger-gaps`
+  being `0`: `tdt-mismatch`, `tdt-unseen-unlisted` and
+  `tdt-unaligned-unlisted` must be 0; `terminals-per-token` and `tdt-unseen`
+  may not rise; and the files `lex-unmapped` counts must equal
+  `testdata/lex-unmapped-known.txt` as `(path, first unmapped byte)` pairs.
+  Each entry is `<path> <byte> <issue ref>` and the comparison reads its
+  first two fields. A listed file refused at another byte is a mismatch, so
+  an entry cannot name an arbitrary byte of a refused file. Before
+  completion `lex-unmapped` is only a may-not-rise count: the chart's own
+  table is still growing, and those files are not lexer defects.
+- **Reported** only: every other key.
+- A rule exists only for a key the ratchet prints.
 
 | Key | Meaning | Rule |
 |---|---|---|
-| `parses-scored` | Guacamole `parses` cases less `perl-rejects.txt` | may not fall |
-| `parsent-scored` | Guacamole `parsent` cases | may not fall |
-| `parses-refused` | scored `parses` cases the recognizer rejects; stderr names each | may not rise |
-| `parses-wrong-sites` | oracle sites graded WRONG for the chart | may not rise |
-| `yield-violations` | forest yields that are not their input | may not rise |
-| `oracle-below-rd` | the chart's oracle scores below recursive descent's, 0 to 2 | may not rise |
-| `std5k-refused` | 1 if the recognizer rejects `std5k.pl`, else 0; stderr names it | may not rise |
-| `parsent-accepted` | `parsent` cases the recognizer accepts; with no error recovery yet, every rejection counts as refused; stderr names each accepted | may not rise |
-| `rejects-disagree` | `parses` cases where `perl -c`, with the stubs, disagrees with `perl-rejects.txt` (`chart.RejectsDisagree`); stderr names each | may not rise |
-| `speed-ratio-aggregate` | chart time over `parse.Parse` time, across the corpus | reported only |
-| `speed-ratio-std5k` | the same on `std5k.pl` | reported only |
-| `set-reuse` | the share of lattice positions, over `std5k.pl` and the scored `parses` cases, whose Earley set was already interned; one recognizer serves every file | reported only |
-| `convergence-edits` | edits in `testdata/convergence-edits.jsonl` | reported only |
-| `convergence-within-8` | the share of those edits converging within the statement plus 8 tokens | reported only |
-| `defect-yield-listed` | issues in `testdata/defect-yield.txt` | reported only |
-| `defect-yield-sites` | oracle sites exact for the chart and WRONG for recursive descent | reported only |
-| `defect-yield-settled` | listed issues the chart settles where recursive descent does not | may not fall |
-| `oracle-sites-decided` | sites the chart reports decided (§7.1) | reported only |
-| `expect-states-unreproduced` | in-force `PL_expect` states the expectation classes do not reproduce | reported only |
-| `rd-oracle-exact` | recursive descent's oracle exact rate on the scored `parses` cases | reported only |
-| `rd-oracle-coverage` | recursive descent's share of those cases graded anything but no-answer | reported only |
-| `rd-parse-ms-std5k` | `parse.Parse` on `std5k.pl`, best of 5, in ms | reported only |
-| `rd-parse-ms-corpus` | `parse.Parse` over the scored `parses` cases, best of 3, in ms | reported only |
-| `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
-| `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
-| `lex-unmapped` | files among `std5k.pl` and the scored `parses` cases whose up-front `chart/lex` stream has a token no predicate admits, or does not concatenate back to the source; stderr names each file and byte offset | may not rise |
-| `expectation-conflicts` | conflicting pairs the generator observed, the lines of `grammar/testdata/tables/conflicts.txt` (see "Expected terminals, Leo and the conflicting pairs") | reported only |
-| `leo-disagree` | files among `std5k.pl` and the scored `parses` cases recognized differently with Leo on and off, in acceptance or in the number of distinct sets; stderr names each | may not rise (baseline 0) |
-
-Keys the later issues add, and the rule each is held to:
-`defect-yield-chart-exact` may not fall, and `recovery-on-accepted` may not
-rise.
-
-`lex-unmapped`'s baseline is not 0. Three scored cases are refused because
-`chart/lex` re-lexes a `$#{` interior from a blank lexer state. The rule fails closed. It lexes the interior only when
-nothing before the `$#{` can have moved the file's state off blank: `use` or
-`no` of strict or warnings, and statements with no `use`, `no`, `sub`,
-`class`, `BEGIN` or heredoc opener. Anything else refuses rather than guess,
-an unknown module included. A `$#{` whose own interior holds one of those, or
-a nested `$#{`, refuses too, and so does every `$#{` after a refused one,
-whose interior went unread. Every corpus case's preamble is a `use feature`,
-so every corpus `$#{` is refused until 01a1882d-d8a4 lets the production
-lexer lex the interior in place.
-
-`testdata/lex-unmapped-known.txt` lists each unmapped file, one per line as
-`<file> <lexer issue>`. The ratchet holds the failing files to that list as a
-set, and names any file that fails unlisted, or is listed and no longer fails,
-as a regression. The lexer issues are mainline work. As each lands, its files
-leave the list and the baseline falls with them. `std5k.pl` is never listed.
+| `tables-drift` | committed tables differing from what `make chart-tables` writes | may not rise; 0 at the exit |
+| `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position | may not rise; 0 at the exit |
+| `ledger-gaps` | reference alternatives with no ledger mark, plus grammar citations not in the ledger | may not rise; 0 at the exit |
+| `rd-accepted-chart-refused` | superset-population files the chart refuses | may not rise; 0 at the exit |
+| `chart-accepted-both-refused` | perl grammar refusals recursive descent also refuses that the chart accepts, less both lexer lists | may not rise; 0 at the exit |
+| `lex-unmapped` | files with a token the chart's table leaves unmapped | may not rise; known list from completion |
+| `tdt-aligned` | tokens aligned with perl's `-DT` | may not fall |
+| `tdt-mismatch` | aligned tokens whose terminal set misses perl's | 0 from completion |
+| `tdt-unseen` | table pairs perl's `-DT` never showed | may not rise from completion |
+| `terminals-per-token` | the table's width | may not rise from completion |
+| `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
+| `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
+| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, median of three | timing; ≤ 1.3 absolutely |
+| `lex-overhead-std5k` | the same on `std5k.pl` | timing |
+| `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
+| `speed-ratio-std5k-cold` | the same, cold | timing |
+| `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
+| `speed-ratio-aggregate-cold` | the same, cold | timing |
+| `alloc-per-token-chart` | the chart's allocations per token | timing |
+| `alloc-per-token-rd` | recursive descent's allocations per token | timing |
+| `items-per-token` | Earley items per token | reported |
+| `set-reuse` | share of positions whose Earley set was already interned | reported |
+| `ledger-excluded` | ledger alternatives marked excluded | reported |
+| `superset-population` | files both perl and recursive descent accept | reported |
+| `superset-recognized` | share of that population the chart accepts | reported |
+| `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
+| `chart-accepted-perl-refused` | files the chart accepts and perl refuses | reported |
 
 To take a baseline after an intended change, run
-`go run ./internal/chart/cmd/ratchet > internal/chart/testdata/ratchet/baseline.txt`
-and review the diff. That run exits 1, because the redirect empties the
-baseline before the ratchet reads it, but its stdout is complete.
+`go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
+`internal/chart/testdata/ratchet/baseline.txt` and review the diff.
 
 ## The recognizer: `recognize`
 
@@ -262,9 +246,9 @@ applies the token cut, builds the tables (`grammar.BuildTables`), and writes
 them to `grammar/testdata/tables/`, where they are committed. That directory
 holds exactly the generator's files. The output depends only on the grammar's
 rule order, never on map iteration or the clock, so regenerating it is
-byte-identical (§10). `TestTablesGuacamole` and the ratchet's `tables-drift`
-both hold the committed files to the generator's output. After a change to the
-grammar or the cut, run `make chart-tables` and commit the result.
+byte-identical (§10). `TestTablesGuacamole` holds the committed files to the
+generator's output. After a change to the grammar or the cut, run
+`make chart-tables` and commit the result.
 
 The tables are the split LR(0) automaton with nullable closure, Aycock and
 Horspool's ε-DFA:
@@ -358,7 +342,7 @@ differs from G1's, one per line: the builtin, G1's shape, CORE.tpm's. A
 builtin only one side has is listed with `none` on the other side, never
 skipped. `TestCoreTpmGuacamole` holds the list equal to what the cross-check
 computes, byte for byte, and its failure names the list and the first line
-that differs. The ratchet reports the count as `core-tpm-differences`. After
+that differs. After
 an intended change, regenerate the list:
 
 ```
