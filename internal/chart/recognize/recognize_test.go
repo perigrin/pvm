@@ -1,109 +1,76 @@
-// ABOUTME: Tests the Earley recognizer over the cut Guacamole grammar: derivations, interning, the cache and Expected.
-// ABOUTME: Also the toy-lattice rejoin, and the empty, truncated and past-the-end edge cases.
+// ABOUTME: Tests the Earley recognizer over a toy statement grammar: derivations, interning, the cache and Expected.
+// ABOUTME: Also the empty, truncated and past-the-end edge cases; the toy-lattice rejoin is in lattice_test.go.
 
 package recognize
 
 import (
-	"os"
 	"slices"
-	"sync"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
-	"tamarou.com/pvm/internal/chart/lex"
 )
 
-const slif = "../grammar/testdata/guacamole/guacamole.slif"
-
-var (
-	guacOnce sync.Once
-	guacTab  *grammar.Tables
-	guacLex  *lex.Lexer
-	guacErr  error
-)
-
-// guacamole is a fresh recognizer over the cut Guacamole grammar, and its
-// lexer. The tables are built once per test binary; each call gets its own
-// intern table and cache.
-func guacamole(t testing.TB) (*Recognizer, *lex.Lexer) {
-	t.Helper()
-	guacOnce.Do(func() { guacTab, guacLex, guacErr = Guacamole(slif) })
-	if guacErr != nil {
-		t.Fatal(guacErr)
-	}
-	return New(guacTab, Options{}), guacLex
+// stmtGrammar is the shapes the cut grammar gives the recognizer, in small:
+// a right-recursive nullable statement sequence, nested blocks, and a
+// left-recursive term.
+var stmtGrammar = []string{
+	"Program ::= Seq",
+	"Seq ::= Stmt Seq |",
+	"Stmt ::= My Var Assign Term Semi | Print Term Semi | LBrace Seq RBrace",
+	"Term ::= Var | Num | Term Add Num",
 }
 
-// run lexes src and recognizes it with r.
-func run(t testing.TB, r *Recognizer, x *lex.Lexer, src string) *Chart {
-	t.Helper()
-	s, _ := x.Lex([]byte(src)) // an unmapped token is refused by the recognizer
-	return Recognize(r, lex.Linear(s))
+// toyStmt is stmtGrammar's tables.
+func toyStmt(tb testing.TB) *grammar.Tables { return toyTables(tb, stmtGrammar...) }
+
+// run recognizes src, terminal names separated by spaces, with r.
+func run(r *Recognizer, src string) *Chart {
+	return Recognize(r, tokens(strings.Fields(src)...))
 }
 
-// TestRecognizeDerivations: spec §10's three, on the cut grammar. `1 2` and
-// `$x $y` have no derivation; `print(1)` has one.
+const decl = "My Var Assign Num Semi" // a five-token statement
+
+// TestRecognizeDerivations: spec §10's three, on the toy grammar. `Num Num`
+// and `Var Var` have no derivation; `Print Num` has one.
 func TestRecognizeDerivations(t *testing.T) {
-	r, x := guacamole(t)
-	for src, want := range map[string]bool{"1 2": false, "$x $y": false, "print(1)": true, "print(1);": true, "my $x = 1;\nprint $x;\n": true} {
-		if got := run(t, r, x, src).Accepted(); got != want {
+	r := New(toyStmt(t), Options{})
+	for src, want := range map[string]bool{"Num Num": false, "Var Var": false, "Print Num": false, "Print Num Semi": true, decl + " Print Var Semi": true} {
+		if got := run(r, src).Accepted(); got != want {
 			t.Errorf("Accepted(%q) = %v, want %v", src, got, want)
 		}
 	}
 }
 
-// TestRecognizeEmptyAndTruncated: a source with no significant token is the
-// empty program, which perl accepts; one truncated mid-statement is refused,
-// and what it expects at its end includes a term.
+// TestRecognizeEmptyAndTruncated: no token is the empty program, which is
+// accepted; one truncated mid-statement is refused, and what it expects at
+// its end includes a term.
 func TestRecognizeEmptyAndTruncated(t *testing.T) {
-	r, x := guacamole(t)
-	for name, src := range map[string]string{
-		"empty":            "",
-		"comments only":    "# nothing\n# here\n",
-		"comments and POD": "# a comment\n\n=pod\n\nText.\n\n=cut\n\n# another\n",
-	} {
-		if !run(t, r, x, src).Accepted() {
-			t.Errorf("%s: refused, want accepted", name)
-		}
+	r := New(toyStmt(t), Options{})
+	if !run(r, "").Accepted() {
+		t.Error("the empty program was refused, want accepted")
 	}
-	c := run(t, r, x, "my $x =")
+	c := run(r, "My Var Assign")
 	if c.Accepted() {
-		t.Fatal("`my $x =` accepted, want refused")
+		t.Fatal("`My Var Assign` accepted, want refused")
 	}
 	exp, err := c.Expected(len(c.Sets) - 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(exp, "ScalarVar") || !slices.Contains(exp, "NumberDec") {
-		t.Errorf("Expected at the end of `my $x =` = %v, want a term: ScalarVar and NumberDec among them", exp)
+	if !slices.Contains(exp, "Var") || !slices.Contains(exp, "Num") {
+		t.Errorf("Expected at the end of `My Var Assign` = %v, want a term: Var and Num among them", exp)
 	}
-	if slices.Contains(exp, "Semicolon") {
-		t.Errorf("Expected at the end of `my $x =` holds Semicolon: %v", exp)
-	}
-}
-
-// TestRecognizeSpacedDiamondRefused: perl parses `< $fh >` as a glob, not a
-// readline, so the Guacamole parsent case holding it is refused, and the
-// readline itself is accepted.
-func TestRecognizeSpacedDiamondRefused(t *testing.T) {
-	r, x := guacamole(t)
-	src, err := os.ReadFile("../testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-001.pl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if run(t, r, x, string(src)).Accepted() {
-		t.Errorf("%q accepted, want refused", src)
-	}
-	if !run(t, r, x, "my $l = <$fh>;").Accepted() {
-		t.Error("`my $l = <$fh>;` refused, want accepted")
+	if slices.Contains(exp, "Semi") {
+		t.Errorf("Expected at the end of `My Var Assign` holds Semi: %v", exp)
 	}
 }
 
 // TestExpectedPastEnd: Expected outside the lattice's nodes is an error, and
 // never a panic.
 func TestExpectedPastEnd(t *testing.T) {
-	r, x := guacamole(t)
-	c := run(t, r, x, "print(1);")
+	r := New(toyStmt(t), Options{})
+	c := run(r, "Print Num Semi")
 	if _, err := c.Expected(len(c.Sets) - 1); err != nil {
 		t.Fatalf("Expected at the last node: %v", err)
 	}
@@ -113,7 +80,7 @@ func TestExpectedPastEnd(t *testing.T) {
 		}
 	}
 	// A refused input's dead positions have no set: empty, not a panic.
-	d := run(t, r, x, "1 2 3 4")
+	d := run(r, "Num Num Num Num")
 	for pos := range d.Sets {
 		if _, err := d.Expected(pos); err != nil {
 			t.Errorf("Expected(%d) on a refused input: %v", pos, err)
@@ -124,9 +91,9 @@ func TestExpectedPastEnd(t *testing.T) {
 // TestInternSharesEqualSets: positions with equal content share one interned
 // set (§10). A statement repeated after itself reaches the same sets.
 func TestInternSharesEqualSets(t *testing.T) {
-	r, x := guacamole(t)
+	r := New(toyStmt(t), Options{})
 	// A fourth statement, so the third ends before the same lookahead.
-	c := run(t, r, x, "my $x = 1;\nmy $x = 1;\nmy $x = 1;\nmy $x = 1;\n")
+	c := run(r, strings.Repeat(decl+" ", 4))
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -147,8 +114,8 @@ func TestInternSharesEqualSets(t *testing.T) {
 // TestInternDistinctSets: positions whose sets differ in content never
 // share an interned set.
 func TestInternDistinctSets(t *testing.T) {
-	r, x := guacamole(t)
-	c := run(t, r, x, "my $x = 1;\nprint($x);\n{ my $y = [1, 2]; }\n")
+	r := New(toyStmt(t), Options{})
+	c := run(r, decl+" Print Var Semi LBrace My Var Assign Var Add Num Semi RBrace")
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -167,10 +134,9 @@ func TestInternDistinctSets(t *testing.T) {
 // TestCacheHitsOnSecondRecognition: recognizing the same input again hits
 // the transition cache at every position after the first.
 func TestCacheHitsOnSecondRecognition(t *testing.T) {
-	r, x := guacamole(t)
-	src := "my $x = 1;\nprint($x);\nsub f { return 2; }\n"
-	first := run(t, r, x, src)
-	second := run(t, r, x, src)
+	r := New(toyStmt(t), Options{})
+	src := decl + " Print Var Semi LBrace " + decl + " RBrace"
+	first, second := run(r, src), run(r, src)
 	if !first.Accepted() || !second.Accepted() {
 		t.Fatal("refused")
 	}
@@ -188,16 +154,17 @@ func TestCacheHitsOnSecondRecognition(t *testing.T) {
 // input is recognized by a recognizer warmed on all the others, and by one
 // with no cache.
 func TestCacheHitKeepsAcceptance(t *testing.T) {
-	warm, x := guacamole(t)
+	tab := toyStmt(t)
+	warm := New(tab, Options{})
 	srcs := []string{
-		"my $x = 1;", "my $x = 1", "my $x =", "print(1);", "1 2;", "$x $y;",
-		"sub f { my $x = 1; return $x; }", "{ my $x = 1; }", "my @a = (1, 2);", "my @a = (1, 2;",
+		decl, "My Var Assign Num", "My Var Assign", "Print Num Semi", "Num Num Semi", "Var Var Semi",
+		"LBrace " + decl + " RBrace", "LBrace My Var Assign Num Semi", "Print Var Add Num Semi", "Print Var Add Semi",
 	}
 	hits := 0
 	for range 2 {
 		for _, src := range srcs {
-			c := run(t, warm, x, src)
-			cold := run(t, New(guacTab, Options{NoCache: true}), x, src)
+			c := run(warm, src)
+			cold := run(New(tab, Options{NoCache: true}), src)
 			if c.Accepted() != cold.Accepted() {
 				t.Errorf("%q: accepted %v with the cache, %v without", src, c.Accepted(), cold.Accepted())
 			}
@@ -216,38 +183,38 @@ func TestCacheHitKeepsAcceptance(t *testing.T) {
 // TestLookaheadKeepsAcceptance: lookahead only prunes completions that
 // cannot continue, so acceptance is the same with it off.
 func TestLookaheadKeepsAcceptance(t *testing.T) {
-	r, x := guacamole(t)
-	for _, src := range []string{"my $x = 1;", "my $x =", "print(1)", "1 2", "{ 1; } 2;", "sub f { 1 }"} {
-		la := run(t, r, x, src).Accepted()
-		no := run(t, New(guacTab, Options{NoLookahead: true}), x, src).Accepted()
+	tab := toyStmt(t)
+	for _, src := range []string{decl, "My Var Assign", "Print Num", "Num Num", "LBrace Print Num Semi RBrace Num Semi", "LBrace RBrace"} {
+		la := run(New(tab, Options{}), src).Accepted()
+		no := run(New(tab, Options{NoLookahead: true}), src).Accepted()
 		if la != no {
 			t.Errorf("%q: accepted %v with lookahead, %v without", src, la, no)
 		}
 	}
 }
 
-// TestExpectedAfterAssign: after `my $x =` a term is expected, and `;` is not.
+// TestExpectedAfterAssign: after `My Var Assign` a term is expected, and
+// `Semi` is not.
 func TestExpectedAfterAssign(t *testing.T) {
-	r, x := guacamole(t)
-	c := run(t, r, x, "my $x = 1;")
+	c := run(New(toyStmt(t), Options{}), decl)
 	exp, err := c.Expected(3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(exp, "ScalarVar") || slices.Contains(exp, "Semicolon") {
-		t.Errorf("Expected after `my $x =` = %v, want ScalarVar and no Semicolon", exp)
+	if !slices.Contains(exp, "Var") || slices.Contains(exp, "Semi") {
+		t.Errorf("Expected after `My Var Assign` = %v, want Var and no Semi", exp)
 	}
 }
 
 // TestExpectedIgnoresLookahead: Expected(pos) is the union over the Earley
 // set as recognition without lookahead builds it, at every node, refusal
-// points included: after `my $x = 1` before `2`, lookahead prunes every
-// completion, but an operator is still expected there.
+// points included: after `My Var Assign Num` before a second `Num`,
+// lookahead prunes every completion, but an operator is still expected there.
 func TestExpectedIgnoresLookahead(t *testing.T) {
-	r, x := guacamole(t)
-	for _, src := range []string{"my $x = 1 2;", "my $x = 1;\nprint($x + 2);\nsub f { return [1, 2]; }\n"} {
-		la := run(t, r, x, src)
-		no := run(t, New(guacTab, Options{NoLookahead: true}), x, src)
+	tab := toyStmt(t)
+	for _, src := range []string{"My Var Assign Num Num Semi", decl + " Print Var Add Num Semi LBrace " + decl + " RBrace"} {
+		la := run(New(tab, Options{}), src)
+		no := run(New(tab, Options{NoLookahead: true}), src)
 		for pos := range la.Sets {
 			a, err := la.Expected(pos)
 			if err != nil {
@@ -262,8 +229,8 @@ func TestExpectedIgnoresLookahead(t *testing.T) {
 			}
 		}
 	}
-	c := run(t, r, x, "my $x = 1 2;")
-	if exp, _ := c.Expected(4); !slices.Contains(exp, "OpAdd") {
-		t.Errorf("Expected after `my $x = 1` = %v, want OpAdd among them", exp)
+	c := run(New(tab, Options{}), "My Var Assign Num Num Semi")
+	if exp, _ := c.Expected(4); !slices.Contains(exp, "Add") {
+		t.Errorf("Expected after `My Var Assign Num` = %v, want Add among them", exp)
 	}
 }

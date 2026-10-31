@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -31,37 +32,37 @@ func withDeadEnd(l *lex.Lattice[lex.None], i int) *lex.Lattice[lex.None] {
 	return out
 }
 
-// fuzzSeeds is FuzzRecognize's seed corpus.
+// fuzzSeeds is FuzzRecognize's seed corpus: toyStmt's terminal names, some
+// accepted and some refused.
 var fuzzSeeds = []string{
-	"", "my $x = 1;", "print(1)", "1 2", "$x $y", "my $x =",
-	"sub f { my ($a) = @_; return $a + 1; }\nf(2);\n",
-	"my @a = map { $_ * 2 } grep { defined($_) } @b;",
-	"if ($x) { 1 } elsif ($y) { 2 } else { 3 }",
-	"=pod\n\nx\n\n=cut\n",
+	"", decl, "Print Num", "Num Num", "Var Var", "My Var Assign",
+	decl + " Print Var Add Num Semi",
+	"LBrace Print Num Semi LBrace " + decl + " RBrace RBrace",
+	"LBrace LBrace Print Num Semi RBrace",
 }
 
 func FuzzRecognize(f *testing.F) {
 	for _, s := range fuzzSeeds {
 		f.Add(s)
 	}
+	tab := toyStmt(f)
 	// warm is shared across inputs, so its cache serves earlier inputs'
 	// transitions to later ones.
 	var mu sync.Mutex
-	warm, x := guacamole(f)
+	warm := New(tab, Options{})
 	f.Fuzz(func(t *testing.T, src string) {
-		s, _ := x.Lex([]byte(src))
-		lattices := []*lex.Lattice[lex.None]{lex.Linear(s)}
-		if n := len(s.Tokens); n >= 2 {
+		lattices := []*lex.Lattice[lex.None]{tokens(strings.Fields(src)...)}
+		if n := len(lattices[0].Edges); n >= 2 {
 			lattices = append(lattices, withDeadEnd(lattices[0], len(src)%(n-1)))
 		}
-		cold := Recognize(New(guacTab, Options{NoCache: true}), lattices[0])
+		cold := Recognize(New(tab, Options{NoCache: true}), lattices[0])
 		want := cold.Accepted()
-		no := Recognize(New(guacTab, Options{NoCache: true, NoLookahead: true}), lattices[0])
+		no := Recognize(New(tab, Options{NoCache: true, NoLookahead: true}), lattices[0])
 		if no.Accepted() != want {
 			t.Fatalf("%q: accepted %v without lookahead, %v with", src, no.Accepted(), want)
 		}
 		for _, la := range []bool{false, true} {
-			if got := Recognize(New(guacTab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
+			if got := Recognize(New(tab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
 				t.Fatalf("%q: accepted %v without Leo (lookahead off %v), %v with", src, got, la, want)
 			}
 		}
@@ -75,7 +76,7 @@ func FuzzRecognize(f *testing.F) {
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
-			if got := Recognize(New(guacTab, Options{NoCache: true}), l).Accepted(); got != want {
+			if got := Recognize(New(tab, Options{NoCache: true}), l).Accepted(); got != want {
 				t.Fatalf("%q lattice %d: accepted %v cold, want %v", src, i, got, want)
 			}
 			for range 2 {
@@ -89,4 +90,34 @@ func FuzzRecognize(f *testing.F) {
 			}
 		}
 	})
+}
+
+// TestFuzzSeedsAcceptAndRefuse: the seeds hold an accepted and a refused
+// input, and the dead-end lattice keeps each verdict, so FuzzRecognize cannot
+// pass by never reaching a refusal.
+func TestFuzzSeedsAcceptAndRefuse(t *testing.T) {
+	tab := toyStmt(t)
+	var accepted, refused int
+	for _, src := range fuzzSeeds {
+		l := tokens(strings.Fields(src)...)
+		want := Recognize(New(tab, Options{}), l).Accepted()
+		if want {
+			accepted++
+		} else {
+			refused++
+		}
+		if len(l.Edges) < 2 {
+			continue
+		}
+		d := withDeadEnd(l, 0)
+		if len(d.Nodes) != len(l.Nodes)+1 {
+			t.Errorf("%q: the dead end added %d nodes, want 1", src, len(d.Nodes)-len(l.Nodes))
+		}
+		if got := Recognize(New(tab, Options{}), d).Accepted(); got != want {
+			t.Errorf("%q: accepted %v with a dead end, %v without", src, got, want)
+		}
+	}
+	if accepted == 0 || refused == 0 {
+		t.Errorf("%d accepted and %d refused seeds, want both", accepted, refused)
+	}
 }
