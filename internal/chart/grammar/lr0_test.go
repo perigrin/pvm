@@ -286,9 +286,9 @@ func TestFirstDifference(t *testing.T) {
 	}
 }
 
-// TestWriteTablesAndDrift: WriteTables leaves exactly the generator's files,
-// removing a stray .txt, and TablesDrift reports nothing for equal
-// directories and names the one file that changed.
+// TestWriteTablesAndDrift: WriteTables removes a stale .txt it owns, and
+// TablesDrift reports nothing for equal directories and names the one file
+// that changed.
 func TestWriteTablesAndDrift(t *testing.T) {
 	files := build(t, goldenToys[0].g).Files()
 	a, b := t.TempDir(), t.TempDir()
@@ -300,8 +300,8 @@ func TestWriteTablesAndDrift(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(b, "stray.txt")); !os.IsNotExist(err) {
-		t.Errorf("WriteTables left the stray file (stat error %v)", err)
+	if exists(t, filepath.Join(b, "stray.txt")) {
+		t.Error("WriteTables left a stale .txt it owns")
 	}
 	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
 		t.Fatalf("TablesDrift of equal directories = %v, %v; want none", drift, err)
@@ -312,5 +312,98 @@ func TestWriteTablesAndDrift(t *testing.T) {
 	drift, err := TablesDrift(a, b)
 	if want := "rules.txt differs from the generator's"; err != nil || len(drift) != 1 || drift[0] != want {
 		t.Errorf("TablesDrift = %q, %v; want [%q]", drift, err, want)
+	}
+}
+
+func exists(t *testing.T, path string) bool {
+	t.Helper()
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// TestWriteTablesOwnsItsFiles: a file WriteTables did not write survives it.
+func TestWriteTablesOwnsItsFiles(t *testing.T) {
+	dir := t.TempDir()
+	foreign := filepath.Join(dir, "notes.md")
+	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteTables(dir, build(t, goldenToys[0].g).Files()); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(t, foreign) {
+		t.Error("WriteTables deleted a file it does not own")
+	}
+}
+
+// TestWriteTablesLeavesLookalikes: a file sharing an owned stem, and a
+// directory named like a table file, survive; a stale owned file is replaced.
+func TestWriteTablesLeavesLookalikes(t *testing.T) {
+	dir := t.TempDir()
+	md, sub := filepath.Join(dir, "rules.md"), filepath.Join(dir, "other.txt")
+	stale := filepath.Join(dir, "rules.txt")
+	if err := os.WriteFile(md, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stale, []byte("stale\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := build(t, goldenToys[0].g).Files()
+	if err := WriteTables(dir, files); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(t, md) || !exists(t, sub) {
+		t.Error("WriteTables deleted a look-alike")
+	}
+	got, err := os.ReadFile(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f.Name == "rules.txt" && string(got) != string(f.Data) {
+			t.Errorf("rules.txt = %q, want the generator's", got)
+		}
+	}
+}
+
+// TestTablesDriftSkipsNonRegular: a directory named like a table file is not
+// a table file.
+func TestTablesDriftSkipsNonRegular(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(a, "x.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
+		t.Errorf("TablesDrift = %v, %v; want none", drift, err)
+	}
+}
+
+// TestBuildLR0RefusesSequenceRule: a sequence rule with two right-hand
+// symbols is an error, not a panic.
+func TestBuildLR0RefusesSequenceRule(t *testing.T) {
+	r := Rule{LHS: "S", RHS: []Symbol{name("a"), name("a")}, Seq: Star}
+	if _, err := BuildLR0("S", []Rule{r}, []string{"a"}); err == nil {
+		t.Fatal("a two-symbol sequence rule built")
+	}
+}
+
+// TestBuildLR0SequenceRuleArity: zero and two symbols are refused with an
+// error naming the rule; one is accepted.
+func TestBuildLR0SequenceRuleArity(t *testing.T) {
+	for n, ok := range map[int]bool{0: false, 1: true, 2: false} {
+		r := Rule{LHS: "S", Seq: Plus}
+		for range n {
+			r.RHS = append(r.RHS, name("a"))
+		}
+		_, err := BuildLR0("S", []Rule{r}, []string{"a"})
+		switch {
+		case ok && err != nil:
+			t.Errorf("%d symbols: %v", n, err)
+		case !ok && (err == nil || !strings.Contains(err.Error(), "S ::=")):
+			t.Errorf("%d symbols: error %v does not name the rule", n, err)
+		}
 	}
 }

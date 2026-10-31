@@ -38,8 +38,7 @@ type Recognizer struct {
 	term map[string]int // terminal name to symbol id
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
-	// follow is, per nonterminal, the terminals that can follow it, with
-	// bit eof for the end of input.
+	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
 	follow []bitset
 	eof    int
 	// classes interns a sorted terminal list, a token's or a lookahead's,
@@ -54,7 +53,7 @@ type Recognizer struct {
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
 	r := &Recognizer{
-		tab: tab, opts: opts, term: map[string]int{}, eof: len(tab.Symbols),
+		tab: tab, opts: opts, term: map[string]int{}, eof: tab.EOF,
 		classes: map[string]int{}, sets: newInterner(), cache: map[cacheKey][]cacheEntry{},
 	}
 	for id, s := range tab.Symbols {
@@ -70,7 +69,13 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 		slices.Sort(r.lhs[s])
 		r.lhs[s] = slices.Compact(r.lhs[s])
 	}
-	r.follow = follow(tab)
+	for _, ids := range tab.Follow {
+		b := newBitset(r.eof + 1)
+		for _, id := range ids {
+			b.set(id)
+		}
+		r.follow = append(r.follow, b)
+	}
 	r.leo = leoItems(r)
 	return r
 }
@@ -324,54 +329,6 @@ func (r *Recognizer) lookahead(out []int) int {
 	return r.class(out)
 }
 
-// follow is FOLLOW of every symbol, over the terminals and the end of input.
-func follow(tab *grammar.Tables) []bitset {
-	n := len(tab.Symbols)
-	nullable := func(s int) bool { return !tab.Symbols[s].Terminal && tab.Symbols[s].Nullable }
-	first := make([]bitset, n)
-	fol := make([]bitset, n)
-	for s := range tab.Symbols {
-		first[s], fol[s] = newBitset(n+1), newBitset(n+1)
-		if tab.Symbols[s].Terminal {
-			first[s].set(s)
-		}
-	}
-	for changed := true; changed; {
-		changed = false
-		for _, rule := range tab.Rules {
-			for _, x := range rule.RHS {
-				changed = first[rule.LHS].or(first[x]) || changed
-				if !nullable(x) {
-					break
-				}
-			}
-		}
-	}
-	fol[tab.Start].set(n)
-	for changed := true; changed; {
-		changed = false
-		for _, rule := range tab.Rules {
-			for i, x := range rule.RHS {
-				if tab.Symbols[x].Terminal {
-					continue
-				}
-				rest := true // everything after x is nullable
-				for _, y := range rule.RHS[i+1:] {
-					changed = fol[x].or(first[y]) || changed
-					if !nullable(y) {
-						rest = false
-						break
-					}
-				}
-				if rest {
-					changed = fol[x].or(fol[rule.LHS]) || changed
-				}
-			}
-		}
-	}
-	return fol
-}
-
 // bitset is a fixed-size set of small integers.
 type bitset []uint64
 
@@ -384,15 +341,4 @@ func (b bitset) intersects(o bitset) bool {
 		}
 	}
 	return false
-}
-
-// or adds o to b and reports whether b grew.
-func (b bitset) or(o bitset) bool {
-	grew := false
-	for i := range b {
-		if v := b[i] | o[i]; v != b[i] {
-			b[i], grew = v, true
-		}
-	}
-	return grew
 }

@@ -309,9 +309,7 @@ Every line is space-separated numbers and names:
   ε-state is a kernel state's predicted state, or `-1`. The reduce list holds
   the rules of the state's complete items.
 - **`transitions.txt`**: one line per state, `<id> <symbol>:<target> ...`,
-  in symbol order. The target is always a kernel state. A transition's items
-  are the state's items whose dot is before the symbol, so they are not
-  written out.
+  in symbol order. The target is always a kernel state.
 - **`expected.txt`**: one line per state, `<id> <terminal ids>`, the
   terminals after a dot in the state's items, in symbol order.
 - **`leo.txt`**: one line per Leo item, `<id> <item>`. A Leo item is a

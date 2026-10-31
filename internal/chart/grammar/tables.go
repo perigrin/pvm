@@ -5,7 +5,9 @@ package grammar
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,8 +22,7 @@ type TableFile struct {
 
 // Files renders the tables, one file per section, in a fixed order. Every
 // line is space-separated, with no trailing space; internal/chart/README.md
-// describes each file. A transition's items are not written: they are the
-// state's items with that symbol after the dot.
+// describes each file.
 func (t *Tables) Files() []TableFile {
 	var sym, rules, items, states, trans, expected, leo bytes.Buffer
 	for i, s := range t.Symbols {
@@ -125,8 +126,29 @@ func BuildTables(g *Grammar) (*Tables, error) {
 	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
 }
 
-// WriteTables writes files into dir, creating it, and removes any other
-// .txt file there, so the directory holds exactly the generator's output.
+// tablePaths is the regular .txt files in dir: the files the generator owns.
+// Anything else there, a directory named x.txt included, is foreign.
+func tablePaths(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && filepath.Ext(e.Name()) == ".txt" {
+			paths = append(paths, filepath.Join(dir, e.Name()))
+		}
+	}
+	return paths, nil
+}
+
+// WriteTables writes files into dir, creating it. The generator owns every
+// regular .txt file in dir, as TablesDrift reads them: it replaces those it
+// writes and removes the rest, so a table an earlier run wrote and this one
+// does not cannot linger. Anything else there is foreign and untouched.
 func WriteTables(dir string, files []TableFile) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -138,7 +160,7 @@ func WriteTables(dir string, files []TableFile) error {
 			return err
 		}
 	}
-	old, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+	old, err := tablePaths(dir)
 	if err != nil {
 		return err
 	}
@@ -156,7 +178,7 @@ func WriteTables(dir string, files []TableFile) error {
 // committed and the generated directory, or is in only one of them.
 func TablesDrift(committed, generated string) ([]string, error) {
 	read := func(dir string) (map[string][]byte, error) {
-		paths, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+		paths, err := tablePaths(dir)
 		if err != nil {
 			return nil, err
 		}
