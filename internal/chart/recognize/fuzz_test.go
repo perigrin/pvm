@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -385,6 +386,9 @@ func TestOracleCatchesExpectedSkew(t *testing.T) {
 // combination and right under the other seven is reported, whichever the
 // combination and whether the skew is a transition or Expected, fewer or more.
 func TestOracleCatchesSkewUnderOneOption(t *testing.T) {
+	if n := reflect.TypeOf(Options{}).NumField(); n != 3 {
+		t.Fatalf("Options has %d switches and optionCombos covers 3: extend optionCombos", n)
+	}
 	tab := toyStmt(t)
 	for name, bad := range map[string]*grammar.Tables{
 		"transition":  without(t, tab, "Semi"),
