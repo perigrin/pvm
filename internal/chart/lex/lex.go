@@ -44,7 +44,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			continue
 		case t.Kind == lexer.HeredocBody && len(opens) > 0:
 			held = append(held, raw[a:i]...)
-			s.Tokens[opens[0]].Body = raw[i : i+1 : i+1]
+			s.Bodies = append(s.Bodies, Body{opens[0], t})
 			opens, a = opens[1:], i+1
 			continue
 		}
