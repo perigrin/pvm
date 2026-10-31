@@ -219,8 +219,8 @@ func TestLexStreamAllocations(t *testing.T) {
 	if short != long || long > 4 {
 		t.Errorf("Map allocates %v times on a short file and %v on a long one, want the same small number", short, long)
 	}
-	// Copying the raw tokens costs about 65 bytes each; the index Map builds
-	// costs about 16. The bound sits between, with slack for the fixed part.
+	// Copying the raw tokens costs 32 bytes each (one lexer.Token); the index
+	// Map builds costs about 16. The bound sits between, with slack for the fixed part.
 	for _, n := range []int{10, 1000} {
 		src := []byte(strings.Repeat(line, n))
 		raw := lexer.Tokenize(src)
@@ -245,5 +245,15 @@ func TestLexLeadIsCapped(t *testing.T) {
 	_ = append(s.Lead(0), lexer.Token{Kind: lexer.Semicolon})
 	if got := s.Raw[s.Tokens[0].Index]; got != want {
 		t.Errorf("appending to Lead(0) changed the next token from %+v to %+v", want, got)
+	}
+}
+
+// Tail is a view into the shared token slice too; its capacity must end
+// where it does, so an append copies instead of writing into raw's spare room.
+func TestLexTailIsCapped(t *testing.T) {
+	src := []byte("$x; # c\n")
+	s, _ := Map(src, lexer.Tokenize(src), toyTable(t))
+	if tail := s.Tail(); cap(tail) != len(tail) {
+		t.Errorf("Tail() has len %d, cap %d: appending to it would write into the lexer's slice", len(tail), cap(tail))
 	}
 }

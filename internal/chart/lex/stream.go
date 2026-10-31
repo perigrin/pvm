@@ -54,9 +54,10 @@ func (s *Stream) Lead(i int) []lexer.Token {
 	return trivia(s.Raw[s.after(i):end:end])
 }
 
-// Tail is the trivia after the last token, less any heredoc body.
+// Tail is the trivia after the last token, less any heredoc body. Its
+// capacity is capped like Lead's.
 func (s *Stream) Tail() []lexer.Token {
-	return trivia(s.Raw[s.after(len(s.Tokens)):])
+	return trivia(s.Raw[s.after(len(s.Tokens)):len(s.Raw):len(s.Raw)])
 }
 
 // after is the index in Raw just past Tokens[i-1], or 0 for the first token.
