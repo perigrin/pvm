@@ -163,3 +163,21 @@ func TestClassKeysAllocationFree(t *testing.T) {
 		t.Errorf("lookahead at the end = %d, want the end-of-input class %d holding EOF", eofKey, len(tab.TerminalSets))
 	}
 }
+
+// TestRecognizeSetAddedAfterNew: New keeps its own copy of the set table,
+// so sets added to the tables afterwards are outside that recognizer's
+// table: an error, never a panic, and its verdicts on known sets unchanged.
+func TestRecognizeSetAddedAfterNew(t *testing.T) {
+	tab := toyStmt(t)
+	r := New(tab, Options{})
+	prt, num, semi := termSet(tab, "Print"), termSet(tab, "Num"), termSet(tab, "Semi")
+	added := []int{addSet(tab, "Semi"), addSet(tab, "Semi", "RBrace")}
+	for _, s := range added {
+		if _, err := Recognize(r, setLattice(prt, num, s)); err == nil {
+			t.Errorf("set %d, added after New: no error", s)
+		}
+	}
+	if !mustRecognize(t, r, setLattice(prt, num, semi)).Accepted() {
+		t.Error("Print Num Semi refused after sets were added to the tables")
+	}
+}
