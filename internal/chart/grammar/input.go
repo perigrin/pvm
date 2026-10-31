@@ -39,8 +39,9 @@ type Rule struct {
 	Decl int // line of the statement's left-hand side
 }
 
-// Grammar is a read SLIF grammar. G1 and G0 rules are never merged, even
-// when they share a left-hand side.
+// Grammar is the generator's input: G1 rules, and G0 rules whose left-hand
+// sides are the terminals. G1 and G0 rules are never merged, even when they
+// share a left-hand side.
 type Grammar struct {
 	G1, G0   []Rule
 	Priority map[string]int // :lexeme ~ X priority => n
