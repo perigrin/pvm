@@ -288,10 +288,15 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   turns it off; it is the only Leo switch.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
-never panics, that acceptance is the same with and without the cache, the
-lookahead and Leo and with a dead-end branch added, and that `Expected` is the
-same with and without lookahead. Each input byte is the singleton set id of
-one terminal of the toy statement grammar, so every input is a valid
+never panics, that acceptance is the same with a dead-end branch added and
+through a cache warmed by earlier inputs, and that, under every `Options`
+combination, acceptance and `Expected` at every position equal the reference
+recognizer's (`recognize/reference_test.go`). The reference is a textbook
+Earley recognizer, test-only: predict, scan and complete over the grammar's
+rules, run to a fixed point, with no LR(0) states, interning, cache or Leo, and
+sharing no code with `recognize` (`TestReferenceSharesNoCode`), so it fails
+independently of the recognizer it checks. Each input byte is the singleton set
+id of one terminal of the toy statement grammar, so every input is a valid
 terminal string.
 
 ## The generated tables: `make chart-tables`
