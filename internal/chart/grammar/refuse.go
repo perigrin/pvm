@@ -16,10 +16,6 @@ import (
 //go:embed testdata/perly/alternatives.txt
 var alternativesText string
 
-// perlyClasses are the committed grammar's token classes. A family adds its
-// own with its rules; until it does, its terminals are classless and refused.
-var perlyClasses []TokenClass
-
 // classExceptions are the terminals that need no class: the GRAM* start
 // selectors are never lexed, PLUGEXPR and PLUGSTMT are keyword plugins, and the
 // PLUGIN_* terminals are waypoint 2's. The exceptions are exact, not prefixes.
@@ -84,8 +80,12 @@ func GenerateTables(dir string, g *Grammar, ref []Entry) error {
 func Refuse(g *Grammar, t *Tables, ref []Entry) error {
 	var errs []error
 	errs = append(errs, refuseCitations(g, ref)...)
-	errs = append(errs, refuseLiterals(g)...)
-	errs = append(errs, refuseClassless(g, t)...)
+	classes, err := g.ResolveClasses(t)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	errs = append(errs, refuseLiterals(classes)...)
+	errs = append(errs, refuseClassless(classes, t)...)
 	errs = append(errs, refuseReach(t)...)
 	errs = append(errs, refusePrecedence(g)...)
 	return errors.Join(errs...)
@@ -104,9 +104,34 @@ func refuseCitations(g *Grammar, ref []Entry) (errs []error) {
 	return errs
 }
 
+// ResolveClasses is g's classes as CompileTokens takes them, each admitting the id
+// that its declared terminal has in t. It refuses a name no rule uses and a nonterminal.
+func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
+	id := map[string]int{}
+	for i, s := range t.Symbols {
+		id[s.Name] = i
+	}
+	var classes []TokenClass
+	var errs []error
+	for _, d := range g.Classes {
+		i, ok := id[d.Terminal]
+		switch {
+		case !ok:
+			errs = append(errs, fmt.Errorf("a token class names %s, which no rule uses", d.Terminal))
+		case !t.Symbols[i].Terminal:
+			errs = append(errs, fmt.Errorf("a token class names %s, which is a nonterminal", d.Terminal))
+		default:
+			c := d.Key
+			c.Terminals = []int{i}
+			classes = append(classes, c)
+		}
+	}
+	return classes, errors.Join(errs...)
+}
+
 // refuseLiterals holds each class that names a kind and a text to the lexer.
-func refuseLiterals(g *Grammar) (errs []error) {
-	for _, c := range g.Classes {
+func refuseLiterals(classes []TokenClass) (errs []error) {
+	for _, c := range classes {
 		if c.Kind != nil && c.Text != nil && !lexesAs(*c.Kind, *c.Text) {
 			errs = append(errs, fmt.Errorf("the literal %q is not lexed to one %v token with that text", *c.Text, *c.Kind))
 		}
@@ -133,9 +158,9 @@ func lexesAs(kind lexer.Kind, text string) bool {
 }
 
 // refuseClassless refuses a terminal no class admits, but the excepted ones.
-func refuseClassless(g *Grammar, t *Tables) (errs []error) {
+func refuseClassless(classes []TokenClass, t *Tables) (errs []error) {
 	has := map[int]bool{}
-	for _, c := range g.Classes {
+	for _, c := range classes {
 		for _, id := range c.Terminals {
 			has[id] = true
 		}

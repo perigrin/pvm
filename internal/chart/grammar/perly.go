@@ -704,3 +704,216 @@ const perlyRules = `
 
 # perly.y:1895 indirob: PRIVATEREF
 `
+
+// perlyClasses are the token classes, each declared by the terminal it admits and so
+// unmoved by a rule added or removed. One placeholder comment per %token of perly.y
+// that is lexed, in perly.y's %token order (the GRAM* selectors, PLUGEXPR, PLUGSTMT,
+// the PLUGIN_* terminals and the precedence-only PREC_LOW and UMINUS need none). A
+// blank line separates neighbours, so two families' edits merge cleanly. A family
+// replaces its terminals' comments with `{"TERMINAL", TokenClass{...}},`: the same
+// terminal may be declared more than once, and the classes matching a token union.
+var perlyClasses = []ClassDecl{
+	// PERLY_AMPERSAND
+
+	// PERLY_BRACE_OPEN
+
+	// PERLY_BRACE_CLOSE
+
+	// PERLY_BRACKET_OPEN
+
+	// PERLY_BRACKET_CLOSE
+
+	// PERLY_COMMA
+
+	// PERLY_DOLLAR
+
+	// PERLY_DOT
+
+	// PERLY_EQUAL_SIGN
+
+	// PERLY_MINUS
+
+	// PERLY_PERCENT_SIGN
+
+	// PERLY_PLUS
+
+	// PERLY_SEMICOLON
+
+	// PERLY_SLASH
+
+	// PERLY_SNAIL
+
+	// PERLY_STAR
+
+	// KW_FORMAT
+
+	// KW_PACKAGE
+
+	// KW_CLASS
+
+	// KW_LOCAL
+
+	// KW_MY
+
+	// KW_FIELD
+
+	// KW_IF
+
+	// KW_ELSE
+
+	// KW_ELSIF
+
+	// KW_UNLESS
+
+	// KW_FOR
+
+	// KW_UNTIL
+
+	// KW_WHILE
+
+	// KW_CONTINUE
+
+	// KW_GIVEN
+
+	// KW_WHEN
+
+	// KW_DEFAULT
+
+	// KW_TRY
+
+	// KW_CATCH
+
+	// KW_FINALLY
+
+	// KW_DEFER
+
+	// KW_REQUIRE
+
+	// KW_DO
+
+	// BAREWORD
+
+	// METHCALL0
+
+	// METHCALL
+
+	// ATTRLIST
+
+	// THING
+
+	// PMFUNC
+
+	// PRIVATEREF
+
+	// QWLIST
+
+	// FUNC0OP
+
+	// FUNC0SUB
+
+	// UNIOPSUB
+
+	// LSTOPSUB
+
+	// LABEL
+
+	// PROTOTYPE
+
+	// LOOPEX
+
+	// DOTDOT
+
+	// YADAYADA
+
+	// FUNC0
+
+	// FUNC1
+
+	// FUNC
+
+	// UNIOP
+
+	// LSTOP
+
+	// BLKLSTOP
+
+	// POWOP
+
+	// MULOP
+
+	// ADDOP
+
+	// DOLSHARP
+
+	// HASHBRACK
+
+	// NOAMP
+
+	// COLONATTR
+
+	// FORMLBRACK
+
+	// FORMRBRACK
+
+	// SUBLEXSTART
+
+	// SUBLEXEND
+
+	// PHASER
+
+	// OROP
+
+	// ANDOP
+
+	// NOTOP
+
+	// ASSIGNOP
+
+	// PERLY_QUESTION_MARK
+
+	// PERLY_COLON
+
+	// OROR
+
+	// DORDOR
+
+	// ANDAND
+
+	// BITOROP
+
+	// BITANDOP
+
+	// CHEQOP
+
+	// NCEQOP
+
+	// CHRELOP
+
+	// NCRELOP
+
+	// SHIFTOP
+
+	// MATCHOP
+
+	// PERLY_EXCLAMATION_MARK
+
+	// PERLY_TILDE
+
+	// REFGEN
+
+	// PREINC
+
+	// PREDEC
+
+	// POSTINC
+
+	// POSTDEC
+
+	// POSTJOIN
+
+	// ARROW
+
+	// PERLY_PAREN_CLOSE
+
+	// PERLY_PAREN_OPEN
+}
