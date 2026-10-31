@@ -5,7 +5,7 @@
 
 **Status:** design for a spike, written 2026-10-30 from perigrin's decisions
 recorded in the `chart-waypoint` milestone's `## Records` and in this
-decision's assessment (`docs/assessments/chart-parser-v2-design.md`). It is
+decision's assessment (`docs/assessments/chart-perly-w1.md`). It is
 the successor to `docs/plans/2026-10-29-chart-parser-design.md` (the first
 attempt), not an amendment of it. If the spike's result is accepted, this
 becomes a chapter of `docs/specs/perl-parser/`; until then nothing here
@@ -126,7 +126,7 @@ refuse a span where none does, after the chart (§8); a weight may still only or
 `perly.y` is read and cited by people; no build step reads it. The
 precedence referee (§8) is generated from it offline and committed.
 Hand-off items H1–H5 are listed in the assessment minute,
-`docs/assessments/chart-parser-v2-design.md`, under "Handed to refinement".
+`docs/assessments/chart-perly-w1.md`, under "Handed to refinement".
 
 ## 5. Components
 
@@ -601,7 +601,7 @@ reported to perigrin.
 
 - `docs/plans/2026-10-29-chart-parser-design.md`; `docs/postmortems/chart-waypoint.md`;
   the `chart-waypoint` milestone's `## Records`;
-  `docs/assessments/chart-parser-v2-design.md`.
+  `docs/assessments/chart-perly-w1.md`.
 - Aycock, J. and Horspool, R. N. (2002), "Practical Earley Parsing", *The
   Computer Journal* 45(6); (2001), "Schrödinger's Token", *Software: Practice
   and Experience* 31(8).
