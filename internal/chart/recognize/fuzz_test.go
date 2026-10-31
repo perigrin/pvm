@@ -93,9 +93,10 @@ var fuzzSeeds = []string{
 	enc("LBrace LBrace Print Num Semi RBrace"),
 }
 
-// fuzzGrammar is gram, bytes, as a small grammar's statements: N0 is the
-// start symbol, and a byte b is a symbol, one of N0 to N2 or T0 to T2 by b%6,
-// so the start symbol may sit on a right-hand side. A rule is three reads: a
+// fuzzGrammar is gram, bytes, as a small grammar's statements: the first
+// rule's left-hand side is the start symbol, and a byte b is a symbol, one of
+// N0 to N2 or T0 to T2 by b%6, so the start symbol may sit on a right-hand
+// side. A rule is three reads: a
 // left-hand side (b%3), a length (b%4), then that many symbols. A symbol with
 // no rule is a terminal, as toyTables has it.
 func fuzzGrammar(gram string) []string {
@@ -142,7 +143,6 @@ func FuzzRecognize(f *testing.F) {
 	for _, s := range fuzzSeeds {
 		f.Add(s, "")
 	}
-	// start on a right-hand side, N0 ::= T0 N0 | T0 and N1 ::= N0 T0.
 	// The start symbol on a right-hand side, where a Leo chain once ran up
 	// through a start item from node 0: S ::= V B T, T ::= A | V, V ::= A | S
 	// on A B A (N0 is S, N1 is V, N2 is T, T0 is A, T1 is B).
