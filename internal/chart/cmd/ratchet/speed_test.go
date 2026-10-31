@@ -50,11 +50,13 @@ func (w *fakeWorld) protocol() Protocol {
 func TestSpeedProtocol(t *testing.T) {
 	files := []string{"a.pl", "b.pl"}
 	// 3 measurements of 2 warm-up + 9 timed pairs. Warm-ups are absurd so
-	// a protocol that times them shows. Measurement medians: 1.5, 2.5, 0.5.
+	// a protocol that times them shows. Each row has one outlier, so its
+	// mean is not its median; the measurement medians 9.5, 0.5, 1.5 have a
+	// mean (3.83) and a first value (9.5) that both differ from their median.
 	timed := [][]float64{
-		{1.9, 1.1, 1.8, 1.2, 1.5, 1.7, 1.3, 1.6, 1.4},
-		{2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9},
-		{0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1},
+		{9.9, 9.1, 9.8, 9.2, 9.5, 99, 9.3, 9.7, 9.4},
+		{0.9, 0.1, 5, 0.2, 0.5, 0.7, 0.3, 0.6, 0.4},
+		{1.1, 1.9, 1.2, 1.5, 1.7, 1.3, 1.6, 1.4, 20},
 	}
 	mult := func(pair int) float64 {
 		m, i := pair/11, pair%11
@@ -92,7 +94,7 @@ func TestSpeedProtocol(t *testing.T) {
 			t.Errorf("cold=%v: event log\n%q\nwant\n%q", cold, w.log, want)
 		}
 
-		for _, s := range []string{"min 1.1 max 1.9", "min 2.1 max 2.9", "min 0.1 max 0.9"} {
+		for _, s := range []string{"median 9.5 min 9.1 max 99", "median 0.5 min 0.1 max 5", "median 1.5 min 1.1 max 20"} {
 			if !strings.Contains(w.stderr.String(), s) {
 				t.Errorf("cold=%v: stderr %q does not report %q", cold, w.stderr.String(), s)
 			}
