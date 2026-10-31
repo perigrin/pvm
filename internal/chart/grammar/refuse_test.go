@@ -300,14 +300,30 @@ func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, classes, _ := strings.Cut(string(src), "var perlyClasses")
-	var got []string
-	for _, m := range regexp.MustCompile(`(?m)^\t(?://\s*|\{")([A-Za-z_0-9]+)`).FindAllStringSubmatch(classes, -1) {
-		if len(got) == 0 || got[len(got)-1] != m[1] { // a terminal may be declared more than once
-			got = append(got, m[1])
-		}
-	}
+	got := classSlots(string(src))
 	if !slices.Equal(got, want) {
 		t.Errorf("perlyClasses has %d slots, perly.y declares %d lexed tokens; first difference: %s", len(got), len(want), firstDifference("perly.go", "perly.y", want, got))
+	}
+}
+
+// classSlots are the terminals perlyClasses has a slot or a declaration for, in order: a
+// placeholder is a bare name alone in a comment, any other comment is not a slot, and a
+// terminal declared more than once is one slot.
+func classSlots(src string) []string {
+	_, classes, _ := strings.Cut(src, "var perlyClasses")
+	var slots []string
+	for _, m := range regexp.MustCompile(`(?m)^\t(?://\s*([A-Za-z_0-9]+)\s*$|\{"([A-Za-z_0-9]+))`).FindAllStringSubmatch(classes, -1) {
+		name := m[1] + m[2]
+		if len(slots) == 0 || slots[len(slots)-1] != name {
+			slots = append(slots, name)
+		}
+	}
+	return slots
+}
+
+func TestClassSlotsIgnoreOtherComments(t *testing.T) {
+	src := "var perlyClasses = []ClassDecl{\n\t// KW_IF\n\n\t// shortcut: a limit, when to upgrade\n\t{\"KW_ELSE\", TokenClass{}},\n\t{\"KW_ELSE\", TokenClass{}},\n\n\t// KW_FOR\n}\n"
+	if got, want := classSlots(src), []string{"KW_IF", "KW_ELSE", "KW_FOR"}; !slices.Equal(got, want) {
+		t.Errorf("slots = %q, want %q", got, want)
 	}
 }
