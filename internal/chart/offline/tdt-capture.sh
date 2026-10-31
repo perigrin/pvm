@@ -69,7 +69,8 @@ BEGIN {
 }
 END {
 	if (bad == "" && st == "") bad = "perl exit status missing"
-	if (bad == "" && st == 124) { print "# timeout: perl ran past " limit " s"; exit 1 }
+	# timeout kills perl mid-parse; a file that itself exits 124 has closed its units.
+	if (bad == "" && st == 124 && d != 0) { print "# timeout: perl ran past " limit " s"; exit 1 }
 	if (bad == "" && st == 0 && d != 0) bad = d " unit(s) never ended"
 	# An exit in BEGIN (plan skip_all) ends the main parse before its EOF.
 	if (bad == "" && st == 0 && truncated) { print "# truncated: the -DT stream stopped before the file\047s EOF (perl exited 0)"; exit 2 }

@@ -124,7 +124,9 @@ The form, one token per line, in the order toke.c delivered them to the parser:
 - A file whose perl runs past the timeout ends with `# timeout: perl ran past
   N s`, and the script exits 1 like a refused capture (perigrin: "Timeout, mark
   refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: over six times the
-  slowest corpus file measured below.
+  slowest corpus file measured below. Status 124 is read as the timeout only
+  while a unit is still open; a file that itself exits 124 (from `BEGIN`) has
+  closed its units and is refused.
 - A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
   `plan skip_all` does) ends with `# truncated: the -DT stream stopped before
   the file's EOF (perl exited 0)`, and the script exits 2. A stream whose last line starts with
@@ -162,6 +164,13 @@ bound, shows the capture ends it with the marker and a non-zero exit:
 
 ```sh
 sh -c 'out=$(TDT_TIMEOUT=2 sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-hang.pl 2>/dev/null); s=$?; test "$s" -ne 0 && printf "%s\n" "$out" | tail -1 | grep -q "^# timeout: "'
+```
+
+`testdata/tdt-exit124.pl` exits 124 from `BEGIN`, timeout's own status; this
+check shows it is refused, not called a timeout:
+
+```sh
+sh -c 'out=$(sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-exit124.pl 2>/dev/null); s=$?; test "$s" -eq 1 && printf "%s\n" "$out" | tail -1 | grep -qx "# refused: perl exited 124"'
 ```
 
 Cost (K6), measured 2026-10-31 on the 4-core machine, files one at a time,
