@@ -309,3 +309,13 @@ func classRune(ranges []rune) rune {
 	}
 	return ranges[0]
 }
+
+// GuacamoleConflicts is the conflicting pairs of the grammar at slifPath
+// after GuacamoleCut.
+func GuacamoleConflicts(slifPath string) ([]Conflict, error) {
+	c, err := readGuacamoleCut(slifPath)
+	if err != nil {
+		return nil, err
+	}
+	return FindConflicts(c), nil
+}

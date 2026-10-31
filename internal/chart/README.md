@@ -141,7 +141,7 @@ committed to the baseline with the component.
 | `tables-drift` | files under `grammar/testdata/tables/` that differ from what `make chart-tables` writes, regenerated into a temporary directory; stderr names each | may not rise (baseline 0) |
 | `core-tpm-differences` | builtins whose CORE.tpm shape differs from G1's, or that only one of them has (`grammar/testdata/core-tpm-differences.txt`) | reported only |
 | `lex-unmapped` | files among `std5k.pl` and the scored `parses` cases whose up-front `chart/lex` stream has a token no predicate admits, or does not concatenate back to the source; stderr names each file and byte offset | may not rise |
-| `expectation-conflicts` | conflicting pairs the generator observed, the lines of `grammar/testdata/tables/conflicts.txt` (see "Expected terminals, Leo and the conflicting pairs") | reported only |
+| `expectation-conflicts` | conflicting pairs the lexer probes observed (`grammar.GuacamoleConflicts`) (see "Expected terminals, Leo and the conflicting pairs") | reported only |
 | `leo-disagree` | files among `std5k.pl` and the scored `parses` cases recognized differently with Leo on and off, in acceptance or in the number of distinct sets; stderr names each | may not rise (baseline 0) |
 
 Keys the later issues add, and the rule each is held to:
@@ -311,11 +311,6 @@ Every line is space-separated numbers and names:
   read a token, and the memo skips the item that would read it. This is
   necessary, not sufficient: the recognizer also requires the whole Earley
   set to hold one item awaiting B.
-- **`probes.txt`**: `<terminal> "<text>"`, the generated samples the
-  conflict finder lexed, one per printable character a pattern terminal's
-  texts can start with. Literal texts are probed too and are not listed.
-- **`conflicts.txt`**: one conflicting pair per line,
-  `<text> <operator terminals> <term terminals> "<probe>"`.
 
 These are separate files so that `states.txt` stays under the
 check-added-large-files limit.
@@ -335,10 +330,10 @@ diverge. A reading no terminal admits, such as an unterminated regex, makes
 no pair. A terminal list joined by commas is a token several terminals
 admit.
 
-A lexer bug therefore shows up as a wrong entry, and the review of
-`conflicts.txt` is where it is caught: a pull request that changes the list
-justifies each entry as one meaning in operator position and another in term
-position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
+A lexer bug therefore shows up as a wrong entry, and the
+`expectation-conflicts` count is where it is caught: a pull request that
+changes it justifies each pair as one meaning in operator position and another
+in term position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
 `%`, `&`, `*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses
 `{` and `?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
 `$a -e` is a syntax error, and pvm's lexer agrees.

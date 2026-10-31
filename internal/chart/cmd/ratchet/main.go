@@ -8,7 +8,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -358,17 +357,15 @@ func knownMismatch(failing []string, known string) []string {
 
 // tablesDrift regenerates the tables from slif into a temporary directory
 // and names each file that differs from the committed ones in dir. It also
-// counts the conflicting pairs the generator found, the lines of its
-// conflicts.txt.
+// counts the conflicting pairs the lexer probes found.
 func tablesDrift(dir, slif string) (drift []string, conflicts int, err error) {
-	files, err := grammar.GenerateTables(slif)
+	pairs, err := grammar.GuacamoleConflicts(slif)
 	if err != nil {
 		return nil, 0, err
 	}
-	for _, f := range files {
-		if f.Name == "conflicts.txt" {
-			conflicts = bytes.Count(f.Data, []byte("\n"))
-		}
+	files, err := grammar.GenerateTables(slif)
+	if err != nil {
+		return nil, 0, err
 	}
 	tmp, err := os.MkdirTemp("", "chart-tables-")
 	if err != nil {
@@ -379,7 +376,7 @@ func tablesDrift(dir, slif string) (drift []string, conflicts int, err error) {
 		return nil, 0, err
 	}
 	drift, err = grammar.TablesDrift(dir, tmp)
-	return drift, conflicts, err
+	return drift, len(pairs), err
 }
 
 func rate(k, n int) string {
