@@ -120,8 +120,8 @@ The form, one token per line, in the order toke.c delivered them to the parser:
   refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: six times the
   slowest corpus file measured below.
 - A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
-  `plan skip_all` does) ends with `# truncated: perl exited 0 before the file
-  reached EOF`, and the script exits 2. A stream whose last line starts with
+  `plan skip_all` does) ends with `# truncated: the -DT stream stopped before
+  the file's EOF (perl exited 0)`, and the script exits 2. A stream whose last line starts with
   `#` is never a whole one.
 - Exit 2 otherwise is a capture failure with nothing useful on stdout: a
   missing file, a perl without `-DDEBUGGING` (which warns about `-D` and runs
@@ -129,19 +129,23 @@ The form, one token per line, in the order toke.c delivered them to the parser:
 
 Only the first compilation unit's tokens print. Each unit (a loaded file, or a
 string `eval` run at compile time, as modules do) starts where `-Dp` prints
-`lookahead token is token GRAMPROG` and ends at its `-DT` `EOF`, and units nest.
+`lookahead token is token GRAMPROG` and ends where `-Dp` prints `clearing the
+parse stack`, which perl prints whenever a parse ends, accepted or aborted, so
+a compile-time eval that fails to compile still closes; units nest. The file's
+own unit closing before its `-DT` `EOF` with perl's status 0 is a truncation.
 `-DT` alone marks no start: a file starts at line 0 but a string eval at line
 1 like any line, which is why `p` is on. Units run after the main file's `EOF`
 (`CHECK` blocks) are dropped, and a `require` in a sub that `-c` never runs
-contributes nothing. A file perl accepts whose units do not all close is
+contributes nothing. A file perl accepts whose units do not all end is
 exit 2, never a silently short stream.
 
 `testdata/tdt-sample.pl` and its hand-checked `testdata/tdt-sample.expected`
 cover a `use` of a stub module (`testdata/tdt-stubs/TdtStub.pm`, itself
 loading `strict` and running a string eval in `BEGIN`; its `TDT_SENTINEL_word`
 must not appear), `use lib` with `FindBin` (real modules), a variable, `qq{}`
-interpolation, a `=>` word, an interpolating heredoc and a `require` inside a
-sub.
+interpolation, a `=>` word, an interpolating heredoc, a `require` inside a
+sub, and a `BEGIN` string eval that fails to compile followed by a statement
+that must still appear.
 
 Why the timeout: perl `-Dp` spins without end once `BEGIN` puts an
 `:encoding` layer on STDERR (`perl -Dp -e 'BEGIN { binmode STDERR,

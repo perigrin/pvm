@@ -9,3 +9,5 @@ print <<"EOT";
 $h{greeting}
 EOT
 sub later { require TdtLater; TdtLater::go() }
+BEGIN { eval "1 +;" }
+my $after = 42;
