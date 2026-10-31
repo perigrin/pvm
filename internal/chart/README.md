@@ -228,9 +228,13 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   terminal name. Each edge's token carries one id, `lex.Token.TerminalSet`,
   an index into `grammar.Tables.TerminalSets`, whose entries are sorted
   lists of terminal symbol ids; a token is read as every terminal in its
-  set, so a token whose set holds several is scanned as each of them.
-  `BuildTables` leaves `TerminalSets` empty and whoever builds the lattice
-  fills it (the tests put one singleton set per terminal). Nodes are
+  set, so a token whose set holds several is scanned as each of them. **Id 0
+  is the empty set**, so a token never given an id refuses rather than
+  scanning. `BuildTables` leaves `TerminalSets` empty; the generator fills it
+  from the grammar's token classes (the token-interface issue), and until
+  then the tests fill it (the empty set, then one singleton set per
+  terminal). It is complete before `New`, which keeps its own copy: a set
+  added afterwards is outside that recognizer's table. Nodes are
   numbered so that every edge runs forward. `Recognize` validates this and
   returns an error, never a panic, for an edge with a node outside the
   lattice, an edge that does not run forward (a zero-length one included),
