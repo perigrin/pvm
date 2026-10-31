@@ -310,49 +310,85 @@ func TestOracleCatchesSkew(t *testing.T) {
 	}
 }
 
-// TestOracleCatchesExpectedSkew: tables altered so acceptance is unchanged
-// but one state's expected terminals differ are reported as an Expected
-// disagreement, never as an acceptance one.
-func TestOracleCatchesExpectedSkew(t *testing.T) {
-	tab := toyStmt(t)
-	num := slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == "Num" })
+// withExpected is tab with Expected changed in the first state it fits: name
+// dropped from the first state that expects it, or, with add, added to the
+// first state that expects something but not name. Transitions are left, so
+// acceptance does not change.
+func withExpected(t *testing.T, tab *grammar.Tables, name string, add bool) *grammar.Tables {
+	sym := slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == name })
 	c := copyTables(tab)
 	for s, st := range c.States {
-		if i := slices.Index(st.Expected, num); i >= 0 {
+		i := slices.Index(st.Expected, sym)
+		switch {
+		case !add && i >= 0:
 			c.States[s].Expected = slices.Delete(st.Expected, i, i+1)
-			break
+			return c
+		case add && i < 0 && len(st.Expected) > 0:
+			c.States[s].Expected = slices.Concat(st.Expected, []int{sym})
+			return c
 		}
 	}
-	d := disagreements(tab, builds(c))
-	if len(d) == 0 {
-		t.Fatal("the oracle did not report tables with a Num dropped from a state's Expected")
-	}
-	for _, msg := range d {
-		if !strings.Contains(msg, "Expected") {
-			t.Errorf("a skew in Expected alone was reported as: %s", msg)
+	t.Fatalf("no state fits (add %v, %s)", add, name)
+	return nil
+}
+
+// TestOracleCatchesExpectedSkew: tables altered so acceptance is unchanged
+// but one state's expected terminals differ, fewer or more, are reported as an
+// Expected disagreement, never an acceptance one, and at a node before the
+// last, so an oracle that reads only the last node or only one direction
+// fails.
+func TestOracleCatchesExpectedSkew(t *testing.T) {
+	tab := toyStmt(t)
+	for name, skewed := range map[string]*grammar.Tables{
+		"Num dropped": withExpected(t, tab, "Num", false),
+		"Semi added":  withExpected(t, tab, "Semi", true),
+	} {
+		early := false
+		for _, src := range fuzzSeeds {
+			l := fuzzLattice(tab, src)
+			d := oracleDisagreement(tab, builds(skewed), l)
+			if d == "" {
+				continue
+			}
+			_, at, _ := strings.Cut(d, "node ")
+			var pos int
+			if !strings.Contains(d, "Expected") {
+				t.Errorf("%s: a skew in Expected alone was reported as: %s", name, d)
+			} else if _, err := fmt.Sscanf(at, "%d", &pos); err == nil && pos < len(l.Edges) {
+				early = true
+			}
+		}
+		if !early {
+			t.Errorf("%s: no seed reported it at a node before the last", name)
 		}
 	}
 }
 
 // TestOracleCatchesSkewUnderOneOption: a recognizer wrong under one Options
-// combination and right under the other seven is reported, whichever it is.
+// combination and right under the other seven is reported, whichever the
+// combination and whether the skew is a transition or Expected, fewer or more.
 func TestOracleCatchesSkewUnderOneOption(t *testing.T) {
 	tab := toyStmt(t)
-	bad := without(t, tab, "Semi")
-	for _, only := range optionCombos {
-		build := func(o Options) *Recognizer {
-			if o == only {
-				return New(bad, o)
+	for name, bad := range map[string]*grammar.Tables{
+		"transition":  without(t, tab, "Semi"),
+		"Num dropped": withExpected(t, tab, "Num", false),
+		"Semi added":  withExpected(t, tab, "Semi", true),
+	} {
+		for _, only := range optionCombos {
+			build := func(o Options) *Recognizer {
+				if o == only {
+					return New(bad, o)
+				}
+				return New(tab, o)
 			}
-			return New(tab, o)
-		}
-		d := disagreements(tab, build)
-		if len(d) == 0 {
-			t.Errorf("a skew under %+v alone was not reported", only)
-		}
-		for _, msg := range d {
-			if !strings.Contains(msg, fmt.Sprintf("%+v", only)) {
-				t.Errorf("a skew under %+v was reported as: %s", only, msg)
+			d := disagreements(tab, build)
+			if len(d) == 0 {
+				t.Errorf("%s: a skew under %+v alone was not reported", name, only)
+			}
+			for _, msg := range d {
+				if !strings.Contains(msg, fmt.Sprintf("%+v", only)) {
+					t.Errorf("%s: a skew under %+v was reported as: %s", name, only, msg)
+				}
 			}
 		}
 	}
