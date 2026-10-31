@@ -1,0 +1,56 @@
+start 0
+0 predicted -1 items 0 1 2 3 4 5 7 10 13 15 20 26 27 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 0 7 8 9
+1 kernel -1 items 36 reduce 12
+2 kernel -1 items 38 reduce 13
+3 kernel -1 items 40 reduce 14
+4 kernel 5 items 8 9 reduce 2
+5 predicted -1 items 26 43 44 reduce 7 16
+6 kernel -1 items 29 reduce 9
+7 kernel 8 items 1 2 4 5 reduce 0
+8 predicted -1 items 7 10 13 15 20 26 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 7 9
+9 kernel 10 items 2 5 31 reduce 0
+10 predicted -1 items 7 10 13 15 20 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
+11 kernel -1 items 32 reduce 10
+12 kernel -1 items 34 reduce 11
+13 kernel -1 items 6 11 reduce 1
+14 kernel -1 items 42 reduce 15
+15 kernel -1 items 46 48 51 reduce 17
+16 kernel -1 items 61 reduce 22
+17 kernel -1 items 55 57 reduce 20
+18 kernel -1 items 75 reduce 29
+19 kernel -1 items 63 reduce 23
+20 kernel -1 items 69 reduce 26
+21 kernel -1 items 67 reduce 25
+22 kernel -1 items 71 reduce 27
+23 kernel -1 items 65 reduce 24
+24 kernel -1 items 86 reduce 34
+25 kernel -1 items 77 reduce
+26 kernel 27 items 16 17 18 21 22 23 reduce
+27 predicted -1 items 7 10 13 15 20 26 27 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 7 8 9
+28 kernel -1 items 80 reduce 31
+29 kernel -1 items 84 reduce 33
+30 kernel -1 items 14 reduce 4
+31 kernel -1 items 82 reduce 32
+32 kernel -1 items 88 reduce
+33 kernel -1 items 73 reduce 28
+34 kernel -1 items 9 reduce 2
+35 kernel -1 items 44 reduce 16
+36 kernel 37 items 2 5 reduce 0
+37 predicted -1 items 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
+38 kernel -1 items 6 reduce 1
+39 kernel 10 items 31 reduce
+40 kernel -1 items 11 reduce
+41 kernel -1 items 12 reduce 3
+42 kernel 43 items 49 52 reduce 18
+43 predicted -1 items 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
+44 kernel 43 items 58 reduce
+45 kernel -1 items 78 reduce 30
+46 kernel 8 items 17 18 22 23 reduce
+47 kernel 37 items 18 23 reduce
+48 kernel -1 items 24 reduce
+49 kernel -1 items 19 reduce 5
+50 kernel -1 items 89 reduce 35
+51 kernel -1 items 53 reduce 19
+52 kernel -1 items 57 reduce
+53 kernel -1 items 59 reduce 21
+54 kernel -1 items 25 reduce 6
