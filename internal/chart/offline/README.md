@@ -115,6 +115,10 @@ The form, one token per line, in the order toke.c delivered them to the parser:
   script exits 1. A syntax error stops toke.c, so the stream ends at the token
   perl refused; a deferred error (strict, "Can't modify") leaves the whole
   stream before the marker.
+- A file whose perl runs past the timeout ends with `# timeout: perl ran past
+  N s`, and the script exits 1 like a refused capture (perigrin: "Timeout, mark
+  refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: six times the
+  slowest corpus file measured below.
 - A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
   `plan skip_all` does) ends with `# truncated: perl exited 0 before the file
   reached EOF`, and the script exits 2. A stream whose last line starts with
@@ -139,11 +143,16 @@ must not appear), `use lib` with `FindBin` (real modules), a variable, `qq{}`
 interpolation, a `=>` word, an interpolating heredoc and a `require` inside a
 sub.
 
-Known limit: perl `-Dp` spins without end once `BEGIN` puts an `:encoding`
-layer on STDERR (`perl -Dp -e 'BEGIN { binmode STDERR, ":encoding(UTF-8)" }'`
-never returns, Encode preloaded or not; `-DT` alone returns). T1's
-`io_pipe.t` and `io_layers.t` do this, so the script never returns on them;
-run it under a timeout over a corpus.
+Why the timeout: perl `-Dp` spins without end once `BEGIN` puts an
+`:encoding` layer on STDERR (`perl -Dp -e 'BEGIN { binmode STDERR,
+":encoding(UTF-8)" }'` never returns, Encode preloaded or not; `-DT` alone
+returns). T1's `io_pipe.t` and `io_layers.t` do this and end in `# timeout`.
+`testdata/tdt-hang.pl` is the smallest such file; this check, with a short
+bound, shows the capture ends it with the marker and a non-zero exit:
+
+```sh
+sh -c 'out=$(TDT_TIMEOUT=2 sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-hang.pl 2>/dev/null); s=$?; test "$s" -ne 0 && printf "%s\n" "$out" | tail -1 | grep -q "^# timeout: "'
+```
 
 Cost (K6), measured 2026-10-31 on the 4-core machine while other jobs ran:
 the sample takes 0.5 s; `std5k.pl` and `edit5k.pl` 0.9 s each; the 893
