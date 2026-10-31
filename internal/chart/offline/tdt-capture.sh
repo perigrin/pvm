@@ -1,6 +1,6 @@
 #!/bin/sh
 # ABOUTME: Prints one file's own toke.c token stream from the pinned -DDEBUGGING perl's -DT, module tokens dropped.
-# ABOUTME: Offline only. Usage: tdt-capture.sh <perl> <file>; PERL5LIB passes through; the form is in README.md.
+# ABOUTME: Offline only. Usage: tdt-capture.sh <perl> <file>; PERL5LIB and TDT_TIMEOUT pass through; form in README.md.
 set -eu
 
 if [ $# -ne 2 ]; then
@@ -22,11 +22,14 @@ perly_h=$archlibexp/CORE/perly.h
 # compilation unit's start leaves (a loaded file or a string eval); -DT's EOF ends
 # it. Only the first unit's tokens print. Perl's stdin is /dev/null, its stdout
 # is dropped, and its exit status arrives as the stream's last line.
-# Known limit: -Dp spins without end once BEGIN puts an :encoding layer on STDERR (README.md).
+# -Dp spins without end once BEGIN puts an :encoding layer on STDERR, so perl
+# runs under a timeout (perigrin: "Timeout, mark refused"); 60 s is six times
+# the slowest corpus file measured.
+limit=${TDT_TIMEOUT:-60}
 {
-	"$perl" -c -DpT "$file" 2>&1 >/dev/null </dev/null && st=0 || st=$?
+	timeout "$limit" "$perl" -c -DpT "$file" 2>&1 >/dev/null </dev/null && st=0 || st=$?
 	echo "tdt-capture-status $st"
-} | awk -v perly_h="$perly_h" '
+} | awk -v perly_h="$perly_h" -v limit="$limit" '
 BEGIN {
 	# -DT prints "?? N" for a token missing from toke.c debug_tokens; perly.h names it.
 	while ((getline l < perly_h) > 0)
@@ -59,6 +62,7 @@ BEGIN {
 }
 END {
 	if (bad == "" && st == "") bad = "perl exit status missing"
+	if (bad == "" && st == 124) { print "# timeout: perl ran past " limit " s"; exit 1 }
 	if (bad == "" && st == 0 && d != 0) {
 		# An exit in BEGIN (plan skip_all) stops perl with status 0 before the file ends.
 		print "# truncated: perl exited 0 before the file reached EOF"
