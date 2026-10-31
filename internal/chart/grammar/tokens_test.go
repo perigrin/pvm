@@ -188,6 +188,10 @@ func TestTokenBraceKeepsLexerDecision(t *testing.T) {
 	if got := ClassOf(op("{"), h); got.Brace != BraceSubscript {
 		t.Errorf("undecided { after a variable = %v, want subscript", got.Brace)
 	}
+	deref := ClassOf(TokenView{Kind: lexer.DerefSigil, Text: "@"}, none)
+	if got := ClassOf(op("{"), deref); got.Brace != BraceBlock {
+		t.Errorf("undecided { after a deref sigil = %v, want block", got.Brace)
+	}
 	arrow := ClassOf(op("->"), none)
 	if got := ClassOf(op("{"), arrow); got.Brace != BraceSubscript {
 		t.Errorf("undecided { after -> = %v, want subscript", got.Brace)

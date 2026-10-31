@@ -47,9 +47,10 @@ var Boundary = Neighbour{Kind: -1}
 
 // ClassOf is t's class given its predecessor's. A `{` the lexer decided
 // (OpensBlock) keeps that decision; an undecided one is a subscript after a
-// variable, `->` or a subscript's closing bracket, as in toke.c, and an
-// anonymous hash otherwise. shortcut: only those predecessors, widen when the
-// port finds a `{` toke.c reads differently.
+// variable, `->` or a subscript's closing bracket, a block after a deref
+// sigil (`@{ ... }`), and an anonymous hash otherwise, as in toke.c.
+// shortcut: a `{` after a do or eval block's `}` is read as a hash where toke.c
+// reads a subscript; telling that `}` apart needs a lexer bit, outside spec §11.
 func ClassOf(t TokenView, pred Neighbour) Neighbour {
 	c := Neighbour{Kind: t.Kind, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows}
 	switch t.Kind {
@@ -58,7 +59,7 @@ func ClassOf(t TokenView, pred Neighbour) Neighbour {
 	}
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
-		case t.OpensBlock:
+		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
 			c.Brace = BraceBlock
 		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,
 			pred.Kind == lexer.Operator && pred.Text == "->":
