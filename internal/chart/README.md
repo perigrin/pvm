@@ -306,11 +306,14 @@ it prints every offence to stderr, writes no table, leaves those already there
 as they were and exits 1. The offences are a rule without a citation, or one
 outside the reference list (`testdata/perly/alternatives.txt`); a class literal
 the lexer does not lex to the class's kind and text, between two terms or from
-a statement's start through `lexer.Checkpoints` and `lexer.Resume`; a terminal
-no class admits, but `PLUGIN_*`, the seven `GRAM*` start selectors, `PLUGEXPR`
+a statement's start through `lexer.Checkpoints` and `lexer.Resume`; a class
+naming a terminal no rule uses, or a nonterminal; a terminal no class admits, but `PLUGIN_*`, the seven `GRAM*` start selectors, `PLUGEXPR`
 and `PLUGSTMT`; an unreachable or unproductive nonterminal; and a precedence
 token no rule and no `%prec` uses. `TestCommittedGrammarConsistent` holds the
-committed grammar to them. The output depends only on the grammar's rule order, never on map iteration or the clock,
+committed grammar to them. Token classes are declared in `grammar/perly.go` by
+terminal name, one slot per `%token` in `perly.y`'s order, and resolved to ids
+at generation (`Grammar.ResolveClasses`), so a rule added elsewhere does not
+move a class off its terminal. The output depends only on the grammar's rule order, never on map iteration or the clock,
 so regenerating it is byte-identical (§10).
 
 The tables are the split LR(0) automaton with nullable closure, Aycock and
