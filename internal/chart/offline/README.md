@@ -25,6 +25,15 @@ Build time: 382 s wall clock on the 4-core development machine, including
 depends on load from other jobs). Installed size:
 107 MB.
 
+## perly-alternatives.sh
+
+`sh internal/chart/offline/perly-alternatives.sh /opt/corpora/perl5` runs
+bison 3.8.2 on the tree's `perly.y` in a temporary directory and prints one
+line per alternative, `perly.y:<line> <lhs>: <rhs>`, where `<line>` is
+bison's `yyrline` for the alternative. It refuses any other bison. Its output
+is committed as `internal/chart/grammar/testdata/perly/alternatives.txt`, the
+numbering the port ledger and the family issues cite.
+
 ## referee/
 
 Bison builds of the pinned `perly.y` (spec §8), the evidence for the
