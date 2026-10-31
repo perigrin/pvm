@@ -219,4 +219,19 @@ func TestLexStreamAllocations(t *testing.T) {
 	if short != long || long > 4 {
 		t.Errorf("Map allocates %v times on a short file and %v on a long one, want the same small number", short, long)
 	}
+	// Copying the raw tokens costs about 65 bytes each; the index Map builds
+	// costs about 16. The bound sits between, with slack for the fixed part.
+	for _, n := range []int{10, 1000} {
+		src := []byte(strings.Repeat(line, n))
+		raw := lexer.Tokenize(src)
+		bytes := testing.Benchmark(func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				Map(src, raw, tt)
+			}
+		}).AllocedBytesPerOp()
+		if limit := int64(24*len(raw) + 1024); bytes > limit {
+			t.Errorf("Map allocates %d bytes for %d raw tokens, want at most %d: is it copying them?", bytes, len(raw), limit)
+		}
+	}
 }
