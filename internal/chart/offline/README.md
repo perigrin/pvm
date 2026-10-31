@@ -123,7 +123,7 @@ The form, one token per line, in the order toke.c delivered them to the parser:
   stream before the marker.
 - A file whose perl runs past the timeout ends with `# timeout: perl ran past
   N s`, and the script exits 1 like a refused capture (perigrin: "Timeout, mark
-  refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: six times the
+  refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: over six times the
   slowest corpus file measured below.
 - A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
   `plan skip_all` does) ends with `# truncated: the -DT stream stopped before
@@ -164,9 +164,14 @@ bound, shows the capture ends it with the marker and a non-zero exit:
 sh -c 'out=$(TDT_TIMEOUT=2 sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-hang.pl 2>/dev/null); s=$?; test "$s" -ne 0 && printf "%s\n" "$out" | tail -1 | grep -q "^# timeout: "'
 ```
 
-Cost (K6), measured 2026-10-31 on the 4-core machine while other jobs ran:
-the sample takes 0.5 s; `std5k.pl` and `edit5k.pl` 0.9 s each; the 893
-Guacamole snippets 60 s in all (0.07 s each); T1's other 984 top-level `.t`
-files 1,966 s in all (2.0 s each on average, at most 10 s), almost all of it
-perl loading `Test::More` and friends under `-DpT`. Over those, 819 captures are
-whole, 133 refused and 32 truncated by an `exit` in `BEGIN`.
+Cost (K6), measured 2026-10-31 on the 4-core machine, files one at a time,
+run as `label.sh` runs perl: in-tree files from the repository root with
+`internal/chart/testdata/guacamole/stubs` on `PERL5LIB`, T1 files from the
+PerlOnJava root as `src/test/resources/unit/<file>` with `PERL5LIB` empty.
+The sample takes 0.5 s; `std5k.pl` 2.2 s and `edit5k.pl` 1.6 s; the 893
+Guacamole snippets 106 s in all (0.12 s each). T1's 986 top-level `.t` files
+take 2,686 s in all (2.7 s each on average), 120 s of it the two timeouts;
+the slowest other file takes 8.9 s, almost all of it perl loading
+`Test::More` and friends under `-DpT`. Over T1, 831 captures are whole, 121
+refused, 2 timed out and 32 truncated by an `exit` in `BEGIN`; the in-tree
+files give 827 whole and 68 refused.
