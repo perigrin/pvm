@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"slices"
 	"strings"
@@ -198,6 +199,33 @@ func FuzzRecognize(f *testing.F) {
 			}
 		}
 	})
+}
+
+// TestWarmExpectedMatchesReference: one recognizer, its Expected memo warmed
+// by a fixed sequence of inputs, answers each as the reference does. A memo
+// entry served at a node whose origin sets differ from the ones it read is
+// the 2eec class, which only a later input can expose.
+func TestWarmExpectedMatchesReference(t *testing.T) {
+	tab := toyStmt(t)
+	warm := New(tab, Options{})
+	rng := rand.New(rand.NewSource(1))
+	inputs := slices.Clone(fuzzSeeds)
+	for range 400 {
+		b := make([]byte, rng.Intn(12))
+		for i := range b {
+			b[i] = byte(rng.Intn(len(stmtTerms)))
+		}
+		inputs = append(inputs, string(b))
+	}
+	for _, src := range inputs {
+		l := fuzzLattice(tab, src)
+		c := mustRecognize(t, warm, l)
+		for pos, items := range refRun(tab, tokenIDs(l)) {
+			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(tab, items)) {
+				t.Fatalf("%q node %d: Expected %v (err %v) from the warm recognizer, %v from the reference", src, pos, got, err, refExpected(tab, items))
+			}
+		}
+	}
 }
 
 // TestFuzzSeedsAcceptAndRefuse: the seeds hold an accepted and a refused
