@@ -17,8 +17,8 @@ import (
 // statement: "LHS ::= alt | alt", symbols space-separated, an empty
 // alternative empty, and `X*` or `X+` a sequence of one symbol. A symbol no
 // statement defines is a terminal.
-// Its terminal-set table is one singleton set per terminal, in symbol
-// order, then an empty set.
+// Its terminal-set table is the empty set at id 0, then one singleton set
+// per terminal, in symbol order.
 func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
 	tb.Helper()
 	g := &grammar.Grammar{}
@@ -53,23 +53,19 @@ func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	tab.TerminalSets = [][]int{{}}
 	for id, s := range tab.Symbols {
 		if s.Terminal {
 			tab.TerminalSets = append(tab.TerminalSets, []int{id})
 		}
 	}
-	tab.TerminalSets = append(tab.TerminalSets, []int{}) // for a token no terminal admits
 	return tab
 }
 
-// termSet is the id of the singleton terminal set toyTables gave name, or of
-// its empty set where name is no terminal.
+// termSet is the id of the singleton terminal set toyTables gave name, or 0,
+// the empty set, where name is no terminal.
 func termSet(tab *grammar.Tables, name string) int {
-	i := slices.IndexFunc(tab.TerminalSets, func(s []int) bool { return len(s) == 1 && tab.Symbols[s[0]].Name == name })
-	if i < 0 {
-		return slices.IndexFunc(tab.TerminalSets, func(s []int) bool { return len(s) == 0 })
-	}
-	return i
+	return max(0, slices.IndexFunc(tab.TerminalSets, func(s []int) bool { return len(s) == 1 && tab.Symbols[s[0]].Name == name }))
 }
 
 // toyEdge is a token of term's singleton set from node from to node to.
