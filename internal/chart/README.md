@@ -227,19 +227,26 @@ skips, so run it with `T1_CORPUS` set.
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
 and then does **one table lookup per significant token** through the
 compiled token table (`grammar.TokenTable`), yielding its terminal-set id
-(spec §5.2, §7). The lookup allocates nothing; trivia is a slice of the
-lexer's tokens, copied only where a heredoc body interrupts it. It uses no
-regexp.
+(spec §5.2, §7). The lookup allocates nothing, and it uses no regexp.
+
+**The stream is the lexer's tokens, not a copy of them.** `Stream.Raw` is
+the slice `lexer.Tokenize` returned; what the chart adds sits beside it.
+`Stream.Tokens` holds one `lex.Token` per significant token: its index into
+`Raw` and its terminal-set id, no pointers, so the garbage collector never
+scans it. The first unmapped byte is `Map`'s second result, and heredoc
+bodies are a side table. `Map` allocates the same small number of times
+whatever the file's length.
 
 - **Trivia** (`lexer.IsTrivia`: whitespace, comments, pod, the data section)
-  attaches to the next significant token as its `Lead`; trivia after the
-  last one is the stream's `Tail`. Nothing is dropped: `Stream.Text` gives
-  back the source.
+  attaches to the next significant token by index: `Stream.Lead(i)` is the
+  `Raw` run between token `i` and the one before it, and trivia after the
+  last one is `Stream.Tail()`. Nothing is dropped: `Stream.Text` gives back
+  the source.
 - **Heredoc bodies** attach to their heredoc's opening token, never to the
   token after the opener's line: the bodies after a line go to that line's
   openers in order, each in the stream's `Bodies` side table under its
-  opener's index (`Stream.Body(i)`), so a token stays small. Trivia a body
-  interrupts still goes to the next significant token.
+  opener's index (`Stream.Body(i)`). Trivia a body interrupts still goes to
+  the next significant token; `Lead` leaves the body out.
 - **Every token is mapped.** A token whose key matches no class gets set 0,
   the empty set, and the stream goes on, so a file is always lexed whole;
   `Lex` also returns the byte of the first such token, or -1. The recognizer
