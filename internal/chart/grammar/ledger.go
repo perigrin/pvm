@@ -35,11 +35,14 @@ var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditio
 // pinned to refused-in-action.txt; conditional-refusal is left to review.
 var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}}
 
-// ParseEntries reads `perly.y:<line> <text>` lines, each followed by a tab and
+// ParseEntries reads `perly.y:<line> <text>` lines (blank lines skipped), each followed by a tab and
 // its mark when marked. The mark is kept verbatim for checkMarks to judge.
 func ParseEntries(text string, marked bool) ([]Entry, error) {
 	var es []Entry
-	for i, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+	for i, l := range strings.Split(text, "\n") {
+		if l == "" {
+			continue
+		}
 		body, mark, hasMark := strings.Cut(l, "\t")
 		ref, rest, ok := strings.Cut(body, " ")
 		line, err := parseLine(ref)
