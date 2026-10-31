@@ -29,10 +29,14 @@ built.
 stand-in `testdata/guacamole/Guacamole/Test.pm`, one case file per unique
 text. Each case is `preamble.pl` (one line) followed by Guacamole's bytes
 unchanged, so the whitespace pre-commit hooks skip the case directories.
-`stubs/` supplies the modules cases `use` that perl cannot find, and
-`perl-rejects.txt` lists the `parses` cases `perl -c` still rejects with the
-stubs as `PERL5LIB`. Those cases are not scored. `RejectsDisagree` is the
-rule that list obeys.
+`stubs/` supplies the modules cases `use` that perl cannot find.
+
+Which cases perl accepts is said by the committed perl labels,
+`testdata/labels/in-tree.txt`, not by running perl: the pinned `-DDEBUGGING`
+perl's `perl -c` verdict on every case, with the stubs as `PERL5LIB`, and a
+category for each refusal (spec §9.1). `offline/label.sh` writes them and
+`offline/README.md` gives their format. A `parses` case perl refuses is not
+scored. `TestPerlLabels` checks every case is labelled under the pinned perl.
 
 `extract.pl` regenerates the whole directory from a Guacamole checkout.
 `PROVENANCE` gives the revision and the command. Nothing here reads the
