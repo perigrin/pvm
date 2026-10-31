@@ -4,6 +4,7 @@
 package grammar
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -158,8 +159,16 @@ func TestLedgerExclusionReasonsRefusesMalformed(t *testing.T) {
 			t.Errorf("reason %s: %v", r, err)
 		}
 	}
-	for _, m := range []string{"excluded", "excluded keyword-plugin extra", "excluded  ", "excluded: keyword-plugin", "Excluded keyword-plugin", "ported extra", "other", ""} {
-		wantErr(t, "mark "+m, checkMarks(toyLedger(t, m, "-", "-")), "perly.y:10")
+	// Each malformed mark is tried on a line where its reason is otherwise true, so only the malformation refuses it.
+	for _, c := range []struct {
+		line int
+		mark string
+	}{
+		{878, "excluded"}, {878, "excluded keyword-plugin extra"}, {878, "excluded  keyword-plugin"}, {878, "excluded keyword-plugin "},
+		{878, "excluded: keyword-plugin"}, {878, "Excluded keyword-plugin"}, {1105, "excluded refused-in-action extra"},
+		{933, "excluded error-recovery extra"}, {10, "excluded conditional-refusal extra"}, {10, "ported extra"}, {10, "other"}, {10, ""},
+	} {
+		wantErr(t, fmt.Sprintf("mark %q on perly.y:%d", c.mark, c.line), checkMarks([]Entry{{Line: c.line, Mark: c.mark}}), fmt.Sprintf("perly.y:%d", c.line))
 	}
 }
 
