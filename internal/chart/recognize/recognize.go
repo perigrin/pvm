@@ -36,13 +36,16 @@ type Options struct {
 type Recognizer struct {
 	tab  *grammar.Tables
 	opts Options
+	// terms is tab.TerminalSets as New saw it: validation, scan and bits
+	// all read this one copy.
+	terms [][]int
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
 	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
 	follow []bitset
 	eof    int
 	// bits is each lookahead class as a bitset: the terminal sets by id,
-	// then the end of input at id len(tab.TerminalSets).
+	// then the end of input at id len(terms).
 	bits  []bitset
 	sets  interner
 	cache map[cacheKey][]cacheEntry
@@ -51,8 +54,8 @@ type Recognizer struct {
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{tab: tab, opts: opts, eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}}
-	for _, ids := range tab.TerminalSets {
+	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}}
+	for _, ids := range r.terms {
 		r.bits = append(r.bits, r.bitsOf(ids))
 	}
 	r.bits = append(r.bits, r.bitsOf([]int{r.eof}))
@@ -95,8 +98,8 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, has a node outside the lattice's %d", i, e.From, e.To, n)
 		case e.From >= e.To:
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, does not run forward", i, e.From, e.To)
-		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.tab.TerminalSets):
-			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.tab.TerminalSets))
+		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.terms):
+			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.terms))
 		}
 	}
 	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
@@ -215,7 +218,7 @@ func (b *builder) scan(e lex.Edge) {
 	}
 	b.read(e.From, src)
 	for _, it := range src.items {
-		for _, t := range b.r.tab.TerminalSets[e.Token.TerminalSet] {
+		for _, t := range b.r.terms[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it.State, t); ok {
 				b.add(k, e.From-it.Dist)
 			}
