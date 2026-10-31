@@ -12,8 +12,9 @@ import (
 	"testing"
 )
 
-// guacamoleCallers names each function in src that calls Guacamole, bare or
-// qualified (recognize.Guacamole, lex.Guacamole).
+// guacamoleCallers names each function in src that mentions Guacamole, bare
+// or qualified (recognize.Guacamole, lex.Guacamole), called or held as a
+// value, and "package scope" for a mention outside any function.
 func guacamoleCallers(file string, src any) ([]string, error) {
 	f, err := parser.ParseFile(token.NewFileSet(), file, src, 0)
 	if err != nil {
@@ -21,29 +22,18 @@ func guacamoleCallers(file string, src any) ([]string, error) {
 	}
 	var out []string
 	for _, d := range f.Decls {
-		fn, ok := d.(*ast.FuncDecl)
-		if !ok {
-			continue
+		owner := "package scope"
+		if fn, ok := d.(*ast.FuncDecl); ok {
+			owner = fn.Name.Name
 		}
-		ast.Inspect(fn, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			name := ""
-			switch fun := call.Fun.(type) {
-			case *ast.Ident:
-				name = fun.Name
-			case *ast.SelectorExpr:
-				name = fun.Sel.Name
-			}
-			if name == "Guacamole" {
-				out = append(out, file+": "+fn.Name.Name)
+		ast.Inspect(d, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Name == "Guacamole" {
+				out = append(out, file+": "+owner)
 			}
 			return true
 		})
 	}
-	return out, nil
+	return slices.Compact(out), nil
 }
 
 // TestKeptTestsUseNoGuacamole: the recognizer, Leo, lattice and fuzz tests
@@ -71,6 +61,8 @@ func TestKeptTestsUseNoGuacamoleDetectsCall(t *testing.T) {
 	for src, want := range map[string][]string{
 		"package p\nfunc direct() { Guacamole(\"x\") }":                        {"s.go: direct"},
 		"package p\nfunc qualified() { _, _, _ = recognize.Guacamole(\"x\") }": {"s.go: qualified"},
+		"package p\nvar tab, _, _ = recognize.Guacamole(\"x\")":                {"s.go: package scope"},
+		"package p\nfunc value() { g := Guacamole; g(\"x\") }":                 {"s.go: value"},
 		"package p\nfunc clean() { toyTables(nil) }\nvar _ = \"Guacamole()\"":  nil,
 	} {
 		got, err := guacamoleCallers("s.go", src)
