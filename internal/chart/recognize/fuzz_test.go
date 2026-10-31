@@ -32,13 +32,60 @@ func withDeadEnd(l *lex.Lattice[lex.None], i int) *lex.Lattice[lex.None] {
 	return out
 }
 
-// fuzzSeeds is FuzzRecognize's seed corpus: toyStmt's terminal names, some
-// accepted and some refused.
+// stmtTerms are stmtGrammar's terminals; a fuzz input byte b is stmtTerms[b % 9].
+var stmtTerms = []string{"My", "Var", "Assign", "Num", "Semi", "Print", "Add", "LBrace", "RBrace"}
+
+// fuzzLattice is src, a byte to a terminal, as a linear lattice, so every
+// input the fuzzer produces is a valid terminal string.
+func fuzzLattice(src string) *lex.Lattice[lex.None] {
+	terms := make([]string, len(src))
+	for i := range src {
+		terms[i] = stmtTerms[int(src[i])%len(stmtTerms)]
+	}
+	return tokens(terms...)
+}
+
+// enc is the fuzz input for the terminal names in words.
+func enc(words string) string {
+	var b []byte
+	for _, w := range strings.Fields(words) {
+		i := slices.Index(stmtTerms, w)
+		if i < 0 {
+			panic("enc: no terminal " + w)
+		}
+		b = append(b, byte(i))
+	}
+	return string(b)
+}
+
+// TestFuzzInputsAreTerminalStrings: whatever bytes the fuzzer produces, each
+// token of the lattice names a terminal of stmtGrammar, so no mutation is
+// refused at its first token for want of a terminal.
+func TestFuzzInputsAreTerminalStrings(t *testing.T) {
+	tab := toyStmt(t)
+	term := map[string]bool{}
+	for _, s := range tab.Symbols {
+		term[s.Name] = s.Terminal
+	}
+	for _, src := range append([]string{"Print Num SQmi Semi", "0A", "\xff\x00 z"}, fuzzSeeds...) {
+		l := fuzzLattice(src)
+		if len(l.Edges) != len(src) {
+			t.Errorf("%q: %d tokens, want one per byte", src, len(l.Edges))
+		}
+		for _, e := range l.Edges {
+			if !term[e.Token.Terminals[0]] {
+				t.Errorf("%q: token %q is no terminal", src, e.Token.Terminals[0])
+			}
+		}
+	}
+}
+
+// fuzzSeeds is FuzzRecognize's seed corpus, some accepted and some refused.
 var fuzzSeeds = []string{
-	"", decl, "Print Num", "Num Num", "Var Var", "My Var Assign",
-	decl + " Print Var Add Num Semi",
-	"LBrace Print Num Semi LBrace " + decl + " RBrace RBrace",
-	"LBrace LBrace Print Num Semi RBrace",
+	"", enc(decl), enc("Print Num"), enc("Num Num"), enc("Var Var"), enc("My Var Assign"),
+	enc(decl + " Print Var Add Num Semi"),
+	enc("LBrace Print Num Semi LBrace " + decl + " RBrace RBrace"),
+	enc("LBrace LBrace Print Num Semi RBrace"),
 }
 
 func FuzzRecognize(f *testing.F) {
@@ -51,7 +98,7 @@ func FuzzRecognize(f *testing.F) {
 	var mu sync.Mutex
 	warm := New(tab, Options{})
 	f.Fuzz(func(t *testing.T, src string) {
-		lattices := []*lex.Lattice[lex.None]{tokens(strings.Fields(src)...)}
+		lattices := []*lex.Lattice[lex.None]{fuzzLattice(src)}
 		if n := len(lattices[0].Edges); n >= 2 {
 			lattices = append(lattices, withDeadEnd(lattices[0], len(src)%(n-1)))
 		}
@@ -99,7 +146,7 @@ func TestFuzzSeedsAcceptAndRefuse(t *testing.T) {
 	tab := toyStmt(t)
 	var accepted, refused int
 	for _, src := range fuzzSeeds {
-		l := tokens(strings.Fields(src)...)
+		l := fuzzLattice(src)
 		want := Recognize(New(tab, Options{}), l).Accepted()
 		if want {
 			accepted++
