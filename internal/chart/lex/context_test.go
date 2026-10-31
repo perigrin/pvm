@@ -10,22 +10,23 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
+// factsOf is the facts of src's tokens as the production lexer reads them.
+func factsOf(src string) *Context {
+	return facts([]byte(src), lexer.TokenizeBarewords([]byte(src), BarewordOperators))
+}
+
 // TestDeclaredSubLater: `sub foo` declares foo from there on, and not before.
 func TestDeclaredSubLater(t *testing.T) {
-	x := guacamole(t)
 	src := "foo(); sub foo { 1 } foo();"
-	s, err := x.Lex([]byte(src))
-	if err != nil {
-		t.Fatal(err)
-	}
+	f := factsOf(src)
 	first, last := strings.Index(src, "foo"), strings.LastIndex(src, "foo")
-	if s.Facts.Declared("foo", first) {
+	if f.Declared("foo", first) {
 		t.Error("foo is declared before its `sub foo`")
 	}
-	if !s.Facts.Declared("foo", last) {
+	if !f.Declared("foo", last) {
 		t.Error("foo is not declared after its `sub foo`")
 	}
-	if s.Facts.Constant("foo", last) {
+	if f.Constant("foo", last) {
 		t.Error("foo has no empty prototype, so it is no constant")
 	}
 }
@@ -39,7 +40,6 @@ func TestDeclaredSubLater(t *testing.T) {
 // lose B (gate review of #541, F2). That file is refused for its `$#{`
 // interior (F1), and its facts still hold.
 func TestConstantSubAsTheLexerDecides(t *testing.T) {
-	x := guacamole(t)
 	for _, c := range []struct{ decl, name string }{
 		{"sub PI () { 3 }", "PI"},
 		{"use constant PI => 3;", "PI"},
@@ -47,17 +47,13 @@ func TestConstantSubAsTheLexerDecides(t *testing.T) {
 		{"use constant { A => $#{$r}, B => 2 };", "B"},
 	} {
 		src := c.decl + " my $q = " + c.name + " / 2; # /"
-		s, err := x.Lex([]byte(src))
-		if err != nil && !strings.Contains(err.Error(), "01a1882d-d8a4") {
-			t.Errorf("%s: %v", c.decl, err)
-			continue
-		}
+		raw := lexer.TokenizeBarewords([]byte(src), BarewordOperators)
 		at := strings.LastIndex(src, c.name)
-		if !s.Facts.Constant(c.name, at) {
+		if !facts([]byte(src), raw).Constant(c.name, at) {
 			t.Errorf("%s: %s is not a constant sub at byte %d", c.decl, c.name, at)
 		}
 		slash := strings.Index(src[at:], "/") + at
-		for _, tok := range s.Tokens {
+		for _, tok := range raw {
 			if tok.Start == slash && tok.Kind != lexer.Operator {
 				t.Errorf("%s: the lexer read `/` after %s as %v; the fact disagrees with it", c.decl, c.name, tok.Kind)
 			}
