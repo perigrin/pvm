@@ -54,7 +54,7 @@ func recognizeSource(t *testing.T, src []byte) verdict {
 	pos, at := len(c.Sets)-1, len(src)
 	for i := 1; i < len(c.Sets); i++ {
 		if c.Sets[i] == nil {
-			pos, at = i-1, s.Tokens[i-1].Start
+			pos, at = i-1, s.Raw[s.Tokens[i-1].Index].Start
 			break
 		}
 	}
