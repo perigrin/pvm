@@ -237,8 +237,9 @@ regexp.
   back the source.
 - **Heredoc bodies** attach to their heredoc's opening token, never to the
   token after the opener's line: the bodies after a line go to that line's
-  openers in order, each as the opener's `Body`. Trivia a body interrupts
-  still goes to the next significant token.
+  openers in order, each in the stream's `Bodies` side table under its
+  opener's index (`Stream.Body(i)`), so a token stays small. Trivia a body
+  interrupts still goes to the next significant token.
 - **Every token is mapped.** A token whose key matches no class gets set 0,
   the empty set, and the stream goes on, so a file is always lexed whole;
   `Lex` also returns the byte of the first such token, or -1. The recognizer

@@ -1,5 +1,5 @@
 // ABOUTME: The token and stream types chart/lex hands the lattice: tokens with their leading trivia, and a lossless stream of them.
-// ABOUTME: Each token carries one terminal-set id, and a heredoc opener its body.
+// ABOUTME: Each token carries one terminal-set id; heredoc bodies sit in a side table by opener.
 
 package lex
 
@@ -16,18 +16,33 @@ import (
 // terminal admits, or never given an id, stays in the stream and refuses.
 type Token struct {
 	lexer.Token
-	Lead []lexer.Token
-	// Body is a heredoc opener's body, which the source holds after the
-	// opener's line rather than after the opener.
-	Body        []lexer.Token
+	Lead        []lexer.Token
 	TerminalSet int
 }
 
 // Stream is a source's tokens in order, with the trivia after the last one
-// in Tail.
+// in Tail. Heredoc bodies, which the source holds after the opener's line
+// rather than after the opener, are a side table so a Token stays small.
 type Stream struct {
 	Tokens []Token
 	Tail   []lexer.Token
+	Bodies []Body
+}
+
+// Body is a heredoc body and the index in Tokens of its opener.
+type Body struct {
+	Opener int
+	lexer.Token
+}
+
+// Body is the heredoc body of Tokens[i], if it opens one.
+func (s *Stream) Body(i int) []lexer.Token {
+	for _, b := range s.Bodies {
+		if b.Opener == i {
+			return []lexer.Token{b.Token}
+		}
+	}
+	return nil
 }
 
 // Text is every byte the stream's tokens and trivia span, in order. For a
@@ -46,7 +61,9 @@ func (s *Stream) all() []lexer.Token {
 	for _, t := range s.Tokens {
 		out = append(out, t.Lead...)
 		out = append(out, t.Token)
-		out = append(out, t.Body...)
+	}
+	for _, b := range s.Bodies {
+		out = append(out, b.Token)
 	}
 	out = append(out, s.Tail...)
 	slices.SortStableFunc(out, func(a, b lexer.Token) int { return a.Start - b.Start })
