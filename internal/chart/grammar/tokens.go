@@ -100,11 +100,11 @@ func b2i(b bool) int {
 	return 0
 }
 
-// iclass is a Neighbour with its text replaced by its dictionary id.
-type iclass struct {
-	kind, text  int
-	opens, term bool
-	brace       Brace
+// classKey packs a Neighbour, its text replaced by its dictionary id, into
+// one integer, so finding its class id hashes a word rather than a struct.
+// The kind is offset by one, since Boundary's is -1.
+func classKey(n Neighbour, text int) uint64 {
+	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(n.Brace)
 }
 
 // node tests one part: kids is indexed by the part's value, def covers the
@@ -123,12 +123,14 @@ type node struct {
 type TokenTable struct {
 	Sets [][]int
 	// Edge is the class id of Boundary, for the neighbours a file's edge lacks.
-	Edge    int
-	root    *node
-	text    map[string]int
-	classes map[iclass]int
-	texts   []string    // by text id - 1, for Text()
-	nbs     []Neighbour // by class id - 1, for Text()
+	Edge int
+	root *node
+	text map[string]int
+	// emptyText is text[""], the text id of a class that carries no text.
+	emptyText int
+	classes   map[uint64]int
+	texts     []string    // by text id - 1, for Text()
+	nbs       []Neighbour // by class id - 1, for Text()
 }
 
 // Token is a token with its text and class looked up in the dictionaries.
@@ -140,7 +142,7 @@ type Token struct {
 }
 
 func (tt *TokenTable) classID(n Neighbour, text int) int {
-	return tt.classes[iclass{int(n.Kind), text, n.OpensBlock, n.TermFollows, n.Brace}]
+	return tt.classes[classKey(n, text)]
 }
 
 // ClassID is the dictionary id of n, 0 if no class names it.
@@ -152,7 +154,7 @@ func (tt *TokenTable) Intern(t TokenView, pred Neighbour) Token {
 	n, text := ClassOf(t, pred), tt.text[t.Text]
 	ct := text
 	if n.Text == "" {
-		ct = tt.text[""]
+		ct = tt.emptyText
 	}
 	return Token{N: n, Class: tt.classID(n, ct),
 		key: [nParts]int{int(t.Kind), text, b2i(t.OpensBlock), b2i(t.TermFollows), int(t.Prefix)}}
@@ -168,7 +170,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			return nil, fmt.Errorf("token class %d admits no terminals; an unmatched key already yields the empty set", i)
 		}
 	}
-	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}, classes: map[iclass]int{}}
+	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}, classes: map[uint64]int{}}
 	// The dictionaries: every text and every neighbour class a class names.
 	texts, nbs := map[string]bool{}, map[Neighbour]bool{}
 	for _, c := range classes {
@@ -185,9 +187,10 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	for i, s := range tt.texts {
 		tt.text[s] = i + 1
 	}
+	tt.emptyText = tt.text[""]
 	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
 	for i, nb := range tt.nbs {
-		tt.classes[iclass{int(nb.Kind), tt.text[nb.Text], nb.OpensBlock, nb.TermFollows, nb.Brace}] = i + 1
+		tt.classes[classKey(nb, tt.text[nb.Text])] = i + 1
 	}
 	tt.Edge = tt.ClassID(Boundary)
 

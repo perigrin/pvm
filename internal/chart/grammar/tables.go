@@ -58,7 +58,7 @@ func (t *Tables) Files() []TableFile {
 			fmt.Fprintf(&leo, "%d %d\n", i, it)
 		}
 	}
-	return []TableFile{
+	files := []TableFile{
 		{"symbols.txt", sym.Bytes()},
 		{"rules.txt", rules.Bytes()},
 		{"items.txt", items.Bytes()},
@@ -67,6 +67,10 @@ func (t *Tables) Files() []TableFile {
 		{"expected.txt", expected.Bytes()},
 		{"leo.txt", leo.Bytes()},
 	}
+	if t.Tokens != nil {
+		files = append(files, TableFile{"tokens.txt", t.Tokens.Text()})
+	}
+	return files
 }
 
 // ints writes each number after a space.
