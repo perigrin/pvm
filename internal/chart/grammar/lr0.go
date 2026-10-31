@@ -1,4 +1,4 @@
-// ABOUTME: Builds the LR(0) automaton with nullable closure over the cut grammar, with integer core items.
+// ABOUTME: Builds the LR(0) automaton with nullable closure over a grammar, with integer core items.
 // ABOUTME: Each state carries its transition list (per symbol, with the items that advance) and its reduce list.
 
 package grammar

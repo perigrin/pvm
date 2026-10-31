@@ -13,8 +13,6 @@ package recognize
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -75,28 +73,6 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 	r.follow = follow(tab)
 	r.leo = leoItems(r)
 	return r
-}
-
-// Guacamole reads the grammar at slif, applies the reviewed cut and builds
-// its tables, with the lexer over the same cut.
-func Guacamole(slif string) (*grammar.Tables, *lex.Lexer, error) {
-	src, err := os.ReadFile(slif)
-	if err != nil {
-		return nil, nil, err
-	}
-	g, err := grammar.ReadSLIF(filepath.Base(slif), src)
-	if err != nil {
-		return nil, nil, err
-	}
-	cut, err := grammar.ApplyCut(g, grammar.GuacamoleCut)
-	if err != nil {
-		return nil, nil, err
-	}
-	tab, err := grammar.BuildTables(grammar.GeneratorInput(cut))
-	if err != nil {
-		return nil, nil, err
-	}
-	return tab, lex.New(cut), nil
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where

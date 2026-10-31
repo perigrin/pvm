@@ -1,18 +1,17 @@
 // ABOUTME: The token and stream types chart/lex hands the lattice: tokens with their leading trivia, and a lossless stream of them.
-// ABOUTME: Independent of the predicate mapping in lex.go, so the mapping can go without them.
+// ABOUTME: The lattice reads them; no grammar-specific mapping produces them yet.
 
 package lex
 
 import (
 	"bytes"
-	"fmt"
 
 	"tamarou.com/pvm/internal/lexer"
 )
 
 // Token is one significant token: the production lexer's token, the trivia
-// before it, and the cut's terminals whose predicate admits it. A token no
-// predicate admits stays in the stream with no terminals.
+// before it, and the terminals that admit it. A token no terminal admits
+// stays in the stream with none.
 type Token struct {
 	lexer.Token
 	Lead      []lexer.Token
@@ -44,19 +43,4 @@ func (s *Stream) all() []lexer.Token {
 		out = append(out, t.Token)
 	}
 	return append(out, s.Tail...)
-}
-
-// covers checks that the stream tiles bytes 0 to n with no gap or overlap.
-func (s *Stream) covers(n int) error {
-	at := 0
-	for _, t := range s.all() {
-		if t.Start != at {
-			return fmt.Errorf("byte %d: the stream resumes at byte %d", at, t.Start)
-		}
-		at = t.End
-	}
-	if at != n {
-		return fmt.Errorf("byte %d: the stream ends before the source's %d bytes", at, n)
-	}
-	return nil
 }

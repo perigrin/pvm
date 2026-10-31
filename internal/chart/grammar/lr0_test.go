@@ -1,11 +1,11 @@
 // ABOUTME: Golden tests of the LR(0) tables on small grammars (nullable, left and right recursion), and their errors.
-// ABOUTME: Also checks that the cut Guacamole grammar's tables regenerate byte-identically and match the committed ones.
+// ABOUTME: Also checks that a kernel state's ε-edges, predicted states and Leo eligibility are consistent.
 
 package grammar
 
 import (
-	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +13,8 @@ import (
 )
 
 var updateGolden = flag.Bool("grammar.update-golden", false, "rewrite testdata/golden/*.tables from the golden grammars")
+
+func name(s string) Symbol { return Symbol{Name, s} }
 
 // alts is the rules of lhs, one per alternative, each a list of symbol names;
 // an empty alternative is the empty string.
@@ -200,41 +202,7 @@ func mapsEqual(a, b map[string]bool) bool {
 	return true
 }
 
-// TestTablesGuacamole regenerates the cut Guacamole grammar's tables twice:
-// both runs must be byte-identical, and equal to the committed tables.
-func TestTablesGuacamole(t *testing.T) {
-	first, err := GenerateTables(guacamolePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := GenerateTables(guacamolePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first) != len(second) {
-		t.Fatalf("regeneration made %d files, then %d", len(first), len(second))
-	}
-	for i := range first {
-		if first[i].Name != second[i].Name || !bytes.Equal(first[i].Data, second[i].Data) {
-			t.Fatalf("regeneration differs at %s", first[i].Name)
-		}
-	}
-	tmp := t.TempDir()
-	if err := WriteTables(tmp, first); err != nil {
-		t.Fatal(err)
-	}
-	drift, err := TablesDrift(tablesDir, tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(drift) > 0 {
-		t.Errorf("committed tables in %s differ from the generator's: %s (regenerate with make chart-tables)", tablesDir, strings.Join(drift, "; "))
-	}
-}
-
-const tablesDir = "testdata/tables"
-
-// TestLR0EpsilonEdges: in each golden toy's tables and in Guacamole's, a
+// TestLR0EpsilonEdges: in each golden toy's tables, a
 // kernel state has a predicted state exactly when one of its items has a
 // nonterminal after the dot, and that state is a predicted one.
 func TestLR0EpsilonEdges(t *testing.T) {
@@ -242,7 +210,6 @@ func TestLR0EpsilonEdges(t *testing.T) {
 	for _, toy := range goldenToys {
 		tabs[toy.name] = build(t, toy.g)
 	}
-	tabs["guacamole"] = build(t, GeneratorInput(guacamoleCut(t)))
 	for name, tab := range tabs {
 		for s, st := range tab.States {
 			predicts := false
@@ -281,5 +248,69 @@ func TestBuildTablesTakesGeneratorInput(t *testing.T) {
 		if f.Name == "probes.txt" || f.Name == "conflicts.txt" {
 			t.Errorf("Files names %s", f.Name)
 		}
+	}
+}
+
+// firstDifference describes where the listed lines first differ from the
+// lines maker makes. A line is quoted as the list writes it, unescaped, so
+// grep -F finds it.
+func firstDifference(path, maker string, made, listed []string) string {
+	for i := 0; i < len(made) || i < len(listed); i++ {
+		switch {
+		case i >= len(made):
+			return fmt.Sprintf(`%s: line %d lists "%s", which %s no longer makes`, path, i+1, listed[i], maker)
+		case i >= len(listed):
+			return fmt.Sprintf(`%s: %s makes "%s", which is not listed (after line %d)`, path, maker, made[i], i)
+		case made[i] != listed[i]:
+			return fmt.Sprintf(`%s: line %d lists "%s", but %s makes "%s"`, path, i+1, listed[i], maker, made[i])
+		}
+	}
+	return path + ": the lines match, but the bytes differ: the list must end in exactly one newline"
+}
+
+func lines(b []byte) []string { return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") }
+
+func TestFirstDifference(t *testing.T) {
+	for _, tc := range []struct {
+		made, listed []string
+		want         string
+	}{
+		{[]string{"a", `b '\'`}, []string{"a"}, `p: the generator makes "b '\'", which is not listed (after line 1)`},
+		{[]string{"a"}, []string{"a", "Fake"}, `p: line 2 lists "Fake", which the generator no longer makes`},
+		{[]string{`x '\'`}, []string{"y"}, `p: line 1 lists "y", but the generator makes "x '\'"`},
+		{[]string{"a"}, []string{"a"}, "p: the lines match, but the bytes differ: the list must end in exactly one newline"},
+	} {
+		if got := firstDifference("p", "the generator", tc.made, tc.listed); got != tc.want {
+			t.Errorf("firstDifference(%q, %q) = %s, want %s", tc.made, tc.listed, got, tc.want)
+		}
+	}
+}
+
+// TestWriteTablesAndDrift: WriteTables leaves exactly the generator's files,
+// removing a stray .txt, and TablesDrift reports nothing for equal
+// directories and names the one file that changed.
+func TestWriteTablesAndDrift(t *testing.T) {
+	files := build(t, goldenToys[0].g).Files()
+	a, b := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(b, "stray.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{a, b} {
+		if err := WriteTables(dir, files); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(b, "stray.txt")); !os.IsNotExist(err) {
+		t.Errorf("WriteTables left the stray file (stat error %v)", err)
+	}
+	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
+		t.Fatalf("TablesDrift of equal directories = %v, %v; want none", drift, err)
+	}
+	if err := os.WriteFile(filepath.Join(b, "rules.txt"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	drift, err := TablesDrift(a, b)
+	if want := "rules.txt differs from the generator's"; err != nil || len(drift) != 1 || drift[0] != want {
+		t.Errorf("TablesDrift = %q, %v; want [%q]", drift, err, want)
 	}
 }

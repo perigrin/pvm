@@ -1,10 +1,9 @@
-// ABOUTME: Tests the per-state expected-terminal sets, Leo eligibility, the lexer probes and the conflicting pairs.
-// ABOUTME: Small grammars pin each definition; the cut Guacamole grammar's pairs are held to the committed list.
+// ABOUTME: Tests the per-state expected-terminal sets and Leo eligibility.
+// ABOUTME: Small grammars pin each definition.
 
 package grammar
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -88,94 +87,6 @@ func TestLeoEligibilityRefusals(t *testing.T) {
 		tab := build(t, g)
 		if got := leoStates(tab); len(got) > 0 {
 			t.Errorf("Leo-eligible items = %q, want none\n%s", got, tab.Dump())
-		}
-	}
-}
-
-// toyDivRe is a toy grammar where the text / maps to two predicates: Div,
-// an Operator, and Re, a Quote. The lexer reads /x/ as Div then more in
-// XOperator and as one Re token in XTerm. The literal / alone is an
-// unterminated regex in XTerm, which maps to no terminal and makes no pair.
-const toyDivRe = "S ::= T | S Div T\nT ::= Var | Re\nDiv ~ '/'\nRe ~ '/' Body '/'\nBody ~ [a-z]+\nVar ~ 'v'\n"
-
-var toyDivReSpec = CutSpec{Tokens: []TokenDef{{Name: "Re", Kind: "Quote"}}}
-
-func conflictLines(cs []Conflict) []string {
-	var out []string
-	for _, c := range cs {
-		out = append(out, c.String())
-	}
-	return out
-}
-
-// TestConflictsOneTextTwoPredicates: / is Div after a value and Re where a
-// term starts, found by the sample /x/.
-func TestConflictsOneTextTwoPredicates(t *testing.T) {
-	cs := FindConflicts(cut(t, toyDivRe, toyDivReSpec))
-	want := []string{`/ Div Re "/x/"`}
-	if got := conflictLines(cs); !slices.Equal(got, want) {
-		t.Errorf("conflicts = %q, want %q", got, want)
-	}
-}
-
-// TestConflictsNoneWithoutSharedText: + and - lex the same in both states,
-// so there is no conflicting pair.
-func TestConflictsNoneWithoutSharedText(t *testing.T) {
-	src := "S ::= T | S Plus T\nT ::= Var | Neg T\nPlus ~ '+'\nNeg ~ '-'\nVar ~ 'v'\n"
-	if cs := FindConflicts(cut(t, src, CutSpec{})); len(cs) > 0 {
-		t.Errorf("conflicts = %q, want none", conflictLines(cs))
-	}
-}
-
-// TestProbesPerStartCharacter: a pattern terminal is probed once for each
-// character its texts can start with, a literal terminal by its text.
-func TestProbesPerStartCharacter(t *testing.T) {
-	src := "S ::= W | L\nW ~ [ab] Tail 'c'\nTail ~ [a-z]*\nL ~ 'l'\n"
-	c := cut(t, src, CutSpec{Tokens: []TokenDef{{Name: "W", Kind: "Word"}}})
-	var got []string
-	for _, p := range Probes(c) {
-		got = append(got, fmt.Sprintf("%s %q %v", p.Terminal, p.Text, p.Sample))
-	}
-	want := []string{`L "l" false`, `W "axc" true`, `W "bxc" true`}
-	if !slices.Equal(got, want) {
-		t.Errorf("probes = %q, want %q", got, want)
-	}
-}
-
-func guacamoleConflicts(t *testing.T) []Conflict {
-	t.Helper()
-	return FindConflicts(guacamoleCut(t))
-}
-
-func conflictTexts(cs []Conflict) []string {
-	var out []string
-	for _, c := range cs {
-		out = append(out, c.Text)
-	}
-	slices.Sort(out)
-	return slices.Compact(out)
-}
-
-// TestGuacamoleConflictsExcludeLateJoiners: { (block or hash) and ? (the
-// ternary or ?PATTERN?) conflict only once the ratchet adds what makes them.
-func TestGuacamoleConflictsExcludeLateJoiners(t *testing.T) {
-	cs := guacamoleConflicts(t)
-	for _, c := range cs {
-		if c.Text == "{" || c.Text == "?" {
-			t.Errorf("conflict %s, want none on { or ?", c)
-		}
-	}
-}
-
-// TestGuacamoleConflictsIncludePerlOpTerm: the cut Guacamole grammar's pairs
-// include perl's operator/term texts. -X is not
-// among them: perl lexes a filetest by its text, not its position.
-func TestGuacamoleConflictsIncludePerlOpTerm(t *testing.T) {
-	cs := guacamoleConflicts(t)
-	texts := conflictTexts(cs)
-	for _, want := range []string{"/", "<", "%", "&", "*", "x"} {
-		if !slices.Contains(texts, want) {
-			t.Errorf("no conflict named %q; the pairs found:\n%s", want, strings.Join(conflictLines(cs), "\n"))
 		}
 	}
 }

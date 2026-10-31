@@ -1,5 +1,5 @@
 // ABOUTME: Expected(pos): the terminals the Earley set at a lattice node expects next, by name.
-// ABOUTME: The union over every state in the set; an expectation class projects it onto the conflicting pairs (§5).
+// ABOUTME: The union of the expected terminals of every state in the set, as recognition without lookahead builds it.
 
 package recognize
 
