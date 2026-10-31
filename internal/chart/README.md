@@ -289,7 +289,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with a dead-end branch added and
-through a cache warmed by earlier inputs, and that, under every `Options`
+through a cache warmed by earlier inputs, that the warm recognizer's `Expected`
+(memoized across inputs) equals the reference's, and that, under every `Options`
 combination, acceptance and `Expected` at every position equal the reference
 recognizer's (`recognize/reference_test.go`). The reference is a textbook
 Earley recognizer, test-only: predict, scan and complete over the grammar's
@@ -298,7 +299,7 @@ sharing no code with `recognize` (`TestReferenceSharesNoCode`), so it fails
 independently of the recognizer it checks. With no grammar argument each input
 byte is the singleton set id of one terminal of the toy statement grammar, so
 every input is a valid terminal string; with one, its bytes decode to a small
-grammar (the start symbol may sit on a right-hand side) and the input's bytes
+grammar (the first rule's left-hand side is the start, and may sit on a right-hand side) and the input's bytes
 pick among that grammar's terminals.
 
 ## The generated tables: `make chart-tables`
