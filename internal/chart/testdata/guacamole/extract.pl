@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 # ABOUTME: Extracts Guacamole's parses/parsent corpus by running its t/ suite with the recording Guacamole::Test.
-# ABOUTME: Also writes the stub modules and perl-rejects.txt from perl -c verdicts; see PROVENANCE for the command.
+# ABOUTME: Also writes the stub modules perl -c needs; see PROVENANCE for the command. Perl's verdicts are testdata/labels/.
 
 use strict;
 use warnings;
@@ -82,9 +82,8 @@ while (1) {
     last unless $added;
 }
 
-# 4. The parses cases perl still rejects, by bare file name.
+# 4. Count the parses cases perl still rejects; offline/label.sh labels them.
 my @rejects = sort map { ( File::Spec->splitpath($_) )[2] } keys %rejected;
-spew( "$here/perl-rejects.txt", join '', map {"$_\n"} @rejects );
 
 my $recovered = keys(%without) - @rejects;
 printf "calls: parses %d, parsent %d\n", $calls{parses}, $calls{parsent};

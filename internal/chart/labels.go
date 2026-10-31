@@ -1,6 +1,7 @@
 // ABOUTME: Reads the committed perl labels (testdata/labels/) and checks them against a corpus file list.
 // ABOUTME: Labels come from offline/label.sh under the pinned -DDEBUGGING perl; nothing here runs perl.
 
+// Package chart is the Earley chart-parser spike (docs/plans/2026-10-30-chart-parser-v2-design.md).
 package chart
 
 import (
