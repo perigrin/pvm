@@ -706,8 +706,9 @@ const perlyRules = `
 `
 
 // perlyClasses are the token classes, each declared by the terminal it admits and so
-// unmoved by a rule added or removed. One placeholder comment per %token of perly.y
-// that is lexed, in perly.y's %token order (the GRAM* selectors, PLUGEXPR, PLUGSTMT,
+// unmoved by a rule added or removed. One placeholder comment per token perly.y
+// declares (%token, %left, %right, %nonassoc) that is lexed, in the order it first
+// declares it (the GRAM* selectors, PLUGEXPR, PLUGSTMT,
 // the PLUGIN_* terminals and the precedence-only PREC_LOW and UMINUS need none). A
 // blank line separates neighbours, so two families' edits merge cleanly. A family
 // replaces its terminals' comments with `{"TERMINAL", TokenClass{...}},`: the same
@@ -790,6 +791,20 @@ var perlyClasses = []ClassDecl{
 	// KW_REQUIRE
 
 	// KW_DO
+
+	// KW_USE_or_NO
+
+	// KW_SUB_named
+
+	// KW_SUB_named_sig
+
+	// KW_SUB_anon
+
+	// KW_SUB_anon_sig
+
+	// KW_METHOD_named
+
+	// KW_METHOD_anon
 
 	// BAREWORD
 

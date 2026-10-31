@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -269,5 +270,44 @@ func TestGeneratorRefusalWritesNothing(t *testing.T) {
 	}
 	if got := files(t, dir); !bytes.Equal(got["rules.txt"], before["rules.txt"]) {
 		t.Errorf("a consistent grammar did not rewrite rules.txt: %q", got["rules.txt"])
+	}
+}
+
+// perlyYPath is the pinned perl's perly.y, which the offline scripts also read.
+const perlyYPath = "/opt/corpora/perl5/perly.y"
+
+// The slots of perlyClasses are the lexed terminals perly.y declares, in the order it first
+// declares them (%token, %left, %right, %nonassoc), less the ones needing no class.
+func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
+	y, err := os.ReadFile(perlyYPath)
+	if err != nil {
+		t.Skipf("perly.y is not on this machine: %v", err)
+	}
+	decls, _, _ := strings.Cut(string(y), "\n%%")
+	var want []string
+	seen := map[string]bool{}
+	for _, l := range regexp.MustCompile(`(?m)^%(?:token|left|right|nonassoc)\b(.*)$`).FindAllStringSubmatch(decls, -1) {
+		for _, name := range strings.Fields(regexp.MustCompile(`<\w+>`).ReplaceAllString(l[1], " ")) {
+			if seen[name] || strings.HasPrefix(name, "GRAM") || strings.HasPrefix(name, "PLUGIN_") ||
+				slices.Contains([]string{"PLUGEXPR", "PLUGSTMT", "PREC_LOW", "UMINUS"}, name) {
+				continue
+			}
+			seen[name] = true
+			want = append(want, name)
+		}
+	}
+	src, err := os.ReadFile("perly.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, classes, _ := strings.Cut(string(src), "var perlyClasses")
+	var got []string
+	for _, m := range regexp.MustCompile(`(?m)^\t(?://\s*|\{")([A-Za-z_0-9]+)`).FindAllStringSubmatch(classes, -1) {
+		if len(got) == 0 || got[len(got)-1] != m[1] { // a terminal may be declared more than once
+			got = append(got, m[1])
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("perlyClasses has %d slots, perly.y declares %d lexed tokens; first difference: %s", len(got), len(want), firstDifference("perly.go", "perly.y", want, got))
 	}
 }
