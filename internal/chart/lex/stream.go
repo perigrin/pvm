@@ -47,9 +47,11 @@ func (s *Stream) Body(i int) []lexer.Token {
 }
 
 // Lead is the trivia before Tokens[i], since the significant token before
-// it, less any heredoc body, which is its opener's.
+// it, less any heredoc body, which is its opener's. Its capacity ends with
+// it, so an append copies rather than writing over the shared slice.
 func (s *Stream) Lead(i int) []lexer.Token {
-	return trivia(s.Raw[s.after(i):s.Tokens[i].Index])
+	end := s.Tokens[i].Index
+	return trivia(s.Raw[s.after(i):end:end])
 }
 
 // Tail is the trivia after the last token, less any heredoc body.

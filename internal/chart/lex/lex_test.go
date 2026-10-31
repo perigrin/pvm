@@ -235,3 +235,15 @@ func TestLexStreamAllocations(t *testing.T) {
 		}
 	}
 }
+
+// Lead is a view into the shared token slice; appending to it must copy
+// rather than write over the token that follows.
+func TestLexLeadIsCapped(t *testing.T) {
+	src := []byte("# c\n$x;")
+	s, _ := Map(src, lexer.Tokenize(src), toyTable(t))
+	want := s.Raw[s.Tokens[0].Index]
+	_ = append(s.Lead(0), lexer.Token{Kind: lexer.Semicolon})
+	if got := s.Raw[s.Tokens[0].Index]; got != want {
+		t.Errorf("appending to Lead(0) changed the next token from %+v to %+v", want, got)
+	}
+}
