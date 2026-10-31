@@ -2245,3 +2245,20 @@ The author is the orchestrating agent. Release is each raiser's to give. Round 8
 | K11 | edit5k's path is named. | §9.1 |
 | K6 | Precedence labels at waypoint 1 need the debug perl and the referee scripts; H6 is therefore waypoint 1's first work. | H6 |
 | A33 | Not changed: a stale lexer-defect entry is caught at the gate review that confirms each entry. | — |
+
+## Confirmation pass after round 8 (subject c2bdd154)
+
+Round 8 reached the bound with six blocks open. perigrin ruled **"Blockers confirm"**: the raisers of the open blocks were resumed only to release or hold them against the round-8 revision, without hunting for new defects. Reports are in the session scratchpad as `confirm-{A,G,I,J,K}.md`.
+
+| block | raiser | outcome |
+|---|---|---|
+| A34 | A | released |
+| G24 | G | released |
+| I13 | I | released |
+| J15 | J | released |
+| K1 | K | released |
+| K4 | K | released |
+
+### Outcome
+
+**Fixed point at c2bdd154.** No block is open. Every participant's open rows are stand-asides, recorded in the round ledgers above; the hand-off list for refinement is H1–H6.
