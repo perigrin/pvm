@@ -72,33 +72,35 @@ func (p Protocol) Ratio(name string, files []string, cold bool) float64 {
 	return ms[measurements/2]
 }
 
-// Aggregate returns timed less std5k.pl, edit5k.pl and every file whose Ref
-// time alone is more than 10% of Ref's over the whole population. A timed
-// file outside the population is a caller bug, so it panics.
-func (p Protocol) Aggregate(population []File, timed []string) []string {
-	rd := make(map[string]time.Duration, len(population))
+// Aggregate returns timed less std5k.pl, edit5k.pl and every file whose
+// recursive-descent time alone is more than 10% of recursive descent's over
+// the whole population. rd is passed explicitly, not taken from p.Ref, so
+// lex-overhead and the speed ratios get one aggregate. A timed file outside
+// the population is a caller bug, so it panics.
+func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string {
+	rdTime := make(map[string]time.Duration, len(population))
 	corpus := make(map[string]string, len(population))
 	var total time.Duration
 	for _, f := range population {
-		rd[f.Path] = p.pass(p.Ref, []string{f.Path}, true)
-		total += rd[f.Path]
+		rdTime[f.Path] = p.pass(rd, []string{f.Path}, true)
+		total += rdTime[f.Path]
 		corpus[f.Path] = f.Corpus
 	}
 	var kept []string
 	share := map[string]time.Duration{}
 	var keptTotal time.Duration
 	for _, f := range timed {
-		if _, ok := rd[f]; !ok {
+		if _, ok := rdTime[f]; !ok {
 			panic("chart-ratchet: aggregate: timed file " + f + " is not in the population")
 		}
-		if b := filepath.Base(f); b == "std5k.pl" || b == "edit5k.pl" || rd[f]*10 > total {
+		if b := filepath.Base(f); b == "std5k.pl" || b == "edit5k.pl" || rdTime[f]*10 > total {
 			fmt.Fprintf(p.Stderr, "chart-ratchet: aggregate excludes %s (%.1f%% of RD's population time)\n",
-				f, 100*float64(rd[f])/float64(total))
+				f, 100*float64(rdTime[f])/float64(total))
 			continue
 		}
 		kept = append(kept, f)
-		share[corpus[f]] += rd[f]
-		keptTotal += rd[f]
+		share[corpus[f]] += rdTime[f]
+		keptTotal += rdTime[f]
 	}
 	for _, c := range slices.Sorted(maps.Keys(share)) {
 		fmt.Fprintf(p.Stderr, "chart-ratchet: aggregate share %s %.1f%%\n", c, 100*float64(share[c])/float64(keptTotal))

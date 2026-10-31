@@ -25,27 +25,40 @@ type fakeWorld struct {
 	stderr    strings.Builder
 }
 
-func (w *fakeWorld) protocol() Protocol {
-	side := func(name string) Side {
-		return func() Runner {
-			w.log = append(w.log, "new "+name)
-			return func(path string) {
-				w.log = append(w.log, name+" "+path)
-				c := w.cost[path]
-				if name == "chart" {
-					c = time.Duration(float64(c) * w.chartMult(w.nows/4))
-				}
-				w.t += c
+func (w *fakeWorld) side(name string) Side {
+	return func() Runner {
+		w.log = append(w.log, "new "+name)
+		return func(path string) {
+			w.log = append(w.log, name+" "+path)
+			c := w.cost[path]
+			if name == "chart" {
+				c = time.Duration(float64(c) * w.chartMult(w.nows/4))
 			}
+			w.t += c
 		}
 	}
+}
+
+func (w *fakeWorld) protocol() Protocol {
 	return Protocol{
-		Chart:  side("chart"),
-		Ref:    side("rd"),
+		Chart:  w.side("chart"),
+		Ref:    w.side("rd"),
 		Now:    func() time.Duration { w.log = append(w.log, "now"); w.nows++; return w.t },
 		GC:     func() { w.log = append(w.log, "gc") },
 		Stderr: &w.stderr,
 	}
+}
+
+// aggregate runs Aggregate with recursive descent passed explicitly and a
+// Ref (lexer.Tokenize, say) that fails the test if the 10% rule times it.
+func (w *fakeWorld) aggregate(t *testing.T, pop []File, timed []string) []string {
+	t.Helper()
+	p := w.protocol()
+	p.Ref = func() Runner {
+		t.Fatal("Aggregate timed Ref; the 10% rule reads recursive descent's time")
+		return nil
+	}
+	return p.Aggregate(w.side("rd"), pop, timed)
 }
 
 func TestSpeedProtocol(t *testing.T) {
@@ -119,7 +132,7 @@ func TestSpeedProtocol(t *testing.T) {
 	for _, f := range pop {
 		all = append(all, f.Path)
 	}
-	got := w.protocol().Aggregate(pop, all)
+	got := w.aggregate(t, pop, all)
 	want := []string{"t1/a.t", "t1/b.t", "g/c.pl", "g/d.pl", "g/e.pl"}
 	if !slices.Equal(got, want) {
 		t.Errorf("aggregate %q, want %q", got, want)
@@ -145,7 +158,7 @@ func TestSpeedProtocolExclusionBoundary(t *testing.T) {
 	}{{100, false}, {101, true}} {
 		w := &fakeWorld{cost: map[string]time.Duration{"edge": tc.cost, "rest": 1000 - tc.cost}}
 		pop := []File{{"edge", "T1"}, {"rest", "T1"}}
-		got := w.protocol().Aggregate(pop, []string{"edge", "rest"})
+		got := w.aggregate(t, pop, []string{"edge", "rest"})
 		if out := !slices.Contains(got, "edge"); out != tc.wantOut {
 			t.Errorf("%d of 1000: excluded=%v, want %v", tc.cost, out, tc.wantOut)
 		}
@@ -160,7 +173,7 @@ func TestSpeedProtocolExclusionBoundary(t *testing.T) {
 		w.cost[p] = 100
 		pop = append(pop, File{p, "T1"})
 	}
-	if got := w.protocol().Aggregate(pop, []string{"sub", "mate"}); !slices.Equal(got, []string{"sub", "mate"}) {
+	if got := w.aggregate(t, pop, []string{"sub", "mate"}); !slices.Equal(got, []string{"sub", "mate"}) {
 		t.Errorf("subset aggregate %q, want both files: the 10%% rule reads the whole population", got)
 	}
 }
@@ -174,5 +187,5 @@ func TestSpeedProtocolRefusesUnknownTimedPath(t *testing.T) {
 			t.Fatalf("Aggregate with a timed path outside the population: recovered %v, want a refusal naming huge", r)
 		}
 	}()
-	w.protocol().Aggregate([]File{{"a", "T1"}, {"b", "T1"}}, []string{"a", "b", "huge"})
+	w.aggregate(t, []File{{"a", "T1"}, {"b", "T1"}}, []string{"a", "b", "huge"})
 }
