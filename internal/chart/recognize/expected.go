@@ -20,14 +20,30 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	if pos < 0 || pos >= len(c.Sets) {
 		return nil, fmt.Errorf("recognize: node %d is outside the lattice's %d nodes", pos, len(c.Sets))
 	}
-	items := c.Sets[pos].Items()
+	set := c.Sets[pos]
+	// The answer depends on the set and on the origin sets its closure
+	// read, which the cache's dependency check already compares. A node
+	// with no set, or a branch set (id -1), is not memoized.
+	memo := set != nil && set.id >= 0 && !c.r.opts.NoCache
+	if memo {
+		for _, e := range c.r.expected[set.id] {
+			if depsHold(c, pos, e.deps) {
+				return slices.Clone(e.names), nil
+			}
+		}
+	}
+	c.r.expectedComputed++
+	items := set.Items()
+	var deps []dep
 	if items != nil && !c.r.opts.NoLookahead {
-		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}}
+		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: memo}
 		for _, it := range items {
 			b.add(it.State, pos-it.Dist)
 		}
 		b.complete(nil)
 		items = b.relative()
+		deps = b.deps
+		memo = memo && b.interned
 	}
 	var ids []int
 	for _, it := range items {
@@ -40,5 +56,16 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 		names[i] = c.r.tab.Symbols[id].Name
 	}
 	slices.Sort(names)
+	if memo {
+		c.r.expected[set.id] = append(c.r.expected[set.id], expectedEntry{deps: deps, names: names})
+		return slices.Clone(names), nil
+	}
 	return names, nil
+}
+
+// expectedEntry is one memoized Expected for a set: valid at a node where
+// the origin sets it read are the ones the node has.
+type expectedEntry struct {
+	deps  []dep
+	names []string
 }
