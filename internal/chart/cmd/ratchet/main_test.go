@@ -1,114 +1,43 @@
-// ABOUTME: Tests that the ratchet prints every contract key once, in a fixed order, na where nothing measured it.
-// ABOUTME: The measures themselves need perl and the corpus, so make chart-ratchet exercises them, not this test.
+// ABOUTME: Tests that the ratchet prints exactly the reset key set once each, in order, na where nothing measured it.
+// ABOUTME: Also that a bad baseline is an error (exit 2), never a regression (exit 1) or a silent pass.
 
 package main
 
 import (
-	"os"
-	"path/filepath"
+	"io"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// contract is the milestone's key list, which the ratchet may add to and never rename.
-var contract = []string{
-	"parses-scored", "parsent-scored",
-	"parses-refused", "parses-wrong-sites", "yield-violations", "oracle-below-rd", "std5k-refused", "parsent-accepted",
-	"speed-ratio-aggregate", "speed-ratio-std5k", "set-reuse", "convergence-edits", "convergence-within-8",
-	"defect-yield-listed", "defect-yield-sites", "defect-yield-settled", "oracle-sites-decided", "expect-states-unreproduced",
+// resetKeys is spec §9.5's key set, fixed at the reset and never changed afterwards.
+var resetKeys = []string{
+	"tables-drift", "leo-disagree", "ledger-gaps", "rd-accepted-chart-refused", "chart-accepted-both-refused",
+	"lex-unmapped", "tdt-aligned", "tdt-mismatch", "tdt-unseen", "terminals-per-token",
+	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k",
+	"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-cold",
+	"alloc-per-token-chart", "alloc-per-token-rd", "items-per-token", "set-reuse", "ledger-excluded",
+	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",
 }
 
-func TestReportPrintsEveryKeyOnceInOrder(t *testing.T) {
-	ms := report(map[string]string{"parses-scored": "746", "rd-oracle-exact": "0.5"})
-	seen := map[string]int{}
+func TestResetKeySet(t *testing.T) {
+	if !slices.Equal(keys, resetKeys) {
+		t.Fatalf("keys = %q, want the reset's set in order %q", keys, resetKeys)
+	}
+	ms := report(map[string]string{"tdt-aligned": "12"})
+	got := make([]string, len(ms))
 	for i, m := range ms {
-		if seen[m.Key]++; seen[m.Key] > 1 {
-			t.Fatalf("key %s printed twice", m.Key)
+		got[i] = m.Key
+		want := na
+		if m.Key == "tdt-aligned" {
+			want = "12"
 		}
-		if m.Key != keys[i] {
-			t.Fatalf("line %d is %s, want %s: the order is fixed", i, m.Key, keys[i])
-		}
-	}
-	for _, k := range append(contract, "rejects-disagree", "rd-oracle-exact", "rd-oracle-coverage") {
-		if seen[k] != 1 {
-			t.Fatalf("contract key %s printed %d times, want once", k, seen[k])
+		if m.Value != want {
+			t.Errorf("%s printed %s, want %s", m.Key, m.Value, want)
 		}
 	}
-	values := map[string]string{}
-	for _, m := range ms {
-		values[m.Key] = m.Value
-	}
-	if values["parses-scored"] != "746" || values["rd-oracle-exact"] != "0.5" {
-		t.Fatalf("measured values not carried through: %v", values)
-	}
-	if values["set-reuse"] != "na" || values["std5k-refused"] != "na" {
-		t.Fatalf("an unmeasured key must print na: %v", values)
-	}
-}
-
-// TestKnownMismatchNamesFiles: lex-unmapped's failing files are held to the
-// known list as a set, not by count. Swapping one listed file for another
-// keeps the count and is still reported, naming both files (gate review of
-// #541, F3).
-func TestKnownMismatchNamesFiles(t *testing.T) {
-	listed := "a.pl 01a18582-65bf\nb.pl 01a18582-65d3\n"
-	if got := knownMismatch([]string{"b.pl", "a.pl"}, listed); len(got) != 0 {
-		t.Errorf("the same set reported %q", got)
-	}
-	got := knownMismatch([]string{"a.pl", "c.pl"}, listed)
-	want := []string{
-		"lex-unmapped: b.pl is listed in lex-unmapped-known.txt but no longer fails",
-		"lex-unmapped: c.pl fails but is not listed in lex-unmapped-known.txt",
-	}
-	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Errorf("knownMismatch = %q, want %q", got, want)
-	}
-}
-
-// TestTablesDrift: the committed tables are what the generator writes, and
-// one byte added to one of them, in a copy, is one file of drift. The count
-// of conflicting pairs is the committed conflicts.txt's line count.
-func TestTablesDrift(t *testing.T) {
-	root := filepath.Join("..", "..", "..", "..")
-	slif := filepath.Join(root, grammarSLIF)
-	drift, conflicts, err := tablesDrift(filepath.Join(root, tablesDir), slif)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(drift) != 0 {
-		t.Fatalf("drift on the committed tables: %v", drift)
-	}
-	committed, err := os.ReadFile(filepath.Join(root, tablesDir, "conflicts.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := strings.Count(string(committed), "\n"); conflicts != want || conflicts == 0 {
-		t.Errorf("tablesDrift counted %d conflicting pairs, want the %d lines of conflicts.txt", conflicts, want)
-	}
-
-	copied := t.TempDir()
-	paths, err := filepath.Glob(filepath.Join(root, tablesDir, "*.txt"))
-	if err != nil || len(paths) == 0 {
-		t.Fatalf("no committed tables: %v", err)
-	}
-	for _, p := range paths {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if p == paths[0] {
-			b = append(b, '\n')
-		}
-		if err := os.WriteFile(filepath.Join(copied, filepath.Base(p)), b, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	drift, _, err = tablesDrift(copied, slif)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(drift) != 1 || !strings.Contains(drift[0], filepath.Base(paths[0])) {
-		t.Fatalf("drift after altering %s = %v, want that one file", filepath.Base(paths[0]), drift)
+	if !slices.Equal(got, resetKeys) {
+		t.Fatalf("report printed %q, want each reset key once, in order", got)
 	}
 }
 
@@ -120,4 +49,27 @@ func TestReportRejectsUnknownKey(t *testing.T) {
 		}
 	}()
 	report(map[string]string{"not-a-key": "1"})
+}
+
+func TestRatchetBaselineErrorsExit2(t *testing.T) {
+	good := Format(report(nil))
+	if code := check(report(nil), nil, good, "", io.Discard); code != 0 {
+		t.Fatalf("a well-formed all-na baseline exits %d, want 0", code)
+	}
+	for name, baseline := range map[string]string{
+		"malformed line": good + "chart-ratchet: tdt-aligned\n",
+		"bad value":      strings.Replace(good, "tdt-aligned na", "tdt-aligned many", 1),
+		"retired key":    good + "chart-ratchet: rejects-disagree 0\n",
+		"omitted key":    strings.Replace(good, "chart-ratchet: tdt-aligned na\n", "", 1),
+		"key twice":      good + "chart-ratchet: tdt-aligned na\n",
+	} {
+		var stderr strings.Builder
+		if code := check(report(nil), nil, baseline, "", &stderr); code != 2 {
+			t.Errorf("%s: exit %d, want 2 (stderr %q)", name, code, stderr.String())
+		}
+	}
+	// A regression is exit 1, which the baseline errors above are not.
+	if code := check(report(map[string]string{"tdt-aligned": "1"}), nil, good, "", io.Discard); code != 1 {
+		t.Errorf("na -> a number without a baseline exits %d, want 1", code)
+	}
 }
