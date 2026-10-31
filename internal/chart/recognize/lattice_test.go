@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -12,20 +13,43 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// toyTables is the tables of a toy grammar in SLIF.
-func toyTables(t *testing.T, slif string) *grammar.Tables {
-	t.Helper()
-	g, err := grammar.ReadSLIF("toy.slif", []byte(slif))
-	if err != nil {
-		t.Fatal(err)
+// toyTables is the tables of a toy grammar stated as Go data, one string per
+// statement: "LHS ::= alt | alt", symbols space-separated, an empty
+// alternative empty, and `X*` or `X+` a sequence of one symbol. A symbol no
+// statement defines is a terminal.
+func toyTables(tb testing.TB, statements ...string) *grammar.Tables {
+	tb.Helper()
+	g := &grammar.Grammar{}
+	defined := map[string]bool{}
+	for _, st := range statements {
+		lhs, rhs, _ := strings.Cut(st, "::=")
+		lhs = strings.TrimSpace(lhs)
+		defined[lhs] = true
+		for _, alt := range strings.Split(rhs, "|") {
+			r := grammar.Rule{LHS: lhs}
+			for _, w := range strings.Fields(alt) {
+				if base, ok := strings.CutSuffix(w, "*"); ok {
+					r.Seq, w = grammar.Star, base
+				} else if base, ok := strings.CutSuffix(w, "+"); ok {
+					r.Seq, w = grammar.Plus, base
+				}
+				r.RHS = append(r.RHS, grammar.Symbol{Kind: grammar.Name, Text: w})
+			}
+			g.G1 = append(g.G1, r)
+		}
 	}
-	c, err := grammar.ApplyCut(g, grammar.CutSpec{})
-	if err != nil {
-		t.Fatal(err)
+	seen := map[string]bool{}
+	for _, r := range g.G1 {
+		for _, sym := range r.RHS {
+			if !defined[sym.Text] && !seen[sym.Text] {
+				seen[sym.Text] = true
+				g.G0 = append(g.G0, grammar.Rule{LHS: sym.Text})
+			}
+		}
 	}
-	tab, err := grammar.BuildTables(grammar.GeneratorInput(c))
+	tab, err := grammar.BuildTables(g)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return tab
 }
@@ -47,7 +71,7 @@ func toyLinear(offsets []int, edges ...lex.Edge) *lex.Lattice[lex.None] {
 // read as one A or as two Bs, the kind of token branch the interleaved
 // lexer will emit.
 func TestRecognizeToyLatticeRejoin(t *testing.T) {
-	tab := toyTables(t, "S ::= X C\nX ::= A | B B\nA ~ 'aa'\nB ~ 'a'\nC ~ 'c'\n")
+	tab := toyTables(t, "S ::= X C", "X ::= A | B B")
 	// Nodes 0 (the fork), 1 (inside the B B path), 2 (byte 2), 3 (the end).
 	l := toyLinear([]int{0, 1, 2, 3},
 		toyEdge(0, 2, "A", 0, 2), toyEdge(0, 1, "B", 0, 1), toyEdge(1, 2, "B", 1, 2), toyEdge(2, 3, "C", 2, 3))
@@ -103,7 +127,7 @@ func TestRecognizeToyLatticeRejoin(t *testing.T) {
 // that differs. `p a b x` is accepted; `q a b x` needs a second x. A cache
 // keyed on (set, token, lookahead) alone would accept both.
 func TestCacheChecksOriginSets(t *testing.T) {
-	tab := toyTables(t, "S ::= P E X | Q E X X\nE ::= A B\nP ~ 'p'\nQ ~ 'q'\nA ~ 'a'\nB ~ 'b'\nX ~ 'x'\n")
+	tab := toyTables(t, "S ::= P E X | Q E X X", "E ::= A B")
 	line := func(terms ...string) *lex.Lattice[lex.None] {
 		l := &lex.Lattice[lex.None]{Nodes: []lex.Node[lex.None]{{}}}
 		for i, term := range terms {
@@ -128,7 +152,7 @@ func TestCacheChecksOriginSets(t *testing.T) {
 // every branch set has id -1, so a key on it would serve the B lattice's
 // set to the D lattice, which needs a further X. Warm and cold must agree.
 func TestCacheNotKeyedOnBranchSet(t *testing.T) {
-	tab := toyTables(t, "S ::= B T | D T X\nB ~ 'b'\nD ~ 'd'\nT ~ 't'\nX ~ 'x'\nZ ~ 'z'\nS ::= Z\n")
+	tab := toyTables(t, "S ::= B T | D T X", "S ::= Z")
 	// 0 -first-> 1 -T-> 3, and a path 0 -Z-> 2 that goes nowhere, which puts
 	// node 1 inside a branch.
 	branched := func(first string) *lex.Lattice[lex.None] {
