@@ -1,11 +1,29 @@
 <!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the bison referees of the pinned perly.y and what each script costs to run. -->
+<!-- ABOUTME: Covers the pinned -DDEBUGGING perl build and the bison referees, and what each costs to run. -->
 
 # internal/chart/offline
 
 Scripts run by hand against perl blead 94e50866 in `/opt/corpora/perl5`.
-Nothing here runs in `make test` or `make chart-ratchet`; their output, where
-they have any, is committed and read by the Go tests.
+
+- They never run in `make test` or `make chart-ratchet`.
+- Nothing they build (perls, referee binaries) is committed.
+- Output that tests read is committed.
+
+## build-perl.sh
+
+`sh internal/chart/offline/build-perl.sh <perl5-tree> <prefix>` builds the
+`-DDEBUGGING` perl of blead 94e50866 and prints the installed binary's path.
+It refuses a tree whose HEAD is not 94e50866 before building or creating the
+prefix. It builds in a `git clone --shared` of the tree under `$TMPDIR`, so the
+tree is never written, and removes the clone on exit. `-Uversiononly` makes
+the install `<prefix>/bin/perl` rather than `perl5.45.0`.
+
+This milestone uses `sh internal/chart/offline/build-perl.sh /opt/corpora/perl5 /opt/perl-94e50866-debug`.
+
+Build time: 382 s wall clock on the 4-core development machine, including
+`make install` (a first run with the same options took 146 s; the figure
+depends on load from other jobs). Installed size:
+107 MB.
 
 ## referee/
 
