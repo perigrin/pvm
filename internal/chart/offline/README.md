@@ -147,7 +147,9 @@ own unit closing before its `-DT` `EOF` with perl's status 0 is a truncation.
 1 like any line, which is why `p` is on. Units run after the main file's `EOF`
 (`CHECK` blocks) are dropped, and a `require` in a sub that `-c` never runs
 contributes nothing. A file perl accepts whose units do not all end is
-exit 2, never a silently short stream.
+exit 2, never a silently short stream. A sub-parse an XS keyword plugin runs
+also prints `clearing the parse stack`, so such a file ends with `a parse ended
+outside any unit` and exit 2.
 
 `testdata/tdt-sample.pl` and its hand-checked `testdata/tdt-sample.expected`
 cover a `use` of a stub module (`testdata/tdt-stubs/TdtStub.pm`, itself
