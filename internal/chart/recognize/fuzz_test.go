@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -104,24 +105,10 @@ func FuzzRecognize(f *testing.F) {
 		if n := len(lattices[0].Edges); n >= 2 {
 			lattices = append(lattices, withDeadEnd(lattices[0], len(src)%(n-1)))
 		}
-		cold := mustRecognize(t, New(tab, Options{NoCache: true}), lattices[0])
-		want := cold.Accepted()
-		no := mustRecognize(t, New(tab, Options{NoCache: true, NoLookahead: true}), lattices[0])
-		if no.Accepted() != want {
-			t.Fatalf("%q: accepted %v without lookahead, %v with", src, no.Accepted(), want)
+		if d := oracleDisagreement(tab, builds(tab), lattices[0]); d != "" {
+			t.Fatalf("%q: %s", src, d)
 		}
-		for _, la := range []bool{false, true} {
-			if got := mustRecognize(t, New(tab, Options{NoCache: true, NoLookahead: la, NoLeo: true}), lattices[0]).Accepted(); got != want {
-				t.Fatalf("%q: accepted %v without Leo (lookahead off %v), %v with", src, got, la, want)
-			}
-		}
-		for pos := range cold.Sets {
-			a, _ := cold.Expected(pos)
-			b, _ := no.Expected(pos)
-			if !slices.Equal(a, b) {
-				t.Fatalf("%q node %d: Expected %v with lookahead, %v without", src, pos, a, b)
-			}
-		}
+		want := refAccepts(tab, refRun(tab, tokenIDs(lattices[0])))
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
@@ -168,5 +155,151 @@ func TestFuzzSeedsAcceptAndRefuse(t *testing.T) {
 	}
 	if accepted == 0 || refused == 0 {
 		t.Errorf("%d accepted and %d refused seeds, want both", accepted, refused)
+	}
+}
+
+// optionCombos is every combination of Options' three switches.
+// shortcut: the three switches are hard-coded; a new Options field needs a
+// bit here, and the count raised to match.
+var optionCombos = func() (out []Options) {
+	for m := range 8 {
+		out = append(out, Options{NoCache: m&1 != 0, NoLookahead: m&2 != 0, NoLeo: m&4 != 0})
+	}
+	return out
+}()
+
+// tokenIDs is the terminal-set ids of a linear lattice's tokens, in order.
+func tokenIDs(l *lex.Lattice[lex.None]) []int {
+	ids := make([]int, len(l.Edges))
+	for i, e := range l.Edges {
+		ids[i] = e.Token.TerminalSet
+	}
+	return ids
+}
+
+// oracleDisagreement is "" where the recognizers build makes, under every
+// Options combination, accept l and expect at each node what the reference
+// does over rules; otherwise it says what differs. l is a linear lattice, one
+// edge per node but the first, so edge i is token i.
+func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
+	sets := refRun(rules, tokenIDs(l))
+	want := refAccepts(rules, sets)
+	for _, opts := range optionCombos {
+		c, err := Recognize(build(opts), l)
+		if err != nil {
+			return fmt.Sprintf("%+v: %v", opts, err)
+		}
+		if got := c.Accepted(); got != want {
+			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, want)
+		}
+		for pos, items := range sets {
+			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(rules, items)) {
+				return fmt.Sprintf("%+v node %d: Expected %v (err %v), the reference %v", opts, pos, got, err, refExpected(rules, items))
+			}
+		}
+	}
+	return ""
+}
+
+// builds is the recognizers over tab, one fresh per call.
+func builds(tab *grammar.Tables) func(Options) *Recognizer {
+	return func(o Options) *Recognizer { return New(tab, o) }
+}
+
+// copyTables is tab with its states copied one level down, so a test can
+// alter a state without altering tab.
+func copyTables(tab *grammar.Tables) *grammar.Tables {
+	c := *tab
+	c.States = slices.Clone(tab.States)
+	for i := range c.States {
+		c.States[i].Transitions = slices.Clone(c.States[i].Transitions)
+		c.States[i].Expected = slices.Clone(c.States[i].Expected)
+	}
+	return &c
+}
+
+// without is tab with the first transition on the terminal sym removed from
+// the first state that has one.
+func without(t *testing.T, tab *grammar.Tables, sym string) *grammar.Tables {
+	c := copyTables(tab)
+	for s, st := range c.States {
+		for i, tr := range st.Transitions {
+			if tab.Symbols[tr.Symbol].Name == sym {
+				c.States[s].Transitions = slices.Delete(st.Transitions, i, i+1)
+				return c
+			}
+		}
+	}
+	t.Fatalf("no state has a transition on %s", sym)
+	return nil
+}
+
+// disagreements is oracleDisagreement over each of the fuzz seeds.
+func disagreements(tab *grammar.Tables, build func(Options) *Recognizer) (out []string) {
+	for _, src := range fuzzSeeds {
+		if d := oracleDisagreement(tab, build, fuzzLattice(tab, src)); d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// TestOracleCatchesSkew: the oracle is green on intact tables and reports a
+// recognizer whose tables lack one transition, against the intact rules.
+func TestOracleCatchesSkew(t *testing.T) {
+	tab := toyStmt(t)
+	if d := disagreements(tab, builds(tab)); len(d) > 0 {
+		t.Fatalf("intact tables disagree with the reference: %v", d)
+	}
+	if d := disagreements(tab, builds(without(t, tab, "Semi"))); len(d) == 0 {
+		t.Error("the oracle did not report tables without a Semi transition")
+	}
+}
+
+// TestOracleCatchesExpectedSkew: tables altered so acceptance is unchanged
+// but one state's expected terminals differ are reported as an Expected
+// disagreement, never as an acceptance one.
+func TestOracleCatchesExpectedSkew(t *testing.T) {
+	tab := toyStmt(t)
+	num := slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == "Num" })
+	c := copyTables(tab)
+	for s, st := range c.States {
+		if i := slices.Index(st.Expected, num); i >= 0 {
+			c.States[s].Expected = slices.Delete(st.Expected, i, i+1)
+			break
+		}
+	}
+	d := disagreements(tab, builds(c))
+	if len(d) == 0 {
+		t.Fatal("the oracle did not report tables with a Num dropped from a state's Expected")
+	}
+	for _, msg := range d {
+		if !strings.Contains(msg, "Expected") {
+			t.Errorf("a skew in Expected alone was reported as: %s", msg)
+		}
+	}
+}
+
+// TestOracleCatchesSkewUnderOneOption: a recognizer wrong under one Options
+// combination and right under the other seven is reported, whichever it is.
+func TestOracleCatchesSkewUnderOneOption(t *testing.T) {
+	tab := toyStmt(t)
+	bad := without(t, tab, "Semi")
+	for _, only := range optionCombos {
+		build := func(o Options) *Recognizer {
+			if o == only {
+				return New(bad, o)
+			}
+			return New(tab, o)
+		}
+		d := disagreements(tab, build)
+		if len(d) == 0 {
+			t.Errorf("a skew under %+v alone was not reported", only)
+		}
+		for _, msg := range d {
+			if !strings.Contains(msg, fmt.Sprintf("%+v", only)) {
+				t.Errorf("a skew under %+v was reported as: %s", only, msg)
+			}
+		}
 	}
 }
