@@ -234,28 +234,31 @@ func TestTablesGuacamole(t *testing.T) {
 
 const tablesDir = "testdata/tables"
 
-// TestLR0EpsilonEdges: on the Guacamole tables, a kernel state has a
-// predicted state exactly when one of its items has a nonterminal after the
-// dot, and that state is a predicted one.
+// TestLR0EpsilonEdges: in each golden toy's tables and in Guacamole's, a
+// kernel state has a predicted state exactly when one of its items has a
+// nonterminal after the dot, and that state is a predicted one.
 func TestLR0EpsilonEdges(t *testing.T) {
-	tab, err := BuildTables(GeneratorInput(guacamoleCut(t)))
-	if err != nil {
-		t.Fatal(err)
+	tabs := map[string]*Tables{}
+	for _, toy := range goldenToys {
+		tabs[toy.name] = build(t, toy.g)
 	}
-	for s, st := range tab.States {
-		predicts := false
-		for _, i := range st.Items {
-			if sym, ok := tab.after(i); ok && !tab.Symbols[sym].Terminal {
-				predicts = true
+	tabs["guacamole"] = build(t, GeneratorInput(guacamoleCut(t)))
+	for name, tab := range tabs {
+		for s, st := range tab.States {
+			predicts := false
+			for _, i := range st.Items {
+				if sym, ok := tab.after(i); ok && !tab.Symbols[sym].Terminal {
+					predicts = true
+				}
 			}
-		}
-		switch {
-		case st.Predicted && st.Epsilon != -1:
-			t.Errorf("predicted state %d has an ε-edge to %d", s, st.Epsilon)
-		case !st.Predicted && predicts != (st.Epsilon >= 0):
-			t.Errorf("kernel state %d predicts = %v, but its ε-state is %d", s, predicts, st.Epsilon)
-		case st.Epsilon >= 0 && !tab.States[st.Epsilon].Predicted:
-			t.Errorf("kernel state %d's ε-state %d is not a predicted state", s, st.Epsilon)
+			switch {
+			case st.Predicted && st.Epsilon != -1:
+				t.Errorf("%s: predicted state %d has an ε-edge to %d", name, s, st.Epsilon)
+			case !st.Predicted && predicts != (st.Epsilon >= 0):
+				t.Errorf("%s: kernel state %d predicts = %v, but its ε-state is %d", name, s, predicts, st.Epsilon)
+			case st.Epsilon >= 0 && !tab.States[st.Epsilon].Predicted:
+				t.Errorf("%s: kernel state %d's ε-state %d is not a predicted state", name, s, st.Epsilon)
+			}
 		}
 	}
 }
