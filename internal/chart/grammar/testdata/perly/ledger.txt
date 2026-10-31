@@ -1,4 +1,4 @@
-perly.y:187 grammar: GRAMPROG @1 remember stmtseq	-
+perly.y:187 grammar: GRAMPROG @1 remember stmtseq	fitted
 
 perly.y:198 grammar: GRAMEXPR @2 optexpr	-
 
@@ -12,7 +12,7 @@ perly.y:247 grammar: GRAMSTMTSEQ @6 stmtseq	-
 
 perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts	-
 
-perly.y:270 bare_statement_block: block cont	-
+perly.y:270 bare_statement_block: block cont	ported
 
 perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON	-
 
@@ -22,7 +22,7 @@ perly.y:317 bare_statement_default: KW_DEFAULT block	-
 
 perly.y:325 bare_statement_defer: KW_DEFER mblock	-
 
-perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	-
+perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	ported
 
 perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON	-
 
@@ -46,7 +46,7 @@ perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY
 
 perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	-
 
-perly.y:532 bare_statement_null: PERLY_SEMICOLON	-
+perly.y:532 bare_statement_null: PERLY_SEMICOLON	ported
 
 perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON	-
 
@@ -76,13 +76,13 @@ perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	-
 
 perly.y:770 sigsub_or_method_named: KW_METHOD_named	-
 
-perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	-
+perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	fitted
 
-perly.y:783 empty: %empty	-
+perly.y:783 empty: %empty	ported
 
 perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT	-
 
-perly.y:794 remember: %empty	-
+perly.y:794 remember: %empty	ported
 
 perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE	-
 
@@ -92,15 +92,15 @@ perly.y:812 catch_paren: empty	-
 
 perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE	-
 
-perly.y:825 stmtseq: empty	-
+perly.y:825 stmtseq: empty	ported
 
-perly.y:826 stmtseq: stmtseq fullstmt	-
+perly.y:826 stmtseq: stmtseq fullstmt	ported
 
 perly.y:836 formstmtseq: empty	-
 
 perly.y:837 formstmtseq: formstmtseq formline	-
 
-perly.y:846 fullstmt: barestmt	-
+perly.y:846 fullstmt: barestmt	ported
 
 perly.y:850 fullstmt: labfullstmt	-
 
@@ -110,7 +110,7 @@ perly.y:861 labfullstmt: LABEL labfullstmt	-
 
 perly.y:878 barestmt: PLUGSTMT	excluded keyword-plugin
 
-perly.y:879 barestmt: bare_statement_block	-
+perly.y:879 barestmt: bare_statement_block	ported
 
 perly.y:880 barestmt: bare_statement_class_declaration	-
 
@@ -120,7 +120,7 @@ perly.y:882 barestmt: bare_statement_default	-
 
 perly.y:883 barestmt: bare_statement_defer	-
 
-perly.y:884 barestmt: bare_statement_expression	-
+perly.y:884 barestmt: bare_statement_expression	ported
 
 perly.y:885 barestmt: bare_statement_field_declaration	-
 
@@ -132,7 +132,7 @@ perly.y:888 barestmt: bare_statement_given	-
 
 perly.y:889 barestmt: bare_statement_if	-
 
-perly.y:890 barestmt: bare_statement_null	-
+perly.y:890 barestmt: bare_statement_null	ported
 
 perly.y:891 barestmt: bare_statement_package_declaration	-
 
@@ -168,7 +168,7 @@ perly.y:929 condition: expr	-
 
 perly.y:933 sideff: error	excluded error-recovery
 
-perly.y:935 sideff: expr	-
+perly.y:935 sideff: expr	ported
 
 perly.y:937 sideff: expr KW_IF condition	-
 
@@ -188,7 +188,7 @@ perly.y:957 else: KW_ELSE mblock	-
 
 perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else	-
 
-perly.y:973 cont: empty	-
+perly.y:973 cont: empty	ported
 
 perly.y:974 cont: KW_CONTINUE block	-
 
@@ -314,13 +314,13 @@ perly.y:1258 expr: expr OROP expr	-
 
 perly.y:1260 expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr	-
 
-perly.y:1262 expr: listexpr	-
+perly.y:1262 expr: listexpr	ported
 
-perly.y:1266 listexpr: listexpr PERLY_COMMA	-
+perly.y:1266 listexpr: listexpr PERLY_COMMA	ported
 
-perly.y:1268 listexpr: listexpr PERLY_COMMA term	-
+perly.y:1268 listexpr: listexpr PERLY_COMMA term	ported
 
-perly.y:1273 listexpr: term	-
+perly.y:1273 listexpr: term	ported
 
 perly.y:1277 listop: LSTOP indirob listexpr	-
 
@@ -382,7 +382,7 @@ perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN 
 
 perly.y:1413 termbinop: term PLUGIN_HIGH_OP term	-
 
-perly.y:1415 termbinop: term ASSIGNOP term	-
+perly.y:1415 termbinop: term ASSIGNOP term	ported
 
 perly.y:1417 termbinop: term PLUGIN_ASSIGN_OP term	-
 
@@ -488,7 +488,7 @@ perly.y:1558 termdo: KW_DO term	-
 
 perly.y:1560 termdo: KW_DO block	-
 
-perly.y:1564 term: termbinop	-
+perly.y:1564 term: termbinop	ported
 
 perly.y:1565 term: termunop	-
 
@@ -510,15 +510,15 @@ perly.y:1578 term: QWLIST	-
 
 perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
 
-perly.y:1582 term: scalar	-
+perly.y:1582 term: scalar	ported
 
-perly.y:1584 term: star	-
+perly.y:1584 term: star	ported
 
-perly.y:1586 term: hsh	-
+perly.y:1586 term: hsh	ported
 
-perly.y:1588 term: ary	-
+perly.y:1588 term: ary	ported
 
-perly.y:1590 term: arylen	-
+perly.y:1590 term: arylen	ported
 
 perly.y:1592 term: subscripted	-
 
@@ -530,9 +530,9 @@ perly.y:1614 term: sliceme PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLO
 
 perly.y:1624 term: kvslice PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
 
-perly.y:1634 term: THING	-
+perly.y:1634 term: THING	ported
 
-perly.y:1636 term: amper	-
+perly.y:1636 term: amper	ported
 
 perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
 
@@ -660,19 +660,19 @@ perly.y:1838 my_refgen: KW_MY REFGEN	-
 
 perly.y:1839 my_refgen: REFGEN KW_MY	-
 
-perly.y:1842 amper: PERLY_AMPERSAND indirob	-
+perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
 
-perly.y:1846 scalar: PERLY_DOLLAR indirob	-
+perly.y:1846 scalar: PERLY_DOLLAR indirob	fitted
 
-perly.y:1850 ary: PERLY_SNAIL indirob	-
+perly.y:1850 ary: PERLY_SNAIL indirob	fitted
 
-perly.y:1856 hsh: PERLY_PERCENT_SIGN indirob	-
+perly.y:1856 hsh: PERLY_PERCENT_SIGN indirob	fitted
 
-perly.y:1862 arylen: DOLSHARP indirob	-
+perly.y:1862 arylen: DOLSHARP indirob	fitted
 
 perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR	-
 
-perly.y:1868 star: PERLY_STAR indirob	-
+perly.y:1868 star: PERLY_STAR indirob	fitted
 
 perly.y:1872 sliceme: ary	-
 

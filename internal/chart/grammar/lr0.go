@@ -69,6 +69,9 @@ type Tables struct {
 	// set. BuildTables leaves it empty; the generator fills it from the
 	// grammar's token classes, complete before recognize.New.
 	TerminalSets [][]int
+	// Tokens is the compiled token table whose ids index TerminalSets; nil
+	// until the generator compiles the grammar's classes.
+	Tokens *TokenTable
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting

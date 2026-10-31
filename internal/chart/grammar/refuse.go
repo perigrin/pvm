@@ -51,7 +51,7 @@ func Committed() (*Grammar, []Entry, error) {
 	return g, ref, nil
 }
 
-// Generate builds g's tables and refuses an inconsistent grammar: it returns
+// Generate builds g's tables, its token table included, and refuses an inconsistent grammar: it returns
 // the error and no tables. A grammar with no rules generates none and no error.
 func Generate(g *Grammar, ref []Entry) (*Tables, error) {
 	if len(g.G1) == 0 {
@@ -64,7 +64,11 @@ func Generate(g *Grammar, ref []Entry) (*Tables, error) {
 	if err := Refuse(g, t, ref); err != nil {
 		return nil, err
 	}
-	return t, nil
+	classes, _ := g.ResolveClasses(t) // Refuse has already refused what it cannot resolve
+	if t.Tokens, err = CompileTokens(classes); err != nil {
+		return nil, err
+	}
+	return t, t.FillTerminalSets(t.Tokens.Sets)
 }
 
 // GenerateTables writes g's tables into dir. A refused grammar writes nothing.
