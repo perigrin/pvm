@@ -26,11 +26,9 @@ func path(st toy, offsets ...int) []Node[toy] {
 }
 
 func TestLinearLattice(t *testing.T) {
-	x := guacamole(t)
-	src := []byte("my $x = 1;\n")
-	s, err := x.Lex(src)
-	if err != nil {
-		t.Fatal(err)
+	s := &Stream{}
+	for _, end := range []int{2, 5, 6} {
+		s.Tokens = append(s.Tokens, Token{Token: lexer.Token{End: end}})
 	}
 	l := Linear(s)
 	if len(l.Nodes) != len(s.Tokens)+1 || len(l.Edges) != len(s.Tokens) {

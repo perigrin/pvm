@@ -1,2 +1,2 @@
 go test fuzz v1
-string("my %h = (a => 1); print $h{a};")
+string("\x00\x01\x02\x03\x04\x05\x01\x04")

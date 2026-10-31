@@ -19,43 +19,6 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// Token is one significant token: the production lexer's token, the trivia
-// before it, and the cut's terminals whose predicate admits it. A token no
-// predicate admits stays in the stream with no terminals.
-type Token struct {
-	lexer.Token
-	Lead      []lexer.Token
-	Terminals []string
-}
-
-// Stream is a source's tokens in order, with the trivia after the last one
-// in Tail, and the context facts derived from them.
-type Stream struct {
-	Tokens []Token
-	Tail   []lexer.Token
-	Facts  *Context
-}
-
-// Text is every byte the stream's tokens and trivia span, in order. For a
-// lossless stream it is the source.
-func (s *Stream) Text(src []byte) []byte {
-	var b bytes.Buffer
-	for _, t := range s.all() {
-		b.Write(src[t.Start:t.End])
-	}
-	return b.Bytes()
-}
-
-// all is every token in source order, trivia included.
-func (s *Stream) all() []lexer.Token {
-	var out []lexer.Token
-	for _, t := range s.Tokens {
-		out = append(out, t.Lead...)
-		out = append(out, t.Token)
-	}
-	return append(out, s.Tail...)
-}
-
 // Lexer maps tokens onto one cut grammar's terminals.
 type Lexer struct {
 	byKind map[lexer.Kind][]terminal
@@ -104,9 +67,7 @@ func Guacamole(slif string) (*Lexer, error) {
 // fails to cover; the stream is returned whole either way.
 func (x *Lexer) Lex(src []byte) (*Stream, error) {
 	raw := lexer.TokenizeBarewords(src, BarewordOperators)
-	// The facts come from the lexer's own tokens: the split's `}` would
-	// close a `use constant {` early.
-	s := &Stream{Facts: facts(src, raw)}
+	s := &Stream{}
 	var errs []error
 	refused := map[int]bool{}
 	// A `$#{` is refused after a trigger, when its own interior holds one or
@@ -146,21 +107,6 @@ func (x *Lexer) Lex(src []byte) (*Stream, error) {
 		errs = append(errs, err)
 	}
 	return s, errors.Join(errs...)
-}
-
-// covers checks that the stream tiles bytes 0 to n with no gap or overlap.
-func (s *Stream) covers(n int) error {
-	at := 0
-	for _, t := range s.all() {
-		if t.Start != at {
-			return fmt.Errorf("byte %d: the stream resumes at byte %d", at, t.Start)
-		}
-		at = t.End
-	}
-	if at != n {
-		return fmt.Errorf("byte %d: the stream ends before the source's %d bytes", at, n)
-	}
-	return nil
 }
 
 // splitArrayTop splits each `$#{BLOCK}` Variable token as the cut splits it
