@@ -1,2 +1,2 @@
 go test fuzz v1
-string("LBrace LBrace LBrace Print Num Semi RBrace RBrace RBrace")
+string("\x07\x07\x07\x05\x03\x04\x08\x08\x08")

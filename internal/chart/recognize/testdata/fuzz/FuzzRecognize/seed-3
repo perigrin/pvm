@@ -1,2 +1,2 @@
 go test fuzz v1
-string("My Var Assign Var Add Num Add Num Semi")
+string("\x00\x01\x02\x01\x06\x03\x06\x03\x04")
