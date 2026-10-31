@@ -39,6 +39,9 @@ type Rule struct {
 	Seq  Seq
 	Line int // line of the alternative's first symbol
 	Decl int // line of the statement's left-hand side
+	// Cite is the perly.y alternative the port's rule answers to: "perly.y:N",
+	// or "perly.y:N, fitted: <what the lexer emits instead>". Empty for toys.
+	Cite string
 }
 
 // Grammar is the generator's input: G1 rules, and G0 rules whose left-hand

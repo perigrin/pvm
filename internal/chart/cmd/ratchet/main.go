@@ -12,6 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+
+	"tamarou.com/pvm/internal/chart/grammar"
 )
 
 var (
@@ -95,8 +98,12 @@ func report(measured map[string]string) []Measure {
 }
 
 // measure takes every measurement there is a component for, and returns
-// lex-unmapped's files as "<path> <byte>" pairs. At the reset nothing is
-// measured: each later issue makes its keys print a number.
+// lex-unmapped's files as "<path> <byte>" pairs. Each later issue makes its
+// keys print a number.
 func measure() (map[string]string, []string, error) {
-	return nil, nil, nil
+	gaps, excluded, err := grammar.LedgerCounts()
+	if err != nil {
+		return nil, nil, fmt.Errorf("the port ledger: %w", err)
+	}
+	return map[string]string{"ledger-gaps": strconv.Itoa(gaps), "ledger-excluded": strconv.Itoa(excluded)}, nil, nil
 }

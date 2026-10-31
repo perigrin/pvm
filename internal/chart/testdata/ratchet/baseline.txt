@@ -1,6 +1,6 @@
 chart-ratchet: tables-drift na
 chart-ratchet: leo-disagree na
-chart-ratchet: ledger-gaps na
+chart-ratchet: ledger-gaps 345
 chart-ratchet: rd-accepted-chart-refused na
 chart-ratchet: chart-accepted-both-refused na
 chart-ratchet: lex-unmapped na
@@ -20,7 +20,7 @@ chart-ratchet: alloc-per-token-chart na
 chart-ratchet: alloc-per-token-rd na
 chart-ratchet: items-per-token na
 chart-ratchet: set-reuse na
-chart-ratchet: ledger-excluded na
+chart-ratchet: ledger-excluded 3
 chart-ratchet: superset-population na
 chart-ratchet: superset-recognized na
 chart-ratchet: rd-accepted-perl-refused na
