@@ -73,7 +73,8 @@ func (p Protocol) Ratio(name string, files []string, cold bool) float64 {
 }
 
 // Aggregate returns timed less std5k.pl, edit5k.pl and every file whose Ref
-// time alone is more than 10% of Ref's over the whole population.
+// time alone is more than 10% of Ref's over the whole population. A timed
+// file outside the population is a caller bug, so it panics.
 func (p Protocol) Aggregate(population []File, timed []string) []string {
 	rd := make(map[string]time.Duration, len(population))
 	corpus := make(map[string]string, len(population))
@@ -87,6 +88,9 @@ func (p Protocol) Aggregate(population []File, timed []string) []string {
 	share := map[string]time.Duration{}
 	var keptTotal time.Duration
 	for _, f := range timed {
+		if _, ok := rd[f]; !ok {
+			panic("chart-ratchet: aggregate: timed file " + f + " is not in the population")
+		}
 		if b := filepath.Base(f); b == "std5k.pl" || b == "edit5k.pl" || rd[f]*10 > total {
 			fmt.Fprintf(p.Stderr, "chart-ratchet: aggregate excludes %s (%.1f%% of RD's population time)\n",
 				f, 100*float64(rd[f])/float64(total))
