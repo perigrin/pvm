@@ -5,7 +5,8 @@ package grammar
 
 // perlyRules is `lhs: rhs # perly.y:N` per rule, or `lhs: rhs # perly.y:N, fitted: <what the lexer
 // emits instead>`. A line starting with # is a placeholder for the alternative it names. A blank line
-// separates adjacent placeholders (and ledger entries), so two families' neighbouring edits merge cleanly.
+// separates adjacent placeholders and rules (and ledger entries), so two families' neighbouring edits
+// merge cleanly; only rules citing the same perly.y:N, one family's slot, may be adjacent.
 const perlyRules = `
 # perly.y:187 grammar: GRAMPROG @1 remember stmtseq
 
