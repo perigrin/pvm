@@ -21,6 +21,7 @@ var (
 	testdata     = filepath.Join("internal", "chart", "testdata")
 	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
 	knownFile    = filepath.Join(testdata, "lex-unmapped-known.txt")
+	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
 )
 
 // keys is spec §9.5's key set in its fixed print order. It was fixed at the
@@ -40,7 +41,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
-	measured, unmapped, err := measure(g, ref)
+	measured, tab, err := measure(g, ref, os.Stderr)
+	var unmapped []string
+	if err == nil {
+		unmapped, err = measureLex(tab.Tokens, measured)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
@@ -102,17 +107,38 @@ func report(measured map[string]string) []Measure {
 	return ms
 }
 
-// measure takes every measurement there is a component for, and returns
-// lex-unmapped's files as "<path> <byte>" pairs. Each later issue makes its
-// keys print a number. It measures nothing from a grammar the generator
-// refuses: that is an error, not a smaller count.
-func measure(g *grammar.Grammar, ref []grammar.Entry) (map[string]string, []string, error) {
-	if _, err := grammar.Generate(g, ref); err != nil {
+// measure takes the measurements that read the grammar alone, naming each
+// drifted table on stderr, and returns the generated tables for the corpus
+// measurements (lex.go). Each later issue makes its keys print a number. It
+// measures nothing from a grammar the generator refuses, or one with no
+// rule: that is an error, not a smaller count.
+func measure(g *grammar.Grammar, ref []grammar.Entry, stderr io.Writer) (map[string]string, *grammar.Tables, error) {
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
 		return nil, nil, fmt.Errorf("the generator refuses the grammar:\n%w", err)
+	}
+	if tab == nil {
+		return nil, nil, fmt.Errorf("the grammar has no rule, so no tables")
 	}
 	gaps, excluded, err := grammar.LedgerCounts()
 	if err != nil {
 		return nil, nil, fmt.Errorf("the port ledger: %w", err)
 	}
-	return map[string]string{"ledger-gaps": strconv.Itoa(gaps), "ledger-excluded": strconv.Itoa(excluded)}, nil, nil
+	dir, err := os.MkdirTemp("", "chart-tables-")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer os.RemoveAll(dir)
+	if err := grammar.WriteTables(dir, tab.Files()); err != nil {
+		return nil, nil, fmt.Errorf("tables-drift: %w", err)
+	}
+	drift, err := grammar.TablesDrift(tablesDir, dir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("tables-drift: %w", err)
+	}
+	for _, d := range drift {
+		fmt.Fprintf(stderr, "chart-ratchet: tables-drift: %s\n", d)
+	}
+	return map[string]string{"ledger-gaps": strconv.Itoa(gaps), "ledger-excluded": strconv.Itoa(excluded),
+		"tables-drift": strconv.Itoa(len(drift))}, tab, nil
 }
