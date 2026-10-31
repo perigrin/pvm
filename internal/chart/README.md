@@ -315,9 +315,9 @@ no pair. A terminal list joined by commas is a token several terminals
 admit.
 
 A lexer bug therefore shows up as a wrong entry, and the
-`expectation-conflicts` count is where it is caught: a pull request that
-changes it justifies each pair as one meaning in operator position and another
-in term position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
+`expectation-conflicts` count reports it: a pull request that changes it
+justifies each pair as one meaning in operator position and another in term
+position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
 `%`, `&`, `*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses
 `{` and `?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
 `$a -e` is a syntax error, and pvm's lexer agrees.
