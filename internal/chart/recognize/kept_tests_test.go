@@ -59,11 +59,11 @@ func TestKeptTestsUseNoGuacamole(t *testing.T) {
 // calls Guacamole, bare or qualified, and passes one that does not.
 func TestKeptTestsUseNoGuacamoleDetectsCall(t *testing.T) {
 	for src, want := range map[string][]string{
-		"package p\nfunc direct() { Guacamole(\"x\") }":                        {"s.go: direct"},
-		"package p\nfunc qualified() { _, _, _ = recognize.Guacamole(\"x\") }": {"s.go: qualified"},
-		"package p\nvar tab, _, _ = recognize.Guacamole(\"x\")":                {"s.go: package scope"},
-		"package p\nfunc value() { g := Guacamole; g(\"x\") }":                 {"s.go: value"},
-		"package p\nfunc clean() { toyTables(nil) }\nvar _ = \"Guacamole()\"":  nil,
+		"package p\nfunc direct() { Guacamole(\"x\") }":                          {"s.go: direct"},
+		"package p\nfunc qualified() { _, _, _ = (recognize.Guacamole)(\"x\") }": {"s.go: qualified"},
+		"package p\nvar tab, _, _ = (recognize.Guacamole)(\"x\")":                {"s.go: package scope"},
+		"package p\nfunc value() { g := Guacamole; g(\"x\") }":                   {"s.go: value"},
+		"package p\nfunc clean() { toyTables(nil) }\nvar _ = \"Guacamole()\"":    nil,
 	} {
 		got, err := guacamoleCallers("s.go", src)
 		if err != nil {
