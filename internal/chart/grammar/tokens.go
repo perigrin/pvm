@@ -140,6 +140,7 @@ type node struct {
 	def  *node
 	set  []int
 	id   int
+	uid  int // set when the node is interned while the table is built
 }
 
 // TokenTable is the compiled classes. Sets[0] is the empty set, what a key
@@ -161,6 +162,21 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		pats[i] = c.pattern()
 	}
+	// Identical subtrees are one node, so the table does not grow with the
+	// number of classes that differ only in a part tested above them.
+	shared, memo := map[string]*node{}, map[string]*node{}
+	var leaves []*node
+	intern := func(key string, n *node) *node {
+		if old, ok := shared[key]; ok {
+			return old
+		}
+		n.uid = len(shared)
+		shared[key] = n
+		if n.kids == nil {
+			leaves = append(leaves, n)
+		}
+		return n
+	}
 	var build func(in []int, part int) *node
 	build = func(in []int, part int) *node {
 		for ; part < nParts; part++ {
@@ -168,28 +184,40 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				break
 			}
 		}
+		memoKey := fmt.Sprint(part, in)
+		if n, ok := memo[memoKey]; ok {
+			return n
+		}
+		var n *node
 		if part == nParts {
 			var set []int
 			for _, c := range in {
 				set = append(set, classes[c].Terminals...)
 			}
 			slices.Sort(set)
-			return &node{set: slices.Compact(set)}
-		}
-		n := &node{part: part, kids: map[partVal]*node{}}
-		var wild []int
-		for _, c := range in {
-			if pats[c][part] == nil {
-				wild = append(wild, c)
+			set = slices.Compact(set)
+			n = intern("leaf"+fmt.Sprint(set), &node{set: set})
+		} else {
+			cand := &node{part: part, kids: map[partVal]*node{}}
+			var wild []int
+			for _, c := range in {
+				if pats[c][part] == nil {
+					wild = append(wild, c)
+				}
 			}
-		}
-		n.def = build(wild, part+1)
-		for _, c := range in {
-			if p := pats[c][part]; p != nil && n.kids[*p] == nil {
-				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != nil && *q != *p })
-				n.kids[*p] = build(same, part+1)
+			cand.def = build(wild, part+1)
+			sig := []string{fmt.Sprint(part, cand.def.uid)}
+			for _, c := range in {
+				if p := pats[c][part]; p != nil && cand.kids[*p] == nil {
+					same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != nil && *q != *p })
+					cand.kids[*p] = build(same, part+1)
+					sig = append(sig, fmt.Sprintf("%+v=%d", *p, cand.kids[*p].uid))
+				}
 			}
+			slices.Sort(sig[1:])
+			n = intern(strings.Join(sig, ";"), cand)
 		}
+		memo[memoKey] = n
 		return n
 	}
 	all := make([]int, len(classes))
@@ -197,19 +225,6 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		all[i] = i
 	}
 	tt := &TokenTable{root: build(all, 0), Sets: [][]int{{}}}
-	var leaves []*node
-	var walk func(*node)
-	walk = func(n *node) {
-		if n.kids == nil {
-			leaves = append(leaves, n)
-			return
-		}
-		walk(n.def)
-		for _, k := range n.kids {
-			walk(k)
-		}
-	}
-	walk(tt.root)
 	for _, l := range leaves {
 		if len(l.set) > 0 {
 			tt.Sets = append(tt.Sets, l.set)
@@ -244,26 +259,36 @@ func (tt *TokenTable) Text() []byte {
 	for i, s := range tt.Sets {
 		fmt.Fprintf(&b, "set %d%s\n", i, ints(s))
 	}
-	var dump func(n *node, depth int)
-	dump = func(n *node, depth int) {
-		pad := strings.Repeat(" ", depth)
+	// Shared nodes are dumped once, numbered in visit order.
+	num := map[*node]int{}
+	var dump func(n *node) int
+	dump = func(n *node) int {
+		if i, ok := num[n]; ok {
+			return i
+		}
 		if n.kids == nil {
-			fmt.Fprintf(&b, "%s-> %d\n", pad, n.id)
-			return
+			num[n] = len(num)
+			fmt.Fprintf(&b, "node %d leaf set %d\n", num[n], n.id)
+			return num[n]
 		}
 		keys := make([]partVal, 0, len(n.kids))
 		for k := range n.kids {
 			keys = append(keys, k)
 		}
 		slices.SortFunc(keys, func(a, b partVal) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
-		for _, k := range keys {
-			fmt.Fprintf(&b, "%spart %d %+v\n", pad, n.part, k)
-			dump(n.kids[k], depth+1)
+		kids := make([]int, len(keys))
+		for i, k := range keys {
+			kids[i] = dump(n.kids[k])
 		}
-		fmt.Fprintf(&b, "%spart %d otherwise\n", pad, n.part)
-		dump(n.def, depth+1)
+		def := dump(n.def)
+		num[n] = len(num)
+		fmt.Fprintf(&b, "node %d part %d otherwise %d\n", num[n], n.part, def)
+		for i, k := range keys {
+			fmt.Fprintf(&b, "  %+v -> %d\n", k, kids[i])
+		}
+		return num[n]
 	}
-	dump(tt.root, 0)
+	fmt.Fprintf(&b, "root %d\n", dump(tt.root))
 	return []byte(b.String())
 }
 
@@ -276,4 +301,24 @@ func (t *Tables) FillTerminalSets(sets [][]int) error {
 	}
 	t.TerminalSets = sets
 	return nil
+}
+
+// Nodes is the number of distinct nodes in the table.
+func (tt *TokenTable) Nodes() int {
+	seen := map[*node]bool{}
+	var walk func(*node)
+	walk = func(n *node) {
+		if seen[n] {
+			return
+		}
+		seen[n] = true
+		if n.kids != nil {
+			walk(n.def)
+			for _, k := range n.kids {
+				walk(k)
+			}
+		}
+	}
+	walk(tt.root)
+	return len(seen)
 }
