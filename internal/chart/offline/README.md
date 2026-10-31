@@ -26,5 +26,6 @@ precedence category: a viable prefix without precedence, refused with it.
   in `testdata/cases.txt` against both referees, failing on any differing
   verdict, naming the case, and on zero cases.
 
-Cost (K6): `check.sh` takes 1–3 s wall clock on this machine (4 cores,
-bison 3.8.2, gcc 13.3), nearly all of it the two bison and cc builds.
+Cost (K6): `check.sh` takes about 0.65 s wall clock on this machine (0.62–0.67 s
+over three runs; 4 cores, bison 3.8.2, gcc 13.3), nearly all of it the two
+bison and cc builds.

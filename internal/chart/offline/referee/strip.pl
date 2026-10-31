@@ -51,7 +51,8 @@ print "%{\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n",
   "int yylex(void);\nvoid yyerror(const char *);\n";
 print "static int merge(int a, int b) { (void)b; return a; }\n" if $noprec;
 print "%}\n", $noprec ? "%glr-parser\n" : '', $decls, "%%\n";
-# shortcut: %merge runs every derivation's actions, so a refusal in any one refuses the span; revisit if a case needs bison's choice.
+# shortcut: %merge runs every derivation's actions, so one refusing derivation refuses the span where every one should have to;
+# unreachable at 94e50866 (each kept refusal ends its rule with nothing after it), revisit if the pin moves.
 for my $a (@alts) {
 	print "$a->[0]: @{$a->[1]}", ($noprec ? ' %merge <merge>' : ''), ";\n";
 }
