@@ -150,6 +150,35 @@ list — never worked around.
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
 | `chart-accepted-perl-refused` | files the chart accepts and perl refuses | reported |
 
+### The speed protocol
+
+Every timing ratio — `lex-overhead*` and `speed-ratio-*` — comes from one
+protocol in `cmd/ratchet/speed.go` (spec §9.3), code over injected sides, a
+clock and a collector, so it is tested on fake timings
+(`TestSpeedProtocol`, `TestSpeedProtocolExclusionBoundary`):
+
+- **Alternation.** The chart side and the reference side (recursive descent,
+  or `lexer.Tokenize` for `lex-overhead`) are timed in alternating passes in
+  one process: chart, reference, chart, reference. Each pass covers every
+  file of the set once. A GC is forced before each pass, outside the timed
+  span; within a pass collection is left to the runtime.
+- **A measurement** is 2 warm-up pairs then 9 timed pairs; its ratio is the
+  median of the 9 per-pair ratios (chart pass over reference pass), with min
+  and max printed on stderr. A figure is the median of three measurements.
+- **Lifetimes.** Long-lived: one parser per pass, reused across its files.
+  Cold: a fresh parser per file.
+- **The file set is an input.** `lex-overhead` passes every corpus file
+  until the superset population exists and the aggregate after it; the speed
+  ratios pass `std5k.pl` alone and the aggregate.
+- **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
+  file whose recursive-descent time alone is more than 10% of recursive
+  descent's time over the **whole** population, whatever subset is timed.
+  Exactly 10% stays in. Each excluded file and each corpus's share of the
+  aggregate's recursive-descent time are printed on stderr.
+
+Wiring real chart and recursive-descent runs into the protocol is the job of
+the issues that make those keys print a number.
+
 To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
 `internal/chart/testdata/ratchet/baseline.txt` and review the diff.
