@@ -19,8 +19,9 @@ perly_h=$archlibexp/CORE/perly.h
 [ -r "$perly_h" ] || { echo "tdt-capture.sh: no $perly_h" >&2; exit 2; }
 
 # -Dp adds the parser's "lookahead token is token GRAMPROG" line, the one mark a
-# compilation unit's start leaves (a loaded file or a string eval); -DT's EOF ends
-# it. Only the first unit's tokens print. Perl's stdin is /dev/null, its stdout
+# compilation unit's start leaves (a loaded file or a string eval), and its
+# "clearing the parse stack", printed whenever a parse ends, accepted or not.
+# Only the first unit's tokens print. Perl's stdin is /dev/null, its stdout
 # is dropped, and its exit status arrives as the stream's last line.
 # -Dp spins without end once BEGIN puts an :encoding layer on STDERR, so perl
 # runs under a timeout (perigrin: "Timeout, mark refused"); 60 s is six times
@@ -38,13 +39,18 @@ BEGIN {
 }
 /^tdt-capture-status / { st = $2; next }
 /^lookahead token is token GRAMPROG / { unit[++d] = ++n; next }
+/^clearing the parse stack$/ {
+	if (d == 0) { bad = "a parse ended outside any unit"; exit }
+	if (unit[d--] == 1 && !mainEOF) truncated = 1
+	next
+}
 /^### [0-9]+:LEX_/ { ident = ""; next }
 /^### forced token:$/ { forced = 1; next }
 /^### Pending identifier / { ident = substr($0, 25, length($0) - 25); next }
 /^### <== / {
 	if (forced) { forced = 0; next }   # reported again when delivered
 	r = substr($0, 9)
-	if (r == "EOF") { if (d-- == 0) { bad = "EOF outside any unit"; exit } next }
+	if (r == "EOF") { if (unit[d] == 1) mainEOF = 1; next }
 	if (unit[d] != 1) next
 	if (r ~ /^\?\? [0-9]+$/) {
 		t = name[substr(r, 4)]
@@ -63,11 +69,9 @@ BEGIN {
 END {
 	if (bad == "" && st == "") bad = "perl exit status missing"
 	if (bad == "" && st == 124) { print "# timeout: perl ran past " limit " s"; exit 1 }
-	if (bad == "" && st == 0 && d != 0) {
-		# An exit in BEGIN (plan skip_all) stops perl with status 0 before the file ends.
-		print "# truncated: perl exited 0 before the file reached EOF"
-		bad = d " unit(s) never reached EOF"
-	}
+	if (bad == "" && st == 0 && d != 0) bad = d " unit(s) never ended"
+	# An exit in BEGIN (plan skip_all) ends the main parse before its EOF.
+	if (bad == "" && st == 0 && truncated) { print "# truncated: the -DT stream stopped before the file\047s EOF (perl exited 0)"; exit 2 }
 	if (bad != "") { print "tdt-capture.sh: " bad > "/dev/stderr"; exit 2 }
 	if (st != 0) { print "# refused: perl exited " st; exit 1 }
 }'
