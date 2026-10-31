@@ -269,3 +269,48 @@ func firstDifference(path, maker string, made, listed []string) string {
 }
 
 func lines(b []byte) []string { return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") }
+
+func TestFirstDifference(t *testing.T) {
+	for _, tc := range []struct {
+		made, listed []string
+		want         string
+	}{
+		{[]string{"a", `b '\'`}, []string{"a"}, `p: the generator makes "b '\'", which is not listed (after line 1)`},
+		{[]string{"a"}, []string{"a", "Fake"}, `p: line 2 lists "Fake", which the generator no longer makes`},
+		{[]string{`x '\'`}, []string{"y"}, `p: line 1 lists "y", but the generator makes "x '\'"`},
+		{[]string{"a"}, []string{"a"}, "p: the lines match, but the bytes differ: the list must end in exactly one newline"},
+	} {
+		if got := firstDifference("p", "the generator", tc.made, tc.listed); got != tc.want {
+			t.Errorf("firstDifference(%q, %q) = %s, want %s", tc.made, tc.listed, got, tc.want)
+		}
+	}
+}
+
+// TestWriteTablesAndDrift: WriteTables leaves exactly the generator's files,
+// removing a stray .txt, and TablesDrift reports nothing for equal
+// directories and names the one file that changed.
+func TestWriteTablesAndDrift(t *testing.T) {
+	files := build(t, goldenToys[0].g).Files()
+	a, b := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(b, "stray.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{a, b} {
+		if err := WriteTables(dir, files); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(b, "stray.txt")); !os.IsNotExist(err) {
+		t.Errorf("WriteTables left the stray file (stat error %v)", err)
+	}
+	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
+		t.Fatalf("TablesDrift of equal directories = %v, %v; want none", drift, err)
+	}
+	if err := os.WriteFile(filepath.Join(b, "rules.txt"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	drift, err := TablesDrift(a, b)
+	if want := "rules.txt differs from the generator's"; err != nil || len(drift) != 1 || drift[0] != want {
+		t.Errorf("TablesDrift = %q, %v; want [%q]", drift, err, want)
+	}
+}
