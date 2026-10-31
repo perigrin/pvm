@@ -3,12 +3,15 @@
 
 package grammar
 
+import "tamarou.com/pvm/internal/lexer"
+
 // perlyRules is `lhs: rhs # perly.y:N` per rule, or `lhs: rhs # perly.y:N, fitted: <what the lexer
 // emits instead>`. A line starting with # is a placeholder for the alternative it names. A blank line
 // separates adjacent placeholders and rules (and ledger entries), so two families' neighbouring edits
 // merge cleanly; only rules citing the same perly.y:N, one family's slot, may be adjacent.
 const perlyRules = `
-# perly.y:187 grammar: GRAMPROG @1 remember stmtseq
+grammar: remember stmtseq # perly.y:187, fitted: GRAMPROG is a start selector, not a token
+grammar: remember stmtseq sideff # perly.y:187, fitted: GRAMPROG is a start selector, not a token; pvm does not emit the ; toke.c inserts at end of file
 
 # perly.y:198 grammar: GRAMEXPR @2 optexpr
 
@@ -22,7 +25,7 @@ const perlyRules = `
 
 # perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts
 
-# perly.y:270 bare_statement_block: block cont
+bare_statement_block: block cont # perly.y:270
 
 # perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON
 
@@ -32,7 +35,7 @@ const perlyRules = `
 
 # perly.y:325 bare_statement_defer: KW_DEFER mblock
 
-# perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON
+bare_statement_expression: sideff PERLY_SEMICOLON # perly.y:333
 
 # perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON
 
@@ -56,7 +59,7 @@ const perlyRules = `
 
 # perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else
 
-# perly.y:532 bare_statement_null: PERLY_SEMICOLON
+bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
 # perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON
 
@@ -86,13 +89,14 @@ const perlyRules = `
 
 # perly.y:770 sigsub_or_method_named: KW_METHOD_named
 
-# perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE
+block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:775, fitted: pvm does not emit the ; toke.c inserts before }
+block: PERLY_BRACE_OPEN remember stmtseq sideff PERLY_BRACE_CLOSE # perly.y:775, fitted: pvm does not emit the ; toke.c inserts before }
 
-# perly.y:783 empty: %empty
+empty: # perly.y:783
 
 # perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT
 
-# perly.y:794 remember: %empty
+remember: # perly.y:794
 
 # perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE
 
@@ -102,15 +106,15 @@ const perlyRules = `
 
 # perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE
 
-# perly.y:825 stmtseq: empty
+stmtseq: empty # perly.y:825
 
-# perly.y:826 stmtseq: stmtseq fullstmt
+stmtseq: stmtseq fullstmt # perly.y:826
 
 # perly.y:836 formstmtseq: empty
 
 # perly.y:837 formstmtseq: formstmtseq formline
 
-# perly.y:846 fullstmt: barestmt
+fullstmt: barestmt # perly.y:846
 
 # perly.y:850 fullstmt: labfullstmt
 
@@ -120,7 +124,7 @@ const perlyRules = `
 
 # perly.y:878 barestmt: PLUGSTMT
 
-# perly.y:879 barestmt: bare_statement_block
+barestmt: bare_statement_block # perly.y:879
 
 # perly.y:880 barestmt: bare_statement_class_declaration
 
@@ -130,7 +134,7 @@ const perlyRules = `
 
 # perly.y:883 barestmt: bare_statement_defer
 
-# perly.y:884 barestmt: bare_statement_expression
+barestmt: bare_statement_expression # perly.y:884
 
 # perly.y:885 barestmt: bare_statement_field_declaration
 
@@ -142,7 +146,7 @@ const perlyRules = `
 
 # perly.y:889 barestmt: bare_statement_if
 
-# perly.y:890 barestmt: bare_statement_null
+barestmt: bare_statement_null # perly.y:890
 
 # perly.y:891 barestmt: bare_statement_package_declaration
 
@@ -178,7 +182,7 @@ const perlyRules = `
 
 # perly.y:933 sideff: error
 
-# perly.y:935 sideff: expr
+sideff: expr # perly.y:935
 
 # perly.y:937 sideff: expr KW_IF condition
 
@@ -198,7 +202,7 @@ const perlyRules = `
 
 # perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else
 
-# perly.y:973 cont: empty
+cont: empty # perly.y:973
 
 # perly.y:974 cont: KW_CONTINUE block
 
@@ -324,13 +328,13 @@ const perlyRules = `
 
 # perly.y:1260 expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr
 
-# perly.y:1262 expr: listexpr
+expr: listexpr # perly.y:1262
 
-# perly.y:1266 listexpr: listexpr PERLY_COMMA
+listexpr: listexpr PERLY_COMMA # perly.y:1266
 
-# perly.y:1268 listexpr: listexpr PERLY_COMMA term
+listexpr: listexpr PERLY_COMMA term # perly.y:1268
 
-# perly.y:1273 listexpr: term
+listexpr: term # perly.y:1273
 
 # perly.y:1277 listop: LSTOP indirob listexpr
 
@@ -392,7 +396,7 @@ const perlyRules = `
 
 # perly.y:1413 termbinop: term PLUGIN_HIGH_OP term
 
-# perly.y:1415 termbinop: term ASSIGNOP term
+termbinop: term ASSIGNOP term # perly.y:1415
 
 # perly.y:1417 termbinop: term PLUGIN_ASSIGN_OP term
 
@@ -498,7 +502,7 @@ const perlyRules = `
 
 # perly.y:1560 termdo: KW_DO block
 
-# perly.y:1564 term: termbinop
+term: termbinop # perly.y:1564
 
 # perly.y:1565 term: termunop
 
@@ -520,15 +524,15 @@ const perlyRules = `
 
 # perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
 
-# perly.y:1582 term: scalar
+term: scalar # perly.y:1582
 
-# perly.y:1584 term: star
+term: star # perly.y:1584
 
-# perly.y:1586 term: hsh
+term: hsh # perly.y:1586
 
-# perly.y:1588 term: ary
+term: ary # perly.y:1588
 
-# perly.y:1590 term: arylen
+term: arylen # perly.y:1590
 
 # perly.y:1592 term: subscripted
 
@@ -540,9 +544,9 @@ const perlyRules = `
 
 # perly.y:1624 term: kvslice PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
 
-# perly.y:1634 term: THING
+term: THING # perly.y:1634
 
-# perly.y:1636 term: amper
+term: amper # perly.y:1636
 
 # perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
 
@@ -670,19 +674,19 @@ const perlyRules = `
 
 # perly.y:1839 my_refgen: REFGEN KW_MY
 
-# perly.y:1842 amper: PERLY_AMPERSAND indirob
+amper: PERLY_AMPERSAND BAREWORD # perly.y:1842, fitted: pvm emits & and the name as two tokens, the name standing for indirob's BAREWORD
 
-# perly.y:1846 scalar: PERLY_DOLLAR indirob
+scalar: PERLY_DOLLAR # perly.y:1846, fitted: pvm emits the sigil and the name as one Variable token
 
-# perly.y:1850 ary: PERLY_SNAIL indirob
+ary: PERLY_SNAIL # perly.y:1850, fitted: pvm emits the sigil and the name as one Variable token
 
-# perly.y:1856 hsh: PERLY_PERCENT_SIGN indirob
+hsh: PERLY_PERCENT_SIGN # perly.y:1856, fitted: pvm emits the sigil and the name as one Variable token
 
-# perly.y:1862 arylen: DOLSHARP indirob
+arylen: DOLSHARP # perly.y:1862, fitted: pvm emits the sigil and the name as one Variable token, $# its sigil
 
 # perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR
 
-# perly.y:1868 star: PERLY_STAR indirob
+star: PERLY_STAR BAREWORD # perly.y:1868, fitted: pvm emits * and the name as two tokens, the name standing for indirob's BAREWORD
 
 # perly.y:1872 sliceme: ary
 
@@ -714,19 +718,20 @@ const perlyRules = `
 // replaces its terminals' comments with `{"TERMINAL", TokenClass{...}},`: the same
 // terminal may be declared more than once, and the classes matching a token union.
 var perlyClasses = []ClassDecl{
-	// PERLY_AMPERSAND
+	{"PERLY_AMPERSAND", TokenClass{Kind: ptr(lexer.FuncSigil)}},
 
-	// PERLY_BRACE_OPEN
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}},
 
-	// PERLY_BRACE_CLOSE
+	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true)}},
 
 	// PERLY_BRACKET_OPEN
 
 	// PERLY_BRACKET_CLOSE
 
-	// PERLY_COMMA
+	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
+	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
 
-	// PERLY_DOLLAR
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$'))}},
 
 	// PERLY_DOT
 
@@ -734,17 +739,17 @@ var perlyClasses = []ClassDecl{
 
 	// PERLY_MINUS
 
-	// PERLY_PERCENT_SIGN
+	{"PERLY_PERCENT_SIGN", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('%'))}},
 
 	// PERLY_PLUS
 
-	// PERLY_SEMICOLON
+	{"PERLY_SEMICOLON", TokenClass{Kind: ptr(lexer.Semicolon)}},
 
 	// PERLY_SLASH
 
-	// PERLY_SNAIL
+	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('@'))}},
 
-	// PERLY_STAR
+	{"PERLY_STAR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
 
 	// KW_FORMAT
 
@@ -806,7 +811,8 @@ var perlyClasses = []ClassDecl{
 
 	// KW_METHOD_anon
 
-	// BAREWORD
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}}},
 
 	// METHCALL0
 
@@ -814,7 +820,11 @@ var perlyClasses = []ClassDecl{
 
 	// ATTRLIST
 
-	// THING
+	{"THING", TokenClass{Kind: ptr(lexer.Number)}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\''))}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"'))}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q'))}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q'))}},
 
 	// PMFUNC
 
@@ -858,7 +868,7 @@ var perlyClasses = []ClassDecl{
 
 	// ADDOP
 
-	// DOLSHARP
+	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#'))}},
 
 	// HASHBRACK
 
@@ -882,7 +892,26 @@ var perlyClasses = []ClassDecl{
 
 	// NOTOP
 
-	// ASSIGNOP
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("**=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(".=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("/=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("%=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("|=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("<<=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(">>=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&&=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("//=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&.=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("|.=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^.=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x=")}},
 
 	// PERLY_QUESTION_MARK
 

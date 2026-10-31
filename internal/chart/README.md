@@ -17,8 +17,10 @@ decided to re-attempt the spike with a grammar ported from `perly.y` over
 `internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
 the ratchet carry over. Guacamole's grammar, the SLIF reader, the token cut,
 `chart/lex`'s predicate mapping, the observed-conflict probes and the CORE.tpm
-cross-check are removed, and no grammar is committed until the port. The
-history of what they were is in `docs/postmortems/chart-waypoint.md`. The
+cross-check are removed. The port's grammar grows family by family in
+`grammar/perly.go`, starting from the core rules the first token classes
+need (the program start form, the statement and block spine, the expression
+core and the variable heads). The history of what they were is in `docs/postmortems/chart-waypoint.md`. The
 forest, error recovery, `chart/compare` and the oracle adapter were never
 built.
 
@@ -83,8 +85,9 @@ retired.
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
 - **Inputs.** The ratchet reads only the working tree: no commit, no
-  `refs/zhi`, no network. It reads nothing under Guacamole's paths and
-  does not import `chart/lex`.
+  `refs/zhi`, no network. Of Guacamole it reads only the corpus snippets
+  under `testdata/guacamole/`, never its grammar. It imports `chart/lex` to
+  time it and to count `lex-unmapped`.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
@@ -219,6 +222,38 @@ checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
 unset or names no directory, the test fails naming `T1_CORPUS`; it never
 skips, so run it with `T1_CORPUS` set.
 
+## The thin chart/lex: `lex`
+
+`lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
+and then does **one table lookup per significant token** through the
+compiled token table (`grammar.TokenTable`), yielding its terminal-set id
+(spec §5.2, §7). The lookup allocates nothing; trivia is a slice of the
+lexer's tokens, copied only where a heredoc body interrupts it. It uses no
+regexp.
+
+- **Trivia** (`lexer.IsTrivia`: whitespace, comments, pod, the data section)
+  attaches to the next significant token as its `Lead`; trivia after the
+  last one is the stream's `Tail`. Nothing is dropped: `Stream.Text` gives
+  back the source.
+- **Heredoc bodies** attach to their heredoc's opening token, never to the
+  token after the opener's line: the bodies after a line go to that line's
+  openers in order, each in the stream's `Bodies` side table under its
+  opener's index (`Stream.Body(i)`), so a token stays small. Trivia a body
+  interrupts still goes to the next significant token.
+- **Every token is mapped.** A token whose key matches no class gets set 0,
+  the empty set, and the stream goes on, so a file is always lexed whole;
+  `Lex` also returns the byte of the first such token, or -1. The recognizer
+  refuses there, and the ratchet's `lex-unmapped` counts the file.
+- **The key** a token is looked up by is its lexer kind, text, flags and
+  prefix (a variable's sigil, `#` for `$#`; a quote's opening quote or
+  operator, `Q` for `qq`), and the classes of the two significant tokens
+  before it and the one after. Each token is interned once and its class id
+  reused where it is a neighbour.
+
+`lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
+`lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
+inside the span, so `lex-overhead`'s numerator always includes the lexer.
+
 ## The recognizer: `recognize`
 
 `recognize.Recognize` runs a YAEP-style Earley recognizer over the generated
@@ -230,9 +265,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   lists of terminal symbol ids; a token is read as every terminal in its
   set, so a token whose set holds several is scanned as each of them. **Id 0
   is the empty set**, so a token never given an id refuses rather than
-  scanning. `BuildTables` leaves `TerminalSets` empty; the generator fills it
-  from the grammar's token classes (the token-interface issue), and until
-  then the tests fill it (the empty set, then one singleton set per
+  scanning. `BuildTables` leaves `TerminalSets` empty; `grammar.Generate`
+  fills it from the grammar's compiled token classes, and tests on toy
+  grammars fill it themselves (the empty set, then one singleton set per
   terminal). It is complete before `New`, which keeps its own copy: a set
   added afterwards is outside that recognizer's table. Nodes are
   numbered so that every edge runs forward. `Recognize` validates this and
@@ -306,8 +341,10 @@ pick among that grammar's terminals.
 
 `make chart-tables` runs `grammar/cmd/gen`, which builds the tables
 (`grammar.BuildTables`) of the committed grammar and writes them to
-`grammar/testdata/tables/`. With no grammar committed there is nothing to
-generate: it writes no table file, says so on stderr and exits 0.
+`grammar/testdata/tables/`, with the token table compiled from the
+grammar's token classes (`tokens.txt`). The ratchet's `tables-drift` holds
+every one of them to what the generator writes. With no rule committed there
+is nothing to generate: it writes no table file, says so on stderr and exits 0.
 
 The generator refuses an inconsistent grammar (`grammar/refuse.go`, spec §5.2):
 it prints every offence to stderr, writes no table, leaves those already there
@@ -367,6 +404,15 @@ Every line is space-separated numbers and names:
   read a token, and the memo skips the item that would read it. This is
   necessary, not sufficient: the recognizer also requires the whole Earley
   set to hold one item awaiting B.
+
+- **`tokens.txt`**: the compiled token table (`TokenTable.Text`). First
+  `set <id> <terminal ids>`, one line per terminal set, set 0 the empty set;
+  then the table's nodes, children before parents, each shared node once:
+  `node <n> leaf set <id>`, or `node <n> part <part> otherwise <n>` followed
+  by one `  <value> -> <n>` line per value that leads elsewhere. A part is
+  0 kind, 1 text, 2 `OpensBlock`, 3 `TermFollows`, 4 prefix, 5–7 the
+  classes of the second and first previous and the next token; a text is
+  printed quoted and a neighbour class as its fields. Last, `root <n>`.
 
 These are separate files so that `states.txt` stays under the
 check-added-large-files limit.
