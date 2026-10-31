@@ -14,21 +14,74 @@ import (
 
 var updateGolden = flag.Bool("grammar.update-golden", false, "rewrite testdata/golden/*.tables from the golden grammars")
 
-// TestLR0Golden builds each golden grammar's tables and compares their dump
-// to the golden file beside it.
-func TestLR0Golden(t *testing.T) {
-	for _, name := range []string{"nullable", "leftrec", "rightrec"} {
-		t.Run(name, func(t *testing.T) {
-			src, err := os.ReadFile(filepath.Join("testdata", "golden", name+".slif"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			tab, err := BuildTables(cut(t, string(src), CutSpec{}))
-			if err != nil {
-				t.Fatalf("BuildTables: %v", err)
-			}
-			got := tab.Dump()
-			path := filepath.Join("testdata", "golden", name+".tables")
+// alts is the rules of lhs, one per alternative, each a list of symbol names;
+// an empty alternative is the empty string.
+func alts(lhs string, alternatives ...string) []Rule {
+	var out []Rule
+	for _, a := range alternatives {
+		r := Rule{LHS: lhs}
+		for _, s := range strings.Fields(a) {
+			r.RHS = append(r.RHS, name(s))
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// seq is lhs ::= sym* or sym+.
+func seq(lhs, sym string, kind Seq) Rule {
+	return Rule{LHS: lhs, RHS: []Symbol{name(sym)}, Seq: kind}
+}
+
+// toy states a grammar as Go data: the terminals, then G1 rules in order.
+func toy(terminals []string, g1 ...[]Rule) *Grammar {
+	g := &Grammar{}
+	for _, rs := range g1 {
+		g.G1 = append(g.G1, rs...)
+	}
+	for _, term := range terminals {
+		g.G0 = append(g.G0, Rule{LHS: term})
+	}
+	return g
+}
+
+func build(t *testing.T, g *Grammar) *Tables {
+	t.Helper()
+	tab, err := BuildTables(g)
+	if err != nil {
+		t.Fatalf("BuildTables: %v", err)
+	}
+	return tab
+}
+
+// leftrecToy is E ::= E P T | <second>.
+func leftrecToy(second string) *Grammar {
+	return toy([]string{"P", "T"}, alts("E", "E P T", second))
+}
+
+// nullableToy: A is nullable through two levels, through C, and C through D*.
+var nullableToy = toy([]string{"D", "E", "X"},
+	alts("S", "A X B"), alts("A", "C"), []Rule{seq("C", "D", Star), seq("B", "E", Plus)})
+
+// goldenToys are the grammars behind testdata/golden/*.tables.
+var goldenToys = []struct {
+	name string
+	g    *Grammar
+}{
+	{"leftrec", leftrecToy("T")},
+	{"rightrec", toy([]string{"A"}, alts("S", "A S", "A"))},
+	{"nullable", nullableToy},
+}
+
+func goldenPath(name string) string { return filepath.Join("testdata", "golden", name+".tables") }
+
+// TestGoldenToyTables builds each toy's tables and compares their dump to the
+// golden file beside it.
+func TestGoldenToyTables(t *testing.T) {
+	for _, toy := range goldenToys {
+		t.Run(toy.name, func(t *testing.T) {
+			got := build(t, toy.g).Dump()
+			path := goldenPath(toy.name)
 			if *updateGolden {
 				if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 					t.Fatal(err)
@@ -45,18 +98,39 @@ func TestLR0Golden(t *testing.T) {
 	}
 }
 
+// TestGoldenToyTablesCatchesMutation: one rule changed in the leftrec toy's
+// Go data gives tables that differ from its golden, and the unchanged toy
+// still equals it.
+func TestGoldenToyTablesCatchesMutation(t *testing.T) {
+	want, err := os.ReadFile(goldenPath("leftrec"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := build(t, leftrecToy("T")).Dump(); got != string(want) {
+		t.Fatalf("the unchanged toy differs from its golden:\n%s", firstDifference("leftrec.tables", "the generator", lines([]byte(got)), lines(want)))
+	}
+	if got := build(t, leftrecToy("P")).Dump(); got == string(want) {
+		t.Error("the mutated toy generates its golden's tables")
+	}
+}
+
+// TestBuildTablesRefusesEmptyGrammar: no rules and no start rule are errors
+// naming what is missing, and a real toy still builds.
+func TestBuildTablesRefusesEmptyGrammar(t *testing.T) {
+	for _, g := range []*Grammar{nil, {}, {G0: []Rule{{LHS: "A"}}}} {
+		tab, err := BuildTables(g)
+		if err == nil || !strings.Contains(err.Error(), "start rule") || tab != nil {
+			t.Errorf("BuildTables(%+v) = %v, %v; want an error naming the missing start rule", g, tab, err)
+		}
+	}
+	build(t, leftrecToy("T"))
+}
+
 // TestLR0NullableClosure checks the property the nullable golden file shows:
 // the start state holds the items advanced past A, which is nullable through
 // two levels, and its complete items reduce A and C.
 func TestLR0NullableClosure(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("testdata", "golden", "nullable.slif"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := BuildTables(cut(t, string(src), CutSpec{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	tab := build(t, nullableToy)
 	start := tab.States[0]
 	var items []string
 	for _, id := range start.Items {
@@ -164,7 +238,7 @@ const tablesDir = "testdata/tables"
 // predicted state exactly when one of its items has a nonterminal after the
 // dot, and that state is a predicted one.
 func TestLR0EpsilonEdges(t *testing.T) {
-	tab, err := BuildTables(guacamoleCut(t))
+	tab, err := BuildTables(GeneratorInput(guacamoleCut(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +256,27 @@ func TestLR0EpsilonEdges(t *testing.T) {
 			t.Errorf("kernel state %d predicts = %v, but its ε-state is %d", s, predicts, st.Epsilon)
 		case st.Epsilon >= 0 && !tab.States[st.Epsilon].Predicted:
 			t.Errorf("kernel state %d's ε-state %d is not a predicted state", s, st.Epsilon)
+		}
+	}
+}
+
+// TestBuildTablesTakesGeneratorInput: tables build from a grammar stated as
+// input.go types, and no probe or conflict file is written.
+func TestBuildTablesTakesGeneratorInput(t *testing.T) {
+	g := &Grammar{
+		G1: []Rule{{LHS: "S", RHS: []Symbol{name("A"), name("S")}}, {LHS: "S", RHS: []Symbol{name("A")}}},
+		G0: []Rule{{LHS: "A", RHS: []Symbol{{Literal, "a"}}}},
+	}
+	tab, err := BuildTables(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tab.Files()) == 0 {
+		t.Fatal("no files")
+	}
+	for _, f := range tab.Files() {
+		if f.Name == "probes.txt" || f.Name == "conflicts.txt" {
+			t.Errorf("Files names %s", f.Name)
 		}
 	}
 }
