@@ -1,5 +1,5 @@
 // ABOUTME: The perl-rejects rule over the Guacamole corpus: perl -c's verdict on each parses case against perl-rejects.txt.
-// ABOUTME: Shared by the corpus unit test (hand-built cases) and the chart ratchet's rejects-disagree sweep.
+// ABOUTME: Held by the corpus unit test on hand-built cases; no ratchet key reads it now.
 
 // Package chart is the Earley chart-parser spike (docs/plans/2026-10-29-chart-parser-design.md).
 package chart

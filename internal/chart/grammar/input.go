@@ -1,5 +1,5 @@
 // ABOUTME: The generator's input types: symbols, rules and the grammar BuildTables reads.
-// ABOUTME: Nothing here knows SLIF; slif.go fills them in from Guacamole's grammar, and a test can state them as Go data.
+// ABOUTME: Nothing here knows a grammar's source format; a test or the port states them as Go data.
 
 package grammar
 

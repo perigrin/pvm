@@ -1,5 +1,5 @@
 // ABOUTME: Writes the generator's tables as deterministic text files, and finds drift against committed ones.
-// ABOUTME: BuildTables takes the generator's own input; GenerateTables feeds it Guacamole's grammar through the cut.
+// ABOUTME: BuildTables takes the generator's own input (input.go) and builds the LR(0) automaton from it.
 
 package grammar
 
