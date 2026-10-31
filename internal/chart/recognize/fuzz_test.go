@@ -162,20 +162,37 @@ func FuzzRecognize(f *testing.F) {
 		if d := oracleDisagreement(tab, builds(tab), lattices[0]); d != "" {
 			t.Fatalf("%q: %s", src, d)
 		}
-		want := refAccepts(tab, refRun(tab, tokenIDs(lattices[0])))
+		refSets := refRun(tab, tokenIDs(lattices[0]))
+		want := refAccepts(tab, refSets)
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
-			if got := mustRecognize(t, New(tab, Options{NoCache: true}), l).Accepted(); got != want {
-				t.Fatalf("%q lattice %d: accepted %v cold, want %v", src, i, got, want)
+			cold := mustRecognize(t, New(tab, Options{NoCache: true}), l)
+			if cold.Accepted() != want {
+				t.Fatalf("%q lattice %d: accepted %v cold, want %v", src, i, cold.Accepted(), want)
 			}
 			for range 2 {
 				c := mustRecognize(t, warm, l)
 				if c.Accepted() != want {
 					t.Fatalf("%q lattice %d: accepted %v with the cache, %v without", src, i, c.Accepted(), want)
 				}
+				// Expected is memoized per recognizer across inputs, so the warm
+				// chart's answers are held to the reference (the dead-end
+				// lattice has other nodes: to a cold chart's).
 				for pos := -1; pos <= len(c.Sets); pos++ {
-					_, _ = c.Expected(pos)
+					got, err := c.Expected(pos)
+					if pos < 0 || pos >= len(c.Sets) {
+						continue // out of range: an error, and no panic
+					}
+					var wantNames []string
+					if i == 0 {
+						wantNames = refExpected(tab, refSets[pos])
+					} else {
+						wantNames, _ = cold.Expected(pos)
+					}
+					if err != nil || !slices.Equal(got, wantNames) {
+						t.Fatalf("%q lattice %d node %d: Expected %v (err %v) with the cache, %v without", src, i, pos, got, err, wantNames)
+					}
 				}
 			}
 		}
