@@ -125,43 +125,6 @@ func BuildTables(g *Grammar) (*Tables, error) {
 	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
 }
 
-// GeneratorInput states a cut grammar as BuildTables' input: its G1 rules and
-// one empty G0 rule per terminal.
-func GeneratorInput(c *CutGrammar) *Grammar {
-	g := &Grammar{G1: c.G1}
-	for name := range c.Terminals {
-		g.G0 = append(g.G0, Rule{LHS: name})
-	}
-	return g
-}
-
-// GenerateTables reads the grammar at slifPath, applies GuacamoleCut and
-// builds the tables.
-func GenerateTables(slifPath string) ([]TableFile, error) {
-	c, err := readGuacamoleCut(slifPath)
-	if err != nil {
-		return nil, err
-	}
-	t, err := BuildTables(GeneratorInput(c))
-	if err != nil {
-		return nil, err
-	}
-	return t.Files(), nil
-}
-
-// readGuacamoleCut reads the grammar at slifPath and applies GuacamoleCut.
-func readGuacamoleCut(slifPath string) (*CutGrammar, error) {
-	src, err := os.ReadFile(slifPath)
-	if err != nil {
-		return nil, err
-	}
-	g, err := ReadSLIF(filepath.Base(slifPath), src)
-	if err != nil {
-		return nil, err
-	}
-	return ApplyCut(g, GuacamoleCut)
-}
-
 // WriteTables writes files into dir, creating it, and removes any other
 // .txt file there, so the directory holds exactly the generator's output.
 func WriteTables(dir string, files []TableFile) error {

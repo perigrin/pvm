@@ -3,6 +3,8 @@
 
 package grammar
 
+import "strings"
+
 // SymbolKind says how a right-hand-side symbol was written.
 type SymbolKind int
 
@@ -47,4 +49,39 @@ type Grammar struct {
 	Priority map[string]int // :lexeme ~ X priority => n
 	Discard  []string       // :discard ~ X
 	LATM     bool           // lexeme default = latm => 1
+}
+
+func ruleText(r Rule, op string) string { return nameText(r.LHS) + " " + op + " " + rhsText(r) }
+
+func rhsText(r Rule) string {
+	var parts []string
+	for _, s := range r.RHS {
+		parts = append(parts, symbolText(s))
+	}
+	s := strings.Join(parts, " ")
+	switch r.Seq {
+	case Star:
+		s += "*"
+	case Plus:
+		s += "+"
+	}
+	return s
+}
+
+func symbolText(s Symbol) string {
+	switch s.Kind {
+	case Literal:
+		return "'" + s.Text + "'"
+	case Class:
+		return s.Text
+	}
+	return nameText(s.Text)
+}
+
+// nameText writes a name bracketed if it has a space.
+func nameText(n string) string {
+	if strings.Contains(n, " ") {
+		return "<" + n + ">"
+	}
+	return n
 }
