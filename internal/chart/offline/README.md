@@ -69,9 +69,9 @@ and writes `testdata/labels/in-tree.txt` (the Guacamole `parses` and
   is one of grammar, precedence, scope, semantic, environment; the status is
   `proposed` or `reviewed`. A timeout is labelled environment with the timeout
   as its evidence, never omitted.
-- The category is proposed from perl's first error: the first stderr line
-  matching one of the script's patterns. A refusal no pattern matches stops
-  the script. The script never proposes precedence. That label needs the
+- The category is proposed from perl's first error, its first stderr line,
+  by the first of the script's patterns it matches. A first line no pattern
+  matches stops the script; a later line never decides the category. The script never proposes precedence. That label needs the
   referee field, `referee-noprec viable; referee-prec refuse@N`, which
   LABELS-review adds from the file's `-DT` stream.
 
