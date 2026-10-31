@@ -1,5 +1,5 @@
 <!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the pinned -DDEBUGGING perl build, the bison referees and the perl labels, and what each costs to run. -->
+<!-- ABOUTME: Covers the perl build, the bison referees, the perl labels and the -DT capture, and what each costs to run. -->
 
 # internal/chart/offline
 
@@ -88,3 +88,110 @@ and writes `testdata/labels/in-tree.txt` (the Guacamole `parses` and
 
 Cost (K6): one run labels 1,881 files in about 42 s wall clock on this
 machine (41.6 s; 4 cores, files one at a time).
+
+## tdt-capture.sh
+
+`sh internal/chart/offline/tdt-capture.sh <perl> <file>` runs `<perl> -c -DpT
+<file>` and prints the file's own toke.c token stream on stdout. Perl runs
+under `env -i` with only `PATH` and `PERL5LIB` set, as `label.sh` runs it, so
+`PERL5OPT` cannot add tokens; the Guacamole snippets need
+`testdata/guacamole/stubs` on `PERL5LIB`. The snippets carry their preamble
+in-file, so the script takes none. Perl's stdin is `/dev/null`.
+
+The form, one token per line, in the order toke.c delivered them to the parser:
+
+- `TYPE` or `TYPE<TAB>VALUE`. `TYPE` is the `perly.y` terminal name; `-DT`
+  prints `?? N` for the few terminals toke.c's `debug_tokens` lacks
+  (`PERLY_DOLLAR`, `PERLY_PAREN_CLOSE`, ...), and the script names them from the
+  perl's own `CORE/perly.h`.
+- `VALUE` is what `-DT` shows, first match wins: a constant's `SvPEEK`
+  (`PV("greeting"\0)`, `IV(1)`), else the pending identifier toke.c resolved
+  for the token (`$name`, `%h`), else the op (`op_concat`, `op_null` for a
+  plain `=`). Integer `ival`s are dropped: most are addresses or line numbers
+  that change between runs. `-DT` shows no source text.
+- A `use` or `no` is followed by a `BAREWORD` with no value: toke.c's
+  `S_force_version` always forces a `BAREWORD` for the version slot, its
+  `opval` null when no version is written (`use FindBin;` is `KW_USE_or_NO`,
+  `BAREWORD`, `BAREWORD PV("FindBin"\0)`, `PERLY_SEMICOLON`); the
+  `use` rule at `perly.y:714` reads the two as `version` and `module`.
+- Tokens reported under `### forced token:` are skipped there; they print
+  where toke.c delivers them. `EOF` is not printed; the `;` toke.c inserts
+  before a `}` and at end of file are.
+- A file perl refuses ends with the line `# refused: perl exited N`, and the
+  script exits 1. A syntax error stops toke.c, so the stream ends at the token
+  perl refused; a deferred error (strict, "Can't modify") leaves the whole
+  stream before the marker.
+- A file whose perl runs past the timeout ends with `# timeout: perl ran past
+  N s`, and the script exits 1 like a refused capture (perigrin: "Timeout, mark
+  refused"). The bound is `TDT_TIMEOUT` seconds, 60 by default: over six times the
+  slowest corpus file measured below. Status 124 is read as the timeout only
+  while a unit is still open; a file that itself exits 124 (from `BEGIN`) has
+  closed its units and is refused.
+- A file perl stops with status 0 before its `EOF` (an `exit` in `BEGIN`, as
+  `plan skip_all` does) ends with `# truncated: the -DT stream stopped before
+  the file's EOF (perl exited 0)`, and the script exits 2. A stream whose last line starts with
+  `#` is never a whole one.
+- Exit 2 otherwise is a capture failure with nothing useful on stdout: a
+  missing file, a perl without `-DDEBUGGING` (which warns about `-D` and runs
+  on, so it would otherwise yield an empty stream), lost bracketing, or perl
+  never running: status 125 to 127 with no unit begun is `timeout` or `env`
+  failing, and stderr carries their own message.
+
+Only the first compilation unit's tokens print. Each unit (a loaded file, or a
+string `eval` run at compile time, as modules do) starts where `-Dp` prints
+`lookahead token is token GRAMPROG` and ends where `-Dp` prints `clearing the
+parse stack`, which perl prints whenever a parse ends, accepted or aborted, so
+a compile-time eval that fails to compile still closes; units nest. The file's
+own unit closing before its `-DT` `EOF` with perl's status 0 is a truncation.
+`-DT` alone marks no start: a file starts at line 0 but a string eval at line
+1 like any line, which is why `p` is on. Units run after the main file's `EOF`
+(`CHECK` blocks) are dropped, and a `require` in a sub that `-c` never runs
+contributes nothing. A file perl accepts whose units do not all end is
+exit 2, never a silently short stream. A sub-parse an XS keyword plugin runs
+also prints `clearing the parse stack`, so such a file ends with `a parse ended
+outside any unit` and exit 2.
+
+`testdata/tdt-sample.pl` and its hand-checked `testdata/tdt-sample.expected`
+cover a `use` of a stub module (`testdata/tdt-stubs/TdtStub.pm`, itself
+loading `strict` and running a string eval in `BEGIN`; its `TDT_SENTINEL_word`
+must not appear), `use lib` with `FindBin` (real modules), a variable, `qq{}`
+interpolation, a `=>` word, an interpolating heredoc, a `require` inside a
+sub, and a `BEGIN` string eval that fails to compile followed by a statement
+that must still appear.
+
+Why the timeout: perl `-Dp` spins without end once `BEGIN` puts an
+`:encoding` layer on STDERR (`perl -Dp -e 'BEGIN { binmode STDERR,
+":encoding(UTF-8)" }'` never returns, Encode preloaded or not; `-DT` alone
+returns). T1's `io_pipe.t` and `io_layers.t` do this and end in `# timeout`.
+`testdata/tdt-hang.pl` is the smallest such file; this check, with a short
+bound, shows the capture ends it with the marker and a non-zero exit:
+
+```sh
+sh -c 'out=$(TDT_TIMEOUT=2 sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-hang.pl 2>/dev/null); s=$?; test "$s" -ne 0 && printf "%s\n" "$out" | tail -1 | grep -q "^# timeout: "'
+```
+
+`testdata/tdt-exit124.pl` exits 124 from `BEGIN`, timeout's own status; this
+check shows it is refused, not called a timeout:
+
+```sh
+sh -c 'out=$(sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-exit124.pl 2>/dev/null); s=$?; test "$s" -eq 1 && printf "%s\n" "$out" | tail -1 | grep -qx "# refused: perl exited 124"'
+```
+
+With no `timeout` on `PATH`, `env` cannot run perl; this check shows the
+capture exits 2 with nothing on stdout and names the cause:
+
+```sh
+sh -c 'd=$(mktemp -d); for t in awk grep env; do ln -s "$(command -v $t)" "$d/$t"; done; out=$(PATH=$d /bin/sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-sample.pl 2>"$d/err"); s=$?; e=$(cat "$d/err"); rm -rf "$d"; test "$s" -eq 2 && test -z "$out" && printf "%s" "$e" | grep -q timeout'
+```
+
+Cost (K6), measured 2026-10-31 on the 4-core machine, files one at a time,
+run as `label.sh` runs perl: in-tree files from the repository root with
+`internal/chart/testdata/guacamole/stubs` on `PERL5LIB`, T1 files from the
+PerlOnJava root as `src/test/resources/unit/<file>` with `PERL5LIB` empty.
+The sample takes 0.5 s; `std5k.pl` 2.2 s and `edit5k.pl` 1.6 s; the 893
+Guacamole snippets 106 s in all (0.12 s each). T1's 986 top-level `.t` files
+take 2,686 s in all (2.7 s each on average), 120 s of it the two timeouts;
+the slowest other file takes 8.9 s, almost all of it perl loading
+`Test::More` and friends under `-DpT`. Over T1, 831 captures are whole, 121
+refused, 2 timed out and 32 truncated by an `exit` in `BEGIN`; the in-tree
+files give 827 whole and 68 refused.
