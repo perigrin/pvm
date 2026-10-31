@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the lexer lists, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the lexer lists, the recognizer, and the generated tables. -->
 
 # internal/chart
 
@@ -15,18 +15,12 @@ kill: lexing and recognition ran 3.9–5.0× recursive descent over the corpus,
 against a 3× line. `docs/postmortems/chart-waypoint.md` records why. perigrin
 decided to re-attempt the spike with a grammar ported from `perly.y` over
 `internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
-the ratchet carry over; the committed tables will be regenerated from the
-new grammar. The SLIF reader, the token cut, `chart/lex`'s
-predicate mapping, the observed-conflict probes and the CORE.tpm cross-check
-are Guacamole-specific and will be removed; the sections below that describe
-them describe what was built, not the plan. The forest, error recovery,
-`chart/compare` and the oracle adapter were never built.
-
-## The grammar
-
-`grammar/testdata/guacamole/guacamole.slif` is Guacamole's Marpa SLIF grammar,
-vendored at a fixed revision. `grammar/testdata/guacamole/PROVENANCE` says
-where it came from. `grammar.ReadSLIF` reads the subset of SLIF it uses.
+the ratchet carry over. Guacamole's grammar, the SLIF reader, the token cut,
+`chart/lex`'s predicate mapping, the observed-conflict probes and the CORE.tpm
+cross-check are removed, and no grammar is committed until the port. The
+history of what they were is in `docs/postmortems/chart-waypoint.md`. The
+forest, error recovery, `chart/compare` and the oracle adapter were never
+built.
 
 ## The Guacamole corpus
 
@@ -86,7 +80,7 @@ retired.
   stderr text (`exit status 2`) tells an error from a regression.
 - **Inputs.** The ratchet reads only the working tree: no commit, no
   `refs/zhi`, no network. It reads nothing under Guacamole's paths and
-  imports neither `chart/lex` nor the token cut.
+  does not import `chart/lex`.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
@@ -264,12 +258,6 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo` turns it off, and
   the `chart_noleo` build tag makes the memo step a no-op whatever the
   options say, so `go test -tags chart_noleo` shows those tests failing.
-- **The empty program.** A source of only whitespace, comments and POD is
-  accepted, as perl accepts it: the cut gives `Program` an empty
-  alternative, which Guacamole's `Program ::= StatementSeq` lacks. This is
-  the cut's behaviour and goes with it; the recognizer's own test
-  (`TestRecognizeEmptyAndTruncated`) covers only a toy `Seq` that is
-  nullable.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with and without the cache, the
@@ -277,50 +265,14 @@ lookahead and Leo and with a dead-end branch added, and that `Expected` is the
 same with and without lookahead. Each input byte is one terminal of the toy
 statement grammar, so every input is a valid terminal string.
 
-## The token cut and its rewrite list
-
-Guacamole's grammar builds some single pvm tokens out of several lexemes: `$x`
-is one pvm `Variable` token, but the grammar spells it `SigilScalar
-VarIdentExpr`. The token cut (`grammar.ApplyCut`, with the reviewed table
-`grammar.GuacamoleCut`) rewrites the grammar so that its terminals are **token
-predicates**: a pvm lexer kind, plus the text a token of that kind must have.
-Each predicate's text is the language of the grammar symbols it stands for, so
-`Quote ~ LitString` admits exactly the quoted strings Guacamole's
-`LitString` rules derive. Inside a sequence that was G1 in Guacamole, the
-whitespace Guacamole discards may appear, because pvm's lexer folds it into the
-one token (`$ foo`). Inside a G0 rule it may not, nor inside a predicate
-marked `without whitespace`.
-
-Where a Guacamole rule derives more than pvm's token can show, the predicate
-admits less, so the chart refuses rather than misparses:
-
-- **`Diamond` and `DoubleDiamond`** use `ScalarVar`, where Guacamole has
-  `VarScalar`. A readline holds a name, not subscripts, so `<$x[0]>` is
-  refused. perl reads it as a glob. Their predicates are also `without
-  whitespace`: perl reads `<...>` as a readline only around a bare
-  filehandle or a simple scalar (`scan_inputsymbol`), so `< $fh >` is a glob
-  too, and refused (perigrin's ruling on 01a18656-2eec).
-- **`$#{BLOCK}`** is split as Guacamole splits it:
-  `DerefVariable ::= ArrayTopOpen StatementSeq RBrace`, where `ArrayTopOpen`
-  is a `Variable` token whose text is `$#{`. pvm's lexer emits the whole
-  construct as one `Variable` token, and no predicate admits that composite
-  token. `chart/lex` (issue 01a18656-2ec0) splits it into `ArrayTopOpen`,
-  the re-lexed interior and `}`, so the grammar checks the block:
-  `$#{ $foo->{'bar'} }` parses and `$#{1+}` is refused. Where the interior
-  needs the lexer's file state, the `$#{` is refused instead, until
-  01a1882d-d8a4 lands.
-  `internal/lexer` does not change.
-
 ## The generated tables: `make chart-tables`
 
-`make chart-tables` runs `grammar/cmd/gen`. It reads the vendored grammar,
-applies the token cut, builds the tables (`grammar.BuildTables`), and writes
-them to `grammar/testdata/tables/`, where they are committed. That directory
-holds exactly the generator's files. The output depends only on the grammar's
-rule order, never on map iteration or the clock, so regenerating it is
-byte-identical (§10). `TestTablesGuacamole` holds the committed files to the
-generator's output. After a change to the grammar or the cut, run
-`make chart-tables` and commit the result.
+`make chart-tables` runs `grammar/cmd/gen`, which builds the tables
+(`grammar.BuildTables`) of the committed grammar and writes them to
+`grammar/testdata/tables/`. With no grammar committed there is nothing to
+generate: it writes no table file, says so on stderr and exits 0. The output
+depends only on the grammar's rule order, never on map iteration or the clock,
+so regenerating it is byte-identical (§10).
 
 The tables are the split LR(0) automaton with nullable closure, Aycock and
 Horspool's ε-DFA:
@@ -370,135 +322,3 @@ Every line is space-separated numbers and names:
 
 These are separate files so that `states.txt` stays under the
 check-added-large-files limit.
-
-### Expected terminals, Leo and the conflicting pairs
-
-An expectation class is formed at run time: `Expected(pos)`, the union of
-the expected terminals of every state in a position's Earley set, projected
-onto the conflicting pairs (spec §5). The pairs are observed, not derived
-(perigrin's ruling, "Observe the lexer"). The generator lexes every probe
-with the production lexer, once after `$a ` (`XOperator`) and once after
-`$a = ` (`XTerm`); `internal/lexer` has no constructor for an expect state,
-so its own state machine sets them. Where the two token streams differ, the
-first differing tokens are mapped to the cut's terminals, and if both map to
-some terminal that pair is listed, named by the text where the two readings
-diverge. A reading no terminal admits, such as an unterminated regex, makes
-no pair. A terminal list joined by commas is a token several terminals
-admit.
-
-A lexer bug therefore shows up as a wrong pair.
-`TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`, `%`, `&`,
-`*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses `{` and
-`?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
-`$a -e` is a syntax error, and pvm's lexer agrees.
-
-## The CORE.tpm cross-check
-
-Builtin shapes come from G1's per-keyword `OpKeyword<X>Expr` rules
-(`grammar.G1Shapes`). A builtin's shape is the widest any of its alternatives
-takes, by the symbols after the keyword: `niladic` (nothing, `()` or a label),
-`unary` (one term), `assign` (Guacamole's assign keyword operators, which
-CORE.tpm has no shape for) or `list`. An argument symbol with no width is an
-error, not a default.
-
-`grammar/testdata/core-tpm-differences.txt` is committed and lists every
-builtin whose shape in `internal/parse`'s CORE.tpm table (`parse.CoreShapes`)
-differs from G1's, one per line: the builtin, G1's shape, CORE.tpm's. A
-builtin only one side has is listed with `none` on the other side, never
-skipped. `TestCoreTpmGuacamole` holds the list equal to what the cross-check
-computes, byte for byte, and its failure names the list and the first line
-that differs. After
-an intended change, regenerate the list:
-
-```
-go test ./internal/chart/grammar/ -run TestCoreTpmGuacamole -grammar.update-core-tpm
-```
-
-The list's review is the pull request's: a pull request that changes it walks
-the changed lines in its description.
-
-## Known divergences from Guacamole
-
-Keyword priority is static here. Marpa arbitrates it only among the lexemes
-acceptable at a position, so the two differ at a few positions:
-
-- `$x = BEGIN()` is refused, though Marpa admits it.
-- `print->foo` is admitted, though Marpa refuses it, because keyword text
-  satisfies `SubNameExpr`.
-- `print::foo()` is admitted. It is one pvm `Word`, which no keyword matches,
-  while Marpa reads the keyword `print` first.
-- `print: 1;`, a keyword as a label, diverges too. The gate review of #534
-  found it.
-
-Other divergences:
-
-- A source with no tokens, only whitespace, comments and POD, is accepted
-  through `empty Program ::=`. Guacamole refuses it; perl accepts it.
-- `${foo}` is refused, though Guacamole accepts it through `DerefVariable`.
-  pvm lexes it as one `Variable` token, and no predicate admits it.
-- `Foo :: Bar`, with spaces, is refused. pvm lexes it as three tokens and
-  perl refuses it. Guacamole accepts it.
-- `:foo(bar)` is refused. pvm lexes the `(...)` of `:prototype(...)` as one
-  `Prototype` token, which is what `SubAttrArgs` admits, but other attributes'
-  arguments it lexes as code.
-
-## Known ambiguities left for resolve or the interleaved lexer
-
-Two lexeme priorities are not encoded. Marpa arbitrates them among the
-lexemes acceptable at a position, which depends on the Earley set rather
-than on any one rule, so they wait for `chart/resolve` or the interleaved
-lexer. Until then the grammar admits both readings (no forest was built):
-
-- **`VersionNumber`**: `use Foo 1.2;` reads both as a version and as an
-  import list, as do `no Foo 1.2;` and `require 1.2;`. **perl and Marpa read
-  it only as a version**, and the chart must come to the same reading.
-- **`OpAdd`**: where `OpUnary` is also acceptable, as after `sort $x`, `+`
-  and `-` read both as binary and as unary. Marpa prefers the binary reading.
-
-Every rewrite the cut makes is listed in
-`grammar/testdata/token-cut-rewrites.txt`. It holds one rewrite per line and
-nothing else. The first word of each line names the rewrite's form:
-
-- **`split`**: a G1 rule that straddles pvm's token level, with the rule before
-  and after. `split VarScalar ::= SigilScalar VarIdentExpr ElemSeq0 =>
-  VarScalar ::= ScalarVar ElemSeq0` says that the sigil and the name are now
-  one token, while the subscripts stay grammar.
-- **`token`**: a terminal a split introduced, and its predicates.
-  `token ScalarVar => Variable ~ SigilScalar VarIdentExpr` is a `Variable`
-  token whose text `SigilScalar VarIdentExpr` derives.
-- **`collapse`**: a rule wholly below pvm's token level, G1 (`::=`) or G0
-  (`~`), with its alternatives, and the predicates it collapses into.
-  `collapse OpMulti ~ '*' | '/' | '%' | 'x' => Operator '*' | Operator '/' |
-  Operator '%' | Word 'x'` writes a literal's predicate as its kind and text.
-  A G0 lexeme whose alternatives are all literals needs no table entry: each
-  literal takes the kind pvm's lexer gives it, which `TestCutLiteralKinds`
-  checks against the lexer.
-- **`absorb`**: a G1 rule the cut left unreachable, because its text now
-  lives inside a token, as `VarIdentExpr` does inside `ScalarVar`.
-- **`priority`**: one line for every `:lexeme ~ X priority => n`, saying how
-  the priority is carried. `except :priority` is **keyword priority**. A
-  predicate marked `except :priority` refuses every word a priority lexeme
-  matches, so an unqualified keyword is never a call's name: `print(1)` has one
-  derivation, not two. A qualified `POSIX::exit` is one pvm `Word`, which no
-  keyword matches, so it is still admitted. Keyword text still satisfies
-  `SubNameExpr`, which names methods and definitions. Other lines say the lexer
-  settles the priority, or that it is not encoded, and why.
-- **`empty`**: an empty alternative the cut adds to a G1 symbol.
-  `empty Program ::=` lets the grammar derive a source with no tokens.
-- **`trivia`**: a lexer kind the recognizer skips, and the `:discard` it stands
-  for, if any. `Pod`, `DataSection` and `FormatBody` are trivia because
-  Guacamole has no rule for them.
-
-`TestCutGuacamole` applies the cut to the vendored grammar and holds the
-committed list equal to what the cut makes, byte for byte. A rewrite the cut
-makes that is missing from the list fails, and so does a listed rewrite the
-cut no longer makes. The failure names the list file and quotes the first line
-that differs. When a change to the cut is intended, regenerate the list:
-
-```
-go test ./internal/chart/grammar/ -run TestCutGuacamole -grammar.update-rewrites
-```
-
-The list's review is the pull request's. A pull request that changes the list
-walks the changed lines in its description, and the reviewer reads the list,
-not the code that made it.
