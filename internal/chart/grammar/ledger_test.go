@@ -153,8 +153,8 @@ func TestLedgerExclusionReasons(t *testing.T) {
 }
 
 func TestLedgerExclusionReasonsRefusesMalformed(t *testing.T) {
-	for _, r := range exclusionReasons {
-		if err := checkMarks(toyLedger(t, "excluded "+r, "-", "-")); err != nil {
+	for r, line := range map[string]int{"keyword-plugin": 878, "refused-in-action": 1105, "conditional-refusal": 10, "error-recovery": 933} {
+		if err := checkMarks([]Entry{{Line: line, Mark: "excluded " + r}}); err != nil {
 			t.Errorf("reason %s: %v", r, err)
 		}
 	}
@@ -219,4 +219,33 @@ func TestCheckFamilyMarked(t *testing.T) {
 		t.Errorf("the marked exclusions: %v", err)
 	}
 	wantErr(t, "an ordinary alternative named as left", CheckFamilyMarked([]int{187}, []int{187}), "perly.y:187")
+}
+
+// Each exclusion reason is true only of the lines it names (P0-1); conditional-refusal is left to review.
+func TestLedgerExclusionReasonsPinnedToLines(t *testing.T) {
+	alts, ledger := committed(t)
+	refused, err := parseRefused(readTestdata(t, "refused-in-action.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string][]int{
+		"refused-in-action":   refused,
+		"error-recovery":      {933},
+		"keyword-plugin":      {878, 1714},
+		"conditional-refusal": nil,
+	}
+	for reason, lines := range allowed {
+		for i := range ledger {
+			l := slices.Clone(ledger)
+			l[i].Mark = "excluded " + reason
+			err := CheckLedger(alts, l)
+			if reason == "conditional-refusal" || slices.Contains(lines, l[i].Line) {
+				if err != nil {
+					t.Errorf("excluded %s on perly.y:%d: %v", reason, l[i].Line, err)
+				}
+			} else if err == nil {
+				t.Errorf("excluded %s accepted on perly.y:%d", reason, l[i].Line)
+			}
+		}
+	}
 }
