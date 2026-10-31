@@ -464,7 +464,10 @@ exception the postmortem asked for: `lex-overhead`, chart/lex's total time
 files over the aggregate, is gated at an absolute 1.3, as the median of three
 measurements over the aggregate (std5k's figure is reported, since one file
 is noisier), in every issue that touches chart/lex or the token table, from
-the first. Benchmarks for lexing, recognition
+the first. Until the superset population exists, the aggregate is every
+corpus file; the issue that creates the population switches it and re-takes
+the baseline (perigrin, 2026-10-31), so the gate does not wait for perl's
+labels. Benchmarks for lexing, recognition
 and `Expected` run in the ratchet, not in `make test`.
 
 ### 9.4 Waypoint 2: parses Perl as recursive descent does
