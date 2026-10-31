@@ -91,16 +91,70 @@ var fuzzSeeds = []string{
 	enc("LBrace LBrace Print Num Semi RBrace"),
 }
 
+// fuzzGrammar is gram, bytes, as a small grammar's statements: N0 is the
+// start symbol, and a byte b is a symbol, one of N0 to N2 or T0 to T2 by b%6,
+// so the start symbol may sit on a right-hand side. A rule is three reads: a
+// left-hand side (b%3), a length (b%4), then that many symbols. A symbol with
+// no rule is a terminal, as toyTables has it.
+func fuzzGrammar(gram string) []string {
+	var out []string
+	for i := 0; i+1 < len(gram); {
+		rule := fmt.Sprintf("N%d ::=", gram[i]%3)
+		n := int(gram[i+1] % 4)
+		i += 2
+		for ; n > 0 && i < len(gram); n-- {
+			rule += fmt.Sprintf(" %c%d", "NNNTTT"[gram[i]%6], gram[i]%3)
+			i++
+		}
+		out = append(out, rule)
+	}
+	return out
+}
+
+// checkGrammar holds the recognizer to the reference on a fuzzed grammar:
+// src picks the input's first 24 tokens among the grammar's terminals. A grammar the
+// generator refuses is skipped.
+func checkGrammar(t *testing.T, src, gram string) {
+	tab, err := buildToy(fuzzGrammar(gram))
+	if err != nil {
+		t.Skip(err)
+	}
+	var terms []string
+	for _, s := range tab.Symbols {
+		if s.Terminal {
+			terms = append(terms, s.Name)
+		}
+	}
+	var words []string
+	for i := 0; i < min(len(src), 24) && len(terms) > 0; i++ { // the reference is cubic
+		words = append(words, terms[int(src[i])%len(terms)])
+	}
+	if d := oracleDisagreement(tab, builds(tab), tokens(tab, words...)); d != "" {
+		t.Fatalf("grammar %q, input %q: %s", fuzzGrammar(gram), words, d)
+	}
+}
+
+// FuzzRecognize takes an input and a grammar; with no grammar, the input is
+// bytes of stmtGrammar's terminals, and otherwise gram is a small grammar.
 func FuzzRecognize(f *testing.F) {
 	for _, s := range fuzzSeeds {
-		f.Add(s)
+		f.Add(s, "")
 	}
+	// start on a right-hand side, N0 ::= T0 N0 | T0 and N1 ::= N0 T0.
+	// The start symbol on a right-hand side, where a Leo chain once ran up
+	// through a start item from node 0: S ::= V B T, T ::= A | V, V ::= A | S
+	// on A B A (N0 is S, N1 is V, N2 is T, T0 is A, T1 is B).
+	f.Add("\x00\x01\x00", "\x00\x03\x01\x04\x02\x02\x01\x03\x02\x01\x01\x01\x01\x03\x01\x01\x00")
 	tab := toyStmt(f)
 	// warm is shared across inputs, so its cache serves earlier inputs'
 	// transitions to later ones.
 	var mu sync.Mutex
 	warm := New(tab, Options{})
-	f.Fuzz(func(t *testing.T, src string) {
+	f.Fuzz(func(t *testing.T, src, gram string) {
+		if gram != "" {
+			checkGrammar(t, src, gram)
+			return
+		}
 		lattices := []*lex.Lattice[lex.None]{fuzzLattice(tab, src)}
 		if n := len(lattices[0].Edges); n >= 2 {
 			lattices = append(lattices, withDeadEnd(lattices[0], len(src)%(n-1)))
