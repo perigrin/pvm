@@ -75,8 +75,9 @@ func lexerListErrors(name, list, root, t1 string) []string {
 			bad(err.Error())
 			continue
 		}
-		if b, err := strconv.ParseUint(f[1], 10, 63); err != nil || int64(b) >= fi.Size() {
-			bad(fmt.Sprintf("the byte is not a decimal offset below the file's size, %d", fi.Size()))
+		// The ratchet matches "<path> <byte>" as text, so only the plain decimal form can match.
+		if b, err := strconv.ParseUint(f[1], 10, 63); err != nil || strconv.FormatUint(b, 10) != f[1] || int64(b) >= fi.Size() {
+			bad(fmt.Sprintf("the byte is not a plain decimal offset below the file's size, %d", fi.Size()))
 		}
 	}
 	return out
@@ -113,6 +114,8 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		{"byte at the end", std5k + " " + itoa(size) + " 01a1882d-d8a4", false},
 		{"byte past the end", std5k + " " + itoa(size+10) + " 01a1882d-d8a4", false},
 		{"negative byte", std5k + " -1 01a1882d-d8a4", false},
+		{"leading zero", std5k + " 07 01a1882d-d8a4", false},
+		{"plus sign", std5k + " +7 01a1882d-d8a4", false},
 		{"byte not a number", std5k + " x 01a1882d-d8a4", false},
 		{"not a corpus file", "internal/chart/README.md 0 01a1882d-d8a4", false},
 		{"no such file", "internal/chart/testdata/guacamole/parses/no-such.pl 0 01a1882d-d8a4", false},

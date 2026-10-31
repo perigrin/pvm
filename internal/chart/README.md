@@ -171,7 +171,8 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   or a `*.pl` directly under `internal/chart/testdata/guacamole/parses/` or
   `.../parsent/`. A T1 file is `T1/<name>.t`, a top-level `*.t` of T1,
   resolved as `$T1_CORPUS/<name>.t`.
-- **byte** is a decimal offset inside that file (below its size): for
+- **byte** is a decimal offset inside that file (below its size), with no
+  sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
   `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
   first byte of the wrong token.
 - **issue ref** is the open lexer issue's git-zhi id through its second
