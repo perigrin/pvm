@@ -172,11 +172,17 @@ func TestLeoKeepsAcceptance(t *testing.T) {
 		}
 	}
 	stmt := toyStmt(t)
-	for _, src := range append([]string{
-		"Print Print Print Num Semi", decl + " " + decl, "LBrace Print Num Semi LBrace Print Num Semi RBrace RBrace",
-		"Print Num Semi Semi", "Print Print Num Semi", decl + " My Var",
-	}, fuzzSeeds...) {
-		if d := leoAgree(stmt, tokens(strings.Fields(src)...)); d != "" {
+	for _, l := range []*lex.Lattice[lex.None]{
+		tokens(strings.Fields("Print Print Print Num Semi")...), tokens(strings.Fields(decl + " " + decl)...),
+		tokens(strings.Fields("LBrace Print Num Semi LBrace Print Num Semi RBrace RBrace")...),
+		tokens(strings.Fields("Print Num Semi Semi")...), tokens(strings.Fields("Print Print Num Semi")...), tokens(strings.Fields(decl + " My Var")...),
+	} {
+		if d := leoAgree(stmt, l); d != "" {
+			t.Errorf("%v: %s", l.Edges, d)
+		}
+	}
+	for _, src := range fuzzSeeds {
+		if d := leoAgree(stmt, fuzzLattice(src)); d != "" {
 			t.Errorf("%q: %s", src, d)
 		}
 	}

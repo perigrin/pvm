@@ -1,2 +1,2 @@
 go test fuzz v1
-string("Print Num Semi Semi")
+string("\x05\x03\x04\x04")
