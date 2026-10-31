@@ -42,9 +42,17 @@ func main() {
 		os.Exit(2)
 	}
 	measured, tab, err := measure(g, ref, os.Stderr)
+	var files []File
+	var srcs map[string][]byte
+	if err == nil {
+		files, srcs, err = corpus()
+	}
+	if err == nil {
+		err = measureLeo(tab, files, srcs, measured)
+	}
 	var unmapped []string
 	if err == nil {
-		unmapped, err = measureLex(tab.Tokens, measured)
+		unmapped = measureLex(tab.Tokens, files, srcs, measured)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)

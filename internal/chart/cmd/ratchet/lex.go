@@ -65,13 +65,9 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 	return chart, ref
 }
 
-// measureLex adds lex-unmapped, lex-overhead and lex-overhead-std5k to
-// measured, and returns lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tt *grammar.TokenTable, measured map[string]string) ([]string, error) {
-	files, srcs, err := corpus()
-	if err != nil {
-		return nil, err
-	}
+// measureLex adds lex-unmapped, lex-overhead and lex-overhead-std5k over
+// files to measured, and returns lex-unmapped's files as "<path> <byte>" pairs.
+func measureLex(tt *grammar.TokenTable, files []File, srcs map[string][]byte, measured map[string]string) []string {
 	var unmapped, all []string
 	for _, f := range files {
 		all = append(all, f.Path)
@@ -86,5 +82,5 @@ func measureLex(tt *grammar.TokenTable, measured map[string]string) ([]string, e
 	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
 	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", all, false))
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-std5k", []string{std5k}, false))
-	return unmapped, nil
+	return unmapped
 }
