@@ -24,7 +24,7 @@ perly_h=$archlibexp/CORE/perly.h
 # Only the first unit's tokens print. Perl's stdin is /dev/null, its stdout
 # is dropped, and its exit status arrives as the stream's last line.
 # -Dp spins without end once BEGIN puts an :encoding layer on STDERR, so perl
-# runs under a timeout (perigrin: "Timeout, mark refused"); 60 s is six times
+# runs under a timeout (perigrin: "Timeout, mark refused"); 60 s is over six times
 # the slowest corpus file measured.
 limit=${TDT_TIMEOUT:-60}
 {
