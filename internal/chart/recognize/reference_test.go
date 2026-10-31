@@ -116,6 +116,8 @@ func TestReferenceRecognizerEdgeCases(t *testing.T) {
 		{"nullable start", []string{"S ::= A S |"}, []string{"", "A", "A A"}, []string{"B"}},
 		{"non-nullable start", []string{"S ::= A S | A"}, []string{"A", "A A"}, []string{""}},
 		{"nullable through a chain", []string{"S ::= X Y", "X ::= Z", "Z ::=", "Y ::= A |"}, []string{"", "A"}, []string{"A A"}},
+		{"nullable fixed point", []string{"S ::= X Y", "X ::=", "Y ::= X B"}, []string{"B"}, []string{"", "B B"}},
+		{"start on a right-hand side", []string{"S ::= B S C | A"}, []string{"A", "B A C"}, []string{"B A", "B B A C"}},
 		{"unit cycle", []string{"S ::= S | A"}, []string{"A"}, []string{"", "A A"}},
 		{"left recursion", []string{"S ::= S A | A", "Z ::= B"}, []string{"A", "A A A"}, []string{"", "A A A B"}},
 		{"right recursion", []string{"S ::= A S | A", "Z ::= B"}, []string{"A", "A A A"}, []string{"", "A A A B"}},
