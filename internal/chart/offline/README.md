@@ -133,7 +133,9 @@ The form, one token per line, in the order toke.c delivered them to the parser:
   `#` is never a whole one.
 - Exit 2 otherwise is a capture failure with nothing useful on stdout: a
   missing file, a perl without `-DDEBUGGING` (which warns about `-D` and runs
-  on, so it would otherwise yield an empty stream), or lost bracketing.
+  on, so it would otherwise yield an empty stream), lost bracketing, or perl
+  never running: status 125 to 127 with no unit begun is `timeout` or `env`
+  failing, and stderr carries their own message.
 
 Only the first compilation unit's tokens print. Each unit (a loaded file, or a
 string `eval` run at compile time, as modules do) starts where `-Dp` prints
@@ -171,6 +173,13 @@ check shows it is refused, not called a timeout:
 
 ```sh
 sh -c 'out=$(sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-exit124.pl 2>/dev/null); s=$?; test "$s" -eq 1 && printf "%s\n" "$out" | tail -1 | grep -qx "# refused: perl exited 124"'
+```
+
+With no `timeout` on `PATH`, `env` cannot run perl; this check shows the
+capture exits 2 with nothing on stdout and names the cause:
+
+```sh
+sh -c 'd=$(mktemp -d); for t in awk grep env; do ln -s "$(command -v $t)" "$d/$t"; done; out=$(PATH=$d /bin/sh internal/chart/offline/tdt-capture.sh /opt/perl-94e50866-debug/bin/perl internal/chart/offline/testdata/tdt-sample.pl 2>"$d/err"); s=$?; e=$(cat "$d/err"); rm -rf "$d"; test "$s" -eq 2 && test -z "$out" && printf "%s" "$e" | grep -q timeout'
 ```
 
 Cost (K6), measured 2026-10-31 on the 4-core machine, files one at a time,
