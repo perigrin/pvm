@@ -132,17 +132,17 @@ func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
 // refuseLiterals holds each class that names a kind and a text to the lexer.
 func refuseLiterals(classes []TokenClass) (errs []error) {
 	for _, c := range classes {
-		if c.Kind != nil && c.Text != nil && !lexesAs(*c.Kind, *c.Text) {
-			errs = append(errs, fmt.Errorf("the literal %q is not lexed to one %v token with that text", *c.Text, *c.Kind))
+		if c.Text != nil && !lexesAs(c.Kind, *c.Text) {
+			errs = append(errs, fmt.Errorf("the literal %q is not lexed to one token of the class's kind and text", *c.Text))
 		}
 	}
 	return errs
 }
 
-// lexesAs reports whether the lexer lexes text to one token of kind and the same text, in a
+// lexesAs reports whether the lexer lexes text to one token of kind (any, if nil) and the same text, in a
 // short context where a class stands: between two terms, as an operator does, or from a
 // statement's start, reached through the lexer's checkpoint and resume.
-func lexesAs(kind lexer.Kind, text string) bool {
+func lexesAs(kind *lexer.Kind, text string) bool {
 	one := func(src string, toks []lexer.Token, n, at int) bool {
 		var sig []lexer.Token
 		for _, t := range toks {
@@ -150,7 +150,7 @@ func lexesAs(kind lexer.Kind, text string) bool {
 				sig = append(sig, t)
 			}
 		}
-		return len(sig) == n && sig[at].Kind == kind && src[sig[at].Start:sig[at].End] == text
+		return len(sig) == n && (kind == nil || sig[at].Kind == *kind) && src[sig[at].Start:sig[at].End] == text
 	}
 	infix := "$a " + text + " $b"
 	_, cps := lexer.Checkpoints(nil, lexer.StartState())
