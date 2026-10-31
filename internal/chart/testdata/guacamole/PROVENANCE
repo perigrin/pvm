@@ -16,8 +16,10 @@ stand-in: three tests import Test::Fatal and none call it.
   exclude these directories.
 - stubs/: one module for each module a parses case uses that perl cannot
   find, each with $VERSION '9999', above every version a case requests.
-- perl-rejects.txt: the parses cases `perl -c` rejects with stubs/ as
-  PERL5LIB, by bare file name, one per line.
+
+Which cases perl accepts is not recorded here: the pinned perl's labels are
+internal/chart/testdata/labels/in-tree.txt, written by
+internal/chart/offline/label.sh.
 
 Nothing in pvm reads the Guacamole checkout after extraction; rerunning the
 command above regenerates this directory exactly.
