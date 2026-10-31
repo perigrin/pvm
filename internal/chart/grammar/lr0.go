@@ -54,16 +54,13 @@ type State struct {
 	Leo         []int
 }
 
-// Tables are the generator's output. Probes and Conflicts are set by
-// BuildTables, from a cut's terminals.
+// Tables are the generator's output.
 type Tables struct {
-	Start     int
-	Symbols   []TableSymbol
-	Rules     []BNFRule
-	Items     []CoreItem
-	States    []State
-	Probes    []Probe
-	Conflicts []Conflict
+	Start   int
+	Symbols []TableSymbol
+	Rules   []BNFRule
+	Items   []CoreItem
+	States  []State
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting

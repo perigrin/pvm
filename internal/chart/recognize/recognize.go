@@ -92,7 +92,7 @@ func Guacamole(slif string) (*grammar.Tables, *lex.Lexer, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tab, err := grammar.BuildTables(cut)
+	tab, err := grammar.BuildTables(grammar.GeneratorInput(cut))
 	if err != nil {
 		return nil, nil, err
 	}
