@@ -175,9 +175,11 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
   `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
   first byte of the wrong token.
-- **issue ref** is the open lexer issue's git-zhi id through its second
-  segment, `01a1882d-d8a4` — never the second segment alone or the
-  8-character short id, neither of which resolves reliably.
+- **issue ref** is a prefix of the open lexer issue's git-zhi uuid made of
+  whole segments, at least two (`01a1882d-d8a4`), extended segment by segment
+  until it names one issue: the first two segments are the creation time to
+  the millisecond, so issues from one refinement run share them. Never the
+  second segment alone or the 8-character short id.
 
 `TestLexerLists` checks every entry's form, that its path is a corpus file
 that exists and that its byte lies inside it. It never calls `git zhi`, so
