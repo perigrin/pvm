@@ -63,6 +63,13 @@ func TestCompareResetRules(t *testing.T) {
 		{"tdt-unaligned-unlisted before completion", "tdt-unaligned-unlisted", "5", "5", "3", false},
 		{"tdt-unaligned-unlisted at completion", "tdt-unaligned-unlisted", "1", "1", "0", true},
 		{"tdt-unaligned-unlisted zero at completion", "tdt-unaligned-unlisted", "0", "0", "0", false},
+		{"timing key na becomes a number without a baseline", "lex-overhead-std5k", "na", "1.0", "", true},
+		{"timing key number becomes na", "speed-ratio-std5k-cold", "1.0", "na", "", true},
+		{"timing key na stays na", "alloc-per-token-rd", "na", "na", "", false},
+		{"tdt-mismatch na at completion", "tdt-mismatch", "na", "na", "0", true},
+		{"tdt-mismatch na before completion", "tdt-mismatch", "na", "na", "3", false},
+		{"tdt-unseen-unlisted na at completion", "tdt-unseen-unlisted", "na", "na", "0", true},
+		{"tdt-unseen-unlisted na before completion", "tdt-unseen-unlisted", "na", "na", "3", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := compareOne(tc.key, tc.base, tc.measure, tc.gaps)
