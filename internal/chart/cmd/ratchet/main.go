@@ -35,7 +35,12 @@ var keys = []string{
 }
 
 func main() {
-	measured, unmapped, err := measure()
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
+		os.Exit(2)
+	}
+	measured, unmapped, err := measure(g, ref)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
@@ -99,8 +104,12 @@ func report(measured map[string]string) []Measure {
 
 // measure takes every measurement there is a component for, and returns
 // lex-unmapped's files as "<path> <byte>" pairs. Each later issue makes its
-// keys print a number.
-func measure() (map[string]string, []string, error) {
+// keys print a number. It measures nothing from a grammar the generator
+// refuses: that is an error, not a smaller count.
+func measure(g *grammar.Grammar, ref []grammar.Entry) (map[string]string, []string, error) {
+	if _, err := grammar.Generate(g, ref); err != nil {
+		return nil, nil, fmt.Errorf("the generator refuses the grammar:\n%w", err)
+	}
 	gaps, excluded, err := grammar.LedgerCounts()
 	if err != nil {
 		return nil, nil, fmt.Errorf("the port ledger: %w", err)
