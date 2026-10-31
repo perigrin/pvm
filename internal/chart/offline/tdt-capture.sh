@@ -28,7 +28,8 @@ perly_h=$archlibexp/CORE/perly.h
 # the slowest corpus file measured.
 limit=${TDT_TIMEOUT:-60}
 {
-	timeout "$limit" "$perl" -c -DpT "$file" 2>&1 >/dev/null </dev/null && st=0 || st=$?
+	# env -i as label.sh runs perl, so PERL5OPT and the like cannot add tokens.
+	env -i PATH="$PATH" PERL5LIB="${PERL5LIB-}" timeout "$limit" "$perl" -c -DpT "$file" 2>&1 >/dev/null </dev/null && st=0 || st=$?
 	echo "tdt-capture-status $st"
 } | awk -v perly_h="$perly_h" -v limit="$limit" '
 BEGIN {
