@@ -5,7 +5,6 @@ package lex
 
 import (
 	"bytes"
-	"fmt"
 
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -44,19 +43,4 @@ func (s *Stream) all() []lexer.Token {
 		out = append(out, t.Token)
 	}
 	return append(out, s.Tail...)
-}
-
-// covers checks that the stream tiles bytes 0 to n with no gap or overlap.
-func (s *Stream) covers(n int) error {
-	at := 0
-	for _, t := range s.all() {
-		if t.Start != at {
-			return fmt.Errorf("byte %d: the stream resumes at byte %d", at, t.Start)
-		}
-		at = t.End
-	}
-	if at != n {
-		return fmt.Errorf("byte %d: the stream ends before the source's %d bytes", at, n)
-	}
-	return nil
 }
