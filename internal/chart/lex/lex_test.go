@@ -33,12 +33,9 @@ func toyTable(t testing.TB) *grammar.TokenTable {
 // texts is each token's text, and its lead's, as "lead|token".
 func texts(src string, s *Stream) []string {
 	var out []string
-	for _, tok := range s.Tokens {
-		var lead strings.Builder
-		for _, l := range tok.Lead {
-			lead.WriteString(src[l.Start:l.End])
-		}
-		out = append(out, lead.String()+"|"+src[tok.Start:tok.End])
+	for i, tok := range s.Tokens {
+		r := s.Raw[tok.Index]
+		out = append(out, span(src, s.Lead(i))+"|"+src[r.Start:r.End])
 	}
 	return out
 }
@@ -68,10 +65,10 @@ func TestLexHeredocBodyToOpener(t *testing.T) {
 	s, _ := Lex([]byte(src), toyTable(t))
 	opener := -1
 	for i := range s.Tokens {
-		if s.Tokens[i].Kind == lexer.HeredocOpen {
+		if s.Raw[s.Tokens[i].Index].Kind == lexer.HeredocOpen {
 			opener = i
 		}
-		if s.Tokens[i].Kind == lexer.HeredocBody {
+		if s.Raw[s.Tokens[i].Index].Kind == lexer.HeredocBody {
 			t.Fatalf("the body is a token of the stream: %q", texts(src, s))
 		}
 	}
@@ -100,7 +97,7 @@ func TestLexMapsEveryToken(t *testing.T) {
 			continue
 		}
 		if !slices.Equal(sets[id], []int{want[i]}) {
-			t.Errorf("token %d (%q) has set %v, want [%d]", i, src[s.Tokens[i].Start:s.Tokens[i].End], sets[id], want[i])
+			t.Errorf("token %d (%q) has set %v, want [%d]", i, span(src, s.Raw[s.Tokens[i].Index:s.Tokens[i].Index+1]), sets[id], want[i])
 		}
 	}
 	if len(got) != len(want) || got[2] != 0 {
@@ -158,7 +155,7 @@ func TestLexTrailingTrivia(t *testing.T) {
 	}
 	src := "$x = 1; # trailing\n"
 	s, _ := Lex([]byte(src), tt)
-	if got := span(src, s.Tail); got != " # trailing\n" {
+	if got := span(src, s.Tail()); got != " # trailing\n" {
 		t.Errorf("tail %q, want the trivia after the last token", got)
 	}
 	src = "# lead\n$x;"
@@ -172,15 +169,16 @@ func TestLexTwoHeredocsOneLine(t *testing.T) {
 	src := "$x = <<A, <<B; # c\nfirst\nA\nsecond\nB\n$y;"
 	s, _ := Lex([]byte(src), toyTable(t))
 	var bodies []string
-	for i, tok := range s.Tokens {
+	for i, st := range s.Tokens {
+		tok := s.Raw[st.Index]
 		if tok.Kind == lexer.HeredocOpen {
 			bodies = append(bodies, span(src, s.Body(i)))
 		}
 		if tok.Kind == lexer.Variable && src[tok.Start:tok.End] == "$y" {
-			if lead := span(src, tok.Lead); strings.Contains(lead, "first") || strings.Contains(lead, "second") {
+			if lead := span(src, s.Lead(i)); strings.Contains(lead, "first") || strings.Contains(lead, "second") {
 				t.Errorf("a heredoc body is attached to the token after the opener's line: lead %q", lead)
 			}
-			if lead := span(src, tok.Lead); lead != " # c\n" {
+			if lead := span(src, s.Lead(i)); lead != " # c\n" {
 				t.Errorf("$y's lead is %q, want the trivia before it, %q", lead, " # c\n")
 			}
 		}
@@ -190,5 +188,35 @@ func TestLexTwoHeredocsOneLine(t *testing.T) {
 	}
 	if got := string(s.Text([]byte(src))); got != src {
 		t.Errorf("Text = %q, want the source", got)
+	}
+}
+
+// The stream's tokens are lexer.Tokenize's slice itself, not a copy of it:
+// Raw shares its backing array, and each token is an index into it.
+func TestLexStreamSharesLexerTokens(t *testing.T) {
+	src := []byte("# c\n$x = <<A;\nbody\nA\n$y = foo;\n")
+	raw := lexer.Tokenize(src)
+	s, _ := Map(src, raw, toyTable(t))
+	if len(s.Raw) != len(raw) || &s.Raw[0] != &raw[0] {
+		t.Fatalf("Raw is not the lexer's slice")
+	}
+	for i, tok := range s.Tokens {
+		if &s.Raw[tok.Index] != &raw[tok.Index] || lexer.IsTrivia(raw[tok.Index].Kind) {
+			t.Errorf("token %d is not a significant token of the lexer's slice", i)
+		}
+	}
+}
+
+// Map allocates a fixed number of times, however many tokens a file has.
+func TestLexStreamAllocations(t *testing.T) {
+	tt := toyTable(t)
+	allocs := func(src []byte) float64 {
+		raw := lexer.Tokenize(src)
+		return testing.AllocsPerRun(20, func() { Map(src, raw, tt) })
+	}
+	line := "$x = 1; # c\n$y = foo;\n"
+	short, long := allocs([]byte(strings.Repeat(line, 10))), allocs([]byte(strings.Repeat(line, 1000)))
+	if short != long || long > 4 {
+		t.Errorf("Map allocates %v times on a short file and %v on a long one, want the same small number", short, long)
 	}
 }
