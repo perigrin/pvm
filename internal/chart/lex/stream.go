@@ -1,5 +1,5 @@
 // ABOUTME: The token and stream types chart/lex hands the lattice: tokens with their leading trivia, and a lossless stream of them.
-// ABOUTME: Independent of the predicate mapping in lex.go, so the mapping can go without them.
+// ABOUTME: The lattice reads them; no grammar-specific mapping produces them yet.
 
 package lex
 
@@ -10,8 +10,8 @@ import (
 )
 
 // Token is one significant token: the production lexer's token, the trivia
-// before it, and the cut's terminals whose predicate admits it. A token no
-// predicate admits stays in the stream with no terminals.
+// before it, and the terminals that admit it. A token no terminal admits
+// stays in the stream with none.
 type Token struct {
 	lexer.Token
 	Lead      []lexer.Token

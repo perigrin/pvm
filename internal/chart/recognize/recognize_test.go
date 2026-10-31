@@ -11,7 +11,7 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 )
 
-// stmtGrammar is the shapes the cut grammar gives the recognizer, in small:
+// stmtGrammar is the shapes a Perl grammar gives the recognizer, in small:
 // a right-recursive nullable statement sequence, nested blocks, and a
 // left-recursive term.
 var stmtGrammar = []string{
