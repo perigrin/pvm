@@ -259,15 +259,51 @@ func TestLedgerExclusionReasonsPinnedToLines(t *testing.T) {
 	}
 }
 
-// A blank line between entries keeps two families' adjacent edits from conflicting on rebase (P0-2).
+// ruleSlot is the perly.y line a rule line cites, or "" for any other line.
+func ruleSlot(l string) string {
+	_, cite, ok := strings.Cut(l, " # ")
+	if !ok || strings.HasPrefix(l, "#") {
+		return ""
+	}
+	line, _, _ := strings.Cut(cite, ",")
+	return line
+}
+
+// adjacencyError reports the first two non-blank lines that touch, unless both are rules citing the
+// same perly.y:N: that is one family's slot, and edits inside it cannot conflict with another's.
+func adjacencyError(text string) error {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for i := 1; i < len(lines); i++ {
+		if lines[i] != "" && lines[i-1] != "" && (ruleSlot(lines[i]) == "" || ruleSlot(lines[i]) != ruleSlot(lines[i-1])) {
+			return fmt.Errorf("%q directly follows %q", lines[i], lines[i-1])
+		}
+	}
+	return nil
+}
+
+// A blank line between entries keeps two families' adjacent edits from conflicting on rebase (P0-2);
+// rule lines for one alternative may touch (P0-5).
 func TestLedgerAndPlaceholdersSeparatedByBlankLines(t *testing.T) {
 	for name, text := range map[string]string{"ledger.txt": readTestdata(t, "ledger.txt"), "perly.go": perlyRules} {
-		lines := strings.Split(strings.TrimSpace(text), "\n")
-		for i := 1; i < len(lines); i++ {
-			if lines[i] != "" && lines[i-1] != "" {
-				t.Errorf("%s: %q directly follows %q", name, lines[i], lines[i-1])
-				break
-			}
+		if err := adjacencyError(text); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	const (
+		r1  = "indirob: scalar # perly.y:1888"
+		r1b = "indirob: block # perly.y:1888, fitted: x"
+		r2  = "indirob: PRIVATEREF # perly.y:1895"
+	)
+	if err := adjacencyError(r1 + "\n" + r1b + "\n\n" + r2); err != nil {
+		t.Errorf("adjacent rules citing the same alternative: %v", err)
+	}
+	for name, text := range map[string]string{
+		"rules citing different alternatives": r1 + "\n" + r2,
+		"two placeholders":                    "# perly.y:1888 a\n# perly.y:1895 b",
+		"a placeholder beside a rule":         "# perly.y:1888 a\n" + r1,
+	} {
+		if adjacencyError(text) == nil {
+			t.Errorf("adjacent lines accepted: %s", name)
 		}
 	}
 	es, err := ParseEntries("perly.y:1 a: X\t-\n\nperly.y:2 a: Y\tported\n", true)
