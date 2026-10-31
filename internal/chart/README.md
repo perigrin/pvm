@@ -224,6 +224,31 @@ skips, so run it with `T1_CORPUS` set.
 `recognize.Recognize` runs a YAEP-style Earley recognizer over the generated
 tables and a `chart/lex` lattice. Error recovery is not built yet.
 
+- **Input** is a lattice of terminal-set ids; the recognizer never sees a
+  terminal name. Each edge's token carries one id, `lex.Token.TerminalSet`,
+  an index into `grammar.Tables.TerminalSets`, whose entries are sorted
+  lists of terminal symbol ids; a token is read as every terminal in its
+  set, so a token whose set holds several is scanned as each of them. **Id 0
+  is the empty set**, so a token never given an id refuses rather than
+  scanning. `BuildTables` leaves `TerminalSets` empty; the generator fills it
+  from the grammar's token classes (the token-interface issue), and until
+  then the tests fill it (the empty set, then one singleton set per
+  terminal). It is complete before `New`, which keeps its own copy: a set
+  added afterwards is outside that recognizer's table. Nodes are
+  numbered so that every edge runs forward. `Recognize` validates this and
+  returns an error, never a panic, for an edge with a node outside the
+  lattice, an edge that does not run forward (a zero-length one included),
+  or a set id outside the table. A lattice with no edges is valid: the
+  grammar accepts or refuses it.
+- **Class keys are set ids.** A token's class is its set id. The lookahead
+  at a node is the set id of the edges leaving it, or one end-of-input class
+  past the table's last set where none leave; each class's bitset is built
+  once in `New`, so the per-token lookup allocates nothing
+  (`TestClassKeysAllocationFree`). Where edges with different sets leave one
+  node, its lookahead is their union, built there, and the transition cache
+  is not used at that node.
+- **Not safe for concurrent use.** A `Recognizer`'s intern table and
+  transition cache change with every recognition, across inputs.
 - **Items** are an LR(0) state and the distance in lattice nodes back to the
   item's origin. A set is its items, sorted, interned as a (core, distances)
   pair, so two positions with equal content share one `*Set`. A node that an
@@ -259,15 +284,15 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   `TestLeoStatementSeqAtLookaheadZero`). Linear here means the item count,
   not time: with the cache on, each use of a chain walks it to record its
   sets, so time stays quadratic until memos are interned. A chain stops at
-  a start-rule item from node 0, which acceptance must see. `Options.NoLeo` turns it off, and
-  the `chart_noleo` build tag makes the memo step a no-op whatever the
-  options say, so `go test -tags chart_noleo` shows those tests failing.
+  a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
+  turns it off; it is the only Leo switch.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with and without the cache, the
 lookahead and Leo and with a dead-end branch added, and that `Expected` is the
-same with and without lookahead. Each input byte is one terminal of the toy
-statement grammar, so every input is a valid terminal string.
+same with and without lookahead. Each input byte is the singleton set id of
+one terminal of the toy statement grammar, so every input is a valid
+terminal string.
 
 ## The generated tables: `make chart-tables`
 
