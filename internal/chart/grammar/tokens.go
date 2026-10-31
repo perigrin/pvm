@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -85,14 +86,12 @@ type TokenClass struct {
 
 func ptr[T any](v T) *T { return &v }
 
-// partVal is one part of a key; only the field its part uses is set.
-type partVal struct {
-	n int
-	s string
-	c Neighbour
-}
-
 const nParts = 8
+
+// free marks a part a class leaves unconstrained. Every value, a lexer kind
+// included, is a non-negative integer: text and neighbour values are the
+// dictionary ids CompileTokens gives them, 0 meaning one no class names.
+const free = -1
 
 func b2i(b bool) int {
 	if b {
@@ -101,42 +100,18 @@ func b2i(b bool) int {
 	return 0
 }
 
-// parts is the key of a token in part order: kind, text, the two flags, the
-// prefix, then the second previous, previous and next neighbours.
-func parts(t TokenView, p2, p1, n Neighbour) [nParts]partVal {
-	return [nParts]partVal{{n: int(t.Kind)}, {s: t.Text}, {n: b2i(t.OpensBlock)}, {n: b2i(t.TermFollows)},
-		{n: int(t.Prefix)}, {c: p2}, {c: p1}, {c: n}}
+// iclass is a Neighbour with its text replaced by its dictionary id.
+type iclass struct {
+	kind, text  int
+	opens, term bool
+	brace       Brace
 }
 
-func (c TokenClass) pattern() (p [nParts]*partVal) {
-	if c.Kind != nil {
-		p[0] = &partVal{n: int(*c.Kind)}
-	}
-	if c.Text != nil {
-		p[1] = &partVal{s: *c.Text}
-	}
-	if c.OpensBlock != nil {
-		p[2] = &partVal{n: b2i(*c.OpensBlock)}
-	}
-	if c.TermFollows != nil {
-		p[3] = &partVal{n: b2i(*c.TermFollows)}
-	}
-	if c.Prefix != nil {
-		p[4] = &partVal{n: int(*c.Prefix)}
-	}
-	for i, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
-		if nb != nil {
-			p[5+i] = &partVal{c: *nb}
-		}
-	}
-	return p
-}
-
-// node tests one part: kids by value, def when the value is not among them.
-// A node with no kids is a leaf.
+// node tests one part: kids is indexed by the part's value, def covers the
+// rest. A node with no kids is a leaf.
 type node struct {
 	part int
-	kids map[partVal]*node
+	kids []*node
 	def  *node
 	set  []int
 	id   int
@@ -147,21 +122,101 @@ type node struct {
 // no class matches yields; Sets is what Tables.TerminalSets takes.
 type TokenTable struct {
 	Sets [][]int
-	root *node
+	// Edge is the class id of Boundary, for the neighbours a file's edge lacks.
+	Edge    int
+	root    *node
+	text    map[string]int
+	classes map[iclass]int
+	texts   []string    // by text id - 1, for Text()
+	nbs     []Neighbour // by class id - 1, for Text()
+}
+
+// Token is a token with its text and class looked up in the dictionaries.
+// Intern it once; the class id is what the three tokens around it reuse.
+type Token struct {
+	N     Neighbour // the token's class, the next token's predecessor
+	Class int       // N's dictionary id
+	key   [nParts]int
+}
+
+func (tt *TokenTable) classID(n Neighbour, text int) int {
+	return tt.classes[iclass{int(n.Kind), text, n.OpensBlock, n.TermFollows, n.Brace}]
+}
+
+// ClassID is the dictionary id of n, 0 if no class names it.
+func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(n, tt.text[n.Text]) }
+
+// Intern looks t up in the dictionaries, with pred the class of the
+// significant token before it. It hashes t's text once.
+func (tt *TokenTable) Intern(t TokenView, pred Neighbour) Token {
+	n, text := ClassOf(t, pred), tt.text[t.Text]
+	ct := text
+	if n.Text == "" {
+		ct = 0
+	}
+	return Token{N: n, Class: tt.classID(n, ct),
+		key: [nParts]int{int(t.Kind), text, b2i(t.OpensBlock), b2i(t.TermFollows), int(t.Prefix)}}
 }
 
 // CompileTokens builds the table. A part is tested only below the classes
 // that name it, so the table is refined by a neighbour only where a class
-// needs it. Set ids are numbered by the sets' contents, so the table does
-// not depend on the order of classes or on map iteration.
+// needs it. Dictionary ids are numbered by value, so the table does not
+// depend on the order of classes or on map iteration.
 func CompileTokens(classes []TokenClass) (*TokenTable, error) {
-	pats := make([][nParts]*partVal, len(classes))
 	for i, c := range classes {
 		if len(c.Terminals) == 0 {
 			return nil, fmt.Errorf("token class %d admits no terminals; an unmatched key already yields the empty set", i)
 		}
-		pats[i] = c.pattern()
 	}
+	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}, classes: map[iclass]int{}}
+	// The dictionaries: every text and every neighbour class a class names.
+	texts, nbs := map[string]bool{}, map[Neighbour]bool{}
+	for _, c := range classes {
+		if c.Text != nil {
+			texts[*c.Text] = true
+		}
+		for _, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
+			if nb != nil {
+				texts[nb.Text], nbs[*nb] = true, true
+			}
+		}
+	}
+	tt.texts = slices.Sorted(maps.Keys(texts))
+	for i, s := range tt.texts {
+		tt.text[s] = i + 1
+	}
+	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
+	for i, nb := range tt.nbs {
+		tt.classes[iclass{int(nb.Kind), tt.text[nb.Text], nb.OpensBlock, nb.TermFollows, nb.Brace}] = i + 1
+	}
+	tt.Edge = tt.ClassID(Boundary)
+
+	pats := make([][nParts]int, len(classes))
+	for i, c := range classes {
+		p := [nParts]int{free, free, free, free, free, free, free, free}
+		if c.Kind != nil {
+			p[0] = int(*c.Kind)
+		}
+		if c.Text != nil {
+			p[1] = tt.text[*c.Text]
+		}
+		if c.OpensBlock != nil {
+			p[2] = b2i(*c.OpensBlock)
+		}
+		if c.TermFollows != nil {
+			p[3] = b2i(*c.TermFollows)
+		}
+		if c.Prefix != nil {
+			p[4] = int(*c.Prefix)
+		}
+		for j, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
+			if nb != nil {
+				p[5+j] = tt.ClassID(*nb)
+			}
+		}
+		pats[i] = p
+	}
+
 	// Identical subtrees are one node, so the table does not grow with the
 	// number of classes that differ only in a part tested above them.
 	shared, memo := map[string]*node{}, map[string]*node{}
@@ -180,7 +235,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	var build func(in []int, part int) *node
 	build = func(in []int, part int) *node {
 		for ; part < nParts; part++ {
-			if slices.ContainsFunc(in, func(c int) bool { return pats[c][part] != nil }) {
+			if slices.ContainsFunc(in, func(c int) bool { return pats[c][part] != free }) {
 				break
 			}
 		}
@@ -198,23 +253,28 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			set = slices.Compact(set)
 			n = intern("leaf"+fmt.Sprint(set), &node{set: set})
 		} else {
-			cand := &node{part: part, kids: map[partVal]*node{}}
-			var wild []int
+			var wild, values []int
 			for _, c := range in {
-				if pats[c][part] == nil {
+				if v := pats[c][part]; v == free {
 					wild = append(wild, c)
+				} else {
+					values = append(values, v)
 				}
 			}
-			cand.def = build(wild, part+1)
+			slices.Sort(values)
+			values = slices.Compact(values)
+			cand := &node{part: part, def: build(wild, part+1), kids: make([]*node, values[len(values)-1]+1)}
 			sig := []string{fmt.Sprint(part, cand.def.uid)}
-			for _, c := range in {
-				if p := pats[c][part]; p != nil && cand.kids[*p] == nil {
-					same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != nil && *q != *p })
-					cand.kids[*p] = build(same, part+1)
-					sig = append(sig, fmt.Sprintf("%+v=%d", *p, cand.kids[*p].uid))
-				}
+			for i := range cand.kids {
+				cand.kids[i] = cand.def
 			}
-			slices.Sort(sig[1:])
+			for _, v := range values {
+				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != free && q != v })
+				cand.kids[v] = build(same, part+1)
+			}
+			for _, k := range cand.kids {
+				sig = append(sig, fmt.Sprint(k.uid))
+			}
 			n = intern(strings.Join(sig, ";"), cand)
 		}
 		memo[memoKey] = n
@@ -224,7 +284,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	for i := range all {
 		all[i] = i
 	}
-	tt := &TokenTable{root: build(all, 0), Sets: [][]int{{}}}
+	tt.root = build(all, 0)
 	for _, l := range leaves {
 		if len(l.set) > 0 {
 			tt.Sets = append(tt.Sets, l.set)
@@ -238,14 +298,16 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	return tt, nil
 }
 
-// Lookup is the terminal-set id of a token given the classes of the two
-// significant tokens before it and the one after (Boundary at a file's edge).
-func (tt *TokenTable) Lookup(t TokenView, prev2, prev1, next Neighbour) int {
-	k := parts(t, prev2, prev1, next)
+// Lookup is the terminal-set id of an interned token given the class ids of
+// the two significant tokens before it and the one after (Edge at a file's
+// edge). It allocates nothing and hashes nothing.
+func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
+	k := t.key
+	k[5], k[6], k[7] = prev2, prev1, next
 	n := tt.root
 	for n.kids != nil {
-		if c, ok := n.kids[k[n.part]]; ok {
-			n = c
+		if v := k[n.part]; uint(v) < uint(len(n.kids)) {
+			n = n.kids[v]
 		} else {
 			n = n.def
 		}
@@ -253,13 +315,23 @@ func (tt *TokenTable) Lookup(t TokenView, prev2, prev1, next Neighbour) int {
 	return n.id
 }
 
-// Text is the table as deterministic text: the sets, then the tests.
+// Text is the table as deterministic text: the sets, then the nodes, each
+// shared node once.
 func (tt *TokenTable) Text() []byte {
 	var b strings.Builder
 	for i, s := range tt.Sets {
 		fmt.Fprintf(&b, "set %d%s\n", i, ints(s))
 	}
-	// Shared nodes are dumped once, numbered in visit order.
+	// value names a part's value in the dump: ids are an implementation detail.
+	value := func(part, v int) string {
+		switch {
+		case part == 1:
+			return fmt.Sprintf("%q", tt.texts[v-1])
+		case part >= 5:
+			return fmt.Sprintf("%+v", tt.nbs[v-1])
+		}
+		return fmt.Sprint(v)
+	}
 	num := map[*node]int{}
 	var dump func(n *node) int
 	dump = func(n *node) int {
@@ -271,20 +343,19 @@ func (tt *TokenTable) Text() []byte {
 			fmt.Fprintf(&b, "node %d leaf set %d\n", num[n], n.id)
 			return num[n]
 		}
-		keys := make([]partVal, 0, len(n.kids))
-		for k := range n.kids {
-			keys = append(keys, k)
-		}
-		slices.SortFunc(keys, func(a, b partVal) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
-		kids := make([]int, len(keys))
-		for i, k := range keys {
-			kids[i] = dump(n.kids[k])
+		kids := make([]int, len(n.kids))
+		for v, k := range n.kids {
+			if k != n.def {
+				kids[v] = dump(k)
+			}
 		}
 		def := dump(n.def)
 		num[n] = len(num)
 		fmt.Fprintf(&b, "node %d part %d otherwise %d\n", num[n], n.part, def)
-		for i, k := range keys {
-			fmt.Fprintf(&b, "  %+v -> %d\n", k, kids[i])
+		for v, k := range n.kids {
+			if k != n.def {
+				fmt.Fprintf(&b, "  %s -> %d\n", value(n.part, v), kids[v])
+			}
 		}
 		return num[n]
 	}

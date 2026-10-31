@@ -24,9 +24,13 @@ func mustCompile(t *testing.T, classes ...TokenClass) *TokenTable {
 	return tt
 }
 
-// set is the terminals the lookup yields.
+// lookup interns the token and its three neighbours' classes, as a caller does.
+func (tt *TokenTable) lookup(t TokenView, p2, p1, n Neighbour) int {
+	return tt.Lookup(tt.Intern(t, none), tt.ClassID(p2), tt.ClassID(p1), tt.ClassID(n))
+}
+
 func (tt *TokenTable) set(t TokenView, p2, p1, n Neighbour) []int {
-	return tt.Sets[tt.Lookup(t, p2, p1, n)]
+	return tt.Sets[tt.lookup(t, p2, p1, n)]
 }
 
 var none = Neighbour{Kind: lexer.Whitespace}
@@ -105,11 +109,11 @@ func TestTokenUnions(t *testing.T) {
 		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word)},
 		TokenClass{Terminals: []int{2}, Text: ptr("foo")},
 		TokenClass{Terminals: []int{3}, Text: ptr("bar")})
-	both, one := tt.Lookup(word("foo"), none, none, none), tt.Lookup(word("bar"), none, none, none)
+	both, one := tt.lookup(word("foo"), none, none, none), tt.lookup(word("bar"), none, none, none)
 	if !slices.Equal(tt.Sets[both], []int{1, 2}) || !slices.Equal(tt.Sets[one], []int{1, 3}) || both == one {
 		t.Errorf("foo = %v (id %d), bar = %v (id %d), want [1 2] and [1 3] apart", tt.Sets[both], both, tt.Sets[one], one)
 	}
-	if tt.Lookup(word("foo"), none, none, none) != both {
+	if tt.lookup(word("foo"), none, none, none) != both {
 		t.Error("the same key yields a different id")
 	}
 	for i := range tt.Sets {
@@ -134,8 +138,9 @@ func TestTokenLookupAllocationFree(t *testing.T) {
 		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Text: ptr("foo"), Prev1: &semi, Next: &semi},
 		TokenClass{Terminals: []int{2}, Prefix: ptr(byte('$')), Prev2: &semi})
 	tok := TokenView{Kind: lexer.Word, Text: "foo", Prefix: '$'}
-	if n := testing.AllocsPerRun(1000, func() { tt.Lookup(tok, semi, semi, semi) }); n != 0 {
-		t.Errorf("Lookup allocates %v times", n)
+	c := tt.ClassID(semi)
+	if n := testing.AllocsPerRun(1000, func() { tt.Lookup(tt.Intern(tok, semi), c, c, c) }); n != 0 {
+		t.Errorf("Intern and Lookup allocate %v times", n)
 	}
 	if got := tt.set(tok, semi, semi, semi); !slices.Equal(got, []int{1, 2}) {
 		t.Errorf("the measured lookup yields %v, want [1 2]", got)
@@ -144,13 +149,13 @@ func TestTokenLookupAllocationFree(t *testing.T) {
 
 func TestTokenUnmatchedKeyEmptySet(t *testing.T) {
 	tt := mustCompile(t, TokenClass{Terminals: []int{1}, Text: ptr("foo")}, TokenClass{Terminals: []int{2}, Text: ptr("bar")})
-	if id := tt.Lookup(word("baz"), none, none, none); id != 0 {
+	if id := tt.lookup(word("baz"), none, none, none); id != 0 {
 		t.Errorf("unmatched key id = %d, want exactly 0", id)
 	}
 	if len(tt.Sets[0]) != 0 {
 		t.Errorf("set 0 = %v, want empty", tt.Sets[0])
 	}
-	foo, bar := tt.Lookup(word("foo"), none, none, none), tt.Lookup(word("bar"), none, none, none)
+	foo, bar := tt.lookup(word("foo"), none, none, none), tt.lookup(word("bar"), none, none, none)
 	if foo == 0 || bar == 0 || foo == bar || !slices.Equal(tt.Sets[foo], []int{1}) {
 		t.Errorf("matching ids foo=%d bar=%d, sets %v", foo, bar, tt.Sets)
 	}
@@ -218,8 +223,8 @@ func TestTokenKeyDoesNotRecurse(t *testing.T) {
 	if slices.Equal(inCtxA, inCtxB) {
 		t.Fatalf("foo's two contexts must differ, both %v", inCtxA)
 	}
-	a := tt.Lookup(word("x"), none, none, ClassOf(word("foo"), semi))
-	b := tt.Lookup(word("x"), none, none, ClassOf(word("foo"), none))
+	a := tt.lookup(word("x"), none, none, ClassOf(word("foo"), semi))
+	b := tt.lookup(word("x"), none, none, ClassOf(word("foo"), none))
 	if a != b || !slices.Equal(tt.Sets[a], []int{3}) {
 		t.Errorf("same-class neighbours keyed apart: %d vs %d", a, b)
 	}
@@ -244,7 +249,7 @@ func TestTokenNeighbourTextOnlyForWordsOperatorsBrackets(t *testing.T) {
 // A class naming no part matches every key; set 0 stays the reserved empty set.
 func TestTokenClassWithNoPartsMatchesEverything(t *testing.T) {
 	tt := mustCompile(t, TokenClass{Terminals: []int{1}})
-	if id := tt.Lookup(word("anything"), none, none, none); !slices.Equal(tt.Sets[id], []int{1}) || id == 0 {
+	if id := tt.lookup(word("anything"), none, none, none); !slices.Equal(tt.Sets[id], []int{1}) || id == 0 {
 		t.Errorf("lookup = id %d, sets %v", id, tt.Sets)
 	}
 	if err := (&Tables{}).FillTerminalSets(tt.Sets); err != nil {
