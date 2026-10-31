@@ -42,6 +42,8 @@ type Rule struct {
 	// Cite is the perly.y alternative the port's rule answers to: "perly.y:N",
 	// or "perly.y:N, fitted: <what the lexer emits instead>". Empty for toys.
 	Cite string
+	// Prec is the rule's %prec token, empty for none.
+	Prec string
 }
 
 // Grammar is the generator's input: G1 rules, and G0 rules whose left-hand
@@ -52,6 +54,11 @@ type Grammar struct {
 	Priority map[string]int // :lexeme ~ X priority => n
 	Discard  []string       // :discard ~ X
 	LATM     bool           // lexeme default = latm => 1
+	// Prec are the tokens given a precedence (%left, %right, %nonassoc); each is
+	// used by a right-hand side or a rule's %prec. Classes are the token classes,
+	// whose Terminals are the terminals' ids in the Tables built from the grammar.
+	Prec    []string
+	Classes []TokenClass
 }
 
 func ruleText(r Rule, op string) string { return nameText(r.LHS) + " " + op + " " + rhsText(r) }
