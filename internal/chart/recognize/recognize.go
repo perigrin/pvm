@@ -31,36 +31,31 @@ type Options struct {
 }
 
 // Recognizer recognizes lattices over one grammar's tables. Its intern
-// table and transition cache live as long as it does, across inputs.
+// table and transition cache live as long as it does, across inputs, and
+// change with every recognition: a Recognizer is not safe for concurrent use.
 type Recognizer struct {
 	tab  *grammar.Tables
 	opts Options
-	term map[string]int // terminal name to symbol id
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
 	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
 	follow []bitset
 	eof    int
-	// classes interns a sorted terminal list, a token's or a lookahead's,
-	// to an id; bits is each class as a bitset.
-	classes map[string]int
-	bits    []bitset
-	sets    interner
-	cache   map[cacheKey][]cacheEntry
-	leo     map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	// bits is each lookahead class as a bitset: the terminal sets by id,
+	// then the end of input at id len(tab.TerminalSets).
+	bits  []bitset
+	sets  interner
+	cache map[cacheKey][]cacheEntry
+	leo   map[[2]int]int // (state, symbol) to the LHS of its Leo item
 }
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{
-		tab: tab, opts: opts, term: map[string]int{}, eof: tab.EOF,
-		classes: map[string]int{}, sets: newInterner(), cache: map[cacheKey][]cacheEntry{},
+	r := &Recognizer{tab: tab, opts: opts, eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}}
+	for _, ids := range tab.TerminalSets {
+		r.bits = append(r.bits, r.bitsOf(ids))
 	}
-	for id, s := range tab.Symbols {
-		if s.Terminal {
-			r.term[s.Name] = id
-		}
-	}
+	r.bits = append(r.bits, r.bitsOf([]int{r.eof}))
 	r.lhs = make([][]int, len(tab.States))
 	for s, st := range tab.States {
 		for _, rule := range st.Reduces {
@@ -70,11 +65,7 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 		r.lhs[s] = slices.Compact(r.lhs[s])
 	}
 	for _, ids := range tab.Follow {
-		b := newBitset(r.eof + 1)
-		for _, id := range ids {
-			b.set(id)
-		}
-		r.follow = append(r.follow, b)
+		r.follow = append(r.follow, r.bitsOf(ids))
 	}
 	r.leo = leoItems(r)
 	return r
@@ -92,34 +83,45 @@ type Chart struct {
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
-// forward. A node some edge passes over is inside a branch: its set is not
-// interned and the cache is not used there (spec §5, "sets intern outside
-// branches only").
-func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
+// forward and whose tokens' set ids index r's tables; it is an error where
+// they do not. A node some edge passes over is inside a branch: its set is
+// not interned and the cache is not used there (spec §5, "sets intern
+// outside branches only").
+func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error) {
 	n := len(l.Nodes)
+	for i, e := range l.Edges {
+		switch {
+		case e.From < 0 || e.To >= n:
+			return nil, fmt.Errorf("recognize: edge %d, %d to %d, has a node outside the lattice's %d", i, e.From, e.To, n)
+		case e.From >= e.To:
+			return nil, fmt.Errorf("recognize: edge %d, %d to %d, does not run forward", i, e.From, e.To)
+		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.tab.TerminalSets):
+			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.tab.TerminalSets))
+		}
+	}
 	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
 	if n == 0 {
-		return c
+		return c, nil
 	}
 	in := make([][]lex.Edge, n)
-	out := make([][]int, n) // the terminal ids leaving each node
+	out := make([][]int, n) // the set ids leaving each node
 	branch := make([]bool, n)
 	for _, e := range l.Edges {
 		in[e.To] = append(in[e.To], e)
-		out[e.From] = append(out[e.From], r.ids(e.Token.Terminals)...)
+		out[e.From] = append(out[e.From], e.Token.TerminalSet)
 		for k := e.From + 1; k < e.To; k++ {
 			branch[k] = true
 		}
 	}
 	c.Sets[0], c.Interned[0] = r.sets.intern([]Item{{State: 0}})
 	for pos := 1; pos < n; pos++ {
-		la := r.lookahead(out[pos])
+		la, laBits := r.lookahead(out[pos])
 		var key cacheKey
 		// The key names the source set by its id, so it must be interned.
-		cacheable := !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
+		cacheable := la >= 0 && !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
 		if cacheable {
 			e := in[pos][0]
-			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: r.class(r.ids(e.Token.Terminals)), la: la}
+			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: e.Token.TerminalSet, la: la}
 			if s := r.lookup(c, pos, key); s != nil {
 				c.Sets[pos], c.Interned[pos], c.Cached[pos] = s, true, true
 				continue
@@ -131,7 +133,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 		}
 		var follows bitset // nil completes everything
 		if !r.opts.NoLookahead {
-			follows = r.bits[la]
+			follows = laBits
 		}
 		b.complete(follows)
 		if len(b.items) == 0 {
@@ -147,7 +149,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 			r.store(key, b.deps, c.Sets[pos])
 		}
 	}
-	return c
+	return c, nil
 }
 
 // Accepted reports whether the last node's set holds a complete item of a
@@ -212,9 +214,8 @@ func (b *builder) scan(e lex.Edge) {
 		return
 	}
 	b.read(e.From, src)
-	terms := b.r.ids(e.Token.Terminals)
 	for _, it := range src.items {
-		for _, t := range terms {
+		for _, t := range b.r.tab.TerminalSets[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it.State, t); ok {
 				b.add(k, e.From-it.Dist)
 			}
@@ -293,40 +294,36 @@ func (r *Recognizer) goTo(state, sym int) (int, bool) {
 	return tr[i].Target, true
 }
 
-// ids is the terminal ids of names, in name order.
-func (r *Recognizer) ids(names []string) []int {
-	out := make([]int, 0, len(names))
-	for _, n := range names {
-		if id, ok := r.term[n]; ok {
-			out = append(out, id)
+// bitsOf is ids as a bitset over the terminals and the end of input.
+func (r *Recognizer) bitsOf(ids []int) bitset {
+	b := newBitset(r.eof + 1)
+	for _, id := range ids {
+		b.set(id)
+	}
+	return b
+}
+
+// lookahead is the class key and bitset of the set ids leaving a node: the
+// one set id, or the end-of-input class where none leave. Where different
+// sets leave, the key is -1, uncacheable, and the bitset their union.
+// shortcut: the union is built per node and never cached; intern unions
+// when interleaved mode makes forks common.
+func (r *Recognizer) lookahead(out []int) (int, bitset) {
+	if len(out) == 0 {
+		return len(r.bits) - 1, r.bits[len(r.bits)-1]
+	}
+	for _, s := range out[1:] {
+		if s != out[0] {
+			u := newBitset(r.eof + 1)
+			for _, s := range out {
+				for i, w := range r.bits[s] {
+					u[i] |= w
+				}
+			}
+			return -1, u
 		}
 	}
-	return out
-}
-
-// class interns a terminal list, sorted and deduplicated, to an id.
-func (r *Recognizer) class(ids []int) int {
-	ids = slices.Compact(slices.Sorted(slices.Values(ids)))
-	k := fmt.Sprint(ids)
-	if c, ok := r.classes[k]; ok {
-		return c
-	}
-	bs := newBitset(r.eof + 1)
-	for _, id := range ids {
-		bs.set(id)
-	}
-	r.classes[k] = len(r.bits)
-	r.bits = append(r.bits, bs)
-	return len(r.bits) - 1
-}
-
-// lookahead is the class of the terminals leaving a node, or of the end of
-// input where none leave.
-func (r *Recognizer) lookahead(out []int) int {
-	if len(out) == 0 {
-		return r.class([]int{r.eof})
-	}
-	return r.class(out)
+	return out[0], r.bits[out[0]]
 }
 
 // bitset is a fixed-size set of small integers.
