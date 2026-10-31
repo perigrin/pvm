@@ -1,30 +1,15 @@
-// ABOUTME: The chart grammar's generator: reads the vendored grammar, applies the token cut, writes the LR(0) tables.
-// ABOUTME: Run by `make chart-tables` from the repository root; the output is byte-identical on every run.
+// ABOUTME: The chart grammar's generator entry point: writes the LR(0) tables of the committed grammar, of which there is none yet.
+// ABOUTME: Run by `make chart-tables` from the repository root; with no grammar it writes nothing and says so on stderr.
 
-// Command gen writes the chart parser's tables. Its output directory holds
-// exactly the generated files: any other .txt file there is removed.
+// Command gen writes the chart parser's tables. No grammar is committed, so
+// it has nothing to generate: it writes no table file and exits 0.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
-
-	"tamarou.com/pvm/internal/chart/grammar"
 )
 
 func main() {
-	dir := filepath.Join("internal", "chart", "grammar", "testdata")
-	slif := flag.String("grammar", filepath.Join(dir, "guacamole", "guacamole.slif"), "the SLIF grammar to read")
-	out := flag.String("o", filepath.Join(dir, "tables"), "the directory to write the tables into")
-	flag.Parse()
-	files, err := grammar.GenerateTables(*slif)
-	if err == nil {
-		err = grammar.WriteTables(*out, files)
-	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "chart-tables: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Fprintln(os.Stderr, "chart-tables: no grammar is committed; nothing to generate, no tables written")
 }
