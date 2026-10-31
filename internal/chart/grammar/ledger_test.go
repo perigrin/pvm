@@ -249,3 +249,20 @@ func TestLedgerExclusionReasonsPinnedToLines(t *testing.T) {
 		}
 	}
 }
+
+// A blank line between entries keeps two families' adjacent edits from conflicting on rebase (P0-2).
+func TestLedgerAndPlaceholdersSeparatedByBlankLines(t *testing.T) {
+	for name, text := range map[string]string{"ledger.txt": readTestdata(t, "ledger.txt"), "perly.go": perlyRules} {
+		lines := strings.Split(strings.TrimSpace(text), "\n")
+		for i := 1; i < len(lines); i++ {
+			if lines[i] != "" && lines[i-1] != "" {
+				t.Errorf("%s: %q directly follows %q", name, lines[i], lines[i-1])
+				break
+			}
+		}
+	}
+	es, err := ParseEntries("perly.y:1 a: X\t-\n\nperly.y:2 a: Y\tported\n", true)
+	if err != nil || len(es) != 2 || es[1].Line != 2 {
+		t.Errorf("ParseEntries over blank-separated entries = %v, %v", es, err)
+	}
+}
