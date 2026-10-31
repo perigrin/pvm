@@ -31,6 +31,10 @@ var comparisonChains = []int{1466, 1468, 1484, 1486}
 // exclusionReasons is the closed list of reasons an `excluded` mark may give.
 var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery"}
 
+// reasonLines pins a reason to the lines it is true of. refused-in-action is
+// pinned to refused-in-action.txt; conditional-refusal is left to review.
+var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}}
+
 // ParseEntries reads `perly.y:<line> <text>` lines, each followed by a tab and
 // its mark when marked. The mark is kept verbatim for checkMarks to judge.
 func ParseEntries(text string, marked bool) ([]Entry, error) {
@@ -90,20 +94,36 @@ func parseCite(cite string) (line int, fitted bool, err error) {
 
 // checkMarks refuses a mark that is not well-formed: `-`, ported, fitted,
 // refused-by-precedence on a comparison chain, or `excluded <reason>` with
-// the reason on the closed list and no other word.
+// the reason on the closed list, no other word, and the alternative one the
+// reason is true of.
 func checkMarks(ledger []Entry) error {
+	refused, err := parseRefused(refusedText)
+	if err != nil {
+		return err
+	}
 	for _, e := range ledger {
 		f := strings.Fields(e.Mark)
 		switch {
 		case e.Mark == "-" || e.Mark == "ported" || e.Mark == "fitted":
 		case e.Mark == "refused-by-precedence" && slices.Contains(comparisonChains, e.Line):
-		case len(f) == 2 && f[0] == "excluded" && e.Mark == strings.Join(f, " ") && slices.Contains(exclusionReasons, f[1]):
+		case len(f) == 2 && f[0] == "excluded" && e.Mark == strings.Join(f, " ") && slices.Contains(exclusionReasons, f[1]) &&
+			reasonFits(f[1], e.Line, refused):
 		default:
-			return fmt.Errorf("%s%d: mark %q is not -, ported, fitted, refused-by-precedence (comparison chains only) or excluded <%s>",
+			return fmt.Errorf("%s%d: mark %q is not -, ported, fitted, refused-by-precedence (comparison chains only) or excluded <%s> on a line that reason is true of",
 				citePrefix, e.Line, e.Mark, strings.Join(exclusionReasons, "|"))
 		}
 	}
 	return nil
+}
+
+func reasonFits(reason string, line int, refused []int) bool {
+	switch reason {
+	case "refused-in-action":
+		return slices.Contains(refused, line)
+	case "conditional-refusal":
+		return true
+	}
+	return slices.Contains(reasonLines[reason], line)
 }
 
 // CheckLedger holds the ledger to the reference list: the same alternatives,
