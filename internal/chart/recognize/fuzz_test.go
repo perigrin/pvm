@@ -1,5 +1,5 @@
-// ABOUTME: FuzzRecognize, the recognizer's fuzz target: it never panics, and acceptance does not depend on the cache.
-// ABOUTME: Nor on lookahead, Leo or a dead-end branch, and Expected ignores lookahead. Run by `make fuzz-chart-recognize`.
+// ABOUTME: FuzzRecognize, the recognizer's fuzz target, and the oracle that holds it to the reference recognizer.
+// ABOUTME: Acceptance and Expected agree with reference_test.go's under every Options combination, on stmtGrammar and fuzzed small grammars. Run by `make fuzz-chart-recognize`.
 
 package recognize
 
