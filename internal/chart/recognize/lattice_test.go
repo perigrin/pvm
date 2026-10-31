@@ -23,7 +23,7 @@ func toyTables(t *testing.T, slif string) *grammar.Tables {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tab, err := grammar.BuildTables(c)
+	tab, err := grammar.BuildTables(grammar.GeneratorInput(c))
 	if err != nil {
 		t.Fatal(err)
 	}

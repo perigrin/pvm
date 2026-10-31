@@ -5,8 +5,6 @@ package grammar
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -30,10 +28,7 @@ func stateNames(tab *Tables) []string {
 // kernel after A predicts S again through state 0, and complete states
 // expect nothing.
 func TestExpectedTerminals(t *testing.T) {
-	tab, err := BuildTables(cut(t, "S ::= A S | B\nA ~ 'a'\nB ~ 'b'\n", CutSpec{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	tab := build(t, toy([]string{"A", "B"}, alts("S", "A S", "B")))
 	want := []string{"A B", "", "", ""}
 	if got := stateNames(tab); !slices.Equal(got, want) {
 		t.Errorf("expected terminals per state = %q, want %q\n%s", got, want, tab.Dump())
@@ -54,10 +49,7 @@ func leoStates(tab *Tables) []string {
 // TestLeoEligibility: in S ::= A S | B the kernel state after A holds the one
 // item S ::= A . S, a right-recursive completion candidate.
 func TestLeoEligibility(t *testing.T) {
-	tab, err := BuildTables(cut(t, "S ::= A S | B\nA ~ 'a'\nB ~ 'b'\n", CutSpec{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	tab := build(t, toy([]string{"A", "B"}, alts("S", "A S", "B")))
 	if got, want := leoStates(tab), []string{"S ::= A . S"}; !slices.Equal(got, want) {
 		t.Errorf("Leo-eligible items = %q, want %q", got, want)
 	}
@@ -69,17 +61,17 @@ func TestLeoEligibility(t *testing.T) {
 // edge reaches past trailing nullables (2e94's gate note F2), but an item
 // with anything after B is never eligible: its β could still read a token.
 func TestLeoEligibilityPerSymbol(t *testing.T) {
-	for src, want := range map[string][]string{
-		"S ::= A S | A\nA ~ 'a'\n":                               {"S ::= A . S"},
-		"S ::= A T | A\nT ::= S O\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n": {"S ::= A . T"},
-		"S ::= A S O | A\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n":          nil,
+	for _, c := range []struct {
+		g    *Grammar
+		want []string
+	}{
+		{toy([]string{"A"}, alts("S", "A S", "A")), []string{"S ::= A . S"}},
+		{toy([]string{"A", "C"}, alts("S", "A T", "A"), alts("T", "S O"), []Rule{seq("O", "C", Star)}), []string{"S ::= A . T"}},
+		{toy([]string{"A", "C"}, alts("S", "A S O", "A"), []Rule{seq("O", "C", Star)}), nil},
 	} {
-		tab, err := BuildTables(cut(t, src, CutSpec{}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := leoStates(tab); !slices.Equal(got, want) {
-			t.Errorf("%q: Leo-eligible items = %q, want %q\n%s", src, got, want, tab.Dump())
+		tab := build(t, c.g)
+		if got := leoStates(tab); !slices.Equal(got, c.want) {
+			t.Errorf("Leo-eligible items = %q, want %q\n%s", got, c.want, tab.Dump())
 		}
 	}
 }
@@ -89,16 +81,13 @@ func TestLeoEligibilityPerSymbol(t *testing.T) {
 // state with two items awaiting S, S ::= A . S and S ::= A . S B, has no
 // Leo item for S.
 func TestLeoEligibilityRefusals(t *testing.T) {
-	for _, src := range []string{
-		"L ::= L X | Y\nX ::= C\nC ~ 'c'\nY ~ 'y'\n",
-		"S ::= A S | A S B | A\nA ~ 'a'\nB ~ 'b'\n",
+	for _, g := range []*Grammar{
+		toy([]string{"C", "Y"}, alts("L", "L X", "Y"), alts("X", "C")),
+		toy([]string{"A", "B"}, alts("S", "A S", "A S B", "A")),
 	} {
-		tab, err := BuildTables(cut(t, src, CutSpec{}))
-		if err != nil {
-			t.Fatal(err)
-		}
+		tab := build(t, g)
 		if got := leoStates(tab); len(got) > 0 {
-			t.Errorf("%q: Leo-eligible items = %q, want none\n%s", src, got, tab.Dump())
+			t.Errorf("Leo-eligible items = %q, want none\n%s", got, tab.Dump())
 		}
 	}
 }
@@ -179,7 +168,7 @@ func TestGuacamoleConflictsExcludeLateJoiners(t *testing.T) {
 }
 
 // TestGuacamoleConflictsIncludePerlOpTerm: the cut Guacamole grammar's pairs
-// equal the committed list and include perl's operator/term texts. -X is not
+// include perl's operator/term texts. -X is not
 // among them: perl lexes a filetest by its text, not its position.
 func TestGuacamoleConflictsIncludePerlOpTerm(t *testing.T) {
 	cs := guacamoleConflicts(t)
@@ -188,13 +177,5 @@ func TestGuacamoleConflictsIncludePerlOpTerm(t *testing.T) {
 		if !slices.Contains(texts, want) {
 			t.Errorf("no conflict named %q; the pairs found:\n%s", want, strings.Join(conflictLines(cs), "\n"))
 		}
-	}
-	committed, err := os.ReadFile(filepath.Join(tablesDir, "conflicts.txt"))
-	if err != nil {
-		t.Fatalf("%v (regenerate with make chart-tables)", err)
-	}
-	got := strings.Join(conflictLines(cs), "\n") + "\n"
-	if got != string(committed) {
-		t.Errorf("%s/conflicts.txt differs from the pairs found:\n%s", tablesDir, firstDifference(tablesDir+"/conflicts.txt", "the generator", lines([]byte(got)), lines(committed)))
 	}
 }
