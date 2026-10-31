@@ -278,6 +278,29 @@ func TestTokenNodesSharedAcrossKeywords(t *testing.T) {
 	}
 }
 
+// The class id Intern gives a token is the id ClassID gives its class, for
+// kinds that carry no text too, so a caller can pass Intern(pred).Class.
+func TestTokenInternedClassMatchesClassID(t *testing.T) {
+	for name, pred := range map[string]TokenView{
+		"variable": {Kind: lexer.Variable, Text: "$x"},
+		"number":   {Kind: lexer.Number, Text: "42"},
+		"semi":     {Kind: lexer.Semicolon, Text: ";"},
+		"word":     word("my"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := ClassOf(pred, none)
+			tt := mustCompile(t, TokenClass{Terminals: []int{1}, Text: ptr("foo"), Prev1: &c})
+			p := tt.Intern(pred, none)
+			if p.Class == 0 || p.Class != tt.ClassID(c) {
+				t.Fatalf("Intern class %d, ClassID %d", p.Class, tt.ClassID(c))
+			}
+			if got := tt.Sets[tt.Lookup(tt.Intern(word("foo"), p.N), tt.Edge, p.Class, tt.Edge)]; !slices.Equal(got, []int{1}) {
+				t.Errorf("foo after %s via Intern = %v, want [1]", name, got)
+			}
+		})
+	}
+}
+
 func TestTokenTableDeterministic(t *testing.T) {
 	semi := ClassOf(op(";"), none)
 	classes := []TokenClass{
