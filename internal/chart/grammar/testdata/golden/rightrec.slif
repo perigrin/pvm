@@ -1,3 +1,0 @@
-# Right recursion.
-S ::= A S | A
-A ~ 'a'
