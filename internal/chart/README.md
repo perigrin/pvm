@@ -295,11 +295,6 @@ Every line is space-separated numbers and names:
   read a token, and the memo skips the item that would read it. This is
   necessary, not sufficient: the recognizer also requires the whole Earley
   set to hold one item awaiting B.
-- **`probes.txt`**: `<terminal> "<text>"`, the generated samples the
-  conflict finder lexed, one per printable character a pattern terminal's
-  texts can start with. Literal texts are probed too and are not listed.
-- **`conflicts.txt`**: one conflicting pair per line,
-  `<text> <operator terminals> <term terminals> "<probe>"`.
 
 These are separate files so that `states.txt` stays under the
 check-added-large-files limit.
@@ -319,10 +314,10 @@ diverge. A reading no terminal admits, such as an unterminated regex, makes
 no pair. A terminal list joined by commas is a token several terminals
 admit.
 
-A lexer bug therefore shows up as a wrong entry, and the review of
-`conflicts.txt` is where it is caught: a pull request that changes the list
-justifies each entry as one meaning in operator position and another in term
-position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
+A lexer bug therefore shows up as a wrong entry, and the
+`expectation-conflicts` count is where it is caught: a pull request that
+changes it justifies each pair as one meaning in operator position and another
+in term position. `TestGuacamoleConflictsIncludePerlOpTerm` requires perl's `/`, `<`,
 `%`, `&`, `*` and `x`, and `TestGuacamoleConflictsExcludeLateJoiners` refuses
 `{` and `?`. `-X` is not a pair: perl 5.42 lexes a filetest by its text, so
 `$a -e` is a syntax error, and pvm's lexer agrees.
