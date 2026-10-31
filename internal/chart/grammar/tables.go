@@ -5,7 +5,9 @@ package grammar
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -124,15 +126,49 @@ func BuildTables(g *Grammar) (*Tables, error) {
 	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
 }
 
-// WriteTables writes files into dir, creating it. It replaces the files it
-// writes and touches nothing else there.
+// tablePaths is the regular .txt files in dir: the files the generator owns.
+// Anything else there, a directory named x.txt included, is foreign.
+func tablePaths(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && filepath.Ext(e.Name()) == ".txt" {
+			paths = append(paths, filepath.Join(dir, e.Name()))
+		}
+	}
+	return paths, nil
+}
+
+// WriteTables writes files into dir, creating it. The generator owns every
+// regular .txt file in dir, as TablesDrift reads them: it replaces those it
+// writes and removes the rest, so a table an earlier run wrote and this one
+// does not cannot linger. Anything else there is foreign and untouched.
 func WriteTables(dir string, files []TableFile) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
+	keep := map[string]bool{}
 	for _, f := range files {
+		keep[f.Name] = true
 		if err := os.WriteFile(filepath.Join(dir, f.Name), f.Data, 0o644); err != nil {
 			return err
+		}
+	}
+	old, err := tablePaths(dir)
+	if err != nil {
+		return err
+	}
+	for _, p := range old {
+		if !keep[filepath.Base(p)] {
+			if err := os.Remove(p); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -142,7 +178,7 @@ func WriteTables(dir string, files []TableFile) error {
 // committed and the generated directory, or is in only one of them.
 func TablesDrift(committed, generated string) ([]string, error) {
 	read := func(dir string) (map[string][]byte, error) {
-		paths, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+		paths, err := tablePaths(dir)
 		if err != nil {
 			return nil, err
 		}

@@ -286,15 +286,22 @@ func TestFirstDifference(t *testing.T) {
 	}
 }
 
-// TestWriteTablesAndDrift: TablesDrift reports nothing for directories
-// WriteTables wrote from equal files, and names the one file that changed.
+// TestWriteTablesAndDrift: WriteTables removes a stale .txt it owns, and
+// TablesDrift reports nothing for equal directories and names the one file
+// that changed.
 func TestWriteTablesAndDrift(t *testing.T) {
 	files := build(t, goldenToys[0].g).Files()
 	a, b := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(b, "stray.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, dir := range []string{a, b} {
 		if err := WriteTables(dir, files); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if exists(t, filepath.Join(b, "stray.txt")) {
+		t.Error("WriteTables left a stale .txt it owns")
 	}
 	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
 		t.Fatalf("TablesDrift of equal directories = %v, %v; want none", drift, err)
@@ -317,7 +324,7 @@ func exists(t *testing.T, path string) bool {
 // TestWriteTablesOwnsItsFiles: a file WriteTables did not write survives it.
 func TestWriteTablesOwnsItsFiles(t *testing.T) {
 	dir := t.TempDir()
-	foreign := filepath.Join(dir, "notes.txt")
+	foreign := filepath.Join(dir, "notes.md")
 	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -359,6 +366,18 @@ func TestWriteTablesLeavesLookalikes(t *testing.T) {
 		if f.Name == "rules.txt" && string(got) != string(f.Data) {
 			t.Errorf("rules.txt = %q, want the generator's", got)
 		}
+	}
+}
+
+// TestTablesDriftSkipsNonRegular: a directory named like a table file is not
+// a table file.
+func TestTablesDriftSkipsNonRegular(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(a, "x.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if drift, err := TablesDrift(a, b); err != nil || len(drift) != 0 {
+		t.Errorf("TablesDrift = %v, %v; want none", drift, err)
 	}
 }
 
