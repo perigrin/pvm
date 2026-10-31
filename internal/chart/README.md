@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
+<!-- ABOUTME: Covers the grammar's provenance, the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the lexer lists, the CORE.tpm cross-check, the expectation conflicting pairs, the recognizer, and the token cut's reviewed rewrite list. -->
 
 # internal/chart
 
@@ -153,6 +153,40 @@ list — never worked around.
 To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
 `internal/chart/testdata/ratchet/baseline.txt` and review the diff.
+
+### The lexer lists
+
+Two lists name the files a lexer defect takes out of the gates (§11):
+`testdata/lex-unmapped-known.txt`, for a token the chart's table leaves
+unmapped, and `testdata/lexer-defects.txt`, for a token that is mapped but
+wrong. Refusal counts exclude the files on either list and no others. Both
+start empty; an entry is added only by the issue that meets the defect, filed
+against the v0.1 milestone, and the gate review confirms the construct at the
+entry's byte is that issue's.
+
+Each non-blank line is one entry, `<path> <byte> <issue ref>`:
+
+- **path** names a corpus file. An in-tree file is repository-relative:
+  `internal/chart/testdata/std5k.pl`, `internal/psc/testdata/latency/edit5k.pl`,
+  or a `*.pl` directly under `internal/chart/testdata/guacamole/parses/` or
+  `.../parsent/`. A T1 file is `T1/<name>.t`, a top-level `*.t` of T1,
+  resolved as `$T1_CORPUS/<name>.t`.
+- **byte** is a decimal offset inside that file (below its size), with no
+  sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
+  `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
+  first byte of the wrong token.
+- **issue ref** is a prefix of the open lexer issue's git-zhi uuid made of
+  whole segments, at least two (`01a1882d-d8a4`), extended segment by segment
+  until it names one issue: the first two segments are the creation time to
+  the millisecond, so issues from one refinement run share them. Never the
+  second segment alone or the 8-character short id.
+
+`TestLexerLists` checks every entry's form, that its path is a corpus file
+that exists and that its byte lies inside it. It never calls `git zhi`, so
+`make test` never reads the chain; a separate criterion resolves the refs and
+checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
+unset or names no directory, the test fails naming `T1_CORPUS`; it never
+skips, so run it with `T1_CORPUS` set.
 
 ## The recognizer: `recognize`
 
