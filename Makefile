@@ -49,7 +49,7 @@ fuzz-incremental:
 # test. FUZZTIME=10000x for a short run.
 fuzz-chart-recognize: FUZZTIME ?= 1000000x
 fuzz-chart-recognize:
-	go test ./internal/chart/recognize/ -run '^$$' -fuzz '^FuzzRecognize$$' -fuzztime $(FUZZTIME)
+	go test ./internal/chart/recognize/ -run '^$$' -fuzz '^FuzzRecognize$$' -fuzztime $(FUZZTIME) -fuzzminimizetime 1s
 
 # The chart spike's ratchet (internal/chart/README.md has its output
 # contract). Mainline does not gate on it: `test` never runs it, and its CI
