@@ -311,7 +311,7 @@ naming a terminal no rule uses, or a nonterminal; a terminal no class admits, bu
 and `PLUGSTMT`; an unreachable or unproductive nonterminal; and a precedence
 token no rule and no `%prec` uses. `TestCommittedGrammarConsistent` holds the
 committed grammar to them. Token classes are declared in `grammar/perly.go` by
-terminal name, one slot per `%token` in `perly.y`'s order, and resolved to ids
+terminal name, one slot per `%token` in the order `perly.y` declares them, and resolved to ids
 at generation (`Grammar.ResolveClasses`), so a rule added elsewhere does not
 move a class off its terminal. The output depends only on the grammar's rule order, never on map iteration or the clock,
 so regenerating it is byte-identical (§10).
