@@ -6,8 +6,9 @@
 #
 # Each file is checked with `perl -c` under `env -i` (PATH and PERL5LIB only)
 # and a per-file timeout. A refusal's category is proposed from perl's first
-# error, the first stderr line matching a pattern below; a refusal matching
-# none stops the script, so every refusal is classified. Precedence is never
+# error, its first stderr line, by the first pattern below it matches; a
+# first line matching none stops the script, so no refusal is classified by
+# a later line. Precedence is never
 # proposed: it is shown by referee evidence, which LABELS-review adds.
 set -eu
 
@@ -71,10 +72,10 @@ label() {
 			printf '%s\trefuse\tenvironment\tproposed\ttimeout after %ss\n' "$f" "$timeout"
 			continue
 		fi
-		hit=$(printf '%s\n' "$err" | tr '\t' ' ' | sed 's/ (@INC entries checked: [^)]*)//' |
+		hit=$(printf '%s\n' "$err" | head -n 1 | tr '\t' ' ' | sed 's/ (@INC entries checked: [^)]*)//' |
 			awk -v pats="$patterns" 'BEGIN { n = split(pats, p, "\n") }
 				{ for (i = 1; i <= n; i++) { split(p[i], c, "\t"); if ($0 ~ c[2]) { print c[1] "\t" $0; exit } } }')
-		[ -n "$hit" ] || die "$f: no pattern classifies perl's refusal (exit $s): $err"
+		[ -n "$hit" ] || die "$f: no pattern classifies perl's first error (exit $s): $err"
 		printf '%s\trefuse\t%s\tproposed\t%s\n' "$f" "${hit%%	*}" "${hit#*	}"
 	done
 }
