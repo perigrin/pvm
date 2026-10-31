@@ -1,2 +1,2 @@
 go test fuzz v1
-string("my $x = (1 + (2 * (3")
+string("My Var Assign Var Add Num Add")
