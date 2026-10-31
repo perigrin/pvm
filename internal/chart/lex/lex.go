@@ -8,6 +8,8 @@
 package lex
 
 import (
+	"unsafe"
+
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -22,7 +24,9 @@ func Lex(src []byte, tt *grammar.TokenTable) (*Stream, int) {
 // admits, or -1. Trivia attaches to the next significant token, and each
 // heredoc body to its opener, in order.
 func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
-	text := string(src) // once per file, so each token's text is a slice of it
+	// text views src without copying it; nothing Map returns holds a string, so
+	// the view lives only as long as this call, during which src is not written.
+	text := unsafe.String(unsafe.SliceData(src), len(src))
 	s := &Stream{Raw: raw, Tokens: make([]Token, 0, len(raw))}
 	first := -1
 	pred, p2, p1 := grammar.Boundary, tt.Edge, tt.Edge
