@@ -109,6 +109,11 @@ The form, one token per line, in the order toke.c delivered them to the parser:
   for the token (`$name`, `%h`), else the op (`op_concat`, `op_null` for a
   plain `=`). Integer `ival`s are dropped: most are addresses or line numbers
   that change between runs. `-DT` shows no source text.
+- A `use` or `no` is followed by a `BAREWORD` with no value: toke.c's
+  `S_force_version` always forces a `BAREWORD` for the version slot, its
+  `opval` null when no version is written (`use FindBin;` is `KW_USE_or_NO`,
+  `BAREWORD`, `BAREWORD PV("FindBin"\0)`, `PERLY_SEMICOLON`); the
+  `use` rule at `perly.y:714` reads the two as `version` and `module`.
 - Tokens reported under `### forced token:` are skipped there; they print
   where toke.c delivers them. `EOF` is not printed; the `;` toke.c inserts
   before a `}` and at end of file are.
