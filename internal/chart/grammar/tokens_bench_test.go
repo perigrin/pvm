@@ -13,7 +13,7 @@ import (
 // benchTable is shaped like a real one: a text-keyed class per word of the
 // file, and a few generic classes refined by their neighbours.
 func benchTable(tb testing.TB, src []byte, toks []lexer.Token) *TokenTable {
-	semi, lbrace, arrow := ClassOf(op(";"), none), ClassOf(op("{"), none), ClassOf(op("->"), none)
+	semi, lbrace, arrow := ClassOf(TokenView{Kind: lexer.Semicolon, Text: ";"}, none), ClassOf(op("{"), none), ClassOf(op("->"), none)
 	classes := []TokenClass{
 		{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &semi},
 		{Terminals: []int{2}, Kind: ptr(lexer.Word), Prev2: &lbrace, Next: &semi},

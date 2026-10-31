@@ -152,7 +152,7 @@ func (tt *TokenTable) Intern(t TokenView, pred Neighbour) Token {
 	n, text := ClassOf(t, pred), tt.text[t.Text]
 	ct := text
 	if n.Text == "" {
-		ct = 0
+		ct = tt.text[""]
 	}
 	return Token{N: n, Class: tt.classID(n, ct),
 		key: [nParts]int{int(t.Kind), text, b2i(t.OpensBlock), b2i(t.TermFollows), int(t.Prefix)}}
