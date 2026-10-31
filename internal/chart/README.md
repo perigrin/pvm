@@ -99,6 +99,10 @@ and never changes them. A lexer defect found here is filed against the v0.1
 milestone and listed — on `lex-unmapped`'s known list, or on the lexer-defect
 list — never worked around.
 
+To take a baseline after an intended change, run
+`go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
+`internal/chart/testdata/ratchet/baseline.txt` and review the diff.
+
 ### The rules
 
 - **May not rise:** `tables-drift`, `leo-disagree`, `ledger-gaps`,
@@ -155,7 +159,8 @@ list — never worked around.
 Every timing ratio — `lex-overhead*` and `speed-ratio-*` — comes from one
 protocol in `cmd/ratchet/speed.go` (spec §9.3), code over injected sides, a
 clock and a collector, so it is tested on fake timings
-(`TestSpeedProtocol`, `TestSpeedProtocolExclusionBoundary`):
+(`TestSpeedProtocol`, `TestSpeedProtocolExclusionBoundary`,
+`TestSpeedProtocolRefusesUnknownTimedPath`):
 
 - **Alternation.** The chart side and the reference side (recursive descent,
   or `lexer.Tokenize` for `lex-overhead`) are timed in alternating passes in
@@ -173,15 +178,14 @@ clock and a collector, so it is tested on fake timings
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
   file whose recursive-descent time alone is more than 10% of recursive
   descent's time over the **whole** population, whatever subset is timed.
-  Exactly 10% stays in. Each excluded file and each corpus's share of the
-  aggregate's recursive-descent time are printed on stderr.
+  Exactly 10% stays in. Recursive descent is passed to `Aggregate`
+  explicitly, even when the reference side is `lexer.Tokenize`, so every
+  figure reads one aggregate. A timed file outside the population is
+  refused, never kept unchecked. Each excluded file and each corpus's share
+  of the aggregate's recursive-descent time are printed on stderr.
 
 Wiring real chart and recursive-descent runs into the protocol is the job of
 the issues that make those keys print a number.
-
-To take a baseline after an intended change, run
-`go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
-`internal/chart/testdata/ratchet/baseline.txt` and review the diff.
 
 ### The lexer lists
 
