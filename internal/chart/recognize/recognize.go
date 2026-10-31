@@ -50,11 +50,15 @@ type Recognizer struct {
 	sets  interner
 	cache map[cacheKey][]cacheEntry
 	leo   map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	// expected memoizes Expected by set id (expected.go); expectedComputed
+	// counts the computations, for the test of the memo.
+	expected         map[int][]expectedEntry
+	expectedComputed int
 }
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}}
+	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}, expected: map[int][]expectedEntry{}}
 	for _, ids := range r.terms {
 		r.bits = append(r.bits, r.bitsOf(ids))
 	}
