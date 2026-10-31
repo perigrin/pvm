@@ -181,3 +181,13 @@ func TestRecognizeSetAddedAfterNew(t *testing.T) {
 		t.Error("Print Num Semi refused after sets were added to the tables")
 	}
 }
+
+// TestUnsetTokenRefuses: id 0 is the empty set, so a token never given an
+// id scans as no terminal. S ::= A S | A has one terminal, which any
+// non-empty set 0 would hold.
+func TestUnsetTokenRefuses(t *testing.T) {
+	c := mustRecognize(t, New(toyTables(t, rightRec...), Options{}), &lex.Lattice[lex.None]{Nodes: make([]lex.Node[lex.None], 2), Edges: []lex.Edge{{From: 0, To: 1}}})
+	if c.Accepted() || c.Sets[1] != nil {
+		t.Errorf("an unset token: accepted %v, set after it %v; want refused there", c.Accepted(), c.Sets[1])
+	}
+}
