@@ -32,15 +32,15 @@ func (r refToy) generate() error {
 //	b ::= B      (perly.y:12)
 //	b ::=        (perly.y:14)
 //
-// with A and B classed: the tables number s 0, b 1, A 2, B 3.
+// with A and B classed.
 func consistentToy() refToy {
 	g := toy([]string{"A", "B"}, alts("s", "A b"), alts("b", "B", ""))
 	for i, c := range []string{"perly.y:10", "perly.y:12", "perly.y:14"} {
 		g.G1[i].Cite = c
 	}
-	g.Classes = []TokenClass{
-		{Terminals: []int{2}, Kind: ptr(lexer.Operator), Text: ptr("+")},
-		{Terminals: []int{3}, Kind: ptr(lexer.Word), Text: ptr("x")},
+	g.Classes = []ClassDecl{
+		{"A", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
+		{"B", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
 	}
 	ref := []Entry{{10, "s: A b", ""}, {12, "b: B", ""}, {14, "b:", ""}}
 	return refToy{g, ref}
@@ -69,7 +69,7 @@ func TestGeneratorRefusals(t *testing.T) {
 	}{
 		{"uncited rule", func(r *refToy) { r.g.G1[1].Cite = "" }, []string{"b ::= B", "citation"}},
 		{"citation outside the reference list", func(r *refToy) { r.g.G1[1].Cite = "perly.y:99" }, []string{"b ::= B", "perly.y:99"}},
-		{"literal the lexer splits", func(r *refToy) { r.g.Classes[0].Text = ptr("~~~") }, []string{`"~~~"`}},
+		{"literal the lexer splits", func(r *refToy) { r.g.Classes[0].Key.Text = ptr("~~~") }, []string{`"~~~"`}},
 		{"terminal with no class", func(r *refToy) { r.g.Classes = r.g.Classes[:1] }, []string{"B", "class"}},
 		{"unreachable nonterminal", func(r *refToy) {
 			r.g.G1 = append(r.g.G1, Rule{LHS: "c", RHS: []Symbol{name("A")}, Cite: "perly.y:10"})
@@ -104,6 +104,45 @@ func TestGeneratorPrecedenceUse(t *testing.T) {
 	}
 }
 
+// Classes are declared by terminal name: a rule added ahead of the terminals renumbers them,
+// and each class stays on its terminal.
+func TestClassesFollowTheirTerminals(t *testing.T) {
+	admits := func(r refToy) map[string]string {
+		tab, err := Generate(r.g, r.ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		classes, err := r.g.ResolveClasses(tab)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]string{}
+		for _, c := range classes {
+			got[*c.Text] = tab.Symbols[c.Terminals[0]].Name
+		}
+		return got
+	}
+	want := map[string]string{"+": "A", "x": "B"}
+	before := consistentToy()
+	if got := admits(before); !maps.Equal(got, want) {
+		t.Fatalf("classes admit %v, want %v", got, want)
+	}
+	after := consistentToy()
+	after.g.G1 = append(after.g.G1, Rule{LHS: "c", RHS: []Symbol{name("A"), name("B")}, Cite: "perly.y:10"})
+	after.g.G1[0].RHS = append(after.g.G1[0].RHS, name("c")) // s ::= A b c: a nonterminal before the terminals
+	if got := admits(after); !maps.Equal(got, want) {
+		t.Errorf("after a rule is added, classes admit %v, want %v", got, want)
+	}
+}
+
+func TestClassNamesAreTerminals(t *testing.T) {
+	for name, term := range map[string]string{"unknown": "NOSUCH", "nonterminal": "b"} {
+		r := consistentToy()
+		r.g.Classes = append(r.g.Classes, ClassDecl{term, TokenClass{Kind: ptr(lexer.Word)}})
+		wantErr(t, name, r.generate(), term, "class")
+	}
+}
+
 func TestGeneratorRefusalExceptionsExact(t *testing.T) {
 	for _, term := range []string{"PLUGIN_ADD_OP", "GRAMPROG", "GRAMSUBSIGNATURE", "PLUGEXPR", "PLUGSTMT"} {
 		if err := classless(term).generate(); err != nil {
@@ -118,7 +157,7 @@ func TestGeneratorRefusalExceptionsExact(t *testing.T) {
 func TestGeneratorRefusesSplitLiteral(t *testing.T) {
 	literal := func(kind lexer.Kind, text string) error {
 		r := consistentToy()
-		r.g.Classes[0].Kind, r.g.Classes[0].Text = &kind, &text
+		r.g.Classes[0].Key.Kind, r.g.Classes[0].Key.Text = &kind, &text
 		return r.generate()
 	}
 	// ~~~ lexes as two tokens, and "x " as the word x: the right kind, other text.

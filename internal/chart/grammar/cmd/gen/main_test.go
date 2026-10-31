@@ -19,7 +19,7 @@ func toy() (*grammar.Grammar, []grammar.Entry) {
 	g := &grammar.Grammar{
 		G1:      []grammar.Rule{{LHS: "s", RHS: []grammar.Symbol{{Kind: grammar.Name, Text: "A"}}, Cite: "perly.y:10"}},
 		G0:      []grammar.Rule{{LHS: "A"}},
-		Classes: []grammar.TokenClass{{Terminals: []int{1}, Kind: &kind, Text: &text}},
+		Classes: []grammar.ClassDecl{{Terminal: "A", Key: grammar.TokenClass{Kind: &kind, Text: &text}}},
 	}
 	return g, []grammar.Entry{{Line: 10, Text: "s: A"}}
 }

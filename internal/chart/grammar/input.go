@@ -56,9 +56,17 @@ type Grammar struct {
 	LATM     bool           // lexeme default = latm => 1
 	// Prec are the tokens given a precedence (%left, %right, %nonassoc); each is
 	// used by a right-hand side or a rule's %prec. Classes are the token classes,
-	// whose Terminals are the terminals' ids in the Tables built from the grammar.
+	// each declared by the name of the terminal it admits.
 	Prec    []string
-	Classes []TokenClass
+	Classes []ClassDecl
+}
+
+// ClassDecl declares that tokens matching Key admit the terminal named Terminal.
+// Key.Terminals is not read: terminal ids move whenever a rule is added, so the
+// generator resolves the name to the id (ResolveClasses).
+type ClassDecl struct {
+	Terminal string
+	Key      TokenClass
 }
 
 func ruleText(r Rule, op string) string { return nameText(r.LHS) + " " + op + " " + rhsText(r) }
