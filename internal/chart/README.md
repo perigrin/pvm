@@ -255,8 +255,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   be followed by the next token is completed link by link, as without Leo.
   Every set a chain read is a transition-cache dependency. Leo never changes
   acceptance. At lookahead 0, where interleaved mode will run, it makes
-  `S ::= A S | A` and Guacamole's `StatementSeq` linear, where without it
-  they are quadratic (`TestLeoLinearAtLookaheadZero`,
+  `S ::= A S | A` and a toy right-recursive, nullable statement sequence
+  (the shape of Guacamole's `StatementSeq`) linear, where without it they are
+  quadratic (`TestLeoLinearAtLookaheadZero`,
   `TestLeoStatementSeqAtLookaheadZero`). Linear here means the item count,
   not time: with the cache on, each use of a chain walks it to record its
   sets, so time stays quadratic until memos are interned. A chain stops at
@@ -265,12 +266,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   options say, so `go test -tags chart_noleo` shows those tests failing.
 - **The empty program.** A source of only whitespace, comments and POD is
   accepted, as perl accepts it: the cut gives `Program` an empty
-  alternative, which Guacamole's `Program ::= StatementSeq` lacks.
+  alternative, which Guacamole's `Program ::= StatementSeq` lacks. This is
+  the cut's behaviour and goes with it; the recognizer's own test
+  (`TestRecognizeEmptyAndTruncated`) covers only a toy `Seq` that is
+  nullable.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with and without the cache, the
 lookahead and Leo and with a dead-end branch added, and that `Expected` is the
-same with and without lookahead.
+same with and without lookahead. Each input byte is one terminal of the toy
+statement grammar, so every input is a valid terminal string.
 
 ## The token cut and its rewrite list
 
