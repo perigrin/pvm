@@ -66,19 +66,19 @@ func TestLexTriviaToNextToken(t *testing.T) {
 func TestLexHeredocBodyToOpener(t *testing.T) {
 	src := "$x = <<A;\nbody\nA\n$y;"
 	s, _ := Lex([]byte(src), toyTable(t))
-	var opener *Token
+	opener := -1
 	for i := range s.Tokens {
 		if s.Tokens[i].Kind == lexer.HeredocOpen {
-			opener = &s.Tokens[i]
+			opener = i
 		}
 		if s.Tokens[i].Kind == lexer.HeredocBody {
 			t.Fatalf("the body is a token of the stream: %q", texts(src, s))
 		}
 	}
-	if opener == nil {
+	if opener < 0 {
 		t.Fatalf("no heredoc opener in %q", texts(src, s))
 	}
-	if got := span(src, opener.Body); !strings.HasSuffix(got, "body\nA\n") {
+	if got := span(src, s.Body(opener)); !strings.HasSuffix(got, "body\nA\n") {
 		t.Errorf("the opener's body is %q, want it to end with the heredoc's body", got)
 	}
 	if got := string(s.Text([]byte(src))); got != src {
@@ -172,9 +172,9 @@ func TestLexTwoHeredocsOneLine(t *testing.T) {
 	src := "$x = <<A, <<B; # c\nfirst\nA\nsecond\nB\n$y;"
 	s, _ := Lex([]byte(src), toyTable(t))
 	var bodies []string
-	for _, tok := range s.Tokens {
+	for i, tok := range s.Tokens {
 		if tok.Kind == lexer.HeredocOpen {
-			bodies = append(bodies, span(src, tok.Body))
+			bodies = append(bodies, span(src, s.Body(i)))
 		}
 		if tok.Kind == lexer.Variable && src[tok.Start:tok.End] == "$y" {
 			if lead := span(src, tok.Lead); strings.Contains(lead, "first") || strings.Contains(lead, "second") {
