@@ -11,8 +11,8 @@ import (
 
 // Token is one significant token: the production lexer's token, the trivia
 // before it, and the terminals that admit it as a terminal-set id, an index
-// into grammar.Tables.TerminalSets. A token no terminal admits stays in the
-// stream with an empty set's id.
+// into grammar.Tables.TerminalSets. Id 0 is the empty set, so a token no
+// terminal admits, or never given an id, stays in the stream and refuses.
 type Token struct {
 	lexer.Token
 	Lead        []lexer.Token
