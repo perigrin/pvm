@@ -164,3 +164,15 @@ func TestSpeedProtocolExclusionBoundary(t *testing.T) {
 		t.Errorf("subset aggregate %q, want both files: the 10%% rule reads the whole population", got)
 	}
 }
+
+// A timed path outside the population has no RD time to test against the
+// 10% rule, so keeping it would skew the aggregate silently: it is refused.
+func TestSpeedProtocolRefusesUnknownTimedPath(t *testing.T) {
+	w := &fakeWorld{cost: map[string]time.Duration{"a": 1, "b": 1, "huge": 1000}}
+	defer func() {
+		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "huge") {
+			t.Fatalf("Aggregate with a timed path outside the population: recovered %v, want a refusal naming huge", r)
+		}
+	}()
+	w.protocol().Aggregate([]File{{"a", "T1"}, {"b", "T1"}}, []string{"a", "b", "huge"})
+}
