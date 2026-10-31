@@ -92,10 +92,11 @@ machine (41.6 s; 4 cores, files one at a time).
 ## tdt-capture.sh
 
 `sh internal/chart/offline/tdt-capture.sh <perl> <file>` runs `<perl> -c -DpT
-<file>` and prints the file's own toke.c token stream on stdout. `PERL5LIB`
-passes through from the environment (the Guacamole snippets need
-`testdata/guacamole/stubs` on it); the snippets carry their preamble in-file,
-so the script takes none. Perl's stdin is `/dev/null`.
+<file>` and prints the file's own toke.c token stream on stdout. Perl runs
+under `env -i` with only `PATH` and `PERL5LIB` set, as `label.sh` runs it, so
+`PERL5OPT` cannot add tokens; the Guacamole snippets need
+`testdata/guacamole/stubs` on `PERL5LIB`. The snippets carry their preamble
+in-file, so the script takes none. Perl's stdin is `/dev/null`.
 
 The form, one token per line, in the order toke.c delivered them to the parser:
 
