@@ -1,56 +1,86 @@
 start 0
-0 predicted -1 items 0 1 2 3 4 5 7 10 13 15 20 26 27 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 0 7 8 9
-1 kernel -1 items 36 reduce 12
-2 kernel -1 items 38 reduce 13
-3 kernel -1 items 40 reduce 14
-4 kernel 5 items 8 9 reduce 2
-5 predicted -1 items 26 43 44 reduce 7 16
-6 kernel -1 items 29 reduce 9
-7 kernel 8 items 1 2 4 5 reduce 0
-8 predicted -1 items 7 10 13 15 20 26 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 7 9
-9 kernel 10 items 2 5 31 reduce 0
-10 predicted -1 items 7 10 13 15 20 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
-11 kernel -1 items 32 reduce 10
-12 kernel -1 items 34 reduce 11
-13 kernel -1 items 6 11 reduce 1
-14 kernel -1 items 42 reduce 15
-15 kernel -1 items 46 48 51 reduce 17
-16 kernel -1 items 61 reduce 22
-17 kernel -1 items 55 57 reduce 20
-18 kernel -1 items 75 reduce 29
-19 kernel -1 items 63 reduce 23
-20 kernel -1 items 69 reduce 26
-21 kernel -1 items 67 reduce 25
-22 kernel -1 items 71 reduce 27
-23 kernel -1 items 65 reduce 24
-24 kernel -1 items 86 reduce 34
-25 kernel -1 items 77 reduce
-26 kernel 27 items 16 17 18 21 22 23 reduce
-27 predicted -1 items 7 10 13 15 20 26 27 28 29 30 31 33 35 37 39 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce 7 8 9
-28 kernel -1 items 80 reduce 31
-29 kernel -1 items 84 reduce 33
-30 kernel -1 items 14 reduce 4
-31 kernel -1 items 82 reduce 32
-32 kernel -1 items 88 reduce
-33 kernel -1 items 73 reduce 28
-34 kernel -1 items 9 reduce 2
-35 kernel -1 items 44 reduce 16
-36 kernel 37 items 2 5 reduce 0
-37 predicted -1 items 41 45 47 50 54 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
-38 kernel -1 items 6 reduce 1
-39 kernel 10 items 31 reduce
-40 kernel -1 items 11 reduce
-41 kernel -1 items 12 reduce 3
-42 kernel 43 items 49 52 reduce 18
-43 predicted -1 items 56 60 62 64 66 68 70 72 74 76 79 81 83 85 87 reduce
-44 kernel 43 items 58 reduce
-45 kernel -1 items 78 reduce 30
-46 kernel 8 items 17 18 22 23 reduce
-47 kernel 37 items 18 23 reduce
-48 kernel -1 items 24 reduce
-49 kernel -1 items 19 reduce 5
-50 kernel -1 items 89 reduce 35
-51 kernel -1 items 53 reduce 19
-52 kernel -1 items 57 reduce
-53 kernel -1 items 59 reduce 21
-54 kernel -1 items 25 reduce 6
+0 predicted -1 items 0 1 2 3 4 5 7 10 13 16 19 22 25 28 31 33 39 44 50 51 52 53 54 55 57 59 61 63 65 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce 0 14 15 16
+1 kernel -1 items 60 reduce 19
+2 kernel -1 items 62 reduce 20
+3 kernel -1 items 64 reduce 21
+4 kernel -1 items 66 reduce 22
+5 kernel 6 items 26 27 reduce 8
+6 predicted -1 items 50 69 70 reduce 14 24
+7 kernel -1 items 53 reduce 16
+8 kernel 9 items 1 2 4 5 reduce 0
+9 predicted -1 items 25 28 31 33 39 44 50 52 53 54 55 57 59 61 63 65 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce 14 16
+10 kernel 11 items 2 5 55 reduce 0
+11 predicted -1 items 25 28 31 33 39 44 57 59 61 63 65 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce
+12 kernel -1 items 56 reduce 17
+13 kernel -1 items 58 reduce 18
+14 kernel -1 items 6 29 reduce 1
+15 kernel -1 items 68 reduce 23
+16 kernel -1 items 77 79 82 reduce 28
+17 kernel -1 items 92 reduce 33
+18 kernel -1 items 86 88 reduce 31
+19 kernel -1 items 106 reduce 40
+20 kernel -1 items 94 reduce 34
+21 kernel -1 items 100 reduce 37
+22 kernel -1 items 98 reduce 36
+23 kernel -1 items 102 reduce 38
+24 kernel -1 items 96 reduce 35
+25 kernel -1 items 125 reduce 49
+26 kernel 27 items 14 reduce
+27 predicted -1 items 25 28 31 33 39 44 59 61 63 65 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce
+28 kernel 29 items 11 reduce
+29 predicted -1 items 39 44 reduce
+30 kernel 31 items 8 9 reduce 2
+31 predicted -1 items 50 76 78 81 85 87 91 93 95 97 99 101 103 105 111 112 113 115 118 120 122 124 126 reduce 14 43
+32 kernel 11 items 17 reduce
+33 kernel 9 items 20 21 reduce 6
+34 kernel 35 items 23 24 reduce 7
+35 predicted -1 items 50 72 73 74 75 reduce 14 26 27
+36 kernel 37 items 34 35 reduce
+37 predicted -1 items 71 reduce 25
+38 kernel -1 items 116 reduce
+39 kernel 40 items 40 41 42 45 46 47 reduce
+40 predicted -1 items 25 28 31 33 39 44 50 51 52 53 54 55 57 59 61 63 65 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce 14 15 16
+41 kernel -1 items 119 reduce 46
+42 kernel -1 items 123 reduce 48
+43 kernel -1 items 32 reduce 10
+44 kernel -1 items 121 reduce 47
+45 kernel -1 items 127 reduce
+46 kernel -1 items 104 reduce 39
+47 kernel -1 items 27 reduce 8
+48 kernel -1 items 70 reduce 24
+49 kernel 50 items 2 5 reduce 0
+50 predicted -1 items 67 76 78 81 85 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce
+51 kernel -1 items 6 reduce 1
+52 kernel 11 items 55 reduce
+53 kernel -1 items 29 reduce
+54 kernel -1 items 30 reduce 9
+55 kernel 56 items 80 83 reduce 29
+56 predicted -1 items 87 91 93 95 97 99 101 103 105 115 118 120 122 124 126 reduce
+57 kernel 56 items 89 reduce
+58 kernel -1 items 15 reduce 4
+59 kernel -1 items 12 reduce 3
+60 kernel -1 items 9 reduce 2
+61 kernel -1 items 112 reduce 43
+62 kernel -1 items 114 reduce 44
+63 kernel -1 items 18 reduce 5
+64 kernel -1 items 21 reduce 6
+65 kernel -1 items 24 reduce 7
+66 kernel -1 items 73 reduce 26
+67 kernel -1 items 75 reduce 27
+68 kernel -1 items 35 reduce
+69 kernel 70 items 36 37 reduce
+70 predicted -1 items 50 78 81 85 87 91 93 95 97 99 101 103 105 107 108 109 115 118 120 122 124 126 reduce 14 41
+71 kernel -1 items 117 reduce 45
+72 kernel 9 items 41 42 46 47 reduce
+73 kernel 50 items 42 47 reduce
+74 kernel -1 items 48 reduce
+75 kernel -1 items 43 reduce 12
+76 kernel -1 items 128 reduce 50
+77 kernel -1 items 84 reduce 30
+78 kernel -1 items 88 reduce
+79 kernel -1 items 90 reduce 32
+80 kernel -1 items 37 reduce
+81 kernel -1 items 38 reduce 11
+82 kernel -1 items 108 reduce 41
+83 kernel -1 items 79 82 110 reduce 42
+84 kernel -1 items 49 reduce 13

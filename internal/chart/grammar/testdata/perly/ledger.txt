@@ -1,16 +1,16 @@
 perly.y:187 grammar: GRAMPROG @1 remember stmtseq	fitted
 
-perly.y:198 grammar: GRAMEXPR @2 optexpr	-
+perly.y:198 grammar: GRAMEXPR @2 optexpr	ported
 
-perly.y:208 grammar: GRAMBLOCK @3 block	-
+perly.y:208 grammar: GRAMBLOCK @3 block	ported
 
-perly.y:221 grammar: GRAMBARESTMT @4 barestmt	-
+perly.y:221 grammar: GRAMBARESTMT @4 barestmt	ported
 
-perly.y:234 grammar: GRAMFULLSTMT @5 fullstmt	-
+perly.y:234 grammar: GRAMFULLSTMT @5 fullstmt	ported
 
-perly.y:247 grammar: GRAMSTMTSEQ @6 stmtseq	-
+perly.y:247 grammar: GRAMSTMTSEQ @6 stmtseq	ported
 
-perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts	-
+perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts	ported
 
 perly.y:270 bare_statement_block: block cont	ported
 
@@ -64,7 +64,7 @@ perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PER
 
 perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont	-
 
-perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON	-
+perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON	fitted
 
 perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	-
 
@@ -150,7 +150,7 @@ perly.y:897 barestmt: bare_statement_unless	-
 
 perly.y:898 barestmt: bare_statement_until	-
 
-perly.y:899 barestmt: bare_statement_utilize	-
+perly.y:899 barestmt: bare_statement_utilize	ported
 
 perly.y:900 barestmt: bare_statement_when	-
 
@@ -216,7 +216,7 @@ perly.y:1019 formname: BAREWORD	-
 
 perly.y:1020 formname: empty	-
 
-perly.y:1023 startsub: %empty	-
+perly.y:1023 startsub: %empty	ported
 
 perly.y:1029 startanonsub: %empty	-
 
@@ -282,7 +282,7 @@ perly.y:1164 siglist: siglist PERLY_COMMA sigelem	-
 
 perly.y:1165 siglist: sigelem	-
 
-perly.y:1170 optsiglist: empty	-
+perly.y:1170 optsiglist: empty	ported
 
 perly.y:1171 optsiglist: siglist	-
 
@@ -292,7 +292,7 @@ perly.y:1177 optsubsignature: subsignature	-
 
 perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE	-
 
-perly.y:1185 subsigguts: $@20 optsiglist	-
+perly.y:1185 subsigguts: $@20 optsiglist	ported
 
 perly.y:1218 optsubbody: subbody	-
 
@@ -620,13 +620,13 @@ perly.y:1762 fielddecl: KW_FIELD fieldvar optattrlist	-
 
 perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term	-
 
-perly.y:1787 optlistexpr: empty	-
+perly.y:1787 optlistexpr: empty	ported
 
-perly.y:1788 optlistexpr: listexpr	-
+perly.y:1788 optlistexpr: listexpr	ported
 
-perly.y:1792 optexpr: empty	-
+perly.y:1792 optexpr: empty	ported
 
-perly.y:1793 optexpr: expr	-
+perly.y:1793 optexpr: expr	ported
 
 perly.y:1797 optrepl: empty	-
 

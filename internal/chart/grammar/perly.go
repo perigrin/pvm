@@ -13,17 +13,17 @@ const perlyRules = `
 grammar: remember stmtseq # perly.y:187, fitted: GRAMPROG is a start selector, not a token
 grammar: remember stmtseq sideff # perly.y:187, fitted: GRAMPROG is a start selector, not a token; pvm does not emit the ; toke.c inserts at end of file
 
-# perly.y:198 grammar: GRAMEXPR @2 optexpr
+grammar: GRAMEXPR optexpr # perly.y:198
 
-# perly.y:208 grammar: GRAMBLOCK @3 block
+grammar: GRAMBLOCK block # perly.y:208
 
-# perly.y:221 grammar: GRAMBARESTMT @4 barestmt
+grammar: GRAMBARESTMT barestmt # perly.y:221
 
-# perly.y:234 grammar: GRAMFULLSTMT @5 fullstmt
+grammar: GRAMFULLSTMT fullstmt # perly.y:234
 
-# perly.y:247 grammar: GRAMSTMTSEQ @6 stmtseq
+grammar: GRAMSTMTSEQ stmtseq # perly.y:247
 
-# perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts
+grammar: GRAMSUBSIGNATURE subsigguts # perly.y:257
 
 bare_statement_block: block cont # perly.y:270
 
@@ -77,7 +77,7 @@ bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
 # perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont
 
-# perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON
+bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: toke.c forces an empty version token before the module name, and pvm emits nothing for it
 
 # perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock
 
@@ -164,7 +164,7 @@ barestmt: bare_statement_null # perly.y:890
 
 # perly.y:898 barestmt: bare_statement_until
 
-# perly.y:899 barestmt: bare_statement_utilize
+barestmt: bare_statement_utilize # perly.y:899
 
 # perly.y:900 barestmt: bare_statement_when
 
@@ -230,7 +230,7 @@ cont: empty # perly.y:973
 
 # perly.y:1020 formname: empty
 
-# perly.y:1023 startsub: %empty
+startsub: # perly.y:1023
 
 # perly.y:1029 startanonsub: %empty
 
@@ -296,7 +296,7 @@ cont: empty # perly.y:973
 
 # perly.y:1165 siglist: sigelem
 
-# perly.y:1170 optsiglist: empty
+optsiglist: empty # perly.y:1170
 
 # perly.y:1171 optsiglist: siglist
 
@@ -306,7 +306,7 @@ cont: empty # perly.y:973
 
 # perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE
 
-# perly.y:1185 subsigguts: $@20 optsiglist
+subsigguts: optsiglist # perly.y:1185
 
 # perly.y:1218 optsubbody: subbody
 
@@ -634,13 +634,13 @@ term: amper # perly.y:1636
 
 # perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term
 
-# perly.y:1787 optlistexpr: empty
+optlistexpr: empty # perly.y:1787
 
-# perly.y:1788 optlistexpr: listexpr
+optlistexpr: listexpr # perly.y:1788
 
-# perly.y:1792 optexpr: empty
+optexpr: empty # perly.y:1792
 
-# perly.y:1793 optexpr: expr
+optexpr: expr # perly.y:1793
 
 # perly.y:1797 optrepl: empty
 
@@ -797,7 +797,8 @@ var perlyClasses = []ClassDecl{
 
 	// KW_DO
 
-	// KW_USE_or_NO
+	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("use")}},
+	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("no")}},
 
 	// KW_SUB_named
 
@@ -813,6 +814,8 @@ var perlyClasses = []ClassDecl{
 
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 
 	// METHCALL0
 

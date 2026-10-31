@@ -17,12 +17,21 @@ decided to re-attempt the spike with a grammar ported from `perly.y` over
 `internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
 the ratchet carry over. Guacamole's grammar, the SLIF reader, the token cut,
 `chart/lex`'s predicate mapping, the observed-conflict probes and the CORE.tpm
-cross-check are removed. The port's grammar grows family by family in
-`grammar/perly.go`, starting from the core rules the first token classes
-need (the program start form, the statement and block spine, the expression
-core and the variable heads). The history of what they were is in `docs/postmortems/chart-waypoint.md`. The
-forest, error recovery, `chart/compare` and the oracle adapter were never
-built.
+cross-check are removed. The history of what they were is in
+`docs/postmortems/chart-waypoint.md`. The port's grammar grows family by
+family in `grammar/perly.go`, starting from the core rules the first token
+classes need (the program start form, the statement and block spine, the
+expression core and the variable heads) and the port skeleton (the other six
+start forms and `use`/`no` statements). The forest, error recovery,
+`chart/compare` and the oracle adapter were never built.
+
+**Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`) are
+start rules of `grammar`. The program form is the one a file is recognized
+by, and the only one graded. Each of the other six begins with its `GRAM*`
+selector, a token perl's parser pushes and the lexer never emits, so
+`TestStartForms` puts the selector before the lexed tokens itself, and tests
+each form only on input that lexes the same from statement start:
+`internal/lexer` exports only statement-start states.
 
 ## The Guacamole corpus
 
