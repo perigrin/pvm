@@ -22,21 +22,31 @@ func BenchLex(b *testing.B, tab *grammar.Tables, src []byte) {
 
 // BenchRecognize times recognizing src's lattice, lexed once outside the
 // timed loop, with a fresh recognizer per run (the cold lifetime, §9.3).
+// Until the grammar recognizes src (std5k.pl, speed checkpoint 1), it times
+// only the prefix the grammar reaches, which on std5k.pl is today one
+// token; the rest of the figure is per-node bookkeeping past the node where
+// the chart dies, not recognition. The nodes-reached metric says how far
+// recognition got, out of nodes.
 func BenchRecognize(b *testing.B, tab *grammar.Tables, src []byte) {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
+	var c *recognize.Chart
+	var err error
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if _, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l); err != nil {
+		if c, err = recognize.Recognize(recognize.New(tab, recognize.Options{}), l); err != nil {
 			b.Fatal(err)
 		}
 	}
+	reportReach(b, c)
 }
 
 // BenchExpected times Expected at every node of src's chart. Each run
 // recognizes on a fresh recognizer outside the timer, so no run reads the
-// memo an earlier one filled.
+// memo an earlier one filled. A node with no set expects nothing at no
+// cost, so until the grammar recognizes src (speed checkpoint 1) it times
+// only the prefix the grammar reaches: on std5k.pl today, one position.
 func BenchExpected(b *testing.B, tab *grammar.Tables, src []byte) {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
@@ -54,5 +64,22 @@ func BenchExpected(b *testing.B, tab *grammar.Tables, src []byte) {
 				b.Fatal(err)
 			}
 		}
+		b.StopTimer()
+		reportReach(b, c)
+		b.StartTimer()
 	}
+}
+
+// reportReach reports nodes-reached, the first node of c with no Earley set
+// (every node, once the grammar recognizes the input), beside nodes, all of them.
+func reportReach(b *testing.B, c *recognize.Chart) {
+	n := len(c.Sets)
+	for i, s := range c.Sets {
+		if s == nil {
+			n = i
+			break
+		}
+	}
+	b.ReportMetric(float64(n), "nodes-reached")
+	b.ReportMetric(float64(len(c.Sets)), "nodes")
 }
