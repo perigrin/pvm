@@ -165,10 +165,33 @@ func align(src []byte, toks []tok) ([]string, stats) {
 		ps = append(ps, pvmTok{t.Start, t.End, t.Kind, string(src[t.Start:t.End])})
 	}
 	us := units(toks)
-	pair, unmatched := matchInOrder(us, ps)
 
-	// Families that explain pvm tokens with no toke.c token of their own.
+	// OLDLOP returns return's LSTOP without -DT's report (toke.c:380-388), so
+	// pvm's return has no toke.c token and takes no part in matching.
 	fam := make([]string, len(ps))
+	var idx []int // ps index of each token matched
+	var matched []pvmTok
+	for j, p := range ps {
+		if p.kind == lexer.Word && (p.text == "return" || p.text == "CORE::return") {
+			fam[j] = "unreported-return"
+			continue
+		}
+		idx = append(idx, j)
+		matched = append(matched, p)
+	}
+	mpair, munmatched := matchInOrder(us, matched)
+	pair := make([]int, len(ps))
+	for j := range pair {
+		pair[j] = -1
+	}
+	unmatched := make([][]string, len(ps)+1)
+	for k, j := range idx {
+		pair[j] = mpair[k]
+		unmatched[j] = munmatched[k]
+	}
+	unmatched[len(ps)] = munmatched[len(matched)]
+
+	// Families that explain the other pvm tokens with no toke.c token of their own.
 	var openers []int
 	owner := -1 // the last pair whose head owns the unaligned tokens after it
 	for j, p := range ps {
@@ -194,8 +217,7 @@ func align(src []byte, toks []tok) ([]string, stats) {
 				pair[j] = pair[o]
 				fam[j] = "heredoc"
 			}
-		case p.kind == lexer.Word && (p.text == "return" || p.text == "CORE::return"):
-			fam[j] = "unreported-return" // OLDLOP returns LSTOP without -DT's report
+		case fam[j] != "":
 		case owner >= 0 && us[pair[owner]].head.typ == "LABEL":
 			fam[j] = "label"
 		case owner >= 0:
