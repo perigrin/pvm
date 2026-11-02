@@ -163,3 +163,15 @@ func TestClearFixturesKeepsOtherFiles(t *testing.T) {
 		}
 	}
 }
+
+// TestAlignRequireVersion: the version yyl_require forces through
+// force_version is a forced-version, not a constant sub's value.
+func TestAlignRequireVersion(t *testing.T) {
+	got := aligned(t, "require v5.10.0;", "KW_REQUIRE\nBAREWORD\tPVMG(\"\\5\\n\\0\"\\0)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n")
+	if w := "BAREWORD forced-version"; got["v5.10.0"] != w {
+		t.Errorf("v5.10.0: %q, want %q", got["v5.10.0"], w)
+	}
+	if w := "KW_REQUIRE"; got["require"] != w {
+		t.Errorf("require: %q, want %q", got["require"], w)
+	}
+}
