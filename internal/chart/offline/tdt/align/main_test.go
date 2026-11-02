@@ -175,3 +175,17 @@ func TestAlignRequireVersion(t *testing.T) {
 		t.Errorf("require: %q, want %q", got["require"], w)
 	}
 }
+
+// TestAlignReturnIsUnreported: OLDLOP never reports return's token, so pvm's
+// `return` is unreported-return and the scope-decided sub after it pairs
+// with its own word.
+func TestAlignReturnIsUnreported(t *testing.T) {
+	got := aligned(t, "return run_callback { 1 };",
+		"LSTOPSUB\top_rv2cv\nPERLY_BRACE_OPEN\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n")
+	if w := "- unreported-return"; got["return"] != w {
+		t.Errorf("return: %q, want %q", got["return"], w)
+	}
+	if w := "LSTOPSUB scope-sub"; got["run_callback"] != w {
+		t.Errorf("run_callback: %q, want %q", got["run_callback"], w)
+	}
+}
