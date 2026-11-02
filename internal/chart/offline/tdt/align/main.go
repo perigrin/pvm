@@ -166,32 +166,10 @@ func align(src []byte, toks []tok) ([]string, stats) {
 	}
 	us := units(toks)
 
-	// OLDLOP returns return's LSTOP without -DT's report (toke.c:380-388), so
-	// pvm's return has no toke.c token and takes no part in matching.
-	fam := make([]string, len(ps))
-	var idx []int // ps index of each token matched
-	var matched []pvmTok
-	for j, p := range ps {
-		if p.kind == lexer.Word && (p.text == "return" || p.text == "CORE::return") {
-			fam[j] = "unreported-return"
-			continue
-		}
-		idx = append(idx, j)
-		matched = append(matched, p)
-	}
-	mpair, munmatched := matchInOrder(us, matched)
-	pair := make([]int, len(ps))
-	for j := range pair {
-		pair[j] = -1
-	}
-	unmatched := make([][]string, len(ps)+1)
-	for k, j := range idx {
-		pair[j] = mpair[k]
-		unmatched[j] = munmatched[k]
-	}
-	unmatched[len(ps)] = munmatched[len(matched)]
+	pair, unmatched := matchInOrder(us, ps)
 
-	// Families that explain the other pvm tokens with no toke.c token of their own.
+	// Families that explain pvm tokens with no toke.c token of their own.
+	fam := make([]string, len(ps))
 	var openers []int
 	owner := -1 // the last pair whose head owns the unaligned tokens after it
 	for j, p := range ps {
@@ -217,7 +195,8 @@ func align(src []byte, toks []tok) ([]string, stats) {
 				pair[j] = pair[o]
 				fam[j] = "heredoc"
 			}
-		case fam[j] != "":
+		case isReturn(p):
+			fam[j] = "unreported-return" // OLDLOP returns LSTOP without -DT's report (toke.c:380-388)
 		case owner >= 0 && us[pair[owner]].head.typ == "LABEL":
 			fam[j] = "label"
 		case owner >= 0:
@@ -497,8 +476,16 @@ func scopeDecided(t tok) bool {
 	return false
 }
 
+// kinds matches a pvm token by kind alone. It never takes the keyword
+// `return`: OLDLOP returns its LSTOP without -DT's report (toke.c:380-388),
+// so no toke.c token stands for it, and only a token whose text is `return`
+// (an auto-quoted key, a method name) pairs with that word.
 func kinds(ks ...lexer.Kind) func(pvmTok) bool {
-	return func(p pvmTok) bool { return slices.Contains(ks, p.kind) }
+	return func(p pvmTok) bool { return slices.Contains(ks, p.kind) && !isReturn(p) }
+}
+
+func isReturn(p pvmTok) bool {
+	return p.kind == lexer.Word && (p.text == "return" || p.text == "CORE::return")
 }
 
 // texts matches a pvm token by its text, a builtin's `CORE::` or
