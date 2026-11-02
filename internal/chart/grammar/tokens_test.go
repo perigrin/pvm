@@ -24,9 +24,16 @@ func mustCompile(t *testing.T, classes ...TokenClass) *TokenTable {
 	return tt
 }
 
+// interned is t interned after pred.
+func (tt *TokenTable) interned(t TokenView, pred Neighbour) Token {
+	var it Token
+	tt.Intern(t, &pred, &it)
+	return it
+}
+
 // lookup interns the token and its three neighbours' classes, as a caller does.
 func (tt *TokenTable) lookup(t TokenView, p2, p1, n Neighbour) int {
-	return tt.Lookup(tt.Intern(t, none), tt.ClassID(p2), tt.ClassID(p1), tt.ClassID(n))
+	return tt.Lookup(tt.interned(t, none), tt.ClassID(p2), tt.ClassID(p1), tt.ClassID(n))
 }
 
 func (tt *TokenTable) set(t TokenView, p2, p1, n Neighbour) []int {
@@ -139,7 +146,7 @@ func TestTokenLookupAllocationFree(t *testing.T) {
 		TokenClass{Terminals: []int{2}, Prefix: ptr(byte('$')), Prev2: &semi})
 	tok := TokenView{Kind: lexer.Word, Text: "foo", Prefix: '$'}
 	c := tt.ClassID(semi)
-	if n := testing.AllocsPerRun(1000, func() { tt.Lookup(tt.Intern(tok, semi), c, c, c) }); n != 0 {
+	if n := testing.AllocsPerRun(1000, func() { tt.Lookup(tt.interned(tok, semi), c, c, c) }); n != 0 {
 		t.Errorf("Intern and Lookup allocate %v times", n)
 	}
 	if got := tt.set(tok, semi, semi, semi); !slices.Equal(got, []int{1, 2}) {
@@ -290,11 +297,11 @@ func TestTokenInternedClassMatchesClassID(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c := ClassOf(pred, none)
 			tt := mustCompile(t, TokenClass{Terminals: []int{1}, Text: ptr("foo"), Prev1: &c})
-			p := tt.Intern(pred, none)
+			p := tt.interned(pred, none)
 			if p.Class == 0 || p.Class != tt.ClassID(c) {
 				t.Fatalf("Intern class %d, ClassID %d", p.Class, tt.ClassID(c))
 			}
-			if got := tt.Sets[tt.Lookup(tt.Intern(word("foo"), p.N), tt.Edge, p.Class, tt.Edge)]; !slices.Equal(got, []int{1}) {
+			if got := tt.Sets[tt.Lookup(tt.interned(word("foo"), p.N), tt.Edge, p.Class, tt.Edge)]; !slices.Equal(got, []int{1}) {
 				t.Errorf("foo after %s via Intern = %v, want [1]", name, got)
 			}
 		})

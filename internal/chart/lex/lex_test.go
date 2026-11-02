@@ -114,14 +114,16 @@ func TestLexLookupAllocationFree(t *testing.T) {
 	tt := toyTable(t)
 	text, raw := src, lexer.Tokenize([]byte(src))
 	if a := testing.AllocsPerRun(100, func() {
-		pred, p2, p1 := grammar.Boundary, tt.Edge, tt.Edge
-		for _, r := range raw {
+		var slots [2]grammar.Token
+		pred, p2, p1 := &grammar.Boundary, tt.Edge, tt.Edge
+		for i, r := range raw {
 			if lexer.IsTrivia(r.Kind) {
 				continue
 			}
-			it := intern(tt, text, r, pred)
-			tt.Lookup(it, p2, p1, tt.Edge)
-			pred, p2, p1 = it.N, p1, it.Class
+			it := &slots[i&1]
+			intern(tt, text, r, pred, it)
+			tt.Lookup(*it, p2, p1, tt.Edge)
+			pred, p2, p1 = &it.N, p1, it.Class
 		}
 	}); a != 0 {
 		t.Errorf("the per-token lookup allocates %v times per run, want 0", a)
