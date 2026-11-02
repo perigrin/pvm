@@ -29,12 +29,15 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	text := unsafe.String(unsafe.SliceData(src), len(src))
 	s := &Stream{Raw: raw, Tokens: make([]Token, 0, len(raw))}
 	first := -1
-	pred, p2, p1 := grammar.Boundary, tt.Edge, tt.Edge
-	var cur grammar.Token
+	// slots holds the last token and the one being interned, alternately, so
+	// neither is copied (see grammar.TokenTable.Intern).
+	var slots [2]grammar.Token
+	pred, p2, p1 := &grammar.Boundary, tt.Edge, tt.Edge
 	// done looks up the last token, now that its next neighbour's class is known.
 	done := func(next int) {
-		last := &s.Tokens[len(s.Tokens)-1]
-		last.TerminalSet = tt.Lookup(cur, p2, p1, next)
+		n := len(s.Tokens) - 1
+		last, cur := &s.Tokens[n], &slots[n&1]
+		last.TerminalSet = tt.Lookup(*cur, p2, p1, next)
 		if last.TerminalSet == 0 && first < 0 {
 			first = raw[last.Index].Start
 		}
@@ -50,7 +53,8 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			opens = opens[1:]
 			continue
 		}
-		it := intern(tt, text, t, pred)
+		it := &slots[len(s.Tokens)&1]
+		intern(tt, text, t, pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -58,7 +62,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			opens = append(opens, len(s.Tokens))
 		}
 		s.Tokens = append(s.Tokens, Token{Index: i})
-		pred, cur = it.N, it
+		pred = &it.N
 	}
 	if len(s.Tokens) > 0 {
 		done(tt.Edge)
@@ -66,10 +70,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	return s, first
 }
 
-// intern is t's key interned in tt, given its predecessor's class.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, pred grammar.Neighbour) grammar.Token {
+// intern interns t's key in tt into it, given its predecessor's class.
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
-	return tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}, pred)
+	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}, pred, it)
 }
 
 // prefix is a variable's sigil (`#` for `$#`) or a quote's class: its opening
