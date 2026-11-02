@@ -405,6 +405,11 @@ func units(toks []tok) []unit {
 					unit{head: v, folds: []fold{{"forced-version", ""}}, match: single(v)})
 				i += 2
 			}
+		case t.typ == "KW_REQUIRE" && typ(i+1) == "BAREWORD" && toks[i+1].val != "" && !strings.HasPrefix(toks[i+1].val, "PV("):
+			// yyl_require forces a version through force_version (toke.c:7401): `require v5.10.0`.
+			v := toks[i+1]
+			us = append(us, unit{head: t, match: single(t)}, unit{head: v, folds: []fold{{"forced-version", ""}}, match: single(v)})
+			i++
 		case t.typ == "PERLY_SEMICOLON" && typ(i+1) == "PERLY_BRACE_CLOSE":
 			us = append(us, unit{head: toks[i+1], folds: []fold{{"brace-semicolon", "PERLY_SEMICOLON"}}, match: texts("}")})
 			i++
