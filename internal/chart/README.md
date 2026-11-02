@@ -256,6 +256,16 @@ whatever the file's length.
   operator, `Q` for `qq`), and the classes of the two significant tokens
   before it and the one after. Each token is interned once and its class id
   reused where it is a neighbour.
+- **Interning** (`TokenTable.Intern`) writes the token's class, class id and
+  text id into a `grammar.Token` the caller holds, reading its predecessor's
+  class through a pointer: `Map` keeps the last token and the one being
+  interned in two alternating slots. Copying a freshly written class by
+  value stalled on store forwarding, and was most of Intern's cost. A text
+  whose first byte and length no dictionary text has, and a class whose kind
+  no neighbour class has, get id 0 without being hashed; the dictionaries
+  are hashed only for the rest, so every id is what one hash per token gave.
+  `TestInternIdentityOverCorpus` holds every corpus file's ids to a
+  reference that matches each class directly.
 
 `lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
 `lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
