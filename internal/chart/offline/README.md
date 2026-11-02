@@ -272,8 +272,11 @@ then one line per pvm token in file order, spans as half-open byte ranges:
 `testdata/tdt/sample.tdt` is the sample's alignment in this form, the one
 the gate review reads.
 
-Cost (K6), measured 2026-11-02 on the 4-core machine, files one at a time:
-capturing all 1,881 files takes 2,395 s and aligning them 1.0 s (2,396 s
-wall clock in all). Of the captures, 1,658 are whole and aligned, 189 refused,
-2 timed out and 32 truncated, as TDTCAP's sweep found. 376,434 of 378,604
-pvm tokens in the whole captures are aligned, with 37 unmatched toke.c runs.
+Cost (K6), measured 2026-11-02 on the 4-core machine, files one at a time,
+the committed script run end to end: capturing all 1,881 files and the sample
+takes 2,300 s and aligning them 1.0 s (2,302 s wall clock in all). Of the
+corpus captures, 1,658 are whole and aligned, 189 refused, 2 timed out and 32
+truncated, as TDTCAP's sweep found. 376,434 of 378,604 pvm tokens in the whole
+captures are aligned; of the 2,170 unaligned, 1,965 are `return`, 84 a
+label's `:` and 13 attribute words, and 108 are in no family. There are 37
+unmatched toke.c runs.
