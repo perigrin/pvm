@@ -27,17 +27,18 @@ func path(st toy, offsets ...int) []Node[toy] {
 
 func TestLinearLattice(t *testing.T) {
 	s := &Stream{}
-	for _, end := range []int{2, 5, 6} {
-		s.Tokens = append(s.Tokens, Token{Token: lexer.Token{End: end}})
+	for i, end := range []int{2, 5, 6} {
+		s.Raw = append(s.Raw, lexer.Token{End: end})
+		s.Tokens = append(s.Tokens, Token{Index: i})
 	}
 	l := Linear(s)
 	if len(l.Nodes) != len(s.Tokens)+1 || len(l.Edges) != len(s.Tokens) {
 		t.Fatalf("%d nodes and %d edges for %d tokens, want one more node than edges", len(l.Nodes), len(l.Edges), len(s.Tokens))
 	}
 	for i, e := range l.Edges {
-		if e.From != i || e.To != i+1 || l.Nodes[e.To].Offset != e.Token.End {
+		if end := s.Raw[e.Token.Index].End; e.From != i || e.To != i+1 || l.Nodes[e.To].Offset != end {
 			t.Errorf("edge %d is %d->%d ending at %d, want %d->%d at the token's end %d",
-				i, e.From, e.To, l.Nodes[e.To].Offset, i, i+1, e.Token.End)
+				i, e.From, e.To, l.Nodes[e.To].Offset, i, i+1, end)
 		}
 	}
 }
