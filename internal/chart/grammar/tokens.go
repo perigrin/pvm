@@ -53,23 +53,34 @@ var Boundary = Neighbour{Kind: -1}
 // shortcut: a `{` after a do or eval block's `}` is read as a hash where toke.c
 // reads a subscript; telling that `}` apart needs a lexer bit, outside spec §11.
 func ClassOf(t TokenView, pred Neighbour) Neighbour {
-	c := Neighbour{Kind: t.Kind, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows}
-	switch t.Kind {
-	case lexer.Word, lexer.Operator, lexer.CloseBracket:
-		c.Text = t.Text
-	}
+	var c Neighbour
+	classOf(&c, t, &pred)
+	return c
+}
+
+// classOf is ClassOf writing c. The classes go by pointer because one passed
+// or returned by value is copied just after it is written, and that copy
+// stalls on store forwarding; t, passed in registers, does not. c is written
+// field by field for the same reason: a literal compiled to a merged load.
+func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
+	brace := BraceNone
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
 		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
-			c.Brace = BraceBlock
+			brace = BraceBlock
 		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,
 			pred.Kind == lexer.Operator && pred.Text == "->":
-			c.Brace = BraceSubscript
+			brace = BraceSubscript
 		default:
-			c.Brace = BraceHash
+			brace = BraceHash
 		}
 	}
-	return c
+	text := ""
+	switch t.Kind {
+	case lexer.Word, lexer.Operator, lexer.CloseBracket:
+		text = t.Text
+	}
+	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
 }
 
 // TokenClass declares that tokens whose key matches every part given (a nil
@@ -129,35 +140,53 @@ type TokenTable struct {
 	// emptyText is text[""], the text id of a class that carries no text.
 	emptyText int
 	classes   map[uint64]int
-	texts     []string    // by text id - 1, for Text()
-	nbs       []Neighbour // by class id - 1, for Text()
+	// firsts[b] has bit l set when a dictionary text starts with b and is l
+	// bytes long (63 for longer), and kinds bit k+1 when a dictionary class
+	// has kind k: a text or class neither admits gets id 0 unhashed.
+	firsts [256]uint64
+	kinds  uint64
+	texts  []string    // by text id - 1, for Text()
+	nbs    []Neighbour // by class id - 1, for Text()
 }
 
 // Token is a token with its text and class looked up in the dictionaries.
 // Intern it once; the class id is what the three tokens around it reuse.
 type Token struct {
-	N     Neighbour // the token's class, the next token's predecessor
-	Class int       // N's dictionary id
-	key   [nParts]int
+	N      Neighbour // the token's class, the next token's predecessor
+	Class  int       // N's dictionary id
+	text   int       // the token's text's dictionary id
+	prefix byte
 }
 
-func (tt *TokenTable) classID(n Neighbour, text int) int {
-	return tt.classes[classKey(n, text)]
+func (tt *TokenTable) classID(n *Neighbour, text int) int {
+	if k := uint(n.Kind + 1); k < 64 && tt.kinds>>k&1 == 0 {
+		return 0
+	}
+	return tt.classes[classKey(*n, text)]
+}
+
+// textID is s's dictionary id, 0 if it has none.
+func (tt *TokenTable) textID(s string) int {
+	if s != "" && tt.firsts[s[0]]>>min(len(s), 63)&1 == 0 {
+		return 0
+	}
+	return tt.text[s]
 }
 
 // ClassID is the dictionary id of n, 0 if no class names it.
-func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(n, tt.text[n.Text]) }
+func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(&n, tt.text[n.Text]) }
 
-// Intern looks t up in the dictionaries, with pred the class of the
-// significant token before it. It hashes t's text once.
-func (tt *TokenTable) Intern(t TokenView, pred Neighbour) Token {
-	n, text := ClassOf(t, pred), tt.text[t.Text]
+// Intern looks t up in the dictionaries into it, with pred the class of the
+// significant token before it. Both are pointers for the reason classOf's
+// are. It hashes t's text at most once.
+func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
+	classOf(&it.N, t, pred)
+	text := tt.textID(t.Text)
 	ct := text
-	if n.Text == "" {
+	if it.N.Text == "" {
 		ct = tt.emptyText
 	}
-	return Token{N: n, Class: tt.classID(n, ct),
-		key: [nParts]int{int(t.Kind), text, b2i(t.OpensBlock), b2i(t.TermFollows), int(t.Prefix)}}
+	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
 }
 
 // CompileTokens builds the table. A part is tested only below the classes
@@ -186,11 +215,17 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	tt.texts = slices.Sorted(maps.Keys(texts))
 	for i, s := range tt.texts {
 		tt.text[s] = i + 1
+		if s != "" {
+			tt.firsts[s[0]] |= 1 << min(len(s), 63)
+		}
 	}
 	tt.emptyText = tt.text[""]
 	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
 	for i, nb := range tt.nbs {
 		tt.classes[classKey(nb, tt.text[nb.Text])] = i + 1
+		if k := uint(nb.Kind + 1); k < 64 {
+			tt.kinds |= 1 << k
+		}
 	}
 	tt.Edge = tt.ClassID(Boundary)
 
@@ -305,8 +340,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 // the two significant tokens before it and the one after (Edge at a file's
 // edge). It allocates nothing and hashes nothing.
 func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
-	k := t.key
-	k[5], k[6], k[7] = prev2, prev1, next
+	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next}
 	n := tt.root
 	for n.kids != nil {
 		if v := k[n.part]; uint(v) < uint(len(n.kids)) {
