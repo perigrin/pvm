@@ -8,6 +8,8 @@
 package lex
 
 import (
+	"unsafe"
+
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -17,12 +19,15 @@ func Lex(src []byte, tt *grammar.TokenTable) (*Stream, int) {
 	return Map(src, lexer.Tokenize(src), tt)
 }
 
-// Map maps raw, src's tokens, through tt. It returns the stream and the byte
-// of the first token no class admits, or -1. Trivia attaches to the next
-// significant token, and each heredoc body to its opener, in order.
+// Map maps raw, src's tokens, through tt. It returns the stream, which
+// shares raw rather than copying it, and the byte of the first token no class
+// admits, or -1. Trivia attaches to the next significant token, and each
+// heredoc body to its opener, in order.
 func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
-	text := string(src) // once per file, so each token's text is a slice of it
-	s := &Stream{Tokens: make([]Token, 0, len(raw))}
+	// text views src without copying it; nothing Map returns holds a string, so
+	// the view lives only as long as this call, during which src is not written.
+	text := unsafe.String(unsafe.SliceData(src), len(src))
+	s := &Stream{Raw: raw, Tokens: make([]Token, 0, len(raw))}
 	first := -1
 	pred, p2, p1 := grammar.Boundary, tt.Edge, tt.Edge
 	var cur grammar.Token
@@ -31,43 +36,32 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		last := &s.Tokens[len(s.Tokens)-1]
 		last.TerminalSet = tt.Lookup(cur, p2, p1, next)
 		if last.TerminalSet == 0 && first < 0 {
-			first = last.Start
+			first = raw[last.Index].Start
 		}
 		p2, p1 = p1, cur.Class
 	}
-	var opens []int        // heredoc openers whose bodies have not come yet, in order
-	var held []lexer.Token // trivia a heredoc body interrupted, for the next token
-	a := 0                 // raw[a:i] is the trivia since the last token or body
+	var opens []int // heredoc openers whose bodies have not come yet, in order
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
 			continue
 		case t.Kind == lexer.HeredocBody && len(opens) > 0:
-			held = append(held, raw[a:i]...)
 			s.Bodies = append(s.Bodies, Body{opens[0], t})
-			opens, a = opens[1:], i+1
+			opens = opens[1:]
 			continue
 		}
 		it := intern(tt, text, t, pred)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
-		lead := raw[a:i:i]
-		if held != nil {
-			lead, held = append(held, lead...), nil
-		}
 		if t.Kind == lexer.HeredocOpen {
 			opens = append(opens, len(s.Tokens))
 		}
-		s.Tokens = append(s.Tokens, Token{Token: t, Lead: lead})
-		pred, cur, a = it.N, it, i+1
+		s.Tokens = append(s.Tokens, Token{Index: i})
+		pred, cur = it.N, it
 	}
 	if len(s.Tokens) > 0 {
 		done(tt.Edge)
-	}
-	s.Tail = raw[a:]
-	if held != nil {
-		s.Tail = append(held, s.Tail...)
 	}
 	return s, first
 }

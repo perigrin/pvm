@@ -53,7 +53,7 @@ func (None) Equal(None) bool { return true }
 func Linear(s *Stream) *Lattice[None] {
 	l := &Lattice[None]{Nodes: []Node[None]{{}}}
 	for i, t := range s.Tokens {
-		l.Nodes = append(l.Nodes, Node[None]{Offset: t.End})
+		l.Nodes = append(l.Nodes, Node[None]{Offset: s.Raw[t.Index].End})
 		l.Edges = append(l.Edges, Edge{From: i, To: i + 1, Token: t})
 	}
 	return l

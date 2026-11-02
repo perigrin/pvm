@@ -22,7 +22,7 @@ func tokens(tab *grammar.Tables, terms ...string) *lex.Lattice[lex.None] {
 	offsets := []int{0}
 	var edges []lex.Edge
 	for i, term := range terms {
-		edges = append(edges, toyEdge(tab, i, i+1, term, i, i+1))
+		edges = append(edges, toyEdge(tab, i, i+1, term))
 		offsets = append(offsets, i+1)
 	}
 	return toyLinear(offsets, edges...)
