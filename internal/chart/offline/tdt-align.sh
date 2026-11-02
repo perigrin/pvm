@@ -8,16 +8,17 @@ t1=${T1_CORPUS:?set T1_CORPUS to PerlOnJava 73be162b src/test/resources/unit}
 # The corpus fixtures are too large to commit (perigrin: "Don't commit fixtures"); they live outside the tree.
 out=${TDT_FIXTURES:?set TDT_FIXTURES to the directory the corpus fixtures go to}
 top=$(git rev-parse --show-toplevel)
-# Absolute before any cd, and never the repository or a directory above it:
-# the aligner clears the *.tdt files under it.
+# Absolute before any cd, and outside the repository: the aligner clears the
+# *.tdt files under it (the committed sample.tdt among them, inside the tree).
 mkdir -p "$out"
 out=$(cd "$out" && pwd -P)
-case "$(cd "$top" && pwd -P)/" in
-"${out%/}/"*)
-	echo "tdt-align.sh: TDT_FIXTURES=$out is the repository or holds it; name a directory outside it" >&2
+topreal=$(cd "$top" && pwd -P)
+refuse() {
+	echo "tdt-align.sh: TDT_FIXTURES=$out is inside the repository or holds it; name a directory outside it" >&2
 	exit 2
-	;;
-esac
+}
+case "$topreal/" in "${out%/}/"*) refuse ;; esac
+case "${out%/}/" in "$topreal/"*) refuse ;; esac
 here=$top/internal/chart/offline
 cap=$(mktemp -d)
 trap 'rm -rf "$cap"' EXIT
