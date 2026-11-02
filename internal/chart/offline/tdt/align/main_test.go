@@ -176,9 +176,10 @@ func TestAlignRequireVersion(t *testing.T) {
 	}
 }
 
-// TestAlignReturnIsUnreported: OLDLOP never reports return's token, so pvm's
-// `return` is unreported-return and the scope-decided sub after it pairs
-// with its own word.
+// TestAlignReturnIsUnreported: OLDLOP never reports the return keyword's
+// token, so pvm's keyword `return` is unreported-return and the
+// scope-decided sub after it pairs with its own word; `return` as a word
+// (an auto-quoted key, a subscript, a method name) pairs with toke.c's token.
 func TestAlignReturnIsUnreported(t *testing.T) {
 	got := aligned(t, "return run_callback { 1 };",
 		"LSTOPSUB\top_rv2cv\nPERLY_BRACE_OPEN\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n")
@@ -187,5 +188,21 @@ func TestAlignReturnIsUnreported(t *testing.T) {
 	}
 	if w := "LSTOPSUB scope-sub"; got["run_callback"] != w {
 		t.Errorf("run_callback: %q, want %q", got["run_callback"], w)
+	}
+
+	for _, c := range []struct{ src, stream, want string }{
+		{"(return => 1);", "PERLY_PAREN_OPEN\nBAREWORD\tPV(\"return\"\\0)\nPERLY_COMMA\nTHING\tIV(1)\nPERLY_PAREN_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "BAREWORD"},
+		{"$h{return};", "PERLY_DOLLAR\nBAREWORD\tPV(\"main::h\"\\0)\nPERLY_BRACE_OPEN\nBAREWORD\tPV(\"return\"\\0)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "BAREWORD"},
+		{"$o->return;", "PERLY_DOLLAR\nBAREWORD\tPV(\"main::o\"\\0)\nARROW\nMETHCALL0\tPV(\"return\"\\0)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "METHCALL0"},
+	} {
+		got := aligned(t, c.src, c.stream)
+		if got["return"] != c.want {
+			t.Errorf("%s: return %q, want %q", c.src, got["return"], c.want)
+		}
+		for k, v := range got {
+			if strings.HasPrefix(k, "unmatched") {
+				t.Errorf("%s: %s %s, want no unmatched run", c.src, k, v)
+			}
+		}
 	}
 }
