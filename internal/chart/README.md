@@ -101,7 +101,13 @@ retired.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
   `std5k.pl`) keep their bodies in `bench.go`, outside a test file, so the
-  ratchet can run the same code with `testing.Benchmark`.
+  ratchet can run the same code with `testing.Benchmark`. Until the chart
+  recognizes `std5k.pl` (speed checkpoint 1), `BenchmarkRecognize` and
+  `BenchmarkExpected` time only the prefix the grammar reaches, today its
+  first token: Recognize's figure is mostly per-node bookkeeping past the
+  node where the chart dies, and Expected times one position. Both report
+  `nodes-reached` (the first node with no Earley set) beside `nodes`, so a
+  reader can see when the figures start to mean recognition.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
