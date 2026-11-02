@@ -35,10 +35,8 @@ func main() {
 
 func run(capDir, t1Dir, outDir string) error {
 	begin := time.Now()
-	for _, d := range []string{"internal", "T1"} {
-		if err := os.RemoveAll(filepath.Join(outDir, d)); err != nil {
-			return err
-		}
+	if err := clearFixtures(outDir); err != nil {
+		return err
 	}
 	var files, pvmToks, aligned, runs int
 	err := filepath.WalkDir(capDir, func(path string, d fs.DirEntry, err error) error {
@@ -91,6 +89,25 @@ func run(capDir, t1Dir, outDir string) error {
 	fmt.Printf("aligned %d files: %d of %d pvm tokens aligned, %d unmatched toke.c runs, %.1f s\n",
 		files, aligned, pvmToks, runs, time.Since(begin).Seconds())
 	return nil
+}
+
+// clearFixtures removes the *.tdt files under outDir, and nothing else; it
+// refuses a directory holding go.mod or .git, which is a source tree.
+func clearFixtures(outDir string) error {
+	for _, m := range []string{"go.mod", ".git"} {
+		if _, err := os.Lstat(filepath.Join(outDir, m)); err == nil {
+			return fmt.Errorf("%s holds %s: refusing to clear fixtures from a source tree", outDir, m)
+		}
+	}
+	return filepath.WalkDir(outDir, func(path string, d fs.DirEntry, err error) error {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".tdt") {
+			return err
+		}
+		return os.Remove(path)
+	})
 }
 
 // tok is one -DT token: its perly.y type and the value tdt-capture.sh printed.

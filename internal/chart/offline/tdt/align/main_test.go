@@ -5,6 +5,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -118,6 +119,47 @@ func TestAlignSample(t *testing.T) {
 	} {
 		if got[k] != w {
 			t.Errorf("%q: %q, want %q", k, got[k], w)
+		}
+	}
+}
+
+// TestClearFixturesKeepsOtherFiles: clearing an output directory removes
+// only *.tdt files, and a directory holding go.mod or .git is refused with
+// nothing removed.
+func TestClearFixturesKeepsOtherFiles(t *testing.T) {
+	dir := t.TempDir()
+	write := func(p string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fixture, other := filepath.Join(dir, "internal", "a.pl.tdt"), filepath.Join(dir, "internal", "a.go")
+	write(fixture)
+	write(other)
+	if err := clearFixtures(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); !os.IsNotExist(err) {
+		t.Errorf("%s survived clearing (%v)", fixture, err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("%s was removed: %v", other, err)
+	}
+
+	for _, marker := range []string{"go.mod", ".git"} {
+		repo := t.TempDir()
+		write(filepath.Join(repo, marker))
+		f := filepath.Join(repo, "T1", "b.t.tdt")
+		write(f)
+		if err := clearFixtures(repo); err == nil || !strings.Contains(err.Error(), marker) {
+			t.Errorf("clearFixtures on a directory holding %s: %v, want a refusal naming it", marker, err)
+		}
+		if _, err := os.Stat(f); err != nil {
+			t.Errorf("refused clear still removed %s: %v", f, err)
 		}
 	}
 }

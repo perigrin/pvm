@@ -207,9 +207,13 @@ runs the aligner, `go run ./internal/chart/offline/tdt/align <capture-dir>
 <t1-dir> <out-dir>`. A capture failure (exit 2 without a `# truncated` line)
 stops the run. The aligner writes one fixture per corpus file to
 `$TDT_FIXTURES/<key>.tdt`, the key being the repository path or
-`T1/<name>.t`, replacing the old ones, and prints each file's unmatched
+`T1/<name>.t`, removing the old `*.tdt` files there and nothing else, and prints each file's unmatched
 toke.c runs and a total to stdout. The sample's fixture becomes the committed
-`testdata/tdt/sample.tdt`.
+`testdata/tdt/sample.tdt`. The script makes `TDT_FIXTURES` absolute before it
+changes directory and refuses the repository or any directory holding it; the
+aligner refuses a directory holding `go.mod` or `.git`. Give `TDT_FIXTURES`
+as an absolute path: `TestTDTFixtures` reads a relative one from
+`internal/chart/`.
 
 **The corpus fixtures are generated offline, not committed** (perigrin:
 "Don't commit fixtures"). They come to about 16 MB for the 1,881 files, and
