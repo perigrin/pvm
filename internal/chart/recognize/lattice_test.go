@@ -10,7 +10,6 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
-	"tamarou.com/pvm/internal/lexer"
 )
 
 // toyTables is the tables of a toy grammar stated as Go data, one string per
@@ -78,8 +77,8 @@ func termSet(tab *grammar.Tables, name string) int {
 }
 
 // toyEdge is a token of term's singleton set from node from to node to.
-func toyEdge(tab *grammar.Tables, from, to int, term string, start, end int) lex.Edge {
-	return lex.Edge{From: from, To: to, Token: lex.Token{Token: lexer.Token{Start: start, End: end}, TerminalSet: termSet(tab, term)}}
+func toyEdge(tab *grammar.Tables, from, to int, term string) lex.Edge {
+	return lex.Edge{From: from, To: to, Token: lex.Token{TerminalSet: termSet(tab, term)}}
 }
 
 // mustRecognize is Recognize(r, l), failing tb on a validation error.
@@ -108,7 +107,7 @@ func TestRecognizeToyLatticeRejoin(t *testing.T) {
 	tab := toyTables(t, "S ::= X C", "X ::= A | B B")
 	// Nodes 0 (the fork), 1 (inside the B B path), 2 (byte 2), 3 (the end).
 	l := toyLinear([]int{0, 1, 2, 3},
-		toyEdge(tab, 0, 2, "A", 0, 2), toyEdge(tab, 0, 1, "B", 0, 1), toyEdge(tab, 1, 2, "B", 1, 2), toyEdge(tab, 2, 3, "C", 2, 3))
+		toyEdge(tab, 0, 2, "A"), toyEdge(tab, 0, 1, "B"), toyEdge(tab, 1, 2, "B"), toyEdge(tab, 2, 3, "C"))
 	i, _, err := lex.Rejoin([]lex.Node[lex.None]{l.Nodes[0], l.Nodes[2]}, l.Nodes[:3], 4)
 	if err != nil || i != 1 {
 		t.Fatalf("Rejoin = %d, %v; want the A path's node 1, lattice node 2", i, err)
@@ -135,8 +134,8 @@ func TestRecognizeToyLatticeRejoin(t *testing.T) {
 	// Both paths' items meet in the one set at the rejoin node: it is the
 	// union of each path's own set there. Distances count lattice nodes, so
 	// the A path's single node to the fork counts as 2 in the lattice.
-	a := mustRecognize(t, r, toyLinear([]int{0, 2, 3}, toyEdge(tab, 0, 1, "A", 0, 2), toyEdge(tab, 1, 2, "C", 2, 3)))
-	b := mustRecognize(t, r, toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 1, "B", 0, 1), toyEdge(tab, 1, 2, "B", 1, 2), toyEdge(tab, 2, 3, "C", 2, 3)))
+	a := mustRecognize(t, r, toyLinear([]int{0, 2, 3}, toyEdge(tab, 0, 1, "A"), toyEdge(tab, 1, 2, "C")))
+	b := mustRecognize(t, r, toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 1, "B"), toyEdge(tab, 1, 2, "B"), toyEdge(tab, 2, 3, "C")))
 	want := slices.Clone(b.Sets[2].Items())
 	for _, it := range a.Sets[1].Items() {
 		if it.Dist > 0 {
@@ -166,7 +165,7 @@ func TestCacheChecksOriginSets(t *testing.T) {
 		l := &lex.Lattice[lex.None]{Nodes: []lex.Node[lex.None]{{}}}
 		for i, term := range terms {
 			l.Nodes = append(l.Nodes, lex.Node[lex.None]{Offset: i + 1})
-			l.Edges = append(l.Edges, toyEdge(tab, i, i+1, term, i, i+1))
+			l.Edges = append(l.Edges, toyEdge(tab, i, i+1, term))
 		}
 		return l
 	}
@@ -190,7 +189,7 @@ func TestCacheNotKeyedOnBranchSet(t *testing.T) {
 	// 0 -first-> 1 -T-> 3, and a path 0 -Z-> 2 that goes nowhere, which puts
 	// node 1 inside a branch.
 	branched := func(first string) *lex.Lattice[lex.None] {
-		return toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 1, first, 0, 1), toyEdge(tab, 1, 3, "T", 1, 2), toyEdge(tab, 0, 2, "Z", 0, 1))
+		return toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 1, first), toyEdge(tab, 1, 3, "T"), toyEdge(tab, 0, 2, "Z"))
 	}
 	warm := New(tab, Options{})
 	mustRecognize(t, warm, branched("B"))
