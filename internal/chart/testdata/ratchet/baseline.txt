@@ -10,7 +10,7 @@ chart-ratchet: tdt-unseen na
 chart-ratchet: terminals-per-token na
 chart-ratchet: tdt-unseen-unlisted na
 chart-ratchet: tdt-unaligned-unlisted na
-chart-ratchet: lex-overhead 1.200
+chart-ratchet: lex-overhead 1.093
 chart-ratchet: lex-overhead-std5k 0.943
 chart-ratchet: speed-ratio-std5k-longlived na
 chart-ratchet: speed-ratio-std5k-cold na
