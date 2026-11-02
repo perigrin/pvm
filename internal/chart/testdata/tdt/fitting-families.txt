@@ -1,0 +1,19 @@
+# Fitting families: how the -DT aligner (offline/tdt/align) folds toke.c's split, invented and sublexed
+# tokens onto the internal/lexer token they belong to (spec §12, H4). Reviewed at the TDTALIGN gate.
+# One family per line: <family> <citation> <the toke.c shape it folds>. A fixture line names the family
+# after its head type; the types after the family are the toke.c tokens folded onto that pvm token.
+variable toke.c:5848 a sigil (PERLY_DOLLAR, PERLY_SNAIL, PERLY_PERCENT_SIGN, DOLSHARP) then the name toke.c forces as PRIVATEREF or BAREWORD (force_ident_maybe_lex), folded onto pvm's one Variable; `$#$x` and `$#{EXPR}`, one Variable to pvm, fold DOLSHARP and the whole expression through its closing brace
+postfix-deref toke.c:2234 `->@*` and its kin: S_postderef delivers the sigil and PERLY_STAR, folded onto pvm's Variable `@*`
+brace-semicolon toke.c:6897 the PERLY_SEMICOLON yyl_rightcurly returns before every PERLY_BRACE_CLOSE it forces (toke.c:6890), folded onto the `}`
+eof-semicolon toke.c:7670 the PERLY_SEMICOLON yyl_fake_eof returns at end of file, folded onto the file's last token
+quote toke.c:2595 a quote-like's head (FUNC op_stringify, PMFUNC, FUNC op_backtick, ...) and its sublexed interior from SUBLEXSTART through the matching SUBLEXEND (S_sublex_start, S_sublex_push), folded onto pvm's one Quote, HeredocOpen or Readline
+heredoc toke.c:11616 S_scan_heredoc delivers a heredoc's tokens at its marker; pvm's HeredocBody is paired with the marker's toke.c head
+format toke.c:7910 a format's picture lines and arguments: the PERLY_SEMICOLON and FORMRBRACK after `=`, the pictures, FORMLBRACK, the arguments, through the PERLY_DOT yyl_rightcurly forces for the closing line (toke.c:6890), folded onto pvm's FormatBody
+forced-version toke.c:2442 S_force_version and S_force_strict_version (toke.c:2486) force a BAREWORD version slot before the module, package or class name: valueless, folded onto `use`/`no`/`package`/`class`; holding a version, paired with pvm's version after the name
+noamp toke.c:8211 the PERLY_AMPERSAND yyl_just_a_word returns before a known sub called with `(`, and the NOAMP before a predeclared list-operator call (toke.c:7987), folded onto the sub's name
+phaser toke.c:8321 BEGIN, END, INIT, CHECK, UNITCHECK, AUTOLOAD and DESTROY at statement start go to yyl_sub, which returns KW_SUB_named or KW_SUB_named_sig with no `sub` written, folded onto the phaser's name
+scope-sub toke.c:6596 a sub toke.c resolved by scope (FUNC0SUB, UNIOPSUB, LSTOPSUB, a BAREWORD or PRIVATEREF valued op_rv2cv or op_padany): its value is not the name, so it pairs with the word it stands on
+constant-sub toke.c:7947 yyl_constant_op inlines a constant sub's value as the BAREWORD's value, which is then not the name; a non-string value pairs with the word it stands on
+label toke.c:9396 LABEL carries the label with its colon; pvm's separate `:` is explained by it
+attribute toke.c:6573 COLONATTR then one ATTRLIST for every attribute after it, arguments inside its value; pvm's further words, colons and parenthesised arguments are explained by it
+unreported-return toke.c:387 OLDLOP returns `return`'s LSTOP without -DT's report, so no token is captured for pvm's `return`
