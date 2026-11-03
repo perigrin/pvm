@@ -88,6 +88,7 @@ func TestPopulationDisagreementsReported(t *testing.T) {
 		"perlonly.pl": {rd: false, chart: true, perl: accept()},         // perl accepts, RD refuses
 		"rdonly.pl":   {rd: true, chart: true, perl: refuse("grammar")}, // RD accepts, perl refuses
 		"both.pl":     {rd: true, chart: true, perl: accept()},
+		"neither.pl":  {rd: false, chart: true, perl: refuse("grammar")}, // both refuse: counted nowhere
 	}
 	got, _ := run(t, m)
 	if got["superset-population"] != "1" || got["rd-accepted-perl-refused"] != "1" {
