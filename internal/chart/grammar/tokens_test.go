@@ -345,3 +345,18 @@ func TestTokenSetZeroRefused(t *testing.T) {
 		t.Error("a class with no terminals accepted")
 	}
 }
+
+func TestTokenOtherWordNeighbour(t *testing.T) {
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: OtherWord}},
+		TokenClass{Terminals: []int{2}, Text: ptr("use")})
+	if got := tt.set(word("b"), none, ClassOf(word("a"), none), none); !slices.Equal(got, []int{1}) {
+		t.Errorf("a word after an unnamed word admits %v, want [1]", got)
+	}
+	if got := tt.set(word("b"), none, ClassOf(word("use"), none), none); len(got) != 0 {
+		t.Errorf("a word after a word some class names admits %v, want none", got)
+	}
+	if got := tt.set(word("b"), none, ClassOf(op("+"), none), none); len(got) != 0 {
+		t.Errorf("a word after an operator admits %v, want none", got)
+	}
+}

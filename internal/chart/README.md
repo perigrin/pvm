@@ -251,6 +251,34 @@ checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
 unset or names no directory, the test fails naming `T1_CORPUS`; it never
 skips, so run it with `T1_CORPUS` set.
 
+### Attribute lists
+
+`internal/lexer` emits `my $x :Foo(arg) Bar` as a colon, words and a
+parenthesised argument scanned as Perl; toke.c emits one COLONATTR and one
+ATTRLIST holding every attribute and its argument as an opaque string
+(perly.y:1070 is fitted to the lexer's tokens). Known limits:
+
+- An attribute's argument is one token, never `(` or `)`. `:Foo(a, b)`,
+  `:Foo(1+2)` and `:Foo(())` are refused, where perl accepts them, until the
+  lexer scans an argument as one token
+  (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). No corpus file meets this, so
+  `lexer-defects.txt` has no entry for it.
+- An attribute name is a plain identifier to toke.c. pvm emits a
+  package-qualified word as one token, so `:Foo::Bar`, `:Foo::` and `:Foo'Bar`
+  are accepted where perl refuses them ("Invalid separator character"), until
+  the same lexer issue (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`) lands.
+- An attribute after one whose name some class names (e.g. `use`, `my`) is
+  not matched: `:use shared`, `:my shared` and `:no Foo` are refused where
+  perl accepts them. `grammar.OtherWord` stands for a word no class names, so
+  the set of such names grows as classes name words.
+- `state` maps to KW_MY with or without `use feature 'state'`, so
+  `state $x :Foo(1) = 2;` is accepted where perl refuses it without the
+  feature.
+- `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
+- `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
+  word, number, quote or variable after `(`) that no `-DT` fixture shows, an
+  artifact of the fitting; they are reviewed at completion.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)

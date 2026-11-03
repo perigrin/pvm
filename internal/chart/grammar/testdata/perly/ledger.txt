@@ -238,9 +238,9 @@ perly.y:1058 subattrlist: COLONATTR ATTRLIST	-
 
 perly.y:1065 subattrlist: COLONATTR	-
 
-perly.y:1070 attrlist: COLONATTR ATTRLIST	-
+perly.y:1070 attrlist: COLONATTR ATTRLIST	fitted
 
-perly.y:1072 attrlist: COLONATTR	-
+perly.y:1072 attrlist: COLONATTR	ported
 
 perly.y:1077 optattrlist: empty	-
 
@@ -500,7 +500,7 @@ perly.y:1568 term: term PERLY_QUESTION_MARK term PERLY_COLON term	-
 
 perly.y:1570 term: REFGEN term	-
 
-perly.y:1572 term: myattrterm	-
+perly.y:1572 term: myattrterm	ported
 
 perly.y:1574 term: KW_LOCAL term	-
 
@@ -592,23 +592,23 @@ perly.y:1713 term: listop	-
 
 perly.y:1714 term: PLUGEXPR	excluded keyword-plugin
 
-perly.y:1719 myattrterm: KW_MY myterm attrlist	-
+perly.y:1719 myattrterm: KW_MY myterm attrlist	ported
 
-perly.y:1721 myattrterm: KW_MY myterm	-
+perly.y:1721 myattrterm: KW_MY myterm	ported
 
-perly.y:1723 myattrterm: KW_MY REFGEN myterm attrlist	-
+perly.y:1723 myattrterm: KW_MY REFGEN myterm attrlist	ported
 
-perly.y:1725 myattrterm: KW_MY REFGEN term	-
+perly.y:1725 myattrterm: KW_MY REFGEN term	ported
 
-perly.y:1730 myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1730 myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1732 myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1732 myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1735 myterm: scalar	-
+perly.y:1735 myterm: scalar	ported
 
-perly.y:1737 myterm: hsh	-
+perly.y:1737 myterm: hsh	ported
 
-perly.y:1739 myterm: ary	-
+perly.y:1739 myterm: ary	ported
 
 perly.y:1744 fieldvar: scalar	-
 
