@@ -60,7 +60,7 @@ bare_statement_expression: sideff PERLY_SEMICOLON # perly.y:333
 
 # perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock
 
-# perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else
+bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else # perly.y:517
 
 bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
@@ -76,15 +76,15 @@ bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
 # perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally
 
-# perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else
+bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else # perly.y:684
 
-# perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont
+bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:699
 
 bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: toke.c forces an empty version token before the module name, and pvm emits nothing for it
 
 # perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock
 
-# perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont
+bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:744
 
 # perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON
 
@@ -100,9 +100,9 @@ empty: # perly.y:783
 
 remember: # perly.y:794
 
-# perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE
+mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE # perly.y:799
 
-# perly.y:806 mremember: %empty
+mremember: # perly.y:806
 
 # perly.y:812 catch_paren: empty
 
@@ -146,7 +146,7 @@ barestmt: bare_statement_expression # perly.y:884
 
 # perly.y:888 barestmt: bare_statement_given
 
-# perly.y:889 barestmt: bare_statement_if
+barestmt: bare_statement_if # perly.y:889
 
 barestmt: bare_statement_null # perly.y:890
 
@@ -162,15 +162,15 @@ barestmt: bare_statement_null # perly.y:890
 
 # perly.y:896 barestmt: bare_statement_try_catch
 
-# perly.y:897 barestmt: bare_statement_unless
+barestmt: bare_statement_unless # perly.y:897
 
-# perly.y:898 barestmt: bare_statement_until
+barestmt: bare_statement_until # perly.y:898
 
 barestmt: bare_statement_utilize # perly.y:899
 
 # perly.y:900 barestmt: bare_statement_when
 
-# perly.y:901 barestmt: bare_statement_while
+barestmt: bare_statement_while # perly.y:901
 
 # perly.y:902 barestmt: bare_statement_yadayada
 
@@ -180,51 +180,51 @@ barestmt: bare_statement_utilize # perly.y:899
 
 # perly.y:925 formarg: FORMLBRACK stmtseq FORMRBRACK
 
-# perly.y:929 condition: expr
+condition: expr # perly.y:929
 
 # perly.y:933 sideff: error
 
 sideff: expr # perly.y:935
 
-# perly.y:937 sideff: expr KW_IF condition
+sideff: expr KW_IF condition # perly.y:937
 
-# perly.y:940 sideff: expr KW_UNLESS condition
+sideff: expr KW_UNLESS condition # perly.y:940
 
-# perly.y:943 sideff: expr KW_WHILE condition
+sideff: expr KW_WHILE condition # perly.y:943
 
-# perly.y:945 sideff: expr KW_UNTIL iexpr
+sideff: expr KW_UNTIL iexpr # perly.y:945
 
-# perly.y:947 sideff: expr KW_FOR condition
+sideff: expr KW_FOR condition # perly.y:947
 
-# perly.y:950 sideff: expr KW_WHEN condition
+sideff: expr KW_WHEN condition # perly.y:950
 
-# perly.y:956 else: empty
+else: empty # perly.y:956
 
-# perly.y:957 else: KW_ELSE mblock
+else: KW_ELSE mblock # perly.y:957
 
-# perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else
+else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else # perly.y:962
 
 cont: empty # perly.y:973
 
-# perly.y:974 cont: KW_CONTINUE block
+cont: KW_CONTINUE block # perly.y:974
 
 # perly.y:979 finally: %empty
 
 # perly.y:981 finally: KW_FINALLY block
 
-# perly.y:986 mintro: %empty
+mintro: # perly.y:986
 
 # perly.y:993 nexpr: empty
 
 # perly.y:994 nexpr: sideff
 
-# perly.y:998 texpr: %empty
+texpr: # perly.y:998
 
-# perly.y:1002 texpr: expr
+texpr: expr # perly.y:1002
 
-# perly.y:1006 iexpr: expr
+iexpr: expr # perly.y:1006
 
-# perly.y:1011 mexpr: expr
+mexpr: expr # perly.y:1011
 
 # perly.y:1015 mnexpr: nexpr
 
@@ -782,25 +782,26 @@ var perlyClasses = []ClassDecl{
 
 	// KW_FIELD
 
-	// KW_IF
+	{"KW_IF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("if")}},
 
-	// KW_ELSE
+	{"KW_ELSE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("else")}},
 
-	// KW_ELSIF
+	{"KW_ELSIF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("elsif")}},
 
-	// KW_UNLESS
+	{"KW_UNLESS", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unless")}},
 
-	// KW_FOR
+	{"KW_FOR", TokenClass{Kind: ptr(lexer.Word), Text: ptr("for")}},
+	{"KW_FOR", TokenClass{Kind: ptr(lexer.Word), Text: ptr("foreach")}},
 
-	// KW_UNTIL
+	{"KW_UNTIL", TokenClass{Kind: ptr(lexer.Word), Text: ptr("until")}},
 
-	// KW_WHILE
+	{"KW_WHILE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("while")}},
 
-	// KW_CONTINUE
+	{"KW_CONTINUE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("continue"), Next: &blockOpen}},
 
 	// KW_GIVEN
 
-	// KW_WHEN
+	{"KW_WHEN", TokenClass{Kind: ptr(lexer.Word), Text: ptr("when")}},
 
 	// KW_DEFAULT
 
