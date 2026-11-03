@@ -725,6 +725,9 @@ var (
 	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
 	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
 
+	// declarators are the words after which a variable is declared and a : may start its attributes.
+	declarators = []Neighbour{{Kind: lexer.Word, Text: "my"}, {Kind: lexer.Word, Text: "our"}, {Kind: lexer.Word, Text: "state"}}
+
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
 	// a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
@@ -1195,7 +1198,16 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_QUESTION_MARK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("?")}},
 
-	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":")}},
+	// A : is the attribute colon, not the ternary's, when it follows my, our or state and a variable and an
+	// identifier character follows it (toke.c:6456 yyl_colon at 94e50866, PL_in_my set by yyl_my, toke.c:7572).
+	// The three classes are the union that leaves that case out: not after a variable, after a variable
+	// that no declarator precedes, and after one with no identifier next.
+	// shortcut: my ($x) : word is not left out, since two tokens back a my list's ) is a parenthesised
+	// declaration's (my $x) : word, which perl accepts; upgrade when the lexer marks the ) that closes a my
+	// list (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e).
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), NotPrev1: []Neighbour{{Kind: lexer.Variable}}}},
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotPrev2: declarators}},
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotNextIdent: true}},
 
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||")}},
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^^")}}, // toke.c yyl_caret: OP_XOR

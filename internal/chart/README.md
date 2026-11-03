@@ -278,6 +278,12 @@ ATTRLIST holding every attribute and its argument as an opaque string
   `$y = 1 when $x;` is accepted where perl refuses it without the feature
   (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
+- A `:` after `my`, `our` or `state` and a variable is the attribute colon when
+  an identifier character follows (toke.c's `yyl_colon`), so
+  `$c ? my $x : shared;` is refused as perl refuses it. The key sees two
+  tokens back, so `$c ? my ($x) : shared;`, whose `)` closes a `my` list, looks
+  like `$c ? (my $x) : shared;` and is accepted where perl refuses it, until
+  the lexer marks that `)` (`01a1a314-e3f8-765f-abf2-159425ed764e`).
 - `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
   artifact of the fitting; they are reviewed at completion.

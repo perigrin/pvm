@@ -41,7 +41,7 @@ func TestPortTerms(t *testing.T) {
 
 func TestPortTermsRefusals(t *testing.T) {
 	rows := map[string]struct {
-		at        string // the refused byte is the first occurrence of this text; "" is end of file
+		at        string // the refused byte is the first occurrence of this text, the last after a ^; "" is end of file
 		neighbour string // an accepted form beside it
 	}{
 		"unclosed-array.pl":         {";", "[1, 2];"},
@@ -55,6 +55,14 @@ func TestPortTermsRefusals(t *testing.T) {
 		"unclosed-paren.pl":         {";", "$y = (1, 2);"},
 		"unclosed-call.pl":          {";", "$y = &foo(1);"},
 		"qwlist-two-terms.pl":       {"qw(b)", "$y = qw(a);"},
+		// toke.c's yyl_colon (toke.c:6456 at 94e50866) makes a : after my, our or state (yyl_my, toke.c:7572)
+		// and a variable an attribute colon when an identifier character follows, so the ternary lacks its colon.
+		"colon-my-word.pl":       {";", "$y = $c ? my $x : 1;"},
+		"colon-my-word-tight.pl": {";", "$y = $c ? my $x : 1;"},
+		"colon-my-keyword.pl":    {";", "$y = $c ? my $x : 1;"},
+		"colon-my-qw.pl":         {"qw", "$y = $c ? my $x : 1;"},
+		"colon-state-word.pl":    {"^;", "use feature 'state'; $y = $c ? state $x : 1;"},
+		"colon-our-word.pl":      {";", "$y = $c ? our @x : 1;"},
 	}
 	for name, c := range rows {
 		src, err := os.ReadFile(filepath.Join("testdata", "port", "terms-refused", name))
@@ -62,7 +70,9 @@ func TestPortTermsRefusals(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := len(src)
-		if c.at != "" {
+		if last, ok := strings.CutPrefix(c.at, "^"); ok {
+			want = strings.LastIndex(string(src), last)
+		} else if c.at != "" {
 			want = strings.Index(string(src), c.at)
 		}
 		if v := recognizeSource(t, src); v.accepted {
@@ -76,6 +86,37 @@ func TestPortTermsRefusals(t *testing.T) {
 	}
 	if len(snippets(t, "terms-refused")) != len(rows) {
 		t.Error("a refused snippet has no row here")
+	}
+}
+
+// An attribute colon is told from the ternary's by what precedes and follows it, as toke.c does.
+func TestPortTermsAttributeColon(t *testing.T) {
+	for _, src := range []string{
+		"$y = $c ? my $x : my $z;", // perl: Invalid separator character, not a syntax error
+		"$y = $c ? my $x : x;", "$y = $c ? my $x : Foo::bar;", "$y = $c ? my $x : q(a);", "$y = $c ? my $x : s/a/b/;",
+		"$y = $c ? our $x : shared;", "$y = $c ? my @x : shared;", "$y = $c ? my %x : shared;",
+	} {
+		if v := recognizeSource(t, []byte(src)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", src)
+		}
+	}
+	for _, src := range []string{
+		"$y = $c ? my $x : 1;", "$y = $c ? my $x : $z;", "$y = $c ? my $x : -1;", `$y = $c ? my $x : "s";`,
+		"$y = $c ? my $x : \\$z;", "$y = $c ? my $x : (my $z);", "$y = $c ? my $x : [1];", "$y = $c ? my $x : @a;",
+		"$y = $c ? (my $x) : shared;", "$y = $c ? local $g : shared;", "$y = $c ? $x : shared;", "$y = $c ? my $x\n: 1;",
+		"my $x : shared;", "my $x :shared;", "$y = $c ? shared : my $x;", "$y = $c ? my $x : 'a';",
+	} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d (expected %v); perl accepts it", src, v.at, v.expected)
+		}
+	}
+	// Known limit: the key sees two tokens back, so my ($x) : shared looks like (my $x) : shared, which
+	// perl accepts. Perl refuses it; this pins the over-acceptance until the lexer marks the ) that closes
+	// a my list (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e), when the chart can follow toke.c.
+	for _, src := range []string{"$y = $c ? my ($x) : shared;", "$y = $c ? my ($x, $z) : shared;", "$y = $c ? my () : shared;"} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d: the my (...) limit is gone, so remove the shortcut and make this a refusal", src, v.at)
+		}
 	}
 }
 
