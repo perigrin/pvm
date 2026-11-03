@@ -474,7 +474,7 @@ termunop: term POSTINC # perly.y:1506
 
 termunop: term POSTDEC # perly.y:1509
 
-termunop: term POSTJOIN # perly.y:1512, fitted: POSTJOIN is toke.c's implicit join inside an interpolated string, which pvm lexes as one Quote token, so no token class matches it
+# perly.y:1512 termunop: term POSTJOIN
 
 termunop: PREINC term # perly.y:1523
 
@@ -968,8 +968,7 @@ var perlyClasses = []ClassDecl{
 
 	{"POSTDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--")}},
 
-	// No token class matches: toke.c emits POSTJOIN only inside an interpolated string, which is one Quote token here.
-	{"POSTJOIN", TokenClass{Kind: ptr(lexer.Whitespace)}},
+	// POSTJOIN
 
 	// ARROW
 

@@ -62,7 +62,6 @@
 61 terminal PLUGIN_REL_OP
 62 terminal POSTDEC
 63 terminal POSTINC
-64 terminal POSTJOIN
-65 terminal PREDEC
-66 terminal PREINC
-67 terminal THING
+64 terminal PREDEC
+65 terminal PREINC
+66 terminal THING
