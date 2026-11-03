@@ -45,9 +45,10 @@ unchanged, so the whitespace pre-commit hooks skip the case directories.
 Which cases perl accepts is said by the committed perl labels,
 `testdata/labels/in-tree.txt`, not by running perl: the pinned `-DDEBUGGING`
 perl's `perl -c` verdict on every case, with the stubs as `PERL5LIB`, and a
-category for each refusal (spec §9.1). `offline/label.sh` writes them and
+reviewed category for each refusal (spec §9.1). `offline/label.sh` writes them and
 `offline/README.md` gives their format. A `parses` case perl refuses is not
-scored. `TestPerlLabels` checks every case is labelled under the pinned perl.
+scored. `TestPerlLabels` checks every case is labelled under the pinned perl and
+every refusal's category is reviewed.
 
 `extract.pl` regenerates the whole directory from a Guacamole checkout.
 `PROVENANCE` gives the revision and the command. Nothing here reads the
