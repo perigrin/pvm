@@ -68,9 +68,8 @@ func TestReferenceRecognizer(t *testing.T) {
 }
 
 // sampleFile is one file of the corpus sample, lexed against the committed
-// grammar, and the token count it is cut at, mid-statement: after the first
-// =, else after the first token that is not a ; (use, package, ...); -1 for a
-// file with none, which has no mid-statement point.
+// grammar, and the token count it is cut at, mid-statement: the shortest prefix
+// the reference recognizer refuses; -1 for a file every prefix of which it accepts.
 type sampleFile struct {
 	name string
 	l    *lex.Lattice[lex.None]
@@ -117,14 +116,10 @@ func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 		}
 		s, _ := lex.Lex(src, tab.Tokens)
 		f := sampleFile{name: p, l: lex.Linear(s), cut: -1}
-		for i, tok := range s.Tokens {
-			r := s.Raw[tok.Index]
-			if string(src[r.Start:r.End]) == "=" {
-				f.cut = i + 1
+		for n := 1; n <= min(len(f.l.Edges), maxTokens); n++ {
+			if _, _, accepted := refRun(tab, tokenIDs(f.lattice(n))); !accepted {
+				f.cut = n // the first prefix the reference refuses: a whole term is a program
 				break
-			}
-			if f.cut < 0 && string(src[r.Start:r.End]) != ";" {
-				f.cut = i + 1 // else after the first token that is not a ;
 			}
 		}
 		files = append(files, f)
@@ -146,7 +141,7 @@ func TestReferenceAgreesOnTruncatedFiles(t *testing.T) {
 	for _, f := range files {
 		if f.cut < 0 {
 			skipped++
-			t.Logf("%s: no token to cut after but ;", f.name)
+			t.Logf("%s: no prefix the reference refuses", f.name)
 			continue
 		}
 		cut++

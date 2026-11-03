@@ -406,15 +406,15 @@ termbinop: term ASSIGNOP term # perly.y:1415
 
 # perly.y:1428 termbinop: term PLUGIN_MUL_OP term
 
-# perly.y:1430 termbinop: term ADDOP term
+termbinop: term ADDOP term # perly.y:1430
 
 # perly.y:1432 termbinop: term PLUGIN_ADD_OP term
 
 # perly.y:1434 termbinop: term SHIFTOP term
 
-# perly.y:1436 termbinop: termrelop
+termbinop: termrelop # perly.y:1436
 
-# perly.y:1438 termbinop: termeqop
+termbinop: termeqop # perly.y:1438
 
 # perly.y:1440 termbinop: term BITANDOP term
 
@@ -436,49 +436,49 @@ termbinop: term ASSIGNOP term # perly.y:1415
 
 # perly.y:1458 termbinop: term PLUGIN_LOW_OP term
 
-# perly.y:1462 termrelop: relopchain
+termrelop: relopchain # perly.y:1462
 
-# perly.y:1464 termrelop: term NCRELOP term
+termrelop: term NCRELOP term # perly.y:1464
 
 # perly.y:1466 termrelop: termrelop NCRELOP
 
 # perly.y:1468 termrelop: termrelop CHRELOP
 
-# perly.y:1470 termrelop: term PLUGIN_REL_OP term
+termrelop: term PLUGIN_REL_OP term # perly.y:1470
 
-# perly.y:1474 relopchain: term CHRELOP term
+relopchain: term CHRELOP term # perly.y:1474
 
-# perly.y:1476 relopchain: relopchain CHRELOP term
+relopchain: relopchain CHRELOP term # perly.y:1476
 
-# perly.y:1480 termeqop: eqopchain
+termeqop: eqopchain # perly.y:1480
 
-# perly.y:1482 termeqop: term NCEQOP term
+termeqop: term NCEQOP term # perly.y:1482
 
 # perly.y:1484 termeqop: termeqop NCEQOP
 
 # perly.y:1486 termeqop: termeqop CHEQOP
 
-# perly.y:1490 eqopchain: term CHEQOP term
+eqopchain: term CHEQOP term # perly.y:1490
 
-# perly.y:1492 eqopchain: eqopchain CHEQOP term
+eqopchain: eqopchain CHEQOP term # perly.y:1492
 
-# perly.y:1497 termunop: PERLY_MINUS term
+termunop: PERLY_MINUS term # perly.y:1497
 
-# perly.y:1499 termunop: PERLY_PLUS term
+termunop: PERLY_PLUS term # perly.y:1499
 
-# perly.y:1502 termunop: PERLY_EXCLAMATION_MARK term
+termunop: PERLY_EXCLAMATION_MARK term # perly.y:1502
 
-# perly.y:1504 termunop: PERLY_TILDE term
+termunop: PERLY_TILDE term # perly.y:1504
 
-# perly.y:1506 termunop: term POSTINC
+termunop: term POSTINC # perly.y:1506
 
-# perly.y:1509 termunop: term POSTDEC
+termunop: term POSTDEC # perly.y:1509
 
 # perly.y:1512 termunop: term POSTJOIN
 
-# perly.y:1523 termunop: PREINC term
+termunop: PREINC term # perly.y:1523
 
-# perly.y:1526 termunop: PREDEC term
+termunop: PREDEC term # perly.y:1526
 
 # perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE
 
@@ -502,7 +502,7 @@ termbinop: term ASSIGNOP term # perly.y:1415
 
 term: termbinop # perly.y:1564
 
-# perly.y:1565 term: termunop
+term: termunop # perly.y:1565
 
 # perly.y:1566 term: anonymous
 
@@ -735,11 +735,11 @@ var perlyClasses = []ClassDecl{
 
 	// PERLY_EQUAL_SIGN
 
-	// PERLY_MINUS
+	{"PERLY_MINUS", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
 
 	{"PERLY_PERCENT_SIGN", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('%'))}},
 
-	// PERLY_PLUS
+	{"PERLY_PLUS", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 
 	{"PERLY_SEMICOLON", TokenClass{Kind: ptr(lexer.Semicolon)}},
 
@@ -867,7 +867,8 @@ var perlyClasses = []ClassDecl{
 
 	// MULOP
 
-	// ADDOP
+	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
+	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
 
 	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#'))}},
 
@@ -928,31 +929,44 @@ var perlyClasses = []ClassDecl{
 
 	// BITANDOP
 
-	// CHEQOP
+	{"CHEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("==")}},
+	{"CHEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("!=")}},
+	{"CHEQOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eq")}},
+	{"CHEQOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ne")}},
 
-	// NCEQOP
+	{"NCEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("<=>")}},
+	{"NCEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("~~")}},
+	{"NCEQOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("cmp")}},
 
-	// CHRELOP
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("<")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(">")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("<=")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(">=")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lt")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gt")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("le")}},
+	{"CHRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ge")}},
 
-	// NCRELOP
+	{"NCRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("isa")}},
 
 	// SHIFTOP
 
 	// MATCHOP
 
-	// PERLY_EXCLAMATION_MARK
+	{"PERLY_EXCLAMATION_MARK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("!")}},
 
-	// PERLY_TILDE
+	{"PERLY_TILDE", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("~")}},
+	{"PERLY_TILDE", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("~.")}},
 
 	// REFGEN
 
-	// PREINC
+	{"PREINC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("++")}},
 
-	// PREDEC
+	{"PREDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--")}},
 
-	// POSTINC
+	{"POSTINC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("++")}},
 
-	// POSTDEC
+	{"POSTDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--")}},
 
 	// POSTJOIN
 

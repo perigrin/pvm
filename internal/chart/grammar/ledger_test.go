@@ -154,7 +154,7 @@ func TestLedgerExclusionReasons(t *testing.T) {
 }
 
 func TestLedgerExclusionReasonsRefusesMalformed(t *testing.T) {
-	for r, line := range map[string]int{"keyword-plugin": 878, "refused-in-action": 1105, "conditional-refusal": 10, "error-recovery": 933} {
+	for r, line := range map[string]int{"keyword-plugin": 878, "refused-in-action": 1105, "conditional-refusal": 10, "error-recovery": 933, "interpolation-only": 1512} {
 		if err := checkMarks([]Entry{{Line: line, Mark: "excluded " + r}}); err != nil {
 			t.Errorf("reason %s: %v", r, err)
 		}
@@ -166,7 +166,7 @@ func TestLedgerExclusionReasonsRefusesMalformed(t *testing.T) {
 	}{
 		{878, "excluded"}, {878, "excluded keyword-plugin extra"}, {878, "excluded  keyword-plugin"}, {878, "excluded keyword-plugin "},
 		{878, "excluded: keyword-plugin"}, {878, "Excluded keyword-plugin"}, {1105, "excluded refused-in-action extra"},
-		{933, "excluded error-recovery extra"}, {10, "excluded conditional-refusal extra"}, {10, "ported extra"}, {10, "other"}, {10, ""},
+		{933, "excluded error-recovery extra"}, {1512, "excluded interpolation-only extra"}, {10, "excluded conditional-refusal extra"}, {10, "ported extra"}, {10, "other"}, {10, ""},
 	} {
 		wantErr(t, fmt.Sprintf("mark %q on perly.y:%d", c.mark, c.line), checkMarks([]Entry{{Line: c.line, Mark: c.mark}}), fmt.Sprintf("perly.y:%d", c.line))
 	}
@@ -241,6 +241,7 @@ func TestLedgerExclusionReasonsPinnedToLines(t *testing.T) {
 		"refused-in-action":   refused,
 		"error-recovery":      {933},
 		"keyword-plugin":      {878, 1714},
+		"interpolation-only":  {1512},
 		"conditional-refusal": nil,
 	}
 	for reason, lines := range allowed {
