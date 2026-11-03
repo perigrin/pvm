@@ -279,6 +279,12 @@ ATTRLIST holding every attribute and its argument as an opaque string
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
   artifact of the fitting; they are reviewed at completion.
 
+The string-bitwise operators are feature-blind. `internal/lexer` emits `|.`,
+`&.`, `^.` and `|.=` as operators with or without `use feature 'bitwise'`
+(toke.c lexes them only under it), so `$y = $a |. $b;` is accepted where perl
+refuses it without the feature. Known limit, until the lexer tracks the
+feature.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
