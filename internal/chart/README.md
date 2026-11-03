@@ -283,7 +283,7 @@ The string-bitwise operators are feature-blind. `internal/lexer` emits `|.`,
 `&.`, `^.` and `|.=` as operators with or without `use feature 'bitwise'`
 (toke.c lexes them only under it), so `$y = $a |. $b;` is accepted where perl
 refuses it without the feature. Known limit, until the lexer tracks the
-feature.
+feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 
 ## The thin chart/lex: `lex`
 
