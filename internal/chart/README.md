@@ -251,6 +251,26 @@ checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
 unset or names no directory, the test fails naming `T1_CORPUS`; it never
 skips, so run it with `T1_CORPUS` set.
 
+### Attribute lists
+
+`internal/lexer` emits `my $x :Foo(arg) Bar` as a colon, words and a
+parenthesised argument scanned as Perl; toke.c emits one COLONATTR and one
+ATTRLIST holding every attribute and its argument as an opaque string
+(perly.y:1070 is fitted to the lexer's tokens). Known limits:
+
+- An attribute's argument is one token, never `(` or `)`. `:Foo(a, b)`,
+  `:Foo(1+2)` and `:Foo(())` are refused, where perl accepts them, until the
+  lexer scans an argument as one token
+  (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). No corpus file meets this, so
+  `lexer-defects.txt` has no entry for it.
+- An attribute named `use`, `no`, `my`, `our` or `state` after another
+  attribute is not matched: `grammar.OtherWord` stands for a word no class
+  names.
+- `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
+- `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
+  word, number, quote or variable after `(`) that no `-DT` fixture shows, an
+  artifact of the fitting; they are reviewed at completion.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)

@@ -14,8 +14,8 @@ import (
 
 // myAttributesLines are the perly.y alternatives this family ports or fits. Every one is ported:
 // none refuses unconditionally, so none is left for a completing issue.
-// shortcut: an attribute's argument is one token (`:Foo(bar)`) and attributes are colon-separated;
-// `:Foo(a, b)` and `:Foo Bar` are refused, upgrade when the corpus shows them.
+// An attribute's argument is one token (`:Foo(bar)`): the lexer scans it as Perl, where toke.c takes
+// it as one opaque string, so `:Foo(a, b)`, `:Foo(1+2)` and `:Foo(())` are refused until 01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a.
 var myAttributesLines = []int{1070, 1072, 1572, 1719, 1721, 1723, 1725, 1730, 1732, 1735, 1737, 1739}
 
 func TestPortMyAndAttributes(t *testing.T) {
@@ -44,6 +44,7 @@ func TestPortMyAndAttributesRefusals(t *testing.T) {
 		"open-paren.pl":       {";", "list.pl"},
 		"no-comma.pl":         {"$y", "scalar.pl"},
 		"arg-without-name.pl": {"(", "attr-arg.pl"},
+		"paren-close-arg.pl":  {");", "attr-arg.pl"},
 	} {
 		src, err := os.ReadFile(filepath.Join("testdata", "port", "my-attributes-refused", name))
 		if err != nil {
@@ -69,4 +70,13 @@ func atOrEOF(s, sub string) int {
 		return len(s)
 	}
 	return strings.Index(s, sub)
+}
+
+// `my $x :Foo((;` is not a snippet: perl refuses it as an unterminated attribute parameter, not as a
+// syntax error, so it cannot sit beside the others. The chart refuses the second ( as an argument.
+func TestPortMyAndAttributesUnterminatedArgument(t *testing.T) {
+	src := "my $x :Foo((;\n"
+	if v := recognizeSource(t, []byte(src)); v.accepted || v.at != strings.Index(src, "(;") {
+		t.Errorf("%q: accepted=%v, refused at %d, want refused at %d", src, v.accepted, v.at, strings.Index(src, "(;"))
+	}
 }
