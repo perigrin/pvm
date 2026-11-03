@@ -38,7 +38,8 @@ func TestPortNamedOperatorsRefusals(t *testing.T) {
 			t.Errorf("%s is accepted; perl refuses it", f)
 		}
 	}
-	for _, src := range []string{"time;", "defined($x);", "ref $x;", "not $x;", "last;"} {
+	for _, src := range []string{"time;", "defined($x);", "ref $x;", "not $x;", "last;",
+		"require;", "__PACKAGE__;", "require 5.006;", "require v5.10;", "require 5.10.1;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}
