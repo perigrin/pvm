@@ -193,10 +193,17 @@ assessment lists what they involve.
   hash is not in the tokens, so this one case is not fitted: the recognizer,
   at a node whose `Expected` holds `;` and whose next token is a `}` or the
   end of input, scans a zero-width `;` there as well as whatever the
-  next token scans. Where `perly.y` spells the `;` before a `}` (blocks,
-  subscripts, anonymous hashes), its rules are ported as written and the
-  expected set holds it; where a `}` takes no `;`, the expected set does not.
-  So the expected set decides what toke.c's lexer state decides. The insertion is recorded on the chart by node, the reference
+  next token scans. This models the language, not toke.c's mechanism
+  (perigrin, 2026-11-03): a statement's terminating `;` is optional where a
+  scope ends, and a `;` written there is a null statement, so scanning the
+  insertion beside the `}` accepts nothing perl refuses. toke.c in fact sends
+  a `;` before every real `}` (`yyl_rightcurly`, toke.c:6897 at 94e50866),
+  and `perly.y` spells that artifact into rules that are not statements:
+  subscripts, anonymous hashes and slices (`expr PERLY_SEMICOLON
+  PERLY_BRACE_CLOSE`, `perly.y:1349, 1366, 1369, 1373, 1536, 1614, 1624`).
+  That `;` never appears in source, so those rules are fitted without it
+  (`perly.y:N, fitted: the ; before } is toke.c's, not the source's`), and a
+  written `;` there (`$h{1;}`) is refused, as perl refuses it. The insertion is recorded on the chart by node, the reference
   recognizer does the same so that it stays the oracle, and the speed
   protocol times it as recognition. Nothing else is inserted and the lexer's
   tokens do not change; interleaved lexing remains future work (§13). This
