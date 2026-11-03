@@ -93,10 +93,13 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if c.Text != nil {
 			named[*c.Text] = true
 		}
-		for _, n := range []*grammar.Neighbour{c.Prev2, c.Prev1, c.Next} {
+		for _, n := range append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...) {
 			if n != nil {
 				named[n.Text] = true
 			}
+		}
+		for _, x := range c.NotText {
+			named[x] = true
 		}
 	}
 	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool {
@@ -246,4 +249,12 @@ func BenchmarkTokenize(b *testing.B) {
 		lexer.Tokenize(src)
 	}
 	perToken(b, len(sig))
+}
+
+func ptrs(ns []grammar.Neighbour) []*grammar.Neighbour {
+	ps := make([]*grammar.Neighbour, len(ns))
+	for i := range ns {
+		ps[i] = &ns[i]
+	}
+	return ps
 }
