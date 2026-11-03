@@ -54,6 +54,9 @@ func main() {
 	if err == nil {
 		unmapped = measureLex(tab.Tokens, files, srcs, measured)
 	}
+	if err == nil {
+		err = measureTDT(fixturesDir(os.Getenv("TDT_FIXTURES"), defaultTDT), g, tab, files, srcs, measured)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
