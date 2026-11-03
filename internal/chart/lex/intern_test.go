@@ -106,13 +106,13 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if want != nil && want.Text == grammar.OtherWord {
 			w := *want
 			w.Text = got.Text
-			return w == got && !named[got.Text]
+			return w == got && !named[got.Text] && (got.Kind != lexer.Word || got.Text[0] == '_' || got.Text[0]|0x20 >= 'a' && got.Text[0]|0x20 <= 'z')
 		}
 		return want == nil || *want == got
 	}
-	// ident is whether toks[i] starts with an identifier character: a word, or a quote-like opening with a letter.
+	// ident is whether toks[i] starts with an identifier character: a word opening with a letter or _, or a quote-like opening with a letter.
 	ident := func(i int) bool {
-		return i >= 0 && i < len(toks) && (toks[i].v.Kind == lexer.Word ||
+		return i >= 0 && i < len(toks) && (toks[i].v.Kind == lexer.Word && (toks[i].v.Text[0] == '_' || toks[i].v.Text[0]|0x20 >= 'a' && toks[i].v.Text[0]|0x20 <= 'z') ||
 			toks[i].v.Kind == lexer.Quote && (toks[i].v.Prefix >= 'a' && toks[i].v.Prefix <= 'z' || toks[i].v.Prefix == 'Q'))
 	}
 	ids := make([]int, len(toks))
@@ -195,7 +195,7 @@ func TestInternIdentityOverCorpus(t *testing.T) {
 const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $c ? state $x : qw(a); $c ? my $x : q(a); " +
 	"$c ? my $x : my $z; $c ? my $x : 1; $c ? my $x : $z; $c ? my $x : -1; $c ? my $x : \"s\"; $c ? my $x : \\$z; " +
 	"$c ? my $x : 'a'; $c ? my $x : s/a/b/; $c ? my $x : tr/a/b/; $c ? my $x : y/a/b/; $c ? my $x : m/a/; $c ? my $x : qq(a); " +
-	"$c ? (my $x) : shared; $c ? local $x : shared; $c ? $x : shared; $c ? my ($x) : shared; $c ? my $x :\n"
+	"$c ? my $x : ::foo; $c ? (my $x) : shared; $c ? local $x : shared; $c ? $x : shared; $c ? my ($x) : shared; $c ? my $x :\n"
 
 // The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
