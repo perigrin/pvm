@@ -211,7 +211,8 @@ stops the run. The aligner writes one fixture per corpus file to
 toke.c runs and a total to stdout. The sample's fixture becomes the committed
 `testdata/tdt/sample.tdt`. The script makes `TDT_FIXTURES` absolute before it
 changes directory and refuses any directory inside the repository or holding
-it; the aligner refuses a directory holding `go.mod` or `.git`. Give `TDT_FIXTURES`
+it, resolving it through its nearest existing parent so a refused directory is
+never created; the aligner refuses a directory holding `go.mod` or `.git`. Give `TDT_FIXTURES`
 as an absolute path: `TestTDTFixtures` reads a relative one from
 `internal/chart/`.
 
