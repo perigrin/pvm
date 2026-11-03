@@ -364,12 +364,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   not change. So at a node whose next token's set holds `PERLY_BRACE_CLOSE`,
   or that ends the input, and whose set expects `PERLY_SEMICOLON`, the
   recognizer scans a zero-width `PERLY_SEMICOLON` there **beside** the next
-  token, never instead of it. Whether a `}` closes a scope or a hash is not
-  in the tokens, but `perly.y` spells the `;` in every rule that takes one
-  before a `}` (a block's last statement, subscripts, anonymous hashes,
-  slices), so the expected set decides what toke.c's lexer state decides,
-  and a `}` that takes no `;` gets none. A missing `;` before any other
-  token is still refused. The items the `;` advances are closed beside the
+  token, never instead of it. This models the language, not toke.c's
+  mechanism (spec §5.2, amended at 63a92338): a statement's terminating `;`
+  is optional where a scope ends, and a `;` written there is a null
+  statement, so the insertion accepts nothing perl refuses. A `}` whose set
+  expects no `;` gets none, and a missing `;` before any other token is
+  still refused. The items the `;` advances are closed beside the
   node's set, never in it: `Sets[pos]` and `Expected(pos)` stay what the
   source may contain next, and the next node scans the `}` from both, the
   inserted items' origin sets being cache dependencies like any other. At
@@ -377,9 +377,14 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   next token. `(*Chart).Inserted()` is the nodes where a `;` was scanned,
   ascending. The reference recognizer inserts the same `;` with a set of
   its own, so it stays the oracle (`TestSlipperReferenceAgrees`). Nothing
-  else is inserted; interleaved lexing is future work (spec §13). The rules
-  `perly.y` writes with `PERLY_SEMICOLON PERLY_BRACE_CLOSE` port as written,
-  and no rule is fitted for the inserted `;`.
+  else is inserted; interleaved lexing is future work (spec §13). No
+  statement rule is fitted for the inserted `;`. The subscript,
+  anonymous-hash and slice rules, where `perly.y` spells toke.c's `;` before
+  every real `}` (`expr PERLY_SEMICOLON PERLY_BRACE_CLOSE`, perly.y:1349,
+  1366, 1369, 1373, 1536, 1614, 1624; toke.c:6897), are fitted without it
+  (`fitted: the ; before } is toke.c's, not the source's`), because that `;`
+  never appears in source; so `$h{1;}` is refused, as perl refuses it
+  (spec §5.2).
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with a dead-end branch added and
