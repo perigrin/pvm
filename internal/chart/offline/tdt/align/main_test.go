@@ -205,4 +205,31 @@ func TestAlignReturnIsUnreported(t *testing.T) {
 			}
 		}
 	}
+
+	// The keyword with an auto-quoted `return` right after its opener: the
+	// key's BAREWORD must not pull the keyword ahead of the opener's unit.
+	const tail = "BAREWORD\tPV(\"return\"\\0)\nPERLY_COMMA\nTHING\tIV(1)\n"
+	for _, c := range []struct{ src, stream, open, want string }{
+		{"return { return => 1 };", "HASHBRACK\n" + tail + "PERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "{", "HASHBRACK"},
+		{"return (return => 1);", "PERLY_PAREN_OPEN\n" + tail + "PERLY_PAREN_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "(", "PERLY_PAREN_OPEN"},
+		{"return [ return => 1 ];", "PERLY_BRACKET_OPEN\n" + tail + "PERLY_BRACKET_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "[", "PERLY_BRACKET_OPEN"},
+		{"CORE::return { return => 1 };", "HASHBRACK\n" + tail + "PERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n", "{", "HASHBRACK"},
+	} {
+		got := aligned(t, c.src, c.stream)
+		if got[c.open] != c.want {
+			t.Errorf("%s: %s %q, want %q", c.src, c.open, got[c.open], c.want)
+		}
+		if got["return"] != "BAREWORD" { // the key, the later of the two
+			t.Errorf("%s: key return %q, want BAREWORD", c.src, got["return"])
+		}
+		kw := c.src[:strings.IndexByte(c.src, ' ')]
+		if kw != "return" && got[kw] != "- unreported-return" {
+			t.Errorf("%s: %s %q, want - unreported-return", c.src, kw, got[kw])
+		}
+		for k, v := range got {
+			if strings.HasPrefix(k, "unmatched") {
+				t.Errorf("%s: %s %s, want no unmatched run", c.src, k, v)
+			}
+		}
+	}
 }
