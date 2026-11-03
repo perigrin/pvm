@@ -391,3 +391,18 @@ func TestTokenNotText(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenNotPrev1(t *testing.T) {
+	shift, semi := ClassOf(word("shift"), none), ClassOf(op(";"), none)
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Text: ptr("x"), NotPrev1: []Neighbour{shift}},
+		TokenClass{Terminals: []int{2}, Text: ptr("x")})
+	for _, c := range []struct {
+		prev Neighbour
+		want []int
+	}{{shift, []int{2}}, {semi, []int{1, 2}}, {Boundary, []int{1, 2}}} {
+		if got := tt.set(word("x"), none, c.prev, none); !slices.Equal(got, c.want) {
+			t.Errorf("x after %+v = %v, want %v", c.prev, got, c.want)
+		}
+	}
+}
