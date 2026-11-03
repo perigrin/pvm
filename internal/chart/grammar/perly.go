@@ -1202,9 +1202,11 @@ var perlyClasses = []ClassDecl{
 	// identifier character follows it (toke.c:6456 yyl_colon at 94e50866, PL_in_my set by yyl_my, toke.c:7572).
 	// The three classes are the union that leaves that case out: not after a variable, after a variable
 	// that no declarator precedes, and after one with no identifier next.
-	// shortcut: my ($x) : word is not left out, since two tokens back a my list's ) is a parenthesised
-	// declaration's (my $x) : word, which perl accepts; upgrade when the lexer marks the ) that closes a my
-	// list (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e).
+	// shortcut: two cases stay accepted that perl refuses. my ($x) : word, since two tokens back a my list's
+	// ) is a parenthesised declaration's (my $x) : word, which perl accepts; and the colon that separates
+	// attributes ($c ? my $x : shared : 1), since a word and a colon before it look the same in
+	// $a ? $b ? 1 : c : d, which perl accepts. Upgrade both when the lexer marks that ) and the separator
+	// (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e).
 	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), NotPrev1: []Neighbour{{Kind: lexer.Variable}}}},
 	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotPrev2: declarators}},
 	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotNextIdent: true}},
