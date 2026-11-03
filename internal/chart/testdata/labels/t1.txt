@@ -9,12 +9,13 @@
 # environment: env -i, PATH and PERL5LIB only
 # timeout: 30s per file; a timeout is labelled environment
 # limit: a label speaks for perl's first error only; a later error in the same file is not seen
-# status: every category is proposed by label.sh until LABELS-review reviews it
+# status: reviewed against the evidence by LABELS-review (01a18fdc-d9cf), 2026-11-03; label.sh writes proposed
+# review: referee verdicts on the -DT stream up to the token perl refused; precedence when only referee-prec refuses there
 anonymous_code_attribute_order.t	accept
 anonymous_glob_reference.t	accept
 app_cpan_failure_status.t	accept
-archive_zip_archive_subclass.t	refuse	environment	proposed	Can't locate Archive/Zip.pm in @INC (you may need to install the Archive::Zip module) at src/test/resources/unit/archive_zip_archive_subclass.t line 4.
-archive_zip_members_matching_qr.t	refuse	environment	proposed	Can't locate Archive/Zip.pm in @INC (you may need to install the Archive::Zip module) at src/test/resources/unit/archive_zip_members_matching_qr.t line 7.
+archive_zip_archive_subclass.t	refuse	environment	reviewed	Can't locate Archive/Zip.pm in @INC (you may need to install the Archive::Zip module) at src/test/resources/unit/archive_zip_archive_subclass.t line 4.
+archive_zip_members_matching_qr.t	refuse	environment	reviewed	Can't locate Archive/Zip.pm in @INC (you may need to install the Archive::Zip module) at src/test/resources/unit/archive_zip_members_matching_qr.t line 7.
 array.t	accept
 array_autovivification.t	accept
 array_delete_exists.t	accept
@@ -34,13 +35,13 @@ b_deparse_prototype_block.t	accept
 b_deparse_source_visible.t	accept
 b_deparse_source_visible_anon_sub.t	accept
 b_end_av.t	accept
-b_flags_portable.t	refuse	environment	proposed	Can't locate B/Flags.pm in @INC (you may need to install the B::Flags module) at src/test/resources/unit/b_flags_portable.t line 6.
+b_flags_portable.t	refuse	environment	reviewed	Can't locate B/Flags.pm in @INC (you may need to install the B::Flags module) at src/test/resources/unit/b_flags_portable.t line 6.
 b_gv_io.t	accept
 b_hooks_endofscope_require.t	accept
 b_object_2svref.t	accept
 b_object_2svref_roundtrip.t	accept
 b_perlstring_wide.t	accept
-b_sv_object_2svref_thread_clone.t	refuse	environment	proposed	This Perl not built to support threads
+b_sv_object_2svref_thread_clone.t	refuse	environment	reviewed	This Perl not built to support threads
 bad_signature.t	accept
 bare_block_return.t	accept
 bare_sub_ternary_condition.t	accept
@@ -67,7 +68,7 @@ caller_block_terminated_copline.t	accept
 caller_conditional_block_line.t	accept
 caller_exported_first_statement_in_if.t	accept
 caller_if_condition_line.t	accept
-caller_line_number.t	refuse	environment	proposed	Can't locate Eval/Closure.pm in @INC (you may need to install the Eval::Closure module) at src/test/resources/unit/caller_line_number.t line 5.
+caller_line_number.t	refuse	environment	reviewed	Can't locate Eval/Closure.pm in @INC (you may need to install the Eval::Closure module) at src/test/resources/unit/caller_line_number.t line 5.
 caller_multiline_chained_call_line.t	accept
 caller_multiline_data_call_line.t	accept
 caller_negative_frame.t	accept
@@ -87,7 +88,7 @@ class_c3_componentised_regressions.t	accept
 class_default_accessor_names.t	accept
 class_incomplete_no_leak.t	accept
 class_lvalue_method.t	accept
-class_xsaccessor_named_cv.t	refuse	environment	proposed	Can't locate Class/XSAccessor.pm in @INC (you may need to install the Class::XSAccessor module) at src/test/resources/unit/class_xsaccessor_named_cv.t line 5.
+class_xsaccessor_named_cv.t	refuse	environment	reviewed	Can't locate Class/XSAccessor.pm in @INC (you may need to install the Class::XSAccessor module) at src/test/resources/unit/class_xsaccessor_named_cv.t line 5.
 class_xsaccessor_pp.t	accept
 cli_warning_overrides.t	accept
 clone.t	accept
@@ -99,18 +100,18 @@ code_ref_defined_exists.t	accept
 code_ref_forward_glob_assignment.t	accept
 code_too_large.t	accept
 coderef_survives_stash_delete.t	accept
-common_sense_refs.t	refuse	environment	proposed	Can't locate common/sense.pm in @INC (you may need to install the common::sense module) at src/test/resources/unit/common_sense_refs.t line 3.
+common_sense_refs.t	refuse	environment	reviewed	Can't locate common/sense.pm in @INC (you may need to install the common::sense module) at src/test/resources/unit/common_sense_refs.t line 3.
 compile_warning_handler.t	accept
 compound_assignment.t	accept
 compound_assignment_lvalue_order.t	accept
-compress_bzip2_streaming_inflater.t	refuse	environment	proposed	Can't locate Compress/Bzip2.pm in @INC (you may need to install the Compress::Bzip2 module) at src/test/resources/unit/compress_bzip2_streaming_inflater.t line 6.
-compress_bzip2_streaming_writer.t	refuse	environment	proposed	Can't locate Compress/Bzip2.pm in @INC (you may need to install the Compress::Bzip2 module) at src/test/resources/unit/compress_bzip2_streaming_writer.t line 6.
+compress_bzip2_streaming_inflater.t	refuse	environment	reviewed	Can't locate Compress/Bzip2.pm in @INC (you may need to install the Compress::Bzip2 module) at src/test/resources/unit/compress_bzip2_streaming_inflater.t line 6.
+compress_bzip2_streaming_writer.t	refuse	environment	reviewed	Can't locate Compress/Bzip2.pm in @INC (you may need to install the Compress::Bzip2 module) at src/test/resources/unit/compress_bzip2_streaming_writer.t line 6.
 compress_raw_bzip2.t	accept
 compress_raw_zlib_autodetect_regression.t	accept
 compress_raw_zlib_gzip_wrapper.t	accept
 compress_zlib_gzerror_eof.t	accept
 concat_assign_undef_warning.t	accept
-concat_assignment_env_taint.t	refuse	environment	proposed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/concat_assignment_env_taint.t line 1.
+concat_assignment_env_taint.t	refuse	environment	reviewed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/concat_assignment_env_taint.t line 1.
 concat_assignment_explicit_mutator.t	accept
 concat_assignment_overload.t	accept
 concat_assignment_tied_fetch.t	accept
@@ -125,7 +126,7 @@ constant_stash_proxy.t	accept
 context.t	accept
 context_semantics.t	accept
 control_flow.t	accept
-convert_bencode_xs_java.t	accept
+convert_bencode_xs_java.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 core_dump_guarded.t	accept
 core_global_additional_overrides.t	accept
 core_global_caller_concat.t	accept
@@ -165,17 +166,17 @@ cpan_shim_modules.t	accept
 cpan_static_recommends.t	accept
 cpan_tap_missing_prerequisite.t	accept
 cpan_test_dependency_blib.t	accept
-cpan_tooling_posix_yaml_syck.t	refuse	environment	proposed	Can't locate YAML/Syck.pm in @INC (you may need to install the YAML::Syck module) at src/test/resources/unit/cpan_tooling_posix_yaml_syck.t line 6.
+cpan_tooling_posix_yaml_syck.t	refuse	environment	reviewed	Can't locate YAML/Syck.pm in @INC (you may need to install the YAML::Syck module) at src/test/resources/unit/cpan_tooling_posix_yaml_syck.t line 6.
 cpan_tooling_regressions.t	accept
-cpan_tooling_runtime.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/cpan_tooling_runtime.t line 8.
-cpanel_json_xs_mojo_compat.t	refuse	environment	proposed	Can't locate Cpanel/JSON/XS.pm in @INC (you may need to install the Cpanel::JSON::XS module) at src/test/resources/unit/cpanel_json_xs_mojo_compat.t line 4.
-cpanel_json_xs_options.t	refuse	environment	proposed	Can't locate Cpanel/JSON/XS.pm in @INC (you may need to install the Cpanel::JSON::XS module) at src/test/resources/unit/cpanel_json_xs_options.t line 4.
-crypt_openssl_random_export.t	accept
-crypt_openssl_rsa_pkcs1_padding.t	accept
-crypt_prng.t	accept
+cpan_tooling_runtime.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/cpan_tooling_runtime.t line 8.
+cpanel_json_xs_mojo_compat.t	refuse	environment	reviewed	Can't locate Cpanel/JSON/XS.pm in @INC (you may need to install the Cpanel::JSON::XS module) at src/test/resources/unit/cpanel_json_xs_mojo_compat.t line 4.
+cpanel_json_xs_options.t	refuse	environment	reviewed	Can't locate Cpanel/JSON/XS.pm in @INC (you may need to install the Cpanel::JSON::XS module) at src/test/resources/unit/cpanel_json_xs_options.t line 4.
+crypt_openssl_random_export.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+crypt_openssl_rsa_pkcs1_padding.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+crypt_prng.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 current_sub_map_block.t	accept
 current_sub_sort_block.t	accept
-custom_warning_async_suspend_state.t	accept
+custom_warning_async_suspend_state.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 custom_warning_category_late_registration.t	accept
 custom_warning_category_payload.t	accept
 custom_warning_command_line_W.t	accept
@@ -183,32 +184,32 @@ custom_warning_external_registered_suppression.t	accept
 custom_warning_late_fatal_all.t	accept
 custom_warning_recursive_registered_frames.t	accept
 custom_warning_testbuilder_eval_suppression.t	accept
-custom_warning_thread_registration_isolation.t	refuse	environment	proposed	This Perl not built to support threads
-custom_warning_thread_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
+custom_warning_thread_registration_isolation.t	refuse	environment	reviewed	This Perl not built to support threads
+custom_warning_thread_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
 cwd.t	accept
 cwd_internal_alias_warnings.t	accept
 cwd_logical_physical.t	accept
-data_dump_filter.t	refuse	environment	proposed	Can't locate Data/Dump.pm in @INC (you may need to install the Data::Dump module) at src/test/resources/unit/data_dump_filter.t line 32.
+data_dump_filter.t	refuse	environment	reviewed	Can't locate Data/Dump.pm in @INC (you may need to install the Data::Dump module) at src/test/resources/unit/data_dump_filter.t line 32.
 data_dumper_numified.t	accept
 data_handle_absolute_position.t	accept
 data_handle_nested_require.t	accept
 data_section.t	accept
 data_section_package_data.t	accept
 data_section_seek.t	accept
-dbd_mysql_shim.t	accept
-dbd_pg.t	accept
-dbd_sqlite_version.t	accept
-dbi_ddl_sweeps_unreachable_cursor.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_ddl_sweeps_unreachable_cursor.t line 5.
-dbi_do_comment.t	accept
-dbi_execute_select_result.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_execute_select_result.t line 4.
-dbi_fetchrow_hashref_name_lc.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_fetchrow_hashref_name_lc.t line 4.
-dbi_handle_code_slots.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_handle_code_slots.t line 4.
-dbi_metadata_fetchall.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_metadata_fetchall.t line 7.
-dbi_primary_key.t	accept
-dbi_selectrow_finish.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_selectrow_finish.t line 5.
-dbi_sqlite_uri_connections.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_sqlite_uri_connections.t line 7.
-dbi_storable_bytes.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_storable_bytes.t line 4.
-dbi_threads_runtime_ownership.t	refuse	environment	proposed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_threads_runtime_ownership.t line 4.
+dbd_mysql_shim.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+dbd_pg.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+dbd_sqlite_version.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+dbi_ddl_sweeps_unreachable_cursor.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_ddl_sweeps_unreachable_cursor.t line 5.
+dbi_do_comment.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+dbi_execute_select_result.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_execute_select_result.t line 4.
+dbi_fetchrow_hashref_name_lc.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_fetchrow_hashref_name_lc.t line 4.
+dbi_handle_code_slots.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_handle_code_slots.t line 4.
+dbi_metadata_fetchall.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_metadata_fetchall.t line 7.
+dbi_primary_key.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+dbi_selectrow_finish.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_selectrow_finish.t line 5.
+dbi_sqlite_uri_connections.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_sqlite_uri_connections.t line 7.
+dbi_storable_bytes.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_storable_bytes.t line 4.
+dbi_threads_runtime_ownership.t	refuse	environment	reviewed	Can't locate DBI.pm in @INC (you may need to install the DBI module) at src/test/resources/unit/dbi_threads_runtime_ownership.t line 4.
 dbic_deep_cycle_weak_shift_regression.t	accept
 dbic_quiet_registry_destroy_handoff_regression.t	accept
 default_feature_bundle.t	accept
@@ -222,10 +223,10 @@ dereference_syntax.t	accept
 destroy.t	accept
 destroy_columnvalue_owner.t	accept
 destroy_zombie_captured_by_db_args.t	accept
-devel_cycle.t	refuse	environment	proposed	Can't locate Devel/Cycle.pm in @INC (you may need to install the Devel::Cycle module) at src/test/resources/unit/devel_cycle.t line 5.
-devel_lexalias_padwalker.t	refuse	environment	proposed	Can't locate Devel/Caller.pm in @INC (you may need to install the Devel::Caller module) at src/test/resources/unit/devel_lexalias_padwalker.t line 4.
+devel_cycle.t	refuse	environment	reviewed	Can't locate Devel/Cycle.pm in @INC (you may need to install the Devel::Cycle module) at src/test/resources/unit/devel_cycle.t line 5.
+devel_lexalias_padwalker.t	refuse	environment	reviewed	Can't locate Devel/Caller.pm in @INC (you may need to install the Devel::Caller module) at src/test/resources/unit/devel_lexalias_padwalker.t line 4.
 devel_peek_cvgv.t	accept
-devel_slowbless_java_xs.t	accept
+devel_slowbless_java_xs.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 die_after_lexical_filehandle_scope.t	accept
 die_object_eval.t	accept
 digest.t	accept
@@ -285,7 +286,7 @@ examples_warning_and_io.t	accept
 exiftool_exporter_autoload.t	accept
 experimental_equ_warning_category.t	accept
 experimental_signatures_warning.t	accept
-exporter_lexical_compile_scope.t	accept
+exporter_lexical_compile_scope.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 fcntl_accmode.t	accept
 fcntl_binary_text.t	accept
 fcntl_nofollow.t	accept
@@ -344,7 +345,7 @@ goto_captured_replaced_sub.t	accept
 goto_current_frame_localized_typeglob_args.t	accept
 goto_localized_typeglob_args.t	accept
 goto_named_redefinition.t	accept
-goto_tailcall_args_cleanup.t	accept
+goto_tailcall_args_cleanup.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 goto_tailcall_cleanup.t	accept
 goto_tailcall_core_destroy_order.t	accept
 harness_skip_all.t	accept
@@ -359,12 +360,12 @@ hash_util_fieldhash_identity.t	accept
 heredoc.t	accept
 heredoc_infix_continuation.t	accept
 hint_hash_scope_destroy.t	accept
-html_content_extractor_jsoup.t	accept
-html_parser_default_handler.t	refuse	environment	proposed	Can't locate HTML/Parser.pm in @INC (you may need to install the HTML::Parser module) at src/test/resources/unit/html_parser_default_handler.t line 4.
-html_parser_literal_eof.t	refuse	environment	proposed	Can't locate HTML/Parser.pm in @INC (you may need to install the HTML::Parser module) at src/test/resources/unit/html_parser_literal_eof.t line 4.
-http_cookies_as_string.t	refuse	environment	proposed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_as_string.t line 5.
-http_cookies_cookie2.t	refuse	environment	proposed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_cookie2.t line 6.
-http_cookies_request_header.t	refuse	environment	proposed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_request_header.t line 5.
+html_content_extractor_jsoup.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+html_parser_default_handler.t	refuse	environment	reviewed	Can't locate HTML/Parser.pm in @INC (you may need to install the HTML::Parser module) at src/test/resources/unit/html_parser_default_handler.t line 4.
+html_parser_literal_eof.t	refuse	environment	reviewed	Can't locate HTML/Parser.pm in @INC (you may need to install the HTML::Parser module) at src/test/resources/unit/html_parser_literal_eof.t line 4.
+http_cookies_as_string.t	refuse	environment	reviewed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_as_string.t line 5.
+http_cookies_cookie2.t	refuse	environment	reviewed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_cookie2.t line 6.
+http_cookies_request_header.t	refuse	environment	reviewed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/http_cookies_request_header.t line 5.
 http_tiny_method_installation.t	accept
 http_tiny_transport_failure.t	accept
 imported_core_builtin_override.t	accept
@@ -416,13 +417,13 @@ io_seek.t	accept
 io_select_nested_process_handle.t	accept
 io_slot_blessed.t	accept
 io_socket_method_fileno.t	accept
-io_socket_ssl_default_exports.t	refuse	environment	proposed	Can't locate IO/Socket/SSL.pm in @INC (you may need to install the IO::Socket::SSL module) at src/test/resources/unit/io_socket_ssl_default_exports.t line 5.
+io_socket_ssl_default_exports.t	refuse	environment	reviewed	Can't locate IO/Socket/SSL.pm in @INC (you may need to install the IO::Socket::SSL module) at src/test/resources/unit/io_socket_ssl_default_exports.t line 5.
 ipc_cmd_perlonjava_runtime_detection.t	accept
 ipc_open3.t	accept
 isa_operator_package_bareword.t	accept
 join_upgraded_latin1_provenance.t	accept
-json_parse_compat.t	refuse	environment	proposed	Can't locate JSON/Parse.pm in @INC (you may need to install the JSON::Parse module) at src/test/resources/unit/json_parse_compat.t line 4.
-json_xs_compat.t	refuse	environment	proposed	Can't locate JSON/XS.pm in @INC (you may need to install the JSON::XS module) at src/test/resources/unit/json_xs_compat.t line 4.
+json_parse_compat.t	refuse	environment	reviewed	Can't locate JSON/Parse.pm in @INC (you may need to install the JSON::Parse module) at src/test/resources/unit/json_parse_compat.t line 4.
+json_xs_compat.t	refuse	environment	reviewed	Can't locate JSON/XS.pm in @INC (you may need to install the JSON::XS module) at src/test/resources/unit/json_xs_compat.t line 4.
 jvm_eval_nested_compound_assignment.t	accept
 large_sub_interpreter_fallback.t	accept
 lazy_sub_verification_side_effects.t	accept
@@ -490,19 +491,19 @@ method_return_ref_ownership.t	accept
 mime_base64.t	accept
 mime_quotedprint.t	accept
 mime_quotedprint_utf8_flags.t	accept
-module_generic_xs.t	accept
+module_generic_xs.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 module_load_conditional.t	accept
 module_true_do_file_regression.t	accept
 mojolicious_filehandle_regressions.t	accept
 mojolicious_gzip_regressions.t	accept
-mojolicious_inherited_listener_regression.t	accept
-mojolicious_mount_lifecycle_regression.t	accept
+mojolicious_inherited_listener_regression.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+mojolicious_mount_lifecycle_regression.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 mojolicious_parser_diagnostic_parity.t	accept
 mojolicious_promise_lifecycle_regressions.t	accept
-mojolicious_skipped_closure_lifecycle_regression.t	accept
+mojolicious_skipped_closure_lifecycle_regression.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 mojolicious_socket_poll_regressions.t	accept
 moose_regexpref_constraint.t	accept
-moose_role_constant_method.t	accept
+moose_role_constant_method.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 mro_get_isarev_updates.t	accept
 mro_mixed.t	accept
 mro_pkg_gen_sub_definition.t	accept
@@ -514,8 +515,8 @@ named_sort_redefinition.t	accept
 named_sub_coderef_reuse_capture.t	accept
 named_sub_lexical_capture.t	accept
 named_undef_visible_code_slot.t	accept
-namespace_autoclean_constants.t	accept
-namespace_autoclean_xsaccessor.t	refuse	environment	proposed	Can't locate namespace/autoclean.pm in @INC (you may need to install the namespace::autoclean module) at src/test/resources/unit/namespace_autoclean_xsaccessor.t line 8.
+namespace_autoclean_constants.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+namespace_autoclean_xsaccessor.t	refuse	environment	reviewed	Can't locate namespace/autoclean.pm in @INC (you may need to install the namespace::autoclean module) at src/test/resources/unit/namespace_autoclean_xsaccessor.t line 8.
 namespace_bug_comprehensive.t	accept
 native_module_warning_caller.t	accept
 nested_call_caller_line.t	accept
@@ -523,14 +524,14 @@ nested_eval_block_goto_missing.t	accept
 nested_for_loops.t	accept
 nested_heredoc.t	accept
 nested_lexical_sub_reclosure.t	accept
-netssleay_baseline.t	accept
-netssleay_callback_and_empty_pkey.t	refuse	environment	proposed	Can't locate Net/SSLeay.pm in @INC (you may need to install the Net::SSLeay module) at src/test/resources/unit/netssleay_callback_and_empty_pkey.t line 4.
-netssleay_phase1.t	accept
-netssleay_phase2.t	accept
-netssleay_phase2b.t	accept
-netssleay_phase3_7.t	accept
-netssleay_phase4.t	accept
-netssleay_phase5_6.t	accept
+netssleay_baseline.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_callback_and_empty_pkey.t	refuse	environment	reviewed	Can't locate Net/SSLeay.pm in @INC (you may need to install the Net::SSLeay module) at src/test/resources/unit/netssleay_callback_and_empty_pkey.t line 4.
+netssleay_phase1.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_phase2.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_phase2b.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_phase3_7.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_phase4.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+netssleay_phase5_6.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 next_method_cache_context.t	accept
 next_module_prereq.t	accept
 non_begin_phaser_pragma_scope.t	accept
@@ -539,7 +540,7 @@ nonregex_baseline_closure.t	accept
 numeric_integral_nv_multiply.t	accept
 numification.t	accept
 numification_parser.t	accept
-object_pad_native_class.t	refuse	environment	proposed	Can't locate Object/Pad.pm in @INC (you may need to install the Object::Pad module) at src/test/resources/unit/object_pad_native_class.t line 4.
+object_pad_native_class.t	refuse	environment	reviewed	Can't locate Object/Pad.pm in @INC (you may need to install the Object::Pad module) at src/test/resources/unit/object_pad_native_class.t line 4.
 open_mode_whitespace.t	accept
 open_pragma.t	accept
 open_pragma_lexical_io.t	accept
@@ -568,11 +569,11 @@ pack_u0_unicode_directive_boundary.t	accept
 pack_u0_utf8_validation.t	accept
 pack_utf8.t	accept
 package_decl_stash.t	accept
-package_stash_constant_code.t	accept
-package_stash_get_or_add_symbol.t	refuse	environment	proposed	Can't locate Package/Stash.pm in @INC (you may need to install the Package::Stash module) at src/test/resources/unit/package_stash_get_or_add_symbol.t line 5.
-padwalker_closed_over.t	refuse	environment	proposed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_closed_over.t line 4.
-padwalker_set_closed_over.t	refuse	environment	proposed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_set_closed_over.t line 5.
-padwalker_var_name.t	refuse	environment	proposed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_var_name.t line 4.
+package_stash_constant_code.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+package_stash_get_or_add_symbol.t	refuse	environment	reviewed	Can't locate Package/Stash.pm in @INC (you may need to install the Package::Stash module) at src/test/resources/unit/package_stash_get_or_add_symbol.t line 5.
+padwalker_closed_over.t	refuse	environment	reviewed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_closed_over.t line 4.
+padwalker_set_closed_over.t	refuse	environment	reviewed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_set_closed_over.t line 5.
+padwalker_var_name.t	refuse	environment	reviewed	Can't locate PadWalker.pm in @INC (you may need to install the PadWalker module) at src/test/resources/unit/padwalker_var_name.t line 4.
 params_classify_primitives.t	accept
 parent.t	accept
 parser_syntax_error.t	accept
@@ -583,7 +584,7 @@ perlio_layers_capture.t	accept
 perlio_via.t	accept
 pipe_close_status.t	accept
 pipe_jperl_shebang.t	accept
-plack_runtime_regressions.t	refuse	environment	proposed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/plack_runtime_regressions.t line 54.
+plack_runtime_regressions.t	refuse	environment	reviewed	Can't locate HTTP/Cookies.pm in @INC (you may need to install the HTTP::Cookies module) at src/test/resources/unit/plack_runtime_regressions.t line 54.
 pod.t	accept
 posix_c99_math.t	accept
 posix_default_math_exports.t	accept
@@ -612,7 +613,7 @@ prototyped_call_caller_line.t	accept
 push_decl_array.t	accept
 push_declared_array.t	accept
 pvlv_filehandle.t	accept
-qualified_optional_constant.t	refuse	semantic	proposed	Bareword "Optional::Constants::OPTIONAL_VALUE" not allowed while "strict subs" in use at src/test/resources/unit/qualified_optional_constant.t line 6.
+qualified_optional_constant.t	refuse	semantic	reviewed	Bareword "Optional::Constants::OPTIONAL_VALUE" not allowed while "strict subs" in use at src/test/resources/unit/qualified_optional_constant.t line 6.
 rand_scalar_context.t	accept
 range.t	accept
 range_operand_context.t	accept
@@ -637,7 +638,7 @@ regex_define_subroutine_calls.t	accept
 regex_dynamic_deferred.t	accept
 regex_empty_pattern_origin.t	accept
 regex_extended_char_class_whitespace.t	accept
-regex_first_class_constant_provenance.t	refuse	environment	proposed	This Perl not built to support threads
+regex_first_class_constant_provenance.t	refuse	environment	reviewed	This Perl not built to support threads
 regex_full_casefold.t	accept
 regex_hex_escape_range.t	accept
 regex_hint_new_re_diagnostic.t	accept
@@ -646,8 +647,8 @@ regex_joni_native_define.t	accept
 regex_joni_native_extended_class.t	accept
 regex_joni_native_keep.t	accept
 regex_joni_native_named_character.t	accept
-regex_joni_native_script_run.t	refuse	environment	proposed	This Perl not built to support threads
-regex_joni_search_optimizer.t	refuse	environment	proposed	This Perl not built to support threads
+regex_joni_native_script_run.t	refuse	environment	reviewed	This Perl not built to support threads
+regex_joni_search_optimizer.t	refuse	environment	reviewed	This Perl not built to support threads
 regex_joni_unicode_property_family_policy.t	accept
 regex_joni_unicode_property_fold_policy.t	accept
 regex_long_quoted_token.t	accept
@@ -686,7 +687,7 @@ scalar_handle_read.t	accept
 scalar_handle_tty_errno.t	accept
 scalar_reference_code_destructor.t	accept
 scalar_reference_container_lifetime.t	accept
-scalar_watcher_java_xs.t	accept
+scalar_watcher_java_xs.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 sdbm_file_writeback.t	accept
 select_interrupt_errno.t	accept
 signatures.t	accept
@@ -778,11 +779,11 @@ system_command_binary_output.t	accept
 system_command_utf8_byte_output.t	accept
 system_path_lookup.t	accept
 tail_calls.t	accept
-taint_cwd.t	refuse	environment	proposed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_cwd.t line 1.
+taint_cwd.t	refuse	environment	reviewed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_cwd.t line 1.
 taint_env_path.t	accept
-taint_external_input.t	refuse	environment	proposed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_external_input.t line 1.
-taint_filespec.t	refuse	environment	proposed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_filespec.t line 1.
-taint_mode.t	refuse	environment	proposed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_mode.t line 1.
+taint_external_input.t	refuse	environment	reviewed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_external_input.t line 1.
+taint_filespec.t	refuse	environment	reviewed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_filespec.t line 1.
+taint_mode.t	refuse	environment	reviewed	"-T" is on the #! line, it must also be used on the command line at src/test/resources/unit/taint_mode.t line 1.
 template_generated_line_directive.t	accept
 term_readkey_regressions.t	accept
 term_size_perlio_shims.t	accept
@@ -793,62 +794,62 @@ test_deep_memory_regression.t	accept
 test_exporter_heavy_caller.t	accept
 test_more.t	accept
 text_balanced.t	accept
-text_csv.t	refuse	environment	proposed	Can't locate Text/CSV.pm in @INC (you may need to install the Text::CSV module) at src/test/resources/unit/text_csv.t line 5.
+text_csv.t	refuse	environment	reviewed	Can't locate Text/CSV.pm in @INC (you may need to install the Text::CSV module) at src/test/resources/unit/text_csv.t line 5.
 text_qrcode_java_xs.t	accept
-threads_api_phase29.t	refuse	environment	proposed	This Perl not built to support threads
-threads_basic_unadvertised.t	refuse	environment	proposed	This Perl not built to support threads
-threads_captured_object_lifetime.t	refuse	environment	proposed	This Perl not built to support threads
-threads_cleared_weak_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
-threads_clone_skip_no_autoload.t	refuse	environment	proposed	This Perl not built to support threads
-threads_compatibility_activation.t	refuse	environment	proposed	This Perl not built to support threads
-threads_cond_timedwait_deadline.t	refuse	environment	proposed	This Perl not built to support threads
-threads_condition_broadcast_stress.t	refuse	environment	proposed	This Perl not built to support threads
-threads_create_forms.t	refuse	environment	proposed	This Perl not built to support threads
-threads_destroy_method_return_rescue.t	refuse	environment	proposed	This Perl not built to support threads
-threads_destroy_weak_slot_rescue.t	refuse	environment	proposed	This Perl not built to support threads
-threads_detached_list.t	refuse	environment	proposed	This Perl not built to support threads
-threads_dynamic_code_array_state.t	refuse	environment	proposed	This Perl not built to support threads
-threads_end_block_ownership.t	refuse	environment	proposed	This Perl not built to support threads
-threads_end_captured_lifetime.t	refuse	environment	proposed	This Perl not built to support threads
-threads_entry_compile_error.t	refuse	environment	proposed	This Perl not built to support threads
-threads_eval_string.t	refuse	environment	proposed	This Perl not built to support threads
-threads_filehandle_inheritance.t	accept
-threads_index_clone_identity.t	refuse	environment	proposed	This Perl not built to support threads
-threads_inheritance_clone.t	refuse	environment	proposed	This Perl not built to support threads
-threads_inherited_pipe.t	refuse	environment	proposed	This Perl not built to support threads
-threads_inplace_edit.t	refuse	environment	proposed	This Perl not built to support threads
-threads_lazy_compile_snapshot_race.t	refuse	environment	proposed	This Perl not built to support threads
-threads_lazy_named_sub_unadvertised.t	refuse	environment	proposed	This Perl not built to support threads
-threads_lifecycle_unadvertised.t	refuse	environment	proposed	This Perl not built to support threads
-threads_lock_compatibility.t	refuse	environment	proposed	This Perl not built to support threads
-threads_lock_conditions_unadvertised.t	refuse	environment	proposed	This Perl not built to support threads
-threads_native_resource_diagnostics.t	refuse	environment	proposed	This Perl not built to support threads
-threads_postfix_create_and_invalid_entry.t	refuse	environment	proposed	This Perl not built to support threads
-threads_public_api_surface.t	refuse	environment	proposed	This Perl not built to support threads
-threads_qr_literal_validation.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_callback_clone_isolation.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_callback_reuse.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_callback_shared_wrapper.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_capture_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_fail_verb.t	refuse	environment	proposed	This Perl not built to support threads
-threads_regex_literal_compile_warning.t	refuse	environment	proposed	This Perl not built to support threads
-threads_runtime_regex_lexical_capture.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_blessed_tied.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_child_capture_release.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_destructive_share.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_fetch_proxy_lifetime.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_final_destroy.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_graphs.t	refuse	environment	proposed	This Perl not built to support threads
+threads_api_phase29.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_basic_unadvertised.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_captured_object_lifetime.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_cleared_weak_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_clone_skip_no_autoload.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_compatibility_activation.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_cond_timedwait_deadline.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_condition_broadcast_stress.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_create_forms.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_destroy_method_return_rescue.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_destroy_weak_slot_rescue.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_detached_list.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_dynamic_code_array_state.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_end_block_ownership.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_end_captured_lifetime.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_entry_compile_error.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_eval_string.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_filehandle_inheritance.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+threads_index_clone_identity.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_inheritance_clone.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_inherited_pipe.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_inplace_edit.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_lazy_compile_snapshot_race.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_lazy_named_sub_unadvertised.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_lifecycle_unadvertised.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_lock_compatibility.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_lock_conditions_unadvertised.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_native_resource_diagnostics.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_postfix_create_and_invalid_entry.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_public_api_surface.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_qr_literal_validation.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_callback_clone_isolation.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_callback_reuse.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_callback_shared_wrapper.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_capture_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_fail_verb.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_regex_literal_compile_warning.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_runtime_regex_lexical_capture.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_blessed_tied.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_child_capture_release.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_destructive_share.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_fetch_proxy_lifetime.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_final_destroy.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_graphs.t	refuse	environment	reviewed	This Perl not built to support threads
 threads_shared_inactive_mode.t	accept
-threads_shared_lexical_reassignment.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_nested_proxies.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_reference_validation.t	refuse	environment	proposed	This Perl not built to support threads
-threads_shared_unadvertised.t	refuse	environment	proposed	This Perl not built to support threads
-threads_source_mapper_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
-threads_super_chain.t	refuse	environment	proposed	This Perl not built to support threads
-threads_user_property_definition_concurrency.t	refuse	environment	proposed	This Perl not built to support threads
-threads_user_property_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
-threads_weak_backref_snapshot.t	refuse	environment	proposed	This Perl not built to support threads
+threads_shared_lexical_reassignment.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_nested_proxies.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_reference_validation.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_shared_unadvertised.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_source_mapper_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_super_chain.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_user_property_definition_concurrency.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_user_property_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
+threads_weak_backref_snapshot.t	refuse	environment	reviewed	This Perl not built to support threads
 tie_array.t	accept
 tie_autovivification.t	accept
 tie_bareword_filehandle_package.t	accept
@@ -874,8 +875,8 @@ time_hires_override.t	accept
 time_hires_ualarm.t	accept
 time_hires_version.t	accept
 time_localtime_core.t	accept
-time_moment_java_xs.t	refuse	environment	proposed	Can't locate Time/Moment.pm in @INC (you may need to install the Time::Moment module) at src/test/resources/unit/time_moment_java_xs.t line 5.
-time_moment_storable.t	refuse	environment	proposed	Can't locate Time/Moment.pm in @INC (you may need to install the Time::Moment module) at src/test/resources/unit/time_moment_storable.t line 6.
+time_moment_java_xs.t	refuse	environment	reviewed	Can't locate Time/Moment.pm in @INC (you may need to install the Time::Moment module) at src/test/resources/unit/time_moment_java_xs.t line 5.
+time_moment_storable.t	refuse	environment	reviewed	Can't locate Time/Moment.pm in @INC (you may need to install the Time::Moment module) at src/test/resources/unit/time_moment_storable.t line 6.
 top_level_coderef_call.t	accept
 transliterate.t	accept
 transliterate_dynamic_warning_scope.t	accept
@@ -893,12 +894,12 @@ typeglob_undef_slot_semantics.t	accept
 umask_restrictive.t	accept
 undef_lvalue.t	accept
 undef_typeglob_sub.t	accept
-unicode_gcstring_substr.t	refuse	environment	proposed	Can't locate Unicode/GCString.pm in @INC (you may need to install the Unicode::GCString module) at src/test/resources/unit/unicode_gcstring_substr.t line 6.
+unicode_gcstring_substr.t	refuse	environment	reviewed	Can't locate Unicode/GCString.pm in @INC (you may need to install the Unicode::GCString module) at src/test/resources/unit/unicode_gcstring_substr.t line 6.
 unicode_normalize_lowlevel.t	accept
 unicode_property_caret_negation.t	accept
 unicode_property_user_sub_regression.t	accept
 unicode_surrogate_scalars.t	accept
-unicode_ucd_max_cp.t	refuse	environment	proposed	This Perl not built to support threads
+unicode_ucd_max_cp.t	refuse	environment	reviewed	This Perl not built to support threads
 universal_can_super_caller.t	accept
 universal_does_overridden_isa.t	accept
 universal_does_unblessed_and_parent.t	accept
@@ -920,9 +921,9 @@ version_no_import.t	accept
 version_numify.t	accept
 version_overflow_compare.t	accept
 vstring.t	accept
-want_combined_context.t	refuse	environment	proposed	Can't locate Want.pm in @INC (you may need to install the Want module) at src/test/resources/unit/want_combined_context.t line 5.
+want_combined_context.t	refuse	environment	reviewed	Can't locate Want.pm in @INC (you may need to install the Want module) at src/test/resources/unit/want_combined_context.t line 5.
 wantarray.t	accept
-wanted_portable_context.t	accept
+wanted_portable_context.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
 warn_die.t	accept
 warning_callee_lexical_context.t	accept
 warnings.t	accept
@@ -944,21 +945,21 @@ weaken.t	accept
 weaken_probe_captured_lexical.t	accept
 weaken_readonly_ref.t	accept
 x_shebang_switch.t	accept
-xml_libxml_external_dtd.t	refuse	environment	proposed	Can't locate XML/LibXML.pm in @INC (you may need to install the XML::LibXML module) at src/test/resources/unit/xml_libxml_external_dtd.t line 5.
-xml_libxml_get_attributes.t	accept
-xml_libxml_reader_core.t	refuse	environment	proposed	Can't locate XML/LibXML/Reader.pm in @INC (you may need to install the XML::LibXML::Reader module) at src/test/resources/unit/xml_libxml_reader_core.t line 5.
+xml_libxml_external_dtd.t	refuse	environment	reviewed	Can't locate XML/LibXML.pm in @INC (you may need to install the XML::LibXML module) at src/test/resources/unit/xml_libxml_external_dtd.t line 5.
+xml_libxml_get_attributes.t	refuse	environment	reviewed	perl -c stops at a skip (skip_all or exit) in BEGIN; the file is not compiled	-DT capture: truncated: the -DT stream stopped before the file's EOF (perl exited 0)
+xml_libxml_reader_core.t	refuse	environment	reviewed	Can't locate XML/LibXML/Reader.pm in @INC (you may need to install the XML::LibXML::Reader module) at src/test/resources/unit/xml_libxml_reader_core.t line 5.
 xml_libxml_relaxng.t	accept
-xml_libxslt.t	refuse	environment	proposed	Can't locate XML/LibXML.pm in @INC (you may need to install the XML::LibXML module) at src/test/resources/unit/xml_libxslt.t line 4.
-xml_parser_current_element.t	refuse	environment	proposed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_current_element.t line 5.
-xml_parser_external_entity_sysid.t	refuse	environment	proposed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_external_entity_sysid.t line 5.
+xml_libxslt.t	refuse	environment	reviewed	Can't locate XML/LibXML.pm in @INC (you may need to install the XML::LibXML module) at src/test/resources/unit/xml_libxslt.t line 4.
+xml_parser_current_element.t	refuse	environment	reviewed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_current_element.t line 5.
+xml_parser_external_entity_sysid.t	refuse	environment	reviewed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_external_entity_sysid.t line 5.
 xml_parser_parsefile_typeglob.t	accept
-xml_parser_tied_handle.t	refuse	environment	proposed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_tied_handle.t line 8.
+xml_parser_tied_handle.t	refuse	environment	reviewed	Can't locate XML/Parser.pm in @INC (you may need to install the XML::Parser module) at src/test/resources/unit/xml_parser_tied_handle.t line 8.
 xstring.t	accept
 yaml_blessed_load.t	accept
-yaml_pp.t	refuse	environment	proposed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp.t line 4.
-yaml_pp_dump_method.t	refuse	environment	proposed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp_dump_method.t line 4.
-yaml_pp_utf8_octets.t	refuse	environment	proposed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp_utf8_octets.t line 5.
-yaml_xs_utf8_octets.t	refuse	environment	proposed	Can't locate YAML/XS.pm in @INC (you may need to install the YAML::XS module) at src/test/resources/unit/yaml_xs_utf8_octets.t line 6.
+yaml_pp.t	refuse	environment	reviewed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp.t line 4.
+yaml_pp_dump_method.t	refuse	environment	reviewed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp_dump_method.t line 4.
+yaml_pp_utf8_octets.t	refuse	environment	reviewed	Can't locate YAML/PP.pm in @INC (you may need to install the YAML::PP module) at src/test/resources/unit/yaml_pp_utf8_octets.t line 5.
+yaml_xs_utf8_octets.t	refuse	environment	reviewed	Can't locate YAML/XS.pm in @INC (you may need to install the YAML::XS module) at src/test/resources/unit/yaml_xs_utf8_octets.t line 6.
 zz_ampersand_postfix_deref.t	accept
 zz_b_anonymous_cv_introspection.t	accept
 zz_block_lexical_call_log_lifetime.t	accept
@@ -985,7 +986,7 @@ zz_strict_deref_compile_error.t	accept
 zzzz_cgi_sparse_rearrange.t	accept
 zzzz_env_byte_string.t	accept
 zzzz_file_temp_filehandle_identity.t	accept
-zzzz_html_entities_undef_unsafe.t	refuse	environment	proposed	Can't locate HTML/Entities.pm in @INC (you may need to install the HTML::Entities module) at src/test/resources/unit/zzzz_html_entities_undef_unsafe.t line 4.
+zzzz_html_entities_undef_unsafe.t	refuse	environment	reviewed	Can't locate HTML/Entities.pm in @INC (you may need to install the HTML::Entities module) at src/test/resources/unit/zzzz_html_entities_undef_unsafe.t line 4.
 zzzz_iv64_config.t	accept
 zzzz_iv64_pack_quad.t	accept
 zzzz_iv64_scalar_exactness.t	accept
