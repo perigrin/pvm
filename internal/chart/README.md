@@ -271,6 +271,9 @@ ATTRLIST holding every attribute and its argument as an opaque string
   not matched: `:use shared`, `:my shared` and `:no Foo` are refused where
   perl accepts them. `grammar.OtherWord` stands for a word no class names, so
   the set of such names grows as classes name words.
+- `state` maps to KW_MY with or without `use feature 'state'`, so
+  `state $x :Foo(1) = 2;` is accepted where perl refuses it without the
+  feature.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
