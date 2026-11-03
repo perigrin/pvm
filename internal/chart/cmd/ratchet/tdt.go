@@ -4,6 +4,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,7 +107,26 @@ func keyText(c grammar.TokenClass) string {
 			add([]string{"Prev2", "Prev1", "Next"}[i], fmt.Sprintf("%+v", *n), true)
 		}
 	}
+	add("NotText", digest(c.NotText), len(c.NotText) > 0)
+	var prev []string
+	for _, n := range c.NotPrev1 {
+		prev = append(prev, fmt.Sprintf("%+v", n))
+	}
+	add("NotPrev1", digest(prev), len(prev) > 0)
+	if c.NotNext != nil {
+		add("NotNext", fmt.Sprintf("%+v", *c.NotNext), true)
+	}
 	return strings.Join(p, " ")
+}
+
+// digest writes an exclusion list in full when it is short, and as its length and a hash of its sorted
+// members when it is not, so a key stays readable and two lists never share one.
+func digest(items []string) string {
+	s := strings.Join(slices.Sorted(slices.Values(items)), ",")
+	if len(s) <= 60 {
+		return "[" + s + "]"
+	}
+	return fmt.Sprintf("#%d:%x", len(items), sha256.Sum256([]byte(s)))[:16]
 }
 
 // tdtKeys measures the tdt keys of decls (the grammar's token classes; names are the terminals by id)
