@@ -436,6 +436,8 @@ func TestTokenNotNextIdent(t *testing.T) {
 	}{
 		{"unnamed word", word("shared"), nil},
 		{"named word", word("if"), nil},
+		{"word opening with ::", word("::foo"), []int{1}},
+		{"word opening with _", word("_a"), nil},
 		{"qw", TokenView{Kind: lexer.Quote, Text: "qw(a)", Prefix: 'w'}, nil},
 		{"qq", TokenView{Kind: lexer.Quote, Text: "qq(a)", Prefix: 'Q'}, nil},
 		{"s", TokenView{Kind: lexer.Quote, Text: "s/a/b/", Prefix: 's'}, nil},
