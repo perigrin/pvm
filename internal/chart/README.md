@@ -277,6 +277,17 @@ ATTRLIST holding every attribute and its argument as an opaque string
 - `when` maps to KW_WHEN with or without `use feature 'switch'`, so
   `$y = 1 when $x;` is accepted where perl refuses it without the feature
   (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
+- `given` and `default` map to KW_GIVEN and KW_DEFAULT with or without
+  `use feature 'switch'`, so `given ($x) { 1 }` and `given ($x) { default { 1 } }`
+  are accepted where perl refuses them without the feature, as a bareword
+  call (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). `when` and `default` outside
+  a topicalizer are accepted too: their scope refusals are waypoint 2's.
+- `for our ($a, $b) (@l) { 1 }` and `for state ($a) (@l) { 1 }` are accepted,
+  where toke.c croaks "Missing $ on loop variable": only `my` may open a
+  parenthesised iteration list, and toke.c checks it when it lexes `for` at
+  a statement start (`yyl_foreach`), which the chart's KW_MY, one terminal for
+  `my`, `our` and `state`, cannot see. Not a syntax error, so no refused
+  snippet; it wants a lexer issue (none filed yet).
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - A `:` after `my`, `our` or `state` and a variable is the attribute colon when
   an identifier character follows (toke.c's `yyl_colon`), so

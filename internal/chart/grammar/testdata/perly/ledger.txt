@@ -18,7 +18,7 @@ perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattr
 
 perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE	-
 
-perly.y:317 bare_statement_default: KW_DEFAULT block	-
+perly.y:317 bare_statement_default: KW_DEFAULT block	ported
 
 perly.y:325 bare_statement_defer: KW_DEFER mblock	-
 
@@ -26,23 +26,23 @@ perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	ported
 
 perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON	-
 
-perly.y:348 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON $@9 texpr PERLY_SEMICOLON $@10 mintro mnexpr PERLY_PAREN_CLOSE mblock	-
+perly.y:348 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON $@9 texpr PERLY_SEMICOLON $@10 mintro mnexpr PERLY_PAREN_CLOSE mblock	ported
 
-perly.y:379 bare_statement_for: KW_FOR KW_MY remember my_scalar PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:379 bare_statement_for: KW_FOR KW_MY remember my_scalar PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:392 bare_statement_for: KW_FOR KW_MY remember PERLY_PAREN_OPEN my_list_of_itervars PERLY_PAREN_CLOSE PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:392 bare_statement_for: KW_FOR KW_MY remember PERLY_PAREN_OPEN my_list_of_itervars PERLY_PAREN_CLOSE PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:411 bare_statement_for: KW_FOR scalar PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:411 bare_statement_for: KW_FOR scalar PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:423 bare_statement_for: KW_FOR my_refgen remember my_var @11 PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:423 bare_statement_for: KW_FOR my_refgen remember my_var @11 PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:452 bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:452 bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:474 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	-
+perly.y:474 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
 perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock	-
 
-perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	-
+perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	ported
 
 perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
 
@@ -66,7 +66,7 @@ perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY
 
 perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON	fitted
 
-perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	-
+perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	ported
 
 perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont	ported
 
@@ -116,7 +116,7 @@ perly.y:880 barestmt: bare_statement_class_declaration	-
 
 perly.y:881 barestmt: bare_statement_class_definition	-
 
-perly.y:882 barestmt: bare_statement_default	-
+perly.y:882 barestmt: bare_statement_default	ported
 
 perly.y:883 barestmt: bare_statement_defer	-
 
@@ -124,11 +124,11 @@ perly.y:884 barestmt: bare_statement_expression	ported
 
 perly.y:885 barestmt: bare_statement_field_declaration	-
 
-perly.y:886 barestmt: bare_statement_for	-
+perly.y:886 barestmt: bare_statement_for	ported
 
 perly.y:887 barestmt: bare_statement_format	-
 
-perly.y:888 barestmt: bare_statement_given	-
+perly.y:888 barestmt: bare_statement_given	ported
 
 perly.y:889 barestmt: bare_statement_if	ported
 
@@ -152,7 +152,7 @@ perly.y:898 barestmt: bare_statement_until	ported
 
 perly.y:899 barestmt: bare_statement_utilize	ported
 
-perly.y:900 barestmt: bare_statement_when	-
+perly.y:900 barestmt: bare_statement_when	ported
 
 perly.y:901 barestmt: bare_statement_while	ported
 
@@ -198,9 +198,9 @@ perly.y:981 finally: KW_FINALLY block	-
 
 perly.y:986 mintro: %empty	ported
 
-perly.y:993 nexpr: empty	-
+perly.y:993 nexpr: empty	ported
 
-perly.y:994 nexpr: sideff	-
+perly.y:994 nexpr: sideff	ported
 
 perly.y:998 texpr: %empty	ported
 
@@ -210,7 +210,7 @@ perly.y:1006 iexpr: expr	ported
 
 perly.y:1011 mexpr: expr	ported
 
-perly.y:1015 mnexpr: nexpr	-
+perly.y:1015 mnexpr: nexpr	ported
 
 perly.y:1019 formname: BAREWORD	-
 
@@ -632,33 +632,33 @@ perly.y:1797 optrepl: empty	-
 
 perly.y:1798 optrepl: PERLY_SLASH expr	-
 
-perly.y:1803 my_scalar: scalar	-
+perly.y:1803 my_scalar: scalar	ported
 
-perly.y:1808 list_of_itervars: list_of_itervars PERLY_COMMA	-
+perly.y:1808 list_of_itervars: list_of_itervars PERLY_COMMA	ported
 
-perly.y:1810 list_of_itervars: list_of_itervars PERLY_COMMA scalar	-
+perly.y:1810 list_of_itervars: list_of_itervars PERLY_COMMA scalar	ported
 
-perly.y:1814 list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var	-
+perly.y:1814 list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var	ported
 
-perly.y:1818 list_of_itervars: scalar	-
+perly.y:1818 list_of_itervars: scalar	ported
 
-perly.y:1819 list_of_itervars: REFGEN my_var	-
+perly.y:1819 list_of_itervars: REFGEN my_var	ported
 
-perly.y:1825 my_list_of_itervars: list_of_itervars	-
+perly.y:1825 my_list_of_itervars: list_of_itervars	ported
 
-perly.y:1829 my_var: scalar	-
+perly.y:1829 my_var: scalar	ported
 
-perly.y:1830 my_var: ary	-
+perly.y:1830 my_var: ary	ported
 
-perly.y:1831 my_var: hsh	-
+perly.y:1831 my_var: hsh	ported
 
-perly.y:1834 refgen_topic: my_var	-
+perly.y:1834 refgen_topic: my_var	ported
 
-perly.y:1835 refgen_topic: amper	-
+perly.y:1835 refgen_topic: amper	ported
 
-perly.y:1838 my_refgen: KW_MY REFGEN	-
+perly.y:1838 my_refgen: KW_MY REFGEN	ported
 
-perly.y:1839 my_refgen: REFGEN KW_MY	-
+perly.y:1839 my_refgen: REFGEN KW_MY	ported
 
 perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
 
