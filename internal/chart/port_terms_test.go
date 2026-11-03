@@ -79,8 +79,8 @@ func TestPortTermsRefusals(t *testing.T) {
 	}
 }
 
-// terminalsOf is the names of the terminals admitting the token of src that starts with text.
-func terminalsOf(t *testing.T, src, text string) []string {
+// terminalsOf is the names of the terminals admitting the nth (from 0) token of src whose text is text.
+func terminalsOf(t *testing.T, src, text string, n int) []string {
 	t.Helper()
 	tab, err := committed()
 	if err != nil || tab == nil {
@@ -88,7 +88,10 @@ func terminalsOf(t *testing.T, src, text string) []string {
 	}
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
 	for _, tok := range s.Tokens {
-		if raw := s.Raw[tok.Index]; strings.HasPrefix(src[raw.Start:], text) && raw.End-raw.Start == len(text) {
+		if raw := s.Raw[tok.Index]; src[raw.Start:raw.End] == text {
+			if n--; n >= 0 {
+				continue
+			}
 			var names []string
 			for _, id := range tab.TerminalSets[tok.TerminalSet] {
 				names = append(names, tab.Symbols[id].Name)
@@ -96,7 +99,7 @@ func terminalsOf(t *testing.T, src, text string) []string {
 			return names
 		}
 	}
-	t.Fatalf("no token %q in %q", text, src)
+	t.Fatalf("no such token %q in %q", text, src)
 	return nil
 }
 
@@ -108,15 +111,23 @@ func TestPortTermsHashWordIsCall(t *testing.T) {
 			t.Errorf("%q is refused at %d (expected %v)", src, v.at, v.expected)
 		}
 	}
-	if got := terminalsOf(t, "$y = +{ time };", "time"); !slices.Contains(got, "FUNC0") {
+	if got := terminalsOf(t, "$y = +{ time };", "time", 0); !slices.Contains(got, "FUNC0") {
 		t.Errorf("time inside +{ } admits %v, want the FUNC0 call", got)
 	}
-	if got := terminalsOf(t, "$y = +{ time };", "{"); !slices.Equal(got, []string{"HASHBRACK"}) {
+	if got := terminalsOf(t, "$y = +{ time };", "{", 0); !slices.Equal(got, []string{"HASHBRACK"}) {
 		t.Errorf("the { of +{ } admits %v, want HASHBRACK", got)
 	}
-	for _, src := range []string{"$h{time};", "$h->{time};", "$h[0]{time};", "$h{a}{time};", "f(){time};"} {
-		if got := terminalsOf(t, src, "{"); slices.Contains(got, "HASHBRACK") {
-			t.Errorf("the { of %q admits %v, a subscript's brace is not an anonymous hash's", src, got)
+	// Each row is a { that ClassOf reads as a subscript's or a block's, and which one of the source's.
+	for _, c := range []struct {
+		src string
+		n   int
+	}{
+		{"$h{time};", 0}, {"$h->{time};", 0}, {"$h[0]{time};", 0}, {"$h{a}{time};", 1},
+		{"${ $r }{time};", 0}, {"${ $r }{time};", 1}, {"@{ $r }{time};", 0}, {"@{ $r }{time};", 1},
+		{"do { time };", 0}, {"if ($c) { time }", 0},
+	} {
+		if got := terminalsOf(t, c.src, "{", c.n); slices.Contains(got, "HASHBRACK") {
+			t.Errorf("the { number %d of %q admits %v, only an anonymous hash's brace is HASHBRACK", c.n, c.src, got)
 		}
 	}
 }
