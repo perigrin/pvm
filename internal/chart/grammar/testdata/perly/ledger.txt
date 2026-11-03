@@ -76,7 +76,7 @@ perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	-
 
 perly.y:770 sigsub_or_method_named: KW_METHOD_named	-
 
-perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	fitted
+perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	ported
 
 perly.y:783 empty: %empty	ported
 

@@ -164,8 +164,7 @@ func FuzzRecognize(f *testing.F) {
 		if d := oracleDisagreement(tab, builds(tab), lattices[0]); d != "" {
 			t.Fatalf("%q: %s", src, d)
 		}
-		refSets := refRun(tab, tokenIDs(lattices[0]))
-		want := refAccepts(tab, refSets)
+		refSets, want := refRun(tab, tokenIDs(lattices[0]))
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
@@ -220,7 +219,8 @@ func TestWarmExpectedMatchesReference(t *testing.T) {
 	for _, src := range inputs {
 		l := fuzzLattice(tab, src)
 		c := mustRecognize(t, warm, l)
-		for pos, items := range refRun(tab, tokenIDs(l)) {
+		sets, _ := refRun(tab, tokenIDs(l))
+		for pos, items := range sets {
 			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(tab, items)) {
 				t.Fatalf("%q node %d: Expected %v (err %v) from the warm recognizer, %v from the reference", src, pos, got, err, refExpected(tab, items))
 			}
@@ -282,8 +282,7 @@ func tokenIDs(l *lex.Lattice[lex.None]) []int {
 // does over rules; otherwise it says what differs. l is a linear lattice, one
 // edge per node but the first, so edge i is token i.
 func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
-	sets := refRun(rules, tokenIDs(l))
-	want := refAccepts(rules, sets)
+	sets, want := refRun(rules, tokenIDs(l))
 	for _, opts := range optionCombos {
 		c, err := Recognize(build(opts), l)
 		if err != nil {
