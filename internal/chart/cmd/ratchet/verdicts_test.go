@@ -238,11 +238,20 @@ func committedTables(t *testing.T) *grammar.Tables {
 // has a token the table cannot map, so it is refused, and that token neither
 // counts as a token nor holds a terminal, so it does not lower the width.
 func TestChartInputsUnmappedIsRefused(t *testing.T) {
-	srcs := map[string][]byte{"ok.pl": []byte("1;"), "bad.pl": []byte("print 1;")}
+	srcs := map[string][]byte{"ok.pl": []byte("1;"), "rep.pl": []byte("1; 1; 1; 1;"), "bad.pl": []byte("print 1;")}
 	in := chartInputs(committedTables(t), srcs, nil)
 	ok, err := in.Chart("ok.pl")
 	if err != nil || !ok.Accepted {
 		t.Fatalf("1; = %+v, %v; want accepted", ok, err)
+	}
+	// The exact counts feed baselined keys: node 0 is neither a position nor
+	// an item, and hits and positions are not swapped.
+	if ok.Positions != 2 || ok.Items != 11 || ok.Hits != 0 {
+		t.Errorf("1; = %+v; want 2 positions, 11 items, 0 hits", ok)
+	}
+	rep, err := in.Chart("rep.pl")
+	if err != nil || rep.Positions != 8 || rep.Items != 44 || rep.Hits != 3 {
+		t.Errorf("1; 1; 1; 1; = %+v, %v; want 8 positions, 44 items, 3 hits", rep, err)
 	}
 	bad, err := in.Chart("bad.pl")
 	if err != nil || bad.Accepted {
