@@ -107,8 +107,8 @@ type TokenClass struct {
 	NotPrev1 []Neighbour
 	NotNext  *Neighbour
 	// NotPrev2 is NotPrev1 for the token two back. NotNextIdent excludes the keys whose next token
-	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word of any text, a
-	// keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
+	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word opening with a
+	// letter or _ (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
 	NotPrev2     []Neighbour
 	NotNextIdent bool
 }
@@ -173,9 +173,11 @@ type TokenTable struct {
 	kinds  uint64
 	// anyWord and identQuote are the class ids of a word, and of a quote-like opening with a letter,
 	// that no neighbour class names: they stand for "an identifier follows" in NotNextIdent.
-	anyWord, identQuote int
-	texts               []string    // by text id - 1, for Text()
-	nbs                 []Neighbour // by class id - 1, for Text()
+	// nonIdentWord is that of a word no class names that does not open with a letter or _ (::foo),
+	// which is no neighbour class's unnamed word either.
+	anyWord, identQuote, nonIdentWord int
+	texts                             []string    // by text id - 1, for Text()
+	nbs                               []Neighbour // by class id - 1, for Text()
 }
 
 // Token is a token with its text and class looked up in the dictionaries.
@@ -216,15 +218,19 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 		ct = tt.emptyText
 	}
 	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
-	if it.Class == 0 {
-		switch {
-		case t.Kind == lexer.Word:
-			it.Class = tt.anyWord
-		case t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26:
-			it.Class = tt.identQuote
-		}
+	switch {
+	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
+		it.Class = tt.nonIdentWord
+	case it.Class != 0:
+	case t.Kind == lexer.Word:
+		it.Class = tt.anyWord
+	case t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26:
+		it.Class = tt.identQuote
 	}
 }
+
+// identStart is whether b can open an identifier, as toke.c's isIDFIRST reads an ASCII byte.
+func identStart(b byte) bool { return b == '_' || b|0x20-'a' < 26 }
 
 // CompileTokens builds the table. A part is tested only below the classes
 // that name it, so the table is refined by a neighbour only where a class
@@ -271,7 +277,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 	}
 	tt.Edge = tt.ClassID(Boundary)
-	tt.anyWord, tt.identQuote = len(tt.nbs)+1, len(tt.nbs)+2
+	tt.anyWord, tt.identQuote, tt.nonIdentWord = len(tt.nbs)+1, len(tt.nbs)+2, len(tt.nbs)+3
 	var ident []int // every class id of a token starting with an identifier character
 	for i, nb := range tt.nbs {
 		if nb.Kind == lexer.Word {
@@ -435,6 +441,8 @@ func (tt *TokenTable) Text() []byte {
 			return "word"
 		case part >= 5 && v == tt.identQuote:
 			return "quote-like"
+		case part >= 5 && v == tt.nonIdentWord:
+			return "non-identifier word"
 		case part >= 5:
 			return fmt.Sprintf("%+v", tt.nbs[v-1])
 		}
