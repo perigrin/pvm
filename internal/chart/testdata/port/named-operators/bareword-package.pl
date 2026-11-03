@@ -1,1 +1,1 @@
-Foo::Bar;
+$y = Foo::Bar;

@@ -1,1 +1,1 @@
-__PACKAGE__;
+$y = __PACKAGE__;

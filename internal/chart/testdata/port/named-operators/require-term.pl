@@ -1,1 +1,1 @@
-require Foo::Bar;
+$y = require Foo::Bar;
