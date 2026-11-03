@@ -214,7 +214,9 @@ cont: KW_CONTINUE block # perly.y:974
 
 mintro: # perly.y:986
 
+# perly.y:993 nexpr: empty
 
+# perly.y:994 nexpr: sideff
 
 texpr: # perly.y:998
 
@@ -224,6 +226,7 @@ iexpr: expr # perly.y:1006
 
 mexpr: expr # perly.y:1011
 
+# perly.y:1015 mnexpr: nexpr
 
 # perly.y:1019 formname: BAREWORD
 
