@@ -29,11 +29,15 @@ const citePrefix = "perly.y:"
 var comparisonChains = []int{1466, 1468, 1484, 1486}
 
 // exclusionReasons is the closed list of reasons an `excluded` mark may give.
-var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery"}
+//
+// interpolation-only: toke.c emits POSTJOIN only in interpolation states (toke.c:2249, S_postderef
+// under LEX_INTERPNORMAL, and toke.c:10142, LEX_INTERPEND, at 94e50866), and pvm lexes an
+// interpolated string as one Quote token, so no token stands for it.
+var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery", "interpolation-only"}
 
 // reasonLines pins a reason to the lines it is true of. refused-in-action is
 // pinned to refused-in-action.txt; conditional-refusal is left to review.
-var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}}
+var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}, "interpolation-only": {1512}}
 
 // ParseEntries reads `perly.y:<line> <text>` lines (blank lines skipped), each followed by a tab and
 // its mark when marked. The mark is kept verbatim for checkMarks to judge.

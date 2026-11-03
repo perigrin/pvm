@@ -12,9 +12,9 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 )
 
-// relationalUnaryLines are the perly.y alternatives this family ports or fits. 1470 (PLUGIN_REL_OP)
-// is ported but has no snippet: the terminal needs an infix plugin loaded. 1512 (POSTJOIN) is
-// fitted to a class no token matches, so postjoin.pl is recognized as a string, not through the rule.
+// relationalUnaryLines are the perly.y alternatives this family ports, fits or excludes. 1470
+// (PLUGIN_REL_OP) is ported but has no snippet: the terminal needs an infix plugin loaded. 1512
+// (POSTJOIN) is excluded interpolation-only: pvm lexes an interpolated string as one Quote token.
 var relationalUnaryLines = []int{1436, 1438, 1462, 1464, 1470, 1474, 1476, 1480, 1482, 1490, 1492,
 	1497, 1499, 1502, 1504, 1506, 1509, 1512, 1523, 1526, 1565}
 
