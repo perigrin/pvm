@@ -52,20 +52,18 @@ func main() {
 		err = measureLeo(tab, files, srcs, measured)
 	}
 	var in verdictInputs
-	var population []File
 	if err == nil {
 		var excluded map[string]bool
 		var perl func(string) *perlVerdict
 		if excluded, err = lexerListed(); err == nil {
 			if perl, err = labelVerdicts(filepath.Join(testdata, "labels")); err == nil {
 				in = chartInputs(tab, srcs, excluded, perl)
-				population, err = supersetPopulation(files, in)
 			}
 		}
 	}
 	var unmapped []string
 	if err == nil {
-		unmapped = measureLex(tab.Tokens, files, population, srcs, measured)
+		unmapped, err = measureLex(tab.Tokens, files, in, srcs, measured)
 	}
 	if err == nil {
 		err = measureTDT(fixturesDir(os.Getenv("TDT_FIXTURES"), defaultTDT), g, tab, files, srcs, measured)
