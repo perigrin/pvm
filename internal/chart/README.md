@@ -328,6 +328,18 @@ The string-bitwise operators are feature-blind. `internal/lexer` emits `|.`,
 refuses it without the feature. Known limit, until the lexer tracks the
 feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 
+`try`, `catch`, `finally` and `defer` map to their keywords with or without
+`use feature 'try'` or `'defer'` (toke.c reads them as words without it), so
+`try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
+feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). A keyword before `=>` is
+refused here, where toke.c reads it as a word, as `if =>` already is.
+
+A LABEL is any word with a `:` after it, where a statement may start. toke.c
+scans the word without its package separator, so `L::M: 1;` is a syntax error
+in perl; `internal/lexer` emits `L::M` as one word and labels it too, so it is
+accepted here. Known limit, until the lexer or the token classes can tell a
+qualified word (reported for a v0.1 lexer issue, none filed yet).
+
 ### The repetition operator `x`
 
 toke.c's `KEY_x` makes `x` the repetition operator exactly when `PL_expect`
