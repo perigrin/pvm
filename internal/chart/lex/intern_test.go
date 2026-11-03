@@ -93,7 +93,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if c.Text != nil {
 			named[*c.Text] = true
 		}
-		for _, n := range append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...) {
+		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
 			if n != nil {
 				named[n.Text] = true
 			}
@@ -110,6 +110,11 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 		return want == nil || *want == got
 	}
+	// ident is whether toks[i] starts with an identifier character: a word, or a quote-like opening with a letter.
+	ident := func(i int) bool {
+		return i >= 0 && i < len(toks) && (toks[i].v.Kind == lexer.Word ||
+			toks[i].v.Kind == lexer.Quote && (toks[i].v.Prefix >= 'a' && toks[i].v.Prefix <= 'z' || toks[i].v.Prefix == 'Q'))
+	}
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
@@ -117,7 +122,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
-				!slices.Contains(c.NotText, t.v.Text) && !slices.Contains(c.NotPrev1, nb(i-1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.Contains(c.NotText, t.v.Text) && !slices.Contains(c.NotPrev1, nb(i-1)) && !slices.Contains(c.NotPrev2, nb(i-2)) && !(c.NotNextIdent && ident(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -186,11 +191,17 @@ func TestInternIdentityOverCorpus(t *testing.T) {
 	t.Logf("%d files, %d tokens", len(files), tokens)
 }
 
-// The negated parts (NotText, NotPrev1, NotNext) need keys the corpus may not hold: x after a unary
+// colonForms are the : after a declarator and a variable with each kind of token after it, and the : after other things.
+const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $c ? state $x : qw(a); $c ? my $x : q(a); " +
+	"$c ? my $x : my $z; $c ? my $x : 1; $c ? my $x : $z; $c ? my $x : -1; $c ? my $x : \"s\"; $c ? my $x : \\$z; " +
+	"$c ? my $x : 'a'; $c ? my $x : s/a/b/; $c ? my $x : tr/a/b/; $c ? my $x : y/a/b/; $c ? my $x : m/a/; $c ? my $x : qq(a); " +
+	"$c ? (my $x) : shared; $c ? local $x : shared; $c ? $x : shared; $c ? my ($x) : shared; $c ? my $x :\n"
+
+// The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3;")
+	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms)
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {

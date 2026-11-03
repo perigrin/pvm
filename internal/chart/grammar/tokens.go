@@ -106,6 +106,11 @@ type TokenClass struct {
 	NotText  []string
 	NotPrev1 []Neighbour
 	NotNext  *Neighbour
+	// NotPrev2 is NotPrev1 for the token two back. NotNextIdent excludes the keys whose next token
+	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word of any text, a
+	// keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
+	NotPrev2     []Neighbour
+	NotNextIdent bool
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -166,8 +171,11 @@ type TokenTable struct {
 	// has kind k: a text or class neither admits gets id 0 unhashed.
 	firsts [256]uint64
 	kinds  uint64
-	texts  []string    // by text id - 1, for Text()
-	nbs    []Neighbour // by class id - 1, for Text()
+	// anyWord and identQuote are the class ids of a word, and of a quote-like opening with a letter,
+	// that no neighbour class names: they stand for "an identifier follows" in NotNextIdent.
+	anyWord, identQuote int
+	texts               []string    // by text id - 1, for Text()
+	nbs                 []Neighbour // by class id - 1, for Text()
 }
 
 // Token is a token with its text and class looked up in the dictionaries.
@@ -208,6 +216,14 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 		ct = tt.emptyText
 	}
 	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
+	if it.Class == 0 {
+		switch {
+		case t.Kind == lexer.Word:
+			it.Class = tt.anyWord
+		case t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26:
+			it.Class = tt.identQuote
+		}
+	}
 }
 
 // CompileTokens builds the table. A part is tested only below the classes
@@ -230,7 +246,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		for _, s := range c.NotText {
 			texts[s] = true
 		}
-		for _, nb := range append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...) {
+		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
 			if nb != nil {
 				if nb.Text != OtherWord {
 					texts[nb.Text] = true
@@ -255,6 +271,14 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 	}
 	tt.Edge = tt.ClassID(Boundary)
+	tt.anyWord, tt.identQuote = len(tt.nbs)+1, len(tt.nbs)+2
+	var ident []int // every class id of a token starting with an identifier character
+	for i, nb := range tt.nbs {
+		if nb.Kind == lexer.Word {
+			ident = append(ident, i+1)
+		}
+	}
+	ident = append(ident, tt.anyWord, tt.identQuote)
 
 	pats, nots := make([][nParts]int, len(classes)), make([][nParts][]int, len(classes))
 	for i, c := range classes {
@@ -264,8 +288,14 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		for _, nb := range c.NotPrev1 {
 			nots[i][6] = append(nots[i][6], tt.ClassID(nb))
 		}
+		for _, nb := range c.NotPrev2 {
+			nots[i][5] = append(nots[i][5], tt.ClassID(nb))
+		}
 		if c.NotNext != nil {
 			nots[i][7] = []int{tt.ClassID(*c.NotNext)}
+		}
+		if c.NotNextIdent {
+			nots[i][7] = append(nots[i][7], ident...)
 		}
 		p := [nParts]int{free, free, free, free, free, free, free, free}
 		if c.Kind != nil {
@@ -401,6 +431,10 @@ func (tt *TokenTable) Text() []byte {
 		switch {
 		case part == 1:
 			return fmt.Sprintf("%q", tt.texts[v-1])
+		case part >= 5 && v == tt.anyWord:
+			return "word"
+		case part >= 5 && v == tt.identQuote:
+			return "quote-like"
 		case part >= 5:
 			return fmt.Sprintf("%+v", tt.nbs[v-1])
 		}

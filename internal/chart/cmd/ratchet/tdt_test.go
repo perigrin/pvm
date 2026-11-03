@@ -146,12 +146,14 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 	base := grammar.TokenClass{Kind: &word, Text: ptr("x")}
 	keys := map[string]grammar.TokenClass{}
 	for name, mod := range map[string]func(*grammar.TokenClass){
-		"plain":    func(*grammar.TokenClass) {},
-		"notnext":  func(c *grammar.TokenClass) { c.NotNext = &paren },
-		"notprev1": func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren} },
-		"nottext":  func(c *grammar.TokenClass) { c.NotText = []string{"if"} },
-		"nottext2": func(c *grammar.TokenClass) { c.NotText = []string{"if", "my"} },
-		"notprev2": func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren, {Kind: lexer.Word, Text: "ref"}} },
+		"plain":        func(*grammar.TokenClass) {},
+		"notnext":      func(c *grammar.TokenClass) { c.NotNext = &paren },
+		"notprev1":     func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren} },
+		"nottext":      func(c *grammar.TokenClass) { c.NotText = []string{"if"} },
+		"nottext2":     func(c *grammar.TokenClass) { c.NotText = []string{"if", "my"} },
+		"notprev1b":    func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren, {Kind: lexer.Word, Text: "ref"}} },
+		"notprev2":     func(c *grammar.TokenClass) { c.NotPrev2 = []grammar.Neighbour{paren} },
+		"notnextident": func(c *grammar.TokenClass) { c.NotNextIdent = true },
 	} {
 		c := base
 		mod(&c)
