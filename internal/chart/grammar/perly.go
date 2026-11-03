@@ -11,7 +11,6 @@ import "tamarou.com/pvm/internal/lexer"
 // merge cleanly; only rules citing the same perly.y:N, one family's slot, may be adjacent.
 const perlyRules = `
 grammar: remember stmtseq # perly.y:187, fitted: GRAMPROG is a start selector, not a token
-grammar: remember stmtseq sideff # perly.y:187, fitted: GRAMPROG is a start selector, not a token; pvm does not emit the ; toke.c inserts at end of file
 
 grammar: GRAMEXPR optexpr # perly.y:198
 
@@ -89,8 +88,7 @@ bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOL
 
 # perly.y:770 sigsub_or_method_named: KW_METHOD_named
 
-block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:775, fitted: pvm does not emit the ; toke.c inserts before }
-block: PERLY_BRACE_OPEN remember stmtseq sideff PERLY_BRACE_CLOSE # perly.y:775, fitted: pvm does not emit the ; toke.c inserts before }
+block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:775
 
 empty: # perly.y:783
 

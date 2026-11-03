@@ -143,7 +143,7 @@ func TestPortLexCoreEmptyProgram(t *testing.T) {
 	}
 }
 
-// toke.c inserts a ; before } and at end of file; pvm emits none, so the rules are fitted.
+// toke.c inserts a ; before } and at end of file; pvm emits none, so the recognizer inserts it.
 func TestPortLexCoreInsertedSemicolon(t *testing.T) {
 	for _, src := range []string{"{ $x = 1 }", "$x = 1; $y = 2", "{ $x = 1; $y = 2 }\n$z = 3\n"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {

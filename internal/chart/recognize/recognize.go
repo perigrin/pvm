@@ -54,15 +54,33 @@ type Recognizer struct {
 	// counts the computations, for the test of the memo.
 	expected         map[int][]expectedEntry
 	expectedComputed int
+	// semi is PERLY_SEMICOLON's symbol id, and closes marks the classes
+	// holding PERLY_BRACE_CLOSE: the ruby slipper's (slipper.go). -1 and
+	// none where the grammar lacks them.
+	semi   int
+	closes []bool
 }
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
 	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}, expected: map[int][]expectedEntry{}}
+	terminal := func(name string) int {
+		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
+	}
+	brace := terminal("PERLY_BRACE_CLOSE")
+	r.semi = terminal("PERLY_SEMICOLON")
 	for _, ids := range r.terms {
+		r.closes = append(r.closes, brace >= 0 && slices.Contains(ids, brace))
 		r.bits = append(r.bits, r.bitsOf(ids))
 	}
 	r.bits = append(r.bits, r.bitsOf([]int{r.eof}))
+	r.closes = append(r.closes, true) // the end of input
+	// Where a ; may be inserted, completion must also see it may follow.
+	for i, b := range r.bits {
+		if r.closes[i] && r.semi >= 0 {
+			b.set(r.semi)
+		}
+	}
 	r.lhs = make([][]int, len(tab.States))
 	for s, st := range tab.States {
 		for _, rule := range st.Reduces {
@@ -87,6 +105,9 @@ type Chart struct {
 	Interned []bool
 	Cached   []bool
 	leo      []map[int]*memo // the side table: per node, Leo memos by symbol
+	inserted []int           // nodes where the slipper scanned a ;
+	// slipAccepted is whether the ; inserted at end of input completes the start.
+	slipAccepted bool
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
@@ -137,6 +158,9 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: cacheable}
 		for _, e := range in[pos] {
 			b.scan(e)
+			if r.closes[e.Token.TerminalSet] {
+				b.slip(e)
+			}
 		}
 		var follows bitset // nil completes everything
 		if !r.opts.NoLookahead {
@@ -156,6 +180,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			r.store(key, b.deps, c.Sets[pos])
 		}
 	}
+	c.slipped(out)
 	return c, nil
 }
 
@@ -164,6 +189,9 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 func (c *Chart) Accepted() bool {
 	if len(c.Sets) == 0 {
 		return false
+	}
+	if c.slipAccepted {
+		return true
 	}
 	last := len(c.Sets) - 1
 	for _, it := range c.Sets[last].Items() {
@@ -230,15 +258,16 @@ func (b *builder) scan(e lex.Edge) {
 	}
 }
 
-// complete closes the set under completion. An item from this node is a
-// prediction: its completions are empty, and the automaton's nullable
-// closure already made them. With la, a rule completes only if something
-// la holds can follow its LHS; a nil la completes every rule. Where a Leo
+// complete closes the set under completion. A predicted item from this
+// node has empty completions, and the automaton's nullable closure already
+// made them; a kernel item from this node is one the slipper's zero-width ;
+// advanced, and completes into the set before the ;. With la, a rule
+// completes only if something la holds can follow its LHS; a nil la completes every rule. Where a Leo
 // memo applies, the top of the recursion is added in one step.
 func (b *builder) complete(la bitset) {
 	for i := 0; i < len(b.items); i++ {
 		state, origin := b.items[i][0], b.items[i][1]
-		if origin == b.pos {
+		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
 		for _, lhs := range b.r.lhs[state] {
