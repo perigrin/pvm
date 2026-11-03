@@ -234,11 +234,11 @@ func committedTables(t *testing.T) *grammar.Tables {
 	return tab
 }
 
-// The real chart side over the committed tables: "1;" is accepted; "print 1;"
+// The real chart side over the committed tables: "1;" is accepted; "1 \x01;"
 // has a token the table cannot map, so it is refused, and that token neither
 // counts as a token nor holds a terminal, so it does not lower the width.
 func TestChartInputsUnmappedIsRefused(t *testing.T) {
-	srcs := map[string][]byte{"ok.pl": []byte("1;"), "rep.pl": []byte("1; 1; 1; 1;"), "bad.pl": []byte("print 1;")}
+	srcs := map[string][]byte{"ok.pl": []byte("1;"), "rep.pl": []byte("1; 1; 1; 1;"), "bad.pl": []byte("1 \x01;")}
 	in := chartInputs(committedTables(t), srcs, nil, nil)
 	ok, err := in.Chart("ok.pl")
 	if err != nil || !ok.Accepted {
@@ -255,10 +255,10 @@ func TestChartInputsUnmappedIsRefused(t *testing.T) {
 	}
 	bad, err := in.Chart("bad.pl")
 	if err != nil || bad.Accepted {
-		t.Fatalf("print 1; = %+v, %v; want refused", bad, err)
+		t.Fatalf("1 \\x01; = %+v, %v; want refused", bad, err)
 	}
 	if bad.Tokens != 2 || bad.Terminals != 2 {
-		t.Errorf("print 1; counts %d tokens, %d terminals; want the 2 mapped ones, 1 terminal each", bad.Tokens, bad.Terminals)
+		t.Errorf("1 \\x01; counts %d tokens, %d terminals; want the 2 mapped ones, 1 terminal each", bad.Tokens, bad.Terminals)
 	}
 }
 
