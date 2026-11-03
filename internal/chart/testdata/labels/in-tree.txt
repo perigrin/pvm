@@ -9,7 +9,8 @@
 # environment: env -i, PATH and PERL5LIB only
 # timeout: 30s per file; a timeout is labelled environment
 # limit: a label speaks for perl's first error only; a later error in the same file is not seen
-# status: every category is proposed by label.sh until LABELS-review reviews it
+# status: reviewed against the evidence by LABELS-review (01a18fdc-d9cf), 2026-11-03; label.sh writes proposed
+# review: referee verdicts on the -DT stream up to the token perl refused; precedence when only referee-prec refuses there
 internal/chart/testdata/guacamole/parses/Statements-Block-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Block-002.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Block-003.pl	accept
@@ -35,7 +36,7 @@ internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprComma-003.pl
 internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprComma-004.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprComma-005.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprNameNot-001.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprNameNot-002.pl	refuse	semantic	proposed	Can't modify logical and (&&) in scalar assignment at internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprNameNot-002.pl line 2, at EOF
+internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprNameNot-002.pl	refuse	semantic	reviewed	Can't modify logical and (&&) in scalar assignment at internal/chart/testdata/guacamole/parses/Statements-Expressions-ExprNameNot-002.pl line 2, at EOF
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExpr-OpKeywordBinmodeExpr-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExpr-OpKeywordBinmodeExpr-002.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExpr-OpKeywordBinmodeExpr-003.pl	accept
@@ -108,11 +109,11 @@ internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExp
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-006.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-007.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-001.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-002.pl	refuse	semantic	proposed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-002.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-003.pl	refuse	semantic	proposed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-003.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-004.pl	refuse	semantic	proposed	Invalid CODE attributes: attra : attrb at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-004.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-005.pl	refuse	semantic	proposed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-005.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-006.pl	refuse	semantic	proposed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-006.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-002.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-002.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-003.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-003.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-004.pl	refuse	semantic	reviewed	Invalid CODE attributes: attra : attrb at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-004.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-005.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-005.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-006.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-006.pl line 2.
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-007.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-008.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-OpNullaryKeywordExpr-OpKeywordSubExpr-009.pl	accept
@@ -227,15 +228,15 @@ internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-002.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-003.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl	refuse	grammar	proposed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl	refuse	grammar	reviewed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-005.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-007.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-009.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-010.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-011.pl	refuse	grammar	proposed	Can't find string terminator "STDIN" anywhere before EOF at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-011.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-012.pl	refuse	grammar	proposed	Can't find string terminator "STDIN" anywhere before EOF at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-012.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-011.pl	refuse	grammar	reviewed	Can't find string terminator "STDIN" anywhere before EOF at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-011.pl line 2.	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-012.pl	refuse	grammar	reviewed	Can't find string terminator "STDIN" anywhere before EOF at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-012.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-SubCall-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-SubCall-002.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-001.pl	accept
@@ -254,14 +255,14 @@ internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-014.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-015.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-016.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-017.pl	refuse	semantic	proposed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-017.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-017.pl	refuse	grammar	reviewed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-017.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-018.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-019.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-020.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-021.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-022.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-023.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-024.pl	refuse	semantic	proposed	$* is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-024.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-024.pl	refuse	grammar	reviewed	$* is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-024.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-025.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-026.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-Variable-027.pl	accept
@@ -611,9 +612,9 @@ internal/chart/testdata/guacamole/parses/Statements-PackageStatement-008.pl	acce
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-009.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-010.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-011.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl	refuse	grammar	proposed	Invalid version format (dotted-decimal versions must begin with 'v') at internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl line 2, near "package Foo "
+internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl	refuse	grammar	reviewed	Invalid version format (dotted-decimal versions must begin with 'v') at internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl line 2, near "package Foo "	referee-noprec refuse@9; referee-prec refuse@9
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-013.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl	refuse	grammar	proposed	Invalid version format (dotted-decimal versions must begin with 'v') at internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl line 2, near "package Foo "
+internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl	refuse	grammar	reviewed	Invalid version format (dotted-decimal versions must begin with 'v') at internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl line 2, near "package Foo "	referee-noprec refuse@9; referee-prec refuse@9
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-015.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-PhaseStatements-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-PhaseStatements-002.pl	accept
@@ -640,11 +641,11 @@ internal/chart/testdata/guacamole/parses/Statements-RequireStatement-012.pl	acce
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-001.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-002.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-003.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-SubStatement-004.pl	refuse	semantic	proposed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-SubStatement-004.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-SubStatement-005.pl	refuse	semantic	proposed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-SubStatement-005.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-SubStatement-006.pl	refuse	semantic	proposed	Invalid CODE attributes: attra : attrb at internal/chart/testdata/guacamole/parses/Statements-SubStatement-006.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-SubStatement-007.pl	refuse	semantic	proposed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-SubStatement-007.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-SubStatement-008.pl	refuse	semantic	proposed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-SubStatement-008.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-SubStatement-004.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-SubStatement-004.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-SubStatement-005.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr at internal/chart/testdata/guacamole/parses/Statements-SubStatement-005.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-SubStatement-006.pl	refuse	semantic	reviewed	Invalid CODE attributes: attra : attrb at internal/chart/testdata/guacamole/parses/Statements-SubStatement-006.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-SubStatement-007.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-SubStatement-007.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-SubStatement-008.pl	refuse	semantic	reviewed	Invalid CODE attribute: attr(foo) at internal/chart/testdata/guacamole/parses/Statements-SubStatement-008.pl line 2.
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-009.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-010.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-SubStatement-011.pl	accept
@@ -757,11 +758,11 @@ internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-028.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-029.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-030.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-031.pl	accept
-internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-032.pl	refuse	environment	proposed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-032.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-033.pl	refuse	environment	proposed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-033.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl	refuse	environment	proposed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl	refuse	environment	proposed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl line 2.
-internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl	refuse	environment	proposed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-032.pl	refuse	environment	reviewed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-032.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-033.pl	refuse	environment	reviewed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-033.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl	refuse	environment	reviewed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl	refuse	environment	reviewed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl line 2.
+internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl	refuse	environment	reviewed	Perls since v5.10.0 too modern--this is v5.45.0, stopped at internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl line 2.
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-037.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-038.pl	accept
 internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-039.pl	accept
@@ -782,47 +783,47 @@ internal/chart/testdata/guacamole/parses/bugs-rt_132920_regex_subset-001.pl	acce
 internal/chart/testdata/guacamole/parsent/Statements-Block-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Block-002.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Block-003.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Block-004.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Block-004.pl line 2, near "} 1"
+internal/chart/testdata/guacamole/parsent/Statements-Block-004.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Block-004.pl line 2, near "} 1"	referee-noprec refuse@11; referee-prec refuse@11
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordPrintExpr-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordPrintExpr-002.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordPrintfExpr-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordPrintfExpr-002.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSayExpr-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSayExpr-002.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-001.pl	refuse	grammar	proposed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-001.pl line 2, near "} $foo"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-002.pl	refuse	grammar	proposed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-002.pl line 2, near "} $foo"
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-001.pl	refuse	grammar	reviewed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-001.pl line 2, near "} $foo"	referee-noprec refuse@13; referee-prec refuse@13
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-002.pl	refuse	grammar	reviewed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-002.pl line 2, near "} $foo"	referee-noprec refuse@13; referee-prec refuse@13
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-003.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-004.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-005.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-006.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-007.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-001.pl	refuse	semantic	proposed	$* is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-001.pl line 2.
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-002.pl	refuse	grammar	proposed	Array found where operator expected (Missing operator before "@ *"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-002.pl line 2, near "->@ *"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-003.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-003.pl line 2, near "->%"
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-001.pl	refuse	grammar	reviewed	$* is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-001.pl line 2.	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-002.pl	refuse	grammar	reviewed	Array found where operator expected (Missing operator before "@ *"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-002.pl line 2, near "->@ *"	referee-noprec refuse@11; referee-prec refuse@11
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-003.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-003.pl line 2, near "->%"	referee-noprec refuse@10; referee-prec refuse@10
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-004.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-005.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-005.pl line 2, near "->*"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-006.pl	refuse	semantic	proposed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-006.pl line 2.
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-007.pl	refuse	semantic	proposed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-007.pl line 2.
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-008.pl	refuse	grammar	proposed	Array found where operator expected (Missing operator before "@ ["?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-008.pl line 2, near "->@ ["
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-009.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-009.pl line 2, near "->%"
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-005.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-005.pl line 2, near "->*"	referee-noprec refuse@10; referee-prec refuse@10
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-006.pl	refuse	grammar	reviewed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-006.pl line 2.	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-007.pl	refuse	grammar	reviewed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-007.pl line 2.	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-008.pl	refuse	grammar	reviewed	Array found where operator expected (Missing operator before "@ ["?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-008.pl line 2, near "->@ ["	referee-noprec refuse@11; referee-prec refuse@11
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-009.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-009.pl line 2, near "->%"	referee-noprec refuse@10; referee-prec refuse@10
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-010.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-011.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-011.pl line 2, near "->%"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-001.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-001.pl line 2, near "."
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-002.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-002.pl line 2, near "."
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-003.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "e"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-003.pl line 2, near "1e"
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-011.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-011.pl line 2, near "->%"	referee-noprec refuse@10; referee-prec refuse@10
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-001.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-001.pl line 2, near "."	referee-noprec refuse@7; referee-prec refuse@7
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-002.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-002.pl line 2, near "."	referee-noprec refuse@7; referee-prec refuse@7
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-003.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "e"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-003.pl line 2, near "1e"	referee-noprec refuse@8; referee-prec refuse@8
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-004.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-005.pl	refuse	grammar	proposed	Illegal octal digit '8' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-005.pl line 2, at end of line
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-005.pl	refuse	grammar	reviewed	Illegal octal digit '8' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-005.pl line 2, at end of line	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-006.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-007.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-008.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "p_"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-008.pl line 2, near "0xap_"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-009.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "p"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-009.pl line 2, near "0xap"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-010.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "p_"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-010.pl line 2, near "0xap_"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-011.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "p"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-011.pl line 2, near "0xap"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-012.pl	refuse	grammar	proposed	No digits found for hexadecimal literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-012.pl line 2, near "0x_."
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-013.pl	refuse	grammar	proposed	Illegal binary digit '2' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-013.pl line 2, at end of line
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-014.pl	refuse	grammar	proposed	Illegal binary digit '2' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-014.pl line 2, at end of line
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-015.pl	refuse	grammar	proposed	No digits found for binary literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-015.pl line 2, near "0b_"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-016.pl	refuse	grammar	proposed	No digits found for binary literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-016.pl line 2, near "0b_."
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-008.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "p_"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-008.pl line 2, near "0xap_"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-009.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "p"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-009.pl line 2, near "0xap"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-010.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "p_"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-010.pl line 2, near "0xap_"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-011.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "p"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-011.pl line 2, near "0xap"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-012.pl	refuse	grammar	reviewed	No digits found for hexadecimal literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-012.pl line 2, near "0x_."	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-013.pl	refuse	grammar	reviewed	Illegal binary digit '2' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-013.pl line 2, at end of line	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-014.pl	refuse	grammar	reviewed	Illegal binary digit '2' at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-014.pl line 2, at end of line	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-015.pl	refuse	grammar	reviewed	No digits found for binary literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-015.pl line 2, near "0b_"	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-016.pl	refuse	grammar	reviewed	No digits found for binary literal at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-016.pl line 2, near "0b_."	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-Literal-017.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DerefVariable-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DerefVariable-002.pl	accept
@@ -839,15 +840,15 @@ internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLitera
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DerefVariable-013.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DerefVariable-014.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-001.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-002.pl	refuse	grammar	proposed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-002.pl line 2.
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-002.pl	refuse	grammar	reviewed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-002.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-003.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl	refuse	grammar	proposed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl line 2.
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl	refuse	grammar	reviewed	Use of bare << to mean <<"" is forbidden at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-004.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-005.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl	refuse	grammar	proposed	Can't find string terminator "fh" anywhere before EOF at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl line 2.
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl	refuse	grammar	reviewed	Can't find string terminator "fh" anywhere before EOF at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-007.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl	refuse	grammar	proposed	Can't find string terminator "fh" anywhere before EOF at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl line 2.
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-SubCall-001.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-SubCall-001.pl line 2, near "a::("
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-Variable-001.pl	refuse	semantic	proposed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-Variable-001.pl line 2.
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl	refuse	grammar	reviewed	Can't find string terminator "fh" anywhere before EOF at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl line 2.	referee-noprec viable; referee-prec viable
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-SubCall-001.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-SubCall-001.pl line 2, near "a::("	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-Variable-001.pl	refuse	grammar	reviewed	$# is no longer supported as of Perl 5.30 at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-Variable-001.pl line 2.	referee-noprec viable; referee-prec viable
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-002.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-003.pl	accept
@@ -884,24 +885,24 @@ internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValu
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-034.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-035.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-036.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-037.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-037.pl line 2, near "14("
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-038.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-038.pl line 2, near "14_f"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-039.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-039.pl line 2, near "14f"
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-037.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-037.pl line 2, near "14("	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-038.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-038.pl line 2, near "14_f"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-039.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-QLikeValue-039.pl line 2, near "14f"	referee-noprec refuse@8; referee-prec refuse@8
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-basic-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-001.pl	accept
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-002.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-003.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-003.pl line 2, near "@@foo"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-004.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-004.pl line 2, near "@%foo"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-005.pl	refuse	grammar	proposed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-005.pl line 2, near "@@$foo"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-006.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-006.pl line 2, near "$#@foo"
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-007.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-007.pl line 2, near "$foo("
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-003.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-003.pl line 2, near "@@foo"	referee-noprec refuse@9; referee-prec refuse@9
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-004.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-004.pl line 2, near "@%foo"	referee-noprec refuse@9; referee-prec refuse@9
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-005.pl	refuse	grammar	reviewed	Scalar found where operator expected (Missing operator before "$foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-005.pl line 2, near "@@$foo"	referee-noprec refuse@9; referee-prec refuse@9
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-006.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "foo"?) at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-006.pl line 2, near "$#@foo"	referee-noprec refuse@9; referee-prec refuse@9
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-007.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-007.pl line 2, near "$foo("	referee-noprec refuse@9; referee-prec refuse@9
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-008.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-009.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-009.pl line 2, near "$foo("
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-010.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-010.pl line 2, near "5["
-internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-011.pl	refuse	grammar	proposed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-011.pl line 2, near "->y["
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-009.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-009.pl line 2, near "$foo("	referee-noprec refuse@10; referee-prec refuse@10
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-010.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-010.pl line 2, near "5["	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-011.pl	refuse	grammar	reviewed	syntax error at internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-011.pl line 2, near "->y["	referee-noprec refuse@11; referee-prec refuse@11
 internal/chart/testdata/guacamole/parsent/Statements-SubStatement-001.pl	accept
-internal/chart/testdata/guacamole/parsent/Statements-SubStatement-002.pl	refuse	grammar	proposed	Illegal declaration of anonymous subroutine at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-002.pl line 2, near "sub 14"
-internal/chart/testdata/guacamole/parsent/Statements-SubStatement-003.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-003.pl line 2, near "14_f"
-internal/chart/testdata/guacamole/parsent/Statements-SubStatement-004.pl	refuse	grammar	proposed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-004.pl line 2, near "14f"
+internal/chart/testdata/guacamole/parsent/Statements-SubStatement-002.pl	refuse	grammar	reviewed	Illegal declaration of anonymous subroutine at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-002.pl line 2, near "sub 14"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-SubStatement-003.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-003.pl line 2, near "14_f"	referee-noprec refuse@8; referee-prec refuse@8
+internal/chart/testdata/guacamole/parsent/Statements-SubStatement-004.pl	refuse	grammar	reviewed	Bareword found where operator expected (Missing operator before "f"?) at internal/chart/testdata/guacamole/parsent/Statements-SubStatement-004.pl line 2, near "14f"	referee-noprec refuse@8; referee-prec refuse@8
 internal/chart/testdata/std5k.pl	accept
 internal/psc/testdata/latency/edit5k.pl	accept

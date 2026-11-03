@@ -27,10 +27,12 @@ var categories = map[string]bool{"grammar": true, "precedence": true, "scope": t
 var refereeEvidence = regexp.MustCompile(`^referee-noprec viable; referee-prec refuse@[0-9]+$`)
 
 // Label is one corpus file's perl verdict. A refusal carries a category,
-// its status (proposed by label.sh, or reviewed), perl's first error and,
-// for precedence, the referee evidence.
+// its status (proposed by label.sh, reviewed once checked against its
+// evidence), perl's first error and, where label.sh found more, the review's
+// evidence: the referee verdicts on the file's -DT prefix, which precedence
+// needs, or why a file perl -c accepts is refused.
 type Label struct {
-	Path, Verdict, Category, Status, Evidence, Referee string
+	Path, Verdict, Category, Status, Evidence, Review string
 }
 
 // LabelFile is a label file: its provenance header and its labels.
@@ -44,7 +46,7 @@ func (l Label) Refused() bool { return l.Verdict == "refuse" }
 
 // ReadLabels reads a label file: "# key: value" provenance lines, then one
 // tab-separated line per file, "path accept" or
-// "path refuse category status evidence [referee]".
+// "path refuse category status evidence [review]".
 func ReadLabels(path string) (*LabelFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -68,7 +70,7 @@ func ReadLabels(path string) (*LabelFile, error) {
 		case (len(c) == 5 || len(c) == 6) && c[1] == "refuse":
 			l := Label{Path: c[0], Verdict: "refuse", Category: c[2], Status: c[3], Evidence: c[4]}
 			if len(c) == 6 {
-				l.Referee = c[5]
+				l.Review = c[5]
 			}
 			lf.Labels = append(lf.Labels, l)
 		default:
@@ -81,7 +83,8 @@ func ReadLabels(path string) (*LabelFile, error) {
 // CheckLabels returns one problem per defect: a provenance not naming a
 // -DDEBUGGING perl at the pinned commit, a corpus file unlabelled or labelled
 // twice, a label naming no corpus file, a refusal whose category, status or
-// evidence is wrong, or a precedence refusal without referee evidence.
+// evidence is wrong, a refusal not reviewed, or a precedence refusal without
+// referee evidence.
 func CheckLabels(lf *LabelFile, files []string) []string {
 	var out []string
 	if !strings.Contains(" "+lf.Provenance["ccflags"]+" ", " -DDEBUGGING ") {
@@ -114,15 +117,14 @@ func CheckLabels(lf *LabelFile, files []string) []string {
 		if !categories[l.Category] {
 			out = append(out, fmt.Sprintf("%s: category %q is not one of the five", l.Path, l.Category))
 		}
-		// shortcut: accepts an unreviewed (proposed) category, until LABELS-review makes reviewed the only status.
-		if l.Status != "proposed" && l.Status != "reviewed" {
-			out = append(out, fmt.Sprintf("%s: status %q is neither proposed nor reviewed", l.Path, l.Status))
+		if l.Status != "reviewed" {
+			out = append(out, fmt.Sprintf("%s: status %q is not reviewed", l.Path, l.Status))
 		}
 		if l.Evidence == "" {
 			out = append(out, l.Path+": refusal without perl's first error")
 		}
-		if l.Category == "precedence" && !refereeEvidence.MatchString(l.Referee) {
-			out = append(out, fmt.Sprintf("%s: precedence without referee evidence (%q)", l.Path, l.Referee))
+		if l.Category == "precedence" && !refereeEvidence.MatchString(l.Review) {
+			out = append(out, fmt.Sprintf("%s: precedence without referee evidence (%q)", l.Path, l.Review))
 		}
 	}
 	for _, f := range files {
