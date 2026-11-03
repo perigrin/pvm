@@ -415,8 +415,8 @@ grammars (left and right recursion, nullable chains, ambiguity, a dead end,
 `;`-terminated statements in braces) and over a deterministic corpus sample
 (`std5k.pl`, the port snippets and every 24th Guacamole case, each lexed
 through `chart/lex`, at most 300 tokens). Agreement does not need acceptance:
-`TestReferenceAgreesOnTruncatedFiles` cuts each sample file after its first
-`=` and requires both to refuse at the same node with the same `Expected`.
+`TestReferenceAgreesOnTruncatedFiles` cuts each sample file mid-statement (after
+its first `=`, else its first token but `;`) and requires both to refuse at the same node with the same `Expected`.
 `TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
 transition the sample uses and requires the disagreement to be reported.
 
