@@ -1,0 +1,2 @@
+# Reviewed tdt-unseen pairs: one "<terminal> <key>" per line, as the ratchet names them; none yet.
+# An entry naming no pair of the token table is an error, so the list cannot be widened to cover anything.
