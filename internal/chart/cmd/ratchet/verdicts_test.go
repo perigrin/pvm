@@ -44,7 +44,7 @@ func vinputs(m map[string]vfile, excluded ...string) verdictInputs {
 			r.Accepted = m[p].chart
 			return r, m[p].err
 		},
-		RD:       func(p string) bool { return m[p].rd },
+		RD:       func(p string) (bool, error) { return m[p].rd, nil },
 		Perl:     func(p string) *perlVerdict { return m[p].perl },
 		Excluded: ex,
 	}

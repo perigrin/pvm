@@ -42,7 +42,7 @@ type chartResult struct {
 // Excluded is Q11's set: the files on either lexer list.
 type verdictInputs struct {
 	Chart    func(path string) (chartResult, error)
-	RD       func(path string) bool
+	RD       func(path string) (bool, error)
 	Perl     func(path string) *perlVerdict
 	Excluded map[string]bool
 }
@@ -56,12 +56,17 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 	var tokens, terminals, positions, items, hits int
 	var verdicts []*perlVerdict
 	var res []chartResult
+	var rd []bool
 	for _, f := range files {
 		r, err := in.Chart(f.Path)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", f.Path, err)
 		}
-		res = append(res, r)
+		a, err := in.RD(f.Path)
+		if err != nil {
+			return nil, err
+		}
+		res, rd = append(res, r), append(rd, a)
 		verdicts = append(verdicts, in.Perl(f.Path))
 		tokens, terminals = tokens+r.Tokens, terminals+r.Terminals
 		if r.Accepted { // §7's cost is the cost on recognized input
@@ -90,17 +95,20 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		missing := slices.IndexFunc(verdicts, func(v *perlVerdict) bool { return v == nil })
 		return nil, fmt.Errorf("%s has no perl verdict, but %d other files do", files[missing].Path, labelled)
 	}
-	var pop, recognized, perlRefused int
+	var pop, recognized, perlRefused, rdPerlRefused int
 	refused := map[string][]string{"rd-accepted-chart-refused": nil, "chart-accepted-both-refused": nil}
 	for i, f := range files {
 		v, accepted := verdicts[i], res[i].Accepted
+		if v.Refused && rd[i] {
+			rdPerlRefused++
+		}
 		if v.Refused && accepted {
 			perlRefused++
-			if v.Category == "grammar" && !in.RD(f.Path) && !in.Excluded[f.Path] {
+			if v.Category == "grammar" && !rd[i] && !in.Excluded[f.Path] {
 				refused["chart-accepted-both-refused"] = append(refused["chart-accepted-both-refused"], f.Path)
 			}
 		}
-		if !v.Refused && in.RD(f.Path) && !in.Excluded[f.Path] { // §9.1: less both lexer lists
+		if inPopulation(v, rd[i], in.Excluded[f.Path]) { // §9.1: less both lexer lists
 			pop++
 			if accepted {
 				recognized++
@@ -113,6 +121,8 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		measured[k] = strconv.Itoa(len(fs))
 	}
 	measured["chart-accepted-perl-refused"] = strconv.Itoa(perlRefused)
+	measured["superset-population"] = strconv.Itoa(pop)
+	measured["rd-accepted-perl-refused"] = strconv.Itoa(rdPerlRefused)
 	ratio("superset-recognized", recognized, pop)
 	return refused, nil
 }
@@ -177,6 +187,19 @@ func labelVerdicts(dir string) (func(path string) *perlVerdict, error) {
 	return func(path string) *perlVerdict { return out[path] }, nil
 }
 
+// realInputs are chartInputs with the committed lexer lists and perl labels.
+func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, error) {
+	excluded, err := lexerListed()
+	if err != nil {
+		return verdictInputs{}, err
+	}
+	perl, err := labelVerdicts(filepath.Join(testdata, "labels"))
+	if err != nil {
+		return verdictInputs{}, err
+	}
+	return chartInputs(tab, srcs, excluded, perl), nil
+}
+
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
 // fresh recognizer per file, recursive descent is parse.Parse, perl is the
 // committed labels.
@@ -204,7 +227,9 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			r.Positions--
 			return r, nil
 		},
-		RD:       func(path string) bool { return !parse.Parse(srcs[path]).Refused() },
+		RD: func(path string) (bool, error) {
+			return rdAccepts(path, func() *parse.Node { return parse.Parse(srcs[path]) })
+		},
 		Perl:     perl,
 		Excluded: excluded,
 	}
