@@ -80,3 +80,20 @@ func TestPortNamedOperatorsOperatorWords(t *testing.T) {
 		}
 	}
 }
+
+// x after a UNIOP word, a LOOPEX word, require, not or a filetest is a word, because toke.c expects a
+// term there; after a term it is the repetition operator. perl -c (94e50866): each refused row is a
+// syntax error, its nearby form compiles.
+func TestPortNamedOperatorsXAfterNamedOperator(t *testing.T) {
+	for _, tc := range []struct{ refused, nearby string }{
+		{"shift x 3;", "time x 3;"}, {"ref x 3;", "ref x;"}, {"last x 3;", "last x;"},
+		{"require x 3;", "require x;"}, {"not x 3;", "not x;"}, {"-e x 3;", "-e x;"},
+	} {
+		if v := recognizeSource(t, []byte(tc.refused)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", tc.refused)
+		}
+		if v := recognizeSource(t, []byte(tc.nearby)); !v.accepted {
+			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
+		}
+	}
+}
