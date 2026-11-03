@@ -462,7 +462,7 @@ perly.y:1506 termunop: term POSTINC	ported
 
 perly.y:1509 termunop: term POSTDEC	ported
 
-perly.y:1512 termunop: term POSTJOIN	fitted
+perly.y:1512 termunop: term POSTJOIN	excluded interpolation-only
 
 perly.y:1523 termunop: PREINC term	ported
 

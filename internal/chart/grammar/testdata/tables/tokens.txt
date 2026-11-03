@@ -26,152 +26,149 @@ set 24 57
 set 25 58
 set 26 59
 set 27 60
-set 28 62 65
-set 29 63 66
-set 30 64
-set 31 67
+set 28 62 64
+set 29 63 65
+set 30 66
 node 0 leaf set 30
-node 1 leaf set 31
-node 2 leaf set 0
-node 3 part 4 otherwise 2
-  34 -> 1
-  39 -> 1
-  81 -> 1
-  113 -> 1
-node 4 leaf set 13
-node 5 leaf set 21
-node 6 leaf set 23
-node 7 leaf set 25
-node 8 part 4 otherwise 2
-  35 -> 4
-  36 -> 5
-  37 -> 6
-  64 -> 7
-node 9 leaf set 9
-node 10 leaf set 15
-node 11 part 6 otherwise 10
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 9
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 9
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 9
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 9
-node 12 leaf set 6
-node 13 leaf set 11
-node 14 part 6 otherwise 13
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 12
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 12
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 12
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 12
-node 15 leaf set 7
-node 16 leaf set 12
-node 17 part 6 otherwise 16
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 15
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 15
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 15
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 15
-node 18 leaf set 10
-node 19 leaf set 16
-node 20 part 6 otherwise 19
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 18
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 18
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 18
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 18
-node 21 leaf set 8
-node 22 leaf set 14
-node 23 part 6 otherwise 22
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 21
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 21
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 21
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 21
-node 24 leaf set 4
-node 25 leaf set 3
-node 26 part 6 otherwise 25
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 24
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 24
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 24
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 24
-node 27 leaf set 5
-node 28 part 6 otherwise 2
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 27
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 27
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 27
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 27
-node 29 part 1 otherwise 28
-  "cmp" -> 11
-  "eq" -> 14
-  "ge" -> 17
-  "gt" -> 17
-  "isa" -> 20
-  "le" -> 17
-  "lt" -> 17
-  "ne" -> 14
-  "no" -> 23
-  "use" -> 23
-  "x=" -> 26
-node 30 leaf set 22
-node 31 leaf set 26
-node 32 leaf set 2
-node 33 leaf set 29
-node 34 leaf set 20
-node 35 leaf set 1
-node 36 leaf set 28
-node 37 leaf set 19
-node 38 part 2 otherwise 2
-  1 -> 37
-node 39 leaf set 27
-node 40 part 1 otherwise 2
-  "!" -> 30
-  "!=" -> 13
-  "%=" -> 25
-  "&&=" -> 25
-  "&.=" -> 25
-  "&=" -> 25
-  "*" -> 31
-  "**=" -> 25
-  "*=" -> 25
-  "+" -> 32
-  "++" -> 33
-  "+=" -> 25
-  "," -> 34
-  "-" -> 35
-  "--" -> 36
-  "-=" -> 25
-  ".=" -> 25
-  "//=" -> 25
-  "/=" -> 25
-  "<" -> 16
-  "<<=" -> 25
-  "<=" -> 16
-  "<=>" -> 10
-  "=" -> 25
-  "==" -> 13
-  "=>" -> 34
-  ">" -> 16
-  ">=" -> 16
-  ">>=" -> 25
-  "^.=" -> 25
-  "^=" -> 25
-  "{" -> 38
-  "|.=" -> 25
-  "|=" -> 25
-  "||=" -> 25
-  "~" -> 39
-  "~." -> 39
-  "~~" -> 10
-node 41 leaf set 24
-node 42 leaf set 17
-node 43 leaf set 18
-node 44 part 2 otherwise 2
-  1 -> 43
-node 45 part 1 otherwise 2
-  "}" -> 44
-node 46 part 0 otherwise 2
-  0 -> 0
-  3 -> 3
-  5 -> 8
-  6 -> 29
-  7 -> 1
-  8 -> 40
-  9 -> 41
-  11 -> 42
-  14 -> 45
-root 46
+node 1 leaf set 0
+node 2 part 4 otherwise 1
+  34 -> 0
+  39 -> 0
+  81 -> 0
+  113 -> 0
+node 3 leaf set 13
+node 4 leaf set 21
+node 5 leaf set 23
+node 6 leaf set 25
+node 7 part 4 otherwise 1
+  35 -> 3
+  36 -> 4
+  37 -> 5
+  64 -> 6
+node 8 leaf set 9
+node 9 leaf set 15
+node 10 part 6 otherwise 9
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 8
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 8
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 8
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 8
+node 11 leaf set 6
+node 12 leaf set 11
+node 13 part 6 otherwise 12
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 11
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 11
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 11
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 11
+node 14 leaf set 7
+node 15 leaf set 12
+node 16 part 6 otherwise 15
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 14
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 14
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 14
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 14
+node 17 leaf set 10
+node 18 leaf set 16
+node 19 part 6 otherwise 18
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 17
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 17
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 17
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 17
+node 20 leaf set 8
+node 21 leaf set 14
+node 22 part 6 otherwise 21
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 20
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 20
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 20
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 20
+node 23 leaf set 4
+node 24 leaf set 3
+node 25 part 6 otherwise 24
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 23
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 23
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 23
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 23
+node 26 leaf set 5
+node 27 part 6 otherwise 1
+  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0} -> 26
+  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0} -> 26
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0} -> 26
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0} -> 26
+node 28 part 1 otherwise 27
+  "cmp" -> 10
+  "eq" -> 13
+  "ge" -> 16
+  "gt" -> 16
+  "isa" -> 19
+  "le" -> 16
+  "lt" -> 16
+  "ne" -> 13
+  "no" -> 22
+  "use" -> 22
+  "x=" -> 25
+node 29 leaf set 22
+node 30 leaf set 26
+node 31 leaf set 2
+node 32 leaf set 29
+node 33 leaf set 20
+node 34 leaf set 1
+node 35 leaf set 28
+node 36 leaf set 19
+node 37 part 2 otherwise 1
+  1 -> 36
+node 38 leaf set 27
+node 39 part 1 otherwise 1
+  "!" -> 29
+  "!=" -> 12
+  "%=" -> 24
+  "&&=" -> 24
+  "&.=" -> 24
+  "&=" -> 24
+  "*" -> 30
+  "**=" -> 24
+  "*=" -> 24
+  "+" -> 31
+  "++" -> 32
+  "+=" -> 24
+  "," -> 33
+  "-" -> 34
+  "--" -> 35
+  "-=" -> 24
+  ".=" -> 24
+  "//=" -> 24
+  "/=" -> 24
+  "<" -> 15
+  "<<=" -> 24
+  "<=" -> 15
+  "<=>" -> 9
+  "=" -> 24
+  "==" -> 12
+  "=>" -> 33
+  ">" -> 15
+  ">=" -> 15
+  ">>=" -> 24
+  "^.=" -> 24
+  "^=" -> 24
+  "{" -> 37
+  "|.=" -> 24
+  "|=" -> 24
+  "||=" -> 24
+  "~" -> 38
+  "~." -> 38
+  "~~" -> 9
+node 40 leaf set 24
+node 41 leaf set 17
+node 42 leaf set 18
+node 43 part 2 otherwise 1
+  1 -> 42
+node 44 part 1 otherwise 1
+  "}" -> 43
+node 45 part 0 otherwise 1
+  3 -> 2
+  5 -> 7
+  6 -> 28
+  7 -> 0
+  8 -> 39
+  9 -> 40
+  11 -> 41
+  14 -> 44
+root 45
