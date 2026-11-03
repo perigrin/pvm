@@ -825,18 +825,11 @@ var perlyClasses = []ClassDecl{
 
 	// KW_METHOD_anon
 
-	// Every word that is not a keyword; the keywords toke.c falls through to a word when no operand is
-	// expected (KEY_x, KEY_lt and their kin) are listed below. A keyword is a BAREWORD only where a
-	// position class says so.
+	// Every word that is not a keyword; the one keyword toke.c falls through to a word when no
+	// operator is expected, x (KEY_x), is listed below. A keyword is a BAREWORD only where a position
+	// class says so; lt, gt, le, ge, eq, ne and cmp are never words.
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords()}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lt")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gt")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("le")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ge")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eq")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ne")}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("cmp")}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}}},
