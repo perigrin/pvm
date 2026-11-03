@@ -408,6 +408,18 @@ every input is a valid terminal string; with one, its bytes decode to a small
 grammar (the first rule's left-hand side is the start, and may sit on a right-hand side) and the input's bytes
 pick among that grammar's terminals.
 
+`TestReferenceRecognizer` (`recognize/agree_test.go`) holds the recognizer to
+the same reference, under every `Options` combination, on acceptance, on
+`Inserted` and on `Expected` at every node: over every short input of toy
+grammars (left and right recursion, nullable chains, ambiguity, a dead end,
+`;`-terminated statements in braces) and over a deterministic corpus sample
+(`std5k.pl`, the port snippets and every 24th Guacamole case, each lexed
+through `chart/lex`, at most 300 tokens). Agreement does not need acceptance:
+`TestReferenceAgreesOnTruncatedFiles` cuts each sample file after its first
+`=` and requires both to refuse at the same node with the same `Expected`.
+`TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
+transition the sample uses and requires the disagreement to be reported.
+
 ## The generated tables: `make chart-tables`
 
 `make chart-tables` runs `grammar/cmd/gen`, which builds the tables
