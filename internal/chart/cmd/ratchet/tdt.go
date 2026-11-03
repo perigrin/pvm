@@ -16,6 +16,9 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
+// defaultTDT is where this milestone generates the fixtures; TDT_FIXTURES overrides it, as T1_CORPUS does defaultT1.
+const defaultTDT = "/var/tmp/pvm-chart-tdt"
+
 var (
 	familiesFile = filepath.Join(testdata, "tdt", "fitting-families.txt")
 	reviewedFile = filepath.Join(testdata, "tdt", "unseen-reviewed.txt")
@@ -235,13 +238,16 @@ func listLines(path string) ([]string, error) {
 	return out, nil
 }
 
-// measureTDT adds the tdt keys to measured. With TDT_FIXTURES unset they stay unmeasured (na);
-// naming no directory is an error.
-func measureTDT(g *grammar.Grammar, tab *grammar.Tables, files []File, srcs map[string][]byte, measured map[string]string) error {
-	dir := os.Getenv("TDT_FIXTURES")
-	if dir == "" {
-		return nil
+// fixturesDir is the TDT_FIXTURES value set, or def when it is unset.
+func fixturesDir(set, def string) string {
+	if set == "" {
+		return def
 	}
+	return set
+}
+
+// measureTDT adds the tdt keys to measured, reading the fixtures in dir; a dir that is no directory is an error.
+func measureTDT(dir string, g *grammar.Grammar, tab *grammar.Tables, files []File, srcs map[string][]byte, measured map[string]string) error {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return fmt.Errorf("TDT_FIXTURES=%s names no directory (%v)", dir, err)
 	}

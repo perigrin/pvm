@@ -142,8 +142,9 @@ To take a baseline after an intended change, run
   table is still growing, and those files are not lexer defects.
 - **Reported** only: every other key.
 - **The tdt keys read `TDT_FIXTURES`**, the directory `offline/tdt-align.sh`
-  writes the aligned pairs into (they are not committed). Unset, they print
-  `na`; naming no directory, or a corpus file with no fixture there, is an
+  writes the aligned pairs into (they are not committed). Unset, it is
+  `/var/tmp/pvm-chart-tdt`, where this milestone generates them, as `T1_CORPUS`
+  defaults; naming no directory, or a corpus file with no fixture there, is an
   error (exit 2). A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`; an entry naming
   no pair of the table is an error. Only whole captures are counted.
