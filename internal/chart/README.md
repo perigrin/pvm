@@ -173,7 +173,7 @@ To take a baseline after an intended change, run
 | `alloc-per-token-chart` | the chart's allocations per token | timing |
 | `alloc-per-token-rd` | recursive descent's allocations per token | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
-| `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts | reported |
+| `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
 | `ledger-excluded` | ledger alternatives marked excluded | reported |
 | `superset-population` | files both perl and recursive descent accept, less both lexer lists | reported |
 | `superset-recognized` | share of that population the chart accepts | reported |
