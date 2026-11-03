@@ -19,65 +19,88 @@ import (
 type refItem struct{ rule, dot, origin int }
 
 // refRun is the reference's Earley sets for the terminal-set ids ids, one per
-// node of a linear lattice: sets[i] holds what is true after i tokens. It
-// reads tab's rules and terminal sets only, never its states. Each set is
-// closed by predicting and completing until nothing is added, so a nullable
-// symbol needs no special case.
-func refRun(tab *grammar.Tables, ids []int) [][]refItem {
-	sets := make([][]refItem, len(ids)+1)
-	for i := range sets {
+// node of a linear lattice: sets[i] holds what is true after i tokens; and
+// whether it accepts. It reads tab's rules and terminal sets only, never its
+// states. Each set is closed by predicting and completing until nothing is
+// added, so a nullable symbol needs no special case. Where the next token
+// holds PERLY_BRACE_CLOSE, or the input ends, a ; toke.c inserts is scanned
+// into a set of its own past the node's (spec §5.2); the next node scans its
+// token from both, and at the end either may accept.
+func refRun(tab *grammar.Tables, ids []int) (sets [][]refItem, accepted bool) {
+	var all [][]refItem // every set, a node's or an inserted ;'s; origins index it
+	open := func(seed []refItem) []refItem {
+		k := len(all)
+		all = append(all, nil)
 		seen := map[refItem]bool{}
 		put := func(it refItem) {
 			if !seen[it] {
 				seen[it] = true
-				sets[i] = append(sets[i], it)
+				all[k] = append(all[k], it)
 			}
 		}
-		if i == 0 {
-			for r, rule := range tab.Rules {
-				if rule.LHS == tab.Start {
-					put(refItem{r, 0, 0})
-				}
-			}
-		} else {
-			for _, it := range sets[i-1] {
-				if rhs := tab.Rules[it.rule].RHS; it.dot < len(rhs) && slices.Contains(tab.TerminalSets[ids[i-1]], rhs[it.dot]) {
-					put(refItem{it.rule, it.dot + 1, it.origin})
-				}
-			}
+		for _, it := range seed {
+			put(it)
 		}
 		for grew := true; grew; {
 			grew = false
-			n := len(sets[i])
-			for k := 0; k < len(sets[i]); k++ {
-				it := sets[i][k]
+			n := len(all[k])
+			for i := 0; i < len(all[k]); i++ {
+				it := all[k][i]
 				rule := tab.Rules[it.rule]
 				if it.dot < len(rule.RHS) {
 					for r, p := range tab.Rules { // predict
 						if p.LHS == rule.RHS[it.dot] {
-							put(refItem{r, 0, i})
+							put(refItem{r, 0, k})
 						}
 					}
 					continue
 				}
-				for _, w := range sets[it.origin] { // complete
+				for _, w := range all[it.origin] { // complete
 					if rhs := tab.Rules[w.rule].RHS; w.dot < len(rhs) && rhs[w.dot] == rule.LHS {
 						put(refItem{w.rule, w.dot + 1, w.origin})
 					}
 				}
 			}
-			grew = len(sets[i]) > n
+			grew = len(all[k]) > n
+		}
+		return all[k]
+	}
+	advance := func(from []refItem, terms []int) (out []refItem) {
+		for _, it := range from {
+			if rhs := tab.Rules[it.rule].RHS; it.dot < len(rhs) && slices.Contains(terms, rhs[it.dot]) {
+				out = append(out, refItem{it.rule, it.dot + 1, it.origin})
+			}
+		}
+		return out
+	}
+	named := func(name string) int {
+		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
+	}
+	semi, brace := []int{named("PERLY_SEMICOLON")}, named("PERLY_BRACE_CLOSE")
+	var seed, ins []refItem
+	for r, rule := range tab.Rules {
+		if rule.LHS == tab.Start {
+			seed = append(seed, refItem{r, 0, 0})
 		}
 	}
-	return sets
-}
-
-// refAccepts is whether the last of sets holds a finished rule of the start
-// symbol that began at 0.
-func refAccepts(tab *grammar.Tables, sets [][]refItem) bool {
-	return slices.ContainsFunc(sets[len(sets)-1], func(it refItem) bool {
+	sets = append(sets, open(seed))
+	for i := 0; ; i++ {
+		ins = nil
+		if i == len(ids) || slices.Contains(tab.TerminalSets[ids[i]], brace) {
+			if seed := advance(sets[i], semi); len(seed) > 0 {
+				ins = open(seed)
+			}
+		}
+		if i == len(ids) {
+			break
+		}
+		terms := tab.TerminalSets[ids[i]]
+		sets = append(sets, open(append(advance(sets[i], terms), advance(ins, terms)...)))
+	}
+	done := func(it refItem) bool {
 		return it.origin == 0 && it.dot == len(tab.Rules[it.rule].RHS) && tab.Rules[it.rule].LHS == tab.Start
-	})
+	}
+	return sets, slices.ContainsFunc(sets[len(ids)], done) || slices.ContainsFunc(ins, done)
 }
 
 // refExpected is the names of the terminals that some item of items awaits,
@@ -99,7 +122,8 @@ func refAccepted(tab *grammar.Tables, words string) bool {
 	for _, w := range strings.Fields(words) {
 		ids = append(ids, termSet(tab, w))
 	}
-	return refAccepts(tab, refRun(tab, ids))
+	_, ok := refRun(tab, ids)
+	return ok
 }
 
 // TestReferenceRecognizerEdgeCases: the edges a textbook recognizer gets
