@@ -172,7 +172,8 @@ assessment lists what they involve.
   token (a token maps to a *set* of terminals, never a sequence); where the
   lexer emits several tokens for one terminal, the rule is fitted to the
   tokens. The families needing fitting are variables and indirect objects;
-  braces and the `;` toke.c inserts; quote-likes and interpolation;
+  braces (the `;` toke.c inserts is not fitted; see the next item);
+  quote-likes and interpolation;
   formats, labels, attributes and postfix dereference; heredocs; forced
   version tokens; `NOAMP` and method-call tokens; the scope-decided `*SUB`
   and `PRIVATEREF`; phasers. Their detail is in the hand-off (H4).
@@ -181,6 +182,20 @@ assessment lists what they involve.
   the program form; the others are tested only where they lex the same from
   statement start, since the lexer exports only statement-start states, and
   that limit is recorded.
+- **The `;` toke.c inserts, by a narrow ruby slipper** (perigrin,
+  2026-11-03). toke.c inserts a `;` before a `}` that closes a block and at
+  end of file, so a statement's own `;` may be left off there
+  (`{ use strict }`, a file ending `package Foo`). Whether a `}` closes a
+  block or a hash is not in the tokens, so this one case is not fitted: the
+  recognizer, at a node whose `Expected` holds `;` and whose next token is a
+  `}` or end of input, scans a zero-width `;` there as well as whatever the
+  next token scans. A `}` that closes a hash or a subscript is never preceded
+  by an expected `;`, so the expected set decides what toke.c's lexer state
+  decides. The insertion is recorded on the chart by node, the reference
+  recognizer does the same so that it stays the oracle, and the speed
+  protocol times it as recognition. Nothing else is inserted and the lexer's
+  tokens do not change; interleaved lexing remains future work (§13). This
+  replaces rule variants fitted for the inserted `;`.
 - **`PLUGIN_*` operators.** The eleven classes (`perly.y:153-178`, rules at
   `1256-1470`) are ported as grammar. How a library operator reaches them is
   waypoint 2's (§9.4).
@@ -574,7 +589,8 @@ a file leaves both gates' populations.
 
 ## 13. Future work, not in this spike
 
-- **Interleaved lexing, through ruby slippers.** The lexer asks the parser
+- **Interleaved lexing, through ruby slippers,** beyond the one insertion
+  §5.2 makes for the `;` toke.c inserts. The lexer asks the parser
   what is expected at a position and what is in scope there, and may produce
   the token the parser expects. Its case is time to an answer (§2): its payoff
   is M2's editing loop, where mid-edit code is incomplete and a parser that can
