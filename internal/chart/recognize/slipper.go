@@ -43,8 +43,9 @@ func (b *builder) slip(e lex.Edge) {
 	}
 	for _, it := range v.items {
 		// shortcut: an item predicted after the ; is not carried, since its
-		// origin would name the set before it; exact while no rule begins
-		// with }, as none in perly.y does. Give the ; a node of its own if one does.
+		// origin would name the set before it; exact while no rule's } is
+		// preceded only by nullable symbols (the nullable closure keeps such
+		// items predicted), as holds for perly.y. Give the ; a node of its own if one is.
 		if b.r.tab.States[it[0]].Predicted {
 			continue
 		}
