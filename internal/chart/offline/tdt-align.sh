@@ -10,15 +10,27 @@ out=${TDT_FIXTURES:?set TDT_FIXTURES to the directory the corpus fixtures go to}
 top=$(git rev-parse --show-toplevel)
 # Absolute before any cd, and outside the repository: the aligner clears the
 # *.tdt files under it (the committed sample.tdt among them, inside the tree).
-mkdir -p "$out"
-out=$(cd "$out" && pwd -P)
-topreal=$(cd "$top" && pwd -P)
+# It is resolved through its nearest existing parent and created only once accepted.
 refuse() {
 	echo "tdt-align.sh: TDT_FIXTURES=$out is inside the repository or holds it; name a directory outside it" >&2
 	exit 2
 }
+case $out in /*) ;; *) out=$PWD/$out ;; esac
+base=$out rest=
+while [ ! -d "$base" ]; do
+	base=${base%/}
+	rest=/${base##*/}$rest
+	base=$(dirname "$base")
+done
+# A . or .. below the existing parent would resolve only once created.
+case "$rest/" in */./* | */../*) refuse ;; esac
+out=$(cd "$base" && pwd -P)
+out=${out%/}$rest
+out=${out:-/}
+topreal=$(cd "$top" && pwd -P)
 case "$topreal/" in "${out%/}/"*) refuse ;; esac
 case "${out%/}/" in "$topreal/"*) refuse ;; esac
+mkdir -p "$out"
 here=$top/internal/chart/offline
 cap=$(mktemp -d)
 trap 'rm -rf "$cap"' EXIT
