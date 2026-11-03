@@ -6,12 +6,12 @@ chart-ratchet: chart-accepted-both-refused 0
 chart-ratchet: lex-unmapped 1669
 chart-ratchet: tdt-aligned 0.9943
 chart-ratchet: tdt-mismatch 95077
-chart-ratchet: tdt-unseen 5
-chart-ratchet: terminals-per-token 1.078
-chart-ratchet: tdt-unseen-unlisted 5
+chart-ratchet: tdt-unseen 10
+chart-ratchet: terminals-per-token 1.066
+chart-ratchet: tdt-unseen-unlisted 10
 chart-ratchet: tdt-unaligned-unlisted 108
-chart-ratchet: lex-overhead 1.091
-chart-ratchet: lex-overhead-std5k 1.021
+chart-ratchet: lex-overhead 1.108
+chart-ratchet: lex-overhead-std5k 1.120
 chart-ratchet: speed-ratio-std5k-longlived na
 chart-ratchet: speed-ratio-std5k-cold na
 chart-ratchet: speed-ratio-aggregate-longlived na

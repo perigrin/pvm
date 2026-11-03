@@ -256,6 +256,7 @@ attr: ATTRLIST PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1070, fitted: the at
 attr: ATTRLIST PERLY_PAREN_OPEN ATTRLIST PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attrs: empty # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attrs: attrs COLONATTR attr # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attrs: attrs attr # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 
 attrlist: COLONATTR # perly.y:1072
 
@@ -826,9 +827,15 @@ var perlyClasses = []ClassDecl{
 
 	// METHCALL
 
-	// An attribute's name follows its colon and its one-token argument follows its parenthesis.
+	// An attribute's name follows its colon, the attribute before it or its argument's parenthesis; its
+	// one-token argument, never a parenthesis, follows its own.
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: ":"}}},
-	{"ATTRLIST", TokenClass{Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: OtherWord}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.CloseBracket, Text: ")"}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 
 	{"THING", TokenClass{Kind: ptr(lexer.Number)}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\''))}},

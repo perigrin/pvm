@@ -87,7 +87,26 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 		return toks[i].n
 	}
-	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool { return want == nil || *want == got }
+	// A neighbour of grammar.OtherWord is a word, flags as given, that no class names.
+	named := map[string]bool{}
+	for _, c := range classes {
+		if c.Text != nil {
+			named[*c.Text] = true
+		}
+		for _, n := range []*grammar.Neighbour{c.Prev2, c.Prev1, c.Next} {
+			if n != nil {
+				named[n.Text] = true
+			}
+		}
+	}
+	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool {
+		if want != nil && want.Text == grammar.OtherWord {
+			w := *want
+			w.Text = got.Text
+			return w == got && !named[got.Text]
+		}
+		return want == nil || *want == got
+	}
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
