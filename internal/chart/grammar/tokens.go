@@ -99,6 +99,11 @@ type TokenClass struct {
 	OpensBlock, TermFollows *bool
 	Prefix                  *byte
 	Prev2, Prev1, Next      *Neighbour
+	// NotText and NotNext exclude the keys they name from a class that would
+	// otherwise match them, so two classes on one word are told apart by the
+	// next token, and a class for every word can leave out the keywords.
+	NotText []string
+	NotNext *Neighbour
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -212,7 +217,10 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.Text != nil {
 			texts[*c.Text] = true
 		}
-		for _, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
+		for _, s := range c.NotText {
+			texts[s] = true
+		}
+		for _, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext} {
 			if nb != nil {
 				if nb.Text != OtherWord {
 					texts[nb.Text] = true
@@ -238,8 +246,14 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	}
 	tt.Edge = tt.ClassID(Boundary)
 
-	pats := make([][nParts]int, len(classes))
+	pats, nots := make([][nParts]int, len(classes)), make([][nParts][]int, len(classes))
 	for i, c := range classes {
+		for _, s := range c.NotText {
+			nots[i][1] = append(nots[i][1], tt.text[s])
+		}
+		if c.NotNext != nil {
+			nots[i][7] = []int{tt.ClassID(*c.NotNext)}
+		}
 		p := [nParts]int{free, free, free, free, free, free, free, free}
 		if c.Kind != nil {
 			p[0] = int(*c.Kind)
@@ -282,7 +296,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	var build func(in []int, part int) *node
 	build = func(in []int, part int) *node {
 		for ; part < nParts; part++ {
-			if slices.ContainsFunc(in, func(c int) bool { return pats[c][part] != free }) {
+			if slices.ContainsFunc(in, func(c int) bool { return pats[c][part] != free || len(nots[c][part]) > 0 }) {
 				break
 			}
 		}
@@ -307,6 +321,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				} else {
 					values = append(values, v)
 				}
+				values = append(values, nots[c][part]...)
 			}
 			slices.Sort(values)
 			values = slices.Compact(values)
@@ -316,7 +331,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				cand.kids[i] = cand.def
 			}
 			for _, v := range values {
-				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != free && q != v })
+				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != free && q != v || slices.Contains(nots[o][part], v) })
 				cand.kids[v] = build(same, part+1)
 			}
 			for _, k := range cand.kids {
