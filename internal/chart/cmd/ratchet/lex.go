@@ -1,5 +1,5 @@
 // ABOUTME: The ratchet's chart/lex keys: lex-unmapped over every corpus file, and lex-overhead timed by the §9.3 protocol.
-// ABOUTME: Until the superset population exists lex-overhead reads every corpus file (perigrin, "All files until POP").
+// ABOUTME: lex-overhead times the aggregate of the superset population (spec §9.3, amended at a99d771e).
 
 package main
 
@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/lexer"
+	"tamarou.com/pvm/internal/parse"
 )
 
 const defaultT1 = "/opt/corpora/PerlOnJava/src/test/resources/unit"
@@ -65,12 +66,26 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 	return chart, ref
 }
 
-// measureLex adds lex-unmapped, lex-overhead and lex-overhead-std5k over
-// files to measured, and returns lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tt *grammar.TokenTable, files []File, srcs map[string][]byte, measured map[string]string) []string {
-	var unmapped, all []string
+// lexOverhead is the lex-overhead figure: chart/lex over lexer.Tokenize on the
+// aggregate of the superset population over files.
+func lexOverhead(p Protocol, rd Side, files []File, in verdictInputs) (float64, error) {
+	population, err := supersetPopulation(files, in)
+	if err != nil {
+		return 0, err
+	}
+	timed := make([]string, len(population))
+	for i, f := range population {
+		timed[i] = f.Path
+	}
+	return p.Ratio("lex-overhead", p.Aggregate(rd, population, timed), false), nil
+}
+
+// measureLex adds lex-unmapped over files, and lex-overhead over the
+// population's aggregate and lex-overhead-std5k, to measured. It returns
+// lex-unmapped's files as "<path> <byte>" pairs.
+func measureLex(tt *grammar.TokenTable, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
+	var unmapped []string
 	for _, f := range files {
-		all = append(all, f.Path)
 		if _, at := lex.Lex(srcs[f.Path], tt); at >= 0 {
 			unmapped = append(unmapped, fmt.Sprintf("%s %d", f.Path, at))
 		}
@@ -80,7 +95,12 @@ func measureLex(tt *grammar.TokenTable, files []File, srcs map[string][]byte, me
 	start := time.Now()
 	chart, ref := lexSides(srcs, tt, lexer.Tokenize)
 	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
-	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", all, false))
+	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
+	overhead, err := lexOverhead(p, rd, files, in)
+	if err != nil {
+		return nil, err
+	}
+	measured["lex-overhead"] = fmt.Sprintf("%.3f", overhead)
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-std5k", []string{std5k}, false))
-	return unmapped
+	return unmapped, nil
 }

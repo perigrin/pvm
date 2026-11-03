@@ -51,23 +51,20 @@ func main() {
 	if err == nil {
 		err = measureLeo(tab, files, srcs, measured)
 	}
+	var in verdictInputs
+	if err == nil {
+		in, err = realInputs(tab, srcs)
+	}
 	var unmapped []string
 	if err == nil {
-		unmapped = measureLex(tab.Tokens, files, srcs, measured)
+		unmapped, err = measureLex(tab.Tokens, files, in, srcs, measured)
 	}
 	if err == nil {
 		err = measureTDT(fixturesDir(os.Getenv("TDT_FIXTURES"), defaultTDT), g, tab, files, srcs, measured)
 	}
 	var rises map[string][]string
 	if err == nil {
-		var excluded map[string]bool
-		var perl func(string) *perlVerdict
-		if excluded, err = lexerListed(); err == nil {
-			perl, err = labelVerdicts(filepath.Join(testdata, "labels"))
-		}
-		if err == nil {
-			rises, err = measureVerdicts(files, chartInputs(tab, srcs, excluded, perl), measured)
-		}
+		rises, err = measureVerdicts(files, in, measured)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
