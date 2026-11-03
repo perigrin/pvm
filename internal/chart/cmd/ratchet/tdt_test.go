@@ -122,3 +122,17 @@ func TestTDTUnalignedFamilyExact(t *testing.T) {
 		}
 	}
 }
+
+func TestTDTFixturesDefault(t *testing.T) {
+	def := t.TempDir()
+	if got := fixturesDir("", def); got != def {
+		t.Errorf("unset TDT_FIXTURES reads %q, want the default %q", got, def)
+	}
+	if got := fixturesDir("/x", def); got != "/x" {
+		t.Errorf("a set TDT_FIXTURES reads %q, want it", got)
+	}
+	err := measureTDT(filepath.Join(def, "nope"), nil, nil, nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "TDT_FIXTURES") {
+		t.Errorf("a path that is no directory: error %v, want one naming TDT_FIXTURES", err)
+	}
+}
