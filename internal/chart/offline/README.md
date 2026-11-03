@@ -59,12 +59,14 @@ bison and cc builds.
 
 ## label.sh
 
-`T1_CORPUS=<unit dir> sh internal/chart/offline/label.sh <perl>` labels every
-waypoint-1 corpus file with the pinned perl's `perl -c` verdict (spec §9.1)
-and writes `testdata/labels/in-tree.txt` (the Guacamole `parses` and
-`parsent` cases, `std5k.pl`, `edit5k.pl`) and `testdata/labels/t1.txt` (T1's
-986 top-level `*.t`). It refuses a perl that is not a `-DDEBUGGING` build at
-94e50866, and a T1 checkout not at PerlOnJava 73be162b.
+`T1_CORPUS=<unit dir> sh internal/chart/offline/label.sh <perl> <referee-dir>`
+labels every waypoint-1 corpus file with the pinned perl's `perl -c` verdict
+(spec §9.1) and writes `testdata/labels/in-tree.txt` (the Guacamole `parses`
+and `parsent` cases, `std5k.pl`, `edit5k.pl`) and `testdata/labels/t1.txt`
+(T1's 986 top-level `*.t`). `<referee-dir>` holds `referee/build.sh`'s two
+referees; `TDT_FIXTURES` (default `/var/tmp/pvm-chart-tdt`) holds
+`tdt-align.sh`'s captures. It refuses a perl that is not a `-DDEBUGGING` build
+at 94e50866, and a T1 checkout not at PerlOnJava 73be162b.
 
 - Each file runs under `env -i` with only `PATH` and `PERL5LIB` set and a 30 s
   timeout. In-tree files run from the repository root with the Guacamole
@@ -72,22 +74,53 @@ and writes `testdata/labels/in-tree.txt` (the Guacamole `parses` and
   `use lib 'src/test/resources/unit/lib'` resolves, with `PERL5LIB` empty.
 - Each label file opens with a provenance header (`# key: value`): the perl,
   its version, `git_commit_id` and `ccflags`, the corpus, working directory,
-  root, `PERL5LIB`, timeout and the first-error limit.
+  root, `PERL5LIB`, timeout, the first-error limit, the status and how the
+  review evidence is taken.
 - Then one tab-separated line per file: `<path> accept`, or
-  `<path> refuse <category> <status> <first error> [<referee>]`. The category
+  `<path> refuse <category> <status> <first error> [<review>]`. The category
   is one of grammar, precedence, scope, semantic, environment; the status is
   `proposed` or `reviewed`. A timeout is labelled environment with the timeout
   as its evidence, never omitted.
 - The category is proposed from perl's first error, its first stderr line,
   by the first of the script's patterns it matches. A first line no pattern
-  matches stops the script; a later line never decides the category. The script never proposes precedence. That label needs the
-  referee field, `referee-noprec viable; referee-prec refuse@N`, which
-  LABELS-review adds from the file's `-DT` stream.
+  matches stops the script; a later line never decides the category.
+- A grammar refusal's `-DT` stream (`tdt-capture.sh`) goes to both referees:
+  `referee-prec` (perl's grammar) on the whole stream, then `referee-noprec`
+  on the stream up to the token `referee-prec` refuses. The review field
+  records both, and the label is **precedence** exactly when that prefix is
+  `viable` without precedence: `referee-noprec viable; referee-prec
+  refuse@N`. A toke.c croak leaves a stream both find `viable`.
+- A file `perl -c` accepts whose capture in `TDT_FIXTURES` is `# truncated`
+  stopped at a skip (`plan skip_all`, or a TAP skip and `exit`) in `BEGIN`
+  without compiling the rest; it is refused as environment (perigrin's ruling
+  "Label environment"), the capture its review field.
+- Status 124 is read as a timeout by status alone (a `shortcut:` in the
+  script): no label carries timeout evidence, so no corpus file exits 124.
+
+**The review.** label.sh writes every category `proposed`; a person or agent
+checks each against its evidence and marks it `reviewed`, and
+`TestPerlLabels` refuses any refusal still `proposed`, so a rerun is reviewed
+again before it lands. LABELS-review (2026-11-03) reviewed all of them:
+
+| Category | In-tree | T1 | Evidence |
+|---|---|---|---|
+| grammar | 52 | 0 | 33 streams both referees refuse at the same token (30 syntax errors, 3 toke.c croaks: version format, anonymous sub); 13 toke.c croaks on a `viable` stream (string terminator, bare `<<`, digits); 6 `$#`/`$*` |
+| precedence | 0 | 0 | no prefix is viable without precedence and refused with it |
+| scope | 0 | 0 | no action refused under scope or features |
+| semantic | 11 | 1 | op.c `Can't modify` (1); `Invalid CODE attribute` after the sub is parsed (10); a `strict subs` bareword (T1, 1) |
+| environment | 5 | 152 | `no 5.010` too modern (5); no threads (59); missing modules (56); `-T` (5); a skip in `BEGIN` (32) |
+
+One proposal was overturned: `$# / $* is no longer supported` was proposed
+semantic and is grammar. `-DpT` shows gv.c croaking from toke.c's
+`S_pending_ident`, after `PERLY_DOLLAR` and before the name token reaches the
+parser; the referees find the stream `viable`. That is a fatal lexing error,
+§9.1's grammar, not a check after parsing.
 
 `TestPerlLabels` reads the labels; it never runs perl.
 
-Cost (K6): one run labels 1,881 files in about 42 s wall clock on this
-machine (41.6 s; 4 cores, files one at a time).
+Cost (K6): one run labels 1,881 files in about 2.5 min wall clock on this
+machine (147 s, 4 cores, files one at a time, other workers running; 42 s
+before the review evidence was added).
 
 ## tdt-capture.sh
 

@@ -61,8 +61,12 @@ func main() {
 	var rises map[string][]string
 	if err == nil {
 		var excluded map[string]bool
+		var perl func(string) *perlVerdict
 		if excluded, err = lexerListed(); err == nil {
-			rises, err = measureVerdicts(files, chartInputs(tab, srcs, excluded), measured)
+			perl, err = labelVerdicts(filepath.Join(testdata, "labels"))
+		}
+		if err == nil {
+			rises, err = measureVerdicts(files, chartInputs(tab, srcs, excluded, perl), measured)
 		}
 	}
 	if err != nil {
