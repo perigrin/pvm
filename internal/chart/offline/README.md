@@ -1,5 +1,5 @@
 <!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the perl build, the bison referees, the perl labels and the -DT capture, and what each costs to run. -->
+<!-- ABOUTME: Covers the perl build, the bison referees, the perl labels, the -DT capture and its alignment, and what each costs to run. -->
 
 # internal/chart/offline
 
@@ -195,3 +195,89 @@ the slowest other file takes 8.9 s, almost all of it perl loading
 `Test::More` and friends under `-DpT`. Over T1, 831 captures are whole, 121
 refused, 2 timed out and 32 truncated by an `exit` in `BEGIN`; the in-tree
 files give 827 whole and 68 refused.
+
+## tdt-align.sh
+
+`TDT_FIXTURES=<dir> T1_CORPUS=<unit dir> sh internal/chart/offline/tdt-align.sh <perl>`
+captures every waypoint-1 corpus file, and the committed sample, with
+`tdt-capture.sh` into a temporary directory, run as `label.sh` runs perl
+(in-tree files from the repository root with the Guacamole `stubs/` on
+`PERL5LIB`, T1 files from the PerlOnJava root with `PERL5LIB` empty), then
+runs the aligner, `go run ./internal/chart/offline/tdt/align <capture-dir>
+<t1-dir> <out-dir>`. A capture failure (exit 2 without a `# truncated` line)
+stops the run. The aligner writes one fixture per corpus file to
+`$TDT_FIXTURES/<key>.tdt`, the key being the repository path or
+`T1/<name>.t`, removing the old `*.tdt` files there and nothing else, and prints each file's unmatched
+toke.c runs and a total to stdout. The sample's fixture becomes the committed
+`testdata/tdt/sample.tdt`. The script makes `TDT_FIXTURES` absolute before it
+changes directory and refuses any directory inside the repository or holding
+it, resolving it through its nearest existing parent so a refused directory is
+never created; the aligner refuses a directory holding `go.mod` or `.git`. Give `TDT_FIXTURES`
+as an absolute path: `TestTDTFixtures` reads a relative one from
+`internal/chart/`.
+
+**The corpus fixtures are generated offline, not committed** (perigrin:
+"Don't commit fixtures"). They come to about 16 MB for the 1,881 files, and
+three are over the pre-commit hook's 500 KB limit on an added file (T1's
+`code_too_large.t` 2,831 KB, `std5k.pl` 811 KB, `edit5k.pl` 719 KB). Like
+`T1_CORPUS`, `TDT_FIXTURES` names an input that lives outside the tree. This
+milestone generates them with:
+
+```sh
+TDT_FIXTURES=/var/tmp/pvm-chart-tdt T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit sh internal/chart/offline/tdt-align.sh /opt/perl-94e50866-debug/bin/perl
+```
+
+`TestTDTFixtures` checks the fixtures in `TDT_FIXTURES`; it never runs perl
+or the aligner. With `TDT_FIXTURES` unset it skips, so `make test` and CI
+pass without the debug perl; a `TDT_FIXTURES` that names no directory fails.
+Committed are the aligner, this script, `testdata/tdt/fitting-families.txt`
+and `testdata/tdt/sample.tdt`, the sample's golden alignment, which
+`TestAlignSample` compares a fresh alignment of the sample against.
+
+The alignment, spec §12's:
+
+- pvm's tokens are `lexer.Tokenize`'s less whitespace, comments, POD and
+  `__END__`/`__DATA__`, which toke.c delivers nothing for.
+- The toke.c stream is first grouped by the fitting families in
+  `testdata/tdt/fitting-families.txt`: the tokens toke.c splits, invents or
+  sublexes are folded onto the one token carrying the pvm token's text (the
+  head), so `$name`'s `PERLY_DOLLAR PRIVATEREF` is one group matching pvm's
+  Variable.
+- Groups are matched to pvm tokens **in order by text**: a head's text is its
+  punctuation, its op's operator or keyword, or its `PV`; a literal
+  (`THING`, `QWLIST`) pairs with any pvm literal, and a sub toke.c resolved by
+  scope with any word, since their values do not give the source text. At a
+  mismatch the side that reaches a match sooner is skipped; when both reach
+  one at the same distance neither is paired, so nothing pairs by reordering.
+- A skipped group that is an invented token (`NOAMP`, the `&` before a
+  called sub, the `sub` before a phaser) folds onto the next pair; any other
+  is an **unmatched toke.c run**, reported per file. Module tokens leaking past
+  the capture's bracketing show as such a run, as does a source filter's
+  rewriting.
+- A refused, timed-out or truncated capture is not aligned (perigrin:
+  "Timeout, mark refused"); its fixture holds only the capture's marker.
+
+A fixture opens with `# tdt: <key>` and `# capture: whole`, or the marker,
+then one line per pvm token in file order, spans as half-open byte ranges:
+
+- `<start> <end> <TYPE>`: paired by text with one toke.c token;
+- `<start> <end> <TYPE> <family> <TYPE>...`: paired through a family, the
+  types after the family folded onto it; a family with no types after it
+  paired the token through that family with nothing folded;
+- `<start> <end> -` or `<start> <end> - <family>`: unaligned, or unaligned
+  but explained by a family (a label's `:`, `return`, which `-DT` never
+  reports);
+- `unmatched <byte> <TYPE>...`: an unmatched toke.c run, before the pvm token
+  at that byte.
+
+`testdata/tdt/sample.tdt` is the sample's alignment in this form, the one
+the gate review reads.
+
+Cost (K6), measured 2026-11-02 on the 4-core machine, files one at a time,
+the committed script run end to end: capturing all 1,881 files and the sample
+takes 2,300 s and aligning them 1.0 s (2,302 s wall clock in all). Of the
+corpus captures, 1,658 are whole and aligned, 189 refused, 2 timed out and 32
+truncated, as TDTCAP's sweep found. 376,434 of 378,604 pvm tokens in the whole
+captures are aligned; of the 2,170 unaligned, 1,965 are `return`, 84 a
+label's `:` and 13 attribute words, and 108 are in no family. There are 37
+unmatched toke.c runs.
