@@ -1,1 +1,1 @@
-ref x;
+$y = ref x;

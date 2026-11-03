@@ -1,1 +1,1 @@
-require;
+$y = require;

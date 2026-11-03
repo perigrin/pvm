@@ -1,1 +1,1 @@
-shift;
+$y = shift;

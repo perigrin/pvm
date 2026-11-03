@@ -1,1 +1,1 @@
-time;
+$y = time;

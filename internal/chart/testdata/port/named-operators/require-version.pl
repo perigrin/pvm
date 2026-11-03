@@ -1,1 +1,1 @@
-require 5.006;
+$y = require 5.006;

@@ -1,1 +1,1 @@
-last;
+$y = last;
