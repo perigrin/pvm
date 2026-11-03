@@ -114,7 +114,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
-				!slices.Contains(c.NotText, t.v.Text) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.Contains(c.NotText, t.v.Text) && !slices.Contains(c.NotPrev1, nb(i-1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -181,6 +181,23 @@ func TestInternIdentityOverCorpus(t *testing.T) {
 		tokens += len(want)
 	}
 	t.Logf("%d files, %d tokens", len(files), tokens)
+}
+
+// The negated parts (NotText, NotPrev1, NotNext) need keys the corpus may not hold: x after a unary
+// operator, a keyword as a word, a unary operator before a parenthesis.
+func TestInternIdentityNegatedParts(t *testing.T) {
+	tt, classes := committed(t)
+	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3;")
+	s, _ := Lex(src, tt)
+	want := refIDs(t, src, tt, classes)
+	for i, tok := range s.Tokens {
+		if tok.TerminalSet != want[i] {
+			t.Errorf("token %d has set %d, the reference %d", i, tok.TerminalSet, want[i])
+		}
+	}
+	if len(s.Tokens) != len(want) {
+		t.Errorf("%d tokens, the reference %d", len(s.Tokens), len(want))
+	}
 }
 
 // std5k is std5k.pl and its significant tokens.

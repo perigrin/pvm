@@ -3,7 +3,11 @@
 
 package grammar
 
-import "tamarou.com/pvm/internal/lexer"
+import (
+	"slices"
+
+	"tamarou.com/pvm/internal/lexer"
+)
 
 // perlyRules is `lhs: rhs # perly.y:N` per rule, or `lhs: rhs # perly.y:N, fitted: <what the lexer
 // emits instead>`. A line starting with # is a placeholder for the alternative it names. A blank line
@@ -1116,7 +1120,7 @@ var perlyClasses = []ClassDecl{
 
 	// POWOP
 
-	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
+	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}}, // NotPrev1 is filled by init
 
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
@@ -1226,4 +1230,23 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_PAREN_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr(")")}},
 
 	{"PERLY_PAREN_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("(")}},
+}
+
+// init keeps x from being MULOP after the words that expect a term, where toke.c reads it as a word
+// (PL_expect is XTERM after a unary operator, LOOPEX or require, so KEY_x is yyl_just_a_word). They are
+// read off the classes themselves, so a word added to one of those terminals is excluded too.
+func init() {
+	var termExpecting []Neighbour
+	for _, d := range perlyClasses {
+		if k := d.Key; slices.Contains([]string{"UNIOP", "FUNC1", "LOOPEX", "NOTOP", "KW_REQUIRE"}, d.Terminal) && k.Kind != nil && k.Text != nil {
+			if n := (Neighbour{Kind: *k.Kind, Text: *k.Text}); !slices.Contains(termExpecting, n) {
+				termExpecting = append(termExpecting, n)
+			}
+		}
+	}
+	for i, d := range perlyClasses {
+		if d.Terminal == "MULOP" && d.Key.Text != nil && *d.Key.Text == "x" {
+			perlyClasses[i].Key.NotPrev1 = termExpecting
+		}
+	}
 }

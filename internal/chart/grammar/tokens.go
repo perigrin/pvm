@@ -99,14 +99,24 @@ type TokenClass struct {
 	OpensBlock, TermFollows *bool
 	Prefix                  *byte
 	Prev2, Prev1, Next      *Neighbour
-	// NotText and NotNext exclude the keys they name from a class that would
-	// otherwise match them, so two classes on one word are told apart by the
-	// next token, and a class for every word can leave out the keywords.
-	NotText []string
-	NotNext *Neighbour
+	// NotText, NotPrev1 and NotNext exclude the keys they name from a class that
+	// would otherwise match them, so two classes on one word are told apart by
+	// the next token, a class for every word can leave out the keywords, and a
+	// word that is an operator after a term is a word after a unary operator.
+	NotText  []string
+	NotPrev1 []Neighbour
+	NotNext  *Neighbour
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func ptrs(ns []Neighbour) []*Neighbour {
+	ps := make([]*Neighbour, len(ns))
+	for i := range ns {
+		ps[i] = &ns[i]
+	}
+	return ps
+}
 
 const nParts = 8
 
@@ -220,7 +230,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		for _, s := range c.NotText {
 			texts[s] = true
 		}
-		for _, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext} {
+		for _, nb := range append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...) {
 			if nb != nil {
 				if nb.Text != OtherWord {
 					texts[nb.Text] = true
@@ -250,6 +260,9 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	for i, c := range classes {
 		for _, s := range c.NotText {
 			nots[i][1] = append(nots[i][1], tt.text[s])
+		}
+		for _, nb := range c.NotPrev1 {
+			nots[i][6] = append(nots[i][6], tt.ClassID(nb))
 		}
 		if c.NotNext != nil {
 			nots[i][7] = []int{tt.ClassID(*c.NotNext)}
