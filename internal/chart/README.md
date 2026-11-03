@@ -263,6 +263,10 @@ ATTRLIST holding every attribute and its argument as an opaque string
   lexer scans an argument as one token
   (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). No corpus file meets this, so
   `lexer-defects.txt` has no entry for it.
+- An attribute name is a plain identifier to toke.c. pvm emits a
+  package-qualified word as one token, so `:Foo::Bar`, `:Foo::` and `:Foo'Bar`
+  are accepted where perl refuses them ("Invalid separator character"), until
+  the same lexer issue (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`) lands.
 - An attribute named `use`, `no`, `my`, `our` or `state` after another
   attribute is not matched: `grammar.OtherWord` stands for a word no class
   names.
