@@ -187,6 +187,19 @@ func labelVerdicts(dir string) (func(path string) *perlVerdict, error) {
 	return func(path string) *perlVerdict { return out[path] }, nil
 }
 
+// realInputs are chartInputs with the committed lexer lists and perl labels.
+func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, error) {
+	excluded, err := lexerListed()
+	if err != nil {
+		return verdictInputs{}, err
+	}
+	perl, err := labelVerdicts(filepath.Join(testdata, "labels"))
+	if err != nil {
+		return verdictInputs{}, err
+	}
+	return chartInputs(tab, srcs, excluded, perl), nil
+}
+
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
 // fresh recognizer per file, recursive descent is parse.Parse, perl is the
 // committed labels.

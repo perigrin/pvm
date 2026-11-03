@@ -66,18 +66,18 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 	return chart, ref
 }
 
-// lexOverheadFiles is lex-overhead's file set: the aggregate of the superset
-// population over files.
-func lexOverheadFiles(p Protocol, rd Side, files []File, in verdictInputs) ([]string, error) {
+// lexOverhead is the lex-overhead figure: chart/lex over lexer.Tokenize on the
+// aggregate of the superset population over files.
+func lexOverhead(p Protocol, rd Side, files []File, in verdictInputs) (float64, error) {
 	population, err := supersetPopulation(files, in)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	timed := make([]string, len(population))
 	for i, f := range population {
 		timed[i] = f.Path
 	}
-	return p.Aggregate(rd, population, timed), nil
+	return p.Ratio("lex-overhead", p.Aggregate(rd, population, timed), false), nil
 }
 
 // measureLex adds lex-unmapped over files, and lex-overhead over the
@@ -96,11 +96,11 @@ func measureLex(tt *grammar.TokenTable, files []File, in verdictInputs, srcs map
 	chart, ref := lexSides(srcs, tt, lexer.Tokenize)
 	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
 	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
-	aggregate, err := lexOverheadFiles(p, rd, files, in)
+	overhead, err := lexOverhead(p, rd, files, in)
 	if err != nil {
 		return nil, err
 	}
-	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", aggregate, false))
+	measured["lex-overhead"] = fmt.Sprintf("%.3f", overhead)
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-std5k", []string{std5k}, false))
 	return unmapped, nil
 }
