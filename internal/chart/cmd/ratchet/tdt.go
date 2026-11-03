@@ -113,9 +113,15 @@ func keyText(c grammar.TokenClass) string {
 		prev = append(prev, fmt.Sprintf("%+v", n))
 	}
 	add("NotPrev1", digest(prev), len(prev) > 0)
+	var prev2 []string
+	for _, n := range c.NotPrev2 {
+		prev2 = append(prev2, fmt.Sprintf("%+v", n))
+	}
+	add("NotPrev2", digest(prev2), len(prev2) > 0)
 	if c.NotNext != nil {
 		add("NotNext", fmt.Sprintf("%+v", *c.NotNext), true)
 	}
+	add("NotNextIdent", true, c.NotNextIdent)
 	return strings.Join(p, " ")
 }
 
