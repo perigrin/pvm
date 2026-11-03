@@ -1,0 +1,2 @@
+use feature 'bitwise';
+~. $a;
