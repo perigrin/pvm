@@ -25,8 +25,9 @@ type refItem struct{ rule, dot, origin int }
 // added, so a nullable symbol needs no special case. Where the next token
 // holds PERLY_BRACE_CLOSE, or the input ends, a ; toke.c inserts is scanned
 // into a set of its own past the node's (spec §5.2); the next node scans its
-// token from both, and at the end either may accept.
-func refRun(tab *grammar.Tables, ids []int) (sets [][]refItem, accepted bool) {
+// token from both, and at the end either may accept. inserted is the nodes
+// where such a ; was scanned, ascending.
+func refRun(tab *grammar.Tables, ids []int) (sets [][]refItem, inserted []int, accepted bool) {
 	var all [][]refItem // every set, a node's or an inserted ;'s; origins index it
 	open := func(seed []refItem) []refItem {
 		k := len(all)
@@ -89,6 +90,7 @@ func refRun(tab *grammar.Tables, ids []int) (sets [][]refItem, accepted bool) {
 		if i == len(ids) || slices.Contains(tab.TerminalSets[ids[i]], brace) {
 			if seed := advance(sets[i], semi); len(seed) > 0 {
 				ins = open(seed)
+				inserted = append(inserted, i)
 			}
 		}
 		if i == len(ids) {
@@ -100,7 +102,7 @@ func refRun(tab *grammar.Tables, ids []int) (sets [][]refItem, accepted bool) {
 	done := func(it refItem) bool {
 		return it.origin == 0 && it.dot == len(tab.Rules[it.rule].RHS) && tab.Rules[it.rule].LHS == tab.Start
 	}
-	return sets, slices.ContainsFunc(sets[len(ids)], done) || slices.ContainsFunc(ins, done)
+	return sets, inserted, slices.ContainsFunc(sets[len(ids)], done) || slices.ContainsFunc(ins, done)
 }
 
 // refExpected is the names of the terminals that some item of items awaits,
@@ -122,7 +124,7 @@ func refAccepted(tab *grammar.Tables, words string) bool {
 	for _, w := range strings.Fields(words) {
 		ids = append(ids, termSet(tab, w))
 	}
-	_, ok := refRun(tab, ids)
+	_, _, ok := refRun(tab, ids)
 	return ok
 }
 
