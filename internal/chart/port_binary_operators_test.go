@@ -48,6 +48,8 @@ func TestPortBinaryOperatorsRefusals(t *testing.T) {
 		"dangling-pow.pl":            {";", "$a ** $b;"},
 		"dangling-range.pl":          {";", "$a .. $b;"},
 		"fat-comma-and.pl":           {"and", "$a and $b;"},
+		"fat-comma-or.pl":            {"or", "$a or $b;"},
+		"fat-comma-xor.pl":           {"xor", "$a xor $b;"},
 		"leading-infix.pl":           {"==", "$a == $b;"},
 		"leading-low-and.pl":         {"and", "$a and $b;"},
 		"leading-or-or.pl":           {"||", "$a || $b;"},
