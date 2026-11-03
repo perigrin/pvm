@@ -1,0 +1,2 @@
+our @a;
+state $n;
