@@ -64,9 +64,11 @@ bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mbloc
 
 bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
-# perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON
+bare_statement_package_declaration: KW_PACKAGE BAREWORD PERLY_SEMICOLON # perly.y:540, fitted: toke.c forces an empty version token before the name, and pvm emits nothing for it
+bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON # perly.y:540, fitted: pvm emits the name and then the version, which toke.c forces as two BAREWORDs in the other order
 
-# perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE
+bare_statement_package_definition: KW_PACKAGE BAREWORD PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:556, fitted: toke.c forces an empty version token before the name, and pvm emits nothing for it
+bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:556, fitted: pvm emits the name and then the version, which toke.c forces as two BAREWORDs in the other order
 
 bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 
@@ -82,6 +84,7 @@ bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLO
 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:699
 
 bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: toke.c forces an empty version token before the module name, and pvm emits nothing for it
+bare_statement_utilize: KW_USE_or_NO startsub BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: pvm emits the module and then its version, or the version and then the module, which toke.c forces as two BAREWORDs; use VERSION; and no VERSION; are the rule above with the version as its BAREWORD
 
 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock # perly.y:732
 
@@ -151,9 +154,9 @@ barestmt: bare_statement_if # perly.y:889
 
 barestmt: bare_statement_null # perly.y:890
 
-# perly.y:891 barestmt: bare_statement_package_declaration
+barestmt: bare_statement_package_declaration # perly.y:891
 
-# perly.y:892 barestmt: bare_statement_package_definition
+barestmt: bare_statement_package_definition # perly.y:892
 
 barestmt: bare_statement_phaser # perly.y:893
 
@@ -834,7 +837,8 @@ var perlyClasses = []ClassDecl{
 
 	{"KW_FORMAT", TokenClass{Kind: ptr(lexer.Word), Text: ptr("format")}},
 
-	// KW_PACKAGE
+	// toke.c KEY_package (8858) is KW_PACKAGE wherever the word is a keyword.
+	{"KW_PACKAGE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("package")}},
 
 	// KW_CLASS
 
@@ -933,6 +937,8 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}}, // yyl_sub: any identifier after sub names it, toke.c:5874
+	// toke.c 8858: KEY_package forces the name without a keyword check.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "package"}}},
 
 	// toke.c forces a word that stands alone in a subscript's braces to BAREWORD before it looks the word up
 	// (yyl_leftcurly, toke.c:6656-6679), a minus before it included.

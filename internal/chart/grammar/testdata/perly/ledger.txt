@@ -48,9 +48,9 @@ perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN
 
 perly.y:532 bare_statement_null: PERLY_SEMICOLON	ported
 
-perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON	-
+perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON	fitted
 
-perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE	-
+perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE	fitted
 
 perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody	ported
 
@@ -134,9 +134,9 @@ perly.y:889 barestmt: bare_statement_if	ported
 
 perly.y:890 barestmt: bare_statement_null	ported
 
-perly.y:891 barestmt: bare_statement_package_declaration	-
+perly.y:891 barestmt: bare_statement_package_declaration	ported
 
-perly.y:892 barestmt: bare_statement_package_definition	-
+perly.y:892 barestmt: bare_statement_package_definition	ported
 
 perly.y:893 barestmt: bare_statement_phaser	ported
 
