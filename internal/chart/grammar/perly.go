@@ -725,11 +725,13 @@ var (
 	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
 	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
 
-	// notHashBrace are the predecessors after which ClassOf reads a `{` as a subscript or a block.
+	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
+	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
+	// a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
+	// listed: the lexer opens every `{` after them as a block, so no key reaches them here.
 	notHashBrace = []Neighbour{
-		{Kind: lexer.Variable}, {Kind: lexer.Variable, TermFollows: true}, {Kind: lexer.DerefSigil},
-		{Kind: lexer.Operator, Text: "->"},
-		{Kind: lexer.CloseBracket, Text: ")"}, {Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
+		{Kind: lexer.Variable}, {Kind: lexer.DerefSigil}, {Kind: lexer.Operator, Text: "->"},
+		{Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
 	}
 )
 
