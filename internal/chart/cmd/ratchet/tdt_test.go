@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -134,5 +135,41 @@ func TestTDTFixturesDefault(t *testing.T) {
 	err := measureTDT(filepath.Join(def, "nope"), nil, nil, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "TDT_FIXTURES") {
 		t.Errorf("a path that is no directory: error %v, want one naming TDT_FIXTURES", err)
+	}
+}
+
+// Two classes that differ only in what they exclude are two keys, and the key names the exclusion, so a
+// reviewed-list entry cannot stand for both.
+func TestKeyTextRendersNegatedParts(t *testing.T) {
+	word := lexer.Word
+	paren := grammar.Neighbour{Kind: lexer.Operator, Text: "("}
+	base := grammar.TokenClass{Kind: &word, Text: ptr("x")}
+	keys := map[string]grammar.TokenClass{}
+	for name, mod := range map[string]func(*grammar.TokenClass){
+		"plain":    func(*grammar.TokenClass) {},
+		"notnext":  func(c *grammar.TokenClass) { c.NotNext = &paren },
+		"notprev1": func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren} },
+		"nottext":  func(c *grammar.TokenClass) { c.NotText = []string{"if"} },
+		"nottext2": func(c *grammar.TokenClass) { c.NotText = []string{"if", "my"} },
+		"notprev2": func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren, {Kind: lexer.Word, Text: "ref"}} },
+	} {
+		c := base
+		mod(&c)
+		keys[name] = c
+	}
+	seen := map[string]string{}
+	for name, c := range keys {
+		k := keyText(c)
+		if other, dup := seen[k]; dup {
+			t.Errorf("%s and %s are both %q", name, other, k)
+		}
+		seen[k] = name
+	}
+	long := base
+	for i := range 300 {
+		long.NotText = append(long.NotText, strconv.Itoa(i))
+	}
+	if k := keyText(long); len(k) > 100 || keyText(long) != k {
+		t.Errorf("a long NotText renders %d bytes: %q", len(k), k)
 	}
 }

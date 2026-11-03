@@ -1,0 +1,1 @@
+$y = require Foo::Bar;

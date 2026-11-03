@@ -390,7 +390,7 @@ perly.y:1419 termbinop: term POWOP term	-
 
 perly.y:1421 termbinop: term PLUGIN_POW_OP term	-
 
-perly.y:1423 termbinop: term MULOP term	-
+perly.y:1423 termbinop: term MULOP term	ported
 
 perly.y:1428 termbinop: term PLUGIN_MUL_OP term	-
 
@@ -550,43 +550,43 @@ perly.y:1656 term: term ARROW PERLY_AMPERSAND PERLY_STAR	-
 
 perly.y:1659 term: term ARROW PERLY_STAR PERLY_STAR	-
 
-perly.y:1661 term: LOOPEX	-
+perly.y:1661 term: LOOPEX	ported
 
-perly.y:1664 term: LOOPEX term	-
+perly.y:1664 term: LOOPEX term	ported
 
-perly.y:1666 term: NOTOP listexpr	-
+perly.y:1666 term: NOTOP listexpr	ported
 
-perly.y:1668 term: UNIOP	-
+perly.y:1668 term: UNIOP	ported
 
-perly.y:1670 term: UNIOP block	-
+perly.y:1670 term: UNIOP block	ported
 
-perly.y:1672 term: UNIOP term	-
+perly.y:1672 term: UNIOP term	ported
 
-perly.y:1674 term: KW_REQUIRE	-
+perly.y:1674 term: KW_REQUIRE	ported
 
-perly.y:1676 term: KW_REQUIRE term	-
+perly.y:1676 term: KW_REQUIRE term	ported
 
 perly.y:1678 term: UNIOPSUB	-
 
 perly.y:1680 term: UNIOPSUB term	-
 
-perly.y:1683 term: FUNC0	-
+perly.y:1683 term: FUNC0	ported
 
-perly.y:1685 term: FUNC0 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1685 term: FUNC0 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1687 term: FUNC0OP	-
+perly.y:1687 term: FUNC0OP	ported
 
-perly.y:1689 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1689 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
 perly.y:1691 term: FUNC0SUB	-
 
-perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1697 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1697 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
 perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND	-
 
-perly.y:1712 term: BAREWORD	-
+perly.y:1712 term: BAREWORD	ported
 
 perly.y:1713 term: listop	-
 
