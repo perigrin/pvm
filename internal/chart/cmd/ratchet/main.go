@@ -53,13 +53,7 @@ func main() {
 	}
 	var in verdictInputs
 	if err == nil {
-		var excluded map[string]bool
-		var perl func(string) *perlVerdict
-		if excluded, err = lexerListed(); err == nil {
-			if perl, err = labelVerdicts(filepath.Join(testdata, "labels")); err == nil {
-				in = chartInputs(tab, srcs, excluded, perl)
-			}
-		}
+		in, err = realInputs(tab, srcs)
 	}
 	var unmapped []string
 	if err == nil {
