@@ -329,13 +329,13 @@ subsigguts: optsiglist # perly.y:1185
 
 # perly.y:1241 sigsubbody: remember optsubsignature PERLY_BRACE_OPEN $@21 stmtseq PERLY_BRACE_CLOSE
 
-# perly.y:1254 expr: expr ANDOP expr
+expr: expr ANDOP expr # perly.y:1254
 
-# perly.y:1256 expr: expr PLUGIN_LOGICAL_AND_LOW_OP expr
+expr: expr PLUGIN_LOGICAL_AND_LOW_OP expr # perly.y:1256
 
-# perly.y:1258 expr: expr OROP expr
+expr: expr OROP expr # perly.y:1258
 
-# perly.y:1260 expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr
+expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr # perly.y:1260
 
 expr: listexpr # perly.y:1262
 
@@ -403,49 +403,49 @@ listexpr: term # perly.y:1273
 
 # perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
 
-# perly.y:1413 termbinop: term PLUGIN_HIGH_OP term
+termbinop: term PLUGIN_HIGH_OP term # perly.y:1413
 
 termbinop: term ASSIGNOP term # perly.y:1415
 
-# perly.y:1417 termbinop: term PLUGIN_ASSIGN_OP term
+termbinop: term PLUGIN_ASSIGN_OP term # perly.y:1417
 
-# perly.y:1419 termbinop: term POWOP term
+termbinop: term POWOP term # perly.y:1419
 
-# perly.y:1421 termbinop: term PLUGIN_POW_OP term
+termbinop: term PLUGIN_POW_OP term # perly.y:1421
 
 termbinop: term MULOP term # perly.y:1423
 
-# perly.y:1428 termbinop: term PLUGIN_MUL_OP term
+termbinop: term PLUGIN_MUL_OP term # perly.y:1428
 
 termbinop: term ADDOP term # perly.y:1430
 
-# perly.y:1432 termbinop: term PLUGIN_ADD_OP term
+termbinop: term PLUGIN_ADD_OP term # perly.y:1432
 
-# perly.y:1434 termbinop: term SHIFTOP term
+termbinop: term SHIFTOP term # perly.y:1434
 
 termbinop: termrelop # perly.y:1436
 
 termbinop: termeqop # perly.y:1438
 
-# perly.y:1440 termbinop: term BITANDOP term
+termbinop: term BITANDOP term # perly.y:1440
 
-# perly.y:1442 termbinop: term BITOROP term
+termbinop: term BITOROP term # perly.y:1442
 
-# perly.y:1444 termbinop: term DOTDOT term
+termbinop: term DOTDOT term # perly.y:1444
 
-# perly.y:1446 termbinop: term ANDAND term
+termbinop: term ANDAND term # perly.y:1446
 
-# perly.y:1448 termbinop: term PLUGIN_LOGICAL_AND_OP term
+termbinop: term PLUGIN_LOGICAL_AND_OP term # perly.y:1448
 
-# perly.y:1450 termbinop: term OROR term
+termbinop: term OROR term # perly.y:1450
 
-# perly.y:1452 termbinop: term PLUGIN_LOGICAL_OR_OP term
+termbinop: term PLUGIN_LOGICAL_OR_OP term # perly.y:1452
 
-# perly.y:1454 termbinop: term DORDOR term
+termbinop: term DORDOR term # perly.y:1454
 
-# perly.y:1456 termbinop: term MATCHOP term
+termbinop: term MATCHOP term # perly.y:1456
 
-# perly.y:1458 termbinop: term PLUGIN_LOW_OP term
+termbinop: term PLUGIN_LOW_OP term # perly.y:1458
 
 termrelop: relopchain # perly.y:1462
 
@@ -718,8 +718,10 @@ star: PERLY_STAR BAREWORD # perly.y:1868, fitted: pvm emits * and the name as tw
 # perly.y:1895 indirob: PRIVATEREF
 `
 
-// parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0.
+// parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0;
+// fatComma turns a word before it into a bareword (yyl_keylookup checks for => before any keyword).
 var (
+	fatComma  = Neighbour{Kind: lexer.Operator, Text: "=>"}
 	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
 	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
 )
@@ -889,7 +891,8 @@ var perlyClasses = []ClassDecl{
 	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("next")}},
 	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("redo")}},
 
-	// DOTDOT
+	{"DOTDOT", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("..")}},
+	{"DOTDOT", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("...")}},
 
 	// YADAYADA
 
@@ -1118,14 +1121,18 @@ var perlyClasses = []ClassDecl{
 
 	// BLKLSTOP
 
-	// POWOP
+	{"POWOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("**")}},
 
 	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}}, // NotPrev1 is filled by init
 	// A builtin's name called with & is a sub call, so x after it is repetition again.
 	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), Prev2: &Neighbour{Kind: lexer.FuncSigil}}},
+	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
+	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("/")}},
+	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("%")}},
 
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
+	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(".")}},
 
 	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#'))}},
 
@@ -1145,9 +1152,10 @@ var perlyClasses = []ClassDecl{
 
 	// PHASER
 
-	// OROP
+	{"OROP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("or"), NotNext: &fatComma}},
+	{"OROP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("xor"), NotNext: &fatComma}},
 
-	// ANDOP
+	{"ANDOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("and"), NotNext: &fatComma}},
 
 	{"NOTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("not"), NotNext: &parenOpen}},
 
@@ -1176,15 +1184,19 @@ var perlyClasses = []ClassDecl{
 
 	// PERLY_COLON
 
-	// OROR
+	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||")}},
 
-	// DORDOR
+	{"DORDOR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("//")}},
 
-	// ANDAND
+	{"ANDAND", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&&")}},
 
-	// BITOROP
+	{"BITOROP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("|")}},
+	{"BITOROP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^")}},
+	{"BITOROP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("|.")}},
+	{"BITOROP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^.")}},
 
-	// BITANDOP
+	{"BITANDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&")}},
+	{"BITANDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&.")}},
 
 	{"CHEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("==")}},
 	{"CHEQOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("!=")}},
@@ -1206,9 +1218,11 @@ var perlyClasses = []ClassDecl{
 
 	{"NCRELOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("isa")}},
 
-	// SHIFTOP
+	{"SHIFTOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("<<")}},
+	{"SHIFTOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(">>")}},
 
-	// MATCHOP
+	{"MATCHOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=~")}},
+	{"MATCHOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("!~")}},
 
 	{"PERLY_EXCLAMATION_MARK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("!")}},
 
