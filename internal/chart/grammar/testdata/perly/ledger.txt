@@ -44,7 +44,7 @@ perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock	-
 
 perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	-
 
-perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	-
+perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
 
 perly.y:532 bare_statement_null: PERLY_SEMICOLON	ported
 
@@ -60,15 +60,15 @@ perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 p
 
 perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	-
 
-perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	-
+perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
 
-perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont	-
+perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont	ported
 
 perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON	fitted
 
 perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	-
 
-perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont	-
+perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont	ported
 
 perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	-
 
@@ -84,9 +84,9 @@ perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK form
 
 perly.y:794 remember: %empty	ported
 
-perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE	-
+perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE	ported
 
-perly.y:806 mremember: %empty	-
+perly.y:806 mremember: %empty	ported
 
 perly.y:812 catch_paren: empty	-
 
@@ -130,7 +130,7 @@ perly.y:887 barestmt: bare_statement_format	-
 
 perly.y:888 barestmt: bare_statement_given	-
 
-perly.y:889 barestmt: bare_statement_if	-
+perly.y:889 barestmt: bare_statement_if	ported
 
 perly.y:890 barestmt: bare_statement_null	ported
 
@@ -146,15 +146,15 @@ perly.y:895 barestmt: bare_statement_sub_traditional	-
 
 perly.y:896 barestmt: bare_statement_try_catch	-
 
-perly.y:897 barestmt: bare_statement_unless	-
+perly.y:897 barestmt: bare_statement_unless	ported
 
-perly.y:898 barestmt: bare_statement_until	-
+perly.y:898 barestmt: bare_statement_until	ported
 
 perly.y:899 barestmt: bare_statement_utilize	ported
 
 perly.y:900 barestmt: bare_statement_when	-
 
-perly.y:901 barestmt: bare_statement_while	-
+perly.y:901 barestmt: bare_statement_while	ported
 
 perly.y:902 barestmt: bare_statement_yadayada	-
 
@@ -164,51 +164,51 @@ perly.y:924 formarg: empty	-
 
 perly.y:925 formarg: FORMLBRACK stmtseq FORMRBRACK	-
 
-perly.y:929 condition: expr	-
+perly.y:929 condition: expr	ported
 
 perly.y:933 sideff: error	excluded error-recovery
 
 perly.y:935 sideff: expr	ported
 
-perly.y:937 sideff: expr KW_IF condition	-
+perly.y:937 sideff: expr KW_IF condition	ported
 
-perly.y:940 sideff: expr KW_UNLESS condition	-
+perly.y:940 sideff: expr KW_UNLESS condition	ported
 
-perly.y:943 sideff: expr KW_WHILE condition	-
+perly.y:943 sideff: expr KW_WHILE condition	ported
 
-perly.y:945 sideff: expr KW_UNTIL iexpr	-
+perly.y:945 sideff: expr KW_UNTIL iexpr	ported
 
-perly.y:947 sideff: expr KW_FOR condition	-
+perly.y:947 sideff: expr KW_FOR condition	ported
 
-perly.y:950 sideff: expr KW_WHEN condition	-
+perly.y:950 sideff: expr KW_WHEN condition	ported
 
-perly.y:956 else: empty	-
+perly.y:956 else: empty	ported
 
-perly.y:957 else: KW_ELSE mblock	-
+perly.y:957 else: KW_ELSE mblock	ported
 
-perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else	-
+perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else	ported
 
 perly.y:973 cont: empty	ported
 
-perly.y:974 cont: KW_CONTINUE block	-
+perly.y:974 cont: KW_CONTINUE block	ported
 
 perly.y:979 finally: %empty	-
 
 perly.y:981 finally: KW_FINALLY block	-
 
-perly.y:986 mintro: %empty	-
+perly.y:986 mintro: %empty	ported
 
 perly.y:993 nexpr: empty	-
 
 perly.y:994 nexpr: sideff	-
 
-perly.y:998 texpr: %empty	-
+perly.y:998 texpr: %empty	ported
 
-perly.y:1002 texpr: expr	-
+perly.y:1002 texpr: expr	ported
 
-perly.y:1006 iexpr: expr	-
+perly.y:1006 iexpr: expr	ported
 
-perly.y:1011 mexpr: expr	-
+perly.y:1011 mexpr: expr	ported
 
 perly.y:1015 mnexpr: nexpr	-
 
