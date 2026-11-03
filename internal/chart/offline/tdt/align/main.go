@@ -290,7 +290,9 @@ func matchInOrder(us []unit, ps []pvmTok) (pair []int, unmatched [][]string) {
 		skipU, skipP := 1, 1
 		for d := 1; d <= window; d++ {
 			p := j+d < len(ps) && us[i].match(ps[j+d])
-			u := i+d < len(us) && us[i+d].match(ps[j])
+			// A pvm `return` pairs only in place: the keyword has no unit, so a
+			// later `return` key would pull it ahead of the unit ps[j+1] pairs with.
+			u := i+d < len(us) && !isReturn(ps[j]) && us[i+d].match(ps[j])
 			if p && !u {
 				skipU = 0
 				break
