@@ -113,7 +113,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		for _, c := range classes {
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
-				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) {
+				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
+				!slices.Contains(c.NotText, t.v.Text) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
 			}
 		}

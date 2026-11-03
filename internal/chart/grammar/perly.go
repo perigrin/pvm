@@ -409,7 +409,7 @@ termbinop: term ASSIGNOP term # perly.y:1415
 
 # perly.y:1421 termbinop: term PLUGIN_POW_OP term
 
-# perly.y:1423 termbinop: term MULOP term
+termbinop: term MULOP term # perly.y:1423
 
 # perly.y:1428 termbinop: term PLUGIN_MUL_OP term
 
@@ -569,43 +569,43 @@ term: amper # perly.y:1636
 
 # perly.y:1659 term: term ARROW PERLY_STAR PERLY_STAR
 
-# perly.y:1661 term: LOOPEX
+term: LOOPEX # perly.y:1661
 
-# perly.y:1664 term: LOOPEX term
+term: LOOPEX term # perly.y:1664
 
-# perly.y:1666 term: NOTOP listexpr
+term: NOTOP listexpr # perly.y:1666
 
-# perly.y:1668 term: UNIOP
+term: UNIOP # perly.y:1668
 
-# perly.y:1670 term: UNIOP block
+term: UNIOP block # perly.y:1670
 
-# perly.y:1672 term: UNIOP term
+term: UNIOP term # perly.y:1672
 
-# perly.y:1674 term: KW_REQUIRE
+term: KW_REQUIRE # perly.y:1674
 
-# perly.y:1676 term: KW_REQUIRE term
+term: KW_REQUIRE term # perly.y:1676
 
 # perly.y:1678 term: UNIOPSUB
 
 # perly.y:1680 term: UNIOPSUB term
 
-# perly.y:1683 term: FUNC0
+term: FUNC0 # perly.y:1683
 
-# perly.y:1685 term: FUNC0 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+term: FUNC0 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1685
 
-# perly.y:1687 term: FUNC0OP
+term: FUNC0OP # perly.y:1687
 
-# perly.y:1689 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1689
 
 # perly.y:1691 term: FUNC0SUB
 
-# perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1693
 
-# perly.y:1697 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1697
 
 # perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND
 
-# perly.y:1712 term: BAREWORD
+term: BAREWORD # perly.y:1712
 
 # perly.y:1713 term: listop
 
@@ -714,6 +714,12 @@ star: PERLY_STAR BAREWORD # perly.y:1868, fitted: pvm emits * and the name as tw
 # perly.y:1895 indirob: PRIVATEREF
 `
 
+// parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0.
+var (
+	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
+	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
+)
+
 // perlyClasses are the token classes, each declared by the terminal it admits and so
 // unmoved by a rule added or removed. One placeholder comment per token perly.y
 // declares (%token, %left, %right, %nonassoc) that is lexed, in the order it first
@@ -800,7 +806,7 @@ var perlyClasses = []ClassDecl{
 
 	// KW_DEFER
 
-	// KW_REQUIRE
+	{"KW_REQUIRE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("require")}},
 
 	// KW_DO
 
@@ -819,6 +825,20 @@ var perlyClasses = []ClassDecl{
 
 	// KW_METHOD_anon
 
+	// Every word that is not a keyword; the keywords toke.c falls through to a word when no operand is
+	// expected (KEY_x, KEY_lt and their kin) are listed below. A keyword is a BAREWORD only where a
+	// position class says so.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords()}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lt")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gt")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("le")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ge")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eq")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ne")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("cmp")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
@@ -850,7 +870,10 @@ var perlyClasses = []ClassDecl{
 
 	// QWLIST
 
-	// FUNC0OP
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__FILE__")}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__LINE__")}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__PACKAGE__")}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__SUB__")}},
 
 	// FUNC0SUB
 
@@ -862,19 +885,236 @@ var perlyClasses = []ClassDecl{
 
 	// PROTOTYPE
 
-	// LOOPEX
+	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dump")}},
+	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("goto")}},
+	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("last")}},
+	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("next")}},
+	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("redo")}},
 
 	// DOTDOT
 
 	// YADAYADA
 
-	// FUNC0
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__CLASS__")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("break")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endhostent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endnetent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endservent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endprotoent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endpwent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endgrent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fork")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getppid")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotoent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getlogin")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpwent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setgrent")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("time")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("times")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wait")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wantarray")}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("continue"), NotNext: &blockOpen}},
 
-	// FUNC1
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chop"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chdir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("close"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("closedir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("caller"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chr"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("cos"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chroot"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("defined"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("delete"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dbmclose"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exists"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exit"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eof"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exp"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("each"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fc"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fileno"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gmtime"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpgrp"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotobyname"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwnam"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwuid"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpeername"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostbyname"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetbyname"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getsockname"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrnam"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrgid"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("hex"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("int"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("keys"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lc"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lcfirst"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("length"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("localtime"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("log"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lock"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lstat"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ord"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("oct"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("prototype"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("quotemeta"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("reset"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rand"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rmdir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readdir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rewinddir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ref"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chomp"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("scalar"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sethostent"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setnetent"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setservent"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setprotoent"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sin"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sleep"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sqrt"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("srand"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("stat"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("study"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tell"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("telldir"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tied"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("uc"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ucfirst"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("untie"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("values"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("write"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getc"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pop"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pos"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readline"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readpipe"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readlink"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shift"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("undef"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("umask"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eval"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("evalbytes"), Next: &parenOpen}},
+	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("not"), Next: &parenOpen}},
 
 	// FUNC
 
-	// UNIOP
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chop"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chdir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("close"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("closedir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("caller"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chr"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("cos"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chroot"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("defined"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("delete"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dbmclose"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exists"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exit"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eof"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exp"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("each"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fc"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fileno"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gmtime"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpgrp"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotobyname"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwnam"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwuid"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpeername"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostbyname"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetbyname"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getsockname"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrnam"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrgid"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("hex"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("int"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("keys"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lc"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lcfirst"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("length"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("localtime"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("log"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lock"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("lstat"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ord"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("oct"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("prototype"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("quotemeta"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("reset"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rand"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rmdir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readdir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rewinddir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ref"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chomp"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("scalar"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sethostent"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setnetent"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setservent"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setprotoent"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sin"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sleep"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sqrt"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("srand"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("stat"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("study"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tell"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("telldir"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tied"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("uc"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ucfirst"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("untie"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("values"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("write"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getc"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pop"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pos"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readline"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readpipe"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("readlink"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shift"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("undef"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("umask"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("eval"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("evalbytes"), NotNext: &parenOpen}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-r")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-w")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-x")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-o")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-R")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-W")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-X")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-O")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-e")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-z")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-s")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-f")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-d")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-l")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-p")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-S")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-u")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-g")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-k")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-b")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-c")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-t")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-T")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-B")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-M")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-A")}},
+	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-C")}},
 
 	// LSTOP
 
@@ -882,7 +1122,7 @@ var perlyClasses = []ClassDecl{
 
 	// POWOP
 
-	// MULOP
+	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
 
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
@@ -909,7 +1149,7 @@ var perlyClasses = []ClassDecl{
 
 	// ANDOP
 
-	// NOTOP
+	{"NOTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("not"), NotNext: &parenOpen}},
 
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=")}},
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("**=")}},

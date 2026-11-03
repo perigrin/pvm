@@ -360,3 +360,34 @@ func TestTokenOtherWordNeighbour(t *testing.T) {
 		t.Errorf("a word after an operator admits %v, want none", got)
 	}
 }
+
+// NotNext keeps a class off the keys whose next token is that class, so two
+// classes on one word are told apart by the next token, not unioned.
+func TestTokenNotNext(t *testing.T) {
+	paren, semi := ClassOf(op("("), none), ClassOf(op(";"), none)
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Text: ptr("ref"), Next: &paren},
+		TokenClass{Terminals: []int{2}, Text: ptr("ref"), NotNext: &paren})
+	for _, c := range []struct {
+		next Neighbour
+		want []int
+	}{{paren, []int{1}}, {semi, []int{2}}, {Boundary, []int{2}}} {
+		if got := tt.set(word("ref"), none, none, c.next); !slices.Equal(got, c.want) {
+			t.Errorf("ref before %+v = %v, want %v", c.next, got, c.want)
+		}
+	}
+	if got := tt.set(word("other"), none, none, semi); len(got) != 0 {
+		t.Errorf("other = %v, want the empty set", got)
+	}
+}
+
+func TestTokenNotText(t *testing.T) {
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), NotText: []string{"if", "not"}},
+		TokenClass{Terminals: []int{2}, Text: ptr("not")})
+	for text, want := range map[string][]int{"foo": {1}, "if": nil, "not": {2}} {
+		if got := tt.set(word(text), none, none, none); !slices.Equal(got, want) && len(got)+len(want) > 0 {
+			t.Errorf("%s = %v, want %v", text, got, want)
+		}
+	}
+}
