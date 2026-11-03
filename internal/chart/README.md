@@ -161,7 +161,7 @@ To take a baseline after an intended change, run
 | `tdt-aligned` | tokens aligned with perl's `-DT` | may not fall |
 | `tdt-mismatch` | aligned tokens whose terminal set misses perl's | 0 from completion |
 | `tdt-unseen` | table pairs perl's `-DT` never showed | may not rise from completion |
-| `terminals-per-token` | the table's width | may not rise from completion |
+| `terminals-per-token` | the table's width: terminals per mapped token (a token the table cannot map holds none and is not counted) | may not rise from completion |
 | `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
 | `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
 | `lex-overhead` | chart/lex time over `lexer.Tokenize` time, median of three | timing; ≤ 1.3 absolutely |
@@ -172,10 +172,10 @@ To take a baseline after an intended change, run
 | `speed-ratio-aggregate-cold` | the same, cold | timing |
 | `alloc-per-token-chart` | the chart's allocations per token | timing |
 | `alloc-per-token-rd` | recursive descent's allocations per token | timing |
-| `items-per-token` | Earley items per token | reported |
-| `set-reuse` | share of positions whose Earley set was already interned | reported |
+| `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
+| `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts | reported |
 | `ledger-excluded` | ledger alternatives marked excluded | reported |
-| `superset-population` | files both perl and recursive descent accept | reported |
+| `superset-population` | files both perl and recursive descent accept, less both lexer lists | reported |
 | `superset-recognized` | share of that population the chart accepts | reported |
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
 | `chart-accepted-perl-refused` | files the chart accepts and perl refuses | reported |
