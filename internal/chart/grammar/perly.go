@@ -251,6 +251,7 @@ startsub: # perly.y:1023
 # perly.y:1065 subattrlist: COLONATTR
 
 attrlist: COLONATTR attr attrs # perly.y:1070, fitted: pvm emits each attribute as a word after its colon with its argument, if any, inside parentheses, where toke.c delivers one ATTRLIST; one token of argument
+attrlist: COLONATTR attr attrs COLONATTR # perly.y:1070, fitted: perl accepts one colon after the attributes, which toke.c leaves out of its ATTRLIST
 attr: ATTRLIST # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attr: ATTRLIST PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attr: ATTRLIST PERLY_PAREN_OPEN ATTRLIST PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
