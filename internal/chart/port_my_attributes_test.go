@@ -16,6 +16,8 @@ import (
 // none refuses unconditionally, so none is left for a completing issue.
 // An attribute's argument is one token (`:Foo(bar)`): the lexer scans it as Perl, where toke.c takes
 // it as one opaque string, so `:Foo(a, b)`, `:Foo(1+2)` and `:Foo(())` are refused until 01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a.
+// The same issue covers attribute names: pvm emits `:Foo::Bar` and `:Foo'Bar` as one qualified word, which
+// the chart accepts and perl refuses as an invalid separator.
 var myAttributesLines = []int{1070, 1072, 1572, 1719, 1721, 1723, 1725, 1730, 1732, 1735, 1737, 1739}
 
 func TestPortMyAndAttributes(t *testing.T) {
