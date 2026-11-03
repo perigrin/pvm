@@ -273,7 +273,10 @@ ATTRLIST holding every attribute and its argument as an opaque string
   the set of such names grows as classes name words.
 - `state` maps to KW_MY with or without `use feature 'state'`, so
   `state $x :Foo(1) = 2;` is accepted where perl refuses it without the
-  feature.
+  feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
+- `when` maps to KW_WHEN with or without `use feature 'switch'`, so
+  `$y = 1 when $x;` is accepted where perl refuses it without the feature
+  (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
