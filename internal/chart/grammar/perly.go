@@ -491,9 +491,9 @@ termunop: PREINC term # perly.y:1523
 
 termunop: PREDEC term # perly.y:1526
 
-# perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE
+anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE # perly.y:1534
 
-# perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE
+anonymous: HASHBRACK optexpr PERLY_BRACE_CLOSE # perly.y:1536, fitted: the ; before } is toke.c's, not the source's
 
 # perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody
 
@@ -507,31 +507,31 @@ termunop: PREDEC term # perly.y:1526
 
 # perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist
 
-# perly.y:1558 termdo: KW_DO term
+termdo: KW_DO term # perly.y:1558
 
-# perly.y:1560 termdo: KW_DO block
+termdo: KW_DO block # perly.y:1560
 
 term: termbinop # perly.y:1564
 
 term: termunop # perly.y:1565
 
-# perly.y:1566 term: anonymous
+term: anonymous # perly.y:1566
 
-# perly.y:1567 term: termdo
+term: termdo # perly.y:1567
 
-# perly.y:1568 term: term PERLY_QUESTION_MARK term PERLY_COLON term
+term: term PERLY_QUESTION_MARK term PERLY_COLON term # perly.y:1568
 
-# perly.y:1570 term: REFGEN term
+term: REFGEN term # perly.y:1570
 
 term: myattrterm # perly.y:1572
 
-# perly.y:1574 term: KW_LOCAL term
+term: KW_LOCAL term # perly.y:1574
 
-# perly.y:1576 term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1576
 
-# perly.y:1578 term: QWLIST
+term: QWLIST # perly.y:1578
 
-# perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1580
 
 term: scalar # perly.y:1582
 
@@ -557,9 +557,9 @@ term: THING # perly.y:1634
 
 term: amper # perly.y:1636
 
-# perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1638
 
-# perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1641
 
 # perly.y:1646 term: NOAMP subname optlistexpr
 
@@ -724,6 +724,13 @@ var (
 	fatComma  = Neighbour{Kind: lexer.Operator, Text: "=>"}
 	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
 	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
+
+	// notHashBrace are the predecessors after which ClassOf reads a `{` as a subscript or a block.
+	notHashBrace = []Neighbour{
+		{Kind: lexer.Variable}, {Kind: lexer.Variable, TermFollows: true}, {Kind: lexer.DerefSigil},
+		{Kind: lexer.Operator, Text: "->"},
+		{Kind: lexer.CloseBracket, Text: ")"}, {Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
+	}
 )
 
 // perlyClasses are the token classes, each declared by the terminal it admits and so
@@ -740,10 +747,11 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true)}},
+	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false)}},
 
-	// PERLY_BRACKET_OPEN
+	{"PERLY_BRACKET_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("[")}},
 
-	// PERLY_BRACKET_CLOSE
+	{"PERLY_BRACKET_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("]")}},
 
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
@@ -774,7 +782,7 @@ var perlyClasses = []ClassDecl{
 
 	// KW_CLASS
 
-	// KW_LOCAL
+	{"KW_LOCAL", TokenClass{Kind: ptr(lexer.Word), Text: ptr("local")}},
 
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("my")}},
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our")}},
@@ -815,7 +823,7 @@ var perlyClasses = []ClassDecl{
 
 	{"KW_REQUIRE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("require")}},
 
-	// KW_DO
+	{"KW_DO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("do")}},
 
 	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("use")}},
 	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("no")}},
@@ -869,7 +877,7 @@ var perlyClasses = []ClassDecl{
 
 	// PRIVATEREF
 
-	// QWLIST
+	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w'))}},
 
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__FILE__")}},
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__LINE__")}},
@@ -1137,7 +1145,9 @@ var perlyClasses = []ClassDecl{
 
 	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#'))}},
 
-	// HASHBRACK
+	// A `{` the lexer did not open as a block is an anonymous hash unless it follows what ClassOf makes
+	// a subscript's or a block's: a variable, a closing bracket, `->` or a deref sigil.
+	{"HASHBRACK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), NotPrev1: notHashBrace}},
 
 	// NOAMP
 
@@ -1181,9 +1191,9 @@ var perlyClasses = []ClassDecl{
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^.=")}},
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x=")}},
 
-	// PERLY_QUESTION_MARK
+	{"PERLY_QUESTION_MARK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("?")}},
 
-	// PERLY_COLON
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":")}},
 
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||")}},
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^^")}}, // toke.c yyl_caret: OP_XOR

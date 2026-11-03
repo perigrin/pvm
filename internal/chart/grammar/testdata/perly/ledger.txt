@@ -468,9 +468,9 @@ perly.y:1523 termunop: PREINC term	ported
 
 perly.y:1526 termunop: PREDEC term	ported
 
-perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE	-
+perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
 perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	-
 
@@ -484,31 +484,31 @@ perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody	-
 
 perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist	-
 
-perly.y:1558 termdo: KW_DO term	-
+perly.y:1558 termdo: KW_DO term	ported
 
-perly.y:1560 termdo: KW_DO block	-
+perly.y:1560 termdo: KW_DO block	ported
 
 perly.y:1564 term: termbinop	ported
 
 perly.y:1565 term: termunop	ported
 
-perly.y:1566 term: anonymous	-
+perly.y:1566 term: anonymous	ported
 
-perly.y:1567 term: termdo	-
+perly.y:1567 term: termdo	ported
 
-perly.y:1568 term: term PERLY_QUESTION_MARK term PERLY_COLON term	-
+perly.y:1568 term: term PERLY_QUESTION_MARK term PERLY_COLON term	ported
 
-perly.y:1570 term: REFGEN term	-
+perly.y:1570 term: REFGEN term	ported
 
 perly.y:1572 term: myattrterm	ported
 
-perly.y:1574 term: KW_LOCAL term	-
+perly.y:1574 term: KW_LOCAL term	ported
 
-perly.y:1576 term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1576 term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1578 term: QWLIST	-
+perly.y:1578 term: QWLIST	ported
 
-perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
 perly.y:1582 term: scalar	ported
 
@@ -534,9 +534,9 @@ perly.y:1634 term: THING	ported
 
 perly.y:1636 term: amper	ported
 
-perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
 perly.y:1646 term: NOAMP subname optlistexpr	-
 
