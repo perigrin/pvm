@@ -1121,6 +1121,8 @@ var perlyClasses = []ClassDecl{
 	// POWOP
 
 	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}}, // NotPrev1 is filled by init
+	// A builtin's name called with & is a sub call, so x after it is repetition again.
+	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), Prev2: &Neighbour{Kind: lexer.FuncSigil}}},
 
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
@@ -1245,7 +1247,7 @@ func init() {
 		}
 	}
 	for i, d := range perlyClasses {
-		if d.Terminal == "MULOP" && d.Key.Text != nil && *d.Key.Text == "x" {
+		if d.Terminal == "MULOP" && d.Key.Text != nil && *d.Key.Text == "x" && d.Key.Prev2 == nil {
 			perlyClasses[i].Key.NotPrev1 = termExpecting
 		}
 	}
