@@ -8,10 +8,12 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
+	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
@@ -36,7 +38,7 @@ type chartResult struct {
 }
 
 // verdictInputs are the sides of a verdict, by corpus path. Perl returns nil
-// for a file with no label, which is every file until POP reads them.
+// for a file with no label.
 // Excluded is Q11's set: the files on either lexer list.
 type verdictInputs struct {
 	Chart    func(path string) (chartResult, error)
@@ -159,10 +161,26 @@ func lexerListed() (map[string]bool, error) {
 	return out, nil
 }
 
+// labelVerdicts reads perl's verdicts from the committed label files in dir
+// (offline/label.sh's in-tree.txt and t1.txt), by corpus path.
+func labelVerdicts(dir string) (func(path string) *perlVerdict, error) {
+	out := map[string]*perlVerdict{}
+	for name, prefix := range map[string]string{"in-tree.txt": "", "t1.txt": "T1/"} {
+		lf, err := chart.ReadLabels(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range lf.Labels {
+			out[prefix+l.Path] = &perlVerdict{Refused: l.Refused(), Category: l.Category}
+		}
+	}
+	return func(path string) *perlVerdict { return out[path] }, nil
+}
+
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
-// fresh recognizer per file, recursive descent is parse.Parse. Perl has no
-// label to read until POP.
-func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool) verdictInputs {
+// fresh recognizer per file, recursive descent is parse.Parse, perl is the
+// committed labels.
+func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict) verdictInputs {
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
 			s, _ := lex.Lex(srcs[path], tab.Tokens) // an unmapped token has the empty set, which refuses
@@ -187,7 +205,7 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			return r, nil
 		},
 		RD:       func(path string) bool { return !parse.Parse(srcs[path]).Refused() },
-		Perl:     func(string) *perlVerdict { return nil },
+		Perl:     perl,
 		Excluded: excluded,
 	}
 }

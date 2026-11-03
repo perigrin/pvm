@@ -70,10 +70,11 @@ grammar	^Illegal declaration of anonymous subroutine'
 referees() {
 	toks=$(cd "$1" && PERL5LIB=$2 sh "$here/tdt-capture.sh" "$perl" "$3" 2>/dev/null | grep -v '^#' | cut -f 1) || true
 	[ -n "$toks" ] || die "$3: no -DT tokens"
-	prec=$(printf 'GRAMPROG\n%s\n' "$toks" | "$referee/referee-prec" -p)
-	n=$(printf 'GRAMPROG\n%s\n' "$toks" | wc -l)
+	toks=$(printf 'GRAMPROG\n%s' "$toks")
+	prec=$(printf '%s\n' "$toks" | "$referee/referee-prec" -p)
+	n=$(printf '%s\n' "$toks" | wc -l)
 	case $prec in refuse@*) n=${prec#refuse@} ;; esac
-	noprec=$(printf 'GRAMPROG\n%s\n' "$toks" | head -n "$n" | "$referee/referee-noprec" -p)
+	noprec=$(printf '%s\n' "$toks" | head -n "$n" | "$referee/referee-noprec" -p)
 	printf 'referee-noprec %s; referee-prec %s' "$noprec" "$prec"
 }
 
