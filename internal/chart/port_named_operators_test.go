@@ -65,3 +65,18 @@ func TestPortNamedOperatorsByPosition(t *testing.T) {
 		}
 	}
 }
+
+// toke.c returns lt, gt, le, ge, eq, ne and cmp as operators whatever precedes them; only x falls
+// through to a word. perl -c (94e50866): each refused row is a syntax error, its nearby form compiles.
+func TestPortNamedOperatorsOperatorWords(t *testing.T) {
+	for _, tc := range []struct{ refused, nearby string }{
+		{"lt;", "ltx;"}, {"cmp;", "cmpx;"}, {"$y = lt;", "$y = ltx;"}, {"$y = ge;", "$y = gex;"},
+	} {
+		if v := recognizeSource(t, []byte(tc.refused)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", tc.refused)
+		}
+		if v := recognizeSource(t, []byte(tc.nearby)); !v.accepted {
+			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
+		}
+	}
+}
