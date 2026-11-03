@@ -267,9 +267,10 @@ ATTRLIST holding every attribute and its argument as an opaque string
   package-qualified word as one token, so `:Foo::Bar`, `:Foo::` and `:Foo'Bar`
   are accepted where perl refuses them ("Invalid separator character"), until
   the same lexer issue (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`) lands.
-- An attribute named `use`, `no`, `my`, `our` or `state` after another
-  attribute is not matched: `grammar.OtherWord` stands for a word no class
-  names.
+- An attribute after one whose name some class names (e.g. `use`, `my`) is
+  not matched: `:use shared`, `:my shared` and `:no Foo` are refused where
+  perl accepts them. `grammar.OtherWord` stands for a word no class names, so
+  the set of such names grows as classes name words.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
