@@ -83,6 +83,12 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
 }
 
+// OtherWord as a neighbour's Text stands for a word no class names, the one whose
+// dictionary id is 0, so a class can ask for "a word" without listing words.
+// shortcut: a word some class does name (`use`, `my`, ...) is not matched, upgrade
+// when a class needs a neighbour that is any word.
+const OtherWord = "\x00other-word"
+
 // TokenClass declares that tokens whose key matches every part given (a nil
 // part matches anything) admit Terminals. A key several classes match admits
 // the union of theirs.
@@ -208,7 +214,10 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		for _, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
 			if nb != nil {
-				texts[nb.Text], nbs[*nb] = true, true
+				if nb.Text != OtherWord {
+					texts[nb.Text] = true
+				}
+				nbs[*nb] = true
 			}
 		}
 	}

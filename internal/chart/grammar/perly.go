@@ -250,9 +250,16 @@ startsub: # perly.y:1023
 
 # perly.y:1065 subattrlist: COLONATTR
 
-# perly.y:1070 attrlist: COLONATTR ATTRLIST
+attrlist: COLONATTR attr attrs # perly.y:1070, fitted: pvm emits each attribute as a word after its colon with its argument, if any, inside parentheses, where toke.c delivers one ATTRLIST; one token of argument
+attrlist: COLONATTR attr attrs COLONATTR # perly.y:1070, fitted: perl accepts one colon after the attributes, which toke.c leaves out of its ATTRLIST
+attr: ATTRLIST # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attr: ATTRLIST PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attr: ATTRLIST PERLY_PAREN_OPEN ATTRLIST PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attrs: empty # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attrs: attrs COLONATTR attr # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attrs: attrs attr # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 
-# perly.y:1072 attrlist: COLONATTR
+attrlist: COLONATTR # perly.y:1072
 
 # perly.y:1077 optattrlist: empty
 
@@ -512,7 +519,7 @@ term: termunop # perly.y:1565
 
 # perly.y:1570 term: REFGEN term
 
-# perly.y:1572 term: myattrterm
+term: myattrterm # perly.y:1572
 
 # perly.y:1574 term: KW_LOCAL term
 
@@ -604,23 +611,23 @@ term: amper # perly.y:1636
 
 # perly.y:1714 term: PLUGEXPR
 
-# perly.y:1719 myattrterm: KW_MY myterm attrlist
+myattrterm: KW_MY myterm attrlist # perly.y:1719
 
-# perly.y:1721 myattrterm: KW_MY myterm
+myattrterm: KW_MY myterm # perly.y:1721
 
-# perly.y:1723 myattrterm: KW_MY REFGEN myterm attrlist
+myattrterm: KW_MY REFGEN myterm attrlist # perly.y:1723
 
-# perly.y:1725 myattrterm: KW_MY REFGEN term
+myattrterm: KW_MY REFGEN term # perly.y:1725
 
-# perly.y:1730 myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1730
 
-# perly.y:1732 myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1732
 
-# perly.y:1735 myterm: scalar
+myterm: scalar # perly.y:1735
 
-# perly.y:1737 myterm: hsh
+myterm: hsh # perly.y:1737
 
-# perly.y:1739 myterm: ary
+myterm: ary # perly.y:1739
 
 # perly.y:1744 fieldvar: scalar
 
@@ -757,7 +764,9 @@ var perlyClasses = []ClassDecl{
 
 	// KW_LOCAL
 
-	// KW_MY
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("my")}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our")}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state")}},
 
 	// KW_FIELD
 
@@ -819,7 +828,15 @@ var perlyClasses = []ClassDecl{
 
 	// METHCALL
 
-	// ATTRLIST
+	// An attribute's name follows its colon, the attribute before it or its argument's parenthesis; its
+	// one-token argument, never a parenthesis, follows its own.
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: ":"}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: OtherWord}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.CloseBracket, Text: ")"}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 
 	{"THING", TokenClass{Kind: ptr(lexer.Number)}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\''))}},
@@ -876,7 +893,7 @@ var perlyClasses = []ClassDecl{
 
 	// NOAMP
 
-	// COLONATTR
+	{"COLONATTR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":")}},
 
 	// FORMLBRACK
 
@@ -958,7 +975,7 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_TILDE", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("~")}},
 	{"PERLY_TILDE", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("~.")}},
 
-	// REFGEN
+	{"REFGEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("\\")}},
 
 	{"PREINC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("++")}},
 
@@ -972,7 +989,7 @@ var perlyClasses = []ClassDecl{
 
 	// ARROW
 
-	// PERLY_PAREN_CLOSE
+	{"PERLY_PAREN_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr(")")}},
 
-	// PERLY_PAREN_OPEN
+	{"PERLY_PAREN_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("(")}},
 }
