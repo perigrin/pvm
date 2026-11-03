@@ -26,9 +26,9 @@ type perlVerdict struct {
 }
 
 // chartResult is one file's recognition: whether the chart accepts it, its
-// tokens and the terminals their sets hold, and over the nodes after the
-// first that have an Earley set (Positions): their items and how many sets
-// were already interned.
+// mapped tokens (those whose terminal set is not empty) and the terminals
+// those sets hold, and over the nodes after the first that have an Earley
+// set (Positions): their items and how many sets were already interned.
 type chartResult struct {
 	Accepted               bool
 	Tokens, Terminals      int
@@ -61,7 +61,10 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		}
 		res = append(res, r)
 		verdicts = append(verdicts, in.Perl(f.Path))
-		tokens, terminals, positions, items, hits = tokens+r.Tokens, terminals+r.Terminals, positions+r.Positions, items+r.Items, hits+r.Hits
+		tokens, terminals = tokens+r.Tokens, terminals+r.Terminals
+		if r.Accepted { // §7's cost is the cost on recognized input
+			positions, items, hits = positions+r.Positions, items+r.Items, hits+r.Hits
+		}
 	}
 	ratio := func(key string, n, d int) {
 		if d > 0 {
@@ -95,11 +98,11 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 				refused["chart-accepted-both-refused"] = append(refused["chart-accepted-both-refused"], f.Path)
 			}
 		}
-		if !v.Refused && in.RD(f.Path) {
+		if !v.Refused && in.RD(f.Path) && !in.Excluded[f.Path] { // §9.1: less both lexer lists
 			pop++
 			if accepted {
 				recognized++
-			} else if !in.Excluded[f.Path] {
+			} else {
 				refused["rd-accepted-chart-refused"] = append(refused["rd-accepted-chart-refused"], f.Path)
 			}
 		}
@@ -163,24 +166,24 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
 			s, _ := lex.Lex(srcs[path], tab.Tokens) // an unmapped token has the empty set, which refuses
-			r := chartResult{Tokens: len(s.Tokens)}
+			var r chartResult
 			for _, t := range s.Tokens {
-				r.Terminals += len(tab.TerminalSets[t.TerminalSet])
+				if t.TerminalSet != 0 { // the empty set is a token the table cannot map
+					r.Tokens++
+					r.Terminals += len(tab.TerminalSets[t.TerminalSet])
+				}
 			}
 			c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
 			if err != nil {
 				return r, err
 			}
 			r.Accepted = c.Accepted()
-			for i, set := range c.Sets {
-				if i > 0 && set != nil {
-					r.Positions++
-					r.Items += len(set.Items())
-					if c.Interned[i] {
-						r.Hits++
-					}
-				}
+			for _, set := range c.Sets[1:] {
+				r.Items += len(set.Items())
 			}
+			// Node 0 is a set of its own in a fresh recognizer, never a hit.
+			r.Hits, r.Positions = c.Reuse()
+			r.Positions--
 			return r, nil
 		},
 		RD:       func(path string) bool { return !parse.Parse(srcs[path]).Refused() },
