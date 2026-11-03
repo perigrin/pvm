@@ -356,6 +356,30 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   sets, so time stays quadratic until memos are interned. A chain stops at
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
   turns it off; it is the only Leo switch.
+- **The `;` toke.c inserts, by a narrow ruby slipper** (spec §5.2). toke.c
+  inserts a `;` where a scope ends: before the `}` that closes it
+  (`yyl_rightcurly`, which forces the `}` and returns `PERLY_SEMICOLON`
+  first, toke.c:6890-6897 at 94e50866) and at the end of the file
+  (`yyl_fake_eof`, toke.c:7670). pvm's lexer emits neither, and its tokens do
+  not change. So at a node whose next token's set holds `PERLY_BRACE_CLOSE`,
+  or that ends the input, and whose set expects `PERLY_SEMICOLON`, the
+  recognizer scans a zero-width `PERLY_SEMICOLON` there **beside** the next
+  token, never instead of it. Whether a `}` closes a scope or a hash is not
+  in the tokens, but `perly.y` spells the `;` in every rule that takes one
+  before a `}` (a block's last statement, subscripts, anonymous hashes,
+  slices), so the expected set decides what toke.c's lexer state decides,
+  and a `}` that takes no `;` gets none. A missing `;` before any other
+  token is still refused. The items the `;` advances are closed beside the
+  node's set, never in it: `Sets[pos]` and `Expected(pos)` stay what the
+  source may contain next, and the next node scans the `}` from both, the
+  inserted items' origin sets being cache dependencies like any other. At
+  such a node the lookahead that prunes completion holds `;` as well as the
+  next token. `(*Chart).Inserted()` is the nodes where a `;` was scanned,
+  ascending. The reference recognizer inserts the same `;` with a set of
+  its own, so it stays the oracle (`TestSlipperReferenceAgrees`). Nothing
+  else is inserted; interleaved lexing is future work (spec §13). The rules
+  `perly.y` writes with `PERLY_SEMICOLON PERLY_BRACE_CLOSE` port as written,
+  and no rule is fitted for the inserted `;`.
 
 `make fuzz-chart-recognize` runs `FuzzRecognize`. It checks that recognition
 never panics, that acceptance is the same with a dead-end branch added and
