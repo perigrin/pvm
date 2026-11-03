@@ -17,12 +17,21 @@ decided to re-attempt the spike with a grammar ported from `perly.y` over
 `internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
 the ratchet carry over. Guacamole's grammar, the SLIF reader, the token cut,
 `chart/lex`'s predicate mapping, the observed-conflict probes and the CORE.tpm
-cross-check are removed. The port's grammar grows family by family in
-`grammar/perly.go`, starting from the core rules the first token classes
-need (the program start form, the statement and block spine, the expression
-core and the variable heads). The history of what they were is in `docs/postmortems/chart-waypoint.md`. The
-forest, error recovery, `chart/compare` and the oracle adapter were never
-built.
+cross-check are removed. The history of what they were is in
+`docs/postmortems/chart-waypoint.md`. The port's grammar grows family by
+family in `grammar/perly.go`, starting from the core rules the first token
+classes need (the program start form, the statement and block spine, the
+expression core and the variable heads) and the port skeleton (the other six
+start forms and `use`/`no` statements). The forest, error recovery,
+`chart/compare` and the oracle adapter were never built.
+
+**Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`) are
+start rules of `grammar`. The program form is the one a file is recognized
+by, and the only one graded. Each of the other six begins with its `GRAM*`
+selector, a token perl's parser pushes and the lexer never emits, so
+`TestStartForms` puts the selector before the lexed tokens itself, and tests
+each form only on input that lexes the same from statement start:
+`internal/lexer` exports only statement-start states.
 
 ## The Guacamole corpus
 
@@ -87,9 +96,18 @@ retired.
 - **Inputs.** The ratchet reads only the working tree: no commit, no
   `refs/zhi`, no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/lex` to
-  time it and to count `lex-unmapped`.
+  time it and to count `lex-unmapped`, and `recognize` for `leo-disagree`.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
+  `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
+  `std5k.pl`) keep their bodies in `bench.go`, outside a test file, so the
+  ratchet can run the same code with `testing.Benchmark`. Until the chart
+  recognizes `std5k.pl` (speed checkpoint 1), `BenchmarkRecognize` and
+  `BenchmarkExpected` time only the prefix the grammar reaches, today its
+  first token: Recognize's figure is mostly per-node bookkeeping past the
+  node where the chart dies, and Expected times one position. Both report
+  `nodes-reached` (the first node with no Earley set) beside `nodes`, so a
+  reader can see when the figures start to mean recognition.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
@@ -128,7 +146,7 @@ To take a baseline after an intended change, run
 | Key | Meaning | Rule |
 |---|---|---|
 | `tables-drift` | committed tables differing from what `make chart-tables` writes | may not rise; 0 at the exit |
-| `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position | may not rise; 0 at the exit |
+| `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position, over every corpus file until the superset population exists | may not rise; 0 at the exit |
 | `ledger-gaps` | reference alternatives with no ledger mark, plus grammar citations not in the ledger | may not rise; 0 at the exit |
 | `rd-accepted-chart-refused` | superset-population files the chart refuses | may not rise; 0 at the exit |
 | `chart-accepted-both-refused` | perl grammar refusals recursive descent also refuses that the chart accepts, less both lexer lists | may not rise; 0 at the exit |
