@@ -178,7 +178,7 @@ To take a baseline after an intended change, run
 | `alloc-per-token-rd` | recursive descent's allocations per token | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
-| `ledger-excluded` | ledger alternatives marked excluded | reported |
+| `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`) | reported |
 | `superset-population` | files both perl and recursive descent accept, less both lexer lists | reported |
 | `superset-recognized` | share of that population the chart accepts | reported |
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
