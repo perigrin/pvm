@@ -21,6 +21,7 @@ var (
 	testdata     = filepath.Join("internal", "chart", "testdata")
 	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
 	knownFile    = filepath.Join(testdata, "lex-unmapped-known.txt")
+	defectsFile  = filepath.Join(testdata, "lexer-defects.txt")
 	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
 )
 
@@ -57,6 +58,13 @@ func main() {
 	if err == nil {
 		err = measureTDT(fixturesDir(os.Getenv("TDT_FIXTURES"), defaultTDT), g, tab, files, srcs, measured)
 	}
+	var rises map[string][]string
+	if err == nil {
+		var excluded map[string]bool
+		if excluded, err = lexerListed(); err == nil {
+			rises, err = measureVerdicts(files, chartInputs(tab, srcs, excluded), measured)
+		}
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
@@ -74,6 +82,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
+	listRises(os.Stderr, string(baseline), ms, rises)
 	os.Exit(check(ms, unmapped, string(baseline), string(known), os.Stderr))
 }
 
