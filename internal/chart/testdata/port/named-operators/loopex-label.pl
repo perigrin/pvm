@@ -1,1 +1,1 @@
-next FOO;
+$y = next FOO;
