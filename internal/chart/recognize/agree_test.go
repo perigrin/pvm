@@ -68,8 +68,9 @@ func TestReferenceRecognizer(t *testing.T) {
 }
 
 // sampleFile is one file of the corpus sample, lexed against the committed
-// grammar, and the token after which it is cut mid-statement: the first =,
-// or -1 where it has none.
+// grammar, and the token count it is cut at, mid-statement: after the first
+// =, else after the first token that is not a ; (use, package, ...); -1 for a
+// file with none, which has no mid-statement point.
 type sampleFile struct {
 	name string
 	l    *lex.Lattice[lex.None]
@@ -117,9 +118,13 @@ func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 		s, _ := lex.Lex(src, tab.Tokens)
 		f := sampleFile{name: p, l: lex.Linear(s), cut: -1}
 		for i, tok := range s.Tokens {
-			if r := s.Raw[tok.Index]; string(src[r.Start:r.End]) == "=" {
+			r := s.Raw[tok.Index]
+			if string(src[r.Start:r.End]) == "=" {
 				f.cut = i + 1
 				break
+			}
+			if f.cut < 0 && string(src[r.Start:r.End]) != ";" {
+				f.cut = i + 1 // else after the first token that is not a ;
 			}
 		}
 		files = append(files, f)
@@ -132,14 +137,16 @@ func deadNode(c *Chart) int {
 	return slices.IndexFunc(c.Sets, func(s *Set) bool { return s == nil })
 }
 
-// TestReferenceAgreesOnTruncatedFiles: each sample file cut after its first
-// =, mid-statement, is refused by the recognizer and the reference at the same
+// TestReferenceAgreesOnTruncatedFiles: each sample file cut mid-statement
+// (see sampleFile), is refused by the recognizer and the reference at the same
 // node, with the same Expected there.
 func TestReferenceAgreesOnTruncatedFiles(t *testing.T) {
 	tab, files := corpusSample(t)
-	cut := 0
+	cut, skipped := 0, 0
 	for _, f := range files {
 		if f.cut < 0 {
+			skipped++
+			t.Logf("%s: no token to cut after but ;", f.name)
 			continue
 		}
 		cut++
@@ -148,7 +155,7 @@ func TestReferenceAgreesOnTruncatedFiles(t *testing.T) {
 		sets, _, accepted := refRun(tab, tokenIDs(l))
 		wantDead := slices.IndexFunc(sets, func(s []refItem) bool { return len(s) == 0 })
 		if c.Accepted() || accepted {
-			t.Errorf("%s: cut after its first =, the recognizer accepts %v and the reference %v", f.name, c.Accepted(), accepted)
+			t.Errorf("%s: cut after token %d, the recognizer accepts %v and the reference %v", f.name, f.cut, c.Accepted(), accepted)
 		}
 		if got := deadNode(c); got != wantDead {
 			t.Errorf("%s: the recognizer refuses at node %d, the reference at %d", f.name, got, wantDead)
@@ -157,8 +164,8 @@ func TestReferenceAgreesOnTruncatedFiles(t *testing.T) {
 			t.Errorf("%s: %s", f.name, d)
 		}
 	}
-	if cut == 0 {
-		t.Fatalf("%d files of the sample hold a =", cut)
+	if skipped*10 > len(files) { // a few files hold nothing to cut; most must be cut
+		t.Errorf("only %d of %d files were cut", cut, len(files))
 	}
 }
 
