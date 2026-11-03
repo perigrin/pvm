@@ -183,12 +183,16 @@ assessment lists what they involve.
   statement start, since the lexer exports only statement-start states, and
   that limit is recorded.
 - **The `;` toke.c inserts, by a narrow ruby slipper** (perigrin,
-  2026-11-03). toke.c inserts a `;` before a `}` that closes a block and at
-  end of file, so a statement's own `;` may be left off there
-  (`{ use strict }`, a file ending `package Foo`). Whether a `}` closes a
-  block or a hash is not in the tokens, so this one case is not fitted: the
-  recognizer, at a node whose `Expected` holds `;` and whose next token is a
-  `}` or end of input, scans a zero-width `;` there as well as whatever the
+  2026-11-03). toke.c inserts a `;` where a scope ends: before the `}` that
+  closes it, and at the end of the file, which closes the file's scope. So a
+  statement's own `;` may be left off there (`{ use strict }`; a file that is
+  only `use strict`). Observed on 94e50866 with `-DT`: `PERLY_SEMICOLON`
+  before the `}` of `{ use strict }` and before `EOF` of `use strict`.
+  (`__END__` and `__DATA__` are not a third case: they end the source, so the
+  end of the file is where they stand.) Whether a `}` closes a scope or a
+  hash is not in the tokens, so this one case is not fitted: the recognizer,
+  at a node whose `Expected` holds `;` and whose next token is a `}` or the
+  end of input, scans a zero-width `;` there as well as whatever the
   next token scans. Where `perly.y` spells the `;` before a `}` (blocks,
   subscripts, anonymous hashes), its rules are ported as written and the
   expected set holds it; where a `}` takes no `;`, the expected set does not.
