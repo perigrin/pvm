@@ -102,12 +102,24 @@ func TestPortTermsAttributeColon(t *testing.T) {
 	}
 	for _, src := range []string{
 		"$y = $c ? my $x : 1;", "$y = $c ? my $x : $z;", "$y = $c ? my $x : -1;", `$y = $c ? my $x : "s";`,
-		"$y = $c ? my $x : \\$z;", "$y = $c ? my $x : (my $z);", "$y = $c ? my $x : [1];", "$y = $c ? my $x : @a;",
+		"$y = $c ? my $x : \\$z;", "$y = $c ? my $x : (my $z);", "$y = $c ? my $x : ::foo;", "$y = $c ? 1 : ::foo;", "$y = $c ? my $x : [1];", "$y = $c ? my $x : @a;",
 		"$y = $c ? (my $x) : shared;", "$y = $c ? local $g : shared;", "$y = $c ? $x : shared;", "$y = $c ? my $x\n: 1;",
 		"my $x : shared;", "my $x :shared;", "$y = $c ? shared : my $x;", "$y = $c ? my $x : 'a';",
 	} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d (expected %v); perl accepts it", src, v.at, v.expected)
+		}
+	}
+	// Known limit: a colon that separates attributes is eaten by toke.c's attribute loop, so it is never the
+	// ternary's, but the key sees a word and a colon before it here and in $a ? $b ? 1 : c : d, which perl
+	// accepts. These are accepted where perl refuses them ("Invalid separator character") until the lexer
+	// marks the separator (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e).
+	for _, src := range []string{
+		"$y = $c ? my $x : shared : 1;", "$y = $c ? my $x :shared :1;", "$y = $c ? my $x : a : b : 1;",
+		"$y = $c ? my $x : foo(1) : 2;", "$y = $c ? our @x : shared : ();", "$c ? my $x : L: 1;",
+	} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d: the separator-colon limit is gone, so remove the shortcut and make this a refusal", src, v.at)
 		}
 	}
 	// Known limit: the key sees two tokens back, so my ($x) : shared looks like (my $x) : shared, which
