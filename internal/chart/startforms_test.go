@@ -67,7 +67,8 @@ func TestStartForms(t *testing.T) {
 		{"GRAMEXPR", []string{"", "$x = 1", "$x, $y"}, []string{"$x = 1;", "use strict;"}},
 		{"GRAMBLOCK", []string{"{ $x = 1; }", "{ use strict; }"}, []string{"", "$x = 1;"}},
 		{"GRAMBARESTMT", []string{"$x = 1;", "use strict;", "{ $x = 1 }", ";"}, []string{"$x = 1; $y = 2;"}},
-		{"GRAMFULLSTMT", []string{"$x = 1;", "no warnings;"}, []string{"", "$x = 1; $y = 2;"}},
+		// "" is the ; toke.c inserts at end of input (yyl_fake_eof), an empty statement.
+		{"GRAMFULLSTMT", []string{"$x = 1;", "no warnings;", ""}, []string{"$x = 1; $y = 2;"}},
 		{"GRAMSTMTSEQ", []string{"", "use strict;\nno warnings;\n"}, []string{"use strict; {"}},
 		{"GRAMSUBSIGNATURE", []string{""}, []string{";", "$x = 1;"}},
 	} {
