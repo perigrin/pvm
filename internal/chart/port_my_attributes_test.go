@@ -46,6 +46,7 @@ func TestPortMyAndAttributesRefusals(t *testing.T) {
 		"open-paren.pl":       {";", "list.pl"},
 		"no-comma.pl":         {"$y", "scalar.pl"},
 		"arg-without-name.pl": {"(", "attr-arg.pl"},
+		"two-colons.pl":       {":Bar", "trailing-colon.pl"},
 		"paren-close-arg.pl":  {");", "attr-arg.pl"},
 	} {
 		src, err := os.ReadFile(filepath.Join("testdata", "port", "my-attributes-refused", name))
