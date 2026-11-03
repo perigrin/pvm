@@ -189,9 +189,10 @@ assessment lists what they involve.
   block or a hash is not in the tokens, so this one case is not fitted: the
   recognizer, at a node whose `Expected` holds `;` and whose next token is a
   `}` or end of input, scans a zero-width `;` there as well as whatever the
-  next token scans. A `}` that closes a hash or a subscript is never preceded
-  by an expected `;`, so the expected set decides what toke.c's lexer state
-  decides. The insertion is recorded on the chart by node, the reference
+  next token scans. Where `perly.y` spells the `;` before a `}` (blocks,
+  subscripts, anonymous hashes), its rules are ported as written and the
+  expected set holds it; where a `}` takes no `;`, the expected set does not.
+  So the expected set decides what toke.c's lexer state decides. The insertion is recorded on the chart by node, the reference
   recognizer does the same so that it stays the oracle, and the speed
   protocol times it as recognition. Nothing else is inserted and the lexer's
   tokens do not change; interleaved lexing remains future work (§13). This
