@@ -97,4 +97,10 @@ func TestPortNamedOperatorsXAfterNamedOperator(t *testing.T) {
 			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
 		}
 	}
+	// A builtin's name called with & is a sub call, so x after it is repetition. perl -c accepts all four.
+	for _, src := range []string{"&ref x 3;", "$y = &shift x 3;", "&last x 3;", "&require x 3;"} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d", src, v.at)
+		}
+	}
 }
