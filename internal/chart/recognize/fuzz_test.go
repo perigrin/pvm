@@ -164,7 +164,7 @@ func FuzzRecognize(f *testing.F) {
 		if d := oracleDisagreement(tab, builds(tab), lattices[0]); d != "" {
 			t.Fatalf("%q: %s", src, d)
 		}
-		refSets, want := refRun(tab, tokenIDs(lattices[0]))
+		refSets, _, want := refRun(tab, tokenIDs(lattices[0]))
 		mu.Lock()
 		defer mu.Unlock()
 		for i, l := range lattices {
@@ -219,7 +219,7 @@ func TestWarmExpectedMatchesReference(t *testing.T) {
 	for _, src := range inputs {
 		l := fuzzLattice(tab, src)
 		c := mustRecognize(t, warm, l)
-		sets, _ := refRun(tab, tokenIDs(l))
+		sets, _, _ := refRun(tab, tokenIDs(l))
 		for pos, items := range sets {
 			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(tab, items)) {
 				t.Fatalf("%q node %d: Expected %v (err %v) from the warm recognizer, %v from the reference", src, pos, got, err, refExpected(tab, items))
@@ -278,11 +278,12 @@ func tokenIDs(l *lex.Lattice[lex.None]) []int {
 }
 
 // oracleDisagreement is "" where the recognizers build makes, under every
-// Options combination, accept l and expect at each node what the reference
+// Options combination, accept l, insert a ; at the nodes the reference does,
+// and expect at each node what the reference
 // does over rules; otherwise it says what differs. l is a linear lattice, one
 // edge per node but the first, so edge i is token i.
 func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
-	sets, want := refRun(rules, tokenIDs(l))
+	sets, inserted, want := refRun(rules, tokenIDs(l))
 	for _, opts := range optionCombos {
 		c, err := Recognize(build(opts), l)
 		if err != nil {
@@ -290,6 +291,9 @@ func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, 
 		}
 		if got := c.Accepted(); got != want {
 			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, want)
+		}
+		if got := c.Inserted(); !slices.Equal(got, inserted) {
+			return fmt.Sprintf("%+v: Inserted %v, the reference %v", opts, got, inserted)
 		}
 		for pos, items := range sets {
 			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(rules, items)) {
