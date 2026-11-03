@@ -149,6 +149,9 @@ To take a baseline after an intended change, run
   error (exit 2). A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`; an entry naming
   no pair of the table is an error. Only whole captures are counted.
+- **The verdict keys read perl's committed labels** (`testdata/labels/`,
+  reviewed categories); a missing label file, or a corpus file with no label,
+  is an error (exit 2).
 - A rule exists only for a key the ratchet prints.
 
 | Key | Meaning | Rule |
