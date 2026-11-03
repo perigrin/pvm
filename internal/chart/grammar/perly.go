@@ -1185,6 +1185,7 @@ var perlyClasses = []ClassDecl{
 	// PERLY_COLON
 
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||")}},
+	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^^")}}, // toke.c yyl_caret: OP_XOR
 
 	{"DORDOR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("//")}},
 
