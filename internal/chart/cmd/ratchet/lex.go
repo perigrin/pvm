@@ -66,19 +66,24 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 	return chart, ref
 }
 
-// lexOverheadFiles is lex-overhead's file set: the aggregate of the population.
-func lexOverheadFiles(p Protocol, rd Side, population []File) []string {
+// lexOverheadFiles is lex-overhead's file set: the aggregate of the superset
+// population over files.
+func lexOverheadFiles(p Protocol, rd Side, files []File, in verdictInputs) ([]string, error) {
+	population, err := supersetPopulation(files, in)
+	if err != nil {
+		return nil, err
+	}
 	timed := make([]string, len(population))
 	for i, f := range population {
 		timed[i] = f.Path
 	}
-	return p.Aggregate(rd, population, timed)
+	return p.Aggregate(rd, population, timed), nil
 }
 
 // measureLex adds lex-unmapped over files, and lex-overhead over the
 // population's aggregate and lex-overhead-std5k, to measured. It returns
 // lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tt *grammar.TokenTable, files, population []File, srcs map[string][]byte, measured map[string]string) []string {
+func measureLex(tt *grammar.TokenTable, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
 	var unmapped []string
 	for _, f := range files {
 		if _, at := lex.Lex(srcs[f.Path], tt); at >= 0 {
@@ -91,7 +96,11 @@ func measureLex(tt *grammar.TokenTable, files, population []File, srcs map[strin
 	chart, ref := lexSides(srcs, tt, lexer.Tokenize)
 	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
 	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
-	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", lexOverheadFiles(p, rd, population), false))
+	aggregate, err := lexOverheadFiles(p, rd, files, in)
+	if err != nil {
+		return nil, err
+	}
+	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", aggregate, false))
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-std5k", []string{std5k}, false))
-	return unmapped
+	return unmapped, nil
 }

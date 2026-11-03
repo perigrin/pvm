@@ -101,13 +101,21 @@ func TestPopulationDisagreementsReported(t *testing.T) {
 
 func TestLexOverheadFileSet(t *testing.T) {
 	var now time.Duration
-	cost := map[string]time.Duration{"a.pl": 10, "b.pl": 10, "heavy.pl": 1000, "std5k.pl": 10, "edit5k.pl": 10, "outside.pl": 10}
+	std5k, listed := filepath.Join("d", "std5k.pl"), "listed.pl"
+	cost := map[string]time.Duration{"a.pl": 10, "b.pl": 10, "heavy.pl": 1000, std5k: 10, "edit5k.pl": 10, "outside.pl": 10, listed: 10}
 	rd := func() Runner { return func(p string) { now += cost[p] } }
 	p := Protocol{Now: func() time.Duration { return now }, GC: func() {}, Stderr: &strings.Builder{}}
-	population := []File{{"a.pl", "c"}, {"b.pl", "c"}, {"heavy.pl", "c"}, {filepath.Join("d", "std5k.pl"), "std5k"}, {"edit5k.pl", "edit5k"}}
-	cost[filepath.Join("d", "std5k.pl")] = 10
-	got := lexOverheadFiles(p, rd, population)
+	m := map[string]vfile{
+		"a.pl": {rd: true, perl: accept()}, "b.pl": {rd: true, perl: accept()}, "heavy.pl": {rd: true, perl: accept()},
+		std5k: {rd: true, perl: accept()}, "edit5k.pl": {rd: true, perl: accept()},
+		"outside.pl": {rd: true, perl: refuse("grammar")}, // not in the population
+		listed:       {rd: true, perl: accept()},          // lexer-listed: not in the population
+	}
+	got, err := lexOverheadFiles(p, rd, vfiles(m), vinputs(m, listed))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := []string{"a.pl", "b.pl"}; !slices.Equal(got, want) {
-		t.Errorf("lex-overhead times %v, want %v (outside.pl, std5k.pl, edit5k.pl and the 10%% file left out)", got, want)
+		t.Errorf("lex-overhead times %v, want %v (outside.pl, listed.pl, std5k.pl, edit5k.pl and the 10%% file left out)", got, want)
 	}
 }
