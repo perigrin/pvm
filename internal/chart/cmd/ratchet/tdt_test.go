@@ -147,7 +147,7 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 	keys := map[string]grammar.TokenClass{}
 	for name, mod := range map[string]func(*grammar.TokenClass){
 		"plain":        func(*grammar.TokenClass) {},
-		"notnext":      func(c *grammar.TokenClass) { c.NotNext = &paren },
+		"notnext":      func(c *grammar.TokenClass) { c.NotNext = []grammar.Neighbour{paren} },
 		"notprev1":     func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren} },
 		"nottext":      func(c *grammar.TokenClass) { c.NotText = []string{"if"} },
 		"nottext2":     func(c *grammar.TokenClass) { c.NotText = []string{"if", "my"} },

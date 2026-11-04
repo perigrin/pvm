@@ -151,7 +151,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if c.Text != nil {
 			named[*c.Text] = true
 		}
-		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
+		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
 			if n != nil {
 				named[n.Text] = true
 			}
@@ -255,7 +255,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
 				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && (c.Blanks == nil || *c.Blanks == t.v.Blanks) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
-				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && !slices.ContainsFunc(c.NotNext, func(n grammar.Neighbour) bool { return is(&n, nb(i+1)) }) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -372,6 +372,13 @@ func TestInternIdentityVersionShapes(t *testing.T) {
 	for _, n := range []string{"1", "1.23", "0.1", "01", "1_0", "1.", "1.2.3", "0x10", "1e3", ".5", "10.01"} {
 		for _, d := range []string{";", " ;", "\t;", "\n;", "{ }", "}", ",", "#c\n;", "x;", ")", "'a';", ""} {
 			src = append(src, "package Foo "+n+d+"\nuse "+n+d+"\nuse lib "+n+d+"\n$y = "+n+d+"\n"...)
+		}
+	}
+	// What follows a version or a word after use MODULE: each operator a NotNext list names, the ones it leaves, a term.
+	for _, n := range []string{"1.2", "v1.2", "foo", "x", "Foo::Bar"} {
+		for _, f := range []string{"=>", ".", "x", "?", "==", "!=", "||", "//", "&&", "..", "...", "=~", "!~", "**", "<=>", "eq", "ne", "lt", "gt", "cmp",
+			"=", "+=", "->", "|", "^", ">>", ">", ">=", ",", "-", "+", "*", "%", "&", "<", "/", "<<", "1", "'a'", `"a"`, "qw(a)", "[1]", `\1`, "$x", "bar", "(3)", "{ }", "-1", ";"} {
+			src = append(src, "use lib "+n+" "+f+" 3;\nno lib "+n+" "+f+" 3;\n"...)
 		}
 	}
 	s, _ := Lex(src, tt)

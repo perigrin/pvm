@@ -372,10 +372,23 @@ term to toke.c. Known limits:
 - `use VERSION MODULE` (`use 5.036 strict;`) is refused. toke.c lexes that
   module as an ordinary term, so taking it would take `use 5.036 foo bar;` too.
 - The version BAREWORD is also the term BAREWORD, and no terminal tells them
-  apart, so only a comma is excluded after a version that follows a module:
-  `use lib 1.2 => 3;`, `use lib 1.2 . 1;` and `use lib 1.2 x 3;` are accepted
-  where perl refuses them. Excluding more needs a `NotNext` that takes a list,
-  or a version terminal no list opens with.
+  apart. After a version that follows a module, `TokenClass.NotNext` (a list)
+  refuses the comma and the operators that only join two terms
+  (`=> . x ? == != || // && .. ... =~ !~ ** <=> eq ne lt gt cmp = += -> | ^ >> > >=`
+  and the other assignment operators). `- + * % & < / <<` can open a term,
+  so `use lib 1.2 - 3;` is accepted, as perl reads it as a term; `<=` is a
+  readline's `<` to toke.c and `isa` a word without its feature, so both stay
+  accepted. The cost: `use lib 1.2 x;`, where `x` is a word, is refused.
+- A bare word after `use MODULE` is a term (`use constant FOO => 1`,
+  `use lib foo bar`), and refused when a number, a quote, `[` or `\` follows
+  it, as toke.c refuses `foo 'a'`. A word after `package NAME` is refused.
+  `use lib foo { }` is refused for want of the indirect-object family.
+- A delimited number two after `use` or `no` is a version and no term, so
+  `(no => 1 , 2)` will be refused once keywords auto-quote before `=>`; that
+  family settles it.
+- The Number version shape extends spec section 7's key with a part it did not
+  have: the number's own text and the byte after it, derived by chart/lex
+  into `Prefix`. perigrin ruled it so, as he did for `Glob` and `Name`.
 
 ### The repetition operator `x`
 

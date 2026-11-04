@@ -153,7 +153,7 @@ type TokenClass struct {
 	// word that is an operator after a term is a word after a unary operator.
 	NotText  []string
 	NotPrev1 []Neighbour
-	NotNext  *Neighbour
+	NotNext  []Neighbour
 	// NotPrev2 is NotPrev1 for the token two back. NotNextIdent excludes the keys whose next token
 	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word opening with a
 	// letter, _ or a UTF-8 byte (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
@@ -368,7 +368,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		for _, s := range c.NotText {
 			texts[s] = true
 		}
-		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
+		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
 			if nb != nil {
 				if nb.Text != OtherWord && nb.Text != IdentQuote {
 					texts[nb.Text] = true
@@ -425,8 +425,8 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		for _, nb := range c.NotPrev2 {
 			nots[i][5] = append(nots[i][5], tt.ClassID(nb))
 		}
-		if c.NotNext != nil {
-			nots[i][7] = []int{tt.ClassID(*c.NotNext)}
+		for _, nb := range c.NotNext {
+			nots[i][7] = append(nots[i][7], tt.ClassID(nb))
 		}
 		if c.NotNextIdent {
 			nots[i][7] = append(nots[i][7], ident...)
