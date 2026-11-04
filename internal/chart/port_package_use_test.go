@@ -42,7 +42,7 @@ func TestPortPackageAndUseRefusals(t *testing.T) {
 		}
 	}
 	// Perl refuses these in toke.c, with "Invalid version format" and no syntax error, so they are not snippets.
-	for _, src := range []string{"package Foo Bar;", "package Foo x;", "package Foo v1;", "package Foo Bar { }"} {
+	for _, src := range []string{"package Foo Bar;", "package Foo x;", "package Foo v1;", "package Foo Bar { }", "use lib x 3;", "use lib x 'a';", "use lib x 3;"} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
@@ -51,7 +51,9 @@ func TestPortPackageAndUseRefusals(t *testing.T) {
 	// statements stay covered although a prefix of each is refused only at end of input.
 	for _, src := range []string{"package Foo;", "package Foo 1.23;", "package Foo { 1 }", "package Foo 1.23 { 1 }",
 		"use 5.036;", "use v5.36;", "no 5.036;", "use strict 1 2;", "use strict 1, 2;", "use strict 1.0 'refs';",
-		"package Foo 0.1;", "package Foo 10.01 { }", "use 1_0;", "use 01;", "use 1.;", "use lib 1.2, 3;", "use lib 1.2 'a';"} {
+		"package Foo 0.1;", "package Foo 10.01 { }", "use 1_0;", "use 01;", "use 1.;", "use lib 1.2, 3;", "use lib 1.2 'a';",
+		// a word after a module is a term: perl lexes `foo bar` and `foo $x` as method calls and `foo (3)` as a call
+		"use lib foo bar;", "use lib foo $x;", "use lib x;", "use lib x, 3;", "use lib foo (3);", "use lib 1.2 - 3;", "use lib 1.2 + 3;", "use lib 1.2 * 3;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}
