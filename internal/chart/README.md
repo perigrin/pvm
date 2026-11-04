@@ -278,6 +278,27 @@ ATTRLIST holding every attribute and its argument as an opaque string
   `$y = 1 when $x;` is accepted where perl refuses it without the feature
   (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
+- A `:` after `my`, `our` or `state` and a variable is the attribute colon when
+  an identifier character follows (toke.c's `yyl_colon`), so
+  `$c ? my $x : shared;` is refused as perl refuses it. The key sees two
+  tokens back, so two cases stay accepted where perl refuses them, until the
+  lexer marks the `)` that closes a `my` list and the colon that separates
+  attributes (`01a1a314-e3f8-765f-abf2-159425ed764e`):
+  `$c ? my ($x) : shared;`, which looks like `$c ? (my $x) : shared;`, and
+  `$c ? my $x : shared : 1;`, whose second colon looks like the one in
+  `$a ? $b ? 1 : c : d;`. `TestPortTermsAttributeColon` pins both. A word opens
+  an identifier only with a letter, `_` or a UTF-8 byte (under `use utf8`), so `$c ? my $x : ::foo;` is accepted
+  as perl accepts it.
+- Because `state` is a declarator with or without `use feature 'state'`
+  (`01a1a29c-cd50-79a8-b87a-e9615c52af65`), `$c ? state $x : shared;` is refused
+  without the feature, where perl reads `state` as a word and accepts it.
+- A quote-like neighbour's class also records whether it opens with a letter
+  (`qw`, `q`, `qq`, `m`, `s`, `tr`, `y`), and an unnamed word's whether it opens
+  with a letter, `_` or a UTF-8 byte. This extends spec §7's neighbour class, which names the
+  text only of words, operators and closing brackets, so that a class can say
+  "an identifier character follows". Lookup stays constant-time and
+  allocation-free: the extra ids are fixed at compile time and `Intern` adds one
+  branch.
 - `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
   artifact of the fitting; they are reviewed at completion.
