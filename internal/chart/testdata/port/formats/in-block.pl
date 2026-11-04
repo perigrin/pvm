@@ -1,0 +1,6 @@
+{
+    format STDOUT =
+    @<<<
+    $x
+.
+}
