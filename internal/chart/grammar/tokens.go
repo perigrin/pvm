@@ -108,7 +108,7 @@ type TokenClass struct {
 	NotNext  *Neighbour
 	// NotPrev2 is NotPrev1 for the token two back. NotNextIdent excludes the keys whose next token
 	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word opening with a
-	// letter or _ (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
+	// letter, _ or a UTF-8 byte (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
 	NotPrev2     []Neighbour
 	NotNextIdent bool
 }
@@ -229,8 +229,9 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	}
 }
 
-// identStart is whether b can open an identifier, as toke.c's isIDFIRST reads an ASCII byte.
-func identStart(b byte) bool { return b == '_' || b|0x20-'a' < 26 }
+// identStart is whether b can open an identifier, as toke.c's isIDFIRST reads a byte: a letter, _, or a byte of a UTF-8 character
+// (toke.c's isIDFIRST_lazy_if_safe under use utf8).
+func identStart(b byte) bool { return b == '_' || b|0x20-'a' < 26 || b >= 0x80 }
 
 // CompileTokens builds the table. A part is tested only below the classes
 // that name it, so the table is refined by a neighbour only where a class

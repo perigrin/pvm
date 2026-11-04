@@ -94,6 +94,7 @@ func TestPortTermsAttributeColon(t *testing.T) {
 	for _, src := range []string{
 		"$y = $c ? my $x : my $z;", // perl: Invalid separator character, not a syntax error
 		"$y = $c ? my $x : x;", "$y = $c ? my $x : Foo::bar;", "$y = $c ? my $x : q(a);", "$y = $c ? my $x : s/a/b/;",
+		"use utf8; $y = $c ? my $x : é;", "my $x : Foo ::bar baz;", // perl: Invalid separator character
 		"$y = $c ? our $x : shared;", "$y = $c ? my @x : shared;", "$y = $c ? my %x : shared;",
 	} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
@@ -102,7 +103,7 @@ func TestPortTermsAttributeColon(t *testing.T) {
 	}
 	for _, src := range []string{
 		"$y = $c ? my $x : 1;", "$y = $c ? my $x : $z;", "$y = $c ? my $x : -1;", `$y = $c ? my $x : "s";`,
-		"$y = $c ? my $x : \\$z;", "$y = $c ? my $x : (my $z);", "$y = $c ? my $x : ::foo;", "$y = $c ? 1 : ::foo;", "$y = $c ? my $x : [1];", "$y = $c ? my $x : @a;",
+		"$y = $c ? my $x : \\$z;", "$y = $c ? my $x : (my $z);", "$y = $c ? my $x : ::foo;", "use utf8; my $x :Foo é bar;", "$y = $c ? 1 : ::foo;", "$y = $c ? my $x : [1];", "$y = $c ? my $x : @a;",
 		"$y = $c ? (my $x) : shared;", "$y = $c ? local $g : shared;", "$y = $c ? $x : shared;", "$y = $c ? my $x\n: 1;",
 		"my $x : shared;", "my $x :shared;", "$y = $c ? shared : my $x;", "$y = $c ? my $x : 'a';",
 	} {
