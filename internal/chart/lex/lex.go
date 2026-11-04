@@ -75,19 +75,30 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
 	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
-		Qualified: (lc || t.Kind == lexer.Variable) && qualified(t.Kind, tx), LineColon: lc}, pred, it)
+		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc}, pred, it)
 }
 
-// qualified is whether a word or `$` variable name has a package separator: `::`, or an apostrophe that is not
-// the sigil's own (`$'`).
-func qualified(k lexer.Kind, tx string) bool {
+// global is whether a word, or a `$` variable, is no plain name: it has a package separator or another
+// character an identifier lacks (`$1`, `$^W`, `$'`), or it is the variable `$_`. A `my` declares only plain names.
+func global(k lexer.Kind, tx string) bool {
 	switch k {
 	case lexer.Word:
-		return strings.Contains(tx, "::") || strings.IndexByte(tx, '\'') >= 0
+		return !plainName(tx)
 	case lexer.Variable:
-		return len(tx) > 1 && tx[0] == '$' && (strings.Contains(tx, "::") || strings.IndexByte(tx[1:], '\'') > 0)
+		return len(tx) > 1 && tx[0] == '$' && (tx == "$_" || !plainName(tx[1:]))
 	}
 	return false
+}
+
+// plainName is whether s is a letter or _ (or a UTF-8 byte) and then those and digits: an identifier.
+func plainName(s string) bool {
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b != '_' && b|0x20-'a' >= 26 && b < 0x80 && (i == 0 || b-'0' >= 10) {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // lineColon is whether raw[i], a word, is followed by a one-byte colon with at most one whitespace token,

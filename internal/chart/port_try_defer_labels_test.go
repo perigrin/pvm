@@ -40,17 +40,21 @@ func TestPortTryDeferLabelsRefusals(t *testing.T) {
 			t.Errorf("%s is accepted; perl refuses it", f)
 		}
 	}
-	// perl refuses a package-qualified catch variable as "can't be in a package", not as a syntax error, so
-	// these are not snippets.
-	for _, src := range []string{"use feature 'try'; try { 1 } catch ($::e) { 2 }", "use feature 'try'; try { 1 } catch ($Foo::e) { 2 }",
-		"use feature 'try'; try { 1 } catch ($Foo'e) { 2 }"} {
-		if v := recognizeSource(t, []byte(src)); v.accepted {
-			t.Errorf("%q is accepted; perl refuses it", src)
+	// perl refuses a catch variable that is no lexical name ("can't be in a package", "Can't use global ... in
+	// "my""), not as a syntax error, so these are not snippets.
+	for _, v := range []string{"$::e", "$Foo::e", "$Foo'e", "$_", "$1", "$0", "$^W", "${^E}", "$'"} {
+		if r := recognizeSource(t, []byte("use feature 'try'; try { 1 } catch ("+v+") { 2 }")); r.accepted {
+			t.Errorf("catch (%s) is accepted; perl refuses it", v)
+		}
+	}
+	for _, v := range []string{"$e", "$a", "$ARGV", "$_e", "$e1"} {
+		if r := recognizeSource(t, []byte("use feature 'try'; try { 1 } catch ("+v+") { 2 }")); !r.accepted {
+			t.Errorf("catch (%s) is refused at %d; perl accepts it", v, r.at)
 		}
 	}
 	for _, src := range []string{"use feature 'try'; $y = 0; try { 1 } catch ($e) { 2 }",
 		"use feature 'try'; $y = 0; try { 1 } catch ($e) { 2 } finally { 3 }", "use feature 'defer'; $y = 0; defer { 1 }",
-		"...;", "L: 1;", "L : 1;", "L:\n1;", "$y = 1 ... 2;", "$y = $Foo::x;"} {
+		"...;", "L: 1;", "L : 1;", "L:\n1;", "$y = 1 ... 2;", "$y = $Foo::x;", "$y = $_;", "$y = $1;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}

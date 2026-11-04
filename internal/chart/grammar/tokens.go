@@ -21,11 +21,12 @@ type TokenView struct {
 	OpensBlock, TermFollows bool
 	// Prefix is the sigil or quote-prefix class, 0 for none.
 	Prefix byte
-	// Qualified is set on a `$` variable, or on a word that LineColon is set on, whose name has a package
-	// separator (`::` or `'`); it is false elsewhere, where nothing asks, so the scan is not paid per token.
+	// Global is set on a `$` variable, or on a word that LineColon is set on, whose name is no plain
+	// identifier (it has a package separator or a punctuation, digit-first or caret name) or is the variable
+	// `$_`; it is false elsewhere, where nothing asks, so the scan is not paid per token.
 	// LineColon is set on a word that a one-byte colon follows on its own line, blanks only between,
 	// which is where toke.c's label scan looks (it reads a line at a time).
-	Qualified, LineColon bool
+	Global, LineColon bool
 }
 
 // Brace says what a `{` opens.
@@ -120,7 +121,7 @@ type TokenClass struct {
 	OpensBlock, TermFollows *bool
 	Prefix                  *byte
 	Prev2, Prev1, Next      *Neighbour
-	Qualified, LineColon    *bool
+	Global, LineColon       *bool
 	// NotText, NotPrev1 and NotNext exclude the keys they name from a class that
 	// would otherwise match them, so two classes on one word are told apart by
 	// the next token, a class for every word can leave out the keywords, and a
@@ -300,7 +301,7 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	} else if t.Kind == lexer.Quote {
 		ct = 0 // IdentQuote
 	}
-	it.Class, it.text, it.prefix, it.qual, it.lc = tt.classID(&it.N, ct), text, t.Prefix, t.Qualified, t.LineColon
+	it.Class, it.text, it.prefix, it.qual, it.lc = tt.classID(&it.N, ct), text, t.Prefix, t.Global, t.LineColon
 	switch {
 	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
 		it.Class = tt.nonIdentWord
@@ -421,8 +422,8 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.Prefix != nil {
 			p[4] = int(*c.Prefix)
 		}
-		if c.Qualified != nil {
-			p[9] = b2i(*c.Qualified)
+		if c.Global != nil {
+			p[9] = b2i(*c.Global)
 		}
 		if c.LineColon != nil {
 			p[10] = b2i(*c.LineColon)

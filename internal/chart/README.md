@@ -342,8 +342,15 @@ its own line (blanks only between), where a statement may start: toke.c's label
 scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 `L #c\n: 1;` and `L::M: 1;` are refused.
 
-`catch ($::e)` and `catch ($Foo::e)` are refused: a qualified variable is
-no scalar two tokens after `catch`, where the action refuses it.
+`catch (` takes a plain lexical name: `catch ($::e)`, `catch ($Foo::e)`,
+`catch ($_)`, `catch ($1)`, `catch ($^W)` and `catch ($')` are refused, as the
+action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
+`catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
+tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
+shortcut: that class also refuses `$p->catch($Foo::x)` and `catch => $Foo::x`,
+where perl reads `catch` as a method name or a hash key. Both are unreachable
+until method calls and fat commas parse, and then they need the exclusion to
+see `->` or `=>` one token further back (a `NotPrev3`).
 
 ### The repetition operator `x`
 
