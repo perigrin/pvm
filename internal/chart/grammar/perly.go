@@ -84,7 +84,7 @@ bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLO
 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:699
 
 bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: toke.c forces an empty version token before the module name, and pvm emits nothing for it
-bare_statement_utilize: KW_USE_or_NO startsub BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: pvm emits the module and then its version, or the version and then the module, which toke.c forces as two BAREWORDs; use VERSION; and no VERSION; are the rule above with the version as its BAREWORD
+bare_statement_utilize: KW_USE_or_NO startsub BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: pvm emits the module and then its version, which toke.c forces as two BAREWORDs; use VERSION; and no VERSION; are the rule above with the version as its BAREWORD
 
 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock # perly.y:732
 
@@ -921,9 +921,11 @@ var perlyClasses = []ClassDecl{
 	// Every word that is not a keyword; the one keyword toke.c falls through to a word when no
 	// operator is expected, x (KEY_x), is listed below. A keyword is a BAREWORD only where a position
 	// class says so; lt, gt, le, ge, eq, ne and cmp are never words.
+	// A word two after `package` is never the BAREWORD toke.c forces for the version: force_strict_version
+	// refuses it, so the version class below is the only one there.
 	// After sort the word is the sort sub's name, which does not complete a term (see sortIndirob).
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, Completes: true}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: sortIndirob, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "package"}}, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: sortIndirob, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "package"}}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[0]}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[1]}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
@@ -973,7 +975,11 @@ var perlyClasses = []ClassDecl{
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &sortParen}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &sortParen}},
 
-	{"THING", TokenClass{Kind: ptr(lexer.Number), Completes: true}},
+	// A number that toke.c reads as a version (a delimited one, see lex.versionShape) after `use MODULE` is
+	// that version and no term, so it is not a THING there.
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(0)), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionStrict)), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionLax)), NotPrev2: afterUse, Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\'')), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q')), Completes: true}},
