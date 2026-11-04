@@ -33,11 +33,15 @@ var comparisonChains = []int{1466, 1468, 1484, 1486}
 // interpolation-only: toke.c emits POSTJOIN only in interpolation states (toke.c:2249, S_postderef
 // under LEX_INTERPNORMAL, and toke.c:10142, LEX_INTERPEND, at 94e50866), and pvm lexes an
 // interpolated string as one Quote token, so no token stands for it.
-var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery", "interpolation-only"}
+//
+// folded-into-token: internal/lexer emits a format's picture lines, argument lines and closing . as one
+// FormatBody token (01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b), which formblock (787, fitted) takes whole, so
+// the alternatives that build that sequence from toke.c's terminals have no token to match.
+var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery", "interpolation-only", "folded-into-token"}
 
 // reasonLines pins a reason to the lines it is true of. refused-in-action is
 // pinned to refused-in-action.txt; conditional-refusal is left to review.
-var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}, "interpolation-only": {1512}}
+var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}, "interpolation-only": {1512}, "folded-into-token": {836, 837, 906, 924, 925}}
 
 // ParseEntries reads `perly.y:<line> <text>` lines (blank lines skipped), each followed by a tab and
 // its mark when marked. The mark is kept verbatim for checkMarks to judge.
