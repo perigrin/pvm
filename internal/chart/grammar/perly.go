@@ -56,7 +56,7 @@ bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr P
 
 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:474
 
-# perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock
+bare_statement_format: KW_FORMAT startformsub formname formblock # perly.y:488
 
 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock # perly.y:504
 
@@ -97,7 +97,7 @@ block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:775
 
 empty: # perly.y:783
 
-# perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT
+formblock: PERLY_EQUAL_SIGN remember FORMRBRACK # perly.y:787, fitted: pvm emits a format's picture lines, argument lines and closing . as one FormatBody token (toke.c's PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT), so the token is FORMRBRACK and formstmtseq, formline and formarg are excluded folded-into-token
 
 remember: # perly.y:794
 
@@ -143,7 +143,7 @@ barestmt: bare_statement_expression # perly.y:884
 
 barestmt: bare_statement_for # perly.y:886
 
-# perly.y:887 barestmt: bare_statement_format
+barestmt: bare_statement_format # perly.y:887
 
 barestmt: bare_statement_given # perly.y:888
 
@@ -229,9 +229,9 @@ mexpr: expr # perly.y:1011
 
 mnexpr: nexpr # perly.y:1015
 
-# perly.y:1019 formname: BAREWORD
+formname: BAREWORD # perly.y:1019
 
-# perly.y:1020 formname: empty
+formname: empty # perly.y:1020
 
 startsub: # perly.y:1023
 
@@ -239,7 +239,7 @@ startanonsub: # perly.y:1029
 
 # perly.y:1034 startanonmethod: %empty
 
-# perly.y:1039 startformsub: %empty
+startformsub: # perly.y:1039
 
 subname: BAREWORD # perly.y:1045
 
@@ -784,7 +784,7 @@ var perlyClasses = []ClassDecl{
 
 	// PERLY_DOT
 
-	// PERLY_EQUAL_SIGN
+	{"PERLY_EQUAL_SIGN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=")}},
 
 	{"PERLY_MINUS", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
 
@@ -800,7 +800,7 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_STAR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
 
-	// KW_FORMAT
+	{"KW_FORMAT", TokenClass{Kind: ptr(lexer.Word), Text: ptr("format")}},
 
 	// KW_PACKAGE
 
@@ -895,6 +895,7 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}}, // yyl_sub: any identifier after sub names it, toke.c:5874
 
@@ -1382,7 +1383,12 @@ var perlyClasses = []ClassDecl{
 
 	// FORMLBRACK
 
-	// FORMRBRACK
+	// toke.c has no FormatBody: the picture lines, argument lines and closing . (toke.c:6890, yyl_rightcurly) are
+	// FORMRBRACK THING FORMLBRACK … FORMRBRACK PERLY_DOT, and internal/lexer emits them as one token
+	// (01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b), which stands for all of them as FORMRBRACK.
+	// shortcut: the argument lines are not parsed, so a dangling operator there (`$x +`) is accepted where perl refuses it
+	// (01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b), upgrade when the lexer emits the body's tokens.
+	{"FORMRBRACK", TokenClass{Kind: ptr(lexer.FormatBody)}},
 
 	// SUBLEXSTART
 

@@ -178,7 +178,7 @@ To take a baseline after an intended change, run
 | `alloc-per-token-rd` | recursive descent's allocations per token | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
-| `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`) | reported |
+| `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`, `folded-into-token`) | reported |
 | `superset-population` | files both perl and recursive descent accept, less both lexer lists | reported |
 | `superset-recognized` | share of that population the chart accepts | reported |
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
@@ -410,6 +410,21 @@ Beyond them:
   KW_SUB_named when no name follows, and rule 638 is fitted to take them with
   no name. `TokenClass.NextName` and `NotNextName` test this through a derived
   table part (one bit per next class), not a list of classes.
+
+### Formats
+
+`internal/lexer` emits a format's picture lines, argument lines and closing
+`.` as one FormatBody token (`01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b`); toke.c
+emits FORMRBRACK, THING and FORMLBRACK … FORMRBRACK terminals. Rule 787 is
+fitted to the token (FORMRBRACK stands for it), and 836, 837, 906, 924 and 925,
+which build that sequence, are marked `excluded folded-into-token` (a reason
+added to the closed list in `grammar/ledger.go`; `ledger-excluded` counts them).
+Known limit:
+
+- The argument lines are not parsed, so `format STDOUT =\n@<<<\n$x +\n.\n`
+  (a dangling operator) is accepted where perl refuses it, until the lexer
+  emits the body's tokens (`01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b`). A pinned row
+  in `TestPortFormatsRefusals` fails when the limit goes.
 
 ## The thin chart/lex: `lex`
 

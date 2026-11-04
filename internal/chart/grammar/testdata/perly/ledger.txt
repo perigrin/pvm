@@ -40,7 +40,7 @@ perly.y:452 bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN reme
 
 perly.y:474 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
 
-perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock	-
+perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock	ported
 
 perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	ported
 
@@ -80,7 +80,7 @@ perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	ported
 
 perly.y:783 empty: %empty	ported
 
-perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT	-
+perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT	fitted
 
 perly.y:794 remember: %empty	ported
 
@@ -96,9 +96,9 @@ perly.y:825 stmtseq: empty	ported
 
 perly.y:826 stmtseq: stmtseq fullstmt	ported
 
-perly.y:836 formstmtseq: empty	-
+perly.y:836 formstmtseq: empty	excluded folded-into-token
 
-perly.y:837 formstmtseq: formstmtseq formline	-
+perly.y:837 formstmtseq: formstmtseq formline	excluded folded-into-token
 
 perly.y:846 fullstmt: barestmt	ported
 
@@ -126,7 +126,7 @@ perly.y:885 barestmt: bare_statement_field_declaration	-
 
 perly.y:886 barestmt: bare_statement_for	ported
 
-perly.y:887 barestmt: bare_statement_format	-
+perly.y:887 barestmt: bare_statement_format	ported
 
 perly.y:888 barestmt: bare_statement_given	ported
 
@@ -158,11 +158,11 @@ perly.y:901 barestmt: bare_statement_while	ported
 
 perly.y:902 barestmt: bare_statement_yadayada	ported
 
-perly.y:906 formline: THING formarg	-
+perly.y:906 formline: THING formarg	excluded folded-into-token
 
-perly.y:924 formarg: empty	-
+perly.y:924 formarg: empty	excluded folded-into-token
 
-perly.y:925 formarg: FORMLBRACK stmtseq FORMRBRACK	-
+perly.y:925 formarg: FORMLBRACK stmtseq FORMRBRACK	excluded folded-into-token
 
 perly.y:929 condition: expr	ported
 
@@ -212,9 +212,9 @@ perly.y:1011 mexpr: expr	ported
 
 perly.y:1015 mnexpr: nexpr	ported
 
-perly.y:1019 formname: BAREWORD	-
+perly.y:1019 formname: BAREWORD	ported
 
-perly.y:1020 formname: empty	-
+perly.y:1020 formname: empty	ported
 
 perly.y:1023 startsub: %empty	ported
 
@@ -222,7 +222,7 @@ perly.y:1029 startanonsub: %empty	ported
 
 perly.y:1034 startanonmethod: %empty	-
 
-perly.y:1039 startformsub: %empty	-
+perly.y:1039 startformsub: %empty	ported
 
 perly.y:1045 subname: BAREWORD	ported
 
