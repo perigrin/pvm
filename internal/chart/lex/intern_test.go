@@ -104,6 +104,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 				w.Text = *c.Text
 			case *c.Kind == lexer.Word:
 				w.Text = grammar.OtherWord
+			case *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix >= 'a' && *c.Prefix <= 'z' || *c.Prefix == 'Q'):
+				w.Text = grammar.IdentQuote
 			}
 			if w.Kind == lexer.CloseBracket && w.Text == "}" && w.OpensBlock {
 				continue
@@ -238,7 +240,7 @@ const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
 	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
-		"foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; ")
+		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {
