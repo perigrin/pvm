@@ -34,7 +34,7 @@ bare_statement_block: block cont # perly.y:270
 
 # perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE
 
-# perly.y:317 bare_statement_default: KW_DEFAULT block
+bare_statement_default: KW_DEFAULT block # perly.y:317
 
 # perly.y:325 bare_statement_defer: KW_DEFER mblock
 
@@ -42,23 +42,23 @@ bare_statement_expression: sideff PERLY_SEMICOLON # perly.y:333
 
 # perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON
 
-# perly.y:348 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON $@9 texpr PERLY_SEMICOLON $@10 mintro mnexpr PERLY_PAREN_CLOSE mblock
+bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON texpr PERLY_SEMICOLON mintro mnexpr PERLY_PAREN_CLOSE mblock # perly.y:348
 
-# perly.y:379 bare_statement_for: KW_FOR KW_MY remember my_scalar PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR KW_MY remember my_scalar PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:379
 
-# perly.y:392 bare_statement_for: KW_FOR KW_MY remember PERLY_PAREN_OPEN my_list_of_itervars PERLY_PAREN_CLOSE PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR KW_MY remember PERLY_PAREN_OPEN my_list_of_itervars PERLY_PAREN_CLOSE PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:392
 
-# perly.y:411 bare_statement_for: KW_FOR scalar PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR scalar PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:411
 
-# perly.y:423 bare_statement_for: KW_FOR my_refgen remember my_var @11 PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR my_refgen remember my_var PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:423
 
-# perly.y:452 bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:452
 
-# perly.y:474 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont
+bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont # perly.y:474
 
 # perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock
 
-# perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock
+bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock # perly.y:504
 
 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else # perly.y:517
 
@@ -82,7 +82,7 @@ bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE
 
 bare_statement_utilize: KW_USE_or_NO startsub BAREWORD optlistexpr PERLY_SEMICOLON # perly.y:714, fitted: toke.c forces an empty version token before the module name, and pvm emits nothing for it
 
-# perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock
+bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock # perly.y:732
 
 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:744
 
@@ -132,7 +132,7 @@ barestmt: bare_statement_block # perly.y:879
 
 # perly.y:881 barestmt: bare_statement_class_definition
 
-# perly.y:882 barestmt: bare_statement_default
+barestmt: bare_statement_default # perly.y:882
 
 # perly.y:883 barestmt: bare_statement_defer
 
@@ -140,11 +140,11 @@ barestmt: bare_statement_expression # perly.y:884
 
 # perly.y:885 barestmt: bare_statement_field_declaration
 
-# perly.y:886 barestmt: bare_statement_for
+barestmt: bare_statement_for # perly.y:886
 
 # perly.y:887 barestmt: bare_statement_format
 
-# perly.y:888 barestmt: bare_statement_given
+barestmt: bare_statement_given # perly.y:888
 
 barestmt: bare_statement_if # perly.y:889
 
@@ -168,7 +168,7 @@ barestmt: bare_statement_until # perly.y:898
 
 barestmt: bare_statement_utilize # perly.y:899
 
-# perly.y:900 barestmt: bare_statement_when
+barestmt: bare_statement_when # perly.y:900
 
 barestmt: bare_statement_while # perly.y:901
 
@@ -214,9 +214,9 @@ cont: KW_CONTINUE block # perly.y:974
 
 mintro: # perly.y:986
 
-# perly.y:993 nexpr: empty
+nexpr: empty # perly.y:993
 
-# perly.y:994 nexpr: sideff
+nexpr: sideff # perly.y:994
 
 texpr: # perly.y:998
 
@@ -226,7 +226,7 @@ iexpr: expr # perly.y:1006
 
 mexpr: expr # perly.y:1011
 
-# perly.y:1015 mnexpr: nexpr
+mnexpr: nexpr # perly.y:1015
 
 # perly.y:1019 formname: BAREWORD
 
@@ -655,33 +655,33 @@ optexpr: expr # perly.y:1793
 
 # perly.y:1798 optrepl: PERLY_SLASH expr
 
-# perly.y:1803 my_scalar: scalar
+my_scalar: scalar # perly.y:1803
 
-# perly.y:1808 list_of_itervars: list_of_itervars PERLY_COMMA
+list_of_itervars: list_of_itervars PERLY_COMMA # perly.y:1808
 
-# perly.y:1810 list_of_itervars: list_of_itervars PERLY_COMMA scalar
+list_of_itervars: list_of_itervars PERLY_COMMA scalar # perly.y:1810
 
-# perly.y:1814 list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var
+list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var # perly.y:1814
 
-# perly.y:1818 list_of_itervars: scalar
+list_of_itervars: scalar # perly.y:1818
 
-# perly.y:1819 list_of_itervars: REFGEN my_var
+list_of_itervars: REFGEN my_var # perly.y:1819
 
-# perly.y:1825 my_list_of_itervars: list_of_itervars
+my_list_of_itervars: list_of_itervars # perly.y:1825
 
-# perly.y:1829 my_var: scalar
+my_var: scalar # perly.y:1829
 
-# perly.y:1830 my_var: ary
+my_var: ary # perly.y:1830
 
-# perly.y:1831 my_var: hsh
+my_var: hsh # perly.y:1831
 
-# perly.y:1834 refgen_topic: my_var
+refgen_topic: my_var # perly.y:1834
 
-# perly.y:1835 refgen_topic: amper
+refgen_topic: amper # perly.y:1835
 
-# perly.y:1838 my_refgen: KW_MY REFGEN
+my_refgen: KW_MY REFGEN # perly.y:1838
 
-# perly.y:1839 my_refgen: REFGEN KW_MY
+my_refgen: REFGEN KW_MY # perly.y:1839
 
 amper: PERLY_AMPERSAND BAREWORD # perly.y:1842, fitted: pvm emits & and the name as two tokens, the name standing for indirob's BAREWORD
 
@@ -727,6 +727,17 @@ var (
 
 	// declarators are the words after which a variable is declared and a : may start its attributes.
 	declarators = []Neighbour{{Kind: lexer.Word, Text: "my"}, {Kind: lexer.Word, Text: "our"}, {Kind: lexer.Word, Text: "state"}}
+
+	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
+
+	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
+	// `{` and a block's `}`.
+	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start because the lexer does not mark
+	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does. A label's `:` is not one: a bare
+	// `:` cannot be told from an attribute list's (`my $y : for our ($x);` is legal), so once labels land
+	// `L: for our ($x) (1) {}` is accepted where perl croaks; try/defer (01a18fa7-01db-7f91-853d-e9147df0c30a),
+	// which introduces labels, closes it and adds the `L:` row to TestPortLoopsRefusals.
+	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}}
 
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
@@ -790,8 +801,14 @@ var perlyClasses = []ClassDecl{
 	{"KW_LOCAL", TokenClass{Kind: ptr(lexer.Word), Text: ptr("local")}},
 
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("my")}},
-	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our")}},
-	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state")}},
+	// toke.c yyl_foreach croaks "Missing $ on loop variable" for `for our (` and `for state (` where
+	// PL_expect is XSTATE, so each of our and state is a class unless it follows a for at a statement start.
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotNext: &parenOpen}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotPrev1: forWords}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotPrev2: stateStarts}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotNext: &parenOpen}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev1: forWords}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev2: stateStarts}},
 
 	// KW_FIELD
 
@@ -812,11 +829,11 @@ var perlyClasses = []ClassDecl{
 
 	{"KW_CONTINUE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("continue"), Next: &blockOpen}},
 
-	// KW_GIVEN
+	{"KW_GIVEN", TokenClass{Kind: ptr(lexer.Word), Text: ptr("given")}},
 
 	{"KW_WHEN", TokenClass{Kind: ptr(lexer.Word), Text: ptr("when")}},
 
-	// KW_DEFAULT
+	{"KW_DEFAULT", TokenClass{Kind: ptr(lexer.Word), Text: ptr("default")}},
 
 	// KW_TRY
 
