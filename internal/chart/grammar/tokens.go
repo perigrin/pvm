@@ -148,6 +148,11 @@ type TokenClass struct {
 	// identifier start, or a word opening with :: or ' (so NotNextIdent's set and the word NotNextIdent
 	// leaves out). NextName matches only the keys a name follows, NotNextName only the others.
 	NextName, NotNextName bool
+	// Lone marks the class of a word that stands alone in a subscript's braces, which toke.c forces to a bareword
+	// whatever the word is (yyl_leftcurly, toke.c:6656-6679). The class names its surroundings as Prev2 (if given),
+	// Prev1 and Next, and every other class of a word is cut off where all of them hold, so `$h{time}` is a
+	// string and `+{ time }` is a call. The cut is a copy of the class per neighbour with that neighbour excluded.
+	Lone bool
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -442,6 +447,38 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		pats[i] = p
 	}
+	// A word class is cut off where a Lone class holds: one copy of it per neighbour the Lone class names (a
+	// class is cut off where all hold, so it matches where any one fails). owner maps a pattern to its class.
+	owner := make([]int, len(classes))
+	for i := range owner {
+		owner[i] = i
+	}
+	for i, c := range classes {
+		if c.Lone || c.Kind == nil || *c.Kind != lexer.Word {
+			continue
+		}
+		variants := [][nParts][]int{nots[i]}
+		for _, l := range classes {
+			if !l.Lone {
+				continue
+			}
+			var cut [][nParts][]int
+			for _, v := range variants {
+				for j, nb := range []*Neighbour{l.Prev2, l.Prev1, l.Next} {
+					if nb != nil {
+						w := v
+						w[5+j] = append(slices.Clone(v[5+j]), tt.ClassID(*nb))
+						cut = append(cut, w)
+					}
+				}
+			}
+			variants = cut
+		}
+		nots[i] = variants[0]
+		for _, v := range variants[1:] {
+			pats, nots, owner = append(pats, pats[i]), append(nots, v), append(owner, i)
+		}
+	}
 
 	// Identical subtrees are one node, so the table does not grow with the
 	// number of classes that differ only in a part tested above them.
@@ -473,7 +510,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if part == nParts {
 			var set []int
 			for _, c := range in {
-				set = append(set, classes[c].Terminals...)
+				set = append(set, classes[owner[c]].Terminals...)
 			}
 			slices.Sort(set)
 			set = slices.Compact(set)
@@ -507,7 +544,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		memo[memoKey] = n
 		return n
 	}
-	all := make([]int, len(classes))
+	all := make([]int, len(pats))
 	for i := range all {
 		all[i] = i
 	}

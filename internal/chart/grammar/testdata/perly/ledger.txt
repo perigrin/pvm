@@ -354,31 +354,31 @@ perly.y:1345 methodname: scalar	ported
 
 perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
 
-perly.y:1353 subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1353 subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1356 subscripted: term ARROW PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1356 subscripted: term ARROW PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1361 subscripted: subscripted PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1361 subscripted: subscripted PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1366 subscripted: scalar PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1366 subscripted: scalar PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
-perly.y:1369 subscripted: term ARROW PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1369 subscripted: term ARROW PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
-perly.y:1373 subscripted: subscripted PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1373 subscripted: subscripted PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
-perly.y:1377 subscripted: term ARROW PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1377 subscripted: term ARROW PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1383 subscripted: term ARROW PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1383 subscripted: term ARROW PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1391 subscripted: subscripted PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	-
+perly.y:1391 subscripted: subscripted PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1398 subscripted: subscripted PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	-
+perly.y:1398 subscripted: subscripted PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1404 subscripted: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1404 subscripted: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1406 subscripted: QWLIST PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1406 subscripted: QWLIST PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
 perly.y:1413 termbinop: term PLUGIN_HIGH_OP term	ported
 
@@ -520,7 +520,7 @@ perly.y:1588 term: ary	ported
 
 perly.y:1590 term: arylen	ported
 
-perly.y:1592 term: subscripted	-
+perly.y:1592 term: subscripted	ported
 
 perly.y:1594 term: sliceme PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
 

@@ -194,10 +194,20 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 	}
 	// name is whether a sub's name starts at toks[i]: an identifier start, or a word opening with :: or '.
 	name := func(i int) bool { return ident(i) || i >= 0 && i < len(toks) && toks[i].v.Kind == lexer.Word }
+	// lone is whether a Lone class holds at toks[i]: all of its neighbours match, and a word class other than a Lone one is cut off there.
+	lone := func(i int) bool {
+		return slices.ContainsFunc(classes, func(l grammar.TokenClass) bool {
+			return l.Lone && is(l.Prev2, nb(i-2)) && is(l.Prev1, nb(i-1)) && is(l.Next, nb(i+1))
+		})
+	}
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
+		alone := lone(i)
 		for _, c := range classes {
+			if alone && !c.Lone && c.Kind != nil && *c.Kind == lexer.Word {
+				continue
+			}
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
@@ -283,6 +293,11 @@ const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $
 const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($a) (1) {} } sub f {} for our ($a) (1) {} " +
 	"1 for our ($x); do {1} for state ($x); $h{a} for our ($x); for our $x (1) {} $c ? 1 : 2 for our ($x); L: for our ($x) (1) {} "
 
+// loneForms are a word alone in a subscript's braces, with a minus before it or not, and the words that are not alone there: a
+// keyword, a name and x among them, in a hash subscript, an arrow's, a slice's and an anonymous hash's, which keeps its call readings.
+const loneForms = "$h{time}; $h->{shift}; $h{ if }; $h{x}; $h{-if}; $h{ - while }; $h{a}{print}; @h{time}; $h{time + 1}; $h{shift @a}; $h{-time + 1}; " +
+	"+{ time }; +{ shift }; $h{time, 1}; $h{$a}; $h{Foo::time}; $h{ q }; $a[time]; $r->[0]{y}; f()->{s}; "
+
 // The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
@@ -290,7 +305,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
-		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
+		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms)
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {
