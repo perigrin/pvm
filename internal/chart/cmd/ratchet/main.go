@@ -57,7 +57,7 @@ func main() {
 	}
 	var unmapped []string
 	if err == nil {
-		unmapped, err = measureLex(tab.Tokens, files, in, srcs, measured)
+		unmapped, err = measureLex(tab, files, in, srcs, measured)
 	}
 	if err == nil {
 		err = measureTDT(fixturesDir(os.Getenv("TDT_FIXTURES"), defaultTDT), g, tab, files, srcs, measured)
