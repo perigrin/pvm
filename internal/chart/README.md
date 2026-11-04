@@ -490,14 +490,19 @@ for `qq`, `` `…` ``, `qx`, the other heredocs and a glob `<*.c>`; PMFUNC for
 `m//`, `//`, `qr`, `s///`, `tr` and `y`; QWLIST for `qw`. A `"…"` is THING
 when it holds no `$`, `@`, `\` or non-ASCII byte and FUNC otherwise, and a
 readline `<FH>` THING where a glob is FUNC; the key cannot tell them apart, so
-those tokens admit both, which accepts nothing more, as each is a whole term.
-Heredoc bodies are trivia (see chart/lex below). Known limit, spec §2's parity
-limit:
+those tokens admit both. A quote-like's FUNC is always followed by toke.c's
+SUBLEXSTART, never by `(`, so the FUNC classes exclude a `(` next (`NotNext`):
+otherwise `"abc"(1)` would be read as a call (1326). Heredoc bodies are trivia
+(see chart/lex below). Known limits:
 
 - Interpolated code, `s///e` bodies and `qw` lists are inside their one token,
   so `$y = "@{[ 1 + ]}";` is accepted where perl refuses it. It counts in
   `chart-accepted-perl-refused`; a pinned row in `TestPortQuoteLikesRefusals`
   fails when the limit goes.
+- A multi-line quote-like begun on a heredoc opener's line swallows the
+  heredoc's body (`<<E1 . "a\nbody\nE1\nb"`), so the opener has no body and
+  the file is refused where perl accepts it (`01a1a846-5aea`);
+  `T1/nested_heredoc.t` is on `lexer-defects.txt`.
 
 ### Subscripts
 
@@ -597,12 +602,12 @@ whatever the file's length.
   last one is `Stream.Tail()`. Nothing is dropped: `Stream.Text` gives back
   the source.
 - **Heredoc bodies** attach to their heredoc's opening token, never to the
-  token after the opener's line: the bodies after a line go to that line's
-  openers in order, each in the stream's `Bodies` side table under its
-  opener's index (`Stream.Body(i)`). Trivia a body interrupts still goes to
-  the next significant token; `Lead` leaves the body out. A body whose opener
-  is inside a quote-like (`"@{[ <<EOF ]}"`, one Quote token) goes to the token
-  before it, a known limit pinned in `TestPortQuoteLikesHeredocBodyIsTrivia`
+  token after the opener's line: each body goes to the first waiting opener
+  whose tag its terminator line spells, in the stream's `Bodies` side table
+  under its opener's index (`Stream.Body(i)`). Trivia a body interrupts still
+  goes to the next significant token; `Lead` leaves the body out. A body no
+  waiting opener names has its opener inside a quote-like (`"@{[ <<EOF ]}"`,
+  one Quote token), and goes to the token before it, a known limit pinned in `TestPortQuoteLikesHeredocBodyIsTrivia`
   (only `Stream.Body` and the tdt pairing read which token holds a body), and
   an opener no body follows gets set 0, as perl finds no terminator for it.
 - **Every token is mapped.** A token whose key matches no class gets set 0,

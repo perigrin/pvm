@@ -1243,13 +1243,14 @@ var perlyClasses = []ClassDecl{
 	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("any"), Next: &parenOpen}},
 	// S_sublex_start returns FUNC for an interpolating string: a "…" holding $, @, \ or a non-ASCII byte (toke.c:7272) and
 	// every qq (OP_STRINGIFY, toke.c:8879); a command, `…` and qx (OP_BACKTICK, toke.c:7284, 8889); a heredoc but <<'EOF'
-	// (OP_SCALAR, toke.c:11620); and a glob <*.c> (OP_GLOB, toke.c:12123).
-	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), Completes: true}},
-	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q')), Completes: true}},
-	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('`')), Completes: true}},
-	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('x')), Completes: true}},
-	{"FUNC", TokenClass{Kind: ptr(lexer.HeredocOpen), Completes: true}},
-	{"FUNC", TokenClass{Kind: ptr(lexer.Readline), Completes: true}},
+	// (OP_SCALAR, toke.c:11620); and a glob <*.c> (OP_GLOB, toke.c:12123). That FUNC is always followed by SUBLEXSTART,
+	// never by a parenthesis, so none of these is the FUNC of a call (perly.y:1326).
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), NotNext: nextNotParen, Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q')), NotNext: nextNotParen, Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('`')), NotNext: nextNotParen, Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('x')), NotNext: nextNotParen, Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.HeredocOpen), NotNext: nextNotParen, Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Readline), NotNext: nextNotParen, Completes: true}},
 
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), NotNext: nextNotParen}},
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), NotNext: nextNotParen}},
