@@ -426,6 +426,39 @@ Known limit:
   emits the body's tokens (`01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b`). A pinned row
   in `TestPortFormatsRefusals` fails when the limit goes.
 
+### Subscripts
+
+The `;` perly.y spells before a subscript's `}` (`expr PERLY_SEMICOLON PERLY_BRACE_CLOSE`) is toke.c's artifact,
+so the three brace rules (1366, 1369, 1373) are fitted without it, and a written `;` there (`$h{1;}`) is
+refused, as perl does. A subscript's `{` is `PERLY_BRACE_OPEN` when the lexer did not open it as a block and it
+follows a variable, `->`, or a closing `]` or `}` (the cases `ClassOf` calls `BraceSubscript`).
+
+A word alone in a subscript's braces is a string (toke.c's `yyl_leftcurly`, `toke.c:6656-6679`):
+`$h{time}`, `$h->{shift}`, `$h{-if}`. `+{ time }` is an anonymous hash and keeps its call reading. toke.c forces the
+word only when it is a plain identifier (`scan_word(..., FALSE, ...)` reads no package part, so `Foo::bar`,
+`Foo'bar`, `::foo` and `foo::` are not forced) and only spaces or tabs separate it from the `{`, from a minus (but see the filetest letters below)
+before it, and from the `}`; a newline or a comment anywhere there leaves the word to the grammar, so
+`$h{if\n}` is refused and `$h{time\n}` calls `time`, as perl does.
+
+`TokenClass.Lone` states it: the Lone class names its surroundings (`Prev2`, `Prev1`, `Next` and `Blanks`) and
+`CompileTokens` cuts every other class of a word wherever they all hold, as one copy of the class per part the Lone
+class names with that part's value excluded, so `Lookup` does no more work. The blanks and the plain name are one
+token bit, **`Blanks`**, a §7 extension by perigrin's ruling ("Add the blanks bit"): `chart/lex` sets it from the
+gaps between raw tokens, in constant time and without allocating, only on a word a closing bracket follows (the
+other words never pay for it), and the table tests it as key part 11. INTERN's reference reads the same bit off the
+source bytes (`refBlanks`), and `TestBlanksAgreeWithReference` holds the two together.
+
+Three limits, all pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
+where toke.c forces the string, because `internal/lexer` emits `-e` as one token (v0.1 `01a1a805-a94e-7b39-8021-c61fe44b13ec`);
+the minus rule above holds for every other word. `f(...)` is toke.c's zero-width `&` and a bareword
+(`toke.c:8195-8211`), which `internal/lexer` emits as the word alone, so `f()->{foo}` is refused until the
+scope-decided family (`01a18fa7-1b8b`) ports it; `&f()->{foo}` is accepted. A fit `amper: BAREWORD` would take
+it, and would also take `a::()`, which toke.c reads as a package name before it looks for the parenthesis
+(`safebw`, `toke.c:8192`): no class can tell a word ending in `::` apart, and the guacamole case
+`Statements-Expressions-Value-NonLiteral-SubCall-001.pl` is the file that refuses it. Two words in a subscript's
+braces, `$h{a b}`, are an indirect-object call to perl and are refused until that family (`01a18fa6-f3c8`) ports
+its forms.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)

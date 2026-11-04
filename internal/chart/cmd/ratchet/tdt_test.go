@@ -157,6 +157,9 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 		"notnextident": func(c *grammar.TokenClass) { c.NotNextIdent = true },
 		"nextname":     func(c *grammar.TokenClass) { c.NextName = true },
 		"notnextname":  func(c *grammar.TokenClass) { c.NotNextName = true },
+		"blanks":       func(c *grammar.TokenClass) { c.Blanks = ptr(true) },
+		"noblanks":     func(c *grammar.TokenClass) { c.Blanks = ptr(false) },
+		"lone":         func(c *grammar.TokenClass) { c.Lone = true },
 	} {
 		c := base
 		mod(&c)

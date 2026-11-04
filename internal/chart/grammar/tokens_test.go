@@ -525,3 +525,49 @@ func TestTokenNextName(t *testing.T) {
 		t.Errorf("a : at the end of the file is %v, want [2]", got)
 	}
 }
+
+// Lone cuts every other class of a word where the Lone class holds, all of what it names at once: a word between
+// the braces with its Blanks bit set is the Lone class's alone, after a minus too, and a word with a neighbour or the
+// bit changed keeps its classes.
+func TestTokenLone(t *testing.T) {
+	open := Neighbour{Kind: lexer.Operator, Text: "{", Brace: BraceSubscript}
+	hash := Neighbour{Kind: lexer.Operator, Text: "{", Brace: BraceHash}
+	closer := Neighbour{Kind: lexer.CloseBracket, Text: "}"}
+	minus := Neighbour{Kind: lexer.Operator, Text: "-"}
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &open, Next: &closer, Blanks: ptr(true), Lone: true},
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev2: &open, Prev1: &minus, Next: &closer, Blanks: ptr(true), Lone: true},
+		TokenClass{Terminals: []int{2}, Kind: ptr(lexer.Word), Text: ptr("time")},
+		TokenClass{Terminals: []int{3}, Kind: ptr(lexer.Word), Text: ptr("time"), NotNext: &closer},
+		TokenClass{Terminals: []int{4}, Kind: ptr(lexer.Word), NotText: []string{"time"}},
+		TokenClass{Terminals: []int{5}, Kind: ptr(lexer.Operator), Text: ptr("-")})
+	for _, c := range []struct {
+		name       string
+		w          string
+		blanks     bool
+		p2, p1, nx Neighbour
+		want       []int
+	}{
+		{"alone", "time", true, none, open, closer, []int{1}},
+		{"another word alone", "foo", true, none, open, closer, []int{1}},
+		{"after a minus", "time", true, open, minus, closer, []int{1}},
+		{"a newline or a package part", "time", false, none, open, closer, []int{2}},
+		{"a newline after a minus", "time", false, open, minus, closer, []int{2}},
+		{"another word, no blanks", "foo", false, none, open, closer, []int{4}},
+		{"a word with more after it", "time", true, none, open, none, []int{2, 3}},
+		{"in an anonymous hash", "time", true, none, hash, closer, []int{2}},
+		{"not after a brace", "time", true, none, none, closer, []int{2}},
+		{"a minus without the brace", "time", true, none, minus, closer, []int{2}},
+		{"another word, more after it", "foo", true, none, open, none, []int{4}},
+	} {
+		v := word(c.w)
+		v.Blanks = c.blanks
+		it := tt.interned(v, none)
+		if got := tt.Sets[tt.Lookup(it, tt.ClassID(c.p2), tt.ClassID(c.p1), tt.ClassID(c.nx))]; !slices.Equal(got, c.want) {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+	if got := tt.set(op("-"), none, open, none); !slices.Equal(got, []int{5}) {
+		t.Errorf("a minus after the brace is %v, want it kept: [5]", got)
+	}
+}

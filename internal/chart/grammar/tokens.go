@@ -27,6 +27,12 @@ type TokenView struct {
 	// LineColon is set on a word that a one-byte colon follows on its own line, blanks only between,
 	// which is where toke.c's label scan looks (it reads a line at a time).
 	Global, LineColon bool
+	// Blanks is set on a plain-name word (an identifier with no package part, as toke.c's scan_word(..., FALSE)
+	// reads it) that a closing bracket follows with only spaces or tabs between, and that only spaces or
+	// tabs separate from the token before it, and from a minus before that: where toke.c's yyl_leftcurly
+	// forces a word to a string. A newline or a comment between, or a package part, clears it. Perigrin's
+	// ruling on the blanks bit, an extension of spec §7.
+	Blanks bool
 }
 
 // Brace says what a `{` opens.
@@ -128,6 +134,7 @@ type TokenClass struct {
 	Prefix                  *byte
 	Prev2, Prev1, Next      *Neighbour
 	Global, LineColon       *bool
+	Blanks                  *bool
 	// NotText, NotPrev1 and NotNext exclude the keys they name from a class that
 	// would otherwise match them, so two classes on one word are told apart by
 	// the next token, a class for every word can leave out the keywords, and a
@@ -148,6 +155,11 @@ type TokenClass struct {
 	// identifier start, or a word opening with :: or ' (so NotNextIdent's set and the word NotNextIdent
 	// leaves out). NextName matches only the keys a name follows, NotNextName only the others.
 	NextName, NotNextName bool
+	// Lone marks the class of a word that stands alone in a subscript's braces, which toke.c forces to a bareword
+	// (yyl_leftcurly, toke.c:6656-6679). The class names its surroundings as Prev2 (if given), Prev1, Next and
+	// Blanks, and every other class of a word is cut off where all of them hold, so `$h{time}` is a string and
+	// `+{ time }` is a call. The cut is a copy of the class per part the Lone class names, with that part's value excluded.
+	Lone bool
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -203,8 +215,8 @@ func ptrs(ns []Neighbour) []*Neighbour {
 }
 
 // Part 8 is derived: whether the next token is a sub's name (see NextName), from the next class id; parts 9 and 10
-// are the token's own Global and LineColon.
-const nParts = 11
+// are the token's own Global and LineColon, and part 11 its Blanks.
+const nParts = 12
 
 // free marks a part a class leaves unconstrained. Every value, a lexer kind
 // included, is a non-negative integer: text and neighbour values are the
@@ -268,11 +280,11 @@ type TokenTable struct {
 // Token is a token with its text and class looked up in the dictionaries.
 // Intern it once; the class id is what the three tokens around it reuse.
 type Token struct {
-	N        Neighbour // the token's class, the next token's predecessor
-	Class    int       // N's dictionary id
-	text     int       // the token's text's dictionary id
-	prefix   byte
-	qual, lc bool
+	N            Neighbour // the token's class, the next token's predecessor
+	Class        int       // N's dictionary id
+	text         int       // the token's text's dictionary id
+	prefix       byte
+	qual, lc, bl bool
 }
 
 func (tt *TokenTable) classID(n *Neighbour, text int) int {
@@ -308,7 +320,7 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	} else if t.Kind == lexer.Quote {
 		ct = 0 // IdentQuote
 	}
-	it.Class, it.text, it.prefix, it.qual, it.lc = tt.classID(&it.N, ct), text, t.Prefix, t.Global, t.LineColon
+	it.Class, it.text, it.prefix, it.qual, it.lc, it.bl = tt.classID(&it.N, ct), text, t.Prefix, t.Global, t.LineColon, t.Blanks
 	switch {
 	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
 		it.Class = tt.nonIdentWord
@@ -407,7 +419,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.NotNextIdent {
 			nots[i][7] = append(nots[i][7], ident...)
 		}
-		p := [nParts]int{free, free, free, free, free, free, free, free, free, free, free}
+		p := [nParts]int{free, free, free, free, free, free, free, free, free, free, free, free}
 		if c.NextName {
 			p[8] = 1
 		}
@@ -435,12 +447,55 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.LineColon != nil {
 			p[10] = b2i(*c.LineColon)
 		}
+		if c.Blanks != nil {
+			p[11] = b2i(*c.Blanks)
+		}
 		for j, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
 			if nb != nil {
 				p[5+j] = tt.ClassID(*nb)
 			}
 		}
 		pats[i] = p
+	}
+	// A word class is cut off where a Lone class holds: one copy of it per neighbour the Lone class names (a
+	// class is cut off where all hold, so it matches where any one fails). owner maps a pattern to its class.
+	owner := make([]int, len(classes))
+	for i := range owner {
+		owner[i] = i
+	}
+	for i, c := range classes {
+		if c.Lone || c.Kind == nil || *c.Kind != lexer.Word {
+			continue
+		}
+		variants := [][nParts][]int{nots[i]}
+		for _, l := range classes {
+			if !l.Lone {
+				continue
+			}
+			// The parts the Lone class asks for: its neighbours' class ids and its Blanks value.
+			asks := map[int]int{}
+			for j, nb := range []*Neighbour{l.Prev2, l.Prev1, l.Next} {
+				if nb != nil {
+					asks[5+j] = tt.ClassID(*nb)
+				}
+			}
+			if l.Blanks != nil {
+				asks[11] = b2i(*l.Blanks)
+			}
+			var cut [][nParts][]int
+			for _, v := range variants {
+				for _, part := range slices.Sorted(maps.Keys(asks)) {
+					w := v
+					w[part] = append(slices.Clone(v[part]), asks[part])
+					cut = append(cut, w)
+				}
+			}
+			variants = cut
+		}
+		nots[i] = variants[0]
+		for _, v := range variants[1:] {
+			pats, nots, owner = append(pats, pats[i]), append(nots, v), append(owner, i)
+		}
 	}
 
 	// Identical subtrees are one node, so the table does not grow with the
@@ -473,7 +528,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if part == nParts {
 			var set []int
 			for _, c := range in {
-				set = append(set, classes[c].Terminals...)
+				set = append(set, classes[owner[c]].Terminals...)
 			}
 			slices.Sort(set)
 			set = slices.Compact(set)
@@ -507,7 +562,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		memo[memoKey] = n
 		return n
 	}
-	all := make([]int, len(classes))
+	all := make([]int, len(pats))
 	for i := range all {
 		all[i] = i
 	}
@@ -529,7 +584,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 // the two significant tokens before it and the one after (Edge at a file's
 // edge). It allocates nothing and hashes nothing.
 func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
-	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0, b2i(t.qual), b2i(t.lc)}
+	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0, b2i(t.qual), b2i(t.lc), b2i(t.bl)}
 	if uint(next) < uint(len(tt.name)) && tt.name[next] {
 		k[8] = 1
 	}

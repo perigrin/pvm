@@ -1,0 +1,9 @@
+$y = $h{time + 1};
+$y = $h{shift @a};
+$y = $h{shift()};
+$y = $h{foo, bar};
+$y = $h{$a}{shift};
+$y = $h{-bar};
+$y = $h{-if};
+$y = $h{-time};
+$y = $h{ - while };

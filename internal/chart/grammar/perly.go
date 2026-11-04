@@ -380,31 +380,31 @@ methodname: scalar # perly.y:1345
 
 # perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
 
-# perly.y:1353 subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1353
 
-# perly.y:1356 subscripted: term ARROW PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: term ARROW PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1356
 
-# perly.y:1361 subscripted: subscripted PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: subscripted PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1361
 
-# perly.y:1366 subscripted: scalar PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
+subscripted: scalar PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE # perly.y:1366, fitted: the ; before } is toke.c's, not the source's
 
-# perly.y:1369 subscripted: term ARROW PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
+subscripted: term ARROW PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE # perly.y:1369, fitted: the ; before } is toke.c's, not the source's
 
-# perly.y:1373 subscripted: subscripted PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
+subscripted: subscripted PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE # perly.y:1373, fitted: the ; before } is toke.c's, not the source's
 
-# perly.y:1377 subscripted: term ARROW PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+subscripted: term ARROW PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1377
 
-# perly.y:1383 subscripted: term ARROW PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+subscripted: term ARROW PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1383
 
-# perly.y:1391 subscripted: subscripted PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE
+subscripted: subscripted PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1391
 
-# perly.y:1398 subscripted: subscripted PERLY_PAREN_OPEN PERLY_PAREN_CLOSE
+subscripted: subscripted PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1398
 
-# perly.y:1404 subscripted: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1404
 
-# perly.y:1406 subscripted: QWLIST PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: QWLIST PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1406
 
-# perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
+subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE # perly.y:1408
 
 termbinop: term PLUGIN_HIGH_OP term # perly.y:1413
 
@@ -546,7 +546,7 @@ term: ary # perly.y:1588
 
 term: arylen # perly.y:1590
 
-# perly.y:1592 term: subscripted
+term: subscripted # perly.y:1592
 
 # perly.y:1594 term: sliceme PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE
 
@@ -741,14 +741,20 @@ var (
 	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true},
 		{Kind: lexer.Operator, Text: ":", Label: true}}
 
-	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
-	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
-	// a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
+	// subscriptBrace and notHashBrace mirror ClassOf's brace decision, and the three change together: after a
+	// variable, a closing bracket or `->` a `{` the lexer did not open as a block is a subscript's, and after a
+	// deref sigil a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
 	// listed: the lexer opens every `{` after them as a block, so no key reaches them here.
-	notHashBrace = []Neighbour{
-		{Kind: lexer.Variable}, {Kind: lexer.DerefSigil}, {Kind: lexer.Operator, Text: "->"},
+	subscriptBrace = []Neighbour{
+		{Kind: lexer.Variable}, {Kind: lexer.Operator, Text: "->"},
 		{Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
 	}
+	notHashBrace = append(slices.Clone(subscriptBrace), Neighbour{Kind: lexer.DerefSigil})
+
+	// A word alone in a subscript's braces, after a minus or not (toke.c:6656-6679), is the Lone class's key.
+	subscriptOpen  = Neighbour{Kind: lexer.Operator, Text: "{", Brace: BraceSubscript}
+	subscriptClose = Neighbour{Kind: lexer.CloseBracket, Text: "}"}
+	minus          = Neighbour{Kind: lexer.Operator, Text: "-"}
 )
 
 // perlyClasses are the token classes, each declared by the terminal it admits and so
@@ -766,6 +772,11 @@ var perlyClasses = []ClassDecl{
 	// The { of `sub open {` follows a word that reads a { as a hash, which limitBlockBrace takes off the class above; the sub's
 	// name two tokens back makes it a block again (toke.c yyl_sub leaves PL_expect at XATTRBLOCK, toke.c:5874).
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true), Prev2: &Neighbour{Kind: lexer.Word, Text: "sub"}}},
+	// A subscript's { is the one the lexer did not open as a block, after what ClassOf makes a subscript's.
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[0]}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[1]}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[2]}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[3]}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false), Completes: true}},
@@ -898,6 +909,11 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}}, // yyl_sub: any identifier after sub names it, toke.c:5874
+
+	// toke.c forces a word that stands alone in a subscript's braces to BAREWORD before it looks the word up
+	// (yyl_leftcurly, toke.c:6656-6679), a minus before it included.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &subscriptOpen, Next: &subscriptClose, Blanks: ptr(true), Lone: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev2: &subscriptOpen, Prev1: &minus, Next: &subscriptClose, Blanks: ptr(true), Lone: true}},
 
 	// toke.c forces the word after -> to METHCALL0, a keyword or a quote-like operator's name included.
 	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "->"}, Completes: true}},
