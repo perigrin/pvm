@@ -13,8 +13,8 @@ import (
 )
 
 // listOperatorsLines are the perly.y alternatives this family ports or fits. None is left for a completing issue.
-// 1277 (LSTOP indirob listexpr) and 1892 (indirob: block) are written too, borrowed from the indirect-object
-// family (01a18fa6-f3c8) so that `sort { $a <=> $b } @a` has its one path; that family marks them.
+// 1277 (LSTOP indirob listexpr) and 1892 (indirob: block), which `sort { $a <=> $b } @a` needs, are the
+// indirect-object family's (port_indirect_objects_test.go).
 var listOperatorsLines = []int{1281, 1289, 1295, 1324, 1326, 1344, 1345, 1713}
 
 func TestPortListOperators(t *testing.T) {
@@ -145,19 +145,6 @@ func TestPortListOperatorsXRule(t *testing.T) {
 	} {
 		if v := recognizeSource(t, []byte(src)); v.accepted != want {
 			t.Errorf("%q: accepted %v, want %v (refused at %d, expecting %v)", src, v.accepted, want, v.at, v.expected)
-		}
-	}
-}
-
-// Known over-acceptance, pinned so it is noticed when it ends. After an XREF list operator toke.c reads
-// the bareword as a filehandle and expects a term after it, so x is a word there and perl refuses each
-// of these (perl -c, 94e50866: "Number found where operator expected"). The chart reads the bareword as
-// a term and x as repetition. That is the indirect-object family's to fix (01a18fa6-f3c8): when it does,
-// this test fails, and its rows move to the refused snippets.
-func TestPortListOperatorsFilehandleBarewordKnownLimit(t *testing.T) {
-	for _, src := range []string{"print FH x 3;", "printf FH x 3;", "say FH x 3;", "exec foo x 3;", "sort foo x 3;"} {
-		if v := recognizeSource(t, []byte("use feature 'say';\n"+src)); !v.accepted {
-			t.Errorf("%q is refused at %d: the known limit has ended, so move it to the refused snippets", src, v.at)
 		}
 	}
 }

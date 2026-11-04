@@ -326,7 +326,7 @@ perly.y:1277 listop: LSTOP indirob listexpr	ported
 
 perly.y:1281 listop: BLKLSTOP block listexpr	ported
 
-perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE	-
+perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE	ported
 
 perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
@@ -336,9 +336,9 @@ perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr
 
 perly.y:1306 listop: term ARROW PERLY_AMPERSAND subname	ported
 
-perly.y:1312 listop: METHCALL0 indirob optlistexpr	-
+perly.y:1312 listop: METHCALL0 indirob optlistexpr	ported
 
-perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
+perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
 perly.y:1324 listop: LSTOP optlistexpr	ported
 
@@ -660,7 +660,7 @@ perly.y:1838 my_refgen: KW_MY REFGEN	ported
 
 perly.y:1839 my_refgen: REFGEN KW_MY	ported
 
-perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
+perly.y:1842 amper: PERLY_AMPERSAND indirob	ported
 
 perly.y:1846 scalar: PERLY_DOLLAR indirob	fitted
 
@@ -686,10 +686,10 @@ perly.y:1882 gelem: star	-
 
 perly.y:1883 gelem: term ARROW PERLY_STAR	-
 
-perly.y:1888 indirob: BAREWORD	-
+perly.y:1888 indirob: BAREWORD	ported
 
-perly.y:1890 indirob: scalar	-
+perly.y:1890 indirob: scalar	ported
 
 perly.y:1892 indirob: block	ported
 
-perly.y:1895 indirob: PRIVATEREF	-
+perly.y:1895 indirob: PRIVATEREF	ported
