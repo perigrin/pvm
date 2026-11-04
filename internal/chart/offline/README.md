@@ -52,7 +52,7 @@ byte-identical to the committed file (`cmp`).
 Bison builds of the pinned `perly.y` (spec §8), the evidence for the
 precedence category: a viable prefix without precedence, refused with it.
 
-- `referee/build.sh <perl5> <outdir>` refuses any `perl5` HEAD but 94e50866, then
+- `sh internal/chart/offline/referee/build.sh <perl5> <outdir>` refuses any `perl5` HEAD but 94e50866, then
   writes `referee-prec` and `referee-noprec` into `outdir`. `referee/strip.pl` makes
   their grammars: every action stripped except those calling `yyerror`, kept
   as refusals; `catch_paren: empty` omitted, as the port omits it;
@@ -66,7 +66,7 @@ precedence category: a viable prefix without precedence, refused with it.
   in `referee/testdata/cases.txt` against both referees, failing on any differing
   verdict, naming the case, and on zero cases.
 
-`build.sh` writes the two referees and their generated `.y` and `.c` files
+`referee/build.sh` writes the two referees and their generated `.y` and `.c` files
 into `outdir`; none is committed. `referee/check.sh` prints
 `check.sh: 7 cases agree`.
 
@@ -269,11 +269,15 @@ label's `:` and 13 attribute words, and 108 are in no family. There are 37
 unmatched toke.c runs. A re-run on 2026-11-04 with a freshly built perl and a
 scratch `TDT_FIXTURES` took 2,198 s end to end and printed `aligned 1882
 files: 376482 of 378652 pvm tokens aligned, 37 unmatched toke.c runs, 0.8 s`
-(the 1,881 files and the sample); its 1,882 fixtures matched the committed
-`TDT_FIXTURES` byte for byte (`diff -r`) and `testdata/tdt/sample.tdt` was
-unchanged.
+(the 1,881 files and the sample); its 1,881 fixtures (the script moves the
+sample's out to `testdata/tdt/sample.tdt`) matched `/var/tmp/pvm-chart-tdt`
+byte for byte (`diff -r`) and `testdata/tdt/sample.tdt` was unchanged.
 
 ## label.sh
+
+Build the referees somewhere that persists first, for example
+`sh internal/chart/offline/referee/build.sh /opt/corpora/perl5 /var/tmp/pvm-chart-referee`,
+and pass that directory as `<referee-dir>`.
 
 `T1_CORPUS=<unit dir> sh internal/chart/offline/label.sh <perl> <referee-dir>`
 labels every waypoint-1 corpus file with the pinned perl's `perl -c` verdict
@@ -339,8 +343,8 @@ machine (147 s, 4 cores, files one at a time, other workers running; 42 s
 before the review evidence was added; 122 s on 2026-11-04).
 
 The run overwrites both committed label files with every category
-`proposed`: on 2026-11-04, against the committed `TDT_FIXTURES` and referees,
+`proposed`: on 2026-11-04, against the fixtures in `/var/tmp/pvm-chart-tdt` and freshly built referees,
 the only differences from the committed files were the `# status:` header and
-`reviewed` becoming `proposed` on 223 lines. Restore the reviewed files with
+`reviewed` becoming `proposed` on 221 lines (68 in-tree, 153 T1). Restore the reviewed files with
 `git checkout -- internal/chart/testdata/labels`, or review the rerun again.
 `TestPerlLabels` checks the result.
