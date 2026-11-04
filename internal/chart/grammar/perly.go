@@ -72,7 +72,7 @@ bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN
 
 bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 
-# perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody
+bare_statement_sub_signature: sigsub_or_method_named subname startsub subattrlist optsigsubbody # perly.y:608
 
 bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the next rule is its fit
 bare_statement_sub_traditional: KW_SUB_named startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits BEGIN, END and their kin as one word where toke.c (toke.c:8315, really_sub) emits KW_SUB_named and the name
@@ -92,7 +92,7 @@ bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE
 
 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON # perly.y:759
 
-# perly.y:768 sigsub_or_method_named: KW_SUB_named_sig
+sigsub_or_method_named: KW_SUB_named_sig # perly.y:768
 
 # perly.y:770 sigsub_or_method_named: KW_METHOD_named
 
@@ -160,7 +160,7 @@ barestmt: bare_statement_package_definition # perly.y:892
 
 barestmt: bare_statement_phaser # perly.y:893
 
-# perly.y:894 barestmt: bare_statement_sub_signature
+barestmt: bare_statement_sub_signature # perly.y:894
 
 barestmt: bare_statement_sub_traditional # perly.y:895
 
@@ -275,51 +275,51 @@ attrlist: COLONATTR # perly.y:1072
 
 # perly.y:1078 optattrlist: attrlist
 
-# perly.y:1087 sigvar: %empty
+sigvar: # perly.y:1087
 
 # perly.y:1089 sigvar: PRIVATEREF
 
-# perly.y:1094 sigslurpsigil: PERLY_SNAIL
+sigslurpsigil: PERLY_SNAIL # perly.y:1094
 
-# perly.y:1096 sigslurpsigil: PERLY_PERCENT_SIGN
+sigslurpsigil: PERLY_PERCENT_SIGN # perly.y:1096
 
-# perly.y:1100 sigslurpelem: sigslurpsigil sigvar
+sigslurpelem: sigslurpsigil sigvar # perly.y:1100
 
 # perly.y:1105 sigslurpelem: sigslurpsigil sigvar ASSIGNOP
 
 # perly.y:1109 sigslurpelem: sigslurpsigil sigvar ASSIGNOP term
 
-# perly.y:1115 optcolon: %empty
+optcolon: # perly.y:1115
 
-# perly.y:1117 optcolon: PERLY_COLON
+optcolon: PERLY_COLON # perly.y:1117
 
-# perly.y:1123 sigscalarelem: optcolon PERLY_DOLLAR sigvar
+sigscalarelem: optcolon PERLY_DOLLAR sigvar # perly.y:1123
 
-# perly.y:1133 sigscalarelem: optcolon PERLY_DOLLAR sigvar ASSIGNOP optsigscalardefault
+sigscalarelem: optcolon PERLY_DOLLAR sigvar ASSIGNOP optsigscalardefault # perly.y:1133
 
-# perly.y:1146 optsigscalardefault: %empty
+optsigscalardefault: # perly.y:1146
 
-# perly.y:1148 optsigscalardefault: term
+optsigscalardefault: term # perly.y:1148
 
-# perly.y:1153 sigelem: sigscalarelem
+sigelem: sigscalarelem # perly.y:1153
 
-# perly.y:1155 sigelem: sigslurpelem
+sigelem: sigslurpelem # perly.y:1155
 
-# perly.y:1163 siglist: siglist PERLY_COMMA
+siglist: siglist PERLY_COMMA # perly.y:1163
 
-# perly.y:1164 siglist: siglist PERLY_COMMA sigelem
+siglist: siglist PERLY_COMMA sigelem # perly.y:1164
 
-# perly.y:1165 siglist: sigelem
+siglist: sigelem # perly.y:1165
 
 optsiglist: empty # perly.y:1170
 
-# perly.y:1171 optsiglist: siglist
+optsiglist: siglist # perly.y:1171
 
-# perly.y:1176 optsubsignature: empty
+optsubsignature: empty # perly.y:1176
 
-# perly.y:1177 optsubsignature: subsignature
+optsubsignature: subsignature # perly.y:1177
 
-# perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE
+subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE # perly.y:1181
 
 subsigguts: optsiglist # perly.y:1185
 
@@ -329,11 +329,11 @@ optsubbody: PERLY_SEMICOLON # perly.y:1219
 
 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE # perly.y:1224
 
-# perly.y:1236 optsigsubbody: sigsubbody
+optsigsubbody: sigsubbody # perly.y:1236
 
-# perly.y:1237 optsigsubbody: PERLY_SEMICOLON
+optsigsubbody: PERLY_SEMICOLON # perly.y:1237
 
-# perly.y:1241 sigsubbody: remember optsubsignature PERLY_BRACE_OPEN $@21 stmtseq PERLY_BRACE_CLOSE
+sigsubbody: remember optsubsignature PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE # perly.y:1241
 
 expr: expr ANDOP expr # perly.y:1254
 
@@ -505,7 +505,7 @@ anonymous: KW_SUB_anon startanonsub proto subattrlist subbody # perly.y:1538
 
 # perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist
 
-# perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody
+anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody # perly.y:1543
 
 # perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist
 
@@ -902,7 +902,9 @@ var perlyClasses = []ClassDecl{
 	// toke.c (yyl_sub, toke.c:5874) names the sub when an identifier, :: or ' follows, and takes it as anonymous
 	// otherwise (toke.c:5967, 5975). The seven words that really_sub takes by name when a statement may
 	// begin (toke.c:8315) are KW_SUB_named too, and only where no name follows them: pvm emits the word
-	// once, and perl refuses `BEGIN foo {}`. Signatures (the _sig pair) are another family's.
+	// once, and perl refuses `BEGIN foo {}`. The _sig pair is the same word under the signatures feature
+	// (toke.c:5965-5975, is_sigsub): the chart does not track the feature, so each `sub` is both of its
+	// pair, and the lexer's tokens make the split (a Prototype token after the name, or parentheses).
 	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NextName: true}},
 	// shortcut: the seven words take no prototype, as the lexer scans one only after sub NAME (01a1a44e-8f26-706b-96d4-b3e6d7f55c3f), upgrade when it scans one after them.
 	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("AUTOLOAD"), NotNextName: true}},
@@ -913,11 +915,11 @@ var perlyClasses = []ClassDecl{
 	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("INIT"), NotNextName: true}},
 	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("END"), NotNextName: true}},
 
-	// KW_SUB_named_sig
+	{"KW_SUB_named_sig", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NextName: true}},
 
 	{"KW_SUB_anon", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NotNextName: true}},
 
-	// KW_SUB_anon_sig
+	{"KW_SUB_anon_sig", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NotNextName: true}},
 
 	// KW_METHOD_named
 

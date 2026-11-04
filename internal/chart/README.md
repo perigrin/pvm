@@ -474,6 +474,39 @@ Beyond them:
   no name. `TokenClass.NextName` and `NotNextName` test this through a derived
   table part (one bit per next class), not a list of classes.
 
+### Signatures
+
+toke.c makes `sub` KW_SUB_named_sig (or KW_SUB_anon_sig) under the signatures feature and KW_SUB_named
+otherwise (`yyl_sub`, `toke.c:5965-5975`, `is_sigsub`), and scans a prototype only without it. The chart does not
+track the feature, so each `sub` is both terminals of its pair, and the split is the lexer's tokens: a Prototype
+token after the name is the traditional rule's, parentheses holding parameters are the signature's.
+`sub f { 1 }` and `sub f;` are therefore parsed both ways. The feature line itself is an ordinary `use` statement.
+
+`internal/lexer` emits a parameter's sigil and name as one Variable token (`$x`, `@r`, `%h`) and a bare placeholder
+as the sigil alone (`$`, `@`, `%`), which is the sigil's terminal either way (as `scalar: PERLY_DOLLAR` is fitted at
+perly.y:1846). So `sigvar: PRIVATEREF` (1089) is `excluded folded-into-token`, and `sigvar: %empty` (1087) is the
+only sigvar the chart ever uses. A parameter's default is a `term`, as written. Rules 1105 and 1109 (a slurpy
+parameter with a default) and 1546 (an anonymous sub with no body) refuse in their actions and have no rule:
+`TestPortSignaturesRefusals` pins them. A signature after the attributes is the grammar's order, and one before them
+(`sub f ($x) : lvalue { 1 }`) is refused, as perl does.
+
+Known limits, each pinned in `TestPortSignaturesKnownLimits`, accepted where perl refuses:
+
+- A conditional refusal in an action is not ported: `sub f (@r, $y) { 1 }` (slurpy not last),
+  `sub f (@r, @s) { 1 }` (two slurpies), `sub f (:$n, $x) { 1 }` (positional after named),
+  `sub f ($x = 1, $y) { 1 }` (mandatory after optional) and `sub f ($x = ) { 1 }` (an empty default is legal for the
+  placeholder `$=` only, and `$x` and `$` are one terminal).
+- toke.c reads a signature in a state of its own (`yyl_sigvar`, `toke.c:5524`), which `internal/lexer` does not
+  model (v0.1 `01a1a903-2d8d-713e-b264-bc8119a6a737`), so its tokens are the general ones: `sub f ($x += 1) { 1 }` lexes `Variable:$x Operator:+= Number:1`, where
+  yyl_sigvar reads only `=`, `//=` and `||=` after a parameter; `sub f ($x::y) { 1 }` lexes one `Variable:$x::y`, where it
+  reads a name with no package; and `sub f ($_) { 1 }` and `sub f (@_) { 1 }` are the globals, which perl refuses in a signature.
+- Named parameters (`:$n`) take `optcolon` as written; `:@n` and `:%h` are refused, as perl does.
+- toke.c makes BEGIN, END and their kin KW_SUB_named_sig under the feature (`toke.c:8315`), and the chart gives those
+  words no signature alternative, so `END ($x) { 1 }` is refused where perl accepts it
+  (`TestPortSignaturesPhaserLimit`; BEGIN dies at run time under `-c`, so END is the pinned row). The lexer scans
+  neither a prototype nor a signature after those words (`01a1a44e-8f26-706b-96d4-b3e6d7f55c3f`). A fitted 608 without the name and seven more classes would take it, and would
+  accept `BEGIN ($$) { 1 }` through the signature (that row in `TestPortSubsRefusals` would flip).
+
 ### Formats
 
 `internal/lexer` emits a format's picture lines, argument lines and closing

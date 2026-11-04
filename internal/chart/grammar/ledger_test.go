@@ -242,7 +242,7 @@ func TestLedgerExclusionReasonsPinnedToLines(t *testing.T) {
 		"error-recovery":      {933},
 		"keyword-plugin":      {878, 1714},
 		"interpolation-only":  {1512},
-		"folded-into-token":   {836, 837, 906, 924, 925, 1797, 1798},
+		"folded-into-token":   {836, 837, 906, 924, 925, 1089, 1797, 1798},
 		"conditional-refusal": nil,
 	}
 	for reason, lines := range allowed {
