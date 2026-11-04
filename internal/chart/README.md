@@ -319,9 +319,13 @@ word. A token class marked `Completes` is such a token, and `init` in
 - A block's `}` is not treated as completing a term for the `*` that follows
   it (`if (1) { } *print x 3;` is accepted, as perl does), because the
   neighbour cannot tell a statement block's `}` from a `do` block's. So
-  `$y = do { 1 } * ref x 3;` will be accepted once `do` blocks are ported
-  (remaining terms), where perl refuses it. Until the lexer marks what a `}`
-  closes (`01a1a422-9176-7153-8625-6535b483a4b4`).
+  `$y = do { 1 } * ref x 3;` is accepted, where perl refuses it, until the
+  lexer marks what a `}` closes (`01a1a422-9176-7153-8625-6535b483a4b4`).
+  The row is pinned in `TestPortListOperatorsXRule`.
+- A class that ends a term must be marked `Completes`, or `x` after it is
+  read as a word: `]`, the `}` closing a subscript or an anonymous hash, a
+  quote-like (`qw`), a variable, a number and a string are marked; a family
+  that adds one (`PMFUNC`, `PRIVATEREF`) marks it too.
 - A bareword after an XREF list operator is a filehandle to toke.c, so
   `print FH x 3;`, `printf FH x 3;`, `say FH x 3;`, `exec foo x 3;` and
   `sort foo x 3;` are accepted where perl refuses them, until the
