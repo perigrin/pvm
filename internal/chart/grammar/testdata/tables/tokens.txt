@@ -494,18 +494,22 @@ node 0 leaf set 126
 node 1 leaf set 490
 node 2 part 6 otherwise 1
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 0
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 0
 node 3 leaf set 36
 node 4 leaf set 128
 node 5 leaf set 0
 node 6 part 6 otherwise 5
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 3
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 3
   {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 4
 node 7 leaf set 125
 node 8 leaf set 487
 node 9 part 6 otherwise 8
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 7
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 7
 node 10 part 6 otherwise 5
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 3
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 3
 node 11 part 4 otherwise 10
   34 -> 2
   39 -> 2
@@ -518,6 +522,7 @@ node 12 leaf set 51
 node 13 leaf set 315
 node 14 part 6 otherwise 13
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 12
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 12
 node 15 leaf set 121
 node 16 part 9 otherwise 3
   0 -> 15
@@ -526,6 +531,7 @@ node 18 part 9 otherwise 5
   0 -> 17
 node 19 part 6 otherwise 18
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 16
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 16
 node 20 part 9 otherwise 3
   0 -> 15
   1 -> 15
@@ -534,16 +540,19 @@ node 21 part 9 otherwise 5
   1 -> 17
 node 22 part 6 otherwise 21
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 20
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 20
 node 23 part 5 otherwise 22
   {Kind:Word Text:catch OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 19
 node 24 leaf set 122
 node 25 leaf set 477
 node 26 part 6 otherwise 25
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 24
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 24
 node 27 leaf set 123
 node 28 leaf set 480
 node 29 part 6 otherwise 28
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 27
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 27
 node 30 part 4 otherwise 10
   35 -> 14
   36 -> 23
@@ -608,6 +617,7 @@ node 71 part 6 otherwise 70
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 37
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 44
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 37
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 37
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 51
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 62
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 69
@@ -622,6 +632,7 @@ node 72 part 6 otherwise 70
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 37
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 44
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 37
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 37
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 51
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 69
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 37
@@ -748,6 +759,7 @@ node 150 part 6 otherwise 149
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 86
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 100
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 86
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 86
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 113
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 134
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 148
@@ -762,6 +774,7 @@ node 151 part 6 otherwise 149
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 86
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 100
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 86
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 86
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 113
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 148
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 86
@@ -832,6 +845,7 @@ node 193 part 6 otherwise 192
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 159
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 166
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 159
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 159
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 173
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 184
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 191
@@ -846,6 +860,7 @@ node 194 part 6 otherwise 192
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 159
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 166
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 159
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 159
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 173
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 191
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 159
@@ -868,6 +883,7 @@ node 202 part 6 otherwise 201
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 196
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 197
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 196
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 196
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 198
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 199
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 200
@@ -882,6 +898,7 @@ node 203 part 6 otherwise 201
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 196
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 197
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 196
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 196
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 198
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 200
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 196
@@ -952,6 +969,7 @@ node 245 part 6 otherwise 244
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 211
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 218
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 211
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 211
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 225
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 236
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 243
@@ -966,6 +984,7 @@ node 246 part 6 otherwise 244
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 211
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 218
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 211
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 211
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 225
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 243
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 211
@@ -1082,6 +1101,7 @@ node 318 part 6 otherwise 317
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 260
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 273
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 260
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 260
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 286
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 303
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 316
@@ -1096,6 +1116,7 @@ node 319 part 6 otherwise 317
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 260
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 273
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 260
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 260
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 286
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 316
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 260
@@ -1212,6 +1233,7 @@ node 391 part 6 otherwise 390
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 333
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 346
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 333
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 333
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 359
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 376
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 389
@@ -1226,6 +1248,7 @@ node 392 part 6 otherwise 390
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 333
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 346
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 333
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 333
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 359
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 389
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 333
@@ -1302,6 +1325,7 @@ node 434 part 6 otherwise 433
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 400
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 407
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 400
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 400
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 414
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 425
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 432
@@ -1316,6 +1340,7 @@ node 435 part 6 otherwise 433
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 400
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 407
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 400
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 400
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 414
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 432
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 400
@@ -1392,6 +1417,7 @@ node 477 part 6 otherwise 476
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 443
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 450
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 443
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 443
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 457
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 468
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 475
@@ -1406,6 +1432,7 @@ node 478 part 6 otherwise 476
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 443
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 450
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 443
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 443
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 457
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 475
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 443
@@ -1476,6 +1503,7 @@ node 520 part 6 otherwise 519
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 486
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 493
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 486
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 486
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 500
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 511
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 518
@@ -1490,6 +1518,7 @@ node 521 part 6 otherwise 519
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 486
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 493
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 486
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 486
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 500
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 518
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 486
@@ -1560,6 +1589,7 @@ node 563 part 6 otherwise 562
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 529
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 536
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 529
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 529
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 543
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 554
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 561
@@ -1574,6 +1604,7 @@ node 564 part 6 otherwise 562
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 529
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 536
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 529
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 529
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 543
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 561
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 529
@@ -1642,6 +1673,7 @@ node 602 part 6 otherwise 601
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 572
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 579
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 572
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 572
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 586
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 593
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 600
@@ -1656,6 +1688,7 @@ node 603 part 6 otherwise 601
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 572
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 579
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 572
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 572
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 586
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 600
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 572
@@ -1726,6 +1759,7 @@ node 645 part 6 otherwise 644
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 611
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 618
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 611
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 611
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 625
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 636
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 643
@@ -1740,6 +1774,7 @@ node 646 part 6 otherwise 644
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 611
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 618
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 611
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 611
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 625
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 643
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 611
@@ -1810,6 +1845,7 @@ node 688 part 6 otherwise 687
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 654
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 661
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 654
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 654
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 668
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 679
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 686
@@ -1824,6 +1860,7 @@ node 689 part 6 otherwise 687
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 654
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 661
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 654
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 654
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 668
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 686
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 654
@@ -1894,6 +1931,7 @@ node 731 part 6 otherwise 730
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 697
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 704
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 697
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 697
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 711
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 722
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 729
@@ -1908,6 +1946,7 @@ node 732 part 6 otherwise 730
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 697
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 704
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 697
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 697
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 711
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 729
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 697
@@ -1978,6 +2017,7 @@ node 774 part 6 otherwise 773
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 740
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 747
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 740
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 740
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 754
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 765
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 772
@@ -1992,6 +2032,7 @@ node 775 part 6 otherwise 773
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 740
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 747
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 740
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 740
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 754
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 772
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 740
@@ -2062,6 +2103,7 @@ node 817 part 6 otherwise 816
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 783
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 790
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 783
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 783
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 797
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 808
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 815
@@ -2076,6 +2118,7 @@ node 818 part 6 otherwise 816
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 783
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 790
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 783
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 783
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 797
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 815
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 783
@@ -2146,6 +2189,7 @@ node 860 part 6 otherwise 859
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 826
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 833
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 826
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 826
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 840
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 851
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 858
@@ -2160,6 +2204,7 @@ node 861 part 6 otherwise 859
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 826
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 833
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 826
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 826
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 840
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 858
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 826
@@ -2230,6 +2275,7 @@ node 903 part 6 otherwise 902
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 869
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 876
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 869
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 869
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 883
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 894
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 901
@@ -2244,6 +2290,7 @@ node 904 part 6 otherwise 902
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 869
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 876
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 869
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 869
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 883
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 901
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 869
@@ -2314,6 +2361,7 @@ node 946 part 6 otherwise 945
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 912
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 919
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 912
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 912
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 926
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 937
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 944
@@ -2328,6 +2376,7 @@ node 947 part 6 otherwise 945
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 912
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 919
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 912
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 912
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 926
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 944
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 912
@@ -2398,6 +2447,7 @@ node 989 part 6 otherwise 988
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 955
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 962
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 955
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 955
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 969
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 980
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 987
@@ -2412,6 +2462,7 @@ node 990 part 6 otherwise 988
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 955
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 962
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 955
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 955
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 969
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 987
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 955
@@ -2482,6 +2533,7 @@ node 1032 part 6 otherwise 1031
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 998
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1005
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 998
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 998
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1012
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1023
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1030
@@ -2496,6 +2548,7 @@ node 1033 part 6 otherwise 1031
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 998
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1005
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 998
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 998
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1012
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1030
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 998
@@ -2566,6 +2619,7 @@ node 1075 part 6 otherwise 1074
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1041
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1048
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1041
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1041
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1055
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1066
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1073
@@ -2580,6 +2634,7 @@ node 1076 part 6 otherwise 1074
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1041
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1048
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1041
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1041
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1055
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1073
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1041
@@ -2650,6 +2705,7 @@ node 1118 part 6 otherwise 1117
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1084
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1091
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1084
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1084
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1098
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1109
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1116
@@ -2664,6 +2720,7 @@ node 1119 part 6 otherwise 1117
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1084
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1091
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1084
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1084
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1098
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1116
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1084
@@ -2734,6 +2791,7 @@ node 1161 part 6 otherwise 1160
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1127
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1134
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1127
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1127
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1141
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1152
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1159
@@ -2748,6 +2806,7 @@ node 1162 part 6 otherwise 1160
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1127
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1134
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1127
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1127
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1141
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1159
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1127
@@ -2818,6 +2877,7 @@ node 1204 part 6 otherwise 1203
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1170
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1177
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1170
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1170
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1184
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1195
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1202
@@ -2832,6 +2892,7 @@ node 1205 part 6 otherwise 1203
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1170
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1177
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1170
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1170
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1184
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1202
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1170
@@ -2902,6 +2963,7 @@ node 1247 part 6 otherwise 1246
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1213
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1220
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1213
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1213
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1227
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1238
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1245
@@ -2916,6 +2978,7 @@ node 1248 part 6 otherwise 1246
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1213
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1220
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1213
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1213
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1227
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1245
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1213
@@ -2986,6 +3049,7 @@ node 1290 part 6 otherwise 1289
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1256
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1263
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1256
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1256
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1270
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1281
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1288
@@ -3000,6 +3064,7 @@ node 1291 part 6 otherwise 1289
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1256
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1263
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1256
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1256
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1270
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1288
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1256
@@ -3070,6 +3135,7 @@ node 1333 part 6 otherwise 1332
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1299
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1306
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1299
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1299
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1313
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1324
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1331
@@ -3084,6 +3150,7 @@ node 1334 part 6 otherwise 1332
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1299
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1306
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1299
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1299
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1313
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1331
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1299
@@ -3160,6 +3227,7 @@ node 1376 part 6 otherwise 1375
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1342
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1349
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1342
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1342
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1356
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1367
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1374
@@ -3174,6 +3242,7 @@ node 1377 part 6 otherwise 1375
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1342
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1349
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1342
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1342
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1356
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1374
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1342
@@ -3250,6 +3319,7 @@ node 1419 part 6 otherwise 1418
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1385
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1392
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1385
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1385
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1399
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1410
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1417
@@ -3264,6 +3334,7 @@ node 1420 part 6 otherwise 1418
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1385
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1392
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1385
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1385
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1399
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1417
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1385
@@ -3288,6 +3359,7 @@ node 1429 part 6 otherwise 1428
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1423
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1422
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1424
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1425
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
@@ -3303,6 +3375,7 @@ node 1430 part 6 otherwise 1428
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1423
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1422
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1424
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1426
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1425
@@ -3317,6 +3390,7 @@ node 1431 part 6 otherwise 1428
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1423
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1422
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1424
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1425
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1422
@@ -3392,6 +3466,7 @@ node 1473 part 6 otherwise 1472
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1439
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1446
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1439
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1439
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1453
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1464
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1471
@@ -3406,6 +3481,7 @@ node 1474 part 6 otherwise 1472
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1439
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1446
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1439
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1439
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1453
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1471
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1439
@@ -3428,6 +3504,7 @@ node 1482 part 6 otherwise 1481
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1476
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1477
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1476
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1476
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1478
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1479
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1480
@@ -3442,6 +3519,7 @@ node 1483 part 6 otherwise 1481
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1476
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1477
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1476
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1476
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1478
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1480
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1476
@@ -3470,6 +3548,7 @@ node 1491 part 6 otherwise 1490
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1485
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1486
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1485
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1485
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1487
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1488
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1489
@@ -3484,6 +3563,7 @@ node 1492 part 6 otherwise 1490
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1485
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1486
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1485
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1485
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1487
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1489
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1485
@@ -3572,6 +3652,7 @@ node 1540 part 6 otherwise 1539
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1501
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1509
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1501
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1501
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1517
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1530
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1538
@@ -3586,6 +3667,7 @@ node 1541 part 6 otherwise 1539
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1501
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1509
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1501
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1501
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1517
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1538
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1501
@@ -3656,6 +3738,7 @@ node 1583 part 6 otherwise 1582
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1549
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1556
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1549
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1549
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1563
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1574
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1581
@@ -3670,6 +3753,7 @@ node 1584 part 6 otherwise 1582
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1549
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1556
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1549
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1549
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1563
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1581
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1549
@@ -3740,6 +3824,7 @@ node 1626 part 6 otherwise 1625
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1592
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1599
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1592
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1592
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1606
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1617
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1624
@@ -3754,6 +3839,7 @@ node 1627 part 6 otherwise 1625
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1592
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1599
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1592
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1592
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1606
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1624
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1592
@@ -3824,6 +3910,7 @@ node 1669 part 6 otherwise 1668
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1635
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1642
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1635
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1635
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1649
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1660
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1667
@@ -3838,6 +3925,7 @@ node 1670 part 6 otherwise 1668
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1635
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1642
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1635
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1635
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1649
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1667
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1635
@@ -3908,6 +3996,7 @@ node 1712 part 6 otherwise 1711
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1678
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1685
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1678
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1678
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1692
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1703
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1710
@@ -3922,6 +4011,7 @@ node 1713 part 6 otherwise 1711
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1678
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1685
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1678
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1678
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1692
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1710
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1678
@@ -3992,6 +4082,7 @@ node 1755 part 6 otherwise 1754
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1721
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1728
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1721
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1721
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1735
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1746
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1753
@@ -4006,6 +4097,7 @@ node 1756 part 6 otherwise 1754
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1721
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1728
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1721
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1721
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false} -> 1735
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1753
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1721
@@ -4067,6 +4159,7 @@ node 1791 part 6 otherwise 1790
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1764
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1771
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1764
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1764
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1778
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1764
   {Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:2 Glob:false Name:false Label:false SortParen:false} -> 1789
@@ -4105,6 +4198,7 @@ node 1810 part 6 otherwise 198
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 197
   {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1798
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1798
   {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1805
@@ -4150,6 +4244,7 @@ node 1811 part 6 otherwise 198
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 197
   {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1798
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1798
   {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1809
   {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
@@ -4197,6 +4292,7 @@ node 1812 part 6 otherwise 198
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 197
   {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1798
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1798
   {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1790
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1805
@@ -4349,6 +4445,7 @@ node 1877 part 6 otherwise 1876
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1851
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1832
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1874
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1875
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
@@ -4358,6 +4455,7 @@ node 1878 part 6 otherwise 1876
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1851
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1832
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1875
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1832
   {Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:2 Glob:false Name:false Label:false SortParen:false} -> 1874
@@ -4431,6 +4529,7 @@ node 1915 part 6 otherwise 1914
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1905
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1892
   {Kind:Operator Text:- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1912
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1913
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
@@ -4440,6 +4539,7 @@ node 1916 part 6 otherwise 1914
   {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
   {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1905
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 1892
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1913
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1892
   {Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:2 Glob:false Name:false Label:false SortParen:false} -> 1912
@@ -4717,6 +4817,7 @@ node 1918 part 1 otherwise 1917
 node 1919 leaf set 297
 node 1920 part 6 otherwise 1
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 0
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true} -> 0
   {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false} -> 1919
 node 1921 leaf set 474
 node 1922 leaf set 452

@@ -327,7 +327,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
-		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; ")
+		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {

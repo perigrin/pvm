@@ -961,6 +961,11 @@ var perlyClasses = []ClassDecl{
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
+	// The same after the ( of an attribute named sort, which carries SortParen as sort's own ( does.
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &sortParen}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Number), Prev1: &sortParen}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &sortParen}},
+	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &sortParen}},
 
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\'')), Completes: true}},
