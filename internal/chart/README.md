@@ -209,10 +209,11 @@ clock and a collector, so it is tested on fake timings
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
   pass's files (its intern table and cache persist), cold makes a fresh
   one per file. Recursive descent is `parse.Parse`, which holds no state
-  between files, so its two lifetimes coincide. A file the chart refuses
-  stops the chart early, so until the chart recognizes the population
-  (`superset-recognized`) a ratio is a lower bound on the finished
-  recognizer's, reported for warning (§9.3 checkpoints). Allocations are one
+  between files, so its two lifetimes coincide. On a file the chart refuses,
+  every position after the refusal holds no items and costs little, so
+  until the chart recognizes the population (`superset-recognized`) a ratio
+  is a lower bound on the finished recognizer's, reported for warning (§9.3
+  checkpoints). Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
