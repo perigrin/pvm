@@ -213,10 +213,13 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		switch {
 		case lexer.IsTrivia(t.Kind):
 			continue
-		case t.Kind == lexer.HeredocBody && len(opens) > 0:
-			opens = opens[1:]
-			continue
-		case t.Kind == lexer.HeredocBody && len(toks) > 0: // a heredoc opened inside a quote-like
+		case t.Kind == lexer.HeredocBody && len(toks) > 0:
+			// The body's last line names its heredoc; a body no waiting opener names is a heredoc's opened inside a quote-like.
+			lines := strings.Split(strings.TrimRight(string(src[t.Start:t.End]), "\r\n"), "\n")
+			end := refTag(lines[len(lines)-1])
+			if j := slices.IndexFunc(opens, func(w int) bool { return refTag(toks[w].v.Text) == end }); j >= 0 {
+				opens = slices.Delete(opens, j, j+1)
+			}
 			continue
 		case t.Kind == lexer.HeredocOpen:
 			opens = append(opens, len(toks))
@@ -362,7 +365,10 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
-		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); ")
+		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
+		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
+		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")
+	// The last line's <<A has no body (the one after it is the string's <<B), so it is refused: pairing by tag, not by order.
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {
@@ -495,4 +501,14 @@ func TestBlanksAgreeWithReference(t *testing.T) {
 			t.Errorf("%q: Blanks is %v, want %v", c.src, got, c.want)
 		}
 	}
+}
+
+// refTag is the word a heredoc opener waits for, or a terminator line names: what is left once <, ~, blanks, backslashes and quotes are gone.
+func refTag(opener string) string {
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune("<~ \t\\'\"`", r) {
+			return -1
+		}
+		return r
+	}, opener)
 }
