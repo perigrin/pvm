@@ -151,6 +151,7 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 		"notprev1":     func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren} },
 		"nottext":      func(c *grammar.TokenClass) { c.NotText = []string{"if"} },
 		"nottext2":     func(c *grammar.TokenClass) { c.NotText = []string{"if", "my"} },
+		"prev2":        func(c *grammar.TokenClass) { c.Prev2 = &paren },
 		"notprev1b":    func(c *grammar.TokenClass) { c.NotPrev1 = []grammar.Neighbour{paren, {Kind: lexer.Word, Text: "ref"}} },
 		"notprev2":     func(c *grammar.TokenClass) { c.NotPrev2 = []grammar.Neighbour{paren} },
 		"notnextident": func(c *grammar.TokenClass) { c.NotNextIdent = true },

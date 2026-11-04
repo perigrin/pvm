@@ -41,12 +41,17 @@ type Neighbour struct {
 	Text                    string
 	OpensBlock, TermFollows bool
 	Brace                   Brace // only on `{`
+	// Glob is on a `*` that is a glob sigil, and Name on a word that names something: the one after
+	// `->`, `&` or a glob's `*`. Like Brace, each is decided by the predecessor, so a neighbour says what
+	// it was and the key needs no more tokens back (spec §7's neighbour class, extended by perigrin's
+	// ruling on the x fitting).
+	Glob, Name bool
 }
 
 // Boundary is the class of the neighbour that a file's edge lacks.
 var Boundary = Neighbour{Kind: -1}
 
-// ClassOf is t's class given its predecessor's. A `{` the lexer decided
+// ClassOf is t's class given its predecessor's, except Glob, which needs the table (TokenTable.Intern). A `{` the lexer decided
 // (OpensBlock) keeps that decision; an undecided one is a subscript after a
 // variable, `->` or a subscript's closing bracket, a block after a deref
 // sigil (`@{ ... }`), and an anonymous hash otherwise, as in toke.c.
@@ -80,7 +85,14 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	case lexer.Word, lexer.Operator, lexer.CloseBracket:
 		text = t.Text
 	}
+	if t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26 {
+		text = IdentQuote
+	}
 	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
+	// A word after ->, & or a glob's * is a name, whatever it spells (toke.c's force_word, yyl_star).
+	c.Glob = false
+	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
+		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 }
 
 // OtherWord as a neighbour's Text stands for a word no class names, the one whose
@@ -88,6 +100,10 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 // shortcut: a word some class does name (`use`, `my`, ...) is not matched, upgrade
 // when a class needs a neighbour that is any word.
 const OtherWord = "\x00other-word"
+
+// IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
+// as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
+const IdentQuote = "\x00ident-quote"
 
 // TokenClass declares that tokens whose key matches every part given (a nil
 // part matches anything) admit Terminals. A key several classes match admits
@@ -111,9 +127,54 @@ type TokenClass struct {
 	// letter, _ or a UTF-8 byte (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
 	NotPrev2     []Neighbour
 	NotNextIdent bool
+	// Completes marks a class whose token completes a term, so toke.c leaves PL_expect at XOPERATOR after
+	// it and an x that follows is the repetition operator. The lookup ignores it: perly.go's init derives
+	// MULOP's x classes from it, as ordinary Prev1 and Prev2 parts.
+	Completes bool
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// CompletedBy is the neighbour a token of c's class is, when c is marked Completes and not keyed by its
+// predecessor: its kind, its text (OtherWord for a word of any other), its block flag. A name is keyed by
+// its predecessor and is told by Neighbour.Name instead.
+func (c TokenClass) CompletedBy() (Neighbour, bool) {
+	if !c.Completes || c.Prev1 != nil || c.Kind == nil {
+		return Neighbour{}, false
+	}
+	n := Neighbour{Kind: *c.Kind}
+	if c.Text != nil {
+		n.Text = *c.Text
+	} else if *c.Kind == lexer.Word {
+		n.Text = OtherWord
+	} else if *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix|0x20)-'a' < 26 {
+		n.Text = IdentQuote
+	}
+	if c.OpensBlock != nil {
+		n.OpensBlock = *c.OpensBlock
+	}
+	return n, true
+}
+
+// completes is whether pred leaves PL_expect at XOPERATOR: a name, or a token some class marks Completes.
+// A block's }, which Completes marks so that a do block's ends a term, does not: it ends a statement more
+// often, and the neighbour cannot tell the two apart.
+// shortcut: `$y = do { 1 } * ref x 3` reads the * as a glob's and is accepted, where perl refuses it; the
+// lexer marking what a } closes (01a1a422-9176-7153-8625-6535b483a4b4) ends it.
+func (tt *TokenTable) completes(pred *Neighbour) bool {
+	if pred.Name {
+		return true
+	}
+	n := *pred
+	n.Glob, n.Brace = false, 0
+	if n.Kind == lexer.Word && tt.text[n.Text] == 0 {
+		if !identStart(n.Text[0]) {
+			return false // a word opening with :: is the nonIdentWord class, which no OtherWord covers
+		}
+		n.Text = OtherWord
+	}
+	return tt.done[n]
+}
 
 func ptrs(ns []Neighbour) []*Neighbour {
 	ps := make([]*Neighbour, len(ns))
@@ -141,7 +202,7 @@ func b2i(b bool) int {
 // one integer, so finding its class id hashes a word rather than a struct.
 // The kind is offset by one, since Boundary's is -1.
 func classKey(n Neighbour, text int) uint64 {
-	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(n.Brace)
+	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
 }
 
 // node tests one part: kids is indexed by the part's value, def covers the
@@ -163,6 +224,9 @@ type TokenTable struct {
 	Edge int
 	root *node
 	text map[string]int
+	// done holds the neighbours that complete a term (Completes classes), a word of no listed text as
+	// OtherWord.
+	done map[Neighbour]bool
 	// emptyText is text[""], the text id of a class that carries no text.
 	emptyText int
 	classes   map[uint64]int
@@ -212,10 +276,15 @@ func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(&n, tt.text[n
 // are. It hashes t's text at most once.
 func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	classOf(&it.N, t, pred)
+	if t.Kind == lexer.Operator && t.Text == "*" {
+		it.N.Glob = !tt.completes(pred)
+	}
 	text := tt.textID(t.Text)
 	ct := text
 	if it.N.Text == "" {
 		ct = tt.emptyText
+	} else if t.Kind == lexer.Quote {
+		ct = 0 // IdentQuote
 	}
 	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
 	switch {
@@ -255,7 +324,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
 			if nb != nil {
-				if nb.Text != OtherWord {
+				if nb.Text != OtherWord && nb.Text != IdentQuote {
 					texts[nb.Text] = true
 				}
 				nbs[*nb] = true
@@ -281,11 +350,17 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	tt.anyWord, tt.identQuote, tt.nonIdentWord = len(tt.nbs)+1, len(tt.nbs)+2, len(tt.nbs)+3
 	var ident []int // every class id of a token starting with an identifier character
 	for i, nb := range tt.nbs {
-		if nb.Kind == lexer.Word {
+		if nb.Kind == lexer.Word || nb.Kind == lexer.Quote && nb.Text == IdentQuote {
 			ident = append(ident, i+1)
 		}
 	}
 	ident = append(ident, tt.anyWord, tt.identQuote)
+	tt.done = map[Neighbour]bool{}
+	for _, c := range classes {
+		if n, ok := c.CompletedBy(); ok && !(n.Kind == lexer.CloseBracket && n.Text == "}" && n.OpensBlock) {
+			tt.done[n] = true
+		}
+	}
 
 	pats, nots := make([][nParts]int, len(classes)), make([][nParts][]int, len(classes))
 	for i, c := range classes {
