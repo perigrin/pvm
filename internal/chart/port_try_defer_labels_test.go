@@ -42,13 +42,13 @@ func TestPortTryDeferLabelsRefusals(t *testing.T) {
 	}
 	// perl refuses a catch variable that is no lexical name ("can't be in a package", "Can't use global ... in
 	// "my""), not as a syntax error, so these are not snippets.
-	for _, v := range []string{"$::e", "$Foo::e", "$Foo'e", "$_", "$1", "$0", "$^W", "${^E}", "$'"} {
+	for _, v := range []string{"$::e", "$Foo::e", "$Foo'e", "$_", "$1", "$0", "$^W", "${^E}", "$'", "${_}", "${1}", "$ _", "${ ^E }"} {
 		if r := recognizeSource(t, []byte("use feature 'try'; try { 1 } catch ("+v+") { 2 }")); r.accepted {
 			t.Errorf("catch (%s) is accepted; perl refuses it", v)
 		}
 	}
-	for _, v := range []string{"$e", "$a", "$ARGV", "$_e", "$e1"} {
-		if r := recognizeSource(t, []byte("use feature 'try'; try { 1 } catch ("+v+") { 2 }")); !r.accepted {
+	for _, v := range []string{"$e", "$a", "$ARGV", "$_e", "$e1", "${e}", "${ e }", "$ e", "$\ne", "${a}", "${__}", "$ ARGV", "$é"} {
+		if r := recognizeSource(t, []byte("use utf8; use feature 'try'; try { 1 } catch ("+v+") { 2 }")); !r.accepted {
 			t.Errorf("catch (%s) is refused at %d; perl accepts it", v, r.at)
 		}
 	}
