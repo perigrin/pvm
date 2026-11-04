@@ -4,6 +4,7 @@
 package grammar
 
 import (
+	"slices"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -17,7 +18,7 @@ import (
 //
 // The first token of `use VERSION` is a version only where perl accepts what follows: `;`, `}` or the end
 // of the file, else `use 5.036 1;` would read as a module list. A version after `use MODULE` is a version
-// wherever a number or v-string stands there, except before a comma, which no list opens with. After
+// wherever a number or v-string stands there, except before the tokens in notAfterVersion. After
 // `package NAME` only a strict Number is one. Its v-string, `package Foo v1.2.3`, lexes as Word(v1)
 // Operator(.) Number(2.3): a lexer defect (01a1a481-ebef), listed in lexer-defects.txt.
 //
@@ -25,8 +26,9 @@ import (
 // ordinary term, so taking it would also take `use 5.036 foo bar;`, which perl refuses as an
 // indirect-object call. The version BAREWORD is also the term BAREWORD, which no terminal tells apart,
 // so after a version that follows a module only the tokens in notAfterVersion are refused: `-`, `+`,
-// `*`, `%`, `&`, `<`, `/` and `<<` can open a term, so `use lib 1.2 - 3;` is taken where perl
-// reads it as a term, and `use lib 1.2 x;`, where x is a word, is refused. Upgrade with a version
+// `*`, `%`, `&`, `<`, `/`, `<<`, `**=` and `//=` can open a term, so `use lib 1.2 - 3;` is taken where perl
+// reads it as a term, `use lib 1.2 x;`, where x is a word, is refused, and `use lib 1.2 isa 3;` is accepted
+// where perl refuses `isa 3`, as on the base. Upgrade with a version
 // terminal no list opens with. And a word after `use`/`no` loses its version reading only: afterUse also
 // removes the term reading of a delimited number there, so `(no => 1 , 2)` will be refused once keywords
 // auto-quote before `=>` (the fat-comma family's to settle).
@@ -42,19 +44,31 @@ var afterWordSlot = append([]Neighbour{{Kind: lexer.Word, Text: "package"}}, aft
 // the lexer's reading of them decides and they are accepted (see the shortcut above). isa is a word
 // toke.c reads as an operator only under its feature, and <= is a readline's < to toke.c here.
 var notAfterVersion = func() (ns []Neighbour) {
-	for _, o := range strings.Fields(", => . ? == != || // && .. ... =~ !~ ** <=> = += -= *= /= .= %= **= x= ||= &&= //= |= &= ^= <<= >>= -> | ^ >> > >=") {
+	for _, o := range strings.Fields(", => . ? == != || // && .. ... =~ !~ ** <=> = += -= *= /= .= %= ||= &&= |= &= ^= <<= >>= -> | ^ >> > >=") {
 		ns = append(ns, Neighbour{Kind: lexer.Operator, Text: o})
 	}
-	for _, w := range strings.Fields("x eq ne lt gt cmp") {
+	for _, w := range strings.Fields("x eq ne lt gt le ge cmp") {
 		ns = append(ns, Neighbour{Kind: lexer.Word, Text: w})
 	}
 	return ns
 }()
 
-// notAfterWord are the next tokens a bare word after use MODULE cannot be followed by, as a term: toke.c reads
-// `foo 'a'` and `foo 1.2` as a call it refuses, where `foo bar`, `foo $x` and `foo (3)` are method calls and calls.
-var notAfterWord = []Neighbour{{Kind: lexer.Number}, {Kind: lexer.Quote}, {Kind: lexer.Quote, Text: IdentQuote},
-	{Kind: lexer.Operator, Text: "["}, {Kind: lexer.Operator, Text: `\`}}
+// notAfterWord are the next tokens a bare word after use MODULE cannot be followed by, as a term: toke.c
+// refuses `foo 'a'`, `foo 1.2`, `foo @x` and a keyword, where `foo bar`, `foo $x`, `foo (3)` and `foo %h` are
+// method calls, a call and a modulus. The operator words, the file's end (__END__, __DATA__) and the words
+// the statement itself refuses anyway (and or xor not if unless while until for foreach) are left out.
+var notAfterWord = func() []Neighbour {
+	ns := []Neighbour{{Kind: lexer.Number}, {Kind: lexer.Quote}, {Kind: lexer.Quote, Text: IdentQuote},
+		{Kind: lexer.Operator, Text: "["}, {Kind: lexer.Operator, Text: `\`}, {Kind: lexer.Operator, Text: "!"}, {Kind: lexer.Operator, Text: "~"},
+		{Kind: lexer.Variable, Array: true}, {Kind: lexer.Word, Text: NonIdentWord}}
+	left := strings.Fields("x eq ne lt gt le ge cmp isa and or xor not if unless while until for foreach __END__ __DATA__")
+	for _, k := range lexer.Keywords() {
+		if !slices.Contains(left, k) {
+			ns = append(ns, Neighbour{Kind: lexer.Word, Text: k})
+		}
+	}
+	return ns
+}()
 
 func init() {
 	versions := []TokenClass{{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionStrict))}, {Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionLax))}}

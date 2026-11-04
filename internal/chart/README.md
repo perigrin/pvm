@@ -374,15 +374,25 @@ term to toke.c. Known limits:
 - The version BAREWORD is also the term BAREWORD, and no terminal tells them
   apart. After a version that follows a module, `TokenClass.NotNext` (a list)
   refuses the comma and the operators that only join two terms
-  (`=> . x ? == != || // && .. ... =~ !~ ** <=> eq ne lt gt cmp = += -> | ^ >> > >=`
-  and the other assignment operators). `- + * % & < / <<` can open a term,
-  so `use lib 1.2 - 3;` is accepted, as perl reads it as a term; `<=` is a
-  readline's `<` to toke.c and `isa` a word without its feature, so both stay
-  accepted. The cost: `use lib 1.2 x;`, where `x` is a word, is refused.
+  (`=> . x ? == != || // && .. ... =~ !~ ** <=> eq ne lt gt le ge cmp = += -> | ^ >> > >=`
+  and the other assignment operators, not `**=` and `//=`). `- + * % & < / <<`
+  and `**=`, `//=` can open a term (a glob, a match), so they are accepted, as
+  perl accepts them; `<=` is a readline's `<` to toke.c, so it stays accepted
+  too. `use lib 1.2 x;`, where `x` is a word, is refused, and `isa` is a plain
+  word there to perl, so `use lib 1.2 isa 3;` is accepted where perl refuses
+  `isa 3`, as on the base.
 - A bare word after `use MODULE` is a term (`use constant FOO => 1`,
-  `use lib foo bar`), and refused when a number, a quote, `[` or `\` follows
-  it, as toke.c refuses `foo 'a'`. A word after `package NAME` is refused.
-  `use lib foo { }` is refused for want of the indirect-object family.
+  `use lib foo bar`, `use lib foo %h`), and refused when what follows is
+  something toke.c refuses after an unknown bareword: a number, a quote, `[`,
+  `\`, `!`, `~`, an array or `$#` variable (the neighbour's `Array` flag), a
+  `::` word and any keyword that is not an operator word. `use lib foo { }`,
+  `use lib foo $$x` and `use lib foo __END__` are refused where perl accepts
+  them, for want of the indirect-object family and the deref sigils' rules.
+- `Neighbour.Array` is on a variable opening with `@` or `$#`, so a word's key
+  can tell `foo @x` from `foo $x`. Like `Glob`, `Name` and `Label` it is a
+  neighbour flag decided from the token's own text, an extension of spec section
+  7's neighbour class by perigrin's ruling; INTERN's reference derives it
+  independently (`refClassOf`) and `keyText` renders it with the neighbour.
 - A delimited number two after `use` or `no` is a version and no term, so
   `(no => 1 , 2)` will be refused once keywords auto-quote before `=>`; that
   family settles it.
