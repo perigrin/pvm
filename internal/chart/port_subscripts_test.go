@@ -43,6 +43,12 @@ func TestPortSubscriptsRefusals(t *testing.T) {
 	}
 	// The accepted form beside each refusal; $h{1;} and +{ a => 1; } are refused because the ; before } is
 	// toke.c's, never the source's, so no rule here expects one.
+	// perl refuses these as a string terminator or not as a syntax error; the quote-like q takes the newline as its delimiter.
+	for _, src := range []string{"$y = $h{q\n};", "$y = $h{s\n};", "$y = $h{ - q\n};"} {
+		if v := recognizeSource(t, []byte(src)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", src)
+		}
+	}
 	for _, src := range []string{"$a[0];", "$h{foo};", "$h->{foo};", "&f()->{foo};", "$x[0][1];", "$h{1};", "$y = +{ a => 1 };"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v", src, v.at, v.expected)
@@ -67,6 +73,16 @@ func TestPortSubscriptsHashWordIsString(t *testing.T) {
 		{"$y = $h{x};", "x", false},
 		{"$y = $h{-if};", "if", false},
 		{"$y = $h{a}{time};", "time", false},
+		{"$y = $h{\tif};", "if", false},
+		{"$y = $h{ - if };", "if", false},
+		// toke.c skips only spaces and tabs before the word, after a minus and before the }: a newline or a comment
+		// there leaves the word to the grammar (perl calls time in the first, and refuses the keywords).
+		{"$y = $h{time\n};", "time", true},
+		{"$y = $h{\ntime};", "time", true},
+		{"$y = $h{time # c\n};", "time", true},
+		{"$y = $h{-time\n};", "time", true},
+		{"$y = $h{if\n};", "if", true},
+		{"$y = $h{ -\nif};", "if", true},
 		{"$y = +{ time };", "time", true},
 		{"$y = +{ shift };", "shift", true},
 		{"$y = $h{time + 1};", "time", true},
@@ -78,6 +94,18 @@ func TestPortSubscriptsHashWordIsString(t *testing.T) {
 		isCall := slices.ContainsFunc(got, func(n string) bool { return n != "BAREWORD" })
 		if isCall != tc.call {
 			t.Errorf("%q: %s admits %v, want a call reading: %v", tc.src, tc.word, got, tc.call)
+		}
+	}
+}
+
+// scan_word(..., FALSE) reads no package part, so a package-qualified word is not forced: the Blanks bit is clear
+// on it and a Lone class cannot cut its readings. The set is the one the same word has in an anonymous hash.
+func TestPortSubscriptsHashWordPackageIsNotForced(t *testing.T) {
+	for _, w := range []string{"Foo::bar", "Foo'bar", "::foo", "foo::", "Foo::time"} {
+		sub := terminalsAt(t, "$y = $h{"+w+"};", strings.Index("$y = $h{"+w+"};", w))
+		hash := terminalsAt(t, "$y = +{"+w+"};", strings.Index("$y = +{"+w+"};", w))
+		if !slices.Equal(sub, hash) {
+			t.Errorf("%s: %v in a subscript, %v in an anonymous hash", w, sub, hash)
 		}
 	}
 }
