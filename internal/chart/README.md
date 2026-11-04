@@ -436,7 +436,7 @@ follows a variable, `->`, or a closing `]` or `}` (the cases `ClassOf` calls `Br
 A word alone in a subscript's braces is a string (toke.c's `yyl_leftcurly`, `toke.c:6656-6679`):
 `$h{time}`, `$h->{shift}`, `$h{-if}`. `+{ time }` is an anonymous hash and keeps its call reading. toke.c forces the
 word only when it is a plain identifier (`scan_word(..., FALSE, ...)` reads no package part, so `Foo::bar`,
-`Foo'bar`, `::foo` and `foo::` are not forced) and only spaces or tabs separate it from the `{`, from a minus
+`Foo'bar`, `::foo` and `foo::` are not forced) and only spaces or tabs separate it from the `{`, from a minus (but see the filetest letters below)
 before it, and from the `}`; a newline or a comment anywhere there leaves the word to the grammar, so
 `$h{if\n}` is refused and `$h{time\n}` calls `time`, as perl does.
 
@@ -448,7 +448,9 @@ gaps between raw tokens, in constant time and without allocating, only on a word
 other words never pay for it), and the table tests it as key part 11. INTERN's reference reads the same bit off the
 source bytes (`refBlanks`), and `TestBlanksAgreeWithReference` holds the two together.
 
-Two limits, both pinned in `TestPortSubscriptsKnownLimits`. `f(...)` is toke.c's zero-width `&` and a bareword
+Three limits, all pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
+where toke.c forces the string, because `internal/lexer` emits `-e` as one token (v0.1 `01a1a805-a94e-7b39-8021-c61fe44b13ec`);
+the minus rule above holds for every other word. `f(...)` is toke.c's zero-width `&` and a bareword
 (`toke.c:8195-8211`), which `internal/lexer` emits as the word alone, so `f()->{foo}` is refused until the
 scope-decided family (`01a18fa7-1b8b`) ports it; `&f()->{foo}` is accepted. A fit `amper: BAREWORD` would take
 it, and would also take `a::()`, which toke.c reads as a package name before it looks for the parenthesis
