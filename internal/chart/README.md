@@ -287,14 +287,14 @@ ATTRLIST holding every attribute and its argument as an opaque string
   `$c ? my ($x) : shared;`, which looks like `$c ? (my $x) : shared;`, and
   `$c ? my $x : shared : 1;`, whose second colon looks like the one in
   `$a ? $b ? 1 : c : d;`. `TestPortTermsAttributeColon` pins both. A word opens
-  an identifier only with a letter or `_`, so `$c ? my $x : ::foo;` is accepted
+  an identifier only with a letter, `_` or a UTF-8 byte (under `use utf8`), so `$c ? my $x : ::foo;` is accepted
   as perl accepts it.
 - Because `state` is a declarator with or without `use feature 'state'`
   (`01a1a29c-cd50-79a8-b87a-e9615c52af65`), `$c ? state $x : shared;` is refused
   without the feature, where perl reads `state` as a word and accepts it.
 - A quote-like neighbour's class also records whether it opens with a letter
   (`qw`, `q`, `qq`, `m`, `s`, `tr`, `y`), and an unnamed word's whether it opens
-  with a letter or `_`. This extends spec §7's neighbour class, which names the
+  with a letter, `_` or a UTF-8 byte. This extends spec §7's neighbour class, which names the
   text only of words, operators and closing brackets, so that a class can say
   "an identifier character follows". Lookup stays constant-time and
   allocation-free: the extra ids are fixed at compile time and `Intern` adds one
