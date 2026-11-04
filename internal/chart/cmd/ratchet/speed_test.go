@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"slices"
 	"strings"
@@ -188,4 +189,53 @@ func TestSpeedProtocolRefusesUnknownTimedPath(t *testing.T) {
 		}
 	}()
 	w.aggregate(t, []File{{"a", "T1"}, {"b", "T1"}}, []string{"a", "b", "huge"})
+}
+
+// TestSpeedLifetimes: with an injected recognizer constructor, long-lived
+// constructs once per pass and cold once per file, and every pass visits
+// every file exactly once.
+func TestSpeedLifetimes(t *testing.T) {
+	files := []string{"a.pl", "b.pl", "c.pl"}
+	srcs := map[string][]byte{"a.pl": []byte("a"), "b.pl": []byte("b"), "c.pl": []byte("c")}
+	passes := 3 * (warmupPairs + timedPairs) // chart passes of one Ratio
+	for _, cold := range []bool{false, true} {
+		constructed, visits := 0, map[string]int{}
+		chart := chartSide(srcs, func() func([]byte) {
+			constructed++
+			return func(src []byte) { visits[string(src)]++ }
+		})
+		var tick time.Duration
+		p := Protocol{Chart: chart, Ref: func() Runner { return func(string) {} },
+			Now: func() time.Duration { tick++; return tick }, GC: func() {}, Stderr: io.Discard}
+		p.Ratio("test", files, cold)
+		wantBuilt := passes
+		if cold {
+			wantBuilt = passes * len(files)
+		}
+		if constructed != wantBuilt {
+			t.Errorf("cold=%v: %d recognizers constructed, want %d", cold, constructed, wantBuilt)
+		}
+		for _, f := range files {
+			if visits[string(srcs[f])] != passes {
+				t.Errorf("cold=%v: %s visited %d times, want once per pass (%d)", cold, f, visits[string(srcs[f])], passes)
+			}
+		}
+	}
+}
+
+var allocSink [][]byte
+
+// TestAllocsPer: the figure is heap allocations over tokens, measured around the side's run.
+func TestAllocsPer(t *testing.T) {
+	side := func() Runner {
+		return func(string) {
+			for range 1000 {
+				allocSink = append(allocSink[:0], make([]byte, 64)) // one allocation each, kept alive
+			}
+		}
+	}
+	got := allocsPer(side, []string{"a", "b"}, 100)
+	if got < 20 || got > 25 { // 2000 allocations over 100 tokens, plus the runtime's own
+		t.Errorf("allocations per token %v, want about 20", got)
+	}
 }

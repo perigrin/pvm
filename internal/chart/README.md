@@ -174,8 +174,8 @@ To take a baseline after an intended change, run
 | `speed-ratio-std5k-cold` | the same, cold | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
 | `speed-ratio-aggregate-cold` | the same, cold | timing |
-| `alloc-per-token-chart` | the chart's allocations per token | timing |
-| `alloc-per-token-rd` | recursive descent's allocations per token | timing |
+| `alloc-per-token-chart` | the chart's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate | timing |
+| `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
 | `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`, `folded-into-token`) | reported |
@@ -190,7 +190,7 @@ Every timing ratio — `lex-overhead*` and `speed-ratio-*` — comes from one
 protocol in `cmd/ratchet/speed.go` (spec §9.3), code over injected sides, a
 clock and a collector, so it is tested on fake timings
 (`TestSpeedProtocol`, `TestSpeedProtocolExclusionBoundary`,
-`TestSpeedProtocolRefusesUnknownTimedPath`):
+`TestSpeedProtocolRefusesUnknownTimedPath`, `TestSpeedLifetimes`):
 
 - **Alternation.** The chart side and the reference side (recursive descent,
   or `lexer.Tokenize` for `lex-overhead`) are timed in alternating passes in
@@ -205,6 +205,16 @@ clock and a collector, so it is tested on fake timings
 - **The file set is an input.** `lex-overhead` passes every corpus file
   until the superset population exists and the aggregate after it; the speed
   ratios pass `std5k.pl` alone and the aggregate.
+- **What the speed ratios run.** The chart side is `chart/lex` then
+  `recognize.Recognize` on one recognizer: long-lived reuses it across a
+  pass's files (its intern table and cache persist), cold makes a fresh
+  one per file. Recursive descent is `parse.Parse`, which holds no state
+  between files, so its two lifetimes coincide. A file the chart refuses
+  stops the chart early, so until the chart recognizes the population
+  (`superset-recognized`) a ratio is a lower bound on the finished
+  recognizer's, reported for warning (§9.3 checkpoints). Allocations are one
+  cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
+  aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
   file whose recursive-descent time alone is more than 10% of recursive
   descent's time over the **whole** population, whatever subset is timed.
