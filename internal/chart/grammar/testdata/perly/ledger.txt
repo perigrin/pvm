@@ -20,7 +20,7 @@ perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrl
 
 perly.y:317 bare_statement_default: KW_DEFAULT block	ported
 
-perly.y:325 bare_statement_defer: KW_DEFER mblock	-
+perly.y:325 bare_statement_defer: KW_DEFER mblock	ported
 
 perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	ported
 
@@ -58,7 +58,7 @@ perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsu
 
 perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	fitted
 
-perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	-
+perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	fitted
 
 perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
 
@@ -70,7 +70,7 @@ perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_P
 
 perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont	ported
 
-perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	-
+perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	ported
 
 perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	-
 
@@ -88,9 +88,9 @@ perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE	ported
 
 perly.y:806 mremember: %empty	ported
 
-perly.y:812 catch_paren: empty	-
+perly.y:812 catch_paren: empty	excluded conditional-refusal
 
-perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE	-
+perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE	ported
 
 perly.y:825 stmtseq: empty	ported
 
@@ -102,11 +102,11 @@ perly.y:837 formstmtseq: formstmtseq formline	-
 
 perly.y:846 fullstmt: barestmt	ported
 
-perly.y:850 fullstmt: labfullstmt	-
+perly.y:850 fullstmt: labfullstmt	ported
 
-perly.y:854 labfullstmt: LABEL barestmt	-
+perly.y:854 labfullstmt: LABEL barestmt	fitted
 
-perly.y:861 labfullstmt: LABEL labfullstmt	-
+perly.y:861 labfullstmt: LABEL labfullstmt	fitted
 
 perly.y:878 barestmt: PLUGSTMT	excluded keyword-plugin
 
@@ -118,7 +118,7 @@ perly.y:881 barestmt: bare_statement_class_definition	-
 
 perly.y:882 barestmt: bare_statement_default	ported
 
-perly.y:883 barestmt: bare_statement_defer	-
+perly.y:883 barestmt: bare_statement_defer	ported
 
 perly.y:884 barestmt: bare_statement_expression	ported
 
@@ -144,7 +144,7 @@ perly.y:894 barestmt: bare_statement_sub_signature	-
 
 perly.y:895 barestmt: bare_statement_sub_traditional	ported
 
-perly.y:896 barestmt: bare_statement_try_catch	-
+perly.y:896 barestmt: bare_statement_try_catch	ported
 
 perly.y:897 barestmt: bare_statement_unless	ported
 
@@ -156,7 +156,7 @@ perly.y:900 barestmt: bare_statement_when	ported
 
 perly.y:901 barestmt: bare_statement_while	ported
 
-perly.y:902 barestmt: bare_statement_yadayada	-
+perly.y:902 barestmt: bare_statement_yadayada	ported
 
 perly.y:906 formline: THING formarg	-
 
@@ -192,9 +192,9 @@ perly.y:973 cont: empty	ported
 
 perly.y:974 cont: KW_CONTINUE block	ported
 
-perly.y:979 finally: %empty	-
+perly.y:979 finally: %empty	ported
 
-perly.y:981 finally: KW_FINALLY block	-
+perly.y:981 finally: KW_FINALLY block	ported
 
 perly.y:986 mintro: %empty	ported
 
