@@ -41,6 +41,9 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	case lexer.Word, lexer.Operator, lexer.CloseBracket:
 		c.Text = t.Text
 	}
+	if t.Kind == lexer.Quote && (t.Prefix >= 'a' && t.Prefix <= 'z' || t.Prefix == 'Q') {
+		c.Text = grammar.IdentQuote
+	}
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
 		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
@@ -52,6 +55,8 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 			c.Brace = grammar.BraceHash
 		}
 	}
+	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
+		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 	return c
 }
 
@@ -60,33 +65,6 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 // parts all match the token's key, found in tt.Sets. It walks no table and
 // hashes nothing, so it checks Intern and Lookup rather than restating them.
 func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar.TokenClass) []int {
-	type tok struct {
-		v grammar.TokenView
-		n grammar.Neighbour
-	}
-	var toks []tok
-	pred, opens := grammar.Boundary, 0
-	for _, t := range lexer.Tokenize(src) {
-		switch {
-		case lexer.IsTrivia(t.Kind):
-			continue
-		case t.Kind == lexer.HeredocBody && opens > 0:
-			opens--
-			continue
-		case t.Kind == lexer.HeredocOpen:
-			opens++
-		}
-		tx := string(src[t.Start:t.End])
-		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}
-		pred = refClassOf(v, pred)
-		toks = append(toks, tok{v, pred})
-	}
-	nb := func(i int) grammar.Neighbour {
-		if i < 0 || i >= len(toks) {
-			return grammar.Boundary
-		}
-		return toks[i].n
-	}
 	// A neighbour of grammar.OtherWord is a word, flags as given, that no class names.
 	named := map[string]bool{}
 	for _, c := range classes {
@@ -110,6 +88,65 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 		return want == nil || *want == got
 	}
+	// completes is whether a token leaves PL_expect at XOPERATOR: a name, or a token some class marks
+	// Completes, other than a block's }, which ends a statement more often than it ends a term.
+	completes := func(n grammar.Neighbour) bool {
+		if n.Name {
+			return true
+		}
+		for _, c := range classes {
+			if !c.Completes || c.Prev1 != nil {
+				continue
+			}
+			w := grammar.Neighbour{Kind: *c.Kind, OpensBlock: c.OpensBlock != nil && *c.OpensBlock}
+			switch {
+			case c.Text != nil:
+				w.Text = *c.Text
+			case *c.Kind == lexer.Word:
+				w.Text = grammar.OtherWord
+			case *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix >= 'a' && *c.Prefix <= 'z' || *c.Prefix == 'Q'):
+				w.Text = grammar.IdentQuote
+			}
+			if w.Kind == lexer.CloseBracket && w.Text == "}" && w.OpensBlock {
+				continue
+			}
+			if is(&w, n) {
+				return true
+			}
+		}
+		return false
+	}
+	type tok struct {
+		v grammar.TokenView
+		n grammar.Neighbour
+	}
+	var toks []tok
+	pred, opens := grammar.Boundary, 0
+	for _, t := range lexer.Tokenize(src) {
+		switch {
+		case lexer.IsTrivia(t.Kind):
+			continue
+		case t.Kind == lexer.HeredocBody && opens > 0:
+			opens--
+			continue
+		case t.Kind == lexer.HeredocOpen:
+			opens++
+		}
+		tx := string(src[t.Start:t.End])
+		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}
+		prev := pred
+		pred = refClassOf(v, prev)
+		if t.Kind == lexer.Operator && tx == "*" {
+			pred.Glob = !completes(prev)
+		}
+		toks = append(toks, tok{v, pred})
+	}
+	nb := func(i int) grammar.Neighbour {
+		if i < 0 || i >= len(toks) {
+			return grammar.Boundary
+		}
+		return toks[i].n
+	}
 	// ident is whether toks[i] starts with an identifier character: a word opening with a letter or _, or a quote-like opening with a letter.
 	ident := func(i int) bool {
 		return i >= 0 && i < len(toks) && (toks[i].v.Kind == lexer.Word && (toks[i].v.Text[0] == '_' || toks[i].v.Text[0]|0x20 >= 'a' && toks[i].v.Text[0]|0x20 <= 'z' || toks[i].v.Text[0] >= 0x80) ||
@@ -122,7 +159,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
-				!slices.Contains(c.NotText, t.v.Text) && !slices.Contains(c.NotPrev1, nb(i-1)) && !slices.Contains(c.NotPrev2, nb(i-2)) && !(c.NotNextIdent && ident(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
+				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -201,7 +239,8 @@ const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms)
+	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
+		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {

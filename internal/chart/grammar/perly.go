@@ -345,15 +345,15 @@ listexpr: listexpr PERLY_COMMA term # perly.y:1268
 
 listexpr: term # perly.y:1273
 
-# perly.y:1277 listop: LSTOP indirob listexpr
+listop: LSTOP indirob listexpr # perly.y:1277
 
-# perly.y:1281 listop: BLKLSTOP block listexpr
+listop: BLKLSTOP block listexpr # perly.y:1281
 
 # perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE
 
-# perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
+listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1289
 
-# perly.y:1295 listop: term ARROW methodname
+listop: term ARROW methodname # perly.y:1295
 
 # perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
 
@@ -363,17 +363,17 @@ listexpr: term # perly.y:1273
 
 # perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
 
-# perly.y:1324 listop: LSTOP optlistexpr
+listop: LSTOP optlistexpr # perly.y:1324
 
-# perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
+listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1326
 
 # perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND
 
 # perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr
 
-# perly.y:1344 methodname: METHCALL0
+methodname: METHCALL0 # perly.y:1344
 
-# perly.y:1345 methodname: scalar
+methodname: scalar # perly.y:1345
 
 # perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE
 
@@ -611,7 +611,7 @@ term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1697
 
 term: BAREWORD # perly.y:1712
 
-# perly.y:1713 term: listop
+term: listop # perly.y:1713
 
 # perly.y:1714 term: PLUGEXPR
 
@@ -713,7 +713,7 @@ star: PERLY_STAR BAREWORD # perly.y:1868, fitted: pvm emits * and the name as tw
 
 # perly.y:1890 indirob: scalar
 
-# perly.y:1892 indirob: block
+indirob: block # perly.y:1892
 
 # perly.y:1895 indirob: PRIVATEREF
 `
@@ -751,17 +751,17 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}},
 
-	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true)}},
-	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false)}},
+	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
+	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false), Completes: true}},
 
 	{"PERLY_BRACKET_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("[")}},
 
-	{"PERLY_BRACKET_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("]")}},
+	{"PERLY_BRACKET_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("]"), Completes: true}},
 
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
 
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$'))}},
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Completes: true}},
 
 	// PERLY_DOT
 
@@ -769,7 +769,7 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_MINUS", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
 
-	{"PERLY_PERCENT_SIGN", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('%'))}},
+	{"PERLY_PERCENT_SIGN", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('%')), Completes: true}},
 
 	{"PERLY_PLUS", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("+")}},
 
@@ -777,7 +777,7 @@ var perlyClasses = []ClassDecl{
 
 	// PERLY_SLASH
 
-	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('@'))}},
+	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('@')), Completes: true}},
 
 	{"PERLY_STAR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
 
@@ -848,17 +848,20 @@ var perlyClasses = []ClassDecl{
 	// Every word that is not a keyword; the one keyword toke.c falls through to a word when no
 	// operator is expected, x (KEY_x), is listed below. A keyword is a BAREWORD only where a position
 	// class says so; lt, gt, le, ge, eq, ne and cmp are never words.
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords()}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('v')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('5')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}}},
+	// A glob's name: yyl_star runs scan_ident, then sets PL_expect to XOPERATOR (TERM(PERLY_STAR)), but
+	// only for a * that is a glob sigil, which the neighbour class of the * says (Neighbour.Glob).
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 
-	// METHCALL0
+	// toke.c forces the word after -> to METHCALL0, a keyword or a quote-like operator's name included.
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "->"}, Completes: true}},
 
 	// METHCALL
 
@@ -872,22 +875,22 @@ var perlyClasses = []ClassDecl{
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Quote), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Variable), Prev1: &Neighbour{Kind: lexer.Operator, Text: "("}}},
 
-	{"THING", TokenClass{Kind: ptr(lexer.Number)}},
-	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\''))}},
-	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"'))}},
-	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q'))}},
-	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q'))}},
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\'')), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q')), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q')), Completes: true}},
 
 	// PMFUNC
 
 	// PRIVATEREF
 
-	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w'))}},
+	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w')), Completes: true}},
 
-	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__FILE__")}},
-	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__LINE__")}},
-	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__PACKAGE__")}},
-	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__SUB__")}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__FILE__"), Completes: true}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__LINE__"), Completes: true}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__PACKAGE__"), Completes: true}},
+	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__SUB__"), Completes: true}},
 
 	// FUNC0SUB
 
@@ -910,30 +913,30 @@ var perlyClasses = []ClassDecl{
 
 	// YADAYADA
 
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__CLASS__")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("break")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endhostent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endnetent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endservent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endprotoent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endpwent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endgrent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fork")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getppid")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotoent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getlogin")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpwent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setgrent")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("time")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("times")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wait")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wantarray")}},
-	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("continue"), NotNext: &blockOpen}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__CLASS__"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("break"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endhostent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endnetent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endservent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endprotoent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endpwent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("endgrent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fork"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getppid"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotoent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpwent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getgrent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getlogin"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpwent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setgrent"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("time"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("times"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wait"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("wantarray"), Completes: true}},
+	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("continue"), NotNext: &blockOpen, Completes: true}},
 
 	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), Next: &parenOpen}},
 	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), Next: &parenOpen}},
@@ -1019,7 +1022,98 @@ var perlyClasses = []ClassDecl{
 	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("evalbytes"), Next: &parenOpen}},
 	{"FUNC1", TokenClass{Kind: ptr(lexer.Word), Text: ptr("not"), Next: &parenOpen}},
 
-	// FUNC
+	// toke.c's lop() returns FUNC for a list operator whose next significant token is a parenthesis, LSTOP
+	// otherwise (BLKLSTOP for all and any); return is OLDLOP, LSTOP either way. all and any are read as
+	// keywords whether or not their feature is on. The next token, not adjacency, decides: `push (@a)` is FUNC.
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("accept"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("atan2"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("bind"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("binmode"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("bless"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("crypt"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chmod"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chown"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("connect"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("die"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dbmopen"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exec"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("formline"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fcntl"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("flock"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("grep"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpriority"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotobynumber"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostbyaddr"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetbyaddr"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservbyname"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservbyport"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getsockopt"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("glob"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("index"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ioctl"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("join"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("kill"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("link"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("listen"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("map"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("mkdir"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgctl"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgget"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgrcv"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgsnd"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("open"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("opendir"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("print"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("printf"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("push"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pack"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pipe"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rename"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rindex"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("read"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("recv"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("reverse"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("say"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("select"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("seek"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semctl"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semget"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semop"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("send"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpgrp"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpriority"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("seekdir"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setsockopt"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmctl"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmget"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmread"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmwrite"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shutdown"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("socket"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("socketpair"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sort"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("split"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sprintf"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("splice"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("substr"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("system"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("symlink"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("syscall"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysopen"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysseek"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysread"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("syswrite"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tie"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("truncate"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unlink"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unpack"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("utime"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unshift"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("vec"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("warn"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("waitpid"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("all"), Next: &parenOpen}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("any"), Next: &parenOpen}},
 
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), NotNext: &parenOpen}},
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), NotNext: &parenOpen}},
@@ -1131,15 +1225,100 @@ var perlyClasses = []ClassDecl{
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-A")}},
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-C")}},
 
-	// LSTOP
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("return")}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("accept"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("atan2"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("bind"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("binmode"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("bless"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("crypt"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chmod"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("chown"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("connect"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("die"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dbmopen"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("exec"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("formline"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("fcntl"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("flock"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("grep"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getpriority"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getprotobynumber"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("gethostbyaddr"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getnetbyaddr"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservbyname"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getservbyport"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("getsockopt"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("glob"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("index"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ioctl"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("join"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("kill"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("link"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("listen"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("map"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("mkdir"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgctl"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgget"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgrcv"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("msgsnd"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("open"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("opendir"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("print"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("printf"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("push"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pack"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("pipe"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rename"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("rindex"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("read"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("recv"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("reverse"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("say"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("select"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("seek"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semctl"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semget"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("semop"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("send"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpgrp"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setpriority"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("seekdir"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("setsockopt"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmctl"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmget"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmread"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shmwrite"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("shutdown"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("socket"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("socketpair"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sort"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("split"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sprintf"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("splice"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("substr"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("system"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("symlink"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("syscall"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysopen"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysseek"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sysread"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("syswrite"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("tie"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("truncate"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unlink"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unpack"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("utime"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("unshift"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("vec"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("warn"), NotNext: &parenOpen}},
+	{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("waitpid"), NotNext: &parenOpen}},
 
-	// BLKLSTOP
+	{"BLKLSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("all"), NotNext: &parenOpen}},
+	{"BLKLSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("any"), NotNext: &parenOpen}},
 
 	{"POWOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("**")}},
 
-	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}}, // NotPrev1 is filled by init
-	// A builtin's name called with & is a sub call, so x after it is repetition again.
-	{"MULOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), Prev2: &Neighbour{Kind: lexer.FuncSigil}}},
 	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
 	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("/")}},
 	{"MULOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("%")}},
@@ -1148,7 +1327,7 @@ var perlyClasses = []ClassDecl{
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("-")}},
 	{"ADDOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(".")}},
 
-	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#'))}},
+	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#')), Completes: true}},
 
 	// A `{` the lexer did not open as a block is an anonymous hash unless it follows what ClassOf makes
 	// a subscript's or a block's: a variable, a closing bracket, `->` or a deref sigil.
@@ -1263,34 +1442,81 @@ var perlyClasses = []ClassDecl{
 
 	{"PREDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--")}},
 
-	{"POSTINC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("++")}},
+	{"POSTINC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("++"), Completes: true}},
 
-	{"POSTDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--")}},
+	{"POSTDEC", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("--"), Completes: true}},
 
 	// POSTJOIN
 
-	// ARROW
+	{"ARROW", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("->")}},
 
-	{"PERLY_PAREN_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr(")")}},
+	{"PERLY_PAREN_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr(")"), Completes: true}},
 
 	{"PERLY_PAREN_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("(")}},
 }
 
-// init keeps x from being MULOP after the words that expect a term, where toke.c reads it as a word
-// (PL_expect is XTERM after a unary operator, LOOPEX or require, so KEY_x is yyl_just_a_word). They are
-// read off the classes themselves, so a word added to one of those terminals is excluded too.
+// xrefListOperators are the list operators toke.c's lop() calls with XREF, the ones a block can follow.
+var xrefListOperators = []string{"print", "printf", "say", "sort", "map", "grep", "exec", "system"}
+
+// init derives the x operator's classes. toke.c's KEY_x (toke.c:9209-9219 at 94e50866) makes x the
+// repetition operator exactly when PL_expect is XOPERATOR, and a word otherwise (BAREWORD, which no
+// neighbour limits). PL_expect is XOPERATOR right after a token that completes a term, so MULOP x
+// follows each class marked Completes, as the neighbour of that class: a variable (toke.c's scan_ident
+// callers), a number or string (scan_num, scan_str), a closing bracket (yyl_rightparen,
+// yyl_rightcurly), a postfix ++ or -- (the `case '+'` and `case '-'` arms), a FUNC0 or FUNC0OP word
+// (FUN0, FUN0OP), a bareword (yyl_just_a_word), a method name (force_word after ->) and a name called
+// with & or after * (the same, and yyl_star's scan_ident), whatever they spell. The named, list and filetest operators wait for a term, so
+// x after them is a word, as after a comma or an operator.
 func init() {
-	var termExpecting []Neighbour
+	// An x class has its neighbour either right before it (prev2 false) or two back.
+	type repeat struct {
+		n     Neighbour
+		prev2 bool
+	}
+	seen := map[repeat]bool{}
 	for _, d := range perlyClasses {
-		if k := d.Key; slices.Contains([]string{"UNIOP", "FUNC1", "LOOPEX", "NOTOP", "KW_REQUIRE"}, d.Terminal) && k.Kind != nil && k.Text != nil {
-			if n := (Neighbour{Kind: *k.Kind, Text: *k.Text}); !slices.Contains(termExpecting, n) {
-				termExpecting = append(termExpecting, n)
-			}
+		c := d.Key
+		if !c.Completes {
+			continue
+		}
+		x := TokenClass{Kind: ptr(lexer.Word), Text: ptr("x")}
+		if c.Prev1 != nil {
+			x.Prev2 = c.Prev1 // the name is whatever word follows it
+		} else {
+			n, _ := c.CompletedBy()
+			x.Prev1 = &n
+		}
+		key := repeat{prev2: x.Prev1 == nil}
+		if key.prev2 {
+			key.n = *x.Prev2
+		} else {
+			key.n = *x.Prev1
+		}
+		if !seen[key] {
+			seen[key] = true
+			perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 		}
 	}
-	for i, d := range perlyClasses {
-		if d.Terminal == "MULOP" && d.Key.Text != nil && *d.Key.Text == "x" && d.Key.Prev2 == nil {
-			perlyClasses[i].Key.NotPrev1 = termExpecting
+	limitBlockBrace(perlyClasses)
+}
+
+// limitBlockBrace takes the { away from a block after a list operator whose PL_expect is XTERM: toke.c
+// reads it as an anonymous hash, whatever the lexer decided, so `sprintf {$fh} $x` has no block to be
+// an indirob; only the XREF operators read it as one. Only the { class that no neighbour conditions is
+// cut: a class with a Prev1, Prev2, Next, NotText or NotNext of its own (a later `sub open {`) is a different reading of
+// the { and keeps its reach. shortcut: that unconditioned class also loses the { after a sub named like
+// such an operator until the sub family adds its conditioned one.
+func limitBlockBrace(classes []ClassDecl) {
+	var xterm []Neighbour
+	for _, d := range classes {
+		if k := d.Key; d.Terminal == "LSTOP" && k.Text != nil && !slices.Contains(xrefListOperators, *k.Text) {
+			xterm = append(xterm, Neighbour{Kind: lexer.Word, Text: *k.Text})
+		}
+	}
+	for i, d := range classes {
+		if k := d.Key; d.Terminal == "PERLY_BRACE_OPEN" && k.Prev1 == nil && k.Prev2 == nil && k.Next == nil &&
+			k.NotText == nil && k.NotNext == nil {
+			classes[i].Key.NotPrev1 = append(slices.Clone(k.NotPrev1), xterm...)
 		}
 	}
 }

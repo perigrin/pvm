@@ -322,15 +322,15 @@ perly.y:1268 listexpr: listexpr PERLY_COMMA term	ported
 
 perly.y:1273 listexpr: term	ported
 
-perly.y:1277 listop: LSTOP indirob listexpr	-
+perly.y:1277 listop: LSTOP indirob listexpr	ported
 
-perly.y:1281 listop: BLKLSTOP block listexpr	-
+perly.y:1281 listop: BLKLSTOP block listexpr	ported
 
 perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE	-
 
-perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
+perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
-perly.y:1295 listop: term ARROW methodname	-
+perly.y:1295 listop: term ARROW methodname	ported
 
 perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
 
@@ -340,17 +340,17 @@ perly.y:1312 listop: METHCALL0 indirob optlistexpr	-
 
 perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
 
-perly.y:1324 listop: LSTOP optlistexpr	-
+perly.y:1324 listop: LSTOP optlistexpr	ported
 
-perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
+perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
 perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND	-
 
 perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr	-
 
-perly.y:1344 methodname: METHCALL0	-
+perly.y:1344 methodname: METHCALL0	ported
 
-perly.y:1345 methodname: scalar	-
+perly.y:1345 methodname: scalar	ported
 
 perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
 
@@ -588,7 +588,7 @@ perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND	-
 
 perly.y:1712 term: BAREWORD	ported
 
-perly.y:1713 term: listop	-
+perly.y:1713 term: listop	ported
 
 perly.y:1714 term: PLUGEXPR	excluded keyword-plugin
 
@@ -690,6 +690,6 @@ perly.y:1888 indirob: BAREWORD	-
 
 perly.y:1890 indirob: scalar	-
 
-perly.y:1892 indirob: block	-
+perly.y:1892 indirob: block	ported
 
 perly.y:1895 indirob: PRIVATEREF	-
