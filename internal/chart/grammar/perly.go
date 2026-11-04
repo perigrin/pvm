@@ -373,7 +373,7 @@ listop: LSTOP optlistexpr # perly.y:1324
 
 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1326
 
-# perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND
+listop: FUNC # perly.y:1328, fitted: pvm emits a string, command, heredoc opener or readline and its interior as one Quote, HeredocOpen or Readline token (toke.c's FUNC SUBLEXSTART optexpr SUBLEXEND), which stands for them all as FUNC
 
 # perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr
 
@@ -613,7 +613,7 @@ term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1693
 
 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1697
 
-# perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND
+term: PMFUNC # perly.y:1699, fitted: pvm emits a pattern, substitution or transliteration and its interior, replacement included, as one Quote token (toke.c's PMFUNC SUBLEXSTART listexpr optrepl SUBLEXEND), which stands for them all as PMFUNC, so optrepl is excluded folded-into-token
 
 term: BAREWORD # perly.y:1712
 
@@ -985,12 +985,23 @@ var perlyClasses = []ClassDecl{
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(0)), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionStrict)), NotPrev2: afterUse, Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionLax)), NotPrev2: afterUse, Completes: true}},
+	// S_sublex_start (toke.c:2595) returns THING for a constant: '…' and q (yyl_sglquote, toke.c:7252; KEY_q, toke.c:8868),
+	// a "…" holding no $, @, \ or non-ASCII byte (yyl_dblquote, toke.c:7270), <<'EOF' (OP_CONST, toke.c:11712) and a readline
+	// (OP_NULL, toke.c:12200). Every other "…", heredoc and <…> is FUNC (below), and the token key cannot tell them
+	// apart, so those tokens are both: the accepted language is the same, as both are a whole term.
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('\'')), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q')), Completes: true}},
-	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q')), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.HeredocOpen), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Readline), Completes: true}},
 
-	// PMFUNC
+	// S_sublex_start returns PMFUNC for a quote-like whose op the scan built: m// and // (scan_pat, toke.c:8752, 7085),
+	// qr// (toke.c:8885), s/// (scan_subst, toke.c:8944), and tr/// and y/// (scan_trans, toke.c:9101).
+	{"PMFUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('/')), Completes: true}},
+	{"PMFUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('m')), Completes: true}},
+	{"PMFUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('r')), Completes: true}},
+	{"PMFUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('s')), Completes: true}},
+	{"PMFUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('y')), Completes: true}},
 
 	// A sub's name after &: yyl_ampersand forces it through pending_ident (toke.c:6949), which makes a lexical sub's
 	// name PRIVATEREF (toke.c:10397) and a package sub's BAREWORD; scope tells them apart.
@@ -1230,6 +1241,15 @@ var perlyClasses = []ClassDecl{
 	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("waitpid"), Next: &parenOpen}},
 	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("all"), Next: &parenOpen}},
 	{"FUNC", TokenClass{Kind: ptr(lexer.Word), Text: ptr("any"), Next: &parenOpen}},
+	// S_sublex_start returns FUNC for an interpolating string: a "…" holding $, @, \ or a non-ASCII byte (toke.c:7272) and
+	// every qq (OP_STRINGIFY, toke.c:8879); a command, `…` and qx (OP_BACKTICK, toke.c:7284, 8889); a heredoc but <<'EOF'
+	// (OP_SCALAR, toke.c:11620); and a glob <*.c> (OP_GLOB, toke.c:12123).
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('"')), Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('Q')), Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('`')), Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('x')), Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.HeredocOpen), Completes: true}},
+	{"FUNC", TokenClass{Kind: ptr(lexer.Readline), Completes: true}},
 
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("abs"), NotNext: nextNotParen}},
 	{"UNIOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("alarm"), NotNext: nextNotParen}},

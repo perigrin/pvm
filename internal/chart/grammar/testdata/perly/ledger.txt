@@ -344,7 +344,7 @@ perly.y:1324 listop: LSTOP optlistexpr	ported
 
 perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
-perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND	-
+perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND	fitted
 
 perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr	-
 
@@ -584,7 +584,7 @@ perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
 perly.y:1697 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND	-
+perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND	fitted
 
 perly.y:1712 term: BAREWORD	ported
 
@@ -628,9 +628,9 @@ perly.y:1792 optexpr: empty	ported
 
 perly.y:1793 optexpr: expr	ported
 
-perly.y:1797 optrepl: empty	-
+perly.y:1797 optrepl: empty	excluded folded-into-token
 
-perly.y:1798 optrepl: PERLY_SLASH expr	-
+perly.y:1798 optrepl: PERLY_SLASH expr	excluded folded-into-token
 
 perly.y:1803 my_scalar: scalar	ported
 

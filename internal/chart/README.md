@@ -478,6 +478,27 @@ Known limit:
   emits the body's tokens (`01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b`). A pinned row
   in `TestPortFormatsRefusals` fails when the limit goes.
 
+### Quote-likes and heredocs
+
+`internal/lexer` emits a quote-like with its interior as one token (Quote,
+HeredocOpen or Readline) where toke.c sublexes it, so rule 1328 is fitted as
+`listop: FUNC` and rule 1699 as `term: PMFUNC`, each terminal standing for its
+whole `SUBLEXSTART … SUBLEXEND` run; `optrepl` (1797, 1798), the substitution's
+replacement inside the token, is `excluded folded-into-token`. The terminal
+follows toke.c's `S_sublex_start`: THING for `'…'`, `q` and `<<'EOF'`; FUNC
+for `qq`, `` `…` ``, `qx`, the other heredocs and a glob `<*.c>`; PMFUNC for
+`m//`, `//`, `qr`, `s///`, `tr` and `y`; QWLIST for `qw`. A `"…"` is THING
+when it holds no `$`, `@`, `\` or non-ASCII byte and FUNC otherwise, and a
+readline `<FH>` THING where a glob is FUNC; the key cannot tell them apart, so
+those tokens admit both, which accepts nothing more, as each is a whole term.
+Heredoc bodies are trivia (see chart/lex below). Known limit, spec §2's parity
+limit:
+
+- Interpolated code, `s///e` bodies and `qw` lists are inside their one token,
+  so `$y = "@{[ 1 + ]}";` is accepted where perl refuses it. It counts in
+  `chart-accepted-perl-refused`; a pinned row in `TestPortQuoteLikesRefusals`
+  fails when the limit goes.
+
 ### Subscripts
 
 The `;` perly.y spells before a subscript's `}` (`expr PERLY_SEMICOLON PERLY_BRACE_CLOSE`) is toke.c's artifact,
@@ -579,7 +600,11 @@ whatever the file's length.
   token after the opener's line: the bodies after a line go to that line's
   openers in order, each in the stream's `Bodies` side table under its
   opener's index (`Stream.Body(i)`). Trivia a body interrupts still goes to
-  the next significant token; `Lead` leaves the body out.
+  the next significant token; `Lead` leaves the body out. A body whose opener
+  is inside a quote-like (`"@{[ <<EOF ]}"`, one Quote token) goes to the token
+  before it, a known limit pinned in `TestPortQuoteLikesHeredocBodyIsTrivia`
+  (only `Stream.Body` and the tdt pairing read which token holds a body), and
+  an opener no body follows gets set 0, as perl finds no terminator for it.
 - **Every token is mapped.** A token whose key matches no class gets set 0,
   the empty set, and the stream goes on, so a file is always lexed whole;
   `Lex` also returns the byte of the first such token, or -1. The recognizer
