@@ -277,6 +277,25 @@ ATTRLIST holding every attribute and its argument as an opaque string
 - `when` maps to KW_WHEN with or without `use feature 'switch'`, so
   `$y = 1 when $x;` is accepted where perl refuses it without the feature
   (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
+- `given` and `default` map to KW_GIVEN and KW_DEFAULT with or without
+  `use feature 'switch'`, so `given ($x) { 1 }` and `given ($x) { default { 1 } }`
+  are accepted where perl refuses them without the feature, as a bareword
+  call (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). `when` and `default` outside
+  a topicalizer are accepted too: their scope refusals are waypoint 2's.
+- `for our (…)` and `for state (…)` at a statement start are refused, as toke.c's
+  `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
+  parenthesised list); `1 for our ($x);` stays accepted. The statement start is
+  read as the token two back from `our`: a file's start, `;`, a block's `{`, a
+  block's `}`.
+  Two leftovers: a `do`, `eval` or anonymous-sub block's `}` reads as a statement
+  start, so `do {1} for our ($x);` is refused where perl accepts it, because the
+  lexer does not mark what a `}` closes (`01a1a422-9176-7153-8625-6535b483a4b4`);
+  and a label's `:` is not a statement start, because a bare `:` cannot be told from
+  an attribute list's (`my $y : for our ($x);` is legal), so once labels land
+  `L: for our ($x) (1) {}` is accepted where perl croaks. try/defer
+  (`01a18fa7-01db-7f91-853d-e9147df0c30a`) introduces labels and closes it. The
+  croak is not a syntax error, so these forms are inline rows in
+  `TestPortLoopsRefusals`, not snippets.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - A `:` after `my`, `our` or `state` and a variable is the attribute colon when
   an identifier character follows (toke.c's `yyl_colon`), so

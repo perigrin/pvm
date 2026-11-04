@@ -235,11 +235,16 @@ const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $
 	"$c ? my $x : 'a'; $c ? my $x : s/a/b/; $c ? my $x : tr/a/b/; $c ? my $x : y/a/b/; $c ? my $x : m/a/; $c ? my $x : qq(a); " +
 	"$c ? my $x : ::foo; use utf8; $c ? my $x : é; my $x :Foo é bar; my $x : Foo ::bar baz; $c ? (my $x) : shared; $c ? local $x : shared; $c ? $x : shared; $c ? my ($x) : shared; $c ? my $x :\n"
 
+// loopForms start the source, for NotPrev2's start of file: for our and state with a parenthesis at each kind of statement start,
+// and where it is not one.
+const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($a) (1) {} } sub f {} for our ($a) (1) {} " +
+	"1 for our ($x); do {1} for state ($x); $h{a} for our ($x); for our $x (1) {} $c ? 1 : 2 for our ($x); L: for our ($x) (1) {} "
+
 // The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte("shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
+	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
