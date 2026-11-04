@@ -123,6 +123,14 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 // when a class needs a neighbour that is any word.
 const OtherWord = "\x00other-word"
 
+// The Prefix of a Number that toke.c reads as a version: chart/lex derives it from the number's text and
+// the byte after it, which the key otherwise drops. VersionStrict is what force_strict_version admits
+// after a package name, VersionLax the rest of what force_version admits after use and no.
+const (
+	VersionStrict = 'S'
+	VersionLax    = 'L'
+)
+
 // IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
 // as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
 const IdentQuote = "\x00ident-quote"
