@@ -35,16 +35,21 @@ func TestRepeatClassesFollowCompletes(t *testing.T) {
 	// What completes a term, from toke.c: a variable, number or string; a closing bracket; a
 	// no-argument builtin; a bareword; a method name; a name called with &.
 	for name, want := range map[string]struct{ prev1, prev2 *Neighbour }{
-		"variable":    {&Neighbour{Kind: lexer.Variable}, nil},
-		"number":      {&Neighbour{Kind: lexer.Number}, nil},
-		"close paren": {&Neighbour{Kind: lexer.CloseBracket, Text: ")"}, nil},
-		"post-inc":    {&Neighbour{Kind: lexer.Operator, Text: "++"}, nil},
-		"time":        {&Neighbour{Kind: lexer.Word, Text: "time"}, nil},
-		"__PACKAGE__": {&Neighbour{Kind: lexer.Word, Text: "__PACKAGE__"}, nil},
-		"bareword":    {&Neighbour{Kind: lexer.Word, Text: OtherWord}, nil},
-		"method name": {nil, &Neighbour{Kind: lexer.Operator, Text: "->"}},
-		"& name":      {nil, &Neighbour{Kind: lexer.FuncSigil}},
-		"glob name":   {nil, &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}},
+		"variable":      {&Neighbour{Kind: lexer.Variable}, nil},
+		"number":        {&Neighbour{Kind: lexer.Number}, nil},
+		"close bracket": {&Neighbour{Kind: lexer.CloseBracket, Text: "]"}, nil},
+		"subscript }":   {&Neighbour{Kind: lexer.CloseBracket, Text: "}"}, nil},
+		"block }":       {&Neighbour{Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}, nil},
+		"string":        {&Neighbour{Kind: lexer.Quote}, nil},
+		"qw":            {&Neighbour{Kind: lexer.Quote, Text: IdentQuote}, nil},
+		"close paren":   {&Neighbour{Kind: lexer.CloseBracket, Text: ")"}, nil},
+		"post-inc":      {&Neighbour{Kind: lexer.Operator, Text: "++"}, nil},
+		"time":          {&Neighbour{Kind: lexer.Word, Text: "time"}, nil},
+		"__PACKAGE__":   {&Neighbour{Kind: lexer.Word, Text: "__PACKAGE__"}, nil},
+		"bareword":      {&Neighbour{Kind: lexer.Word, Text: OtherWord}, nil},
+		"method name":   {nil, &Neighbour{Kind: lexer.Operator, Text: "->"}},
+		"& name":        {nil, &Neighbour{Kind: lexer.FuncSigil}},
+		"glob name":     {nil, &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}},
 	} {
 		if !hasRepeat(want.prev1, want.prev2) {
 			t.Errorf("no MULOP x class after a %s", name)
