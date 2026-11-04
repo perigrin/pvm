@@ -406,3 +406,53 @@ func TestTokenNotPrev1(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenNotPrev2(t *testing.T) {
+	my, semi := ClassOf(word("my"), none), ClassOf(op(";"), none)
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Text: ptr("x"), NotPrev2: []Neighbour{my}},
+		TokenClass{Terminals: []int{2}, Text: ptr("x")})
+	for _, c := range []struct {
+		prev2 Neighbour
+		want  []int
+	}{{my, []int{2}}, {semi, []int{1, 2}}, {Boundary, []int{1, 2}}} {
+		if got := tt.set(word("x"), c.prev2, none, none); !slices.Equal(got, c.want) {
+			t.Errorf("x after %+v is %v, want %v", c.prev2, got, c.want)
+		}
+	}
+}
+
+// NotNextIdent keeps a class off the keys whose next token starts with an identifier character: any
+// word, a word some class names or none does, or a quote-like opening with a letter.
+func TestTokenNotNextIdent(t *testing.T) {
+	if_ := ClassOf(word("if"), none)
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Text: ptr(":"), NotNextIdent: true},
+		TokenClass{Terminals: []int{2}, Text: ptr(":"), Prev1: &if_}) // names the word if as a neighbour
+	for _, c := range []struct {
+		name string
+		next TokenView
+		want []int
+	}{
+		{"unnamed word", word("shared"), nil},
+		{"named word", word("if"), nil},
+		{"word opening with ::", word("::foo"), []int{1}},
+		{"word opening with _", word("_a"), nil},
+		{"qw", TokenView{Kind: lexer.Quote, Text: "qw(a)", Prefix: 'w'}, nil},
+		{"qq", TokenView{Kind: lexer.Quote, Text: "qq(a)", Prefix: 'Q'}, nil},
+		{"s", TokenView{Kind: lexer.Quote, Text: "s/a/b/", Prefix: 's'}, nil},
+		{"double quote", TokenView{Kind: lexer.Quote, Text: `"a"`, Prefix: '"'}, []int{1}},
+		{"single quote", TokenView{Kind: lexer.Quote, Text: `'a'`, Prefix: '\''}, []int{1}},
+		{"number", TokenView{Kind: lexer.Number, Text: "1"}, []int{1}},
+		{"variable", TokenView{Kind: lexer.Variable, Text: "$z", Prefix: '$'}, []int{1}},
+		{"operator", op("-"), []int{1}},
+	} {
+		next := tt.interned(c.next, none).Class
+		if got := tt.Sets[tt.Lookup(tt.interned(op(":"), none), tt.Edge, tt.Edge, next)]; !slices.Equal(got, c.want) && len(got)+len(c.want) > 0 {
+			t.Errorf("%s: : before it is %v, want %v", c.name, got, c.want)
+		}
+	}
+	if got := tt.Sets[tt.Lookup(tt.interned(op(":"), none), tt.Edge, tt.Edge, tt.Edge)]; !slices.Equal(got, []int{1}) {
+		t.Errorf("a : at the end of the file is %v, want [1]", got)
+	}
+}

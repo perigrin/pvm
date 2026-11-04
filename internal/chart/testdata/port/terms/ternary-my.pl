@@ -1,0 +1,11 @@
+use feature 'state';
+$y = $c ? my $x : 1;
+$y = $c ? my $x : $z;
+$y = $c ? my $x : -1;
+$y = $c ? my $x : "s";
+$y = $c ? my $x : \$z;
+$y = $c ? (my $x) : shared;
+$y = $c ? local $g : shared;
+$y = $c ? state $x : 1;
+$y = $c ? our $x : (my $z);
+my $w : shared;
