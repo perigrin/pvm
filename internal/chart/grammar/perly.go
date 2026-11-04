@@ -731,10 +731,11 @@ var (
 	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
 
 	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
-	// `{` and a block's `}`.
-	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start (ClassOf's own shortcut),
-	// and a label's `:` must join this set when labels land; upgrade when the lexer marks the former.
-	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}}
+	// `{` and a block's `}`, and the `:` of a label (a `:` two back from `our (` with a `for` between can only be one).
+	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start because the lexer does not mark
+	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does. An `L:` refusal row belongs in
+	// TestPortLoopsRefusals once labels are on the base.
+	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}, {Kind: lexer.Operator, Text: ":"}}
 
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or

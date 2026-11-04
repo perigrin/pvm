@@ -285,12 +285,13 @@ ATTRLIST holding every attribute and its argument as an opaque string
 - `for our (…)` and `for state (…)` at a statement start are refused, as toke.c's
   `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
   parenthesised list); `1 for our ($x);` stays accepted. The statement start is
-  read as the token two back from `our`: a file's start, `;`, a block's `{` or a
-  block's `}`. Two leftovers: a `do`, `eval` or anonymous-sub block's `}` reads as
-  a statement start (`ClassOf`'s shortcut), so `do {1} for our ($x);` is refused
-  where perl accepts it; and once labels land a label's `:` must join the
-  statement-start set, or `L: for our ($x) (@l) {1}` will be accepted where perl croaks. The croak is not a
-  syntax error, so these forms are inline rows in `TestPortLoopsRefusals`, not snippets.
+  read as the token two back from `our`: a file's start, `;`, a block's `{`, a
+  block's `}` or a label's `:`. One leftover: a `do`, `eval` or anonymous-sub
+  block's `}` reads as a statement start, so `do {1} for our ($x);` is refused
+  where perl accepts it, because the lexer does not mark what a `}` closes
+  (`01a1a422-9176-7153-8625-6535b483a4b4`). The croak is not a syntax error, so
+  these forms are inline rows in `TestPortLoopsRefusals`, not snippets; the
+  `L:` row joins them once labels are on the base.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - A `:` after `my`, `our` or `state` and a variable is the attribute colon when
   an identifier character follows (toke.c's `yyl_colon`), so
