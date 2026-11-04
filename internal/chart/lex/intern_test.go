@@ -152,6 +152,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		return i >= 0 && i < len(toks) && (toks[i].v.Kind == lexer.Word && (toks[i].v.Text[0] == '_' || toks[i].v.Text[0]|0x20 >= 'a' && toks[i].v.Text[0]|0x20 <= 'z' || toks[i].v.Text[0] >= 0x80) ||
 			toks[i].v.Kind == lexer.Quote && (toks[i].v.Prefix >= 'a' && toks[i].v.Prefix <= 'z' || toks[i].v.Prefix == 'Q'))
 	}
+	// name is whether a sub's name starts at toks[i]: an identifier start, or a word opening with :: or '.
+	name := func(i int) bool { return ident(i) || i >= 0 && i < len(toks) && toks[i].v.Kind == lexer.Word }
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
@@ -160,7 +162,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
-				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -245,7 +247,8 @@ const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
-		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; ")
+		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
+		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {

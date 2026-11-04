@@ -52,11 +52,11 @@ perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PER
 
 perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE	-
 
-perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody	-
+perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody	ported
 
 perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody	-
 
-perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	-
+perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	fitted
 
 perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	-
 
@@ -138,11 +138,11 @@ perly.y:891 barestmt: bare_statement_package_declaration	-
 
 perly.y:892 barestmt: bare_statement_package_definition	-
 
-perly.y:893 barestmt: bare_statement_phaser	-
+perly.y:893 barestmt: bare_statement_phaser	ported
 
 perly.y:894 barestmt: bare_statement_sub_signature	-
 
-perly.y:895 barestmt: bare_statement_sub_traditional	-
+perly.y:895 barestmt: bare_statement_sub_traditional	ported
 
 perly.y:896 barestmt: bare_statement_try_catch	-
 
@@ -218,25 +218,25 @@ perly.y:1020 formname: empty	-
 
 perly.y:1023 startsub: %empty	ported
 
-perly.y:1029 startanonsub: %empty	-
+perly.y:1029 startanonsub: %empty	ported
 
 perly.y:1034 startanonmethod: %empty	-
 
 perly.y:1039 startformsub: %empty	-
 
-perly.y:1045 subname: BAREWORD	-
+perly.y:1045 subname: BAREWORD	ported
 
 perly.y:1046 subname: PRIVATEREF	-
 
-perly.y:1051 proto: empty	-
+perly.y:1051 proto: empty	ported
 
-perly.y:1052 proto: PROTOTYPE	-
+perly.y:1052 proto: PROTOTYPE	ported
 
-perly.y:1057 subattrlist: empty	-
+perly.y:1057 subattrlist: empty	ported
 
-perly.y:1058 subattrlist: COLONATTR ATTRLIST	-
+perly.y:1058 subattrlist: COLONATTR ATTRLIST	fitted
 
-perly.y:1065 subattrlist: COLONATTR	-
+perly.y:1065 subattrlist: COLONATTR	ported
 
 perly.y:1070 attrlist: COLONATTR ATTRLIST	fitted
 
@@ -294,11 +294,11 @@ perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE	-
 
 perly.y:1185 subsigguts: $@20 optsiglist	ported
 
-perly.y:1218 optsubbody: subbody	-
+perly.y:1218 optsubbody: subbody	ported
 
-perly.y:1219 optsubbody: PERLY_SEMICOLON	-
+perly.y:1219 optsubbody: PERLY_SEMICOLON	ported
 
-perly.y:1224 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE	-
+perly.y:1224 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE	ported
 
 perly.y:1236 optsigsubbody: sigsubbody	-
 
@@ -332,9 +332,9 @@ perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_
 
 perly.y:1295 listop: term ARROW methodname	ported
 
-perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	-
+perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
-perly.y:1306 listop: term ARROW PERLY_AMPERSAND subname	-
+perly.y:1306 listop: term ARROW PERLY_AMPERSAND subname	ported
 
 perly.y:1312 listop: METHCALL0 indirob optlistexpr	-
 
@@ -472,7 +472,7 @@ perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE	ported
 
 perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
-perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	-
+perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	ported
 
 perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist	-
 
