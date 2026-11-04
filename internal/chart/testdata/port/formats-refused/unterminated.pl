@@ -1,0 +1,3 @@
+format STDOUT =
+@<<<
+$x

@@ -1,0 +1,4 @@
+format print =
+@<<<
+$x
+.
