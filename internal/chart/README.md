@@ -449,16 +449,14 @@ gaps between raw tokens, in constant time and without allocating, only on a word
 other words never pay for it), and the table tests it as key part 11. INTERN's reference reads the same bit off the
 source bytes (`refBlanks`), and `TestBlanksAgreeWithReference` holds the two together.
 
-Three limits, all pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
+Two limits, both pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
 where toke.c forces the string, because `internal/lexer` emits `-e` as one token (v0.1 `01a1a805-a94e-7b39-8021-c61fe44b13ec`);
 the minus rule above holds for every other word. `f(...)` is toke.c's zero-width `&` and a bareword
 (`toke.c:8195-8211`), which `internal/lexer` emits as the word alone, so `f()->{foo}` is refused until the
 scope-decided family (`01a18fa7-1b8b`) ports it; `&f()->{foo}` is accepted. A fit `amper: BAREWORD` would take
 it, and would also take `a::()`, which toke.c reads as a package name before it looks for the parenthesis
 (`safebw`, `toke.c:8192`): no class can tell a word ending in `::` apart, and the guacamole case
-`Statements-Expressions-Value-NonLiteral-SubCall-001.pl` is the file that refuses it. Two words in a subscript's
-braces, `$h{a b}`, are an indirect-object call to perl and are refused until that family (`01a18fa6-f3c8`) ports
-its forms.
+`Statements-Expressions-Value-NonLiteral-SubCall-001.pl` is the file that refuses it.
 
 ### Indirect objects
 
