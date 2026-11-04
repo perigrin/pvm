@@ -97,27 +97,43 @@ func TestPortListOperatorsFuncVersusLstop(t *testing.T) {
 
 // toke.c's KEY_x is the repetition operator exactly when PL_expect is XOPERATOR, which a token that
 // completes a term leaves, and a word otherwise. perl -c (94e50866) agrees with every row.
+//
+// Pinned for when do blocks land (remaining terms): `$y = do { 1 } * ref x 3;` will be accepted, where perl
+// refuses it, because the neighbour cannot tell a do block's } from a statement block's. Add it as an
+// accepted row marked with this issue then, until the lexer marks what a } closes
+// (01a1a422-9176-7153-8625-6535b483a4b4). It cannot be a row here: do blocks are not ported on this base.
 func TestPortListOperatorsXRule(t *testing.T) {
 	for src, want := range map[string]bool{
-		"$z x 3;":               true,
-		"$i++ x 3;":             true,
-		"time x 3;":             true,
-		"x x x;":                true,
-		"$y = 1 x 2 x 3;":       true,
-		"$y = push(@a, 1) x 3;": true,
-		"$o->ref x 3;":          true,
-		"$o->print x 3;":        true,
-		"&ref x 3;":             true,
-		"&print x 3;":           true,
-		"*print x 3;":           true, // a glob's name, whatever it spells
-		"*open x 3;":            true,
-		"$y = *print x 3;":      true,
-		"ref x 3;":              false,
-		"shift x 3;":            false,
-		"last x 3;":             false,
-		"push @a, x 3;":         false,
-		"$y = 1, x 3;":          false,
-		"$z x;":                 false,
+		"$z x 3;":                   true,
+		"$i++ x 3;":                 true,
+		"time x 3;":                 true,
+		"x x x;":                    true,
+		"$y = 1 x 2 x 3;":           true,
+		"$y = push(@a, 1) x 3;":     true,
+		"$o->ref x 3;":              true,
+		"$o->print x 3;":            true,
+		"&ref x 3;":                 true,
+		"&print x 3;":               true,
+		"*print x 3;":               true,  // a glob's name, whatever it spells
+		"$y = 2 * *print x 3;":      true,  // a glob after a multiplication
+		"if (1) { } *print x 3;":    true,  // a glob after a block
+		"$y = 2 * ref x 3;":         false, // a multiplication, so ref waits for a term
+		"$y = $a * shift x 3;":      false,
+		"$y = 2 * x 3;":             false,
+		"foo * ref x 3;":            false, // a bareword completes a term, so the * multiplies
+		"$y = foo * ref x 3;":       false,
+		"$y = *print * ref x 3;":    false, // a glob's name completes a term, spelled like a keyword or not
+		"$y = &print * ref x 3;":    false,
+		"$y = $o->print * ref x 3;": false,
+		"$y = *print * *print x 3;": true,
+		"*open x 3;":                true,
+		"$y = *print x 3;":          true,
+		"ref x 3;":                  false,
+		"shift x 3;":                false,
+		"last x 3;":                 false,
+		"push @a, x 3;":             false,
+		"$y = 1, x 3;":              false,
+		"$z x;":                     false,
 	} {
 		if v := recognizeSource(t, []byte(src)); v.accepted != want {
 			t.Errorf("%q: accepted %v, want %v (refused at %d, expecting %v)", src, v.accepted, want, v.at, v.expected)
