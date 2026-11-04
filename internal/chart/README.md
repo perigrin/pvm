@@ -433,12 +433,20 @@ so the three brace rules (1366, 1369, 1373) are fitted without it, and a written
 refused, as perl does. A subscript's `{` is `PERLY_BRACE_OPEN` when the lexer did not open it as a block and it
 follows a variable, `->`, or a closing `]` or `}` (the cases `ClassOf` calls `BraceSubscript`).
 
-A word alone in a subscript's braces, after a minus or not, is a string whatever the word is (toke.c's
-`yyl_leftcurly`, `toke.c:6656-6679`): `$h{time}`, `$h->{shift}`, `$h{-if}`. `+{ time }` is an anonymous hash
-and keeps its call reading. `TokenClass.Lone` states it: the Lone class names its surroundings (`Prev2`, `Prev1`
-and `Next`) and `CompileTokens` cuts every other class of a word wherever they all hold, as one copy of the
-class per neighbour with that neighbour excluded, so the table gains no key part and `Lookup` no work. INTERN's
-reference implements the cut on its own (`lex/intern_test.go`, `loneForms`).
+A word alone in a subscript's braces is a string (toke.c's `yyl_leftcurly`, `toke.c:6656-6679`):
+`$h{time}`, `$h->{shift}`, `$h{-if}`. `+{ time }` is an anonymous hash and keeps its call reading. toke.c forces the
+word only when it is a plain identifier (`scan_word(..., FALSE, ...)` reads no package part, so `Foo::bar`,
+`Foo'bar`, `::foo` and `foo::` are not forced) and only spaces or tabs separate it from the `{`, from a minus
+before it, and from the `}`; a newline or a comment anywhere there leaves the word to the grammar, so
+`$h{if\n}` is refused and `$h{time\n}` calls `time`, as perl does.
+
+`TokenClass.Lone` states it: the Lone class names its surroundings (`Prev2`, `Prev1`, `Next` and `Blanks`) and
+`CompileTokens` cuts every other class of a word wherever they all hold, as one copy of the class per part the Lone
+class names with that part's value excluded, so `Lookup` does no more work. The blanks and the plain name are one
+token bit, **`Blanks`**, a §7 extension by perigrin's ruling ("Add the blanks bit"): `chart/lex` sets it from the
+gaps between raw tokens, in constant time and without allocating, only on a word a closing bracket follows (the
+other words never pay for it), and the table tests it as key part 11. INTERN's reference reads the same bit off the
+source bytes (`refBlanks`), and `TestBlanksAgreeWithReference` holds the two together.
 
 Two limits, both pinned in `TestPortSubscriptsKnownLimits`. `f(...)` is toke.c's zero-width `&` and a bareword
 (`toke.c:8195-8211`), which `internal/lexer` emits as the word alone, so `f()->{foo}` is refused until the

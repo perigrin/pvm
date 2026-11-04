@@ -912,8 +912,8 @@ var perlyClasses = []ClassDecl{
 
 	// toke.c forces a word that stands alone in a subscript's braces to BAREWORD before it looks the word up
 	// (yyl_leftcurly, toke.c:6656-6679), a minus before it included.
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &subscriptOpen, Next: &subscriptClose, Lone: true}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev2: &subscriptOpen, Prev1: &minus, Next: &subscriptClose, Lone: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &subscriptOpen, Next: &subscriptClose, Blanks: ptr(true), Lone: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev2: &subscriptOpen, Prev1: &minus, Next: &subscriptClose, Blanks: ptr(true), Lone: true}},
 
 	// toke.c forces the word after -> to METHCALL0, a keyword or a quote-like operator's name included.
 	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "->"}, Completes: true}},
