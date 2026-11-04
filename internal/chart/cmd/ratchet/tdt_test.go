@@ -160,6 +160,8 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 		"blanks":       func(c *grammar.TokenClass) { c.Blanks = ptr(true) },
 		"noblanks":     func(c *grammar.TokenClass) { c.Blanks = ptr(false) },
 		"lone":         func(c *grammar.TokenClass) { c.Lone = true },
+		"prev1var":     func(c *grammar.TokenClass) { c.Prev1 = &grammar.Neighbour{Kind: lexer.Variable} },
+		"prev1array":   func(c *grammar.TokenClass) { c.Prev1 = &grammar.Neighbour{Kind: lexer.Variable, Array: true} },
 	} {
 		c := base
 		mod(&c)
