@@ -68,11 +68,12 @@ bare_statement_null: PERLY_SEMICOLON # perly.y:532
 
 # perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE
 
-# perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody
+bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 
 # perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody
 
-# perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody
+bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the next rule is its fit
+bare_statement_sub_traditional: KW_SUB_named startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits BEGIN, END and their kin as one word where toke.c (toke.c:8315, really_sub) emits KW_SUB_named and the name
 
 # perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally
 
@@ -154,11 +155,11 @@ barestmt: bare_statement_null # perly.y:890
 
 # perly.y:892 barestmt: bare_statement_package_definition
 
-# perly.y:893 barestmt: bare_statement_phaser
+barestmt: bare_statement_phaser # perly.y:893
 
 # perly.y:894 barestmt: bare_statement_sub_signature
 
-# perly.y:895 barestmt: bare_statement_sub_traditional
+barestmt: bare_statement_sub_traditional # perly.y:895
 
 # perly.y:896 barestmt: bare_statement_try_catch
 
@@ -234,29 +235,31 @@ mnexpr: nexpr # perly.y:1015
 
 startsub: # perly.y:1023
 
-# perly.y:1029 startanonsub: %empty
+startanonsub: # perly.y:1029
 
 # perly.y:1034 startanonmethod: %empty
 
 # perly.y:1039 startformsub: %empty
 
-# perly.y:1045 subname: BAREWORD
+subname: BAREWORD # perly.y:1045
 
 # perly.y:1046 subname: PRIVATEREF
 
-# perly.y:1051 proto: empty
+proto: empty # perly.y:1051
 
-# perly.y:1052 proto: PROTOTYPE
+proto: PROTOTYPE # perly.y:1052
 
-# perly.y:1057 subattrlist: empty
+subattrlist: empty # perly.y:1057
 
-# perly.y:1058 subattrlist: COLONATTR ATTRLIST
+subattrlist: COLONATTR attr attrs # perly.y:1058, fitted: the attrlist fit (perly.y:1070): each attribute is a word with its argument, if any, in parentheses
+subattrlist: COLONATTR attr attrs COLONATTR # perly.y:1058, fitted: the attrlist fit (perly.y:1070): perl accepts one colon after the attributes, which toke.c leaves out of its ATTRLIST
 
-# perly.y:1065 subattrlist: COLONATTR
+subattrlist: COLONATTR # perly.y:1065
 
 attrlist: COLONATTR attr attrs # perly.y:1070, fitted: pvm emits each attribute as a word after its colon with its argument, if any, inside parentheses, where toke.c delivers one ATTRLIST; one token of argument
 attrlist: COLONATTR attr attrs COLONATTR # perly.y:1070, fitted: perl accepts one colon after the attributes, which toke.c leaves out of its ATTRLIST
 attr: ATTRLIST # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
+attr: ATTRLIST PROTOTYPE # perly.y:1070, fitted: pvm emits the argument of the prototype attribute as one Prototype token, as toke.c's opaque argument
 attr: ATTRLIST PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attr: ATTRLIST PERLY_PAREN_OPEN ATTRLIST PERLY_PAREN_CLOSE # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
 attrs: empty # perly.y:1070, fitted: the attribute words and their arguments, which toke.c delivers as one ATTRLIST
@@ -317,11 +320,11 @@ optsiglist: empty # perly.y:1170
 
 subsigguts: optsiglist # perly.y:1185
 
-# perly.y:1218 optsubbody: subbody
+optsubbody: subbody # perly.y:1218
 
-# perly.y:1219 optsubbody: PERLY_SEMICOLON
+optsubbody: PERLY_SEMICOLON # perly.y:1219
 
-# perly.y:1224 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE
+subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE # perly.y:1224
 
 # perly.y:1236 optsigsubbody: sigsubbody
 
@@ -355,9 +358,9 @@ listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly
 
 listop: term ARROW methodname # perly.y:1295
 
-# perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
+listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1300
 
-# perly.y:1306 listop: term ARROW PERLY_AMPERSAND subname
+listop: term ARROW PERLY_AMPERSAND subname # perly.y:1306
 
 # perly.y:1312 listop: METHCALL0 indirob optlistexpr
 
@@ -495,7 +498,7 @@ anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE # perly.y:1534
 
 anonymous: HASHBRACK optexpr PERLY_BRACE_CLOSE # perly.y:1536, fitted: the ; before } is toke.c's, not the source's
 
-# perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody
+anonymous: KW_SUB_anon startanonsub proto subattrlist subbody # perly.y:1538
 
 # perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist
 
@@ -761,6 +764,9 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_AMPERSAND", TokenClass{Kind: ptr(lexer.FuncSigil)}},
 
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}},
+	// The { of `sub open {` follows a word that reads a { as a hash, which limitBlockBrace takes off the class above; the sub's
+	// name two tokens back makes it a block again (toke.c yyl_sub leaves PL_expect at XATTRBLOCK, toke.c:5874).
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true), Prev2: &Neighbour{Kind: lexer.Word, Text: "sub"}}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false), Completes: true}},
@@ -850,11 +856,23 @@ var perlyClasses = []ClassDecl{
 	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("use")}},
 	{"KW_USE_or_NO", TokenClass{Kind: ptr(lexer.Word), Text: ptr("no")}},
 
-	// KW_SUB_named
+	// toke.c (yyl_sub, toke.c:5874) names the sub when an identifier, :: or ' follows, and takes it as anonymous
+	// otherwise (toke.c:5967, 5975). The seven words that really_sub takes by name when a statement may
+	// begin (toke.c:8315) are KW_SUB_named too, and only where no name follows them: pvm emits the word
+	// once, and perl refuses `BEGIN foo {}`. Signatures (the _sig pair) are another family's.
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NextName: true}},
+	// shortcut: the seven words take no prototype, as the lexer scans one only after sub NAME (01a1a44e-8f26-706b-96d4-b3e6d7f55c3f), upgrade when it scans one after them.
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("AUTOLOAD"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("DESTROY"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("BEGIN"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("UNITCHECK"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("CHECK"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("INIT"), NotNextName: true}},
+	{"KW_SUB_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("END"), NotNextName: true}},
 
 	// KW_SUB_named_sig
 
-	// KW_SUB_anon
+	{"KW_SUB_anon", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NotNextName: true}},
 
 	// KW_SUB_anon_sig
 
@@ -876,6 +894,7 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}}, // yyl_sub: any identifier after sub names it, toke.c:5874
 
 	// toke.c forces the word after -> to METHCALL0, a keyword or a quote-like operator's name included.
 	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "->"}, Completes: true}},
@@ -917,7 +936,7 @@ var perlyClasses = []ClassDecl{
 
 	// LABEL
 
-	// PROTOTYPE
+	{"PROTOTYPE", TokenClass{Kind: ptr(lexer.Prototype)}},
 
 	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("dump")}},
 	{"LOOPEX", TokenClass{Kind: ptr(lexer.Word), Text: ptr("goto")}},
@@ -1362,7 +1381,7 @@ var perlyClasses = []ClassDecl{
 
 	// SUBLEXEND
 
-	// PHASER
+	{"PHASER", TokenClass{Kind: ptr(lexer.Word), Text: ptr("ADJUST")}}, // PHASERBLOCK(KEY_ADJUST), toke.c:8331
 
 	{"OROP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("or"), NotNext: &fatComma}},
 	{"OROP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("xor"), NotNext: &fatComma}},
@@ -1520,9 +1539,8 @@ func init() {
 // limitBlockBrace takes the { away from a block after a list operator whose PL_expect is XTERM: toke.c
 // reads it as an anonymous hash, whatever the lexer decided, so `sprintf {$fh} $x` has no block to be
 // an indirob; only the XREF operators read it as one. Only the { class that no neighbour conditions is
-// cut: a class with a Prev1, Prev2, Next, NotText or NotNext of its own (a later `sub open {`) is a different reading of
-// the { and keeps its reach. shortcut: that unconditioned class also loses the { after a sub named like
-// such an operator until the sub family adds its conditioned one.
+// cut: a class with a Prev1, Prev2, Next, NotText or NotNext of its own (as `sub open {`'s is) is a different reading of
+// the { and keeps its reach.
 func limitBlockBrace(classes []ClassDecl) {
 	var xterm []Neighbour
 	for _, d := range classes {

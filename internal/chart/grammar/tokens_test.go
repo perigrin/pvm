@@ -493,3 +493,35 @@ func TestInternGlobAndName(t *testing.T) {
 		}
 	}
 }
+
+// NextName and NotNextName split the keys a sub's name follows from the rest: an identifier start, a
+// quote-like opening with a letter, or a word opening with :: or ' is a name; anything else, and the end
+// of the file, is not.
+func TestTokenNextName(t *testing.T) {
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Text: ptr(":"), NextName: true},
+		TokenClass{Terminals: []int{2}, Text: ptr(":"), NotNextName: true})
+	for _, c := range []struct {
+		name string
+		next TokenView
+		want []int
+	}{
+		{"word", word("shared"), []int{1}},
+		{"keyword", word("if"), []int{1}},
+		{"word opening with ::", word("::foo"), []int{1}},
+		{"word opening with '", word("'foo"), []int{1}},
+		{"qw", TokenView{Kind: lexer.Quote, Text: "qw(a)", Prefix: 'w'}, []int{1}},
+		{"double quote", TokenView{Kind: lexer.Quote, Text: `"a"`, Prefix: '"'}, []int{2}},
+		{"number", TokenView{Kind: lexer.Number, Text: "1"}, []int{2}},
+		{"variable", TokenView{Kind: lexer.Variable, Text: "$z", Prefix: '$'}, []int{2}},
+		{"operator", op("-"), []int{2}},
+	} {
+		next := tt.interned(c.next, none).Class
+		if got := tt.Sets[tt.Lookup(tt.interned(op(":"), none), tt.Edge, tt.Edge, next)]; !slices.Equal(got, c.want) {
+			t.Errorf("%s: : before it is %v, want %v", c.name, got, c.want)
+		}
+	}
+	if got := tt.Sets[tt.Lookup(tt.interned(op(":"), none), tt.Edge, tt.Edge, tt.Edge)]; !slices.Equal(got, []int{2}) {
+		t.Errorf("a : at the end of the file is %v, want [2]", got)
+	}
+}

@@ -351,8 +351,41 @@ word. A token class marked `Completes` is such a token, and `init` in
   indirect-object family (`01a18fa6-f3c8`) ports its forms.
 - The `{` after a list operator whose `PL_expect` is XTERM is an anonymous
   hash to toke.c, whatever the lexer decided, so `sprintf {$fh} $x;` is
-  refused as perl does; the `{` class that follows a sub named like such an
-  operator (`sub open {`) is the sub family's to add.
+  refused as perl does; the `{` of a sub named like such an operator
+  (`sub open {`, `sub join {`) is a block again through a class conditioned on
+  `sub` two tokens back.
+
+### Subs and phasers
+
+**Citing a rule inside a fitted alternative.** The ledger marks an
+alternative, not a rule. An alternative with one rule as written and another
+fitted (638) is marked `fitted`, and its as-written rule is cited
+`perly.y:N, fitted: as written; ...`, naming the rule that is the fit.
+
+A named sub's attributes are the same ATTRLIST fit, with the same limits
+(`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `internal/lexer` emits the argument of
+`:prototype(...)` as one Prototype token, which the fit takes as an argument.
+Beyond them:
+
+- `sub foo :lvalue ($$) { 1 }` is accepted where perl refuses it: the tokens
+  are the same with or without a space before the parenthesis, so the chart
+  cannot tell an argument from a stray list. Until the lexer scans an argument
+  only where the parenthesis touches the name (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`).
+- The `{` that ends a sub head after an anonymous sub's prototype
+  (`sub ($$) { ... }`, `sub () { ... }`) or after an attribute colon with no
+  attribute (`sub foo : { ... }`, `sub foo :lvalue : { ... }`) is not marked as
+  a block by the lexer, so those forms are refused where perl accepts them
+  (`01a1a445-61f0-73c8-81db-1cc65a3620f5`). Five T1 files hit the first and are
+  on `lexer-defects.txt`.
+- The lexer scans a prototype only after `sub NAME`, so the `(` after `BEGIN`,
+  `END` and their kin is an ordinary parenthesis and `BEGIN ($$) { 1 }` is
+  refused where perl accepts it (`01a1a44e-8f26-706b-96d4-b3e6d7f55c3f`). No corpus file meets this.
+- `sub` is KW_SUB_named when a name follows it (an identifier, or a word
+  opening with `::` or `'`, as toke.c's yyl_sub reads it) and KW_SUB_anon when
+  none does. BEGIN, END, CHECK, UNITCHECK, INIT, AUTOLOAD and DESTROY are
+  KW_SUB_named when no name follows, and rule 638 is fitted to take them with
+  no name. `TokenClass.NextName` and `NotNextName` test this through a derived
+  table part (one bit per next class), not a list of classes.
 
 ## The thin chart/lex: `lex`
 
