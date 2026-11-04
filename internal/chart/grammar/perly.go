@@ -756,7 +756,7 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_BRACKET_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("[")}},
 
-	{"PERLY_BRACKET_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("]")}},
+	{"PERLY_BRACKET_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("]"), Completes: true}},
 
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
@@ -885,7 +885,7 @@ var perlyClasses = []ClassDecl{
 
 	// PRIVATEREF
 
-	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w'))}},
+	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w')), Completes: true}},
 
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__FILE__"), Completes: true}},
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__LINE__"), Completes: true}},
