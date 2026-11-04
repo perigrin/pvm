@@ -778,10 +778,10 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
 
-	// A package-qualified variable is not a catch variable: the action of perly.y:815 refuses it ("can't be in
-	// a package"), so after catch ( it is no scalar.
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Qualified: ptr(false), Completes: true}},
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Qualified: ptr(true), NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
+	// A variable that is no plain name (`$::e`, `$1`, `$^W`, `$'`, `$_`) is not a catch variable: the action of
+	// perly.y:815 declares it with my and refuses it, so two tokens after catch it is no scalar.
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), Completes: true}},
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 
 	// PERLY_DOT
 
@@ -941,7 +941,7 @@ var perlyClasses = []ClassDecl{
 	// before it looks a keyword up. Where a statement may start is the grammar's to say.
 	// The colon is on the word's line, and the word has no package separator (yyl_keylookup scans it
 	// without one and reads a line at a time).
-	{"LABEL", TokenClass{Kind: ptr(lexer.Word), Qualified: ptr(false), LineColon: ptr(true)}},
+	{"LABEL", TokenClass{Kind: ptr(lexer.Word), Global: ptr(false), LineColon: ptr(true)}},
 
 	{"PROTOTYPE", TokenClass{Kind: ptr(lexer.Prototype)}},
 
