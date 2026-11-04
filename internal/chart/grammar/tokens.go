@@ -21,6 +21,11 @@ type TokenView struct {
 	OpensBlock, TermFollows bool
 	// Prefix is the sigil or quote-prefix class, 0 for none.
 	Prefix byte
+	// Qualified is set on a `$` variable, or on a word that LineColon is set on, whose name has a package
+	// separator (`::` or `'`); it is false elsewhere, where nothing asks, so the scan is not paid per token.
+	// LineColon is set on a word that a one-byte colon follows on its own line, blanks only between,
+	// which is where toke.c's label scan looks (it reads a line at a time).
+	Qualified, LineColon bool
 }
 
 // Brace says what a `{` opens.
@@ -115,6 +120,7 @@ type TokenClass struct {
 	OpensBlock, TermFollows *bool
 	Prefix                  *byte
 	Prev2, Prev1, Next      *Neighbour
+	Qualified, LineColon    *bool
 	// NotText, NotPrev1 and NotNext exclude the keys they name from a class that
 	// would otherwise match them, so two classes on one word are told apart by
 	// the next token, a class for every word can leave out the keywords, and a
@@ -188,8 +194,9 @@ func ptrs(ns []Neighbour) []*Neighbour {
 	return ps
 }
 
-// Part 8 is derived: whether the next token is a sub's name (see NextName), from the next class id.
-const nParts = 9
+// Part 8 is derived: whether the next token is a sub's name (see NextName), from the next class id; parts 9 and 10
+// are the token's own Global and LineColon.
+const nParts = 11
 
 // free marks a part a class leaves unconstrained. Every value, a lexer kind
 // included, is a non-negative integer: text and neighbour values are the
@@ -253,10 +260,11 @@ type TokenTable struct {
 // Token is a token with its text and class looked up in the dictionaries.
 // Intern it once; the class id is what the three tokens around it reuse.
 type Token struct {
-	N      Neighbour // the token's class, the next token's predecessor
-	Class  int       // N's dictionary id
-	text   int       // the token's text's dictionary id
-	prefix byte
+	N        Neighbour // the token's class, the next token's predecessor
+	Class    int       // N's dictionary id
+	text     int       // the token's text's dictionary id
+	prefix   byte
+	qual, lc bool
 }
 
 func (tt *TokenTable) classID(n *Neighbour, text int) int {
@@ -292,7 +300,7 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	} else if t.Kind == lexer.Quote {
 		ct = 0 // IdentQuote
 	}
-	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
+	it.Class, it.text, it.prefix, it.qual, it.lc = tt.classID(&it.N, ct), text, t.Prefix, t.Qualified, t.LineColon
 	switch {
 	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
 		it.Class = tt.nonIdentWord
@@ -391,7 +399,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.NotNextIdent {
 			nots[i][7] = append(nots[i][7], ident...)
 		}
-		p := [nParts]int{free, free, free, free, free, free, free, free, free}
+		p := [nParts]int{free, free, free, free, free, free, free, free, free, free, free}
 		if c.NextName {
 			p[8] = 1
 		}
@@ -412,6 +420,12 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		if c.Prefix != nil {
 			p[4] = int(*c.Prefix)
+		}
+		if c.Qualified != nil {
+			p[9] = b2i(*c.Qualified)
+		}
+		if c.LineColon != nil {
+			p[10] = b2i(*c.LineColon)
 		}
 		for j, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
 			if nb != nil {
@@ -507,7 +521,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 // the two significant tokens before it and the one after (Edge at a file's
 // edge). It allocates nothing and hashes nothing.
 func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
-	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0}
+	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0, b2i(t.qual), b2i(t.lc)}
 	if uint(next) < uint(len(tt.name)) && tt.name[next] {
 		k[8] = 1
 	}
@@ -534,17 +548,17 @@ func (tt *TokenTable) Text() []byte {
 		switch {
 		case part == 1:
 			return fmt.Sprintf("%q", tt.texts[v-1])
-		case part == 8:
+		case part >= 8:
 			return fmt.Sprint(v)
 		case part >= 5 && v == 0:
 			return "no class"
 		case part >= 5 && v == tt.anyWord:
 			return "word"
-		case part >= 5 && v == tt.identQuote:
+		case part >= 5 && part <= 7 && v == tt.identQuote:
 			return "quote-like"
-		case part >= 5 && v == tt.nonIdentWord:
+		case part >= 5 && part <= 7 && v == tt.nonIdentWord:
 			return "non-identifier word"
-		case part >= 5:
+		case part >= 5 && part <= 7:
 			return fmt.Sprintf("%+v", tt.nbs[v-1])
 		}
 		return fmt.Sprint(v)

@@ -75,7 +75,7 @@ bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the next rule is its fit
 bare_statement_sub_traditional: KW_SUB_named startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits BEGIN, END and their kin as one word where toke.c (toke.c:8315, really_sub) emits KW_SUB_named and the name
 
-bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren mblock finally # perly.y:662
+bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren mblock finally # perly.y:662, fitted: catch_paren: empty (perly.y:812) is excluded, so a catch has a variable
 
 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else # perly.y:684
 
@@ -722,12 +722,10 @@ indirob: block # perly.y:1892
 `
 
 // parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0;
-// fatComma turns a word before it into a bareword (yyl_keylookup checks for => before any keyword);
-// colon after a word makes it a LABEL.
+// fatComma turns a word before it into a bareword (yyl_keylookup checks for => before any keyword).
 var (
 	fatComma  = Neighbour{Kind: lexer.Operator, Text: "=>"}
 	parenOpen = Neighbour{Kind: lexer.Operator, Text: "("}
-	colon     = Neighbour{Kind: lexer.Operator, Text: ":"}
 	blockOpen = Neighbour{Kind: lexer.Operator, Text: "{", OpensBlock: true, Brace: BraceBlock}
 
 	// declarators are the words after which a variable is declared and a : may start its attributes.
@@ -780,7 +778,10 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
 
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Completes: true}},
+	// A package-qualified variable is not a catch variable: the action of perly.y:815 refuses it ("can't be in
+	// a package"), so after catch ( it is no scalar.
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Qualified: ptr(false), Completes: true}},
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Qualified: ptr(true), NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 
 	// PERLY_DOT
 
@@ -938,9 +939,9 @@ var perlyClasses = []ClassDecl{
 
 	// Any word, a keyword too, at a statement start with a colon after it: yyl_keylookup tests for a label
 	// before it looks a keyword up. Where a statement may start is the grammar's to say.
-	// shortcut: a qualified word (`L::M:`) is a label here, where toke.c scans the word without `::`; no class can see
-	// the separator, until the lexer marks a qualified word.
-	{"LABEL", TokenClass{Kind: ptr(lexer.Word), Next: &colon}},
+	// The colon is on the word's line, and the word has no package separator (yyl_keylookup scans it
+	// without one and reads a line at a time).
+	{"LABEL", TokenClass{Kind: ptr(lexer.Word), Qualified: ptr(false), LineColon: ptr(true)}},
 
 	{"PROTOTYPE", TokenClass{Kind: ptr(lexer.Prototype)}},
 

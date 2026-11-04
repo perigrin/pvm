@@ -58,7 +58,7 @@ perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsu
 
 perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	fitted
 
-perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	ported
+perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	fitted
 
 perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
 
