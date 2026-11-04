@@ -86,4 +86,9 @@ func TestPortQuoteLikesHeredocBodyIsTrivia(t *testing.T) {
 	if len(s.Bodies) != 1 || s.Bodies[0].Opener != 3 {
 		t.Errorf("the bodies are %v, want one under token 3, the ; before it", s.Bodies)
 	}
+	// A body goes to the opener its terminator names, not to the first waiting one: B's is the string's, A's is <<A's.
+	s, _ = lex.Lex([]byte("print \"@{[ <<B ]}\" . <<A;\nb\nB\na\nA\n"), tab.Tokens)
+	if len(s.Bodies) != 2 || s.Bodies[0].Opener != 4 || s.Bodies[1].Opener != 3 {
+		t.Errorf("the bodies are %v, want B's under token 4 (the ; before it) and A's under token 3 (<<A)", s.Bodies)
+	}
 }
