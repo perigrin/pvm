@@ -289,6 +289,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
+		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
