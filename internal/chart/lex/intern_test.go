@@ -62,7 +62,10 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 }
 
 var (
-	plain    = regexp.MustCompile(`^[A-Za-z_\x{80}-\x{10FFFF}][A-Za-z0-9_\x{80}-\x{10FFFF}]*$`)
+	plain = regexp.MustCompile(`^[A-Za-z_\x{80}-\x{10FFFF}][A-Za-z0-9_\x{80}-\x{10FFFF}]*$`)
+	// sigil is a `$` and the blanks after it; braced is a name in braces, blanks inside them allowed.
+	sigil    = regexp.MustCompile(`^\$[ \t\r\n\f\v]*`)
+	braced   = regexp.MustCompile(`^\{[ \t\r\n\f\v]*(.*?)[ \t\r\n\f\v]*\}$`)
 	colonRef = regexp.MustCompile(`^[ \t\r\f]*:`)
 )
 
@@ -74,7 +77,14 @@ func refGlobal(k lexer.Kind, tx string) bool {
 	case lexer.Word:
 		return !plain.MatchString(tx)
 	case lexer.Variable:
-		return len(tx) > 1 && tx[0] == '$' && (tx == "$_" || !plain.MatchString(tx[1:]))
+		if !sigil.MatchString(tx) {
+			return false
+		}
+		n := sigil.ReplaceAllString(tx, "")
+		if m := braced.FindStringSubmatch(n); m != nil {
+			n = m[1]
+		}
+		return n == "_" || !plain.MatchString(n)
 	}
 	return false
 }
@@ -273,7 +283,7 @@ const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
+	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)

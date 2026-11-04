@@ -347,8 +347,9 @@ scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
 `catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
 tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
-shortcut: that class also refuses `$p->catch($Foo::x)` and `catch => $Foo::x`,
-where perl reads `catch` as a method name or a hash key. Both are unreachable
+shortcut: that class also refuses a variable that is not a plain name after the
+word `catch` (`$p->catch($Foo::x)`, `catch => $_`), where perl reads `catch` as a
+method name or a hash key. Both are unreachable
 until method calls and fat commas parse, and then they need the exclusion to
 see `->` or `=>` one token further back (a `NotPrev3`).
 
