@@ -483,7 +483,9 @@ ported as written, so `&$code`, `&$code(1)` and `\&$code` are accepted).
   `sort(` carries the neighbour flag `SortParen` (spec §7's neighbour class,
   extended by perigrin's ruling as `Glob`, `Name` and `Label` are), since
   toke.c's yyl_leftparen lets the word after it be the name too, so
-  `sort(foo x 3);` is refused. `init` gives the `x` derived from a class its
+  `sort(foo x 3);` is refused. The `(` of an attribute named `sort`
+  (`my $x :sort(1);`) carries the flag too, so its argument has ATTRLIST
+  classes after the flagged `(`. `init` gives the `x` derived from a class its
   `NotPrev1` as `NotPrev2`.
 - A sub's name after `&` is PRIVATEREF and BAREWORD (a lexical sub's or a
   package sub's, scope decides). A glob's name and a bareword filehandle are

@@ -53,7 +53,8 @@ func TestPortIndirectObjectsRefusals(t *testing.T) {
 		"print FH => 1;", "print $fh x 3;", "join foo x 3;", "close FH x 3;", "map foo x 3;", "x x 3;",
 		"$o->sort(foo x 3);", "sort(byname @a);", "sort byname @a;",
 		"print FH x 3;", "print(FH x 3);", "open(FH x 3);", "print x x 3;", "new Foo x 3;", "foo { a => 1 } x 3;", // scope's, above
-		"BEGIN : lvalue { 1 }", // a label and a call with a block, as perl reads it
+		"BEGIN : lvalue { 1 }",                                                            // a label and a call with a block, as perl reads it
+		"my $x :sort(1);", "sub foo :sort(1) {}", "my $x :sort($y);", "my $x :sort('a');", // an attribute named sort
 	} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v", src, v.at, v.expected)
