@@ -8,6 +8,7 @@
 package lex
 
 import (
+	"strings"
 	"unsafe"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -54,7 +55,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			continue
 		}
 		it := &slots[len(s.Tokens)&1]
-		intern(tt, text, t, pred, it)
+		intern(tt, text, t, lineColon(raw, i, text), pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -71,9 +72,35 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 }
 
 // intern interns t's key in tt into it, given its predecessor's class.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, pred *grammar.Neighbour, it *grammar.Token) {
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
-	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}, pred, it)
+	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+		Qualified: (lc || t.Kind == lexer.Variable) && qualified(t.Kind, tx), LineColon: lc}, pred, it)
+}
+
+// qualified is whether a word or `$` variable name has a package separator: `::`, or an apostrophe that is not
+// the sigil's own (`$'`).
+func qualified(k lexer.Kind, tx string) bool {
+	switch k {
+	case lexer.Word:
+		return strings.Contains(tx, "::") || strings.IndexByte(tx, '\'') >= 0
+	case lexer.Variable:
+		return len(tx) > 1 && tx[0] == '$' && (strings.Contains(tx, "::") || strings.IndexByte(tx[1:], '\'') > 0)
+	}
+	return false
+}
+
+// lineColon is whether raw[i], a word, is followed by a one-byte colon with at most one whitespace token,
+// holding no newline, between: toke.c labels a word only when the colon is on its line.
+func lineColon(raw []lexer.Token, i int, src string) bool {
+	if raw[i].Kind != lexer.Word {
+		return false
+	}
+	j := i + 1
+	if j < len(raw) && raw[j].Kind == lexer.Whitespace && !strings.Contains(src[raw[j].Start:raw[j].End], "\n") {
+		j++
+	}
+	return j < len(raw) && raw[j].Kind == lexer.Operator && raw[j].End-raw[j].Start == 1 && src[raw[j].Start] == ':'
 }
 
 // prefix is a variable's sigil (`#` for `$#`) or a quote's class: its opening

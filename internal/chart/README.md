@@ -331,14 +331,19 @@ feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 `try`, `catch`, `finally` and `defer` map to their keywords with or without
 `use feature 'try'` or `'defer'` (toke.c reads them as words without it), so
 `try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
-feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). A keyword before `=>` is
-refused here, where toke.c reads it as a word, as `if =>` already is.
+feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
+The other side is under-acceptance: where perl reads them as plain words,
+`try => 1;`, `sub try {} try 1;`, `$h{try}` and `catch(1)` are refused, and
+cannot be told from `foo(1)`, `foo 1` and `$h{foo}` (also refused) until the
+call and subscript families land.
 
-A LABEL is any word with a `:` after it, where a statement may start. toke.c
-scans the word without its package separator, so `L::M: 1;` is a syntax error
-in perl; `internal/lexer` emits `L::M` as one word and labels it too, so it is
-accepted here. Known limit, until the lexer or the token classes can tell a
-qualified word (reported for a v0.1 lexer issue, none filed yet).
+A LABEL is a word with no package separator and a one-byte colon after it on
+its own line (blanks only between), where a statement may start: toke.c's label
+scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
+`L #c\n: 1;` and `L::M: 1;` are refused.
+
+`catch ($::e)` and `catch ($Foo::e)` are refused: a qualified variable is
+no scalar two tokens after `catch`, where the action refuses it.
 
 ### The repetition operator `x`
 
