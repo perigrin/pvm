@@ -525,3 +525,41 @@ func TestTokenNextName(t *testing.T) {
 		t.Errorf("a : at the end of the file is %v, want [2]", got)
 	}
 }
+
+// Lone cuts every other class of a word where the Lone class holds, all of its neighbours at once: a word between
+// the braces is the Lone class's alone, after a minus too, and a word with either neighbour changed keeps its classes.
+func TestTokenLone(t *testing.T) {
+	open := Neighbour{Kind: lexer.Operator, Text: "{", Brace: BraceSubscript}
+	hash := Neighbour{Kind: lexer.Operator, Text: "{", Brace: BraceHash}
+	closer := Neighbour{Kind: lexer.CloseBracket, Text: "}"}
+	minus := Neighbour{Kind: lexer.Operator, Text: "-"}
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &open, Next: &closer, Lone: true},
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev2: &open, Prev1: &minus, Next: &closer, Lone: true},
+		TokenClass{Terminals: []int{2}, Kind: ptr(lexer.Word), Text: ptr("time")},
+		TokenClass{Terminals: []int{3}, Kind: ptr(lexer.Word), Text: ptr("time"), NotNext: &closer},
+		TokenClass{Terminals: []int{4}, Kind: ptr(lexer.Word), NotText: []string{"time"}},
+		TokenClass{Terminals: []int{5}, Kind: ptr(lexer.Operator), Text: ptr("-")})
+	for _, c := range []struct {
+		name       string
+		w          string
+		p2, p1, nx Neighbour
+		want       []int
+	}{
+		{"alone", "time", none, open, closer, []int{1}},
+		{"another word alone", "foo", none, open, closer, []int{1}},
+		{"after a minus", "time", open, minus, closer, []int{1}},
+		{"a word with more after it", "time", none, open, none, []int{2, 3}},
+		{"in an anonymous hash", "time", none, hash, closer, []int{2}},
+		{"not after a brace", "time", none, none, closer, []int{2}},
+		{"a minus without the brace", "time", none, minus, closer, []int{2}},
+		{"another word, more after it", "foo", none, open, none, []int{4}},
+	} {
+		if got := tt.set(word(c.w), c.p2, c.p1, c.nx); !slices.Equal(got, c.want) {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+	if got := tt.set(op("-"), none, open, none); !slices.Equal(got, []int{5}) {
+		t.Errorf("a minus after the brace is %v, want it kept: [5]", got)
+	}
+}
