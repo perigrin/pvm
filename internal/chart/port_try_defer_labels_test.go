@@ -47,7 +47,7 @@ func TestPortTryDeferLabelsRefusals(t *testing.T) {
 			t.Errorf("catch (%s) is accepted; perl refuses it", v)
 		}
 	}
-	for _, v := range []string{"$e", "$a", "$ARGV", "$_e", "$e1", "${e}", "${ e }", "$ e", "$\ne", "${a}", "${__}", "$ ARGV", "$é"} {
+	for _, v := range []string{"$e", "$a", "$ARGV", "$_e", "$e1", "${e}", "${ e }", "$ e", "$\ne", "${a}", "${__}", "$ ARGV", "$é", "$ #c\ne", "$ #c\n e"} {
 		if r := recognizeSource(t, []byte("use utf8; use feature 'try'; try { 1 } catch ("+v+") { 2 }")); !r.accepted {
 			t.Errorf("catch (%s) is refused at %d; perl accepts it", v, r.at)
 		}

@@ -94,15 +94,27 @@ func global(k lexer.Kind, tx string) bool {
 	return false
 }
 
-// varName is a variable's name without the whitespace after its sigil and without braces, with the
+// varName is a variable's name without the whitespace and comments after its sigil and without braces, with the
 // whitespace inside them: the lexer keeps `${ e }` and `$ e` as one token, which perl reads as `$e`.
 func varName(s string) string {
 	const blank = " \t\n\r\f\v"
-	s = strings.TrimLeft(s, blank)
+	s = skipBlank(s)
 	if len(s) > 1 && s[0] == '{' && s[len(s)-1] == '}' {
-		s = strings.Trim(s[1:len(s)-1], blank)
+		s = strings.TrimRight(skipBlank(s[1:len(s)-1]), blank)
 	}
 	return s
+}
+
+// skipBlank is s without the blanks and the `#...` comments, each to its newline, that open it.
+func skipBlank(s string) string {
+	for {
+		s = strings.TrimLeft(s, " \t\n\r\f\v")
+		i := strings.IndexByte(s, '\n')
+		if s == "" || s[0] != '#' || i < 0 {
+			return s
+		}
+		s = s[i+1:]
+	}
 }
 
 // plainName is whether s is a letter or _ (or a UTF-8 byte) and then those and digits: an identifier.
