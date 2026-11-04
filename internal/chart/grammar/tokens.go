@@ -80,6 +80,9 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	case lexer.Word, lexer.Operator, lexer.CloseBracket:
 		text = t.Text
 	}
+	if t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26 {
+		text = IdentQuote
+	}
 	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
 }
 
@@ -88,6 +91,10 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 // shortcut: a word some class does name (`use`, `my`, ...) is not matched, upgrade
 // when a class needs a neighbour that is any word.
 const OtherWord = "\x00other-word"
+
+// IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
+// as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
+const IdentQuote = "\x00ident-quote"
 
 // TokenClass declares that tokens whose key matches every part given (a nil
 // part matches anything) admit Terminals. A key several classes match admits
@@ -111,6 +118,10 @@ type TokenClass struct {
 	// letter, _ or a UTF-8 byte (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
 	NotPrev2     []Neighbour
 	NotNextIdent bool
+	// Completes marks a class whose token completes a term, so toke.c leaves PL_expect at XOPERATOR after
+	// it and an x that follows is the repetition operator. The lookup ignores it: perly.go's init derives
+	// MULOP's x classes from it, as ordinary Prev1 and Prev2 parts.
+	Completes bool
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -216,6 +227,8 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	ct := text
 	if it.N.Text == "" {
 		ct = tt.emptyText
+	} else if t.Kind == lexer.Quote {
+		ct = 0 // IdentQuote
 	}
 	it.Class, it.text, it.prefix = tt.classID(&it.N, ct), text, t.Prefix
 	switch {
@@ -255,7 +268,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
 			if nb != nil {
-				if nb.Text != OtherWord {
+				if nb.Text != OtherWord && nb.Text != IdentQuote {
 					texts[nb.Text] = true
 				}
 				nbs[*nb] = true
@@ -281,7 +294,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	tt.anyWord, tt.identQuote, tt.nonIdentWord = len(tt.nbs)+1, len(tt.nbs)+2, len(tt.nbs)+3
 	var ident []int // every class id of a token starting with an identifier character
 	for i, nb := range tt.nbs {
-		if nb.Kind == lexer.Word {
+		if nb.Kind == lexer.Word || nb.Kind == lexer.Quote && nb.Text == IdentQuote {
 			ident = append(ident, i+1)
 		}
 	}

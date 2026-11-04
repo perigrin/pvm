@@ -13,10 +13,9 @@ import (
 )
 
 // listOperatorsLines are the perly.y alternatives this family ports or fits. None is left for a completing issue.
-// 1277 and 1892 are the indirect-object family's, written as they are so that `sort { $a <=> $b } @a`
-// has the one path perly.y gives it (LSTOP indirob listexpr, indirob a block); that family keeps them
-// and adds the other indirob forms.
-var listOperatorsLines = []int{1277, 1281, 1289, 1295, 1324, 1326, 1344, 1345, 1713, 1892}
+// 1277 (LSTOP indirob listexpr) and 1892 (indirob: block) are written too, borrowed from the indirect-object
+// family (01a18fa6-f3c8) so that `sort { $a <=> $b } @a` has its one path; that family marks them.
+var listOperatorsLines = []int{1281, 1289, 1295, 1324, 1326, 1344, 1345, 1713}
 
 func TestPortListOperators(t *testing.T) {
 	if err := grammar.CheckFamilyMarked(listOperatorsLines, nil); err != nil {
@@ -50,8 +49,8 @@ func TestPortListOperatorsRefusals(t *testing.T) {
 	}
 }
 
-// terminalsOf names the terminals that admit the token at byte offset of src.
-func terminalsOf(t *testing.T, src string, offset int) []string {
+// terminalsAt names the terminals that admit the token at byte offset of src.
+func terminalsAt(t *testing.T, src string, offset int) []string {
 	t.Helper()
 	tab, err := committed()
 	if err != nil || tab == nil {
@@ -89,9 +88,52 @@ func TestPortListOperatorsFuncVersusLstop(t *testing.T) {
 		if tc.src[0] == '$' {
 			at = 5
 		}
-		got := terminalsOf(t, tc.src, at)
+		got := terminalsAt(t, tc.src, at)
 		if !slices.Contains(got, tc.want) || slices.Contains(got, tc.not) {
 			t.Errorf("%q: the first word admits %v, want %s and not %s", tc.src, got, tc.want, tc.not)
+		}
+	}
+}
+
+// toke.c's KEY_x is the repetition operator exactly when PL_expect is XOPERATOR, which a token that
+// completes a term leaves, and a word otherwise. perl -c (94e50866) agrees with every row.
+func TestPortListOperatorsXRule(t *testing.T) {
+	for src, want := range map[string]bool{
+		"$z x 3;":               true,
+		"$i++ x 3;":             true,
+		"time x 3;":             true,
+		"x x x;":                true,
+		"$y = 1 x 2 x 3;":       true,
+		"$y = push(@a, 1) x 3;": true,
+		"$o->ref x 3;":          true,
+		"$o->print x 3;":        true,
+		"&ref x 3;":             true,
+		"&print x 3;":           true,
+		"*print x 3;":           true, // a glob's name, whatever it spells
+		"*open x 3;":            true,
+		"$y = *print x 3;":      true,
+		"ref x 3;":              false,
+		"shift x 3;":            false,
+		"last x 3;":             false,
+		"push @a, x 3;":         false,
+		"$y = 1, x 3;":          false,
+		"$z x;":                 false,
+	} {
+		if v := recognizeSource(t, []byte(src)); v.accepted != want {
+			t.Errorf("%q: accepted %v, want %v (refused at %d, expecting %v)", src, v.accepted, want, v.at, v.expected)
+		}
+	}
+}
+
+// Known over-acceptance, pinned so it is noticed when it ends. After an XREF list operator toke.c reads
+// the bareword as a filehandle and expects a term after it, so x is a word there and perl refuses each
+// of these (perl -c, 94e50866: "Number found where operator expected"). The chart reads the bareword as
+// a term and x as repetition. That is the indirect-object family's to fix (01a18fa6-f3c8): when it does,
+// this test fails, and its rows move to the refused snippets.
+func TestPortListOperatorsFilehandleBarewordKnownLimit(t *testing.T) {
+	for _, src := range []string{"print FH x 3;", "printf FH x 3;", "say FH x 3;", "exec foo x 3;", "sort foo x 3;"} {
+		if v := recognizeSource(t, []byte("use feature 'say';\n"+src)); !v.accepted {
+			t.Errorf("%q is refused at %d: the known limit has ended, so move it to the refused snippets", src, v.at)
 		}
 	}
 }
