@@ -1,5 +1,5 @@
 // ABOUTME: The thin chart/lex: lexer.Tokenize up front, trivia to the next significant token, one table lookup per token.
-// ABOUTME: Heredoc bodies go to their openers; a token no class admits gets the empty set and the first such byte is kept.
+// ABOUTME: Heredoc bodies go to their openers; a token no class admits, or an opener with no body, gets the empty set and the first such byte is kept.
 
 // Package lex is the chart's lexer (spec §5.2, "A thin chart/lex"): the
 // production lexer runs up front with its own expect machine, and each
@@ -49,9 +49,15 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		switch {
 		case lexer.IsTrivia(t.Kind):
 			continue
-		case t.Kind == lexer.HeredocBody && len(opens) > 0:
-			s.Bodies = append(s.Bodies, Body{opens[0], t})
-			opens = opens[1:]
+		case t.Kind == lexer.HeredocBody && len(s.Tokens) > 0:
+			// With no opener waiting, the body's opener is inside a quote-like (`"@{[ <<EOF ]}"`), one token to the lexer.
+			// shortcut: that body goes to the token before it, not to the quote-like holding its opener, which only
+			// Stream.Body and the tdt pairing read; upgrade when the lexer marks the quote-likes that open heredocs.
+			o := len(s.Tokens) - 1
+			if len(opens) > 0 {
+				o, opens = opens[0], opens[1:]
+			}
+			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
 		it := &slots[len(s.Tokens)&1]
@@ -67,6 +73,13 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	}
 	if len(s.Tokens) > 0 {
 		done(tt.Edge)
+	}
+	// An opener whose body never came is a heredoc perl cannot find the terminator of: no class admits it.
+	for _, o := range opens {
+		s.Tokens[o].TerminalSet = 0
+		if b := raw[s.Tokens[o].Index].Start; first < 0 || b < first {
+			first = b
+		}
 	}
 	return s, first
 }

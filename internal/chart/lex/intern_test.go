@@ -207,16 +207,19 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		n grammar.Neighbour
 	}
 	var toks []tok
-	pred, opens := grammar.Boundary, 0
+	pred := grammar.Boundary
+	var opens []int // the openers still waiting for a body, by index in toks
 	for _, t := range lexer.Tokenize(src) {
 		switch {
 		case lexer.IsTrivia(t.Kind):
 			continue
-		case t.Kind == lexer.HeredocBody && opens > 0:
-			opens--
+		case t.Kind == lexer.HeredocBody && len(opens) > 0:
+			opens = opens[1:]
+			continue
+		case t.Kind == lexer.HeredocBody && len(toks) > 0: // a heredoc opened inside a quote-like
 			continue
 		case t.Kind == lexer.HeredocOpen:
-			opens++
+			opens = append(opens, len(toks))
 		}
 		tx := string(src[t.Start:t.End])
 		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: refPrefix(t.Kind, tx, src, t.End),
@@ -272,6 +275,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			tb.Fatalf("token %d (%q): the union %v is not one of the table's sets", i, t.v.Text, set)
 		}
 		ids[i] = id
+	}
+	for _, i := range opens { // no body came, so perl finds no terminator
+		ids[i] = 0
 	}
 	return ids
 }
