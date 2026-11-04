@@ -47,6 +47,17 @@ func TestPortPackageAndUseRefusals(t *testing.T) {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
 	}
+	// Limits: perl refuses these and the chart accepts them, because the word x after a word is a BAREWORD to
+	// the key (a refusal would also refuse `use lib foo x 3;`, which perl accepts). `use lib 1.2 x;` is the
+	// other way: perl accepts it and the chart refuses it. A row fails once its limit goes; move it then.
+	for _, src := range []string{"use lib foo x;", "use lib foo x, 1;", "use lib foo x => 1;", "use lib x x;", "use lib Foo::Bar x;", "no lib foo x;", "use lib 1.2 x;"} {
+		if v := recognizeSource(t, []byte(src)); v.accepted == (src == "use lib 1.2 x;") {
+			t.Errorf("%q: the recorded limit moved (accepted=%v)", src, v.accepted)
+		}
+	}
+	if v := recognizeSource(t, []byte("use lib foo x 3;")); !v.accepted {
+		t.Errorf("use lib foo x 3; is refused at %d; perl accepts it", v.at)
+	}
 	// Accepted beside the refused forms, so a harness that refuses everything fails here. The bare
 	// statements stay covered although a prefix of each is refused only at end of input.
 	for _, src := range []string{"package Foo;", "package Foo 1.23;", "package Foo { 1 }", "package Foo 1.23 { 1 }",

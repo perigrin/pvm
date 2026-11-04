@@ -385,7 +385,10 @@ term to toke.c. Known limits:
   `use lib foo bar`, `use lib foo %h`), and refused when what follows is
   something toke.c refuses after an unknown bareword: a number, a quote, `[`,
   `\`, `!`, `~`, an array or `$#` variable (the neighbour's `Array` flag), a
-  `::` word and any keyword that is not an operator word. `use lib foo { }`,
+  `::` word and any keyword that is not an operator word, `not` included.
+  `use lib foo x;`, `use lib foo x, 1;` and `use lib x x;` are accepted where perl
+  refuses them, since refusing `x` after a word would also refuse `use lib foo x 3;`,
+  which perl accepts (pinned in `TestPortPackageAndUseRefusals`). `use lib foo { }`,
   `use lib foo $$x` and `use lib foo __END__` are refused where perl accepts
   them, for want of the indirect-object family and the deref sigils' rules.
 - `Neighbour.Array` is on a variable opening with `@` or `$#`, so a word's key

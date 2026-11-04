@@ -27,7 +27,8 @@ import (
 // indirect-object call. The version BAREWORD is also the term BAREWORD, which no terminal tells apart,
 // so after a version that follows a module only the tokens in notAfterVersion are refused: `-`, `+`,
 // `*`, `%`, `&`, `<`, `/`, `<<`, `**=` and `//=` can open a term, so `use lib 1.2 - 3;` is taken where perl
-// reads it as a term, `use lib 1.2 x;`, where x is a word, is refused, and `use lib 1.2 isa 3;` is accepted
+// reads it as a term, `use lib 1.2 x;`, where x is a word, is refused, `use lib foo x;` is accepted where perl refuses it
+// (excluding x after a word would also refuse `use lib foo x 3;`), and `use lib 1.2 isa 3;` is accepted
 // where perl refuses `isa 3`, as on the base. Upgrade with a version
 // terminal no list opens with. And a word after `use`/`no` loses its version reading only: afterUse also
 // removes the term reading of a delimited number there, so `(no => 1 , 2)` will be refused once keywords
@@ -56,12 +57,12 @@ var notAfterVersion = func() (ns []Neighbour) {
 // notAfterWord are the next tokens a bare word after use MODULE cannot be followed by, as a term: toke.c
 // refuses `foo 'a'`, `foo 1.2`, `foo @x` and a keyword, where `foo bar`, `foo $x`, `foo (3)` and `foo %h` are
 // method calls, a call and a modulus. The operator words, the file's end (__END__, __DATA__) and the words
-// the statement itself refuses anyway (and or xor not if unless while until for foreach) are left out.
+// the statement itself refuses anyway (and or xor if unless while until for foreach) are left out.
 var notAfterWord = func() []Neighbour {
 	ns := []Neighbour{{Kind: lexer.Number}, {Kind: lexer.Quote}, {Kind: lexer.Quote, Text: IdentQuote},
 		{Kind: lexer.Operator, Text: "["}, {Kind: lexer.Operator, Text: `\`}, {Kind: lexer.Operator, Text: "!"}, {Kind: lexer.Operator, Text: "~"},
 		{Kind: lexer.Variable, Array: true}, {Kind: lexer.Word, Text: NonIdentWord}}
-	left := strings.Fields("x eq ne lt gt le ge cmp isa and or xor not if unless while until for foreach __END__ __DATA__")
+	left := strings.Fields("x eq ne lt gt le ge cmp isa and or xor if unless while until for foreach __END__ __DATA__")
 	for _, k := range lexer.Keywords() {
 		if !slices.Contains(left, k) {
 			ns = append(ns, Neighbour{Kind: lexer.Word, Text: k})
