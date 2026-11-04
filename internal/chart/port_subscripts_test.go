@@ -148,4 +148,9 @@ func TestPortSubscriptsKnownLimits(t *testing.T) {
 			t.Errorf("%q is accepted; the known limit is gone, so move it to the accepted snippets and drop the README line", src)
 		}
 	}
+	// internal/lexer emits -e (any filetest letter) as one token, so the chart reads the filetest where toke.c
+	// forces the string -e (v0.1 01a1a805-a94e-7b39-8021-c61fe44b13ec). This fails when the lexer splits it.
+	if got := terminalsAt(t, "$y = $h{-e};", 8); !slices.Equal(got, []string{"UNIOP"}) {
+		t.Errorf("$h{-e}: -e admits %v; the known limit is gone, so drop the README line", got)
+	}
 }
