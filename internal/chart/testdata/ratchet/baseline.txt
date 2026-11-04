@@ -24,4 +24,4 @@ chart-ratchet: ledger-excluded 4
 chart-ratchet: superset-population 1458
 chart-ratchet: superset-recognized 0.176
 chart-ratchet: rd-accepted-perl-refused 147
-chart-ratchet: chart-accepted-perl-refused 13
+chart-ratchet: chart-accepted-perl-refused 15
