@@ -121,7 +121,7 @@ func TestLexLookupAllocationFree(t *testing.T) {
 				continue
 			}
 			it := &slots[i&1]
-			intern(tt, text, r, false, pred, it)
+			intern(tt, text, r, false, false, pred, it)
 			tt.Lookup(*it, p2, p1, tt.Edge)
 			pred, p2, p1 = &it.N, p1, it.Class
 		}

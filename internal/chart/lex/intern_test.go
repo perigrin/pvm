@@ -4,6 +4,7 @@
 package lex
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -98,6 +99,22 @@ func refLineColon(rest []byte) bool {
 	return m != nil && !(len(rest) > len(m) && rest[len(m)] == ':')
 }
 
+// refBlanks is the Blanks bit read off the source bytes, not the token gaps: a plain-name word that a closing bracket
+// follows after spaces or tabs alone, with spaces or tabs alone before it and, when a minus (not a --) comes first,
+// before that minus too, and the start of the file or a character that is no whitespace there.
+var afterBlanks = regexp.MustCompile(`^[ \t]*[)\]}]`)
+
+func refBlanks(src []byte, start, end int) bool {
+	if !plain.MatchString(string(src[start:end])) || !afterBlanks.Match(src[end:]) {
+		return false
+	}
+	before := bytes.TrimRight(src[:start], " \t")
+	if n := len(before); n > 0 && before[n-1] == '-' && (n < 2 || before[n-2] != '-') {
+		before = bytes.TrimRight(before[:n-1], " \t")
+	}
+	return len(before) == 0 || !bytes.ContainsRune([]byte(" \t\n\r\f\v"), rune(before[len(before)-1]))
+}
+
 // refIDs is the terminal-set id of each significant token of src as the
 // table encodes it: the union of the terminals of every class whose given
 // parts all match the token's key, found in tt.Sets. It walks no table and
@@ -172,7 +189,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 		tx := string(src[t.Start:t.End])
 		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
-			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:])}
+			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:]), Blanks: t.Kind == lexer.Word && refBlanks(src, t.Start, t.End)}
 		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		prev := pred
 		pred = refClassOf(v, prev)
@@ -194,14 +211,24 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 	}
 	// name is whether a sub's name starts at toks[i]: an identifier start, or a word opening with :: or '.
 	name := func(i int) bool { return ident(i) || i >= 0 && i < len(toks) && toks[i].v.Kind == lexer.Word }
+	// lone is whether a Lone class holds at toks[i]: all of its neighbours match, and a word class other than a Lone one is cut off there.
+	lone := func(i int) bool {
+		return slices.ContainsFunc(classes, func(l grammar.TokenClass) bool {
+			return l.Lone && is(l.Prev2, nb(i-2)) && is(l.Prev1, nb(i-1)) && is(l.Next, nb(i+1)) && (l.Blanks == nil || *l.Blanks == toks[i].v.Blanks)
+		})
+	}
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
+		alone := lone(i)
 		for _, c := range classes {
+			if alone && !c.Lone && c.Kind != nil && *c.Kind == lexer.Word {
+				continue
+			}
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
-				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
+				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && (c.Blanks == nil || *c.Blanks == t.v.Blanks) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
 				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
@@ -283,6 +310,12 @@ const colonForms = "$c ? my $x : shared; $c ? my $x :shared; $c ? our @x : if; $
 const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($a) (1) {} } sub f {} for our ($a) (1) {} " +
 	"1 for our ($x); do {1} for state ($x); $h{a} for our ($x); for our $x (1) {} $c ? 1 : 2 for our ($x); L: for our ($x) (1) {} "
 
+// loneForms are a word alone in a subscript's braces, with a minus before it or not, and the words that are not alone there: a
+// keyword, a name and x among them, in a hash subscript, an arrow's, a slice's and an anonymous hash's, which keeps its call readings.
+const loneForms = "$h{time}; $h->{shift}; $h{ if }; $h{x}; $h{-if}; $h{ - while }; $h{a}{print}; @h{time}; $h{time + 1}; $h{shift @a}; $h{-time + 1}; " +
+	"+{ time }; +{ shift }; $h{time, 1}; $h{$a}; $h{Foo::time}; $h{ q }; $a[time]; $r->[0]{y}; f()->{s}; " +
+	"$h{if\n}; $h{\nif}; $h{if # c\n}; $h{-if\n}; $h{q\n}; $h{time\n}; $h{\tif}; $h{ -\nif}; $h{\n-if}; $h{Foo'bar}; $h{::foo}; $h{foo::}; $h{Foo::bar}; $a\n-if}; $a --if}; $a\n--if}; "
+
 // The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
@@ -290,7 +323,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
-		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
+		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms)
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {
@@ -333,7 +366,7 @@ func BenchmarkIntern(b *testing.B) {
 		var slots [2]grammar.Token
 		pred := &grammar.Boundary
 		for i, t := range sig {
-			intern(tt, text, t, false, pred, &slots[i&1])
+			intern(tt, text, t, false, false, pred, &slots[i&1])
 			pred = &slots[i&1].N
 		}
 	}
@@ -357,4 +390,38 @@ func ptrs(ns []grammar.Neighbour) []*grammar.Neighbour {
 		ps[i] = &ns[i]
 	}
 	return ps
+}
+
+// The Blanks bit chart/lex reads off the token gaps is the one the reference reads off the bytes, on every word of the lone
+// forms, and it is the expected bit on the rows that name one: a newline, a comment or a package part clears it.
+func TestBlanksAgreeWithReference(t *testing.T) {
+	src := []byte(loneForms)
+	raw := lexer.Tokenize(src)
+	for i, r := range raw {
+		if r.Kind == lexer.Word {
+			if got, want := blanks(raw, i, string(src)), refBlanks(src, r.Start, r.End); got != want {
+				t.Errorf("%q at byte %d: chart/lex says %v, the reference %v", src[r.Start:r.End], r.Start, got, want)
+			}
+		}
+	}
+	for _, c := range []struct {
+		src  string
+		want bool
+	}{
+		{"$h{if}", true}, {"$h{ if }", true}, {"$h{\tif}", true}, {"$h{ - if }", true}, {"$h{-if}", true},
+		{"$h{if\n}", false}, {"$h{\nif}", false}, {"$h{if # c\n}", false}, {"$h{-if\n}", false}, {"$h{ -\nif}", false}, {"$h{\n-if}", false},
+		{"$h{Foo::bar}", false}, {"$h{Foo'bar}", false}, {"$h{::foo}", false}, {"$h{foo::}", false},
+		{"$h{if 1}", false}, {"if}", true},
+	} {
+		raw := lexer.Tokenize([]byte(c.src))
+		got := false
+		for i, r := range raw {
+			if r.Kind == lexer.Word {
+				got = blanks(raw, i, c.src)
+			}
+		}
+		if got != c.want {
+			t.Errorf("%q: Blanks is %v, want %v", c.src, got, c.want)
+		}
+	}
 }
