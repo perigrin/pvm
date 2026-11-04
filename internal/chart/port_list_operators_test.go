@@ -98,10 +98,9 @@ func TestPortListOperatorsFuncVersusLstop(t *testing.T) {
 // toke.c's KEY_x is the repetition operator exactly when PL_expect is XOPERATOR, which a token that
 // completes a term leaves, and a word otherwise. perl -c (94e50866) agrees with every row.
 //
-// Pinned for when do blocks land (remaining terms): `$y = do { 1 } * ref x 3;` will be accepted, where perl
-// refuses it, because the neighbour cannot tell a do block's } from a statement block's. Add it as an
-// accepted row marked with this issue then, until the lexer marks what a } closes
-// (01a1a422-9176-7153-8625-6535b483a4b4). It cannot be a row here: do blocks are not ported on this base.
+// Pinned: `$y = do { 1 } * ref x 3;` is accepted, where perl refuses it, because the neighbour cannot tell a
+// do block's } from a statement block's, so the * after it reads as a glob's. It ends when the lexer marks
+// what a } closes (01a1a422-9176-7153-8625-6535b483a4b4); the row then moves to the refused rows.
 func TestPortListOperatorsXRule(t *testing.T) {
 	for src, want := range map[string]bool{
 		"$z x 3;":                   true,
@@ -119,6 +118,15 @@ func TestPortListOperatorsXRule(t *testing.T) {
 		"if (1) { } *print x 3;":    true,  // a glob after a block
 		"$y = 2 * ref x 3;":         false, // a multiplication, so ref waits for a term
 		"$y = $a * shift x 3;":      false,
+		"[1] x 3;":                  true, // a term's closing ], }, and a quote-like
+		"$y = [1] x 3;":             true,
+		"+{a=>1} x 3;":              true,
+		"qw(a) x 3;":                true,
+		"$y = [1] * ref x 3;":       false,
+		"$y = +{a=>1} * ref x 3;":   false,
+		"$y = qw(a) * ref x 3;":     false,
+		"$y = do { 1 } x 3;":        true,
+		"$y = do { 1 } * ref x 3;":  true, // the limit above, 01a1a422-9176-7153-8625-6535b483a4b4
 		"$y = 2 * x 3;":             false,
 		"foo * ref x 3;":            false, // a bareword completes a term, so the * multiplies
 		"$y = foo * ref x 3;":       false,
