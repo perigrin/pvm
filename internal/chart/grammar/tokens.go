@@ -52,6 +52,10 @@ type Neighbour struct {
 	// it was and the key needs no more tokens back (spec §7's neighbour class, extended by perigrin's
 	// ruling on the x fitting).
 	Glob, Name bool
+	// Label is on a label's word, one at a statement start with a colon after it on its line, and on
+	// that colon: toke.c has PL_expect at XSTATE after the colon, and a bare `:` cannot be told from an
+	// attribute list's, so the colon says what it was, as Glob and Name do.
+	Label bool
 }
 
 // Boundary is the class of the neighbour that a file's edge lacks.
@@ -99,6 +103,8 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	c.Glob = false
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
+	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && slices.Contains(stateStarts, *pred) ||
+		t.Kind == lexer.Operator && t.Text == ":" && pred.Label
 }
 
 // OtherWord as a neighbour's Text stands for a word no class names, the one whose
@@ -154,11 +160,12 @@ func (c TokenClass) CompletedBy() (Neighbour, bool) {
 		return Neighbour{}, false
 	}
 	n := Neighbour{Kind: *c.Kind}
-	if c.Text != nil {
+	switch {
+	case c.Text != nil:
 		n.Text = *c.Text
-	} else if *c.Kind == lexer.Word {
+	case *c.Kind == lexer.Word:
 		n.Text = OtherWord
-	} else if *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix|0x20)-'a' < 26 {
+	case *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix|0x20)-'a' < 26:
 		n.Text = IdentQuote
 	}
 	if c.OpensBlock != nil {
@@ -215,7 +222,7 @@ func b2i(b bool) int {
 // one integer, so finding its class id hashes a word rather than a struct.
 // The kind is offset by one, since Boundary's is -1.
 func classKey(n Neighbour, text int) uint64 {
-	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
+	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
 }
 
 // node tests one part: kids is indexed by the part's value, def covers the
@@ -306,7 +313,7 @@ func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
 	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
 		it.Class = tt.nonIdentWord
 	case it.Class != 0:
-	case t.Kind == lexer.Word:
+	case t.Kind == lexer.Word && !it.N.Label:
 		it.Class = tt.anyWord
 	case t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26:
 		it.Class = tt.identQuote

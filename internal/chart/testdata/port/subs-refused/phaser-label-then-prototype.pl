@@ -1,0 +1,1 @@
+BEGIN : prototype($) { 1 }
