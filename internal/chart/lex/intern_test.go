@@ -62,20 +62,19 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 }
 
 var (
-	qualWord = regexp.MustCompile(`::|'`)
-	qualVar  = regexp.MustCompile(`^\$(.*::|[^']+')`)
+	plain    = regexp.MustCompile(`^[A-Za-z_\x{80}-\x{10FFFF}][A-Za-z0-9_\x{80}-\x{10FFFF}]*$`)
 	colonRef = regexp.MustCompile(`^[ \t\r\f]*:`)
 )
 
-// refQualified and refLineColon are the properties read off the source with regular expressions, not the
-// token stream: a word or variable with a package separator, and a word whose rest of line starts
+// refGlobal and refLineColon are the properties read off the source with regular expressions, not the
+// token stream: a word or `$` variable that is no plain identifier (or is `$_`), and a word whose rest of line starts
 // (blanks only) with a colon that is not `::`.
-func refQualified(k lexer.Kind, tx string) bool {
+func refGlobal(k lexer.Kind, tx string) bool {
 	switch k {
 	case lexer.Word:
-		return qualWord.MatchString(tx)
+		return !plain.MatchString(tx)
 	case lexer.Variable:
-		return qualVar.MatchString(tx)
+		return len(tx) > 1 && tx[0] == '$' && (tx == "$_" || !plain.MatchString(tx[1:]))
 	}
 	return false
 }
@@ -160,7 +159,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		tx := string(src[t.Start:t.End])
 		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
 			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:])}
-		v.Qualified = (v.LineColon || t.Kind == lexer.Variable) && refQualified(t.Kind, tx)
+		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		prev := pred
 		pred = refClassOf(v, prev)
 		if t.Kind == lexer.Operator && tx == "*" {
@@ -187,7 +186,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		for _, c := range classes {
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
-				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Qualified == nil || *c.Qualified == t.v.Qualified) &&
+				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
 				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
 				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
@@ -274,7 +273,7 @@ const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; " + colonForms +
+	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)
