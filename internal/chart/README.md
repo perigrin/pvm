@@ -282,12 +282,15 @@ ATTRLIST holding every attribute and its argument as an opaque string
   are accepted where perl refuses them without the feature, as a bareword
   call (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). `when` and `default` outside
   a topicalizer are accepted too: their scope refusals are waypoint 2's.
-- `for our ($a, $b) (@l) { 1 }` and `for state ($a) (@l) { 1 }` are accepted,
-  where toke.c croaks "Missing $ on loop variable": only `my` may open a
-  parenthesised iteration list, and toke.c checks it when it lexes `for` at
-  a statement start (`yyl_foreach`), which the chart's KW_MY, one terminal for
-  `my`, `our` and `state`, cannot see. Not a syntax error, so no refused
-  snippet; it wants a lexer issue (none filed yet).
+- `for our (…)` and `for state (…)` at a statement start are refused, as toke.c's
+  `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
+  parenthesised list); `1 for our ($x);` stays accepted. The statement start is
+  read as the token two back from `our`: a file's start, `;`, a block's `{` or a
+  block's `}`. Two leftovers: a `do`, `eval` or anonymous-sub block's `}` reads as
+  a statement start (`ClassOf`'s shortcut), so `do {1} for our ($x);` is refused
+  where perl accepts it; and once labels land a label's `:` must join the
+  statement-start set, or `L: for our ($x) (@l) {1}` will be accepted where perl croaks. The croak is not a
+  syntax error, so these forms are inline rows in `TestPortLoopsRefusals`, not snippets.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - A `:` after `my`, `our` or `state` and a variable is the attribute colon when
   an identifier character follows (toke.c's `yyl_colon`), so
