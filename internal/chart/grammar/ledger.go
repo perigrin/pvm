@@ -38,11 +38,13 @@ var comparisonChains = []int{1466, 1468, 1484, 1486}
 // FormatBody token (01a1a5b7-1bcb-7c4c-bbdc-1abedccd7e6b), which formblock (787, fitted) takes whole, and a
 // substitution with its replacement as one Quote token, which term: PMFUNC (1699, fitted) takes whole, so
 // the alternatives that build those sequences from toke.c's terminals (optrepl's, 1797 and 1798) have no token to match.
+// Likewise a signature parameter's name (1089, PRIVATEREF): internal/lexer emits the sigil and the name as one
+// Variable token, which is the sigil's terminal alone, as `scalar: PERLY_DOLLAR` (1846) is fitted.
 var exclusionReasons = []string{"keyword-plugin", "refused-in-action", "conditional-refusal", "error-recovery", "interpolation-only", "folded-into-token"}
 
 // reasonLines pins a reason to the lines it is true of. refused-in-action is
 // pinned to refused-in-action.txt; conditional-refusal is left to review.
-var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}, "interpolation-only": {1512}, "folded-into-token": {836, 837, 906, 924, 925, 1797, 1798}}
+var reasonLines = map[string][]int{"keyword-plugin": {878, 1714}, "error-recovery": {933}, "interpolation-only": {1512}, "folded-into-token": {836, 837, 906, 924, 925, 1089, 1797, 1798}}
 
 // ParseEntries reads `perly.y:<line> <text>` lines (blank lines skipped), each followed by a tab and
 // its mark when marked. The mark is kept verbatim for checkMarks to judge.
