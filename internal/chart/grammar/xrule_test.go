@@ -44,11 +44,21 @@ func TestRepeatClassesFollowCompletes(t *testing.T) {
 		"bareword":    {&Neighbour{Kind: lexer.Word, Text: OtherWord}, nil},
 		"method name": {nil, &Neighbour{Kind: lexer.Operator, Text: "->"}},
 		"& name":      {nil, &Neighbour{Kind: lexer.FuncSigil}},
-		"glob name":   {nil, &Neighbour{Kind: lexer.Operator, Text: "*"}},
+		"glob name":   {nil, &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}},
 	} {
 		if !hasRepeat(want.prev1, want.prev2) {
 			t.Errorf("no MULOP x class after a %s", name)
 		}
+	}
+	// A * is a glob sigil only when the token before it completes no term, and its neighbour class says
+	// so (Glob), so the glob name's x class follows a glob's * alone.
+	for _, c := range repeatClasses() {
+		if c.Prev2 != nil && c.Prev2.Kind == lexer.Operator && c.Prev2.Text == "*" && !c.Prev2.Glob {
+			t.Errorf("an x class follows a * that may multiply")
+		}
+	}
+	if !hasRepeat(nil, &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}) {
+		t.Errorf("no MULOP x class after a glob name")
 	}
 	// What waits for its argument does not: x after it is a word.
 	for _, w := range []string{"ref", "shift", "print", "push", "last", "not", "require", "return"} {
@@ -86,5 +96,30 @@ func TestLimitBlockBraceSparesConditionedClasses(t *testing.T) {
 		if classes[i].Key.NotPrev1 != nil {
 			t.Errorf("the conditioned { class %d excludes %v", i-2, classes[i].Key.NotPrev1)
 		}
+	}
+}
+
+// A { class is spared when it has any condition of its own, positive or negated, and a cut it already
+// has is added to rather than replaced.
+func TestLimitBlockBraceSparesNegatedConditions(t *testing.T) {
+	brace := TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}
+	notNext, notText := brace, brace
+	notNext.NotNext = &Neighbour{Kind: lexer.Word, Text: "x"}
+	notText.NotText = []string{"{"}
+	prior := brace
+	prior.NotPrev1 = []Neighbour{{Kind: lexer.Word, Text: "do"}}
+	classes := []ClassDecl{
+		{"LSTOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("open")}},
+		{"PERLY_BRACE_OPEN", notNext}, {"PERLY_BRACE_OPEN", notText}, {"PERLY_BRACE_OPEN", prior},
+	}
+	limitBlockBrace(classes)
+	for _, i := range []int{1, 2} {
+		if classes[i].Key.NotPrev1 != nil {
+			t.Errorf("a { class with a negated condition of its own was cut: %v", classes[i].Key.NotPrev1)
+		}
+	}
+	want := []Neighbour{{Kind: lexer.Word, Text: "do"}, {Kind: lexer.Word, Text: "open"}}
+	if got := classes[3].Key.NotPrev1; !slices.Equal(got, want) {
+		t.Errorf("a { class that excluded do now excludes %v, want %v", got, want)
 	}
 }

@@ -853,10 +853,9 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('v')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('5')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
-	// A glob's name: yyl_star runs scan_ident, then sets PL_expect to XOPERATOR (TERM(PERLY_STAR)).
-	// shortcut: the neighbour * is a multiplication as often as a glob, so a word that waits for a term
-	// is read as complete after either (`2 * ref x 3`), upgrade when a class can see three tokens back.
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}, Completes: true}},
+	// A glob's name: yyl_star runs scan_ident, then sets PL_expect to XOPERATOR (TERM(PERLY_STAR)), but
+	// only for a * that is a glob sigil, which the neighbour class of the * says (Neighbour.Glob).
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
@@ -1484,17 +1483,7 @@ func init() {
 		if c.Prev1 != nil {
 			x.Prev2 = c.Prev1 // the name is whatever word follows it
 		} else {
-			n := Neighbour{Kind: *c.Kind}
-			if c.Text != nil {
-				n.Text = *c.Text
-			} else if *c.Kind == lexer.Word {
-				n.Text = OtherWord
-			} else if *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix|0x20)-'a' < 26 {
-				n.Text = IdentQuote
-			}
-			if c.OpensBlock != nil {
-				n.OpensBlock = *c.OpensBlock
-			}
+			n, _ := c.CompletedBy()
 			x.Prev1 = &n
 		}
 		key := repeat{prev2: x.Prev1 == nil}
@@ -1508,14 +1497,13 @@ func init() {
 			perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 		}
 	}
-
 	limitBlockBrace(perlyClasses)
 }
 
 // limitBlockBrace takes the { away from a block after a list operator whose PL_expect is XTERM: toke.c
 // reads it as an anonymous hash, whatever the lexer decided, so `sprintf {$fh} $x` has no block to be
 // an indirob; only the XREF operators read it as one. Only the { class that no neighbour conditions is
-// cut: a class with a Prev1, Prev2 or Next of its own (a later `sub open {`) is a different reading of
+// cut: a class with a Prev1, Prev2, Next, NotText or NotNext of its own (a later `sub open {`) is a different reading of
 // the { and keeps its reach. shortcut: that unconditioned class also loses the { after a sub named like
 // such an operator until the sub family adds its conditioned one.
 func limitBlockBrace(classes []ClassDecl) {
@@ -1526,8 +1514,9 @@ func limitBlockBrace(classes []ClassDecl) {
 		}
 	}
 	for i, d := range classes {
-		if k := d.Key; d.Terminal == "PERLY_BRACE_OPEN" && k.Prev1 == nil && k.Prev2 == nil && k.Next == nil {
-			classes[i].Key.NotPrev1 = xterm
+		if k := d.Key; d.Terminal == "PERLY_BRACE_OPEN" && k.Prev1 == nil && k.Prev2 == nil && k.Next == nil &&
+			k.NotText == nil && k.NotNext == nil {
+			classes[i].Key.NotPrev1 = append(slices.Clone(k.NotPrev1), xterm...)
 		}
 	}
 }

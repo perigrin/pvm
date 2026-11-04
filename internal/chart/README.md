@@ -309,6 +309,28 @@ The string-bitwise operators are feature-blind. `internal/lexer` emits `|.`,
 refuses it without the feature. Known limit, until the lexer tracks the
 feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 
+### The repetition operator `x`
+
+toke.c's `KEY_x` makes `x` the repetition operator exactly when `PL_expect`
+is XOPERATOR, which a token that completes a term leaves; otherwise it is a
+word. A token class marked `Completes` is such a token, and `init` in
+`grammar/perly.go` derives MULOP's `x` classes from the marks. Known limits:
+
+- A block's `}` is not treated as completing a term for the `*` that follows
+  it (`if (1) { } *print x 3;` is accepted, as perl does), because the
+  neighbour cannot tell a statement block's `}` from a `do` block's. So
+  `$y = do { 1 } * ref x 3;` will be accepted once `do` blocks are ported
+  (remaining terms), where perl refuses it. Until the lexer marks what a `}`
+  closes (`01a1a422-9176-7153-8625-6535b483a4b4`).
+- A bareword after an XREF list operator is a filehandle to toke.c, so
+  `print FH x 3;`, `printf FH x 3;`, `say FH x 3;`, `exec foo x 3;` and
+  `sort foo x 3;` are accepted where perl refuses them, until the
+  indirect-object family (`01a18fa6-f3c8`) ports its forms.
+- The `{` after a list operator whose `PL_expect` is XTERM is an anonymous
+  hash to toke.c, whatever the lexer decided, so `sprintf {$fh} $x;` is
+  refused as perl does; the `{` class that follows a sub named like such an
+  operator (`sub open {`) is the sub family's to add.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
@@ -342,7 +364,13 @@ whatever the file's length.
   prefix (a variable's sigil, `#` for `$#`; a quote's opening quote or
   operator, `Q` for `qq`), and the classes of the two significant tokens
   before it and the one after. Each token is interned once and its class id
-  reused where it is a neighbour.
+  reused where it is a neighbour. A neighbour's class carries what its own
+  predecessor decided: a `{` its brace (subscript, hash or block), a `*`
+  whether it is a glob sigil (`Glob`: the token before it completes no term,
+  toke.c's `yyl_star`), and a word whether it names something (`Name`: it
+  follows `->`, `&` or a glob's `*`). This extends spec §7's neighbour class,
+  by perigrin's ruling on the `x` fitting; the key still reads three classes,
+  so the lookup stays constant-time and allocation-free.
 - **Interning** (`TokenTable.Intern`) writes the token's class, class id and
   text id into a `grammar.Token` the caller holds, reading its predecessor's
   class through a pointer: `Map` keeps the last token and the one being
