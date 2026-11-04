@@ -41,6 +41,9 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	case lexer.Word, lexer.Operator, lexer.CloseBracket:
 		c.Text = t.Text
 	}
+	if t.Kind == lexer.Quote && (t.Prefix >= 'a' && t.Prefix <= 'z' || t.Prefix == 'Q') {
+		c.Text = grammar.IdentQuote
+	}
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
 		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
