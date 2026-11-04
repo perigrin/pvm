@@ -223,7 +223,7 @@ Two lists name the files a lexer defect takes out of the gates (§11):
 `testdata/lex-unmapped-known.txt`, for a token the chart's table leaves
 unmapped, and `testdata/lexer-defects.txt`, for a token that is mapped but
 wrong. Refusal counts exclude the files on either list and no others. Both
-start empty; an entry is added only by the issue that meets the defect, filed
+started empty; an entry is added only by the issue that meets the defect, filed
 against the v0.1 milestone, and the gate review confirms the construct at the
 entry's byte is that issue's.
 
@@ -351,6 +351,31 @@ word `catch` (`$p->catch($Foo::x)`, `catch => $_`), where perl reads `catch` as 
 method name or a hash key. Both are unreachable
 until method calls and fat commas parse, and then they need the exclusion to
 see `->` or `=>` one token further back (a `NotPrev3`).
+
+### Version tokens after `package`, `use` and `no`
+
+toke.c forces a version into a BAREWORD after `package NAME` and after `use`
+or `no` (and an empty one when none is written); `grammar/versions.go` gives
+pvm's Number or v-string that class. The key drops a number's text and what
+follows it, so chart/lex derives both into the Number's `Prefix`
+(`lex.versionShape`): `grammar.VersionStrict` for what `force_strict_version`
+reads (`1`, `1.23`, not `01`, `1_0`, `1.`, `0x10`, `1e3`), `grammar.VersionLax`
+for what `force_version` reads (digits, `_` and `.`), and neither unless
+whitespace, `;`, `{`, `}` or the end of the file follows, as `lib 1.2, 3` is a
+term to toke.c. Known limits:
+
+- `package Foo v1.2.3;` and `package Foo v1.4.0 {1}` are refused: after a
+  package name the lexer does not scan a v-string (`scanVString` wants a term),
+  so it emits `v1`, `.`, `2.3`. The lexer issue is
+  `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`; the two Guacamole files that hit it
+  are on `testdata/lexer-defects.txt`.
+- `use VERSION MODULE` (`use 5.036 strict;`) is refused. toke.c lexes that
+  module as an ordinary term, so taking it would take `use 5.036 foo bar;` too.
+- The version BAREWORD is also the term BAREWORD, and no terminal tells them
+  apart, so only a comma is excluded after a version that follows a module:
+  `use lib 1.2 => 3;`, `use lib 1.2 . 1;` and `use lib 1.2 x 3;` are accepted
+  where perl refuses them. Excluding more needs a `NotNext` that takes a list,
+  or a version terminal no list opens with.
 
 ### The repetition operator `x`
 

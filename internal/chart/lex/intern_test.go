@@ -35,6 +35,29 @@ func committed(tb testing.TB) (*grammar.TokenTable, []grammar.TokenClass) {
 	return tab.Tokens, classes
 }
 
+var (
+	refStrictVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
+	refLaxVersion    = regexp.MustCompile(`^[0-9][0-9_.]*$`)
+)
+
+// refPrefix is prefix as a regular expression reads a number: strict or lax version text, and only when
+// whitespace, ;, {, } or the end of the file follows it. Anything else is prefix's.
+func refPrefix(k lexer.Kind, tx string, src []byte, end int) byte {
+	if k != lexer.Number {
+		return prefix(k, tx, 0)
+	}
+	if end < len(src) && !bytes.ContainsRune([]byte(" \t\n\r\f\v;{}\x00"), rune(src[end])) {
+		return 0
+	}
+	switch {
+	case refStrictVersion.MatchString(tx):
+		return grammar.VersionStrict
+	case refLaxVersion.MatchString(tx):
+		return grammar.VersionLax
+	}
+	return 0
+}
+
 // refClassOf is ClassOf as it stood before Intern was made cheaper, kept
 // here so the reference shares no code with what it checks.
 func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
@@ -190,7 +213,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			opens++
 		}
 		tx := string(src[t.Start:t.End])
-		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: refPrefix(t.Kind, tx, src, t.End),
 			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:]), Blanks: t.Kind == lexer.Word && refBlanks(src, t.Start, t.End)}
 		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		prev := pred
@@ -333,6 +356,30 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	for i, tok := range s.Tokens {
 		if tok.TerminalSet != want[i] {
 			t.Errorf("token %d has set %d, the reference %d", i, tok.TerminalSet, want[i])
+		}
+	}
+	if len(s.Tokens) != len(want) {
+		t.Errorf("%d tokens, the reference %d", len(s.Tokens), len(want))
+	}
+}
+
+// The version shapes (chart/lex's Prefix for a Number) need numbers the corpus may not hold after a package name, and
+// the byte after each: a strict, a lax and a plain number, each delimited by every byte toke.c ends a version at and by
+// ones it does not.
+func TestInternIdentityVersionShapes(t *testing.T) {
+	tt, classes := committed(t)
+	var src []byte
+	for _, n := range []string{"1", "1.23", "0.1", "01", "1_0", "1.", "1.2.3", "0x10", "1e3", ".5", "10.01"} {
+		for _, d := range []string{";", " ;", "\t;", "\n;", "{ }", "}", ",", "#c\n;", "x;", ")", "'a';", ""} {
+			src = append(src, "package Foo "+n+d+"\nuse "+n+d+"\nuse lib "+n+d+"\n$y = "+n+d+"\n"...)
+		}
+	}
+	s, _ := Lex(src, tt)
+	want := refIDs(t, src, tt, classes)
+	for i, tok := range s.Tokens {
+		if tok.TerminalSet != want[i] {
+			r := s.Raw[tok.Index]
+			t.Errorf("token %d (%q at byte %d) has set %d, the reference %d", i, src[r.Start:r.End], r.Start, tok.TerminalSet, want[i])
 		}
 	}
 	if len(s.Tokens) != len(want) {
