@@ -253,7 +253,7 @@
 252 refgen_topic ::= amper
 253 my_refgen ::= KW_MY REFGEN
 254 my_refgen ::= REFGEN KW_MY
-255 amper ::= PERLY_AMPERSAND BAREWORD
+255 amper ::= PERLY_AMPERSAND indirob
 256 scalar ::= PERLY_DOLLAR
 257 ary ::= PERLY_SNAIL
 258 hsh ::= PERLY_PERCENT_SIGN
@@ -263,4 +263,3 @@
 262 indirob ::= scalar
 263 indirob ::= block
 264 indirob ::= PRIVATEREF
-265 amper ::= PERLY_AMPERSAND PRIVATEREF

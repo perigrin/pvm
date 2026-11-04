@@ -63,6 +63,8 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	start := pred.Kind == -1 || pred.Kind == lexer.Semicolon || pred.Kind == lexer.Operator && pred.Text == "{" && pred.OpensBlock ||
 		pred.Kind == lexer.CloseBracket && pred.Text == "}" && pred.OpensBlock || pred.Label
 	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && start || t.Kind == lexer.Operator && t.Text == ":" && pred.Label
+	// sort's own (, not a method's.
+	c.SortParen = t.Kind == lexer.Operator && t.Text == "(" && pred.Kind == lexer.Word && pred.Text == "sort" && !pred.Name
 	return c
 }
 
@@ -324,7 +326,8 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
-		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; ")
+		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
+		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; ")
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
 	for i, tok := range s.Tokens {

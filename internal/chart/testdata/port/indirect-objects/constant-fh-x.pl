@@ -1,0 +1,11 @@
+use feature 'say';
+use constant FH => 1;
+use constant foo => 1;
+print FH x 3;
+printf FH x 3;
+say FH x 3;
+open FH x 3;
+binmode FH x 3;
+exec foo x 3;
+system foo x 3;
+$y = print FH x 3;
