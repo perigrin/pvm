@@ -728,6 +728,14 @@ var (
 	// declarators are the words after which a variable is declared and a : may start its attributes.
 	declarators = []Neighbour{{Kind: lexer.Word, Text: "my"}, {Kind: lexer.Word, Text: "our"}, {Kind: lexer.Word, Text: "state"}}
 
+	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
+
+	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
+	// `{` and a block's `}`.
+	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start (ClassOf's own shortcut),
+	// and a label's `:` must join this set when labels land; upgrade when the lexer marks the former.
+	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}}
+
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
 	// a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
@@ -790,8 +798,14 @@ var perlyClasses = []ClassDecl{
 	{"KW_LOCAL", TokenClass{Kind: ptr(lexer.Word), Text: ptr("local")}},
 
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("my")}},
-	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our")}},
-	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state")}},
+	// toke.c yyl_foreach croaks "Missing $ on loop variable" for `for our (` and `for state (` where
+	// PL_expect is XSTATE, so each of our and state is a class unless it follows a for at a statement start.
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotNext: &parenOpen}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotPrev1: forWords}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("our"), NotPrev2: stateStarts}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotNext: &parenOpen}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev1: forWords}},
+	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev2: stateStarts}},
 
 	// KW_FIELD
 
