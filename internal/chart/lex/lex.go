@@ -55,7 +55,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			continue
 		}
 		it := &slots[len(s.Tokens)&1]
-		intern(tt, text, t, lineColon(raw, i, text), pred, it)
+		intern(tt, text, t, lineColon(raw, i, text), blanks(raw, i, text), pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -72,10 +72,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 }
 
 // intern interns t's key in tt into it, given its predecessor's class.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc bool, pred *grammar.Neighbour, it *grammar.Token) {
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
 	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
-		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc}, pred, it)
+		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc, Blanks: bl}, pred, it)
 }
 
 // global is whether a word, or a `$` variable, is no plain name (a variable's name as varName gives it): it has a package separator or another
@@ -139,6 +139,40 @@ func lineColon(raw []lexer.Token, i int, src string) bool {
 		j++
 	}
 	return j < len(raw) && raw[j].Kind == lexer.Operator && raw[j].End-raw[j].Start == 1 && src[raw[j].Start] == ':'
+}
+
+// blanks is whether raw[i], a word, is a plain name that a closing bracket follows, and that only spaces or tabs
+// separate from the token on either side and, when that is a minus, from the one before it: where toke.c's
+// yyl_leftcurly (toke.c:6656-6679) forces a word to a string. It reads the gaps between tokens, not the bytes.
+func blanks(raw []lexer.Token, i int, src string) bool {
+	if raw[i].Kind != lexer.Word {
+		return false
+	}
+	// Most words fail here, before any gap is read.
+	k := i + 1
+	if k < len(raw) && raw[k].Kind == lexer.Whitespace {
+		k++
+	}
+	if k >= len(raw) || raw[k].Kind != lexer.CloseBracket || skipBlanks(raw, i+1, 1, src) < 0 {
+		return false
+	}
+	j := skipBlanks(raw, i-1, -1, src)
+	if j >= 0 && raw[j].Kind == lexer.Operator && src[raw[j].Start:raw[j].End] == "-" {
+		j = skipBlanks(raw, j-1, -1, src)
+	}
+	return j >= -1 && plainName(src[raw[i].Start:raw[i].End])
+}
+
+// skipBlanks is the index of the token past raw[j], a whitespace token of spaces and tabs, stepping by step, or j
+// itself when raw[j] is not one; -2 when the token reached is other trivia (a newline, a comment), and -1 when the file's edge is.
+func skipBlanks(raw []lexer.Token, j, step int, src string) int {
+	if j >= 0 && j < len(raw) && raw[j].Kind == lexer.Whitespace && strings.Trim(src[raw[j].Start:raw[j].End], " \t") == "" {
+		j += step
+	}
+	if j >= 0 && j < len(raw) && lexer.IsTrivia(raw[j].Kind) {
+		return -2
+	}
+	return j
 }
 
 // prefix is a variable's sigil (`#` for `$#`) or a quote's class: its opening

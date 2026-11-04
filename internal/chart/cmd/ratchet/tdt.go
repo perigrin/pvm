@@ -113,6 +113,9 @@ func keyText(c grammar.TokenClass) string {
 	if c.LineColon != nil {
 		add("LineColon", *c.LineColon, true)
 	}
+	if c.Blanks != nil {
+		add("Blanks", *c.Blanks, true)
+	}
 	add("NotText", digest(c.NotText), len(c.NotText) > 0)
 	var prev []string
 	for _, n := range c.NotPrev1 {
@@ -130,6 +133,7 @@ func keyText(c grammar.TokenClass) string {
 	add("NotNextIdent", true, c.NotNextIdent)
 	add("NextName", true, c.NextName)
 	add("NotNextName", true, c.NotNextName)
+	add("Lone", true, c.Lone)
 	return strings.Join(p, " ")
 }
 
