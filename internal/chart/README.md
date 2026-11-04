@@ -369,9 +369,11 @@ word. A token class marked `Completes` is such a token, and `init` in
   read as a word: `]`, the `}` closing a subscript or an anonymous hash, a
   quote-like (`qw`), a variable, a number and a string are marked; a family
   that adds one (`PMFUNC`, `PRIVATEREF`) marks it too.
-- A bareword after a list operator that takes a filehandle is one, and does
-  not complete a term (see Indirect objects), so `print FH x 3;` is refused as
-  perl does.
+- A bareword after `sort` (or `sort(`) is the sort sub's name and does not
+  complete a term, so `sort foo x 3;` is refused as perl does. After the other
+  list operators that take a filehandle the bareword is one only when no sub
+  of that name is declared, so `print FH x 3;` is scope's to decide and is
+  accepted (see Indirect objects).
 - The `{` after a list operator whose `PL_expect` is XTERM is an anonymous
   hash to toke.c, whatever the lexer decided, so `sprintf {$fh} $x;` is
   refused as perl does; the `{` of a sub named like such an operator
@@ -462,36 +464,45 @@ its forms.
 
 `indirob` is ported as written: a bareword, a scalar, a block or a
 PRIVATEREF, after a list operator (`print STDERR 1`, `print $fh 1`,
-`print {$fh} 1`, `print(STDERR 1)`) or a method word (`new Foo`,
-`new Foo(1)`, `meth $obj 1`, `meth { $obj } 1`).
+`print {$fh} 1`, `print(STDERR 1)`), a method word (`new Foo`,
+`new Foo(1)`, `meth $obj 1`, `meth { $obj } 1`) or `&` (perly.y:1842 is
+ported as written, so `&$code`, `&$code(1)` and `\&$code` are accepted).
 
 - A word before a variable, a block or another word is METHCALL0 (toke.c's
   yyl_just_a_word and intuit_method); before another word it is METHCALL as
   well, since only the token after that word says which. A declared sub
   would be called instead, which scope decides, so the word stays a BAREWORD
   too.
-- After the list operators toke.c gives a filehandle (`filehandleOperators`
-  in `grammar/perly.go`: the XREF ones but `map` and `grep`, and those whose
-  first operand is a filehandle), a bareword is the filehandle, a class
-  without `Completes`, so `x` after it is a word and `print FH x 3;` is
-  refused. `init` gives the `x` derived from a class its `NotPrev1` as
-  `NotPrev2`.
+- A `{` the lexer took for an anonymous hash after a word no class names is
+  also a block: without a declared sub toke.c's METHCALL0 leaves PL_expect at
+  XBLOCKTERM, so `foo { a => 1 };` is a method call with a block indirob, and
+  with one the `{` is a hash, which scope decides.
+- After `sort` a bareword is the sort sub's name whether or not a sub of that
+  name is declared (toke.c:8158, "indir obj regardless for sort"), and
+  PL_expect is XTERM after it, so `sort foo x 3;` is refused. The `(` of
+  `sort(` carries the neighbour flag `SortParen` (spec §7's neighbour class,
+  extended by perigrin's ruling as `Glob`, `Name` and `Label` are), since
+  toke.c's yyl_leftparen lets the word after it be the name too, so
+  `sort(foo x 3);` is refused. `init` gives the `x` derived from a class its
+  `NotPrev1` as `NotPrev2`.
 - A sub's name after `&` is PRIVATEREF and BAREWORD (a lexical sub's or a
-  package sub's, scope decides); perly.y:1895 is fitted as
-  `amper: PERLY_AMPERSAND PRIVATEREF` beside amper's BAREWORD fit. A glob's
-  name and a bareword filehandle are BAREWORD only.
+  package sub's, scope decides). A glob's name and a bareword filehandle are
+  BAREWORD only.
 
-Known limits:
+Accepted where perl refuses them, because a declaration would make perl
+accept them (scope, waypoint 2), each pinned in
+`TestPortIndirectObjectsRefusals`:
 
-- `print(FH x 3);` (and `open(FH x 3);`, `sort(foo x 3);`) is accepted where
-  perl refuses it: toke.c reads the word after `print(` as the filehandle too,
-  but the `x` is three tokens past the operator, which no key part reaches.
-  Pinned in `TestPortIndirectObjectsRefusals`.
-- `new Foo x 3;` is accepted, where perl refuses it unless `new` is a declared
-  sub; with no declaration intuit_method leaves PL_expect at XTERM after `Foo`.
-  Scope decides it.
-- `print $fh [];` is accepted: perl refuses it through
-  `indirob: scalar %prec PREC_LOW`, a precedence refusal (waypoint 2).
+- `print FH x 3;`, `print(FH x 3);`, `print x x 3;` and their kin after
+  printf, say, open, binmode, exec and system: toke.c reads the word as a
+  filehandle only when no sub of that name is declared, and
+  `use constant FH => 1; print FH x 3;` is valid perl.
+- `new Foo x 3;`: with no declared `new` intuit_method leaves PL_expect at
+  XTERM after `Foo`.
+- `foo { a => 1 } x 3;`: a block after a method, a hash after a declared sub.
+
+`print $fh [];` is accepted: perl refuses it through
+`indirob: scalar %prec PREC_LOW`, a precedence refusal (waypoint 2).
 
 ## The thin chart/lex: `lex`
 

@@ -660,7 +660,7 @@ perly.y:1838 my_refgen: KW_MY REFGEN	ported
 
 perly.y:1839 my_refgen: REFGEN KW_MY	ported
 
-perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
+perly.y:1842 amper: PERLY_AMPERSAND indirob	ported
 
 perly.y:1846 scalar: PERLY_DOLLAR indirob	fitted
 
@@ -692,4 +692,4 @@ perly.y:1890 indirob: scalar	ported
 
 perly.y:1892 indirob: block	ported
 
-perly.y:1895 indirob: PRIVATEREF	fitted
+perly.y:1895 indirob: PRIVATEREF	ported
