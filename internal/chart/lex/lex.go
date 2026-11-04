@@ -78,16 +78,31 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc bool, pred *g
 		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc}, pred, it)
 }
 
-// global is whether a word, or a `$` variable, is no plain name: it has a package separator or another
+// global is whether a word, or a `$` variable, is no plain name (a variable's name as varName gives it): it has a package separator or another
 // character an identifier lacks (`$1`, `$^W`, `$'`), or it is the variable `$_`. A `my` declares only plain names.
 func global(k lexer.Kind, tx string) bool {
 	switch k {
 	case lexer.Word:
 		return !plainName(tx)
 	case lexer.Variable:
-		return len(tx) > 1 && tx[0] == '$' && (tx == "$_" || !plainName(tx[1:]))
+		if len(tx) < 2 || tx[0] != '$' {
+			return false
+		}
+		n := varName(tx[1:])
+		return n == "_" || !plainName(n)
 	}
 	return false
+}
+
+// varName is a variable's name without the whitespace after its sigil and without braces, with the
+// whitespace inside them: the lexer keeps `${ e }` and `$ e` as one token, which perl reads as `$e`.
+func varName(s string) string {
+	const blank = " \t\n\r\f\v"
+	s = strings.TrimLeft(s, blank)
+	if len(s) > 1 && s[0] == '{' && s[len(s)-1] == '}' {
+		s = strings.Trim(s[1:len(s)-1], blank)
+	}
+	return s
 }
 
 // plainName is whether s is a letter or _ (or a UTF-8 byte) and then those and digits: an identifier.
