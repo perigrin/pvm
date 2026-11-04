@@ -367,7 +367,7 @@ func TestTokenNotNext(t *testing.T) {
 	paren, semi := ClassOf(op("("), none), ClassOf(op(";"), none)
 	tt := mustCompile(t,
 		TokenClass{Terminals: []int{1}, Text: ptr("ref"), Next: &paren},
-		TokenClass{Terminals: []int{2}, Text: ptr("ref"), NotNext: &paren})
+		TokenClass{Terminals: []int{2}, Text: ptr("ref"), NotNext: []Neighbour{paren}})
 	for _, c := range []struct {
 		next Neighbour
 		want []int
