@@ -62,6 +62,9 @@ type Neighbour struct {
 	// that colon: toke.c has PL_expect at XSTATE after the colon, and a bare `:` cannot be told from an
 	// attribute list's, so the colon says what it was, as Glob and Name do.
 	Label bool
+	// SortParen is on a `(` right after sort (not a method named sort): toke.c's yyl_leftparen lets the word after it be
+	// sort's sub name (toke.c:8158), as the word right after sort is, so the ( says what it was, as Label does.
+	SortParen bool
 }
 
 // Boundary is the class of the neighbour that a file's edge lacks.
@@ -111,6 +114,7 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && slices.Contains(stateStarts, *pred) ||
 		t.Kind == lexer.Operator && t.Text == ":" && pred.Label
+	c.SortParen = t.Kind == lexer.Operator && t.Text == "(" && pred.Kind == lexer.Word && pred.Text == "sort" && !pred.Name
 }
 
 // OtherWord as a neighbour's Text stands for a word no class names, the one whose
@@ -196,7 +200,7 @@ func (tt *TokenTable) completes(pred *Neighbour) bool {
 		return true
 	}
 	n := *pred
-	n.Glob, n.Brace = false, 0
+	n.Glob, n.Brace, n.SortParen = false, 0, false
 	if n.Kind == lexer.Word && tt.text[n.Text] == 0 {
 		if !identStart(n.Text[0]) {
 			return false // a word opening with :: is the nonIdentWord class, which no OtherWord covers
@@ -234,7 +238,7 @@ func b2i(b bool) int {
 // one integer, so finding its class id hashes a word rather than a struct.
 // The kind is offset by one, since Boundary's is -1.
 func classKey(n Neighbour, text int) uint64 {
-	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
+	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.SortParen))<<7 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
 }
 
 // node tests one part: kids is indexed by the part's value, def covers the

@@ -139,11 +139,10 @@ func TestPortSubscriptsXRule(t *testing.T) {
 	}
 }
 
-// Known limits, pinned so they are noticed when they end. `$h{a b}` is an indirect-object call to perl, which the
-// indirect-object family (01a18fa6-f3c8) ports; `f()` is toke.c's zero-width & and a bareword, which the scope-decided
-// family (01a18fa7-1b8b) ports. This fails when either does; move the row to the accepted snippets then.
+// Known limits, pinned so they are noticed when they end. `f()` is toke.c's zero-width & and a bareword, which the
+// scope-decided family (01a18fa7-1b8b) ports. This fails when it does; move the rows to the accepted snippets then.
 func TestPortSubscriptsKnownLimits(t *testing.T) {
-	for _, src := range []string{"$y = $h{a b};", "$y = f()->{foo};", "f()->{foo};", "$y = f()->[0];"} {
+	for _, src := range []string{"$y = f()->{foo};", "f()->{foo};", "$y = f()->[0];"} {
 		if recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is accepted; the known limit is gone, so move it to the accepted snippets and drop the README line", src)
 		}
