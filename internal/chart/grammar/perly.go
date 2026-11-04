@@ -352,7 +352,7 @@ listop: LSTOP indirob listexpr # perly.y:1277
 
 listop: BLKLSTOP block listexpr # perly.y:1281
 
-# perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE
+listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE # perly.y:1285
 
 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1289
 
@@ -362,9 +362,9 @@ listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_
 
 listop: term ARROW PERLY_AMPERSAND subname # perly.y:1306
 
-# perly.y:1312 listop: METHCALL0 indirob optlistexpr
+listop: METHCALL0 indirob optlistexpr # perly.y:1312
 
-# perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE
+listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1318
 
 listop: LSTOP optlistexpr # perly.y:1324
 
@@ -712,13 +712,14 @@ star: PERLY_STAR BAREWORD # perly.y:1868, fitted: pvm emits * and the name as tw
 
 # perly.y:1883 gelem: term ARROW PERLY_STAR
 
-# perly.y:1888 indirob: BAREWORD
+indirob: BAREWORD # perly.y:1888
 
-# perly.y:1890 indirob: scalar
+indirob: scalar # perly.y:1890
 
 indirob: block # perly.y:1892
 
-# perly.y:1895 indirob: PRIVATEREF
+indirob: PRIVATEREF # perly.y:1895, fitted: as written; the ledger marks one line once, and the next rule is its fit
+amper: PERLY_AMPERSAND PRIVATEREF # perly.y:1895, fitted: pvm emits & and the name as two tokens, the name standing for indirob's PRIVATEREF as amper's perly.y:1842 fit has it stand for its BAREWORD
 `
 
 // parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0;
@@ -732,6 +733,19 @@ var (
 	declarators = []Neighbour{{Kind: lexer.Word, Text: "my"}, {Kind: lexer.Word, Text: "our"}, {Kind: lexer.Word, Text: "state"}}
 
 	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
+
+	// otherWord is a word no class names, as the next token: a keyword is never intuit_method's class name.
+	otherWord = Neighbour{Kind: lexer.Word, Text: OtherWord}
+
+	// filehandleOperators are the list operators after which toke.c reads a bareword as a filehandle and
+	// leaves PL_expect at XTERM (yyl_just_a_word, toke.c:8124-8171): those lop() calls with XREF but map
+	// and grep (toke.c:8517-9079), and those whose first operand is a filehandle (F in regen/opcodes).
+	// shortcut: `print(FH x 3)` reads FH as completing a term, where toke.c's yyl_leftparen makes it the filehandle too;
+	// the x there is three tokens past the operator, which no key part reaches. Upgrade if a key part ever does.
+	filehandleOperators = wordNeighbours("print", "printf", "say", "sort", "exec", "system",
+		"accept", "bind", "binmode", "connect", "fcntl", "flock", "getsockopt", "ioctl", "listen", "open", "opendir",
+		"pipe", "read", "recv", "seek", "select", "send", "setsockopt", "shutdown", "socket", "socketpair",
+		"sysopen", "sysread", "sysseek", "syswrite")
 
 	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
 	// `{`, a block's `}` and a label's colon (the neighbour flags that colon, since a bare one may be an
@@ -896,8 +910,10 @@ var perlyClasses = []ClassDecl{
 	// Every word that is not a keyword; the one keyword toke.c falls through to a word when no
 	// operator is expected, x (KEY_x), is listed below. A keyword is a BAREWORD only where a position
 	// class says so; lt, gt, le, ge, eq, ne and cmp are never words.
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Completes: true}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), Completes: true}},
+	// After a list operator that takes a filehandle the word is one, and does not complete a term: init adds
+	// its classes (see filehandleOperators).
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: filehandleOperators, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: filehandleOperators, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('v')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('5')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
@@ -917,8 +933,14 @@ var perlyClasses = []ClassDecl{
 
 	// toke.c forces the word after -> to METHCALL0, a keyword or a quote-like operator's name included.
 	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "->"}, Completes: true}},
+	// A word before a variable or a block is a method called on it (toke.c:8215, unless it is a declared sub, which scope
+	// decides). Before another word, intuit_method makes it one too (toke.c:5131-5137), METHCALL when a ( follows that
+	// word; that is two tokens on, so the word before a word is both. Neither completes a term: an indirob follows.
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &Neighbour{Kind: lexer.Variable}}},
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &blockOpen}},
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &otherWord}},
 
-	// METHCALL
+	{"METHCALL", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &otherWord}},
 
 	// An attribute's name follows its colon, the attribute before it or its argument's parenthesis; its
 	// one-token argument, never a parenthesis, follows its own.
@@ -938,7 +960,9 @@ var perlyClasses = []ClassDecl{
 
 	// PMFUNC
 
-	// PRIVATEREF
+	// A sub's name after &: yyl_ampersand forces it through pending_ident (toke.c:6949), which makes a lexical sub's
+	// name PRIVATEREF (toke.c:10397) and a package sub's BAREWORD; scope tells them apart.
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 
 	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w')), Completes: true}},
 
@@ -1533,6 +1557,12 @@ var xrefListOperators = []string{"print", "printf", "say", "sort", "map", "grep"
 // with & or after * (the same, and yyl_star's scan_ident), whatever they spell. The named, list and filetest operators wait for a term, so
 // x after them is a word, as after a comma or an operator.
 func init() {
+	// The filehandle after each filehandleOperators word: a word other than a keyword, or x, which toke.c's KEY_x
+	// makes a word when no operator is expected.
+	notX := slices.DeleteFunc(slices.Clone(lexer.Keywords()), func(s string) bool { return s == "x" })
+	for _, op := range filehandleOperators {
+		perlyClasses = append(perlyClasses, ClassDecl{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: notX, Prev1: &op}})
+	}
 	// An x class has its neighbour either right before it (prev2 false) or two back.
 	type repeat struct {
 		n     Neighbour
@@ -1550,6 +1580,7 @@ func init() {
 		} else {
 			n, _ := c.CompletedBy()
 			x.Prev1 = &n
+			x.NotPrev2 = c.NotPrev1 // where the class does not match, its token completes nothing
 		}
 		key := repeat{prev2: x.Prev1 == nil}
 		if key.prev2 {
@@ -1557,12 +1588,21 @@ func init() {
 		} else {
 			key.n = *x.Prev1
 		}
-		if !seen[key] {
+		if !seen[key] || x.NotPrev2 != nil {
 			seen[key] = true
 			perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 		}
 	}
 	limitBlockBrace(perlyClasses)
+}
+
+// wordNeighbours is the word neighbour of each text.
+func wordNeighbours(texts ...string) []Neighbour {
+	ns := make([]Neighbour, len(texts))
+	for i, t := range texts {
+		ns[i] = Neighbour{Kind: lexer.Word, Text: t}
+	}
+	return ns
 }
 
 // limitBlockBrace takes the { away from a block after a list operator whose PL_expect is XTERM: toke.c
