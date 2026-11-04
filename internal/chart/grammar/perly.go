@@ -734,13 +734,12 @@ var (
 	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
 
 	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
-	// `{` and a block's `}`.
+	// `{`, a block's `}` and a label's colon (the neighbour flags that colon, since a bare one may be an
+	// attribute list's: `my $y : for our ($x);` is legal).
 	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start because the lexer does not mark
-	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does. A label's `:` is not one: a bare
-	// `:` cannot be told from an attribute list's (`my $y : for our ($x);` is legal), so once labels land
-	// `L: for our ($x) (1) {}` is accepted where perl croaks; try/defer (01a18fa7-01db-7f91-853d-e9147df0c30a),
-	// which introduces labels, closes it and adds the `L:` row to TestPortLoopsRefusals.
-	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}}
+	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does.
+	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true},
+		{Kind: lexer.Operator, Text: ":", Label: true}}
 
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or

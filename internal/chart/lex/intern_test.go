@@ -58,6 +58,10 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	}
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
+	// A label is a plain word with its colon on its line at a statement start; its colon carries the flag on.
+	start := pred.Kind == -1 || pred.Kind == lexer.Semicolon || pred.Kind == lexer.Operator && pred.Text == "{" && pred.OpensBlock ||
+		pred.Kind == lexer.CloseBracket && pred.Text == "}" && pred.OpensBlock || pred.Label
+	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && start || t.Kind == lexer.Operator && t.Text == ":" && pred.Label
 	return c
 }
 
@@ -283,7 +287,7 @@ const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
+	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)
