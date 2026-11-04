@@ -286,15 +286,14 @@ ATTRLIST holding every attribute and its argument as an opaque string
   `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
   parenthesised list); `1 for our ($x);` stays accepted. The statement start is
   read as the token two back from `our`: a file's start, `;`, a block's `{`, a
-  block's `}`.
-  Two leftovers: a `do`, `eval` or anonymous-sub block's `}` reads as a statement
+  block's `}`, a label's `:`. The label's colon is told from an attribute list's by
+  a neighbour flag (`Label`, on a label's word and on its colon), so
+  `L: for our ($x) (1) {}` is refused as perl croaks, while
+  `my $y : for our ($x);` stays accepted.
+  One leftover: a `do`, `eval` or anonymous-sub block's `}` reads as a statement
   start, so `do {1} for our ($x);` is refused where perl accepts it, because the
-  lexer does not mark what a `}` closes (`01a1a422-9176-7153-8625-6535b483a4b4`);
-  and a label's `:` is not a statement start, because a bare `:` cannot be told from
-  an attribute list's (`my $y : for our ($x);` is legal), so once labels land
-  `L: for our ($x) (1) {}` is accepted where perl croaks. try/defer
-  (`01a18fa7-01db-7f91-853d-e9147df0c30a`) introduces labels and closes it. The
-  croak is not a syntax error, so these forms are inline rows in
+  lexer does not mark what a `}` closes (`01a1a422-9176-7153-8625-6535b483a4b4`).
+  The croak is not a syntax error, so these forms are inline rows in
   `TestPortLoopsRefusals`, not snippets.
 - `my $x :if;` is accepted, where toke.c refuses the keyword as an attribute.
 - A `:` after `my`, `our` or `state` and a variable is the attribute colon when
@@ -327,6 +326,31 @@ The string-bitwise operators are feature-blind. `internal/lexer` emits `|.`,
 (toke.c lexes them only under it), so `$y = $a |. $b;` is accepted where perl
 refuses it without the feature. Known limit, until the lexer tracks the
 feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
+
+`try`, `catch`, `finally` and `defer` map to their keywords with or without
+`use feature 'try'` or `'defer'` (toke.c reads them as words without it), so
+`try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
+feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
+The other side is under-acceptance: where perl reads them as plain words,
+`try => 1;`, `sub try {} try 1;`, `$h{try}` and `catch(1)` are refused, and
+cannot be told from `foo(1)`, `foo 1` and `$h{foo}` (also refused) until the
+call and subscript families land.
+
+A LABEL is a word with no package separator and a one-byte colon after it on
+its own line (blanks only between), where a statement may start: toke.c's label
+scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
+`L #c\n: 1;` and `L::M: 1;` are refused.
+
+`catch (` takes a plain lexical name: `catch ($::e)`, `catch ($Foo::e)`,
+`catch ($_)`, `catch ($1)`, `catch ($^W)` and `catch ($')` are refused, as the
+action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
+`catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
+tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
+shortcut: that class also refuses a variable that is not a plain name after the
+word `catch` (`$p->catch($Foo::x)`, `catch => $_`), where perl reads `catch` as a
+method name or a hash key. Both are unreachable
+until method calls and fat commas parse, and then they need the exclusion to
+see `->` or `=>` one token further back (a `NotPrev3`).
 
 ### The repetition operator `x`
 

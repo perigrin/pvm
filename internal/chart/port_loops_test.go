@@ -43,14 +43,15 @@ func TestPortLoopsRefusals(t *testing.T) {
 	// toke.c croaks "Missing $ on loop variable" for a parenthesised list after our or state
 	// at a statement start; perl's message is not a syntax error, so these are not snippets.
 	for _, src := range []string{"for our ($a, $b) (@l) { 1 }", "for state ($a) (@l) { 1 }", "foreach our ($a) (@l) { 1 }",
-		"{ for our ($a) (@l) { 1 } }", "1; for our ($a) (@l) { 1 }", "if (1) {} for our ($a) (@l) { 1 }"} {
+		"{ for our ($a) (@l) { 1 } }", "1; for our ($a) (@l) { 1 }", "if (1) {} for our ($a) (@l) { 1 }",
+		"L: for our ($a) (@l) { 1 }", "L: for state ($a) (@l) { 1 }", "A: B: for our ($a) (@l) { 1 }", "{ L: foreach our ($a) (@l) { 1 } }"} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl croaks", src)
 		}
 	}
 	for _, src := range []string{"for my $x (@l) { 1 }", "1 for our ($x);", "$i++ for our ($x);", "for our $x (@l) { 1 }",
 		"for state $x (@l) { 1 }", "for my ($a) (@l) { 1 }",
-		"my $y : for our ($x);", "my ($y) : for our ($x);", "our $y : foreach our ($x);", "my $y : for state ($x);", "our ($x);", "state ($x) = 1;", "for (my $i = 0; $i < 3; $i++) { 1 }", "for (;;) { last }", "1 for @l;",
+		"my $y : for our ($x);", "L: for my $x (@l) { 1 }", "L: 1 for our ($x);", "L: my $y : for our ($x);", "L:\nmy ($y) : for our ($x);", "my ($y) : for our ($x);", "our $y : foreach our ($x);", "my $y : for state ($x);", "our ($x);", "state ($x) = 1;", "for (my $i = 0; $i < 3; $i++) { 1 }", "for (;;) { last }", "1 for @l;",
 		"for (;;) { 1 }", "for (@l) { 1 }", "foreach $x (@l) { 1 } continue { 2 }", "$x = 1 for @l;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)

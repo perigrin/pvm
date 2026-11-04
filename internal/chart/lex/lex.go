@@ -8,6 +8,7 @@
 package lex
 
 import (
+	"strings"
 	"unsafe"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -54,7 +55,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			continue
 		}
 		it := &slots[len(s.Tokens)&1]
-		intern(tt, text, t, pred, it)
+		intern(tt, text, t, lineColon(raw, i, text), pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -71,9 +72,73 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 }
 
 // intern interns t's key in tt into it, given its predecessor's class.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, pred *grammar.Neighbour, it *grammar.Token) {
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
-	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}, pred, it)
+	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc}, pred, it)
+}
+
+// global is whether a word, or a `$` variable, is no plain name (a variable's name as varName gives it): it has a package separator or another
+// character an identifier lacks (`$1`, `$^W`, `$'`), or it is the variable `$_`. A `my` declares only plain names.
+func global(k lexer.Kind, tx string) bool {
+	switch k {
+	case lexer.Word:
+		return !plainName(tx)
+	case lexer.Variable:
+		if len(tx) < 2 || tx[0] != '$' {
+			return false
+		}
+		n := varName(tx[1:])
+		return n == "_" || !plainName(n)
+	}
+	return false
+}
+
+// varName is a variable's name without the whitespace and comments after its sigil and without braces, with the
+// whitespace inside them: the lexer keeps `${ e }` and `$ e` as one token, which perl reads as `$e`.
+func varName(s string) string {
+	const blank = " \t\n\r\f\v"
+	s = skipBlank(s)
+	if len(s) > 1 && s[0] == '{' && s[len(s)-1] == '}' {
+		s = strings.TrimRight(skipBlank(s[1:len(s)-1]), blank)
+	}
+	return s
+}
+
+// skipBlank is s without the blanks and the `#...` comments, each to its newline, that open it.
+func skipBlank(s string) string {
+	for {
+		s = strings.TrimLeft(s, " \t\n\r\f\v")
+		i := strings.IndexByte(s, '\n')
+		if s == "" || s[0] != '#' || i < 0 {
+			return s
+		}
+		s = s[i+1:]
+	}
+}
+
+// plainName is whether s is a letter or _ (or a UTF-8 byte) and then those and digits: an identifier.
+func plainName(s string) bool {
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b != '_' && b|0x20-'a' >= 26 && b < 0x80 && (i == 0 || b-'0' >= 10) {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// lineColon is whether raw[i], a word, is followed by a one-byte colon with at most one whitespace token,
+// holding no newline, between: toke.c labels a word only when the colon is on its line.
+func lineColon(raw []lexer.Token, i int, src string) bool {
+	if raw[i].Kind != lexer.Word {
+		return false
+	}
+	j := i + 1
+	if j < len(raw) && raw[j].Kind == lexer.Whitespace && !strings.Contains(src[raw[j].Start:raw[j].End], "\n") {
+		j++
+	}
+	return j < len(raw) && raw[j].Kind == lexer.Operator && raw[j].End-raw[j].Start == 1 && src[raw[j].Start] == ':'
 }
 
 // prefix is a variable's sigil (`#` for `$#`) or a quote's class: its opening

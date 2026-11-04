@@ -6,6 +6,7 @@ package lex
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"testing"
 	"unsafe"
@@ -57,7 +58,44 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	}
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
+	// A label is a plain word with its colon on its line at a statement start; its colon carries the flag on.
+	start := pred.Kind == -1 || pred.Kind == lexer.Semicolon || pred.Kind == lexer.Operator && pred.Text == "{" && pred.OpensBlock ||
+		pred.Kind == lexer.CloseBracket && pred.Text == "}" && pred.OpensBlock || pred.Label
+	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && start || t.Kind == lexer.Operator && t.Text == ":" && pred.Label
 	return c
+}
+
+var (
+	plain = regexp.MustCompile(`^[A-Za-z_\x{80}-\x{10FFFF}][A-Za-z0-9_\x{80}-\x{10FFFF}]*$`)
+	// sigil is a `$` and the blanks after it; braced is a name in braces, blanks inside them allowed.
+	sigil    = regexp.MustCompile(`^\$(?:[ \t\r\n\f\v]|#[^\n]*\n)*`)
+	braced   = regexp.MustCompile(`^\{(?:[ \t\r\n\f\v]|#[^\n]*\n)*(.*?)[ \t\r\n\f\v]*\}$`)
+	colonRef = regexp.MustCompile(`^[ \t\r\f]*:`)
+)
+
+// refGlobal and refLineColon are the properties read off the source with regular expressions, not the
+// token stream: a word or `$` variable that is no plain identifier (or is `$_`), and a word whose rest of line starts
+// (blanks only) with a colon that is not `::`.
+func refGlobal(k lexer.Kind, tx string) bool {
+	switch k {
+	case lexer.Word:
+		return !plain.MatchString(tx)
+	case lexer.Variable:
+		if !sigil.MatchString(tx) {
+			return false
+		}
+		n := sigil.ReplaceAllString(tx, "")
+		if m := braced.FindStringSubmatch(n); m != nil {
+			n = m[1]
+		}
+		return n == "_" || !plain.MatchString(n)
+	}
+	return false
+}
+
+func refLineColon(rest []byte) bool {
+	m := colonRef.Find(rest)
+	return m != nil && !(len(rest) > len(m) && rest[len(m)] == ':')
 }
 
 // refIDs is the terminal-set id of each significant token of src as the
@@ -133,7 +171,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			opens++
 		}
 		tx := string(src[t.Start:t.End])
-		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx)}
+		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:])}
+		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		prev := pred
 		pred = refClassOf(v, prev)
 		if t.Kind == lexer.Operator && tx == "*" {
@@ -160,7 +200,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		for _, c := range classes {
 			if (c.Kind == nil || *c.Kind == t.v.Kind) && (c.Text == nil || *c.Text == t.v.Text) &&
 				(c.OpensBlock == nil || *c.OpensBlock == t.v.OpensBlock) && (c.TermFollows == nil || *c.TermFollows == t.v.TermFollows) &&
-				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
+				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
+				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
 				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
 				set = append(set, c.Terminals...)
@@ -246,7 +287,7 @@ const loopForms = "for our ($a) (1) {} 1; for state ($a) (1) {} { foreach our ($
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; " + colonForms +
+	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } ")
 	s, _ := Lex(src, tt)
@@ -291,7 +332,7 @@ func BenchmarkIntern(b *testing.B) {
 		var slots [2]grammar.Token
 		pred := &grammar.Boundary
 		for i, t := range sig {
-			intern(tt, text, t, pred, &slots[i&1])
+			intern(tt, text, t, false, pred, &slots[i&1])
 			pred = &slots[i&1].N
 		}
 	}

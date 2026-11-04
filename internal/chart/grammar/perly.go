@@ -36,7 +36,7 @@ bare_statement_block: block cont # perly.y:270
 
 bare_statement_default: KW_DEFAULT block # perly.y:317
 
-# perly.y:325 bare_statement_defer: KW_DEFER mblock
+bare_statement_defer: KW_DEFER mblock # perly.y:325
 
 bare_statement_expression: sideff PERLY_SEMICOLON # perly.y:333
 
@@ -75,7 +75,7 @@ bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the next rule is its fit
 bare_statement_sub_traditional: KW_SUB_named startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits BEGIN, END and their kin as one word where toke.c (toke.c:8315, really_sub) emits KW_SUB_named and the name
 
-# perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally
+bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren mblock finally # perly.y:662, fitted: catch_paren: empty (perly.y:812) is excluded, so a catch has a variable
 
 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else # perly.y:684
 
@@ -87,7 +87,7 @@ bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE m
 
 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont # perly.y:744
 
-# perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON
+bare_statement_yadayada: YADAYADA PERLY_SEMICOLON # perly.y:759
 
 # perly.y:768 sigsub_or_method_named: KW_SUB_named_sig
 
@@ -107,7 +107,7 @@ mremember: # perly.y:806
 
 # perly.y:812 catch_paren: empty
 
-# perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE
+catch_paren: PERLY_PAREN_OPEN scalar PERLY_PAREN_CLOSE # perly.y:815
 
 stmtseq: empty # perly.y:825
 
@@ -119,11 +119,11 @@ stmtseq: stmtseq fullstmt # perly.y:826
 
 fullstmt: barestmt # perly.y:846
 
-# perly.y:850 fullstmt: labfullstmt
+fullstmt: labfullstmt # perly.y:850
 
-# perly.y:854 labfullstmt: LABEL barestmt
+labfullstmt: LABEL PERLY_COLON barestmt # perly.y:854, fitted: toke.c's LABEL token includes its colon, and pvm emits the colon as a token of its own
 
-# perly.y:861 labfullstmt: LABEL labfullstmt
+labfullstmt: LABEL PERLY_COLON labfullstmt # perly.y:861, fitted: toke.c's LABEL token includes its colon, and pvm emits the colon as a token of its own
 
 # perly.y:878 barestmt: PLUGSTMT
 
@@ -135,7 +135,7 @@ barestmt: bare_statement_block # perly.y:879
 
 barestmt: bare_statement_default # perly.y:882
 
-# perly.y:883 barestmt: bare_statement_defer
+barestmt: bare_statement_defer # perly.y:883
 
 barestmt: bare_statement_expression # perly.y:884
 
@@ -161,7 +161,7 @@ barestmt: bare_statement_phaser # perly.y:893
 
 barestmt: bare_statement_sub_traditional # perly.y:895
 
-# perly.y:896 barestmt: bare_statement_try_catch
+barestmt: bare_statement_try_catch # perly.y:896
 
 barestmt: bare_statement_unless # perly.y:897
 
@@ -173,7 +173,7 @@ barestmt: bare_statement_when # perly.y:900
 
 barestmt: bare_statement_while # perly.y:901
 
-# perly.y:902 barestmt: bare_statement_yadayada
+barestmt: bare_statement_yadayada # perly.y:902
 
 # perly.y:906 formline: THING formarg
 
@@ -209,9 +209,9 @@ cont: empty # perly.y:973
 
 cont: KW_CONTINUE block # perly.y:974
 
-# perly.y:979 finally: %empty
+finally: # perly.y:979
 
-# perly.y:981 finally: KW_FINALLY block
+finally: KW_FINALLY block # perly.y:981
 
 mintro: # perly.y:986
 
@@ -734,13 +734,12 @@ var (
 	forWords = []Neighbour{{Kind: lexer.Word, Text: "for"}, {Kind: lexer.Word, Text: "foreach"}}
 
 	// stateStarts are the tokens after which toke.c has PL_expect at XSTATE: a file's start, a `;`, a block's
-	// `{` and a block's `}`.
+	// `{`, a block's `}` and a label's colon (the neighbour flags that colon, since a bare one may be an
+	// attribute list's: `my $y : for our ($x);` is legal).
 	// shortcut: a do, eval or anonymous-sub block's `}` reads as a statement start because the lexer does not mark
-	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does. A label's `:` is not one: a bare
-	// `:` cannot be told from an attribute list's (`my $y : for our ($x);` is legal), so once labels land
-	// `L: for our ($x) (1) {}` is accepted where perl croaks; try/defer (01a18fa7-01db-7f91-853d-e9147df0c30a),
-	// which introduces labels, closes it and adds the `L:` row to TestPortLoopsRefusals.
-	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}}
+	// what a `}` closes (01a1a422-9176-7153-8625-6535b483a4b4); upgrade when it does.
+	stateStarts = []Neighbour{Boundary, {Kind: lexer.Semicolon}, blockOpen, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true},
+		{Kind: lexer.Operator, Text: ":", Label: true}}
 
 	// notHashBrace mirrors ClassOf's brace decision, and the two change together: after a variable, a
 	// closing bracket, `->` or a deref sigil a `{` the lexer did not open as a block is a subscript's or
@@ -778,7 +777,10 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(",")}},
 	{"PERLY_COMMA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("=>")}},
 
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Completes: true}},
+	// A variable that is no plain name (`$::e`, `$1`, `$^W`, `$'`, `$_`) is not a catch variable: the action of
+	// perly.y:815 declares it with my and refuses it, so two tokens after catch it is no scalar.
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), Completes: true}},
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 
 	// PERLY_DOT
 
@@ -841,13 +843,13 @@ var perlyClasses = []ClassDecl{
 
 	{"KW_DEFAULT", TokenClass{Kind: ptr(lexer.Word), Text: ptr("default")}},
 
-	// KW_TRY
+	{"KW_TRY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("try")}},
 
-	// KW_CATCH
+	{"KW_CATCH", TokenClass{Kind: ptr(lexer.Word), Text: ptr("catch")}},
 
-	// KW_FINALLY
+	{"KW_FINALLY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("finally")}},
 
-	// KW_DEFER
+	{"KW_DEFER", TokenClass{Kind: ptr(lexer.Word), Text: ptr("defer")}},
 
 	{"KW_REQUIRE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("require")}},
 
@@ -934,7 +936,11 @@ var perlyClasses = []ClassDecl{
 
 	// LSTOPSUB
 
-	// LABEL
+	// Any word, a keyword too, at a statement start with a colon after it: yyl_keylookup tests for a label
+	// before it looks a keyword up. Where a statement may start is the grammar's to say.
+	// The colon is on the word's line, and the word has no package separator (yyl_keylookup scans it
+	// without one and reads a line at a time).
+	{"LABEL", TokenClass{Kind: ptr(lexer.Word), Global: ptr(false), LineColon: ptr(true)}},
 
 	{"PROTOTYPE", TokenClass{Kind: ptr(lexer.Prototype)}},
 
@@ -947,7 +953,8 @@ var perlyClasses = []ClassDecl{
 	{"DOTDOT", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("..")}},
 	{"DOTDOT", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("...")}},
 
-	// YADAYADA
+	// yyl_dot at XSTATE; elsewhere the same three dots are DOTDOT, and where a statement may start is the grammar's to say.
+	{"YADAYADA", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("...")}},
 
 	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__CLASS__"), Completes: true}},
 	{"FUNC0", TokenClass{Kind: ptr(lexer.Word), Text: ptr("break"), Completes: true}},
