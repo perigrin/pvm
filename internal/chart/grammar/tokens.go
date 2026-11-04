@@ -65,6 +65,9 @@ type Neighbour struct {
 	// SortParen is on a `(` right after sort (not a method named sort): toke.c's yyl_leftparen lets the word after it be
 	// sort's sub name (toke.c:8158), as the word right after sort is, so the ( says what it was, as Label does.
 	SortParen bool
+	// Array is on a variable that opens with @ or $#, so a word's key can tell `foo @x`, which toke.c refuses,
+	// from `foo $x`, a method call. A class that names a Variable neighbour and means every sigil lists both.
+	Array bool
 }
 
 // Boundary is the class of the neighbour that a file's edge lacks.
@@ -110,6 +113,7 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
 	// A word after ->, & or a glob's * is a name, whatever it spells (toke.c's force_word, yyl_star).
 	c.Glob = false
+	c.Array = t.Kind == lexer.Variable && (t.Prefix == '@' || t.Prefix == '#')
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && slices.Contains(stateStarts, *pred) ||
@@ -122,6 +126,10 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 // shortcut: a word some class does name (`use`, `my`, ...) is not matched, upgrade
 // when a class needs a neighbour that is any word.
 const OtherWord = "\x00other-word"
+
+// NonIdentWord as a NotNext neighbour's Text stands for a word no class names that does not open with an
+// identifier character (`::bar`): the class Intern gives it, which no neighbour class's unnamed word covers.
+const NonIdentWord = "\x00non-ident-word"
 
 // The Prefix of a Number that toke.c reads as a version: chart/lex derives it from the number's text and
 // the byte after it, which the key otherwise drops. VersionStrict is what force_strict_version admits
@@ -195,6 +203,7 @@ func (c TokenClass) CompletedBy() (Neighbour, bool) {
 	if c.OpensBlock != nil {
 		n.OpensBlock = *c.OpensBlock
 	}
+	n.Array = *c.Kind == lexer.Variable && c.Prefix != nil && (*c.Prefix == '@' || *c.Prefix == '#')
 	return n, true
 }
 
@@ -246,7 +255,7 @@ func b2i(b bool) int {
 // one integer, so finding its class id hashes a word rather than a struct.
 // The kind is offset by one, since Boundary's is -1.
 func classKey(n Neighbour, text int) uint64 {
-	return uint64(n.Kind+1)<<40 | uint64(text)<<8 | uint64(b2i(n.SortParen))<<7 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
+	return uint64(n.Kind+1)<<40 | uint64(text)<<9 | uint64(b2i(n.Array))<<8 | uint64(b2i(n.SortParen))<<7 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
 }
 
 // node tests one part: kids is indexed by the part's value, def covers the
@@ -370,7 +379,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
 			if nb != nil {
-				if nb.Text != OtherWord && nb.Text != IdentQuote {
+				if nb.Text != OtherWord && nb.Text != IdentQuote && nb.Text != NonIdentWord {
 					texts[nb.Text] = true
 				}
 				nbs[*nb] = true
@@ -426,7 +435,11 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			nots[i][5] = append(nots[i][5], tt.ClassID(nb))
 		}
 		for _, nb := range c.NotNext {
-			nots[i][7] = append(nots[i][7], tt.ClassID(nb))
+			if nb.Text == NonIdentWord {
+				nots[i][7] = append(nots[i][7], tt.nonIdentWord)
+			} else {
+				nots[i][7] = append(nots[i][7], tt.ClassID(nb))
+			}
 		}
 		if c.NotNextIdent {
 			nots[i][7] = append(nots[i][7], ident...)

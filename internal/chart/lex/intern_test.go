@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -80,6 +81,7 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 			c.Brace = grammar.BraceHash
 		}
 	}
+	c.Array = t.Kind == lexer.Variable && strings.HasPrefix(t.Text, "@") || t.Kind == lexer.Variable && strings.HasPrefix(t.Text, "$#")
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 	// A label is a plain word with its colon on its line at a statement start; its colon carries the flag on.
@@ -152,7 +154,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			named[*c.Text] = true
 		}
 		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
-			if n != nil {
+			if n != nil && n.Text != grammar.NonIdentWord {
 				named[n.Text] = true
 			}
 		}
@@ -161,6 +163,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 	}
 	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool {
+		if want != nil && want.Text == grammar.NonIdentWord {
+			return got.Kind == lexer.Word && !named[got.Text] && !(got.Text[0] == '_' || got.Text[0]|0x20 >= 'a' && got.Text[0]|0x20 <= 'z' || got.Text[0] >= 0x80)
+		}
 		if want != nil && want.Text == grammar.OtherWord {
 			w := *want
 			w.Text = got.Text
@@ -178,7 +183,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			if !c.Completes || c.Prev1 != nil {
 				continue
 			}
-			w := grammar.Neighbour{Kind: *c.Kind, OpensBlock: c.OpensBlock != nil && *c.OpensBlock}
+			w := grammar.Neighbour{Kind: *c.Kind, OpensBlock: c.OpensBlock != nil && *c.OpensBlock,
+				Array: *c.Kind == lexer.Variable && c.Prefix != nil && slices.Contains([]byte("@#"), *c.Prefix)}
 			switch {
 			case c.Text != nil:
 				w.Text = *c.Text
@@ -346,7 +352,7 @@ const loneForms = "$h{time}; $h->{shift}; $h{ if }; $h{x}; $h{-if}; $h{ - while 
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
-		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
+		"$y = @a * ref x 3; $y = $#a * ref x 3; $y = @a * 2; @a x 3; $#a x 3; my @b = @a x 3; $c ? my @z : shared; $y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
@@ -377,7 +383,8 @@ func TestInternIdentityVersionShapes(t *testing.T) {
 	// What follows a version or a word after use MODULE: each operator a NotNext list names, the ones it leaves, a term.
 	for _, n := range []string{"1.2", "v1.2", "foo", "x", "Foo::Bar"} {
 		for _, f := range []string{"=>", ".", "x", "?", "==", "!=", "||", "//", "&&", "..", "...", "=~", "!~", "**", "<=>", "eq", "ne", "lt", "gt", "cmp",
-			"=", "+=", "->", "|", "^", ">>", ">", ">=", ",", "-", "+", "*", "%", "&", "<", "/", "<<", "1", "'a'", `"a"`, "qw(a)", "[1]", `\1`, "$x", "bar", "(3)", "{ }", "-1", ";"} {
+			"=", "+=", "->", "|", "^", ">>", ">", ">=", ",", "-", "+", "*", "%", "&", "<", "/", "<<", "1", "'a'", `"a"`, "qw(a)", "[1]", `\1`, "$x", "bar", "(3)", "{ }", "-1", ";",
+			"le", "ge", "**=", "//=", "@x", "$#x", "@$x", "!", "~", "sub", "do", "my", "print", "__FILE__", "::bar", "%h", "&f", "*g", "__END__", "shift", "if", "eq", "isa"} {
 			src = append(src, "use lib "+n+" "+f+" 3;\nno lib "+n+" "+f+" 3;\n"...)
 		}
 	}

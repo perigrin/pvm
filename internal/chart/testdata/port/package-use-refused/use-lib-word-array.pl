@@ -1,1 +1,1 @@
-use lib foo [1];
+use lib foo @x;

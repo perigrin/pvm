@@ -771,6 +771,7 @@ var (
 	subscriptBrace = []Neighbour{
 		{Kind: lexer.Variable}, {Kind: lexer.Operator, Text: "->"},
 		{Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
+		{Kind: lexer.Variable, Array: true},
 	}
 	notHashBrace = append(slices.Clone(subscriptBrace), Neighbour{Kind: lexer.DerefSigil})
 
@@ -800,6 +801,7 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[1]}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[2]}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[3]}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[4]}},
 
 	// After a word no class names toke.c's METHCALL0 leaves PL_expect at XBLOCKTERM (toke.c:8215), so the { is a block
 	// whatever the lexer decided; a declared sub's would be a hash, which scope decides, so the hash reading stays.
@@ -1505,9 +1507,11 @@ var perlyClasses = []ClassDecl{
 	// attributes ($c ? my $x : shared : 1), since a word and a colon before it look the same in
 	// $a ? $b ? 1 : c : d, which perl accepts. Upgrade both when the lexer marks that ) and the separator
 	// (v0.1 lexer issue 01a1a314-e3f8-765f-abf2-159425ed764e).
-	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), NotPrev1: []Neighbour{{Kind: lexer.Variable}}}},
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), NotPrev1: []Neighbour{{Kind: lexer.Variable}, {Kind: lexer.Variable, Array: true}}}},
 	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotPrev2: declarators}},
 	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable}, NotNextIdent: true}},
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable, Array: true}, NotPrev2: declarators}},
+	{"PERLY_COLON", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":"), Prev1: &Neighbour{Kind: lexer.Variable, Array: true}, NotNextIdent: true}},
 
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("||")}},
 	{"OROR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^^")}}, // toke.c yyl_caret: OP_XOR
