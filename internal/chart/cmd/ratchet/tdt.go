@@ -107,6 +107,12 @@ func keyText(c grammar.TokenClass) string {
 			add([]string{"Prev2", "Prev1", "Next"}[i], fmt.Sprintf("%+v", *n), true)
 		}
 	}
+	if c.Global != nil {
+		add("Global", *c.Global, true)
+	}
+	if c.LineColon != nil {
+		add("LineColon", *c.LineColon, true)
+	}
 	add("NotText", digest(c.NotText), len(c.NotText) > 0)
 	var prev []string
 	for _, n := range c.NotPrev1 {

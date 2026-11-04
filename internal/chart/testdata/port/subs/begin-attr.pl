@@ -1,1 +1,0 @@
-BEGIN : lvalue { 1 }
