@@ -456,3 +456,40 @@ func TestTokenNotNextIdent(t *testing.T) {
 		t.Errorf("a : at the end of the file is %v, want [1]", got)
 	}
 }
+
+// A neighbour says what it was, as a { says subscript or hash: a * is a glob sigil unless the token before
+// it completes a term, and a word after ->, & or a glob's * is a name.
+func TestInternGlobAndName(t *testing.T) {
+	tt := mustCompile(t,
+		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Variable), Completes: true},
+		TokenClass{Terminals: []int{2}, Kind: ptr(lexer.Word), Text: ptr("time"), Completes: true},
+		TokenClass{Terminals: []int{3}, Kind: ptr(lexer.Word), NotText: []string{"time", "print"}, Completes: true},
+		TokenClass{Terminals: []int{4}, Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true},
+		TokenClass{Terminals: []int{5}, Kind: ptr(lexer.Word), Text: ptr("print")})
+	star, amp, arrow := op("*"), TokenView{Kind: lexer.FuncSigil, Text: "&"}, op("->")
+	for name, c := range map[string]struct {
+		src         []TokenView
+		glob, names []bool // by token: Glob, Name
+	}{
+		"statement start":     {[]TokenView{star, word("print")}, []bool{true, false}, []bool{false, true}},
+		"after a variable":    {[]TokenView{{Kind: lexer.Variable, Text: "$a"}, star, word("print")}, []bool{false, false, false}, []bool{false, false, false}},
+		"after a bareword":    {[]TokenView{word("foo"), star}, []bool{false, false}, []bool{false, false}},
+		"after time":          {[]TokenView{word("time"), star}, []bool{false, false}, []bool{false, false}},
+		"after a keyword":     {[]TokenView{word("print"), star}, []bool{false, true}, []bool{false, false}},
+		"after a block's }":   {[]TokenView{{Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}, star}, []bool{false, true}, []bool{false, false}},
+		"after a glob's name": {[]TokenView{star, word("print"), star}, []bool{true, false, false}, []bool{false, true, false}},
+		"after a glob":        {[]TokenView{star, star, word("print")}, []bool{true, true, false}, []bool{false, false, true}},
+		"after &":             {[]TokenView{amp, word("print"), star}, []bool{false, false, false}, []bool{false, true, false}},
+		"after ->":            {[]TokenView{{Kind: lexer.Variable, Text: "$o"}, arrow, word("print"), star}, []bool{false, false, false, false}, []bool{false, false, true, false}},
+	} {
+		pred := Boundary
+		for i, v := range c.src {
+			var it Token
+			tt.Intern(v, &pred, &it)
+			if it.N.Glob != c.glob[i] || it.N.Name != c.names[i] {
+				t.Errorf("%s: token %d (%q) has Glob %v Name %v, want %v %v", name, i, v.Text, it.N.Glob, it.N.Name, c.glob[i], c.names[i])
+			}
+			pred = it.N
+		}
+	}
+}
