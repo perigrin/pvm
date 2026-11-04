@@ -1,0 +1,3 @@
+UNITCHECK { 1 }
+CHECK { 1 }
+INIT { 1 }

@@ -1,0 +1,1 @@
+sub sprintf { 1 }

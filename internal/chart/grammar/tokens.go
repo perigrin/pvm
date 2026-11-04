@@ -131,6 +131,10 @@ type TokenClass struct {
 	// it and an x that follows is the repetition operator. The lookup ignores it: perly.go's init derives
 	// MULOP's x classes from it, as ordinary Prev1 and Prev2 parts.
 	Completes bool
+	// NextName and NotNextName say whether a sub's name follows, as toke.c's yyl_sub reads it: an
+	// identifier start, or a word opening with :: or ' (so NotNextIdent's set and the word NotNextIdent
+	// leaves out). NextName matches only the keys a name follows, NotNextName only the others.
+	NextName, NotNextName bool
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -184,7 +188,8 @@ func ptrs(ns []Neighbour) []*Neighbour {
 	return ps
 }
 
-const nParts = 8
+// Part 8 is derived: whether the next token is a sub's name (see NextName), from the next class id.
+const nParts = 9
 
 // free marks a part a class leaves unconstrained. Every value, a lexer kind
 // included, is a non-negative integer: text and neighbour values are the
@@ -240,6 +245,7 @@ type TokenTable struct {
 	// nonIdentWord is that of a word no class names that does not open with a letter or _ (::foo),
 	// which is no neighbour class's unnamed word either.
 	anyWord, identQuote, nonIdentWord int
+	name                              []bool      // by class id: an identifier's or a :: or ' word's, a sub's name
 	texts                             []string    // by text id - 1, for Text()
 	nbs                               []Neighbour // by class id - 1, for Text()
 }
@@ -362,6 +368,12 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 	}
 
+	// A name follows when the next class is an identifier's or a word opening with :: or ': part 8 is
+	// that, per class id, so a class tests one bit and not a list of ids.
+	tt.name = make([]bool, len(tt.nbs)+4)
+	for _, id := range append(slices.Clone(ident), tt.nonIdentWord) {
+		tt.name[id] = true
+	}
 	pats, nots := make([][nParts]int, len(classes)), make([][nParts][]int, len(classes))
 	for i, c := range classes {
 		for _, s := range c.NotText {
@@ -379,7 +391,13 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		if c.NotNextIdent {
 			nots[i][7] = append(nots[i][7], ident...)
 		}
-		p := [nParts]int{free, free, free, free, free, free, free, free}
+		p := [nParts]int{free, free, free, free, free, free, free, free, free}
+		if c.NextName {
+			p[8] = 1
+		}
+		if c.NotNextName {
+			p[8] = 0
+		}
 		if c.Kind != nil {
 			p[0] = int(*c.Kind)
 		}
@@ -489,7 +507,10 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 // the two significant tokens before it and the one after (Edge at a file's
 // edge). It allocates nothing and hashes nothing.
 func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
-	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next}
+	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0}
+	if uint(next) < uint(len(tt.name)) && tt.name[next] {
+		k[8] = 1
+	}
 	n := tt.root
 	for n.kids != nil {
 		if v := k[n.part]; uint(v) < uint(len(n.kids)) {
@@ -513,6 +534,10 @@ func (tt *TokenTable) Text() []byte {
 		switch {
 		case part == 1:
 			return fmt.Sprintf("%q", tt.texts[v-1])
+		case part == 8:
+			return fmt.Sprint(v)
+		case part >= 5 && v == 0:
+			return "no class"
 		case part >= 5 && v == tt.anyWord:
 			return "word"
 		case part >= 5 && v == tt.identQuote:

@@ -122,6 +122,8 @@ func keyText(c grammar.TokenClass) string {
 		add("NotNext", fmt.Sprintf("%+v", *c.NotNext), true)
 	}
 	add("NotNextIdent", true, c.NotNextIdent)
+	add("NextName", true, c.NextName)
+	add("NotNextName", true, c.NotNextName)
 	return strings.Join(p, " ")
 }
 
