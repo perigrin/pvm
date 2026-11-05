@@ -127,8 +127,14 @@ func keyText(c grammar.TokenClass) string {
 		prev2 = append(prev2, fmt.Sprintf("%+v", n))
 	}
 	add("NotPrev2", digest(prev2), len(prev2) > 0)
-	if c.NotNext != nil {
-		add("NotNext", fmt.Sprintf("%+v", *c.NotNext), true)
+	var next []string
+	for _, n := range c.NotNext {
+		next = append(next, fmt.Sprintf("%+v", n))
+	}
+	if len(next) == 1 { // a lone neighbour reads as it did before NotNext was a list
+		add("NotNext", next[0], true)
+	} else {
+		add("NotNext", digest(next), len(next) > 1)
 	}
 	add("NotNextIdent", true, c.NotNextIdent)
 	add("NextName", true, c.NextName)

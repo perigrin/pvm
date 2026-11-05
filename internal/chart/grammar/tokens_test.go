@@ -367,7 +367,7 @@ func TestTokenNotNext(t *testing.T) {
 	paren, semi := ClassOf(op("("), none), ClassOf(op(";"), none)
 	tt := mustCompile(t,
 		TokenClass{Terminals: []int{1}, Text: ptr("ref"), Next: &paren},
-		TokenClass{Terminals: []int{2}, Text: ptr("ref"), NotNext: &paren})
+		TokenClass{Terminals: []int{2}, Text: ptr("ref"), NotNext: []Neighbour{paren}})
 	for _, c := range []struct {
 		next Neighbour
 		want []int
@@ -538,7 +538,7 @@ func TestTokenLone(t *testing.T) {
 		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev1: &open, Next: &closer, Blanks: ptr(true), Lone: true},
 		TokenClass{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev2: &open, Prev1: &minus, Next: &closer, Blanks: ptr(true), Lone: true},
 		TokenClass{Terminals: []int{2}, Kind: ptr(lexer.Word), Text: ptr("time")},
-		TokenClass{Terminals: []int{3}, Kind: ptr(lexer.Word), Text: ptr("time"), NotNext: &closer},
+		TokenClass{Terminals: []int{3}, Kind: ptr(lexer.Word), Text: ptr("time"), NotNext: []Neighbour{closer}},
 		TokenClass{Terminals: []int{4}, Kind: ptr(lexer.Word), NotText: []string{"time"}},
 		TokenClass{Terminals: []int{5}, Kind: ptr(lexer.Operator), Text: ptr("-")})
 	for _, c := range []struct {
