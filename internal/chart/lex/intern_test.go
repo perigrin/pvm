@@ -72,10 +72,10 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 	}
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
-		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
+		case t.OpensBlock, pred.Kind == lexer.DerefSigil, pred.Kind == lexer.FuncSigil, pred.Kind == lexer.Operator && pred.Text == "*" && pred.Glob:
 			c.Brace = grammar.BraceBlock
 		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,
-			pred.Kind == lexer.Operator && pred.Text == "->":
+			pred.Kind == lexer.Operator && pred.Text == "->", pred.Kind == lexer.Word && pred.Name:
 			c.Brace = grammar.BraceSubscript
 		default:
 			c.Brace = grammar.BraceHash
@@ -367,6 +367,8 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
 		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
 		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
+		"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
+		"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; " +
 		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")
 	// The last line's <<A has no body (the one after it is the string's <<B), so it is refused: pairing by tag, not by order.
 	s, _ := Lex(src, tt)

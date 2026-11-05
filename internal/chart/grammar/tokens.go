@@ -75,8 +75,8 @@ var Boundary = Neighbour{Kind: -1}
 
 // ClassOf is t's class given its predecessor's, except Glob, which needs the table (TokenTable.Intern). A `{` the lexer decided
 // (OpensBlock) keeps that decision; an undecided one is a subscript after a
-// variable, `->` or a subscript's closing bracket, a block after a deref
-// sigil (`@{ ... }`), and an anonymous hash otherwise, as in toke.c.
+// variable, `->`, a subscript's closing bracket or a name (`*g{CODE}`), a block after a deref
+// sigil (`@{ ... }`), a `&` or a glob's `*`, and an anonymous hash otherwise, as in toke.c.
 // shortcut: a `{` after a do or eval block's `}` is read as a hash where toke.c
 // reads a subscript; telling that `}` apart needs a lexer bit, outside spec §11.
 func ClassOf(t TokenView, pred Neighbour) Neighbour {
@@ -93,10 +93,10 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	brace := BraceNone
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
-		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
+		case t.OpensBlock, pred.Kind == lexer.DerefSigil, pred.Kind == lexer.FuncSigil, pred.Kind == lexer.Operator && pred.Text == "*" && pred.Glob:
 			brace = BraceBlock
 		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,
-			pred.Kind == lexer.Operator && pred.Text == "->":
+			pred.Kind == lexer.Operator && pred.Text == "->", pred.Kind == lexer.Word && pred.Name:
 			brace = BraceSubscript
 		default:
 			brace = BraceHash

@@ -625,6 +625,33 @@ accept them (scope, waypoint 2), each pinned in
 `print $fh [];` is accepted: perl refuses it through
 `indirob: scalar %prec PREC_LOW`, a precedence refusal (waypoint 2).
 
+### Slices, glob elements, postfix dereference and sigil casts
+
+The slices (1594-1624, `sliceme`, `kvslice`) and glob elements (1349, `gelem`) are ported as written, the brace
+forms fitted without toke.c's `;` as the subscripts are. A `{` after a glob's `*` or a sub's `&` opens a block
+(`*{"g"}`, `&{$c}(1)`, PREREF), and one past the glob's name a subscript (`*g{CODE}`, TERM): `ClassOf` calls the `{`
+after any name `BraceSubscript`, so a lone word there is a string as in `$h{if}`.
+
+**The fitted cast terminals**, an extension of spec §7 by perigrin's ruling ("Fitted cast terminal"): `CAST_DOLLAR`,
+`CAST_SNAIL`, `CAST_PERCENT_SIGN` and `CAST_STAR` are the only terminals perly.y does not declare
+(`grammar.CastTerminals`, held by `TestClassSlotsAreThePerlyYTokens`). pvm emits a whole variable (`$x`) as one token
+the variable heads fit as `PERLY_DOLLAR`, and a cast's sigil (`$$x`, `${ … }`, `@{ … }`) as its own `DerefSigil`;
+were the sigil `PERLY_DOLLAR` too, `scalar: PERLY_DOLLAR indirob` would read `$y = $x $z;`, `$x{1; 2};` and
+`$x foo;` as casts. So a `DerefSigil` maps to the cast terminal, and `scalar`, `ary` and `hsh` gain
+`CAST_* indirob` rules fitted to 1846-1856; `star: PERLY_STAR indirob` (1868) needs none, since pvm already emits a
+glob's `*` apart from its name. The ratchet's tdt comparison reads a cast terminal as the perly.y terminal it names,
+matched against toke.c's head or, for the star of a postfix dereference, a type the `postfix-deref` family folds
+onto the token.
+
+**Postfix dereference** is one `Variable` token after `->` (`$*`, `@*`, `%*`, `&*`, `**`, `$#*`), and a bare
+`@` or `%` there opens a slice. By perigrin's ruling ("Yes, if measured small") the variable heads leave `->` out
+(`NotPrev1`), and classes keyed on the text after `->` take it: `@*` and `%*` map to their sigil's cast terminal,
+`$*` and `**` to `CAST_STAR` (`$*` as its star, since `CAST_DOLLAR` there would read `$r->$*{a}` as a method named
+by a cast), `&*` to `PERLY_AMPERSAND` and `$#*` to `DOLSHARP`, which nothing else after `->` is. So `$r->@*[0]`,
+`$r->%*{a}`, `$r->**{CODE}`, `$r->$#*[0]` and `$r->$*(1)` are refused, and a `$` variable after `->` stays a
+method's name. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
+variable. Interleaved Intern and Lex benchmarks against the base show no per-token cost.
+
 ### Builtin classes against `parse.CoreShapes()`
 
 `TestCoreShapeDifferences` (`grammar/coreshapes.go`) compares the words the port classes as `FUNC0`,
