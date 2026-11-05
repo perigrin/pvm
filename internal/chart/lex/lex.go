@@ -249,7 +249,8 @@ func versionShape(tx string, next byte) byte {
 }
 
 // prefix is a variable's sigil (`#` for `$#`), a quote's class (its opening
-// quote, or its operator: `Q` for qq, `y` for tr) or a number's versionShape; 0 for anything else.
+// quote, or its operator: `Q` for qq, `y` for tr), a number's versionShape or grammar.PackageName for a word
+// ending in ::; 0 for anything else.
 func prefix(k lexer.Kind, tx string, next byte) byte {
 	switch {
 	case k == lexer.Number:
@@ -258,6 +259,8 @@ func prefix(k lexer.Kind, tx string, next byte) byte {
 		return '#'
 	case k == lexer.Variable && tx != "":
 		return tx[0]
+	case k == lexer.Word && len(tx) > 2 && tx[len(tx)-1] == ':' && tx[len(tx)-2] == ':':
+		return grammar.PackageName
 	case k != lexer.Quote || tx == "":
 		return 0
 	}

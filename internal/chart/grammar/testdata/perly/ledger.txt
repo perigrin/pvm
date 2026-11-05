@@ -226,7 +226,7 @@ perly.y:1039 startformsub: %empty	ported
 
 perly.y:1045 subname: BAREWORD	ported
 
-perly.y:1046 subname: PRIVATEREF	-
+perly.y:1046 subname: PRIVATEREF	ported
 
 perly.y:1051 proto: empty	ported
 
@@ -346,7 +346,7 @@ perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
 
 perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND	fitted
 
-perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr	-
+perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr	ported
 
 perly.y:1344 methodname: METHCALL0	ported
 
@@ -538,7 +538,7 @@ perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
 perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
-perly.y:1646 term: NOAMP subname optlistexpr	-
+perly.y:1646 term: NOAMP subname optlistexpr	fitted
 
 perly.y:1650 term: term ARROW PERLY_DOLLAR PERLY_STAR	fitted
 
@@ -566,9 +566,9 @@ perly.y:1674 term: KW_REQUIRE	ported
 
 perly.y:1676 term: KW_REQUIRE term	ported
 
-perly.y:1678 term: UNIOPSUB	-
+perly.y:1678 term: UNIOPSUB	ported
 
-perly.y:1680 term: UNIOPSUB term	-
+perly.y:1680 term: UNIOPSUB term	ported
 
 perly.y:1683 term: FUNC0	ported
 
@@ -578,7 +578,7 @@ perly.y:1687 term: FUNC0OP	ported
 
 perly.y:1689 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
-perly.y:1691 term: FUNC0SUB	-
+perly.y:1691 term: FUNC0SUB	ported
 
 perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
 
@@ -660,7 +660,7 @@ perly.y:1838 my_refgen: KW_MY REFGEN	ported
 
 perly.y:1839 my_refgen: REFGEN KW_MY	ported
 
-perly.y:1842 amper: PERLY_AMPERSAND indirob	ported
+perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
 
 perly.y:1846 scalar: PERLY_DOLLAR indirob	fitted
 
