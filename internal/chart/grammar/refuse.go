@@ -137,7 +137,8 @@ func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
 // refuseLiterals holds each class that names a kind and a text to the lexer.
 func refuseLiterals(classes []TokenClass) (errs []error) {
 	for _, c := range classes {
-		if c.Text != nil && !lexesAs(c.Kind, *c.Text) {
+		postfix := c.Prev1 != nil && *c.Prev1 == Neighbour{Kind: lexer.Operator, Text: "->"}
+		if c.Text != nil && !lexesAs(c.Kind, *c.Text, postfix) {
 			errs = append(errs, fmt.Errorf("the literal %q is not lexed to one token of the class's kind and text", *c.Text))
 		}
 	}
@@ -146,8 +147,10 @@ func refuseLiterals(classes []TokenClass) (errs []error) {
 
 // lexesAs reports whether the lexer lexes text to one token of kind (any, if nil) and the same text, in a
 // short context where a class stands: between two terms, as an operator does, or from a
-// statement's start, reached through the lexer's checkpoint and resume.
-func lexesAs(kind *lexer.Kind, text string) bool {
+// statement's start, reached through the lexer's checkpoint and resume; or, for a class keyed on a -> before
+// it (postfix), after one and before a subscript, where the lexer reads a postfix dereference or a slice's sigil;
+// a deref sigil before a variable, as in a cast.
+func lexesAs(kind *lexer.Kind, text string, postfix bool) bool {
 	one := func(src string, toks []lexer.Token, n, at int) bool {
 		var sig []lexer.Token
 		for _, t := range toks {
@@ -159,7 +162,10 @@ func lexesAs(kind *lexer.Kind, text string) bool {
 	}
 	infix := "$a " + text + " $b"
 	_, cps := lexer.Checkpoints(nil, lexer.StartState())
-	return one(infix, lexer.Tokenize([]byte(infix)), 3, 1) || one(text, lexer.Resume([]byte(text), cps[0]), 1, 0)
+	after, cast := "$a->"+text+"[0]", text+"$b"
+	return one(infix, lexer.Tokenize([]byte(infix)), 3, 1) || one(text, lexer.Resume([]byte(text), cps[0]), 1, 0) ||
+		postfix && one(after, lexer.Tokenize([]byte(after)), 6, 2) ||
+		kind != nil && *kind == lexer.DerefSigil && one(cast, lexer.Tokenize([]byte(cast)), 2, 0)
 }
 
 // refuseClassless refuses a terminal no class admits, but the excepted ones.
