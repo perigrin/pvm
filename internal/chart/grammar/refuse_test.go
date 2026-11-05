@@ -277,7 +277,8 @@ func TestGeneratorRefusalWritesNothing(t *testing.T) {
 const perlyYPath = "/opt/corpora/perl5/perly.y"
 
 // The slots of perlyClasses are the lexed terminals perly.y declares, in the order it first
-// declares them (%token, %left, %right, %nonassoc), less the ones needing no class.
+// declares them (%token, %left, %right, %nonassoc), less the ones needing no class, and beside them the fitted cast
+// terminals and nothing else, each declared once.
 func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
 	y, err := os.ReadFile(perlyYPath)
 	if err != nil {
@@ -300,7 +301,17 @@ func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := classSlots(string(src))
+	var got, casts []string
+	for _, s := range classSlots(string(src)) {
+		if _, ok := CastTerminals[s]; ok {
+			casts = append(casts, s)
+		} else {
+			got = append(got, s)
+		}
+	}
+	if slices.Sort(casts); !slices.Equal(casts, slices.Sorted(maps.Keys(CastTerminals))) {
+		t.Errorf("perlyClasses declares the cast terminals %v, want each of %v once", casts, slices.Sorted(maps.Keys(CastTerminals)))
+	}
 	if !slices.Equal(got, want) {
 		t.Errorf("perlyClasses has %d slots, perly.y declares %d lexed tokens; first difference: %s", len(got), len(want), firstDifference("perly.go", "perly.y", want, got))
 	}

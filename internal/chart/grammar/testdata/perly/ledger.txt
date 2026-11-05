@@ -352,7 +352,7 @@ perly.y:1344 methodname: METHCALL0	ported
 
 perly.y:1345 methodname: scalar	ported
 
-perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
 perly.y:1353 subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
@@ -522,13 +522,13 @@ perly.y:1590 term: arylen	ported
 
 perly.y:1592 term: subscripted	ported
 
-perly.y:1594 term: sliceme PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1594 term: sliceme PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1604 term: kvslice PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	-
+perly.y:1604 term: kvslice PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
 
-perly.y:1614 term: sliceme PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1614 term: sliceme PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
-perly.y:1624 term: kvslice PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	-
+perly.y:1624 term: kvslice PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
 
 perly.y:1634 term: THING	ported
 
@@ -540,15 +540,15 @@ perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
 
 perly.y:1646 term: NOAMP subname optlistexpr	-
 
-perly.y:1650 term: term ARROW PERLY_DOLLAR PERLY_STAR	-
+perly.y:1650 term: term ARROW PERLY_DOLLAR PERLY_STAR	fitted
 
-perly.y:1652 term: term ARROW PERLY_SNAIL PERLY_STAR	-
+perly.y:1652 term: term ARROW PERLY_SNAIL PERLY_STAR	fitted
 
-perly.y:1654 term: term ARROW PERLY_PERCENT_SIGN PERLY_STAR	-
+perly.y:1654 term: term ARROW PERLY_PERCENT_SIGN PERLY_STAR	fitted
 
-perly.y:1656 term: term ARROW PERLY_AMPERSAND PERLY_STAR	-
+perly.y:1656 term: term ARROW PERLY_AMPERSAND PERLY_STAR	fitted
 
-perly.y:1659 term: term ARROW PERLY_STAR PERLY_STAR	-
+perly.y:1659 term: term ARROW PERLY_STAR PERLY_STAR	fitted
 
 perly.y:1661 term: LOOPEX	ported
 
@@ -670,21 +670,21 @@ perly.y:1856 hsh: PERLY_PERCENT_SIGN indirob	fitted
 
 perly.y:1862 arylen: DOLSHARP indirob	fitted
 
-perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR	-
+perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR	fitted
 
 perly.y:1868 star: PERLY_STAR indirob	fitted
 
-perly.y:1872 sliceme: ary	-
+perly.y:1872 sliceme: ary	ported
 
-perly.y:1873 sliceme: term ARROW PERLY_SNAIL	-
+perly.y:1873 sliceme: term ARROW PERLY_SNAIL	ported
 
-perly.y:1877 kvslice: hsh	-
+perly.y:1877 kvslice: hsh	ported
 
-perly.y:1878 kvslice: term ARROW PERLY_PERCENT_SIGN	-
+perly.y:1878 kvslice: term ARROW PERLY_PERCENT_SIGN	ported
 
-perly.y:1882 gelem: star	-
+perly.y:1882 gelem: star	ported
 
-perly.y:1883 gelem: term ARROW PERLY_STAR	-
+perly.y:1883 gelem: term ARROW PERLY_STAR	ported
 
 perly.y:1888 indirob: BAREWORD	ported
 
