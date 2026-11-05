@@ -23,9 +23,9 @@ func TestPrecedenceIgnoredByRecognition(t *testing.T) {
 	if !slices.ContainsFunc(g.G1, func(r grammar.Rule) bool { return r.Prec != "" }) {
 		t.Error("no committed rule carries a precedence token (Rule.Prec)")
 	}
-	// The first three perl refuses by precedence alone: <=> chained is refused by the non-chaining rule's
-	// PREC_LOW against NCEQOP (perly.y:166 is %left), 1 .. 2 .. 3 by DOTDOT's %nonassoc, and print $fh [] by
-	// indirob's PREC_LOW.
+	// The first three perl refuses by precedence alone: <=> chained by termbinop's `termeqop %prec PREC_LOW`
+	// (perly.y:1438) losing to NCEQOP, which shifts into the error rule perly.y:1484 (166 is %left);
+	// 1 .. 2 .. 3 by DOTDOT's %nonassoc; and print $fh [] by indirob's PREC_LOW.
 	for _, src := range []string{"$a <=> $b <=> $c;", "1 .. 2 .. 3;", "print $fh [];", "$a + $b * $c;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at byte %d (expected %v); recognition must ignore precedence", src, v.at, v.expected)
