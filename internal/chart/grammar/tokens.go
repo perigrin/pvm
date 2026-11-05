@@ -81,15 +81,15 @@ var Boundary = Neighbour{Kind: -1}
 // reads a subscript; telling that `}` apart needs a lexer bit, outside spec §11.
 func ClassOf(t TokenView, pred Neighbour) Neighbour {
 	var c Neighbour
-	classOf(&c, t, &pred)
+	classOf(&c, &t, &pred)
 	return c
 }
 
-// classOf is ClassOf writing c. The classes go by pointer because one passed
+// classOf is ClassOf writing c. Every argument goes by pointer because one passed
 // or returned by value is copied just after it is written, and that copy
-// stalls on store forwarding; t, passed in registers, does not. c is written
+// stalls on store forwarding (a TokenView is too wide for registers). c is written
 // field by field for the same reason: a literal compiled to a merged load.
-func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
+func classOf(c *Neighbour, t *TokenView, pred *Neighbour) {
 	brace := BraceNone
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
@@ -110,9 +110,11 @@ func classOf(c *Neighbour, t TokenView, pred *Neighbour) {
 	if t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26 {
 		text = IdentQuote
 	}
-	c.Kind, c.Text, c.OpensBlock, c.TermFollows, c.Brace = t.Kind, text, t.OpensBlock, t.TermFollows, brace
+	c.Kind, c.Text, c.OpensBlock, c.Brace = t.Kind, text, t.OpensBlock, brace
 	// A word after ->, & or a glob's * is a name, whatever it spells (toke.c's force_word, yyl_star).
 	c.Glob = false
+	// TermFollows apart from OpensBlock: together the two bytes are copied by one load, which stalls on t's two byte stores.
+	c.TermFollows = t.TermFollows
 	c.Array = t.Kind == lexer.Variable && (t.Prefix == '@' || t.Prefix == '#')
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
@@ -254,7 +256,7 @@ func b2i(b bool) int {
 // classKey packs a Neighbour, its text replaced by its dictionary id, into
 // one integer, so finding its class id hashes a word rather than a struct.
 // The kind is offset by one, since Boundary's is -1.
-func classKey(n Neighbour, text int) uint64 {
+func classKey(n *Neighbour, text int) uint64 {
 	return uint64(n.Kind+1)<<40 | uint64(text)<<9 | uint64(b2i(n.Array))<<8 | uint64(b2i(n.SortParen))<<7 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
 }
 
@@ -282,7 +284,9 @@ type TokenTable struct {
 	done map[Neighbour]bool
 	// emptyText is text[""], the text id of a class that carries no text.
 	emptyText int
-	classes   map[uint64]int
+	// classes is the class ids by classKey, and short the ids of texts shortKey packs, so the two
+	// lookups Intern makes per token are a multiply and a probe rather than a Go map's hashing.
+	classes, short ids
 	// firsts[b] has bit l set when a dictionary text starts with b and is l
 	// bytes long (63 for longer), and kinds bit k+1 when a dictionary class
 	// has kind k: a text or class neither admits gets id 0 unhashed.
@@ -312,7 +316,7 @@ func (tt *TokenTable) classID(n *Neighbour, text int) int {
 	if k := uint(n.Kind + 1); k < 64 && tt.kinds>>k&1 == 0 {
 		return 0
 	}
-	return tt.classes[classKey(*n, text)]
+	return tt.classes.get(classKey(n, text))
 }
 
 // textID is s's dictionary id, 0 if it has none.
@@ -320,16 +324,66 @@ func (tt *TokenTable) textID(s string) int {
 	if s != "" && tt.firsts[s[0]]>>min(len(s), 63)&1 == 0 {
 		return 0
 	}
+	if k, ok := shortKey(s); ok {
+		return tt.short.get(k)
+	}
 	return tt.text[s]
+}
+
+// shortKey packs a text of at most seven bytes and its length, plus one so no key is 0, into one integer.
+func shortKey(s string) (uint64, bool) {
+	if len(s) > 7 {
+		return 0, false
+	}
+	k := uint64(len(s)+1) << 56
+	for i := 0; i < len(s); i++ {
+		k |= uint64(s[i]) << (8 * i)
+	}
+	return k, true
+}
+
+// ids maps integer keys to ids, which are positive: open addressing, linear probing, at most half full.
+type ids struct {
+	slots []idSlot
+	shift uint
+}
+
+type idSlot struct {
+	key uint64
+	id  int
+}
+
+// newIDs is an empty ids with room for n keys.
+func newIDs(n int) ids {
+	bits := uint(1)
+	for 1<<bits < 2*n {
+		bits++
+	}
+	return ids{slots: make([]idSlot, 1<<bits), shift: 64 - bits}
+}
+
+func (m *ids) put(key uint64, id int) { *m.slot(key) = idSlot{key, id} }
+
+// get is key's id, 0 if it has none.
+func (m *ids) get(key uint64) int { return m.slot(key).id }
+
+// slot is key's slot, or the empty one it would go in.
+func (m *ids) slot(key uint64) *idSlot {
+	mask := uint64(len(m.slots) - 1)
+	for i := key * 0x9E3779B97F4A7C15 >> m.shift; ; i = (i + 1) & mask {
+		if s := &m.slots[i]; s.id == 0 || s.key == key {
+			return s
+		}
+	}
 }
 
 // ClassID is the dictionary id of n, 0 if no class names it.
 func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(&n, tt.text[n.Text]) }
 
 // Intern looks t up in the dictionaries into it, with pred the class of the
-// significant token before it. Both are pointers for the reason classOf's
+// significant token before it. All three are pointers for the reason classOf's
 // are. It hashes t's text at most once.
-func (tt *TokenTable) Intern(t TokenView, pred *Neighbour, it *Token) {
+func (tt *TokenTable) Intern(t *TokenView, pred *Neighbour, it *Token) {
 	classOf(&it.N, t, pred)
 	if t.Kind == lexer.Operator && t.Text == "*" {
 		it.N.Glob = !tt.completes(pred)
@@ -367,7 +421,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			return nil, fmt.Errorf("token class %d admits no terminals; an unmatched key already yields the empty set", i)
 		}
 	}
-	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}, classes: map[uint64]int{}}
+	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}}
 	// The dictionaries: every text and every neighbour class a class names.
 	texts, nbs := map[string]bool{}, map[Neighbour]bool{}
 	for _, c := range classes {
@@ -387,16 +441,21 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 	}
 	tt.texts = slices.Sorted(maps.Keys(texts))
+	tt.short = newIDs(len(tt.texts))
 	for i, s := range tt.texts {
 		tt.text[s] = i + 1
+		if k, ok := shortKey(s); ok {
+			tt.short.put(k, i+1)
+		}
 		if s != "" {
 			tt.firsts[s[0]] |= 1 << min(len(s), 63)
 		}
 	}
 	tt.emptyText = tt.text[""]
 	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
+	tt.classes = newIDs(len(tt.nbs))
 	for i, nb := range tt.nbs {
-		tt.classes[classKey(nb, tt.text[nb.Text])] = i + 1
+		tt.classes.put(classKey(&nb, tt.text[nb.Text]), i+1)
 		if k := uint(nb.Kind + 1); k < 64 {
 			tt.kinds |= 1 << k
 		}
