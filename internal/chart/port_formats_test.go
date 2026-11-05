@@ -20,9 +20,8 @@ func TestPortFormats(t *testing.T) {
 	if err := grammar.CheckFamilyMarked(formatsLines, nil); err != nil {
 		t.Error(err)
 	}
-	// `format` is the keyword only where a statement can start with it. As a key before => or in braces it is
-	// refused like every keyword (`if => 1`, `$h{my}`): that is no format limit, so no row holds it.
-	for _, src := range []string{"$x->format;", "sub format { 1 }"} {
+	// `format` is the keyword only where a statement can start with it; before => it is a string, as every word is.
+	for _, src := range []string{"$x->format;", "sub format { 1 }", "$y = {format => 1};"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}

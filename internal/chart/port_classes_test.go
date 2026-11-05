@@ -64,7 +64,6 @@ func TestPortClassesKnownLimits(t *testing.T) {
 		"class Foo v1.2.3;":                                            false, // 01a1a481-ebef: the lexer scans no v-string after a name
 		"class Foo { field $x :param //= 1; }":                         false, // 01a1aa23-746a: the lexer scans // after an attribute as a pattern
 		"class Foo { method m : { } }":                                 false, // 01a1a445-61f0: the lexer does not mark the { after a bare attribute colon
-		"class Foo { %h = (class => 1); }":                             false, // keywords are not quoted before => yet
 		"class Bar { } class Foo :isa(Bar 1.2);":                       false, // 01a19fb5: pvm emits ( Word Number ), toke.c one ATTRLIST
 		"class Foo { method m :lvalue ($$) { 1 } }":                    true,  // 01a19fb5: tokens ( Variable:$$ ), the same with or without the space
 		"class Foo { method m :lvalue (1) { 1 } }":                     true,  // 01a19fb5: tokens ( Number ), as a signature perl refuses
