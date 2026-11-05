@@ -1,0 +1,3 @@
+print <<EOF;
+hi
+EOF
