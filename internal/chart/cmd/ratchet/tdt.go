@@ -62,7 +62,7 @@ func readFixture(text string) (pairs map[span]pair, ok bool) {
 			continue
 		}
 		p := pair{typ: f[2]}
-		if p.typ == "-" && len(f) > 3 {
+		if len(f) > 3 {
 			p.family = f[3]
 		}
 		if p.typ != "-" && len(f) > 4 {
@@ -207,6 +207,7 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 		sets := termSets(stream)
 		byType := map[string][]int{} // aligned toke.c type -> the start bytes of its tokens
 		folded := map[string][]int{} // a type a family folded onto a token after its head -> those tokens' start bytes
+		var calls []int              // the start bytes of the tokens callFit reads as PRIVATEREF
 		for _, t := range raw {
 			if lexer.IsTrivia(t.Kind) {
 				continue
@@ -223,7 +224,8 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			// A fitted cast terminal stands for the perly.y terminal it names, toke.c's head or, for a postfix
 			// dereference's star, a type folded onto the token.
 			if !slices.ContainsFunc(tt.Sets[sets[t.Start]], func(id int) bool {
-				return asPerly(names[id]) == p.typ || asPerly(names[id]) != names[id] && slices.Contains(p.folded, asPerly(names[id]))
+				return asPerly(names[id]) == p.typ || asPerly(names[id]) != names[id] && slices.Contains(p.folded, asPerly(names[id])) ||
+					callFit(names[id], p)
 			}) {
 				mismatch++
 			}
@@ -231,12 +233,18 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			for _, f := range p.folded {
 				folded[f] = append(folded[f], t.Start)
 			}
+			if callFit("PRIVATEREF", p) {
+				calls = append(calls, t.Start)
+			}
 		}
 		for _, k := range keyNames {
 			i := byName[k]
 			starts := byType[asPerly(decls[i].Terminal)]
 			if asPerly(decls[i].Terminal) != decls[i].Terminal { // a cast terminal is seen as the mismatch check reads it
 				starts = append(slices.Clone(starts), folded[asPerly(decls[i].Terminal)]...)
+			}
+			if decls[i].Terminal == "PRIVATEREF" { // and a call as the mismatch check reads it
+				starts = append(slices.Clone(starts), calls...)
 			}
 			if seen[k] || len(starts) == 0 {
 				continue
@@ -277,6 +285,13 @@ func asPerly(name string) string {
 		return p
 	}
 	return name
+}
+
+// callFit is whether the chart's terminal name stands for p as the fitted call terminal (perigrin's ruling "Extend
+// fitted-terminal"): PRIVATEREF, perly.y:1842's fit for a word before a (, stands for toke.c's zero-width & and the
+// name, which the noamp family aligns as the name with PERLY_AMPERSAND folded onto it.
+func callFit(name string, p pair) bool {
+	return name == "PRIVATEREF" && p.family == "noamp" && slices.Contains(p.folded, "PERLY_AMPERSAND")
 }
 
 // loadTDT reads each corpus file's fixture from dir, keyed by the file's path as tdt-align.sh writes it.
