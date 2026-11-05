@@ -734,6 +734,22 @@ family's.
 The correspondence is a hypothesis, amended once: `FUNC0OP` is niladic (`FUN0OP`, toke.c:263, differs from
 `FUN0` only in the token and the op it returns). `BLKLSTOP` is not folded into `LSTOP`; `all` and `any` are listed.
 
+### Precedence levels against chapter 4 and `parse.LevelsAccountedFor()`
+
+`grammar/perly.go` states perly.y's 32 precedence declarations (`perlyPrecedence`, `%left|%right|%nonassoc
+TOKEN... # perly.y:N`, loosest first, each citing one line of `perly.y:150-182`), and every rule whose alternative
+carries a `%prec` carries it too, as `lhs: rhs %prec TOKEN # perly.y:N` (`TestPrecedenceCitations` holds them to
+perly.y's 39 uses). **Recognition ignores both** at waypoint 1 (spec §8): `TestPrecedenceIgnoredByRecognition`
+shows `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` still accepted. They are waypoint 2's data, and the
+generator's unused-precedence refusal reads them. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
+since its one rule (1512) is excluded interpolation-only and the refusal would refuse it.
+
+`TestLevelDifferences` (`grammar/levels.go`) compares each level, by number, with chapter 4's level table
+(associativity and tokens) and with `parse.LevelsAccountedFor()` (presence only: its account is prose), and holds
+every difference equal to `grammar/testdata/level-differences.txt`, each entry with both sides and a reason.
+Associativity agrees on all 32 levels; the differences are tokens chapter 4 leaves out or spells by character.
+`internal/parse` and chapter 4 are read, never changed.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)

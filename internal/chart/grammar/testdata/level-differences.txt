@@ -1,0 +1,13 @@
+# The grammar's precedence levels (perly.go's perlyPrecedence) against chapter 4's level table and
+# parse.LevelsAccountedFor(): every level they do not agree on, `level N<TAB>grammar: ..<TAB>chapter 4: ..<TAB>parse: ..<TAB># reason`.
+# Reviewed; TestLevelDifferences holds the computed differences equal to this list. Associativity agrees on all 32 levels.
+level 4	grammar: left OROP PLUGIN_LOGICAL_OR_LOW_OP	chapter 4: left OROP	parse: infix: or xor	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 5	grammar: left ANDOP PLUGIN_LOGICAL_AND_LOW_OP	chapter 4: left ANDOP	parse: infix: and	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 9	grammar: right ASSIGNOP PLUGIN_ASSIGN_OP	chapter 4: right ASSIGNOP	parse: infix: = and the compound assignments	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 12	grammar: left OROR DORDOR PLUGIN_LOGICAL_OR_OP	chapter 4: left OROR DORDOR	parse: infix: || // ^^	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 13	grammar: left ANDAND PLUGIN_LOGICAL_AND_OP	chapter 4: left ANDAND	parse: infix: &&	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 22	grammar: left ADDOP PLUGIN_ADD_OP	chapter 4: left ADDOP	parse: infix: + - .	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 23	grammar: left MULOP PLUGIN_MUL_OP	chapter 4: left MULOP	parse: infix: * / % x	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 25	grammar: right PERLY_EXCLAMATION_MARK PERLY_TILDE UMINUS REFGEN	chapter 4: right ! ~ UMINUS REFGEN	parse: prefix: ! ~ ~. unary- unary+ backslash	# chapter 4 spells PERLY_EXCLAMATION_MARK and PERLY_TILDE by their characters; the same tokens
+level 26	grammar: right POWOP PLUGIN_POW_OP	chapter 4: right POWOP	parse: infix: **	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
+level 27	grammar: nonassoc PREINC PREDEC POSTINC POSTDEC	chapter 4: nonassoc PREINC PREDEC POSTINC POSTDEC POSTJOIN	parse: infix: ++ -- (postfix); prefix: ++ --	# the grammar leaves out POSTJOIN: its one rule, perly.y:1512, is excluded interpolation-only, so the generator refuses its precedence (the declaration is fitted)

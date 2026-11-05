@@ -36,7 +36,14 @@ func Committed() (*Grammar, []Entry, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	levels, err := ParseLevels(perlyPrecedence)
+	if err != nil {
+		return nil, nil, err
+	}
 	g := &Grammar{G1: rules, Classes: perlyClasses}
+	for _, l := range levels {
+		g.Prec = append(g.Prec, l.Tokens...)
+	}
 	defined := map[string]bool{}
 	for _, r := range rules {
 		defined[r.LHS] = true
