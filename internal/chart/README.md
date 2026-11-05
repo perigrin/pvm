@@ -747,7 +747,7 @@ since its one rule (1512) is excluded interpolation-only and the refusal would r
 `TestLevelDifferences` (`grammar/levels.go`) compares each level, by number, with chapter 4's level table
 (associativity and tokens) and with `parse.LevelsAccountedFor()` (presence only: its account is prose), and holds
 every difference equal to `grammar/testdata/level-differences.txt`, each entry with both sides and a reason.
-Associativity agrees on all 32 levels; the differences are tokens chapter 4 leaves out or spells by character.
+Associativity agrees with chapter 4 on all 32 levels; the differences are tokens chapter 4 leaves out or spells by character.
 `internal/parse` and chapter 4 are read, never changed.
 
 ## The thin chart/lex: `lex`

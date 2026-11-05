@@ -126,8 +126,12 @@ func TestPrecedenceCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(levels) != 32 {
+		t.Errorf("the grammar declares %d levels, perly.y:150-182 has 32", len(levels))
+	}
 	cited := map[int]bool{}
 	declared := map[string]bool{}
+	prev := 0
 	for _, l := range levels {
 		line, _, _ := parseCite(l.Cite)
 		if line < 150 || line > 182 {
@@ -136,7 +140,11 @@ func TestPrecedenceCitations(t *testing.T) {
 		if cited[line] {
 			t.Errorf("level %d cites perly.y:%d, which another level cites", l.N, line)
 		}
-		cited[line] = true
+		// Levels are in perly.y's order and 152 is blank, so 32 increasing citations name each its own line.
+		if line <= prev || line == 152 {
+			t.Errorf("level %d cites perly.y:%d after perly.y:%d: citations must increase and skip the blank 152", l.N, line, prev)
+		}
+		cited[line], prev = true, line
 		for _, tok := range l.Tokens {
 			declared[tok] = true
 		}
