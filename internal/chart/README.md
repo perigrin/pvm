@@ -723,11 +723,14 @@ whatever the file's length.
 - **Interning** (`TokenTable.Intern`) writes the token's class, class id and
   text id into a `grammar.Token` the caller holds, reading its predecessor's
   class through a pointer: `Map` keeps the last token and the one being
-  interned in two alternating slots. Copying a freshly written class by
-  value stalled on store forwarding, and was most of Intern's cost. A text
-  whose first byte and length no dictionary text has, and a class whose kind
-  no neighbour class has, get id 0 without being hashed; the dictionaries
-  are hashed only for the rest, so every id is what one hash per token gave.
+  interned in two alternating slots, and takes the token's `TokenView` by
+  pointer too. Copying a freshly written class or view by value stalled on
+  store forwarding, and was most of Intern's cost. A text whose first byte
+  and length no dictionary text has, and a class whose kind no neighbour
+  class has, get id 0 without being hashed; the rest are looked up in two
+  open-addressed tables keyed by an integer (`classKey`, and a text of at
+  most seven bytes packed with its length), a multiply and a probe where a
+  Go map hashed, and a longer text in the text map.
   `TestInternIdentityOverCorpus` holds every corpus file's ids to a
   reference that matches each class directly.
 

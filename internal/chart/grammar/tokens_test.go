@@ -27,7 +27,7 @@ func mustCompile(t *testing.T, classes ...TokenClass) *TokenTable {
 // interned is t interned after pred.
 func (tt *TokenTable) interned(t TokenView, pred Neighbour) Token {
 	var it Token
-	tt.Intern(t, &pred, &it)
+	tt.Intern(&t, &pred, &it)
 	return it
 }
 
@@ -485,7 +485,7 @@ func TestInternGlobAndName(t *testing.T) {
 		pred := Boundary
 		for i, v := range c.src {
 			var it Token
-			tt.Intern(v, &pred, &it)
+			tt.Intern(&v, &pred, &it)
 			if it.N.Glob != c.glob[i] || it.N.Name != c.names[i] {
 				t.Errorf("%s: token %d (%q) has Glob %v Name %v, want %v %v", name, i, v.Text, it.N.Glob, it.N.Name, c.glob[i], c.names[i])
 			}
@@ -569,5 +569,64 @@ func TestTokenLone(t *testing.T) {
 	}
 	if got := tt.set(op("-"), none, open, none); !slices.Equal(got, []int{5}) {
 		t.Errorf("a minus after the brace is %v, want it kept: [5]", got)
+	}
+}
+
+// shortKey packs no two texts into one key: every text of up to seven bytes over an alphabet with NUL in it (the
+// corpus holds none, so the identity tests cannot catch a packing that drops the length), and none of eight bytes.
+func TestShortKeyInjective(t *testing.T) {
+	seen := map[uint64]string{}
+	var gen func(s string)
+	gen = func(s string) {
+		k, ok := shortKey(s)
+		if !ok || k == 0 {
+			t.Fatalf("shortKey(%q) = %x, %v", s, k, ok)
+		}
+		if o, dup := seen[k]; dup {
+			t.Fatalf("shortKey(%q) = shortKey(%q)", s, o)
+		}
+		seen[k] = s
+		if len(s) < 7 {
+			for _, c := range []byte{0, 'a', 0xff} {
+				gen(s + string([]byte{c}))
+			}
+		}
+	}
+	gen("")
+	if _, ok := shortKey("abcdefgh"); ok {
+		t.Error("shortKey packs eight bytes")
+	}
+}
+
+// The committed dictionary's texts, and each one NUL off them, and its classes look up as in the maps the integer
+// tables replaced (two sentinel-text classes share a key, the later id winning, as they did in the map).
+func TestCommittedDictionaryLookups(t *testing.T) {
+	g, ref, err := Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt := tab.Tokens
+	for i, s := range tt.texts {
+		for _, p := range []string{s, s + "\x00", "\x00" + s} {
+			if got, want := tt.textID(p), tt.text[p]; got != want {
+				t.Errorf("textID(%q) = %d, the map %d", p, got, want)
+			}
+		}
+		if tt.text[s] != i+1 {
+			t.Errorf("text %q has id %d, want %d", s, tt.text[s], i+1)
+		}
+	}
+	classes := map[uint64]int{}
+	for i := range tt.nbs {
+		classes[classKey(&tt.nbs[i], tt.text[tt.nbs[i].Text])] = i + 1
+	}
+	for i := range tt.nbs {
+		if got, want := tt.classID(&tt.nbs[i], tt.text[tt.nbs[i].Text]), classes[classKey(&tt.nbs[i], tt.text[tt.nbs[i].Text])]; got != want {
+			t.Errorf("classID(%+v) = %d, the map %d", tt.nbs[i], got, want)
+		}
 	}
 }
