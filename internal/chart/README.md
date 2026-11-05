@@ -223,7 +223,7 @@ Two lists name the files a lexer defect takes out of the gates (§11):
 `testdata/lex-unmapped-known.txt`, for a token the chart's table leaves
 unmapped, and `testdata/lexer-defects.txt`, for a token that is mapped but
 wrong. Refusal counts exclude the files on either list and no others. Both
-start empty; an entry is added only by the issue that meets the defect, filed
+started empty; an entry is added only by the issue that meets the defect, filed
 against the v0.1 milestone, and the gate review confirms the construct at the
 entry's byte is that issue's.
 
@@ -351,6 +351,57 @@ word `catch` (`$p->catch($Foo::x)`, `catch => $_`), where perl reads `catch` as 
 method name or a hash key. Both are unreachable
 until method calls and fat commas parse, and then they need the exclusion to
 see `->` or `=>` one token further back (a `NotPrev3`).
+
+### Version tokens after `package`, `use` and `no`
+
+toke.c forces a version into a BAREWORD after `package NAME` and after `use`
+or `no` (and an empty one when none is written); `grammar/versions.go` gives
+pvm's Number or v-string that class. The key drops a number's text and what
+follows it, so chart/lex derives both into the Number's `Prefix`
+(`lex.versionShape`): `grammar.VersionStrict` for what `force_strict_version`
+reads (`1`, `1.23`, not `01`, `1_0`, `1.`, `0x10`, `1e3`), `grammar.VersionLax`
+for what `force_version` reads (digits, `_` and `.`), and neither unless
+whitespace, `;`, `{`, `}` or the end of the file follows, as `lib 1.2, 3` is a
+term to toke.c. Known limits:
+
+- `package Foo v1.2.3;` and `package Foo v1.4.0 {1}` are refused: after a
+  package name the lexer does not scan a v-string (`scanVString` wants a term),
+  so it emits `v1`, `.`, `2.3`. The lexer issue is
+  `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`; the two Guacamole files that hit it
+  are on `testdata/lexer-defects.txt`.
+- `use VERSION MODULE` (`use 5.036 strict;`) is refused. toke.c lexes that
+  module as an ordinary term, so taking it would take `use 5.036 foo bar;` too.
+- The version BAREWORD is also the term BAREWORD, and no terminal tells them
+  apart. After a version that follows a module, `TokenClass.NotNext` (a list)
+  refuses the comma and the operators that only join two terms
+  (`=> . x ? == != || // && .. ... =~ !~ ** <=> eq ne lt gt le ge cmp = += -> | ^ >> > >=`
+  and the other assignment operators, not `**=` and `//=`). `- + * % & < / <<`
+  and `**=`, `//=` can open a term (a glob, a match), so they are accepted, as
+  perl accepts them; `<=` is a readline's `<` to toke.c, so it stays accepted
+  too. `use lib 1.2 x;`, where `x` is a word, is refused, and `isa` is a plain
+  word there to perl, so `use lib 1.2 isa 3;` is accepted where perl refuses
+  `isa 3`, as on the base.
+- A bare word after `use MODULE` is a term (`use constant FOO => 1`,
+  `use lib foo bar`, `use lib foo %h`), and refused when what follows is
+  something toke.c refuses after an unknown bareword: a number, a quote, `[`,
+  `\`, `!`, `~`, an array or `$#` variable (the neighbour's `Array` flag), a
+  `::` word and any keyword that is not an operator word, `not` included.
+  `use lib foo x;`, `use lib foo x, 1;` and `use lib x x;` are accepted where perl
+  refuses them, since refusing `x` after a word would also refuse `use lib foo x 3;`,
+  which perl accepts (pinned in `TestPortPackageAndUseRefusals`). `use lib foo { }`,
+  `use lib foo $$x` and `use lib foo __END__` are refused where perl accepts
+  them, for want of the indirect-object family and the deref sigils' rules.
+- `Neighbour.Array` is on a variable opening with `@` or `$#`, so a word's key
+  can tell `foo @x` from `foo $x`. Like `Glob`, `Name` and `Label` it is a
+  neighbour flag decided from the token's own text, an extension of spec section
+  7's neighbour class by perigrin's ruling; INTERN's reference derives it
+  independently (`refClassOf`) and `keyText` renders it with the neighbour.
+- A delimited number two after `use` or `no` is a version and no term, so
+  `(no => 1 , 2)` will be refused once keywords auto-quote before `=>`; that
+  family settles it.
+- The Number version shape extends spec section 7's key with a part it did not
+  have: the number's own text and the byte after it, derived by chart/lex
+  into `Prefix`. perigrin ruled it so, as he did for `Glob` and `Name`.
 
 ### The repetition operator `x`
 

@@ -109,7 +109,7 @@ func TestLimitBlockBraceSparesConditionedClasses(t *testing.T) {
 func TestLimitBlockBraceSparesNegatedConditions(t *testing.T) {
 	brace := TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true)}
 	notNext, notText := brace, brace
-	notNext.NotNext = &Neighbour{Kind: lexer.Word, Text: "x"}
+	notNext.NotNext = []Neighbour{{Kind: lexer.Word, Text: "x"}}
 	notText.NotText = []string{"{"}
 	prior := brace
 	prior.NotPrev1 = []Neighbour{{Kind: lexer.Word, Text: "do"}}
