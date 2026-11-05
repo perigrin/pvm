@@ -8,6 +8,7 @@
 package lex
 
 import (
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -45,6 +46,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		p2, p1 = p1, cur.Class
 	}
 	var opens []int // heredoc openers whose bodies have not come yet
+	// isa is whether the isa feature is on: toke.c reads isa as a keyword only then (keywords.c:353). A use or no
+	// statement sets it (isaAfter) for the rest of its block, and the block's } restores it from scopes.
+	var isa bool
+	scopes := make([]bool, 0, 16)
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -64,8 +69,25 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
+		plainIsa := false
+		switch n := t.End - t.Start; t.Kind {
+		case lexer.Operator:
+			if n == 1 && text[t.Start] == '{' {
+				scopes = append(scopes, isa)
+			}
+		case lexer.CloseBracket:
+			if text[t.Start] == '}' && len(scopes) > 0 {
+				isa, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
+			}
+		case lexer.Word:
+			if w := text[t.Start:t.End]; n == 3 && w == "use" || n == 2 && w == "no" {
+				isa = isaAfter(raw, i, text, isa)
+			} else {
+				plainIsa = !isa && n == 3 && w == "isa"
+			}
+		}
 		it := &slots[len(s.Tokens)&1]
-		intern(tt, text, t, lineColon(raw, i, text), blanks(raw, i, text), pred, it)
+		intern(tt, text, t, lineColon(raw, i, text), blanks(raw, i, text), plainIsa, pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -99,9 +121,12 @@ func terminator(body string) string {
 	return strings.TrimLeft(body[strings.LastIndexByte(body, '\n')+1:], " \t")
 }
 
-// intern interns t's key in tt into it, given its predecessor's class.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pred *grammar.Neighbour, it *grammar.Token) {
+// intern interns t's key in tt into it, given its predecessor's class; plainIsa says t is isa with its feature off.
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
+	if plainIsa {
+		tx = grammar.PlainIsa
+	}
 	var next byte // 0 at the end of the file, which ends a version as toke.c's NUL does
 	if t.Kind == lexer.Number && t.End < len(text) {
 		next = text[t.End]
@@ -115,6 +140,84 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pre
 	v.Kind, v.Text, v.OpensBlock, v.TermFollows, v.Prefix = t.Kind, tx, t.OpensBlock, t.TermFollows, p
 	v.Global, v.LineColon, v.Blanks = g, lc, bl
 	tt.Intern(&v, pred, it)
+}
+
+// isaAfter is the isa feature's state after the use or no statement at raw[i], given on before it, as feature.pm and
+// experimental.pm set it: a feature or experimental statement naming isa, :all or a bundle from :5.35 turns it on (use)
+// or off (no), and a bare `no feature` turns it off; use VERSION turns it on from 5.35 and off from 5.10 to 5.34, as
+// the version's bundle replaces the features named before it.
+// shortcut: a feature a module or a BEGIN block imports (`BEGIN { feature->import('isa') }`) is not seen, nor one
+// in a string eval; upgrade if a corpus file needs one.
+// shortcut: use VERSION from 5.9.5 to 5.9.x leaves it, where perl turns it off; upgrade if a corpus file holds one.
+func isaAfter(raw []lexer.Token, i int, text string, on bool) bool {
+	use := text[raw[i].Start] == 'u'
+	j := i + 1
+	for j < len(raw) && lexer.IsTrivia(raw[j].Kind) {
+		j++
+	}
+	if j == len(raw) {
+		return on
+	}
+	w := text[raw[j].Start:raw[j].End]
+	switch k := raw[j].Kind; {
+	case k == lexer.Word && (w == "feature" || w == "experimental"):
+		named := false
+		for j++; j < len(raw) && raw[j].Kind != lexer.Semicolon; j++ {
+			if raw[j].Kind != lexer.Quote {
+				continue
+			}
+			for _, f := range strings.FieldsFunc(quoted(text[raw[j].Start:raw[j].End]), notName) {
+				named = true
+				if f == "isa" || f == ":all" || strings.HasPrefix(f, ":5.") && minor("v"+f[1:]) >= 35 {
+					on = use
+				}
+			}
+		}
+		if !named && !use && w == "feature" {
+			return false // `no feature` returns to the default bundle, which has no isa
+		}
+	case use && (k == lexer.Number || k == lexer.Quote && (w[0] == 'v' || '0' <= w[0] && w[0] <= '9')):
+		if m := minor(w); m >= 35 {
+			on = true
+		} else if m >= 10 {
+			on = false
+		}
+	}
+	return on
+}
+
+// quoted is a quote-like's contents: its text without the operator's letters and the delimiters.
+func quoted(s string) string {
+	s = strings.TrimLeft(s, "qw")
+	if len(s) < 2 {
+		return ""
+	}
+	return s[1 : len(s)-1]
+}
+
+func notName(r rune) bool {
+	return r == ',' || r == ' ' || r == '\t' || r == '\n' || r == '(' || r == ')'
+}
+
+// minor is the minor version of a Perl 5 version (`v5.36`, `5.36.0`, `5.036`, `5.036_000`), or -1; a bundle's (`:5.36`) reads as `v5.36`.
+// A decimal version's minor is the first three digits after its point; a dotted one's, the second part.
+func minor(v string) int {
+	dotted := strings.HasPrefix(v, "v") || strings.Count(v, ".") > 1
+	parts := strings.Split(strings.ReplaceAll(strings.TrimPrefix(v, "v"), "_", ""), ".")
+	if len(parts) < 2 || parts[0] != "5" {
+		return -1
+	}
+	m := parts[1]
+	if !dotted && len(m) < 3 {
+		m += strings.Repeat("0", 3-len(m))
+	} else if !dotted {
+		m = m[:3]
+	}
+	n, err := strconv.Atoi(m)
+	if err != nil {
+		return -1
+	}
+	return n
 }
 
 // keywords are the words CORE:: may qualify, looked up only for a word that opens with CORE::.

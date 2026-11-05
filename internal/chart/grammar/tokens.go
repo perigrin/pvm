@@ -149,6 +149,10 @@ const PackageName = ':'
 // as kw (yyl_key_core, toke.c:9230-9257), but before its fat-comma check, so `CORE::eq =>` stays an operator.
 const CoreQualified = 'C'
 
+// PlainIsa is the text chart/lex gives the word isa where the isa feature is off: toke.c's keyword() returns 0 for it
+// there (keywords.c:353), so it is a word no class names. It opens with a letter, so it is not the NonIdentWord class.
+const PlainIsa = "isa\x00plain"
+
 // IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
 // as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
 const IdentQuote = "\x00ident-quote"
