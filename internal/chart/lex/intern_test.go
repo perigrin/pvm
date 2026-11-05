@@ -376,6 +376,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
 		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
 		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
+		"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); " +
 		"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
 		"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; ${}; &{}; *{}; @{ }; *g{}; $x->${\\ 1}; $x->${$m}(1); $x->${}; ${ {} }; " +
 		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")

@@ -343,9 +343,8 @@ feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 `try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
 feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
 The other side is under-acceptance: where perl reads them as plain words,
-`try => 1;`, `sub try {} try 1;`, `$h{try}` and `catch(1)` are refused, and
-cannot be told from `foo(1)`, `foo 1` and `$h{foo}` (also refused) until the
-call and subscript families land.
+`sub try {} try 1;` and `catch(1)` are refused (`try => 1;` and `$h{try}` are
+accepted, as every word is there).
 
 A LABEL is a word with no package separator and a one-byte colon after it on
 its own line (blanks only between), where a statement may start: toke.c's label
@@ -407,9 +406,8 @@ term to toke.c. Known limits:
   neighbour flag decided from the token's own text, an extension of spec section
   7's neighbour class by perigrin's ruling; INTERN's reference derives it
   independently (`refClassOf`) and `keyText` renders it with the neighbour.
-- A delimited number two after `use` or `no` is a version and no term, so
-  `(no => 1 , 2)` will be refused once keywords auto-quote before `=>`; that
-  family settles it.
+- A delimited number two after `use` or `no` is a version and no term, unless
+  `=>` stands between, after which toke.c reads a term (`(no => 1 , 2)`).
 - The Number version shape extends spec section 7's key with a part it did not
   have: the number's own text and the byte after it, derived by chart/lex
   into `Prefix`. perigrin ruled it so, as he did for `Glob` and `Name`.
@@ -519,8 +517,7 @@ no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 
 - Refused where perl accepts: `class Foo v1.2.3;` (the package limit above, `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`);
   `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
-  `method m : { }` (the `sub foo : { }` limit above); and `field => 1`, `method => 1`, `class => 1`, which the
-  fat-comma family settles for every keyword.
+  and `method m : { }` (the `sub foo : { }` limit above).
 - Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
   is refused where perl accepts it: pvm emits `( Word Number )` where toke.c delivers one ATTRLIST. And `method m :lvalue ($$) { 1 }`,
   `method m :lvalue (1) { 1 }` and `my $c = method :lvalue (1) { 1 };` are accepted where perl refuses them as bad signatures: pvm emits
@@ -678,6 +675,11 @@ method's name. The lone `$` pvm emits for `->${` is a cast's sigil, `CAST_DOLLAR
 (`$x->${\ 'm'}`, `$x->${$m}(1)`) is accepted. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
 variable. Interleaved Intern and Lex benchmarks against the base show no per-token cost.
 
+A blank between `->` and `@` leaves toke.c's `->` a `TERM(ARROW)`, and the nameless `@` is then `PREREF(PERLY_SNAIL)`
+(yyl_snail), so `$r->@ {"a"}` is the slice `$r->@{"a"}`: the `DerefSigil` after `->` maps to `PERLY_SNAIL`, never to
+`CAST_SNAIL`. After `->% {`, `->* {` and `->& {` toke.c reads an operator and perl refuses; `->* {` is accepted, since
+the key cannot tell `*{` from `* {`.
+
 One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: a cast of a block that opens with `{}` is accepted
 (`${ {} }`, `@{ {} }`, `%{ {} }`, `&{ {} }`, `*{ {} }`, `$x->${ {} }`, `${ {} }{a}`, `print ${ {} };`), where
 toke.c's `scan_ident` reads `${ {` after any sigil as the punctuation variable `{` and perl refuses the `}` left
@@ -691,7 +693,13 @@ A word the neighbours leave undecided (`TestPortScopeDecidedSuperpositionBounded
 BAREWORD, NOAMP, FUNC0SUB and UNIOPSUB, LSTOPSUB too before a `{`, and METHCALL0 where the indirect objects
 put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the rest, as toke.c's yyl_just_a_word does:
 
-- Before `=>` a word is BAREWORD (toke.c:8176). Before `(` it is a call: toke.c emits a zero-width `&` and the
+- Before `=>` a word is BAREWORD (toke.c:8176), a keyword too: toke.c checks for `=>` before it looks a word up
+  (yyl_fatcomma, toke.c:9332-9336 and 9440-9453), so init's `cutBeforeFatComma` takes every class keyed on a word's
+  text away there, `x`'s included (`f(eq => 1, print => 2)`, `{ y => 2 }`; `$a x => 1` is refused, as by perl).
+- `AUTOLOAD`, `DESTROY`, `BEGIN`, `UNITCHECK`, `CHECK`, `INIT` and `END` name a sub only where a statement starts
+  and are any word elsewhere (toke.c:8313-8322), so init's `addStatementWords` gives them each class of a word no
+  class names, after anything but a statement start (`$y = AUTOLOAD();`, `$y = END x 3`).
+- Before `(` it is a call: toke.c emits a zero-width `&` and the
   name (toke.c:8195-8211), which the word stands for as PRIVATEREF, by a fit of perly.y:1842 (`amper:
   PRIVATEREF`), so `foo(1)` and `f()->{foo}` are accepted.
 - A word ending in `::` is a package name, never a call (safebw, toke.c:8098-8111), so `a::()`, `Foo:: 1` and
