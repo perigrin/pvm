@@ -72,7 +72,7 @@ perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY
 
 perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	ported
 
-perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	ported
+perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	fitted
 
 perly.y:770 sigsub_or_method_named: KW_METHOD_named	-
 

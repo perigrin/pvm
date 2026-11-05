@@ -641,6 +641,11 @@ glob's `*` apart from its name. The ratchet's tdt comparison reads a cast termin
 matched against toke.c's head or, for the star of a postfix dereference, a type the `postfix-deref` family folds
 onto the token.
 
+**The fitted call terminal**, by perigrin's ruling ("Extend fitted-terminal"): `amper: PRIVATEREF`, perly.y:1842's
+fit for a word before `(`, stands for toke.c's zero-width `&` and the name. The tdt comparison reads the chart's
+PRIVATEREF as matching a token the `noamp` family aligns with `PERLY_AMPERSAND` folded onto it (`callFit`), keyed on
+the fixture's family and fold, never on the token's text.
+
 **Postfix dereference** is one `Variable` token after `->` (`$*`, `@*`, `%*`, `&*`, `**`, `$#*`), and a bare
 `@` or `%` there opens a slice. By perigrin's ruling ("Yes, if measured small") the variable heads leave `->` out
 (`NotPrev1`), and classes keyed on the text after `->` take it: `@*` and `%*` map to their sigil's cast terminal,
@@ -673,15 +678,21 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   INTERN's reference reads it with a regular expression (`refPackageName`).
 - After `->`, `&`, a glob's `*`, `sort`, `require`, the loop exits and the words that name something (`sub`,
   `package`, `use`, `no`, `format`) toke.c forces the word to a name (`forcedWord`), so it carries no
-  scope-decided reading, and before `(` after `require` or a loop exit it stays BAREWORD, which perl refuses.
+  scope-decided reading, and before `(` after `require` or a loop exit it stays BAREWORD, which perl refuses. After
+  `do` toke.c forces the word only before `(` (yyl_do), so `do foo(1);` is refused and `do foo;` and `do foo 1;` stay
+  scope's (`callForced`).
 - NOAMP stands for the zero-width NOAMP and the word as `subname` (perly.y:1646's fit). A sub's name is PRIVATEREF
   as well as BAREWORD (a lexical sub's, force_ident_maybe_lex), and `my sub`, `our sub` and `state sub` are a
-  fit of perly.y:638 with the declarator's KW_MY before KW_SUB_named, which toke.c reads silently (yyl_my).
+  fit of perly.y:638 and 768 with the declarator's KW_MY before KW_SUB_named or KW_SUB_named_sig, which toke.c reads
+  silently (yyl_my).
 - FUNC0SUB completes a term (`TERM`), so `x` after it is the repetition operator; NOAMP, UNIOPSUB and LSTOPSUB
   leave PL_expect at XTERM and do not.
 
-Limits, each with a `shortcut:` comment: a declared sub named `x` is BAREWORD only, as the other keywords
-are; a word two after `use` or `package` carries no scope-decided reading (afterWordSlot, the version family's).
+Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
+named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is refused (`x 1;` is refused by perl
+too); a word two after `use` or `package` carries no scope-decided reading (afterWordSlot, the version family's).
+`my sub Foo::bar {1}`, its `our` and `state` forms and `CORE::foo(1);` are accepted, where toke.c croaks while it
+scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
 `terminals-per-token` and `items-per-token` rise by design.
 
