@@ -27,7 +27,7 @@ func mustCompile(t *testing.T, classes ...TokenClass) *TokenTable {
 // interned is t interned after pred.
 func (tt *TokenTable) interned(t TokenView, pred Neighbour) Token {
 	var it Token
-	tt.Intern(t, &pred, &it)
+	tt.Intern(&t, &pred, &it)
 	return it
 }
 
@@ -485,7 +485,7 @@ func TestInternGlobAndName(t *testing.T) {
 		pred := Boundary
 		for i, v := range c.src {
 			var it Token
-			tt.Intern(v, &pred, &it)
+			tt.Intern(&v, &pred, &it)
 			if it.N.Glob != c.glob[i] || it.N.Name != c.names[i] {
 				t.Errorf("%s: token %d (%q) has Glob %v Name %v, want %v %v", name, i, v.Text, it.N.Glob, it.N.Name, c.glob[i], c.names[i])
 			}
