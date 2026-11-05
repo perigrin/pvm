@@ -1,0 +1,1 @@
+no strict refs 'vars';

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -35,6 +36,29 @@ func committed(tb testing.TB) (*grammar.TokenTable, []grammar.TokenClass) {
 	return tab.Tokens, classes
 }
 
+var (
+	refStrictVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
+	refLaxVersion    = regexp.MustCompile(`^[0-9][0-9_.]*$`)
+)
+
+// refPrefix is prefix as a regular expression reads a number: strict or lax version text, and only when
+// whitespace, ;, {, } or the end of the file follows it. Anything else is prefix's.
+func refPrefix(k lexer.Kind, tx string, src []byte, end int) byte {
+	if k != lexer.Number {
+		return prefix(k, tx, 0)
+	}
+	if end < len(src) && !bytes.ContainsRune([]byte(" \t\n\r\f\v;{}\x00"), rune(src[end])) {
+		return 0
+	}
+	switch {
+	case refStrictVersion.MatchString(tx):
+		return grammar.VersionStrict
+	case refLaxVersion.MatchString(tx):
+		return grammar.VersionLax
+	}
+	return 0
+}
+
 // refClassOf is ClassOf as it stood before Intern was made cheaper, kept
 // here so the reference shares no code with what it checks.
 func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
@@ -57,6 +81,7 @@ func refClassOf(t grammar.TokenView, pred grammar.Neighbour) grammar.Neighbour {
 			c.Brace = grammar.BraceHash
 		}
 	}
+	c.Array = t.Kind == lexer.Variable && strings.HasPrefix(t.Text, "@") || t.Kind == lexer.Variable && strings.HasPrefix(t.Text, "$#")
 	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
 		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
 	// A label is a plain word with its colon on its line at a statement start; its colon carries the flag on.
@@ -128,8 +153,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if c.Text != nil {
 			named[*c.Text] = true
 		}
-		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next, c.NotNext}, ptrs(c.NotPrev1)...), ptrs(c.NotPrev2)...) {
-			if n != nil {
+		for _, n := range append(append([]*grammar.Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
+			if n != nil && n.Text != grammar.NonIdentWord {
 				named[n.Text] = true
 			}
 		}
@@ -138,6 +163,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 	}
 	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool {
+		if want != nil && want.Text == grammar.NonIdentWord {
+			return got.Kind == lexer.Word && !named[got.Text] && !(got.Text[0] == '_' || got.Text[0]|0x20 >= 'a' && got.Text[0]|0x20 <= 'z' || got.Text[0] >= 0x80)
+		}
 		if want != nil && want.Text == grammar.OtherWord {
 			w := *want
 			w.Text = got.Text
@@ -155,7 +183,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			if !c.Completes || c.Prev1 != nil {
 				continue
 			}
-			w := grammar.Neighbour{Kind: *c.Kind, OpensBlock: c.OpensBlock != nil && *c.OpensBlock}
+			w := grammar.Neighbour{Kind: *c.Kind, OpensBlock: c.OpensBlock != nil && *c.OpensBlock,
+				Array: *c.Kind == lexer.Variable && c.Prefix != nil && slices.Contains([]byte("@#"), *c.Prefix)}
 			switch {
 			case c.Text != nil:
 				w.Text = *c.Text
@@ -190,7 +219,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			opens++
 		}
 		tx := string(src[t.Start:t.End])
-		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: refPrefix(t.Kind, tx, src, t.End),
 			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:]), Blanks: t.Kind == lexer.Word && refBlanks(src, t.Start, t.End)}
 		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		prev := pred
@@ -232,7 +261,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 				(c.Prefix == nil || *c.Prefix == t.v.Prefix) && (c.Global == nil || *c.Global == t.v.Global) &&
 				(c.LineColon == nil || *c.LineColon == t.v.LineColon) && (c.Blanks == nil || *c.Blanks == t.v.Blanks) && is(c.Prev2, nb(i-2)) && is(c.Prev1, nb(i-1)) && is(c.Next, nb(i+1)) &&
 				!slices.Contains(c.NotText, t.v.Text) && !slices.ContainsFunc(c.NotPrev1, func(n grammar.Neighbour) bool { return is(&n, nb(i-1)) }) &&
-				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && (c.NotNext == nil || *c.NotNext != nb(i+1)) {
+				!slices.ContainsFunc(c.NotPrev2, func(n grammar.Neighbour) bool { return is(&n, nb(i-2)) }) && !(c.NotNextIdent && ident(i+1)) && !(c.NotNextName && name(i+1)) && (!c.NextName || name(i+1)) && !slices.ContainsFunc(c.NotNext, func(n grammar.Neighbour) bool { return is(&n, nb(i+1)) }) {
 				set = append(set, c.Terminals...)
 			}
 		}
@@ -323,7 +352,7 @@ const loneForms = "$h{time}; $h->{shift}; $h{ if }; $h{x}; $h{-if}; $h{ - while 
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
-		"$y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
+		"$y = @a * ref x 3; $y = $#a * ref x 3; $y = @a * 2; @a x 3; $#a x 3; my @b = @a x 3; $c ? my @z : shared; $y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
@@ -333,6 +362,38 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	for i, tok := range s.Tokens {
 		if tok.TerminalSet != want[i] {
 			t.Errorf("token %d has set %d, the reference %d", i, tok.TerminalSet, want[i])
+		}
+	}
+	if len(s.Tokens) != len(want) {
+		t.Errorf("%d tokens, the reference %d", len(s.Tokens), len(want))
+	}
+}
+
+// The version shapes (chart/lex's Prefix for a Number) need numbers the corpus may not hold after a package name, and
+// the byte after each: a strict, a lax and a plain number, each delimited by every byte toke.c ends a version at and by
+// ones it does not.
+func TestInternIdentityVersionShapes(t *testing.T) {
+	tt, classes := committed(t)
+	var src []byte
+	for _, n := range []string{"1", "1.23", "0.1", "01", "1_0", "1.", "1.2.3", "0x10", "1e3", ".5", "10.01"} {
+		for _, d := range []string{";", " ;", "\t;", "\n;", "{ }", "}", ",", "#c\n;", "x;", ")", "'a';", ""} {
+			src = append(src, "package Foo "+n+d+"\nuse "+n+d+"\nuse lib "+n+d+"\n$y = "+n+d+"\n"...)
+		}
+	}
+	// What follows a version or a word after use MODULE: each operator a NotNext list names, the ones it leaves, a term.
+	for _, n := range []string{"1.2", "v1.2", "foo", "x", "Foo::Bar"} {
+		for _, f := range []string{"=>", ".", "x", "?", "==", "!=", "||", "//", "&&", "..", "...", "=~", "!~", "**", "<=>", "eq", "ne", "lt", "gt", "cmp",
+			"=", "+=", "->", "|", "^", ">>", ">", ">=", ",", "-", "+", "*", "%", "&", "<", "/", "<<", "1", "'a'", `"a"`, "qw(a)", "[1]", `\1`, "$x", "bar", "(3)", "{ }", "-1", ";",
+			"le", "ge", "**=", "//=", "@x", "$#x", "@$x", "!", "~", "sub", "do", "my", "print", "__FILE__", "::bar", "%h", "&f", "*g", "__END__", "shift", "if", "eq", "isa"} {
+			src = append(src, "use lib "+n+" "+f+" 3;\nno lib "+n+" "+f+" 3;\n"...)
+		}
+	}
+	s, _ := Lex(src, tt)
+	want := refIDs(t, src, tt, classes)
+	for i, tok := range s.Tokens {
+		if tok.TerminalSet != want[i] {
+			r := s.Raw[tok.Index]
+			t.Errorf("token %d (%q at byte %d) has set %d, the reference %d", i, src[r.Start:r.End], r.Start, tok.TerminalSet, want[i])
 		}
 	}
 	if len(s.Tokens) != len(want) {

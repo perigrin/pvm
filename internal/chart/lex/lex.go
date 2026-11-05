@@ -74,7 +74,11 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 // intern interns t's key in tt into it, given its predecessor's class.
 func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pred *grammar.Neighbour, it *grammar.Token) {
 	tx := text[t.Start:t.End]
-	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx),
+	var next byte // 0 at the end of the file, which ends a version as toke.c's NUL does
+	if t.Kind == lexer.Number && t.End < len(text) {
+		next = text[t.End]
+	}
+	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx, next),
 		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc, Blanks: bl}, pred, it)
 }
 
@@ -175,10 +179,48 @@ func skipBlanks(raw []lexer.Token, j, step int, src string) int {
 	return j
 }
 
-// prefix is a variable's sigil (`#` for `$#`) or a quote's class: its opening
-// quote, or its operator (`Q` for qq, `y` for tr); 0 for anything else.
-func prefix(k lexer.Kind, tx string) byte {
+// versionShape is a Number's version class for the key, which drops its text: grammar.VersionStrict
+// for one toke.c's force_strict_version reads as a version (0 or a digit run without a leading zero,
+// then an optional . and digits), grammar.VersionLax for the rest of what force_version reads (a
+// digit, then digits, _ and .), and 0 for any other. Both need the byte after the number, next, to be
+// whitespace, ;, {, } or the end of the file: a number that something else follows is a term to toke.c,
+// whatever its digits (`use lib 1.2, 3`).
+func versionShape(tx string, next byte) byte {
+	if next != 0 && next != ';' && next != '{' && next != '}' && next != ' ' && (next < '\t' || next > '\r') {
+		return 0
+	}
+	if tx == "" || tx[0] < '0' || tx[0] > '9' {
+		return 0
+	}
+	strict, dots := true, 0
+	for i := 0; i < len(tx); i++ {
+		switch c := tx[i]; {
+		case c >= '0' && c <= '9':
+		case c == '.':
+			dots++
+			strict = strict && i+1 < len(tx) && dots == 1
+		case c == '_':
+			strict = false
+		default:
+			return 0
+		}
+	}
+	// a leading zero is strict only alone before the point
+	if strict && tx[0] == '0' && len(tx) > 1 && tx[1] != '.' {
+		strict = false
+	}
+	if strict {
+		return grammar.VersionStrict
+	}
+	return grammar.VersionLax
+}
+
+// prefix is a variable's sigil (`#` for `$#`), a quote's class (its opening
+// quote, or its operator: `Q` for qq, `y` for tr) or a number's versionShape; 0 for anything else.
+func prefix(k lexer.Kind, tx string, next byte) byte {
 	switch {
+	case k == lexer.Number:
+		return versionShape(tx, next)
 	case k == lexer.Variable && len(tx) > 2 && tx[:2] == "$#":
 		return '#'
 	case k == lexer.Variable && tx != "":
