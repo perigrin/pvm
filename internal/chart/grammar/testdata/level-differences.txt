@@ -1,6 +1,6 @@
 # The grammar's precedence levels (perly.go's perlyPrecedence) against chapter 4's level table and
 # parse.LevelsAccountedFor(): every level they do not agree on, `level N<TAB>grammar: ..<TAB>chapter 4: ..<TAB>parse: ..<TAB># reason`.
-# Reviewed; TestLevelDifferences holds the computed differences equal to this list. Associativity agrees on all 32 levels.
+# Reviewed; TestLevelDifferences holds the computed differences equal to this list. Associativity agrees with chapter 4 on all 32 levels.
 level 4	grammar: left OROP PLUGIN_LOGICAL_OR_LOW_OP	chapter 4: left OROP	parse: infix: or xor	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
 level 5	grammar: left ANDOP PLUGIN_LOGICAL_AND_LOW_OP	chapter 4: left ANDOP	parse: infix: and	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
 level 9	grammar: right ASSIGNOP PLUGIN_ASSIGN_OP	chapter 4: right ASSIGNOP	parse: infix: = and the compound assignments	# chapter 4 leaves out the level's PLUGIN_* token, an XS infix plugin's, which perly.y declares here
