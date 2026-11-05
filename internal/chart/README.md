@@ -822,6 +822,17 @@ whatever the file's length.
   `TestInternIdentityOverCorpus` holds every corpus file's ids to a
   reference that matches each class directly.
 
+- **The isa feature** is the one bit of scope `Map` tracks, by perigrin's ruling ("Track the isa feature"): toke.c
+  reads `isa` as a keyword only where the feature is on (keywords.c:353), and elsewhere `Map` gives the word the
+  text `grammar.PlainIsa`, which no class names, so `ok(isa Foo('x'))` is an indirect method call and `$x isa Foo`
+  is refused. A `use` or `no` statement sets the bit as feature.pm does (`isaAfter`): `feature` or `experimental`
+  naming `isa`, `:all` or a bundle from `:5.35`, a bare `no feature`, and `use VERSION` (on from 5.35, off from
+  5.10 to 5.34). Every `{` saves it and the matching `}` restores it, which is the block scope; a hash's or a
+  subscript's braces save and restore it too, harmlessly, since no `use` stands inside one. The work is a kind
+  and length test per token, and a scan of the statement at a `use` or `no`. INTERN's reference reads the same
+  statements with regular expressions (`refIsaAfter`). Not seen, each a `shortcut:` in `isaAfter`: a feature a
+  module or a `BEGIN` block imports, or one a string eval turns on, and `use VERSION` from 5.9.5 to 5.9.x.
+
 `lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
 `lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
 inside the span, so `lex-overhead`'s numerator always includes the lexer.

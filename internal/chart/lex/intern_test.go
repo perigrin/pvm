@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unsafe"
@@ -41,7 +42,44 @@ var (
 	refLaxVersion    = regexp.MustCompile(`^[0-9][0-9_.]*$`)
 	refPackageName   = regexp.MustCompile(`^.+::$`)
 	refCoreQualified = regexp.MustCompile(`^CORE::(.+)$`)
+	refFeature       = regexp.MustCompile(`^(use|no)\s+(feature|experimental)\b([^;]*)`)
+	refFeatureName   = regexp.MustCompile(`(?:^|[\s'"(,{/<\[])(isa|:all|:5\.(\d+))(?:[\s'")},/>\]]|$)`)
+	refVersion       = regexp.MustCompile(`^use\s+(?:v5\.(\d+)|5\.(\d+)\.\d+|5\.(\d+)(?:_\d+)?)\b`)
 )
+
+// refIsaAfter is the isa feature after the statement src opens with, read from its text: a feature or experimental
+// statement naming isa, :all or a bundle from :5.35 sets it, a bare `no feature` clears it, and use VERSION sets it
+// from 5.35 and clears it from 5.10.
+func refIsaAfter(src string, on bool) bool {
+	if end := strings.IndexByte(src, ';'); end >= 0 {
+		src = src[:end]
+	}
+	if m := refFeature.FindStringSubmatch(src); m != nil {
+		names := refFeatureName.FindAllStringSubmatch(m[3], -1)
+		for _, n := range names {
+			if b, err := strconv.Atoi(n[2]); n[2] == "" || err == nil && b >= 35 {
+				on = m[1] == "use"
+			}
+		}
+		if m[1] == "no" && m[2] == "feature" && strings.TrimSpace(m[3]) == "" {
+			on = false
+		}
+		return on
+	}
+	if m := refVersion.FindStringSubmatch(src); m != nil {
+		v := m[1] + m[2]
+		if m[3] != "" {
+			v = (m[3] + "00")[:3]
+		}
+		switch n, _ := strconv.Atoi(v); {
+		case n >= 35:
+			on = true
+		case n >= 10:
+			on = false
+		}
+	}
+	return on
+}
 
 // refCore is a word's text as yyl_key_core reads CORE::kw, kw a keyword: kw, and whether it was qualified.
 func refCore(k lexer.Kind, tx string) (string, bool) {
@@ -224,7 +262,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 	}
 	var toks []tok
 	pred := grammar.Boundary
-	var opens []int // the openers still waiting for a body, by index in toks
+	var opens []int   // the openers still waiting for a body, by index in toks
+	var isa bool      // the isa feature
+	var scopes []bool // isa at each open brace
 	for _, t := range lexer.Tokenize(src) {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -241,11 +281,22 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 			opens = append(opens, len(toks))
 		}
 		tx := string(src[t.Start:t.End])
+		switch {
+		case t.Kind == lexer.Operator && tx == "{":
+			scopes = append(scopes, isa)
+		case t.Kind == lexer.CloseBracket && tx == "}" && len(scopes) > 0:
+			isa, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
+		case t.Kind == lexer.Word && (tx == "use" || tx == "no"):
+			isa = refIsaAfter(string(src[t.Start:]), isa)
+		}
 		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: refPrefix(t.Kind, tx, src, t.End),
 			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:]), Blanks: t.Kind == lexer.Word && refBlanks(src, t.Start, t.End)}
 		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
 		if kw, ok := refCore(t.Kind, tx); ok {
 			v.Text, v.Prefix = kw, grammar.CoreQualified
+		}
+		if t.Kind == lexer.Word && tx == "isa" && !isa {
+			v.Text = grammar.PlainIsa
 		}
 		prev := pred
 		pred = refClassOf(v, prev)
@@ -389,6 +440,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
 		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
 		"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); CORE::for (;;) {} $y = ($x CORE::eq 1); CORE::say(1); f(CORE::eq => 1, CORE::print => 2, CORE::x => 3); $y = CORE::GLOBAL::foo; CORE::foo(1); $y = CORE::time x 3; CORE::my $z; " +
+		"$y = $x isa Foo; ok(isa Foo(1)); use feature 'isa'; $y = $x isa Foo; { no feature qw(say isa); ok(isa Foo(1)); } $y = $x isa Foo; no feature ':all'; isa(1); use experimental \"isa\"; $x isa Foo; no feature; isa(1); use v5.36; $x isa Foo; use v5.10; isa(1); use 5.036; $x isa Foo; use 5.008; $x isa Foo; use feature ':5.36'; $x isa Foo; no feature ':5.10'; $x isa Foo; no feature ':5.36'; isa(1); use 5.36.0; $x isa Foo; use 5.034_000; isa(1); $h{isa}; $o->isa(1); sub isa { 1 } isa => 1; " +
 		"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
 		"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; ${}; &{}; *{}; @{ }; *g{}; $x->${\\ 1}; $x->${$m}(1); $x->${}; ${ {} }; " +
 		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")
@@ -467,7 +519,7 @@ func BenchmarkIntern(b *testing.B) {
 		var slots [2]grammar.Token
 		pred := &grammar.Boundary
 		for i, t := range sig {
-			intern(tt, text, t, false, false, pred, &slots[i&1])
+			intern(tt, text, t, false, false, false, pred, &slots[i&1])
 			pred = &slots[i&1].N
 		}
 	}
