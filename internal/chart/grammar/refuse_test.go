@@ -215,6 +215,9 @@ func TestCommittedGrammarConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(g.Prec) == 0 {
+		t.Error("the committed grammar declares no precedence, so its unused-precedence refusal checks nothing")
+	}
 	if _, err := Generate(g, ref); err != nil {
 		t.Errorf("the committed grammar is refused:\n%v", err)
 	}
