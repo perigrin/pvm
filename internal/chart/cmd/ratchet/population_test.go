@@ -123,10 +123,11 @@ func TestLexOverheadFileSet(t *testing.T) {
 		"outside.pl": {rd: true, perl: refuse("grammar")}, // not in the population
 		listed:       {rd: true, perl: accept()},          // lexer-listed: not in the population
 	}
-	got, err := lexOverhead(p, rd, vfiles(m), vinputs(m, listed))
+	kept, err := aggregateFiles(p, rd, vfiles(m), vinputs(m, listed))
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := p.Ratio("lex-overhead", kept, false)
 	if math.Abs(got-1.1) > 1e-9 {
 		t.Errorf("lex-overhead %v, want 1.1", got)
 	}
