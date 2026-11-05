@@ -42,6 +42,8 @@ func TestRepeatClassesFollowCompletes(t *testing.T) {
 		"block }":       {&Neighbour{Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}, nil},
 		"string":        {&Neighbour{Kind: lexer.Quote}, nil},
 		"qw":            {&Neighbour{Kind: lexer.Quote, Text: IdentQuote}, nil},
+		"heredoc":       {&Neighbour{Kind: lexer.HeredocOpen}, nil},
+		"readline":      {&Neighbour{Kind: lexer.Readline}, nil},
 		"close paren":   {&Neighbour{Kind: lexer.CloseBracket, Text: ")"}, nil},
 		"post-inc":      {&Neighbour{Kind: lexer.Operator, Text: "++"}, nil},
 		"time":          {&Neighbour{Kind: lexer.Word, Text: "time"}, nil},
