@@ -628,9 +628,11 @@ accept them (scope, waypoint 2), each pinned in
 ### Slices, glob elements, postfix dereference and sigil casts
 
 The slices (1594-1624, `sliceme`, `kvslice`) and glob elements (1349, `gelem`) are ported as written, the brace
-forms fitted without toke.c's `;` as the subscripts are. A `{` after a glob's `*` or a sub's `&` opens a block
-(`*{"g"}`, `&{$c}(1)`, PREREF), and one past the glob's name a subscript (`*g{CODE}`, TERM): `ClassOf` calls the `{`
-after any name `BraceSubscript`, so a lone word there is a string as in `$h{if}`.
+forms fitted without toke.c's `;` as the subscripts are. A `{` after a cast's sigil, a glob's `*` or a sub's `&`
+opens a block (`*{"g"}`, `&{$c}(1)`, PREREF) unless its `}` follows at once, which toke.c reads as `HASHBRACK`, so
+`${}` and `&{}` are refused (that `{` admits nothing, since no `-DT` capture of a file perl accepts holds one); these are classes keyed on the `{`'s neighbours, and `ClassOf` does not record them. A
+`{` past the glob's name is a subscript (`*g{CODE}`, TERM): `ClassOf` calls the `{` after any name
+`BraceSubscript`, so a lone word there is a string as in `$h{if}`.
 
 **The fitted cast terminals**, an extension of spec §7 by perigrin's ruling ("Fitted cast terminal"): `CAST_DOLLAR`,
 `CAST_SNAIL`, `CAST_PERCENT_SIGN` and `CAST_STAR` are the only terminals perly.y does not declare
@@ -649,8 +651,13 @@ onto the token.
 `$*` and `**` to `CAST_STAR` (`$*` as its star, since `CAST_DOLLAR` there would read `$r->$*{a}` as a method named
 by a cast), `&*` to `PERLY_AMPERSAND` and `$#*` to `DOLSHARP`, which nothing else after `->` is. So `$r->@*[0]`,
 `$r->%*{a}`, `$r->**{CODE}`, `$r->$#*[0]` and `$r->$*(1)` are refused, and a `$` variable after `->` stays a
-method's name. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
+method's name. The lone `$` pvm emits for `->${` is a cast's sigil, `CAST_DOLLAR`, so a method named by a cast
+(`$x->${\ 'm'}`, `$x->${$m}(1)`) is accepted. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
 variable. Interleaved Intern and Lex benchmarks against the base show no per-token cost.
+
+One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: `${ {} }` and `@{ {} }` are accepted, where toke.c's
+`scan_ident` reads `${ {` as the punctuation variable `{` and perl refuses the `}` left over ("Unmatched right curly
+bracket"); `internal/lexer` emits a `DerefSigil` and two `{` there, so the root is the lexer's token.
 
 ### Builtin classes against `parse.CoreShapes()`
 
