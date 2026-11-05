@@ -64,7 +64,7 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 // scans the word, which internal/lexer does not make (v0.1 01a1aa1e); a declared sub named x is BAREWORD only (the
 // shortcut on the scope-decided classes in grammar/perly.go).
 func TestPortScopeDecidedKnownLimits(t *testing.T) {
-	for _, src := range []string{"my sub Foo::bar {1}", "our sub Foo::bar {1}", "state sub Foo::bar {1}", "CORE::foo(1);"} {
+	for _, src := range []string{"my sub Foo::bar {1}", "our sub Foo::bar {1}", "state sub Foo::bar {1}", "CORE::foo(1);", "$y = CORE::;"} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
