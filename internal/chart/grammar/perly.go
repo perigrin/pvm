@@ -769,9 +769,11 @@ var (
 
 	// subscriptBrace and notHashBrace mirror ClassOf's brace decision, and the three change together: after a
 	// variable, a closing bracket or `->` a `{` the lexer did not open as a block is a subscript's, and after a
-	// deref sigil, a `&` or a glob's `*` a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable
-	// cases are not listed: the lexer opens every `{` after them as a block, so no key reaches them here; nor is its
-	// name case, since a neighbour cannot name every word (the subscript's { past a glob's name has its own class).
+	// deref sigil a block's, never an anonymous hash's. ClassOf's `)` and term-following-variable cases are not
+	// listed: the lexer opens every `{` after them as a block, so no key reaches them here; nor is its name case,
+	// since a neighbour cannot name every word (the subscript's { past a glob's name has its own class).
+	// notHashBrace also lists a sub's `&` and a glob's `*`, after which a `{` is a block's too (yyl_ampersand's and
+	// yyl_star's PREREF); ClassOf leaves those Hash, which no key reads, since only a word's Next tells the two apart.
 	subscriptBrace = []Neighbour{
 		{Kind: lexer.Variable}, {Kind: lexer.Operator, Text: "->"},
 		{Kind: lexer.CloseBracket, Text: "]"}, {Kind: lexer.CloseBracket, Text: "}"},
@@ -795,6 +797,8 @@ var (
 	// derefSigil is the sigil of a cast and funcSigil a sub's &, a { after either of which opens a block (`${ $x }`, `&{ $c }`).
 	derefSigil = Neighbour{Kind: lexer.DerefSigil}
 	funcSigil  = Neighbour{Kind: lexer.FuncSigil}
+	// nextNotClose is a `{` with its `}` right after it, which yyl_leftcurly reads as HASHBRACK after a sigil.
+	nextNotClose = []Neighbour{subscriptClose}
 )
 
 // CastTerminals are the fitted terminals perly.y does not declare, each with the perly.y sigil it stands for: perigrin's
@@ -820,7 +824,9 @@ var perlyClasses = []ClassDecl{
 	// name two tokens back makes it a block again (toke.c yyl_sub leaves PL_expect at XATTRBLOCK, toke.c:5874).
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(true), Prev2: &Neighbour{Kind: lexer.Word, Text: "sub"}}},
 	// A subscript's { is the one the lexer did not open as a block, after what ClassOf makes a subscript's.
-	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[0]}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[0], NotPrev2: afterArrow}},
+	// After -> the variable may be a cast's lone $ (`->${ … }`), and an empty pair after it is HASHBRACK as after any sigil.
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[0], Prev2: &arrow, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[1]}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[2]}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &subscriptBrace[3]}},
@@ -832,9 +838,15 @@ var perlyClasses = []ClassDecl{
 
 	// A cast's {, a &'s and a glob's (`${ $x }`, `&{ $c }`, `*{"g"}`) open a block, indirob's; past a glob's name the { is a
 	// subscript's.
-	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &derefSigil}},
-	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &funcSigil}},
-	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &globStar}},
+	// An empty pair after a sigil is toke.c's HASHBRACK (yyl_leftcurly, toke.c:6706-6715), which no rule takes after one, so
+	// perl refuses `${}`; the { there admits nothing. Past a glob's name it is an empty subscript, which the grammar refuses.
+	// shortcut: the empty pair's { is unmapped rather than HASHBRACK, since perl refuses every file that has one and no -DT
+	// capture can see such a class; upgrade if a reviewed tdt-unseen list takes it.
+	// shortcut: `${ {} }` reads as a block holding a hash, where toke.c's scan_ident takes `${ {` as the variable `{`;
+	// internal/lexer emits a DerefSigil and two `{`, upgrade when it emits toke.c's token.
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &derefSigil, NotNext: nextNotClose}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &funcSigil, NotNext: nextNotClose}},
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &globStar, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev2: &globStar}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
@@ -851,13 +863,14 @@ var perlyClasses = []ClassDecl{
 	// perly.y:815 declares it with my and refuses it, so two tokens after catch it is no scalar.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), NotPrev1: afterArrow, Completes: true}},
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev1: afterArrow, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
-	// After -> a $ variable is a method's name (`$o->$m`), $* the postfix dereference.
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), NotText: []string{"$*"}, Prev1: &arrow, Completes: true}},
+	// After -> a $ variable is a method's name (`$o->$m`), $* the postfix dereference, and a lone $ (pvm's for `->${`) a cast's.
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), NotText: []string{"$*", "$"}, Prev1: &arrow, Completes: true}},
 
 	// The fitted cast terminals (perigrin's ruling "Fitted cast terminal", an extension of spec §7): a cast's sigil, which pvm
 	// emits as its own DerefSigil token, and the postfix dereference after ->, which it emits as one Variable token, are
 	// each perly.y's sigil, but a whole variable is that sigil too, so sharing its terminal would read `$x $z` as a cast.
 	{"CAST_DOLLAR", TokenClass{Kind: ptr(lexer.DerefSigil), Text: ptr("$")}},
+	{"CAST_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Text: ptr("$"), Prev1: &arrow}},
 
 	// PERLY_DOT
 

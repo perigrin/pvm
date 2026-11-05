@@ -206,6 +206,7 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 		stream, _ := lex.Map(f.Src, raw, tt)
 		sets := termSets(stream)
 		byType := map[string][]int{} // aligned toke.c type -> the start bytes of its tokens
+		folded := map[string][]int{} // a type a family folded onto a token after its head -> those tokens' start bytes
 		for _, t := range raw {
 			if lexer.IsTrivia(t.Kind) {
 				continue
@@ -227,10 +228,16 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 				mismatch++
 			}
 			byType[p.typ] = append(byType[p.typ], t.Start)
+			for _, f := range p.folded {
+				folded[f] = append(folded[f], t.Start)
+			}
 		}
 		for _, k := range keyNames {
 			i := byName[k]
 			starts := byType[asPerly(decls[i].Terminal)]
+			if asPerly(decls[i].Terminal) != decls[i].Terminal { // a cast terminal is seen as the mismatch check reads it
+				starts = append(slices.Clone(starts), folded[asPerly(decls[i].Terminal)]...)
+			}
 			if seen[k] || len(starts) == 0 {
 				continue
 			}
