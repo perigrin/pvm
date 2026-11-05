@@ -132,3 +132,19 @@ func TestPortScopeDecidedSuperpositionBounded(t *testing.T) {
 		t.Errorf("first before { admits %v, want %v", got, want)
 	}
 }
+
+// toke.c reads a statement word as a sub's name where a statement starts and as any word elsewhere (toke.c:8313-8322).
+// perl -c (94e50866) refuses each statement-start row ("Illegal declaration of subroutine") and accepts its nearby form.
+func TestPortScopeDecidedStatementWords(t *testing.T) {
+	for _, tc := range []struct{ refused, nearby string }{
+		{"BEGIN + 1;", "$y = BEGIN + 1;"}, {"1; END + 1;", "1; $y = END + 1;"},
+		{"{ INIT + 1; }", "{ f(INIT + 1); }"}, {"L: CHECK + 1;", "L: f(CHECK) + 1;"},
+	} {
+		if v := recognizeSource(t, []byte(tc.refused)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", tc.refused)
+		}
+		if v := recognizeSource(t, []byte(tc.nearby)); !v.accepted {
+			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
+		}
+	}
+}
