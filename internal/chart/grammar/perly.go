@@ -30,9 +30,11 @@ grammar: GRAMSUBSIGNATURE subsigguts # perly.y:257
 
 bare_statement_block: block cont # perly.y:270
 
-# perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON
+bare_statement_class_declaration: KW_CLASS BAREWORD optattrlist PERLY_SEMICOLON # perly.y:278, fitted: toke.c forces an empty version token before the name, and pvm emits nothing for it
+bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON # perly.y:278, fitted: pvm emits the name and then the version, which toke.c forces as two BAREWORDs in the other order
 
-# perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE
+bare_statement_class_definition: KW_CLASS BAREWORD optattrlist PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:294, fitted: toke.c forces an empty version token before the name, and pvm emits nothing for it
+bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:294, fitted: pvm emits the name and then the version, which toke.c forces as two BAREWORDs in the other order
 
 bare_statement_default: KW_DEFAULT block # perly.y:317
 
@@ -40,7 +42,7 @@ bare_statement_defer: KW_DEFER mblock # perly.y:325
 
 bare_statement_expression: sideff PERLY_SEMICOLON # perly.y:333
 
-# perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON
+bare_statement_field_declaration: fielddecl PERLY_SEMICOLON # perly.y:340
 
 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON texpr PERLY_SEMICOLON mintro mnexpr PERLY_PAREN_CLOSE mblock # perly.y:348
 
@@ -96,7 +98,8 @@ bare_statement_yadayada: YADAYADA PERLY_SEMICOLON # perly.y:759
 sigsub_or_method_named: KW_SUB_named_sig # perly.y:768, fitted: as written; the ledger marks one line once, and the next rule is its fit
 sigsub_or_method_named: KW_MY KW_SUB_named_sig # perly.y:768, fitted: pvm emits the my, our or state of a lexical sub, which toke.c reads silently (yyl_my calls yyl_sub, toke.c:7577)
 
-# perly.y:770 sigsub_or_method_named: KW_METHOD_named
+sigsub_or_method_named: KW_METHOD_named # perly.y:770, fitted: as written; the ledger marks one line once, and the next rule is its fit
+sigsub_or_method_named: KW_MY KW_METHOD_named # perly.y:770, fitted: pvm emits the my, our or state of a lexical method, which toke.c replaces by passing KEY_method to yyl_sub (toke.c:7580)
 
 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE # perly.y:775
 
@@ -134,9 +137,9 @@ labfullstmt: LABEL PERLY_COLON labfullstmt # perly.y:861, fitted: toke.c's LABEL
 
 barestmt: bare_statement_block # perly.y:879
 
-# perly.y:880 barestmt: bare_statement_class_declaration
+barestmt: bare_statement_class_declaration # perly.y:880
 
-# perly.y:881 barestmt: bare_statement_class_definition
+barestmt: bare_statement_class_definition # perly.y:881
 
 barestmt: bare_statement_default # perly.y:882
 
@@ -144,7 +147,7 @@ barestmt: bare_statement_defer # perly.y:883
 
 barestmt: bare_statement_expression # perly.y:884
 
-# perly.y:885 barestmt: bare_statement_field_declaration
+barestmt: bare_statement_field_declaration # perly.y:885
 
 barestmt: bare_statement_for # perly.y:886
 
@@ -242,7 +245,7 @@ startsub: # perly.y:1023
 
 startanonsub: # perly.y:1029
 
-# perly.y:1034 startanonmethod: %empty
+startanonmethod: # perly.y:1034
 
 startformsub: # perly.y:1039
 
@@ -273,9 +276,9 @@ attrs: attrs attr # perly.y:1070, fitted: the attribute words and their argument
 
 attrlist: COLONATTR # perly.y:1072
 
-# perly.y:1077 optattrlist: empty
+optattrlist: empty # perly.y:1077
 
-# perly.y:1078 optattrlist: attrlist
+optattrlist: attrlist # perly.y:1078
 
 sigvar: # perly.y:1087
 
@@ -511,7 +514,8 @@ anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody # perly.y:1543
 
 # perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist
 
-# perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody
+anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody # perly.y:1548, fitted: as written; the ledger marks one line once, and the next rule is its fit
+anonymous: KW_MY KW_METHOD_anon startanonmethod subattrlist sigsubbody # perly.y:1548, fitted: pvm emits the my, our or state of a lexical method, which toke.c replaces by passing KEY_method to yyl_sub (toke.c:7580)
 
 # perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist
 
@@ -641,15 +645,15 @@ myterm: hsh # perly.y:1737
 
 myterm: ary # perly.y:1739
 
-# perly.y:1744 fieldvar: scalar
+fieldvar: scalar # perly.y:1744
 
-# perly.y:1749 fieldvar: hsh
+fieldvar: hsh # perly.y:1749
 
-# perly.y:1754 fieldvar: ary
+fieldvar: ary # perly.y:1754
 
-# perly.y:1762 fielddecl: KW_FIELD fieldvar optattrlist
+fielddecl: KW_FIELD fieldvar optattrlist # perly.y:1762
 
-# perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term
+fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP term # perly.y:1769
 
 optlistexpr: empty # perly.y:1787
 
@@ -769,13 +773,13 @@ var (
 	doWord = Neighbour{Kind: lexer.Word, Text: "do"}
 
 	// forcedWord are the tokens after which toke.c makes the word that follows a name, never a call: forcedName, sort
-	// and -> (force_word, toke.c:9042, 6296), & (pending_ident, toke.c:6949), a glob's * (yyl_star), and sub, package,
-	// use, no and format (yyl_sub, toke.c:8859, tokenize_use, KEY_format). The scope-decided readings of a word leave them out.
+	// and -> (force_word, toke.c:9042, 6296), & (pending_ident, toke.c:6949), a glob's * (yyl_star), and sub, method, package,
+	// class, use, no and format (yyl_sub, toke.c:8859, 8379, tokenize_use, KEY_format). The scope-decided readings of a word leave them out.
 	forcedWord = append(append(slices.Clone(sortIndirob), forcedName...), namedWord...)
 
 	// namedWord are the tokens of forcedWord after which even a keyword is a name: sort's and forcedName's are not.
 	namedWord = []Neighbour{{Kind: lexer.Operator, Text: "->"}, {Kind: lexer.FuncSigil}, {Kind: lexer.Operator, Text: "*", Glob: true},
-		{Kind: lexer.Word, Text: "sub"}, {Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"},
+		{Kind: lexer.Word, Text: "sub"}, {Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "class"}, {Kind: lexer.Word, Text: "method"}, {Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"},
 		{Kind: lexer.Word, Text: "format"}}
 
 	// xForced are the tokens after which x before a ( is no call: forcedWord but forcedName, which leaves a keyword alone.
@@ -943,7 +947,8 @@ var perlyClasses = []ClassDecl{
 	// toke.c KEY_package (8858) is KW_PACKAGE wherever the word is a keyword.
 	{"KW_PACKAGE", TokenClass{Kind: ptr(lexer.Word), Text: ptr("package")}},
 
-	// KW_CLASS
+	// toke.c KEY_class (8376) is KW_CLASS wherever the word is a keyword; the chart does not track the feature.
+	{"KW_CLASS", TokenClass{Kind: ptr(lexer.Word), Text: ptr("class")}},
 
 	{"KW_LOCAL", TokenClass{Kind: ptr(lexer.Word), Text: ptr("local")}},
 
@@ -957,7 +962,8 @@ var perlyClasses = []ClassDecl{
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev1: forWords}},
 	{"KW_MY", TokenClass{Kind: ptr(lexer.Word), Text: ptr("state"), NotPrev2: stateStarts}},
 
-	// KW_FIELD
+	// toke.c KEY_field (8537).
+	{"KW_FIELD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("field")}},
 
 	{"KW_IF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("if")}},
 
@@ -1019,9 +1025,10 @@ var perlyClasses = []ClassDecl{
 
 	{"KW_SUB_anon_sig", TokenClass{Kind: ptr(lexer.Word), Text: ptr("sub"), NotNextName: true}},
 
-	// KW_METHOD_named
+	// toke.c names the method as it names a sub (yyl_sub, 5874, 5906): the same split on a name that follows.
+	{"KW_METHOD_named", TokenClass{Kind: ptr(lexer.Word), Text: ptr("method"), NextName: true}},
 
-	// KW_METHOD_anon
+	{"KW_METHOD_anon", TokenClass{Kind: ptr(lexer.Word), Text: ptr("method"), NotNextName: true}},
 
 	// Every word that is not a keyword; the one keyword toke.c falls through to a word when no
 	// operator is expected, x (KEY_x), is listed below. A keyword is a BAREWORD only where a position
@@ -1054,8 +1061,10 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "no"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}}, // yyl_sub: any identifier after sub names it, toke.c:5874
-	// toke.c 8858: KEY_package forces the name without a keyword check.
+	// toke.c 8858: KEY_package forces the name without a keyword check, as KEY_class does (8379) and yyl_sub does for a method (5874).
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "package"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "class"}}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "method"}}},
 
 	// toke.c forces a word that stands alone in a subscript's braces to BAREWORD before it looks the word up
 	// (yyl_leftcurly, toke.c:6656-6679), a minus before it included.
@@ -1141,13 +1150,13 @@ var perlyClasses = []ClassDecl{
 	// yyl_subproto gives one (toke.c:6590-6636) beside BAREWORD and NOAMP: FUNC0SUB for an empty prototype, which
 	// completes a term (TERM), UNIOPSUB for a one-argument one, and LSTOPSUB for one opening with & before a {.
 	// shortcut: a declared sub named x (`sub x {} x 1, 2;`) is BAREWORD only, as the other keywords are; upgrade if a corpus file calls one.
-	// shortcut: a word two after use or package (afterWordSlot) carries none of them, as the version classes own it; upgrade with the version family.
-	{"FUNC0SUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided, Completes: true}},
+	// shortcut: a word two after use or no carries none of them, as the version classes own it; upgrade with the version family. After package or class the version slot is a BAREWORD alone, and no rule takes these terminals there.
+	{"FUNC0SUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, NotNext: nextUndecided, Completes: true}},
 
-	{"UNIOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided}},
+	{"UNIOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, NotNext: nextUndecided}},
 
-	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, Next: &blockOpen}},
-	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, Next: &hashOpen}},
+	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, Next: &blockOpen}},
+	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, Next: &hashOpen}},
 
 	// Any word, a keyword too, at a statement start with a colon after it: yyl_keylookup tests for a label
 	// before it looks a keyword up. Where a statement may start is the grammar's to say.
@@ -1602,7 +1611,7 @@ var perlyClasses = []ClassDecl{
 
 	// A declared sub without a prototype yyl_subproto takes: toke.c emits a zero-width NOAMP and forces the word
 	// (toke.c:7980-7987), which the word stands for as NOAMP (perly.y:1646's fit). PL_expect is XTERM after it.
-	{"NOAMP", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided}},
+	{"NOAMP", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, NotNext: nextUndecided}},
 
 	{"COLONATTR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":")}},
 
