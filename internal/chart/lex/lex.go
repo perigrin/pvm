@@ -107,11 +107,24 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pre
 		next = text[t.End]
 	}
 	// v is written field by field: a literal is built aside and copied with wide loads, which stall on its narrow stores.
+	p, g := prefix(t.Kind, tx, next), (lc || t.Kind == lexer.Variable) && global(t.Kind, tx)
+	if p == grammar.CoreQualified {
+		tx = tx[6:] // toke.c's yyl_key_core reads CORE::kw as kw; decided before v is written, which reading v back would stall
+	}
 	var v grammar.TokenView
-	v.Kind, v.Text, v.OpensBlock, v.TermFollows, v.Prefix = t.Kind, tx, t.OpensBlock, t.TermFollows, prefix(t.Kind, tx, next)
-	v.Global, v.LineColon, v.Blanks = (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), lc, bl
+	v.Kind, v.Text, v.OpensBlock, v.TermFollows, v.Prefix = t.Kind, tx, t.OpensBlock, t.TermFollows, p
+	v.Global, v.LineColon, v.Blanks = g, lc, bl
 	tt.Intern(&v, pred, it)
 }
+
+// keywords are the words CORE:: may qualify, looked up only for a word that opens with CORE::.
+var keywords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, k := range lexer.Keywords() {
+		m[k] = true
+	}
+	return m
+}()
 
 // global is whether a word, or a `$` variable, is no plain name (a variable's name as varName gives it): it has a package separator or another
 // character an identifier lacks (`$1`, `$^W`, `$'`), or it is the variable `$_`. A `my` declares only plain names.
@@ -261,6 +274,8 @@ func prefix(k lexer.Kind, tx string, next byte) byte {
 		return tx[0]
 	case k == lexer.Word && len(tx) > 2 && tx[len(tx)-1] == ':' && tx[len(tx)-2] == ':':
 		return grammar.PackageName
+	case k == lexer.Word && tx[0] == 'C' && len(tx) > 6 && tx[:6] == "CORE::" && keywords[tx[6:]]:
+		return grammar.CoreQualified
 	case k != lexer.Quote || tx == "":
 		return 0
 	}

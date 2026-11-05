@@ -699,6 +699,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
 - `AUTOLOAD`, `DESTROY`, `BEGIN`, `UNITCHECK`, `CHECK`, `INIT` and `END` name a sub only where a statement starts
   and are any word elsewhere (toke.c:8313-8322), so init's `addStatementWords` gives them each class of a word no
   class names, after anything but a statement start (`$y = AUTOLOAD();`, `$y = END x 3`).
+- `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
+  chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
+  `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its
+  fat-comma check, so `CORE::eq =>` stays CHEQOP and is refused as by perl: the fat-comma BAREWORD classes leave
+  `CoreQualified` out, and `cutBeforeFatComma` keeps a copy of each class it cuts for it. The prefix test runs only on a
+  word opening with `C`; INTERN's reference reads it with a regular expression (`refCore`). `CORE::GLOBAL::foo` is a word.
 - Before `(` it is a call: toke.c emits a zero-width `&` and the
   name (toke.c:8195-8211), which the word stands for as PRIVATEREF, by a fit of perly.y:1842 (`amper:
   PRIVATEREF`), so `foo(1)` and `f()->{foo}` are accepted.
@@ -722,7 +728,7 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
 Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
 named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is refused (`x 1;` is refused by perl
 too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
-`my sub Foo::bar {1}`, its `our` and `state` forms and `CORE::foo(1);` are accepted, where toke.c croaks while it
+`my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
 `terminals-per-token` and `items-per-token` rise by design.
