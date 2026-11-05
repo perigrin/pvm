@@ -1,5 +1,5 @@
 // ABOUTME: The thin chart/lex: lexer.Tokenize up front, trivia to the next significant token, one table lookup per token.
-// ABOUTME: Heredoc bodies go to their openers; a token no class admits gets the empty set and the first such byte is kept.
+// ABOUTME: Heredoc bodies go to their openers; a token no class admits, or an opener with no body, gets the empty set and the first such byte is kept.
 
 // Package lex is the chart's lexer (spec §5.2, "A thin chart/lex"): the
 // production lexer runs up front with its own expect machine, and each
@@ -23,7 +23,7 @@ func Lex(src []byte, tt *grammar.TokenTable) (*Stream, int) {
 // Map maps raw, src's tokens, through tt. It returns the stream, which
 // shares raw rather than copying it, and the byte of the first token no class
 // admits, or -1. Trivia attaches to the next significant token, and each
-// heredoc body to its opener, in order.
+// heredoc body to the waiting opener whose tag its terminator line spells.
 func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	// text views src without copying it; nothing Map returns holds a string, so
 	// the view lives only as long as this call, during which src is not written.
@@ -44,14 +44,24 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		}
 		p2, p1 = p1, cur.Class
 	}
-	var opens []int // heredoc openers whose bodies have not come yet, in order
+	var opens []int // heredoc openers whose bodies have not come yet
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
 			continue
-		case t.Kind == lexer.HeredocBody && len(opens) > 0:
-			s.Bodies = append(s.Bodies, Body{opens[0], t})
-			opens = opens[1:]
+		case t.Kind == lexer.HeredocBody && len(s.Tokens) > 0:
+			// A body goes to the first waiting opener whose tag its terminator line spells. Any other body's opener is
+			// inside a quote-like (`"@{[ <<EOF ]}"`), one token to the lexer.
+			// shortcut: that body goes to the token before it, not to the quote-like holding its opener, which only
+			// Stream.Body and the tdt pairing read; upgrade when the lexer marks the quote-likes that open heredocs.
+			o, end := len(s.Tokens)-1, terminator(text[t.Start:t.End])
+			for j, w := range opens {
+				if r := raw[s.Tokens[w].Index]; tag(text[r.Start:r.End]) == end {
+					o, opens = w, append(opens[:j], opens[j+1:]...)
+					break
+				}
+			}
+			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
 		it := &slots[len(s.Tokens)&1]
@@ -68,7 +78,25 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	if len(s.Tokens) > 0 {
 		done(tt.Edge)
 	}
+	// An opener whose body never came is a heredoc perl cannot find the terminator of: no class admits it.
+	for _, o := range opens {
+		s.Tokens[o].TerminalSet = 0
+		if b := raw[s.Tokens[o].Index].Start; first < 0 || b < first {
+			first = b
+		}
+	}
 	return s, first
+}
+
+// tag is a heredoc opener's terminator without an indent: `<<"EOF"`, `<<~ EOF`, `<<\EOF` and `<<'  EOF'` are all EOF.
+func tag(opener string) string {
+	return strings.TrimLeft(strings.Trim(strings.TrimLeft(opener, "<~ \t\\"), "\"'`"), " \t")
+}
+
+// terminator is a heredoc body's last line, the one that ended it, without its line break or an indent.
+func terminator(body string) string {
+	body = strings.TrimSuffix(strings.TrimSuffix(body, "\n"), "\r")
+	return strings.TrimLeft(body[strings.LastIndexByte(body, '\n')+1:], " \t")
 }
 
 // intern interns t's key in tt into it, given its predecessor's class.
