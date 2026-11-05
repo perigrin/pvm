@@ -220,3 +220,27 @@ func refused(n *parse.Node) int {
 	}
 	return total
 }
+
+// TestStd5kRecognized: the chart accepts std5k.pl (spec §9.3, checkpoint 1).
+func TestStd5kRecognized(t *testing.T) {
+	if v := recognizeSource(t, std5k()); !v.accepted {
+		t.Fatalf("std5k.pl is refused at byte %d (expected %v); perl accepts it", v.at, v.expected)
+	}
+}
+
+// TestStd5kTruncatedRefused: the grammar that accepts std5k.pl is not merely
+// wide. Cut just after the last ( before each of nine fixed offsets, the file is
+// refused at or before the cut; an unbalanced } appended to it is refused.
+func TestStd5kTruncatedRefused(t *testing.T) {
+	src := std5k()
+	for k := 1; k < 10; k++ {
+		cut := len(src) * k / 10
+		cut = bytes.LastIndexByte(src[:cut], '(') + 1
+		if v := recognizeSource(t, src[:cut]); v.accepted || v.at > cut {
+			t.Errorf("std5k.pl cut at byte %d: accepted=%v, refused at %d", cut, v.accepted, v.at)
+		}
+	}
+	if v := recognizeSource(t, append(append([]byte{}, src...), "}\n"...)); v.accepted {
+		t.Error("std5k.pl with an unbalanced } appended is accepted")
+	}
+}
