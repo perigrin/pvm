@@ -39,11 +39,18 @@ func committed(tb testing.TB) (*grammar.TokenTable, []grammar.TokenClass) {
 var (
 	refStrictVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
 	refLaxVersion    = regexp.MustCompile(`^[0-9][0-9_.]*$`)
+	refPackageName   = regexp.MustCompile(`^.+::$`)
 )
 
 // refPrefix is prefix as a regular expression reads a number: strict or lax version text, and only when
-// whitespace, ;, {, } or the end of the file follows it. Anything else is prefix's.
+// whitespace, ;, {, } or the end of the file follows it; and a word ending in ::. Anything else is prefix's.
 func refPrefix(k lexer.Kind, tx string, src []byte, end int) byte {
+	if k == lexer.Word {
+		if refPackageName.MatchString(tx) {
+			return grammar.PackageName
+		}
+		return 0
+	}
 	if k != lexer.Number {
 		return prefix(k, tx, 0)
 	}
