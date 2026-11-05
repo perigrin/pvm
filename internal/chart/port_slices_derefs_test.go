@@ -75,12 +75,13 @@ func TestPortSlicesAndDerefsCastTerminals(t *testing.T) {
 	}
 }
 
-// Known limits, pinned so they are noticed when they end. toke.c's scan_ident reads `${ {` as the punctuation variable
-// named `{`, so `${ {} }` leaves an unmatched `}` (perl: "Unmatched right curly bracket"); internal/lexer emits a
+// Known limits, pinned so they are noticed when they end. toke.c's scan_ident reads `${ {` (any sigil's, after -> too)
+// as the punctuation variable named `{`, so `${ {} }` leaves an unmatched `}` (perl: "Unmatched right curly bracket"); internal/lexer emits a
 // DerefSigil and two `{` instead, and the chart reads a block holding an anonymous hash. This fails when the lexer
 // emits toke.c's token; drop the README line then.
 func TestPortSlicesAndDerefsKnownLimits(t *testing.T) {
-	for _, src := range []string{"$y = ${ {} };", "$y = ${{}};", "$y = @{ {} };"} {
+	for _, src := range []string{"$y = ${ {} };", "$y = ${{}};", "$y = @{ {} };", "$y = %{ {} };", "$y = &{ {} };", "$y = *{ {} };",
+		"$y = $x->${ {} };", "$y = ${ {} }{a};", "print ${ {} };"} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
