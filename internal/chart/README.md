@@ -507,6 +507,28 @@ Known limits, each pinned in `TestPortSignaturesKnownLimits`, accepted where per
   neither a prototype nor a signature after those words (`01a1a44e-8f26-706b-96d4-b3e6d7f55c3f`). A fitted 608 without the name and seven more classes would take it, and would
   accept `BEGIN ($$) { 1 }` through the signature (that row in `TestPortSubsRefusals` would flip).
 
+### Classes, methods and fields
+
+`class NAME VERSION` is fitted as `package` is (perly.y:278, 294): pvm emits the name and then the version, which toke.c
+forces first, so each rule has a form with and without the version BAREWORD, and a word two after `class` is never the
+version (`afterWordSlot`). The name is a BAREWORD wherever it stands, keyword or not (`toke.c` KEY_class forces it with no
+keyword check), as is a method's (`yyl_sub`). `method` is KW_METHOD_named or KW_METHOD_anon on the same split as `sub`
+(a name follows or not), and `class`, `field` and `method` are keywords wherever they stand: the chart does not track the
+feature. The mid-rule actions (`$@8`, `$@24`) are not ported. 1553 (`method` with no body) refuses in its action and has
+no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
+
+- Refused where perl accepts: `class Foo v1.2.3;` (the package limit above, `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`);
+  `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
+  `method m : { }` (the `sub foo : { }` limit above); and `field => 1`, `method => 1`, `class => 1`, which the
+  fat-comma family settles for every keyword.
+- Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
+  is refused where perl accepts it: pvm emits `( Word Number )` where toke.c delivers one ATTRLIST. And `method m :lvalue ($$) { 1 }`,
+  `method m :lvalue (1) { 1 }` and `my $c = method :lvalue (1) { 1 };` are accepted where perl refuses them as bad signatures: pvm emits
+  `( Variable:$$ )` and `( Number )` with or without a space before the parenthesis, so an argument and a stray list look alike.
+- There is no refusal row for an attribute list after a class block: neither tokenizer marks that colon as an attribute colon.
+- Accepted where perl refuses, each by an action or a scope rather than the grammar: `field` and `method` outside a class
+  (waypoint 2's scope refusals), a field named `$::x`, `$_` or `$1`, and a class that inherits from itself.
+
 ### Formats
 
 `internal/lexer` emits a format's picture lines, argument lines and closing
@@ -691,7 +713,7 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
 
 Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
 named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is refused (`x 1;` is refused by perl
-too); a word two after `use` or `package` carries no scope-decided reading (afterWordSlot, the version family's).
+too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
 `my sub Foo::bar {1}`, its `our` and `state` forms and `CORE::foo(1);` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).

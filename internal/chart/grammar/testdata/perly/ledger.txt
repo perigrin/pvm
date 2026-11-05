@@ -14,9 +14,9 @@ perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts	ported
 
 perly.y:270 bare_statement_block: block cont	ported
 
-perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON	-
+perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON	fitted
 
-perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE	-
+perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE	fitted
 
 perly.y:317 bare_statement_default: KW_DEFAULT block	ported
 
@@ -24,7 +24,7 @@ perly.y:325 bare_statement_defer: KW_DEFER mblock	ported
 
 perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	ported
 
-perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON	-
+perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON	ported
 
 perly.y:348 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON $@9 texpr PERLY_SEMICOLON $@10 mintro mnexpr PERLY_PAREN_CLOSE mblock	ported
 
@@ -74,7 +74,7 @@ perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	ported
 
 perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	fitted
 
-perly.y:770 sigsub_or_method_named: KW_METHOD_named	-
+perly.y:770 sigsub_or_method_named: KW_METHOD_named	fitted
 
 perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	ported
 
@@ -112,9 +112,9 @@ perly.y:878 barestmt: PLUGSTMT	excluded keyword-plugin
 
 perly.y:879 barestmt: bare_statement_block	ported
 
-perly.y:880 barestmt: bare_statement_class_declaration	-
+perly.y:880 barestmt: bare_statement_class_declaration	ported
 
-perly.y:881 barestmt: bare_statement_class_definition	-
+perly.y:881 barestmt: bare_statement_class_definition	ported
 
 perly.y:882 barestmt: bare_statement_default	ported
 
@@ -122,7 +122,7 @@ perly.y:883 barestmt: bare_statement_defer	ported
 
 perly.y:884 barestmt: bare_statement_expression	ported
 
-perly.y:885 barestmt: bare_statement_field_declaration	-
+perly.y:885 barestmt: bare_statement_field_declaration	ported
 
 perly.y:886 barestmt: bare_statement_for	ported
 
@@ -220,7 +220,7 @@ perly.y:1023 startsub: %empty	ported
 
 perly.y:1029 startanonsub: %empty	ported
 
-perly.y:1034 startanonmethod: %empty	-
+perly.y:1034 startanonmethod: %empty	ported
 
 perly.y:1039 startformsub: %empty	ported
 
@@ -242,9 +242,9 @@ perly.y:1070 attrlist: COLONATTR ATTRLIST	fitted
 
 perly.y:1072 attrlist: COLONATTR	ported
 
-perly.y:1077 optattrlist: empty	-
+perly.y:1077 optattrlist: empty	ported
 
-perly.y:1078 optattrlist: attrlist	-
+perly.y:1078 optattrlist: attrlist	ported
 
 perly.y:1087 sigvar: %empty	ported
 
@@ -480,7 +480,7 @@ perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody	port
 
 perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist	-
 
-perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody	-
+perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody	fitted
 
 perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist	-
 
@@ -610,15 +610,15 @@ perly.y:1737 myterm: hsh	ported
 
 perly.y:1739 myterm: ary	ported
 
-perly.y:1744 fieldvar: scalar	-
+perly.y:1744 fieldvar: scalar	ported
 
-perly.y:1749 fieldvar: hsh	-
+perly.y:1749 fieldvar: hsh	ported
 
-perly.y:1754 fieldvar: ary	-
+perly.y:1754 fieldvar: ary	ported
 
-perly.y:1762 fielddecl: KW_FIELD fieldvar optattrlist	-
+perly.y:1762 fielddecl: KW_FIELD fieldvar optattrlist	ported
 
-perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term	-
+perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term	ported
 
 perly.y:1787 optlistexpr: empty	ported
 
