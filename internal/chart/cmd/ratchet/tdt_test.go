@@ -78,6 +78,40 @@ func TestTDTKeysEdgeCases(t *testing.T) {
 	wantKeys(t, keysOf(t, nil), map[string]string{"tdt-aligned": "0.0000", "tdt-mismatch": "0"})
 }
 
+// A PRIVATEREF stands for a name the noamp family folds PERLY_AMPERSAND onto, and for nothing else it is not.
+func TestTDTCallFit(t *testing.T) {
+	names := []string{"PRIVATEREF", "SEMI", "FUNC1"}
+	privateref := []grammar.ClassDecl{
+		{Terminal: "PRIVATEREF", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
+		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
+	}
+	func1 := []grammar.ClassDecl{ // the word's only class is not PRIVATEREF
+		{Terminal: "FUNC1", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
+		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
+	}
+	for _, c := range []struct {
+		decls                  []grammar.ClassDecl
+		line, mismatch, unseen string
+	}{
+		{privateref, "0 3 BAREWORD noamp PERLY_AMPERSAND", "0", "0"},
+		{privateref, "0 3 PRIVATEREF", "0", "0"},
+		{privateref, "0 3 BAREWORD other PERLY_AMPERSAND", "1", "1"},
+		{privateref, "0 3 BAREWORD scope-sub noamp NOAMP", "1", "1"},
+		{privateref, "0 3 BAREWORD noamp", "1", "1"},
+		{privateref, "0 3 BAREWORD", "1", "1"},
+		{func1, "0 3 BAREWORD noamp PERLY_AMPERSAND", "1", "1"},
+	} {
+		files := []tdtFile{{"c.pl", []byte("foo;"), "# capture: whole\n" + c.line + "\n3 4 SEMI\n"}}
+		m, err := tdtKeys(c.decls, names, files, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m["tdt-mismatch"] != c.mismatch || m["tdt-unseen"] != c.unseen {
+			t.Errorf("%q: tdt-mismatch %s, tdt-unseen %s; want %s, %s", c.line, m["tdt-mismatch"], m["tdt-unseen"], c.mismatch, c.unseen)
+		}
+	}
+}
+
 func TestTDTReviewedListRefusesStaleEntries(t *testing.T) {
 	fx := "0 3 WORD\n4 6 NUM\n6 7 -\n"
 	for _, bad := range []string{"SEMI Kind=Number", "NUM *", "*", "WORD Kind=Word extra"} {

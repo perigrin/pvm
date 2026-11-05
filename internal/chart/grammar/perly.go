@@ -74,8 +74,9 @@ bare_statement_phaser: PHASER startsub optsubbody # perly.y:574
 
 bare_statement_sub_signature: sigsub_or_method_named subname startsub subattrlist optsigsubbody # perly.y:608
 
-bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the next rule is its fit
+bare_statement_sub_traditional: KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: as written; the ledger marks one line once, and the two rules after it are its fits
 bare_statement_sub_traditional: KW_SUB_named startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits BEGIN, END and their kin as one word where toke.c (toke.c:8315, really_sub) emits KW_SUB_named and the name
+bare_statement_sub_traditional: KW_MY KW_SUB_named subname startsub proto subattrlist optsubbody # perly.y:638, fitted: pvm emits the my, our or state of a lexical sub, which toke.c reads silently (yyl_my calls yyl_sub, toke.c:7577)
 
 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren mblock finally # perly.y:662, fitted: catch_paren: empty (perly.y:812) is excluded, so a catch has a variable
 
@@ -92,7 +93,8 @@ bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE
 
 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON # perly.y:759
 
-sigsub_or_method_named: KW_SUB_named_sig # perly.y:768
+sigsub_or_method_named: KW_SUB_named_sig # perly.y:768, fitted: as written; the ledger marks one line once, and the next rule is its fit
+sigsub_or_method_named: KW_MY KW_SUB_named_sig # perly.y:768, fitted: pvm emits the my, our or state of a lexical sub, which toke.c reads silently (yyl_my calls yyl_sub, toke.c:7577)
 
 # perly.y:770 sigsub_or_method_named: KW_METHOD_named
 
@@ -246,7 +248,7 @@ startformsub: # perly.y:1039
 
 subname: BAREWORD # perly.y:1045
 
-# perly.y:1046 subname: PRIVATEREF
+subname: PRIVATEREF # perly.y:1046
 
 proto: empty # perly.y:1051
 
@@ -375,7 +377,7 @@ listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1326
 
 listop: FUNC # perly.y:1328, fitted: pvm emits a string, command, heredoc opener or readline and its interior as one Quote, HeredocOpen or Readline token (toke.c's FUNC SUBLEXSTART optexpr SUBLEXEND), which stands for them all as FUNC
 
-# perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr
+listop: LSTOPSUB startanonsub block optlistexpr # perly.y:1330
 
 methodname: METHCALL0 # perly.y:1344
 
@@ -567,7 +569,7 @@ term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1638
 
 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1641
 
-# perly.y:1646 term: NOAMP subname optlistexpr
+term: NOAMP optlistexpr # perly.y:1646, fitted: toke.c emits a zero-width NOAMP and then the word as subname (toke.c:7980-7987); pvm emits the word alone, which stands for both as NOAMP
 
 term: term ARROW CAST_STAR # perly.y:1650, fitted: pvm emits $* after -> as one Variable token, the cast terminal its star
 
@@ -595,9 +597,9 @@ term: KW_REQUIRE # perly.y:1674
 
 term: KW_REQUIRE term # perly.y:1676
 
-# perly.y:1678 term: UNIOPSUB
+term: UNIOPSUB # perly.y:1678
 
-# perly.y:1680 term: UNIOPSUB term
+term: UNIOPSUB term # perly.y:1680
 
 term: FUNC0 # perly.y:1683
 
@@ -607,7 +609,7 @@ term: FUNC0OP # perly.y:1687
 
 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1689
 
-# perly.y:1691 term: FUNC0SUB
+term: FUNC0SUB # perly.y:1691
 
 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1693
 
@@ -689,7 +691,8 @@ my_refgen: KW_MY REFGEN # perly.y:1838
 
 my_refgen: REFGEN KW_MY # perly.y:1839
 
-amper: PERLY_AMPERSAND indirob # perly.y:1842
+amper: PERLY_AMPERSAND indirob # perly.y:1842, fitted: as written; the ledger marks one line once, and the next rule is its fit
+amper: PRIVATEREF # perly.y:1842, fitted: toke.c emits a zero-width PERLY_AMPERSAND and then the word as BAREWORD or PRIVATEREF before a ( (toke.c:8195-8211); pvm emits the word alone, which stands for both as PRIVATEREF, a terminal no word ending in :: carries
 
 scalar: PERLY_DOLLAR # perly.y:1846, fitted: pvm emits the sigil and the name as one Variable token
 scalar: CAST_DOLLAR indirob # perly.y:1846, fitted: pvm emits a cast's sigil as its own DerefSigil token, mapped to the cast terminal
@@ -755,6 +758,38 @@ var (
 	// after it. After the other list operators that take a filehandle the bareword is one only when no sub of that
 	// name is declared (`!c.cv`), which scope decides, so there it completes a term as any bareword may.
 	sortIndirob = []Neighbour{{Kind: lexer.Word, Text: "sort"}, sortParen}
+
+	// forcedName are require and the loop exits, after which toke.c forces the word to BAREWORD unless it is a keyword
+	// (force_word's CHECK_KEYWORD, toke.c:7407 and LOOPX), so x there is still a word toke.c lexes itself.
+	forcedName = []Neighbour{{Kind: lexer.Word, Text: "require"}, {Kind: lexer.Word, Text: "next"}, {Kind: lexer.Word, Text: "last"},
+		{Kind: lexer.Word, Text: "redo"}, {Kind: lexer.Word, Text: "dump"}, {Kind: lexer.Word, Text: "goto"}}
+
+	// doWord is do, after which toke.c forces the word to a name only before a ( and unless it is a keyword or CORE
+	// (yyl_do, toke.c:7515-7528), so `do foo;` and `do foo 1;` stay scope's and `do x(1)` is a call.
+	doWord = Neighbour{Kind: lexer.Word, Text: "do"}
+
+	// forcedWord are the tokens after which toke.c makes the word that follows a name, never a call: forcedName, sort
+	// and -> (force_word, toke.c:9042, 6296), & (pending_ident, toke.c:6949), a glob's * (yyl_star), and sub, package,
+	// use, no and format (yyl_sub, toke.c:8859, tokenize_use, KEY_format). The scope-decided readings of a word leave them out.
+	forcedWord = append(append(slices.Clone(sortIndirob), forcedName...), namedWord...)
+
+	// namedWord are the tokens of forcedWord after which even a keyword is a name: sort's and forcedName's are not.
+	namedWord = []Neighbour{{Kind: lexer.Operator, Text: "->"}, {Kind: lexer.FuncSigil}, {Kind: lexer.Operator, Text: "*", Glob: true},
+		{Kind: lexer.Word, Text: "sub"}, {Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"},
+		{Kind: lexer.Word, Text: "format"}}
+
+	// xForced are the tokens after which x before a ( is no call: forcedWord but forcedName, which leaves a keyword alone.
+	xForced = append(slices.Clone(sortIndirob), namedWord...)
+
+	// nextUndecided are the next tokens that decide a word whatever is declared: => makes it BAREWORD (toke.c:8176)
+	// and ( the zero-width & and its name (toke.c:8195-8211), so a scope-decided reading follows neither.
+	nextUndecided = []Neighbour{fatComma, parenOpen}
+
+	// callForced are the tokens after which a word before a ( is no call: forcedWord and do.
+	callForced = append(slices.Clone(forcedWord), doWord)
+
+	// keywordsAndCORE are the words yyl_do does not force before a (.
+	keywordsAndCORE = append(lexer.Keywords(), "CORE")
 
 	// keywordsButX are the keywords other than x, which toke.c's KEY_x makes a word when no operator is expected.
 	keywordsButX = slices.DeleteFunc(slices.Clone(lexer.Keywords()), func(s string) bool { return s == "x" })
@@ -994,7 +1029,17 @@ var perlyClasses = []ClassDecl{
 	// A word two after `package` is never the BAREWORD toke.c forces for the version (force_strict_version refuses
 	// it), and one two after `use` or `no` is a term, which versions.go gives back unless a number or a quote follows.
 	// After sort the word is the sort sub's name, which does not complete a term (see sortIndirob).
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Completes: true}},
+	// Before a ( a word is the zero-width & and its name (PRIVATEREF below), except a package name (Foo::, toke.c:8098-8111,
+	// safebw) and a word toke.c forces after a loop exit, require or do, which stay BAREWORD and which perl refuses there.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, NotNext: nextNotParen, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prefix: ptr(byte(PackageName)), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Next: &parenOpen, Completes: true}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[0], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[1], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[2], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[3], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[4], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[5], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsAndCORE, Prev1: &doWord, Next: &parenOpen}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[0]}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[1]}},
@@ -1022,13 +1067,13 @@ var perlyClasses = []ClassDecl{
 	// A word before a variable or a block (the lexer's hash { too, see PERLY_BRACE_OPEN) is a method called on it
 	// (toke.c:8215, unless it is a declared sub, which scope decides). Before another word, intuit_method makes it one
 	// too (toke.c:5131-5137), METHCALL when a ( follows that word; that is two tokens on, so the word before a word is
-	// both. Neither completes a term: an indirob follows.
-	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &Neighbour{Kind: lexer.Variable}}},
-	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &blockOpen}},
-	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &hashOpen}},
-	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &otherWord}},
+	// both. Neither completes a term: an indirob follows. A package name (Foo::) is neither (safebw, toke.c:8111).
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Next: &Neighbour{Kind: lexer.Variable}}},
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Next: &blockOpen}},
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Next: &hashOpen}},
+	{"METHCALL0", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Next: &otherWord}},
 
-	{"METHCALL", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Next: &otherWord}},
+	{"METHCALL", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Next: &otherWord}},
 
 	// An attribute's name follows its colon, the attribute before it or its argument's parenthesis; its
 	// one-token argument, never a parenthesis, follows its own.
@@ -1071,6 +1116,19 @@ var perlyClasses = []ClassDecl{
 	// A sub's name after &: yyl_ampersand forces it through pending_ident (toke.c:6949), which makes a lexical sub's
 	// name PRIVATEREF (toke.c:10397) and a package sub's BAREWORD; scope tells them apart.
 	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
+	// shortcut: a qualified name after my, our or state sub (`my sub Foo::bar {1}`) is accepted, where toke.c croaks while
+	// scanning it (yyl_sub); upgrade when internal/lexer reports the croak (v0.1 01a1aa1e).
+	// A sub's name is PRIVATEREF when the pad holds it (force_ident_maybe_lex, toke.c:5969), always so after my, our
+	// or state (pending_ident under PL_in_my, toke.c:10363); scope decides the rest.
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}},
+	// A word before a ( is a call: toke.c emits a zero-width & and the name, BAREWORD or PRIVATEREF (toke.c:8195-8211),
+	// which the word stands for as PRIVATEREF (perly.y:1842's fit), unless it is a package name or forced to a name (callForced). x is
+	// one too where it is a word (KEY_x), a keyword force_word and yyl_do leave alone (xForced), as yyl_do leaves CORE.
+	// shortcut: `CORE::foo(1)` is a call, where toke.c croaks "CORE::foo is not a keyword"; upgrade when internal/lexer
+	// reports the croak (v0.1 01a1aa1e).
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: callForced, Next: &parenOpen}},
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: xForced, Next: &parenOpen}},
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("CORE"), Prev1: &doWord, Next: &parenOpen}},
 
 	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w')), Completes: true}},
 
@@ -1079,11 +1137,17 @@ var perlyClasses = []ClassDecl{
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__PACKAGE__"), Completes: true}},
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__SUB__"), Completes: true}},
 
-	// FUNC0SUB
+	// A word no neighbour decides may be a declared sub, which scope decides (waypoint 2), so it is each reading
+	// yyl_subproto gives one (toke.c:6590-6636) beside BAREWORD and NOAMP: FUNC0SUB for an empty prototype, which
+	// completes a term (TERM), UNIOPSUB for a one-argument one, and LSTOPSUB for one opening with & before a {.
+	// shortcut: a declared sub named x (`sub x {} x 1, 2;`) is BAREWORD only, as the other keywords are; upgrade if a corpus file calls one.
+	// shortcut: a word two after use or package (afterWordSlot) carries none of them, as the version classes own it; upgrade with the version family.
+	{"FUNC0SUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided, Completes: true}},
 
-	// UNIOPSUB
+	{"UNIOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided}},
 
-	// LSTOPSUB
+	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, Next: &blockOpen}},
+	{"LSTOPSUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, Next: &hashOpen}},
 
 	// Any word, a keyword too, at a statement start with a colon after it: yyl_keylookup tests for a label
 	// before it looks a keyword up. Where a statement may start is the grammar's to say.
@@ -1536,7 +1600,9 @@ var perlyClasses = []ClassDecl{
 	// a subscript's or a block's: a variable, a closing bracket, `->` or a deref sigil.
 	{"HASHBRACK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), NotPrev1: notHashBrace}},
 
-	// NOAMP
+	// A declared sub without a prototype yyl_subproto takes: toke.c emits a zero-width NOAMP and forces the word
+	// (toke.c:7980-7987), which the word stands for as NOAMP (perly.y:1646's fit). PL_expect is XTERM after it.
+	{"NOAMP", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterWordSlot, NotNext: nextUndecided}},
 
 	{"COLONATTR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr(":")}},
 
