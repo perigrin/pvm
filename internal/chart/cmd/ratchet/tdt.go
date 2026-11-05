@@ -35,8 +35,12 @@ type tdtFile struct {
 // span is a token's byte range, a fixture line's key.
 type span struct{ start, end int }
 
-// pair is a fixture line: the toke.c type its token aligned to ("-" if none) and its family.
-type pair struct{ typ, family string }
+// pair is a fixture line: the toke.c type its token aligned to ("-" if none) and its family, and the types
+// a fitting family folded onto the token after its head.
+type pair struct {
+	typ, family string
+	folded      []string
+}
 
 // readFixture is a whole capture's pair lines by span; ok is false for any other capture,
 // which has no alignment. shortcut: this parser is a few lines of its own, since
@@ -60,6 +64,9 @@ func readFixture(text string) (pairs map[span]pair, ok bool) {
 		p := pair{typ: f[2]}
 		if p.typ == "-" && len(f) > 3 {
 			p.family = f[3]
+		}
+		if p.typ != "-" && len(f) > 4 {
+			p.folded = f[4:]
 		}
 		pairs[span{s, e}] = p
 	}
@@ -212,14 +219,18 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 				continue
 			}
 			aligned++
-			if id, known := ids[p.typ]; !known || !slices.Contains(tt.Sets[sets[t.Start]], id) {
+			// A fitted cast terminal stands for the perly.y terminal it names, toke.c's head or, for a postfix
+			// dereference's star, a type folded onto the token.
+			if !slices.ContainsFunc(tt.Sets[sets[t.Start]], func(id int) bool {
+				return asPerly(names[id]) == p.typ || asPerly(names[id]) != names[id] && slices.Contains(p.folded, asPerly(names[id]))
+			}) {
 				mismatch++
 			}
 			byType[p.typ] = append(byType[p.typ], t.Start)
 		}
 		for _, k := range keyNames {
 			i := byName[k]
-			starts := byType[decls[i].Terminal]
+			starts := byType[asPerly(decls[i].Terminal)]
 			if seen[k] || len(starts) == 0 {
 				continue
 			}
@@ -251,6 +262,14 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 		"tdt-unseen": strconv.Itoa(unseen), "tdt-unseen-unlisted": strconv.Itoa(unseenUnlisted),
 		"tdt-unaligned-unlisted": strconv.Itoa(unlisted),
 	}, nil
+}
+
+// asPerly is the perly.y terminal a terminal name stands for: a fitted cast terminal's sigil, or itself.
+func asPerly(name string) string {
+	if p, ok := grammar.CastTerminals[name]; ok {
+		return p
+	}
+	return name
 }
 
 // loadTDT reads each corpus file's fixture from dir, keyed by the file's path as tdt-align.sh writes it.
