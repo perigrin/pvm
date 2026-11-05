@@ -680,7 +680,8 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   `package`, `use`, `no`, `format`) toke.c forces the word to a name (`forcedWord`), so it carries no
   scope-decided reading, and before `(` after `require` or a loop exit it stays BAREWORD, which perl refuses. After
   `do` toke.c forces the word only before `(` (yyl_do), so `do foo(1);` is refused and `do foo;` and `do foo 1;` stay
-  scope's (`callForced`).
+  scope's (`callForced`). Neither forces a keyword, so `next x(1);`, `require x(1);` and `do x(1);` are calls
+  (`xForced`), and yyl_do leaves `CORE` too (`sub CORE {1} do CORE(1);`), where `next CORE(1);` stays refused.
 - NOAMP stands for the zero-width NOAMP and the word as `subname` (perly.y:1646's fit). A sub's name is PRIVATEREF
   as well as BAREWORD (a lexical sub's, force_ident_maybe_lex), and `my sub`, `our sub` and `state sub` are a
   fit of perly.y:638 and 768 with the declarator's KW_MY before KW_SUB_named or KW_SUB_named_sig, which toke.c reads

@@ -6,9 +6,9 @@ chart-ratchet: chart-accepted-both-refused 0
 chart-ratchet: lex-unmapped 125
 chart-ratchet: tdt-aligned 0.9943
 chart-ratchet: tdt-mismatch 443
-chart-ratchet: tdt-unseen 384
+chart-ratchet: tdt-unseen 385
 chart-ratchet: terminals-per-token 1.212
-chart-ratchet: tdt-unseen-unlisted 384
+chart-ratchet: tdt-unseen-unlisted 385
 chart-ratchet: tdt-unaligned-unlisted 108
 chart-ratchet: lex-overhead 1.204
 chart-ratchet: lex-overhead-std5k 1.225

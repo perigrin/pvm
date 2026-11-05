@@ -43,7 +43,7 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 			t.Errorf("%s is accepted; perl refuses it", f)
 		}
 	}
-	for _, src := range []string{"foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "x 1;"} {
+	for _, src := range []string{"foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "x 1;", "next CORE(1);"} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
@@ -52,6 +52,7 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 		"foo;", "foo(1);", "sub foo; foo 1, 2;", "my sub bar { 1 } bar();", "&foo;", "f()->{foo};",
 		"print FH x 3;", "new Foo x 3;", "foo bar x 3;", "foo { a => 1 } x 3;", // scope's, above
 		"new Foo::(1);", "Foo::->new;", "foo => 1;", "x(1);", "$y = do foo;", "$y = do foo 1;",
+		"do x(1);", "next x(1);", "goto x(1);", "require x(1);", "sub CORE {1} do CORE(1);", // keywords force_word and yyl_do leave alone
 	} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v", src, v.at, v.expected)
@@ -98,12 +99,24 @@ func TestPortScopeDecidedSuperpositionBounded(t *testing.T) {
 		{"sort foo @x;", 5, []string{"BAREWORD"}},
 		{"require foo;", 8, []string{"BAREWORD"}},
 		{"require foo();", 8, []string{"BAREWORD"}},
+		{"sort(foo @x);", 5, []string{"ATTRLIST", "BAREWORD"}},
 		{"next foo;", 5, []string{"BAREWORD"}},
+		{"next foo();", 5, []string{"BAREWORD"}},
+		{"last foo();", 5, []string{"BAREWORD"}},
+		{"redo foo();", 5, []string{"BAREWORD"}},
+		{"dump foo();", 5, []string{"BAREWORD"}},
+		{"goto foo();", 5, []string{"BAREWORD"}},
+		{"next CORE(1);", 5, []string{"BAREWORD"}},
 		{"last foo;", 5, []string{"BAREWORD"}},
 		{"redo foo;", 5, []string{"BAREWORD"}},
 		{"dump foo;", 5, []string{"BAREWORD"}},
 		{"goto foo;", 5, []string{"BAREWORD"}},
 		{"do foo(1);", 3, []string{"BAREWORD"}},
+		// a keyword force_word and yyl_do leave alone, and CORE after do, stay calls
+		{"do x(1);", 3, []string{"BAREWORD", "PRIVATEREF"}},
+		{"next x(1);", 5, []string{"BAREWORD", "PRIVATEREF"}},
+		{"require x(1);", 8, []string{"BAREWORD", "PRIVATEREF"}},
+		{"sub CORE {1} do CORE(1);", 16, []string{"PRIVATEREF"}},
 		// undecided: every reading scope may give it
 		{"$y = foo 1;", 5, undecided},
 		{"$y = foo;", 5, undecided},
