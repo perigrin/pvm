@@ -40,7 +40,16 @@ var (
 	refStrictVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
 	refLaxVersion    = regexp.MustCompile(`^[0-9][0-9_.]*$`)
 	refPackageName   = regexp.MustCompile(`^.+::$`)
+	refCoreQualified = regexp.MustCompile(`^CORE::(.+)$`)
 )
+
+// refCore is a word's text as yyl_key_core reads CORE::kw, kw a keyword: kw, and whether it was qualified.
+func refCore(k lexer.Kind, tx string) (string, bool) {
+	if m := refCoreQualified.FindStringSubmatch(tx); k == lexer.Word && m != nil && slices.Contains(lexer.Keywords(), m[1]) {
+		return m[1], true
+	}
+	return tx, false
+}
 
 // refPrefix is prefix as a regular expression reads a number: strict or lax version text, and only when
 // whitespace, ;, {, } or the end of the file follows it; and a word ending in ::. Anything else is prefix's.
@@ -235,6 +244,9 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		v := grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: refPrefix(t.Kind, tx, src, t.End),
 			LineColon: t.Kind == lexer.Word && refLineColon(src[t.End:]), Blanks: t.Kind == lexer.Word && refBlanks(src, t.Start, t.End)}
 		v.Global = (v.LineColon || t.Kind == lexer.Variable) && refGlobal(t.Kind, tx)
+		if kw, ok := refCore(t.Kind, tx); ok {
+			v.Text, v.Prefix = kw, grammar.CoreQualified
+		}
 		prev := pred
 		pred = refClassOf(v, prev)
 		if t.Kind == lexer.Operator && tx == "*" {
@@ -376,7 +388,7 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
 		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
 		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
-		"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); " +
+		"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); CORE::for (;;) {} $y = ($x CORE::eq 1); CORE::say(1); f(CORE::eq => 1, CORE::print => 2, CORE::x => 3); $y = CORE::GLOBAL::foo; CORE::foo(1); $y = CORE::time x 3; CORE::my $z; " +
 		"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
 		"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; ${}; &{}; *{}; @{ }; *g{}; $x->${\\ 1}; $x->${$m}(1); $x->${}; ${ {} }; " +
 		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")

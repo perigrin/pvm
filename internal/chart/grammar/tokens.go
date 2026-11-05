@@ -19,7 +19,7 @@ type TokenView struct {
 	Kind                    lexer.Kind
 	Text                    string
 	OpensBlock, TermFollows bool
-	// Prefix is the sigil or quote-prefix class, a Number's version shape or a word's PackageName, 0 for none.
+	// Prefix is the sigil or quote-prefix class, a Number's version shape or a word's PackageName or CoreQualified, 0 for none.
 	Prefix byte
 	// Global is set on a `$` variable, or on a word that LineColon is set on, whose name is no plain
 	// identifier (it has a package separator or a punctuation, digit-first or caret name) or is the variable
@@ -144,6 +144,10 @@ const (
 // PackageName is the Prefix of a word ending in :: (`Foo::`), which toke.c reads as a package name and never a
 // call, whatever follows it (yyl_just_a_word's safebw); chart/lex derives it from the word's text.
 const PackageName = ':'
+
+// CoreQualified is the Prefix of a word `CORE::kw`, kw a keyword, whose Text chart/lex gives as kw: toke.c reads it
+// as kw (yyl_key_core, toke.c:9230-9257), but before its fat-comma check, so `CORE::eq =>` stays an operator.
+const CoreQualified = 'C'
 
 // IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
 // as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
