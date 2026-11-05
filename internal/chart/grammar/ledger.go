@@ -73,7 +73,7 @@ func parseLine(ref string) (int, error) {
 	return n, nil
 }
 
-// ParseRules reads the grammar file's data: one rule per line, `lhs: rhs # <citation>`,
+// ParseRules reads the grammar file's data: one rule per line, `lhs: rhs [%prec TOKEN] # <citation>`,
 // the citation `perly.y:N` or `perly.y:N, fitted: <what the lexer emits instead>`.
 // Blank lines and lines starting with # (the placeholders) are skipped.
 func ParseRules(text string) ([]Rule, error) {
@@ -88,7 +88,14 @@ func ParseRules(text string) ([]Rule, error) {
 			return nil, fmt.Errorf("line %d is not `lhs: rhs # perly.y:N[, fitted: <note>]`: %q", i+1, l)
 		}
 		r := Rule{LHS: strings.TrimSpace(lhs), Cite: cite}
-		for _, s := range strings.Fields(rhs) {
+		f := strings.Fields(rhs)
+		if j := slices.Index(f, "%prec"); j >= 0 {
+			if j != len(f)-2 {
+				return nil, fmt.Errorf("line %d's %%prec is not the right-hand side's last two words: %q", i+1, l)
+			}
+			r.Prec, f = f[j+1], f[:j]
+		}
+		for _, s := range f {
 			r.RHS = append(r.RHS, Symbol{Name, s})
 		}
 		rs = append(rs, r)
