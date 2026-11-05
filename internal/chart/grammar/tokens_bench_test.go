@@ -66,8 +66,8 @@ func BenchmarkTokenLookup(b *testing.B) {
 	for range b.N {
 		// Per token: intern it (one text hash), then look it up.
 		pred := &Boundary
-		for i, v := range views {
-			tt.Intern(v, pred, &toks[i])
+		for i := range views {
+			tt.Intern(&views[i], pred, &toks[i])
 			pred = &toks[i].N
 		}
 		p2, p1 := tt.Edge, tt.Edge

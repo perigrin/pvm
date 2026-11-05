@@ -106,8 +106,11 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl bool, pre
 	if t.Kind == lexer.Number && t.End < len(text) {
 		next = text[t.End]
 	}
-	tt.Intern(grammar.TokenView{Kind: t.Kind, Text: tx, OpensBlock: t.OpensBlock, TermFollows: t.TermFollows, Prefix: prefix(t.Kind, tx, next),
-		Global: (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), LineColon: lc, Blanks: bl}, pred, it)
+	// v is written field by field: a literal is built aside and copied with wide loads, which stall on its narrow stores.
+	var v grammar.TokenView
+	v.Kind, v.Text, v.OpensBlock, v.TermFollows, v.Prefix = t.Kind, tx, t.OpensBlock, t.TermFollows, prefix(t.Kind, tx, next)
+	v.Global, v.LineColon, v.Blanks = (lc || t.Kind == lexer.Variable) && global(t.Kind, tx), lc, bl
+	tt.Intern(&v, pred, it)
 }
 
 // global is whether a word, or a `$` variable, is no plain name (a variable's name as varName gives it): it has a package separator or another
@@ -140,7 +143,9 @@ func varName(s string) string {
 // skipBlank is s without the blanks and the `#...` comments, each to its newline, that open it.
 func skipBlank(s string) string {
 	for {
-		s = strings.TrimLeft(s, " \t\n\r\f\v")
+		for s != "" && (s[0] == ' ' || s[0]-'\t' <= '\r'-'\t') { // strings.TrimLeft's cutset scan cost more than the name
+			s = s[1:]
+		}
 		i := strings.IndexByte(s, '\n')
 		if s == "" || s[0] != '#' || i < 0 {
 			return s
