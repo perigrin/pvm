@@ -759,20 +759,27 @@ var (
 	// name is declared (`!c.cv`), which scope decides, so there it completes a term as any bareword may.
 	sortIndirob = []Neighbour{{Kind: lexer.Word, Text: "sort"}, sortParen}
 
-	// forcedName are require and the loop exits, after which toke.c forces the word to BAREWORD (force_word, toke.c:7407 and LOOPX).
+	// forcedName are require and the loop exits, after which toke.c forces the word to BAREWORD unless it is a keyword
+	// (force_word's CHECK_KEYWORD, toke.c:7407 and LOOPX), so x there is still a word toke.c lexes itself.
 	forcedName = []Neighbour{{Kind: lexer.Word, Text: "require"}, {Kind: lexer.Word, Text: "next"}, {Kind: lexer.Word, Text: "last"},
 		{Kind: lexer.Word, Text: "redo"}, {Kind: lexer.Word, Text: "dump"}, {Kind: lexer.Word, Text: "goto"}}
 
-	// doWord is do, after which toke.c forces the word to a name only before a ( (yyl_do, toke.c:7515-7528), so
-	// `do foo;` and `do foo 1;` stay scope's.
+	// doWord is do, after which toke.c forces the word to a name only before a ( and unless it is a keyword or CORE
+	// (yyl_do, toke.c:7515-7528), so `do foo;` and `do foo 1;` stay scope's and `do x(1)` is a call.
 	doWord = Neighbour{Kind: lexer.Word, Text: "do"}
 
 	// forcedWord are the tokens after which toke.c makes the word that follows a name, never a call: forcedName, sort
 	// and -> (force_word, toke.c:9042, 6296), & (pending_ident, toke.c:6949), a glob's * (yyl_star), and sub, package,
 	// use, no and format (yyl_sub, toke.c:8859, tokenize_use, KEY_format). The scope-decided readings of a word leave them out.
-	forcedWord = append(append(slices.Clone(sortIndirob), forcedName...), Neighbour{Kind: lexer.Operator, Text: "->"}, Neighbour{Kind: lexer.FuncSigil},
-		Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Neighbour{Kind: lexer.Word, Text: "sub"}, Neighbour{Kind: lexer.Word, Text: "package"},
-		Neighbour{Kind: lexer.Word, Text: "use"}, Neighbour{Kind: lexer.Word, Text: "no"}, Neighbour{Kind: lexer.Word, Text: "format"})
+	forcedWord = append(append(slices.Clone(sortIndirob), forcedName...), namedWord...)
+
+	// namedWord are the tokens of forcedWord after which even a keyword is a name: sort's and forcedName's are not.
+	namedWord = []Neighbour{{Kind: lexer.Operator, Text: "->"}, {Kind: lexer.FuncSigil}, {Kind: lexer.Operator, Text: "*", Glob: true},
+		{Kind: lexer.Word, Text: "sub"}, {Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"},
+		{Kind: lexer.Word, Text: "format"}}
+
+	// xForced are the tokens after which x before a ( is no call: forcedWord but forcedName, which leaves a keyword alone.
+	xForced = append(slices.Clone(sortIndirob), namedWord...)
 
 	// nextUndecided are the next tokens that decide a word whatever is declared: => makes it BAREWORD (toke.c:8176)
 	// and ( the zero-width & and its name (toke.c:8195-8211), so a scope-decided reading follows neither.
@@ -780,6 +787,9 @@ var (
 
 	// callForced are the tokens after which a word before a ( is no call: forcedWord and do.
 	callForced = append(slices.Clone(forcedWord), doWord)
+
+	// keywordsAndCORE are the words yyl_do does not force before a (.
+	keywordsAndCORE = append(lexer.Keywords(), "CORE")
 
 	// keywordsButX are the keywords other than x, which toke.c's KEY_x makes a word when no operator is expected.
 	keywordsButX = slices.DeleteFunc(slices.Clone(lexer.Keywords()), func(s string) bool { return s == "x" })
@@ -1023,13 +1033,13 @@ var perlyClasses = []ClassDecl{
 	// safebw) and a word toke.c forces after a loop exit, require or do, which stay BAREWORD and which perl refuses there.
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, NotNext: nextNotParen, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prefix: ptr(byte(PackageName)), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Next: &parenOpen, Completes: true}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[0], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[1], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[2], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[3], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[4], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &forcedName[5], Next: &parenOpen}},
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &doWord, Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[0], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[1], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[2], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[3], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[4], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[5], Next: &parenOpen}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsAndCORE, Prev1: &doWord, Next: &parenOpen}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[0]}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[1]}},
@@ -1113,10 +1123,12 @@ var perlyClasses = []ClassDecl{
 	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "sub"}}},
 	// A word before a ( is a call: toke.c emits a zero-width & and the name, BAREWORD or PRIVATEREF (toke.c:8195-8211),
 	// which the word stands for as PRIVATEREF (perly.y:1842's fit), unless it is a package name or forced to a name (callForced). x is
-	// one too where it is a word (KEY_x).
+	// one too where it is a word (KEY_x), a keyword force_word and yyl_do leave alone (xForced), as yyl_do leaves CORE.
 	// shortcut: `CORE::foo(1)` is a call, where toke.c croaks "CORE::foo is not a keyword"; upgrade when internal/lexer
 	// reports the croak (v0.1 01a1aa1e).
-	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prefix: ptr(byte(0)), NotPrev1: callForced, Next: &parenOpen}},
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: callForced, Next: &parenOpen}},
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: xForced, Next: &parenOpen}},
+	{"PRIVATEREF", TokenClass{Kind: ptr(lexer.Word), Text: ptr("CORE"), Prev1: &doWord, Next: &parenOpen}},
 
 	{"QWLIST", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('w')), Completes: true}},
 
