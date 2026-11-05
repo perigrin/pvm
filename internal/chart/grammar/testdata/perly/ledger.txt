@@ -54,7 +54,7 @@ perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERL
 
 perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody	ported
 
-perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody	-
+perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody	ported
 
 perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	fitted
 
@@ -72,7 +72,7 @@ perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY
 
 perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	ported
 
-perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	-
+perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	ported
 
 perly.y:770 sigsub_or_method_named: KW_METHOD_named	-
 
@@ -140,7 +140,7 @@ perly.y:892 barestmt: bare_statement_package_definition	ported
 
 perly.y:893 barestmt: bare_statement_phaser	ported
 
-perly.y:894 barestmt: bare_statement_sub_signature	-
+perly.y:894 barestmt: bare_statement_sub_signature	ported
 
 perly.y:895 barestmt: bare_statement_sub_traditional	ported
 
@@ -246,51 +246,51 @@ perly.y:1077 optattrlist: empty	-
 
 perly.y:1078 optattrlist: attrlist	-
 
-perly.y:1087 sigvar: %empty	-
+perly.y:1087 sigvar: %empty	ported
 
-perly.y:1089 sigvar: PRIVATEREF	-
+perly.y:1089 sigvar: PRIVATEREF	excluded folded-into-token
 
-perly.y:1094 sigslurpsigil: PERLY_SNAIL	-
+perly.y:1094 sigslurpsigil: PERLY_SNAIL	ported
 
-perly.y:1096 sigslurpsigil: PERLY_PERCENT_SIGN	-
+perly.y:1096 sigslurpsigil: PERLY_PERCENT_SIGN	ported
 
-perly.y:1100 sigslurpelem: sigslurpsigil sigvar	-
+perly.y:1100 sigslurpelem: sigslurpsigil sigvar	ported
 
 perly.y:1105 sigslurpelem: sigslurpsigil sigvar ASSIGNOP	-
 
 perly.y:1109 sigslurpelem: sigslurpsigil sigvar ASSIGNOP term	-
 
-perly.y:1115 optcolon: %empty	-
+perly.y:1115 optcolon: %empty	ported
 
-perly.y:1117 optcolon: PERLY_COLON	-
+perly.y:1117 optcolon: PERLY_COLON	ported
 
-perly.y:1123 sigscalarelem: optcolon PERLY_DOLLAR sigvar	-
+perly.y:1123 sigscalarelem: optcolon PERLY_DOLLAR sigvar	ported
 
-perly.y:1133 sigscalarelem: optcolon PERLY_DOLLAR sigvar ASSIGNOP optsigscalardefault	-
+perly.y:1133 sigscalarelem: optcolon PERLY_DOLLAR sigvar ASSIGNOP optsigscalardefault	ported
 
-perly.y:1146 optsigscalardefault: %empty	-
+perly.y:1146 optsigscalardefault: %empty	ported
 
-perly.y:1148 optsigscalardefault: term	-
+perly.y:1148 optsigscalardefault: term	ported
 
-perly.y:1153 sigelem: sigscalarelem	-
+perly.y:1153 sigelem: sigscalarelem	ported
 
-perly.y:1155 sigelem: sigslurpelem	-
+perly.y:1155 sigelem: sigslurpelem	ported
 
-perly.y:1163 siglist: siglist PERLY_COMMA	-
+perly.y:1163 siglist: siglist PERLY_COMMA	ported
 
-perly.y:1164 siglist: siglist PERLY_COMMA sigelem	-
+perly.y:1164 siglist: siglist PERLY_COMMA sigelem	ported
 
-perly.y:1165 siglist: sigelem	-
+perly.y:1165 siglist: sigelem	ported
 
 perly.y:1170 optsiglist: empty	ported
 
-perly.y:1171 optsiglist: siglist	-
+perly.y:1171 optsiglist: siglist	ported
 
-perly.y:1176 optsubsignature: empty	-
+perly.y:1176 optsubsignature: empty	ported
 
-perly.y:1177 optsubsignature: subsignature	-
+perly.y:1177 optsubsignature: subsignature	ported
 
-perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE	-
+perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE	ported
 
 perly.y:1185 subsigguts: $@20 optsiglist	ported
 
@@ -300,11 +300,11 @@ perly.y:1219 optsubbody: PERLY_SEMICOLON	ported
 
 perly.y:1224 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE	ported
 
-perly.y:1236 optsigsubbody: sigsubbody	-
+perly.y:1236 optsigsubbody: sigsubbody	ported
 
-perly.y:1237 optsigsubbody: PERLY_SEMICOLON	-
+perly.y:1237 optsigsubbody: PERLY_SEMICOLON	ported
 
-perly.y:1241 sigsubbody: remember optsubsignature PERLY_BRACE_OPEN $@21 stmtseq PERLY_BRACE_CLOSE	-
+perly.y:1241 sigsubbody: remember optsubsignature PERLY_BRACE_OPEN $@21 stmtseq PERLY_BRACE_CLOSE	ported
 
 perly.y:1254 expr: expr ANDOP expr	ported
 
@@ -476,7 +476,7 @@ perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	porte
 
 perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist	-
 
-perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody	-
+perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody	ported
 
 perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist	-
 
