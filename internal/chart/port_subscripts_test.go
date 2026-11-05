@@ -139,14 +139,9 @@ func TestPortSubscriptsXRule(t *testing.T) {
 	}
 }
 
-// Known limits, pinned so they are noticed when they end. `f()` is toke.c's zero-width & and a bareword, which the
-// scope-decided family (01a18fa7-1b8b) ports. This fails when it does; move the rows to the accepted snippets then.
+// Known limits, pinned so they are noticed when they end. (`f()->{foo}`, once one, is the scope-decided family's
+// testdata/port/scope-decided/call-paren.pl.)
 func TestPortSubscriptsKnownLimits(t *testing.T) {
-	for _, src := range []string{"$y = f()->{foo};", "f()->{foo};", "$y = f()->[0];"} {
-		if recognizeSource(t, []byte(src)).accepted {
-			t.Errorf("%q is accepted; the known limit is gone, so move it to the accepted snippets and drop the README line", src)
-		}
-	}
 	// internal/lexer emits -e (any filetest letter) as one token, so the chart reads the filetest where toke.c
 	// forces the string -e (v0.1 01a1a805-a94e-7b39-8021-c61fe44b13ec). This fails when the lexer splits it.
 	if got := terminalsAt(t, "$y = $h{-e};", 8); !slices.Equal(got, []string{"UNIOP"}) {
