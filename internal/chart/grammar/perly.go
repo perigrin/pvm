@@ -842,8 +842,9 @@ var perlyClasses = []ClassDecl{
 	// perl refuses `${}`; the { there admits nothing. Past a glob's name it is an empty subscript, which the grammar refuses.
 	// shortcut: the empty pair's { is unmapped rather than HASHBRACK, since perl refuses every file that has one and no -DT
 	// capture can see such a class; upgrade if a reviewed tdt-unseen list takes it.
-	// shortcut: `${ {} }` reads as a block holding a hash, where toke.c's scan_ident takes `${ {` as the variable `{`;
-	// internal/lexer emits a DerefSigil and two `{`, upgrade when it emits toke.c's token.
+	// shortcut: `${ {} }` (any sigil's, after -> too) reads as a block holding a hash, where toke.c's scan_ident takes
+	// `${ {` as the variable `{`; internal/lexer emits a DerefSigil and two `{` (v0.1 01a1a9d4), upgrade when it emits
+	// toke.c's token.
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &derefSigil, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &funcSigil, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &globStar, NotNext: nextNotClose}},
