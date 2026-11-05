@@ -655,9 +655,11 @@ method's name. The lone `$` pvm emits for `->${` is a cast's sigil, `CAST_DOLLAR
 (`$x->${\ 'm'}`, `$x->${$m}(1)`) is accepted. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
 variable. Interleaved Intern and Lex benchmarks against the base show no per-token cost.
 
-One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: `${ {} }` and `@{ {} }` are accepted, where toke.c's
-`scan_ident` reads `${ {` as the punctuation variable `{` and perl refuses the `}` left over ("Unmatched right curly
-bracket"); `internal/lexer` emits a `DerefSigil` and two `{` there, so the root is the lexer's token.
+One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: a cast of a block that opens with `{}` is accepted
+(`${ {} }`, `@{ {} }`, `%{ {} }`, `&{ {} }`, `*{ {} }`, `$x->${ {} }`, `${ {} }{a}`, `print ${ {} };`), where
+toke.c's `scan_ident` reads `${ {` after any sigil as the punctuation variable `{` and perl refuses the `}` left
+over ("Unmatched right curly bracket"); `internal/lexer` emits a `DerefSigil` and two `{` there, so the root is the
+lexer's token (v0.1 `01a1a9d4`).
 
 ### Builtin classes against `parse.CoreShapes()`
 
