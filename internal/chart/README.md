@@ -592,6 +592,21 @@ accept them (scope, waypoint 2), each pinned in
 `print $fh [];` is accepted: perl refuses it through
 `indirob: scalar %prec PREC_LOW`, a precedence refusal (waypoint 2).
 
+### Builtin classes against `parse.CoreShapes()`
+
+`TestCoreShapeDifferences` (`grammar/coreshapes.go`) compares the words the port classes as `FUNC0`,
+`FUNC0OP`, `UNIOP`, `FUNC1`, `LSTOP` and `BLKLSTOP` with the shapes `parse.CoreShapes()` gives them (spec §5.3,
+§3 rule 9), under a stated correspondence: niladic is `FUNC0` or `FUNC0OP`, unary is `UNIOP` or `FUNC1` (toke.c
+decides by the next token, so either or both), list is `LSTOP`. Every word with a shape and no such class, a class
+and no shape, or a class its shape does not correspond to is a difference, and
+`grammar/testdata/core-shape-differences.txt` lists each with both sides and a reason decided by toke.c and
+`perl -c`. The test holds the computed differences equal to that list, so one appears or goes only by a reviewed
+edit. Neither side is changed to shorten the list: `internal/parse` is read-only and a class change is its
+family's.
+
+The correspondence is a hypothesis, amended once: `FUNC0OP` is niladic (`FUN0OP`, toke.c:263, differs from
+`FUN0` only in the token and the op it returns). `BLKLSTOP` is not folded into `LSTOP`; `all` and `any` are listed.
+
 ## The thin chart/lex: `lex`
 
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
