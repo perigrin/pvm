@@ -66,24 +66,25 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 	return chart, ref
 }
 
-// lexOverhead is the lex-overhead figure: chart/lex over lexer.Tokenize on the
-// aggregate of the superset population over files.
-func lexOverhead(p Protocol, rd Side, files []File, in verdictInputs) (float64, error) {
+// aggregateFiles is the aggregate of the superset population over files, the
+// one set that lex-overhead and the speed ratios all time.
+func aggregateFiles(p Protocol, rd Side, files []File, in verdictInputs) ([]string, error) {
 	population, err := supersetPopulation(files, in)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	timed := make([]string, len(population))
 	for i, f := range population {
 		timed[i] = f.Path
 	}
-	return p.Ratio("lex-overhead", p.Aggregate(rd, population, timed), false), nil
+	return p.Aggregate(rd, population, timed), nil
 }
 
-// measureLex adds lex-unmapped over files, and lex-overhead over the
-// population's aggregate and lex-overhead-std5k, to measured. It returns
-// lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tt *grammar.TokenTable, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
+// measureLex adds lex-unmapped over files, lex-overhead over the population's
+// aggregate, lex-overhead-std5k and the speed keys (measureSpeed) to measured.
+// It returns lex-unmapped's files as "<path> <byte>" pairs.
+func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
+	tt := tab.Tokens
 	var unmapped []string
 	for _, f := range files {
 		if _, at := lex.Lex(srcs[f.Path], tt); at >= 0 {
@@ -96,11 +97,13 @@ func measureLex(tt *grammar.TokenTable, files []File, in verdictInputs, srcs map
 	chart, ref := lexSides(srcs, tt, lexer.Tokenize)
 	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
 	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
-	overhead, err := lexOverhead(p, rd, files, in)
+	agg, err := aggregateFiles(p, rd, files, in)
 	if err != nil {
 		return nil, err
 	}
-	measured["lex-overhead"] = fmt.Sprintf("%.3f", overhead)
+	measured["lex-overhead"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead", agg, false))
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-std5k", []string{std5k}, false))
+	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
+	measureSpeed(p, agg, srcs, measured)
 	return unmapped, nil
 }
