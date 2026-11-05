@@ -10,7 +10,8 @@ import (
 )
 
 // perlyRules is `lhs: rhs # perly.y:N` per rule, or `lhs: rhs # perly.y:N, fitted: <what the lexer
-// emits instead>`. A line starting with # is a placeholder for the alternative it names. A blank line
+// emits instead>`; a rule whose alternative carries a %prec ends its right-hand side with `%prec TOKEN`, as
+// perly.y does. A line starting with # is a placeholder for the alternative it names. A blank line
 // separates adjacent placeholders and rules (and ledger entries), so two families' neighbouring edits
 // merge cleanly; only rules citing the same perly.y:N, one family's slot, may be adjacent.
 const perlyRules = `
@@ -314,7 +315,7 @@ siglist: siglist PERLY_COMMA # perly.y:1163
 
 siglist: siglist PERLY_COMMA sigelem # perly.y:1164
 
-siglist: sigelem # perly.y:1165
+siglist: sigelem %prec PREC_LOW # perly.y:1165
 
 optsiglist: empty # perly.y:1170
 
@@ -348,13 +349,13 @@ expr: expr OROP expr # perly.y:1258
 
 expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr # perly.y:1260
 
-expr: listexpr # perly.y:1262
+expr: listexpr %prec PREC_LOW # perly.y:1262
 
 listexpr: listexpr PERLY_COMMA # perly.y:1266
 
 listexpr: listexpr PERLY_COMMA term # perly.y:1268
 
-listexpr: term # perly.y:1273
+listexpr: term %prec PREC_LOW # perly.y:1273
 
 listop: LSTOP indirob listexpr # perly.y:1277
 
@@ -380,7 +381,7 @@ listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE # perly.y:1326
 
 listop: FUNC # perly.y:1328, fitted: pvm emits a string, command, heredoc opener or readline and its interior as one Quote, HeredocOpen or Readline token (toke.c's FUNC SUBLEXSTART optexpr SUBLEXEND), which stands for them all as FUNC
 
-listop: LSTOPSUB startanonsub block optlistexpr # perly.y:1330
+listop: LSTOPSUB startanonsub block optlistexpr %prec LSTOP # perly.y:1330
 
 methodname: METHCALL0 # perly.y:1344
 
@@ -434,9 +435,9 @@ termbinop: term PLUGIN_ADD_OP term # perly.y:1432
 
 termbinop: term SHIFTOP term # perly.y:1434
 
-termbinop: termrelop # perly.y:1436
+termbinop: termrelop %prec PREC_LOW # perly.y:1436
 
-termbinop: termeqop # perly.y:1438
+termbinop: termeqop %prec PREC_LOW # perly.y:1438
 
 termbinop: term BITANDOP term # perly.y:1440
 
@@ -458,7 +459,7 @@ termbinop: term MATCHOP term # perly.y:1456
 
 termbinop: term PLUGIN_LOW_OP term # perly.y:1458
 
-termrelop: relopchain # perly.y:1462
+termrelop: relopchain %prec PREC_LOW # perly.y:1462
 
 termrelop: term NCRELOP term # perly.y:1464
 
@@ -472,7 +473,7 @@ relopchain: term CHRELOP term # perly.y:1474
 
 relopchain: relopchain CHRELOP term # perly.y:1476
 
-termeqop: eqopchain # perly.y:1480
+termeqop: eqopchain %prec PREC_LOW # perly.y:1480
 
 termeqop: term NCEQOP term # perly.y:1482
 
@@ -484,9 +485,9 @@ eqopchain: term CHEQOP term # perly.y:1490
 
 eqopchain: eqopchain CHEQOP term # perly.y:1492
 
-termunop: PERLY_MINUS term # perly.y:1497
+termunop: PERLY_MINUS term %prec UMINUS # perly.y:1497
 
-termunop: PERLY_PLUS term # perly.y:1499
+termunop: PERLY_PLUS term %prec UMINUS # perly.y:1499
 
 termunop: PERLY_EXCLAMATION_MARK term # perly.y:1502
 
@@ -504,24 +505,24 @@ termunop: PREDEC term # perly.y:1526
 
 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE # perly.y:1534
 
-anonymous: HASHBRACK optexpr PERLY_BRACE_CLOSE # perly.y:1536, fitted: the ; before } is toke.c's, not the source's
+anonymous: HASHBRACK optexpr PERLY_BRACE_CLOSE %prec PERLY_PAREN_OPEN # perly.y:1536, fitted: the ; before } is toke.c's, not the source's
 
-anonymous: KW_SUB_anon startanonsub proto subattrlist subbody # perly.y:1538
+anonymous: KW_SUB_anon startanonsub proto subattrlist subbody %prec PERLY_PAREN_OPEN # perly.y:1538
 
 # perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist
 
-anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody # perly.y:1543
+anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody %prec PERLY_PAREN_OPEN # perly.y:1543
 
 # perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist
 
-anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody # perly.y:1548, fitted: as written; the ledger marks one line once, and the next rule is its fit
-anonymous: KW_MY KW_METHOD_anon startanonmethod subattrlist sigsubbody # perly.y:1548, fitted: pvm emits the my, our or state of a lexical method, which toke.c replaces by passing KEY_method to yyl_sub (toke.c:7580)
+anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody %prec PERLY_PAREN_OPEN # perly.y:1548, fitted: as written; the ledger marks one line once, and the next rule is its fit
+anonymous: KW_MY KW_METHOD_anon startanonmethod subattrlist sigsubbody %prec PERLY_PAREN_OPEN # perly.y:1548, fitted: pvm emits the my, our or state of a lexical method, which toke.c replaces by passing KEY_method to yyl_sub (toke.c:7580)
 
 # perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist
 
-termdo: KW_DO term # perly.y:1558
+termdo: KW_DO term %prec UNIOP # perly.y:1558
 
-termdo: KW_DO block # perly.y:1560
+termdo: KW_DO block %prec PERLY_PAREN_OPEN # perly.y:1560
 
 term: termbinop # perly.y:1564
 
@@ -535,9 +536,9 @@ term: term PERLY_QUESTION_MARK term PERLY_COLON term # perly.y:1568
 
 term: REFGEN term # perly.y:1570
 
-term: myattrterm # perly.y:1572
+term: myattrterm %prec UNIOP # perly.y:1572
 
-term: KW_LOCAL term # perly.y:1574
+term: KW_LOCAL term %prec UNIOP # perly.y:1574
 
 term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1576
 
@@ -545,15 +546,15 @@ term: QWLIST # perly.y:1578
 
 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1580
 
-term: scalar # perly.y:1582
+term: scalar %prec PERLY_PAREN_OPEN # perly.y:1582
 
-term: star # perly.y:1584
+term: star %prec PERLY_PAREN_OPEN # perly.y:1584
 
-term: hsh # perly.y:1586
+term: hsh %prec PERLY_PAREN_OPEN # perly.y:1586
 
-term: ary # perly.y:1588
+term: ary %prec PERLY_PAREN_OPEN # perly.y:1588
 
-term: arylen # perly.y:1590
+term: arylen %prec PERLY_PAREN_OPEN # perly.y:1590
 
 term: subscripted # perly.y:1592
 
@@ -565,7 +566,7 @@ term: sliceme PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE # perly.y:1614, fitted: th
 
 term: kvslice PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE # perly.y:1624, fitted: the ; before } is toke.c's, not the source's
 
-term: THING # perly.y:1634
+term: THING %prec PERLY_PAREN_OPEN # perly.y:1634
 
 term: amper # perly.y:1636
 
@@ -583,7 +584,7 @@ term: term ARROW CAST_PERCENT_SIGN # perly.y:1654, fitted: pvm emits %* after ->
 
 term: term ARROW PERLY_AMPERSAND # perly.y:1656, fitted: pvm emits &* after -> as one Variable token
 
-term: term ARROW CAST_STAR # perly.y:1659, fitted: pvm emits ** after -> as one Variable token, the cast terminal its first star
+term: term ARROW CAST_STAR %prec PERLY_PAREN_OPEN # perly.y:1659, fitted: pvm emits ** after -> as one Variable token, the cast terminal its first star
 
 term: LOOPEX # perly.y:1661
 
@@ -639,25 +640,25 @@ myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE # perly.y:1730
 
 myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE # perly.y:1732
 
-myterm: scalar # perly.y:1735
+myterm: scalar %prec PERLY_PAREN_OPEN # perly.y:1735
 
-myterm: hsh # perly.y:1737
+myterm: hsh %prec PERLY_PAREN_OPEN # perly.y:1737
 
-myterm: ary # perly.y:1739
+myterm: ary %prec PERLY_PAREN_OPEN # perly.y:1739
 
-fieldvar: scalar # perly.y:1744
+fieldvar: scalar %prec PERLY_PAREN_OPEN # perly.y:1744
 
-fieldvar: hsh # perly.y:1749
+fieldvar: hsh %prec PERLY_PAREN_OPEN # perly.y:1749
 
-fieldvar: ary # perly.y:1754
+fieldvar: ary %prec PERLY_PAREN_OPEN # perly.y:1754
 
 fielddecl: KW_FIELD fieldvar optattrlist # perly.y:1762
 
 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP term # perly.y:1769
 
-optlistexpr: empty # perly.y:1787
+optlistexpr: empty %prec PREC_LOW # perly.y:1787
 
-optlistexpr: listexpr # perly.y:1788
+optlistexpr: listexpr %prec PREC_LOW # perly.y:1788
 
 optexpr: empty # perly.y:1792
 
@@ -675,9 +676,9 @@ list_of_itervars: list_of_itervars PERLY_COMMA scalar # perly.y:1810
 
 list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var # perly.y:1814
 
-list_of_itervars: scalar # perly.y:1818
+list_of_itervars: scalar %prec PREC_LOW # perly.y:1818
 
-list_of_itervars: REFGEN my_var # perly.y:1819
+list_of_itervars: REFGEN my_var %prec PREC_LOW # perly.y:1819
 
 my_list_of_itervars: list_of_itervars # perly.y:1825
 
@@ -727,11 +728,79 @@ gelem: term ARROW PERLY_STAR # perly.y:1883
 
 indirob: BAREWORD # perly.y:1888
 
-indirob: scalar # perly.y:1890
+indirob: scalar %prec PREC_LOW # perly.y:1890
 
 indirob: block # perly.y:1892
 
 indirob: PRIVATEREF # perly.y:1895
+`
+
+// perlyPrecedence is perly.y's precedence declarations, loosest first, one per line: `%<assoc> TOKEN... # perly.y:N`.
+// Recognition ignores them and every rule's %prec at waypoint 1 (spec §8): they are waypoint 2's constraint's data.
+const perlyPrecedence = `
+%nonassoc PREC_LOW # perly.y:150
+
+%nonassoc LOOPEX # perly.y:151
+
+%nonassoc PLUGIN_LOW_OP # perly.y:153
+
+%left OROP PLUGIN_LOGICAL_OR_LOW_OP # perly.y:154
+
+%left ANDOP PLUGIN_LOGICAL_AND_LOW_OP # perly.y:155
+
+%right NOTOP # perly.y:156
+
+%nonassoc LSTOP LSTOPSUB BLKLSTOP # perly.y:157
+
+%left PERLY_COMMA # perly.y:158
+
+%right ASSIGNOP PLUGIN_ASSIGN_OP # perly.y:159
+
+%right PERLY_QUESTION_MARK PERLY_COLON # perly.y:160
+
+%nonassoc DOTDOT # perly.y:161
+
+%left OROR DORDOR PLUGIN_LOGICAL_OR_OP # perly.y:162
+
+%left ANDAND PLUGIN_LOGICAL_AND_OP # perly.y:163
+
+%left BITOROP # perly.y:164
+
+%left BITANDOP # perly.y:165
+
+%left CHEQOP NCEQOP # perly.y:166
+
+%left CHRELOP NCRELOP # perly.y:167
+
+%nonassoc PLUGIN_REL_OP # perly.y:168
+
+%nonassoc UNIOP UNIOPSUB # perly.y:169
+
+%nonassoc KW_REQUIRE # perly.y:170
+
+%left SHIFTOP # perly.y:171
+
+%left ADDOP PLUGIN_ADD_OP # perly.y:172
+
+%left MULOP PLUGIN_MUL_OP # perly.y:173
+
+%left MATCHOP # perly.y:174
+
+%right PERLY_EXCLAMATION_MARK PERLY_TILDE UMINUS REFGEN # perly.y:175
+
+%right POWOP PLUGIN_POW_OP # perly.y:176
+
+%nonassoc PREINC PREDEC POSTINC POSTDEC # perly.y:177, fitted: POSTJOIN is left out: its one rule, perly.y:1512, is excluded interpolation-only, and the generator refuses a precedence token no rule uses
+
+%nonassoc PLUGIN_HIGH_OP # perly.y:178
+
+%left ARROW # perly.y:179
+
+%nonassoc PERLY_PAREN_CLOSE # perly.y:180
+
+%left PERLY_PAREN_OPEN # perly.y:181
+
+%left PERLY_BRACKET_OPEN PERLY_BRACE_OPEN # perly.y:182
 `
 
 // parenOpen and blockOpen are the next tokens that tell toke.c's FUNC1 from UNIOP and KW_CONTINUE from FUNC0;

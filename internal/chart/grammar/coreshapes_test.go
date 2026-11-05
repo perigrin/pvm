@@ -16,9 +16,9 @@ import (
 const coreShapeList = "testdata/core-shape-differences.txt"
 
 // listEntries are the committed list's entries without their reasons; blank lines and comment lines are skipped.
-func listEntries(t *testing.T) (entries, raw []string) {
+func listEntries(t *testing.T, path string) (entries, raw []string) {
 	t.Helper()
-	b, err := os.ReadFile(coreShapeList)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func diffAgainstList(got, list []string) string {
 }
 
 func TestCoreShapeDifferences(t *testing.T) {
-	list, _ := listEntries(t)
+	list, _ := listEntries(t, coreShapeList)
 	if d := diffAgainstList(CoreShapeDifferences(parse.CoreShapes(), perlyClasses), list); d != "" {
 		t.Errorf("the builtin classes differ from parse.CoreShapes() other than as %s lists; review each and edit the list:\n%s", coreShapeList, d)
 	}
@@ -102,7 +102,7 @@ func TestCoreShapeDifferencesDetects(t *testing.T) {
 var listForm = regexp.MustCompile(`^\S+\tcore: (niladic|unary|list|block|none)\tport: (none|[A-Z0-9]+(/[A-Z0-9]+)*)\t# \S.*$`)
 
 func TestCoreShapeDifferencesListForm(t *testing.T) {
-	_, raw := listEntries(t)
+	_, raw := listEntries(t, coreShapeList)
 	for _, l := range raw {
 		if !listForm.MatchString(l) {
 			t.Errorf("entry does not name both sides and a reason (`name<TAB>core: <shape|none><TAB>port: <terminals|none><TAB># reason`): %q", l)
