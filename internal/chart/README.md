@@ -570,22 +570,18 @@ gaps between raw tokens, in constant time and without allocating, only on a word
 other words never pay for it), and the table tests it as key part 11. INTERN's reference reads the same bit off the
 source bytes (`refBlanks`), and `TestBlanksAgreeWithReference` holds the two together.
 
-Two limits, both pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
+One limit, pinned in `TestPortSubscriptsKnownLimits`. `$h{-e}` (and every filetest letter) reads as a filetest,
 where toke.c forces the string, because `internal/lexer` emits `-e` as one token (v0.1 `01a1a805-a94e-7b39-8021-c61fe44b13ec`);
-the minus rule above holds for every other word. `f(...)` is toke.c's zero-width `&` and a bareword
-(`toke.c:8195-8211`), which `internal/lexer` emits as the word alone, so `f()->{foo}` is refused until the
-scope-decided family (`01a18fa7-1b8b`) ports it; `&f()->{foo}` is accepted. A fit `amper: BAREWORD` would take
-it, and would also take `a::()`, which toke.c reads as a package name before it looks for the parenthesis
-(`safebw`, `toke.c:8192`): no class can tell a word ending in `::` apart, and the guacamole case
-`Statements-Expressions-Value-NonLiteral-SubCall-001.pl` is the file that refuses it.
+the minus rule above holds for every other word. `f()->{foo}` is accepted through the scope-decided family's
+call (see "Scope-decided words").
 
 ### Indirect objects
 
 `indirob` is ported as written: a bareword, a scalar, a block or a
 PRIVATEREF, after a list operator (`print STDERR 1`, `print $fh 1`,
 `print {$fh} 1`, `print(STDERR 1)`), a method word (`new Foo`,
-`new Foo(1)`, `meth $obj 1`, `meth { $obj } 1`) or `&` (perly.y:1842 is
-ported as written, so `&$code`, `&$code(1)` and `\&$code` are accepted).
+`new Foo(1)`, `meth $obj 1`, `meth { $obj } 1`) or `&` (perly.y:1842's
+as-written rule, so `&$code`, `&$code(1)` and `\&$code` are accepted).
 
 - A word before a variable, a block or another word is METHCALL0 (toke.c's
   yyl_just_a_word and intuit_method); before another word it is METHCALL as
@@ -660,6 +656,34 @@ One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: a cast of a block tha
 toke.c's `scan_ident` reads `${ {` after any sigil as the punctuation variable `{` and perl refuses the `}` left
 over ("Unmatched right curly bracket"); `internal/lexer` emits a `DerefSigil` and two `{` there, so the root is the
 lexer's token (v0.1 `01a1a9d4`).
+
+### Scope-decided words
+
+Whether a bareword is a declared sub, and of which prototype, is scope, decided after the chart (waypoint 2).
+A word the neighbours leave undecided (`TestPortScopeDecidedSuperpositionBounded`) is every terminal it could be:
+BAREWORD, NOAMP, FUNC0SUB and UNIOPSUB, LSTOPSUB too before a `{`, and METHCALL0 where the indirect objects
+put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the rest, as toke.c's yyl_just_a_word does:
+
+- Before `=>` a word is BAREWORD (toke.c:8176). Before `(` it is a call: toke.c emits a zero-width `&` and the
+  name (toke.c:8195-8211), which the word stands for as PRIVATEREF, by a fit of perly.y:1842 (`amper:
+  PRIVATEREF`), so `foo(1)` and `f()->{foo}` are accepted.
+- A word ending in `::` is a package name, never a call (safebw, toke.c:8098-8111), so `a::()`, `Foo:: 1` and
+  `Foo:: $x` are refused (the last was a METHCALL0 before; those classes now leave a package name out too). chart/lex gives such a word the Prefix `PackageName` (`:`), read from its last two bytes: a value of
+  an existing key part, as a Number's version shape is, and an extension of spec §7 for perigrin to rule on.
+  INTERN's reference reads it with a regular expression (`refPackageName`).
+- After `->`, `&`, a glob's `*`, `sort`, `require`, the loop exits and the words that name something (`sub`,
+  `package`, `use`, `no`, `format`) toke.c forces the word to a name (`forcedWord`), so it carries no
+  scope-decided reading, and before `(` after `require` or a loop exit it stays BAREWORD, which perl refuses.
+- NOAMP stands for the zero-width NOAMP and the word as `subname` (perly.y:1646's fit). A sub's name is PRIVATEREF
+  as well as BAREWORD (a lexical sub's, force_ident_maybe_lex), and `my sub`, `our sub` and `state sub` are a
+  fit of perly.y:638 with the declarator's KW_MY before KW_SUB_named, which toke.c reads silently (yyl_my).
+- FUNC0SUB completes a term (`TERM`), so `x` after it is the repetition operator; NOAMP, UNIOPSUB and LSTOPSUB
+  leave PL_expect at XTERM and do not.
+
+Limits, each with a `shortcut:` comment: a declared sub named `x` is BAREWORD only, as the other keywords
+are; a word two after `use` or `package` carries no scope-decided reading (afterWordSlot, the version family's).
+`print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
+`terminals-per-token` and `items-per-token` rise by design.
 
 ### Builtin classes against `parse.CoreShapes()`
 
