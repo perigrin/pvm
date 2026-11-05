@@ -370,6 +370,8 @@ func TestInternIdentityNegatedParts(t *testing.T) {
 	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
 		"$y = @a * ref x 3; $y = $#a * ref x 3; $y = @a * 2; @a x 3; $#a x 3; my @b = @a x 3; $c ? my @z : shared; $y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
 		"format print =\n.\n" +
+		"sub class { foo } sub class { Foo::Bar->new } sub package { foo } sub package { x 3 } sub class { x } my method m { 1 } my method { 1 }; our method { 1 }; sub class { foo(1) } class Foo { method class { foo } } class Foo bar; " +
+		"class if { } class Foo 1.2 :isa(Bar); method print { 1 } method ::foo; field $x :param = 1; my $m = method { 1 }; method x { 1 } class x; " +
 		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
 		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
 		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
@@ -398,7 +400,7 @@ func TestInternIdentityVersionShapes(t *testing.T) {
 	var src []byte
 	for _, n := range []string{"1", "1.23", "0.1", "01", "1_0", "1.", "1.2.3", "0x10", "1e3", ".5", "10.01"} {
 		for _, d := range []string{";", " ;", "\t;", "\n;", "{ }", "}", ",", "#c\n;", "x;", ")", "'a';", ""} {
-			src = append(src, "package Foo "+n+d+"\nuse "+n+d+"\nuse lib "+n+d+"\n$y = "+n+d+"\n"...)
+			src = append(src, "package Foo "+n+d+"\nclass Foo "+n+d+"\nuse "+n+d+"\nuse lib "+n+d+"\n$y = "+n+d+"\n"...)
 		}
 	}
 	// What follows a version or a word after use MODULE: each operator a NotNext list names, the ones it leaves, a term.

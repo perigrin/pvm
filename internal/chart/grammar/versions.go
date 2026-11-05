@@ -37,8 +37,9 @@ import (
 var afterUse = []Neighbour{{Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"}}
 
 // afterWordSlot is the neighbours whose second token after is never the BAREWORD toke.c forces for a
-// version: force_strict_version refuses a word after a package name, and a word after use MODULE is a term.
-var afterWordSlot = append([]Neighbour{{Kind: lexer.Word, Text: "package"}}, afterUse...)
+// version: force_strict_version refuses a word after a package name, and a word after use MODULE is a term. For
+// package and class init gives the word back unless a word stands between, so only the slot after the name stays refused.
+var afterWordSlot = append([]Neighbour{{Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "class"}}, afterUse...)
 
 // notAfterVersion are the next tokens that cannot follow a forced version, because after it toke.c expects a
 // term: the comma and the operators that only join two terms. - + * % & < / << can open a term too, so
@@ -80,9 +81,28 @@ func init() {
 	endings := []*Neighbour{{Kind: lexer.Semicolon}, {Kind: lexer.CloseBracket, Text: "}", OpensBlock: true}, &Boundary}
 	add := func(c TokenClass) { perlyClasses = append(perlyClasses, ClassDecl{"BAREWORD", c}) }
 
-	pkg := versions[0] // only a strict decimal: its v-string is a lexer defect, above
-	pkg.Prev2, pkg.NotPrev1 = &Neighbour{Kind: lexer.Word, Text: "package"}, notVersion
-	add(pkg)
+	// names are the words a package or class name can be: any word, since a keyword names one too (OtherWord covers only the
+	// words no class names).
+	names := []Neighbour{otherWord, {Kind: lexer.Word, Text: NonIdentWord}}
+	for _, k := range lexer.Keywords() {
+		names = append(names, Neighbour{Kind: lexer.Word, Text: k})
+	}
+	for _, kw := range []string{"package", "class"} {
+		// afterWordSlot takes the BAREWORD from a word two after the keyword, and these give it back unless a name
+		// stands between: only the word after the name is refused, so a sub named package or class keeps its
+		// body's words (`sub class { foo }`).
+		for _, text := range []*string{nil, ptr("x")} {
+			c := TokenClass{Kind: ptr(lexer.Word), Text: text, Prev2: &Neighbour{Kind: lexer.Word, Text: kw}, NotPrev1: names, Completes: true}
+			if text == nil {
+				// as the generic BAREWORD: a word before ( is the zero-width & and its name, not a bareword
+				c.NotText, c.NotNext = lexer.Keywords(), nextNotParen
+			}
+			add(c)
+		}
+		pkg := versions[0] // only a strict decimal: its v-string is a lexer defect, above
+		pkg.Prev2, pkg.NotPrev1 = &Neighbour{Kind: lexer.Word, Text: kw}, notVersion
+		add(pkg)
+	}
 	for _, kw := range afterUse {
 		// The generic BAREWORD classes leave a word after use MODULE (NotPrev2), and these give it back as the
 		// term it is, unless what follows it is not one: it is no version either.
