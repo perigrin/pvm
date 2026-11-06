@@ -136,6 +136,7 @@ T1/skip_block_hash_disambiguation.t 121 01a1ad1d-bc7b
 T1/stash_aliasing.t 2689 01a1ad1d-bc7b
 T1/stash_readonly_scalar_ref_assignment.t 814 01a1ad1d-bc7b
 T1/storable_tied_nested_refs.t 227 01a1ad1d-bc7b
+T1/string_interpolation.t 13008 01a1af25-7fc7
 T1/subroutine_return_rvalue.t 502 01a1ad1d-bc7b
 T1/super.t 117 01a1ad1d-bc7b
 T1/super_methods.t 118 01a1ad1d-bc7b
