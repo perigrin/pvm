@@ -1,0 +1,1 @@
+$y = CORE::GLOBAL::foo;

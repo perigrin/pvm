@@ -5,6 +5,7 @@ package chart
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -101,6 +102,27 @@ func TestPortNamedOperatorsXAfterNamedOperator(t *testing.T) {
 	for _, src := range []string{"&ref x 3;", "$y = &shift x 3;", "&last x 3;", "&require x 3;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
+		}
+	}
+}
+
+// toke.c makes a word before => a string before it looks the word up (yyl_fatcomma), so a keyword there is
+// BAREWORD alone, and x is no operator after a term. perl -c (94e50866): each refused row is a syntax error,
+// its nearby form compiles.
+func TestPortNamedOperatorsFatComma(t *testing.T) {
+	for _, src := range []string{"f(1, eq => 1);", "f(1, x => 1);", "f(1, print => 1);", "f(1, eq #c\n=> 1);"} {
+		if got := terminalsAt(t, src, 5); !slices.Equal(got, []string{"BAREWORD"}) {
+			t.Errorf("%q: the word before => admits %v, want only BAREWORD", src, got)
+		}
+	}
+	for _, tc := range []struct{ refused, nearby string }{
+		{"$y = $a x => 1;", "$y = x => 1;"}, {"$y = 1 eq => 2;", "$y = eq => 2;"},
+	} {
+		if v := recognizeSource(t, []byte(tc.refused)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", tc.refused)
+		}
+		if v := recognizeSource(t, []byte(tc.nearby)); !v.accepted {
+			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
 		}
 	}
 }
