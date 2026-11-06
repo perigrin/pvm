@@ -283,3 +283,31 @@ func TestRelabel(t *testing.T) {
 		t.Errorf("an unlisted file changed: %q", other)
 	}
 }
+
+// TestAlignAmendment3: TDTALIGN amendment 3's matching rules, each pairing a token the aligner left unaligned: ~.
+// under the bitwise feature is PERLY_TILDE; Legacy'Package is toke.c's Legacy::Package; $main_x keeps its name, as
+// main:: alone is a qualifier; whitespace may follow the sigil; and a heredoc body opened inside an interpolated string
+// is that string's. Streams are the pinned perl's -DT.
+func TestAlignAmendment3(t *testing.T) {
+	for _, c := range []struct{ src, stream, tok, want string }{
+		{"use feature 'bitwise'; my $s = ~. $x;",
+			"KW_USE_or_NO\nBAREWORD\nBAREWORD\tPV(\"feature\"\\0)\nTHING\tPV(\"bitwise\"\\0)\nPERLY_SEMICOLON\nKW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$s\nASSIGNOP\top_null\nPERLY_TILDE\nPERLY_DOLLAR\nBAREWORD\tPV(\"x\"\\0)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"~.", "PERLY_TILDE"},
+		{"package Legacy'Package; 1;",
+			"KW_PACKAGE\nBAREWORD\nBAREWORD\tPV(\"Legacy::Package\"\\0)\nPERLY_SEMICOLON\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"Legacy'Package", "BAREWORD"},
+		{"my $main_x = 1;",
+			"KW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$main_x\nASSIGNOP\top_null\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"$main_x", "PERLY_DOLLAR variable PRIVATEREF"},
+		{"$ x = 1;",
+			"PERLY_DOLLAR\nBAREWORD\tPV(\"x\"\\0)\nASSIGNOP\top_null\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"$ x", "PERLY_DOLLAR variable BAREWORD"},
+		{"my $v = \"x @{[ <<EOT ]} x\";\nHERE\nEOT\n",
+			"KW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$v\nASSIGNOP\top_null\nFUNC\top_stringify\nSUBLEXSTART\nTHING\tPV(\"x \"\\0)\nADDOP\top_concat\nFUNC\top_join\nPERLY_PAREN_OPEN\nPERLY_DOLLAR\nBAREWORD\tPV(\"\\\"\"\\0)\nPERLY_COMMA\nPERLY_SNAIL\nPERLY_BRACE_OPEN\nPERLY_BRACKET_OPEN\nFUNC\top_scalar\nSUBLEXSTART\nTHING\tPV(\"HERE\\n\"\\0)\nSUBLEXEND\nPERLY_BRACKET_CLOSE\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_PAREN_CLOSE\nADDOP\top_concat\nTHING\tPV(\" x\"\\0)\nSUBLEXEND\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"HERE\nEOT\n", "FUNC heredoc"},
+	} {
+		if got := aligned(t, c.src, c.stream)[c.tok]; got != c.want {
+			t.Errorf("%q: %q is %q, want %q", c.src, c.tok, got, c.want)
+		}
+	}
+}

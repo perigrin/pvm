@@ -125,6 +125,7 @@ T1/perlio_via.t 877 01a1ad1d-bc7b
 T1/postderef_expression_result.t 100 01a1aec4-5d3a
 T1/pr709_core_regressions.t 2056 01a1ad1d-bc7b
 T1/print_bareword_filehandle.t 181 01a1ad1d-bc7b
+T1/ref.t 534 01a0dc72-2609
 T1/ref_utf8_flag.t 2194 01a1ad1d-bc7b
 T1/ref_utf8_flag.t 2337 01a1ad1d-bc7b
 T1/ref_utf8_flag.t 235 01a1ad1d-bc7b
