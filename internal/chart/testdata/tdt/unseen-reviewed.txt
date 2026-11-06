@@ -1250,3 +1250,77 @@ UNIOP Kind=Word Text="tell" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `ucfirst` as UNIOP in this slot
 UNIOP Kind=Word Text="ucfirst" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: AUTOLOAD or DESTROY at a statement start with no sub before it (really_sub, toke.c:8315); every corpus AUTOLOAD and DESTROY this key admits is a name after sub (BAREWORD)
+KW_SUB_named Kind=Word Text="AUTOLOAD" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
+KW_SUB_named Kind=Word Text="DESTROY" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
+
+reason: construct absent from the corpora: an anonymous method (method { ... } under the class feature, toke.c:7580); every corpus method this key admits is a name or a method call
+KW_METHOD_anon Kind=Word Text="method" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
+
+reason: construct absent from the corpora: an indirect method call on a block (WORD { ... } on an undeclared word, toke.c:8215); every corpus word this key admits before a block is a name toke.c forced (after sub, package, class or method), a declared sub taking a block (LSTOPSUB) or an attribute
+METHCALL0 Kind=Word Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
+METHCALL0 Kind=Word Text="AUTOLOAD" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="BEGIN" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="CHECK" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="DESTROY" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: a sub with a & prototype called before an anonymous hash; the two corpus words this key admits (collect { ... } in indirect_object_block_list.t) are indirect method calls on an undeclared word (METHCALL0, toke.c:8215)
+LSTOPSUB Kind=Word Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:3 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9 NotPrev1=#18:733efa7b8a10 NotPrev2=#2:279a67fa5bcce
+
+reason: construct absent from the corpora: the builtin getgrgid in this slot; never the builtin in the corpora: every corpus getgrgid this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+FUNC1 Kind=Word Text="getgrgid" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: the builtin localtime in this slot; never the builtin in the corpora: every corpus localtime this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+FUNC1 Kind=Word Text="localtime" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: the builtin reset in this slot; every corpus reset this key admits is a method name after -> ($obj->reset), which toke.c forces to METHCALL0 and the key does not see the -> before
+FUNC1 Kind=Word Text="reset" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: the builtin stat in this slot; never the builtin in the corpora: every corpus stat this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+FUNC1 Kind=Word Text="stat" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: the builtin write in this slot; every corpus write this key admits is a method name after -> ($obj->write), which toke.c forces to METHCALL0 and the key does not see the -> before
+FUNC1 Kind=Word Text="write" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: the builtin rename in this slot; never the builtin in the corpora: every corpus rename this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+FUNC Kind=Word Text="rename" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: construct absent from the corpora: fc as a unary operator without parentheses; the one corpus fc this key admits is a sub's name (sub fc)
+UNIOP Kind=Word Text="fc" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin log in this slot; never the builtin in the corpora: every corpus log this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+UNIOP Kind=Word Text="log" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin lock in this slot; never the builtin in the corpora: every corpus lock this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+UNIOP Kind=Word Text="lock" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: prototype as a unary operator without parentheses; every corpus prototype this key admits is an attribute name (:prototype(...), ATTRLIST)
+UNIOP Kind=Word Text="prototype" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: reset as a unary operator without parentheses; the one corpus reset this key admits is a sub's name (sub reset)
+UNIOP Kind=Word Text="reset" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin accept in this slot; every corpus accept this key admits is a method name after -> ($obj->accept), which toke.c forces to METHCALL0 and the key does not see the -> before
+LSTOP Kind=Word Text="accept" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin atan2 in this slot; never the builtin in the corpora: every corpus atan2 this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+LSTOP Kind=Word Text="atan2" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin all in this slot; never the builtin in the corpora: every corpus all this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+BLKLSTOP Kind=Word Text="all" NotNext=#2:c96cd92cd7e0e
+
+reason: construct absent from the corpora: the builtin any in this slot; never the builtin in the corpora: every corpus any this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
+BLKLSTOP Kind=Word Text="any" NotNext=#2:c96cd92cd7e0e
+
+reason: toke.c invents NOAMP before a predeclared list operator's name (toke.c:7987) and the scope-sub family folds it onto the name, so it is never an aligned head; the chart's NOAMP on the word stands for it
+NOAMP Kind=Word Prefix="\x00" NotText=#266:29e824fefb9 NotPrev1=#18:733efa7b8a10 NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
+
+reason: the one corpus ~. (bitwise_string_feature.t:1029) is unaligned: the aligner pairs PERLY_TILDE only with ~, so no ~. is ever compared
+PERLY_TILDE Kind=Operator Text="~."
+
+reason: construct absent from the corpora: x as repetition after a block-closing }; the one corpus x this key admits is a call x(123) at a statement start (autoload.t)
+MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
