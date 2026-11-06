@@ -12,8 +12,8 @@ import (
 
 // subsLines are the perly.y alternatives this family ports or fits, and 1566 (term: anonymous) as
 // written. 1713 (term: listop) is written in the grammar for reachability and is list operators' line. 1541 (an anonymous sub with no body) refuses
-// unconditionally in its action: it stays unmarked, left for the issue that completes the port, which
-// marks it and writes its refusal test. Attribute arguments and names carry the attrlist limits
+// unconditionally in its action: it is left to the issue that completes the port, which marks it
+// excluded refused-in-action and holds its refusal in TestLedgerRefusals. Attribute arguments and names carry the attrlist limits
 // (01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a): an argument is one token, so `:Foo(a, b)` is refused.
 // An anonymous sub's prototype, and an attribute colon with no attribute after it, leave
 // internal/lexer's `{` outside a block, so `sub ($$) { 1 }` and `sub foo : { 1 }` are refused until

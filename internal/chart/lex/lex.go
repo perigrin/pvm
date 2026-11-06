@@ -101,7 +101,8 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	if len(s.Tokens) > 0 {
 		done(tt.Edge)
 	}
-	// An opener whose body never came is a heredoc perl cannot find the terminator of: no class admits it.
+	// An opener whose body never came is a heredoc perl cannot find the terminator of: no class admits it. toke.c croaks
+	// there and internal/lexer does not (v0.1 01a1af7c-3b8b), so its files are on lex-unmapped-known.txt.
 	for _, o := range opens {
 		s.Tokens[o].TerminalSet = 0
 		if b := raw[s.Tokens[o].Index].Start; first < 0 || b < first {
