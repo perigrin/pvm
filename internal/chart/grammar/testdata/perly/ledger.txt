@@ -256,9 +256,9 @@ perly.y:1096 sigslurpsigil: PERLY_PERCENT_SIGN	ported
 
 perly.y:1100 sigslurpelem: sigslurpsigil sigvar	ported
 
-perly.y:1105 sigslurpelem: sigslurpsigil sigvar ASSIGNOP	-
+perly.y:1105 sigslurpelem: sigslurpsigil sigvar ASSIGNOP	excluded refused-in-action
 
-perly.y:1109 sigslurpelem: sigslurpsigil sigvar ASSIGNOP term	-
+perly.y:1109 sigslurpelem: sigslurpsigil sigvar ASSIGNOP term	excluded refused-in-action
 
 perly.y:1115 optcolon: %empty	ported
 
@@ -428,9 +428,9 @@ perly.y:1462 termrelop: relopchain	ported
 
 perly.y:1464 termrelop: term NCRELOP term	ported
 
-perly.y:1466 termrelop: termrelop NCRELOP	-
+perly.y:1466 termrelop: termrelop NCRELOP	refused-by-precedence
 
-perly.y:1468 termrelop: termrelop CHRELOP	-
+perly.y:1468 termrelop: termrelop CHRELOP	refused-by-precedence
 
 perly.y:1470 termrelop: term PLUGIN_REL_OP term	ported
 
@@ -442,9 +442,9 @@ perly.y:1480 termeqop: eqopchain	ported
 
 perly.y:1482 termeqop: term NCEQOP term	ported
 
-perly.y:1484 termeqop: termeqop NCEQOP	-
+perly.y:1484 termeqop: termeqop NCEQOP	refused-by-precedence
 
-perly.y:1486 termeqop: termeqop CHEQOP	-
+perly.y:1486 termeqop: termeqop CHEQOP	refused-by-precedence
 
 perly.y:1490 eqopchain: term CHEQOP term	ported
 
@@ -474,15 +474,15 @@ perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitt
 
 perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	ported
 
-perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist	-
+perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist	excluded refused-in-action
 
 perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody	ported
 
-perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist	-
+perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist	excluded refused-in-action
 
 perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody	fitted
 
-perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist	-
+perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist	excluded refused-in-action
 
 perly.y:1558 termdo: KW_DO term	ported
 
@@ -672,7 +672,7 @@ perly.y:1862 arylen: DOLSHARP indirob	fitted
 
 perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR	fitted
 
-perly.y:1868 star: PERLY_STAR indirob	fitted
+perly.y:1868 star: PERLY_STAR indirob	ported
 
 perly.y:1872 sliceme: ary	ported
 
