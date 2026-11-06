@@ -122,7 +122,7 @@ func TestLexLookupAllocationFree(t *testing.T) {
 			}
 			it := &slots[i&1]
 			intern(tt, text, r, false, false, false, pred, it)
-			tt.Lookup(*it, p2, p1, tt.Edge)
+			tt.Lookup(it, p2, p1, tt.Edge)
 			pred, p2, p1 = &it.N, p1, it.Class
 		}
 	}); a != 0 {

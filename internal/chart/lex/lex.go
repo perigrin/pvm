@@ -10,6 +10,7 @@ package lex
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -29,17 +30,26 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	// text views src without copying it; nothing Map returns holds a string, so
 	// the view lives only as long as this call, during which src is not written.
 	text := unsafe.String(unsafe.SliceData(src), len(src))
-	s := &Stream{Raw: raw, Tokens: make([]Token, 0, len(raw))}
+	// Tokens is sized to the significant tokens rather than to raw, a third of which is trivia.
+	sig := 0
+	for _, t := range raw {
+		if !lexer.IsTrivia(t.Kind) && t.Kind != lexer.HeredocBody {
+			sig++
+		}
+	}
+	s := &Stream{Raw: raw, Tokens: make([]Token, 0, sig)}
 	first := -1
 	// slots holds the last token and the one being interned, alternately, so
 	// neither is copied (see grammar.TokenTable.Intern).
 	var slots [2]grammar.Token
 	pred, p2, p1 := &grammar.Boundary, tt.Edge, tt.Edge
+	c := caches.Get().(*grammar.LookupCache)
+	defer caches.Put(c)
 	// done looks up the last token, now that its next neighbour's class is known.
 	done := func(next int) {
 		n := len(s.Tokens) - 1
 		last, cur := &s.Tokens[n], &slots[n&1]
-		last.TerminalSet = tt.Lookup(*cur, p2, p1, next)
+		last.TerminalSet = c.Lookup(tt, cur, p2, p1, next)
 		if last.TerminalSet == 0 && first < 0 {
 			first = raw[last.Index].Start
 		}
@@ -111,6 +121,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	}
 	return s, first
 }
+
+// caches lends each Map call its own LookupCache, so concurrent calls never share one, and a cache keeps its
+// answers from one file to the next.
+var caches = sync.Pool{New: func() any { return new(grammar.LookupCache) }}
 
 // tag is a heredoc opener's terminator without an indent: `<<"EOF"`, `<<~ EOF`, `<<\EOF` and `<<'  EOF'` are all EOF.
 func tag(opener string) string {
