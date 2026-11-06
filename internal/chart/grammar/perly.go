@@ -712,7 +712,7 @@ arylen: DOLSHARP # perly.y:1862, fitted: pvm emits the sigil and the name as one
 
 arylen: term ARROW DOLSHARP # perly.y:1864, fitted: pvm emits $#* after -> as one Variable token
 
-star: PERLY_STAR indirob # perly.y:1868, fitted: pvm emits the glob sigil as a * Operator, and its name as a separate word
+star: PERLY_STAR indirob # perly.y:1868
 
 sliceme: ary # perly.y:1872
 
