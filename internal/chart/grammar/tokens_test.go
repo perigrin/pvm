@@ -25,10 +25,10 @@ func mustCompile(t *testing.T, classes ...TokenClass) *TokenTable {
 }
 
 // interned is t interned after pred.
-func (tt *TokenTable) interned(t TokenView, pred Neighbour) Token {
+func (tt *TokenTable) interned(t TokenView, pred Neighbour) *Token {
 	var it Token
 	tt.Intern(&t, &pred, &it)
-	return it
+	return &it
 }
 
 // lookup interns the token and its three neighbours' classes, as a caller does.
@@ -627,6 +627,58 @@ func TestCommittedDictionaryLookups(t *testing.T) {
 	for i := range tt.nbs {
 		if got, want := tt.classID(&tt.nbs[i], tt.text[tt.nbs[i].Text]), classes[classKey(&tt.nbs[i], tt.text[tt.nbs[i].Text])]; got != want {
 			t.Errorf("classID(%+v) = %d, the map %d", tt.nbs[i], got, want)
+		}
+	}
+}
+
+// The cache answers as the walk does. Each distinct word, operator or variable of std5k.pl is looked up with every
+// class id in turn as the token two back, one back and next, with each flag as given and flipped, and with every prefix, through one cache,
+// so a part its key dropped would hand one key's answer to another.
+func TestLookupCacheAgrees(t *testing.T) {
+	g, ref, err := Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt := tab.Tokens
+	if !tt.packs {
+		t.Fatal("the committed table's ids do not fit the cache key, so the cache is never used")
+	}
+	src, _, sig := benchInput(t)
+	var c LookupCache
+	check := func(it *Token, p2, p1, n int) {
+		if got, want := c.Lookup(tt, it, p2, p1, n), tt.Lookup(it, p2, p1, n); got != want {
+			t.Fatalf("%+v after %d, %d before %d: the cache gives set %d, the walk %d", *it, p2, p1, n, got, want)
+		}
+	}
+	seen := map[string]bool{}
+	for _, r := range sig {
+		v := TokenView{Kind: r.Kind, Text: string(src[r.Start:r.End]), OpensBlock: r.OpensBlock, TermFollows: r.TermFollows}
+		if seen[fmt.Sprint(v)] {
+			continue
+		}
+		seen[fmt.Sprint(v)] = true
+		it := tt.interned(v, none)
+		e := tt.Edge
+		sweep := func() {
+			for id := range len(tt.nbs) + 4 {
+				check(it, id, e, e)
+				check(it, e, id, e)
+				check(it, e, e, id)
+			}
+		}
+		sweep()
+		for _, f := range []*bool{&it.qual, &it.lc, &it.bl, &it.N.OpensBlock, &it.N.TermFollows} {
+			*f = !*f
+			sweep()
+			*f = !*f
+		}
+		for p := range 256 {
+			it.prefix = byte(p)
+			check(it, e, e, e)
 		}
 	}
 }
