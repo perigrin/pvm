@@ -269,8 +269,9 @@ const absentPhrase = "no corpus token matches the key"
 
 // falseAbsences returns, for each reviewed entry whose reason claims absentPhrase, the corpus tokens its key admits
 // compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. srcs is every corpus file's source,
-// whole capture or not.
-func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) []string {
+// whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
+// ratchet, so a run that checks none can be told from one that found nothing false.
+func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) (out []string, checked int) {
 	t.Helper()
 	ids := map[string]int{}
 	for i, n := range names {
@@ -286,9 +287,9 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revi
 	for p, src := range srcs {
 		raws[p] = lexer.Tokenize(src)
 	}
-	var out []string
 	reason := ""
 	for _, l := range strings.Split(reviewed, "\n") {
+		l = strings.TrimSpace(l)
 		if r, ok := strings.CutPrefix(l, "reason:"); ok {
 			reason = r
 			continue
@@ -297,6 +298,7 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revi
 		if !ok || !strings.Contains(reason, absentPhrase) {
 			continue
 		}
+		checked++
 		c := d.Key
 		c.Terminals = []int{ids[d.Terminal]}
 		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
@@ -307,23 +309,27 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revi
 			s, _ := lex.Map(srcs[p], raw, tt)
 			for _, tk := range s.Tokens {
 				if tk.TerminalSet != 0 {
-					out = append(out, fmt.Sprintf("%s admits %s:%d", l, p, raw[tk.Index].Start))
+					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, raw[tk.Index].Start))
 				}
 			}
 		}
 	}
-	return out
+	return out, checked
 }
 
 // TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
 // none, over every corpus file (T1 through T1_CORPUS); about 30 s. A synthetic false claim is caught.
 func TestTDTAbsentReasonsHold(t *testing.T) {
 	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
-	if got := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 {
-		t.Errorf("a false absence claim: %q, want it caught once", got)
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
+		t.Errorf("a false absence claim: %q from %d checked, want it caught once", got, n)
 	}
-	if got := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 {
-		t.Errorf("a reason that claims no absence was checked: %q", got)
+	// A trailing space or CR, which listLines trims for the ratchet, is checked all the same.
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+" \r\n"+numWordKey+" \r\n", src); len(got) != 1 || n != 1 {
+		t.Errorf("a claim with trailing space: %q from %d checked, want it caught once", got, n)
+	}
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 || n != 0 {
+		t.Errorf("a reason that claims no absence was checked: %q from %d", got, n)
 	}
 	if os.Getenv("T1_CORPUS") == "" {
 		t.Skip("T1_CORPUS unset: the corpus is not on this machine")
@@ -349,7 +355,24 @@ func TestTDTAbsentReasonsHold(t *testing.T) {
 	for i, s := range tab.Symbols {
 		names[i] = s.Name
 	}
-	for _, e := range falseAbsences(t, g.Classes, names, string(reviewed), srcs) {
-		t.Errorf("unseen-reviewed.txt claims absence, but the key %s", e)
+	if err := holdAbsences(t, g.Classes, names, string(reviewed), srcs); err != nil {
+		t.Error(err)
 	}
+	// An empty list holds no claim, which must fail rather than pass vacuously.
+	if err := holdAbsences(t, g.Classes, names, "", srcs); err == nil || !strings.Contains(err.Error(), "checked no") {
+		t.Errorf("an empty list: %v, want a failure saying it checked no claim", err)
+	}
+}
+
+// holdAbsences is falseAbsences as a verdict: an error naming every false claim, or one when no claim was checked.
+func holdAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) error {
+	t.Helper()
+	bad, n := falseAbsences(t, decls, names, reviewed, srcs)
+	if n == 0 {
+		return fmt.Errorf("unseen-reviewed.txt: checked no %q claim, so the scan held nothing", absentPhrase)
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("unseen-reviewed.txt claims absence, but:\n%s", strings.Join(bad, "\n"))
+	}
+	return nil
 }
