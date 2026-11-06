@@ -144,11 +144,10 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 
 // isaAfter is the isa feature's state after the use or no statement at raw[i], given on before it, as feature.pm and
 // experimental.pm set it: a feature or experimental statement naming isa, :all or a bundle from :5.35 turns it on (use)
-// or off (no), and a bare `no feature` turns it off; use VERSION turns it on from 5.35 and off from 5.10 to 5.34, as
-// the version's bundle replaces the features named before it.
+// or off (no), and a bare `no feature` turns it off; use VERSION turns it on from 5.35 and off below it, as the
+// version's bundle replaces the features named before it.
 // shortcut: a feature a module or a BEGIN block imports (`BEGIN { feature->import('isa') }`) is not seen, nor one
 // in a string eval; upgrade if a corpus file needs one.
-// shortcut: use VERSION from 5.9.5 to 5.9.x leaves it, where perl turns it off; upgrade if a corpus file holds one.
 func isaAfter(raw []lexer.Token, i int, text string, on bool) bool {
 	use := text[raw[i].Start] == 'u'
 	j := i + 1
@@ -179,7 +178,7 @@ func isaAfter(raw []lexer.Token, i int, text string, on bool) bool {
 	case use && (k == lexer.Number || k == lexer.Quote && (w[0] == 'v' || '0' <= w[0] && w[0] <= '9')):
 		if m := minor(w); m >= 35 {
 			on = true
-		} else if m >= 10 {
+		} else {
 			on = false
 		}
 	}

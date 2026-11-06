@@ -730,6 +730,8 @@ named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is
 too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
 `my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
+`@y = CORE::qw(a b);` and `$y = CORE::q{x};` are refused where perl accepts them: internal/lexer emits a `CORE::`
+quote-like as a word and loose tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves `qw` or `q` with no delimiters.
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
 `terminals-per-token` and `items-per-token` rise by design.
 
@@ -826,12 +828,12 @@ whatever the file's length.
   reads `isa` as a keyword only where the feature is on (keywords.c:353), and elsewhere `Map` gives the word the
   text `grammar.PlainIsa`, which no class names, so `ok(isa Foo('x'))` is an indirect method call and `$x isa Foo`
   is refused. A `use` or `no` statement sets the bit as feature.pm does (`isaAfter`): `feature` or `experimental`
-  naming `isa`, `:all` or a bundle from `:5.35`, a bare `no feature`, and `use VERSION` (on from 5.35, off from
-  5.10 to 5.34). Every `{` saves it and the matching `}` restores it, which is the block scope; a hash's or a
+  naming `isa`, `:all` or a bundle from `:5.35`, a bare `no feature`, and `use VERSION` (on from 5.35, off
+  below it, `use 5.008` and `use 5` included). Every `{` saves it and the matching `}` restores it, which is the block scope; a hash's or a
   subscript's braces save and restore it too, harmlessly, since no `use` stands inside one. The work is a kind
   and length test per token, and a scan of the statement at a `use` or `no`. INTERN's reference reads the same
   statements with regular expressions (`refIsaAfter`). Not seen, each a `shortcut:` in `isaAfter`: a feature a
-  module or a `BEGIN` block imports, or one a string eval turns on, and `use VERSION` from 5.9.5 to 5.9.x.
+  module or a `BEGIN` block imports, or one a string eval turns on.
 
 `lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
 `lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
