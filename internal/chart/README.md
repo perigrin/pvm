@@ -1,47 +1,47 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers the Guacamole corpus, the convergence edits, the chart-ratchet output contract, the lexer lists, the recognizer, and the generated tables. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer and the tables. -->
 
 # internal/chart
 
-An Earley chart parser for Perl, built as a research spike beside the
+An Earley chart recognizer for Perl, built as a research spike beside the
 recursive-descent parser in `internal/parse` and measured against it. The
-design is `docs/plans/2026-10-29-chart-parser-design.md`. Nothing outside the
-spike consumes this tree.
+design is `docs/plans/2026-10-30-chart-parser-v2-design.md` (on the branch
+`docs/chart-parser-v2-design`). Nothing outside the spike consumes this tree.
 
-## Status: stopped by the speed kill
+## Status: waypoint 1, recognizes Perl
 
-The `chart-waypoint` milestone was stopped on 2026-10-30 by its §9 speed
-kill: lexing and recognition ran 3.9–5.0× recursive descent over the corpus,
-against a 3× line. `docs/postmortems/chart-waypoint.md` records why. perigrin
-decided to re-attempt the spike with a grammar ported from `perly.y` over
-`internal/lexer`'s own tokens. The LR(0) generator, the recognizer, Leo and
-the ratchet carry over. Guacamole's grammar, the SLIF reader, the token cut,
-`chart/lex`'s predicate mapping, the observed-conflict probes and the CORE.tpm
-cross-check are removed. The history of what they were is in
-`docs/postmortems/chart-waypoint.md`. The port's grammar grows family by
-family in `grammar/perly.go`, starting from the core rules the first token
-classes need (the program start form, the statement and block spine, the
-expression core and the variable heads) and the port skeleton (the other six
-start forms and `use`/`no` statements). The forest, error recovery,
-`chart/compare` and the oracle adapter were never built.
+This is the spike's second attempt. The first (`chart-waypoint`, design
+`docs/plans/2026-10-29-chart-parser-design.md`) was stopped on 2026-10-30 by
+its speed kill; `docs/postmortems/chart-waypoint.md` records why. Its LR(0)
+generator, recognizer, Leo memos and ratchet comparison carry over; Guacamole's
+grammar, the SLIF reader, the token cut, chart/lex's predicate mapping, the
+conflict probes and the CORE.tpm cross-check are gone. Guacamole's snippets
+stay, as corpus.
 
-**The port is complete** (`ledger-gaps 0`): every `perly.y` alternative is
-ported, fitted or excluded. The five whose actions refuse unconditionally
-(`perly.y:1105`, `1109`, `1541`, `1546`, `1553`, on
-`grammar/testdata/perly/refused-in-action.txt`) are `excluded
-refused-in-action`, and the four comparison chains (`1466`, `1468`, `1484`,
-`1486`) are `refused-by-precedence`. `TestLedgerRefusals` holds, for each,
-`testdata/refusals/<line>/refused.pl`, which the chart refuses (a chain's
-dangling form, `$a <=> $b <=>`), beside `accepted.pl`, a nearby form the
-chart accepts; the pinned perl gives both verdicts.
+Waypoint 1 (spec §9.2) is built, as the milestone `chart-perly-w1`:
 
-**Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`) are
-start rules of `grammar`. The program form is the one a file is recognized
-by, and the only one graded. Each of the other six begins with its `GRAM*`
-selector, a token perl's parser pushes and the lexer never emits, so
-`TestStartForms` puts the selector before the lexed tokens itself, and tests
-each form only on input that lexes the same from statement start:
-`internal/lexer` exports only statement-start states.
+- **the grammar**, `perly.y` at perl blead 94e50866 ported over
+  `internal/lexer`'s own tokens, the port complete (`ledger-gaps 0`; below);
+- **chart/lex**, one table lookup per significant token (`lex`, below);
+- **the recognizer** over terminal-set ids, with the `;` toke.c inserts where
+  a scope ends (`recognize`, below);
+- **perl's verdicts**, the pinned `-DDEBUGGING` perl's labels and its `-DT`
+  tokens aligned with pvm's (`offline/`, `testdata/labels/`, `testdata/tdt/`);
+- **the ratchet**, with spec §9.5's key set and §9.3's speed protocol.
+
+Whether the waypoint's exit holds is what the ratchet and the milestone's
+criteria say, read from a run; speed checkpoint readings are recorded in the
+milestone, not here, since a timing is true only of the run that took it.
+Waypoint 1's speed figure is a lower bound: it can stop the spike, not pass it
+(spec §2).
+
+**Not built.** Waypoint 2 (spec §9.4), refined only after waypoint 1's
+verdict: the forest, the precedence constraint, resolve by scope, the oracle
+and perl.git `t/`. Recognition reads no precedence and, but for the `isa`
+feature, no scope, so a form perl refuses only by precedence
+(`$a <=> $b <=> $c;`) or for want of a declaration is accepted here; the
+sections below name the ones known. Error
+recovery and interleaved lexing (spec §13) are not built either.
 
 ## The Guacamole corpus
 
@@ -113,13 +113,10 @@ retired.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
   `std5k.pl`) keep their bodies in `bench.go`, outside a test file, so the
-  ratchet can run the same code with `testing.Benchmark`. Until the chart
-  recognizes `std5k.pl` (speed checkpoint 1), `BenchmarkRecognize` and
-  `BenchmarkExpected` time only the prefix the grammar reaches, today its
-  first token: Recognize's figure is mostly per-node bookkeeping past the
-  node where the chart dies, and Expected times one position. Both report
-  `nodes-reached` (the first node with no Earley set) beside `nodes`, so a
-  reader can see when the figures start to mean recognition.
+  ratchet can run the same code with `testing.Benchmark`. On a file the chart
+  refuses, `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix
+  the grammar reaches; both report `nodes-reached` (the first node with no
+  Earley set) beside `nodes`.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
@@ -267,9 +264,6 @@ clock and a collector, so it is tested on fake timings
   refused, never kept unchecked. Each excluded file and each corpus's share
   of the aggregate's recursive-descent time are printed on stderr.
 
-Wiring real chart and recursive-descent runs into the protocol is the job of
-the issues that make those keys print a number.
-
 ### The lexer lists
 
 Two lists name the files a lexer defect takes out of the gates (§11):
@@ -303,6 +297,54 @@ that exists and that its byte lies inside it. It never calls `git zhi`, so
 checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
 unset or names no directory, the test fails naming `T1_CORPUS`; it never
 skips, so run it with `T1_CORPUS` set.
+
+## The grammar: `grammar/perly.go`
+
+`grammar/perly.go` holds `perly.y`'s rules as data, one rule per line in
+`perly.y` order, each citing the alternative it implements:
+`lhs: rhs # perly.y:N`, or `# perly.y:N, fitted: <why>` where the rule takes
+what `internal/lexer` emits in place of what toke.c does. The committed
+tables hold 349 rules over 112 nonterminals and 124 terminals.
+
+- **The reference list**, `grammar/testdata/perly/alternatives.txt`, is
+  bison's report of `perly.y` at 94e50866: 348 alternatives over 114
+  nonterminals. `offline/perly-alternatives.sh` regenerates it byte for byte.
+- **The ledger**, `grammar/testdata/perly/ledger.txt`, marks every
+  alternative: 289 ported, 37 fitted, 18 excluded and 4
+  refused-by-precedence. An exclusion's reason is one of the closed list in
+  `grammar/ledger.go`; today 5 `refused-in-action`, 8 `folded-into-token`,
+  2 `keyword-plugin`, 1 `conditional-refusal`, 1 `error-recovery` and 1
+  `interpolation-only`. `TestPortLedger` holds the citations and the ledger
+  equal, and `TestLedgerExclusionReasons` the reasons to the list.
+- **Refusals.** The five alternatives whose actions refuse unconditionally
+  (`perly.y:1105`, `1109`, `1541`, `1546`, `1553`, on
+  `grammar/testdata/perly/refused-in-action.txt`) have no rule, and the four
+  comparison chains (`1466`, `1468`, `1484`, `1486`) are
+  `refused-by-precedence`. `TestLedgerRefusals` holds, for each,
+  `testdata/refusals/<line>/refused.pl`, which the chart refuses (a chain's
+  dangling form, `$a <=> $b <=>`), beside `accepted.pl`, a nearby form the
+  chart accepts; the pinned perl gives both verdicts.
+- **Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`)
+  are start rules. The program form is the one a file is recognized by, and
+  the only one graded. Each of the other six begins with its `GRAM*`
+  selector, a token perl's parser pushes and the lexer never emits, so
+  `TestStartForms` puts the selector before the lexed tokens itself, and tests
+  each form only on input that lexes the same from statement start:
+  `internal/lexer` exports only statement-start states.
+- **Token classes** are declared beside the rules by terminal name, one slot
+  per `%token` in `perly.y`'s order, and compiled into the token table
+  (`grammar/tokens.go`, spec §7). toke.c is the authority for which terminal
+  a token is, cited by line where a class is not plain. Where pvm's key cannot see what toke.c reads,
+  perigrin has ruled extensions of §7, each named in the section that uses
+  it: the neighbour flags `Glob`, `Name`, `Label`, `SortParen` and `Array`;
+  the token's own `Global`, `LineColon` and `Blanks`; the prefixes for a
+  version, a package name and `CORE::`; and the fitted terminals `CAST_*`
+  and `amper: PRIVATEREF`.
+- **Precedence** is declared and ignored by recognition (below).
+
+Each family's section below gives its fits and its known limits. A limit
+carries a `shortcut:` comment in the code and, where a test can reach it, a
+pinned test row that fails when the limit goes.
 
 ### Attribute lists
 
@@ -389,7 +431,7 @@ The other side is under-acceptance: where perl reads them as plain words,
 accepted, as every word is there).
 
 A LABEL is a word with no package separator and a one-byte colon after it on
-its own line (blanks only between), where a statement may start: toke.c's label
+its own line (blanks only between; the word's `LineColon`), where a statement may start: toke.c's label
 scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 `L #c\n: 1;` and `L::M: 1;` are refused.
 
@@ -1083,7 +1125,8 @@ Every line is space-separated numbers and names:
   `node <n> leaf set <id>`, or `node <n> part <part> otherwise <n>` followed
   by one `  <value> -> <n>` line per value that leads elsewhere. A part is
   0 kind, 1 text, 2 `OpensBlock`, 3 `TermFollows`, 4 prefix, 5–7 the
-  classes of the second and first previous and the next token; a text is
+  classes of the second and first previous and the next token, 8 whether a
+  sub's name follows, 9 `Global`, 10 `LineColon` and 11 `Blanks`; a text is
   printed quoted and a neighbour class as its fields. Last, `root <n>`.
 
 These are separate files so that `states.txt` stays under the
