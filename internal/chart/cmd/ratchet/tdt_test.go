@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/lexer"
 )
 
@@ -259,5 +261,95 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 	}
 	if k := keyText(long); len(k) > 100 || keyText(long) != k {
 		t.Errorf("a long NotText renders %d bytes: %q", len(k), k)
+	}
+}
+
+// absentPhrase marks a reviewed tdt-unseen reason that claims the construct is absent from the corpora.
+const absentPhrase = "no corpus token matches the key"
+
+// falseAbsences returns, for each reviewed entry whose reason claims absentPhrase, the corpus tokens its key admits
+// compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. srcs is every corpus file's source,
+// whole capture or not.
+func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) []string {
+	t.Helper()
+	ids := map[string]int{}
+	for i, n := range names {
+		ids[n] = i
+	}
+	byKey := map[string]grammar.ClassDecl{}
+	for _, d := range decls {
+		if k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key)); byKey[k].Terminal == "" {
+			byKey[k] = d
+		}
+	}
+	raws := map[string][]lexer.Token{}
+	for p, src := range srcs {
+		raws[p] = lexer.Tokenize(src)
+	}
+	var out []string
+	reason := ""
+	for _, l := range strings.Split(reviewed, "\n") {
+		if r, ok := strings.CutPrefix(l, "reason:"); ok {
+			reason = r
+			continue
+		}
+		d, ok := byKey[l]
+		if !ok || !strings.Contains(reason, absentPhrase) {
+			continue
+		}
+		c := d.Key
+		c.Terminals = []int{ids[d.Terminal]}
+		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p, raw := range raws {
+			s, _ := lex.Map(srcs[p], raw, tt)
+			for _, tk := range s.Tokens {
+				if tk.TerminalSet != 0 {
+					out = append(out, fmt.Sprintf("%s admits %s:%d", l, p, raw[tk.Index].Start))
+				}
+			}
+		}
+	}
+	return out
+}
+
+// TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
+// none, over every corpus file (T1 through T1_CORPUS); about 30 s. A synthetic false claim is caught.
+func TestTDTAbsentReasonsHold(t *testing.T) {
+	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
+	if got := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 {
+		t.Errorf("a false absence claim: %q, want it caught once", got)
+	}
+	if got := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 {
+		t.Errorf("a reason that claims no absence was checked: %q", got)
+	}
+	if os.Getenv("T1_CORPUS") == "" {
+		t.Skip("T1_CORPUS unset: the corpus is not on this machine")
+	}
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := os.ReadFile(reviewedFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(tab.Symbols))
+	for i, s := range tab.Symbols {
+		names[i] = s.Name
+	}
+	for _, e := range falseAbsences(t, g.Classes, names, string(reviewed), srcs) {
+		t.Errorf("unseen-reviewed.txt claims absence, but the key %s", e)
 	}
 }

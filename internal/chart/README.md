@@ -170,7 +170,10 @@ To take a baseline after an intended change, run
   where `lexer-rooted.txt` skips one token in the width check, so a file the
   chart recognizes keeps its place in the population. A listed byte where no
   token starts is an error, and so is a reviewed tdt-unseen entry for a pair
-  that is seen, whose reason no longer holds.
+  that is seen, whose reason no longer holds. A reason saying "no corpus
+  token matches the key" is held to a scan of every corpus file with the key
+  compiled alone (`TestTDTAbsentReasonsHold`, about 30 s, run when
+  `T1_CORPUS` is set).
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).

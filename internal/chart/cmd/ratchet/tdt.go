@@ -320,7 +320,7 @@ var fittedNames = []string{"PRIVATEREF", "KW_SUB_named"}
 // fit is whether the chart's terminal name stands for p as a fitted terminal keyed by p's family (perigrin's rulings
 // "Extend fitted-terminal"): PRIVATEREF, perly.y:1842's fit for a word before a (, stands for toke.c's zero-width & and
 // the name, which the noamp family aligns as the name with PERLY_AMPERSAND folded onto it, and for the one BAREWORD
-// toke.c folds a constant sub's NAME() into (constant-sub, yyl_constant_op via toke.c:8197-8200); KW_SUB_named on a
+// toke.c folds a constant sub's NAME() into (constant-sub, yyl_constant_op via toke.c:8202); KW_SUB_named on a
 // statement word, perly.y:638's fit, stands for the KW_SUB_named toke.c returns before the name and the phaser family
 // folds onto it (toke.c:8315), and for its KW_SUB_named_sig under signatures, which the chart does not track
 // (perigrin: "Both stand").

@@ -193,13 +193,11 @@ MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:HeredocOpen Text: OpensBlock:fal
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Quote Text:\x00ident-quote OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Quote Text:\x00ident-quote OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#1:30bf0e8f1ee04
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#1:30bf0e8f1ee04
-MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#18:733efa7b8a10
-MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:BEGIN OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be
@@ -214,6 +212,8 @@ MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:INIT OpensBlock:false 
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:INIT OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:UNITCHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:UNITCHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69
+MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#18:733efa7b8a10
+MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:__CLASS__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:__FILE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prefix="C" Prev1={Kind:Word Text:__LINE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -357,7 +357,6 @@ BAREWORD Kind=Number Prefix="L" Prev1={Kind:Word Text:use OpensBlock:false TermF
 BAREWORD Kind=Number Prefix="L" Prev2={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526 NotNext=#43:bbe4a05fc724
 BAREWORD Kind=Number Prefix="L" Prev2={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526 NotNext=#43:bbe4a05fc724
 BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Number Prefix="S" Prev2={Kind:Word Text:class OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526
@@ -402,7 +401,6 @@ BAREWORD Kind=Quote Prefix="4" Prev1={Kind:Word Text:use OpensBlock:false TermFo
 BAREWORD Kind=Quote Prefix="4" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="4" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="6" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -438,7 +436,6 @@ BAREWORD Kind=Quote Prefix="9" Prev1={Kind:Word Text:use OpensBlock:false TermFo
 BAREWORD Kind=Quote Prefix="9" Prev2={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526 NotNext=#43:bbe4a05fc724
 BAREWORD Kind=Quote Prefix="9" Prev2={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526 NotNext=#43:bbe4a05fc724
 BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
@@ -507,7 +504,6 @@ BAREWORD Kind=Word Text="UNITCHECK" Prev1={Kind:Word Text:next OpensBlock:false 
 BAREWORD Kind=Word Text="UNITCHECK" Prev1={Kind:Word Text:redo OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Word Text="UNITCHECK" Prev1={Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 FUNC0SUB Kind=Word Text="AUTOLOAD" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
-FUNC0SUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 FUNC0SUB Kind=Word Text="CHECK" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 FUNC0SUB Kind=Word Text="DESTROY" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 FUNC0SUB Kind=Word Text="END" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
@@ -531,7 +527,6 @@ METHCALL Kind=Word Text="AUTOLOAD" Prefix="\x00" Next={Kind:Word Text:\x00other-
 METHCALL Kind=Word Text="BEGIN" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL Kind=Word Text="CHECK" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL Kind=Word Text="DESTROY" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-METHCALL Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="AUTOLOAD" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:3 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -548,7 +543,6 @@ METHCALL0 Kind=Word Text="DESTROY" Prefix="\x00" Next={Kind:Variable Text: Opens
 METHCALL0 Kind=Word Text="DESTROY" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:3 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:false TermFollows:false Brace:3 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -556,7 +550,6 @@ METHCALL0 Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Operator Text:{ Op
 METHCALL0 Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 NOAMP Kind=Word Text="AUTOLOAD" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
-NOAMP Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 NOAMP Kind=Word Text="CHECK" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 NOAMP Kind=Word Text="DESTROY" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 NOAMP Kind=Word Text="END" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
@@ -569,7 +562,6 @@ PRIVATEREF Kind=Word Text="END" Prefix="\x00" Next={Kind:Operator Text:( OpensBl
 PRIVATEREF Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 PRIVATEREF Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 UNIOPSUB Kind=Word Text="AUTOLOAD" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
-UNIOPSUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 UNIOPSUB Kind=Word Text="CHECK" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 UNIOPSUB Kind=Word Text="DESTROY" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 UNIOPSUB Kind=Word Text="END" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
@@ -593,9 +585,6 @@ FUNC Kind=Word Text="any" Next={Kind:Operator Text:( OpensBlock:false TermFollow
 
 reason: construct absent from the corpora, no corpus token matches the key: `chown` as FUNC in this slot
 FUNC Kind=Word Text="chown" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
-reason: construct absent from the corpora, no corpus token matches the key: `crypt` as FUNC in this slot
-FUNC Kind=Word Text="crypt" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `dbmopen` as FUNC in this slot
 FUNC Kind=Word Text="dbmopen" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -627,9 +616,6 @@ FUNC Kind=Word Text="getservbyport" Next={Kind:Operator Text:( OpensBlock:false 
 reason: construct absent from the corpora, no corpus token matches the key: `ioctl` as FUNC in this slot
 FUNC Kind=Word Text="ioctl" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `kill` as FUNC in this slot
-FUNC Kind=Word Text="kill" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
 reason: construct absent from the corpora, no corpus token matches the key: `link` as FUNC in this slot
 FUNC Kind=Word Text="link" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
@@ -651,14 +637,8 @@ FUNC Kind=Word Text="msgsnd" Next={Kind:Operator Text:( OpensBlock:false TermFol
 reason: construct absent from the corpora, no corpus token matches the key: `opendir` as FUNC in this slot
 FUNC Kind=Word Text="opendir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `printf` as FUNC in this slot
-FUNC Kind=Word Text="printf" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
 reason: construct absent from the corpora, no corpus token matches the key: `rindex` as FUNC in this slot
 FUNC Kind=Word Text="rindex" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
-reason: construct absent from the corpora, no corpus token matches the key: `say` as FUNC in this slot
-FUNC Kind=Word Text="say" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `seekdir` as FUNC in this slot
 FUNC Kind=Word Text="seekdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -768,9 +748,6 @@ FUNC0 Kind=Word Text="setpwent" NotNext={Kind:Operator Text:=> OpensBlock:false 
 reason: construct absent from the corpora, no corpus token matches the key: `times` as FUNC0 in this slot
 FUNC0 Kind=Word Text="times" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `chdir` as FUNC1 in this slot
-FUNC1 Kind=Word Text="chdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
 reason: construct absent from the corpora, no corpus token matches the key: `chroot` as FUNC1 in this slot
 FUNC1 Kind=Word Text="chroot" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
@@ -785,9 +762,6 @@ FUNC1 Kind=Word Text="delete" Next={Kind:Operator Text:( OpensBlock:false TermFo
 
 reason: construct absent from the corpora, no corpus token matches the key: `each` as FUNC1 in this slot
 FUNC1 Kind=Word Text="each" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
-reason: construct absent from the corpora, no corpus token matches the key: `exit` as FUNC1 in this slot
-FUNC1 Kind=Word Text="exit" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `getgrnam` as FUNC1 in this slot
 FUNC1 Kind=Word Text="getgrnam" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -858,23 +832,11 @@ FUNC1 Kind=Word Text="untie" Next={Kind:Operator Text:( OpensBlock:false TermFol
 reason: construct absent from the corpora, no corpus token matches the key: `values` as FUNC1 in this slot
 FUNC1 Kind=Word Text="values" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `default` as KW_DEFAULT in this slot
-KW_DEFAULT Kind=Word Text="default" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
 reason: construct absent from the corpora, no corpus token matches the key: `finally` as KW_FINALLY in this slot
 KW_FINALLY Kind=Word Text="finally" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `given` as KW_GIVEN in this slot
-KW_GIVEN Kind=Word Text="given" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
-reason: construct absent from the corpora, no corpus token matches the key: `when` as KW_WHEN in this slot
-KW_WHEN Kind=Word Text="when" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
 reason: construct absent from the corpora, no corpus token matches the key: `bind` as LSTOP in this slot
 LSTOP Kind=Word Text="bind" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `chown` as LSTOP in this slot
-LSTOP Kind=Word Text="chown" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `connect` as LSTOP in this slot
 LSTOP Kind=Word Text="connect" NotNext=#2:c96cd92cd7e0e
@@ -890,9 +852,6 @@ LSTOP Kind=Word Text="fcntl" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `flock` as LSTOP in this slot
 LSTOP Kind=Word Text="flock" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `formline` as LSTOP in this slot
-LSTOP Kind=Word Text="formline" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `gethostbyaddr` as LSTOP in this slot
 LSTOP Kind=Word Text="gethostbyaddr" NotNext=#2:c96cd92cd7e0e
@@ -917,15 +876,6 @@ LSTOP Kind=Word Text="getsockopt" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `index` as LSTOP in this slot
 LSTOP Kind=Word Text="index" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `ioctl` as LSTOP in this slot
-LSTOP Kind=Word Text="ioctl" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `kill` as LSTOP in this slot
-LSTOP Kind=Word Text="kill" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `link` as LSTOP in this slot
-LSTOP Kind=Word Text="link" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `listen` as LSTOP in this slot
 LSTOP Kind=Word Text="listen" NotNext=#2:c96cd92cd7e0e
@@ -993,26 +943,11 @@ LSTOP Kind=Word Text="shutdown" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `socket` as LSTOP in this slot
 LSTOP Kind=Word Text="socket" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `socketpair` as LSTOP in this slot
-LSTOP Kind=Word Text="socketpair" NotNext=#2:c96cd92cd7e0e
-
 reason: construct absent from the corpora, no corpus token matches the key: `syscall` as LSTOP in this slot
 LSTOP Kind=Word Text="syscall" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `sysopen` as LSTOP in this slot
-LSTOP Kind=Word Text="sysopen" NotNext=#2:c96cd92cd7e0e
-
 reason: construct absent from the corpora, no corpus token matches the key: `sysseek` as LSTOP in this slot
 LSTOP Kind=Word Text="sysseek" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `syswrite` as LSTOP in this slot
-LSTOP Kind=Word Text="syswrite" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `truncate` as LSTOP in this slot
-LSTOP Kind=Word Text="truncate" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `utime` as LSTOP in this slot
-LSTOP Kind=Word Text="utime" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `x` as MULOP in this slot
 MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1023,8 +958,6 @@ MULOP Kind=Word Text="x" Prev1={Kind:Operator Text:-- OpensBlock:false TermFollo
 MULOP Kind=Word Text="x" Prev1={Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#1:30bf0e8f1ee04 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} NotPrev2=#1:30bf0e8f1ee04 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#18:733efa7b8a10 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:BEGIN OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1039,6 +972,7 @@ MULOP Kind=Word Text="x" Prev1={Kind:Word Text:INIT OpensBlock:false TermFollows
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:INIT OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:UNITCHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:UNITCHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#18:733efa7b8a10 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:__CLASS__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:__FILE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:__LINE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1070,10 +1004,6 @@ MULOP Kind=Word Text="x" Prev1={Kind:Word Text:wantarray OpensBlock:false TermFo
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:x OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev2={Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev2={Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prev2={Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-
-reason: construct absent from the corpora, no corpus token matches the key: `~~` as NCEQOP in this slot
-NCEQOP Kind=Operator Text="~~"
 
 reason: construct absent from the corpora, no corpus token matches the key: `^^` as OROR in this slot
 OROR Kind=Operator Text="^^"
@@ -1086,7 +1016,6 @@ PRIVATEREF Kind=Word Text="CORE" Prev1={Kind:Word Text:do OpensBlock:false TermF
 
 reason: construct absent from the corpora, no corpus token matches the key: a v-string without its v (1.2.3) as a term (scan_num, toke.c:13135-13137)
 THING Kind=Quote Prefix="0" NotPrev2=#2:279a67fa5bcce
-THING Kind=Quote Prefix="1" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="2" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="3" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="4" NotPrev2=#2:279a67fa5bcce
@@ -1163,9 +1092,6 @@ UNIOP Kind=Word Text="cos" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `dbmclose` as UNIOP in this slot
 UNIOP Kind=Word Text="dbmclose" NotNext=#2:c96cd92cd7e0e
-
-reason: construct absent from the corpora, no corpus token matches the key: `eof` as UNIOP in this slot
-UNIOP Kind=Word Text="eof" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `exp` as UNIOP in this slot
 UNIOP Kind=Word Text="exp" NotNext=#2:c96cd92cd7e0e
@@ -1321,3 +1247,67 @@ NOAMP Kind=Word Prefix="\x00" NotText=#266:29e824fefb9 NotPrev1=#18:733efa7b8a10
 
 reason: construct absent from the corpora: x as repetition after a block-closing }; the one corpus x this key admits is a call x(123) at a statement start (autoload.t)
 MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-032.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-033.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl, internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl, internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$P::{BEGIN}` at pr709_core_regressions.t:511, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
+FUNC0SUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
+NOAMP Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
+UNIOPSUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
+
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `goto END` at control_flow.t:8713, the label after goto, which toke.c reads as BAREWORD
+METHCALL Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/taint_mode.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+FUNC Kind=Word Text="crypt" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+FUNC Kind=Word Text="printf" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+KW_GIVEN Kind=Word Text="given" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+KW_WHEN Kind=Word Text="when" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+LSTOP Kind=Word Text="chown" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="formline" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="ioctl" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="kill" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="link" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="sysopen" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="truncate" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="utime" NotNext=#2:c96cd92cd7e0e
+NCEQOP Kind=Operator Text="~~"
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/threads_api_phase29.t, T1/threads_lifecycle_unadvertised.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+FUNC Kind=Word Text="kill" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/text_csv.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+FUNC Kind=Word Text="say" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/taint_cwd.t, T1/taint_filespec.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+FUNC1 Kind=Word Text="chdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/threads_lifecycle_unadvertised.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+FUNC1 Kind=Word Text="exit" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `{default}` at encode_export_tags.t 451 and 746, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679); one more, taint_mode.t:12556, is in a file perl does not capture whole
+KW_DEFAULT Kind=Word Text="default" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/cpan_tooling_runtime.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+LSTOP Kind=Word Text="socketpair" NotNext=#2:c96cd92cd7e0e
+LSTOP Kind=Word Text="syswrite" NotNext=#2:c96cd92cd7e0e
+
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `sub x {` at autoload.t:71 and Statements-SubStatement-086.pl:25, a sub's name after sub, which toke.c reads as BAREWORD (yyl_sub, toke.c:5874)
+MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$a->{x}` at hash_autovivification.t 4878, 5025 and 5098 and tie_autovivification.t:3486, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
+MULOP Kind=Word Text="x" Prev2={Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
+
+reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl, internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+THING Kind=Quote Prefix="1" NotPrev2=#2:279a67fa5bcce
+
+reason: the tokens this key matches are only in files perl does not capture whole (T1/html_parser_default_handler.t, T1/html_parser_literal_eof.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
+UNIOP Kind=Word Text="eof" NotNext=#2:c96cd92cd7e0e
