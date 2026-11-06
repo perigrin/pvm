@@ -12,8 +12,8 @@ import (
 
 // signaturesLines are the perly.y alternatives this family ports, and 1089 (a parameter's name), which is
 // excluded as folded into the sigil's token. 1105 and 1109 (a slurpy parameter with a default) and 1546 (an
-// anonymous sub with no body) refuse unconditionally in their actions: they stay unmarked, left for the
-// issue that completes the port, which marks them and writes their refusal tests.
+// anonymous sub with no body) refuse unconditionally in their actions: they are left to the issue that
+// completes the port, which marks them excluded refused-in-action and holds their refusals in TestLedgerRefusals.
 var signaturesLines = []int{608, 768, 894, 1087, 1089, 1094, 1096, 1100, 1105, 1109, 1115, 1117, 1123, 1133, 1146, 1148,
 	1153, 1155, 1163, 1164, 1165, 1171, 1176, 1177, 1181, 1236, 1237, 1241, 1543, 1546}
 
