@@ -1257,12 +1257,12 @@ BAREWORD Kind=Quote Prefix="5" Prev1={Kind:Word Text:no OpensBlock:false TermFol
 reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-034.pl, internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-035.pl, internal/chart/testdata/guacamole/parses/Statements-UseNoStatement-036.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$P::{BEGIN}` at pr709_core_regressions.t:511, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$P::{BEGIN}` at T1/pr709_core_regressions.t 511, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
 FUNC0SUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 NOAMP Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 UNIOPSUB Kind=Word Text="BEGIN" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `goto END` at control_flow.t:8713, the label after goto, which toke.c reads as BAREWORD
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `goto END` at T1/control_flow.t 8713, the label after goto, which toke.c reads as BAREWORD
 METHCALL Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
@@ -1293,17 +1293,17 @@ FUNC1 Kind=Word Text="chdir" Next={Kind:Operator Text:( OpensBlock:false TermFol
 reason: the tokens this key matches are only in files perl does not capture whole (T1/threads_lifecycle_unadvertised.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 FUNC1 Kind=Word Text="exit" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `{default}` at encode_export_tags.t 451 and 746, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679); one more, taint_mode.t:12556, is in a file perl does not capture whole
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `{default}` at T1/encode_export_tags.t 451 and T1/encode_export_tags.t 746, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679); one more, T1/taint_mode.t 12556, is in a file perl does not capture whole
 KW_DEFAULT Kind=Word Text="default" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: the tokens this key matches are only in files perl does not capture whole (T1/cpan_tooling_runtime.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 LSTOP Kind=Word Text="socketpair" NotNext=#2:c96cd92cd7e0e
 LSTOP Kind=Word Text="syswrite" NotNext=#2:c96cd92cd7e0e
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `sub x {` at autoload.t:71 and Statements-SubStatement-086.pl:25, a sub's name after sub, which toke.c reads as BAREWORD (yyl_sub, toke.c:5874)
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `sub x {` at T1/autoload.t 71 and internal/chart/testdata/guacamole/parses/Statements-SubStatement-086.pl 25, a sub's name after sub, which toke.c reads as BAREWORD (yyl_sub scans it at toke.c:5874 and forces it through force_ident_maybe_lex at toke.c:5969)
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$a->{x}` at hash_autovivification.t 4878, 5025 and 5098 and tie_autovivification.t:3486, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
+reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$a->{x}` at T1/hash_autovivification.t 4878, T1/hash_autovivification.t 5025, T1/hash_autovivification.t 5098 and T1/tie_autovivification.t 3486, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
 MULOP Kind=Word Text="x" Prev2={Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl, internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
