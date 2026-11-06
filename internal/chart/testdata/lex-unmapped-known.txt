@@ -103,4 +103,12 @@ T1/zzzz_makemaker_test_heap_override.t 116 01a1ad1d-bc7b
 T1/zzzz_prototype_leading_dot_method_arg.t 102 01a1ad1d-bc7b
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-001.pl 29 01a1ad1d-bc7b
 internal/chart/testdata/guacamole/parsent/Statements-Expressions-OpListKeywordExpr-OpKeywordSprintfExpr-002.pl 29 01a1ad1d-bc7b
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-002.pl 27 01a1af7c-3b65
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-003.pl 27 01a1af7c-3b65
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-008.pl 27 01a1af7c-3b65
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-ArrowDerefVariable-009.pl 27 01a1af7c-3b65
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-006.pl 21 01a1af7c-3b8b
+internal/chart/testdata/guacamole/parsent/Statements-Expressions-Value-NonLiteral-DiamondExpr-008.pl 21 01a1af7c-3b8b
 internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-Literal-063.pl 28 01a1ad1d-bc7b
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-011.pl 28 01a1af7c-3b8b
+internal/chart/testdata/guacamole/parses/Statements-Expressions-Value-NonLiteral-DiamondExpr-012.pl 40 01a1af7c-3b8b
