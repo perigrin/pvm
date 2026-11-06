@@ -200,3 +200,64 @@ func TestTDTFixturesRefusesMalformed(t *testing.T) {
 		})
 	}
 }
+
+// reasonErrors returns one message per entry of a reviewed list that carries no stated reason. In unseen-reviewed.txt
+// an entry takes the nearest `reason:` line above it, which must say something; a fitting-families.txt line is
+// `<family> <toke.c citation> <the shape it folds>`.
+func reasonErrors(text string, families bool) []string {
+	var out []string
+	reason := ""
+	for n, l := range strings.Split(text, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "#") {
+			continue
+		}
+		if families {
+			if f := strings.Fields(l); len(f) < 3 || !strings.HasPrefix(f[1], "toke.c:") {
+				out = append(out, fmt.Sprintf("line %d: family %q carries no toke.c citation and shape", n+1, f[0]))
+			}
+			continue
+		}
+		if r, ok := strings.CutPrefix(l, "reason:"); ok {
+			if reason = strings.TrimSpace(r); reason == "" {
+				out = append(out, fmt.Sprintf("line %d: an empty reason", n+1))
+			}
+			continue
+		}
+		if reason == "" {
+			out = append(out, fmt.Sprintf("line %d: %q has no reason above it", n+1, l))
+		}
+	}
+	return out
+}
+
+// TestTDTReviewedListsHaveReasons: every reviewed tdt-unseen entry and every fitting family states its reason, so neither
+// list can be filled to make a count zero; the committed lists pass and synthetic entries without one fail.
+func TestTDTReviewedListsHaveReasons(t *testing.T) {
+	for _, f := range []string{"unseen-reviewed.txt", "fitting-families.txt"} {
+		data, err := os.ReadFile(filepath.Join(tdtDir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if errs := reasonErrors(string(data), f == "fitting-families.txt"); len(errs) > 0 {
+			t.Errorf("%s: %q", f, errs)
+		}
+	}
+	for _, c := range []struct {
+		text     string
+		families bool
+		bad      bool
+	}{
+		{"THING Kind=Quote\n", false, true},
+		{"reason:\nTHING Kind=Quote\n", false, true},
+		{"reason: construct absent from the corpora: v1.2\nTHING Kind=Quote\nTHING Kind=Number\n", false, false},
+		{"label\n", true, true},
+		{"label toke.c:9396\n", true, true},
+		{"label LABEL carries its colon\n", true, true},
+		{"label toke.c:9396 LABEL carries its colon\n", true, false},
+	} {
+		if got := len(reasonErrors(c.text, c.families)) > 0; got != c.bad {
+			t.Errorf("reasonErrors(%q, %v) reports %v, want %v", c.text, c.families, got, c.bad)
+		}
+	}
+}
