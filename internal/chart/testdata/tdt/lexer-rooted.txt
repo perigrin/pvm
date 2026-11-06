@@ -102,7 +102,7 @@ T1/mro_mixed.t 7906 01a1ad1d-bc7b
 T1/nested_heredoc.t 1821 01a1a846-5aea
 T1/nested_heredoc.t 2141 01a1a846-5aea
 T1/nested_heredoc.t 2149 01a1a846-5aea
-T1/nested_heredoc.t 2526 01a1a846-5aea
+T1/nested_heredoc.t 2526 01a1af25-7fc7
 T1/nested_heredoc.t 3138 01a1a846-5aea
 T1/operator_overrides.t 5679 01a1ad1d-bc96
 T1/operator_overrides.t 5837 01a1ad1d-bc96
