@@ -74,6 +74,9 @@ func TestPortIndirectObjectsSuperposition(t *testing.T) {
 		{"$y = &foo(1);", 6, []string{"BAREWORD", "PRIVATEREF"}, nil},
 		{"$y = *foo;", 6, []string{"BAREWORD"}, []string{"PRIVATEREF"}},
 		{"print STDERR 1;", 6, []string{"BAREWORD"}, []string{"PRIVATEREF"}},
+		// intuit_method forces the word after a method name to BAREWORD before it looks at a ( after it (toke.c:5138-5140),
+		// and scope decides whether it is that or a call: both.
+		{"$y = new Foo(1);", 9, []string{"BAREWORD", "PRIVATEREF"}, nil},
 	} {
 		got := terminalsAt(t, tc.src, tc.at)
 		for _, w := range tc.want {

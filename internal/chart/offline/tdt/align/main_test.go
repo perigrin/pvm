@@ -233,3 +233,81 @@ func TestAlignReturnIsUnreported(t *testing.T) {
 		}
 	}
 }
+
+// TestAlignAmendment2: the families TDTALIGN amendment 2 adds. A constant called with () is one toke.c token, so its
+// () is constant-parens and the comma after it still pairs; a string constant's word is constant-string; the my or
+// our before sub, and an our sub's package-qualified name, are lexical-sub. Streams are the pinned perl's -DT.
+func TestAlignAmendment2(t *testing.T) {
+	for _, c := range []struct {
+		src, stream string
+		want        map[string]string
+	}{
+		{"sub F () { 1 } my $x = F(), 2;",
+			"KW_SUB_named\nBAREWORD\tPV(\"F\"\\0)\nPROTOTYPE\tPVIV(\"\"\\0)\nPERLY_BRACE_OPEN\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nKW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$x\nASSIGNOP\top_null\nBAREWORD\tIV(1)\nPERLY_COMMA\nTHING\tIV(2)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			map[string]string{"(": "- constant-parens", ")": "- constant-parens", ",": "PERLY_COMMA"}},
+		// Matched rather than passed over, the () would tie the comma and the ) at one distance and lose both.
+		{"sub F () { 1 } g(F(),);",
+			"KW_SUB_named\nBAREWORD\tPV(\"F\"\\0)\nPROTOTYPE\tPVIV(\"\"\\0)\nPERLY_BRACE_OPEN\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_AMPERSAND\nBAREWORD\tPV(\"g\"\\0)\nPERLY_PAREN_OPEN\nBAREWORD\tIV(1)\nPERLY_COMMA\nPERLY_PAREN_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			map[string]string{",": "PERLY_COMMA", "F": "BAREWORD constant-sub"}},
+		{"sub C () { \"v\" } my $x = C . 1;",
+			"KW_SUB_named\nBAREWORD\tPV(\"C\"\\0)\nPROTOTYPE\tPVIV(\"\"\\0)\nPERLY_BRACE_OPEN\nTHING\tPV(\"v\"\\0)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nKW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$x\nASSIGNOP\top_null\nBAREWORD\tPV(\"v\"\\0)\nADDOP\top_concat\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			map[string]string{"C": "- constant-string", ".": "ADDOP"}},
+		{"my sub f { 1 } our sub g; f(&g);",
+			"KW_SUB_named\nPRIVATEREF\t&f\nPERLY_BRACE_OPEN\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nKW_SUB_named\nBAREWORD\tPV(\"main::g\"\\0)\nPERLY_SEMICOLON\nPERLY_AMPERSAND\nPRIVATEREF\top_padany\nPERLY_PAREN_OPEN\nPERLY_AMPERSAND\nBAREWORD\tPV(\"main::g\"\\0)\nPERLY_PAREN_CLOSE\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			map[string]string{"my": "- lexical-sub", "our": "- lexical-sub"}},
+	} {
+		got := aligned(t, c.src, c.stream)
+		for k, w := range c.want {
+			if got[k] != w {
+				t.Errorf("%s: %q is %q, want %q", c.src, k, got[k], w)
+			}
+		}
+	}
+	// A word whose unit is not a constant's value stays unexplained.
+	if got := aligned(t, "foo;", "THING\tIV(3)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n"); got["foo"] != "-" {
+		t.Errorf("foo: %q, want unaligned with no family", got["foo"])
+	}
+}
+
+// TestRelabel: a listed file's unaligned lines inside its span take its family, and nothing else changes.
+func TestRelabel(t *testing.T) {
+	lines := []string{"333 334 PERLY_PAREN_OPEN", "334 341 -", "343 344 - label", "353 361 -"}
+	relabel("T1/attribute_method_named_sub_deparse.t", lines)
+	want := []string{"333 334 PERLY_PAREN_OPEN", "334 341 - attribute-resync", "343 344 - label", "353 361 -"}
+	if strings.Join(lines, "|") != strings.Join(want, "|") {
+		t.Errorf("relabel = %q, want %q", lines, want)
+	}
+	other := []string{"0 3 -"}
+	relabel("T1/other.t", other)
+	if other[0] != "0 3 -" {
+		t.Errorf("an unlisted file changed: %q", other)
+	}
+}
+
+// TestAlignAmendment3: TDTALIGN amendment 3's matching rules, each pairing a token the aligner left unaligned: ~.
+// under the bitwise feature is PERLY_TILDE; Legacy'Package is toke.c's Legacy::Package; $main_x keeps its name, as
+// main:: alone is a qualifier; whitespace may follow the sigil; and a heredoc body opened inside an interpolated string
+// is that string's. Streams are the pinned perl's -DT.
+func TestAlignAmendment3(t *testing.T) {
+	for _, c := range []struct{ src, stream, tok, want string }{
+		{"use feature 'bitwise'; my $s = ~. $x;",
+			"KW_USE_or_NO\nBAREWORD\nBAREWORD\tPV(\"feature\"\\0)\nTHING\tPV(\"bitwise\"\\0)\nPERLY_SEMICOLON\nKW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$s\nASSIGNOP\top_null\nPERLY_TILDE\nPERLY_DOLLAR\nBAREWORD\tPV(\"x\"\\0)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"~.", "PERLY_TILDE"},
+		{"package Legacy'Package; 1;",
+			"KW_PACKAGE\nBAREWORD\nBAREWORD\tPV(\"Legacy::Package\"\\0)\nPERLY_SEMICOLON\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"Legacy'Package", "BAREWORD"},
+		{"my $main_x = 1;",
+			"KW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$main_x\nASSIGNOP\top_null\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"$main_x", "PERLY_DOLLAR variable PRIVATEREF"},
+		{"$ x = 1;",
+			"PERLY_DOLLAR\nBAREWORD\tPV(\"x\"\\0)\nASSIGNOP\top_null\nTHING\tIV(1)\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"$ x", "PERLY_DOLLAR variable BAREWORD"},
+		{"my $v = \"x @{[ <<EOT ]} x\";\nHERE\nEOT\n",
+			"KW_MY\nPERLY_DOLLAR\nPRIVATEREF\t$v\nASSIGNOP\top_null\nFUNC\top_stringify\nSUBLEXSTART\nTHING\tPV(\"x \"\\0)\nADDOP\top_concat\nFUNC\top_join\nPERLY_PAREN_OPEN\nPERLY_DOLLAR\nBAREWORD\tPV(\"\\\"\"\\0)\nPERLY_COMMA\nPERLY_SNAIL\nPERLY_BRACE_OPEN\nPERLY_BRACKET_OPEN\nFUNC\top_scalar\nSUBLEXSTART\nTHING\tPV(\"HERE\\n\"\\0)\nSUBLEXEND\nPERLY_BRACKET_CLOSE\nPERLY_SEMICOLON\nPERLY_BRACE_CLOSE\nPERLY_PAREN_CLOSE\nADDOP\top_concat\nTHING\tPV(\" x\"\\0)\nSUBLEXEND\nPERLY_SEMICOLON\nPERLY_SEMICOLON\n",
+			"HERE\nEOT\n", "FUNC heredoc"},
+	} {
+		if got := aligned(t, c.src, c.stream)[c.tok]; got != c.want {
+			t.Errorf("%q: %q is %q, want %q", c.src, c.tok, got, c.want)
+		}
+	}
+}

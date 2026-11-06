@@ -39,6 +39,27 @@ func TestPortTerms(t *testing.T) {
 	}
 }
 
+// A v-string is a THING wherever a term stands (toke.c:9879-9887, and scan_num's two dots, toke.c:13135-13137), and
+// the version, never a term, after use MODULE.
+func TestPortTermsVString(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		at   int
+		want bool
+	}{
+		{"$y = v1.2.3;", 5, true}, {"$y = 1.2.3;", 5, true}, {"print v65.66;", 6, true}, {"use Foo v1.2;", 8, false},
+	} {
+		if got := slices.Contains(terminalsAt(t, tc.src, tc.at), "THING"); got != tc.want {
+			t.Errorf("%q at %d: THING %v, want %v", tc.src, tc.at, got, tc.want)
+		}
+	}
+	for _, src := range []string{"my @a = (v1.2.3, 4.5.6);", "print v65.66;", "$y = v1.2 x 3;"} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d (expected %v)", src, v.at, v.expected)
+		}
+	}
+}
+
 func TestPortTermsRefusals(t *testing.T) {
 	rows := map[string]struct {
 		at        string // the refused byte is the first occurrence of this text, the last after a ^; "" is end of file

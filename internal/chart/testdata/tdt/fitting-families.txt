@@ -17,3 +17,8 @@ constant-sub toke.c:7947 yyl_constant_op inlines a constant sub's value as the B
 label toke.c:9396 LABEL carries the label with its colon; pvm's separate `:` is explained by it
 attribute toke.c:6573 COLONATTR then one ATTRLIST for every attribute after it, arguments inside its value; pvm's further words, colons and parenthesised arguments are explained by it
 unreported-return toke.c:387 OLDLOP returns `return`'s LSTOP without -DT's report, so no token is captured for pvm's `return`
+constant-parens toke.c:8202 yyl_just_a_word inlines a constant sub called with an empty list, its ( and ) included, so pvm's ( and ) after the constant's name have no token of their own: unaligned, explained by the constant (TDTALIGN amendment 2)
+constant-string toke.c:7946 yyl_constant_op puts a constant sub's string value in place of the BAREWORD's name, so pvm's word cannot pair by its text: unaligned, with that BAREWORD the one toke.c token beside it (TDTALIGN amendment 2)
+lexical-sub toke.c:7579 yyl_my reads the my, our or state before sub and calls yyl_sub with no token of its own; and an our sub's name, where pending_ident (toke.c:10310) delivers it package-qualified: unaligned (TDTALIGN amendment 2)
+source-filter toke.c:5268 a source filter (filter_read) rewrites the source as toke.c reads it, so pvm's tokens of the text it replaced have none: unaligned, named per file in the aligner's relabeled list (TDTALIGN amendment 2)
+attribute-resync toke.c:6573 an ATTRLIST's value holds the attribute's argument, so the aligner pairs pvm's ( inside `ATTR(RAWDATA)` with toke.c's next ( and loses the tokens between: unaligned, named per span in the aligner's relabeled list (TDTALIGN amendment 2)

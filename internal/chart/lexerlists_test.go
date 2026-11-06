@@ -1,4 +1,4 @@
-// ABOUTME: Holds the two lexer lists, lex-unmapped-known.txt and lexer-defects.txt, to their entry form.
+// ABOUTME: Holds the lexer lists, lex-unmapped-known.txt, lexer-defects.txt and tdt/lexer-rooted.txt, to their entry form.
 // ABOUTME: Each entry is `<path> <byte> <issue ref>`, the path a corpus file (T1 via T1_CORPUS), the byte inside it.
 
 package chart
@@ -87,7 +87,7 @@ func lexerListErrors(name, list, root, t1 string) []string {
 
 func TestLexerLists(t *testing.T) {
 	t1 := os.Getenv("T1_CORPUS")
-	for _, name := range []string{"lex-unmapped-known.txt", "lexer-defects.txt"} {
+	for _, name := range []string{"lex-unmapped-known.txt", "lexer-defects.txt", filepath.Join("tdt", "lexer-rooted.txt")} {
 		list, err := os.ReadFile(filepath.Join("testdata", name))
 		if err != nil {
 			t.Fatal(err)
