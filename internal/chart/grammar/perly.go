@@ -1894,10 +1894,10 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 	return classes
 }
 
-// cutBeforeFatComma takes every class keyed on a word's text away before =>, x's above included: toke.c makes any
-// word there a string before it looks the word up (yyl_keylookup, toke.c:9332-9336; a keyword with a comment or
-// line break between, toke.c:9440-9453; any other word, yyl_just_a_word, toke.c:8177), so the BAREWORD class for
-// it stands alone. A word forced to a name (namedWord) skips that check, but no class keyed on a word's text names one.
+// cutBeforeFatComma takes every class keyed on a word's text that init has made so far away before =>, x's above
+// included (versions.go's later init is not seen): toke.c makes any word there a string before it looks the word
+// up (yyl_keylookup, toke.c:9332-9336; a keyword with a comment or line break between, toke.c:9440-9453; any other
+// word, yyl_just_a_word, toke.c:8177), so the BAREWORD class for it stands alone. A word forced to a name (namedWord) skips that check, but no class keyed on a word's text names one.
 // CORE::kw reaches yyl_key_core before the check (toke.c:9322-9326), so each class cut keeps a copy for it there.
 func cutBeforeFatComma(classes []ClassDecl) []ClassDecl {
 	for i, d := range classes {

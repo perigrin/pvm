@@ -72,6 +72,13 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 	if recognizeSource(t, []byte("sub x {1} x 1, 2;")).accepted {
 		t.Errorf("sub x {1} x 1, 2; is accepted; the known limit is gone, so drop the shortcut and the README line")
 	}
+	// perl accepts both: CORE::qw and CORE::q are quote-likes, which internal/lexer emits as a word and loose tokens
+	// (v0.1 01a1ae56), so the stripped word is qw or q with no delimiters.
+	for _, src := range []string{"@y = CORE::qw(a b);", "$y = CORE::q{x};"} {
+		if recognizeSource(t, []byte(src)).accepted {
+			t.Errorf("%q is accepted; the known limit is gone, so drop the README line", src)
+		}
+	}
 }
 
 // A word before => is BAREWORD and one before ( is the zero-width & and the name, PRIVATEREF here (toke.c:8176-8211),
