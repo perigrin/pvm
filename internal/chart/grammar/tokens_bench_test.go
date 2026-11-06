@@ -71,13 +71,13 @@ func BenchmarkTokenLookup(b *testing.B) {
 			pred = &toks[i].N
 		}
 		p2, p1 := tt.Edge, tt.Edge
-		for i, t := range toks {
+		for i := range toks {
 			next := tt.Edge
 			if i+1 < len(toks) {
 				next = toks[i+1].Class
 			}
-			tt.Lookup(t, p2, p1, next)
-			p2, p1 = p1, t.Class
+			tt.Lookup(&toks[i], p2, p1, next)
+			p2, p1 = p1, toks[i].Class
 		}
 	}
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(len(views)), "ns/token")
