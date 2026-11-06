@@ -1126,6 +1126,9 @@ var perlyClasses = []ClassDecl{
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x"), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[0]}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: keywordsButX, Prev1: &sortIndirob[1]}},
+	// The word after a method name: intuit_method forces it to BAREWORD whatever follows it (toke.c:5138-5140), a (
+	// included, where the generic BAREWORD leaves a word before ( to the call; scope decides which it is.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), Prev1: &otherWord, Next: &parenOpen}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('v')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('5')), Prev1: &Neighbour{Kind: lexer.Word, Text: "require"}}},
@@ -1192,6 +1195,20 @@ var perlyClasses = []ClassDecl{
 	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('q')), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.HeredocOpen), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Readline), Completes: true}},
+	// A v-string is a constant term: toke.c scans `v1.2` (toke.c:9879-9887) and a number with a second dot (scan_num,
+	// toke.c:13135-13137) and returns THING. pvm emits it as a Quote opening with v or a digit; after use MODULE it is
+	// the version (versions.go), as a number is.
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('v')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('0')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('1')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('2')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('3')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('4')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('5')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('6')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('7')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('8')), NotPrev2: afterUse, Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Quote), Prefix: ptr(byte('9')), NotPrev2: afterUse, Completes: true}},
 
 	// S_sublex_start returns PMFUNC for a quote-like whose op the scan built: m// and // (scan_pat, toke.c:8752, 7085),
 	// qr// (toke.c:8885), s/// (scan_subst, toke.c:8944), and tr/// and y/// (scan_trans, toke.c:9101).
