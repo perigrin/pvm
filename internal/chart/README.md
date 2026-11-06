@@ -730,8 +730,9 @@ named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is
 too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
 `my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
-`@y = CORE::qw(a b);` and `$y = CORE::q{x};` are refused where perl accepts them: internal/lexer emits a `CORE::`
-quote-like as a word and loose tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves `qw` or `q` with no delimiters.
+`CORE::qw`, `CORE::q`, `CORE::qq`, `CORE::m`, `CORE::qr` and `CORE::qx` with their delimiters (`@y = CORE::qw(a b);`,
+`$y = CORE::q{x};`) are refused where perl accepts them: internal/lexer emits a `CORE::` quote-like as a word and loose
+tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves the operator's name with no delimiters.
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
 `terminals-per-token` and `items-per-token` rise by design.
 
@@ -833,7 +834,9 @@ whatever the file's length.
   subscript's braces save and restore it too, harmlessly, since no `use` stands inside one. The work is a kind
   and length test per token, and a scan of the statement at a `use` or `no`. INTERN's reference reads the same
   statements with regular expressions (`refIsaAfter`). Not seen, each a `shortcut:` in `isaAfter`: a feature a
-  module or a `BEGIN` block imports, or one a string eval turns on.
+  module or a `BEGIN` block imports, or one a string eval turns on. `use v5;` leaves the bit, where perl clears it,
+  because internal/lexer emits a bare `v5` as a Word rather than a version (v0.1 `01a0dc72`); pinned in
+  `TestPortRelationalAndUnaryIsaLimits`.
 
 `lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
 `lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
