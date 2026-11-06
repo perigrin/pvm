@@ -66,6 +66,7 @@ func TestPortSlicesAndDerefsCastTerminals(t *testing.T) {
 		{"$y = $r->&*;", "&*", "PERLY_AMPERSAND"},
 		{"$y = $r->$#*;", "$#*", "DOLSHARP"},
 		{"$y = $r->@[0];", "@[", "PERLY_SNAIL"},
+		{"$y = $r->@ {\"a\"};", "@ ", "PERLY_SNAIL"},
 		{"$y = $x;", "$x", "PERLY_DOLLAR"},
 		{"$y = @*;", "@*", "PERLY_SNAIL"},
 	} {
@@ -85,5 +86,9 @@ func TestPortSlicesAndDerefsKnownLimits(t *testing.T) {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
+	}
+	// perl refuses it ("syntax error ... near "->*""): a blank after -> leaves the * an operator, which the key cannot see.
+	if src := "$y = $r->* {CODE};"; !recognizeSource(t, []byte(src)).accepted {
+		t.Errorf("%q is refused; the known limit is gone, so drop the README line and the shortcut", src)
 	}
 }

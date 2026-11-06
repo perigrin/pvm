@@ -1001,10 +1001,14 @@ var perlyClasses = []ClassDecl{
 
 	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('@')), NotPrev1: afterArrow, Completes: true}},
 	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Text: ptr("@"), Prev1: &arrow}},
+	// A blank after -> leaves it TERM(ARROW), and a nameless @ then is PREREF(PERLY_SNAIL) (yyl_snail), so `->@ {` is `->@{`.
+	{"PERLY_SNAIL", TokenClass{Kind: ptr(lexer.DerefSigil), Text: ptr("@"), Prev1: &arrow}},
 
-	{"CAST_SNAIL", TokenClass{Kind: ptr(lexer.DerefSigil), Text: ptr("@")}},
+	{"CAST_SNAIL", TokenClass{Kind: ptr(lexer.DerefSigil), Text: ptr("@"), NotPrev1: afterArrow}},
 	{"CAST_SNAIL", TokenClass{Kind: ptr(lexer.Variable), Text: ptr("@*"), Prev1: &arrow}},
 
+	// shortcut: `$r->* {CODE}` is accepted, where toke.c reads `->` then a blank as TERM(ARROW) and the * as an operator;
+	// the key cannot tell `*{` from `* {`, upgrade if a corpus file holds one.
 	{"PERLY_STAR", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("*")}},
 
 	// $* after -> is the star's and not the sigil's: CAST_DOLLAR would let `$r->$*{a}` read as a method named by a cast.
@@ -1109,6 +1113,9 @@ var perlyClasses = []ClassDecl{
 	// safebw) and a word toke.c forces after a loop exit, require or do, which stay BAREWORD and which perl refuses there.
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, NotNext: nextNotParen, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prefix: ptr(byte(PackageName)), NotPrev1: sortIndirob, NotPrev2: afterWordSlot, Next: &parenOpen, Completes: true}},
+	// A word before => is a string, a keyword included (yyl_fatcomma; see cutBeforeFatComma), but not CORE::kw.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prefix: ptr(byte(0)), Next: &fatComma}},
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prefix: ptr(byte(PackageName)), Next: &fatComma}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[0], Next: &parenOpen}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[1], Next: &parenOpen}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prev1: &forcedName[2], Next: &parenOpen}},
@@ -1173,6 +1180,9 @@ var perlyClasses = []ClassDecl{
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(0)), Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionStrict)), NotPrev2: afterUse, Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionLax)), NotPrev2: afterUse, Completes: true}},
+	// After => toke.c expects a term, so a number there is one even two after a use or no that => quoted (yyl_fatcomma).
+	// Not marked Completes: x after a number already follows the classes above, and Completes on a Prev1 class names a word.
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Prev1: &fatComma}},
 	// S_sublex_start (toke.c:2595) returns THING for a constant: '…' and q (yyl_sglquote, toke.c:7252; KEY_q, toke.c:8868),
 	// a "…" holding no $, @, \ or non-ASCII byte (yyl_dblquote, toke.c:7270), <<'EOF' (OP_CONST, toke.c:11712) and a readline
 	// (OP_NULL, toke.c:12200). Every other "…", heredoc and <…> is FUNC (below), and the token key cannot tell them
@@ -1725,6 +1735,7 @@ var perlyClasses = []ClassDecl{
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("&.=")}},
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("|.=")}},
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^.=")}},
+	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("^^=")}}, // toke.c yyl_caret: OP_XOR, toke.c:6436-6439
 	{"ASSIGNOP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("x=")}},
 
 	{"PERLY_QUESTION_MARK", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("?")}},
@@ -1822,6 +1833,7 @@ var xrefListOperators = []string{"print", "printf", "say", "sort", "map", "grep"
 // with & or after * (the same, and yyl_star's scan_ident), whatever they spell. The named, list and filetest operators wait for a term, so
 // x after them is a word, as after a comma or an operator.
 func init() {
+	perlyClasses = addStatementWords(perlyClasses) // before x: the words complete a term as any word does
 	// An x class has its neighbour either right before it (prev2 false) or two back.
 	type repeat struct {
 		n     Neighbour
@@ -1858,6 +1870,46 @@ func init() {
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 	}
 	limitBlockBrace(perlyClasses)
+	perlyClasses = cutBeforeFatComma(perlyClasses)
+}
+
+// statementWords are the keywords toke.c reads as a sub's name only where a statement starts, and as any other word
+// elsewhere (yyl_just_a_word, toke.c:8313-8322).
+var statementWords = []string{"AUTOLOAD", "DESTROY", "BEGIN", "UNITCHECK", "CHECK", "INIT", "END"}
+
+// addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
+// keyword), after anything but a statement start.
+func addStatementWords(classes []ClassDecl) []ClassDecl {
+	keywords := lexer.Keywords()
+	for _, d := range classes {
+		if !slices.Equal(d.Key.NotText, keywords) {
+			continue
+		}
+		for _, w := range statementWords {
+			c := d.Key
+			c.Text, c.NotText, c.NotPrev1 = &w, nil, append(slices.Clone(c.NotPrev1), stateStarts...)
+			classes = append(classes, ClassDecl{d.Terminal, c})
+		}
+	}
+	return classes
+}
+
+// cutBeforeFatComma takes every class keyed on a word's text that init has made so far away before =>, x's above
+// included (versions.go's later init is not seen): toke.c makes any word there a string before it looks the word
+// up (yyl_keylookup, toke.c:9332-9336; a keyword with a comment or line break between, toke.c:9440-9453; any other
+// word, yyl_just_a_word, toke.c:8177), so the BAREWORD class for it stands alone. A word forced to a name (namedWord) skips that check, but no class keyed on a word's text names one.
+// CORE::kw reaches yyl_key_core before the check (toke.c:9322-9326), so each class cut keeps a copy for it there.
+func cutBeforeFatComma(classes []ClassDecl) []ClassDecl {
+	for i, d := range classes {
+		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Word && k.Text != nil && !slices.Contains(k.NotNext, fatComma) {
+			if k.Next == nil && k.Prefix == nil {
+				k.Prefix, k.Next = ptr(byte(CoreQualified)), &fatComma
+				classes = append(classes, ClassDecl{d.Terminal, k})
+			}
+			classes[i].Key.NotNext = append(slices.Clone(d.Key.NotNext), fatComma)
+		}
+	}
+	return classes
 }
 
 // limitBlockBrace takes the { away from a block after a list operator whose PL_expect is XTERM: toke.c

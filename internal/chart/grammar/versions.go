@@ -31,8 +31,7 @@ import (
 // (excluding x after a word would also refuse `use lib foo x 3;`), and `use lib 1.2 isa 3;` is accepted
 // where perl refuses `isa 3`, as on the base. Upgrade with a version
 // terminal no list opens with. And a word after `use`/`no` loses its version reading only: afterUse also
-// removes the term reading of a delimited number there, so `(no => 1 , 2)` will be refused once keywords
-// auto-quote before `=>` (the fat-comma family's to settle).
+// removes the term reading of a delimited number there, which a number after => keeps (`(no => 1 , 2)`).
 // afterUse is the neighbour `use` or `no` makes of the word before it.
 var afterUse = []Neighbour{{Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, Text: "no"}}
 
