@@ -79,16 +79,17 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 	}
 }
 
-// Known limits of the isa feature bit chart/lex tracks, pinned so they are noticed when they end (shortcuts in
-// lex.isaAfter): a feature a BEGIN block imports is not seen, so the chart refuses what perl accepts.
+// Known limits of the isa feature bit chart/lex tracks, pinned so they are noticed when they end: a feature a BEGIN
+// block imports is not seen (a shortcut in lex.isaAfter), so the chart refuses what perl accepts; and use v5 leaves
+// the bit, so the chart accepts what perl refuses, a lexer defect rather than a shortcut (see the row).
 func TestPortRelationalAndUnaryIsaLimits(t *testing.T) {
 	for src, accepted := range map[string]bool{
 		`BEGIN { require feature; feature->import("isa") } $y = $x isa Foo;`: false,
-		// perl clears the bit at use v5, but internal/lexer emits a bare v5 as a Word, no version (v0.1 01a0dc72).
+		// perl clears the bit at use v5, but internal/lexer emits a bare v5 as a Word, no version (corpus-covers-t2 01a0dc72).
 		`use feature "isa"; use v5; $y = $x isa Foo;`: true,
 	} {
 		if v := recognizeSource(t, []byte(src)); v.accepted != accepted {
-			t.Errorf("%q: the recorded limit moved (accepted=%v); drop the shortcut and the README line", src, v.accepted)
+			t.Errorf("%q: the recorded limit moved (accepted=%v); drop its shortcut or lexer note and the README line", src, v.accepted)
 		}
 	}
 }
