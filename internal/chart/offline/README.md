@@ -240,6 +240,19 @@ The alignment, spec §12's:
   is an **unmatched toke.c run**, reported per file. Module tokens leaking past
   the capture's bracketing show as such a run, as does a source filter's
   rewriting.
+- A constant sub called with an empty list, `NAME()`, is one toke.c token
+  (yyl_just_a_word folds the `()` in, toke.c:8202), so the pvm `(` and `)`
+  after a word paired with a constant-sub BAREWORD are passed over rather than
+  matched against the tokens after it.
+- **TDTALIGN amendment 2** (perigrin, 2026-11-06, "Make amendment 2"): pvm
+  tokens left unaligned for five reasons each carry a family, so
+  `tdt-unaligned-unlisted` counts only the unexplained: `constant-parens`
+  (the folded `()` above), `constant-string` (a word whose constant's string
+  value toke.c delivers in place of its name), `lexical-sub` (the `my`, `our`
+  or `state` before `sub`, and an `our sub`'s package-qualified name), and,
+  per file in the aligner's `relabeled` list, `source-filter` and
+  `attribute-resync`. Each family's reason is its line in
+  `fitting-families.txt`. A third amendment goes to perigrin first.
 - A refused, timed-out or truncated capture is not aligned (perigrin:
   "Timeout, mark refused"); its fixture holds only the capture's marker.
 
