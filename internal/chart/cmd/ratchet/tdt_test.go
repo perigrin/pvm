@@ -159,6 +159,10 @@ func TestTDTReviewedListRefusesStaleEntries(t *testing.T) {
 			t.Errorf("reviewed entry %q: error %v, want one naming it", bad, err)
 		}
 	}
+	// NUM is seen for the word in this fixture, so listing it is an error: a reason that no longer holds.
+	if _, err := tdtKeys(toyDecls, toyNames, toy("0 3 NUM\n4 6 NUM\n6 7 -\n"), toyFams, []string{numWordKey}); err == nil || !strings.Contains(err.Error(), "is seen") {
+		t.Errorf("a seen pair on the list: error %v, want one saying it is seen", err)
+	}
 	m := keysOf(t, toy(fx), semiPair, numWordKey)
 	wantKeys(t, m, map[string]string{"tdt-unseen": "2", "tdt-unseen-unlisted": "0"})
 }

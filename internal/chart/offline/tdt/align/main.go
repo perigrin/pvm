@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -188,6 +189,16 @@ func align(src []byte, toks []tok) ([]string, stats) {
 		switch {
 		case p.kind == lexer.HeredocOpen:
 			openers = append(openers, j)
+		case p.kind == lexer.HeredocBody && len(openers) == 0:
+			// amendment 3: a heredoc opened inside an interpolated string is one pvm Quote, whose fold holds toke.c's
+			// tokens for it (S_scan_heredoc delivers them at the marker, toke.c:11616), so the body is that quote's.
+			line := bytes.LastIndexByte(src[:max(p.start-1, 0)], '\n') + 1 // the line holding the marker
+			for k := j - 1; k >= 0 && ps[k].end > line; k-- {
+				if ps[k].kind == lexer.Quote && strings.Contains(ps[k].text, "<<") && pair[k] >= 0 {
+					pair[j], fam[j] = pair[k], "heredoc"
+					break
+				}
+			}
 		case p.kind == lexer.HeredocBody && len(openers) > 0:
 			// toke.c delivers a heredoc's tokens at its marker; the body is the marker's.
 			o := openers[0]
@@ -651,7 +662,11 @@ func single(t tok) func(pvmTok) bool {
 			return kinds(lexer.Word)
 		case strings.HasPrefix(t.val, "PV("):
 			pv := pvText(t.val)
-			return texts(pv, strings.TrimPrefix(pv, "CORE::GLOBAL::"), pv+"::")
+			return func(p pvmTok) bool {
+				// amendment 3: toke.c spells the old package separator ' as :: (Legacy'Package is Legacy::Package)
+				return texts(pv, strings.TrimPrefix(pv, "CORE::GLOBAL::"), pv+"::")(p) ||
+					p.kind == lexer.Word && strings.Contains(p.text, "'") && strings.ReplaceAll(p.text, "'", "::") == pv
+			}
 		case t.val != "":
 			// a version (NV, a v-string's PVMG, a version object) or a constant sub's inlined value
 			return kinds(lexer.Number, lexer.Word, lexer.Quote)
@@ -680,7 +695,7 @@ var punct = map[string]string{
 	"PERLY_PAREN_CLOSE": ")", "PERLY_COMMA": ", =>", "PERLY_DOT": ".", "PERLY_EQUAL_SIGN": "=",
 	"PERLY_MINUS": "-", "PERLY_PLUS": "+", "PERLY_SLASH": "/", "PERLY_STAR": "*",
 	"PERLY_AMPERSAND": "&", "PERLY_COLON": ":", "PERLY_QUESTION_MARK": "?",
-	"PERLY_EXCLAMATION_MARK": "!", "PERLY_TILDE": "~", "PERLY_SNAIL": "@",
+	"PERLY_EXCLAMATION_MARK": "!", "PERLY_TILDE": "~ ~.", "PERLY_SNAIL": "@",
 	"PERLY_PERCENT_SIGN": "%", "PERLY_DOLLAR": "$", "DOLSHARP": "$#",
 	"HASHBRACK": "{", "ARROW": "->", "ANDAND": "&&", "OROR": "||", "DORDOR": "//",
 	"OROP": "or xor", "ANDOP": "and", "NOTOP": "not", "DOTDOT": ".. ...", "REFGEN": "\\",
@@ -747,7 +762,7 @@ func sameName(text, name string) bool {
 	if strings.HasPrefix(text, "$#") && len(text) > 2 {
 		text = text[2:]
 	} else if text != "" {
-		text = text[1:]
+		text = strings.TrimLeft(text[1:], " \t\n") // amendment 3: whitespace may stand between the sigil and the name (`$ '`)
 	}
 	if strings.HasPrefix(text, "{") && strings.HasSuffix(text, "}") {
 		text = strings.TrimSpace(text[1 : len(text)-1])
@@ -755,7 +770,12 @@ func sameName(text, name string) bool {
 	if len(text) >= 2 && text[0] == '^' {
 		text = string(text[1]-'@') + text[2:]
 	}
-	text = strings.TrimPrefix(strings.TrimPrefix(text, "main"), "::")
+	// amendment 3: only a main:: or :: qualifier is dropped, so $main_regex keeps its name
+	if t, ok := strings.CutPrefix(text, "main::"); ok {
+		text = t
+	} else {
+		text = strings.TrimPrefix(text, "::")
+	}
 	if text == name {
 		return true
 	}
