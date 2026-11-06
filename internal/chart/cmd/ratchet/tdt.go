@@ -147,7 +147,7 @@ func keyText(c grammar.TokenClass) string {
 	add("NextName", true, c.NextName)
 	add("NotNextName", true, c.NotNextName)
 	add("Lone", true, c.Lone)
-	return strings.Join(p, " ")
+	return strings.ReplaceAll(strings.Join(p, " "), "\x00", `\x00`) // a sentinel neighbour text (OtherWord) stays printable
 }
 
 // digest writes an exclusion list in full when it is short, and as its length and a hash of its sorted
@@ -217,6 +217,7 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			if !ok || p.typ == "-" {
 				if !fams[p.family] {
 					unlisted++
+					fmt.Fprintf(os.Stderr, "chart-ratchet: tdt-unaligned-unlisted: %s %d %d %q\n", f.Path, t.Start, t.End, f.Src[t.Start:t.End])
 				}
 				continue
 			}
@@ -228,6 +229,11 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 					callFit(names[id], p)
 			}) {
 				mismatch++
+				var set []string
+				for _, id := range tt.Sets[sets[t.Start]] {
+					set = append(set, names[id])
+				}
+				fmt.Fprintf(os.Stderr, "chart-ratchet: tdt-mismatch: %s %d %d %q %s %s %v\n", f.Path, t.Start, t.End, f.Src[t.Start:t.End], p.typ, p.family, set)
 			}
 			byType[p.typ] = append(byType[p.typ], t.Start)
 			for _, f := range p.folded {
@@ -265,6 +271,7 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			unseen++
 			if !slices.Contains(reviewed, k) {
 				unseenUnlisted++
+				fmt.Fprintf(os.Stderr, "chart-ratchet: tdt-unseen-unlisted: %s\n", k)
 			}
 		}
 	}
@@ -348,9 +355,15 @@ func measureTDT(dir string, g *grammar.Grammar, tab *grammar.Tables, files []Fil
 	for _, l := range lines {
 		fams[strings.Fields(l)[0]] = true
 	}
-	reviewed, err := listLines(reviewedFile)
+	lines, err = listLines(reviewedFile)
 	if err != nil {
 		return err
+	}
+	var reviewed []string // the entries; a reason: line states why the entries below it are unseen
+	for _, l := range lines {
+		if !strings.HasPrefix(l, "reason:") {
+			reviewed = append(reviewed, l)
+		}
 	}
 	names := make([]string, len(tab.Symbols))
 	for i, s := range tab.Symbols {
