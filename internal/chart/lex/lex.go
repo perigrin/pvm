@@ -58,7 +58,8 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			// A body goes to the first waiting opener whose tag its terminator line spells. Any other body's opener is
 			// inside a quote-like (`"@{[ <<EOF ]}"`), one token to the lexer.
 			// shortcut: that body goes to the token before it, not to the quote-like holding its opener, which only
-			// Stream.Body and the tdt pairing read; upgrade when the lexer marks the quote-likes that open heredocs.
+			// Stream.Body and the tdt pairing read; upgrade when the lexer marks the quote-likes that open heredocs
+			// (v0.1 01a1af25-7fc7-7e37-9fd8-ebf632fd461c).
 			o, end := len(s.Tokens)-1, terminator(text[t.Start:t.End])
 			for j, w := range opens {
 				if r := raw[s.Tokens[w].Index]; tag(text[r.Start:r.End]) == end {

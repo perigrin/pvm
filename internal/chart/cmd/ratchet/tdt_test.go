@@ -4,6 +4,8 @@
 package main
 
 import (
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/lexer"
 )
 
@@ -31,7 +34,7 @@ func ptr[T any](v T) *T { return &v }
 
 // toy is `foo 42;` (foo 0-3, 42 4-6, ; 6-7) with the given fixture lines.
 func toy(fixture string) []tdtFile {
-	return []tdtFile{{"toy.pl", []byte("foo 42;"), "# capture: whole\n" + fixture}}
+	return []tdtFile{{Path: "toy.pl", Src: []byte("foo 42;"), Fixture: "# capture: whole\n" + fixture}}
 }
 
 func keysOf(t *testing.T, files []tdtFile, reviewed ...string) map[string]string {
@@ -63,7 +66,7 @@ func TestTDTKeys(t *testing.T) {
 	// A fixture span that matches no token leaves the token unaligned.
 	wantKeys(t, keysOf(t, toy("0 2 WORD\n4 6 NUM\n6 7 SEMI\n")), map[string]string{"tdt-aligned": "0.6667", "tdt-unaligned-unlisted": "1"})
 	// A capture that is not whole has no alignment and counts for nothing.
-	partial := []tdtFile{{"toy.pl", []byte("foo 42;"), "# capture: refused: perl exited 255\n"}}
+	partial := []tdtFile{{Path: "toy.pl", Src: []byte("foo 42;"), Fixture: "# capture: refused: perl exited 255\n"}}
 	wantKeys(t, keysOf(t, partial), map[string]string{"tdt-aligned": "0.0000", "tdt-unaligned-unlisted": "0"})
 }
 
@@ -72,21 +75,26 @@ func TestTDTKeysEdgeCases(t *testing.T) {
 	wantKeys(t, keysOf(t, toy("0 3 NUM\n4 6 NUM\n6 7 SEMI\n")), map[string]string{"tdt-aligned": "1.0000", "tdt-mismatch": "0", "tdt-unseen": "1"})
 	// A number aligned to WORD is outside its set {NUM}; a token no class admits has the empty set.
 	wantKeys(t, keysOf(t, toy("0 3 WORD\n4 6 WORD\n6 7 SEMI\n")), map[string]string{"tdt-mismatch": "1"})
-	files := []tdtFile{{"v.pl", []byte("$x"), "# capture: whole\n0 2 WORD\n"}}
+	files := []tdtFile{{Path: "v.pl", Src: []byte("$x"), Fixture: "# capture: whole\n0 2 WORD\n"}}
 	wantKeys(t, keysOf(t, files), map[string]string{"tdt-aligned": "1.0000", "tdt-mismatch": "1"})
 	wantKeys(t, keysOf(t, toy("")), map[string]string{"tdt-aligned": "0.0000"})
 	wantKeys(t, keysOf(t, nil), map[string]string{"tdt-aligned": "0.0000", "tdt-mismatch": "0"})
 }
 
-// A PRIVATEREF stands for a name the noamp family folds PERLY_AMPERSAND onto, and for nothing else it is not.
+// A PRIVATEREF stands for a name the noamp family folds PERLY_AMPERSAND onto and for a constant sub's BAREWORD, and a
+// KW_SUB_named for a statement word the phaser family folds KW_SUB_named or KW_SUB_named_sig onto; for nothing else.
 func TestTDTCallFit(t *testing.T) {
-	names := []string{"PRIVATEREF", "SEMI", "FUNC1"}
+	names := []string{"PRIVATEREF", "SEMI", "FUNC1", "KW_SUB_named"}
 	privateref := []grammar.ClassDecl{
 		{Terminal: "PRIVATEREF", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
 		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
 	}
 	func1 := []grammar.ClassDecl{ // the word's only class is not PRIVATEREF
 		{Terminal: "FUNC1", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
+		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
+	}
+	kwSub := []grammar.ClassDecl{
+		{Terminal: "KW_SUB_named", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
 		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
 	}
 	for _, c := range []struct {
@@ -100,8 +108,16 @@ func TestTDTCallFit(t *testing.T) {
 		{privateref, "0 3 BAREWORD noamp", "1", "1"},
 		{privateref, "0 3 BAREWORD", "1", "1"},
 		{func1, "0 3 BAREWORD noamp PERLY_AMPERSAND", "1", "1"},
+		{privateref, "0 3 BAREWORD constant-sub", "0", "0"},
+		{privateref, "0 3 THING constant-sub", "1", "1"},
+		{func1, "0 3 BAREWORD constant-sub", "1", "1"},
+		{kwSub, "0 3 BAREWORD phaser KW_SUB_named", "0", "0"},
+		{kwSub, "0 3 BAREWORD phaser KW_SUB_named_sig", "0", "0"},
+		{kwSub, "0 3 BAREWORD phaser", "1", "1"},
+		{kwSub, "0 3 BAREWORD noamp KW_SUB_named", "1", "1"},
+		{privateref, "0 3 BAREWORD phaser KW_SUB_named", "1", "1"},
 	} {
-		files := []tdtFile{{"c.pl", []byte("foo;"), "# capture: whole\n" + c.line + "\n3 4 SEMI\n"}}
+		files := []tdtFile{{Path: "c.pl", Src: []byte("foo;"), Fixture: "# capture: whole\n" + c.line + "\n3 4 SEMI\n"}}
 		m, err := tdtKeys(c.decls, names, files, nil, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -112,12 +128,42 @@ func TestTDTCallFit(t *testing.T) {
 	}
 }
 
+// A listed byte skips its token's comparison, and a { listed skips the } that closes it; a byte where no token starts
+// is an error.
+func TestTDTSkipped(t *testing.T) {
+	fx := "0 3 WORD\n4 6 WORD\n6 7 SEMI\n" // 42 aligned to WORD, outside {NUM}
+	files := toy(fx)
+	wantKeys(t, keysOf(t, files), map[string]string{"tdt-mismatch": "1"})
+	files[0].Skip = []int{4}
+	wantKeys(t, keysOf(t, files), map[string]string{"tdt-mismatch": "0", "tdt-aligned": "1.0000"})
+	unaligned := toy("0 3 WORD\n4 6 -\n6 7 SEMI\n") // 42 unaligned, in no family
+	wantKeys(t, keysOf(t, unaligned), map[string]string{"tdt-unaligned-unlisted": "1"})
+	unaligned[0].Skip = []int{4}
+	wantKeys(t, keysOf(t, unaligned), map[string]string{"tdt-unaligned-unlisted": "0"})
+	files[0].Skip = []int{5}
+	if _, err := tdtKeys(toyDecls, toyNames, files, toyFams, nil); err == nil || !strings.Contains(err.Error(), "byte 5") {
+		t.Errorf("a skip inside a token: error %v, want one naming byte 5", err)
+	}
+	src := []byte("$x = { a => { } } + { };")
+	got, err := skipped(tdtFile{Path: "b.pl", Src: src, Skip: []int{5}}, lexer.Tokenize(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[int]bool{5: true, 16: true}; !maps.Equal(got, want) {
+		t.Errorf("skipped = %v, want %v", got, want)
+	}
+}
+
 func TestTDTReviewedListRefusesStaleEntries(t *testing.T) {
 	fx := "0 3 WORD\n4 6 NUM\n6 7 -\n"
 	for _, bad := range []string{"SEMI Kind=Number", "NUM *", "*", "WORD Kind=Word extra"} {
 		if _, err := tdtKeys(toyDecls, toyNames, toy(fx), toyFams, []string{bad}); err == nil || !strings.Contains(err.Error(), bad) {
 			t.Errorf("reviewed entry %q: error %v, want one naming it", bad, err)
 		}
+	}
+	// NUM is seen for the word in this fixture, so listing it is an error: a reason that no longer holds.
+	if _, err := tdtKeys(toyDecls, toyNames, toy("0 3 NUM\n4 6 NUM\n6 7 -\n"), toyFams, []string{numWordKey}); err == nil || !strings.Contains(err.Error(), "is seen") {
+		t.Errorf("a seen pair on the list: error %v, want one saying it is seen", err)
 	}
 	m := keysOf(t, toy(fx), semiPair, numWordKey)
 	wantKeys(t, m, map[string]string{"tdt-unseen": "2", "tdt-unseen-unlisted": "0"})
@@ -216,4 +262,117 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 	if k := keyText(long); len(k) > 100 || keyText(long) != k {
 		t.Errorf("a long NotText renders %d bytes: %q", len(k), k)
 	}
+}
+
+// absentPhrase marks a reviewed tdt-unseen reason that claims the construct is absent from the corpora.
+const absentPhrase = "no corpus token matches the key"
+
+// falseAbsences returns, for each reviewed entry whose reason claims absentPhrase, the corpus tokens its key admits
+// compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. srcs is every corpus file's source,
+// whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
+// ratchet, so a run that checks none can be told from one that found nothing false.
+func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) (out []string, checked int) {
+	t.Helper()
+	ids := map[string]int{}
+	for i, n := range names {
+		ids[n] = i
+	}
+	byKey := map[string]grammar.ClassDecl{}
+	for _, d := range decls {
+		if k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key)); byKey[k].Terminal == "" {
+			byKey[k] = d
+		}
+	}
+	raws := map[string][]lexer.Token{}
+	for p, src := range srcs {
+		raws[p] = lexer.Tokenize(src)
+	}
+	reason := ""
+	for _, l := range strings.Split(reviewed, "\n") {
+		l = strings.TrimSpace(l)
+		if r, ok := strings.CutPrefix(l, "reason:"); ok {
+			reason = r
+			continue
+		}
+		d, ok := byKey[l]
+		if !ok || !strings.Contains(reason, absentPhrase) {
+			continue
+		}
+		checked++
+		c := d.Key
+		c.Terminals = []int{ids[d.Terminal]}
+		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p, raw := range raws {
+			s, _ := lex.Map(srcs[p], raw, tt)
+			for _, tk := range s.Tokens {
+				if tk.TerminalSet != 0 {
+					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, raw[tk.Index].Start))
+				}
+			}
+		}
+	}
+	return out, checked
+}
+
+// TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
+// none, over every corpus file (T1 through T1_CORPUS); about 30 s. A synthetic false claim is caught.
+func TestTDTAbsentReasonsHold(t *testing.T) {
+	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
+		t.Errorf("a false absence claim: %q from %d checked, want it caught once", got, n)
+	}
+	// A trailing space or CR, which listLines trims for the ratchet, is checked all the same.
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+" \r\n"+numWordKey+" \r\n", src); len(got) != 1 || n != 1 {
+		t.Errorf("a claim with trailing space: %q from %d checked, want it caught once", got, n)
+	}
+	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 || n != 0 {
+		t.Errorf("a reason that claims no absence was checked: %q from %d", got, n)
+	}
+	if os.Getenv("T1_CORPUS") == "" {
+		t.Skip("T1_CORPUS unset: the corpus is not on this machine")
+	}
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewed, err := os.ReadFile(reviewedFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(tab.Symbols))
+	for i, s := range tab.Symbols {
+		names[i] = s.Name
+	}
+	if err := holdAbsences(t, g.Classes, names, string(reviewed), srcs); err != nil {
+		t.Error(err)
+	}
+	// An empty list holds no claim, which must fail rather than pass vacuously.
+	if err := holdAbsences(t, g.Classes, names, "", srcs); err == nil || !strings.Contains(err.Error(), "checked no") {
+		t.Errorf("an empty list: %v, want a failure saying it checked no claim", err)
+	}
+}
+
+// holdAbsences is falseAbsences as a verdict: an error naming every false claim, or one when no claim was checked.
+func holdAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) error {
+	t.Helper()
+	bad, n := falseAbsences(t, decls, names, reviewed, srcs)
+	if n == 0 {
+		return fmt.Errorf("unseen-reviewed.txt: checked no %q claim, so the scan held nothing", absentPhrase)
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("unseen-reviewed.txt claims absence, but:\n%s", strings.Join(bad, "\n"))
+	}
+	return nil
 }

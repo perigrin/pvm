@@ -240,6 +240,33 @@ The alignment, spec §12's:
   is an **unmatched toke.c run**, reported per file. Module tokens leaking past
   the capture's bracketing show as such a run, as does a source filter's
   rewriting.
+- A constant sub called with an empty list, `NAME()`, is one toke.c token
+  (yyl_just_a_word folds the `()` in, toke.c:8202), so the pvm `(` and `)`
+  after a word paired with a constant-sub BAREWORD are passed over rather than
+  matched against the tokens after it.
+- **TDTALIGN amendment 2** (perigrin, 2026-11-06, "Make amendment 2"): pvm
+  tokens left unaligned for five reasons each carry a family, so
+  `tdt-unaligned-unlisted` counts only the unexplained: `constant-parens`
+  (the folded `()` above), `constant-string` (a word whose constant's string
+  value toke.c delivers in place of its name), `lexical-sub` (the `my`, `our`
+  or `state` before `sub`, and an `our sub`'s package-qualified name), and,
+  per file in the aligner's `relabeled` list, `source-filter` and
+  `attribute-resync`. Each family's reason is its line in
+  `fitting-families.txt`.
+- **TDTALIGN amendment 3** (perigrin, 2026-11-06, "Allow amendment 3"):
+  five matching rules, each pairing a token the aligner left unaligned the
+  way toke.c spells it, no family added: PERLY_TILDE pairs with `~.` as well
+  as `~` (yyl_tilde, toke.c:7136-7138, under the bitwise feature); a
+  BAREWORD's PV pairs with a word spelling its `::` as the old `'`
+  (`Legacy'Package`); a variable's name drops only a `main::` or `::`
+  qualifier, so `$main_regex` keeps its name; whitespace may stand between
+  a variable's sigil and its name (`$ '`); and a heredoc body with no
+  waiting pvm opener pairs with the interpolated string on its marker line
+  that holds `<<`, whose fold carries toke.c's tokens for it (toke.c:11616).
+  `v97`, the sixth unaligned token, is a lexer root instead: the lexer reads
+  a v-string with no dot as a word (`corpus-covers-t2` `01a0dc72-2609`), so
+  it is on `testdata/tdt/lexer-rooted.txt`. No further amendment of the
+  definition is allowed.
 - A refused, timed-out or truncated capture is not aligned (perigrin:
   "Timeout, mark refused"); its fixture holds only the capture's marker.
 
