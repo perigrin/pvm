@@ -4,6 +4,7 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,7 +32,7 @@ func ptr[T any](v T) *T { return &v }
 
 // toy is `foo 42;` (foo 0-3, 42 4-6, ; 6-7) with the given fixture lines.
 func toy(fixture string) []tdtFile {
-	return []tdtFile{{"toy.pl", []byte("foo 42;"), "# capture: whole\n" + fixture}}
+	return []tdtFile{{Path: "toy.pl", Src: []byte("foo 42;"), Fixture: "# capture: whole\n" + fixture}}
 }
 
 func keysOf(t *testing.T, files []tdtFile, reviewed ...string) map[string]string {
@@ -63,7 +64,7 @@ func TestTDTKeys(t *testing.T) {
 	// A fixture span that matches no token leaves the token unaligned.
 	wantKeys(t, keysOf(t, toy("0 2 WORD\n4 6 NUM\n6 7 SEMI\n")), map[string]string{"tdt-aligned": "0.6667", "tdt-unaligned-unlisted": "1"})
 	// A capture that is not whole has no alignment and counts for nothing.
-	partial := []tdtFile{{"toy.pl", []byte("foo 42;"), "# capture: refused: perl exited 255\n"}}
+	partial := []tdtFile{{Path: "toy.pl", Src: []byte("foo 42;"), Fixture: "# capture: refused: perl exited 255\n"}}
 	wantKeys(t, keysOf(t, partial), map[string]string{"tdt-aligned": "0.0000", "tdt-unaligned-unlisted": "0"})
 }
 
@@ -72,21 +73,26 @@ func TestTDTKeysEdgeCases(t *testing.T) {
 	wantKeys(t, keysOf(t, toy("0 3 NUM\n4 6 NUM\n6 7 SEMI\n")), map[string]string{"tdt-aligned": "1.0000", "tdt-mismatch": "0", "tdt-unseen": "1"})
 	// A number aligned to WORD is outside its set {NUM}; a token no class admits has the empty set.
 	wantKeys(t, keysOf(t, toy("0 3 WORD\n4 6 WORD\n6 7 SEMI\n")), map[string]string{"tdt-mismatch": "1"})
-	files := []tdtFile{{"v.pl", []byte("$x"), "# capture: whole\n0 2 WORD\n"}}
+	files := []tdtFile{{Path: "v.pl", Src: []byte("$x"), Fixture: "# capture: whole\n0 2 WORD\n"}}
 	wantKeys(t, keysOf(t, files), map[string]string{"tdt-aligned": "1.0000", "tdt-mismatch": "1"})
 	wantKeys(t, keysOf(t, toy("")), map[string]string{"tdt-aligned": "0.0000"})
 	wantKeys(t, keysOf(t, nil), map[string]string{"tdt-aligned": "0.0000", "tdt-mismatch": "0"})
 }
 
-// A PRIVATEREF stands for a name the noamp family folds PERLY_AMPERSAND onto, and for nothing else it is not.
+// A PRIVATEREF stands for a name the noamp family folds PERLY_AMPERSAND onto and for a constant sub's BAREWORD, and a
+// KW_SUB_named for a statement word the phaser family folds KW_SUB_named or KW_SUB_named_sig onto; for nothing else.
 func TestTDTCallFit(t *testing.T) {
-	names := []string{"PRIVATEREF", "SEMI", "FUNC1"}
+	names := []string{"PRIVATEREF", "SEMI", "FUNC1", "KW_SUB_named"}
 	privateref := []grammar.ClassDecl{
 		{Terminal: "PRIVATEREF", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
 		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
 	}
 	func1 := []grammar.ClassDecl{ // the word's only class is not PRIVATEREF
 		{Terminal: "FUNC1", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
+		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
+	}
+	kwSub := []grammar.ClassDecl{
+		{Terminal: "KW_SUB_named", Key: grammar.TokenClass{Kind: ptr(lexer.Word)}},
 		{Terminal: "SEMI", Key: grammar.TokenClass{Kind: ptr(lexer.Semicolon)}},
 	}
 	for _, c := range []struct {
@@ -100,8 +106,16 @@ func TestTDTCallFit(t *testing.T) {
 		{privateref, "0 3 BAREWORD noamp", "1", "1"},
 		{privateref, "0 3 BAREWORD", "1", "1"},
 		{func1, "0 3 BAREWORD noamp PERLY_AMPERSAND", "1", "1"},
+		{privateref, "0 3 BAREWORD constant-sub", "0", "0"},
+		{privateref, "0 3 THING constant-sub", "1", "1"},
+		{func1, "0 3 BAREWORD constant-sub", "1", "1"},
+		{kwSub, "0 3 BAREWORD phaser KW_SUB_named", "0", "0"},
+		{kwSub, "0 3 BAREWORD phaser KW_SUB_named_sig", "0", "0"},
+		{kwSub, "0 3 BAREWORD phaser", "1", "1"},
+		{kwSub, "0 3 BAREWORD noamp KW_SUB_named", "1", "1"},
+		{privateref, "0 3 BAREWORD phaser KW_SUB_named", "1", "1"},
 	} {
-		files := []tdtFile{{"c.pl", []byte("foo;"), "# capture: whole\n" + c.line + "\n3 4 SEMI\n"}}
+		files := []tdtFile{{Path: "c.pl", Src: []byte("foo;"), Fixture: "# capture: whole\n" + c.line + "\n3 4 SEMI\n"}}
 		m, err := tdtKeys(c.decls, names, files, nil, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -109,6 +123,32 @@ func TestTDTCallFit(t *testing.T) {
 		if m["tdt-mismatch"] != c.mismatch || m["tdt-unseen"] != c.unseen {
 			t.Errorf("%q: tdt-mismatch %s, tdt-unseen %s; want %s, %s", c.line, m["tdt-mismatch"], m["tdt-unseen"], c.mismatch, c.unseen)
 		}
+	}
+}
+
+// A listed byte skips its token's comparison, and a { listed skips the } that closes it; a byte where no token starts
+// is an error.
+func TestTDTSkipped(t *testing.T) {
+	fx := "0 3 WORD\n4 6 WORD\n6 7 SEMI\n" // 42 aligned to WORD, outside {NUM}
+	files := toy(fx)
+	wantKeys(t, keysOf(t, files), map[string]string{"tdt-mismatch": "1"})
+	files[0].Skip = []int{4}
+	wantKeys(t, keysOf(t, files), map[string]string{"tdt-mismatch": "0", "tdt-aligned": "1.0000"})
+	unaligned := toy("0 3 WORD\n4 6 -\n6 7 SEMI\n") // 42 unaligned, in no family
+	wantKeys(t, keysOf(t, unaligned), map[string]string{"tdt-unaligned-unlisted": "1"})
+	unaligned[0].Skip = []int{4}
+	wantKeys(t, keysOf(t, unaligned), map[string]string{"tdt-unaligned-unlisted": "0"})
+	files[0].Skip = []int{5}
+	if _, err := tdtKeys(toyDecls, toyNames, files, toyFams, nil); err == nil || !strings.Contains(err.Error(), "byte 5") {
+		t.Errorf("a skip inside a token: error %v, want one naming byte 5", err)
+	}
+	src := []byte("$x = { a => { } } + { };")
+	got, err := skipped(tdtFile{Path: "b.pl", Src: src, Skip: []int{5}}, lexer.Tokenize(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[int]bool{5: true, 16: true}; !maps.Equal(got, want) {
+		t.Errorf("skipped = %v, want %v", got, want)
 	}
 }
 

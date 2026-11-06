@@ -152,6 +152,21 @@ To take a baseline after an intended change, run
   corpora; an entry naming no pair of the table is an error. Only whole
   captures are counted. On stderr the ratchet names each mismatched token,
   each unlisted unseen pair and each unaligned token outside a family.
+- **The tdt comparison's fits and skips** (perigrin's TDTREV rulings). A
+  fitted terminal stands for the toke.c pair its family folds, keyed by
+  family: PRIVATEREF for a call's `&` and name (noamp) and for a constant
+  sub's `NAME()` BAREWORD (constant-sub), and KW_SUB_named for the
+  KW_SUB_named or KW_SUB_named_sig a statement word's phaser family folds.
+  Two lists skip single tokens: `testdata/tdt/lexer-rooted.txt`
+  (`<path> <byte> <issue ref>`, a token whose lexer root is filed, plus the
+  `}` closing a listed `{`) and `testdata/tdt/overrides.txt`
+  (`<path> <byte> <reason>`, a builtin the file overrides through
+  CORE::GLOBAL, `use subs` or an import, which toke.c resolves as the sub).
+  **There are two lexer lists because they answer different questions:**
+  `lexer-defects.txt` drops whole files from the superset population,
+  where `lexer-rooted.txt` skips one token in the width check, so a file the
+  chart recognizes keeps its place in the population. A listed byte where no
+  token starts is an error.
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).

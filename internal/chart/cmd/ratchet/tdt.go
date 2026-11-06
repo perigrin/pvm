@@ -23,6 +23,11 @@ const defaultTDT = "/var/tmp/pvm-chart-tdt"
 var (
 	familiesFile = filepath.Join(testdata, "tdt", "fitting-families.txt")
 	reviewedFile = filepath.Join(testdata, "tdt", "unseen-reviewed.txt")
+	// The tdt comparison's own skip lists, by token (lexer-defects.txt drops whole files from the superset instead):
+	// a token whose lexer root is filed (`<path> <byte> <issue ref>`), and a builtin call the file overrides
+	// (`<path> <byte> <reason>`).
+	rootedFile    = filepath.Join(testdata, "tdt", "lexer-rooted.txt")
+	overridesFile = filepath.Join(testdata, "tdt", "overrides.txt")
 )
 
 // tdtFile is a corpus file and its aligned-pairs fixture (internal/chart/offline/README.md).
@@ -30,6 +35,7 @@ type tdtFile struct {
 	Path    string
 	Src     []byte
 	Fixture string
+	Skip    []int // the bytes lexer-rooted.txt and overrides.txt list for the file
 }
 
 // span is a token's byte range, a fixture line's key.
@@ -207,7 +213,11 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 		sets := termSets(stream)
 		byType := map[string][]int{} // aligned toke.c type -> the start bytes of its tokens
 		folded := map[string][]int{} // a type a family folded onto a token after its head -> those tokens' start bytes
-		var calls []int              // the start bytes of the tokens callFit reads as PRIVATEREF
+		fitted := map[string][]int{} // a fitted terminal -> the start bytes of the tokens fit reads it for
+		skip, err := skipped(f, raw)
+		if err != nil {
+			return nil, err
+		}
 		for _, t := range raw {
 			if lexer.IsTrivia(t.Kind) {
 				continue
@@ -215,18 +225,21 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			total++
 			p, ok := pairs[span{t.Start, t.End}]
 			if !ok || p.typ == "-" {
-				if !fams[p.family] {
+				if !fams[p.family] && !skip[t.Start] {
 					unlisted++
 					fmt.Fprintf(os.Stderr, "chart-ratchet: tdt-unaligned-unlisted: %s %d %d %q\n", f.Path, t.Start, t.End, f.Src[t.Start:t.End])
 				}
 				continue
 			}
 			aligned++
+			if skip[t.Start] {
+				continue // a lexer-rooted or overridden token: the comparison skips it
+			}
 			// A fitted cast terminal stands for the perly.y terminal it names, toke.c's head or, for a postfix
 			// dereference's star, a type folded onto the token.
 			if !slices.ContainsFunc(tt.Sets[sets[t.Start]], func(id int) bool {
 				return asPerly(names[id]) == p.typ || asPerly(names[id]) != names[id] && slices.Contains(p.folded, asPerly(names[id])) ||
-					callFit(names[id], p)
+					fit(names[id], p)
 			}) {
 				mismatch++
 				var set []string
@@ -239,8 +252,10 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			for _, f := range p.folded {
 				folded[f] = append(folded[f], t.Start)
 			}
-			if callFit("PRIVATEREF", p) {
-				calls = append(calls, t.Start)
+			for _, n := range fittedNames {
+				if fit(n, p) {
+					fitted[n] = append(fitted[n], t.Start)
+				}
 			}
 		}
 		for _, k := range keyNames {
@@ -249,8 +264,8 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			if asPerly(decls[i].Terminal) != decls[i].Terminal { // a cast terminal is seen as the mismatch check reads it
 				starts = append(slices.Clone(starts), folded[asPerly(decls[i].Terminal)]...)
 			}
-			if decls[i].Terminal == "PRIVATEREF" { // and a call as the mismatch check reads it
-				starts = append(slices.Clone(starts), calls...)
+			if fs := fitted[decls[i].Terminal]; len(fs) > 0 { // and a fitted terminal as the mismatch check reads it
+				starts = append(slices.Clone(starts), fs...)
 			}
 			if seen[k] || len(starts) == 0 {
 				continue
@@ -294,11 +309,74 @@ func asPerly(name string) string {
 	return name
 }
 
-// callFit is whether the chart's terminal name stands for p as the fitted call terminal (perigrin's ruling "Extend
-// fitted-terminal"): PRIVATEREF, perly.y:1842's fit for a word before a (, stands for toke.c's zero-width & and the
-// name, which the noamp family aligns as the name with PERLY_AMPERSAND folded onto it.
-func callFit(name string, p pair) bool {
-	return name == "PRIVATEREF" && p.family == "noamp" && slices.Contains(p.folded, "PERLY_AMPERSAND")
+// fittedNames are the chart terminals fit reads as standing for a toke.c pair keyed by its family.
+var fittedNames = []string{"PRIVATEREF", "KW_SUB_named"}
+
+// fit is whether the chart's terminal name stands for p as a fitted terminal keyed by p's family (perigrin's rulings
+// "Extend fitted-terminal"): PRIVATEREF, perly.y:1842's fit for a word before a (, stands for toke.c's zero-width & and
+// the name, which the noamp family aligns as the name with PERLY_AMPERSAND folded onto it, and for the one BAREWORD
+// toke.c folds a constant sub's NAME() into (constant-sub, yyl_constant_op via toke.c:8197-8200); KW_SUB_named on a
+// statement word, perly.y:638's fit, stands for the KW_SUB_named (or, under signatures, KW_SUB_named_sig) toke.c
+// returns before the name and the phaser family folds onto it (toke.c:8315).
+func fit(name string, p pair) bool {
+	switch name {
+	case "PRIVATEREF":
+		return p.family == "noamp" && slices.Contains(p.folded, "PERLY_AMPERSAND") || p.family == "constant-sub" && p.typ == "BAREWORD"
+	case "KW_SUB_named":
+		return p.family == "phaser" && (slices.Contains(p.folded, "KW_SUB_named") || slices.Contains(p.folded, "KW_SUB_named_sig"))
+	}
+	return false
+}
+
+// skipped is the start bytes of f's tokens the comparison skips: each listed byte's token and, for a {, the } closing
+// it. A listed byte where no token starts is an error, so an entry cannot name an arbitrary byte.
+func skipped(f tdtFile, raw []lexer.Token) (map[int]bool, error) {
+	out := map[int]bool{}
+	for _, b := range f.Skip {
+		i := slices.IndexFunc(raw, func(t lexer.Token) bool { return t.Start == b && !lexer.IsTrivia(t.Kind) })
+		if i < 0 {
+			return nil, fmt.Errorf("%s: a tdt skip list names byte %d, where no token starts", f.Path, b)
+		}
+		out[b] = true
+		if raw[i].Kind != lexer.Operator || string(f.Src[b:raw[i].End]) != "{" {
+			continue
+		}
+		for depth, j := 0, i; j < len(raw); j++ {
+			switch tx := string(f.Src[raw[j].Start:raw[j].End]); {
+			case raw[j].Kind == lexer.Operator && tx == "{":
+				depth++
+			case raw[j].Kind == lexer.CloseBracket && tx == "}":
+				if depth--; depth == 0 {
+					out[raw[j].Start] = true
+					j = len(raw)
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// skipLists reads lexer-rooted.txt and overrides.txt into the listed bytes by path.
+func skipLists() (map[string][]int, error) {
+	out := map[string][]int{}
+	for _, name := range []string{rootedFile, overridesFile} {
+		lines, err := listLines(name)
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range lines {
+			f := strings.Fields(l)
+			if len(f) < 3 {
+				return nil, fmt.Errorf("%s: %q is not <path> <byte> <reason or issue ref>", name, l)
+			}
+			b, err := strconv.Atoi(f[1])
+			if err != nil {
+				return nil, fmt.Errorf("%s: %q: %w", name, l, err)
+			}
+			out[f[0]] = append(out[f[0]], b)
+		}
+	}
+	return out, nil
 }
 
 // loadTDT reads each corpus file's fixture from dir, keyed by the file's path as tdt-align.sh writes it.
@@ -310,7 +388,7 @@ func loadTDT(dir string, files []File, srcs map[string][]byte) ([]tdtFile, error
 		if err != nil {
 			return nil, fmt.Errorf("%s has no aligned-pairs fixture in TDT_FIXTURES: %w", f.Path, err)
 		}
-		out[i] = tdtFile{f.Path, srcs[f.Path], string(fx)}
+		out[i] = tdtFile{Path: f.Path, Src: srcs[f.Path], Fixture: string(fx)}
 	}
 	return out, nil
 }
@@ -346,6 +424,13 @@ func measureTDT(dir string, g *grammar.Grammar, tab *grammar.Tables, files []Fil
 	tfiles, err := loadTDT(dir, files, srcs)
 	if err != nil {
 		return err
+	}
+	skips, err := skipLists()
+	if err != nil {
+		return err
+	}
+	for i := range tfiles {
+		tfiles[i].Skip = skips[tfiles[i].Path]
 	}
 	lines, err := listLines(familiesFile)
 	if err != nil {

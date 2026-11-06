@@ -201,10 +201,11 @@ func TestTDTFixturesRefusesMalformed(t *testing.T) {
 	}
 }
 
-// reasonErrors returns one message per entry of a reviewed list that carries no stated reason. In unseen-reviewed.txt
-// an entry takes the nearest `reason:` line above it, which must say something; a fitting-families.txt line is
-// `<family> <toke.c citation> <the shape it folds>`.
-func reasonErrors(text string, families bool) []string {
+// reasonErrors returns one message per entry of a reviewed tdt list that carries no stated reason. In
+// unseen-reviewed.txt an entry takes the nearest `reason:` line above it, which must say something; a
+// fitting-families.txt line is `<family> <toke.c citation> <the shape it folds>`; an overrides.txt line is
+// `<path> <byte> <reason>`. (lexer-rooted.txt's reason is its issue ref, which TestLexerLists requires.)
+func reasonErrors(text, list string) []string {
 	var out []string
 	reason := ""
 	for n, l := range strings.Split(text, "\n") {
@@ -212,20 +213,24 @@ func reasonErrors(text string, families bool) []string {
 		if l == "" || strings.HasPrefix(l, "#") {
 			continue
 		}
-		if families {
-			if f := strings.Fields(l); len(f) < 3 || !strings.HasPrefix(f[1], "toke.c:") {
+		f := strings.Fields(l)
+		switch list {
+		case "fitting-families.txt":
+			if len(f) < 3 || !strings.HasPrefix(f[1], "toke.c:") {
 				out = append(out, fmt.Sprintf("line %d: family %q carries no toke.c citation and shape", n+1, f[0]))
 			}
-			continue
-		}
-		if r, ok := strings.CutPrefix(l, "reason:"); ok {
-			if reason = strings.TrimSpace(r); reason == "" {
-				out = append(out, fmt.Sprintf("line %d: an empty reason", n+1))
+		case "overrides.txt":
+			if _, err := strconv.Atoi(f[min(1, len(f)-1)]); len(f) < 3 || err != nil {
+				out = append(out, fmt.Sprintf("line %d: %q is not <path> <byte> <reason>", n+1, l))
 			}
-			continue
-		}
-		if reason == "" {
-			out = append(out, fmt.Sprintf("line %d: %q has no reason above it", n+1, l))
+		default:
+			if r, ok := strings.CutPrefix(l, "reason:"); ok {
+				if reason = strings.TrimSpace(r); reason == "" {
+					out = append(out, fmt.Sprintf("line %d: an empty reason", n+1))
+				}
+			} else if reason == "" {
+				out = append(out, fmt.Sprintf("line %d: %q has no reason above it", n+1, l))
+			}
 		}
 	}
 	return out
@@ -234,30 +239,34 @@ func reasonErrors(text string, families bool) []string {
 // TestTDTReviewedListsHaveReasons: every reviewed tdt-unseen entry and every fitting family states its reason, so neither
 // list can be filled to make a count zero; the committed lists pass and synthetic entries without one fail.
 func TestTDTReviewedListsHaveReasons(t *testing.T) {
-	for _, f := range []string{"unseen-reviewed.txt", "fitting-families.txt"} {
+	for _, f := range []string{"unseen-reviewed.txt", "fitting-families.txt", "overrides.txt"} {
 		data, err := os.ReadFile(filepath.Join(tdtDir, f))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if errs := reasonErrors(string(data), f == "fitting-families.txt"); len(errs) > 0 {
+		if errs := reasonErrors(string(data), f); len(errs) > 0 {
 			t.Errorf("%s: %q", f, errs)
 		}
 	}
+	const fams, overrides = "fitting-families.txt", "overrides.txt"
 	for _, c := range []struct {
-		text     string
-		families bool
-		bad      bool
+		text, list string
+		bad        bool
 	}{
-		{"THING Kind=Quote\n", false, true},
-		{"reason:\nTHING Kind=Quote\n", false, true},
-		{"reason: construct absent from the corpora: v1.2\nTHING Kind=Quote\nTHING Kind=Number\n", false, false},
-		{"label\n", true, true},
-		{"label toke.c:9396\n", true, true},
-		{"label LABEL carries its colon\n", true, true},
-		{"label toke.c:9396 LABEL carries its colon\n", true, false},
+		{"THING Kind=Quote\n", "unseen-reviewed.txt", true},
+		{"reason:\nTHING Kind=Quote\n", "unseen-reviewed.txt", true},
+		{"reason: construct absent from the corpora: v1.2\nTHING Kind=Quote\nTHING Kind=Number\n", "unseen-reviewed.txt", false},
+		{"label\n", fams, true},
+		{"label toke.c:9396\n", fams, true},
+		{"label LABEL carries its colon\n", fams, true},
+		{"label toke.c:9396 LABEL carries its colon\n", fams, false},
+		{"T1/a.t 12\n", overrides, true},
+		{"T1/a.t\n", overrides, true},
+		{"T1/a.t x uc is overridden\n", overrides, true},
+		{"T1/a.t 12 uc is overridden by *CORE::GLOBAL::uc\n", overrides, false},
 	} {
-		if got := len(reasonErrors(c.text, c.families)) > 0; got != c.bad {
-			t.Errorf("reasonErrors(%q, %v) reports %v, want %v", c.text, c.families, got, c.bad)
+		if got := len(reasonErrors(c.text, c.list)) > 0; got != c.bad {
+			t.Errorf("reasonErrors(%q, %s) reports %v, want %v", c.text, c.list, got, c.bad)
 		}
 	}
 }
