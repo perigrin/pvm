@@ -280,6 +280,11 @@ func tdtKeys(decls []grammar.ClassDecl, names []string, files []tdtFile, fams ma
 			seen[k] = slices.ContainsFunc(starts, func(s int) bool { return own[s] != 0 })
 		}
 	}
+	for _, r := range reviewed {
+		if seen[r] {
+			return nil, fmt.Errorf("%s: %q is seen, so its reason no longer holds", reviewedFile, r)
+		}
+	}
 	var unseen, unseenUnlisted int
 	for _, k := range keyNames {
 		if !seen[k] {
@@ -316,8 +321,9 @@ var fittedNames = []string{"PRIVATEREF", "KW_SUB_named"}
 // "Extend fitted-terminal"): PRIVATEREF, perly.y:1842's fit for a word before a (, stands for toke.c's zero-width & and
 // the name, which the noamp family aligns as the name with PERLY_AMPERSAND folded onto it, and for the one BAREWORD
 // toke.c folds a constant sub's NAME() into (constant-sub, yyl_constant_op via toke.c:8197-8200); KW_SUB_named on a
-// statement word, perly.y:638's fit, stands for the KW_SUB_named (or, under signatures, KW_SUB_named_sig) toke.c
-// returns before the name and the phaser family folds onto it (toke.c:8315).
+// statement word, perly.y:638's fit, stands for the KW_SUB_named toke.c returns before the name and the phaser family
+// folds onto it (toke.c:8315), and for its KW_SUB_named_sig under signatures, which the chart does not track
+// (perigrin: "Both stand").
 func fit(name string, p pair) bool {
 	switch name {
 	case "PRIVATEREF":
@@ -328,8 +334,9 @@ func fit(name string, p pair) bool {
 	return false
 }
 
-// skipped is the start bytes of f's tokens the comparison skips: each listed byte's token and, for a {, the } closing
-// it. A listed byte where no token starts is an error, so an entry cannot name an arbitrary byte.
+// skipped is the start bytes of f's tokens the comparison skips, from the mismatch check and the unaligned count
+// alike (perigrin: "Both stand"): each listed byte's token and, for a {, the } closing it. A listed byte where no
+// token starts is an error, so an entry cannot name an arbitrary byte.
 func skipped(f tdtFile, raw []lexer.Token) (map[int]bool, error) {
 	out := map[int]bool{}
 	for _, b := range f.Skip {

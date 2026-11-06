@@ -156,8 +156,11 @@ To take a baseline after an intended change, run
   fitted terminal stands for the toke.c pair its family folds, keyed by
   family: PRIVATEREF for a call's `&` and name (noamp) and for a constant
   sub's `NAME()` BAREWORD (constant-sub), and KW_SUB_named for the
-  KW_SUB_named or KW_SUB_named_sig a statement word's phaser family folds.
-  Two lists skip single tokens: `testdata/tdt/lexer-rooted.txt`
+  KW_SUB_named or KW_SUB_named_sig a statement word's phaser family folds
+  (the `_sig` half because the chart does not track signatures; perigrin:
+  "Both stand"). Two lists skip single tokens, from the mismatch check and
+  from the unaligned count alike (perigrin: "Both stand"):
+  `testdata/tdt/lexer-rooted.txt`
   (`<path> <byte> <issue ref>`, a token whose lexer root is filed, plus the
   `}` closing a listed `{`) and `testdata/tdt/overrides.txt`
   (`<path> <byte> <reason>`, a builtin the file overrides through
@@ -166,7 +169,8 @@ To take a baseline after an intended change, run
   `lexer-defects.txt` drops whole files from the superset population,
   where `lexer-rooted.txt` skips one token in the width check, so a file the
   chart recognizes keeps its place in the population. A listed byte where no
-  token starts is an error.
+  token starts is an error, and so is a reviewed tdt-unseen entry for a pair
+  that is seen, whose reason no longer holds.
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).

@@ -1319,8 +1319,5 @@ BLKLSTOP Kind=Word Text="any" NotNext=#2:c96cd92cd7e0e
 reason: toke.c invents NOAMP before a predeclared list operator's name (toke.c:7987) and the scope-sub family folds it onto the name, so it is never an aligned head; the chart's NOAMP on the word stands for it
 NOAMP Kind=Word Prefix="\x00" NotText=#266:29e824fefb9 NotPrev1=#18:733efa7b8a10 NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
 
-reason: the one corpus ~. (bitwise_string_feature.t:1029) is unaligned: the aligner pairs PERLY_TILDE only with ~, so no ~. is ever compared
-PERLY_TILDE Kind=Operator Text="~."
-
 reason: construct absent from the corpora: x as repetition after a block-closing }; the one corpus x this key admits is a call x(123) at a statement start (autoload.t)
 MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
