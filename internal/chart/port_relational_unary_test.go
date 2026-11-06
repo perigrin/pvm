@@ -48,6 +48,11 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 		"bare-not.pl":            {";", "! $a;"},
 		"binary-minus.pl":        {";", "$a - $b;"},
 		"incdec-then-term.pl":    {"$b", "$a++; $b;"},
+		// isa is the infix keyword only where its feature is on, in the block that turned it on (keywords.c:353).
+		"isa-infix-feature-off.pl":       {"isa", `use feature "isa"; $y = $x isa Foo;`},
+		"isa-infix-after-block.pl":       {"isa Foo", `{ use feature "isa"; $y = $x isa Foo; }`},
+		"isa-word-feature-on.pl":         {"isa Foo", `$y = ok(isa Foo("x"));`},
+		"isa-infix-after-old-version.pl": {"isa Foo", `use feature "isa"; use 5.036; my ($y, $x); $y = $x isa Foo;`},
 	}
 	for name, c := range rows {
 		src, err := os.ReadFile(filepath.Join("testdata", "port", "relational-unary-refused", name))
@@ -70,6 +75,21 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 	for _, src := range []string{"- $a;", "$a - - $b;", "$a < $b < $c;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
+		}
+	}
+}
+
+// Known limits of the isa feature bit chart/lex tracks, pinned so they are noticed when they end: a feature a BEGIN
+// block imports is not seen (a shortcut in lex.isaAfter), so the chart refuses what perl accepts; and use v5 leaves
+// the bit, so the chart accepts what perl refuses, a lexer defect rather than a shortcut (see the row).
+func TestPortRelationalAndUnaryIsaLimits(t *testing.T) {
+	for src, accepted := range map[string]bool{
+		`BEGIN { require feature; feature->import("isa") } $y = $x isa Foo;`: false,
+		// perl clears the bit at use v5, but internal/lexer emits a bare v5 as a Word, no version (corpus-covers-t2 01a0dc72).
+		`use feature "isa"; use v5; $y = $x isa Foo;`: true,
+	} {
+		if v := recognizeSource(t, []byte(src)); v.accepted != accepted {
+			t.Errorf("%q: the recorded limit moved (accepted=%v); drop its shortcut or lexer note and the README line", src, v.accepted)
 		}
 	}
 }

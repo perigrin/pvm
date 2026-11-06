@@ -64,13 +64,20 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 // scans the word, which internal/lexer does not make (v0.1 01a1aa1e); a declared sub named x is BAREWORD only (the
 // shortcut on the scope-decided classes in grammar/perly.go).
 func TestPortScopeDecidedKnownLimits(t *testing.T) {
-	for _, src := range []string{"my sub Foo::bar {1}", "our sub Foo::bar {1}", "state sub Foo::bar {1}", "CORE::foo(1);"} {
+	for _, src := range []string{"my sub Foo::bar {1}", "our sub Foo::bar {1}", "state sub Foo::bar {1}", "CORE::foo(1);", "$y = CORE::;"} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
 	if recognizeSource(t, []byte("sub x {1} x 1, 2;")).accepted {
 		t.Errorf("sub x {1} x 1, 2; is accepted; the known limit is gone, so drop the shortcut and the README line")
+	}
+	// perl accepts both: CORE::qw and CORE::q are quote-likes, which internal/lexer emits as a word and loose tokens
+	// (v0.1 01a1ae56), so the stripped word is qw or q with no delimiters.
+	for _, src := range []string{"@y = CORE::qw(a b);", "$y = CORE::q{x};"} {
+		if recognizeSource(t, []byte(src)).accepted {
+			t.Errorf("%q is accepted; the known limit is gone, so drop the README line", src)
+		}
 	}
 }
 
@@ -130,5 +137,21 @@ func TestPortScopeDecidedSuperpositionBounded(t *testing.T) {
 	// LSTOPSUB only before a {, where the indirect objects' METHCALL0 is a reading too.
 	if got, want := terminalsAt(t, "$y = first { 1 } 2;", 5), []string{"BAREWORD", "FUNC0SUB", "LSTOPSUB", "METHCALL0", "NOAMP", "UNIOPSUB"}; !slices.Equal(got, want) {
 		t.Errorf("first before { admits %v, want %v", got, want)
+	}
+}
+
+// toke.c reads a statement word as a sub's name where a statement starts and as any word elsewhere (toke.c:8313-8322).
+// perl -c (94e50866) refuses each statement-start row ("Illegal declaration of subroutine") and accepts its nearby form.
+func TestPortScopeDecidedStatementWords(t *testing.T) {
+	for _, tc := range []struct{ refused, nearby string }{
+		{"BEGIN + 1;", "$y = BEGIN + 1;"}, {"1; END + 1;", "1; $y = END + 1;"},
+		{"{ INIT + 1; }", "{ f(INIT + 1); }"}, {"L: CHECK + 1;", "L: f(CHECK) + 1;"},
+	} {
+		if v := recognizeSource(t, []byte(tc.refused)); v.accepted {
+			t.Errorf("%q is accepted; perl refuses it", tc.refused)
+		}
+		if v := recognizeSource(t, []byte(tc.nearby)); !v.accepted {
+			t.Errorf("%q, near %q, is refused at %d", tc.nearby, tc.refused, v.at)
+		}
 	}
 }

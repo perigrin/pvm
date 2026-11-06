@@ -343,9 +343,8 @@ feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 `try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
 feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
 The other side is under-acceptance: where perl reads them as plain words,
-`try => 1;`, `sub try {} try 1;`, `$h{try}` and `catch(1)` are refused, and
-cannot be told from `foo(1)`, `foo 1` and `$h{foo}` (also refused) until the
-call and subscript families land.
+`sub try {} try 1;` and `catch(1)` are refused (`try => 1;` and `$h{try}` are
+accepted, as every word is there).
 
 A LABEL is a word with no package separator and a one-byte colon after it on
 its own line (blanks only between), where a statement may start: toke.c's label
@@ -407,9 +406,8 @@ term to toke.c. Known limits:
   neighbour flag decided from the token's own text, an extension of spec section
   7's neighbour class by perigrin's ruling; INTERN's reference derives it
   independently (`refClassOf`) and `keyText` renders it with the neighbour.
-- A delimited number two after `use` or `no` is a version and no term, so
-  `(no => 1 , 2)` will be refused once keywords auto-quote before `=>`; that
-  family settles it.
+- A delimited number two after `use` or `no` is a version and no term, unless
+  `=>` stands between, after which toke.c reads a term (`(no => 1 , 2)`).
 - The Number version shape extends spec section 7's key with a part it did not
   have: the number's own text and the byte after it, derived by chart/lex
   into `Prefix`. perigrin ruled it so, as he did for `Glob` and `Name`.
@@ -519,8 +517,7 @@ no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 
 - Refused where perl accepts: `class Foo v1.2.3;` (the package limit above, `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`);
   `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
-  `method m : { }` (the `sub foo : { }` limit above); and `field => 1`, `method => 1`, `class => 1`, which the
-  fat-comma family settles for every keyword.
+  and `method m : { }` (the `sub foo : { }` limit above).
 - Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
   is refused where perl accepts it: pvm emits `( Word Number )` where toke.c delivers one ATTRLIST. And `method m :lvalue ($$) { 1 }`,
   `method m :lvalue (1) { 1 }` and `my $c = method :lvalue (1) { 1 };` are accepted where perl refuses them as bad signatures: pvm emits
@@ -678,6 +675,11 @@ method's name. The lone `$` pvm emits for `->${` is a cast's sigil, `CAST_DOLLAR
 (`$x->${\ 'm'}`, `$x->${$m}(1)`) is accepted. The generator's literal check lexes a class keyed on `->` after one, and a `DerefSigil`'s before a
 variable. Interleaved Intern and Lex benchmarks against the base show no per-token cost.
 
+A blank between `->` and `@` leaves toke.c's `->` a `TERM(ARROW)`, and the nameless `@` is then `PREREF(PERLY_SNAIL)`
+(yyl_snail), so `$r->@ {"a"}` is the slice `$r->@{"a"}`: the `DerefSigil` after `->` maps to `PERLY_SNAIL`, never to
+`CAST_SNAIL`. After `->% {`, `->* {` and `->& {` toke.c reads an operator and perl refuses; `->* {` is accepted, since
+the key cannot tell `*{` from `* {`.
+
 One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: a cast of a block that opens with `{}` is accepted
 (`${ {} }`, `@{ {} }`, `%{ {} }`, `&{ {} }`, `*{ {} }`, `$x->${ {} }`, `${ {} }{a}`, `print ${ {} };`), where
 toke.c's `scan_ident` reads `${ {` after any sigil as the punctuation variable `{` and perl refuses the `}` left
@@ -691,7 +693,19 @@ A word the neighbours leave undecided (`TestPortScopeDecidedSuperpositionBounded
 BAREWORD, NOAMP, FUNC0SUB and UNIOPSUB, LSTOPSUB too before a `{`, and METHCALL0 where the indirect objects
 put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the rest, as toke.c's yyl_just_a_word does:
 
-- Before `=>` a word is BAREWORD (toke.c:8176). Before `(` it is a call: toke.c emits a zero-width `&` and the
+- Before `=>` a word is BAREWORD (toke.c:8176), a keyword too: toke.c checks for `=>` before it looks a word up
+  (yyl_fatcomma, toke.c:9332-9336 and 9440-9453), so init's `cutBeforeFatComma` takes every class keyed on a word's
+  text away there, `x`'s included (`f(eq => 1, print => 2)`, `{ y => 2 }`; `$a x => 1` is refused, as by perl).
+- `AUTOLOAD`, `DESTROY`, `BEGIN`, `UNITCHECK`, `CHECK`, `INIT` and `END` name a sub only where a statement starts
+  and are any word elsewhere (toke.c:8313-8322), so init's `addStatementWords` gives them each class of a word no
+  class names, after anything but a statement start (`$y = AUTOLOAD();`, `$y = END x 3`).
+- `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
+  chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
+  `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its
+  fat-comma check, so `CORE::eq =>` stays CHEQOP and is refused as by perl: the fat-comma BAREWORD classes leave
+  `CoreQualified` out, and `cutBeforeFatComma` keeps a copy of each class it cuts for it. The prefix test runs only on a
+  word opening with `C`; INTERN's reference reads it with a regular expression (`refCore`). `CORE::GLOBAL::foo` is a word.
+- Before `(` it is a call: toke.c emits a zero-width `&` and the
   name (toke.c:8195-8211), which the word stands for as PRIVATEREF, by a fit of perly.y:1842 (`amper:
   PRIVATEREF`), so `foo(1)` and `f()->{foo}` are accepted.
 - A word ending in `::` is a package name, never a call (safebw, toke.c:8098-8111), so `a::()`, `Foo:: 1` and
@@ -714,8 +728,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
 Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
 named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is refused (`x 1;` is refused by perl
 too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
-`my sub Foo::bar {1}`, its `our` and `state` forms and `CORE::foo(1);` are accepted, where toke.c croaks while it
+`my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
+`CORE::qw`, `CORE::q`, `CORE::qq`, `CORE::m`, `CORE::qr`, `CORE::qx`, `CORE::s`, `CORE::tr` and `CORE::y` with their
+delimiters (`@y = CORE::qw(a b);`, `$y = CORE::q{x};`, `$y = CORE::tr/a/b/;`) are refused where perl accepts them:
+internal/lexer emits a `CORE::` quote-like as a word and loose tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves
+the operator's name with no delimiters.
 `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
 `terminals-per-token` and `items-per-token` rise by design.
 
@@ -807,6 +825,19 @@ whatever the file's length.
   Go map hashed, and a longer text in the text map.
   `TestInternIdentityOverCorpus` holds every corpus file's ids to a
   reference that matches each class directly.
+
+- **The isa feature** is the one bit of scope `Map` tracks, by perigrin's ruling ("Track the isa feature"): toke.c
+  reads `isa` as a keyword only where the feature is on (keywords.c:353), and elsewhere `Map` gives the word the
+  text `grammar.PlainIsa`, which no class names, so `ok(isa Foo('x'))` is an indirect method call and `$x isa Foo`
+  is refused. A `use` or `no` statement sets the bit as feature.pm does (`isaAfter`): `feature` or `experimental`
+  naming `isa`, `:all` or a bundle from `:5.35`, a bare `no feature`, and `use VERSION` (on from 5.35, off
+  below it, `use 5.008` and `use 5` included). Every `{` saves it and the matching `}` restores it, which is the block scope; a hash's or a
+  subscript's braces save and restore it too, harmlessly, since no `use` stands inside one. The work is a kind
+  and length test per token, and a scan of the statement at a `use` or `no`. INTERN's reference reads the same
+  statements with regular expressions (`refIsaAfter`). Not seen, each a `shortcut:` in `isaAfter`: a feature a
+  module or a `BEGIN` block imports, or one a string eval turns on. `use v5;` leaves the bit, where perl clears it,
+  because internal/lexer emits a bare `v5` as a Word rather than a version (`corpus-covers-t2` `01a0dc72`); pinned in
+  `TestPortRelationalAndUnaryIsaLimits`.
 
 `lex.Map` is the same over tokens the caller already has; `Lex` is `Map` over
 `lexer.Tokenize`'s, and the ratchet times `Map` with its `Tokenize` call
