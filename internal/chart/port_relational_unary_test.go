@@ -52,7 +52,7 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 		"isa-infix-feature-off.pl":       {"isa", `use feature "isa"; $y = $x isa Foo;`},
 		"isa-infix-after-block.pl":       {"isa Foo", `{ use feature "isa"; $y = $x isa Foo; }`},
 		"isa-word-feature-on.pl":         {"isa Foo", `$y = ok(isa Foo("x"));`},
-		"isa-infix-after-old-version.pl": {"isa Foo", `use feature "isa"; use 5.036; $y = $x isa Foo;`},
+		"isa-infix-after-old-version.pl": {"isa Foo", `use feature "isa"; use 5.036; my ($y, $x); $y = $x isa Foo;`},
 	}
 	for name, c := range rows {
 		src, err := os.ReadFile(filepath.Join("testdata", "port", "relational-unary-refused", name))
@@ -84,6 +84,8 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 func TestPortRelationalAndUnaryIsaLimits(t *testing.T) {
 	for src, accepted := range map[string]bool{
 		`BEGIN { require feature; feature->import("isa") } $y = $x isa Foo;`: false,
+		// perl clears the bit at use v5, but internal/lexer emits a bare v5 as a Word, no version (v0.1 01a0dc72).
+		`use feature "isa"; use v5; $y = $x isa Foo;`: true,
 	} {
 		if v := recognizeSource(t, []byte(src)); v.accepted != accepted {
 			t.Errorf("%q: the recorded limit moved (accepted=%v); drop the shortcut and the README line", src, v.accepted)
