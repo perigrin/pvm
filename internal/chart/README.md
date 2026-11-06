@@ -25,6 +25,16 @@ expression core and the variable heads) and the port skeleton (the other six
 start forms and `use`/`no` statements). The forest, error recovery,
 `chart/compare` and the oracle adapter were never built.
 
+**The port is complete** (`ledger-gaps 0`): every `perly.y` alternative is
+ported, fitted or excluded. The five whose actions refuse unconditionally
+(`perly.y:1105`, `1109`, `1541`, `1546`, `1553`, on
+`grammar/testdata/perly/refused-in-action.txt`) are `excluded
+refused-in-action`, and the four comparison chains (`1466`, `1468`, `1484`,
+`1486`) are `refused-by-precedence`. `TestLedgerRefusals` holds, for each,
+`testdata/refusals/<line>/refused.pl`, which the chart refuses (a chain's
+dangling form, `$a <=> $b <=>`), beside `accepted.pl`, a nearby form the
+chart accepts; the pinned perl gives both verdicts.
+
 **Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`) are
 start rules of `grammar`. The program form is the one a file is recognized
 by, and the only one graded. Each of the other six begins with its `GRAM*`
