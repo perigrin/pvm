@@ -147,8 +147,11 @@ To take a baseline after an intended change, run
   `/var/tmp/pvm-chart-tdt`, where this milestone generates them, as `T1_CORPUS`
   defaults; naming no directory, or a corpus file with no fixture there, is an
   error (exit 2). A pair is a token class and the terminal it declares, written
-  `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`; an entry naming
-  no pair of the table is an error. Only whole captures are counted.
+  `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`, where each entry
+  sits under a `reason:` line saying why toke.c never produces it over the
+  corpora; an entry naming no pair of the table is an error. Only whole
+  captures are counted. On stderr the ratchet names each mismatched token,
+  each unlisted unseen pair and each unaligned token outside a family.
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).
