@@ -69,6 +69,8 @@ jobs:
   # passes with every one of them silently skipped, so a regression they would
   # catch reaches pu unnoticed. This job supplies the corpora and fails if any
   # ratchet skips. The list below is the authority; pin_test.go asserts it.
+  # T1, PerlOnJava's unit tests, is in the tree at testdata/perlonjava/unit
+  # and is every test's default, so only perl5 is fetched here.
   #
   # Separate from the matrix because the corpora are the same on every OS and
   # fetching them three times measures nothing extra. Not in
@@ -101,7 +103,7 @@ jobs:
         perl-version: ${{ steps.perlpin.outputs.perl_version }}
         multi-thread: ${{ steps.perlpin.outputs.threads == 'define' }}
 
-    # Both pins are read before Go exists on the runner, so shell rather than a
+    # The pin is read before Go exists on the runner, so shell rather than a
     # Go helper. The perl5 revision comes from 5.42's pin, read above: it is
     # the oracle's corpus at the oracle's revision, and
     # TestCIWorkflowsPinTheirPerls fails when the two pins disagree about it.
@@ -111,29 +113,15 @@ jobs:
         PERL5_REVISION: ${{ steps.perlpin.outputs.revision }}
       run: |
         set -eu
-        field() {
-          sed 's/#.*//' "$2" \
-            | grep "^[[:space:]]*$1[[:space:]]*=" \
-            | tail -n 1 | cut -d= -f2- | tr -d '[:space:]'
-        }
-        t1=$(field revision internal/parse/testdata/t1corpus.pin)
         perl5=$PERL5_REVISION
-        if [ -z "$t1" ] || [ -z "$perl5" ]; then
-          echo "::error::a corpus pin records no revision (t1=${t1:-<missing>} perl5=${perl5:-<missing>})"
+        if [ -z "$perl5" ]; then
+          echo "::error::the perl5 corpus pin records no revision"
           exit 1
         fi
-        echo "t1=$t1" >> "$GITHUB_OUTPUT"
         echo "perl5=$perl5" >> "$GITHUB_OUTPUT"
 
     # The tree at a fixed revision never changes, so the revision alone is a
     # complete cache key.
-    - name: Restore the pinned PerlOnJava corpus
-      id: t1-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.temp }}/PerlOnJava
-        key: perlonjava-corpus-${{ steps.pin.outputs.t1 }}
-
     - name: Restore the pinned perl5 corpus
       id: perl5-cache
       uses: actions/cache@v4
@@ -143,16 +131,6 @@ jobs:
 
     # A partial clone rather than a shallow one: --depth cannot reach a
     # revision that is not near a branch tip, and a pin is a specific commit.
-    - name: Fetch PerlOnJava at the pinned revision
-      if: steps.t1-cache.outputs.cache-hit != 'true'
-      env:
-        REVISION: ${{ steps.pin.outputs.t1 }}
-      run: |
-        set -eu
-        git clone --filter=blob:none --no-checkout \
-          https://github.com/fglock/PerlOnJava "$RUNNER_TEMP/PerlOnJava"
-        git -C "$RUNNER_TEMP/PerlOnJava" checkout --detach "$REVISION"
-
     - name: Fetch perl5 at the pinned revision
       if: steps.perl5-cache.outputs.cache-hit != 'true'
       env:
@@ -165,18 +143,11 @@ jobs:
 
     # A cached corpus can go stale, and measuring the wrong tree quietly is the
     # failure this whole job exists to prevent.
-    - name: Confirm both corpora are at their pinned revisions
+    - name: Confirm the perl5 corpus is at its pinned revision
       env:
-        T1_REVISION: ${{ steps.pin.outputs.t1 }}
         PERL5_REVISION: ${{ steps.pin.outputs.perl5 }}
       run: |
         set -eu
-        actual=$(git -C "$RUNNER_TEMP/PerlOnJava" rev-parse HEAD)
-        if [ "$actual" != "$T1_REVISION" ]; then
-          echo "::error::PerlOnJava is at $actual but the pin records $T1_REVISION."
-          echo "::error::a cached corpus went stale, or the clone did not reach the pinned commit."
-          exit 1
-        fi
         actual=$(git -C "$RUNNER_TEMP/perl5" rev-parse HEAD)
         if [ "$actual" != "$PERL5_REVISION" ]; then
           echo "::error::perl5 is at $actual but the pin records $PERL5_REVISION."
@@ -184,16 +155,12 @@ jobs:
           exit 1
         fi
 
-    # T1 graded is the TOP LEVEL of unit/, 986 files. The ratchet globs *.t in
-    # the directory it is given, so the path must name unit/ itself.
-    #
     # PVM_REQUIRE_PERL542 turns internal/perltest.Perl542's skip into a
     # failure: this job installed perl 5.42.0 above, so a perl-held test
     # (TestCarpPrototypes and the rest) that still can't find it must fail
     # loudly rather than pass by skipping, same as the named ratchets below.
     - name: Run the ratchets
       env:
-        T1_CORPUS: ${{ runner.temp }}/PerlOnJava/src/test/resources/unit
         PERL5_CORPUS: ${{ runner.temp }}/perl5
         PVM_REQUIRE_PERL542: "1"
       run: |

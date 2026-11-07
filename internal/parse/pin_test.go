@@ -1,10 +1,12 @@
-// ABOUTME: The T1 corpus pin is well-formed, and CI actually supplies the corpora it names.
+// ABOUTME: The T1 corpus pin is well-formed and matches the in-tree copy, and CI supplies the corpus it fetches.
 // ABOUTME: A ratchet that skips is a guard that cannot fail, so the workflow is tested too.
 
 package parse_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,8 +33,61 @@ func TestT1PinRecordsARevision(t *testing.T) {
 	}
 }
 
-// TestCIRunsTheRatchets: the workflow supplies both corpora and fails on a
-// skip.
+// TestT1CopyMatchesThePin: the in-tree copy is the pinned corpus. Its README
+// names the pin's revision and no other, and it holds T1's 986 files. The
+// paired cases show the check fails when either side disagrees.
+func TestT1CopyMatchesThePin(t *testing.T) {
+	const dir = "../../testdata/perlonjava"
+	pin, err := os.ReadFile("testdata/t1corpus.pin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev := pinField(string(pin), "revision")
+	readme, err := os.ReadFile(dir + "/README.md")
+	if err != nil {
+		t.Fatalf("the in-tree T1 copy must record its provenance: %v", err)
+	}
+	if err := t1CopyMismatch(string(readme), rev, dir+"/unit"); err != nil {
+		t.Error(err)
+	}
+
+	stale := strings.ReplaceAll(string(readme), rev, strings.Repeat("0", 40))
+	if t1CopyMismatch(stale, rev, dir+"/unit") == nil {
+		t.Error("a README naming another revision passed the check")
+	}
+	short := t.TempDir()
+	if err := os.WriteFile(short+"/a.t", nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if t1CopyMismatch(string(readme), rev, short) == nil {
+		t.Error("a copy without 986 top-level .t files passed the check")
+	}
+}
+
+// t1CopyMismatch reports how a copy's README and top-level *.t files disagree
+// with the pinned revision, or nil.
+func t1CopyMismatch(readme, rev, unit string) error {
+	shas := regexp.MustCompile(`\b[0-9a-f]{40}\b`).FindAllString(readme, -1)
+	if len(shas) == 0 {
+		return fmt.Errorf("the README names no revision; the pin records %s", rev)
+	}
+	for _, sha := range shas {
+		if sha != rev {
+			return fmt.Errorf("the README names %s but t1corpus.pin records %s", sha, rev)
+		}
+	}
+	files, err := filepath.Glob(filepath.Join(unit, "*.t"))
+	if err != nil {
+		return err
+	}
+	if len(files) != 986 {
+		return fmt.Errorf("%s holds %d top-level .t files, want T1's 986", unit, len(files))
+	}
+	return nil
+}
+
+// TestCIRunsTheRatchets: the workflow supplies the perl5 corpus and fails on
+// a skip. T1 needs no supplying: it is in the tree at testdata/perlonjava.
 //
 // Asserted against the YAML as text rather than by running it. The defect this
 // guards is precisely that nothing noticed a gate had stopped gating, and a
@@ -45,9 +100,7 @@ func TestCIRunsTheRatchets(t *testing.T) {
 	ci := string(src)
 
 	for _, want := range []struct{ what, needle string }{
-		{"the T1 corpus is supplied", "T1_CORPUS:"},
 		{"the perl5 corpus is supplied", "PERL5_CORPUS:"},
-		{"the T1 pin is read", "t1corpus.pin"},
 		{"the perl5 pin is read", "perl542.pin"},
 		{"the checkout is verified against the pin", "rev-parse HEAD"},
 		{"the corpora are cached on the pin", "actions/cache"},
