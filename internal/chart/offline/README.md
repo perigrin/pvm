@@ -205,8 +205,8 @@ as an absolute path: `TestTDTFixtures` reads a relative one from
 **The corpus fixtures are generated offline, not committed** (perigrin:
 "Don't commit fixtures"). They come to about 16 MB for the 1,881 files, and
 three are over the pre-commit hook's 500 KB limit on an added file (T1's
-`code_too_large.t` 2,831 KB, `std5k.pl` 811 KB, `edit5k.pl` 719 KB). Like
-`T1_CORPUS`, `TDT_FIXTURES` names an input that lives outside the tree. This
+`code_too_large.t` 2,831 KB, `std5k.pl` 811 KB, `edit5k.pl` 719 KB). Unlike
+T1, which is in the tree, `TDT_FIXTURES` names an input that lives outside it. This
 milestone generates them with:
 
 ```sh

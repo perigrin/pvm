@@ -28,9 +28,9 @@ var (
 // corpus is every waypoint-1 corpus file, by the path the lexer lists use
 // (T1 files as T1/<name>.t), with its bytes. A corpus with no file is an error.
 func corpus() ([]File, map[string][]byte, error) {
-	t1 := os.Getenv("T1_CORPUS")
+	t1, t1From := os.Getenv("T1_CORPUS"), "T1_CORPUS"
 	if t1 == "" {
-		t1 = defaultT1
+		t1, t1From = defaultT1, "the in-tree default"
 	}
 	var files []File
 	srcs := map[string][]byte{}
@@ -43,7 +43,11 @@ func corpus() ([]File, map[string][]byte, error) {
 	} {
 		paths, err := filepath.Glob(c.glob)
 		if err != nil || len(paths) == 0 {
-			return nil, nil, fmt.Errorf("corpus %s: no file matches %s (set T1_CORPUS for T1)", c.name, c.glob)
+			from := ""
+			if c.name == "T1" {
+				from = " (T1 from " + t1From + ")"
+			}
+			return nil, nil, fmt.Errorf("corpus %s: no file matches %s%s", c.name, c.glob, from)
 		}
 		for _, p := range paths {
 			src, err := os.ReadFile(p)

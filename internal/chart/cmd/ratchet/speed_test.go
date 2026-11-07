@@ -239,3 +239,19 @@ func TestAllocsPer(t *testing.T) {
 		t.Errorf("allocations per token %v, want about 20", got)
 	}
 }
+
+// A benchmark body that fails must surface as a ratchet error naming the
+// benchmark: b.Fatal outside a test binary panics on a nil pointer inside testing.
+// Tables with one terminal set make every lattice edge fall outside it, so recognizing fails.
+func TestMeasureBenchReportsFailure(t *testing.T) {
+	tab := *committedTables(t)
+	tab.TerminalSets = tab.TerminalSets[:1]
+	var out strings.Builder
+	err := measureBench(&tab, []byte("my $x = 1;\n"), &out)
+	if err == nil || !strings.Contains(err.Error(), "BenchRecognize") {
+		t.Fatalf("measureBench = %v; want an error naming BenchRecognize", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("measureBench wrote %q before failing; want nothing", out.String())
+	}
+}
