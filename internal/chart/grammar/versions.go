@@ -37,7 +37,7 @@ var afterUse = []Neighbour{{Kind: lexer.Word, Text: "use"}, {Kind: lexer.Word, T
 
 // afterWordSlot is the neighbours whose second token after is never the BAREWORD toke.c forces for a
 // version: force_strict_version refuses a word after a package name, and a word after use MODULE is a term. For
-// package and class addVersions gives the word back unless a word stands between, so only the slot after the name stays refused.
+// addVersions' package and class classes give the word back unless a word stands between, so only the slot after the name stays refused.
 var afterWordSlot = append([]Neighbour{{Kind: lexer.Word, Text: "package"}, {Kind: lexer.Word, Text: "class"}}, afterUse...)
 
 // notAfterVersion are the next tokens that cannot follow a forced version, because after it toke.c expects a
