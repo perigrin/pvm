@@ -71,6 +71,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
+	measureBench(tab, srcs[std5k], os.Stderr) // last, so no key's timing follows it
 	ms := report(measured)
 	fmt.Print(Format(ms))
 
