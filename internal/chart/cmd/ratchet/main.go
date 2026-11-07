@@ -2,8 +2,9 @@
 // ABOUTME: Run by `make chart-ratchet`; exits 1 on a regression against testdata/ratchet/baseline.txt, 2 on an error.
 
 // Command ratchet is the chart spike's ratchet. Its output contract is in
-// internal/chart/README.md. It reads only the working tree, from the
-// repository root: no commit, no refs/zhi, no network.
+// internal/chart/README.md. It reads the working tree, from the repository
+// root, and the T1 corpus (T1_CORPUS) and tdt fixtures (TDT_FIXTURES) outside
+// it: no commit, no refs/zhi, no network.
 package main
 
 import (
