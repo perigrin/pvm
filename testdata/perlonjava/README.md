@@ -10,18 +10,19 @@ Flavio Glock's implementation of Perl 5 on the JVM. pvm did not write these
 tests, and could not have measured its parser without them.
 
 Thank you, Flavio, for all of this amazing work: for PerlOnJava itself, a
-from-scratch Perl that compiles to JVM bytecode and that you have carried
-through more than nine thousand commits since its first in January 2010, and
-for this suite in particular.
+Perl that compiles to JVM bytecode, which you have carried through nearly nine
+thousand commits since August 2024, on a history that reaches back through
+your Perlito project to January 2010; and for this suite in particular.
 
 What makes the suite so valuable to us is how it was built. Each top-level
 file exercises one construct and is named for it: `anonymous_code_attribute_order.t`,
 `array_autovivification.t`, `boolean_bitwise_xor.t`. When pvm's parser fails
 one of them, the filename names the feature, and a failure becomes a bug report
-rather than a hunt. And because PerlOnJava's own rules say a unit test must
-encode standard Perl behaviour and be checked against perl before anyone relies
-on it, these files describe Perl, not one implementation of it. That is exactly
-what a from-scratch parser needs to be measured against.
+rather than a hunt. And PerlOnJava's own rules require that a unit test encode
+standard Perl behaviour, not PerlOnJava's, and that a new or changed one be
+checked against perl before anyone relies on it. The suite is written to
+describe Perl rather than one implementation of it, which is exactly what a
+from-scratch parser like pvm's needs to be measured against.
 
 These 986 files are T1, the corpus pvm's recursive-descent parser is graded
 on. The T1 ratchets in `internal/parse` count against them, and a change
