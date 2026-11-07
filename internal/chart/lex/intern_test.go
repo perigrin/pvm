@@ -426,24 +426,27 @@ const loneForms = "$h{time}; $h->{shift}; $h{ if }; $h{x}; $h{-if}; $h{ - while 
 	"+{ time }; +{ shift }; $h{time, 1}; $h{$a}; $h{Foo::time}; $h{ q }; $a[time]; $r->[0]{y}; f()->{s}; " +
 	"$h{if\n}; $h{\nif}; $h{if # c\n}; $h{-if\n}; $h{q\n}; $h{time\n}; $h{\tif}; $h{ -\nif}; $h{\n-if}; $h{Foo'bar}; $h{::foo}; $h{foo::}; $h{Foo::bar}; $a\n-if}; $a --if}; $a\n--if}; "
 
+// negatedForms are the keys the negated parts need, which the corpus may not hold (TestInternIdentityNegatedParts).
+var negatedForms = loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
+	"$y = @a * ref x 3; $y = $#a * ref x 3; $y = @a * 2; @a x 3; $#a x 3; my @b = @a x 3; $c ? my @z : shared; $y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
+	"format print =\n.\n" +
+	"sub class { foo } sub class { Foo::Bar->new } sub package { foo } sub package { x 3 } sub class { x } my method m { 1 } my method { 1 }; our method { 1 }; sub class { foo(1) } class Foo { method class { foo } } class Foo bar; " +
+	"class if { } class Foo 1.2 :isa(Bar); method print { 1 } method ::foo; field $x :param = 1; my $m = method { 1 }; method x { 1 } class x; " +
+	"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
+	"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
+	"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
+	"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
+	"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); CORE::for (;;) {} $y = ($x CORE::eq 1); CORE::say(1); f(CORE::eq => 1, CORE::print => 2, CORE::x => 3); $y = CORE::GLOBAL::foo; CORE::foo(1); $y = CORE::time x 3; CORE::my $z; " +
+	"$y = $x isa Foo; ok(isa Foo(1)); use feature 'isa'; $y = $x isa Foo; { no feature qw(say isa); ok(isa Foo(1)); } $y = $x isa Foo; no feature ':all'; isa(1); use experimental \"isa\"; $x isa Foo; no feature; isa(1); use v5.36; $x isa Foo; use v5.10; isa(1); use 5.036; $x isa Foo; use 5.008; $x isa Foo; use feature ':5.36'; $x isa Foo; no feature ':5.10'; $x isa Foo; no feature ':5.36'; isa(1); use 5.36.0; $x isa Foo; use 5.034_000; isa(1); use v5.36; use 5; isa(1); use v5.36; use v5.8; isa(1); use v5.36; use 5.006; isa(1); use v5.36; use 4; isa(1); use v5.36; use 0.5; isa(1); $h{isa}; $o->isa(1); sub isa { 1 } isa => 1; " +
+	"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
+	"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; ${}; &{}; *{}; @{ }; *g{}; $x->${\\ 1}; $x->${$m}(1); $x->${}; ${ {} }; " +
+	"print \"@{[ <<B ]}\" . <<A;\nb\nB\n"
+
 // The negated parts (NotText, NotPrev1, NotPrev2, NotNext, NotNextIdent) need keys the corpus may not hold: x after a unary
 // operator, a keyword as a word, a unary operator before a parenthesis.
 func TestInternIdentityNegatedParts(t *testing.T) {
 	tt, classes := committed(t)
-	src := []byte(loopForms + "shift x 3; $a x 3; ref($a) x 3; ref x 3; last x; not (x); if; foo; time x 3; L: 1;\nL :1; L\n: 1; L #c\n: 1; L::M: 1; L'M: 1; $::e $a'b $' @Foo::x; L :: 1; catch ($\ne) catch ($ #c\ne) catch ($ #c\n e) catch (${e}) catch (${ e }) catch ($ e) catch (${_}) catch (${1}) catch ($ _) catch (${ ^E }) catch (${a}) catch (${__}) catch ($ ARGV); use utf8; é: 1; catch ($é); no utf8; L: for our ($x) (1) {} L: for state ($x) (1) {} my $y : for our ($x); A: B: for our ($x) (1) {} $c ? L : for our ($x); {L: for our ($x) (1) {}} ; M: our $z; catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); catch ($::e) catch ($Foo'e) catch ($') catch ($e) catch ($_) catch ($1) catch ($^W) catch ($_e); " + colonForms +
-		"$y = @a * ref x 3; $y = $#a * ref x 3; $y = @a * 2; @a x 3; $#a x 3; my @b = @a x 3; $c ? my @z : shared; $y = qw(a) * ref x 3; $y = q(a) * ref x 3; $y = qq(a) * ref x 3; foo * ref x 3; $y = foo * ref x 3; bar foo * ref x 3; $y = *print * ref x 3; $y = &print * ref x 3; $y = $o->print * ref x 3; $y = 2 * ref x 3; *print x 3; $y = $a * shift x 3; $y = *print x 3; $y = 2 * *print x 3; $y = f() * ref x 3; " +
-		"format print =\n.\n" +
-		"sub class { foo } sub class { Foo::Bar->new } sub package { foo } sub package { x 3 } sub class { x } my method m { 1 } my method { 1 }; our method { 1 }; sub class { foo(1) } class Foo { method class { foo } } class Foo bar; " +
-		"class if { } class Foo 1.2 :isa(Bar); method print { 1 } method ::foo; field $x :param = 1; my $m = method { 1 }; method x { 1 } class x; " +
-		"sub ::foo { 1 } sub 'foo; BEGIN ::foo { 1 } END ::x; sub open { 1 } sub join { 1 } sub foo { 1 } " + loneForms +
-		"print FH x 3; print x x 3; sort foo x 3; join foo x 3; new Foo x 3; new Foo(1); foo $x; foo { 1 } 2; &foo x 3; open FH; " +
-		"sort(foo x 3); sort (foo @a); $o->sort(foo x 3); sort(foo) x 3; foo { a => 1 }; &$foo; my $x :sort(1); my $x :sort($y); " +
-		"\n\"a\"(1); \"a$x\"(1); qq{a}(1); `ls`(1); qx(ls)(1); <STDIN>(1); <*.c>(1); <<A(1);\na\nA\n<<'  E' . <<~F;\n  E\n  F\n" +
-		"f(1, eq => 1, x => 2, print\n=> 3, foo #c\n=> 4); $y ^^= 1; $y = $a x => 1; $r->@ {\"a\"}; $r->% {\"a\"}; $y = AUTOLOAD(); $y = END x 3; 1; BEGIN + 1; { INIT + 1; } $y = DESTROY Foo; (no => 1 , 2); (use => 1.2 x 3); CORE::for (;;) {} $y = ($x CORE::eq 1); CORE::say(1); f(CORE::eq => 1, CORE::print => 2, CORE::x => 3); $y = CORE::GLOBAL::foo; CORE::foo(1); $y = CORE::time x 3; CORE::my $z; " +
-		"$y = $x isa Foo; ok(isa Foo(1)); use feature 'isa'; $y = $x isa Foo; { no feature qw(say isa); ok(isa Foo(1)); } $y = $x isa Foo; no feature ':all'; isa(1); use experimental \"isa\"; $x isa Foo; no feature; isa(1); use v5.36; $x isa Foo; use v5.10; isa(1); use 5.036; $x isa Foo; use 5.008; $x isa Foo; use feature ':5.36'; $x isa Foo; no feature ':5.10'; $x isa Foo; no feature ':5.36'; isa(1); use 5.36.0; $x isa Foo; use 5.034_000; isa(1); use v5.36; use 5; isa(1); use v5.36; use v5.8; isa(1); use v5.36; use 5.006; isa(1); use v5.36; use 4; isa(1); use v5.36; use 0.5; isa(1); $h{isa}; $o->isa(1); sub isa { 1 } isa => 1; " +
-		"$y = $$x; ${ $x }; @{$x}; %$x; @$x; $r->$*; $r->@*; $r->%*; $r->&*; $r->**; $r->$#*; $r->@[0]; $r->%{a}; $r->%[0]; $r->$m; $r->@foo; $r->$#foo; " +
-		"*g{CODE}; *g{if}; *{$x}; *{$x}{CODE}; $r->*{CODE}; *$x; $r->$* x 3; $r->@* x 3; $y = @*; $y = $*; &{$x}(1); \\&{$x}; ${}; &{}; *{}; @{ }; *g{}; $x->${\\ 1}; $x->${$m}(1); $x->${}; ${ {} }; " +
-		"print \"@{[ <<B ]}\" . <<A;\nb\nB\n")
+	src := []byte(negatedForms)
 	// The last line's <<A has no body (the one after it is the string's <<B), so it is refused: pairing by tag, not by order.
 	s, _ := Lex(src, tt)
 	want := refIDs(t, src, tt, classes)
@@ -587,4 +590,47 @@ func refTag(opener string) string {
 		}
 		return r
 	}, opener)
+}
+
+// A LookupCache answers as the walk does on real keys: each token of negatedForms and of the corpus, interned as Map
+// interns it (isa's feature state aside), with its real neighbours, through one cache. These are the contexts where the
+// Global and Blanks parts decide a set, which grammar's TestLookupCacheAgrees, sweeping one neighbour at a time, does not reach.
+func TestLookupCacheAgreesOnRealKeys(t *testing.T) {
+	tt, _ := committed(t)
+	srcs := [][]byte{[]byte(negatedForms)}
+	for _, f := range corpusFiles(t) {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		srcs = append(srcs, src)
+	}
+	var c grammar.LookupCache
+	for _, src := range srcs {
+		text, raw := string(src), lexer.Tokenize(src)
+		var at []int
+		for i, r := range raw {
+			if !lexer.IsTrivia(r.Kind) && r.Kind != lexer.HeredocBody {
+				at = append(at, i)
+			}
+		}
+		toks := make([]grammar.Token, len(at))
+		pred := &grammar.Boundary
+		for j, i := range at {
+			intern(tt, text, raw[i], lineColon(raw, i, text), blanks(raw, i, text), false, pred, &toks[j])
+			pred = &toks[j].N
+		}
+		p2, p1 := tt.Edge, tt.Edge
+		for j := range toks {
+			next := tt.Edge
+			if j+1 < len(toks) {
+				next = toks[j+1].Class
+			}
+			if got, want := c.Lookup(tt, &toks[j], p2, p1, next), tt.Lookup(&toks[j], p2, p1, next); got != want {
+				r := raw[at[j]]
+				t.Fatalf("%q at byte %d: the cache gives set %d, the walk %d", src[r.Start:r.End], r.Start, got, want)
+			}
+			p2, p1 = p1, toks[j].Class
+		}
+	}
 }
