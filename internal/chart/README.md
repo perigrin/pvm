@@ -330,8 +330,9 @@ entry's byte is that issue's.
 
 **The chart refuses `return {…}`, `bless {…}, $class` and `sprintf {…}`.** The
 lexer defect 01a1ad1d-bc7b mis-types the open brace there. It accounts for 105
-of the 114 entries of `lex-unmapped-known.txt`; perl accepts 92 of those 105
-(and 93 of all 114). So about 100 perl-accepted files sit outside the superset
+of the 114 entries of `lex-unmapped-known.txt`; the committed perl labels
+(`testdata/labels/`) mark 91 of those 105 accepted (and 92 of all 114). So
+about 90 perl-accepted files sit outside the superset
 population, and outside the speed figures (§9.1 allows this). Rewriting those
 braces as `+{` makes the chart accept all 90 perl-accepted T1 files, so the list
 hides no gap of the chart's own.
@@ -1031,9 +1032,10 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   pair, so two positions with equal content share one `*Set`. A node that an
   edge passes over is inside a branch: its set is built but not interned.
 - **Lookahead.** In up-front mode a complete item's rule completes only if
-  the next token, or the end of input, can follow its LHS. That stops
-  completions the next token cannot continue from entering the set, which is
-  what keeps sets equal from one statement to the next.
+  the next token, or the end of input, can follow its LHS. That keeps
+  out of each set the completions the next token cannot continue. On 100
+  statements `$x = 1;` the item count is 2,001 with lookahead and 2,201
+  without; both are linear, since perly's `stmtseq` is left-recursive.
   `Expected(pos)` is the union of the expected terminals of every state in
   the set at `pos` as recognition without lookahead builds it: it closes
   the set again under every completion, outside the interned content, so a
@@ -1056,10 +1058,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   Every set a chain read is a transition-cache dependency. Leo never changes
   acceptance. At lookahead 0, where interleaved mode will run, it makes
   `S ::= A S | A` and a toy right-recursive, nullable statement sequence
-  (the shape of perly's right-associative `termbinop: term ASSIGNOP term`, a chain
-  `$a = $b = $c = …` that closes in one step) linear, where without it they are
-  quadratic (`TestLeoLinearAtLookaheadZero` and
-  the toy statement sequence's test beside it). Linear here means the item count,
+  linear, where without it they are quadratic
+  (`TestLeoLinearAtLookaheadZero` and the toy sequence's test beside it). perly
+  has one production of that shape, `else: KW_ELSIF … mblock else | empty`: an
+  `if` with 50, 100 and 200 `elsif` arms has 1,381, 2,731 and 5,431 items at
+  lookahead 0 with Leo and 2,557, 7,582 and 25,132 without. With lookahead on,
+  the default, it is linear either way (1,034, 2,034, 4,034 with Leo; 1,082,
+  2,132, 4,232 without). At waypoint 1 operator chains such as `$a = $b = …`
+  get no Leo benefit, because precedence is not applied yet: the item count is
+  quadratic with Leo or without (5,462, 20,912 and 81,812 at 50, 100 and 200
+  assignments, lookahead 0). Linear here means the item count,
   not time: with the cache on, each use of a chain walks it to record its
   sets, so time stays quadratic until memos are interned. A chain stops at
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
