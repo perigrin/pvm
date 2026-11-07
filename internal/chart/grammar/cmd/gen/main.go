@@ -25,10 +25,6 @@ func main() {
 
 // run generates g's tables into dir and returns the exit code.
 func run(g *grammar.Grammar, ref []grammar.Entry, dir string, stderr io.Writer) int {
-	if len(g.G1) == 0 {
-		fmt.Fprintln(stderr, "chart-tables: no rule is committed; nothing to generate, no tables written")
-		return 0
-	}
 	if err := grammar.GenerateTables(dir, g, ref); err != nil {
 		fmt.Fprintf(stderr, "chart-tables: %v\n", err)
 		return 1
