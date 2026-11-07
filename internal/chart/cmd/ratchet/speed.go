@@ -179,7 +179,14 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 
 // measureBench runs chart's BenchLex, BenchRecognize and BenchExpected on std5k.pl (spec §9.3: benchmarks run in the
 // ratchet, not in make test) and writes one measurement line each to stderr. They are not keys.
-func measureBench(tab *grammar.Tables, src []byte, stderr io.Writer) {
+//
+// A b.Fatal inside testing.Benchmark panics here, outside a test binary, so the one step that can fail,
+// recognizing src, is checked first, and a failure is returned naming the benchmarks that run it.
+func measureBench(tab *grammar.Tables, src []byte, stderr io.Writer) error {
+	s, _ := lex.Lex(src, tab.Tokens)
+	if _, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s)); err != nil {
+		return fmt.Errorf("BenchRecognize and BenchExpected: %w", err)
+	}
 	for _, b := range []struct {
 		name string
 		f    func(*testing.B, *grammar.Tables, []byte)
@@ -187,4 +194,5 @@ func measureBench(tab *grammar.Tables, src []byte, stderr io.Writer) {
 		r := testing.Benchmark(func(tb *testing.B) { b.f(tb, tab, src) })
 		fmt.Fprintf(stderr, "%s%s %d ns/op %d allocs/op\n", linePrefix, b.name, r.NsPerOp(), r.AllocsPerOp())
 	}
+	return nil
 }

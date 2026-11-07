@@ -43,11 +43,11 @@ func TestPerlLabels(t *testing.T) {
 
 	root := t1Root()
 	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
-		t.Fatalf("T1_CORPUS=%s names no directory (%v)", root, err)
+		t.Fatalf("%s names no directory (%v)", t1Desc(root), err)
 	}
 	matches, err := filepath.Glob(filepath.Join(root, "*.t"))
 	if err != nil || len(matches) == 0 {
-		t.Fatalf("T1_CORPUS=%s holds no top-level *.t (%v)", root, err)
+		t.Fatalf("%s holds no top-level *.t (%v)", t1Desc(root), err)
 	}
 	for i, m := range matches {
 		matches[i] = filepath.Base(m)
