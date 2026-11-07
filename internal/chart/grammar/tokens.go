@@ -290,7 +290,14 @@ type TokenTable struct {
 	// Edge is the class id of Boundary, for the neighbours a file's edge lacks.
 	Edge int
 	root *node
-	text map[string]int
+	// top, nodes and kids are root laid out for Lookup, whose walk was a cache miss per pointer: a ref below
+	// leaf is an index into nodes, and one with leaf set is a leaf's set id. A node's kids are kids[off:off+n].
+	top   uint16
+	nodes []flatNode
+	kids  []uint16
+	// packs is whether every text and class id fits LookupCache's key.
+	packs bool
+	text  map[string]int
 	// done holds the neighbours that complete a term (Completes classes), a word of no listed text as
 	// OtherWord.
 	done map[Neighbour]bool
@@ -673,26 +680,96 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	for _, l := range leaves {
 		l.id, _ = slices.BinarySearchFunc(tt.Sets, l.set, slices.Compare)
 	}
+	most := 0 // the largest kid count, which a uint16 holds
+	for _, n := range shared {
+		most = max(most, len(n.kids))
+	}
+	if len(tt.Sets) > leaf || len(shared) > leaf || most >= 1<<16 {
+		return nil, fmt.Errorf("token table: %d sets, %d nodes and a node of %d kids, more than its 15-bit refs and 16-bit counts hold", len(tt.Sets), len(shared), most)
+	}
+	tt.top = tt.flatten(tt.root, map[*node]uint16{})
+	tt.packs = len(tt.texts) < 1<<9 && len(tt.nbs)+4 <= 1<<9
 	return tt, nil
+}
+
+// leaf marks a ref to a leaf, whose low bits are its set id.
+const leaf = 1 << 15
+
+// flatNode is a node of the laid-out table: the part it tests, where its kids start in kids and how many, and its default's ref.
+type flatNode struct {
+	off    uint32
+	n, def uint16
+	part   uint8
+}
+
+// flatten adds n and the nodes under it to tt.nodes and tt.kids, each once, and returns n's ref.
+func (tt *TokenTable) flatten(n *node, at map[*node]uint16) uint16 {
+	if n.kids == nil {
+		return leaf | uint16(n.id)
+	}
+	if r, ok := at[n]; ok {
+		return r
+	}
+	r := uint16(len(tt.nodes))
+	at[n] = r
+	f := flatNode{off: uint32(len(tt.kids)), n: uint16(len(n.kids)), part: uint8(n.part)}
+	tt.nodes = append(tt.nodes, f)
+	tt.kids = append(tt.kids, make([]uint16, len(n.kids))...)
+	tt.nodes[r].def = tt.flatten(n.def, at)
+	for v, k := range n.kids {
+		tt.kids[f.off+uint32(v)] = tt.flatten(k, at)
+	}
+	return r
 }
 
 // Lookup is the terminal-set id of an interned token given the class ids of
 // the two significant tokens before it and the one after (Edge at a file's
 // edge). It allocates nothing and hashes nothing.
-func (tt *TokenTable) Lookup(t Token, prev2, prev1, next int) int {
+func (tt *TokenTable) Lookup(t *Token, prev2, prev1, next int) int {
 	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0, b2i(t.qual), b2i(t.lc), b2i(t.bl)}
 	if uint(next) < uint(len(tt.name)) && tt.name[next] {
 		k[8] = 1
 	}
-	n := tt.root
-	for n.kids != nil {
-		if v := k[n.part]; uint(v) < uint(len(n.kids)) {
-			n = n.kids[v]
+	r := tt.top
+	for r < leaf {
+		n := &tt.nodes[r]
+		if v := uint(k[n.part]); v < uint(n.n) {
+			r = tt.kids[uint(n.off)+v]
 		} else {
-			n = n.def
+			r = n.def
 		}
 	}
-	return n.id
+	return int(r &^ leaf)
+}
+
+// LookupCache remembers a table's Lookup answers by their whole key, which the tokens of a file repeat: a hit is
+// one probe where the walk is a cache miss per node. It is not safe for concurrent use; chart/lex gives each Map
+// call its own from a sync.Pool.
+type LookupCache struct {
+	tt *TokenTable
+	e  [1 << 12]struct {
+		key uint64
+		id  int
+	}
+}
+
+// Lookup is tt.Lookup, from c when c holds the key.
+func (c *LookupCache) Lookup(tt *TokenTable, t *Token, prev2, prev1, next int) int {
+	if uint(t.N.Kind) >= 1<<8 || !tt.packs {
+		return tt.Lookup(t, prev2, prev1, next)
+	}
+	if c.tt != tt {
+		*c = LookupCache{tt: tt}
+	}
+	// The key packs every part Lookup reads, the kind in 8 bits and each id in 9 (packs says they fit), the top bit
+	// set so no key is an empty entry's 0; part 8 derives from next.
+	key := 1<<63 | uint64(t.N.Kind)<<55 | uint64(t.text)<<46 | uint64(t.prefix)<<38 | uint64(prev2)<<29 | uint64(prev1)<<20 | uint64(next)<<11 |
+		uint64(b2i(t.N.OpensBlock))<<4 | uint64(b2i(t.N.TermFollows))<<3 | uint64(b2i(t.qual))<<2 | uint64(b2i(t.lc))<<1 | uint64(b2i(t.bl))
+	e := &c.e[key*0x9E3779B97F4A7C15>>52]
+	if e.key != key {
+		e.key, e.id = key, tt.Lookup(t, prev2, prev1, next)
+	}
+	return e.id
 }
 
 // Text is the table as deterministic text: the sets, then the nodes, each
