@@ -126,6 +126,7 @@ func TestCIRunsTheRatchets(t *testing.T) {
 		"TestFaithfulQueueMatchesTree",
 		"TestParseWithoutErrorOnCompiledCorpus",
 		"TestPerlGitTFaithfulOnM3Dirs",
+		"TestLexerLists",
 	} {
 		if !strings.Contains(ci, name) {
 			t.Errorf("ci.yml does not check whether %s skipped", name)

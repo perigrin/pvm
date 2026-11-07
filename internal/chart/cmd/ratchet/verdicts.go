@@ -1,5 +1,5 @@
 // ABOUTME: The ratchet's verdict keys: what the chart, recursive descent and perl say about each corpus file (spec §9.2).
-// ABOUTME: Population and label keys read na until their inputs exist; Q11 leaves lexer-list files out of refusal counts.
+// ABOUTME: A file with no perl label is an error; Q11 leaves lexer-list files out of refusal counts.
 
 package main
 
@@ -9,7 +9,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -49,9 +48,8 @@ type verdictInputs struct {
 
 // measureVerdicts adds the verdict keys over files to measured. It returns
 // the files behind each gated count, for listRises. A recognizer error is an
-// error naming the file, never a refusal. The keys that need perl's verdict
-// are left unmeasured (na) while no file has one; a corpus labelled in part
-// is an error, never a smaller population.
+// error naming the file, never a refusal, and so is a file with no perl
+// label (supersetPopulation refuses one first in a real run).
 func measureVerdicts(files []File, in verdictInputs, measured map[string]string) (map[string][]string, error) {
 	var tokens, terminals, positions, items, hits int
 	var verdicts []*perlVerdict
@@ -66,8 +64,11 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		if err != nil {
 			return nil, err
 		}
-		res, rd = append(res, r), append(rd, a)
-		verdicts = append(verdicts, in.Perl(f.Path))
+		v := in.Perl(f.Path)
+		if v == nil {
+			return nil, fmt.Errorf("%s has no perl label", f.Path)
+		}
+		res, rd, verdicts = append(res, r), append(rd, a), append(verdicts, v)
 		tokens, terminals = tokens+r.Tokens, terminals+r.Terminals
 		if r.Accepted { // §7's cost is the cost on recognized input
 			positions, items, hits = positions+r.Positions, items+r.Items, hits+r.Hits
@@ -82,19 +83,6 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 	ratio("items-per-token", items, positions)
 	ratio("set-reuse", hits, positions)
 
-	labelled := 0
-	for _, v := range verdicts {
-		if v != nil {
-			labelled++
-		}
-	}
-	if labelled == 0 {
-		return nil, nil
-	}
-	if labelled < len(files) {
-		missing := slices.IndexFunc(verdicts, func(v *perlVerdict) bool { return v == nil })
-		return nil, fmt.Errorf("%s has no perl verdict, but %d other files do", files[missing].Path, labelled)
-	}
 	var pop, recognized, perlRefused, rdPerlRefused int
 	refused := map[string][]string{"rd-accepted-chart-refused": nil, "chart-accepted-both-refused": nil}
 	for i, f := range files {
@@ -149,10 +137,8 @@ func listRises(w io.Writer, baselineText string, ms []Measure, lists map[string]
 // `<path> <byte> <issue ref>`.
 func listedPaths(text string) map[string]bool {
 	out := map[string]bool{}
-	for _, line := range strings.Split(text, "\n") {
-		if f := strings.Fields(line); len(f) > 0 {
-			out[f[0]] = true
-		}
+	for _, line := range textLines(text) {
+		out[strings.Fields(line)[0]] = true
 	}
 	return out
 }

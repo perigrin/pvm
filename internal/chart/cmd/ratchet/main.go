@@ -2,8 +2,9 @@
 // ABOUTME: Run by `make chart-ratchet`; exits 1 on a regression against testdata/ratchet/baseline.txt, 2 on an error.
 
 // Command ratchet is the chart spike's ratchet. Its output contract is in
-// internal/chart/README.md. It reads only the working tree, from the
-// repository root: no commit, no refs/zhi, no network.
+// internal/chart/README.md. It reads the working tree, from the repository
+// root, and the T1 corpus (T1_CORPUS) and tdt fixtures (TDT_FIXTURES) outside
+// it: no commit, no refs/zhi, no network.
 package main
 
 import (
@@ -70,6 +71,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
+	measureBench(tab, srcs[std5k], os.Stderr) // last, so no key's timing follows it
 	ms := report(measured)
 	fmt.Print(Format(ms))
 
@@ -130,16 +132,12 @@ func report(measured map[string]string) []Measure {
 
 // measure takes the measurements that read the grammar alone, naming each
 // drifted table on stderr, and returns the generated tables for the corpus
-// measurements (lex.go). Each later issue makes its keys print a number. It
-// measures nothing from a grammar the generator refuses, or one with no
-// rule: that is an error, not a smaller count.
+// measurements (lex.go). It measures nothing from a grammar the generator
+// refuses: that is an error, not a smaller count.
 func measure(g *grammar.Grammar, ref []grammar.Entry, stderr io.Writer) (map[string]string, *grammar.Tables, error) {
 	tab, err := grammar.Generate(g, ref)
 	if err != nil {
 		return nil, nil, fmt.Errorf("the generator refuses the grammar:\n%w", err)
-	}
-	if tab == nil {
-		return nil, nil, fmt.Errorf("the grammar has no rule, so no tables")
 	}
 	gaps, excluded, err := grammar.LedgerCounts()
 	if err != nil {

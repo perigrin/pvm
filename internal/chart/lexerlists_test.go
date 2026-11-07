@@ -34,12 +34,11 @@ var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-
 // lexerListErrors returns one message per malformed entry of the lexer list
 // called name: an entry is `<path> <byte> <issue ref>`, the path a corpus
 // file under root (or `T1/<name>.t` under t1, the T1_CORPUS value), the byte
-// inside it.
-func lexerListErrors(name, list, root, t1 string) []string {
-	var out []string
+// inside it. With t1 empty it checks no T1 entry and returns how many it left.
+func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) {
 	for i, line := range strings.Split(list, "\n") {
 		f := strings.Fields(line)
-		if len(f) == 0 {
+		if len(f) == 0 || strings.HasPrefix(f[0], "#") { // as the ratchet's textLines skips them
 			continue
 		}
 		bad := func(why string) { out = append(out, fmt.Sprintf("%s:%d: %s: %q", name, i+1, why, line)) }
@@ -53,7 +52,7 @@ func lexerListErrors(name, list, root, t1 string) []string {
 		var file string
 		if t1name, ok := strings.CutPrefix(f[0], "T1/"); ok {
 			if t1 == "" {
-				bad("a T1 entry needs T1_CORPUS set")
+				unchecked++
 				continue
 			}
 			if fi, err := os.Stat(t1); err != nil || !fi.IsDir() {
@@ -82,19 +81,28 @@ func lexerListErrors(name, list, root, t1 string) []string {
 			bad(fmt.Sprintf("the byte is not a plain decimal offset below the file's size, %d", fi.Size()))
 		}
 	}
-	return out
+	return out, unchecked
 }
 
+// TestLexerLists checks every entry, and without T1_CORPUS every entry but
+// T1's and then skips, as the repository's corpus-backed ratchets do; CI's
+// corpus-backed job sets T1_CORPUS and fails on the skip.
 func TestLexerLists(t *testing.T) {
 	t1 := os.Getenv("T1_CORPUS")
+	unchecked := 0
 	for _, name := range []string{"lex-unmapped-known.txt", "lexer-defects.txt", filepath.Join("tdt", "lexer-rooted.txt")} {
 		list, err := os.ReadFile(filepath.Join("testdata", name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, e := range lexerListErrors(name, string(list), repoRoot, t1) {
+		errs, n := lexerListErrors(name, string(list), repoRoot, t1)
+		for _, e := range errs {
 			t.Error(e)
 		}
+		unchecked += n
+	}
+	if unchecked > 0 {
+		t.Skipf("T1_CORPUS unset: %d T1 entries not checked", unchecked)
 	}
 }
 
@@ -111,6 +119,7 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		ok         bool
 	}{
 		{"well-formed", std5k + " 0 01a1882d-d8a4", true},
+		{"comment", "# the entries below are reviewed", true},
 		{"last byte", std5k + " " + itoa(size-1) + " 01a1882d-d8a4", true},
 		{"guacamole snippet", "internal/chart/testdata/guacamole/parses/Statements-Block-001.pl 0 01a1882d-d8a4", true},
 		{"byte at the end", std5k + " " + itoa(size) + " 01a1882d-d8a4", false},
@@ -132,7 +141,7 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		{"ref as the short id", std5k + " 0 01a1882d", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := lexerListErrors("synthetic", tc.line+"\n", repoRoot, "")
+			errs, _ := lexerListErrors("synthetic", tc.line+"\n", repoRoot, "")
 			if tc.ok && len(errs) > 0 {
 				t.Errorf("refused a well-formed entry: %v", errs)
 			}
@@ -149,13 +158,13 @@ func TestLexerListsT1Unresolvable(t *testing.T) {
 		t.Fatal(err)
 	}
 	const list = "T1/a.t 0 01a1882d-d8a4\n"
-	for _, t1 := range []string{"", filepath.Join(dir, "missing")} {
-		errs := lexerListErrors("synthetic", list, repoRoot, t1)
-		if len(errs) == 0 || !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
-			t.Errorf("T1_CORPUS=%q: want a failure naming T1_CORPUS, got %v", t1, errs)
-		}
+	if errs, n := lexerListErrors("synthetic", list, repoRoot, ""); len(errs) > 0 || n != 1 {
+		t.Errorf("T1_CORPUS unset: got %v and %d unchecked, want no failure and the entry unchecked", errs, n)
 	}
-	if errs := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 {
-		t.Errorf("T1_CORPUS naming a directory holding the file: %v", errs)
+	if errs, _ := lexerListErrors("synthetic", list, repoRoot, filepath.Join(dir, "missing")); !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
+		t.Errorf("T1_CORPUS naming no directory: want a failure naming T1_CORPUS, got %v", errs)
+	}
+	if errs, n := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 || n != 0 {
+		t.Errorf("T1_CORPUS naming a directory holding the file: %v, %d unchecked", errs, n)
 	}
 }

@@ -1,5 +1,5 @@
 // ABOUTME: The bodies of BenchmarkLex, BenchmarkRecognize and BenchmarkExpected, outside a _test file.
-// ABOUTME: The ratchet can run them with testing.Benchmark; make test never runs a benchmark.
+// ABOUTME: The ratchet runs them with testing.Benchmark (cmd/ratchet measureBench); make test never runs a benchmark.
 
 package chart
 

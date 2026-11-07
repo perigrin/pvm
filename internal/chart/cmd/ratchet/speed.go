@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
@@ -173,4 +175,16 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 	}
 	measured["alloc-per-token-chart"] = fmt.Sprintf("%.3f", allocsPer(p.Chart, agg, tokens))
 	measured["alloc-per-token-rd"] = fmt.Sprintf("%.3f", allocsPer(p.Ref, agg, tokens))
+}
+
+// measureBench runs chart's BenchLex, BenchRecognize and BenchExpected on std5k.pl (spec §9.3: benchmarks run in the
+// ratchet, not in make test) and writes one measurement line each to stderr. They are not keys.
+func measureBench(tab *grammar.Tables, src []byte, stderr io.Writer) {
+	for _, b := range []struct {
+		name string
+		f    func(*testing.B, *grammar.Tables, []byte)
+	}{{"BenchLex", chart.BenchLex}, {"BenchRecognize", chart.BenchRecognize}, {"BenchExpected", chart.BenchExpected}} {
+		r := testing.Benchmark(func(tb *testing.B) { b.f(tb, tab, src) })
+		fmt.Fprintf(stderr, "%s%s %d ns/op %d allocs/op\n", linePrefix, b.name, r.NsPerOp(), r.AllocsPerOp())
+	}
 }

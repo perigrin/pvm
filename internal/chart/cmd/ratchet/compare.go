@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Measure is one key and its value: a number, or "na" for a component not built yet.
+// Measure is one key and its value: a number, or "na" for a key nothing measured (spec §9.5's rule).
 type Measure struct {
 	Key, Value string
 }
@@ -116,10 +116,9 @@ func Compare(baseline, measured []Measure, unmapped []string, known string) []st
 // list lacks, and each listed pair no file fails at.
 func knownMismatch(unmapped []string, known string) []string {
 	listed := map[string]bool{}
-	for _, line := range strings.Split(known, "\n") {
-		if f := strings.Fields(line); len(f) > 0 {
-			listed[strings.Join(f[:min(2, len(f))], " ")] = true
-		}
+	for _, line := range textLines(known) {
+		f := strings.Fields(line)
+		listed[strings.Join(f[:min(2, len(f))], " ")] = true
 	}
 	var out []string
 	for _, u := range unmapped {

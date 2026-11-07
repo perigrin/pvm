@@ -1,5 +1,5 @@
 // ABOUTME: Tests that gen exits non-zero on a refused grammar, naming the offence on stderr, and 0 on a consistent one.
-// ABOUTME: Run on toy grammars through run, since the committed grammar has no rule to refuse yet.
+// ABOUTME: Run on toy grammars through run, so a refusal can be made to order.
 
 package main
 

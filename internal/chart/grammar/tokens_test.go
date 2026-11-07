@@ -1,5 +1,5 @@
 // ABOUTME: Tests the token-class compiler on toy grammars: each key part, unions, edges and determinism.
-// ABOUTME: Terminal ids are bare integers; no committed token table exists yet.
+// ABOUTME: Terminal ids are bare integers; TestCommittedDictionaryLookups alone reads the committed token table.
 
 package grammar
 
