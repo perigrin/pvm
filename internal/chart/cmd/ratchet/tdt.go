@@ -406,13 +406,18 @@ func listLines(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return textLines(string(data)), nil
+}
+
+// textLines are a list text's lines that are neither blank nor a comment, trimmed.
+func textLines(text string) []string {
 	var out []string
-	for _, l := range strings.Split(string(data), "\n") {
+	for _, l := range strings.Split(text, "\n") {
 		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
 			out = append(out, l)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // fixturesDir is the TDT_FIXTURES value set, or def when it is unset.

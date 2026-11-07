@@ -137,10 +137,8 @@ func listRises(w io.Writer, baselineText string, ms []Measure, lists map[string]
 // `<path> <byte> <issue ref>`.
 func listedPaths(text string) map[string]bool {
 	out := map[string]bool{}
-	for _, line := range strings.Split(text, "\n") {
-		if f := strings.Fields(line); len(f) > 0 {
-			out[f[0]] = true
-		}
+	for _, line := range textLines(text) {
+		out[strings.Fields(line)[0]] = true
 	}
 	return out
 }
