@@ -9,14 +9,13 @@ import "testing"
 // these are accepted with no rule fitted for it; a missing ; before any
 // other token, or a } that closes nothing, is still refused. perl -c on
 // 94e50866: every accepted row and every nearby form is "syntax OK"; both
-// refused rows fail to compile. `sub f { 1 }` belongs here too, and is not
-// yet a row: no KW_SUB_* rule is ported, so it is refused at byte 0, before
-// any ; is in question; `{ { 1 } }` stands in for a block ending in a block.
+// refused rows fail to compile. `sub f { 1 }` is a sub's block ending without
+// its ;, and `{ { 1 } }` a block ending in a block.
 // Nor is `use strict $x` a refused row: perl's grammar accepts it as a use
 // with an import list (`use lib $x` is "syntax OK"), and only strict's
 // import croaks, in BEGIN.
 func TestPortSlipper(t *testing.T) {
-	for _, src := range []string{"use strict", "{ use strict }", "no warnings", "{ $x = 1 }", "{ { 1 } }"} {
+	for _, src := range []string{"use strict", "{ use strict }", "no warnings", "{ $x = 1 }", "{ { 1 } }", "sub f { 1 }"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v", src, v.at, v.expected)
 		}
