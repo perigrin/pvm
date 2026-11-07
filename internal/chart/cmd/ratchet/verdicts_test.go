@@ -184,7 +184,7 @@ func TestVerdictKeysUnlistedUnmappedCounts(t *testing.T) {
 	if got["rd-accepted-chart-refused"] != "1" {
 		t.Errorf("rd-accepted-chart-refused = %q, want 1 (the unlisted unmapped file)", got["rd-accepted-chart-refused"])
 	}
-	if got, err := listedPaths("T1/a.t 12 01a18fa6-aaaa\n\nb.pl 3 01a18fa6-bbbb\n"), error(nil); err != nil || !got["T1/a.t"] || !got["b.pl"] || len(got) != 2 {
+	if got, err := listedPaths("# a comment\nT1/a.t 12 01a18fa6-aaaa\n\nb.pl 3 01a18fa6-bbbb\n"), error(nil); err != nil || !got["T1/a.t"] || !got["b.pl"] || len(got) != 2 {
 		t.Errorf("listedPaths = %v", got)
 	}
 }

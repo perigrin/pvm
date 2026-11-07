@@ -113,7 +113,7 @@ func TestCompareLexOverheadBoundary(t *testing.T) {
 }
 
 func TestCompareCompletionNeedsLedgerGapsZero(t *testing.T) {
-	known := "a.pl 10 01a18582-65bf\n"
+	known := "# a comment is no entry\na.pl 10 01a18582-65bf\n"
 	run := func(gaps, mismatch string, unmapped []string) []string {
 		base := []Measure{{"ledger-gaps", gaps}, {"tdt-mismatch", mismatch}}
 		return Compare(base, base, unmapped, known)

@@ -38,7 +38,7 @@ var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-
 func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) {
 	for i, line := range strings.Split(list, "\n") {
 		f := strings.Fields(line)
-		if len(f) == 0 {
+		if len(f) == 0 || strings.HasPrefix(f[0], "#") { // as the ratchet's textLines skips them
 			continue
 		}
 		bad := func(why string) { out = append(out, fmt.Sprintf("%s:%d: %s: %q", name, i+1, why, line)) }
@@ -119,6 +119,7 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		ok         bool
 	}{
 		{"well-formed", std5k + " 0 01a1882d-d8a4", true},
+		{"comment", "# the entries below are reviewed", true},
 		{"last byte", std5k + " " + itoa(size-1) + " 01a1882d-d8a4", true},
 		{"guacamole snippet", "internal/chart/testdata/guacamole/parses/Statements-Block-001.pl 0 01a1882d-d8a4", true},
 		{"byte at the end", std5k + " " + itoa(size) + " 01a1882d-d8a4", false},
