@@ -34,8 +34,8 @@ var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-
 // lexerListErrors returns one message per malformed entry of the lexer list
 // called name: an entry is `<path> <byte> <issue ref>`, the path a corpus
 // file under root (or `T1/<name>.t` under t1, the T1_CORPUS value), the byte
-// inside it. With t1 empty it checks no T1 entry and returns how many it left.
-func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) {
+// inside it.
+func lexerListErrors(name, list, root, t1 string) (out []string) {
 	for i, line := range strings.Split(list, "\n") {
 		f := strings.Fields(line)
 		if len(f) == 0 || strings.HasPrefix(f[0], "#") { // as the ratchet's textLines skips them
@@ -51,12 +51,8 @@ func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) 
 		}
 		var file string
 		if t1name, ok := strings.CutPrefix(f[0], "T1/"); ok {
-			if t1 == "" {
-				unchecked++
-				continue
-			}
 			if fi, err := os.Stat(t1); err != nil || !fi.IsDir() {
-				bad("T1_CORPUS=" + t1 + " names no directory")
+				bad(t1Desc(t1) + " names no directory")
 				continue
 			}
 			if strings.Contains(t1name, "/") || !strings.HasSuffix(t1name, ".t") {
@@ -81,7 +77,7 @@ func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) 
 			bad(fmt.Sprintf("the byte is not a plain decimal offset below the file's size, %d", fi.Size()))
 		}
 	}
-	return out, unchecked
+	return out
 }
 
 // t1Root is T1_CORPUS when set, else the in-tree copy.
@@ -89,7 +85,18 @@ func t1Root() string {
 	if t1 := os.Getenv("T1_CORPUS"); t1 != "" {
 		return t1
 	}
-	return filepath.Join(repoRoot, "testdata", "perlonjava", "unit")
+	return t1Default()
+}
+
+func t1Default() string { return filepath.Join(repoRoot, "testdata", "perlonjava", "unit") }
+
+// t1Desc says where a T1 root came from, for the message about it: the
+// in-tree default, or T1_CORPUS.
+func t1Desc(root string) string {
+	if root == t1Default() {
+		return "the in-tree T1 " + root
+	}
+	return "T1_CORPUS=" + root
 }
 
 // TestLexerLists checks every entry, T1's against t1Root.
@@ -100,7 +107,7 @@ func TestLexerLists(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		errs, _ := lexerListErrors(name, string(list), repoRoot, t1)
+		errs := lexerListErrors(name, string(list), repoRoot, t1)
 		for _, e := range errs {
 			t.Error(e)
 		}
@@ -142,7 +149,7 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		{"ref as the short id", std5k + " 0 01a1882d", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			errs, _ := lexerListErrors("synthetic", tc.line+"\n", repoRoot, "")
+			errs := lexerListErrors("synthetic", tc.line+"\n", repoRoot, t1Default())
 			if tc.ok && len(errs) > 0 {
 				t.Errorf("refused a well-formed entry: %v", errs)
 			}
@@ -159,13 +166,10 @@ func TestLexerListsT1Unresolvable(t *testing.T) {
 		t.Fatal(err)
 	}
 	const list = "T1/a.t 0 01a1882d-d8a4\n"
-	if errs, n := lexerListErrors("synthetic", list, repoRoot, ""); len(errs) > 0 || n != 1 {
-		t.Errorf("T1_CORPUS unset: got %v and %d unchecked, want no failure and the entry unchecked", errs, n)
-	}
-	if errs, _ := lexerListErrors("synthetic", list, repoRoot, filepath.Join(dir, "missing")); !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
+	if errs := lexerListErrors("synthetic", list, repoRoot, filepath.Join(dir, "missing")); !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
 		t.Errorf("T1_CORPUS naming no directory: want a failure naming T1_CORPUS, got %v", errs)
 	}
-	if errs, n := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 || n != 0 {
-		t.Errorf("T1_CORPUS naming a directory holding the file: %v, %d unchecked", errs, n)
+	if errs := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 {
+		t.Errorf("T1_CORPUS naming a directory holding the file: %v", errs)
 	}
 }
