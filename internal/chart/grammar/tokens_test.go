@@ -631,9 +631,11 @@ func TestCommittedDictionaryLookups(t *testing.T) {
 	}
 }
 
-// The cache answers as the walk does. Each distinct word, operator or variable of std5k.pl is looked up with every
-// class id in turn as the token two back, one back and next, with each flag as given and flipped, and with every prefix, through one cache,
-// so a part its key dropped would hand one key's answer to another.
+// The cache answers as the walk does. Each distinct token of std5k.pl is looked up through one cache with every class
+// id in turn as the token two back, one back and next, the other two at Edge, with each flag as given and flipped, and
+// with every prefix. That reaches the kind, text, prefix, neighbour, OpensBlock and LineColon parts; the Global and
+// Blanks parts decide a set only beside neighbours this sweep never pairs, so chart/lex's
+// TestLookupCacheAgreesOnRealKeys checks them.
 func TestLookupCacheAgrees(t *testing.T) {
 	g, ref, err := Committed()
 	if err != nil {
