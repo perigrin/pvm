@@ -276,29 +276,24 @@ func TestGeneratorRefusalWritesNothing(t *testing.T) {
 	}
 }
 
-// perlyYPath is the pinned perl's perly.y, which the offline scripts also read.
-const perlyYPath = "/opt/corpora/perl5/perly.y"
-
-// The slots of perlyClasses are the lexed terminals perly.y declares, in the order it first
+// The slots of perlyClasses are the lexed terminals perly.y declares (testdata/perly/declared-tokens.txt,
+// which offline/perly-tokens.sh prints), in the order it first
 // declares them (%token, %left, %right, %nonassoc), less the ones needing no class, and beside them the fitted cast
 // terminals and nothing else, each declared once.
 func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
-	y, err := os.ReadFile(perlyYPath)
+	declared, err := os.ReadFile("testdata/perly/declared-tokens.txt")
 	if err != nil {
-		t.Skipf("perly.y is not on this machine: %v", err)
+		t.Fatal(err)
 	}
-	decls, _, _ := strings.Cut(string(y), "\n%%")
 	var want []string
 	seen := map[string]bool{}
-	for _, l := range regexp.MustCompile(`(?m)^%(?:token|left|right|nonassoc)\b(.*)$`).FindAllStringSubmatch(decls, -1) {
-		for _, name := range strings.Fields(regexp.MustCompile(`<\w+>`).ReplaceAllString(l[1], " ")) {
-			if seen[name] || strings.HasPrefix(name, "GRAM") || strings.HasPrefix(name, "PLUGIN_") ||
-				slices.Contains([]string{"PLUGEXPR", "PLUGSTMT", "PREC_LOW", "UMINUS"}, name) {
-				continue
-			}
-			seen[name] = true
-			want = append(want, name)
+	for _, name := range strings.Fields(string(declared)) {
+		if seen[name] || strings.HasPrefix(name, "GRAM") || strings.HasPrefix(name, "PLUGIN_") ||
+			slices.Contains([]string{"PLUGEXPR", "PLUGSTMT", "PREC_LOW", "UMINUS"}, name) {
+			continue
 		}
+		seen[name] = true
+		want = append(want, name)
 	}
 	src, err := os.ReadFile("perly.go")
 	if err != nil {

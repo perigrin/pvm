@@ -47,6 +47,17 @@ numbering the port ledger and the family issues cite. It needs no perl and
 takes about 1 s (1.1 s on 2026-11-04); the 348 lines it printed were
 byte-identical to the committed file (`cmp`).
 
+## perly-tokens.sh
+
+`sh internal/chart/offline/perly-tokens.sh /opt/corpora/perl5` prints the
+terminals perly.y declares, one per line: every name on the `%token`, `%left`,
+`%right` and `%nonassoc` lines before the first `%%`, `<type>` tags stripped,
+each once, in first-declaration order, unfiltered (the test keeps its own
+exclusions). It refuses any perl5 HEAD but 94e50866 and needs no bison and no
+perl. Its output is committed as
+`internal/chart/grammar/testdata/perly/declared-tokens.txt`, which
+`TestClassSlotsAreThePerlyYTokens` reads, and matches it byte for byte (`cmp`).
+
 ## referee/
 
 Bison builds of the pinned `perly.y` (spec §8), the evidence for the
