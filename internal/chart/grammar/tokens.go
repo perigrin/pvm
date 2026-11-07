@@ -680,8 +680,12 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 	for _, l := range leaves {
 		l.id, _ = slices.BinarySearchFunc(tt.Sets, l.set, slices.Compare)
 	}
-	if len(tt.Sets) > leaf || len(shared) > leaf {
-		return nil, fmt.Errorf("token table: %d sets and %d nodes, more than a 15-bit ref holds", len(tt.Sets), len(shared))
+	most := 0 // the largest kid count, which a uint16 holds
+	for _, n := range shared {
+		most = max(most, len(n.kids))
+	}
+	if len(tt.Sets) > leaf || len(shared) > leaf || most >= 1<<16 {
+		return nil, fmt.Errorf("token table: %d sets, %d nodes and a node of %d kids, more than its 15-bit refs and 16-bit counts hold", len(tt.Sets), len(shared), most)
 	}
 	tt.top = tt.flatten(tt.root, map[*node]uint16{})
 	tt.packs = len(tt.texts) < 1<<9 && len(tt.nbs)+4 <= 1<<9
