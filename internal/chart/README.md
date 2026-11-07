@@ -122,10 +122,11 @@ retired.
   non-zero because the waypoint's exit is still unmet. `go run` turns every
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
-- **Inputs.** The ratchet reads the working tree and two directories outside
+- **Inputs.** The ratchet reads the working tree and one directory outside
   it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default (below).
   T1 is in the tree: `testdata/perlonjava/unit` (see
-  `testdata/perlonjava/README.md`), and `T1_CORPUS` overrides it. It reads no commit, no
+  `testdata/perlonjava/README.md`), and `T1_CORPUS` overrides it. It reads
+  no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,

@@ -123,7 +123,7 @@ func checkTDTFixtures(t *testing.T, dir string, keys, paths []string, fams map[s
 }
 
 // TestTDTFixtures: every in-tree corpus file has a well-formed aligned-pairs
-// fixture in TDT_FIXTURES, and every T1 file when T1_CORPUS is set. The
+// fixture in TDT_FIXTURES, and every T1 file. The
 // fixtures are generated offline by tdt-align.sh, too large to commit
 // (perigrin: "Don't commit fixtures"), so an unset TDT_FIXTURES skips.
 func TestTDTFixtures(t *testing.T) {
@@ -142,11 +142,7 @@ func TestTDTFixtures(t *testing.T) {
 	}
 	checkTDTFixtures(t, dir, files, paths, fams)
 
-	root := os.Getenv("T1_CORPUS")
-	if root == "" {
-		t.Log("T1_CORPUS unset: T1's fixtures are not checked")
-		return
-	}
+	root := t1Root()
 	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
 		t.Fatalf("T1_CORPUS=%s names no directory (%v)", root, err)
 	}
