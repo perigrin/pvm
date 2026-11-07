@@ -1,5 +1,5 @@
 // ABOUTME: Holds the lexer lists, lex-unmapped-known.txt, lexer-defects.txt and tdt/lexer-rooted.txt, to their entry form.
-// ABOUTME: Each entry is `<path> <byte> <issue ref>`, the path a corpus file (T1 via T1_CORPUS), the byte inside it.
+// ABOUTME: Each entry is `<path> <byte> <issue ref>`, the path a corpus file (T1, in testdata/perlonjava/unit or T1_CORPUS), the byte inside it.
 
 package chart
 
@@ -84,25 +84,26 @@ func lexerListErrors(name, list, root, t1 string) (out []string, unchecked int) 
 	return out, unchecked
 }
 
-// TestLexerLists checks every entry, and without T1_CORPUS every entry but
-// T1's and then skips, as the repository's corpus-backed ratchets do; CI's
-// corpus-backed job sets T1_CORPUS and fails on the skip.
+// t1Root is T1_CORPUS when set, else the in-tree copy.
+func t1Root() string {
+	if t1 := os.Getenv("T1_CORPUS"); t1 != "" {
+		return t1
+	}
+	return filepath.Join(repoRoot, "testdata", "perlonjava", "unit")
+}
+
+// TestLexerLists checks every entry, T1's against t1Root.
 func TestLexerLists(t *testing.T) {
-	t1 := os.Getenv("T1_CORPUS")
-	unchecked := 0
+	t1 := t1Root()
 	for _, name := range []string{"lex-unmapped-known.txt", "lexer-defects.txt", filepath.Join("tdt", "lexer-rooted.txt")} {
 		list, err := os.ReadFile(filepath.Join("testdata", name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		errs, n := lexerListErrors(name, string(list), repoRoot, t1)
+		errs, _ := lexerListErrors(name, string(list), repoRoot, t1)
 		for _, e := range errs {
 			t.Error(e)
 		}
-		unchecked += n
-	}
-	if unchecked > 0 {
-		t.Skipf("T1_CORPUS unset: %d T1 entries not checked", unchecked)
 	}
 }
 

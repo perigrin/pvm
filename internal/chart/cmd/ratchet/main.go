@@ -3,8 +3,8 @@
 
 // Command ratchet is the chart spike's ratchet. Its output contract is in
 // internal/chart/README.md. It reads the working tree, from the repository
-// root, and the T1 corpus (T1_CORPUS) and tdt fixtures (TDT_FIXTURES) outside
-// it: no commit, no refs/zhi, no network.
+// root (T1 is in the tree; T1_CORPUS overrides it), and the tdt fixtures
+// (TDT_FIXTURES) outside it: no commit, no refs/zhi, no network.
 package main
 
 import (

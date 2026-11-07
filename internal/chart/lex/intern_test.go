@@ -356,15 +356,15 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 }
 
 // corpusFiles is every waypoint-1 corpus file the ratchet reads: the
-// in-tree ones always, T1's when T1_CORPUS names it.
+// in-tree ones and T1 (T1_CORPUS, else the in-tree copy).
 func corpusFiles(t *testing.T) []string {
 	var files []string
 	globs := []string{"../testdata/guacamole/parses/*.pl", "../testdata/guacamole/parsent/*.pl", "../testdata/std5k.pl", "../../psc/testdata/latency/edit5k.pl"}
-	if t1 := os.Getenv("T1_CORPUS"); t1 != "" {
-		globs = append(globs, filepath.Join(t1, "*.t"))
-	} else {
-		t.Log("T1_CORPUS is unset: the in-tree corpus only")
+	t1 := os.Getenv("T1_CORPUS")
+	if t1 == "" {
+		t1 = "../../../testdata/perlonjava/unit"
 	}
+	globs = append(globs, filepath.Join(t1, "*.t"))
 	for _, g := range globs {
 		m, err := filepath.Glob(g)
 		if err != nil || len(m) == 0 {

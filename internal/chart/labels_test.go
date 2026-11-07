@@ -28,7 +28,7 @@ func inTreeFiles(t *testing.T) []string {
 }
 
 // TestPerlLabels: the committed labels cover every in-tree corpus file, and
-// every T1 file when T1_CORPUS is set, under the pinned perl.
+// every T1 file, under the pinned perl.
 func TestPerlLabels(t *testing.T) {
 	check := func(name string, files []string) {
 		lf, err := ReadLabels(filepath.Join(labelsDir, name))
@@ -41,11 +41,7 @@ func TestPerlLabels(t *testing.T) {
 	}
 	check("in-tree.txt", inTreeFiles(t))
 
-	root := os.Getenv("T1_CORPUS")
-	if root == "" {
-		t.Log("T1_CORPUS unset: T1's labels are not checked")
-		return
-	}
+	root := t1Root()
 	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
 		t.Fatalf("T1_CORPUS=%s names no directory (%v)", root, err)
 	}
