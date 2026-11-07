@@ -6,6 +6,7 @@ package grammar
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -311,5 +312,58 @@ func TestLedgerAndPlaceholdersSeparatedByBlankLines(t *testing.T) {
 	es, err := ParseEntries("perly.y:1 a: X\t-\n\nperly.y:2 a: Y\tported\n", true)
 	if err != nil || len(es) != 2 || es[1].Line != 2 {
 		t.Errorf("ParseEntries over blank-separated entries = %v, %v", es, err)
+	}
+}
+
+// midRule is a bison mid-rule action in the reference text ($@N or @N): an action, not a symbol.
+var midRule = regexp.MustCompile(`^\$?@[0-9]+$`)
+
+// unfittedMismatches returns each rule not marked fitted whose text differs from the alternative it
+// cites, symbol for symbol. The alternative's mid-rule actions and %empty are dropped before comparing;
+// ParseRules already keeps a rule's %prec out of its right-hand side, as the reference text does.
+func unfittedMismatches(alts []Entry, rules []Rule) []string {
+	text := map[int]string{}
+	for _, a := range alts {
+		var f []string
+		for _, s := range strings.Fields(a.Text) {
+			if s != "%empty" && !midRule.MatchString(s) {
+				f = append(f, s)
+			}
+		}
+		text[a.Line] = strings.Join(f, " ")
+	}
+	var bad []string
+	for _, r := range rules {
+		line, fitted, err := parseCite(r.Cite)
+		if err != nil || fitted {
+			continue
+		}
+		got := r.LHS + ":"
+		for _, s := range r.RHS {
+			got += " " + s.Text
+		}
+		if got != text[line] {
+			bad = append(bad, fmt.Sprintf("%s%d: rule %q, alternative %q", citePrefix, line, got, text[line]))
+		}
+	}
+	return bad
+}
+
+// The rest of the suite cannot see a changed ported rule: a deletion probe found 15 rules removable
+// without refusing a port snippet, so the text is held to perly.y's directly.
+func TestUnfittedRulesMatchPerlyY(t *testing.T) {
+	alts, _ := committed(t)
+	for _, m := range unfittedMismatches(alts, toyRules(t, perlyRules)) {
+		t.Error(m)
+	}
+	// The reviewer's round-4 mutations, each kept under its citation.
+	for _, mut := range []string{
+		"relopchain: relopchain CHRELOP CHRELOP term # perly.y:1476",
+		"term: FUNC0SUB FUNC0SUB # perly.y:1691",
+		"listop: METHCALL indirob ( optexpr ) ) # perly.y:1318",
+	} {
+		if len(unfittedMismatches(alts, toyRules(t, mut))) != 1 {
+			t.Errorf("mutation not caught: %s", mut)
+		}
 	}
 }

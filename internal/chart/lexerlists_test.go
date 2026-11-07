@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/chart/lex"
 )
 
 // repoRoot is the repository root seen from this package's directory.
@@ -171,5 +173,63 @@ func TestLexerListsT1Unresolvable(t *testing.T) {
 	}
 	if errs := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 {
 		t.Errorf("T1_CORPUS naming a directory holding the file: %v", errs)
+	}
+}
+
+// bc7bAccepted is how many lex-unmapped-known.txt entries filed against 01a1ad1d-bc7b perl
+// accepts by the committed labels: 90 T1 files and 1 in-tree file.
+const bc7bAccepted = 91
+
+// TestLexerListHidesNoChartGap rewrites every brace 01a1ad1d-bc7b leaves unmapped as `+{`
+// in each perl-accepted file on lex-unmapped-known.txt under that defect, and holds the chart to
+// accepting the result: the list takes out the lexer's defect and nothing of the chart's own.
+func TestLexerListHidesNoChartGap(t *testing.T) {
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted := map[string]bool{}
+	for name, prefix := range map[string]string{"t1.txt": "T1/", "in-tree.txt": ""} {
+		lf, err := ReadLabels(filepath.Join(labelsDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range lf.Labels {
+			accepted[prefix+l.Path] = !l.Refused()
+		}
+	}
+	list, err := os.ReadFile(filepath.Join("testdata", "lex-unmapped-known.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, line := range strings.Split(string(list), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 3 || f[2] != "01a1ad1d-bc7b" || !accepted[f[0]] {
+			continue
+		}
+		n++
+		path := filepath.Join(repoRoot, f[0])
+		if name, ok := strings.CutPrefix(f[0], "T1/"); ok {
+			path = filepath.Join(t1Root(), name)
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Each pass rewrites the first unmapped brace; one the rewrite leaves unmapped stops it.
+		for last := -1; ; {
+			_, at := lex.Lex(src, tab.Tokens)
+			if at <= last || src[at] != '{' {
+				break
+			}
+			src, last = slices.Insert(src, at, '+'), at+1
+		}
+		if v := recognizeSource(t, src); !v.accepted {
+			t.Errorf("%s: refused at byte %d of the rewritten source, expecting %v", f[0], v.at, v.expected)
+		}
+	}
+	if n != bc7bAccepted {
+		t.Errorf("%d perl-accepted 01a1ad1d-bc7b entries, want %d", n, bc7bAccepted)
 	}
 }

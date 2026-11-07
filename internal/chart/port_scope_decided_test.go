@@ -69,7 +69,7 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
-	// perl -c (94e50866) accepts both: the statement-start table gives x only BAREWORD and PRIVATEREF, short of
+	// perl -c (94e50866) accepts all three: the statement-start table gives x only BAREWORD and PRIVATEREF, short of
 	// the x ruling (01a18fa6-ec70), which waypoint 2's refinement takes up.
 	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;"} {
 		if recognizeSource(t, []byte(src)).accepted {
