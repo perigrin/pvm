@@ -1,5 +1,5 @@
 // ABOUTME: Tests the verdict keys over a vfile population with stubbed chart, recursive-descent and perl verdicts.
-// ABOUTME: Membership rules, Q11's lexer-list exclusion, na without inputs, error on a recognizer fault, finite ratios.
+// ABOUTME: Membership rules, Q11's lexer-list exclusion, error on a missing label or a recognizer fault, finite ratios.
 
 package main
 
@@ -110,30 +110,10 @@ func TestListRises(t *testing.T) {
 	}
 }
 
-func TestVerdictKeysNaWithoutInputs(t *testing.T) {
-	populationKeys := []string{"rd-accepted-chart-refused", "chart-accepted-both-refused", "chart-accepted-perl-refused", "superset-recognized"}
-	m := map[string]vfile{"a.pl": {rd: true, chart: true, res: chartResult{Tokens: 4}}, "b.pl": {rd: true}}
-	got, _ := run(t, m)
-	for _, k := range populationKeys {
-		if v, ok := got[k]; ok {
-			t.Errorf("without labels %s = %q, want unmeasured (printed na)", k, v)
-		}
-	}
-	if got["terminals-per-token"] == "" {
-		t.Errorf("the chart's own keys print without labels: %v", got)
-	}
-	// The same code with a population and labels prints numbers.
-	m["a.pl"], m["b.pl"] = vfile{rd: true, chart: true, perl: accept()}, vfile{rd: true, perl: accept()}
-	got, _ = run(t, m)
-	for _, k := range populationKeys {
-		if got[k] == "" || got[k] == na {
-			t.Errorf("with labels %s = %q, want a number", k, got[k])
-		}
-	}
-	// A label missing for only some files is an error, never a smaller population.
-	m["b.pl"] = vfile{rd: true}
+func TestVerdictKeysNeedEveryLabel(t *testing.T) {
+	m := map[string]vfile{"a.pl": {rd: true, chart: true, perl: accept()}, "b.pl": {rd: true}}
 	if _, err := measureVerdicts(vfiles(m), vinputs(m), map[string]string{}); err == nil || !strings.Contains(err.Error(), "b.pl") {
-		t.Errorf("a partly labelled corpus: err = %v, want one naming b.pl", err)
+		t.Errorf("an unlabelled file: err = %v, want one naming b.pl", err)
 	}
 }
 
