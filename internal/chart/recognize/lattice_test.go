@@ -199,3 +199,17 @@ func TestCacheNotKeyedOnBranchSet(t *testing.T) {
 		t.Errorf("d t: accepted %v warm, %v cold; cached at node 3 %v, want no cache hit", d.Accepted(), cold.Accepted(), d.Cached[3])
 	}
 }
+
+// A join node (two in-edges) is not served from the cache: an entry learnt from one in-edge
+// alone (A over 0->2) would drop the items the other (B B) brings, and refuse B B D.
+func TestCacheNotUsedAtJoin(t *testing.T) {
+	tab := toyTables(t, "S ::= X C | B B D", "X ::= A")
+	r := New(tab, Options{})
+	mustRecognize(t, r, toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 2, "A"), toyEdge(tab, 2, 3, "D")))
+	l := toyLinear([]int{0, 1, 2, 3}, toyEdge(tab, 0, 2, "A"), toyEdge(tab, 0, 1, "B"), toyEdge(tab, 1, 2, "B"), toyEdge(tab, 2, 3, "D"))
+	warm := mustRecognize(t, r, l)
+	cold := mustRecognize(t, New(tab, Options{NoCache: true}), l)
+	if !warm.Accepted() || !cold.Accepted() || warm.Cached[2] {
+		t.Errorf("a b b d over a join at node 2: accepted %v warm, %v cold; cached at node 2 %v, want accepted and no cache hit", warm.Accepted(), cold.Accepted(), warm.Cached[2])
+	}
+}
