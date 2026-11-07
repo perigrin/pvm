@@ -306,7 +306,11 @@ clock and a collector, so it is tested on fake timings
   is a lower bound on the finished recognizer's, reported for warning (§9.3
   checkpoints). On `std5k.pl` alone the long-lived figure is effectively the
   cold one (baseline: 1.2228 against 1.2261), because one file is one pass and
-  nothing is left to persist. Allocations are one
+  the recognizer has nothing to carry from file to file. chart/lex's pooled
+  `grammar.LookupCache` does persist within a pass. A `sync.Pool` keeps its
+  objects through one GC and drops them at the second, and two GCs are forced
+  between consecutive chart passes (one before the reference pass between
+  them), so each chart pass starts with the pool empty. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
@@ -328,14 +332,22 @@ started empty; an entry is added only by the issue that meets the defect, filed
 against the v0.1 milestone, and the gate review confirms the construct at the
 entry's byte is that issue's.
 
-**The chart refuses `return {…}`, `bless {…}, $class` and `sprintf {…}`.** The
-lexer defect 01a1ad1d-bc7b mis-types the open brace there. It accounts for 105
-of the 114 entries of `lex-unmapped-known.txt`; the committed perl labels
-(`testdata/labels/`) mark 91 of those 105 accepted (and 92 of all 114). So
-about 90 perl-accepted files sit outside the superset
-population, and outside the speed figures (§9.1 allows this). Rewriting those
-braces as `+{` makes the chart accept all 90 perl-accepted T1 files, so the list
-hides no gap of the chart's own.
+**The chart refuses some `return {…}` and `bless {…}, $class`.** The lexer
+defect 01a1ad1d-bc7b guesses the open brace's type there, and where it guesses
+wrong the chart's table leaves the brace unmapped; `return { "a", 1 }` and
+`bless { a => 1 }, $c` happen to be guessed right and are accepted. Observed
+at aa5aed2f, counting `lex-unmapped-known.txt` against the committed perl labels
+(`testdata/labels/`): the defect accounts for 105 of its 114 entries, and the
+labels mark 91 of those 105 accepted (and 92 of all 114). The 91 are 90 T1
+files and one in-tree file (`parses/…Value-Literal-063.pl`); at their
+unmapped brace, 89 read `bless {` (one inside `Storable::dclone(…)`) and 2
+`return {`. The other 14 are files perl refuses: 12 at `bless {` and the two
+`sprintf {…}` files under `parsent/`.
+Recursive descent already refuses 33 of the 91, so the list takes 58 files
+out of the superset population (§9.1 allows this), not 91.
+`TestLexerListHidesNoChartGap` rewrites every brace the defect leaves
+unmapped as `+{` in each of the 91 and holds the chart to accepting all of
+them, and the count to 91, so the list hides no gap of the chart's own.
 
 Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 
@@ -379,7 +391,10 @@ tables hold 349 rules over 112 nonterminals and 124 terminals.
   `grammar/ledger.go`; today 5 `refused-in-action`, 8 `folded-into-token`,
   2 `keyword-plugin`, 1 `conditional-refusal`, 1 `error-recovery` and 1
   `interpolation-only`. `TestPortLedger` holds the citations and the ledger
-  equal, and `TestLedgerExclusionReasons` the reasons to the list.
+  equal, `TestLedgerExclusionReasons` the reasons to the list, and
+  `TestUnfittedRulesMatchPerlyY` every rule not marked `fitted:` to the text
+  of the alternative it cites, symbol for symbol, less bison's mid-rule
+  actions and `%empty`.
 - **Refusals.** The five alternatives whose actions refuse unconditionally
   (`perly.y:1105`, `1109`, `1541`, `1546`, `1553`, on
   `grammar/testdata/perly/refused-in-action.txt`) have no rule, and the four
@@ -1033,9 +1048,11 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   edge passes over is inside a branch: its set is built but not interned.
 - **Lookahead.** In up-front mode a complete item's rule completes only if
   the next token, or the end of input, can follow its LHS. That keeps
-  out of each set the completions the next token cannot continue. On 100
-  statements `$x = 1;` the item count is 2,001 with lookahead and 2,201
-  without; both are linear, since perly's `stmtseq` is left-recursive.
+  out of each set the completions the next token cannot continue. Observed
+  at aa5aed2f, summing `len(Set.Items())` over every node of `Chart.Sets`
+  (node 0 included), as every item count below does: 100 statements
+  `$x = 1;` give 2,001 items with lookahead and 2,201 without; both are
+  linear, since perly's `stmtseq` is left-recursive.
   `Expected(pos)` is the union of the expected terminals of every state in
   the set at `pos` as recognition without lookahead builds it: it closes
   the set again under every completion, outside the interned content, so a
@@ -1045,8 +1062,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   sets where complete items began, which are not part of the source set. So
   each entry records those sets, and a hit requires them to be the same.
   `TestCacheChecksOriginSets` fails without that check. The cache is not
-  used inside a branch, nor where two edges meet, and a transition that read
-  any set inside a branch is never cached (`TestCacheNotKeyedOnBranchSet`).
+  used inside a branch (`TestCacheNotKeyedOnBranchSet`), nor where two edges
+  meet (`TestCacheNotUsedAtJoin`), and a transition that read any set inside a
+  branch is never cached.
 - **Leo memos** (Leo 1991) complete a right recursion in one step. A memo is
   made at a node for a symbol B only where the node's whole set holds one
   item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It
@@ -1059,16 +1077,17 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   acceptance. At lookahead 0, where interleaved mode will run, it makes
   `S ::= A S | A` and a toy right-recursive, nullable statement sequence
   linear, where without it they are quadratic
-  (`TestLeoLinearAtLookaheadZero` and the toy sequence's test beside it). perly
-  has one production of that shape, `else: KW_ELSIF … mblock else | empty`: an
-  `if` with 50, 100 and 200 `elsif` arms has 1,381, 2,731 and 5,431 items at
-  lookahead 0 with Leo and 2,557, 7,582 and 25,132 without. With lookahead on,
-  the default, it is linear either way (1,034, 2,034, 4,034 with Leo; 1,082,
-  2,132, 4,232 without). At waypoint 1 operator chains such as `$a = $b = …`
-  get no Leo benefit, because precedence is not applied yet: the item count is
-  quadratic with Leo or without (5,462, 20,912 and 81,812 at 50, 100 and 200
-  assignments, lookahead 0). Linear here means the item count,
-  not time: with the cache on, each use of a chain walks it to record its
+  (`TestLeoLinearAtLookaheadZero` and `TestLeoStatementSeqAtLookaheadZero`).
+  perly has one production of that shape, `else: KW_ELSIF … mblock else |
+  empty`. No test reproduces the counts that follow; they were observed at
+  aa5aed2f. `if (1) { 1 }` followed by 50, 100 and 200 ` elsif (1) { 1 }` arms
+  has 1,375, 2,725 and 5,425 items at lookahead 0 with Leo and 2,551, 7,576
+  and 25,126 without. With lookahead on, the default, it is linear either way
+  (1,028, 2,028, 4,028 with Leo; 1,076, 2,126, 4,226 without). At waypoint 1
+  operator chains get no Leo benefit, because precedence is not applied yet:
+  `$a` followed by 50, 100 and 200 ` = $a` and a `;` has 5,463, 20,913 and
+  81,813 items at lookahead 0, with Leo or without, quadratic. Linear here
+  means the item count, not time: with the cache on, each use of a chain walks it to record its
   sets, so time stays quadratic until memos are interned. A chain stops at
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
   turns it off; it is the only Leo switch.
