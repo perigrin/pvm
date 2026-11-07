@@ -86,7 +86,8 @@ write a list for the first time.
 `make chart-ratchet` runs `cmd/ratchet`. Every issue of the spike closes
 against it, so this section is a contract. The key set below was fixed by the
 reset of `docs/plans/2026-10-30-chart-parser-v2-design.md` §9.5: **no key is
-added, renamed or retired after it.** Every key of the first attempt is
+added, renamed or retired after it**, except `lex-overhead-aggregate`
+(perigrin, 2026-11-07, spec §9.3). Every key of the first attempt is
 retired.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
@@ -203,8 +204,9 @@ To take a baseline after an intended change, run
 | `terminals-per-token` | the table's width: terminals per mapped token (a token the table cannot map holds none and is not counted) | may not rise from completion |
 | `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
 | `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
-| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, median of three | timing; ≤ 1.3 absolutely |
-| `lex-overhead-std5k` | the same on `std5k.pl` | timing |
+| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three | timing; ≤ 1.3 absolutely |
+| `lex-overhead-std5k` | the same on `std5k.pl` alone | timing |
+| `lex-overhead-aggregate` | the same over the aggregate, never gated | timing |
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
 | `speed-ratio-std5k-cold` | the same, cold | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
@@ -237,9 +239,14 @@ clock and a collector, so it is tested on fake timings
   and max printed on stderr. A figure is the median of three measurements.
 - **Lifetimes.** Long-lived: one parser per pass, reused across its files.
   Cold: a fresh parser per file.
-- **The file set is an input.** `lex-overhead` passes every corpus file
-  until the superset population exists and the aggregate after it; the speed
-  ratios pass `std5k.pl` alone and the aggregate.
+- **The file set is an input.** `lex-overhead` passes `std5k.pl` and
+  `edit5k.pl` each alone, long-lived, and takes the larger figure (the edit5k
+  figure is a `lex-overhead-edit5k` measurement line on stderr, not a key);
+  `lex-overhead-aggregate` passes the aggregate; the speed ratios pass
+  `std5k.pl` alone and the aggregate. The 1.3 protects chart/lex's share of an
+  LSP call, which re-lexes one buffer in a warm process; over many small
+  files each call starts with a cold cache, so the aggregate measures
+  per-call start-up and is reported, never gated.
 - **What the speed ratios run.** The chart side is `chart/lex` then
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
   pass's files (its intern table and cache persist), cold makes a fresh
