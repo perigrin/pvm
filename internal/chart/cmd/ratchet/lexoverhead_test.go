@@ -5,6 +5,7 @@ package main
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -94,4 +95,50 @@ func toyLexTable(t *testing.T) *grammar.TokenTable {
 		t.Fatal(err)
 	}
 	return tt
+}
+
+// TestLexOverheadKeys: lex-overhead is the larger of std5k.pl's and
+// edit5k.pl's long-lived figures and times only those two files;
+// lex-overhead-std5k is std5k.pl's; lex-overhead-aggregate comes from the
+// aggregate's files. The fake clock charges 10 per file to the reference and
+// 10*factor/10 to the chart.
+func TestLexOverheadKeys(t *testing.T) {
+	for _, tc := range []struct {
+		name                      string
+		stdF, editF, aggF         time.Duration
+		wantMax, wantStd, wantAgg string
+	}{
+		{"edit5k slower", 11, 12, 13, "1.200", "1.100", "1.300"},
+		{"std5k slower", 12, 11, 13, "1.200", "1.200", "1.300"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var now time.Duration
+			factor := map[string]time.Duration{std5k: tc.stdF, edit5k: tc.editF, "a.pl": tc.aggF}
+			var order []string // each file as it first runs after another file ran
+			side := func(chart bool) Side {
+				return func() Runner {
+					return func(p string) {
+						if len(order) == 0 || order[len(order)-1] != p {
+							order = append(order, p)
+						}
+						if chart {
+							now += factor[p]
+						} else {
+							now += 10
+						}
+					}
+				}
+			}
+			p := Protocol{Chart: side(true), Ref: side(false), Now: func() time.Duration { return now }, GC: func() {}, Stderr: &strings.Builder{}}
+			m := map[string]string{}
+			lexOverheadKeys(p, []string{"a.pl"}, m)
+			if m["lex-overhead"] != tc.wantMax || m["lex-overhead-std5k"] != tc.wantStd || m["lex-overhead-aggregate"] != tc.wantAgg {
+				t.Errorf("lex-overhead %s, std5k %s, aggregate %s; want %s, %s, %s",
+					m["lex-overhead"], m["lex-overhead-std5k"], m["lex-overhead-aggregate"], tc.wantMax, tc.wantStd, tc.wantAgg)
+			}
+			if want := []string{std5k, edit5k, "a.pl"}; !slices.Equal(order, want) {
+				t.Errorf("files timed in order %v, want %v (the LSP buffers, then the aggregate)", order, want)
+			}
+		})
+	}
 }
