@@ -70,12 +70,17 @@ Two limits hold off the corpus, where the gates cannot see them:
   `PRIVATEREF` before `(`, where every other plain word also gets the
   scope-decided readings. `rd-accepted-chart-refused` is 0 because §9.1
   defines the superset claim over the corpora: it was established on the
-  corpus's 1,394 files, not on every program. The `x` classes are
-  perigrin's ruling (01a18fa6-ec70); widening them is waypoint 2's question.
+  corpus's 1,394 files, not on every program. The ruling (01a18fa6-ec70) makes
+  `x` the repetition operator exactly after a token that completes a term, and
+  a word everywhere else; the narrowing at statement start is the
+  implementation's and falls short of it (`TestPortScopeDecidedKnownLimits`).
+  perigrin ruled that the defect is recorded for waypoint 2's refinement, with
+  no grammar change at waypoint 1.
 - **Accepted where perl refuses.** `print STDOUT $foo bar();` is accepted
   (perl: syntax error). A non-keyword word before a `Variable` may read as
   `METHCALL0` even after `print` or `say`, and `tdt-unseen` cannot see an
-  over-width inside a key it has already seen. This is waypoint 2's refusal
+  over-width inside a key it has already seen (`TestPortScopeDecidedKnownLimits`
+  pins the `print STDOUT $foo bar();` row). This is waypoint 2's refusal
   work.
 
 ## The Guacamole corpus
@@ -161,8 +166,7 @@ retired.
   <n> allocs/op` (likewise `BenchRecognize`, `BenchExpected`). They are not
   keys and nothing compares them. On a file the chart
   refuses, `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix
-  the grammar reaches; both report `nodes-reached` (the first node with no
-  Earley set) beside `nodes`.
+  the grammar reaches.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
@@ -300,7 +304,9 @@ clock and a collector, so it is tested on fake timings
   every position after the refusal holds no items and costs little, so
   until the chart recognizes the population (`superset-recognized`) a ratio
   is a lower bound on the finished recognizer's, reported for warning (§9.3
-  checkpoints). Allocations are one
+  checkpoints). On `std5k.pl` alone the long-lived figure is effectively the
+  cold one (baseline: 1.2228 against 1.2261), because one file is one pass and
+  nothing is left to persist. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
@@ -321,6 +327,15 @@ wrong. Refusal counts exclude the files on either list and no others. Both
 started empty; an entry is added only by the issue that meets the defect, filed
 against the v0.1 milestone, and the gate review confirms the construct at the
 entry's byte is that issue's.
+
+**The chart refuses `return {…}`, `bless {…}, $class` and `sprintf {…}`.** The
+lexer defect 01a1ad1d-bc7b mis-types the open brace there. It accounts for 105
+of the 114 entries of `lex-unmapped-known.txt`; the committed perl labels
+(`testdata/labels/`) mark 91 of those 105 accepted (and 92 of all 114). So
+about 90 perl-accepted files sit outside the superset
+population, and outside the speed figures (§9.1 allows this). Rewriting those
+braces as `+{` makes the chart accept all 90 perl-accepted T1 files, so the list
+hides no gap of the chart's own.
 
 Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 
@@ -1017,9 +1032,10 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   pair, so two positions with equal content share one `*Set`. A node that an
   edge passes over is inside a branch: its set is built but not interned.
 - **Lookahead.** In up-front mode a complete item's rule completes only if
-  the next token, or the end of input, can follow its LHS. That stops
-  right-recursive `StatementSeq` from completing back through every earlier
-  statement, which is what keeps sets equal from one statement to the next.
+  the next token, or the end of input, can follow its LHS. That keeps
+  out of each set the completions the next token cannot continue. On 100
+  statements `$x = 1;` the item count is 2,001 with lookahead and 2,201
+  without; both are linear, since perly's `stmtseq` is left-recursive.
   `Expected(pos)` is the union of the expected terminals of every state in
   the set at `pos` as recognition without lookahead builds it: it closes
   the set again under every completion, outside the interned content, so a
@@ -1042,9 +1058,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   Every set a chain read is a transition-cache dependency. Leo never changes
   acceptance. At lookahead 0, where interleaved mode will run, it makes
   `S ::= A S | A` and a toy right-recursive, nullable statement sequence
-  (the shape of Guacamole's `StatementSeq`) linear, where without it they are
-  quadratic (`TestLeoLinearAtLookaheadZero`,
-  `TestLeoStatementSeqAtLookaheadZero`). Linear here means the item count,
+  linear, where without it they are quadratic
+  (`TestLeoLinearAtLookaheadZero` and the toy sequence's test beside it). perly
+  has one production of that shape, `else: KW_ELSIF … mblock else | empty`: an
+  `if` with 50, 100 and 200 `elsif` arms has 1,381, 2,731 and 5,431 items at
+  lookahead 0 with Leo and 2,557, 7,582 and 25,132 without. With lookahead on,
+  the default, it is linear either way (1,034, 2,034, 4,034 with Leo; 1,082,
+  2,132, 4,232 without). At waypoint 1 operator chains such as `$a = $b = …`
+  get no Leo benefit, because precedence is not applied yet: the item count is
+  quadratic with Leo or without (5,462, 20,912 and 81,812 at 50, 100 and 200
+  assignments, lookahead 0). Linear here means the item count,
   not time: with the cache on, each use of a chain walks it to record its
   sets, so time stays quadratic until memos are interned. A chain stops at
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
