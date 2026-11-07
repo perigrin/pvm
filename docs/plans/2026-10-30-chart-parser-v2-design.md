@@ -433,8 +433,10 @@ Exit, all at once:
 - **Exclusions are bounded:** an alternative may be excluded from the port
   only for a reason on a closed list (a keyword plugin, an unconditional
   action refusal, the alternative a fitted conditional refusal needs, bison's
-  `error` recovery rule `sideff: error`), and the count of
-  exclusions is reported.
+  `error` recovery rule `sideff: error`, an alternative reached only inside
+  an interpolated string (`interpolation-only`), and a sequence perly.y
+  builds that the lexer emits as one token (`folded-into-token`)), and the
+  count of exclusions is reported.
 - **Builtins and levels:** the CORE.tpm cross-check runs and its differences
   are listed; the levels declared in the grammar are compared with chapter
   4's table and `parse.LevelsAccountedFor()`, and differences listed.
