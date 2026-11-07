@@ -39,7 +39,7 @@ type verdict struct {
 func recognizeSource(t *testing.T, src []byte) verdict {
 	t.Helper()
 	tab, err := committed()
-	if err != nil || tab == nil {
+	if err != nil {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	s, _ := lex.Lex(src, tab.Tokens)

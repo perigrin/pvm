@@ -59,12 +59,9 @@ func Committed() (*Grammar, []Entry, error) {
 }
 
 // Generate builds g's tables, its token table included, and refuses an
-// inconsistent grammar: it returns the error and no tables. A grammar with no
-// rules generates none and no error.
+// inconsistent grammar, one with no rule included: it returns the error and
+// no tables.
 func Generate(g *Grammar, ref []Entry) (*Tables, error) {
-	if len(g.G1) == 0 {
-		return nil, nil
-	}
 	t, err := BuildTables(g)
 	if err != nil {
 		return nil, err
@@ -82,7 +79,7 @@ func Generate(g *Grammar, ref []Entry) (*Tables, error) {
 // GenerateTables writes g's tables into dir. A refused grammar writes nothing.
 func GenerateTables(dir string, g *Grammar, ref []Entry) error {
 	t, err := Generate(g, ref)
-	if err != nil || t == nil {
+	if err != nil {
 		return err
 	}
 	return WriteTables(dir, t.Files())

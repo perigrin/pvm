@@ -18,7 +18,7 @@ import (
 func recognizeSelected(t *testing.T, selector string, src string) bool {
 	t.Helper()
 	tab, err := committed()
-	if err != nil || tab == nil {
+	if err != nil {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	s, _ := lex.Lex([]byte(src), tab.Tokens)

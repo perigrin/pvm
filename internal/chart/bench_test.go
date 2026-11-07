@@ -14,7 +14,7 @@ import (
 func benchInput(b *testing.B) (*grammar.Tables, []byte) {
 	b.Helper()
 	tab, err := committed()
-	if err != nil || tab == nil {
+	if err != nil {
 		b.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	src, err := os.ReadFile(filepath.Join("testdata", "std5k.pl"))
