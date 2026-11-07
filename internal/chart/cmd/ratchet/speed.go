@@ -81,7 +81,7 @@ func (p Protocol) Ratio(name string, files []string, cold bool) float64 {
 // Aggregate returns timed less std5k.pl, edit5k.pl and every file whose
 // recursive-descent time alone is more than 10% of recursive descent's over
 // the whole population. rd is passed explicitly, not taken from p.Ref, so
-// lex-overhead and the speed ratios get one aggregate. A timed file outside
+// lex-overhead-aggregate and the speed ratios get one aggregate. A timed file outside
 // the population is a caller bug, so it panics.
 func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string {
 	rdTime := make(map[string]time.Duration, len(population))

@@ -70,7 +70,7 @@ func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]by
 }
 
 // aggregateFiles is the aggregate of the superset population over files, the
-// one set that lex-overhead and the speed ratios all time.
+// one set that lex-overhead-aggregate and the speed ratios all time.
 func aggregateFiles(p Protocol, rd Side, files []File, in verdictInputs) ([]string, error) {
 	population, err := supersetPopulation(files, in)
 	if err != nil {

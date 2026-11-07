@@ -1,5 +1,5 @@
 // ABOUTME: The ratchet's leo-disagree: files whose recognition with Leo on and off differs in acceptance or Expected.
-// ABOUTME: Until the superset population exists it reads every corpus file.
+// ABOUTME: It reads every corpus file.
 
 package main
 
