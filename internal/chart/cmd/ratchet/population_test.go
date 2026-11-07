@@ -1,5 +1,5 @@
 // ABOUTME: Tests the superset population: membership, lexer-list exclusion, missing labels and corpora, RD's verdict.
-// ABOUTME: Also the disagreement keys and lex-overhead's file set, over stubbed verdicts and a fake clock.
+// ABOUTME: Also the disagreement keys and lex-overhead-aggregate's file set, over stubbed verdicts and a fake clock.
 
 package main
 
