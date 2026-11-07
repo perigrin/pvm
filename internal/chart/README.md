@@ -123,8 +123,9 @@ retired.
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
 - **Inputs.** The ratchet reads the working tree and two directories outside
-  it: the T1 corpus (`T1_CORPUS`) and the aligned `-DT` pairs
-  (`TDT_FIXTURES`), each with a default (below). It reads no commit, no
+  it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default (below).
+  T1 is in the tree: `testdata/perlonjava/unit` (see
+  `testdata/perlonjava/README.md`), and `T1_CORPUS` overrides it. It reads no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
@@ -179,8 +180,7 @@ To take a baseline after an intended change, run
 - **Reported** only: every other key.
 - **The tdt keys read `TDT_FIXTURES`**, the directory `offline/tdt-align.sh`
   writes the aligned pairs into (they are not committed). Unset, it is
-  `/var/tmp/pvm-chart-tdt`, where this milestone generates them, as `T1_CORPUS`
-  defaults; naming no directory, or a corpus file with no fixture there, is an
+  `/var/tmp/pvm-chart-tdt`, where this milestone generates them; naming no directory, or a corpus file with no fixture there, is an
   error (exit 2). A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`, where each entry
   sits under a `reason:` line saying why toke.c never produces it over the
@@ -207,8 +207,7 @@ To take a baseline after an intended change, run
   token starts is an error, and so is a reviewed tdt-unseen entry for a pair
   that is seen, whose reason no longer holds. A reason saying "no corpus
   token matches the key" is held to a scan of every corpus file with the key
-  compiled alone (`TestTDTAbsentReasonsHold`, about 30 s, run when
-  `T1_CORPUS` is set).
+  compiled alone (`TestTDTAbsentReasonsHold`, about 30 s).
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).
@@ -310,7 +309,8 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   `internal/chart/testdata/std5k.pl`, `internal/psc/testdata/latency/edit5k.pl`,
   or a `*.pl` directly under `internal/chart/testdata/guacamole/parses/` or
   `.../parsent/`. A T1 file is `T1/<name>.t`, a top-level `*.t` of T1,
-  resolved as `$T1_CORPUS/<name>.t`.
+  resolved as `<name>.t` under `testdata/perlonjava/unit`, or under
+  `$T1_CORPUS` when that is set.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
   `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
@@ -324,11 +324,9 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 `TestLexerLists` checks every entry's form, that its path is a corpus file
 that exists and that its byte lies inside it. It never calls `git zhi`, so
 `make test` never reads the chain; a separate criterion resolves the refs and
-checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
-unset, the test checks every other entry and then skips, naming
-`T1_CORPUS`, as every corpus-backed ratchet in the repository does; CI's
-corpus-backed job supplies the corpus and fails on that skip. `T1_CORPUS`
-set but naming no directory fails the test.
+checks the issues are open. T1 entries resolve
+against the in-tree copy, so the test does not skip. `T1_CORPUS` set but
+naming no directory fails the test.
 
 ## The grammar: `grammar/perly.go`
 
