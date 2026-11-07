@@ -48,6 +48,18 @@ feature, no scope, so a form perl refuses only by precedence
 sections below name the ones known. Error
 recovery and interleaved lexing (spec §13) are not built either.
 
+Some forms perl refuses as grammar fit neither category: nothing in the
+tokens the chart reads marks them, so it accepts them. On the corpus there
+are 14 such files, which recursive descent accepts too (so no gated key
+counts them; they sit in `chart-accepted-perl-refused`): 10
+malformed number literals (`08`, `0xap_+2`, `0x_.8`, `0b2`, `0b_` and kin) in
+`parsent/Statements-Expressions-Value-Literal-0{05,08..16}` (v0.1
+01a18830-730b); `$foo->$ *` and `$foo->$#` in
+`parsent/Statements-Expressions-Value-ArrowDerefVariable-00{1,6}`
+(01a1af7c-3b65); and `$#` and `$*` alone in
+`parses/Statements-Expressions-Value-NonLiteral-Variable-0{17,24}`, which
+perl refuses since 5.30.
+
 ## The Guacamole corpus
 
 `testdata/guacamole/` holds the waypoint's corpus: every `parses` and
@@ -98,10 +110,10 @@ retired.
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
   table below, and nothing else there. Diagnostics go to stderr.
-- **`na`.** A key nothing measures yet prints `na`. The issue that makes it
-  print a number takes its baseline in the same commit. A key whose baseline
-  is `na` and that prints a number fails with "baseline still na; take a
-  baseline", and a number may not become `na`.
+- **`na`.** A key nothing measures prints `na`. Every key prints a number
+  since waypoint 1 was built; the rule stays because spec §9.5 states it. A
+  key whose baseline is `na` and that prints a number fails with "baseline
+  still na; take a baseline", and a number may not become `na`.
 - **Exit rule.** `cmd/ratchet` exits 1 on a regression against
   `testdata/ratchet/baseline.txt`, naming the key, the baseline and the value
   on stderr, and 2 on an error: a measurement that cannot be taken, a missing
@@ -110,22 +122,32 @@ retired.
   non-zero because the waypoint's exit is still unmet. `go run` turns every
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
-- **Inputs.** The ratchet reads only the working tree: no commit, no
-  `refs/zhi`, no network. Of Guacamole it reads only the corpus snippets
-  under `testdata/guacamole/`, never its grammar. It imports `chart/lex` to
-  time it and to count `lex-unmapped`, and `recognize` for `leo-disagree`.
+- **Inputs.** The ratchet reads the working tree and two directories outside
+  it: the T1 corpus (`T1_CORPUS`) and the aligned `-DT` pairs
+  (`TDT_FIXTURES`), each with a default (below). It reads no commit, no
+  `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
+  under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
+  for the tables, `chart/lex` to time it and to count `lex-unmapped`,
+  `recognize` for `leo-disagree`, the verdict keys and the speed ratios,
+  `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
+  reference side and the tdt keys, and `internal/parse` for recursive
+  descent's verdicts and times.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
-  `std5k.pl`) keep their bodies in `bench.go`, outside a test file, so the
-  ratchet can run the same code with `testing.Benchmark`. On a file the chart
+  `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and the
+  ratchet runs the same bodies with `testing.Benchmark`, after every key is
+  measured, printing one stderr line each: `chart-ratchet: BenchLex <n> ns/op
+  <n> allocs/op` (likewise `BenchRecognize`, `BenchExpected`). They are not
+  keys and nothing compares them. On a file the chart
   refuses, `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix
   the grammar reaches; both report `nodes-reached` (the first node with no
   Earley set) beside `nodes`.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
-  (`continue-on-error: true`).
+  (`continue-on-error: true`). It errors (exit 2) on every run, since CI has
+  neither the T1 corpus nor the tdt fixtures, so it observes nothing.
 
 **Isolation (§11).** The chart reads `internal/lexer` and `internal/parse`
 and never changes them. A lexer defect found here is filed against the v0.1
@@ -240,7 +262,10 @@ clock and a collector, so it is tested on fake timings
   median of the 9 per-pair ratios (chart pass over reference pass), with min
   and max printed on stderr. A figure is the median of three measurements.
 - **Lifetimes.** Long-lived: one parser per pass, reused across its files.
-  Cold: a fresh parser per file.
+  Cold: a fresh recognizer per file. chart/lex's pooled lookup cache
+  (`grammar.LookupCache`, from a `sync.Pool`) persists from file to file
+  within a pass, cold or not; the GCs forced before each pass empty the pool,
+  so no pass replays a cache warmed on its own inputs.
 - **The file set is an input.** `lex-overhead` passes `std5k.pl` and
   `edit5k.pl` each alone, long-lived, and takes the larger figure (the edit5k
   figure is a `lex-overhead-edit5k` measurement line on stderr, not a key);
@@ -300,8 +325,10 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 that exists and that its byte lies inside it. It never calls `git zhi`, so
 `make test` never reads the chain; a separate criterion resolves the refs and
 checks the issues are open. When a list holds a T1 entry and `T1_CORPUS` is
-unset or names no directory, the test fails naming `T1_CORPUS`; it never
-skips, so run it with `T1_CORPUS` set.
+unset, the test checks every other entry and then skips, naming
+`T1_CORPUS`, as every corpus-backed ratchet in the repository does; CI's
+corpus-backed job supplies the corpus and fails on that skip. `T1_CORPUS`
+set but naming no directory fails the test.
 
 ## The grammar: `grammar/perly.go`
 
@@ -802,7 +829,8 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   PRIVATEREF`), so `foo(1)` and `f()->{foo}` are accepted.
 - A word ending in `::` is a package name, never a call (safebw, toke.c:8098-8111), so `a::()`, `Foo:: 1` and
   `Foo:: $x` are refused (the last was a METHCALL0 before; those classes now leave a package name out too). chart/lex gives such a word the Prefix `PackageName` (`:`), read from its last two bytes: a value of
-  an existing key part, as a Number's version shape is, and an extension of spec §7 for perigrin to rule on.
+  an existing key part, as a Number's version shape is, and an extension of spec §7 that perigrin accepted
+  (2026-11-05, "Accept").
   INTERN's reference reads it with a regular expression (`refPackageName`).
 - After `->`, `&`, a glob's `*`, `sort`, `require`, the loop exits and the words that name something (`sub`,
   `package`, `use`, `no`, `format`) toke.c forces the word to a name (`forcedWord`), so it carries no
@@ -1067,8 +1095,8 @@ transition the sample uses and requires the disagreement to be reported.
 (`grammar.BuildTables`) of the committed grammar and writes them to
 `grammar/testdata/tables/`, with the token table compiled from the
 grammar's token classes (`tokens.txt`). The ratchet's `tables-drift` holds
-every one of them to what the generator writes. With no rule committed there
-is nothing to generate: it writes no table file, says so on stderr and exits 0.
+every one of them to what the generator writes. A grammar with no rule is
+refused, as any other inconsistency is.
 
 The generator refuses an inconsistent grammar (`grammar/refuse.go`, spec §5.2):
 it prints every offence to stderr, writes no table, leaves those already there
