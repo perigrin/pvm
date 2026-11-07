@@ -17,7 +17,7 @@ import (
 	"tamarou.com/pvm/internal/lexer"
 )
 
-// defaultTDT is where this milestone generates the fixtures; TDT_FIXTURES overrides it, as T1_CORPUS does defaultT1.
+// defaultTDT is where this milestone generates the fixtures; TDT_FIXTURES overrides it.
 const defaultTDT = "/var/tmp/pvm-chart-tdt"
 
 var (
