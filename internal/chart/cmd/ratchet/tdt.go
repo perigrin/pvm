@@ -157,7 +157,8 @@ func keyText(c grammar.TokenClass) string {
 }
 
 // digest writes an exclusion list in full when it is short, and as its length and a hash of its sorted
-// members when it is not, so a key stays readable and two lists never share one.
+// members when it is not, so a key stays readable. The hash is cut to fill 16 bytes (44 bits beside a
+// three-digit length), so two lists of one length sharing a key is improbable, not impossible.
 func digest(items []string) string {
 	s := strings.Join(slices.Sorted(slices.Values(items)), ",")
 	if len(s) <= 60 {
