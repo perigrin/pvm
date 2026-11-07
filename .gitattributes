@@ -3,3 +3,6 @@
 # compared byte for byte, and a CRLF checkout on Windows changed what they
 # say (`parses: yes` read as "yes\r"). A test that needs CRLF builds it.
 * text=auto eol=lf
+
+# PerlOnJava's unit tests are T1, measured byte for byte: never convert them.
+testdata/perlonjava/** -text

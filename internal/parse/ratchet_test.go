@@ -48,18 +48,14 @@ var updateRatchet = flag.Bool("parse.update-ratchet", false,
 func t1Files(t *testing.T) (string, []string) {
 	t.Helper()
 
+	// The in-tree copy is the default; T1_CORPUS still overrides it.
 	root := os.Getenv("T1_CORPUS")
 	if root == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Skipf("no T1_CORPUS and no home directory: %v", err)
-		}
-		root = filepath.Join(home, "dev", "PerlOnJava",
-			"src", "test", "resources", "unit")
+		root = filepath.Join("..", "..", "testdata", "perlonjava", "unit")
 	}
 	if _, err := os.Stat(root); err != nil {
 		t.Skipf("T1 corpus not present at %s: %v\n"+
-			"set T1_CORPUS to a PerlOnJava checkout's unit/ to run the M1 metrics",
+			"unset T1_CORPUS to use testdata/perlonjava/unit, or point it at a PerlOnJava checkout's unit/",
 			root, err)
 	}
 

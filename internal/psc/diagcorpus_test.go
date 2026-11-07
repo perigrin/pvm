@@ -1,5 +1,5 @@
 // ABOUTME: Holds R-a′ and R-g on Perl that perl compiles: catch-all nodes publish nothing, and no missing_operand fires.
-// ABOUTME: Reads compiled.txt (perl.git t/) and testdata/t1compiled.txt (T1); never runs perl. Skips without both corpora.
+// ABOUTME: Reads compiled.txt (perl.git t/) and testdata/t1compiled.txt (T1); never runs perl. Skips without PERL5_CORPUS.
 
 package psc
 
@@ -63,8 +63,11 @@ func isSyntaxCode(code string) bool {
 // file, since perl compiles every one of these files.
 func TestParseDiagnosticsCatchAllQuietOnCorpus(t *testing.T) {
 	t1, perl5 := os.Getenv("T1_CORPUS"), os.Getenv("PERL5_CORPUS")
-	if t1 == "" || perl5 == "" {
-		t.Skip("set T1_CORPUS and PERL5_CORPUS")
+	if t1 == "" {
+		t1 = filepath.Join("..", "..", "testdata", "perlonjava", "unit")
+	}
+	if perl5 == "" {
+		t.Skip("set PERL5_CORPUS (T1 defaults to testdata/perlonjava/unit)")
 	}
 	for _, c := range []struct{ name, root, list string }{
 		{"perl5", filepath.Join(perl5, "t"), filepath.Join("..", "parseoracle", "testdata", "ratchet", "compiled.txt")},
