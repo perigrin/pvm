@@ -22,11 +22,8 @@ func BenchLex(b *testing.B, tab *grammar.Tables, src []byte) {
 
 // BenchRecognize times recognizing src's lattice, lexed once outside the
 // timed loop, with a fresh recognizer per run (the cold lifetime, §9.3).
-// Until the grammar recognizes src (std5k.pl, speed checkpoint 1), it times
-// only the prefix the grammar reaches, which on std5k.pl is today one
-// token; the rest of the figure is per-node bookkeeping past the node where
-// the chart dies, not recognition. The nodes-reached metric says how far
-// recognition got, out of nodes.
+// On a file the chart refuses it times only the prefix the grammar reaches;
+// nodes-reached says how far recognition got, out of nodes.
 func BenchRecognize(b *testing.B, tab *grammar.Tables, src []byte) {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
@@ -45,8 +42,8 @@ func BenchRecognize(b *testing.B, tab *grammar.Tables, src []byte) {
 // BenchExpected times Expected at every node of src's chart. Each run
 // recognizes on a fresh recognizer outside the timer, so no run reads the
 // memo an earlier one filled. A node with no set expects nothing at no
-// cost, so until the grammar recognizes src (speed checkpoint 1) it times
-// only the prefix the grammar reaches: on std5k.pl today, one position.
+// cost, so on a file the chart refuses it times only the prefix the grammar
+// reaches.
 func BenchExpected(b *testing.B, tab *grammar.Tables, src []byte) {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)

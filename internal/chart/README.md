@@ -14,9 +14,10 @@ This is the spike's second attempt. The first (`chart-waypoint`, design
 `docs/plans/2026-10-29-chart-parser-design.md`) was stopped on 2026-10-30 by
 its speed kill; `docs/postmortems/chart-waypoint.md` records why. Its LR(0)
 generator, recognizer, Leo memos and ratchet comparison carry over; Guacamole's
-grammar, the SLIF reader, the token cut, chart/lex's predicate mapping, the
-conflict probes and the CORE.tpm cross-check are gone. Guacamole's snippets
-stay, as corpus.
+grammar, the SLIF reader, the token cut, chart/lex's predicate mapping and the
+conflict probes are gone. Guacamole's CORE.tpm cross-check is replaced by the
+`parse.CoreShapes()` cross-check (spec §5.3; "Builtin classes against
+`parse.CoreShapes()`", below). Guacamole's snippets stay, as corpus.
 
 Waypoint 1 (spec §9.2) is built, as the milestone `chart-perly-w1`:
 
@@ -27,6 +28,10 @@ Waypoint 1 (spec §9.2) is built, as the milestone `chart-perly-w1`:
   a scope ends (`recognize`, below);
 - **perl's verdicts**, the pinned `-DDEBUGGING` perl's labels and its `-DT`
   tokens aligned with pvm's (`offline/`, `testdata/labels/`, `testdata/tdt/`);
+- **the cross-checks** of the builtin classes against `parse.CoreShapes()`
+  and of the precedence levels against chapter 4 and
+  `parse.LevelsAccountedFor()`, each holding a reviewed difference list
+  (below);
 - **the ratchet**, with spec §9.5's key set and §9.3's speed protocol.
 
 Whether the waypoint's exit holds is what the ratchet and the milestone's
@@ -332,7 +337,10 @@ tables hold 349 rules over 112 nonterminals and 124 terminals.
   each form only on input that lexes the same from statement start:
   `internal/lexer` exports only statement-start states.
 - **Token classes** are declared beside the rules by terminal name, one slot
-  per `%token` in `perly.y`'s order, and compiled into the token table
+  per lexed token `perly.y` declares (`%token`, `%left`, `%right`,
+  `%nonassoc`), in the order it first declares it; the `GRAM*` selectors,
+  `PLUGEXPR`, `PLUGSTMT`, the `PLUGIN_*` terminals, `PREC_LOW` and `UMINUS`
+  have none. They are compiled into the token table
   (`grammar/tokens.go`, spec §7). toke.c is the authority for which terminal
   a token is, cited by line where a class is not plain. Where pvm's key cannot see what toke.c reads,
   perigrin has ruled extensions of §7, each named in the section that uses
@@ -857,7 +865,9 @@ Associativity agrees with chapter 4 on all 32 levels; the differences are tokens
 `lex.Lex(src, table)` runs the production lexer up front (`lexer.Tokenize`)
 and then does **one table lookup per significant token** through the
 compiled token table (`grammar.TokenTable`), yielding its terminal-set id
-(spec §5.2, §7). The lookup allocates nothing, and it uses no regexp.
+(spec §5.2, §7). The lookup allocates nothing, and it uses no regexp. It
+walks the table laid out flat (`TokenTable.Lookup`), behind a cache of answers
+by whole key (`grammar.LookupCache`) that each `Map` call borrows from a pool.
 
 **The stream is the lexer's tokens, not a copy of them.** `Stream.Raw` is
 the slice `lexer.Tokenize` returned; what the chart adds sits beside it.
