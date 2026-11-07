@@ -103,7 +103,7 @@ func TestPopulationDisagreementsReported(t *testing.T) {
 	}
 }
 
-// TestLexOverheadFileSet: lex-overhead times exactly the aggregate of the
+// TestLexOverheadFileSet: lex-overhead-aggregate times exactly the aggregate of the
 // population. The fake chart and reference sides record every path they run.
 func TestLexOverheadFileSet(t *testing.T) {
 	var now time.Duration
@@ -127,9 +127,9 @@ func TestLexOverheadFileSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := p.Ratio("lex-overhead", kept, false)
+	got := p.Ratio("lex-overhead-aggregate", kept, false)
 	if math.Abs(got-1.1) > 1e-9 {
-		t.Errorf("lex-overhead %v, want 1.1", got)
+		t.Errorf("lex-overhead-aggregate %v, want 1.1", got)
 	}
 	var timed []string
 	for f := range seen {
@@ -137,7 +137,7 @@ func TestLexOverheadFileSet(t *testing.T) {
 	}
 	slices.Sort(timed)
 	if want := []string{"a.pl", "b.pl"}; !slices.Equal(timed, want) {
-		t.Errorf("lex-overhead times %v, want %v (outside, listed, std5k, edit5k, the >10%% files left out)", timed, want)
+		t.Errorf("lex-overhead-aggregate times %v, want %v (outside, listed, std5k, edit5k, the >10%% files left out)", timed, want)
 	}
 }
 
