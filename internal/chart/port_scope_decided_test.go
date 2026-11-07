@@ -69,8 +69,16 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
-	if recognizeSource(t, []byte("sub x {1} x 1, 2;")).accepted {
-		t.Errorf("sub x {1} x 1, 2; is accepted; the known limit is gone, so drop the shortcut and the README line")
+	// perl -c (94e50866) accepts both: the statement-start table gives x only BAREWORD and PRIVATEREF, short of
+	// the x ruling (01a18fa6-ec70), which waypoint 2's refinement takes up.
+	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;"} {
+		if recognizeSource(t, []byte(src)).accepted {
+			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+		}
+	}
+	// perl refuses it (syntax error); a word before a Variable may read as METHCALL0 after print.
+	if !recognizeSource(t, []byte("print STDOUT $foo bar();")).accepted {
+		t.Errorf("print STDOUT $foo bar(); is refused; the known limit is gone, so drop the README line")
 	}
 	// perl accepts both: CORE::qw and CORE::q are quote-likes, which internal/lexer emits as a word and loose tokens
 	// (v0.1 01a1ae56), so the stripped word is qw or q with no delimiters.
