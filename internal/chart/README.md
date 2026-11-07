@@ -195,7 +195,7 @@ To take a baseline after an intended change, run
 | Key | Meaning | Rule |
 |---|---|---|
 | `tables-drift` | committed tables differing from what `make chart-tables` writes | may not rise; 0 at the exit |
-| `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position, over every corpus file until the superset population exists | may not rise; 0 at the exit |
+| `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position, over every corpus file | may not rise; 0 at the exit |
 | `ledger-gaps` | reference alternatives with no ledger mark, plus grammar citations not in the ledger | may not rise; 0 at the exit |
 | `rd-accepted-chart-refused` | superset-population files the chart refuses | may not rise; 0 at the exit |
 | `chart-accepted-both-refused` | perl grammar refusals recursive descent also refuses that the chart accepts, less both lexer lists | may not rise; 0 at the exit |
@@ -247,7 +247,7 @@ clock and a collector, so it is tested on fake timings
   `lex-overhead-aggregate` passes the aggregate; the speed ratios pass
   `std5k.pl` alone and the aggregate. The 1.3 protects chart/lex's share of an
   LSP call, which re-lexes one buffer in a warm process; over many small
-  files each call starts with a cold cache, so the aggregate measures
+  files each call starts with cold CPU caches, so the aggregate measures
   per-call start-up and is reported, never gated.
 - **What the speed ratios run.** The chart side is `chart/lex` then
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
@@ -1080,7 +1080,7 @@ naming a terminal no rule uses, or a nonterminal; a terminal no class admits, bu
 and `PLUGSTMT`; an unreachable or unproductive nonterminal; and a precedence
 token no rule and no `%prec` uses. `TestCommittedGrammarConsistent` holds the
 committed grammar to them. Token classes are declared in `grammar/perly.go` by
-terminal name, one slot per `%token` in the order `perly.y` declares them, and resolved to ids
+terminal name, one slot per lexed token as "The grammar" above states, and resolved to ids
 at generation (`Grammar.ResolveClasses`), so a rule added elsewhere does not
 move a class off its terminal. The output depends only on the grammar's rule order, never on map iteration or the clock,
 so regenerating it is byte-identical (§10).
