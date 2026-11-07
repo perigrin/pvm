@@ -15,7 +15,7 @@ func TestLeoDisagreeMeasured(t *testing.T) {
 		t.Fatal(err)
 	}
 	tab, err := grammar.Generate(g, ref)
-	if err != nil || tab == nil {
+	if err != nil {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	srcs := map[string][]byte{"a.pl": []byte("use strict;\n{ $x = 1 }\n"), "b.pl": []byte("$x = = 1;")}

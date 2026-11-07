@@ -158,7 +158,7 @@ func TestPortTermsAttributeColon(t *testing.T) {
 func terminalsOf(t *testing.T, src, text string, n int) []string {
 	t.Helper()
 	tab, err := committed()
-	if err != nil || tab == nil {
+	if err != nil {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	s, _ := lex.Lex([]byte(src), tab.Tokens)

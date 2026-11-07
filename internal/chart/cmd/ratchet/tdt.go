@@ -157,7 +157,8 @@ func keyText(c grammar.TokenClass) string {
 }
 
 // digest writes an exclusion list in full when it is short, and as its length and a hash of its sorted
-// members when it is not, so a key stays readable and two lists never share one.
+// members when it is not, so a key stays readable. The hash is cut to fill 16 bytes (44 bits beside a
+// three-digit length), so two lists of one length sharing a key is improbable, not impossible.
 func digest(items []string) string {
 	s := strings.Join(slices.Sorted(slices.Values(items)), ",")
 	if len(s) <= 60 {
@@ -406,13 +407,18 @@ func listLines(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return textLines(string(data)), nil
+}
+
+// textLines are a list text's lines that are neither blank nor a comment, trimmed.
+func textLines(text string) []string {
 	var out []string
-	for _, l := range strings.Split(string(data), "\n") {
+	for _, l := range strings.Split(text, "\n") {
 		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
 			out = append(out, l)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // fixturesDir is the TDT_FIXTURES value set, or def when it is unset.
