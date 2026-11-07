@@ -55,10 +55,28 @@ counts them; they sit in `chart-accepted-perl-refused`): 10
 malformed number literals (`08`, `0xap_+2`, `0x_.8`, `0b2`, `0b_` and kin) in
 `parsent/Statements-Expressions-Value-Literal-0{05,08..16}` (v0.1
 01a18830-730b); `$foo->$ *` and `$foo->$#` in
-`parsent/Statements-Expressions-Value-ArrowDerefVariable-00{1,6}`
-(01a1af7c-3b65); and `$#` and `$*` alone in
-`parses/Statements-Expressions-Value-NonLiteral-Variable-0{17,24}`, which
-perl refuses since 5.30.
+`parsent/Statements-Expressions-Value-ArrowDerefVariable-00{1,6}`; and `$#`
+and `$*` alone in
+`parses/Statements-Expressions-Value-NonLiteral-Variable-0{17,24}`. Perl
+refuses the last four since 5.30, which removed `$#` and `$*`; the lexer emits
+them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
+`Variable "$#"`), a root filed as v0.1 `01a1b717-ad05`.
+
+Two limits hold off the corpus, where the gates cannot see them:
+
+- **Refused where perl accepts.** `x {1};` and `sub x {} x {1};` are refused
+  (`perl -c`: syntax OK; recursive descent accepts them). At statement start
+  the table (`grammar/perly.go`) gives the word `x` only `BAREWORD`, plus
+  `PRIVATEREF` before `(`, where every other plain word also gets the
+  scope-decided readings. `rd-accepted-chart-refused` is 0 because §9.1
+  defines the superset claim over the corpora: it was established on the
+  corpus's 1,394 files, not on every program. The `x` classes are
+  perigrin's ruling (01a18fa6-ec70); widening them is waypoint 2's question.
+- **Accepted where perl refuses.** `print STDOUT $foo bar();` is accepted
+  (perl: syntax error). A non-keyword word before a `Variable` may read as
+  `METHCALL0` even after `print` or `say`, and `tdt-unseen` cannot see an
+  over-width inside a key it has already seen. This is waypoint 2's refusal
+  work.
 
 ## The Guacamole corpus
 
@@ -149,7 +167,7 @@ retired.
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
   (`continue-on-error: true`). It errors (exit 2) on every run, since CI has
-  neither the T1 corpus nor the tdt fixtures, so it observes nothing.
+  no tdt fixtures, so it observes nothing; T1 is in the tree.
 
 **Isolation (§11).** The chart reads `internal/lexer` and `internal/parse`
 and never changes them. A lexer defect found here is filed against the v0.1
