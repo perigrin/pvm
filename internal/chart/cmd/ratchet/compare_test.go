@@ -46,6 +46,7 @@ func TestCompareResetRules(t *testing.T) {
 		{"tdt-aligned rises", "tdt-aligned", "100", "101", "", false},
 		{"lex-overhead above 1.3", "lex-overhead", "1.0", "1.4", "", true},
 		{"lex-overhead moves within 1.3", "lex-overhead", "1.0", "1.25", "", false},
+		{"lex-overhead-aggregate is never gated", "lex-overhead-aggregate", "1.0", "1.4", "", false},
 		{"lex-overhead-std5k is timing", "lex-overhead-std5k", "1.0", "2.5", "", false},
 		{"speed ratio is timing", "speed-ratio-std5k-longlived", "1.0", "9.0", "", false},
 		{"alloc per token is timing", "alloc-per-token-chart", "1.0", "9.0", "", false},
