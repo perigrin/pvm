@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Measure is one key and its value: a number, or "na" for a component not built yet.
+// Measure is one key and its value: a number, or "na" for a key nothing measured (spec §9.5's rule).
 type Measure struct {
 	Key, Value string
 }
