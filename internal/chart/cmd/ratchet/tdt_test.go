@@ -318,7 +318,7 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revi
 }
 
 // TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
-// none, over every corpus file (T1 through T1_CORPUS); about 30 s. A synthetic false claim is caught.
+// none, over every corpus file (T1 included); about 30 s. A synthetic false claim is caught.
 func TestTDTAbsentReasonsHold(t *testing.T) {
 	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
 	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
@@ -330,9 +330,6 @@ func TestTDTAbsentReasonsHold(t *testing.T) {
 	}
 	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 || n != 0 {
 		t.Errorf("a reason that claims no absence was checked: %q from %d", got, n)
-	}
-	if os.Getenv("T1_CORPUS") == "" {
-		t.Skip("T1_CORPUS unset: the corpus is not on this machine")
 	}
 	t.Chdir("../../../..")
 	g, ref, err := grammar.Committed()

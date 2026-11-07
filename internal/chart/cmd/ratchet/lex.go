@@ -17,7 +17,8 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-const defaultT1 = "/opt/corpora/PerlOnJava/src/test/resources/unit"
+// defaultT1 is the in-tree copy of T1, relative to the repository root the ratchet runs from.
+const defaultT1 = "testdata/perlonjava/unit"
 
 var (
 	std5k  = filepath.Join(testdata, "std5k.pl")
@@ -50,7 +51,7 @@ func corpus() ([]File, map[string][]byte, error) {
 				return nil, nil, err
 			}
 			name := p
-			if c.name == "T1" { // outside the tree: named as the lexer lists name it
+			if c.name == "T1" { // named as the lexer lists name it
 				name = "T1/" + filepath.Base(p)
 			}
 			files = append(files, File{name, c.name})
