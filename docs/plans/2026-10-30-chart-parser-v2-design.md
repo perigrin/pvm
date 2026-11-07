@@ -488,13 +488,19 @@ keys; timing keys are never compared strictly, since unchanged code varies
 from run to run. The exit gates are the final issue's (§9.2), with one
 exception the postmortem asked for: `lex-overhead`, chart/lex's total time
 (including its call to `lexer.Tokenize`) over `lexer.Tokenize`'s on the same
-files over the aggregate, is gated at an absolute 1.3, as the median of three
-measurements over the aggregate (std5k's figure is reported, since one file
-is noisier), in every issue that touches chart/lex or the token table, from
-the first. Until the superset population exists, the aggregate is every
-corpus file; the issue that creates the population switches it and re-takes
-the baseline (perigrin, 2026-10-31), so the gate does not wait for perl's
-labels. Benchmarks for lexing, recognition
+input, is gated at an absolute 1.3 in every issue that touches chart/lex or
+the token table, from the first. The 1.3 protects chart/lex's share of an LSP
+call, which re-lexes one buffer in a warm process. So `lex-overhead` is
+measured on the two psc latency buffers, std5k.pl and edit5k.pl, each timed
+long-lived as the median of three measurements. The key is the larger of the
+two figures; `lex-overhead-std5k` remains reported beside it. The aggregate's
+figure is reported as `lex-overhead-aggregate` and never gated: over many
+small files each lexing call starts with a cold cache, so it measures
+per-call start-up, which an LSP call does not pay per file (perigrin,
+2026-11-07, "Gate on the LSP buffers"; this ruling adds that key, as the
+exception to the key-reset rule below). Earlier, until the superset
+population existed, the gate read every corpus file and then the aggregate
+(perigrin, 2026-10-31). Benchmarks for lexing, recognition
 and `Expected` run in the ratchet, not in `make test`.
 
 ### 9.4 Waypoint 2: parses Perl as recursive descent does
@@ -516,14 +522,15 @@ access to `internal/parse` that needs, is waypoint 2's decision (perigrin,
 | `tables-drift`, `leo-disagree` | may not rise; 0 at the waypoint exit |
 | `rd-accepted-chart-refused` | may not rise; 0 at the waypoint exit |
 | `lex-unmapped` | may not rise; equals its known list at the exit |
-| `lex-overhead` | ≤ 1.3 (median of three) in every issue touching chart/lex or the table |
+| `lex-overhead` | ≤ 1.3 in every issue touching chart/lex or the table: the larger of std5k.pl's and edit5k.pl's long-lived figures, each the median of three |
+| `lex-overhead-std5k`, `lex-overhead-aggregate` | reported |
 | `chart-accepted-both-refused` | may not rise; 0 at the exit |
 | `speed-ratio-{std5k,aggregate}-{longlived,cold}` | reported; the kill reads long-lived |
 | `terminals-per-token`, `tdt-unseen` | reported until the port is complete; may not rise without review from the issue that completes it, which takes their baselines; every `tdt-unseen` pair is on a reviewed list at the exit (§12) |
 | `tdt-mismatch` | reported until the port is complete; 0 from then on |
 | `tdt-aligned` | may not fall; at the exit every unaligned token is in a reviewed fitting family (§12) |
 | `items-per-token`, `set-reuse`, `rd-accepted-perl-refused`, `chart-accepted-perl-refused` | reported |
-| `speed-ratio-*`, `lex-overhead` | timing: never compared strictly between issues |
+| `speed-ratio-*`, `lex-overhead*` | timing: never compared strictly between issues |
 
 The baseline is reset for this attempt: keys may be added or retired when the
 reset lands, and never afterwards. A regression on a gated key fails the
