@@ -27,9 +27,10 @@ type dep struct {
 // follows its id (cacheEdge), instead of checking every entry (a key's
 // entries grew by one per flat statement).
 type cacheNode struct {
-	seq    int   // the order of the entry ending here among the stores, 0 for none
-	result *Set  // the entry ending here, nil for none
-	dists  []int // the distances of the next dependencies
+	seq    int      // the order of the entry ending here among the stores, 0 for none
+	result *Set     // the transition ending here
+	names  []string // or the Expected ending here (expected.go)
+	dists  []int    // the distances of the next dependencies
 	// first is the first edge stored from here, and where it leads, checked
 	// before the trie map: most nodes have one edge, and a map access costs
 	// more than the scan it replaces on a short list (std5k.pl).
@@ -43,9 +44,17 @@ type cacheEdge struct {
 	dist, id int
 }
 
-// lookup is the cached set for key at node pos, or nil: of the entries
-// whose dependencies hold, the one stored first.
+// lookup is the cached set for key at node pos, or nil.
 func (r *Recognizer) lookup(c *Chart, pos int, key cacheKey) *Set {
+	if n := r.hit(c, pos, key); n != nil {
+		return n.result
+	}
+	return nil
+}
+
+// hit is the entry for key at node pos, or nil: of the entries whose
+// dependencies hold, the one stored first.
+func (r *Recognizer) hit(c *Chart, pos int, key cacheKey) *cacheNode {
 	root := r.cache[key]
 	if root == nil {
 		return nil
@@ -54,16 +63,13 @@ func (r *Recognizer) lookup(c *Chart, pos int, key cacheKey) *Set {
 	scanned := 0
 	r.find(c, pos, root, &hit, &scanned)
 	r.longestScan = max(r.longestScan, scanned)
-	if hit == nil {
-		return nil
-	}
-	return hit.result
+	return hit
 }
 
 // find walks every edge from n whose set holds at pos, keeping in hit the
 // entry stored first, and counts the distances it examined in scanned.
 func (r *Recognizer) find(c *Chart, pos int, n *cacheNode, hit **cacheNode, scanned *int) {
-	if n.result != nil && (*hit == nil || n.seq < (*hit).seq) {
+	if n.seq != 0 && (*hit == nil || n.seq < (*hit).seq) {
 		*hit = n
 	}
 	for _, d := range n.dists {
@@ -86,19 +92,17 @@ func (r *Recognizer) edge(e cacheEdge) *cacheNode {
 	return r.trie[e]
 }
 
-func depsHold(c *Chart, pos int, deps []dep) bool {
-	for _, d := range deps {
-		at := pos - d.dist
-		if at < 0 || c.Sets[at] == nil || c.Sets[at].id != d.set {
-			return false
-		}
+// store caches result for key, read from deps.
+func (r *Recognizer) store(key cacheKey, deps []dep, result *Set) {
+	if n := r.slot(key, deps); n != nil {
+		n.result = result
 	}
-	return true
 }
 
-// store caches result for key, read from deps. An entry with the same
-// dependencies as an earlier one is never reached, so it is not kept.
-func (r *Recognizer) store(key cacheKey, deps []dep, result *Set) {
+// slot is the trie node where key's entry read from deps ends, for the
+// caller to fill, or nil where an earlier entry has the same dependencies:
+// that one is found first, so a second is never reached.
+func (r *Recognizer) slot(key cacheKey, deps []dep) *cacheNode {
 	n := r.cache[key]
 	if n == nil {
 		n = &cacheNode{}
@@ -123,8 +127,10 @@ func (r *Recognizer) store(key cacheKey, deps []dep, result *Set) {
 		}
 		n = child
 	}
-	r.stored++
-	if n.result == nil {
-		n.seq, n.result = r.stored, result
+	if n.seq != 0 {
+		return nil
 	}
+	r.stored++
+	n.seq = r.stored
+	return n
 }

@@ -1107,7 +1107,14 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   was quadratic in the statement count though the item count was linear
   (`TestCacheLookupBounded` holds the longest scan of one lookup equal from
   100 such statements to 400). The cost on the files the aggregate excludes
-  is under "The aggregate" in the speed protocol.
+  is under "The aggregate" in the speed protocol. The `Expected` memo had
+  the same per-statement growth and is keyed the same way, in the same trie
+  under span 0 (`TestExpectedMemoBounded`, `TestExpectedMemoMatchesNoCache`):
+  observed at eab40199 (before) and on the branch of 01a1b8a6-e81e (after),
+  `Expected` at every node after recognition took 1,595–1,778 ms before and
+  363–392 ms after on the whole `code_too_large.t` (its longest memo list
+  had 9,997 entries; a lookup now examines at most 4 distances), and
+  15.7–17.5 ms before and 18.5–19.9 ms after on `std5k.pl`, load 1.6–2.4.
 - **Leo memos** (Leo 1991) complete a right recursion in one step. A memo is
   made at a node for a symbol B only where the node's whole set holds one
   item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It

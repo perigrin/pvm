@@ -22,14 +22,15 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	}
 	set := c.Sets[pos]
 	// The answer depends on the set and on the origin sets its closure
-	// read, which the cache's dependency check already compares. A node
-	// with no set, or a branch set (id -1), is not memoized.
+	// read, so it is memoized in the transition cache's trie, under a key
+	// no transition has (span 0). A node with no set, or a branch set
+	// (id -1), is not memoized.
 	memo := set != nil && set.id >= 0 && !c.r.opts.NoCache
+	var key cacheKey
 	if memo {
-		for _, e := range c.r.expected[set.id] {
-			if depsHold(c, pos, e.deps) {
-				return slices.Clone(e.names), nil
-			}
+		key = cacheKey{set: set.id}
+		if n := c.r.hit(c, pos, key); n != nil {
+			return slices.Clone(n.names), nil
 		}
 	}
 	c.r.expectedComputed++
@@ -57,15 +58,10 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	}
 	slices.Sort(names)
 	if memo {
-		c.r.expected[set.id] = append(c.r.expected[set.id], expectedEntry{deps: deps, names: names})
+		if n := c.r.slot(key, deps); n != nil {
+			n.names = names
+		}
 		return slices.Clone(names), nil
 	}
 	return names, nil
-}
-
-// expectedEntry is one memoized Expected for a set: valid at a node where
-// the origin sets it read are the ones the node has.
-type expectedEntry struct {
-	deps  []dep
-	names []string
 }
