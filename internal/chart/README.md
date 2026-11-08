@@ -305,8 +305,10 @@ clock and a collector, so it is tested on fake timings
   until the chart recognizes the population (`superset-recognized`) a ratio
   is a lower bound on the finished recognizer's, reported for warning (§9.3
   checkpoints). On `std5k.pl` alone the long-lived figure is effectively the
-  cold one (baseline: 1.2228 against 1.2261), because one file is one pass and
-  the recognizer has nothing to carry from file to file. chart/lex's pooled
+  cold one (quiet readings at 52b8900a: long-lived 1.2207 and 1.1476 against
+  cold 1.1479 and 1.1565; the baseline's single run is noisier than this),
+  because one file is one pass and the recognizer has nothing to carry from
+  file to file. chart/lex's pooled
   `grammar.LookupCache` does persist within a pass. A `sync.Pool` keeps its
   objects through one GC and drops them at the second, and two GCs are forced
   between consecutive chart passes (one before the reference pass between
