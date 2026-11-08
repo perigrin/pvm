@@ -45,8 +45,8 @@ func TestSupersetPopulation(t *testing.T) {
 	// An absent corpus directory is an error naming it, never a smaller corpus.
 	t.Chdir("../../../..")
 	t.Setenv("T1_CORPUS", "/nonexistent/t1")
-	if _, _, err := corpus(); err == nil || !strings.Contains(err.Error(), "/nonexistent/t1") {
-		t.Errorf("an absent T1 corpus: err = %v, want one naming /nonexistent/t1", err)
+	if _, _, err := corpus(); err == nil || !strings.Contains(err.Error(), filepath.FromSlash("/nonexistent/t1")) {
+		t.Errorf("an absent T1 corpus: err = %v, want one naming %s", err, filepath.FromSlash("/nonexistent/t1"))
 	}
 }
 
