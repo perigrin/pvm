@@ -1,13 +1,13 @@
-// ABOUTME: The chart grammar's generator: reads the vendored grammar, applies the token cut, writes the LR(0) tables.
-// ABOUTME: Run by `make chart-tables` from the repository root; the output is byte-identical on every run.
+// ABOUTME: The chart grammar's generator entry point: writes the LR(0) tables of the committed grammar.
+// ABOUTME: Run by `make chart-tables` from the repository root; a refused grammar writes nothing and exits 1.
 
-// Command gen writes the chart parser's tables. Its output directory holds
-// exactly the generated files: any other .txt file there is removed.
+// Command gen writes the chart parser's tables. It refuses an inconsistent
+// grammar: the offences go to stderr, no table is written and it exits 1.
 package main
 
 import (
-	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -15,16 +15,19 @@ import (
 )
 
 func main() {
-	dir := filepath.Join("internal", "chart", "grammar", "testdata")
-	slif := flag.String("grammar", filepath.Join(dir, "guacamole", "guacamole.slif"), "the SLIF grammar to read")
-	out := flag.String("o", filepath.Join(dir, "tables"), "the directory to write the tables into")
-	flag.Parse()
-	files, err := grammar.GenerateTables(*slif)
-	if err == nil {
-		err = grammar.WriteTables(*out, files)
-	}
+	g, ref, err := grammar.Committed()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-tables: %v\n", err)
 		os.Exit(1)
 	}
+	os.Exit(run(g, ref, filepath.Join("internal", "chart", "grammar", "testdata", "tables"), os.Stderr))
+}
+
+// run generates g's tables into dir and returns the exit code.
+func run(g *grammar.Grammar, ref []grammar.Entry, dir string, stderr io.Writer) int {
+	if err := grammar.GenerateTables(dir, g, ref); err != nil {
+		fmt.Fprintf(stderr, "chart-tables: %v\n", err)
+		return 1
+	}
+	return 0
 }

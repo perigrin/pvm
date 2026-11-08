@@ -1,5 +1,5 @@
 // ABOUTME: Guards the checked-in Guacamole corpus: no duplicate case, every case starts with the preamble.
-// ABOUTME: Also checks the perl-rejects rule on hand-built cases; the corpus-wide sweep is the ratchet's.
+// ABOUTME: Which cases perl accepts is the committed labels' to say (labels_test.go), not perl's at test time.
 
 package chart
 
@@ -8,38 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"tamarou.com/pvm/internal/perltest"
 )
 
 var guacamoleDir = filepath.Join("testdata", "guacamole")
-
-// TestRejectsRuleHandBuilt: of a case perl accepts, a case perl rejects that
-// is listed, and one perl rejects that is not, the rule names only the third.
-// The accepted case uses a stubbed module, so it compiles only with the stubs.
-func TestRejectsRuleHandBuilt(t *testing.T) {
-	p := perltest.Perl542(t)
-	preamble := readFile(t, filepath.Join(guacamoleDir, "preamble.pl"))
-	dir := t.TempDir()
-	cases := map[string]string{
-		"accepted.pl": "use My::Module 4.10;\n1;\n",
-		"listed.pl":   "sub {\n",
-		"unlisted.pl": "$#\n",
-	}
-	for name, body := range cases {
-		writeFile(t, filepath.Join(dir, name), preamble+body)
-	}
-	rejects := filepath.Join(t.TempDir(), "perl-rejects.txt")
-	writeFile(t, rejects, "listed.pl\n")
-
-	got, err := RejectsDisagree(p.Path, dir, rejects, filepath.Join(guacamoleDir, "stubs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || !strings.HasPrefix(got[0], "unlisted.pl:") {
-		t.Fatalf("RejectsDisagree = %q, want one disagreement naming unlisted.pl", got)
-	}
-}
 
 // TestGuacamoleCasesUnique: no two case files in one directory hold the same text.
 func TestGuacamoleCasesUnique(t *testing.T) {

@@ -165,7 +165,7 @@ jobs:
         PVM_REQUIRE_PERL542: "1"
       run: |
         set -eu
-        go test ./internal/parse/ ./internal/lexer/ -count=1 -v 2>&1 | tee ratchets.log
+        go test ./internal/parse/ ./internal/lexer/ ./internal/chart/ -count=1 -v 2>&1 | tee ratchets.log
 
     # A skipped ratchet is a guard that cannot fail, which is the defect this
     # job fixes -- so a skip here is a build failure, not a quiet pass. Named
@@ -179,11 +179,11 @@ jobs:
                  TestLexDotTGoldenStream TestCanonRatchet TestCanonTokenIdentity \
                  TestCanonFidelityRatchet TestPerlGitTFaithfulRatchet \
                  TestParseWithoutErrorOnCompiledCorpus TestFaithfulQueueMatchesTree \
-                 TestPerlGitTFaithfulOnM3Dirs; do
+                 TestPerlGitTFaithfulOnM3Dirs TestLexerLists; do
           if grep -q -- "--- SKIP: $t" ratchets.log; then
             echo "::error::$t SKIPPED in CI: its corpus did not resolve, so it gated nothing."
             status=1
-          elif ! grep -q -- "--- PASS: $t" ratchets.log; then
+          elif ! grep -q -- "--- PASS: $t " ratchets.log; then
             echo "::error::$t neither passed nor skipped -- it did not run at all."
             status=1
           fi

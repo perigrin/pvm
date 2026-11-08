@@ -1,203 +1,261 @@
-// ABOUTME: Tests chart/lex's up-front stream: lossless over the source, each token mapped to the cut's predicates.
-// ABOUTME: Covers the $#{BLOCK} split, the edge cases of losslessness, an unmapped kind, and the context facts.
+// ABOUTME: Tests the thin chart/lex: trivia to the next significant token, heredoc bodies to their openers, one lookup per token.
+// ABOUTME: Every token is mapped (an unmatched key to the empty set), the first unmapped byte is kept, and the lookup allocates nothing.
 
 package lex
 
 import (
-	"bytes"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/lexer"
 )
 
-func guacamole(t *testing.T) *Lexer {
+func ptr[T any](v T) *T { return &v }
+
+// toyTable maps a `$` variable to terminal 1, a semicolon to 2, `=` to 3 and
+// a number to 4; anything else (a word, a string) matches no class.
+func toyTable(t testing.TB) *grammar.TokenTable {
 	t.Helper()
-	x, err := Guacamole("../grammar/testdata/guacamole/guacamole.slif")
+	tt, err := grammar.CompileTokens([]grammar.TokenClass{
+		{Terminals: []int{1}, Kind: ptr(lexer.Variable), Prefix: ptr(byte('$'))},
+		{Terminals: []int{2}, Kind: ptr(lexer.Semicolon)},
+		{Terminals: []int{3}, Kind: ptr(lexer.Operator), Text: ptr("=")},
+		{Terminals: []int{4}, Kind: ptr(lexer.Number)},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return x
+	return tt
 }
 
-// text is a token's bytes.
-func text(src []byte, t lexer.Token) string { return string(src[t.Start:t.End]) }
+// texts is each token's text, and its lead's, as "lead|token".
+func texts(src string, s *Stream) []string {
+	var out []string
+	for i, tok := range s.Tokens {
+		r := s.Raw[tok.Index]
+		out = append(out, span(src, s.Lead(i))+"|"+src[r.Start:r.End])
+	}
+	return out
+}
 
-// TestStreamLosslessAndMapped: the stream concatenates back to the source
-// bytes, trivia included, and each token carries the terminals whose
-// predicate the cut names for it.
-func TestStreamLosslessAndMapped(t *testing.T) {
-	x := guacamole(t)
-	src := []byte("# a comment\nmy $x = 1;\nprint $x;\n")
-	s, err := x.Lex(src)
-	if err != nil {
-		t.Fatal(err)
+func span(src string, ts []lexer.Token) string {
+	var b strings.Builder
+	for _, t := range ts {
+		b.WriteString(src[t.Start:t.End])
 	}
-	if got := s.Text(src); !bytes.Equal(got, src) {
-		t.Errorf("stream is %q, want the source %q", got, src)
+	return b.String()
+}
+
+func TestLexTriviaToNextToken(t *testing.T) {
+	src := "  # c\n$x =\n=pod\n\n=cut\n 1;"
+	s, _ := Lex([]byte(src), toyTable(t))
+	want := []string{"  # c\n|$x", " |=", "\n=pod\n\n=cut\n |1", "|;"}
+	if got := texts(src, s); !slices.Equal(got, want) {
+		t.Errorf("tokens %q, want %q", got, want)
 	}
-	want := map[string]string{"my": "OpKeywordMy", "$x": "ScalarVar", "=": "OpAssign", "1": "NumberDec", ";": "Semicolon", "print": "OpKeywordPrint"}
+	if got := string(s.Text([]byte(src))); got != src {
+		t.Errorf("Text = %q, want the source", got)
+	}
+}
+
+func TestLexHeredocBodyToOpener(t *testing.T) {
+	src := "$x = <<A;\nbody\nA\n$y;"
+	s, _ := Lex([]byte(src), toyTable(t))
+	opener := -1
+	for i := range s.Tokens {
+		if s.Raw[s.Tokens[i].Index].Kind == lexer.HeredocOpen {
+			opener = i
+		}
+		if s.Raw[s.Tokens[i].Index].Kind == lexer.HeredocBody {
+			t.Fatalf("the body is a token of the stream: %q", texts(src, s))
+		}
+	}
+	if opener < 0 {
+		t.Fatalf("no heredoc opener in %q", texts(src, s))
+	}
+	if got := span(src, s.Body(opener)); !strings.HasSuffix(got, "body\nA\n") {
+		t.Errorf("the opener's body is %q, want it to end with the heredoc's body", got)
+	}
+	if got := string(s.Text([]byte(src))); got != src {
+		t.Errorf("Text = %q, want the source", got)
+	}
+}
+
+func TestLexMapsEveryToken(t *testing.T) {
+	src := "$x = foo; $y = 1;"
+	s, first := Lex([]byte(src), toyTable(t))
+	want := []int{1, 3, 0, 2, 1, 3, 4, 2} // foo matches no class: the empty set, and the stream goes on
+	var got []int
 	for _, tok := range s.Tokens {
-		if len(tok.Terminals) == 0 {
-			t.Errorf("%q maps to no terminal", text(src, tok.Token))
-		}
-		if w, ok := want[text(src, tok.Token)]; ok && !slices.Contains(tok.Terminals, w) {
-			t.Errorf("%q maps to %v, want %s among them", text(src, tok.Token), tok.Terminals, w)
-		}
+		got = append(got, tok.TerminalSet)
 	}
-	if len(s.Tokens) != 8 {
-		t.Errorf("%d significant tokens, want 8: trivia is attached, not a token", len(s.Tokens))
-	}
-}
-
-// TestStreamLosslessEdgeCases: an empty file, a file of only POD and a file
-// with no final newline each concatenate back to their bytes.
-func TestStreamLosslessEdgeCases(t *testing.T) {
-	x := guacamole(t)
-	for name, src := range map[string]string{
-		"empty":      "",
-		"only POD":   "=pod\n\nNothing but documentation.\n\n=cut\n",
-		"no newline": "my $x = 1;",
-	} {
-		s, err := x.Lex([]byte(src))
-		if err != nil {
-			t.Errorf("%s: %v", name, err)
+	sets := toyTable(t).Sets
+	for i, id := range got {
+		if id == 0 {
 			continue
 		}
+		if !slices.Equal(sets[id], []int{want[i]}) {
+			t.Errorf("token %d (%q) has set %v, want [%d]", i, span(src, s.Raw[s.Tokens[i].Index:s.Tokens[i].Index+1]), sets[id], want[i])
+		}
+	}
+	if len(got) != len(want) || got[2] != 0 {
+		t.Fatalf("sets %v: want %d tokens, the third (foo) the empty set 0", got, len(want))
+	}
+	if first != strings.Index(src, "foo") {
+		t.Errorf("first unmapped byte %d, want %d", first, strings.Index(src, "foo"))
+	}
+}
+
+// The per-token work, interning a token's key and looking it up, allocates nothing.
+func TestLexLookupAllocationFree(t *testing.T) {
+	src := "$x = 1; $y = foo; # c\n$z = 2;"
+	tt := toyTable(t)
+	text, raw := src, lexer.Tokenize([]byte(src))
+	if a := testing.AllocsPerRun(100, func() {
+		var slots [2]grammar.Token
+		pred, p2, p1 := &grammar.Boundary, tt.Edge, tt.Edge
+		for i, r := range raw {
+			if lexer.IsTrivia(r.Kind) {
+				continue
+			}
+			it := &slots[i&1]
+			intern(tt, text, r, false, false, false, pred, it)
+			tt.Lookup(it, p2, p1, tt.Edge)
+			pred, p2, p1 = &it.N, p1, it.Class
+		}
+	}); a != 0 {
+		t.Errorf("the per-token lookup allocates %v times per run, want 0", a)
+	}
+}
+
+func TestLexFirstUnmappedByteKept(t *testing.T) {
+	tt := toyTable(t)
+	for _, c := range []struct {
+		src  string
+		want int
+	}{
+		{"$x = foo; $y = bar;", 5}, // two unmapped: the first's byte, not the second's
+		{"foo; $x = 1;", 0},        // unmapped at byte 0 is not "nothing unmapped"
+		{"$x = 1;", -1},            // fully mapped: none
+		{"", -1},
+	} {
+		if _, got := Lex([]byte(c.src), tt); got != c.want {
+			t.Errorf("%q: first unmapped byte %d, want %d", c.src, got, c.want)
+		}
+	}
+}
+
+func TestLexTrailingTrivia(t *testing.T) {
+	tt := toyTable(t)
+	for _, src := range []string{"", "  \n\t", "$x = 1; # trailing\n\n"} {
+		s, _ := Lex([]byte(src), tt)
 		if got := string(s.Text([]byte(src))); got != src {
-			t.Errorf("%s: stream is %q, want %q", name, got, src)
+			t.Errorf("%q: Text = %q, trivia lost", src, got)
 		}
+	}
+	src := "$x = 1; # trailing\n"
+	s, _ := Lex([]byte(src), tt)
+	if got := span(src, s.Tail()); got != " # trailing\n" {
+		t.Errorf("tail %q, want the trivia after the last token", got)
+	}
+	src = "# lead\n$x;"
+	s, _ = Lex([]byte(src), tt)
+	if got := texts(src, s); !slices.Equal(got, []string{"# lead\n|$x", "|;"}) {
+		t.Errorf("tokens %q: trivia before a token must attach to it", got)
 	}
 }
 
-// TestUnmappedKindNamesOffset: a token whose kind has no predicate is an
-// error naming its byte offset, and it stays in the stream. An unterminated
-// string is one UnknownRest token, which no predicate admits.
-func TestUnmappedKindNamesOffset(t *testing.T) {
-	x := guacamole(t)
-	src := []byte(`my $x = "abc`)
-	s, err := x.Lex(src)
-	if err == nil {
-		t.Fatal("an UnknownRest token mapped to a predicate")
-	}
-	if !strings.Contains(err.Error(), "byte 8") || !strings.Contains(err.Error(), "UnknownRest") {
-		t.Errorf("error %q does not name UnknownRest at byte 8", err)
-	}
-	if got := s.Text(src); !bytes.Equal(got, src) {
-		t.Errorf("stream is %q: the unmapped token was dropped", got)
-	}
-}
-
-// TestArrayTopSplit: the lexer's one `$#{...}` Variable token is split as
-// the cut splits it, an ArrayTopOpen `$#{`, the interior re-lexed with its
-// offsets in the file, and a `}` that RBrace admits.
-func TestArrayTopSplit(t *testing.T) {
-	x := guacamole(t)
-	src := []byte(`my $n = $#{ $foo->{'bar'} };`)
-	s, err := x.Lex(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got []string
-	for _, tok := range s.Tokens {
-		got = append(got, text(src, tok.Token))
-	}
-	want := []string{"my", "$n", "=", "$#{", "$foo", "->", "{", "'bar'", "}", "}", ";"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("tokens %q, want %q", got, want)
-	}
-	open, closer := s.Tokens[3], s.Tokens[9]
-	if open.Kind != lexer.Variable || !slices.Contains(open.Terminals, "ArrayTopOpen") {
-		t.Errorf("$#{ is %v %v, want a Variable ArrayTopOpen admits", open.Kind, open.Terminals)
-	}
-	if !slices.Contains(closer.Terminals, "RBrace") || closer.Start != len(src)-2 {
-		t.Errorf("closer is %v at %d, want RBrace at %d", closer.Terminals, closer.Start, len(src)-2)
-	}
-	// The interior's spans are the file's bytes: `$foo` starts after `$#{ `.
-	if foo := s.Tokens[4]; foo.Start != 12 || foo.End != 16 || len(foo.Lead) != 1 {
-		t.Errorf("$foo spans %d..%d with %d trivia, want 12..16 after one space", foo.Start, foo.End, len(foo.Lead))
-	}
-	if got := s.Text(src); !bytes.Equal(got, src) {
-		t.Errorf("stream is %q, want the source", got)
-	}
-}
-
-// TestArrayTopNeedsFileState: a `$#{` interior is re-lexed from a blank
-// state, so it is lexed only when nothing before it can have moved the file's
-// lexer state off blank. Anything else refuses, naming the `$#{`, and the rule
-// fails closed: an unknown `use` refuses. perl reads the first probe's `/2/`
-// as two divisions, because N is a constant; a blank re-lex reads a pattern
-// (gate review of #541, F1, and G1 and G2 in pass 2).
-func TestArrayTopNeedsFileState(t *testing.T) {
-	x := guacamole(t)
-	for _, src := range []string{
-		"use constant N => 2; my @n = $#{ [ N /2/ 1 ] };",
-		"sub N () { 2 } $#{$r};",
-		"use utf8; $#{$r};",
-		"use feature 'say'; $#{$r};",
-		"no feature 'say'; $#{$r};",
-		"use v5.36; $#{$r};",
-		"use 5.036; $#{$r};",
-		"no 5.036; $#{$r};",
-		"use experimental 'signatures'; $#{$r};", // G1
-		"my sub y { 1 } my @n = $#{ [ y(1) ] };", // G2
-		"use Foo::Bar; $#{$r};",                  // unknown: fails closed
-		"sub f { 1 } $#{$r};",
-		"BEGIN { 1 } $#{$r};",
-		"class Foo; $#{$r};",                // classSyntax, with no use
-		"print <<EOF, $#{$r};\nbody\nEOF\n", // a heredoc body pending
-		"my $n = $#{ [ $#{$r} ] };",         // a nested $#{, with no trigger
-	} {
-		_, err := x.Lex([]byte(src))
-		at := "byte " + strconv.Itoa(strings.Index(src, "$#{"))
-		if err == nil || !strings.Contains(err.Error(), at) || !strings.Contains(err.Error(), "needs the lexer's file state (01a1882d-d8a4)") {
-			t.Errorf("%q: got %v, want a refusal at %s naming 01a1882d-d8a4", src, err, at)
+func TestLexTwoHeredocsOneLine(t *testing.T) {
+	src := "$x = <<A, <<B; # c\nfirst\nA\nsecond\nB\n$y;"
+	s, _ := Lex([]byte(src), toyTable(t))
+	var bodies []string
+	for i, st := range s.Tokens {
+		tok := s.Raw[st.Index]
+		if tok.Kind == lexer.HeredocOpen {
+			bodies = append(bodies, span(src, s.Body(i)))
 		}
-	}
-	// A trigger inside a `$#{` interior is a trigger too: that `$#{` is
-	// refused, and so is every `$#{` after it. perl reads each `/2/` here as
-	// two divisions (gate review of #541, H1 in pass 3).
-	for _, src := range []string{
-		"my $a = $#{ sub N () { 2 } [] }; my $b = $#{ [ N /2/ 1 ] };",
-		"my $a = $#{ use constant N => 2; [] }; my $b = $#{ [ N /2/ 1 ] };",
-		"my $a = $#{ use constant M => 2; [ $#{ [ M /2/ 1 ] } ] };",
-	} {
-		s, err := x.Lex([]byte(src))
-		if err == nil || !strings.Contains(err.Error(), "needs the lexer's file state (01a1882d-d8a4)") {
-			t.Errorf("%q: got %v, want a refusal naming 01a1882d-d8a4", src, err)
-		}
-		// The `/2/` stays inside a whole, unmapped `$#{` token: never lexed.
-		at := strings.Index(src, "/2/")
-		for _, tok := range s.Tokens {
-			if tok.Start <= at && at < tok.End && (!strings.HasPrefix(src[tok.Start:tok.End], "$#{") || tok.Terminals != nil) {
-				t.Errorf("%q: `/2/` was lexed, inside %q", src, src[tok.Start:tok.End])
+		if tok.Kind == lexer.Variable && src[tok.Start:tok.End] == "$y" {
+			if lead := span(src, s.Lead(i)); strings.Contains(lead, "first") || strings.Contains(lead, "second") {
+				t.Errorf("a heredoc body is attached to the token after the opener's line: lead %q", lead)
+			}
+			if lead := span(src, s.Lead(i)); lead != " # c\n" {
+				t.Errorf("$y's lead is %q, want the trivia before it, %q", lead, " # c\n")
 			}
 		}
 	}
-	// strict and warnings, either way and with import lists, and statements
-	// with no sub and no use, change no lexer state.
-	safe := "use strict; use warnings; no strict 'refs'; no warnings qw(once); my $r = [1]; print $r; $#{$r};"
-	if _, err := x.Lex([]byte(safe)); err != nil {
-		t.Errorf("%q: %v", safe, err)
+	if len(bodies) != 2 || bodies[0] != "first\nA\n" || bodies[1] != "second\nB\n" {
+		t.Errorf("bodies %q, want each opener its own, in order", bodies)
+	}
+	if got := string(s.Text([]byte(src))); got != src {
+		t.Errorf("Text = %q, want the source", got)
 	}
 }
 
-// TestArrayTopSplitBadInterior: `$#{1+}` splits too, and its interior is
-// `1 +`, a statement the grammar refuses: nothing here judges the block.
-func TestArrayTopSplitBadInterior(t *testing.T) {
-	x := guacamole(t)
-	src := []byte(`$#{1+};`)
-	s, err := x.Lex(src)
-	if err != nil {
-		t.Fatal(err)
+// The stream's tokens are lexer.Tokenize's slice itself, not a copy of it:
+// Raw shares its backing array, and each token is an index into it.
+func TestLexStreamSharesLexerTokens(t *testing.T) {
+	src := []byte("# c\n$x = <<A;\nbody\nA\n$y = foo;\n")
+	raw := lexer.Tokenize(src)
+	s, _ := Map(src, raw, toyTable(t))
+	if len(s.Raw) != len(raw) || &s.Raw[0] != &raw[0] {
+		t.Fatalf("Raw is not the lexer's slice")
 	}
-	var got []string
-	for _, tok := range s.Tokens {
-		got = append(got, text(src, tok.Token))
+	for i, tok := range s.Tokens {
+		if &s.Raw[tok.Index] != &raw[tok.Index] || lexer.IsTrivia(raw[tok.Index].Kind) {
+			t.Errorf("token %d is not a significant token of the lexer's slice", i)
+		}
 	}
-	if want := []string{"$#{", "1", "+", "}", ";"}; !slices.Equal(got, want) {
-		t.Errorf("tokens %q, want %q", got, want)
+}
+
+// Map allocates a fixed number of times, however many tokens a file has.
+func TestLexStreamAllocations(t *testing.T) {
+	tt := toyTable(t)
+	allocs := func(src []byte) float64 {
+		raw := lexer.Tokenize(src)
+		return testing.AllocsPerRun(20, func() { Map(src, raw, tt) })
+	}
+	line := "$x = 1; # c\n$y = foo;\n"
+	short, long := allocs([]byte(strings.Repeat(line, 10))), allocs([]byte(strings.Repeat(line, 1000)))
+	if short != long || long > 4 {
+		t.Errorf("Map allocates %v times on a short file and %v on a long one, want the same small number", short, long)
+	}
+	// Copying the raw tokens costs 32 bytes each (one lexer.Token); the index
+	// Map builds costs about 16. The bound sits between, with slack for the fixed part.
+	for _, n := range []int{10, 1000} {
+		src := []byte(strings.Repeat(line, n))
+		raw := lexer.Tokenize(src)
+		bytes := testing.Benchmark(func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				Map(src, raw, tt)
+			}
+		}).AllocedBytesPerOp()
+		if limit := int64(24*len(raw) + 1024); bytes > limit {
+			t.Errorf("Map allocates %d bytes for %d raw tokens, want at most %d: is it copying them?", bytes, len(raw), limit)
+		}
+	}
+}
+
+// Lead is a view into the shared token slice; appending to it must copy
+// rather than write over the token that follows.
+func TestLexLeadIsCapped(t *testing.T) {
+	src := []byte("# c\n$x;")
+	s, _ := Map(src, lexer.Tokenize(src), toyTable(t))
+	want := s.Raw[s.Tokens[0].Index]
+	_ = append(s.Lead(0), lexer.Token{Kind: lexer.Semicolon})
+	if got := s.Raw[s.Tokens[0].Index]; got != want {
+		t.Errorf("appending to Lead(0) changed the next token from %+v to %+v", want, got)
+	}
+}
+
+// Tail is a view into the shared token slice too; its capacity must end
+// where it does, so an append copies instead of writing into raw's spare room.
+func TestLexTailIsCapped(t *testing.T) {
+	src := []byte("$x; # c\n")
+	s, _ := Map(src, lexer.Tokenize(src), toyTable(t))
+	if tail := s.Tail(); cap(tail) != len(tail) {
+		t.Errorf("Tail() has len %d, cap %d: appending to it would write into the lexer's slice", len(tail), cap(tail))
 	}
 }

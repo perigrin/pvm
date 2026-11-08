@@ -1,0 +1,27 @@
+# Referee cases: one per line, `name mode prec noprec terminal...`.
+# mode is `sentence` (whole input) or `prefix` (viable prefix); a verdict is
+# `accept` (sentence), `viable` (prefix) or `refuse@N`, N the 1-based index of
+# the token being read at the first error. Terminals are perly.y's at 94e50866.
+
+# Precedence evidence: `indirob: scalar %prec PREC_LOW` shifts `[` as a
+# subscript, so `print $fh []` fails at `]` with precedence and is a viable
+# prefix without it (`[]` read as the list); its neighbour `print $$fh[0]` is
+# accepted by both.
+print-fh-brackets prefix refuse@6 viable GRAMPROG LSTOP PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN PERLY_BRACKET_CLOSE
+print-derefs-subscript sentence accept accept GRAMPROG LSTOP PERLY_DOLLAR PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN THING PERLY_BRACKET_CLOSE PERLY_SEMICOLON
+
+# `$a + $b + $c`: ambiguous without precedence, which the GLR build must not
+# report as an error.
+add-chain sentence accept accept GRAMPROG PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
+
+# `] ; $a ;`: bison recovers through `sideff: error` and yyparse returns 0, but
+# it reported an error, so the sentence is refused.
+error-recovered sentence refuse@2 refuse@2 GRAMPROG PERLY_BRACKET_CLOSE PERLY_SEMICOLON PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
+
+# `catch_paren: empty` is omitted, as the port omits it: a catch without a
+# variable is refused at its block, one with a variable is accepted.
+catch-without-var sentence refuse@6 refuse@6 GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
+catch-with-var sentence accept accept GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_PAREN_OPEN PERLY_DOLLAR BAREWORD PERLY_PAREN_CLOSE PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
+
+# A refusal kept from an action: the dangling comparison `$a < $b <`.
+relop-dangling sentence refuse@8 refuse@8 GRAMPROG PERLY_DOLLAR BAREWORD CHRELOP PERLY_DOLLAR BAREWORD CHRELOP PERLY_SEMICOLON

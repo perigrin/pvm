@@ -13,8 +13,6 @@ package recognize
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -33,35 +31,57 @@ type Options struct {
 }
 
 // Recognizer recognizes lattices over one grammar's tables. Its intern
-// table and transition cache live as long as it does, across inputs.
+// table and transition cache live as long as it does, across inputs, and
+// change with every recognition: a Recognizer is not safe for concurrent use.
 type Recognizer struct {
 	tab  *grammar.Tables
 	opts Options
-	term map[string]int // terminal name to symbol id
+	// terms is tab.TerminalSets as New saw it: validation, scan and bits
+	// all read this one copy.
+	terms [][]int
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
-	// follow is, per nonterminal, the terminals that can follow it, with
-	// bit eof for the end of input.
+	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
 	follow []bitset
 	eof    int
-	// classes interns a sorted terminal list, a token's or a lookahead's,
-	// to an id; bits is each class as a bitset.
-	classes map[string]int
-	bits    []bitset
-	sets    interner
-	cache   map[cacheKey][]cacheEntry
-	leo     map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	// bits is each lookahead class as a bitset: the terminal sets by id,
+	// then the end of input at id len(terms).
+	bits  []bitset
+	sets  interner
+	cache map[cacheKey]*cacheNode // each key's trie root
+	trie  map[cacheEdge]*cacheNode
+	// stored counts the cache's stores, to order its entries; longestScan
+	// is the most trie distances one lookup examined, for the test of its bound.
+	stored, longestScan int
+	leo                 map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	// expectedComputed counts Expected's computations, for the test of its
+	// memo, which lives in the cache's trie (expected.go).
+	expectedComputed int
+	// semi is PERLY_SEMICOLON's symbol id, and closes marks the classes
+	// holding PERLY_BRACE_CLOSE: the ruby slipper's (slipper.go). -1 and
+	// none where the grammar lacks them.
+	semi   int
+	closes []bool
 }
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{
-		tab: tab, opts: opts, term: map[string]int{}, eof: len(tab.Symbols),
-		classes: map[string]int{}, sets: newInterner(), cache: map[cacheKey][]cacheEntry{},
+	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
+	terminal := func(name string) int {
+		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
 	}
-	for id, s := range tab.Symbols {
-		if s.Terminal {
-			r.term[s.Name] = id
+	brace := terminal("PERLY_BRACE_CLOSE")
+	r.semi = terminal("PERLY_SEMICOLON")
+	for _, ids := range r.terms {
+		r.closes = append(r.closes, brace >= 0 && slices.Contains(ids, brace))
+		r.bits = append(r.bits, r.bitsOf(ids))
+	}
+	r.bits = append(r.bits, r.bitsOf([]int{r.eof}))
+	r.closes = append(r.closes, true) // the end of input
+	// Where a ; may be inserted, completion must also see it may follow.
+	for i, b := range r.bits {
+		if r.closes[i] && r.semi >= 0 {
+			b.set(r.semi)
 		}
 	}
 	r.lhs = make([][]int, len(tab.States))
@@ -72,31 +92,11 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 		slices.Sort(r.lhs[s])
 		r.lhs[s] = slices.Compact(r.lhs[s])
 	}
-	r.follow = follow(tab)
+	for _, ids := range tab.Follow {
+		r.follow = append(r.follow, r.bitsOf(ids))
+	}
 	r.leo = leoItems(r)
 	return r
-}
-
-// Guacamole reads the grammar at slif, applies the reviewed cut and builds
-// its tables, with the lexer over the same cut.
-func Guacamole(slif string) (*grammar.Tables, *lex.Lexer, error) {
-	src, err := os.ReadFile(slif)
-	if err != nil {
-		return nil, nil, err
-	}
-	g, err := grammar.ReadSLIF(filepath.Base(slif), src)
-	if err != nil {
-		return nil, nil, err
-	}
-	cut, err := grammar.ApplyCut(g, grammar.GuacamoleCut)
-	if err != nil {
-		return nil, nil, err
-	}
-	tab, err := grammar.BuildTables(cut)
-	if err != nil {
-		return nil, nil, err
-	}
-	return tab, lex.New(cut), nil
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where
@@ -108,37 +108,51 @@ type Chart struct {
 	Interned []bool
 	Cached   []bool
 	leo      []map[int]*memo // the side table: per node, Leo memos by symbol
+	inserted []int           // nodes where the slipper scanned a ;
+	// slipAccepted is whether the ; inserted at end of input completes the start.
+	slipAccepted bool
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
-// forward. A node some edge passes over is inside a branch: its set is not
-// interned and the cache is not used there (spec §5, "sets intern outside
-// branches only").
-func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
+// forward and whose tokens' set ids index r's tables; it is an error where
+// they do not. A node some edge passes over is inside a branch: its set is
+// not interned and the cache is not used there (spec §5, "sets intern
+// outside branches only").
+func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error) {
 	n := len(l.Nodes)
+	for i, e := range l.Edges {
+		switch {
+		case e.From < 0 || e.To >= n:
+			return nil, fmt.Errorf("recognize: edge %d, %d to %d, has a node outside the lattice's %d", i, e.From, e.To, n)
+		case e.From >= e.To:
+			return nil, fmt.Errorf("recognize: edge %d, %d to %d, does not run forward", i, e.From, e.To)
+		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.terms):
+			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.terms))
+		}
+	}
 	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
 	if n == 0 {
-		return c
+		return c, nil
 	}
 	in := make([][]lex.Edge, n)
-	out := make([][]int, n) // the terminal ids leaving each node
+	out := make([][]int, n) // the set ids leaving each node
 	branch := make([]bool, n)
 	for _, e := range l.Edges {
 		in[e.To] = append(in[e.To], e)
-		out[e.From] = append(out[e.From], r.ids(e.Token.Terminals)...)
+		out[e.From] = append(out[e.From], e.Token.TerminalSet)
 		for k := e.From + 1; k < e.To; k++ {
 			branch[k] = true
 		}
 	}
 	c.Sets[0], c.Interned[0] = r.sets.intern([]Item{{State: 0}})
 	for pos := 1; pos < n; pos++ {
-		la := r.lookahead(out[pos])
+		la, laBits := r.lookahead(out[pos])
 		var key cacheKey
 		// The key names the source set by its id, so it must be interned.
-		cacheable := !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
+		cacheable := la >= 0 && !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
 		if cacheable {
 			e := in[pos][0]
-			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: r.class(r.ids(e.Token.Terminals)), la: la}
+			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: e.Token.TerminalSet, la: la}
 			if s := r.lookup(c, pos, key); s != nil {
 				c.Sets[pos], c.Interned[pos], c.Cached[pos] = s, true, true
 				continue
@@ -147,10 +161,13 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: cacheable}
 		for _, e := range in[pos] {
 			b.scan(e)
+			if r.closes[e.Token.TerminalSet] {
+				b.slip(e)
+			}
 		}
 		var follows bitset // nil completes everything
 		if !r.opts.NoLookahead {
-			follows = r.bits[la]
+			follows = laBits
 		}
 		b.complete(follows)
 		if len(b.items) == 0 {
@@ -166,7 +183,8 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 			r.store(key, b.deps, c.Sets[pos])
 		}
 	}
-	return c
+	c.slipped(out)
+	return c, nil
 }
 
 // Accepted reports whether the last node's set holds a complete item of a
@@ -174,6 +192,9 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) *Chart {
 func (c *Chart) Accepted() bool {
 	if len(c.Sets) == 0 {
 		return false
+	}
+	if c.slipAccepted {
+		return true
 	}
 	last := len(c.Sets) - 1
 	for _, it := range c.Sets[last].Items() {
@@ -231,9 +252,8 @@ func (b *builder) scan(e lex.Edge) {
 		return
 	}
 	b.read(e.From, src)
-	terms := b.r.ids(e.Token.Terminals)
 	for _, it := range src.items {
-		for _, t := range terms {
+		for _, t := range b.r.terms[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it.State, t); ok {
 				b.add(k, e.From-it.Dist)
 			}
@@ -241,15 +261,16 @@ func (b *builder) scan(e lex.Edge) {
 	}
 }
 
-// complete closes the set under completion. An item from this node is a
-// prediction: its completions are empty, and the automaton's nullable
-// closure already made them. With la, a rule completes only if something
-// la holds can follow its LHS; a nil la completes every rule. Where a Leo
+// complete closes the set under completion. A predicted item from this
+// node has empty completions, and the automaton's nullable closure already
+// made them; a kernel item from this node is one the slipper's zero-width ;
+// advanced, and completes into the set before the ;. With la, a rule
+// completes only if something la holds can follow its LHS; a nil la completes every rule. Where a Leo
 // memo applies, the top of the recursion is added in one step.
 func (b *builder) complete(la bitset) {
 	for i := 0; i < len(b.items); i++ {
 		state, origin := b.items[i][0], b.items[i][1]
-		if origin == b.pos {
+		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
 		for _, lhs := range b.r.lhs[state] {
@@ -312,88 +333,36 @@ func (r *Recognizer) goTo(state, sym int) (int, bool) {
 	return tr[i].Target, true
 }
 
-// ids is the terminal ids of names, in name order.
-func (r *Recognizer) ids(names []string) []int {
-	out := make([]int, 0, len(names))
-	for _, n := range names {
-		if id, ok := r.term[n]; ok {
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-// class interns a terminal list, sorted and deduplicated, to an id.
-func (r *Recognizer) class(ids []int) int {
-	ids = slices.Compact(slices.Sorted(slices.Values(ids)))
-	k := fmt.Sprint(ids)
-	if c, ok := r.classes[k]; ok {
-		return c
-	}
-	bs := newBitset(r.eof + 1)
+// bitsOf is ids as a bitset over the terminals and the end of input.
+func (r *Recognizer) bitsOf(ids []int) bitset {
+	b := newBitset(r.eof + 1)
 	for _, id := range ids {
-		bs.set(id)
+		b.set(id)
 	}
-	r.classes[k] = len(r.bits)
-	r.bits = append(r.bits, bs)
-	return len(r.bits) - 1
+	return b
 }
 
-// lookahead is the class of the terminals leaving a node, or of the end of
-// input where none leave.
-func (r *Recognizer) lookahead(out []int) int {
+// lookahead is the class key and bitset of the set ids leaving a node: the
+// one set id, or the end-of-input class where none leave. Where different
+// sets leave, the key is -1, uncacheable, and the bitset their union.
+// shortcut: the union is built per node and never cached; intern unions
+// when interleaved mode makes forks common.
+func (r *Recognizer) lookahead(out []int) (int, bitset) {
 	if len(out) == 0 {
-		return r.class([]int{r.eof})
+		return len(r.bits) - 1, r.bits[len(r.bits)-1]
 	}
-	return r.class(out)
-}
-
-// follow is FOLLOW of every symbol, over the terminals and the end of input.
-func follow(tab *grammar.Tables) []bitset {
-	n := len(tab.Symbols)
-	nullable := func(s int) bool { return !tab.Symbols[s].Terminal && tab.Symbols[s].Nullable }
-	first := make([]bitset, n)
-	fol := make([]bitset, n)
-	for s := range tab.Symbols {
-		first[s], fol[s] = newBitset(n+1), newBitset(n+1)
-		if tab.Symbols[s].Terminal {
-			first[s].set(s)
-		}
-	}
-	for changed := true; changed; {
-		changed = false
-		for _, rule := range tab.Rules {
-			for _, x := range rule.RHS {
-				changed = first[rule.LHS].or(first[x]) || changed
-				if !nullable(x) {
-					break
+	for _, s := range out[1:] {
+		if s != out[0] {
+			u := newBitset(r.eof + 1)
+			for _, s := range out {
+				for i, w := range r.bits[s] {
+					u[i] |= w
 				}
 			}
+			return -1, u
 		}
 	}
-	fol[tab.Start].set(n)
-	for changed := true; changed; {
-		changed = false
-		for _, rule := range tab.Rules {
-			for i, x := range rule.RHS {
-				if tab.Symbols[x].Terminal {
-					continue
-				}
-				rest := true // everything after x is nullable
-				for _, y := range rule.RHS[i+1:] {
-					changed = fol[x].or(first[y]) || changed
-					if !nullable(y) {
-						rest = false
-						break
-					}
-				}
-				if rest {
-					changed = fol[x].or(fol[rule.LHS]) || changed
-				}
-			}
-		}
-	}
-	return fol
+	return out[0], r.bits[out[0]]
 }
 
 // bitset is a fixed-size set of small integers.
@@ -408,15 +377,4 @@ func (b bitset) intersects(o bitset) bool {
 		}
 	}
 	return false
-}
-
-// or adds o to b and reports whether b grew.
-func (b bitset) or(o bitset) bool {
-	grew := false
-	for i := range b {
-		if v := b[i] | o[i]; v != b[i] {
-			b[i], grew = v, true
-		}
-	}
-	return grew
 }

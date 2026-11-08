@@ -1,0 +1,695 @@
+perly.y:187 grammar: GRAMPROG @1 remember stmtseq	fitted
+
+perly.y:198 grammar: GRAMEXPR @2 optexpr	ported
+
+perly.y:208 grammar: GRAMBLOCK @3 block	ported
+
+perly.y:221 grammar: GRAMBARESTMT @4 barestmt	ported
+
+perly.y:234 grammar: GRAMFULLSTMT @5 fullstmt	ported
+
+perly.y:247 grammar: GRAMSTMTSEQ @6 stmtseq	ported
+
+perly.y:257 grammar: GRAMSUBSIGNATURE @7 subsigguts	ported
+
+perly.y:270 bare_statement_block: block cont	ported
+
+perly.y:278 bare_statement_class_declaration: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_SEMICOLON	fitted
+
+perly.y:294 bare_statement_class_definition: KW_CLASS BAREWORD BAREWORD optattrlist PERLY_BRACE_OPEN remember $@8 stmtseq PERLY_BRACE_CLOSE	fitted
+
+perly.y:317 bare_statement_default: KW_DEFAULT block	ported
+
+perly.y:325 bare_statement_defer: KW_DEFER mblock	ported
+
+perly.y:333 bare_statement_expression: sideff PERLY_SEMICOLON	ported
+
+perly.y:340 bare_statement_field_declaration: fielddecl PERLY_SEMICOLON	ported
+
+perly.y:348 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mnexpr PERLY_SEMICOLON $@9 texpr PERLY_SEMICOLON $@10 mintro mnexpr PERLY_PAREN_CLOSE mblock	ported
+
+perly.y:379 bare_statement_for: KW_FOR KW_MY remember my_scalar PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:392 bare_statement_for: KW_FOR KW_MY remember PERLY_PAREN_OPEN my_list_of_itervars PERLY_PAREN_CLOSE PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:411 bare_statement_for: KW_FOR scalar PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:423 bare_statement_for: KW_FOR my_refgen remember my_var @11 PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:452 bare_statement_for: KW_FOR REFGEN refgen_topic PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:474 bare_statement_for: KW_FOR PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock cont	ported
+
+perly.y:488 bare_statement_format: KW_FORMAT startformsub formname formblock	ported
+
+perly.y:504 bare_statement_given: KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	ported
+
+perly.y:517 bare_statement_if: KW_IF PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
+
+perly.y:532 bare_statement_null: PERLY_SEMICOLON	ported
+
+perly.y:540 bare_statement_package_declaration: KW_PACKAGE BAREWORD BAREWORD PERLY_SEMICOLON	fitted
+
+perly.y:556 bare_statement_package_definition: KW_PACKAGE BAREWORD BAREWORD PERLY_BRACE_OPEN remember $@12 stmtseq PERLY_BRACE_CLOSE	fitted
+
+perly.y:574 bare_statement_phaser: PHASER startsub $@13 optsubbody	ported
+
+perly.y:608 bare_statement_sub_signature: sigsub_or_method_named subname startsub $@14 subattrlist optsigsubbody	ported
+
+perly.y:638 bare_statement_sub_traditional: KW_SUB_named subname startsub $@15 proto subattrlist optsubbody	fitted
+
+perly.y:662 bare_statement_try_catch: KW_TRY mblock KW_CATCH remember catch_paren $@16 mblock finally	fitted
+
+perly.y:684 bare_statement_unless: KW_UNLESS PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock else	ported
+
+perly.y:699 bare_statement_until: KW_UNTIL PERLY_PAREN_OPEN remember iexpr PERLY_PAREN_CLOSE mintro mblock cont	ported
+
+perly.y:714 bare_statement_utilize: KW_USE_or_NO startsub $@17 BAREWORD BAREWORD optlistexpr PERLY_SEMICOLON	fitted
+
+perly.y:732 bare_statement_when: KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock	ported
+
+perly.y:744 bare_statement_while: KW_WHILE PERLY_PAREN_OPEN remember texpr PERLY_PAREN_CLOSE mintro mblock cont	ported
+
+perly.y:759 bare_statement_yadayada: YADAYADA PERLY_SEMICOLON	ported
+
+perly.y:768 sigsub_or_method_named: KW_SUB_named_sig	fitted
+
+perly.y:770 sigsub_or_method_named: KW_METHOD_named	fitted
+
+perly.y:775 block: PERLY_BRACE_OPEN remember stmtseq PERLY_BRACE_CLOSE	ported
+
+perly.y:783 empty: %empty	ported
+
+perly.y:787 formblock: PERLY_EQUAL_SIGN remember PERLY_SEMICOLON FORMRBRACK formstmtseq PERLY_SEMICOLON PERLY_DOT	fitted
+
+perly.y:794 remember: %empty	ported
+
+perly.y:799 mblock: PERLY_BRACE_OPEN mremember stmtseq PERLY_BRACE_CLOSE	ported
+
+perly.y:806 mremember: %empty	ported
+
+perly.y:812 catch_paren: empty	excluded conditional-refusal
+
+perly.y:815 catch_paren: PERLY_PAREN_OPEN $@18 scalar $@19 PERLY_PAREN_CLOSE	ported
+
+perly.y:825 stmtseq: empty	ported
+
+perly.y:826 stmtseq: stmtseq fullstmt	ported
+
+perly.y:836 formstmtseq: empty	excluded folded-into-token
+
+perly.y:837 formstmtseq: formstmtseq formline	excluded folded-into-token
+
+perly.y:846 fullstmt: barestmt	ported
+
+perly.y:850 fullstmt: labfullstmt	ported
+
+perly.y:854 labfullstmt: LABEL barestmt	fitted
+
+perly.y:861 labfullstmt: LABEL labfullstmt	fitted
+
+perly.y:878 barestmt: PLUGSTMT	excluded keyword-plugin
+
+perly.y:879 barestmt: bare_statement_block	ported
+
+perly.y:880 barestmt: bare_statement_class_declaration	ported
+
+perly.y:881 barestmt: bare_statement_class_definition	ported
+
+perly.y:882 barestmt: bare_statement_default	ported
+
+perly.y:883 barestmt: bare_statement_defer	ported
+
+perly.y:884 barestmt: bare_statement_expression	ported
+
+perly.y:885 barestmt: bare_statement_field_declaration	ported
+
+perly.y:886 barestmt: bare_statement_for	ported
+
+perly.y:887 barestmt: bare_statement_format	ported
+
+perly.y:888 barestmt: bare_statement_given	ported
+
+perly.y:889 barestmt: bare_statement_if	ported
+
+perly.y:890 barestmt: bare_statement_null	ported
+
+perly.y:891 barestmt: bare_statement_package_declaration	ported
+
+perly.y:892 barestmt: bare_statement_package_definition	ported
+
+perly.y:893 barestmt: bare_statement_phaser	ported
+
+perly.y:894 barestmt: bare_statement_sub_signature	ported
+
+perly.y:895 barestmt: bare_statement_sub_traditional	ported
+
+perly.y:896 barestmt: bare_statement_try_catch	ported
+
+perly.y:897 barestmt: bare_statement_unless	ported
+
+perly.y:898 barestmt: bare_statement_until	ported
+
+perly.y:899 barestmt: bare_statement_utilize	ported
+
+perly.y:900 barestmt: bare_statement_when	ported
+
+perly.y:901 barestmt: bare_statement_while	ported
+
+perly.y:902 barestmt: bare_statement_yadayada	ported
+
+perly.y:906 formline: THING formarg	excluded folded-into-token
+
+perly.y:924 formarg: empty	excluded folded-into-token
+
+perly.y:925 formarg: FORMLBRACK stmtseq FORMRBRACK	excluded folded-into-token
+
+perly.y:929 condition: expr	ported
+
+perly.y:933 sideff: error	excluded error-recovery
+
+perly.y:935 sideff: expr	ported
+
+perly.y:937 sideff: expr KW_IF condition	ported
+
+perly.y:940 sideff: expr KW_UNLESS condition	ported
+
+perly.y:943 sideff: expr KW_WHILE condition	ported
+
+perly.y:945 sideff: expr KW_UNTIL iexpr	ported
+
+perly.y:947 sideff: expr KW_FOR condition	ported
+
+perly.y:950 sideff: expr KW_WHEN condition	ported
+
+perly.y:956 else: empty	ported
+
+perly.y:957 else: KW_ELSE mblock	ported
+
+perly.y:962 else: KW_ELSIF PERLY_PAREN_OPEN mexpr PERLY_PAREN_CLOSE mblock else	ported
+
+perly.y:973 cont: empty	ported
+
+perly.y:974 cont: KW_CONTINUE block	ported
+
+perly.y:979 finally: %empty	ported
+
+perly.y:981 finally: KW_FINALLY block	ported
+
+perly.y:986 mintro: %empty	ported
+
+perly.y:993 nexpr: empty	ported
+
+perly.y:994 nexpr: sideff	ported
+
+perly.y:998 texpr: %empty	ported
+
+perly.y:1002 texpr: expr	ported
+
+perly.y:1006 iexpr: expr	ported
+
+perly.y:1011 mexpr: expr	ported
+
+perly.y:1015 mnexpr: nexpr	ported
+
+perly.y:1019 formname: BAREWORD	ported
+
+perly.y:1020 formname: empty	ported
+
+perly.y:1023 startsub: %empty	ported
+
+perly.y:1029 startanonsub: %empty	ported
+
+perly.y:1034 startanonmethod: %empty	ported
+
+perly.y:1039 startformsub: %empty	ported
+
+perly.y:1045 subname: BAREWORD	ported
+
+perly.y:1046 subname: PRIVATEREF	ported
+
+perly.y:1051 proto: empty	ported
+
+perly.y:1052 proto: PROTOTYPE	ported
+
+perly.y:1057 subattrlist: empty	ported
+
+perly.y:1058 subattrlist: COLONATTR ATTRLIST	fitted
+
+perly.y:1065 subattrlist: COLONATTR	ported
+
+perly.y:1070 attrlist: COLONATTR ATTRLIST	fitted
+
+perly.y:1072 attrlist: COLONATTR	ported
+
+perly.y:1077 optattrlist: empty	ported
+
+perly.y:1078 optattrlist: attrlist	ported
+
+perly.y:1087 sigvar: %empty	ported
+
+perly.y:1089 sigvar: PRIVATEREF	excluded folded-into-token
+
+perly.y:1094 sigslurpsigil: PERLY_SNAIL	ported
+
+perly.y:1096 sigslurpsigil: PERLY_PERCENT_SIGN	ported
+
+perly.y:1100 sigslurpelem: sigslurpsigil sigvar	ported
+
+perly.y:1105 sigslurpelem: sigslurpsigil sigvar ASSIGNOP	excluded refused-in-action
+
+perly.y:1109 sigslurpelem: sigslurpsigil sigvar ASSIGNOP term	excluded refused-in-action
+
+perly.y:1115 optcolon: %empty	ported
+
+perly.y:1117 optcolon: PERLY_COLON	ported
+
+perly.y:1123 sigscalarelem: optcolon PERLY_DOLLAR sigvar	ported
+
+perly.y:1133 sigscalarelem: optcolon PERLY_DOLLAR sigvar ASSIGNOP optsigscalardefault	ported
+
+perly.y:1146 optsigscalardefault: %empty	ported
+
+perly.y:1148 optsigscalardefault: term	ported
+
+perly.y:1153 sigelem: sigscalarelem	ported
+
+perly.y:1155 sigelem: sigslurpelem	ported
+
+perly.y:1163 siglist: siglist PERLY_COMMA	ported
+
+perly.y:1164 siglist: siglist PERLY_COMMA sigelem	ported
+
+perly.y:1165 siglist: sigelem	ported
+
+perly.y:1170 optsiglist: empty	ported
+
+perly.y:1171 optsiglist: siglist	ported
+
+perly.y:1176 optsubsignature: empty	ported
+
+perly.y:1177 optsubsignature: subsignature	ported
+
+perly.y:1181 subsignature: PERLY_PAREN_OPEN subsigguts PERLY_PAREN_CLOSE	ported
+
+perly.y:1185 subsigguts: $@20 optsiglist	ported
+
+perly.y:1218 optsubbody: subbody	ported
+
+perly.y:1219 optsubbody: PERLY_SEMICOLON	ported
+
+perly.y:1224 subbody: remember PERLY_BRACE_OPEN stmtseq PERLY_BRACE_CLOSE	ported
+
+perly.y:1236 optsigsubbody: sigsubbody	ported
+
+perly.y:1237 optsigsubbody: PERLY_SEMICOLON	ported
+
+perly.y:1241 sigsubbody: remember optsubsignature PERLY_BRACE_OPEN $@21 stmtseq PERLY_BRACE_CLOSE	ported
+
+perly.y:1254 expr: expr ANDOP expr	ported
+
+perly.y:1256 expr: expr PLUGIN_LOGICAL_AND_LOW_OP expr	ported
+
+perly.y:1258 expr: expr OROP expr	ported
+
+perly.y:1260 expr: expr PLUGIN_LOGICAL_OR_LOW_OP expr	ported
+
+perly.y:1262 expr: listexpr	ported
+
+perly.y:1266 listexpr: listexpr PERLY_COMMA	ported
+
+perly.y:1268 listexpr: listexpr PERLY_COMMA term	ported
+
+perly.y:1273 listexpr: term	ported
+
+perly.y:1277 listop: LSTOP indirob listexpr	ported
+
+perly.y:1281 listop: BLKLSTOP block listexpr	ported
+
+perly.y:1285 listop: FUNC PERLY_PAREN_OPEN indirob expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1289 listop: term ARROW methodname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
+
+perly.y:1295 listop: term ARROW methodname	ported
+
+perly.y:1300 listop: term ARROW PERLY_AMPERSAND subname PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
+
+perly.y:1306 listop: term ARROW PERLY_AMPERSAND subname	ported
+
+perly.y:1312 listop: METHCALL0 indirob optlistexpr	ported
+
+perly.y:1318 listop: METHCALL indirob PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
+
+perly.y:1324 listop: LSTOP optlistexpr	ported
+
+perly.y:1326 listop: FUNC PERLY_PAREN_OPEN optexpr PERLY_PAREN_CLOSE	ported
+
+perly.y:1328 listop: FUNC SUBLEXSTART optexpr SUBLEXEND	fitted
+
+perly.y:1330 listop: LSTOPSUB startanonsub block @22 optlistexpr	ported
+
+perly.y:1344 methodname: METHCALL0	ported
+
+perly.y:1345 methodname: scalar	ported
+
+perly.y:1349 subscripted: gelem PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1353 subscripted: scalar PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1356 subscripted: term ARROW PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1361 subscripted: subscripted PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1366 subscripted: scalar PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1369 subscripted: term ARROW PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1373 subscripted: subscripted PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1377 subscripted: term ARROW PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1383 subscripted: term ARROW PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1391 subscripted: subscripted PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1398 subscripted: subscripted PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1404 subscripted: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1406 subscripted: QWLIST PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1408 subscripted: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1413 termbinop: term PLUGIN_HIGH_OP term	ported
+
+perly.y:1415 termbinop: term ASSIGNOP term	ported
+
+perly.y:1417 termbinop: term PLUGIN_ASSIGN_OP term	ported
+
+perly.y:1419 termbinop: term POWOP term	ported
+
+perly.y:1421 termbinop: term PLUGIN_POW_OP term	ported
+
+perly.y:1423 termbinop: term MULOP term	ported
+
+perly.y:1428 termbinop: term PLUGIN_MUL_OP term	ported
+
+perly.y:1430 termbinop: term ADDOP term	ported
+
+perly.y:1432 termbinop: term PLUGIN_ADD_OP term	ported
+
+perly.y:1434 termbinop: term SHIFTOP term	ported
+
+perly.y:1436 termbinop: termrelop	ported
+
+perly.y:1438 termbinop: termeqop	ported
+
+perly.y:1440 termbinop: term BITANDOP term	ported
+
+perly.y:1442 termbinop: term BITOROP term	ported
+
+perly.y:1444 termbinop: term DOTDOT term	ported
+
+perly.y:1446 termbinop: term ANDAND term	ported
+
+perly.y:1448 termbinop: term PLUGIN_LOGICAL_AND_OP term	ported
+
+perly.y:1450 termbinop: term OROR term	ported
+
+perly.y:1452 termbinop: term PLUGIN_LOGICAL_OR_OP term	ported
+
+perly.y:1454 termbinop: term DORDOR term	ported
+
+perly.y:1456 termbinop: term MATCHOP term	ported
+
+perly.y:1458 termbinop: term PLUGIN_LOW_OP term	ported
+
+perly.y:1462 termrelop: relopchain	ported
+
+perly.y:1464 termrelop: term NCRELOP term	ported
+
+perly.y:1466 termrelop: termrelop NCRELOP	refused-by-precedence
+
+perly.y:1468 termrelop: termrelop CHRELOP	refused-by-precedence
+
+perly.y:1470 termrelop: term PLUGIN_REL_OP term	ported
+
+perly.y:1474 relopchain: term CHRELOP term	ported
+
+perly.y:1476 relopchain: relopchain CHRELOP term	ported
+
+perly.y:1480 termeqop: eqopchain	ported
+
+perly.y:1482 termeqop: term NCEQOP term	ported
+
+perly.y:1484 termeqop: termeqop NCEQOP	refused-by-precedence
+
+perly.y:1486 termeqop: termeqop CHEQOP	refused-by-precedence
+
+perly.y:1490 eqopchain: term CHEQOP term	ported
+
+perly.y:1492 eqopchain: eqopchain CHEQOP term	ported
+
+perly.y:1497 termunop: PERLY_MINUS term	ported
+
+perly.y:1499 termunop: PERLY_PLUS term	ported
+
+perly.y:1502 termunop: PERLY_EXCLAMATION_MARK term	ported
+
+perly.y:1504 termunop: PERLY_TILDE term	ported
+
+perly.y:1506 termunop: term POSTINC	ported
+
+perly.y:1509 termunop: term POSTDEC	ported
+
+perly.y:1512 termunop: term POSTJOIN	excluded interpolation-only
+
+perly.y:1523 termunop: PREINC term	ported
+
+perly.y:1526 termunop: PREDEC term	ported
+
+perly.y:1534 anonymous: PERLY_BRACKET_OPEN optexpr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1536 anonymous: HASHBRACK optexpr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1538 anonymous: KW_SUB_anon startanonsub proto subattrlist subbody	ported
+
+perly.y:1541 anonymous: KW_SUB_anon startanonsub proto subattrlist	excluded refused-in-action
+
+perly.y:1543 anonymous: KW_SUB_anon_sig startanonsub subattrlist sigsubbody	ported
+
+perly.y:1546 anonymous: KW_SUB_anon_sig startanonsub subattrlist	excluded refused-in-action
+
+perly.y:1548 anonymous: KW_METHOD_anon startanonmethod subattrlist sigsubbody	fitted
+
+perly.y:1553 anonymous: KW_METHOD_anon startanonmethod subattrlist	excluded refused-in-action
+
+perly.y:1558 termdo: KW_DO term	ported
+
+perly.y:1560 termdo: KW_DO block	ported
+
+perly.y:1564 term: termbinop	ported
+
+perly.y:1565 term: termunop	ported
+
+perly.y:1566 term: anonymous	ported
+
+perly.y:1567 term: termdo	ported
+
+perly.y:1568 term: term PERLY_QUESTION_MARK term PERLY_COLON term	ported
+
+perly.y:1570 term: REFGEN term	ported
+
+perly.y:1572 term: myattrterm	ported
+
+perly.y:1574 term: KW_LOCAL term	ported
+
+perly.y:1576 term: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1578 term: QWLIST	ported
+
+perly.y:1580 term: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1582 term: scalar	ported
+
+perly.y:1584 term: star	ported
+
+perly.y:1586 term: hsh	ported
+
+perly.y:1588 term: ary	ported
+
+perly.y:1590 term: arylen	ported
+
+perly.y:1592 term: subscripted	ported
+
+perly.y:1594 term: sliceme PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1604 term: kvslice PERLY_BRACKET_OPEN expr PERLY_BRACKET_CLOSE	ported
+
+perly.y:1614 term: sliceme PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1624 term: kvslice PERLY_BRACE_OPEN expr PERLY_SEMICOLON PERLY_BRACE_CLOSE	fitted
+
+perly.y:1634 term: THING	ported
+
+perly.y:1636 term: amper	ported
+
+perly.y:1638 term: amper PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1641 term: amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1646 term: NOAMP subname optlistexpr	fitted
+
+perly.y:1650 term: term ARROW PERLY_DOLLAR PERLY_STAR	fitted
+
+perly.y:1652 term: term ARROW PERLY_SNAIL PERLY_STAR	fitted
+
+perly.y:1654 term: term ARROW PERLY_PERCENT_SIGN PERLY_STAR	fitted
+
+perly.y:1656 term: term ARROW PERLY_AMPERSAND PERLY_STAR	fitted
+
+perly.y:1659 term: term ARROW PERLY_STAR PERLY_STAR	fitted
+
+perly.y:1661 term: LOOPEX	ported
+
+perly.y:1664 term: LOOPEX term	ported
+
+perly.y:1666 term: NOTOP listexpr	ported
+
+perly.y:1668 term: UNIOP	ported
+
+perly.y:1670 term: UNIOP block	ported
+
+perly.y:1672 term: UNIOP term	ported
+
+perly.y:1674 term: KW_REQUIRE	ported
+
+perly.y:1676 term: KW_REQUIRE term	ported
+
+perly.y:1678 term: UNIOPSUB	ported
+
+perly.y:1680 term: UNIOPSUB term	ported
+
+perly.y:1683 term: FUNC0	ported
+
+perly.y:1685 term: FUNC0 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1687 term: FUNC0OP	ported
+
+perly.y:1689 term: FUNC0OP PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1691 term: FUNC0SUB	ported
+
+perly.y:1693 term: FUNC1 PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1697 term: FUNC1 PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1699 term: PMFUNC @23 SUBLEXSTART listexpr optrepl SUBLEXEND	fitted
+
+perly.y:1712 term: BAREWORD	ported
+
+perly.y:1713 term: listop	ported
+
+perly.y:1714 term: PLUGEXPR	excluded keyword-plugin
+
+perly.y:1719 myattrterm: KW_MY myterm attrlist	ported
+
+perly.y:1721 myattrterm: KW_MY myterm	ported
+
+perly.y:1723 myattrterm: KW_MY REFGEN myterm attrlist	ported
+
+perly.y:1725 myattrterm: KW_MY REFGEN term	ported
+
+perly.y:1730 myterm: PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE	ported
+
+perly.y:1732 myterm: PERLY_PAREN_OPEN PERLY_PAREN_CLOSE	ported
+
+perly.y:1735 myterm: scalar	ported
+
+perly.y:1737 myterm: hsh	ported
+
+perly.y:1739 myterm: ary	ported
+
+perly.y:1744 fieldvar: scalar	ported
+
+perly.y:1749 fieldvar: hsh	ported
+
+perly.y:1754 fieldvar: ary	ported
+
+perly.y:1762 fielddecl: KW_FIELD fieldvar optattrlist	ported
+
+perly.y:1769 fielddecl: KW_FIELD fieldvar optattrlist ASSIGNOP $@24 term	ported
+
+perly.y:1787 optlistexpr: empty	ported
+
+perly.y:1788 optlistexpr: listexpr	ported
+
+perly.y:1792 optexpr: empty	ported
+
+perly.y:1793 optexpr: expr	ported
+
+perly.y:1797 optrepl: empty	excluded folded-into-token
+
+perly.y:1798 optrepl: PERLY_SLASH expr	excluded folded-into-token
+
+perly.y:1803 my_scalar: scalar	ported
+
+perly.y:1808 list_of_itervars: list_of_itervars PERLY_COMMA	ported
+
+perly.y:1810 list_of_itervars: list_of_itervars PERLY_COMMA scalar	ported
+
+perly.y:1814 list_of_itervars: list_of_itervars PERLY_COMMA REFGEN my_var	ported
+
+perly.y:1818 list_of_itervars: scalar	ported
+
+perly.y:1819 list_of_itervars: REFGEN my_var	ported
+
+perly.y:1825 my_list_of_itervars: list_of_itervars	ported
+
+perly.y:1829 my_var: scalar	ported
+
+perly.y:1830 my_var: ary	ported
+
+perly.y:1831 my_var: hsh	ported
+
+perly.y:1834 refgen_topic: my_var	ported
+
+perly.y:1835 refgen_topic: amper	ported
+
+perly.y:1838 my_refgen: KW_MY REFGEN	ported
+
+perly.y:1839 my_refgen: REFGEN KW_MY	ported
+
+perly.y:1842 amper: PERLY_AMPERSAND indirob	fitted
+
+perly.y:1846 scalar: PERLY_DOLLAR indirob	fitted
+
+perly.y:1850 ary: PERLY_SNAIL indirob	fitted
+
+perly.y:1856 hsh: PERLY_PERCENT_SIGN indirob	fitted
+
+perly.y:1862 arylen: DOLSHARP indirob	fitted
+
+perly.y:1864 arylen: term ARROW DOLSHARP PERLY_STAR	fitted
+
+perly.y:1868 star: PERLY_STAR indirob	ported
+
+perly.y:1872 sliceme: ary	ported
+
+perly.y:1873 sliceme: term ARROW PERLY_SNAIL	ported
+
+perly.y:1877 kvslice: hsh	ported
+
+perly.y:1878 kvslice: term ARROW PERLY_PERCENT_SIGN	ported
+
+perly.y:1882 gelem: star	ported
+
+perly.y:1883 gelem: term ARROW PERLY_STAR	ported
+
+perly.y:1888 indirob: BAREWORD	ported
+
+perly.y:1890 indirob: scalar	ported
+
+perly.y:1892 indirob: block	ported
+
+perly.y:1895 indirob: PRIVATEREF	ported

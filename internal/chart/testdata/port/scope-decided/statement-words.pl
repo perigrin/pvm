@@ -1,0 +1,4 @@
+$y = AUTOLOAD();
+$y = DESTROY(1) + END;
+$y = BEGIN + INIT x 3;
+f(CHECK, UNITCHECK);

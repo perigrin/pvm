@@ -1,0 +1,4 @@
+format Foo::BAR =
+@<<<
+$x
+.

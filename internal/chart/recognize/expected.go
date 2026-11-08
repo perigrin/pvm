@@ -1,5 +1,5 @@
 // ABOUTME: Expected(pos): the terminals the Earley set at a lattice node expects next, by name.
-// ABOUTME: The union over every state in the set; an expectation class projects it onto the conflicting pairs (§5).
+// ABOUTME: The union of the expected terminals of every state in the set, as recognition without lookahead builds it.
 
 package recognize
 
@@ -20,14 +20,31 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	if pos < 0 || pos >= len(c.Sets) {
 		return nil, fmt.Errorf("recognize: node %d is outside the lattice's %d nodes", pos, len(c.Sets))
 	}
-	items := c.Sets[pos].Items()
+	set := c.Sets[pos]
+	// The answer depends on the set and on the origin sets its closure
+	// read, so it is memoized in the transition cache's trie, under a key
+	// no transition has (span 0). A node with no set, or a branch set
+	// (id -1), is not memoized.
+	memo := set != nil && set.id >= 0 && !c.r.opts.NoCache
+	var key cacheKey
+	if memo {
+		key = cacheKey{set: set.id}
+		if n := c.r.hit(c, pos, key); n != nil {
+			return slices.Clone(n.names), nil
+		}
+	}
+	c.r.expectedComputed++
+	items := set.Items()
+	var deps []dep
 	if items != nil && !c.r.opts.NoLookahead {
-		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}}
+		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: memo}
 		for _, it := range items {
 			b.add(it.State, pos-it.Dist)
 		}
 		b.complete(nil)
 		items = b.relative()
+		deps = b.deps
+		memo = memo && b.interned
 	}
 	var ids []int
 	for _, it := range items {
@@ -40,5 +57,11 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 		names[i] = c.r.tab.Symbols[id].Name
 	}
 	slices.Sort(names)
+	if memo {
+		if n := c.r.slot(key, deps); n != nil {
+			n.names = names
+		}
+		return slices.Clone(names), nil
+	}
 	return names, nil
 }

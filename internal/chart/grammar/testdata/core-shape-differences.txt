@@ -1,0 +1,41 @@
+# Differences between the port's builtin classes (FUNC0, FUNC0OP, UNIOP, FUNC1, LSTOP, BLKLSTOP) and parse.CoreShapes(), each reviewed.
+# TestCoreShapeDifferences holds the computed differences equal to this list: a difference appears or goes only by an edit here.
+# Entry: name<TAB>core: <shape|none><TAB>port: <terminals|none><TAB># reason (toke.c at 94e50866 and perl -c decide, not either table).
+# Neither side is changed to shorten it: internal/parse is read-only and a class change is its family's.
+
+-A	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-B	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-C	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-M	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-O	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-R	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-S	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-T	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-W	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-X	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-b	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-c	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-d	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-e	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-f	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-g	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-k	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-l	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-o	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-p	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-r	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-s	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-t	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-u	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-w	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-x	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+-z	core: none	port: UNIOP	# a filetest operator, not a sub: FTST (toke.c:261) returns UNIOP; CORE.tpm declares no shape for it.
+all	core: list	port: BLKLSTOP	# BLKLOP (toke.c:2160, :8342, :8351) returns BLKLSTOP: a list operator whose first argument is a block, which a list shape does not say; CORE.tpm's prototype \&@ reads as a list, and perl accepts `any { $_ } @l`. Deliberately not folded into LSTOP.
+any	core: list	port: BLKLSTOP	# BLKLOP (toke.c:2160, :8342, :8351) returns BLKLSTOP: a list operator whose first argument is a block, which a list shape does not say; CORE.tpm's prototype \&@ reads as a list, and perl accepts `any { $_ } @l`. Deliberately not folded into LSTOP.
+catch	core: niladic	port: none	# a keyword, PREBLOCK(KW_CATCH) (toke.c:8370); not a function, so CORE.tpm's niladic shape is the parser's own and the port has no builtin class for it.
+do	core: unary	port: none	# KW_DO (yyl_do, toke.c:8445), a block or a file expression with its own rules in perly.y; the port classes it as a keyword, not UNIOP.
+dump	core: niladic	port: none	# LOOPEX (LOOPX, toke.c:257, :8471), a loop-exit word that forces its label; perl -c refuses the bare form (`dump() must be written as CORE::dump()`).
+goto	core: unary	port: none	# LOOPEX (LOOPX, toke.c:257, :8587), a loop-exit word that forces its label or takes a term; the port classes it as the loop exit, not UNIOP.
+isa	core: niladic	port: none	# NCRELOP (NCRop, toke.c:278, :8696), an infix operator: perl -c refuses `isa 1` in term position, so the niladic shape is the prototype's artifact.
+method	core: niladic	port: none	# a keyword read as `sub` (yyl_sub, toke.c:9069); its KW_METHOD_named and KW_METHOD_anon classes are keywords, not builtin classes, so the entry stays, as catch's does.
+not	core: list	port: FUNC1	# FUN1 only when a ( follows, else NOTOP (toke.c:8790); the port has FUNC1 before ( and NOTOP otherwise, and CORE.tpm's `$;` prototype reads as a list operator, which `not 1, 2` is by precedence. Both are true of different forms.

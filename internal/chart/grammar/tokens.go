@@ -1,0 +1,862 @@
+// ABOUTME: Compiles the grammar's token classes into a sparse table: a token's key yields a terminal-set id.
+// ABOUTME: Spec §7: lookup is constant-time, allocation-free and regexp-free; unions are precomputed.
+
+package grammar
+
+import (
+	"cmp"
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
+	"tamarou.com/pvm/internal/lexer"
+)
+
+// TokenView is what the lookup reads of the token itself.
+type TokenView struct {
+	Kind                    lexer.Kind
+	Text                    string
+	OpensBlock, TermFollows bool
+	// Prefix is the sigil or quote-prefix class, a Number's version shape or a word's PackageName or CoreQualified, 0 for none.
+	Prefix byte
+	// Global is set on a `$` variable, or on a word that LineColon is set on, whose name is no plain
+	// identifier (it has a package separator or a punctuation, digit-first or caret name) or is the variable
+	// `$_`; it is false elsewhere, where nothing asks, so the scan is not paid per token.
+	// LineColon is set on a word that a one-byte colon follows on its own line, blanks only between,
+	// which is where toke.c's label scan looks (it reads a line at a time).
+	Global, LineColon bool
+	// Blanks is set on a plain-name word (an identifier with no package part, as toke.c's scan_word(..., FALSE)
+	// reads it) that a closing bracket follows with only spaces or tabs between, and that only spaces or
+	// tabs separate from the token before it, and from a minus before that: where toke.c's yyl_leftcurly
+	// forces a word to a string. A newline or a comment between, or a package part, clears it. Perigrin's
+	// ruling on the blanks bit, an extension of spec §7.
+	Blanks bool
+}
+
+// Brace says what a `{` opens.
+type Brace int
+
+const (
+	BraceNone Brace = iota
+	BraceBlock
+	BraceSubscript
+	BraceHash
+)
+
+// Neighbour is a neighbouring token as the key sees it: its lexer kind, its
+// flags and, for words, operators and closing brackets, its text, never its
+// own terminal set, so the key does not recurse.
+type Neighbour struct {
+	Kind                    lexer.Kind
+	Text                    string
+	OpensBlock, TermFollows bool
+	Brace                   Brace // only on `{`
+	// Glob is on a `*` that is a glob sigil, and Name on a word that names something: the one after
+	// `->`, `&` or a glob's `*`. Like Brace, each is decided by the predecessor, so a neighbour says what
+	// it was and the key needs no more tokens back (spec §7's neighbour class, extended by perigrin's
+	// ruling on the x fitting).
+	Glob, Name bool
+	// Label is on a label's word, one at a statement start with a colon after it on its line, and on
+	// that colon: toke.c has PL_expect at XSTATE after the colon, and a bare `:` cannot be told from an
+	// attribute list's, so the colon says what it was, as Glob and Name do.
+	Label bool
+	// SortParen is on a `(` right after sort (not a method named sort): toke.c's yyl_leftparen lets the word after it be
+	// sort's sub name (toke.c:8158), as the word right after sort is, so the ( says what it was, as Label does.
+	SortParen bool
+	// Array is on a variable that opens with @ or $#, so a word's key can tell `foo @x`, which toke.c refuses,
+	// from `foo $x`, a method call. A class that names a Variable neighbour and means every sigil lists both.
+	Array bool
+}
+
+// Boundary is the class of the neighbour that a file's edge lacks.
+var Boundary = Neighbour{Kind: -1}
+
+// ClassOf is t's class given its predecessor's, except Glob, which needs the table (TokenTable.Intern). A `{` the lexer decided
+// (OpensBlock) keeps that decision; an undecided one is a subscript after a
+// variable, `->`, a subscript's closing bracket or a name (`*g{CODE}`), a block after a deref
+// sigil (`@{ ... }`), and an anonymous hash otherwise, as in toke.c.
+// shortcut: a `{` after a do or eval block's `}` is read as a hash where toke.c
+// reads a subscript; telling that `}` apart needs a lexer bit, outside spec §11.
+func ClassOf(t TokenView, pred Neighbour) Neighbour {
+	var c Neighbour
+	classOf(&c, &t, &pred)
+	return c
+}
+
+// classOf is ClassOf writing c. Every argument goes by pointer because one passed
+// or returned by value is copied just after it is written, and that copy
+// stalls on store forwarding (a TokenView is too wide for registers). c is written
+// field by field for the same reason: a literal compiled to a merged load.
+func classOf(c *Neighbour, t *TokenView, pred *Neighbour) {
+	brace := BraceNone
+	if t.Kind == lexer.Operator && t.Text == "{" {
+		switch {
+		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
+			brace = BraceBlock
+		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,
+			pred.Kind == lexer.Operator && pred.Text == "->", pred.Kind == lexer.Word && pred.Name:
+			brace = BraceSubscript
+		default:
+			brace = BraceHash
+		}
+	}
+	text := ""
+	switch t.Kind {
+	case lexer.Word, lexer.Operator, lexer.CloseBracket:
+		text = t.Text
+	}
+	if t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26 {
+		text = IdentQuote
+	}
+	c.Kind, c.Text, c.OpensBlock, c.Brace = t.Kind, text, t.OpensBlock, brace
+	// A word after ->, & or a glob's * is a name, whatever it spells (toke.c's force_word, yyl_star).
+	c.Glob = false
+	// TermFollows apart from OpensBlock: together the two bytes are copied by one load, which stalls on t's two byte stores.
+	c.TermFollows = t.TermFollows
+	c.Array = t.Kind == lexer.Variable && (t.Prefix == '@' || t.Prefix == '#')
+	c.Name = t.Kind == lexer.Word && (pred.Kind == lexer.FuncSigil ||
+		pred.Kind == lexer.Operator && (pred.Text == "->" || pred.Text == "*" && pred.Glob))
+	c.Label = t.Kind == lexer.Word && t.LineColon && !t.Global && slices.Contains(stateStarts, *pred) ||
+		t.Kind == lexer.Operator && t.Text == ":" && pred.Label
+	c.SortParen = t.Kind == lexer.Operator && t.Text == "(" && pred.Kind == lexer.Word && pred.Text == "sort" && !pred.Name
+}
+
+// OtherWord as a neighbour's Text stands for a word no class names, the one whose
+// dictionary id is 0, so a class can ask for "a word" without listing words.
+// shortcut: a word some class does name (`use`, `my`, ...) is not matched, upgrade
+// when a class needs a neighbour that is any word.
+const OtherWord = "\x00other-word"
+
+// NonIdentWord as a NotNext neighbour's Text stands for a word no class names that does not open with an
+// identifier character (`::bar`): the class Intern gives it, which no neighbour class's unnamed word covers.
+const NonIdentWord = "\x00non-ident-word"
+
+// The Prefix of a Number that toke.c reads as a version: chart/lex derives it from the number's text and
+// the byte after it, which the key otherwise drops. VersionStrict is what force_strict_version admits
+// after a package name, VersionLax the rest of what force_version admits after use and no.
+const (
+	VersionStrict = 'S'
+	VersionLax    = 'L'
+)
+
+// PackageName is the Prefix of a word ending in :: (`Foo::`), which toke.c reads as a package name and never a
+// call, whatever follows it (yyl_just_a_word's safebw); chart/lex derives it from the word's text.
+const PackageName = ':'
+
+// CoreQualified is the Prefix of a word `CORE::kw`, kw a keyword, whose Text chart/lex gives as kw: toke.c reads it
+// as kw (yyl_key_core, toke.c:9230-9257), but before its fat-comma check, so `CORE::eq =>` stays an operator.
+const CoreQualified = 'C'
+
+// PlainIsa is the text chart/lex gives the word isa where the isa feature is off: toke.c's keyword() returns 0 for it
+// there (keywords.c:353), so it is a word no class names. It opens with a letter, so it is not the NonIdentWord class.
+const PlainIsa = "isa\x00plain"
+
+// IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
+// as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
+const IdentQuote = "\x00ident-quote"
+
+// TokenClass declares that tokens whose key matches every part given (a nil
+// part matches anything) admit Terminals. A key several classes match admits
+// the union of theirs.
+type TokenClass struct {
+	Terminals               []int
+	Kind                    *lexer.Kind
+	Text                    *string
+	OpensBlock, TermFollows *bool
+	Prefix                  *byte
+	Prev2, Prev1, Next      *Neighbour
+	Global, LineColon       *bool
+	Blanks                  *bool
+	// NotText, NotPrev1 and NotNext exclude the keys they name from a class that
+	// would otherwise match them, so two classes on one word are told apart by
+	// the next token, a class for every word can leave out the keywords, and a
+	// word that is an operator after a term is a word after a unary operator.
+	NotText  []string
+	NotPrev1 []Neighbour
+	NotNext  []Neighbour
+	// NotPrev2 is NotPrev1 for the token two back. NotNextIdent excludes the keys whose next token
+	// starts with an identifier character, as toke.c's isIDFIRST reads it: a word opening with a
+	// letter, _ or a UTF-8 byte (so not ::foo), a keyword included, or a quote-like that opens with a letter (qw, q, qq, m, s, tr, y).
+	NotPrev2     []Neighbour
+	NotNextIdent bool
+	// Completes marks a class whose token completes a term, so toke.c leaves PL_expect at XOPERATOR after
+	// it and an x that follows is the repetition operator. The lookup ignores it: perly.go's init derives
+	// MULOP's x classes from it, as ordinary Prev1 and Prev2 parts.
+	Completes bool
+	// NextName and NotNextName say whether a sub's name follows, as toke.c's yyl_sub reads it: an
+	// identifier start, or a word opening with :: or ' (so NotNextIdent's set and the word NotNextIdent
+	// leaves out). NextName matches only the keys a name follows, NotNextName only the others.
+	NextName, NotNextName bool
+	// Lone marks the class of a word that stands alone in a subscript's braces, which toke.c forces to a bareword
+	// (yyl_leftcurly, toke.c:6656-6679). The class names its surroundings as Prev2 (if given), Prev1, Next and
+	// Blanks, and every other class of a word is cut off where all of them hold, so `$h{time}` is a string and
+	// `+{ time }` is a call. The cut is a copy of the class per part the Lone class names, with that part's value excluded.
+	Lone bool
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// CompletedBy is the neighbour a token of c's class is, when c is marked Completes and not keyed by its
+// predecessor: its kind, its text (OtherWord for a word of any other), its block flag. A name is keyed by
+// its predecessor and is told by Neighbour.Name instead.
+func (c TokenClass) CompletedBy() (Neighbour, bool) {
+	if !c.Completes || c.Prev1 != nil || c.Kind == nil {
+		return Neighbour{}, false
+	}
+	n := Neighbour{Kind: *c.Kind}
+	switch {
+	case c.Text != nil:
+		n.Text = *c.Text
+	case *c.Kind == lexer.Word:
+		n.Text = OtherWord
+	case *c.Kind == lexer.Quote && c.Prefix != nil && (*c.Prefix|0x20)-'a' < 26:
+		n.Text = IdentQuote
+	}
+	if c.OpensBlock != nil {
+		n.OpensBlock = *c.OpensBlock
+	}
+	n.Array = *c.Kind == lexer.Variable && c.Prefix != nil && (*c.Prefix == '@' || *c.Prefix == '#')
+	return n, true
+}
+
+// completes is whether pred leaves PL_expect at XOPERATOR: a name, or a token some class marks Completes.
+// A block's }, which Completes marks so that a do block's ends a term, does not: it ends a statement more
+// often, and the neighbour cannot tell the two apart.
+// shortcut: `$y = do { 1 } * ref x 3` reads the * as a glob's and is accepted, where perl refuses it; the
+// lexer marking what a } closes (01a1a422-9176-7153-8625-6535b483a4b4) ends it.
+func (tt *TokenTable) completes(pred *Neighbour) bool {
+	if pred.Name {
+		return true
+	}
+	n := *pred
+	n.Glob, n.Brace, n.SortParen = false, 0, false
+	if n.Kind == lexer.Word && tt.text[n.Text] == 0 {
+		if !identStart(n.Text[0]) {
+			return false // a word opening with :: is the nonIdentWord class, which no OtherWord covers
+		}
+		n.Text = OtherWord
+	}
+	return tt.done[n]
+}
+
+func ptrs(ns []Neighbour) []*Neighbour {
+	ps := make([]*Neighbour, len(ns))
+	for i := range ns {
+		ps[i] = &ns[i]
+	}
+	return ps
+}
+
+// Part 8 is derived: whether the next token is a sub's name (see NextName), from the next class id; parts 9 and 10
+// are the token's own Global and LineColon, and part 11 its Blanks.
+const nParts = 12
+
+// free marks a part a class leaves unconstrained. Every value, a lexer kind
+// included, is a non-negative integer: text and neighbour values are the
+// dictionary ids CompileTokens gives them, 0 meaning one no class names.
+const free = -1
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// classKey packs a Neighbour, its text replaced by its dictionary id, into
+// one integer, so finding its class id hashes a word rather than a struct.
+// The kind is offset by one, since Boundary's is -1.
+func classKey(n *Neighbour, text int) uint64 {
+	return uint64(n.Kind+1)<<40 | uint64(text)<<9 | uint64(b2i(n.Array))<<8 | uint64(b2i(n.SortParen))<<7 | uint64(b2i(n.Label))<<6 | uint64(b2i(n.Name))<<5 | uint64(b2i(n.OpensBlock))<<4 | uint64(b2i(n.TermFollows))<<3 | uint64(b2i(n.Glob))<<2 | uint64(n.Brace)
+}
+
+// node tests one part: kids is indexed by the part's value, def covers the
+// rest. A node with no kids is a leaf.
+type node struct {
+	part int
+	kids []*node
+	def  *node
+	set  []int
+	id   int
+	uid  int // set when the node is interned while the table is built
+}
+
+// TokenTable is the compiled classes. Sets[0] is the empty set, what a key
+// no class matches yields; Sets is what Tables.TerminalSets takes.
+type TokenTable struct {
+	Sets [][]int
+	// Edge is the class id of Boundary, for the neighbours a file's edge lacks.
+	Edge int
+	root *node
+	// top, nodes and kids are root laid out for Lookup, whose walk was a cache miss per pointer: a ref below
+	// leaf is an index into nodes, and one with leaf set is a leaf's set id. A node's kids are kids[off:off+n].
+	top   uint16
+	nodes []flatNode
+	kids  []uint16
+	// packs is whether every text and class id fits LookupCache's key.
+	packs bool
+	text  map[string]int
+	// done holds the neighbours that complete a term (Completes classes), a word of no listed text as
+	// OtherWord.
+	done map[Neighbour]bool
+	// emptyText is text[""], the text id of a class that carries no text.
+	emptyText int
+	// classes is the class ids by classKey, and short the ids of texts shortKey packs, so the two
+	// lookups Intern makes per token are a multiply and a probe rather than a Go map's hashing.
+	classes, short ids
+	// firsts[b] has bit l set when a dictionary text starts with b and is l
+	// bytes long (63 for longer), and kinds bit k+1 when a dictionary class
+	// has kind k: a text or class neither admits gets id 0 unhashed.
+	firsts [256]uint64
+	kinds  uint64
+	// anyWord and identQuote are the class ids of a word, and of a quote-like opening with a letter,
+	// that no neighbour class names: they stand for "an identifier follows" in NotNextIdent.
+	// nonIdentWord is that of a word no class names that does not open with a letter or _ (::foo),
+	// which is no neighbour class's unnamed word either.
+	anyWord, identQuote, nonIdentWord int
+	name                              []bool      // by class id: an identifier's or a :: or ' word's, a sub's name
+	texts                             []string    // by text id - 1, for Text()
+	nbs                               []Neighbour // by class id - 1, for Text()
+}
+
+// Token is a token with its text and class looked up in the dictionaries.
+// Intern it once; the class id is what the three tokens around it reuse.
+type Token struct {
+	N            Neighbour // the token's class, the next token's predecessor
+	Class        int       // N's dictionary id
+	text         int       // the token's text's dictionary id
+	prefix       byte
+	qual, lc, bl bool
+}
+
+func (tt *TokenTable) classID(n *Neighbour, text int) int {
+	if k := uint(n.Kind + 1); k < 64 && tt.kinds>>k&1 == 0 {
+		return 0
+	}
+	return tt.classes.get(classKey(n, text))
+}
+
+// textID is s's dictionary id, 0 if it has none.
+func (tt *TokenTable) textID(s string) int {
+	if s != "" && tt.firsts[s[0]]>>min(len(s), 63)&1 == 0 {
+		return 0
+	}
+	if k, ok := shortKey(s); ok {
+		return tt.short.get(k)
+	}
+	return tt.text[s]
+}
+
+// shortKey packs a text of at most seven bytes and its length, plus one so no key is 0, into one integer.
+func shortKey(s string) (uint64, bool) {
+	if len(s) > 7 {
+		return 0, false
+	}
+	k := uint64(len(s)+1) << 56
+	for i := 0; i < len(s); i++ {
+		k |= uint64(s[i]) << (8 * i)
+	}
+	return k, true
+}
+
+// ids maps integer keys to ids, which are positive: open addressing, linear probing, at most half full.
+type ids struct {
+	slots []idSlot
+	shift uint
+}
+
+type idSlot struct {
+	key uint64
+	id  int
+}
+
+// newIDs is an empty ids with room for n keys.
+func newIDs(n int) ids {
+	bits := uint(1)
+	for 1<<bits < 2*n {
+		bits++
+	}
+	return ids{slots: make([]idSlot, 1<<bits), shift: 64 - bits}
+}
+
+func (m *ids) put(key uint64, id int) { *m.slot(key) = idSlot{key, id} }
+
+// get is key's id, 0 if it has none.
+func (m *ids) get(key uint64) int { return m.slot(key).id }
+
+// slot is key's slot, or the empty one it would go in.
+func (m *ids) slot(key uint64) *idSlot {
+	mask := uint64(len(m.slots) - 1)
+	for i := key * 0x9E3779B97F4A7C15 >> m.shift; ; i = (i + 1) & mask {
+		if s := &m.slots[i]; s.id == 0 || s.key == key {
+			return s
+		}
+	}
+}
+
+// ClassID is the dictionary id of n, 0 if no class names it.
+func (tt *TokenTable) ClassID(n Neighbour) int { return tt.classID(&n, tt.text[n.Text]) }
+
+// Intern looks t up in the dictionaries into it, with pred the class of the
+// significant token before it. All three are pointers for the reason classOf's
+// are. It hashes t's text at most once.
+func (tt *TokenTable) Intern(t *TokenView, pred *Neighbour, it *Token) {
+	classOf(&it.N, t, pred)
+	if t.Kind == lexer.Operator && t.Text == "*" {
+		it.N.Glob = !tt.completes(pred)
+	}
+	text := tt.textID(t.Text)
+	ct := text
+	if it.N.Text == "" {
+		ct = tt.emptyText
+	} else if t.Kind == lexer.Quote {
+		ct = 0 // IdentQuote
+	}
+	it.Class, it.text, it.prefix, it.qual, it.lc, it.bl = tt.classID(&it.N, ct), text, t.Prefix, t.Global, t.LineColon, t.Blanks
+	switch {
+	case t.Kind == lexer.Word && text == 0 && !identStart(t.Text[0]):
+		it.Class = tt.nonIdentWord
+	case it.Class != 0:
+	case t.Kind == lexer.Word && !it.N.Label:
+		it.Class = tt.anyWord
+	case t.Kind == lexer.Quote && (t.Prefix|0x20)-'a' < 26:
+		it.Class = tt.identQuote
+	}
+}
+
+// identStart is whether b can open an identifier, as toke.c's isIDFIRST reads a byte: a letter, _, or a byte of a UTF-8 character
+// (toke.c's isIDFIRST_lazy_if_safe under use utf8).
+func identStart(b byte) bool { return b == '_' || b|0x20-'a' < 26 || b >= 0x80 }
+
+// CompileTokens builds the table. A part is tested only below the classes
+// that name it, so the table is refined by a neighbour only where a class
+// needs it. Dictionary ids are numbered by value, so the table does not
+// depend on the order of classes or on map iteration.
+func CompileTokens(classes []TokenClass) (*TokenTable, error) {
+	for i, c := range classes {
+		if len(c.Terminals) == 0 {
+			return nil, fmt.Errorf("token class %d admits no terminals; an unmatched key already yields the empty set", i)
+		}
+	}
+	tt := &TokenTable{Sets: [][]int{{}}, text: map[string]int{}}
+	// The dictionaries: every text and every neighbour class a class names.
+	texts, nbs := map[string]bool{}, map[Neighbour]bool{}
+	for _, c := range classes {
+		if c.Text != nil {
+			texts[*c.Text] = true
+		}
+		for _, s := range c.NotText {
+			texts[s] = true
+		}
+		for _, nb := range append(append([]*Neighbour{c.Prev2, c.Prev1, c.Next}, ptrs(c.NotPrev1)...), append(ptrs(c.NotPrev2), ptrs(c.NotNext)...)...) {
+			if nb != nil {
+				if nb.Text != OtherWord && nb.Text != IdentQuote && nb.Text != NonIdentWord {
+					texts[nb.Text] = true
+				}
+				nbs[*nb] = true
+			}
+		}
+	}
+	tt.texts = slices.Sorted(maps.Keys(texts))
+	tt.short = newIDs(len(tt.texts))
+	for i, s := range tt.texts {
+		tt.text[s] = i + 1
+		if k, ok := shortKey(s); ok {
+			tt.short.put(k, i+1)
+		}
+		if s != "" {
+			tt.firsts[s[0]] |= 1 << min(len(s), 63)
+		}
+	}
+	tt.emptyText = tt.text[""]
+	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
+	tt.classes = newIDs(len(tt.nbs))
+	for i, nb := range tt.nbs {
+		tt.classes.put(classKey(&nb, tt.text[nb.Text]), i+1)
+		if k := uint(nb.Kind + 1); k < 64 {
+			tt.kinds |= 1 << k
+		}
+	}
+	tt.Edge = tt.ClassID(Boundary)
+	tt.anyWord, tt.identQuote, tt.nonIdentWord = len(tt.nbs)+1, len(tt.nbs)+2, len(tt.nbs)+3
+	var ident []int // every class id of a token starting with an identifier character
+	for i, nb := range tt.nbs {
+		if nb.Kind == lexer.Word || nb.Kind == lexer.Quote && nb.Text == IdentQuote {
+			ident = append(ident, i+1)
+		}
+	}
+	ident = append(ident, tt.anyWord, tt.identQuote)
+	tt.done = map[Neighbour]bool{}
+	for _, c := range classes {
+		if n, ok := c.CompletedBy(); ok && !(n.Kind == lexer.CloseBracket && n.Text == "}" && n.OpensBlock) {
+			tt.done[n] = true
+		}
+	}
+
+	// A name follows when the next class is an identifier's or a word opening with :: or ': part 8 is
+	// that, per class id, so a class tests one bit and not a list of ids.
+	tt.name = make([]bool, len(tt.nbs)+4)
+	for _, id := range append(slices.Clone(ident), tt.nonIdentWord) {
+		tt.name[id] = true
+	}
+	pats, nots := make([][nParts]int, len(classes)), make([][nParts][]int, len(classes))
+	for i, c := range classes {
+		for _, s := range c.NotText {
+			nots[i][1] = append(nots[i][1], tt.text[s])
+		}
+		for _, nb := range c.NotPrev1 {
+			nots[i][6] = append(nots[i][6], tt.ClassID(nb))
+		}
+		for _, nb := range c.NotPrev2 {
+			nots[i][5] = append(nots[i][5], tt.ClassID(nb))
+		}
+		for _, nb := range c.NotNext {
+			if nb.Text == NonIdentWord {
+				nots[i][7] = append(nots[i][7], tt.nonIdentWord)
+			} else {
+				nots[i][7] = append(nots[i][7], tt.ClassID(nb))
+			}
+		}
+		if c.NotNextIdent {
+			nots[i][7] = append(nots[i][7], ident...)
+		}
+		p := [nParts]int{free, free, free, free, free, free, free, free, free, free, free, free}
+		if c.NextName {
+			p[8] = 1
+		}
+		if c.NotNextName {
+			p[8] = 0
+		}
+		if c.Kind != nil {
+			p[0] = int(*c.Kind)
+		}
+		if c.Text != nil {
+			p[1] = tt.text[*c.Text]
+		}
+		if c.OpensBlock != nil {
+			p[2] = b2i(*c.OpensBlock)
+		}
+		if c.TermFollows != nil {
+			p[3] = b2i(*c.TermFollows)
+		}
+		if c.Prefix != nil {
+			p[4] = int(*c.Prefix)
+		}
+		if c.Global != nil {
+			p[9] = b2i(*c.Global)
+		}
+		if c.LineColon != nil {
+			p[10] = b2i(*c.LineColon)
+		}
+		if c.Blanks != nil {
+			p[11] = b2i(*c.Blanks)
+		}
+		for j, nb := range []*Neighbour{c.Prev2, c.Prev1, c.Next} {
+			if nb != nil {
+				p[5+j] = tt.ClassID(*nb)
+			}
+		}
+		pats[i] = p
+	}
+	// A word class is cut off where a Lone class holds: one copy of it per neighbour the Lone class names (a
+	// class is cut off where all hold, so it matches where any one fails). owner maps a pattern to its class.
+	owner := make([]int, len(classes))
+	for i := range owner {
+		owner[i] = i
+	}
+	for i, c := range classes {
+		if c.Lone || c.Kind == nil || *c.Kind != lexer.Word {
+			continue
+		}
+		variants := [][nParts][]int{nots[i]}
+		for _, l := range classes {
+			if !l.Lone {
+				continue
+			}
+			// The parts the Lone class asks for: its neighbours' class ids and its Blanks value.
+			asks := map[int]int{}
+			for j, nb := range []*Neighbour{l.Prev2, l.Prev1, l.Next} {
+				if nb != nil {
+					asks[5+j] = tt.ClassID(*nb)
+				}
+			}
+			if l.Blanks != nil {
+				asks[11] = b2i(*l.Blanks)
+			}
+			var cut [][nParts][]int
+			for _, v := range variants {
+				for _, part := range slices.Sorted(maps.Keys(asks)) {
+					w := v
+					w[part] = append(slices.Clone(v[part]), asks[part])
+					cut = append(cut, w)
+				}
+			}
+			variants = cut
+		}
+		nots[i] = variants[0]
+		for _, v := range variants[1:] {
+			pats, nots, owner = append(pats, pats[i]), append(nots, v), append(owner, i)
+		}
+	}
+
+	// Identical subtrees are one node, so the table does not grow with the
+	// number of classes that differ only in a part tested above them.
+	shared, memo := map[string]*node{}, map[string]*node{}
+	var leaves []*node
+	intern := func(key string, n *node) *node {
+		if old, ok := shared[key]; ok {
+			return old
+		}
+		n.uid = len(shared)
+		shared[key] = n
+		if n.kids == nil {
+			leaves = append(leaves, n)
+		}
+		return n
+	}
+	var build func(in []int, part int) *node
+	build = func(in []int, part int) *node {
+		for ; part < nParts; part++ {
+			if slices.ContainsFunc(in, func(c int) bool { return pats[c][part] != free || len(nots[c][part]) > 0 }) {
+				break
+			}
+		}
+		memoKey := fmt.Sprint(part, in)
+		if n, ok := memo[memoKey]; ok {
+			return n
+		}
+		var n *node
+		if part == nParts {
+			var set []int
+			for _, c := range in {
+				set = append(set, classes[owner[c]].Terminals...)
+			}
+			slices.Sort(set)
+			set = slices.Compact(set)
+			n = intern("leaf"+fmt.Sprint(set), &node{set: set})
+		} else {
+			var wild, values []int
+			for _, c := range in {
+				if v := pats[c][part]; v == free {
+					wild = append(wild, c)
+				} else {
+					values = append(values, v)
+				}
+				values = append(values, nots[c][part]...)
+			}
+			slices.Sort(values)
+			values = slices.Compact(values)
+			cand := &node{part: part, def: build(wild, part+1), kids: make([]*node, values[len(values)-1]+1)}
+			sig := []string{fmt.Sprint(part, cand.def.uid)}
+			for i := range cand.kids {
+				cand.kids[i] = cand.def
+			}
+			for _, v := range values {
+				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != free && q != v || slices.Contains(nots[o][part], v) })
+				cand.kids[v] = build(same, part+1)
+			}
+			for _, k := range cand.kids {
+				sig = append(sig, fmt.Sprint(k.uid))
+			}
+			n = intern(strings.Join(sig, ";"), cand)
+		}
+		memo[memoKey] = n
+		return n
+	}
+	all := make([]int, len(pats))
+	for i := range all {
+		all[i] = i
+	}
+	tt.root = build(all, 0)
+	for _, l := range leaves {
+		if len(l.set) > 0 {
+			tt.Sets = append(tt.Sets, l.set)
+		}
+	}
+	slices.SortFunc(tt.Sets, slices.Compare)
+	tt.Sets = slices.CompactFunc(tt.Sets, slices.Equal)
+	for _, l := range leaves {
+		l.id, _ = slices.BinarySearchFunc(tt.Sets, l.set, slices.Compare)
+	}
+	most := 0 // the largest kid count, which a uint16 holds
+	for _, n := range shared {
+		most = max(most, len(n.kids))
+	}
+	if len(tt.Sets) > leaf || len(shared) > leaf || most >= 1<<16 {
+		return nil, fmt.Errorf("token table: %d sets, %d nodes and a node of %d kids, more than its 15-bit refs and 16-bit counts hold", len(tt.Sets), len(shared), most)
+	}
+	tt.top = tt.flatten(tt.root, map[*node]uint16{})
+	tt.packs = len(tt.texts) < 1<<9 && len(tt.nbs)+4 <= 1<<9
+	return tt, nil
+}
+
+// leaf marks a ref to a leaf, whose low bits are its set id.
+const leaf = 1 << 15
+
+// flatNode is a node of the laid-out table: the part it tests, where its kids start in kids and how many, and its default's ref.
+type flatNode struct {
+	off    uint32
+	n, def uint16
+	part   uint8
+}
+
+// flatten adds n and the nodes under it to tt.nodes and tt.kids, each once, and returns n's ref.
+func (tt *TokenTable) flatten(n *node, at map[*node]uint16) uint16 {
+	if n.kids == nil {
+		return leaf | uint16(n.id)
+	}
+	if r, ok := at[n]; ok {
+		return r
+	}
+	r := uint16(len(tt.nodes))
+	at[n] = r
+	f := flatNode{off: uint32(len(tt.kids)), n: uint16(len(n.kids)), part: uint8(n.part)}
+	tt.nodes = append(tt.nodes, f)
+	tt.kids = append(tt.kids, make([]uint16, len(n.kids))...)
+	tt.nodes[r].def = tt.flatten(n.def, at)
+	for v, k := range n.kids {
+		tt.kids[f.off+uint32(v)] = tt.flatten(k, at)
+	}
+	return r
+}
+
+// Lookup is the terminal-set id of an interned token given the class ids of
+// the two significant tokens before it and the one after (Edge at a file's
+// edge). It allocates nothing and hashes nothing.
+func (tt *TokenTable) Lookup(t *Token, prev2, prev1, next int) int {
+	k := [nParts]int{int(t.N.Kind), t.text, b2i(t.N.OpensBlock), b2i(t.N.TermFollows), int(t.prefix), prev2, prev1, next, 0, b2i(t.qual), b2i(t.lc), b2i(t.bl)}
+	if uint(next) < uint(len(tt.name)) && tt.name[next] {
+		k[8] = 1
+	}
+	r := tt.top
+	for r < leaf {
+		n := &tt.nodes[r]
+		if v := uint(k[n.part]); v < uint(n.n) {
+			r = tt.kids[uint(n.off)+v]
+		} else {
+			r = n.def
+		}
+	}
+	return int(r &^ leaf)
+}
+
+// LookupCache remembers a table's Lookup answers by their whole key, which the tokens of a file repeat: a hit is
+// one probe where the walk is a cache miss per node. It is not safe for concurrent use; chart/lex gives each Map
+// call its own from a sync.Pool.
+type LookupCache struct {
+	tt *TokenTable
+	e  [1 << 12]struct {
+		key uint64
+		id  int
+	}
+}
+
+// Lookup is tt.Lookup, from c when c holds the key.
+func (c *LookupCache) Lookup(tt *TokenTable, t *Token, prev2, prev1, next int) int {
+	if uint(t.N.Kind) >= 1<<8 || !tt.packs {
+		return tt.Lookup(t, prev2, prev1, next)
+	}
+	if c.tt != tt {
+		*c = LookupCache{tt: tt}
+	}
+	// The key packs every part Lookup reads, the kind in 8 bits and each id in 9 (packs says they fit), the top bit
+	// set so no key is an empty entry's 0; part 8 derives from next.
+	key := 1<<63 | uint64(t.N.Kind)<<55 | uint64(t.text)<<46 | uint64(t.prefix)<<38 | uint64(prev2)<<29 | uint64(prev1)<<20 | uint64(next)<<11 |
+		uint64(b2i(t.N.OpensBlock))<<4 | uint64(b2i(t.N.TermFollows))<<3 | uint64(b2i(t.qual))<<2 | uint64(b2i(t.lc))<<1 | uint64(b2i(t.bl))
+	e := &c.e[key*0x9E3779B97F4A7C15>>52]
+	if e.key != key {
+		e.key, e.id = key, tt.Lookup(t, prev2, prev1, next)
+	}
+	return e.id
+}
+
+// Text is the table as deterministic text: the sets, then the nodes, each
+// shared node once.
+func (tt *TokenTable) Text() []byte {
+	var b strings.Builder
+	for i, s := range tt.Sets {
+		fmt.Fprintf(&b, "set %d%s\n", i, ints(s))
+	}
+	// value names a part's value in the dump: ids are an implementation detail.
+	value := func(part, v int) string {
+		switch {
+		case part == 1:
+			return fmt.Sprintf("%q", tt.texts[v-1])
+		case part >= 8:
+			return fmt.Sprint(v)
+		case part >= 5 && v == 0:
+			return "no class"
+		case part >= 5 && v == tt.anyWord:
+			return "word"
+		case part >= 5 && part <= 7 && v == tt.identQuote:
+			return "quote-like"
+		case part >= 5 && part <= 7 && v == tt.nonIdentWord:
+			return "non-identifier word"
+		case part >= 5 && part <= 7:
+			return fmt.Sprintf("%+v", tt.nbs[v-1])
+		}
+		return fmt.Sprint(v)
+	}
+	num := map[*node]int{}
+	var dump func(n *node) int
+	dump = func(n *node) int {
+		if i, ok := num[n]; ok {
+			return i
+		}
+		if n.kids == nil {
+			num[n] = len(num)
+			fmt.Fprintf(&b, "node %d leaf set %d\n", num[n], n.id)
+			return num[n]
+		}
+		kids := make([]int, len(n.kids))
+		for v, k := range n.kids {
+			if k != n.def {
+				kids[v] = dump(k)
+			}
+		}
+		def := dump(n.def)
+		num[n] = len(num)
+		fmt.Fprintf(&b, "node %d part %d otherwise %d\n", num[n], n.part, def)
+		for v, k := range n.kids {
+			if k != n.def {
+				fmt.Fprintf(&b, "  %s -> %d\n", value(n.part, v), kids[v])
+			}
+		}
+		return num[n]
+	}
+	fmt.Fprintf(&b, "root %d\n", dump(tt.root))
+	return []byte(b.String())
+}
+
+// FillTerminalSets stores the terminal-set table the recognizer indexes. It
+// refuses one whose set 0 is missing or non-empty, since id 0 is the empty
+// set that an unmapped token carries.
+func (t *Tables) FillTerminalSets(sets [][]int) error {
+	if len(sets) == 0 || len(sets[0]) != 0 {
+		return errors.New("terminal sets: set 0 must exist and be empty")
+	}
+	t.TerminalSets = sets
+	return nil
+}
+
+// Nodes is the number of distinct nodes in the table.
+func (tt *TokenTable) Nodes() int {
+	seen := map[*node]bool{}
+	var walk func(*node)
+	walk = func(n *node) {
+		if seen[n] {
+			return
+		}
+		seen[n] = true
+		if n.kids != nil {
+			walk(n.def)
+			for _, k := range n.kids {
+				walk(k)
+			}
+		}
+	}
+	walk(tt.root)
+	return len(seen)
+}

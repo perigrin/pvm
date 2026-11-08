@@ -1,5 +1,5 @@
-// ABOUTME: Builds the LR(0) automaton with nullable closure over the cut grammar, with integer core items.
-// ABOUTME: Each state carries its transition list (per symbol, with the items that advance) and its reduce list.
+// ABOUTME: Builds the LR(0) automaton with nullable closure over a grammar, with integer core items.
+// ABOUTME: Each state carries its transition list (per symbol) and its reduce list.
 
 package grammar
 
@@ -29,11 +29,9 @@ type CoreItem struct {
 	Rule, Dot int
 }
 
-// Transition is a state's move on one symbol: the target state and the items
-// of this state whose dot is before the symbol.
+// Transition is a state's move on one symbol.
 type Transition struct {
 	Symbol, Target int
-	Items          []int
 }
 
 // State is one state of the split LR(0) automaton (Aycock and Horspool's
@@ -54,16 +52,26 @@ type State struct {
 	Leo         []int
 }
 
-// Tables are the generator's output. Probes and Conflicts are set by
-// BuildTables, from a cut's terminals.
+// Tables are the generator's output.
 type Tables struct {
-	Start     int
-	Symbols   []TableSymbol
-	Rules     []BNFRule
-	Items     []CoreItem
-	States    []State
-	Probes    []Probe
-	Conflicts []Conflict
+	Start   int
+	Symbols []TableSymbol
+	Rules   []BNFRule
+	Items   []CoreItem
+	States  []State
+	// First and Follow are per symbol, indexed by symbol id: the sorted ids of
+	// the terminals that can begin it, and that can follow it. EOF, one past
+	// the last symbol, is the end of input and appears only in Follow.
+	First, Follow [][]int
+	EOF           int
+	// TerminalSets is the terminal-set table a token's id indexes, each entry
+	// the sorted ids of the terminals that admit the token; id 0 is the empty
+	// set. BuildTables leaves it empty; the generator fills it from the
+	// grammar's token classes, complete before recognize.New.
+	TerminalSets [][]int
+	// Tokens is the compiled token table whose ids index TerminalSets; nil
+	// until the generator compiles the grammar's classes.
+	Tokens *TokenTable
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting
@@ -105,6 +113,9 @@ func BuildLR0(start string, rules []Rule, terminals []string) (*Tables, error) {
 			rhs = append(rhs, n)
 		}
 		lhs := id[r.LHS]
+		if r.Seq != NotSeq && len(rhs) != 1 {
+			return nil, fmt.Errorf("lr0: %s (line %d) is a sequence rule, whose right-hand side must be one symbol", ruleText(r, "::="), r.Line)
+		}
 		switch r.Seq {
 		case NotSeq:
 			t.Rules = append(t.Rules, BNFRule{lhs, rhs})
@@ -126,6 +137,7 @@ func BuildLR0(start string, rules []Rule, terminals []string) (*Tables, error) {
 	t.automaton(itemOf)
 	t.expected()
 	t.leo()
+	t.firstFollow()
 	return t, nil
 }
 
@@ -262,7 +274,7 @@ func (t *Tables) automaton(itemOf []int) {
 				seed[k] = i + 1
 			}
 			target := kernel(seed)
-			t.States[s].Transitions = append(t.States[s].Transitions, Transition{sym, target, items})
+			t.States[s].Transitions = append(t.States[s].Transitions, Transition{sym, target})
 		}
 	}
 }

@@ -1,11 +1,13 @@
 // ABOUTME: Writes the generator's tables as deterministic text files, and finds drift against committed ones.
-// ABOUTME: GenerateTables runs the whole chain: read the vendored grammar, apply the cut, build the LR(0) tables.
+// ABOUTME: BuildTables takes the generator's own input (input.go) and builds the LR(0) automaton from it.
 
 package grammar
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,10 +22,9 @@ type TableFile struct {
 
 // Files renders the tables, one file per section, in a fixed order. Every
 // line is space-separated, with no trailing space; internal/chart/README.md
-// describes each file. A transition's items are not written: they are the
-// state's items with that symbol after the dot.
+// describes each file.
 func (t *Tables) Files() []TableFile {
-	var sym, rules, items, states, trans, expected, leo, probes, conflicts bytes.Buffer
+	var sym, rules, items, states, trans, expected, leo bytes.Buffer
 	for i, s := range t.Symbols {
 		kind := "nonterminal"
 		switch {
@@ -57,15 +58,7 @@ func (t *Tables) Files() []TableFile {
 			fmt.Fprintf(&leo, "%d %d\n", i, it)
 		}
 	}
-	for _, p := range t.Probes {
-		if p.Sample {
-			fmt.Fprintf(&probes, "%s %q\n", p.Terminal, p.Text)
-		}
-	}
-	for _, c := range t.Conflicts {
-		fmt.Fprintf(&conflicts, "%s\n", c)
-	}
-	return []TableFile{
+	files := []TableFile{
 		{"symbols.txt", sym.Bytes()},
 		{"rules.txt", rules.Bytes()},
 		{"items.txt", items.Bytes()},
@@ -73,9 +66,11 @@ func (t *Tables) Files() []TableFile {
 		{"transitions.txt", trans.Bytes()},
 		{"expected.txt", expected.Bytes()},
 		{"leo.txt", leo.Bytes()},
-		{"probes.txt", probes.Bytes()},
-		{"conflicts.txt", conflicts.Bytes()},
 	}
+	if t.Tokens != nil {
+		files = append(files, TableFile{"tokens.txt", t.Tokens.Text()})
+	}
+	return files
 }
 
 // ints writes each number after a space.
@@ -122,52 +117,42 @@ func (t *Tables) Dump() string {
 	return b.String()
 }
 
-// BuildTables builds the tables of a cut grammar, from its first rule's LHS.
-func BuildTables(c *CutGrammar) (*Tables, error) {
-	if len(c.G1) == 0 {
-		return nil, fmt.Errorf("lr0: the grammar has no G1 rules")
+// BuildTables builds the tables of g, from its first G1 rule's LHS. The
+// terminals are the left-hand sides of g.G0.
+func BuildTables(g *Grammar) (*Tables, error) {
+	if g == nil || len(g.G1) == 0 {
+		return nil, fmt.Errorf("lr0: the grammar has no G1 rules, so no start rule")
 	}
 	var terminals []string
-	for name := range c.Terminals {
-		terminals = append(terminals, name)
+	for _, r := range g.G0 {
+		terminals = append(terminals, r.LHS)
 	}
-	t, err := BuildLR0(c.G1[0].LHS, c.G1, terminals)
-	if err != nil {
-		return nil, err
-	}
-	t.Probes, t.Conflicts = Probes(c), FindConflicts(c)
-	return t, nil
+	return BuildLR0(g.G1[0].LHS, g.G1, terminals)
 }
 
-// GenerateTables reads the grammar at slifPath, applies GuacamoleCut and
-// builds the tables.
-func GenerateTables(slifPath string) ([]TableFile, error) {
-	c, err := readGuacamoleCut(slifPath)
+// tablePaths is the regular .txt files in dir: the files the generator owns.
+// Anything else there, a directory named x.txt included, is foreign.
+func tablePaths(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	t, err := BuildTables(c)
-	if err != nil {
-		return nil, err
+	var paths []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && filepath.Ext(e.Name()) == ".txt" {
+			paths = append(paths, filepath.Join(dir, e.Name()))
+		}
 	}
-	return t.Files(), nil
+	return paths, nil
 }
 
-// readGuacamoleCut reads the grammar at slifPath and applies GuacamoleCut.
-func readGuacamoleCut(slifPath string) (*CutGrammar, error) {
-	src, err := os.ReadFile(slifPath)
-	if err != nil {
-		return nil, err
-	}
-	g, err := ReadSLIF(filepath.Base(slifPath), src)
-	if err != nil {
-		return nil, err
-	}
-	return ApplyCut(g, GuacamoleCut)
-}
-
-// WriteTables writes files into dir, creating it, and removes any other
-// .txt file there, so the directory holds exactly the generator's output.
+// WriteTables writes files into dir, creating it. The generator owns every
+// regular .txt file in dir, as TablesDrift reads them: it replaces those it
+// writes and removes the rest, so a table an earlier run wrote and this one
+// does not cannot linger. Anything else there is foreign and untouched.
 func WriteTables(dir string, files []TableFile) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -179,7 +164,7 @@ func WriteTables(dir string, files []TableFile) error {
 			return err
 		}
 	}
-	old, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+	old, err := tablePaths(dir)
 	if err != nil {
 		return err
 	}
@@ -197,7 +182,7 @@ func WriteTables(dir string, files []TableFile) error {
 // committed and the generated directory, or is in only one of them.
 func TablesDrift(committed, generated string) ([]string, error) {
 	read := func(dir string) (map[string][]byte, error) {
-		paths, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+		paths, err := tablePaths(dir)
 		if err != nil {
 			return nil, err
 		}

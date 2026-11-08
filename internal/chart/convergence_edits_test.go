@@ -328,11 +328,10 @@ func TestConvergenceEditsHold(t *testing.T) {
 		map[string][]byte{"": src}, map[string]map[stmtSpan]bool{"": stmts})
 }
 
-// The Guacamole corpus's parses cases, the list over them, and the preamble
-// every case starts with.
+// The Guacamole corpus's parses cases and the preamble every case starts
+// with.
 var (
 	guacamoleParsesDir    = filepath.Join("testdata", "guacamole", "parses")
-	guacamoleRejectsPath  = filepath.Join("testdata", "guacamole", "perl-rejects.txt")
 	guacamolePreamblePath = filepath.Join("testdata", "guacamole", "preamble.pl")
 	convergenceCorpusPath = filepath.Join("testdata", "convergence-edits-guacamole.jsonl")
 )
@@ -355,13 +354,13 @@ func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	list, err := os.ReadFile(guacamoleRejectsPath)
+	labels, err := ReadLabels(filepath.Join(labelsDir, "in-tree.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	rejected := map[string]bool{}
-	for _, name := range strings.Fields(string(list)) {
-		rejected[name] = true
+	for _, l := range labels.Labels {
+		rejected[l.Path] = l.Refused()
 	}
 	files, err := filepath.Glob(filepath.Join(guacamoleParsesDir, "*.pl"))
 	if err != nil {
@@ -370,7 +369,7 @@ func multiStatementCases(t *testing.T) (names []string, srcs map[string][]byte, 
 	srcs, roots = map[string][]byte{}, map[string]*parse.Node{}
 	for _, f := range files {
 		name := filepath.Base(f)
-		if rejected[name] {
+		if rejected[filepath.ToSlash(filepath.Join("internal", "chart", f))] {
 			continue
 		}
 		src, err := os.ReadFile(f)

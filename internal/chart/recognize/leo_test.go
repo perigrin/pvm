@@ -15,14 +15,14 @@ import (
 
 // rightRec is S ::= A S | A, every prefix of a run of As a complete S: the
 // right recursion that is quadratic at lookahead 0 without Leo.
-const rightRec = "S ::= A S | A\nA ~ 'a'\n"
+var rightRec = []string{"S ::= A S | A"}
 
 // tokens is a linear toy lattice of one-byte tokens, one terminal each.
-func tokens(terms ...string) *lex.Lattice[lex.None] {
+func tokens(tab *grammar.Tables, terms ...string) *lex.Lattice[lex.None] {
 	offsets := []int{0}
 	var edges []lex.Edge
 	for i, term := range terms {
-		edges = append(edges, toyEdge(i, i+1, term, i, i+1))
+		edges = append(edges, toyEdge(tab, i, i+1, term))
 		offsets = append(offsets, i+1)
 	}
 	return toyLinear(offsets, edges...)
@@ -40,18 +40,18 @@ func items(c *Chart) int {
 // TestLeoLinearAtLookaheadZero is the test that fails if Leo does nothing
 // (§10), on S ::= A S | A at lookahead 0.
 func TestLeoLinearAtLookaheadZero(t *testing.T) {
-	tab := toyTables(t, rightRec)
-	checkLinear(t, tab, func(n int) *lex.Lattice[lex.None] { return tokens(slices.Repeat([]string{"A"}, n)...) }, 200)
+	tab := toyTables(t, rightRec...)
+	checkLinear(t, tab, func(n int) *lex.Lattice[lex.None] { return tokens(tab, slices.Repeat([]string{"A"}, n)...) }, 200)
 }
 
-// TestLeoStatementSeqAtLookaheadZero: Guacamole's right-recursive
-// StatementSeq, which interleaved mode will recognize at lookahead 0 (§5,
-// "One coupled choice"), is linear with Leo too.
+// TestLeoStatementSeqAtLookaheadZero: the toy statement grammar's
+// right-recursive, nullable Seq, the shape of Guacamole's StatementSeq that
+// interleaved mode will recognize at lookahead 0 (§5, "One coupled choice"),
+// is linear with Leo too.
 func TestLeoStatementSeqAtLookaheadZero(t *testing.T) {
-	_, x := guacamole(t)
-	checkLinear(t, guacTab, func(n int) *lex.Lattice[lex.None] {
-		s, _ := x.Lex([]byte(strings.Repeat("1;\n", n)))
-		return lex.Linear(s)
+	tab := toyStmt(t)
+	checkLinear(t, tab, func(n int) *lex.Lattice[lex.None] {
+		return tokens(tab, slices.Repeat([]string{"Print", "Num", "Semi"}, n)...)
 	}, 100)
 }
 
@@ -62,7 +62,7 @@ func TestLeoStatementSeqAtLookaheadZero(t *testing.T) {
 func checkLinear(t *testing.T, tab *grammar.Tables, input func(int) *lex.Lattice[lex.None], n int) {
 	t.Helper()
 	count := func(n int, noLeo bool) int {
-		c := Recognize(New(tab, Options{NoLookahead: true, NoLeo: noLeo}), input(n))
+		c := mustRecognize(t, New(tab, Options{NoLookahead: true, NoLeo: noLeo}), input(n))
 		if !c.Accepted() {
 			t.Fatalf("input of %d refused", n)
 		}
@@ -81,8 +81,8 @@ func checkLinear(t *testing.T, tab *grammar.Tables, input func(int) *lex.Lattice
 // resolve to tops at different distances. The top is in the side table, not
 // in the set.
 func TestLeoTopOutsideSetIdentity(t *testing.T) {
-	tab := toyTables(t, rightRec)
-	c := Recognize(New(tab, Options{}), tokens(slices.Repeat([]string{"A"}, 5)...))
+	tab := toyTables(t, rightRec...)
+	c := mustRecognize(t, New(tab, Options{}), tokens(tab, slices.Repeat([]string{"A"}, 5)...))
 	if !c.Accepted() {
 		t.Fatal("refused")
 	}
@@ -101,11 +101,11 @@ func TestLeoTopOutsideSetIdentity(t *testing.T) {
 // TestLeoLeftRecursiveNoMemo: a left recursion has no Leo item, so no memo
 // is made and the item count is the same with Leo on and off.
 func TestLeoLeftRecursiveNoMemo(t *testing.T) {
-	tab := toyTables(t, "L ::= L X | Y\nX ::= C\nC ~ 'c'\nY ~ 'y'\n")
-	l := tokens(append([]string{"Y"}, slices.Repeat([]string{"C"}, 20)...)...)
+	tab := toyTables(t, "L ::= L X | Y", "X ::= C")
+	l := tokens(tab, append([]string{"Y"}, slices.Repeat([]string{"C"}, 20)...)...)
 	for _, la := range []bool{false, true} {
-		on := Recognize(New(tab, Options{NoLookahead: la}), l)
-		off := Recognize(New(tab, Options{NoLookahead: la, NoLeo: true}), l)
+		on := mustRecognize(t, New(tab, Options{NoLookahead: la}), l)
+		off := mustRecognize(t, New(tab, Options{NoLookahead: la, NoLeo: true}), l)
 		if !on.Accepted() || !off.Accepted() {
 			t.Fatalf("refused: %v with Leo, %v without", on.Accepted(), off.Accepted())
 		}
@@ -125,11 +125,11 @@ func TestLeoLeftRecursiveNoMemo(t *testing.T) {
 // TestLeoShortInputs: inputs of length 0 and 1 for S ::= A S | A are judged
 // the same with Leo on and off.
 func TestLeoShortInputs(t *testing.T) {
-	tab := toyTables(t, rightRec)
-	for _, l := range []*lex.Lattice[lex.None]{tokens(), tokens("A")} {
+	tab := toyTables(t, rightRec...)
+	for _, l := range []*lex.Lattice[lex.None]{tokens(tab), tokens(tab, "A")} {
 		for _, la := range []bool{false, true} {
-			on := Recognize(New(tab, Options{NoLookahead: la}), l).Accepted()
-			off := Recognize(New(tab, Options{NoLookahead: la, NoLeo: true}), l).Accepted()
+			on := mustRecognize(t, New(tab, Options{NoLookahead: la}), l).Accepted()
+			off := mustRecognize(t, New(tab, Options{NoLookahead: la, NoLeo: true}), l).Accepted()
 			if on != off || on != (len(l.Edges) == 1) {
 				t.Errorf("%d tokens, lookahead off %v: accepted %v with Leo, %v without", len(l.Edges), la, on, off)
 			}
@@ -140,10 +140,10 @@ func TestLeoShortInputs(t *testing.T) {
 // leoAgree recognizes l with Leo on and off, both with and without
 // lookahead, each on a fresh recognizer, and reports any difference in
 // acceptance or in the number of distinct interned sets.
-func leoAgree(tab *grammar.Tables, l *lex.Lattice[lex.None]) string {
+func leoAgree(t testing.TB, tab *grammar.Tables, l *lex.Lattice[lex.None]) string {
 	for _, la := range []bool{false, true} {
 		on, off := New(tab, Options{NoLookahead: la}), New(tab, Options{NoLookahead: la, NoLeo: true})
-		a, b := Recognize(on, l).Accepted(), Recognize(off, l).Accepted()
+		a, b := mustRecognize(t, on, l).Accepted(), mustRecognize(t, off, l).Accepted()
 		if a != b {
 			return fmt.Sprintf("lookahead off %v: accepted %v with Leo, %v without", la, a, b)
 		}
@@ -156,30 +156,34 @@ func leoAgree(tab *grammar.Tables, l *lex.Lattice[lex.None]) string {
 
 // TestLeoKeepsAcceptance: Leo on and off accept and reject the same inputs,
 // and intern the same number of distinct sets, on toy right recursions and
-// on Guacamole over small cases and the fuzz seeds.
+// on the toy statement grammar over small cases and the fuzz seeds.
 func TestLeoKeepsAcceptance(t *testing.T) {
 	// The third grammar's chain runs up through S ::= V B T from node 0, a
 	// start-rule item that acceptance needs to see (#549's gate, F1).
-	for _, g := range []string{
+	for _, g := range [][]string{
 		rightRec,
-		"S ::= A T | A\nT ::= S O\nO ::= C*\nA ~ 'a'\nC ~ 'c'\n",
-		"S ::= V B T\nT ::= A | V\nV ::= A | S\nA ~ 'a'\nB ~ 'b'\n",
+		{"S ::= A T | A", "T ::= S O", "O ::= C*"},
+		{"S ::= V B T", "T ::= A | V", "V ::= A | S"},
 	} {
-		tab := toyTables(t, g)
+		tab := toyTables(t, g...)
 		for _, in := range [][]string{nil, {"A"}, {"A", "A", "A"}, {"A", "C", "A"}, {"A", "A", "C", "C"}, {"C"}, {"A", "A", "A", "A", "A", "A", "A", "C"}, {"A", "B", "A"}, {"A", "B", "A", "B", "A"}} {
-			if d := leoAgree(tab, tokens(in...)); d != "" {
+			if d := leoAgree(t, tab, tokens(tab, in...)); d != "" {
 				t.Errorf("%q on %v: %s", g, in, d)
 			}
 		}
 	}
-	_, x := guacamole(t)
-	srcs := append([]string{
-		"print print print 1;", "1; 2; 3; 4; 5;", "{ 1; { 2; { 3; } } }", "sub f { 1 } sub g { 2 } 3;",
-		"my $x = 1; my $y = 2;", "return return 1;", "my $x = $y = $z = 1;", "1;;",
-	}, fuzzSeeds...)
-	for _, src := range srcs {
-		s, _ := x.Lex([]byte(src))
-		if d := leoAgree(guacTab, lex.Linear(s)); d != "" {
+	stmt := toyStmt(t)
+	for _, l := range []*lex.Lattice[lex.None]{
+		tokens(stmt, strings.Fields("Print Print Print Num Semi")...), tokens(stmt, strings.Fields(decl+" "+decl)...),
+		tokens(stmt, strings.Fields("LBrace Print Num Semi LBrace Print Num Semi RBrace RBrace")...),
+		tokens(stmt, strings.Fields("Print Num Semi Semi")...), tokens(stmt, strings.Fields("Print Print Num Semi")...), tokens(stmt, strings.Fields(decl+" My Var")...),
+	} {
+		if d := leoAgree(t, stmt, l); d != "" {
+			t.Errorf("%v: %s", l.Edges, d)
+		}
+	}
+	for _, src := range fuzzSeeds {
+		if d := leoAgree(t, stmt, fuzzLattice(stmt, src)); d != "" {
 			t.Errorf("%q: %s", src, d)
 		}
 	}
@@ -191,11 +195,11 @@ func TestLeoKeepsAcceptance(t *testing.T) {
 // A B A does not have there, so without those dependencies it serves B A B A
 // a wrong set (#549's gate, F2).
 func TestLeoChainReadsAreCacheDeps(t *testing.T) {
-	tab := toyTables(t, "S ::= U U T | N V\nT ::= A\nU ::= V | T U\nV ::= V N | B | V S S\nN ::= C*\nA ~ 'a'\nB ~ 'b'\nC ~ 'c'\n")
+	tab := toyTables(t, "S ::= U U T | N V", "T ::= A", "U ::= V | T U", "V ::= V N | B | V S S", "N ::= C*")
 	warm := New(tab, Options{})
-	Recognize(warm, tokens("A", "A", "B", "A"))
-	l := tokens("B", "A", "B", "A")
-	c, cold := Recognize(warm, l), Recognize(New(tab, Options{NoCache: true}), l)
+	mustRecognize(t, warm, tokens(tab, "A", "A", "B", "A"))
+	l := tokens(tab, "B", "A", "B", "A")
+	c, cold := mustRecognize(t, warm, l), mustRecognize(t, New(tab, Options{NoCache: true}), l)
 	for pos := range c.Sets {
 		if !slices.Equal(c.Sets[pos].Items(), cold.Sets[pos].Items()) {
 			t.Errorf("node %d: items %v with the warm cache, %v without", pos, c.Sets[pos].Items(), cold.Sets[pos].Items())
