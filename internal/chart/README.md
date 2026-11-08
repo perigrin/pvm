@@ -322,6 +322,33 @@ clock and a collector, so it is tested on fake timings
   refused, never kept unchecked. Each excluded file and each corpus's share
   of the aggregate's recursive-descent time are printed on stderr.
 
+  The 10% rule excludes one file, `T1/code_too_large.t`: 10,001 lines of flat
+  top-level statements, 34.1% of recursive descent's population time
+  (33.3% in another run). No key prints the chart's ratio on it, so it is
+  recorded here, observed at c6de5c76 (before) and on the branch of
+  01a1b879-ae82 (after), on a 4-core machine at load average 1.2 to 1.3.
+  Each figure is chart/lex plus a fresh recognizer with default `Options`
+  against `parse.Parse`, 11 pairs with a GC before each side, the
+  median of the last 9; recognition alone is the median of 9 of 11 runs.
+
+  | input | lines | chart/RD before | chart/RD after | recognition before | after | with `NoCache: true` |
+  |---|---|---|---|---|---|---|
+  | `code_too_large.t`, first lines | 1,251 | 3.07 | 2.86 | 27 ms | 24 ms | 26 ms |
+  | `code_too_large.t`, first lines | 2,501 | 3.71 | 2.94 | 71 ms | 49 ms | 56 ms |
+  | `code_too_large.t`, first lines | 5,001 | 4.92 | 2.35 | 268 ms | 98 ms | 98 ms |
+  | `code_too_large.t`, whole | 10,001 | 10.10 | 2.95 | 1,231 ms | 212 ms | 212 ms |
+  | `std5k.pl` | 5,019 | 1.03 | 1.13 | 9.5 ms | 10.1 ms | 46 ms |
+  | `edit5k.pl` | 5,054 | 1.23 | 1.25 | 10.9 ms | 9.6 ms | 41 ms |
+
+  The before column was quadratic: the transition cache scanned a per-key
+  list that grew by one entry per statement (see the recognizer's transition
+  cache). After, the cache costs no more than no cache on this file and
+  leaves `std5k.pl` and `edit5k.pl` where they were (their ratios move
+  within the run-to-run spread; recognition alone on `std5k.pl` was 10.7 ms
+  before and 10.4 ms after, the medians of five alternating benchmark runs).
+  The whole-file ratio is still near 3, but no longer grows with the file:
+  recognition time doubles from 5,001 lines to 10,001.
+
 ### The lexer lists
 
 Two lists name the files a lexer defect takes out of the gates (§11):
@@ -347,7 +374,10 @@ Recursive descent already refuses 33 of the 91, so the list takes 58 files
 out of the superset population (§9.1 allows this), not 91.
 `TestLexerListHidesNoChartGap` rewrites every brace the defect leaves
 unmapped as `+{` in each of the 91 and holds the chart to accepting all of
-them, and the count to 91, so the list hides no gap of the chart's own.
+them, and the count to 91, so the 01a1ad1d-bc7b entries hide no gap of the
+chart's own. That is all it tests. The 92nd perl-accepted entry,
+`T1/nested_heredoc.t 1821 01a1a846-5aea`, is a heredoc lexer defect, and
+nothing checks that the chart would accept that file lexed right.
 
 Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 
@@ -1064,7 +1094,20 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   `TestCacheChecksOriginSets` fails without that check. The cache is not
   used inside a branch (`TestCacheNotKeyedOnBranchSet`), nor where two edges
   meet (`TestCacheNotUsedAtJoin`), and a transition that read any set inside a
-  branch is never cached.
+  branch is never cached. A key's entries are a trie over those origin sets,
+  in the order the transition read them: which set it reads next follows
+  from the key and the sets already read, so a lookup reads one set per
+  dependency and follows its id. A lookup returns what a scan of the entries
+  in the order stored would, the first whose sets hold
+  (`TestCacheMatchesNoCache`, which also holds a warm cache to no cache on
+  acceptance and `Expected` at every node of the corpus sample's whole
+  files). At c6de5c76 each key held a list that every lookup scanned, and
+  on flat top-level statements a key's list grew by one entry per statement,
+  each differing only in the set where its statement began: recognition time
+  was quadratic in the statement count though the item count was linear
+  (`TestCacheLookupBounded` holds the longest scan of one lookup equal from
+  100 such statements to 400). The cost on the files the aggregate excludes
+  is under "The aggregate" in the speed protocol.
 - **Leo memos** (Leo 1991) complete a right recursion in one step. A memo is
   made at a node for a symbol B only where the node's whole set holds one
   item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It
@@ -1088,7 +1131,10 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   `$a` followed by 50, 100 and 200 ` = $a` and a `;` has 5,463, 20,913 and
   81,813 items at lookahead 0, with Leo or without, quadratic. Linear here
   means the item count, not time: with the cache on, each use of a chain walks it to record its
-  sets, so time stays quadratic until memos are interned. A chain stops at
+  sets, so time stays quadratic until memos are interned. Leo chains were
+  not the only such term: at c6de5c76 the transition cache's lookup was
+  quadratic in the number of top-level statements in default mode (see the
+  transition cache above). A chain stops at
   a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
   turns it off; it is the only Leo switch.
 - **The `;` toke.c inserts, by a narrow ruby slipper** (spec §5.2). toke.c
