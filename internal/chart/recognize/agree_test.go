@@ -89,14 +89,26 @@ func (f sampleFile) lattice(n int) *lex.Lattice[lex.None] {
 // every port snippet, and every 24th Guacamole case in name order.
 func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 	t.Helper()
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
+	tab := committedTables(t)
+	var files []sampleFile
+	for _, p := range samplePaths(t) {
+		s, _ := lex.Lex(readFile(t, p), tab.Tokens)
+		f := sampleFile{name: p, l: lex.Linear(s), cut: -1}
+		for n := 1; n <= min(len(f.l.Edges), maxTokens); n++ {
+			if _, _, accepted := refRun(tab, tokenIDs(f.lattice(n))); !accepted {
+				f.cut = n // the first prefix the reference refuses: a whole term is a program
+				break
+			}
+		}
+		files = append(files, f)
 	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
+	return tab, files
+}
+
+// samplePaths is the sample's files: std5k.pl, every port snippet, and
+// every 24th Guacamole case in name order.
+func samplePaths(t *testing.T) []string {
+	t.Helper()
 	chart := filepath.Join("..", "testdata")
 	paths := []string{filepath.Join(chart, "std5k.pl")}
 	port, _ := filepath.Glob(filepath.Join(chart, "port", "*", "*.pl"))
@@ -108,23 +120,16 @@ func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 	if len(port) == 0 || len(cases) == 0 {
 		t.Fatalf("the sample found %d port snippets and %d Guacamole cases", len(port), len(cases))
 	}
-	var files []sampleFile
-	for _, p := range paths {
-		src, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, _ := lex.Lex(src, tab.Tokens)
-		f := sampleFile{name: p, l: lex.Linear(s), cut: -1}
-		for n := 1; n <= min(len(f.l.Edges), maxTokens); n++ {
-			if _, _, accepted := refRun(tab, tokenIDs(f.lattice(n))); !accepted {
-				f.cut = n // the first prefix the reference refuses: a whole term is a program
-				break
-			}
-		}
-		files = append(files, f)
+	return paths
+}
+
+func readFile(t *testing.T, p string) []byte {
+	t.Helper()
+	src, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return tab, files
+	return src
 }
 
 // deadNode is the first node of c with no Earley set, or -1.

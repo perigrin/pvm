@@ -279,7 +279,7 @@ func TestGeneratorRefusalWritesNothing(t *testing.T) {
 // The slots of perlyClasses are the lexed terminals perly.y declares (testdata/perly/declared-tokens.txt,
 // which offline/perly-tokens.sh prints), in the order it first
 // declares them (%token, %left, %right, %nonassoc), less the ones needing no class, and beside them the fitted cast
-// terminals and nothing else, each declared once.
+// terminals and nothing else, each declared once. The file names each token once.
 func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
 	declared, err := os.ReadFile("testdata/perly/declared-tokens.txt")
 	if err != nil {
@@ -288,11 +288,16 @@ func TestClassSlotsAreThePerlyYTokens(t *testing.T) {
 	var want []string
 	seen := map[string]bool{}
 	for _, name := range strings.Fields(string(declared)) {
-		if seen[name] || strings.HasPrefix(name, "GRAM") || strings.HasPrefix(name, "PLUGIN_") ||
-			slices.Contains([]string{"PLUGEXPR", "PLUGSTMT", "PREC_LOW", "UMINUS"}, name) {
+		if seen[name] {
+			// perly-tokens.sh prints each name once, so a repeat was edited in by hand.
+			t.Errorf("declared-tokens.txt names %s more than once", name)
 			continue
 		}
 		seen[name] = true
+		if strings.HasPrefix(name, "GRAM") || strings.HasPrefix(name, "PLUGIN_") ||
+			slices.Contains([]string{"PLUGEXPR", "PLUGSTMT", "PREC_LOW", "UMINUS"}, name) {
+			continue
+		}
 		want = append(want, name)
 	}
 	src, err := os.ReadFile("perly.go")
