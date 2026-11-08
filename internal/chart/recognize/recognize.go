@@ -54,9 +54,8 @@ type Recognizer struct {
 	// is the most trie distances one lookup examined, for the test of its bound.
 	stored, longestScan int
 	leo                 map[[2]int]int // (state, symbol) to the LHS of its Leo item
-	// expected memoizes Expected by set id (expected.go); expectedComputed
-	// counts the computations, for the test of the memo.
-	expected         map[int][]expectedEntry
+	// expectedComputed counts Expected's computations, for the test of its
+	// memo, which lives in the cache's trie (expected.go).
 	expectedComputed int
 	// semi is PERLY_SEMICOLON's symbol id, and closes marks the classes
 	// holding PERLY_BRACE_CLOSE: the ruby slipper's (slipper.go). -1 and
@@ -67,7 +66,7 @@ type Recognizer struct {
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}, expected: map[int][]expectedEntry{}}
+	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
 	terminal := func(name string) int {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
 	}
