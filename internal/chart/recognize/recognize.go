@@ -48,8 +48,12 @@ type Recognizer struct {
 	// then the end of input at id len(terms).
 	bits  []bitset
 	sets  interner
-	cache map[cacheKey][]cacheEntry
-	leo   map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	cache map[cacheKey]*cacheNode // each key's trie root
+	trie  map[cacheEdge]*cacheNode
+	// stored counts the cache's stores, to order its entries; longestScan
+	// is the most trie distances one lookup examined, for the test of its bound.
+	stored, longestScan int
+	leo                 map[[2]int]int // (state, symbol) to the LHS of its Leo item
 	// expected memoizes Expected by set id (expected.go); expectedComputed
 	// counts the computations, for the test of the memo.
 	expected         map[int][]expectedEntry
@@ -63,7 +67,7 @@ type Recognizer struct {
 
 // New is a recognizer over tab.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey][]cacheEntry{}, expected: map[int][]expectedEntry{}}
+	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}, expected: map[int][]expectedEntry{}}
 	terminal := func(name string) int {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
 	}
