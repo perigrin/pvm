@@ -54,7 +54,6 @@ var parserFields = map[string]int{
 	"syntax":         snapshotted,
 	"libraryOps":     snapshotted,
 	"libraryInfix":   snapshotted,
-	"libraryFrom":    snapshotted,
 	"noIndirect":     snapshotted,
 	"symbolsOpen":    snapshotted,
 	"inBegin":        snapshotted,
@@ -109,7 +108,6 @@ func (p *parser) clone() parser {
 	c.syntax = maps.Clone(p.syntax)
 	c.libraryOps = slices.Clone(p.libraryOps)
 	c.libraryInfix = maps.Clone(p.libraryInfix)
-	c.libraryFrom = slices.Clone(p.libraryFrom)
 	c.packages = maps.Clone(p.packages)
 	c.listed = maps.Clone(p.listed)
 	c.lexical = maps.Clone(p.lexical)

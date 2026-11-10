@@ -35,6 +35,7 @@ var unexportedMutations = map[string]func(root *Node){
 	"declErrs":         func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
 	"declWarns":        func(r *Node) { r.declWarns = append(r.declWarns, errors.New("odd")) },
 	"imports":          func(r *Node) { r.imports = map[string]Import{"f": {Name: "f"}} },
+	"libraryNames":     func(r *Node) { r.libraryNames = []string{"plus"} },
 	"libraryOperators": func(r *Node) { r.libraryOperators = []LibraryOperator{{Name: "plus"}} },
 }
 

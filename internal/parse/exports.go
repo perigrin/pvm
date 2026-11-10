@@ -584,8 +584,9 @@ type LibraryOperator struct {
 	// Info is its binding power and associativity as the parser placed it.
 	Info OpInfo
 
-	// From is the byte offset where the `use` statement that brought it
-	// into scope starts.
+	// From is the byte offset where the statement that brought it into scope
+	// starts: the `use`, or for `BEGIN { require M; M->import(LIST) }` the
+	// BEGIN.
 	From int
 }
 
@@ -601,16 +602,39 @@ func LibraryOperators(root *Node) []LibraryOperator {
 	return slices.Clone(root.libraryOperators)
 }
 
-// libraryOperators lists libraryOps as the parser placed them. A `use` the
-// parser read twice while backtracking (a `try` block with no `catch`) put
-// its operators in libraryOps twice, and is listed once.
-func (p *parser) libraryOperators() []LibraryOperator {
+// libraryNamesSince names the operators libraryOps gained after its first n.
+func (p *parser) libraryNamesSince(n int) []string {
+	var names []string
+	for _, op := range p.libraryOps[n:] {
+		names = append(names, op.name)
+	}
+	return names
+}
+
+// libraryOperatorsIn lists the operators the statements under n brought into
+// scope, with the level the parser holds for each now and the byte the
+// statement starts at. A statement the parser read and threw away while
+// backtracking is not in the tree, so its operators are not listed.
+func (p *parser) libraryOperatorsIn(n *Node) []LibraryOperator {
+	if len(p.libraryOps) == 0 {
+		return nil
+	}
 	var out []LibraryOperator
-	for i, op := range p.libraryOps {
-		lo := LibraryOperator{Name: op.name, Class: op.class, Info: p.libraryInfix[op.name], From: p.libraryFrom[i]}
-		if !slices.Contains(out, lo) {
-			out = append(out, lo)
+	var walk func(*Node)
+	walk = func(n *Node) {
+		for _, name := range n.libraryNames {
+			var class string
+			for _, op := range p.libraryOps {
+				if op.name == name {
+					class = op.class
+				}
+			}
+			out = append(out, LibraryOperator{Name: name, Class: class, Info: p.libraryInfix[name], From: n.Start})
+		}
+		for _, c := range n.Children {
+			walk(c)
 		}
 	}
+	walk(n)
 	return out
 }

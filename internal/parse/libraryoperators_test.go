@@ -3,6 +3,7 @@
 package parse
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -86,10 +87,41 @@ func TestLibraryOperatorsExportFromIsUseStart(t *testing.T) {
 		"# a comment\nuse My::Lib;\n1 plus 2;\nplus 1;": 12,
 		"#line 100\nuse My::Lib;\n1 plus 2;":            10,
 		"  use   My::Lib  ;1 plus 2;":                   2,
+		// An import from a BEGIN block is the BEGIN's, not the import call's.
+		"1;\nBEGIN { require My::Lib; My::Lib->import; }\n1 plus 2;": 3,
 	} {
 		got := libraryOpsOf(t, src)
 		if len(got) != 1 || got[0].From != from {
 			t.Errorf("%q: got %+v, want From %d", src, got, from)
+		}
+	}
+}
+
+// TestLibraryOperatorsExportSurvivesRepair: an edit before a `use` moves the
+// use, and Session.Repair gives the From a fresh parse does, whether the
+// edit grows or shrinks the text, and for a `use` in a sub and one at top level.
+func TestLibraryOperatorsExportSurvivesRepair(t *testing.T) {
+	useLibraryFixture(t)
+	src := "sub f {\n  1;\n}\nsub g {\n  use My::Lib;\n  3;\n}\nuse My::Lib;\n"
+	path := filepath.Join("testdata", "incremental", "edit.pl")
+	for _, e := range []Edit{
+		{Start: 12, OldEnd: 13, NewText: "55555"},
+		{Start: 12, OldEnd: 13, NewText: ""},
+	} {
+		edited := src[:e.Start] + e.NewText + src[e.OldEnd:]
+		s := NewSession()
+		old := s.ParseSourceFrom(path, []byte(src))
+		tree, ok := s.Repair(old, e, path, []byte(edited))
+		if !ok {
+			t.Fatalf("edit %+v: Repair declined", e)
+		}
+		fresh := NewSession().ParseSourceFrom(path, []byte(edited))
+		if d := TreeDiff(tree, fresh); d != "" {
+			t.Errorf("edit %+v: repaired != fresh: %s", e, d)
+		}
+		got, want := LibraryOperators(tree), LibraryOperators(fresh)
+		if len(want) != 2 || !slices.Equal(got, want) {
+			t.Errorf("edit %+v: From %+v, fresh %+v", e, got, want)
 		}
 	}
 }

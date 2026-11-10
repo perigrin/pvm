@@ -31,6 +31,7 @@ var treeDiffByName = map[string]func(a, b *Node) bool{
 	"declWarns":        func(a, b *Node) bool { return slices.Equal(errorTexts(a.declWarns), errorTexts(b.declWarns)) },
 	"imports":          func(a, b *Node) bool { return reflect.DeepEqual(a.imports, b.imports) },
 	"libraryOperators": func(a, b *Node) bool { return slices.Equal(a.libraryOperators, b.libraryOperators) },
+	"libraryNames":     func(a, b *Node) bool { return slices.Equal(a.libraryNames, b.libraryNames) },
 	"nestedParen":      func(a, b *Node) bool { return a.nestedParen == b.nestedParen },
 }
 
