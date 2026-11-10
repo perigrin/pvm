@@ -99,6 +99,58 @@ over three runs; 4 cores, bison 3.8.2, gcc 13.3), nearly all of it the two
 bison and cc builds. On 2026-11-04, with other jobs running, it took 1.1 to
 1.5 s over three runs (the first, cold, 5.8 s) and `build.sh` alone 0.9 s.
 
+### The generated sentences (spec §8)
+
+`sh internal/chart/offline/referee/sentences.sh /opt/corpora/perl5 <outdir>`
+generates the precedence referee's sentences. It refuses, exiting 1, a tree
+whose HEAD is not 94e50866 or that has changes (`git status --porcelain`),
+and any bison but 3.8.2. It writes into `<outdir>`:
+
+- `bison-conflicts.txt`: every `Conflict between rule N and token T resolved
+  as …` line of bison's report of the pinned `perly.y`, verbatim, in report
+  order. Bison 3.8.2's `-v` alone no longer prints them; the script runs
+  `bison -v --report=solved`. Each line is one (rule, token) resolution, the
+  unit of coverage; 1,347 at 94e50866.
+- `resolutions.txt`: per resolution, in the same order, tab-separated: rule,
+  token, action (`shift`, `reduce`, `error`) and the comma-separated ids of
+  the sentences covering it, or `-`.
+- `sentences.txt`: per sentence, tab-separated: id, its `perly.y` terminals,
+  `referee-prec`'s verdict and its grouping (`-g`, above).
+- `uncovered-reviewed.txt`: a proposal, the resolutions no sentence covers
+  under `reason: generation timed out`.
+
+**A sentence** is a string of terminals on which `referee-prec` and
+`referee-noprec` differ in verdict or grouping. **A resolution is covered**
+by a sentence on which `referee-prec` (built again with `YYDEBUG` to trace its
+states) enters the conflict's state with that token next, and the referees
+differ. An error resolution is covered only together with an **accepted
+neighbour**: a sentence `referee-prec` accepts that reaches the same state
+with another token next, on which the referees also differ (`++$x++` beside
+`++$x .. $y`).
+
+**The search** (`referee/sentences.pl`) runs over the LR(0) automaton of the
+referee grammar, the same with and without precedence: shortest paths over
+(state, item) from `grammar`'s alternatives, `GRAMPROG`'s preferred, where a
+step reads a symbol (its shortest yield) or descends into a rule, paying for
+the rest of the rule it leaves. Its candidates for a resolution are the
+state's shift items reading the token, and the rule reduced with the token
+next, each completed by shortest yields, shortest first. Rules that refuse in
+an action or read `error` stand in no yield. **The bound** is 12 candidates
+per resolution, a count rather than a clock so that a run is reproducible; a
+resolution whose candidates within it all fail is proposed as `generation
+timed out`. At 94e50866 none is: every resolution is covered, by 1,345
+sentences.
+
+Committed under `internal/chart/testdata/precedence/` are the first three
+files, byte for byte as the script writes them, and `uncovered-reviewed.txt`
+once reviewed (`reason: the rendering cannot reach it` is the rendering's,
+spec §8). `TestPrecedenceFixturesWellFormed` reads them and never runs bison.
+
+Cost (K6): 2 min wall clock end to end on the 4-core machine (122 s and
+164 s over two runs on 2026-11-10, load about 15 from other workers; 52 s
+of user time), nearly all of it running the referees on the candidates. Two
+runs wrote byte-identical files (`cmp`).
+
 ## tdt-capture.sh
 
 `sh internal/chart/offline/tdt-capture.sh <perl> <file>` runs `<perl> -c -DpT
