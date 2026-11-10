@@ -5,6 +5,9 @@ set -eu
 
 perl=${1:?usage: TDT_FIXTURES=<dir> T1_CORPUS=<PerlOnJava unit dir> tdt-align.sh <debugging-perl>}
 t1=${T1_CORPUS:?set T1_CORPUS to PerlOnJava 73be162b src/test/resources/unit}
+t1commit=$(git -C "$t1" rev-parse --short=8 HEAD)
+[ "$t1commit" = 73be162b ] || { echo "tdt-align.sh: T1_CORPUS=$t1 is at PerlOnJava $t1commit, not 73be162b" >&2; exit 1; }
+[ -z "$(git -C "$t1" status --porcelain)" ] || { echo "tdt-align.sh: T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean" >&2; exit 1; }
 # The corpus fixtures are too large to commit (perigrin: "Don't commit fixtures"); they live outside the tree.
 out=${TDT_FIXTURES:?set TDT_FIXTURES to the directory the corpus fixtures go to}
 top=$(git rev-parse --show-toplevel)
@@ -55,7 +58,6 @@ for f in internal/chart/testdata/guacamole/parses/*.pl internal/chart/testdata/g
 	internal/chart/testdata/std5k.pl internal/psc/testdata/latency/edit5k.pl; do
 	capture "$top" internal/chart/testdata/guacamole/stubs "$f" "$f"
 done
-[ -z "$(git -C "$t1" status --porcelain -- .)" ] || { echo "tdt-align.sh: T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean" >&2; exit 1; }
 t1top=$(git -C "$t1" rev-parse --show-toplevel)
 t1root=$(git -C "$t1" rev-parse --show-prefix)
 for f in $(cd "$t1" && ls -- *.t); do

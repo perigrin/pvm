@@ -34,7 +34,7 @@ ccflags=$(config ccflags)
 case " $ccflags " in *" -DDEBUGGING "*) ;; *) die "$perl is not a -DDEBUGGING build" ;; esac
 t1commit=$(git -C "$t1" rev-parse --short=8 HEAD)
 [ "$t1commit" = 73be162b ] || die "T1_CORPUS is at PerlOnJava $t1commit, not 73be162b"
-[ -z "$(git -C "$t1" status --porcelain -- .)" ] || die "T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean"
+[ -z "$(git -C "$t1" status --porcelain)" ] || die "T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean"
 
 for v in prec noprec; do [ -x "$referee/referee-$v" ] || die "no $referee/referee-$v; run referee/build.sh"; done
 [ -d "$fixtures" ] || die "TDT_FIXTURES=$fixtures is not a directory; run tdt-align.sh"
