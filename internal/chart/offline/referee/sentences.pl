@@ -16,6 +16,7 @@ die "usage: sentences.pl <workdir> <outdir>\n" unless defined $out;
 # `generation timed out`. A count, not a clock, so a run is reproducible.
 my $BOUND = 12;
 my $OTHERSTART = 1000;    # the cost of a sentence not starting with GRAMPROG
+my $REFUSING   = 50;      # the cost of descending into a rule that refuses in an action
 
 sub slurp { open my $f, '<', $_[0] or die "sentences.pl: $_[0]: $!\n"; local $/; <$f> }
 
@@ -179,21 +180,18 @@ sub search {
 			$push->(join(' ', $goto{$p}{$x}, $r, $i + 1, $f), $d + $len, $node, [ 'read', $x ]) if defined $len && defined $goto{$p}{$x};
 			next unless $nonterm{$x};
 			my @rest = @s[ $i + 1 .. $#s ];
+			my $n = slen(@rest);
+			my $y = defined $n ? [ map { yield($_) } @rest ] : undef;
+			my $fs = defined $t && !$f ? fseq($t, @rest) : undef;
 			for my $r2 (@{ $rules_of{$x} }) {
 				next if grep { $_ eq 'error' } @{ $rhs[$r2] };
-				my $pen = $refusing[$r2] ? 50 : 0;
-				if (!defined $t) {
-					my $n = slen(@rest);
-					$push->("$p $r2 0 0", $d + $n + $pen, $node, [ 'rest', [ map { yield($_) } @rest ] ]) if defined $n;
-				} elsif ($f) {
-					my $n = slen(@rest);
+				my $pen = $refusing[$r2] ? $REFUSING : 0;
+				if ($f) {
 					$push->("$p $r2 0 1", $d + $pen, $node, [ 'rest', [] ]) if defined $n && $n == 0;
-				} else {
-					my $n = slen(@rest);
-					$push->("$p $r2 0 0", $d + $n + $pen, $node, [ 'rest', [ map { yield($_) } @rest ] ]) if defined $n;
-					my $fs = fseq($t, @rest);
-					$push->("$p $r2 0 1", $d + $fs->[0] + $pen, $node, [ 'rest', $fs->[1] ]) if $fs;
+					next;
 				}
+				$push->("$p $r2 0 0", $d + $n + $pen, $node, [ 'rest', $y ]) if defined $n;
+				$push->("$p $r2 0 1", $d + $fs->[0] + $pen, $node, [ 'rest', $fs->[1] ]) if $fs;
 			}
 		}
 	}

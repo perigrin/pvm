@@ -146,10 +146,10 @@ files, byte for byte as the script writes them, and `uncovered-reviewed.txt`
 once reviewed (`reason: the rendering cannot reach it` is the rendering's,
 spec §8). `TestPrecedenceFixturesWellFormed` reads them and never runs bison.
 
-Cost (K6): 2 min wall clock end to end on the 4-core machine (122 s and
-164 s over two runs on 2026-11-10, load about 15 from other workers; 52 s
-of user time), nearly all of it running the referees on the candidates. Two
-runs wrote byte-identical files (`cmp`).
+Cost (K6): about 75 s wall clock end to end on the 4-core machine (75 s on
+2026-11-10, load about 15 from other workers; 25 s of user time, 48 s of
+system time), most of it starting the referees on the candidates. Three runs
+wrote byte-identical files (`cmp`).
 
 ## tdt-capture.sh
 
