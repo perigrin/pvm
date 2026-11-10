@@ -4,8 +4,12 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"math"
+	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -140,5 +144,43 @@ func TestLexOverheadKeys(t *testing.T) {
 				t.Errorf("files timed in order %v, want %v (the LSP buffers, then the aggregate)", order, want)
 			}
 		})
+	}
+}
+
+// TestLexOverheadStableUnderLoad reproduces LEXLOAD's established cause: under
+// load the measuring thread waits for a CPU for most of a pass, in delays
+// that land per unit of work at random, so a short pass's wall time is
+// decided by the scheduler rather than by the work. The fake chart does 1.15
+// times the reference's work, 11.5 ms against 10 ms a buffer; one 100 µs
+// tick of work in 50 waits an exponential delay averaging 10 ms, so a pass's
+// wall time is about three times its work, in a few large delays. Over 20 seeds lex-overhead must stay within
+// 1.3.
+func TestLexOverheadStableUnderLoad(t *testing.T) {
+	const tick = 100 * time.Microsecond
+	var bad []string
+	for seed := range uint64(20) {
+		rng := rand.New(rand.NewPCG(seed, 1))
+		var now time.Duration
+		side := func(ticks int) Side {
+			return func() Runner {
+				return func(string) {
+					for range ticks {
+						now += tick
+						if rng.IntN(50) == 0 {
+							now += time.Duration(rng.ExpFloat64() * float64(100*tick))
+						}
+					}
+				}
+			}
+		}
+		p := Protocol{Chart: side(115), Ref: side(100), Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
+		m := map[string]string{}
+		lexOverheadKeys(p, []string{"a.pl"}, m)
+		if v, err := strconv.ParseFloat(m["lex-overhead"], 64); err != nil || v > lexOverheadMax {
+			bad = append(bad, fmt.Sprintf("seed %d: %s", seed, m["lex-overhead"]))
+		}
+	}
+	if len(bad) > 0 {
+		t.Errorf("work ratio 1.15 under scheduling delays read above %g on %d of 20 seeds: %v", lexOverheadMax, len(bad), bad)
 	}
 }
