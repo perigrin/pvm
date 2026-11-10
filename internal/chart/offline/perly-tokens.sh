@@ -9,6 +9,7 @@ case $head in
 $pin*) ;;
 *) echo "perly-tokens.sh: $1 is at $head, not the pinned perly.y revision $pin" >&2; exit 1 ;;
 esac
+[ -z "$(git -C "$1" status --porcelain)" ] || { echo "perly-tokens.sh: $1 has uncommitted changes; the pinned tree must be clean" >&2; exit 1; }
 # The declaration section ends at the first %%; <type> tags are dropped.
 awk '
 /^%%/ { exit }

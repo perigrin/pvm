@@ -9,6 +9,7 @@ case $head in
 $pin*) ;;
 *) echo "build.sh: $1 is at $head, not the pinned perly.y revision $pin" >&2; exit 1 ;;
 esac
+[ -z "$(git -C "$1" status --porcelain)" ] || { echo "build.sh: $1 has uncommitted changes; the pinned tree must be clean" >&2; exit 1; }
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$2"
 for v in prec noprec; do

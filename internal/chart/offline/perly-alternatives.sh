@@ -4,11 +4,21 @@
 set -eu
 
 NEED=3.8.2
+PIN=94e50866
 
 if [ $# -ne 1 ]; then
 	echo "usage: perly-alternatives.sh <perl5-tree>" >&2
 	exit 2
 fi
+head=$(git -C "$1" rev-parse HEAD)
+case $head in
+"$PIN"*) ;;
+*)
+	echo "perly-alternatives.sh: $1 is at $head, not the pinned perly.y revision $PIN" >&2
+	exit 1
+	;;
+esac
+[ -z "$(git -C "$1" status --porcelain)" ] || { echo "perly-alternatives.sh: $1 has uncommitted changes; the pinned tree must be clean" >&2; exit 1; }
 # Another bison may number alternatives or word its report differently.
 got=$(bison --version | sed -n '1s/.* //p')
 if [ "$got" != "$NEED" ]; then

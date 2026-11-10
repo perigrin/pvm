@@ -5,5 +5,6 @@ T1/core_global_time_overrides.t 102 01a1a445-61f0-73c8-81db-1cc65a3620f5
 T1/dynamic_constant_sub_inlining.t 114 01a1a445-61f0-73c8-81db-1cc65a3620f5
 T1/global_code_runtime_semantics.t 602 01a1ad1d-bc96
 T1/nested_heredoc.t 1829 01a1a846-5aea
+T1/operator_overrides.t 5679 01a1ad1d-bc96
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-013.pl 33 01a1a481-ebef
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-015.pl 33 01a1a481-ebef
