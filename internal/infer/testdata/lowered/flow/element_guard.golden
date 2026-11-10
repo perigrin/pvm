@@ -1,2 +1,2 @@
-sym $a[0] Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|BlessedRef|Object|NaN|Inf
+sym $a[0] Boolean|Str|DualVar|Ref
 sym @a Array

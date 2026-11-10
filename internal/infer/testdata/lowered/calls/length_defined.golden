@@ -1,4 +1,4 @@
 sym $d Boolean
 sym $l Int
-sym $n Int|Num|Inf
+sym $n Num|Inf
 sym $s Str

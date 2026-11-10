@@ -1,2 +1,2 @@
-sym $n Int|Num|Inf
+sym $n Num|Inf
 sym @a Array
