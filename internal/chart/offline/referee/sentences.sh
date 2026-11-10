@@ -31,3 +31,20 @@ for v in prec noprec; do
 		--report-file="$d/$v.output" -o "$d/report-$v.c" "$d/referee-$v.y"
 done
 perl "$here/sentences.pl" "$d" "$2"
+
+# Check every sentence written apart from the search: the referees differ on
+# it in verdict (accept or refuse) or, where both accept, in grouping.
+bad=0
+while IFS='	' read -r id toks verdict grouping; do
+	case $id in '' | '#'*) continue ;; esac
+	p=$(printf '%s\n' $toks | "$d/referee-prec" -g)
+	n=$(printf '%s\n' $toks | "$d/referee-noprec" -g)
+	pv=${p%%
+*} nv=${n%%
+*}
+	[ "$pv" = accept ] || pv=refuse
+	[ "$nv" = accept ] || nv=refuse
+	[ "$pv" != "$nv" ] || { [ "$pv" = accept ] && [ "$p" != "$n" ]; } ||
+		{ echo "sentences.sh: $id: the referees agree ($pv)" >&2; bad=1; }
+done <"$2/sentences.txt"
+[ "$bad" -eq 0 ] || exit 1
