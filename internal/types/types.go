@@ -5,6 +5,8 @@ package types
 
 import (
 	"fmt"
+	"math/bits"
+	"sort"
 	"strings"
 )
 
@@ -192,8 +194,10 @@ var allLeafBits = []struct {
 }
 
 // String returns the human-readable name for the type. Known masks return
-// their canonical name (e.g. "Scalar", "Ref", "Num"). Unknown arbitrary
-// unions return a deterministic "A|B|C" representation in bit-position order.
+// their canonical name (e.g. "Scalar", "Ref", "Num"). Any other union prints
+// the largest named families it holds whole, then the leaves left over --
+// `Undef|Num`, not `Undef|Int|Num` -- so a family it holds reads back as
+// itself through FromName. Parts appear in display order (allLeafBits).
 func (t Type) String() string {
 	// Fast path: exact match in named mask table.
 	if name, ok := typeNames[t]; ok {
@@ -206,25 +210,83 @@ func (t Type) String() string {
 		return "None"
 	}
 
-	// Decompose into leaf bit names for arbitrary unions.
-	var parts []string
+	type part struct {
+		name string
+		pos  int
+	}
+	var parts []part
 	remaining := t
-	for _, leaf := range allLeafBits {
+	for _, f := range families {
+		if f.mask&^remaining == 0 {
+			parts = append(parts, part{f.name, f.pos})
+			remaining &^= f.mask
+		}
+	}
+	for i, leaf := range allLeafBits {
 		if remaining&leaf.bit != 0 {
-			parts = append(parts, leaf.name)
+			parts = append(parts, part{leaf.name, i})
 			remaining &^= leaf.bit
 		}
 	}
+	sort.SliceStable(parts, func(i, j int) bool { return parts[i].pos < parts[j].pos })
+
+	names := make([]string, 0, len(parts)+1)
+	for _, p := range parts {
+		names = append(names, p.name)
+	}
 	if remaining != 0 {
 		// Unrecognized bits.
-		parts = append(parts, fmt.Sprintf("0x%x", uint32(remaining)))
+		names = append(names, fmt.Sprintf("0x%x", uint32(remaining)))
 	}
 
-	if len(parts) == 0 {
+	if len(names) == 0 {
 		return "Unknown"
 	}
-	return strings.Join(parts, "|")
+	return strings.Join(names, "|")
 }
+
+// families lists the named multi-bit masks, largest first (ties by name), for
+// String to take whole. pos is where the family prints: at its own leaf if it
+// has one by its name (Num, Str, BlessedRef), else at its first leaf.
+var families = func() []struct {
+	mask Type
+	name string
+	pos  int
+} {
+	var fs []struct {
+		mask Type
+		name string
+		pos  int
+	}
+	for mask, name := range typeNames {
+		if mask == Unknown || mask == None || bits.OnesCount32(uint32(mask)) < 2 {
+			continue
+		}
+		pos := -1
+		for i, leaf := range allLeafBits {
+			if leaf.name == name {
+				pos = i
+				break
+			}
+			if pos < 0 && mask&leaf.bit != 0 {
+				pos = i
+			}
+		}
+		fs = append(fs, struct {
+			mask Type
+			name string
+			pos  int
+		}{mask, name, pos})
+	}
+	sort.Slice(fs, func(i, j int) bool {
+		ci, cj := bits.OnesCount32(uint32(fs[i].mask)), bits.OnesCount32(uint32(fs[j].mask))
+		if ci != cj {
+			return ci > cj
+		}
+		return fs[i].name < fs[j].name
+	})
+	return fs
+}()
 
 // IsSubtype reports whether child is a subtype of parent in the type lattice.
 //

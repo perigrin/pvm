@@ -1,4 +1,4 @@
 sym $x BlessedRef
-sym $x Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|BlessedRef|Object|NaN|Inf
+sym $x Boolean|Str|DualVar|Ref
 sym $x Scalar
 sym $x Undef
