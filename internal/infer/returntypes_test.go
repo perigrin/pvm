@@ -2429,7 +2429,7 @@ func TestIOSelectTakesDocumentedHandles(t *testing.T) {
 	// plain Int fd and an ArrayRef, beside whatever FileHandle it
 	// already held.
 	wantsDocumentedHandles := func(name string, typ types.Type) {
-		assert.True(t, types.IsSubtype(types.Object, typ), "IO::Select::%s excludes Object", name)
+		assert.True(t, types.IsSubtype(types.BlessedRef, typ), "IO::Select::%s excludes Object", name)
 		assert.True(t, types.IsSubtype(types.Int, typ), "IO::Select::%s excludes Int", name)
 		assert.True(t, types.IsSubtype(types.ArrayRef, typ), "IO::Select::%s excludes ArrayRef", name)
 	}
@@ -2538,7 +2538,7 @@ func TestTieHashInheritedMethodsReturn(t *testing.T) {
 		require.Equal(t, name, label)
 		assert.NotEmpty(t, ref, "Tie::Hash::%s via subclass dispatch did not return a blessed ref", name)
 		require.Len(t, sigs[name], 1, "Tie::Hash::%s", name)
-		assert.Equal(t, types.Object, sigs[name][0].Returns, "Tie::Hash::%s is not declared Object", name)
+		assert.Equal(t, types.BlessedRef, sigs[name][0].Returns, "Tie::Hash::%s is not declared Object", name)
 	}
 
 	label, rest, ok := strings.Cut(lines[2], "\t")
@@ -2983,7 +2983,7 @@ func TestIOSocketMethodsReturnSocketOrUndef(t *testing.T) {
 		}
 		require.Len(t, cands, 1)
 		s := cands[0]
-		assert.True(t, types.IsSubtype(types.Object, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
+		assert.True(t, types.IsSubtype(types.BlessedRef, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
 		assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::%s should admit Undef: perl returns undef on failure (measured)", name)
 	}
 }

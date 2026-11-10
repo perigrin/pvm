@@ -8,6 +8,6 @@ TAP/Parser/Iterator/Process.pm:249:30: warning: left operand of "==": expected N
 Term/ANSIColor.pm:533:46: error: left operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
 Term/ANSIColor.pm:538:16: error: left operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
 Term/Complete.pm:118:16: error: left operand of "ne": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
-Text/Tabs.pm:51:47: error: call to split: argument 2 expects Str, got Undef|Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|Object|Array|NaN|Inf [type-mismatch]
+Text/Tabs.pm:51:47: error: call to split: argument 2 expects Str, got Undef|Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|BlessedRef|Object|Array|NaN|Inf [type-mismatch]
 perl5db.pl:2518:21: error: right operand of ".": expected Str, got Undef|Int|Num|Str|NaN|Inf [coercion-mismatch]
 x86_64-linux-thread-multi/Sys/Syslog.pm:507:25: error: right operand of "-": expected Num, got Undef [coercion-mismatch]

@@ -106,12 +106,12 @@ multi sub setitimer :export_ok :prototype($$;$) (Int $which, Num $seconds, Num $
 # list and perl -w is silent. So a handle or an object is one candidate,
 # required, and a path the other, which an omitted argument and a stray
 # reference select.
-multi sub lstat :export_ok :prototype(;$) (FileHandle|Object $file) List;
-multi sub lstat :export_ok :prototype(;$) (FileHandle|Object $file) Boolean;
+multi sub lstat :export_ok :prototype(;$) (FileHandle|BlessedRef $file) List;
+multi sub lstat :export_ok :prototype(;$) (FileHandle|BlessedRef $file) Boolean;
 multi sub lstat :export_ok :prototype(;$) (Optional[Str] $file) List;
 multi sub lstat :export_ok :prototype(;$) (Optional[Str] $file) Boolean;
-multi sub stat :export_ok :prototype(;$) (FileHandle|Object $file) List;
-multi sub stat :export_ok :prototype(;$) (FileHandle|Object $file) Boolean;
+multi sub stat :export_ok :prototype(;$) (FileHandle|BlessedRef $file) List;
+multi sub stat :export_ok :prototype(;$) (FileHandle|BlessedRef $file) Boolean;
 multi sub stat :export_ok :prototype(;$) (Optional[Str] $file) List;
 multi sub stat :export_ok :prototype(;$) (Optional[Str] $file) Boolean;
 

@@ -122,7 +122,7 @@ func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) 
 	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
 		name := "$" + v.Name
 		sym, _ := a.st.Lookup(name)
-		a.st.UpdateType(name, (sym.Type&types.Object)|ref)
+		a.st.UpdateType(name, (sym.Type&types.BlessedRef)|ref)
 		a.markLoopDeref(base, name)
 	}
 }

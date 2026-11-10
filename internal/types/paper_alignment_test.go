@@ -72,7 +72,7 @@ func TestPaperNaNInfDistinct(t *testing.T) {
 // cannot be treated as a value that satisfies both.
 
 func TestPaperUnionIsEither(t *testing.T) {
-	objOrHash := types.Object | types.HashRef
+	objOrHash := types.BlessedRef | types.HashRef
 
 	// Every member is a Ref, so the union is a Ref.
 	assert.True(t, types.IsSubtype(objOrHash, types.Ref),
@@ -83,7 +83,7 @@ func TestPaperUnionIsEither(t *testing.T) {
 	// But it satisfies NEITHER member requirement: the value might be the
 	// other one. Calling a method on it is unsound if it is the plain
 	// hashref, and dereferencing it as a hash is unsound if it is the object.
-	assert.False(t, types.TypeSatisfies(objOrHash, types.Object),
+	assert.False(t, types.TypeSatisfies(objOrHash, types.BlessedRef),
 		"Object|HashRef does NOT satisfy Object — the value might be the plain hashref")
 	assert.False(t, types.TypeSatisfies(objOrHash, types.HashRef),
 		"Object|HashRef does NOT satisfy HashRef — the value might be the object")
@@ -101,7 +101,7 @@ func TestPaperBottomTopTypes(t *testing.T) {
 		types.Undef, types.Boolean, types.Int, types.Num, types.Str,
 		types.DualVar, types.NaN, types.Inf, types.Regex,
 		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
-		types.GlobRef, types.Object, types.Ref,
+		types.GlobRef, types.BlessedRef, types.Ref,
 		types.Array, types.Hash, types.List,
 		types.Code, types.Glob, types.IO, types.FileHandle,
 		types.Scalar, types.Any,
@@ -173,11 +173,11 @@ func TestPaperArityOrdering(t *testing.T) {
 // than a sibling of Ref, and it participates in method dispatch.
 
 func TestPaperRegexIsObject(t *testing.T) {
-	assert.True(t, types.IsSubtype(types.Regex, types.Object),
+	assert.True(t, types.IsSubtype(types.Regex, types.BlessedRef),
 		"Regex <: Object — a compiled pattern is a blessed reference")
 	assert.True(t, types.IsSubtype(types.Regex, types.Ref),
 		"Regex <: Ref — transitive through Object")
-	assert.True(t, types.IsSubtype(types.Object, types.Ref),
+	assert.True(t, types.IsSubtype(types.BlessedRef, types.Ref),
 		"Object <: Ref")
 
 	// Regex is NOT a Str: syntactic preservation fails because qr// applied to
@@ -218,8 +218,8 @@ func TestPaperEveryHierarchyEdge(t *testing.T) {
 		{types.Inf, types.Str},
 
 		// Ref branch.
-		{types.Object, types.Ref},
-		{types.Regex, types.Object},
+		{types.BlessedRef, types.Ref},
+		{types.Regex, types.BlessedRef},
 		{types.ScalarRef, types.Ref},
 		{types.ArrayRef, types.Ref},
 		{types.HashRef, types.Ref},
@@ -251,8 +251,8 @@ func TestPaperEdgesAreProper(t *testing.T) {
 		{types.Num, types.Str},
 		{types.Str, types.Scalar},
 		{types.Scalar, types.List},
-		{types.Regex, types.Object},
-		{types.Object, types.Ref},
+		{types.Regex, types.BlessedRef},
+		{types.BlessedRef, types.Ref},
 		{types.Ref, types.Scalar},
 		{types.Array, types.List},
 		{types.Hash, types.List},

@@ -17,8 +17,9 @@ Int <: Num <: Str <: Scalar <: List
 Every integer is a number, every number stringifies, and every scalar is
 a one-element list. Alongside these sit `Undef`, `Boolean`, the reference
 types (`ScalarRef`, `ArrayRef`, `HashRef`, `CodeRef`, `GlobRef`,
-`Object`), the containers `Array` and `Hash`, and `IO`, what a
-filehandle's IO slot holds. A filehandle is a `FileHandle`: a bareword
+`BlessedRef` -- any blessed reference, with `Object`, an instance of a
+`class`, and `Regex`, a `qr//`, under it), the containers `Array` and
+`Hash`, and `IO`, what a filehandle's IO slot holds. A filehandle is a `FileHandle`: a bareword
 handle (`Glob`), a lexical one (`GlobRef`) or an `IO`.
 
 A check such as `defined($x)` or `ref($x)` narrows a value's type inside
@@ -100,7 +101,7 @@ type the builtin returns. The prototype comes from the types, so
 `bless` needs no `:prototype($;$)`:
 
 ```perl
-sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+sub bless (Ref $ref, Str $class = __PACKAGE__) BlessedRef;
 ```
 
 A library's declaration file is typed the same way, and `psc check`

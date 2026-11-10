@@ -378,16 +378,16 @@ sub sockatmark :export_ok (FileHandle $handle) Str|Undef;
 # string ... as a symbol ref" when it is the bare class name; they are
 # declared and held to their prototype and exports only (see
 # oracleExempt).
-sub new (Str $class: List @args) Object|Undef;
-sub socket (Object $self: Int $domain, Int $type, Int $protocol) Object|Undef;
-sub connect (Object $self: Str $addr) Object|Undef;
-sub bind (Object $self: Str $addr) Object|Undef;
-sub listen (Object $self: Optional[Int|Undef] $queue) Object|Undef;
-multi sub accept (Object $self: Optional[Str|Object] $class) List[Object|Str];
-multi sub accept (Object $self: Optional[Str|Object] $class) Object|Undef;
-sub send (Object $self: Str $buf, Optional[Int] $flags, Optional[Str] $to) Int|Undef;
-sub recv (Object $self: Scalar \$buf, Int $len, Optional[Int] $flags) Str|Undef;
-sub close (Object $self:) Boolean;
+sub new (Str $class: List @args) BlessedRef|Undef;
+sub socket (BlessedRef $self: Int $domain, Int $type, Int $protocol) BlessedRef|Undef;
+sub connect (BlessedRef $self: Str $addr) BlessedRef|Undef;
+sub bind (BlessedRef $self: Str $addr) BlessedRef|Undef;
+sub listen (BlessedRef $self: Optional[Int|Undef] $queue) BlessedRef|Undef;
+multi sub accept (BlessedRef $self: Optional[Str|BlessedRef] $class) List[BlessedRef|Str];
+multi sub accept (BlessedRef $self: Optional[Str|BlessedRef] $class) BlessedRef|Undef;
+sub send (BlessedRef $self: Str $buf, Optional[Int] $flags, Optional[Str] $to) Int|Undef;
+sub recv (BlessedRef $self: Scalar \$buf, Int $len, Optional[Int] $flags) Str|Undef;
+sub close (BlessedRef $self:) Boolean;
 
 # Methods documented at IO/Socket.pm:445-825 (and two undocumented ones,
 # configure and register_domain) that a prior pass of this .tpm left
@@ -396,36 +396,36 @@ sub close (Object $self:) Boolean;
 # which never touches the network -- socket(2) alone, no connect or
 # bind -- so none needs the network exemption socket/connect/accept and
 # the rest above do.
-sub blocking (Object $self: Optional[Int] $block) Int|Undef;
-sub sockname (Object $self:) Str|Undef;
-sub peername (Object $self:) Str|Undef;
-sub connected (Object $self:) Str|Undef;
+sub blocking (BlessedRef $self: Optional[Int] $block) Int|Undef;
+sub sockname (BlessedRef $self:) Str|Undef;
+sub peername (BlessedRef $self:) Str|Undef;
+sub connected (BlessedRef $self:) Str|Undef;
 # shutdown returns a plain Int, 1 on success or 0 on failure with $!
 # set (POD), never a core is_bool value (measured, both branches), and
 # undef when the invocant is not a valid filehandle (POD).
-sub shutdown (Object $self: Int $how) Int|Undef;
-sub setsockopt (Object $self: Int $level, Int $optname, Int|Str $optval) Boolean|Undef;
+sub shutdown (BlessedRef $self: Int $how) Int|Undef;
+sub setsockopt (BlessedRef $self: Int $level, Int $optname, Int|Str $optval) Boolean|Undef;
 # getsockopt unpacks a 4-byte (native int-size) result to an Int as "just
 # a guess" (IO/Socket.pm's own comment); any other size stays the packed
 # Str perl's core getsockopt returns, or undef on failure.
-sub getsockopt (Object $self: Int $level, Int $optname) Int|Str|Undef;
+sub getsockopt (BlessedRef $self: Int $level, Int $optname) Int|Str|Undef;
 # sockopt is getsockopt's and setsockopt's own unified form (POD):
 # one argument reads, two write, so it answers either one's return type.
-sub sockopt (Object $self: Int $optname, Optional[Int] $value) Int|Str|Boolean|Undef;
-sub atmark (Object $self:) Str|Undef;
-sub timeout (Object $self: Optional[Num] $seconds) Num|Undef;
-sub sockdomain (Object $self:) Int|Undef;
-sub socktype (Object $self:) Int|Undef;
-sub protocol (Object $self:) Int|Undef;
+sub sockopt (BlessedRef $self: Int $optname, Optional[Int] $value) Int|Str|Boolean|Undef;
+sub atmark (BlessedRef $self:) Str|Undef;
+sub timeout (BlessedRef $self: Optional[Num] $seconds) Num|Undef;
+sub sockdomain (BlessedRef $self:) Int|Undef;
+sub socktype (BlessedRef $self:) Int|Undef;
+sub protocol (BlessedRef $self:) Int|Undef;
 # socketpair is a class method (POD: `IO::Socket->socketpair(...)`),
 # returning the two connected sockets it creates, or the empty list on
 # failure (POD: "or an empty list on failure").
-sub socketpair (Str $class: Int $domain, Int $type, Int $protocol) List[Object];
+sub socketpair (Str $class: Int $domain, Int $type, Int $protocol) List[BlessedRef];
 # configure is undocumented (no POD =head2); new calls it internally
 # once Domain is known, blessing the invocant into the right subclass
 # and delegating to its own configure, measured returning that
 # subclass's own IO::Socket::INET object, or undef on a bad domain.
-sub configure (Object $self: HashRef $arg) Object|Undef;
+sub configure (BlessedRef $self: HashRef $arg) BlessedRef|Undef;
 # register_domain is undocumented (no POD =head2); called as
 # Subclass->register_domain(DOMAIN) at each subclass's own load time
 # (measured, IO::Socket::INET.pm, IO::Socket::UNIX.pm), returning the

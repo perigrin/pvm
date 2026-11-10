@@ -1,2 +1,2 @@
 sym $n Int|Num|Inf
-sym $obj Object
+sym $obj BlessedRef

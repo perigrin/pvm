@@ -657,7 +657,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 }
 
 func TestFlowNarrowingIsaGuard(t *testing.T) {
-	// if ($x isa Foo): if-body $x → Object (isa guard narrows to Object).
+	// if ($x isa Foo): if-body $x → Object (isa guard narrows to BlessedRef).
 	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -667,7 +667,7 @@ func TestFlowNarrowingIsaGuard(t *testing.T) {
 
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "if-body $x should be BlessedRef after isa guard")
 }
 
 func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
@@ -681,7 +681,7 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 
 	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "if-body $x should be BlessedRef after isa guard")
 
 	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
@@ -723,7 +723,7 @@ func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 
 	elsif2BodyTyp, ok2 := annotations.at(offsets[6])
 	assert.True(t, ok2, "second elsif-body $x should be annotated")
-	assert.Equal(t, types.Object, elsif2BodyTyp, "second elsif-body $x should be Object (isa guard)")
+	assert.Equal(t, types.BlessedRef, elsif2BodyTyp, "second elsif-body $x should be BlessedRef (isa guard)")
 }
 
 func TestFlowNarrowingElsifWithElse(t *testing.T) {
@@ -1168,7 +1168,7 @@ func TestGuardLibraryBlessedNarrows(t *testing.T) {
 	require.True(t, len(offsets) >= 3)
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "blessed guard narrows to Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "blessed guard narrows to BlessedRef")
 }
 
 func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
@@ -1179,7 +1179,7 @@ func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
 	require.True(t, len(offsets) >= 3)
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "bare blessed guard narrows to Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "bare blessed guard narrows to BlessedRef")
 }
 
 func TestGuardLibraryReftypeNarrows(t *testing.T) {
@@ -1212,7 +1212,7 @@ func TestGuardLibraryNegatedBlessed(t *testing.T) {
 	require.True(t, len(offsets) >= 4)
 	elseBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "else-body $x should be annotated")
-	assert.Equal(t, types.Object, elseBodyTyp, "negated blessed: else → Object")
+	assert.Equal(t, types.BlessedRef, elseBodyTyp, "negated blessed: else → Object")
 }
 
 func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
@@ -1224,7 +1224,7 @@ func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
 	require.True(t, len(offsets) >= 4, "should find at least 4 $x, got %d", len(offsets))
 	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "defined && blessed → Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "defined && blessed → Object")
 }
 
 // --- Subroutine return type inference ---
@@ -1564,7 +1564,7 @@ func TestUserDefinedGuardFuncIsa(t *testing.T) {
 	ifBodyXOffset := findLastVarOffset(src, "$x")
 	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, typ, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, typ, "if-body $x should be BlessedRef after isa guard")
 }
 
 func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {

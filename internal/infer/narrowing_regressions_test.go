@@ -32,7 +32,7 @@ my $v = $o->{k};
 	if !ok {
 		t.Fatalf("$o not found")
 	}
-	if sym.Type&types.Object == 0 {
+	if sym.Type&types.BlessedRef == 0 {
 		t.Errorf("$o is %v after $o->{k}, want Object kept", sym.Type)
 	}
 }

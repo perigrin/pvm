@@ -34,6 +34,7 @@ func TestTypeString(t *testing.T) {
 		{types.HashRef, "HashRef"},
 		{types.CodeRef, "CodeRef"},
 		{types.GlobRef, "GlobRef"},
+		{types.BlessedRef, "BlessedRef"},
 		{types.Object, "Object"},
 		{types.List, "List"},
 		{types.Array, "Array"},
@@ -81,7 +82,7 @@ func TestIsSubtypeDirect(t *testing.T) {
 		{types.HashRef, types.Ref},
 		{types.CodeRef, types.Ref},
 		{types.GlobRef, types.Ref},
-		{types.Object, types.Ref},
+		{types.BlessedRef, types.Ref},
 		{types.List, types.Any},
 		{types.Array, types.List},
 		{types.Hash, types.List},
@@ -104,8 +105,8 @@ func TestIsSubtypeTransitive(t *testing.T) {
 	assert.True(t, types.IsSubtype(types.Int, types.Str), "Int should be transitive subtype of Str (Num->Str->Scalar)")
 	assert.True(t, types.IsSubtype(types.HashRef, types.Scalar), "HashRef should be transitive subtype of Scalar")
 	assert.True(t, types.IsSubtype(types.Array, types.Any), "Array should be transitive subtype of Any")
-	assert.True(t, types.IsSubtype(types.Object, types.Scalar), "Object should be transitive subtype of Scalar")
-	assert.True(t, types.IsSubtype(types.Object, types.Any), "Object should be transitive subtype of Any")
+	assert.True(t, types.IsSubtype(types.BlessedRef, types.Scalar), "Object should be transitive subtype of Scalar")
+	assert.True(t, types.IsSubtype(types.BlessedRef, types.Any), "Object should be transitive subtype of Any")
 }
 
 func TestIsSubtypeNegative(t *testing.T) {
@@ -225,7 +226,7 @@ func TestParentMasksContainDescendants(t *testing.T) {
 	assert.True(t, types.Str&types.Int == types.Int, "Str mask should contain Int")
 	// Ref mask includes all ref subtypes
 	assert.True(t, types.Ref&types.HashRef == types.HashRef, "Ref should contain HashRef")
-	assert.True(t, types.Ref&types.Object == types.Object, "Ref should contain Object")
+	assert.True(t, types.Ref&types.BlessedRef == types.BlessedRef, "Ref should contain Object")
 	assert.True(t, types.Ref&types.ScalarRef == types.ScalarRef, "Ref should contain ScalarRef")
 	// Scalar includes everything scalar
 	assert.True(t, types.Scalar&types.Int == types.Int, "Scalar should contain Int")

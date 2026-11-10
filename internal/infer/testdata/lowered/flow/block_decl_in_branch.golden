@@ -1,4 +1,4 @@
-sym $x Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|Object|NaN|Inf
+sym $x Boolean|Int|Num|Str|DualVar|Regex|ScalarRef|ArrayRef|HashRef|CodeRef|GlobRef|BlessedRef|Object|NaN|Inf
 sym $x Scalar
 sym $x Undef
 sym $y Int
