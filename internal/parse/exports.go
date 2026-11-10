@@ -572,3 +572,45 @@ func isWordByteAt(s string, i int) bool {
 	c := s[i]
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
+
+// LibraryOperator is one infix operator a `use` brought into scope.
+type LibraryOperator struct {
+	// Name is the operator's spelling at a use site.
+	Name string
+
+	// Class is the :infix(CLASS) it declared, "" when placed by relation.
+	Class string
+
+	// Info is its binding power and associativity as the parser placed it.
+	Info OpInfo
+
+	// From is the byte offset where the `use` statement that brought it
+	// into scope starts.
+	From int
+}
+
+// LibraryOperators lists the infix operators a parsed file's `use`
+// statements brought into scope, in source order. The scope is file-wide,
+// as the parser's is: no position says where an operator stops applying.
+//
+// Empty for a tree from Parse, which resolves nothing.
+func LibraryOperators(root *Node) []LibraryOperator {
+	if root == nil {
+		return nil
+	}
+	return slices.Clone(root.libraryOperators)
+}
+
+// libraryOperators lists libraryOps as the parser placed them. A `use` the
+// parser read twice while backtracking (a `try` block with no `catch`) put
+// its operators in libraryOps twice, and is listed once.
+func (p *parser) libraryOperators() []LibraryOperator {
+	var out []LibraryOperator
+	for i, op := range p.libraryOps {
+		lo := LibraryOperator{Name: op.name, Class: op.class, Info: p.libraryInfix[op.name], From: p.libraryFrom[i]}
+		if !slices.Contains(out, lo) {
+			out = append(out, lo)
+		}
+	}
+	return out
+}

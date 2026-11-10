@@ -232,7 +232,7 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
-		p.resolveImports(module, list)
+		p.resolveImports(module, list, n.Start)
 	case module == "" && n.Text == "require" && p.inBegin:
 		p.resolveRequiredFile(list)
 	}
@@ -393,11 +393,12 @@ func perlVersion(text string) (major, minor int, ok bool) {
 	return major, minor, true
 }
 
-// resolveImports reads a module's source and records what it brought in.
+// resolveImports reads a module's source and records what it brought in. at
+// is the byte the importing statement starts at.
 //
 // A module that cannot be found contributes nothing, and calls to what it
 // would have exported stay unresolved -- correct, not a gap.
-func (p *parser) resolveImports(module string, list *Node) {
+func (p *parser) resolveImports(module string, list *Node, at int) {
 	if module == "builtin" {
 		p.importBuiltins(list)
 		return
@@ -415,7 +416,7 @@ func (p *parser) resolveImports(module string, list *Node) {
 	if module == "if" && p.res.useIfPasses {
 		if target, rest, ok := useIfTarget(list); ok {
 			p.notePackage(target)
-			p.resolveImports(target, rest)
+			p.resolveImports(target, rest, at)
 		}
 		return
 	}
@@ -479,6 +480,9 @@ func (p *parser) resolveImports(module string, list *Node) {
 			p.res.declErrs = append(p.res.declErrs, fmt.Errorf("%s: %w", module, err))
 		} else {
 			p.libraryOps, p.libraryInfix = inScope, powers
+			for range ops {
+				p.libraryFrom = append(p.libraryFrom, at)
+			}
 		}
 	}
 
@@ -1041,7 +1045,7 @@ func (p *parser) aliasTarget(n *Node) (Import, bool) {
 func (p *parser) noteBeginEffects(n *Node) {
 	if module, list, ok := beginImport(n); ok {
 		p.notePackage(module)
-		p.resolveImports(module, list)
+		p.resolveImports(module, list, n.Start)
 		return
 	}
 	switch {

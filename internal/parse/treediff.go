@@ -26,11 +26,12 @@ var treeDiffOffsets = []string{"Start", "End", "InnerStart", "InnerEnd"}
 // but not read through Interface(). All but nestedParen are set on the root
 // alone. Errors compare by their text, not their identity.
 var treeDiffByName = map[string]func(a, b *Node) bool{
-	"loaded":      func(a, b *Node) bool { return slices.Equal(a.loaded, b.loaded) },
-	"declErrs":    func(a, b *Node) bool { return slices.Equal(errorTexts(a.declErrs), errorTexts(b.declErrs)) },
-	"declWarns":   func(a, b *Node) bool { return slices.Equal(errorTexts(a.declWarns), errorTexts(b.declWarns)) },
-	"imports":     func(a, b *Node) bool { return reflect.DeepEqual(a.imports, b.imports) },
-	"nestedParen": func(a, b *Node) bool { return a.nestedParen == b.nestedParen },
+	"loaded":           func(a, b *Node) bool { return slices.Equal(a.loaded, b.loaded) },
+	"declErrs":         func(a, b *Node) bool { return slices.Equal(errorTexts(a.declErrs), errorTexts(b.declErrs)) },
+	"declWarns":        func(a, b *Node) bool { return slices.Equal(errorTexts(a.declWarns), errorTexts(b.declWarns)) },
+	"imports":          func(a, b *Node) bool { return reflect.DeepEqual(a.imports, b.imports) },
+	"libraryOperators": func(a, b *Node) bool { return slices.Equal(a.libraryOperators, b.libraryOperators) },
+	"nestedParen":      func(a, b *Node) bool { return a.nestedParen == b.nestedParen },
 }
 
 func errorTexts(errs []error) []string {
