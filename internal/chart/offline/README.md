@@ -79,9 +79,16 @@ precedence category: a viable prefix without precedence, refused with it.
   prints `accept`, or with `-p` (prefix mode) `viable`, else `refuse@N`, N the
   token being read at the first error. Any error refuses, even one `yyparse`
   recovers from through `sideff: error`.
+- With `-g` a referee prints a second line, the **grouping**: for each
+  reduction of a rule carrying a precedence (a `%prec`, or its last
+  terminal's), `line:from-to`, the rule's `perly.y` line (as
+  `perly-alternatives.sh` numbers it) and the half-open span of 0-based
+  terminal indexes it covers (`GRAMPROG` is 0), comma-separated in reduction
+  order up to the first error, or `-` if there are none. `referee-noprec`'s
+  grouping of an ambiguous span holds every derivation's reductions.
 - `sh internal/chart/offline/referee/check.sh /opt/corpora/perl5` builds into a temporary directory and checks every case
-  in `referee/testdata/cases.txt` against both referees, failing on any differing
-  verdict, naming the case, and on zero cases.
+  in `referee/testdata/cases.txt` against both referees, and `referee-prec`'s
+  grouping, failing on any difference, naming the case, and on zero cases.
 
 `referee/build.sh` writes the two referees and their generated `.y` and `.c` files
 into `outdir`; none is committed. `referee/check.sh` prints
