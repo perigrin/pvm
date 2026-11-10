@@ -30,11 +30,13 @@ type diffCase struct {
 // unexportedMutations change the unexported fields, which reflection cannot
 // set, so each is named. All but nestedParen are set on the root alone.
 var unexportedMutations = map[string]func(root *Node){
-	"nestedParen": func(r *Node) { deepChild(r).nestedParen = true },
-	"loaded":      func(r *Node) { r.loaded = append(r.loaded, "Foo") },
-	"declErrs":    func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
-	"declWarns":   func(r *Node) { r.declWarns = append(r.declWarns, errors.New("odd")) },
-	"imports":     func(r *Node) { r.imports = map[string]Import{"f": {Name: "f"}} },
+	"nestedParen":      func(r *Node) { deepChild(r).nestedParen = true },
+	"loaded":           func(r *Node) { r.loaded = append(r.loaded, "Foo") },
+	"declErrs":         func(r *Node) { r.declErrs = append(r.declErrs, errors.New("bad")) },
+	"declWarns":        func(r *Node) { r.declWarns = append(r.declWarns, errors.New("odd")) },
+	"imports":          func(r *Node) { r.imports = map[string]Import{"f": {Name: "f"}} },
+	"libraryNames":     func(r *Node) { r.libraryNames = []string{"plus"} },
+	"libraryOperators": func(r *Node) { r.libraryOperators = []LibraryOperator{{Name: "plus"}} },
 }
 
 // treeDiffCases builds one mutation per Node field, plus child-count and

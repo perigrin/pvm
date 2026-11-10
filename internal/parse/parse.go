@@ -284,6 +284,15 @@ type Node struct {
 	// Read through Imports.
 	imports map[string]Import
 
+	// libraryOperators are the infix operators the file's `use` statements
+	// brought into scope. Root only. Read through LibraryOperators.
+	libraryOperators []LibraryOperator
+
+	// libraryNames are the infix operators this `use` statement, or this
+	// BEGIN block's import, brought into scope. Kept on the statement so
+	// Repair moves it with the statement's offsets.
+	libraryNames []string
+
 	// inc is what Repair resumes from: the bytes this tree was parsed from
 	// and, on a tree Repair built, its parser snapshots. Root only, a cache
 	// no accessor reads, so TreeDiff skips it.
@@ -780,6 +789,7 @@ func (p *parser) finish(root *Node) {
 	root.declErrs = p.res.declErrs
 	root.declWarns = p.res.declWarns
 	root.imports = p.imports
+	root.libraryOperators = p.libraryOperatorsIn(root)
 
 	// A local sub shadows an import, and its OWN prototype is the one
 	// that applies. Done after the whole file is parsed so that

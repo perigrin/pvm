@@ -232,7 +232,9 @@ func (p *parser) parseUse(word lexer.Token) *Node {
 
 	switch {
 	case module != "" && !isVersionPrefix(module) && n.Text == "use":
+		before := len(p.libraryOps)
 		p.resolveImports(module, list)
+		n.libraryNames = p.libraryNamesSince(before)
 	case module == "" && n.Text == "require" && p.inBegin:
 		p.resolveRequiredFile(list)
 	}
@@ -989,7 +991,9 @@ func (p *parser) parsePhaser(word lexer.Token) *Node {
 	if blk != nil {
 		n.Children = append(n.Children, blk)
 		if n.Text == "BEGIN" {
+			before := len(p.libraryOps)
 			p.noteBeginEffects(blk)
+			n.libraryNames = p.libraryNamesSince(before)
 			// `BEGIN { require feature; feature->import('isa') }`.
 			p.featuresMayBeOn()
 		}
