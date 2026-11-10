@@ -292,7 +292,10 @@ clock and a collector, so it is tested on fake timings
   Cold: a fresh recognizer per file. chart/lex's pooled lookup cache
   (`grammar.LookupCache`, from a `sync.Pool`) persists from file to file
   within a pass, cold or not; the GCs forced before each pass empty the pool,
-  so no pass replays a cache warmed on its own inputs.
+  so no pass replays a cache warmed by an earlier pass. A `lex-overhead`
+  pass lexes its one buffer 25 times (below), so within a pass a copy can
+  meet a cache warmed by the copy before it, until a GC inside the span
+  drops it: an LSP re-lexing one buffer in a warm process meets the same.
 - **The file set is an input.** `lex-overhead` passes `std5k.pl` and
   `edit5k.pl` each alone, long-lived, and takes the larger figure (the edit5k
   figure is a `lex-overhead-edit5k` measurement line on stderr, not a key);
