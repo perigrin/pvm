@@ -971,7 +971,7 @@ var perlyClasses = []ClassDecl{
 	// A variable that is no plain name (`$::e`, `$1`, `$^W`, `$'`, `$_`) is not a catch variable: the action of
 	// perly.y:815 declares it with my and refuses it, so two tokens after catch it is no scalar.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), NotPrev1: afterArrow, Completes: true}},
-	// shortcut: this class also refuses `catch => $_;`, which perl accepts (catch is a hash key), because it sees only two tokens back; upgrade with a NotPrev3 on =>, pinned in TestPortScopeDecidedKnownLimits.
+	// shortcut: this class also refuses `catch =>` before a variable that is no plain name, in any list (`foo(catch => $_)`), which perl accepts (catch is a hash key); it sees only the word two tokens back, so upgrade by letting it see => as Prev1, pinned in TestPortScopeDecidedKnownLimits.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev1: afterArrow, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 	// After -> a $ variable is a method's name (`$o->$m`), $* the postfix dereference, and a lone $ (pvm's for `->${`) a cast's.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), NotText: []string{"$*", "$"}, Prev1: &arrow, Completes: true}},

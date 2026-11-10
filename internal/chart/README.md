@@ -62,7 +62,7 @@ refuses the last four since 5.30, which removed `$#` and `$*`; the lexer emits
 them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
 `Variable "$#"`), a root filed as v0.1 `01a1b717-ad05`.
 
-Two limits hold off the corpus, where the gates cannot see them:
+Three limits hold off the corpus, where the gates cannot see them:
 
 - **Refused where perl accepts.** `x {1};` and `sub x {} x {1};` are refused
   (`perl -c`: syntax OK; recursive descent accepts them). At statement start
@@ -76,9 +76,11 @@ Two limits hold off the corpus, where the gates cannot see them:
   implementation's and falls short of it (`TestPortScopeDecidedKnownLimits`).
   perigrin ruled that the defect is recorded for waypoint 2's refinement, with
   no grammar change at waypoint 1.
-  `catch => $_;` is refused too (`perl -c`: syntax OK; `catch` is a hash key
-  there) by the PERLY_DOLLAR class that guards a `catch (` variable, pinned in
-  the same test.
+  `catch =>` followed by a `$` variable that is no plain name is refused in any
+  list (`catch => $_;`, `(catch => $_)`, `foo(catch => $_);`,
+  `x(catch => $Foo::x);`; `perl -c`: syntax OK, `catch` is a hash key there) by
+  the PERLY_DOLLAR class that guards a `catch (` variable, pinned in the same
+  test.
 - **Accepted where perl refuses.** `print STDOUT $foo bar();` is accepted
   (perl: syntax error). A non-keyword word before a `Variable` may read as
   `METHCALL0` even after `print` or `say`, and `tdt-unseen` cannot see an
@@ -328,9 +330,13 @@ clock and a collector, so it is tested on fake timings
   of the aggregate's recursive-descent time are printed on stderr.
 
   The 10% rule excludes one file, `T1/code_too_large.t`: 10,001 lines of flat
-  top-level statements, 34.3% to 36.1% of recursive descent's population time
-  (two `make -s chart-ratchet` runs at 03e4097b, the second under load; other
-  runs have read 37.6% to 40.1%, so re-read it rather than trust it). No key prints the chart's ratio on it, so it is
+  top-level statements, 34.3% to 36.1% of recursive descent's population time,
+  read from two `make -s chart-ratchet` runs at 03e4097b: 36.1% on the first
+  (load not recorded) and 34.3% on the second, at load average 8.15 (one
+  minute). Other runs have read 37.6% to 40.1%. The share moves with load, and
+  so does which files the rule excludes: a gate run at load 16 to 20 read 17.7%
+  and also excluded `T1/require_module_return.t` (26.3%). Re-read it rather than
+  trust it. No key prints the chart's ratio on it, so it is
   recorded here, observed at c6de5c76 (before) and on the branch of
   01a1b879-ae82 (after), on a 4-core machine at load average 1.2 to 1.3.
   Each figure is chart/lex plus a fresh recognizer with default `Options`
@@ -560,11 +566,13 @@ scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
 `catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
 tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
-shortcut: that class also refuses a variable that is not a plain name after
-the word `catch` in `catch => $_;`, which perl accepts (`catch` is a hash key
-there). `$p->catch($Foo::x);` is accepted, as the class is spared after `->`
-(`NotPrev1`). The refusal needs the exclusion to see `=>` one token further
-back (a `NotPrev3`); it is pinned in `TestPortScopeDecidedKnownLimits`.
+shortcut: that class also refuses `catch =>` followed by a variable that is no
+plain name, in any list (`catch => $_;`, `foo(catch => $_);`), which perl
+accepts (`catch` is a hash key). `$p->catch($Foo::x);` is accepted because a word
+after `->` is a name (`Neighbour.Name`), which the exclusion's `catch` word does
+not match. The exclusion sees only the word two tokens back, not the token
+between, so the upgrade is to let it see `=>` as the variable's predecessor
+(Prev1); it is pinned in `TestPortScopeDecidedKnownLimits`.
 
 ### Version tokens after `package`, `use` and `no`
 

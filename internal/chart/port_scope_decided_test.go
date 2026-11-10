@@ -81,9 +81,11 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 		t.Errorf("print STDOUT $foo bar(); is refused; the known limit is gone, so drop the README line")
 	}
 	// perl accepts both: catch is a hash key and a method name there. The PERLY_DOLLAR class two tokens after catch
-	// refuses the first, and the arrow before the word spares the second (grammar/perly.go).
-	if recognizeSource(t, []byte("catch => $_;")).accepted {
-		t.Errorf("catch => $_; is accepted; the known limit is gone, so drop the shortcut and the README line")
+	// refuses the first, and the arrow before the word makes it a name (Neighbour.Name), which spares the second (grammar/perly.go).
+	for _, src := range []string{"catch => $_;", "(catch => $_);", "foo(catch => $_);", "x(catch => $Foo::x);"} {
+		if recognizeSource(t, []byte(src)).accepted {
+			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+		}
 	}
 	if !recognizeSource(t, []byte("$p->catch($Foo::x);")).accepted {
 		t.Errorf("$p->catch($Foo::x); is refused; perl accepts it")
