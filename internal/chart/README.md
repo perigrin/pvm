@@ -76,6 +76,9 @@ Two limits hold off the corpus, where the gates cannot see them:
   implementation's and falls short of it (`TestPortScopeDecidedKnownLimits`).
   perigrin ruled that the defect is recorded for waypoint 2's refinement, with
   no grammar change at waypoint 1.
+  `catch => $_;` is refused too (`perl -c`: syntax OK; `catch` is a hash key
+  there) by the PERLY_DOLLAR class that guards a `catch (` variable, pinned in
+  the same test.
 - **Accepted where perl refuses.** `print STDOUT $foo bar();` is accepted
   (perl: syntax error). A non-keyword word before a `Variable` may read as
   `METHCALL0` even after `print` or `say`, and `tdt-unseen` cannot see an
@@ -325,8 +328,9 @@ clock and a collector, so it is tested on fake timings
   of the aggregate's recursive-descent time are printed on stderr.
 
   The 10% rule excludes one file, `T1/code_too_large.t`: 10,001 lines of flat
-  top-level statements, 34.1% of recursive descent's population time
-  (33.3% in another run). No key prints the chart's ratio on it, so it is
+  top-level statements, 34.3% to 36.1% of recursive descent's population time
+  (two `make -s chart-ratchet` runs at 03e4097b, the second under load; other
+  runs have read 37.6% to 40.1%, so re-read it rather than trust it). No key prints the chart's ratio on it, so it is
   recorded here, observed at c6de5c76 (before) and on the branch of
   01a1b879-ae82 (after), on a 4-core machine at load average 1.2 to 1.3.
   Each figure is chart/lex plus a fresh recognizer with default `Options`
@@ -490,7 +494,9 @@ ATTRLIST holding every attribute and its argument as an opaque string
   `use feature 'switch'`, so `given ($x) { 1 }` and `given ($x) { default { 1 } }`
   are accepted where perl refuses them without the feature, as a bareword
   call (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). `when` and `default` outside
-  a topicalizer are accepted too: their scope refusals are waypoint 2's.
+  a topicalizer are accepted too, which is parity: under `use feature 'switch'`
+  the pinned perl gives syntax OK for `when (1) { 1 }` and `default { 1 }` and
+  fails only at run time, so there is no scope refusal to make.
 - `for our (…)` and `for state (…)` at a statement start are refused, as toke.c's
   `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
   parenthesised list); `1 for our ($x);` stays accepted. The statement start is
@@ -526,7 +532,7 @@ ATTRLIST holding every attribute and its argument as an opaque string
   "an identifier character follows". Lookup stays constant-time and
   allocation-free: the extra ids are fixed at compile time and `Intern` adds one
   branch.
-- `tdt-unseen` counts six ATTRLIST pairs (a word after a word or `)`, and a
+- `tdt-unseen` counts seven ATTRLIST pairs (a word after a word or `)`, and a
   word, number, quote or variable after `(`) that no `-DT` fixture shows, an
   artifact of the fitting; they are reviewed at completion.
 
@@ -554,11 +560,11 @@ scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
 `catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
 tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
-shortcut: that class also refuses a variable that is not a plain name after the
-word `catch` (`$p->catch($Foo::x)`, `catch => $_`), where perl reads `catch` as a
-method name or a hash key. Both are unreachable
-until method calls and fat commas parse, and then they need the exclusion to
-see `->` or `=>` one token further back (a `NotPrev3`).
+shortcut: that class also refuses a variable that is not a plain name after
+the word `catch` in `catch => $_;`, which perl accepts (`catch` is a hash key
+there). `$p->catch($Foo::x);` is accepted, as the class is spared after `->`
+(`NotPrev1`). The refusal needs the exclusion to see `=>` one token further
+back (a `NotPrev3`); it is pinned in `TestPortScopeDecidedKnownLimits`.
 
 ### Version tokens after `package`, `use` and `no`
 
@@ -596,9 +602,10 @@ term to toke.c. Known limits:
   `::` word and any keyword that is not an operator word, `not` included.
   `use lib foo x;`, `use lib foo x, 1;` and `use lib x x;` are accepted where perl
   refuses them, since refusing `x` after a word would also refuse `use lib foo x 3;`,
-  which perl accepts (pinned in `TestPortPackageAndUseRefusals`). `use lib foo { }`,
-  `use lib foo $$x` and `use lib foo __END__` are refused where perl accepts
-  them, for want of the indirect-object family and the deref sigils' rules.
+  which perl accepts (pinned in `TestPortPackageAndUseRefusals`). `use lib foo { }` and
+  `use lib foo $$x` are accepted, as perl does (pinned beside the other
+  `use lib` rows), and `use lib foo __END__` is refused where perl accepts it,
+  for want of the indirect-object family.
 - `Neighbour.Array` is on a variable opening with `@` or `$#`, so a word's key
   can tell `foo @x` from `foo $x`. Like `Glob`, `Name` and `Label` it is a
   neighbour flag decided from the token's own text, an extension of spec section
