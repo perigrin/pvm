@@ -25,6 +25,7 @@ case $head in
 	exit 1
 	;;
 esac
+[ -z "$(git -C "$tree" status --porcelain)" ] || { echo "build-perl.sh: $tree has uncommitted changes; the pinned tree must be clean" >&2; exit 1; }
 
 # -Uversiononly installs bin/perl, which usedevel otherwise suffixes with the version.
 # A shared clone keeps $tree and its git config unwritten while make_patchnum still sees the commit.

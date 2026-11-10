@@ -55,6 +55,7 @@ for f in internal/chart/testdata/guacamole/parses/*.pl internal/chart/testdata/g
 	internal/chart/testdata/std5k.pl internal/psc/testdata/latency/edit5k.pl; do
 	capture "$top" internal/chart/testdata/guacamole/stubs "$f" "$f"
 done
+[ -z "$(git -C "$t1" status --porcelain -- .)" ] || { echo "tdt-align.sh: T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean" >&2; exit 1; }
 t1top=$(git -C "$t1" rev-parse --show-toplevel)
 t1root=$(git -C "$t1" rev-parse --show-prefix)
 for f in $(cd "$t1" && ls -- *.t); do
