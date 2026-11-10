@@ -782,7 +782,7 @@ func (o Options) handleSatisfies(actual, expected types.Type) bool {
 	if expected&types.Glob == 0 {
 		return false
 	}
-	handle := expected | types.FileHandle | types.Object
+	handle := expected | types.FileHandle | types.BlessedRef
 	return o.satisfies(actual, handle) || o.satisfies(actual, handle&types.Scalar)
 }
 
@@ -927,7 +927,7 @@ func (a *analysis) methodCall(n *lower.MethodCall) types.Type {
 	case *lower.Bareword:
 		if n.Name == "new" {
 			a.classTypes[n.ID] = inv.Name
-			return types.Object
+			return types.BlessedRef
 		}
 		class = inv.Name
 	case *lower.Var:

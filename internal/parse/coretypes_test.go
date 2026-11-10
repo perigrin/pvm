@@ -161,7 +161,7 @@ func TestCoreTypesMatchMeasuredSignatures(t *testing.T) {
 		// reaches $SIG{__WARN__} itself, unstringified, measured the same
 		// way die's $@ does (internal/infer's TestCarpFamilyPassesALoneReference).
 		"warn":  {0, []types.Type{types.Str | types.Boolean | types.DualVar | types.Ref}, types.Boolean},
-		"bless": {1, []types.Type{types.Ref, types.Str}, types.Object},
+		"bless": {1, []types.Type{types.Ref, types.Str}, types.BlessedRef},
 		// MinArity was 1 for abs, int, uc, lc, ucfirst, lcfirst and
 		// reverse: each compiles with no argument, `abs()` and `uc()`
 		// taking `$_`, and `reverse()` an empty list in list context but

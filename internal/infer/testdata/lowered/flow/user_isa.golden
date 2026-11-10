@@ -1,4 +1,4 @@
 sym $v Scalar
-sym $x Object
+sym $x BlessedRef
 sym $x Scalar
 sym is_foo Code

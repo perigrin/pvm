@@ -34,15 +34,15 @@ sub _utf8_on :export_ok(all) :prototype($) (Str|Undef $string) Boolean|Undef;
 # literal undef, measured on all six subs below that take it (perl treats
 # it the same as the default, CHECK 0): e.g. `Encode::encode("ascii",
 # "cafe", undef)` is "cafe", the same as omitting the argument.
-sub bytes2str :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
-sub str2bytes :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
+sub bytes2str :export(all,default) :prototype($$;$) (Str|BlessedRef $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
+sub str2bytes :export(all,default) :prototype($$;$) (Str|BlessedRef $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # clone_encoding returns the encoding object to clone, or undef if
 # ENCODING does not resolve (measured: clone_encoding of an unknown name
 # is undef).
-sub clone_encoding :export(all,default) :prototype($) (Str|Object $encoding) Object|Undef;
+sub clone_encoding :export(all,default) :prototype($) (Str|BlessedRef $encoding) BlessedRef|Undef;
 
-sub decode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
+sub decode :export(all,default) :prototype($$;$) (Str|BlessedRef $encoding, Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
 sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # define_encoding(OBJECT, NAME, ALIASES...) registers OBJECT under NAME
@@ -50,7 +50,7 @@ sub decode_utf8 :export(all,default) :prototype($;$) (Str|Undef $octets, Int|Cod
 # Measured with prototype(), define_encoding has none, so it is declared
 # with a bare slurpy List (CORE.tpm's note: "a derived `@` is no
 # prototype"), not the $$@ its three named parameters would derive.
-sub define_encoding :export_ok(all) (List @args) Object;
+sub define_encoding :export_ok(all) (List @args) BlessedRef;
 
 # Measured, encode(undef) is undef, the same as decode and the two
 # below it: declared by argument type (RFC 0001, "Multi declarations"),
@@ -64,8 +64,8 @@ sub define_encoding :export_ok(all) (List @args) Object;
 # Int|CodeRef|Undef already states the numeric coercion a Str, Boolean
 # or Ref argument measures into (e.g. `encode("ascii",$x,"1")` and
 # `encode("ascii",$x,[1])` both work).
-multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str $string, Int|CodeRef|Undef $check = 0) Str;
-multi sub encode :export(all,default) :prototype($$;$) (Str|Object $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
+multi sub encode :export(all,default) :prototype($$;$) (Str|BlessedRef $encoding, Str $string, Int|CodeRef|Undef $check = 0) Str;
+multi sub encode :export(all,default) :prototype($$;$) (Str|BlessedRef $encoding, Str|Undef $string, Int|CodeRef|Undef $check = 0) Str|Undef;
 
 # encode_utf8 is documented to "never fail", but measured on 5.42.0,
 # encode_utf8(undef) is undef (with a "Use of uninitialized value"
@@ -83,8 +83,8 @@ multi sub encodings :export(all,default) (List[Str] @tags) Undef;
 # works the same as `find_encoding("utf8",0)`, perl's universal boolean
 # coercion (any scalar in a boolean slot), not a value Boolean has no
 # coercion for.
-sub find_encoding :export(all,default) :prototype($;$) (Str|Object $encoding, Boolean $skip_external = 0) Object|Undef;
-sub find_mime_encoding :export(all,default) :prototype($;$) (Str $mime_encoding, Boolean $skip_external = 0) Object|Undef;
+sub find_encoding :export(all,default) :prototype($;$) (Str|BlessedRef $encoding, Boolean $skip_external = 0) BlessedRef|Undef;
+sub find_mime_encoding :export(all,default) :prototype($;$) (Str $mime_encoding, Boolean $skip_external = 0) BlessedRef|Undef;
 
 # from_to converts $octets in place; perldoc Encode: "returns the length
 # of the converted string in octets on success, and undef on error."
@@ -92,7 +92,7 @@ sub find_mime_encoding :export(all,default) :prototype($;$) (Str $mime_encoding,
 # object, as every other ENCODING parameter in this file does: measured,
 # `from_to($s, "latin1", find_encoding("utf8"))` and `from_to($s,
 # find_encoding("latin1"), "utf8")` both work.
-sub from_to :export_ok(all) :prototype($$$;$) (Str $octets, Str|Object $from_encoding, Str|Object $to_encoding, Int|CodeRef|Undef $check = 0) Int|Undef;
+sub from_to :export_ok(all) :prototype($$$;$) (Str $octets, Str|BlessedRef $from_encoding, Str|BlessedRef $to_encoding, Int|CodeRef|Undef $check = 0) Int|Undef;
 
 # is_utf8 is documented to return a plain boolean; measured, is_utf8(undef)
 # is '' (false), never undef.

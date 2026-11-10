@@ -2,6 +2,8 @@
 # ABOUTME: The verdict is COMPUTED from both membership factors, never written down.
 use v5.36;
 use Scalar::Util qw(reftype blessed);
+use experimental 'class';
+class Lattice::Class { field $x = 1; }
 
 # WHAT THIS FILE IS FOR.
 #
@@ -73,7 +75,9 @@ my %STRUCTURALLY_IS = (
     HashRef   => sub { ( reftype( $_[0] ) // '' ) eq 'HASH' },
     CodeRef   => sub { ( reftype( $_[0] ) // '' ) eq 'CODE' },
     GlobRef   => sub { ( reftype( $_[0] ) // '' ) eq 'GLOB' },
-    Object    => sub { defined blessed( $_[0] ) },
+    BlessedRef => sub { defined blessed( $_[0] ) },
+    # The class feature's instance: blessed, and its referent is opaque.
+    Object    => sub { ( reftype( $_[0] ) // '' ) eq 'OBJECT' },
     Regex     => sub { ( reftype( $_[0] ) // '' ) eq 'REGEXP' },
     Undef     => sub { !defined $_[0] },
     Scalar    => sub { 1 },    # anything holding a single value
@@ -126,7 +130,7 @@ my %OPERATIONS_OF = (
         [ stringify => sub { no warnings; my $s = "$_[0]";    1 } ],
     ],
     ScalarRef => [ [ deref => sub { my $v = ${ $_[0] }; 1 } ] ],
-    Object    => [
+    BlessedRef => [
         [ blessed => sub { my $c = blessed $_[0]; 1 } ],
         [ can     => sub { my $m = $_[0]->can('x'); 1 } ],
     ],
@@ -195,13 +199,17 @@ my @EDGES = (
       witnesses => [ [ 'sub{1}', sub { 1 } ] ] },
     { child => 'GlobRef', parent => 'Ref',
       witnesses => [ [ '\\*STDOUT', \*STDOUT ] ] },
-    # An IO handle's value is an Object, as a Regex is: `*STDOUT{IO}` is a
+    # An IO handle's value is a BlessedRef, as a Regex is: `*STDOUT{IO}` is a
     # reference of reftype IO blessed into IO::File. The IO the reference
     # points at is the slot type, a top-level leaf like Code, never a value.
-    { child => 'Object', parent => 'Ref',
+    { child => 'BlessedRef', parent => 'Ref',
       witnesses => [ [ 'bless {}', bless( {}, 'Lattice::Witness' ) ],
                      [ '*STDOUT{IO}', *STDOUT{IO} ] ] },
-    { child => 'Regex', parent => 'Object',
+    # A class-feature instance is blessed with reftype OBJECT: an Object, and
+    # a BlessedRef as any blessed reference is.
+    { child => 'Object', parent => 'BlessedRef',
+      witnesses => [ [ 'Lattice::Class->new', Lattice::Class->new ] ] },
+    { child => 'Regex', parent => 'BlessedRef',
       witnesses => [ [ 'qr/x/', qr/x/ ] ] },
 
     # --- the collection branch: the arity claim ---

@@ -109,7 +109,7 @@ calls no import and brings none. Perl scopes these lexically.
 for, one line each, and parsing it builds the default builtin table:
 
 ```perl
-sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+sub bless (Ref $ref, Str $class = __PACKAGE__) BlessedRef;
 sub push (Array \@array, List @list) Int;
 sub lock :prototype(\[$@%&*]);
 ```
@@ -168,11 +168,13 @@ When a signature is present, the prototype moves into `:prototype(...)`,
 as Perl itself requires:
 
 ```perl
-sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) Object;
+sub bless :prototype($;$) (Ref $ref, Str $class = __PACKAGE__) BlessedRef;
 ```
 
 Type names come from the lattice in `internal/types` (`Int`, `Num`,
-`Str`, `Undef`, `Ref`, `Object`, `List`, ...). The lattice is a bitmask,
+`Str`, `Undef`, `Ref`, `BlessedRef`, `Object`, `List`, ...). `BlessedRef`
+is any blessed reference; `Object`, under it, is an instance of a
+`class` (reftype `OBJECT`), beside `Regex`. The lattice is a bitmask,
 so a union such as `Str|Undef` is proposed as the spelling for "a
 string or undef"; the paper may choose another.
 
@@ -201,11 +203,11 @@ unknown name is an error. perigrin, 2026-10-02:
   and `IO` names what a glob's IO slot holds -- the slot type, at the
   top of the lattice beside `Code`, never a value. The value
   `*STDOUT{IO}` is a reference to it, of reftype `IO` blessed into
-  `IO::File`, and measures as an `Object`, as `qr//` does (the lattice
-  oracle witnesses it on its `Object <: Ref` edge). A string naming a handle is not a
+  `IO::File`, and measures as a `BlessedRef`, as `qr//` does (the lattice
+  oracle witnesses it on its `BlessedRef <: Ref` edge). A string naming a handle is not a
   `FileHandle`: under `use strict`, `print {"STDOUT"} ...` dies ("Can't
   use string ("STDOUT") as a symbol ref"). A blessed handle such as an
-  `IO::File` object is reftype `GLOB` but files under `Object`, so it is
+  `IO::File` object is reftype `GLOB` but files under `BlessedRef`, so it is
   not a `FileHandle` until the paper says how blessing and reftype
   combine.
 - **Names follow the paper.** The lattice's `Bool` is the paper's
@@ -994,7 +996,7 @@ always has. `Symbol::qualify`'s `Ref` candidate returns the reference
 it was given, unchanged (measured, `ref qualify({})` is `HASH`, not
 `GlobRef`), so `IO/Handle.pm:516`'s `tell qualify($_[0], caller) if
 ref($_[0])` sees a `Ref` -- `ScalarRef`, `ArrayRef`, `HashRef`,
-`CodeRef` and `Object` beside the one member, `GlobRef`, that `tell`'s
+`CodeRef` and `BlessedRef` beside the one member, `GlobRef`, that `tell`'s
 `Glob`-only parameter takes -- though $_[0] is in fact always a
 `GlobRef` there. perl 5.42 -w is silent on it.
 

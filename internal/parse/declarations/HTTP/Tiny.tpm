@@ -7,14 +7,14 @@ package HTTP::Tiny;
 # nothing in the caller.
 
 # new only builds and blesses a hashref and reads %ENV for proxies, no
-# network: always an Object (measured).
-sub new (Str $class: List @args) Object;
+# network: always an BlessedRef (measured).
+sub new (Str $class: List @args) BlessedRef;
 # www_form_urlencode never touches $self (measured: its one use of the
 # invocant is a method call, _uri_escape, that does not dereference it
 # either), so it is safe called on the bare class and always a Str; the
 # POD's only example is the instance form, `$http->www_form_urlencode`
 # (audit-C.md finding 26), which it also answers the same way (measured).
-sub www_form_urlencode (Object|Str $self: HashRef|ArrayRef $data) Str;
+sub www_form_urlencode (BlessedRef|Str $self: HashRef|ArrayRef $data) Str;
 # can_ssl guards every use of the invocant behind `ref($self)` (measured:
 # calling it on the bare class skips that branch entirely, never dying),
 # so it is also safe called either way -- the POD documents both
@@ -23,8 +23,8 @@ sub www_form_urlencode (Object|Str $self: HashRef|ArrayRef $data) Str;
 # same shape (measured): $ok starts as the plain Int 1 or 0 (measured,
 # not a marked Boolean), and in list context it comes with the reason
 # Str; in scalar context, just $ok.
-multi sub can_ssl (Str|Object $self:) List[Int|Str];
-multi sub can_ssl (Str|Object $self:) Int;
+multi sub can_ssl (Str|BlessedRef $self:) List[Int|Str];
+multi sub can_ssl (Str|BlessedRef $self:) Int;
 
 # The rest open a real connection or read instance state the oracle's
 # class-as-invocant call has none of (returntypes_test.go's
@@ -32,37 +32,37 @@ multi sub can_ssl (Str|Object $self:) Int;
 # perform HTTP requests, and agent/timeout/connected read $self->{...},
 # which dies when $self is the bare class name (measured, same as
 # IO::Select's instance methods).
-sub get (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub head (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub put (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub post (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub patch (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub delete (Object $self: Str $url, Optional[HashRef] $options) HashRef;
-sub post_form (Object $self: Str $url, HashRef|ArrayRef $data, Optional[HashRef] $options) HashRef;
-sub mirror (Object $self: Str $url, Str $filename, Optional[HashRef] $options) HashRef;
-sub request (Object $self: Str $method, Str $url, Optional[HashRef] $options) HashRef;
+sub get (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub head (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub put (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub post (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub patch (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub delete (BlessedRef $self: Str $url, Optional[HashRef] $options) HashRef;
+sub post_form (BlessedRef $self: Str $url, HashRef|ArrayRef $data, Optional[HashRef] $options) HashRef;
+sub mirror (BlessedRef $self: Str $url, Str $filename, Optional[HashRef] $options) HashRef;
+sub request (BlessedRef $self: Str $method, Str $url, Optional[HashRef] $options) HashRef;
 # connected's source is `wantarray ? (peerhost, peerport) : join(':',...)`
 # (POD: "In list context, returns the peer host and port or an empty
 # list"), so a list candidate joins the scalar one (audit-C.md finding 28).
-multi sub connected (Object $self:) Str|Undef;
-multi sub connected (Object $self:) List[Str|Int];
-sub agent (Object $self: Optional[Str] $agent) Str;
-sub timeout (Object $self: Optional[Num] $timeout) Num|Undef;
+multi sub connected (BlessedRef $self:) Str|Undef;
+multi sub connected (BlessedRef $self:) List[Str|Int];
+sub agent (BlessedRef $self: Optional[Str] $agent) Str;
+sub timeout (BlessedRef $self: Optional[Num] $timeout) Num|Undef;
 
 # Every attribute HTTP::Tiny documents ("An accessor/mutator method
 # exists for each attribute") is generated the same way in a BEGIN
 # block, measured on 5.42.0 (audit-C.md finding 29): $h->max_size(10)
 # returns 10. Each is Optional to set and admits Undef unset, except
 # no_proxy, whose default is a real (empty) ArrayRef (measured).
-sub cookie_jar (Object $self: Optional[Object] $jar) Object|Undef;
-sub default_headers (Object $self: Optional[HashRef] $headers) HashRef|Undef;
-sub http_proxy (Object $self: Optional[Str] $proxy) Str|Undef;
-sub https_proxy (Object $self: Optional[Str] $proxy) Str|Undef;
-sub keep_alive (Object $self: Optional[Int] $on) Int;
-sub local_address (Object $self: Optional[Str] $address) Str|Undef;
-sub max_redirect (Object $self: Optional[Int] $n) Int;
-sub max_size (Object $self: Optional[Int] $bytes) Int|Undef;
-sub proxy (Object $self: Optional[Str] $proxy) Str|Undef;
-sub no_proxy (Object $self: Optional[ArrayRef] $hosts) ArrayRef;
-sub SSL_options (Object $self: Optional[HashRef] $options) HashRef|Undef;
-sub verify_SSL (Object $self: Optional[Int] $on) Int;
+sub cookie_jar (BlessedRef $self: Optional[BlessedRef] $jar) BlessedRef|Undef;
+sub default_headers (BlessedRef $self: Optional[HashRef] $headers) HashRef|Undef;
+sub http_proxy (BlessedRef $self: Optional[Str] $proxy) Str|Undef;
+sub https_proxy (BlessedRef $self: Optional[Str] $proxy) Str|Undef;
+sub keep_alive (BlessedRef $self: Optional[Int] $on) Int;
+sub local_address (BlessedRef $self: Optional[Str] $address) Str|Undef;
+sub max_redirect (BlessedRef $self: Optional[Int] $n) Int;
+sub max_size (BlessedRef $self: Optional[Int] $bytes) Int|Undef;
+sub proxy (BlessedRef $self: Optional[Str] $proxy) Str|Undef;
+sub no_proxy (BlessedRef $self: Optional[ArrayRef] $hosts) ArrayRef;
+sub SSL_options (BlessedRef $self: Optional[HashRef] $options) HashRef|Undef;
+sub verify_SSL (BlessedRef $self: Optional[Int] $on) Int;

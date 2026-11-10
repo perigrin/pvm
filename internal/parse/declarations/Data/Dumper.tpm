@@ -25,7 +25,7 @@ multi sub DumperX :export_ok (List @args) List[Str];
 # [ARRAYREF])"), measured, so $vals stays required; $names defaults to
 # [] when omitted or not a ref (measured, the source's own `$n = []
 # unless (defined($n) && (ref($n) eq 'ARRAY'))`).
-sub new (Str $class: ArrayRef $vals, Optional[ArrayRef] $names) Object;
+sub new (Str $class: ArrayRef $vals, Optional[ArrayRef] $names) BlessedRef;
 
 # Dump answers by context the same way Dumper does (measured);
 # perldoc's own class-method form, `PACKAGE->Dump(ARRAYREF,
@@ -33,8 +33,8 @@ sub new (Str $class: ArrayRef $vals, Optional[ArrayRef] $names) Object;
 # only on a constructed instance, where any extra argument given is
 # ignored (measured: the source's own `$s = $s->new(@_) unless ref
 # $s` skips construction once $s is already a ref).
-multi sub Dump (Object $self:) Str;
-multi sub Dump (Object $self:) List[Str];
+multi sub Dump (BlessedRef $self:) Str;
+multi sub Dump (BlessedRef $self:) List[Str];
 
 # Seen, Values and Names each set-or-query, measured by the source's
 # own `@_ >= 2` arity check: a multi told apart by arity (RFC 0001,
@@ -47,15 +47,15 @@ multi sub Dump (Object $self:) List[Str];
 # which never answers it). The setter returns $self for chaining, or
 # croaks given a defined non-ref argument (Values, Names: "Argument to
 # Values, if provided, must be array ref").
-multi sub Seen (Object $self:) Int;
-multi sub Seen (Object $self: HashRef $g) Object;
-multi sub Values (Object $self:) Int;
-multi sub Values (Object $self: ArrayRef $v) Object;
-multi sub Names (Object $self:) Int;
-multi sub Names (Object $self: ArrayRef $n) Object;
+multi sub Seen (BlessedRef $self:) Int;
+multi sub Seen (BlessedRef $self: HashRef $g) BlessedRef;
+multi sub Values (BlessedRef $self:) Int;
+multi sub Values (BlessedRef $self: ArrayRef $v) BlessedRef;
+multi sub Names (BlessedRef $self:) Int;
+multi sub Names (BlessedRef $self: ArrayRef $n) BlessedRef;
 
 # Reset always returns $self (measured): it only clears the seen cache.
-sub Reset (Object $self:) Object;
+sub Reset (BlessedRef $self:) BlessedRef;
 
 # Indent, Trailingcomma, Pair, Pad, Varname, Purity, Useqq, Terse,
 # Freezer, Toaster, Deepcopy, Quotekeys, Bless, Maxdepth, Maxrecurse,
@@ -69,41 +69,41 @@ sub Reset (Object $self:) Object;
 # validates what is stored -- the source assigns the raw argument
 # unchecked -- and Scalar is what every one of its own documented
 # defaults (Int flags, Str names, Sortkeys's CodeRef) already fits.
-multi sub Indent (Object $self:) Scalar;
-multi sub Indent (Object $self: Scalar $v) Object;
-multi sub Trailingcomma (Object $self:) Scalar;
-multi sub Trailingcomma (Object $self: Scalar $v) Object;
-multi sub Pair (Object $self:) Scalar;
-multi sub Pair (Object $self: Scalar $v) Object;
-multi sub Pad (Object $self:) Scalar;
-multi sub Pad (Object $self: Scalar $v) Object;
-multi sub Varname (Object $self:) Scalar;
-multi sub Varname (Object $self: Scalar $v) Object;
-multi sub Purity (Object $self:) Scalar;
-multi sub Purity (Object $self: Scalar $v) Object;
-multi sub Useqq (Object $self:) Scalar;
-multi sub Useqq (Object $self: Scalar $v) Object;
-multi sub Terse (Object $self:) Scalar;
-multi sub Terse (Object $self: Scalar $v) Object;
-multi sub Freezer (Object $self:) Scalar;
-multi sub Freezer (Object $self: Scalar $v) Object;
-multi sub Toaster (Object $self:) Scalar;
-multi sub Toaster (Object $self: Scalar $v) Object;
-multi sub Deepcopy (Object $self:) Scalar;
-multi sub Deepcopy (Object $self: Scalar $v) Object;
-multi sub Quotekeys (Object $self:) Scalar;
-multi sub Quotekeys (Object $self: Scalar $v) Object;
-multi sub Bless (Object $self:) Scalar;
-multi sub Bless (Object $self: Scalar $v) Object;
-multi sub Maxdepth (Object $self:) Scalar;
-multi sub Maxdepth (Object $self: Scalar $v) Object;
-multi sub Maxrecurse (Object $self:) Scalar;
-multi sub Maxrecurse (Object $self: Scalar $v) Object;
-multi sub Useperl (Object $self:) Scalar;
-multi sub Useperl (Object $self: Scalar $v) Object;
-multi sub Sortkeys (Object $self:) Scalar;
-multi sub Sortkeys (Object $self: Scalar $v) Object;
-multi sub Deparse (Object $self:) Scalar;
-multi sub Deparse (Object $self: Scalar $v) Object;
-multi sub Sparseseen (Object $self:) Scalar;
-multi sub Sparseseen (Object $self: Scalar $v) Object;
+multi sub Indent (BlessedRef $self:) Scalar;
+multi sub Indent (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Trailingcomma (BlessedRef $self:) Scalar;
+multi sub Trailingcomma (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Pair (BlessedRef $self:) Scalar;
+multi sub Pair (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Pad (BlessedRef $self:) Scalar;
+multi sub Pad (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Varname (BlessedRef $self:) Scalar;
+multi sub Varname (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Purity (BlessedRef $self:) Scalar;
+multi sub Purity (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Useqq (BlessedRef $self:) Scalar;
+multi sub Useqq (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Terse (BlessedRef $self:) Scalar;
+multi sub Terse (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Freezer (BlessedRef $self:) Scalar;
+multi sub Freezer (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Toaster (BlessedRef $self:) Scalar;
+multi sub Toaster (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Deepcopy (BlessedRef $self:) Scalar;
+multi sub Deepcopy (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Quotekeys (BlessedRef $self:) Scalar;
+multi sub Quotekeys (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Bless (BlessedRef $self:) Scalar;
+multi sub Bless (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Maxdepth (BlessedRef $self:) Scalar;
+multi sub Maxdepth (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Maxrecurse (BlessedRef $self:) Scalar;
+multi sub Maxrecurse (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Useperl (BlessedRef $self:) Scalar;
+multi sub Useperl (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Sortkeys (BlessedRef $self:) Scalar;
+multi sub Sortkeys (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Deparse (BlessedRef $self:) Scalar;
+multi sub Deparse (BlessedRef $self: Scalar $v) BlessedRef;
+multi sub Sparseseen (BlessedRef $self:) Scalar;
+multi sub Sparseseen (BlessedRef $self: Scalar $v) BlessedRef;

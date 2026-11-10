@@ -170,7 +170,7 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 			specificType, ok := refTypeMap[guard.RefType]
 			if !ok {
 				// Unknown ref type string means a blessed reference (class name).
-				specificType = Object
+				specificType = BlessedRef
 			}
 			result := effective & specificType
 			return narrowResult(result, effective)
@@ -184,7 +184,7 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		if effective == Unknown {
 			effective = Any
 		}
-		result := effective & Object
+		result := effective & BlessedRef
 		return narrowResult(result, effective)
 
 	case GuardBool:
