@@ -2,8 +2,14 @@
 # ABOUTME: The verdict is COMPUTED from both membership factors, never written down.
 use v5.36;
 use Scalar::Util qw(reftype blessed);
-use experimental 'class';
-class Lattice::Class { field $x = 1; }
+
+# A class-feature instance, the witness for Object <: BlessedRef. `class` is
+# perl 5.38's, so it is compiled only there: on an older perl the edge is not
+# measured (the Go test checks the edges measured), and the rest still runs.
+my $CLASS_INSTANCE = $] >= 5.038
+    ? ( eval q{ use experimental 'class'; class Lattice::Class { field $x = 1; } Lattice::Class->new }
+        // die "lattice oracle: building the class witness: $@" )
+    : undef;
 
 # WHAT THIS FILE IS FOR.
 #
@@ -206,9 +212,11 @@ my @EDGES = (
       witnesses => [ [ 'bless {}', bless( {}, 'Lattice::Witness' ) ],
                      [ '*STDOUT{IO}', *STDOUT{IO} ] ] },
     # A class-feature instance is blessed with reftype OBJECT: an Object, and
-    # a BlessedRef as any blessed reference is.
-    { child => 'Object', parent => 'BlessedRef',
-      witnesses => [ [ 'Lattice::Class->new', Lattice::Class->new ] ] },
+    # a BlessedRef as any blessed reference is. Measured where perl has `class`.
+    ( defined $CLASS_INSTANCE
+        ? { child => 'Object', parent => 'BlessedRef',
+            witnesses => [ [ 'Lattice::Class->new', $CLASS_INSTANCE ] ] }
+        : () ),
     { child => 'Regex', parent => 'BlessedRef',
       witnesses => [ [ 'qr/x/', qr/x/ ] ] },
 

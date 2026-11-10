@@ -191,7 +191,7 @@ func TestNarrowByGuardRef(t *testing.T) {
 	assert.Equal(t, types.Ref, narrowed, "Unknown & Ref = Ref")
 }
 
-// TestNarrowByGuardIsa verifies that an isa guard narrows any type to Object.
+// TestNarrowByGuardIsa verifies that an isa guard narrows any type to BlessedRef.
 func TestNarrowByGuardIsa(t *testing.T) {
 	guard := types.GuardPattern{Kind: types.GuardIsa}
 
@@ -291,10 +291,10 @@ func TestNarrowByGuardRefPreservesSubtypes(t *testing.T) {
 	assert.False(t, ok, "CodeRef should not narrow under plain ref guard")
 	assert.Equal(t, types.CodeRef, narrowed, "CodeRef should be preserved")
 
-	// Object is a subtype of Ref.
+	// BlessedRef is a subtype of Ref.
 	narrowed, ok = types.NarrowByGuard(types.BlessedRef, guard)
-	assert.False(t, ok, "Object should not narrow under plain ref guard")
-	assert.Equal(t, types.BlessedRef, narrowed, "Object should be preserved")
+	assert.False(t, ok, "BlessedRef should not narrow under plain ref guard")
+	assert.Equal(t, types.BlessedRef, narrowed, "BlessedRef should be preserved")
 
 	// Ref & Ref = Ref = typ → (Ref, false): no change because result equals input.
 	narrowed, ok = types.NarrowByGuard(types.Ref, guard)
@@ -435,7 +435,7 @@ func TestNarrowByGuardRefEq(t *testing.T) {
 		{"GLOB", types.GlobRef},
 		{"REF", types.Ref},
 		{"Foo", types.BlessedRef},     // unknown ref type string → blessed reference
-		{"MyClass", types.BlessedRef}, // arbitrary class name → Object
+		{"MyClass", types.BlessedRef}, // arbitrary class name → BlessedRef
 	}
 
 	for _, tc := range cases {

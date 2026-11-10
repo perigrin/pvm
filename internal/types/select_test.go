@@ -623,12 +623,12 @@ func TestCoercionRetryKeepsArity(t *testing.T) {
 // Encode::encode's `encode($encoding, $text, $check)` has $text proven
 // Str (by `join("", @text)`, never undef) and selects the Str candidate
 // even though $encoding ($$self{ENCODING}, a hash element) is Unknown --
-// $encoding's own slot, `Str|Object`, is identical on both candidates,
+// $encoding's own slot, `Str|BlessedRef`, is identical on both candidates,
 // so it never distinguishes them.
 func TestSelectUnknownAtNonDiscriminatingPositionDecides(t *testing.T) {
 	cands := []Signature{
-		sig(Str, scalar("encoding", Str|Object), scalar("string", Str), scalar("check", Int|CodeRef)),
-		sig(Str|Undef, scalar("encoding", Str|Object), scalar("string", Str|Undef), scalar("check", Int|CodeRef)),
+		sig(Str, scalar("encoding", Str|BlessedRef), scalar("string", Str), scalar("check", Int|CodeRef)),
+		sig(Str|Undef, scalar("encoding", Str|BlessedRef), scalar("string", Str|Undef), scalar("check", Int|CodeRef)),
 	}
 	wantSelected(t, cands, []Type{Unknown, Str, Code}, 0, Str)
 }

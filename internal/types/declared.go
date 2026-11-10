@@ -5,7 +5,7 @@ package types
 
 // Signature is the typed parameter list of a .tpm declaration, RFC 0001
 // "Typed Perl, in `.tpm` only": `sub bless :prototype($;$) (Ref $ref, Str
-// $class = __PACKAGE__) Object;`.
+// $class = __PACKAGE__) BlessedRef;`.
 type Signature struct {
 	// Invocant is the leading slot a call fills with no comma after it,
 	// RFC 0001 "Builtins that keep their own parse": `print STDERR LIST`'s

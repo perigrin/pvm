@@ -71,9 +71,9 @@ func TestGotchaRefInScalarContext(t *testing.T) {
 		"HashRef in scalar context passes through unchanged")
 
 	narrowed, valid = types.NarrowByContext(types.BlessedRef, types.ScalarCtx)
-	assert.True(t, valid, "Object in scalar context is valid")
+	assert.True(t, valid, "BlessedRef in scalar context is valid")
 	assert.Equal(t, types.BlessedRef, narrowed,
-		"Object in scalar context passes through unchanged")
+		"BlessedRef in scalar context passes through unchanged")
 }
 
 // --- DualVar semantics ---

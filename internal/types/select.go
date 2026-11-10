@@ -191,7 +191,7 @@ func coercedArgs(coercing []Signature, args []Type) []Type {
 // position where fit's candidates' parameter types actually differ: only
 // there can the missing information change which candidate is most
 // specific. An Unknown at a position every fit candidate takes the same
-// way -- Encode::encode's $encoding, `Str|Object` on both candidates --
+// way -- Encode::encode's $encoding, `Str|BlessedRef` on both candidates --
 // cannot: whichever type the argument turns out to be, every fit
 // candidate takes it identically, so it decides nothing between them.
 func unknownDiscriminates(cands []Signature, fit []int, args []Type) bool {

@@ -146,8 +146,8 @@ func narrowResult(result, typ Type) (Type, bool) {
 //   - GuardRef plain: treat Unknown as Any; result = typ & Ref (intersection with Ref mask).
 //     Empty → (None, true). Result == typ → (typ, false).
 //   - GuardRef with RefType: look up specific type in refTypeMap; result = typ & specificType.
-//     For an unknown class name the specific type is Object.
-//   - GuardIsa: result = typ & Object.
+//     For an unknown class name the specific type is BlessedRef.
+//   - GuardIsa: result = typ & BlessedRef.
 func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 	switch guard.Kind {
 	case GuardDefined, GuardTruthy:

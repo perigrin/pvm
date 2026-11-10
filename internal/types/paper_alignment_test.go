@@ -63,7 +63,7 @@ func TestPaperNaNInfDistinct(t *testing.T) {
 
 // --- Unions are an EITHER, never a both ---
 // A union type is the value that came out of a merge: it is one of its
-// members, and PSC does not know which. Object|HashRef arises where one arm
+// members, and PSC does not know which. BlessedRef|HashRef arises where one arm
 // gave a blessed reference and the other a plain hashref.
 //
 // Perl keeps those apart. Measured on 5.42, `ref` reports the class for a
@@ -76,21 +76,21 @@ func TestPaperUnionIsEither(t *testing.T) {
 
 	// Every member is a Ref, so the union is a Ref.
 	assert.True(t, types.IsSubtype(objOrHash, types.Ref),
-		"Object|HashRef is a subtype of Ref — both members are references")
+		"BlessedRef|HashRef is a subtype of Ref — both members are references")
 	assert.True(t, types.IsSubtype(objOrHash, types.Scalar),
-		"Object|HashRef is a subtype of Scalar")
+		"BlessedRef|HashRef is a subtype of Scalar")
 
 	// But it satisfies NEITHER member requirement: the value might be the
 	// other one. Calling a method on it is unsound if it is the plain
 	// hashref, and dereferencing it as a hash is unsound if it is the object.
 	assert.False(t, types.TypeSatisfies(objOrHash, types.BlessedRef),
-		"Object|HashRef does NOT satisfy Object — the value might be the plain hashref")
+		"BlessedRef|HashRef does NOT satisfy BlessedRef — the value might be the plain hashref")
 	assert.False(t, types.TypeSatisfies(objOrHash, types.HashRef),
-		"Object|HashRef does NOT satisfy HashRef — the value might be the object")
+		"BlessedRef|HashRef does NOT satisfy HashRef — the value might be the object")
 
 	// It does satisfy a requirement every member meets.
 	assert.True(t, types.TypeSatisfies(objOrHash, types.Ref),
-		"Object|HashRef satisfies Ref — every member is a reference")
+		"BlessedRef|HashRef satisfies Ref — every member is a reference")
 }
 
 // --- Bottom and top type properties ---
@@ -166,19 +166,21 @@ func TestPaperArityOrdering(t *testing.T) {
 		"List is NOT a subtype of Scalar — a list may denote zero or many values")
 }
 
-// --- Regex <: Object <: Ref (paper §"Regex") ---
+// --- Regex <: BlessedRef <: Ref (paper §"Regex") ---
 // Regex := {v ∈ Object | ref(v) eq 'Regexp'}. A compiled pattern is a blessed
-// reference — ref is 'Regexp', blessed is 'Regexp', reftype is 'REGEXP' — which
-// is this paper's definition of Object. So Regex is a subtype of Object rather
-// than a sibling of Ref, and it participates in method dispatch.
+// reference — ref is 'Regexp', blessed is 'Regexp', reftype is 'REGEXP' —
+// which is the paper's definition of Object, and PSC's BlessedRef (since
+// 2026-11-10, where PSC's Object is a `class` instance, reftype OBJECT; the
+// paper still says Object). So Regex is a subtype of BlessedRef rather than a
+// sibling of Ref, and it participates in method dispatch.
 
 func TestPaperRegexIsObject(t *testing.T) {
 	assert.True(t, types.IsSubtype(types.Regex, types.BlessedRef),
-		"Regex <: Object — a compiled pattern is a blessed reference")
+		"Regex <: BlessedRef — a compiled pattern is a blessed reference")
 	assert.True(t, types.IsSubtype(types.Regex, types.Ref),
-		"Regex <: Ref — transitive through Object")
+		"Regex <: Ref — transitive through BlessedRef")
 	assert.True(t, types.IsSubtype(types.BlessedRef, types.Ref),
-		"Object <: Ref")
+		"BlessedRef <: Ref")
 
 	// Regex is NOT a Str: syntactic preservation fails because qr// applied to
 	// a stringified pattern NESTS it rather than reconstructing the original.

@@ -744,7 +744,7 @@ type Options struct {
 	// WarnPossibleUndef forgives for a declared call's Undef, extended
 	// to a declared call's non-Undef union return. Symbol::qualify's
 	// Ref candidate returns the reference it was given, unchanged
-	// (ScalarRef, ArrayRef, HashRef, CodeRef or Object alongside
+	// (ScalarRef, ArrayRef, HashRef, CodeRef or BlessedRef alongside
 	// GlobRef), so IO/Handle.pm:516's `tell qualify($_[0], caller) if
 	// ref($_[0])` sees a Ref where tell's Glob-only parameter wants a
 	// GlobRef -- psc knows only that the value is some reference, never

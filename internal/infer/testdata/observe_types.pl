@@ -35,7 +35,10 @@ sub observe ($v) {
     if (ref $v) {
         my $rt = reftype($v) // '';
         return 'Regex'  if $rt eq 'REGEXP';
-        return 'Object' if defined blessed($v);
+        # A class instance's referent is opaque (reftype OBJECT); any other
+        # blessed value is a BlessedRef, whatever its reftype.
+        return 'Object'     if $rt eq 'OBJECT';
+        return 'BlessedRef' if defined blessed($v);
         return 'ArrayRef' if $rt eq 'ARRAY';
         return 'HashRef'  if $rt eq 'HASH';
         return 'CodeRef'  if $rt eq 'CODE';

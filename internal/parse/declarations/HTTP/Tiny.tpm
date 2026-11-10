@@ -7,7 +7,7 @@ package HTTP::Tiny;
 # nothing in the caller.
 
 # new only builds and blesses a hashref and reads %ENV for proxies, no
-# network: always an BlessedRef (measured).
+# network: always a BlessedRef (measured).
 sub new (Str $class: List @args) BlessedRef;
 # www_form_urlencode never touches $self (measured: its one use of the
 # invocant is a method call, _uri_escape, that does not dereference it

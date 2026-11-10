@@ -17,7 +17,7 @@ import (
 // Symbol::qualify's Ref candidate preserves whatever reference it is
 // given -- measured, `ref qualify({})` is HASH, not GlobRef -- so
 // qualify($h, ...) with $h a HashRef is typed Ref: ScalarRef, ArrayRef,
-// HashRef, CodeRef and Object besides the one member, GlobRef, that
+// HashRef, CodeRef and BlessedRef besides the one member, GlobRef, that
 // tell's Glob-only parameter takes. psc knows only that the value is
 // some reference, never which kind, the same loss of precision
 // possible-undef forgives for a declared call's Undef, and perl 5.42 -w
