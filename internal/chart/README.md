@@ -255,7 +255,7 @@ To take a baseline after an intended change, run
 | `terminals-per-token` | the table's width: terminals per mapped token (a token the table cannot map holds none and is not counted) | may not rise from completion |
 | `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
 | `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
-| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three | timing; ≤ 1.3 absolutely |
+| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three, each pass lexing its buffer 25 times | timing; ≤ 1.3 absolutely |
 | `lex-overhead-std5k` | the same on `std5k.pl` alone | timing |
 | `lex-overhead-aggregate` | the same over the aggregate, never gated | timing |
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
@@ -297,7 +297,19 @@ clock and a collector, so it is tested on fake timings
   `edit5k.pl` each alone, long-lived, and takes the larger figure (the edit5k
   figure is a `lex-overhead-edit5k` measurement line on stderr, not a key);
   `lex-overhead-aggregate` passes the aggregate; the speed ratios pass
-  `std5k.pl` alone and the aggregate. The 1.3 protects chart/lex's share of an
+  `std5k.pl` alone and the aggregate. A `lex-overhead` pass lexes its buffer
+  25 times (`lexRepeat`), about 200 ms of work rather than 8 to 10 ms: perigrin
+  ruled it on 2026-11-10, the definition's fourth amendment, after a pass of
+  one buffer read 1.336 under load on code that reads about 1.15 quiet. On a
+  loaded machine the measuring thread waits for a CPU for most of a short
+  pass, so a one-buffer pair's wall ratio was decided by the scheduler, not
+  the work (per-pair ratios 0.09 to 8.5 at load 15 to 21; GC was not the
+  cause: every span held one collection on each side, and `GOGC=off` left the
+  spread unchanged). The 9 pairs, the medians, the wall clock and the GC
+  placement are unchanged (`TestLexOverheadDefinitionUnchanged`,
+  `TestLexOverheadProductionClock`); `TestLexOverheadStableUnderLoad` models
+  the delays on a fake clock, and `cmd/ratchet/loadcheck.sh` runs two
+  ratchets beside a busy loop per CPU and fails on a reading above 1.3. The 1.3 protects chart/lex's share of an
   LSP call, which re-lexes one buffer in a warm process; over many small
   files each call starts with cold CPU caches, so the aggregate measures
   per-call start-up and is reported, never gated.

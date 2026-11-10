@@ -1,5 +1,5 @@
 // ABOUTME: Tests that lex-overhead runs chart/lex and lexer.Tokenize through the §9.3 protocol with Tokenize inside the numerator.
-// ABOUTME: On a fake clock that only an injected Tokenize moves: alternation, a GC before each pass, the median of three.
+// ABOUTME: Also lex-overhead's definition (25 buffers a pass), its production clock, its unsoftened 1.3 gate and its stability under load.
 
 package main
 
@@ -199,5 +199,130 @@ func TestLexOverheadProductionClock(t *testing.T) {
 	}
 	if reflect.ValueOf(p.GC).Pointer() != reflect.ValueOf(runtime.GC).Pointer() {
 		t.Error("the production protocol's GC is not runtime.GC")
+	}
+}
+
+// lexWorld is a fake clock for lexOverheadKeys: GC starts pass k+1, the
+// reference costs 10 a buffer, the chart 10*chart(k, path). It logs each
+// pass as its file and run count.
+type lexWorld struct {
+	now    time.Duration
+	pass   int
+	passes [][]string
+	chart  func(pass int, path string) float64
+	stderr strings.Builder
+}
+
+func (w *lexWorld) protocol() Protocol {
+	side := func(chart bool) Side {
+		return func() Runner {
+			return func(path string) {
+				w.passes[len(w.passes)-1] = append(w.passes[len(w.passes)-1], path)
+				c := 10.0
+				if chart {
+					c *= w.chart(w.pass, path)
+				}
+				w.now += time.Duration(c * 1000)
+			}
+		}
+	}
+	return Protocol{
+		Chart: side(true), Ref: side(false),
+		Now:    func() time.Duration { return w.now },
+		GC:     func() { w.pass++; w.passes = append(w.passes, nil) },
+		Stderr: &w.stderr,
+	}
+}
+
+// TestLexOverheadDefinitionUnchanged: lex-overhead is 2 warm-up and 9 timed
+// pairs, the median of the per-pair ratios, the median of three
+// measurements, over std5k.pl and edit5k.pl, the key the larger of the two;
+// each pass lexes its one buffer 25 times (the fourth amendment, about 200 ms
+// of work a pass).
+func TestLexOverheadDefinitionUnchanged(t *testing.T) {
+	rows := [][]float64{
+		{1.21, 1.29, 1.22, 1.28, 1.25, 9.9, 1.23, 1.27, 1.24},
+		{1.01, 1.09, 3.5, 1.02, 1.05, 1.07, 1.03, 1.06, 1.04},
+		{1.11, 1.19, 1.12, 1.15, 1.17, 1.13, 1.16, 1.14, 7.0},
+	}
+	const perFile = 3 * 11 * 2
+	w := &lexWorld{chart: func(pass int, path string) float64 {
+		k := pass - 1 // GC has already counted this pass
+		if path != std5k {
+			k -= perFile
+		}
+		m, i := k/2/11, k/2%11
+		switch {
+		case path == "a.pl":
+			return 1
+		case i < 2:
+			return 0.01 // a warm-up counted among the timed pairs would move every median
+		case path == edit5k:
+			return 1.2
+		}
+		return rows[m][i-2]
+	}}
+	m := map[string]string{}
+	lexOverheadKeys(w.protocol(), []string{"a.pl"}, m)
+	if m["lex-overhead"] != "1.200" || m["lex-overhead-std5k"] != "1.150" {
+		t.Errorf("lex-overhead %s, std5k %s; want 1.200 (edit5k's, the larger) and 1.150 (the median of medians 1.25, 1.05, 1.15)",
+			m["lex-overhead"], m["lex-overhead-std5k"])
+	}
+	for i, f := range []string{std5k, edit5k} {
+		for j, pass := range w.passes[i*perFile : (i+1)*perFile] {
+			if want := slices.Repeat([]string{f}, 25); !slices.Equal(pass, want) {
+				t.Fatalf("%s pass %d ran %v, want %s 25 times", f, j, pass, f)
+			}
+		}
+	}
+	for _, s := range []string{"lex-overhead-std5k measurement 1: median 1.25", "lex-overhead-std5k measurement 2: median 1.05",
+		"lex-overhead-std5k measurement 3: median 1.15", "lex-overhead-edit5k measurement 3: median 1.2"} {
+		if !strings.Contains(w.stderr.String(), s) {
+			t.Errorf("stderr %q does not report %q", w.stderr.String(), s)
+		}
+	}
+}
+
+// TestLexOverheadLimitNotSoftened: 1.301 fails the ratchet's check and 1.3
+// passes; a missing or na lex-overhead fails against a numeric baseline; and
+// a first reading above 1.3 stands, taken once and never re-measured.
+func TestLexOverheadLimitNotSoftened(t *testing.T) {
+	baseline := Format(report(map[string]string{"lex-overhead": "1.200"}))
+	for _, tc := range []struct {
+		name     string
+		measured map[string]string
+		want     int
+	}{
+		{"1.301", map[string]string{"lex-overhead": "1.301"}, 1},
+		{"exactly 1.3", map[string]string{"lex-overhead": "1.3"}, 0},
+		{"na", map[string]string{"lex-overhead": na}, 1},
+		{"missing", map[string]string{}, 1},
+	} {
+		if got := check(report(tc.measured), nil, baseline, "", io.Discard); got != tc.want {
+			t.Errorf("lex-overhead %s: check exits %d, want %d", tc.name, got, tc.want)
+		}
+	}
+
+	// std5k reads 1.31 on its first figure and 1.0 on any pass after it.
+	const perFile = 3 * 11 * 2
+	w := &lexWorld{chart: func(pass int, path string) float64 {
+		if path == std5k && pass <= perFile {
+			return 1.31
+		}
+		return 1
+	}}
+	m := map[string]string{}
+	lexOverheadKeys(w.protocol(), []string{"a.pl"}, m)
+	n := 0
+	for _, p := range w.passes {
+		if p[0] == std5k {
+			n++
+		}
+	}
+	if m["lex-overhead"] != "1.310" || n != perFile {
+		t.Errorf("lex-overhead %s over %d std5k passes; want 1.310 over %d: a reading above 1.3 is never re-measured", m["lex-overhead"], n, perFile)
+	}
+	if got := check(report(m), nil, baseline, "", io.Discard); got != 1 {
+		t.Errorf("a first lex-overhead of 1.310: check exits %d, want 1", got)
 	}
 }
