@@ -134,6 +134,9 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "usage: referee [-p] [-g] <terminals\n");
 			return 2;
 		}
+#if YYDEBUG
+	yydebug = 1; /* sentences.sh's build: which state reads which lookahead */
+#endif
 	yyparse();
 	if (prefix ? eoferrs == 0 : errs == 0)
 		puts(prefix ? "viable" : "accept");
