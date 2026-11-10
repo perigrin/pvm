@@ -49,13 +49,15 @@ for (split /\n/, $np) {
 my %nonterm = map { $_ => 1 } grep { defined } @lhs;
 
 # Rules that refuse in an action, or read `error`, never stand in a yield.
-my @refusing;
+# A rule carrying a precedence has its perly.y line in its grouping trace.
+my (@refusing, @pline);
 {
 	my $i = 0;
 	for (split /\n/, slurp("$work/referee-prec.y")) {
 		next unless /^\w+:/;
 		$i++;
 		$refusing[$i] = /yyerror/ || /\berror\b/ ? 1 : 0;
+		$pline[$i] = $1 if /trace\((\d+),/;
 	}
 	die "sentences.pl: referee-prec.y has $i rules, its report $#lhs\n" unless $i == $#lhs;
 }
@@ -199,7 +201,8 @@ sub search {
 }
 
 # A node's sentence: what was read to reach it, then (with @mid) more, then
-# the rests it left, innermost first.
+# the rests it left, innermost first. With it, k: the index of the token
+# after what was read, where the conflict is.
 sub sentence {
 	my ($pred, $node, @mid) = @_;
 	my (@read, @rests);
@@ -209,7 +212,7 @@ sub sentence {
 		else                      { push @rests, $step->[1] }
 		$node = $from;
 	}
-	return [ @read, @mid, map { @$_ } @rests ];
+	return { toks => [ @read, @mid, map { @$_ } @rests ], k => scalar @read };
 }
 
 my ($plain_dist, $plain_pred) = search(undef);
@@ -237,7 +240,8 @@ sub candidates {
 		push @c, sentence($pred, $node) if defined $dist->{$node};
 	}
 	my %seen;
-	return grep { !$seen{"@$_"}++ } sort { @$a <=> @$b || "@$a" cmp "@$b" } @c;
+	return grep { !$seen{"@{$_->{toks}} $_->{k}"}++ }
+	  sort { @{ $a->{toks} } <=> @{ $b->{toks} } || "@{$a->{toks}}" cmp "@{$b->{toks}}" || $a->{k} <=> $b->{k} } @c;
 }
 
 # --- The referees.
@@ -250,18 +254,21 @@ sub run {
 	my ($pv, $pg) = split /\n/, `"$work/referee-prec-trace" -g <"$tmp" 2>"$tmp.trace"`;
 	my ($nv, $ng) = split /\n/, `"$work/referee-noprec" -g <"$tmp"`;
 	die "sentences.pl: a referee failed on @$toks\n" unless defined $pg && defined $ng;
-	# Each state the parser enters, with the token next in the input: the
-	# lookahead if it holds one, else the next token yylex will return (a
-	# state whose only action is a default reduction reads none).
+	# Each state the parser enters, with the index of the token next in the
+	# input: the lookahead if it holds one, else the token yylex returns next
+	# (a state whose only action is a default reduction reads none).
 	my (%seen, $la, $nread);
+	$nread = 0;
 	open my $tr, '<', "$tmp.trace" or die;
 	while (<$tr>) {
-		$nread++ if /^Reading a token$/;
-		$la = $1 if /^Next token is token (\S+) /;
+		$nread++, $la = 0 if /^Reading a token$/;
 		undef $la if /^Shifting token /;
-		$seen{ "$1 " . ($la // $toks->[ $nread // 0 ] // '$end') } = 1 if /^Entering state (\d+)$/;
+		$seen{ "$1 " . (defined $la ? $nread - 1 : $nread) } = 1 if /^Entering state (\d+)$/;
 	}
-	return { verdict => $pv, grouping => $pg, differs => ($pv ne $nv || $pg ne $ng), seen => \%seen };
+	# A refused sentence's grouping stops at its first error, so only a
+	# sentence both accept is compared by grouping.
+	my ($pa, $na) = ($pv eq 'accept', $nv eq 'accept');
+	return { verdict => $pv, grouping => $pg, ngrouping => $ng, differs => ($pa != $na || $pa && $pg ne $ng), seen => \%seen };
 }
 
 my (@sentences, %sid, %result);
@@ -274,36 +281,66 @@ sub keep {
 	}
 	return $sid{$k};
 }
-sub tryall {    # the first candidate that reaches $s with $t next and on which the referees differ
-	my ($s, $t, $want, @cands) = @_;
-	my $n = 0;
-	for my $c (@cands) {
-		last if ++$n > $BOUND;
-		my $r = $result{"@$c"} //= run($c);
-		next unless $r->{differs} && $r->{seen}{"$s $t"};
-		next if $want && $r->{verdict} ne $want;
-		return keep($c, $r);
-	}
-	return undef;
+# Whether the referees' difference sits at the conflict, the token at k: on
+# a shift, referee-noprec reduces the rule to end at k and referee-prec does
+# not; on a reduce, referee-prec does and referee-noprec has a span across k
+# that referee-prec lacks; on an error, referee-prec refuses reading k.
+sub at_conflict {
+	my ($x, $k, $r) = @_;
+	return $r->{verdict} eq 'refuse@' . ($k + 1) if $x->{action} eq 'error';
+	my $l = $pline[ $x->{prule} ] // die "sentences.pl: rule $x->{rule} carries no precedence\n";
+	my @p = split /,/, $r->{grouping};
+	my @n = split /,/, $r->{ngrouping};
+	my $ends = sub { scalar grep { /^$l:\d+-$k$/ } @_ };
+	return $ends->(@n) && !$ends->(@p) if $x->{action} eq 'shift';
+	my %inp;
+	$inp{$_}++ for @p;
+	my $across = grep { /:(\d+)-(\d+)$/ && $1 < $k && $2 > $k && !($inp{$_} && $inp{$_}--) } @n;
+	return $ends->(@p) && $across;
 }
 
-my @uncovered;
+# The first candidate for resolution $x that reaches its state with its
+# token next, at k, on which the referees differ there. Else why not: the
+# bound reached, or every candidate tried within it.
+sub tryall {
+	my ($x, $want, @cands) = @_;
+	my $n = 0;
+	for my $c (@cands) {
+		return (undef, 'bound') if ++$n > $BOUND;
+		my $r = $result{"@{$c->{toks}}"} //= run($c->{toks});
+		next unless $r->{differs} && $r->{seen}{"$x->{state} $c->{k}"} && at_conflict($x, $c->{k}, $r);
+		next if $want && $r->{verdict} ne $want;
+		return keep($c->{toks}, $r);
+	}
+	return (undef, 'exhausted');
+}
+
+# Uncovered: the bound reached (`generation timed out`, spec section 8), or
+# every candidate failing within it, which fits no reason section 8 allows.
+my (@uncovered, @stops);
+sub uncovered {
+	my ($x, $why) = @_;
+	$x->{ids} = [];
+	push @{ $why eq 'bound' ? \@uncovered : \@stops }, $x;
+}
 for my $x (@res) {
-	my $id = tryall($x->{state}, $x->{token}, undef, candidates($x->{state}, $x->{token}, $x->{prule}));
-	$x->{ids} = defined $id ? [$id] : [];
-	push @uncovered, $x unless defined $id;
+	my ($id, $why) = tryall($x, undef, candidates($x->{state}, $x->{token}, $x->{prule}));
+	$x->{ids} = [$id];
+	uncovered($x, $why) unless defined $id;
 }
 
 # An error resolution is covered only beside an accepted neighbour: a sentence
 # referee-prec accepts through the same state, reading another token there on
 # which the referees also differ.
 for my $x (grep { $_->{action} eq 'error' && @{ $_->{ids} } } @res) {
-	my $id;
+	my ($id, $why) = (undef, 'exhausted');
 	for my $y (grep { $_->{state} == $x->{state} && $_->{token} ne $x->{token} } @res) {
-		$id = tryall($y->{state}, $y->{token}, 'accept', candidates($y->{state}, $y->{token}, $y->{prule})) and last;
+		my ($i, $w) = tryall($y, 'accept', candidates($y->{state}, $y->{token}, $y->{prule}));
+		($id, $why) = ($i, $why eq 'bound' ? 'bound' : $w);
+		last if defined $id;
 	}
 	if (defined $id) { push @{ $x->{ids} }, $id }
-	else             { $x->{ids} = []; push @uncovered, $x }
+	else             { uncovered($x, $why) }
 }
 
 open my $rf, '>', "$out/resolutions.txt" or die;
@@ -321,4 +358,9 @@ open my $uf, '>', "$out/uncovered-reviewed.txt" or die;
 print $uf "# Resolutions no sentence covers, each under its reason (spec section 8). Proposed by sentences.sh; reviewed before commit.\n";
 print $uf "reason: generation timed out\n" if @uncovered;
 print $uf "$_->{rule} $_->{token}\n" for sort { $a->{rule} <=> $b->{rule} || $a->{token} cmp $b->{token} } @uncovered;
-printf STDERR "sentences.pl: %d resolutions, %d covered, %d uncovered, %d sentences\n", scalar @res, @res - @uncovered, scalar @uncovered, scalar @sentences;
+printf STDERR "sentences.pl: %d resolutions, %d covered, %d uncovered, %d sentences\n", scalar @res, @res - @uncovered - @stops,
+  scalar @uncovered + @stops, scalar @sentences;
+# A stop to perigrin, not a listing: section 8 has no reason for these.
+print STDERR "sentences.pl: rule $_->{rule} $_->{token}: every candidate within the bound failed; this fits no reason spec section 8 allows\n"
+  for @stops;
+exit 1 if @stops;
