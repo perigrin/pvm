@@ -11,6 +11,12 @@ Scripts run by hand against perl blead 94e50866 in `/opt/corpora/perl5`.
 - The entries below are in dependency order: `build-perl.sh` first, then the
   scripts that need only the tree or bison, then those that use the perl,
   ending with `label.sh`, which needs the referees and the captures.
+- Every script that reads a pinned tree (the perl5 tree, and PerlOnJava for
+  `label.sh` and `tdt-align.sh`) requires it to be at its pinned commit **and
+  clean**: `git status --porcelain` empty, untracked files included. An edited
+  `perly.y` at the pinned commit is refused. A refusal names the script and
+  the tree on stderr and exits 1. Build and check in a `git clone --shared`
+  copy, never by editing the pinned tree.
 - Inputs: the perl5 tree at 94e50866 (`/opt/corpora/perl5`), the pinned perl
   (`/opt/perl-94e50866-debug/bin/perl`), `T1_CORPUS`
   (`/opt/corpora/PerlOnJava/src/test/resources/unit`, PerlOnJava 73be162b),
