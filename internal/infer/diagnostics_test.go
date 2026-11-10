@@ -56,8 +56,8 @@ func TestSuggestGuardEmptyVarName(t *testing.T) {
 }
 
 func TestSuggestGuardObject(t *testing.T) {
-	// Scalar actual, Object expected — defined() fires because removing
-	// Undef from Scalar still contains Object (IsSubtype(Object, narrowed)).
+	// Scalar actual, BlessedRef expected — defined() fires because removing
+	// Undef from Scalar still contains BlessedRef (IsSubtype(BlessedRef, narrowed)).
 	suggestion := infer.SuggestGuard("$x", types.Scalar, types.BlessedRef)
 	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
 }

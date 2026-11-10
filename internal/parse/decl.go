@@ -281,7 +281,7 @@ func refuseContext(n *Node) error {
 }
 
 // returnType reads the type a `.tpm` declaration states after its signature,
-// `) Object;`, where a definition would have its body, and its element type,
+// `) BlessedRef;`, where a definition would have its body, and its element type,
 // as typeExpr reads them. A declaration with no type name there states none.
 // The `;` is left for finishBodyOrSemicolon.
 func (p *parser) returnType() (types.Type, types.Type, *Node, error) {

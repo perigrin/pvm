@@ -14,10 +14,14 @@ import (
 
 // TestDerefKeepsBlessedObject (I1a): `$o->{k}` reads a blessed object
 // through an arrow, which perl autovivifies nothing and leaves $o exactly
-// what it was -- an Object, Foo->new's own type (infer.go's methodCall) --
-// not a plain HashRef: Encode's `my $enc = find_encoding("UTF-8"); my $name
-// = $enc->{Name}; decode($enc, "abc")` must not lose $enc's Object to
-// report decode's Object parameter a coercion mismatch.
+// what it was -- a BlessedRef, Foo->new's own type (infer.go's methodCall)
+// -- not a plain HashRef: Encode's `my $enc = find_encoding("UTF-8"); my
+// $name = $enc->{Name}; decode($enc, "abc")` must not lose $enc's
+// BlessedRef to report decode's BlessedRef parameter a coercion mismatch.
+//
+// But not every BlessedRef: measured on 5.42, a `class` instance (Object)
+// and a qr// (Regex) both die "Not a HASH reference" on `->{k}`, so a deref
+// that ran keeps only the plain blessed reference.
 func TestDerefKeepsBlessedObject(t *testing.T) {
 	const src = `package Foo;
 sub new { my $c = shift; return bless {}, $c }
@@ -33,7 +37,10 @@ my $v = $o->{k};
 		t.Fatalf("$o not found")
 	}
 	if sym.Type&types.BlessedRef == 0 {
-		t.Errorf("$o is %v after $o->{k}, want Object kept", sym.Type)
+		t.Errorf("$o is %v after $o->{k}, want a blessed reference kept", sym.Type)
+	}
+	if sym.Type&(types.Object|types.Regex) != 0 {
+		t.Errorf("$o is %v after $o->{k}, want no Object or Regex: neither survives a hash deref", sym.Type)
 	}
 }
 
@@ -63,10 +70,10 @@ func TestDerefNarrowingStaysInItsArm(t *testing.T) {
 }
 
 // TestDerefNarrowsARefUnion (I1c): $x may hold either an ArrayRef or a
-// HashRef before the deref, a real union with no Object bit at all; the
+// HashRef before the deref, a real union with no BlessedRef bit at all; the
 // arrow-hash deref proves specifically HashRef, so the ArrayRef half of
 // the prior union must not survive it -- narrowDerefBase must keep only
-// an existing Object bit across the deref, not every Ref bit the prior
+// an existing BlessedRef bit across the deref, not every Ref bit the prior
 // type happened to carry.
 func TestDerefNarrowsARefUnion(t *testing.T) {
 	const src = `my $x = $ARGV[0] ? {a=>1} : [1,2,3];

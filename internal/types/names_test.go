@@ -9,7 +9,7 @@ import (
 
 // TestIOLeafAndFileHandleUnion: RFC 0001 "Type names". IO joins the lattice
 // as a top-level leaf beside Code and Glob -- the paper's hierarchy puts it
-// there; the value `*STDOUT{IO}` is a blessed reference to it, an Object --
+// there; the value `*STDOUT{IO}` is a blessed reference to it, a BlessedRef --
 // and FileHandle is the named union Glob|GlobRef|IO a handle may be: a
 // bareword handle is a Glob, `open my $fh` gives a GLOB reference.
 func TestIOLeafAndFileHandleUnion(t *testing.T) {
@@ -100,11 +100,11 @@ func TestTypeFromNameRejectsBool(t *testing.T) {
 }
 
 // TestFileHandleExcludesStrAndObject: RFC 0001 -- a string naming a handle
-// dies under strict, and a blessed IO::File is an Object, so neither is a
+// dies under strict, and a blessed IO::File is a BlessedRef, so neither is a
 // FileHandle; nor is a FileHandle an IO.
 func TestFileHandleExcludesStrAndObject(t *testing.T) {
 	for _, tc := range []struct{ child, parent Type }{
-		{Str, FileHandle}, {Object, FileHandle}, {FileHandle, IO},
+		{Str, FileHandle}, {BlessedRef, FileHandle}, {FileHandle, IO},
 	} {
 		if IsSubtype(tc.child, tc.parent) {
 			t.Errorf("IsSubtype(%v, %v) = true", tc.child, tc.parent)

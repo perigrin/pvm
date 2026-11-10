@@ -13,7 +13,7 @@ package IO::Select;
 # handles/can_write return 0, IO::Handle, ARRAY -- rejecting any of
 # these is rejecting the most common real use (audit-C.md finding 12).
 #
-# new blesses a fresh arrayref, always an BlessedRef (measured).
+# new blesses a fresh arrayref, always a BlessedRef (measured).
 sub new (Str $class: List[FileHandle|BlessedRef|Int|ArrayRef] @handles) BlessedRef;
 # add and remove run _update, whose last statement is $count, an Int
 # (measured) -- how many of the handles given were actually added or

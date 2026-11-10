@@ -386,7 +386,7 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 
 	// (2) The value might be of the required type at runtime.
 	//
-	// A union is an EITHER, never a both. Object|HashRef is the value that
+	// A union is an EITHER, never a both. BlessedRef|HashRef is the value that
 	// came out of a merge whose arms were an object and a plain hashref, and
 	// perl keeps those apart: `ref` reports the class for a blessed reference
 	// and HASH for a plain one, measured on 5.42, so no value is both. The

@@ -36,7 +36,7 @@ sub looks_like_number :export_ok :prototype($) (Any $v) Boolean;
 # lexical filehandle is "GLOB" (a GlobRef), `ref \openhandle(*STDIN)`
 # is GLOB (a bare Glob, not a reference to one -- a direct `ref`
 # reports "" for it, since it is not itself a reference), `ref
-# openhandle(IO::File->new(...))` is "IO::File" (an BlessedRef), and
+# openhandle(IO::File->new(...))` is "IO::File" (a BlessedRef), and
 # `openhandle("x")` is undef.
 sub openhandle :export_ok :prototype($) (Any $v) Glob|GlobRef|BlessedRef|Undef;
 
