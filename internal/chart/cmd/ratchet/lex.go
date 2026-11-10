@@ -98,6 +98,13 @@ func lexOverheadKeys(p Protocol, agg []string, measured map[string]string) {
 	measured["lex-overhead-aggregate"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-aggregate", agg, false))
 }
 
+// productionProtocol is the Protocol the ratchet times with: the monotonic
+// wall clock, and runtime.GC, which pass calls before its span starts.
+func productionProtocol(chart, ref Side) Protocol {
+	start := time.Now()
+	return Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
+}
+
 // measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
 // lex-overhead-std5k, lex-overhead-aggregate and the speed keys (measureSpeed) to measured.
 // It returns lex-unmapped's files as "<path> <byte>" pairs.
@@ -111,9 +118,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	}
 	measured["lex-unmapped"] = strconv.Itoa(len(unmapped))
 
-	start := time.Now()
-	chart, ref := lexSides(srcs, tt, lexer.Tokenize)
-	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
+	p := productionProtocol(lexSides(srcs, tt, lexer.Tokenize))
 	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
 	agg, err := aggregateFiles(p, rd, files, in)
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 	"io"
 	"math"
 	"math/rand/v2"
+	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -182,5 +184,20 @@ func TestLexOverheadStableUnderLoad(t *testing.T) {
 	}
 	if len(bad) > 0 {
 		t.Errorf("work ratio 1.15 under scheduling delays read above %g on %d of 20 seeds: %v", lexOverheadMax, len(bad), bad)
+	}
+}
+
+// TestLexOverheadProductionClock: the ratchet's Protocol reads the monotonic
+// wall clock, which advances across a sleep where a CPU-time or thread-time
+// clock would not, and collects with runtime.GC.
+func TestLexOverheadProductionClock(t *testing.T) {
+	p := productionProtocol(nil, nil)
+	before := p.Now()
+	time.Sleep(50 * time.Millisecond)
+	if d := p.Now() - before; d < 50*time.Millisecond {
+		t.Errorf("Now advanced %v across a 50ms sleep; the production clock must be wall time", d)
+	}
+	if reflect.ValueOf(p.GC).Pointer() != reflect.ValueOf(runtime.GC).Pointer() {
+		t.Error("the production protocol's GC is not runtime.GC")
 	}
 }
