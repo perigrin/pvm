@@ -66,7 +66,9 @@ func TestPortPackageAndUseRefusals(t *testing.T) {
 		// a word after a module is a term: perl lexes `foo bar` and `foo $x` as method calls and `foo (3)` as a call
 		"use lib foo bar;", "use lib foo $x;", "use lib x;", "use lib x, 3;", "use lib foo (3);", "use lib 1.2 - 3;", "use lib 1.2 + 3;", "use lib 1.2 * 3;",
 		// ** and // open a glob and a match after a version, which perl's grammar accepts
-		"my @b = @a x 3;", "$s = $#a x 3;", "use lib 0.1 **= 3;", "use lib 0.1 //= 3;", "use lib foo %h;", "use lib foo eq 1;"} {
+		"my @b = @a x 3;", "$s = $#a x 3;", "use lib 0.1 **= 3;", "use lib 0.1 //= 3;", "use lib foo %h;", "use lib foo eq 1;",
+		// the indirect-object forms: perl parses both and they fail only when BEGIN runs
+		"use lib foo { }", "use lib foo $$x"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}

@@ -11,7 +11,7 @@ import (
 )
 
 // loopsLines are the perly.y alternatives this family ports. None is left for a completing issue:
-// given, when and default recognize here, and their scope refusals are waypoint 2's.
+// given, when and default recognize here; when and default outside a topicalizer are parity, as perl -c accepts both under the switch feature.
 var loopsLines = []int{317, 348, 379, 392, 411, 423, 452, 474, 504, 732, 882, 886, 888, 900, 993, 994, 1015,
 	1803, 1808, 1810, 1814, 1818, 1819, 1825, 1829, 1830, 1831, 1834, 1835, 1838, 1839}
 
