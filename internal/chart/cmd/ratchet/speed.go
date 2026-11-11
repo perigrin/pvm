@@ -32,11 +32,15 @@ type File struct{ Path, Corpus string }
 
 // Protocol times Chart against Ref (recursive descent, or lexer.Tokenize for
 // lex-overhead). Now and GC are injected so tests can run it on a fake clock.
+// lex-overhead is measured only when the 1-minute load read from LoadPath is
+// at most LoadLimit (lexOverheadKeys); tests point LoadPath at a file.
 type Protocol struct {
 	Chart, Ref Side
 	Now        func() time.Duration
 	GC         func()
 	Stderr     io.Writer
+	LoadPath   string
+	LoadLimit  float64
 }
 
 const (

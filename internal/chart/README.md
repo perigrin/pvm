@@ -255,7 +255,7 @@ To take a baseline after an intended change, run
 | `terminals-per-token` | the table's width: terminals per mapped token (a token the table cannot map holds none and is not counted) | may not rise from completion |
 | `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
 | `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
-| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three | timing; ≤ 1.3 absolutely |
+| `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three, each pass lexing its buffer 25 times | timing; ≤ 1.3 absolutely |
 | `lex-overhead-std5k` | the same on `std5k.pl` alone | timing |
 | `lex-overhead-aggregate` | the same over the aggregate, never gated | timing |
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
@@ -292,15 +292,57 @@ clock and a collector, so it is tested on fake timings
   Cold: a fresh recognizer per file. chart/lex's pooled lookup cache
   (`grammar.LookupCache`, from a `sync.Pool`) persists from file to file
   within a pass, cold or not; the GCs forced before each pass empty the pool,
-  so no pass replays a cache warmed on its own inputs.
+  so no pass replays a cache warmed by an earlier pass. A `lex-overhead`
+  pass lexes its one buffer 25 times (below), so within a pass a copy can
+  meet a cache warmed by the copy before it, until a GC inside the span
+  drops it: an LSP re-lexing one buffer in a warm process meets the same.
 - **The file set is an input.** `lex-overhead` passes `std5k.pl` and
   `edit5k.pl` each alone, long-lived, and takes the larger figure (the edit5k
   figure is a `lex-overhead-edit5k` measurement line on stderr, not a key);
   `lex-overhead-aggregate` passes the aggregate; the speed ratios pass
-  `std5k.pl` alone and the aggregate. The 1.3 protects chart/lex's share of an
+  `std5k.pl` alone and the aggregate. A `lex-overhead` pass lexes its buffer
+  25 times (`lexRepeat`), about 200 ms of work rather than 8 to 10 ms: perigrin
+  ruled it on 2026-11-10, the definition's fourth amendment, after a pass of
+  one buffer read 1.336 under load on code that reads about 1.15 quiet. On a
+  loaded machine the measuring thread waits for a CPU for most of a short
+  pass, so a one-buffer pair's wall ratio was decided by the scheduler, not
+  the work (per-pair ratios 0.09 to 8.5 at load 15 to 21; GC was not the
+  cause: every span held one collection on each side, and `GOGC=off` left the
+  spread unchanged). The 9 pairs, the medians, the wall clock and the GC
+  placement are unchanged (`TestLexOverheadDefinitionUnchanged`,
+  `TestLexOverheadProductionClock`). `TestLexOverheadStableUnderLoad` shows
+  why on a fake clock: delays landing independently per unit of work average
+  out over 25 copies. Real load did not behave so: under heavier load (1-minute
+  load 10 to 14 rising to 26 and 27) the 25-copy pass still read 1.306 and
+  1.553, which is why lex-overhead is now measured only on a quiet machine
+  (next point). The 1.3 protects chart/lex's share of an
   LSP call, which re-lexes one buffer in a warm process; over many small
   files each call starts with cold CPU caches, so the aggregate measures
   per-call start-up and is reported, never gated.
+- **A quiet machine only** (perigrin, 2026-11-11). Just before lex-overhead
+  is measured, chart-ratchet reads the 1-minute load average once from
+  `/proc/loadavg`; above the CPU count (`runtime.NumCPU()`, 4 on the machine
+  the readings came from) it measures nothing and exits 2 with
+  `chart-ratchet: lex-overhead: machine too busy to measure: 1-minute load
+  <load> above <limit>`, printing no keys, so it never passes; a close waits
+  for a quiet machine. The limit is the CPU count because above it runnable
+  threads queue for a CPU, the cause LEXLOAD established. The evidence for
+  it is thin and is stated by pass length (loads are 1-minute averages when
+  the run started). On the 25-copy pass: one ratchet started at 3.76 (3.8 to
+  4.9 while lex-overhead ran) read 1.179, per-pair ratios 0.94 to 1.56; the
+  failures, beside a busy loop per CPU and a second ratchet, started
+  at 14.46 (1.306) and 10.44 (1.553); one ratchet alone started at 22.48
+  read 1.160, so a busy machine can also pass by luck. On the one-buffer
+  pass, before the amendment: a ratchet started at 3.88 (rising to 8.24)
+  read 1.169, and the reproduction started at 6.37 (rising to 22.34) read
+  1.336. The limit sits at the highest load the 25-copy pass was seen
+  reliable at and below the lowest load any failure started from. The
+  ratchet's own thread counts toward the load it reads. An unreadable load
+  is an error, never a pass; off Linux there is no `/proc/loadavg`, so there the ratchet fails
+  (a shortcut, pinned in `TestLoadAvg`). Only chart-ratchet reads the load:
+  `make test` tests the gate on an injected load
+  (`TestLexOverheadRefusesBusyMachine`), and `TestLexOverheadProductionLoad`
+  pins the production path and limit.
 - **What the speed ratios run.** The chart side is `chart/lex` then
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
   pass's files (its intern table and cache persist), cold makes a fresh
