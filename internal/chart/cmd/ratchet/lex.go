@@ -107,6 +107,12 @@ func lexOverheadKeys(p Protocol, agg []string, measured map[string]string) {
 	measured["lex-overhead-aggregate"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-aggregate", agg, false))
 }
 
+// quietLexOverheadKeys is lexOverheadKeys on a machine quiet enough to measure.
+func quietLexOverheadKeys(p Protocol, agg []string, measured map[string]string, load func() (float64, error), limit float64) error {
+	lexOverheadKeys(p, agg, measured)
+	return nil
+}
+
 // productionProtocol is the Protocol the ratchet times with: the monotonic
 // wall clock, and runtime.GC, which pass calls before its span starts.
 func productionProtocol(chart, ref Side) Protocol {

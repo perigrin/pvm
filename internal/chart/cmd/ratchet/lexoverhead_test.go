@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -324,5 +325,44 @@ func TestLexOverheadLimitNotSoftened(t *testing.T) {
 	}
 	if got := check(report(m), nil, baseline, "", io.Discard); got != 1 {
 		t.Errorf("a first lex-overhead of 1.310: check exits %d, want 1", got)
+	}
+}
+
+// TestLexOverheadRefusesBusyMachine: above the load limit lex-overhead is
+// refused with "machine too busy to measure" and no reading, which fails the
+// ratchet; at the limit it is measured as before; an unreadable load is an
+// error, never a pass. The load is injected: the test reads no real load.
+func TestLexOverheadRefusesBusyMachine(t *testing.T) {
+	baseline := Format(report(map[string]string{"lex-overhead": "1.200", "lex-overhead-std5k": "1.200", "lex-overhead-aggregate": "1.200"}))
+	for _, tc := range []struct {
+		name    string
+		load    float64
+		loadErr error
+		refuse  string
+	}{
+		{"above the limit", 4.01, nil, "machine too busy to measure"},
+		{"unreadable", 0, errors.New("no /proc/loadavg"), "no /proc/loadavg"},
+		{"at the limit", 4, nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &lexWorld{chart: func(int, string) float64 { return 1.1 }}
+			m := map[string]string{}
+			err := quietLexOverheadKeys(w.protocol(), []string{"a.pl"}, m, func() (float64, error) { return tc.load, tc.loadErr }, 4)
+			if tc.refuse == "" {
+				if err != nil || m["lex-overhead"] != "1.100" || m["lex-overhead-std5k"] != "1.100" || m["lex-overhead-aggregate"] != "1.100" {
+					t.Errorf("load %v at limit 4: error %v, measured %v; want lex-overhead measured as before", tc.load, err, m)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.refuse) {
+				t.Errorf("error %v, want one containing %q", err, tc.refuse)
+			}
+			if len(m) != 0 || len(w.passes) != 0 {
+				t.Errorf("measured %v over %d passes; a refusal times nothing and prints no reading", m, len(w.passes))
+			}
+			if got := check(report(m), nil, baseline, "", io.Discard); got == 0 {
+				t.Error("a refused lex-overhead passes the ratchet's check")
+			}
+		})
 	}
 }
