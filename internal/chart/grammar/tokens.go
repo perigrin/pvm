@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -197,6 +198,15 @@ type TokenClass struct {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// intsKey is part and ns as one string, for a map key: fmt.Sprint(part, ns) at a fraction of the cost.
+func intsKey(part int, ns []int) string {
+	b := strconv.AppendInt(nil, int64(part), 10)
+	for _, n := range ns {
+		b = strconv.AppendInt(append(b, ','), int64(n), 10)
+	}
+	return string(b)
+}
 
 // CompletedBy is the neighbour a token of c's class is, when c is marked Completes and not keyed by its
 // predecessor: its kind, its text (OtherWord for a word of any other), its block flag. A name is keyed by
@@ -471,7 +481,11 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 	}
 	tt.emptyText = tt.text[""]
-	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(fmt.Sprintf("%+v", a), fmt.Sprintf("%+v", b)) })
+	nbKey := make(map[Neighbour]string, len(nbs)) // rendered once: the sort compares each neighbour many times
+	for nb := range nbs {
+		nbKey[nb] = fmt.Sprintf("%+v", nb)
+	}
+	tt.nbs = slices.SortedFunc(maps.Keys(nbs), func(a, b Neighbour) int { return cmp.Compare(nbKey[a], nbKey[b]) })
 	tt.classes = newIDs(len(tt.nbs))
 	for i, nb := range tt.nbs {
 		tt.classes.put(classKey(&nb, tt.text[nb.Text]), i+1)
@@ -623,7 +637,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				break
 			}
 		}
-		memoKey := fmt.Sprint(part, in)
+		memoKey := intsKey(part, in)
 		if n, ok := memo[memoKey]; ok {
 			return n
 		}
@@ -635,7 +649,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			}
 			slices.Sort(set)
 			set = slices.Compact(set)
-			n = intern("leaf"+fmt.Sprint(set), &node{set: set})
+			n = intern("leaf"+intsKey(0, set), &node{set: set})
 		} else {
 			var wild, values []int
 			for _, c := range in {
@@ -649,7 +663,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			slices.Sort(values)
 			values = slices.Compact(values)
 			cand := &node{part: part, def: build(wild, part+1), kids: make([]*node, values[len(values)-1]+1)}
-			sig := []string{fmt.Sprint(part, cand.def.uid)}
+			sig := []string{intsKey(part, []int{cand.def.uid})}
 			for i := range cand.kids {
 				cand.kids[i] = cand.def
 			}
@@ -658,7 +672,7 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				cand.kids[v] = build(same, part+1)
 			}
 			for _, k := range cand.kids {
-				sig = append(sig, fmt.Sprint(k.uid))
+				sig = append(sig, strconv.Itoa(k.uid))
 			}
 			n = intern(strings.Join(sig, ";"), cand)
 		}

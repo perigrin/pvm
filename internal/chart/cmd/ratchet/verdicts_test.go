@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -201,17 +202,26 @@ func TestVerdictCostOverAcceptedFilesOnly(t *testing.T) {
 	}
 }
 
+// committedTables is the committed grammar's tables, generated once for the package's tests, none of which writes them.
 func committedTables(t *testing.T) *grammar.Tables {
 	t.Helper()
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
+	committed.Do(func() {
+		g, ref, err := grammar.Committed()
+		if err == nil {
+			committed.tab, err = grammar.Generate(g, ref)
+		}
+		committed.err = err
+	})
+	if committed.err != nil {
+		t.Fatal(committed.err)
 	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tab
+	return committed.tab
+}
+
+var committed struct {
+	sync.Once
+	tab *grammar.Tables
+	err error
 }
 
 // The real chart side over the committed tables: "1;" is accepted; "1 \x01;"

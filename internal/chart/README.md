@@ -235,7 +235,9 @@ To take a baseline after an intended change, run
   token starts is an error, and so is a reviewed tdt-unseen entry for a pair
   that is seen, whose reason no longer holds. A reason saying "no corpus
   token matches the key" is held to a scan of every corpus file with the key
-  compiled alone (`TestTDTAbsentReasonsHold`, about 30 s).
+  compiled alone, each file tokenized once and mapped only for the claims it
+  could hold a token of (`TestTDTAbsentReasonsHold`, about 5 s;
+  `TestTDTAbsentReasonsMatchPerClaimScan` holds it to the unfiltered scan).
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).
