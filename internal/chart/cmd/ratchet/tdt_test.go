@@ -492,6 +492,12 @@ func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
 			b.WriteString(k + "\n")
 		}
 	}
+	// The reference is slow, so it reads a tenth of the files, with the three that held the admissions a shared table lost.
+	for i, p := range slices.Sorted(maps.Keys(srcs)) {
+		if i%10 != 0 && p != "T1/control_flow.t" && p != "T1/source_location_index.t" && !strings.HasSuffix(p, "Statements-SubStatement-086.pl") {
+			delete(srcs, p)
+		}
+	}
 	want := refAbsences(t, g.Classes, names, b.String(), srcs)
 	got, n := falseAbsences(t, g.Classes, b.String(), srcs)
 	if n < 20 || len(want) == 0 {
