@@ -1,5 +1,5 @@
 // ABOUTME: Holds the lexer lists, lex-unmapped-known.txt, lexer-defects.txt and tdt/lexer-rooted.txt, to their entry form.
-// ABOUTME: Each entry is `<path> <byte> <issue ref>`, the path a corpus file (T1, in testdata/perlonjava/unit or T1_CORPUS), the byte inside it.
+// ABOUTME: Each entry is `<path> <byte> <issue ref>`, the path a corpus file (in-tree, T1, or perl.git t/ under PERL5_CORPUS), the byte inside it.
 
 package chart
 
@@ -35,9 +35,11 @@ var issueRef = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}(-[0-9a-f]{4}(-[0-9a-
 
 // lexerListErrors returns one message per malformed entry of the lexer list
 // called name: an entry is `<path> <byte> <issue ref>`, the path a corpus
-// file under root (or `T1/<name>.t` under t1, the T1_CORPUS value), the byte
-// inside it.
-func lexerListErrors(name, list, root, t1 string) (out []string) {
+// file under root (or `T1/<name>.t` under t1, the T1_CORPUS value, or
+// `perlgit/<path>.t` under perlgit, perl.git's t/), the byte inside it. With
+// no directory at perlgit its entries are not checked: the perl5 tree is
+// outside the repository, and CI's ratchets job supplies it.
+func lexerListErrors(name, list, root, t1, perlgit string) (out []string) {
 	for i, line := range strings.Split(list, "\n") {
 		f := strings.Fields(line)
 		if len(f) == 0 || strings.HasPrefix(f[0], "#") { // as the ratchet's textLines skips them
@@ -62,6 +64,15 @@ func lexerListErrors(name, list, root, t1 string) (out []string) {
 				continue
 			}
 			file = filepath.Join(t1, t1name)
+		} else if pgname, ok := strings.CutPrefix(f[0], "perlgit/"); ok {
+			if fi, err := os.Stat(perlgit); err != nil || !fi.IsDir() {
+				continue
+			}
+			if !filepath.IsLocal(pgname) || !strings.HasSuffix(pgname, ".t") {
+				bad("a perl.git path is perlgit/<path under t/>, a .t file")
+				continue
+			}
+			file = filepath.Join(perlgit, pgname)
 		} else {
 			if !slices.ContainsFunc(inTreeCorpus, func(g string) bool { m, _ := filepath.Match(g, f[0]); return m }) {
 				bad("the path is not a corpus file")
@@ -109,7 +120,7 @@ func TestLexerLists(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		errs := lexerListErrors(name, string(list), repoRoot, t1)
+		errs := lexerListErrors(name, string(list), repoRoot, t1, filepath.Join(perl5Root(), "t"))
 		for _, e := range errs {
 			t.Error(e)
 		}
@@ -151,7 +162,7 @@ func TestLexerListsRefusesMalformedEntries(t *testing.T) {
 		{"ref as the short id", std5k + " 0 01a1882d", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := lexerListErrors("synthetic", tc.line+"\n", repoRoot, t1Default())
+			errs := lexerListErrors("synthetic", tc.line+"\n", repoRoot, t1Default(), "")
 			if tc.ok && len(errs) > 0 {
 				t.Errorf("refused a well-formed entry: %v", errs)
 			}
@@ -168,11 +179,41 @@ func TestLexerListsT1Unresolvable(t *testing.T) {
 		t.Fatal(err)
 	}
 	const list = "T1/a.t 0 01a1882d-d8a4\n"
-	if errs := lexerListErrors("synthetic", list, repoRoot, filepath.Join(dir, "missing")); !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
+	if errs := lexerListErrors("synthetic", list, repoRoot, filepath.Join(dir, "missing"), ""); !strings.Contains(strings.Join(errs, "\n"), "T1_CORPUS") {
 		t.Errorf("T1_CORPUS naming no directory: want a failure naming T1_CORPUS, got %v", errs)
 	}
-	if errs := lexerListErrors("synthetic", list, repoRoot, dir); len(errs) > 0 {
+	if errs := lexerListErrors("synthetic", list, repoRoot, dir, ""); len(errs) > 0 {
 		t.Errorf("T1_CORPUS naming a directory holding the file: %v", errs)
+	}
+}
+
+// TestLexerListsPerlGit: a perlgit/<path> entry names a .t file under perl.git's
+// t/ and a byte inside it; with no perl5 tree the entry is left to a machine
+// that has one, as the corpus-backed tests skip.
+func TestLexerListsPerlGit(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "t")
+	if err := os.MkdirAll(filepath.Join(dir, "op"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(dir, "op", "a.t"), "print 1;\n")
+	writeFile(t, filepath.Join(dir, "..", "a.t"), "print 1;\n") // a file, but outside t/
+	for _, tc := range []struct {
+		name, line, dir string
+		ok              bool
+	}{
+		{"well-formed", "perlgit/op/a.t 0 01a1882d-d8a4", dir, true},
+		{"byte past the end", "perlgit/op/a.t 9 01a1882d-d8a4", dir, false},
+		{"no such file", "perlgit/op/b.t 0 01a1882d-d8a4", dir, false},
+		{"not a .t", "perlgit/op 0 01a1882d-d8a4", dir, false},
+		{"outside t/", "perlgit/../a.t 0 01a1882d-d8a4", dir, false},
+		{"no perl5 tree", "perlgit/op/b.t 0 01a1882d-d8a4", filepath.Join(dir, "missing"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := lexerListErrors("synthetic", tc.line+"\n", repoRoot, t1Default(), tc.dir)
+			if tc.ok != (len(errs) == 0) {
+				t.Errorf("%q: errors %v, want ok=%v", tc.line, errs, tc.ok)
+			}
+		})
 	}
 }
 
