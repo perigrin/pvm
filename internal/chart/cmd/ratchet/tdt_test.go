@@ -467,7 +467,7 @@ func refAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, review
 
 // TestTDTAbsentReasonsMatchPerClaimScan: falseAbsences reports exactly the admissions a table compiled from each claim
 // alone reports, over the real corpus, for the keys a shared table once masked (an OtherWord or IdentQuote neighbour,
-// which another claim's named word or quote changes the meaning of) and every 40th key besides.
+// which another claim's named word or quote changes the meaning of) and every 8th key besides.
 func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
 	t.Chdir("../../../..")
 	g, _, err := grammar.Committed()
