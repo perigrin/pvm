@@ -117,7 +117,7 @@ func quietLexOverheadKeys(p Protocol, agg []string, measured map[string]string, 
 	if err != nil {
 		return fmt.Errorf("lex-overhead: reading the load: %w", err)
 	}
-	if l > limit {
+	if !(l <= limit) { // NaN too
 		return fmt.Errorf("lex-overhead: machine too busy to measure: 1-minute load %.2f above %g", l, limit)
 	}
 	lexOverheadKeys(p, agg, measured)

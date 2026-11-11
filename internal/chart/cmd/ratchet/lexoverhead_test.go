@@ -346,6 +346,7 @@ func TestLexOverheadRefusesBusyMachine(t *testing.T) {
 		refuse  string
 	}{
 		{"above the limit", 4.01, nil, "machine too busy to measure"},
+		{"not a number", math.NaN(), nil, "machine too busy to measure"},
 		{"unreadable", 0, errors.New("no /proc/loadavg"), "no /proc/loadavg"},
 		{"at the limit", 4, nil, ""},
 	} {
