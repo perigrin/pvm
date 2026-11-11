@@ -271,22 +271,17 @@ const absentPhrase = "no corpus token matches the key"
 // compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. srcs is every corpus file's source,
 // whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
 // ratchet, so a run that checks none can be told from one that found nothing false.
-func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) (out []string, checked int) {
+func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, srcs map[string][]byte) (out []string, checked int) {
 	t.Helper()
-	ids := map[string]int{}
-	for i, n := range names {
-		ids[n] = i
-	}
 	byKey := map[string]grammar.ClassDecl{}
 	for _, d := range decls {
 		if k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key)); byKey[k].Terminal == "" {
 			byKey[k] = d
 		}
 	}
-	raws := map[string][]lexer.Token{}
-	for p, src := range srcs {
-		raws[p] = lexer.Tokenize(src)
-	}
+	// One class per claim, each admitting only its own index, so a token's set names the claims that admit it.
+	var claims []string
+	var classes []grammar.TokenClass
 	reason := ""
 	for _, l := range strings.Split(reviewed, "\n") {
 		l = strings.TrimSpace(l)
@@ -298,45 +293,53 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revi
 		if !ok || !strings.Contains(reason, absentPhrase) {
 			continue
 		}
-		checked++
 		c := d.Key
-		c.Terminals = []int{ids[d.Terminal]}
-		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
-		if err != nil {
-			t.Fatal(err)
+		if c.Lone { // a Lone class cuts the other word classes of the table it is in, so it cannot share one
+			t.Fatalf("%s is a Lone class, which falseAbsences cannot map beside other claims", l)
 		}
-		for p, raw := range raws {
-			s, _ := lex.Map(srcs[p], raw, tt)
-			for _, tk := range s.Tokens {
-				if tk.TerminalSet != 0 {
-					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, raw[tk.Index].Start))
-				}
+		c.Terminals = []int{len(claims)}
+		claims = append(claims, l)
+		classes = append(classes, c)
+	}
+	if len(claims) == 0 {
+		return nil, 0
+	}
+	tt, err := grammar.CompileTokens(classes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := make([][]string, len(claims))
+	for p, src := range srcs {
+		raw := lexer.Tokenize(src)
+		s, _ := lex.Map(src, raw, tt)
+		for _, tk := range s.Tokens {
+			for _, i := range tt.Sets[tk.TerminalSet] {
+				found[i] = append(found[i], fmt.Sprintf("%s admits %s %d", claims[i], p, raw[tk.Index].Start))
 			}
 		}
 	}
-	return out, checked
+	for _, f := range found {
+		out = append(out, f...)
+	}
+	return out, len(claims)
 }
 
 // TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
 // none, over every corpus file (T1 included); about 30 s. A synthetic false claim is caught.
 func TestTDTAbsentReasonsHold(t *testing.T) {
 	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
-	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
+	if got, n := falseAbsences(t, toyDecls, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
 		t.Errorf("a false absence claim: %q from %d checked, want it caught once", got, n)
 	}
 	// A trailing space or CR, which listLines trims for the ratchet, is checked all the same.
-	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: x "+absentPhrase+" \r\n"+numWordKey+" \r\n", src); len(got) != 1 || n != 1 {
+	if got, n := falseAbsences(t, toyDecls, "reason: x "+absentPhrase+" \r\n"+numWordKey+" \r\n", src); len(got) != 1 || n != 1 {
 		t.Errorf("a claim with trailing space: %q from %d checked, want it caught once", got, n)
 	}
-	if got, n := falseAbsences(t, toyDecls, toyNames, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 || n != 0 {
+	if got, n := falseAbsences(t, toyDecls, "reason: unaligned\n"+numWordKey+"\n", src); len(got) != 0 || n != 0 {
 		t.Errorf("a reason that claims no absence was checked: %q from %d", got, n)
 	}
 	t.Chdir("../../../..")
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := grammar.Generate(g, ref)
+	g, _, err := grammar.Committed()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,20 +351,19 @@ func TestTDTAbsentReasonsHold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := symbolNames(tab)
-	if err := holdAbsences(t, g.Classes, names, string(reviewed), srcs); err != nil {
+	if err := holdAbsences(t, g.Classes, string(reviewed), srcs); err != nil {
 		t.Error(err)
 	}
 	// An empty list holds no claim, which must fail rather than pass vacuously.
-	if err := holdAbsences(t, g.Classes, names, "", srcs); err == nil || !strings.Contains(err.Error(), "checked no") {
+	if err := holdAbsences(t, g.Classes, "", srcs); err == nil || !strings.Contains(err.Error(), "checked no") {
 		t.Errorf("an empty list: %v, want a failure saying it checked no claim", err)
 	}
 }
 
 // holdAbsences is falseAbsences as a verdict: an error naming every false claim, or one when no claim was checked.
-func holdAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) error {
+func holdAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, srcs map[string][]byte) error {
 	t.Helper()
-	bad, n := falseAbsences(t, decls, names, reviewed, srcs)
+	bad, n := falseAbsences(t, decls, reviewed, srcs)
 	if n == 0 {
 		return fmt.Errorf("unseen-reviewed.txt: checked no %q claim, so the scan held nothing", absentPhrase)
 	}
@@ -371,24 +373,11 @@ func holdAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revie
 	return nil
 }
 
-// symbolNames is the grammar's symbol names, which a class's Terminals index.
-func symbolNames(tab *grammar.Tables) []string {
-	names := make([]string, len(tab.Symbols))
-	for i, s := range tab.Symbols {
-		names[i] = s.Name
-	}
-	return names
-}
-
 // TestTDTAbsentReasonsCatchFalseClaimOverCorpus: over the committed grammar and the real corpus, an absence claim for
 // a key the corpus does contain (every corpus file ends statements with a semicolon) is caught and the key is named.
 func TestTDTAbsentReasonsCatchFalseClaimOverCorpus(t *testing.T) {
 	t.Chdir("../../../..")
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := grammar.Generate(g, ref)
+	g, _, err := grammar.Committed()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +386,7 @@ func TestTDTAbsentReasonsCatchFalseClaimOverCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	const key = "PERLY_SEMICOLON Kind=Semicolon"
-	err = holdAbsences(t, g.Classes, symbolNames(tab), "reason: x "+absentPhrase+"\n"+key+"\n", srcs)
+	err = holdAbsences(t, g.Classes, "reason: x "+absentPhrase+"\n"+key+"\n", srcs)
 	if err == nil || !strings.Contains(err.Error(), key+" admits ") {
 		t.Errorf("a false claim over the corpus: %v, want it caught and naming %q", err, key)
 	}
