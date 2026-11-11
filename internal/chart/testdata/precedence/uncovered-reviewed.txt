@@ -1,0 +1,5 @@
+# Resolutions no sentence covers, each under its reason (spec section 8):
+# `reason: generation timed out` (sentences.sh) or `reason: the rendering
+# cannot reach it` (the rendering), then one `rule token` line per resolution.
+# Reviewed 2026-11-10: sentences.sh covers all 1347 resolutions at 94e50866,
+# so none is listed.

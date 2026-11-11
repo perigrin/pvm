@@ -79,9 +79,18 @@ precedence category: a viable prefix without precedence, refused with it.
   prints `accept`, or with `-p` (prefix mode) `viable`, else `refuse@N`, N the
   token being read at the first error. Any error refuses, even one `yyparse`
   recovers from through `sideff: error`.
+- With `-g` a referee prints a second line, the **grouping**: for each
+  reduction of a rule carrying a precedence (a `%prec`, or its last
+  terminal's), `line:from-to`, the rule's `perly.y` line (as
+  `perly-alternatives.sh` numbers it) and the half-open span of 0-based
+  terminal indexes it covers (`GRAMPROG` is 0), comma-separated in reduction
+  order up to the first error, or `-` if there are none. A rule whose action
+  refuses (a refusal kept from `perly.y`) is traced before it refuses, so the
+  grouping includes the reduction that makes the error. `referee-noprec`'s
+  grouping of an ambiguous span holds every derivation's reductions.
 - `sh internal/chart/offline/referee/check.sh /opt/corpora/perl5` builds into a temporary directory and checks every case
-  in `referee/testdata/cases.txt` against both referees, failing on any differing
-  verdict, naming the case, and on zero cases.
+  in `referee/testdata/cases.txt` against both referees, and `referee-prec`'s
+  grouping, failing on any difference, naming the case, and on zero cases.
 
 `referee/build.sh` writes the two referees and their generated `.y` and `.c` files
 into `outdir`; none is committed. `referee/check.sh` prints
@@ -91,6 +100,69 @@ Cost (K6): `check.sh` takes about 0.65 s wall clock on this machine (0.62–0.67
 over three runs; 4 cores, bison 3.8.2, gcc 13.3), nearly all of it the two
 bison and cc builds. On 2026-11-04, with other jobs running, it took 1.1 to
 1.5 s over three runs (the first, cold, 5.8 s) and `build.sh` alone 0.9 s.
+
+### The generated sentences (spec §8)
+
+`sh internal/chart/offline/referee/sentences.sh /opt/corpora/perl5 <outdir>`
+generates the precedence referee's sentences. It refuses, exiting 1, a tree
+whose HEAD is not 94e50866 or that has changes (`git status --porcelain`),
+and any bison but 3.8.2. It writes into `<outdir>`:
+
+- `bison-conflicts.txt`: every `Conflict between rule N and token T resolved
+  as …` line of bison's report of the pinned `perly.y`, verbatim, in report
+  order. Bison 3.8.2's `-v` alone no longer prints them; the script runs
+  `bison -v --report=solved`. Each line is one (rule, token) resolution, the
+  unit of coverage; 1,347 at 94e50866.
+- `resolutions.txt`: per resolution, in the same order, tab-separated: rule,
+  token, action (`shift`, `reduce`, `error`) and the comma-separated ids of
+  the sentences covering it, or `-`.
+- `sentences.txt`: per sentence, tab-separated: id, its `perly.y` terminals,
+  `referee-prec`'s verdict and its grouping (`-g`, above).
+- `uncovered-reviewed.txt`: a proposal, the resolutions no sentence covers
+  under `reason: generation timed out`.
+
+**A sentence** is a string of terminals on which `referee-prec` and
+`referee-noprec` differ: one accepts and the other refuses, or both accept
+with different groupings. Two refusals are never compared by grouping, since
+each stops at its own first error. **A resolution is covered** by a sentence
+on which `referee-prec` (built again with `YYDEBUG` to trace its states)
+enters the conflict's state with that token next, at the index k the search
+put it, and the difference sits at that token: on a shift, `referee-noprec`'s
+grouping reduces the rule to end at k and `referee-prec`'s does not; on a
+reduce, `referee-prec`'s does and `referee-noprec`'s has a span across k that
+`referee-prec`'s lacks; on an error, `referee-prec` refuses reading k. So
+coverage is checked against both referees' output, not inferred from the
+search. After writing, `sentences.sh` runs both referees again on every
+sentence and exits 1 unless they differ. An error resolution is covered only together with an **accepted
+neighbour**: a sentence `referee-prec` accepts that reaches the same state
+with another token next, on which the referees also differ (`++$x++` beside
+`++$x .. $y`).
+
+**The search** (`referee/sentences.pl`) runs over the LR(0) automaton of the
+referee grammar, the same with and without precedence: shortest paths over
+(state, item) from `grammar`'s alternatives, `GRAMPROG`'s preferred, where a
+step reads a symbol (its shortest yield) or descends into a rule, paying for
+the rest of the rule it leaves. Its candidates for a resolution are the
+state's shift items reading the token, and the rule reduced with the token
+next, each completed by shortest yields, shortest first. Rules that refuse in
+an action or read `error` stand in no yield. **The bound** is 12 candidates
+per resolution, a count rather than a clock so that a run is reproducible. A
+resolution whose search reaches the bound is proposed as `generation timed
+out`. One whose candidates all fail before the bound fits no reason spec §8
+allows: the script names it on stderr, lists it nowhere, and exits 1, a stop
+to report to perigrin. At 94e50866 neither happens: every resolution is
+covered, by 1,341 sentences.
+
+Committed under `internal/chart/testdata/precedence/` are the first three
+files, byte for byte as the script writes them, and `uncovered-reviewed.txt`
+once reviewed (`reason: the rendering cannot reach it` is the rendering's,
+spec §8). `TestPrecedenceFixturesWellFormed` reads them and never runs bison.
+
+Cost (K6): 75 s to 4.5 min wall clock end to end on the 4-core machine,
+depending on load from other workers (263 s on 2026-11-10, after the
+coverage checks; 29 s of user time, 74 s of system time), most of it
+starting the referees on the candidates. Two runs
+wrote byte-identical files (`cmp`).
 
 ## tdt-capture.sh
 

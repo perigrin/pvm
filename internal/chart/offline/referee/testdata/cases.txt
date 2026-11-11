@@ -1,27 +1,31 @@
-# Referee cases: one per line, `name mode prec noprec terminal...`.
+# Referee cases: one per line, `name mode prec noprec grouping terminal...`.
 # mode is `sentence` (whole input) or `prefix` (viable prefix); a verdict is
 # `accept` (sentence), `viable` (prefix) or `refuse@N`, N the 1-based index of
-# the token being read at the first error. Terminals are perly.y's at 94e50866.
+# the token being read at the first error. grouping is referee-prec's (`-g`):
+# `line:from-to` for each reduction of a rule carrying a precedence, its
+# perly.y line and the half-open span of 0-based terminal indexes it covers
+# (GRAMPROG is 0), comma-separated in reduction order up to the first error,
+# or `-`. Terminals are perly.y's at 94e50866.
 
 # Precedence evidence: `indirob: scalar %prec PREC_LOW` shifts `[` as a
 # subscript, so `print $fh []` fails at `]` with precedence and is a viable
 # prefix without it (`[]` read as the list); its neighbour `print $$fh[0]` is
 # accepted by both.
-print-fh-brackets prefix refuse@6 viable GRAMPROG LSTOP PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN PERLY_BRACKET_CLOSE
-print-derefs-subscript sentence accept accept GRAMPROG LSTOP PERLY_DOLLAR PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN THING PERLY_BRACKET_CLOSE PERLY_SEMICOLON
+print-fh-brackets prefix refuse@6 viable - GRAMPROG LSTOP PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN PERLY_BRACKET_CLOSE
+print-derefs-subscript sentence accept accept 1890:3-5,1634:6-7,1273:6-7,1262:6-7,1273:2-8,1788:2-8,1324:1-8,1273:1-8,1262:1-8 GRAMPROG LSTOP PERLY_DOLLAR PERLY_DOLLAR BAREWORD PERLY_BRACKET_OPEN THING PERLY_BRACKET_CLOSE PERLY_SEMICOLON
 
 # `$a + $b + $c`: ambiguous without precedence, which the GLR build must not
 # report as an error.
-add-chain sentence accept accept GRAMPROG PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
+add-chain sentence accept accept 1582:1-3,1582:4-6,1430:1-6,1582:7-9,1430:1-9,1273:1-9,1262:1-9 GRAMPROG PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD ADDOP PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
 
 # `] ; $a ;`: bison recovers through `sideff: error` and yyparse returns 0, but
 # it reported an error, so the sentence is refused.
-error-recovered sentence refuse@2 refuse@2 GRAMPROG PERLY_BRACKET_CLOSE PERLY_SEMICOLON PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
+error-recovered sentence refuse@2 refuse@2 - GRAMPROG PERLY_BRACKET_CLOSE PERLY_SEMICOLON PERLY_DOLLAR BAREWORD PERLY_SEMICOLON
 
 # `catch_paren: empty` is omitted, as the port omits it: a catch without a
 # variable is refused at its block, one with a variable is accepted.
-catch-without-var sentence refuse@6 refuse@6 GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
-catch-with-var sentence accept accept GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_PAREN_OPEN PERLY_DOLLAR BAREWORD PERLY_PAREN_CLOSE PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
+catch-without-var sentence refuse@6 refuse@6 - GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
+catch-with-var sentence accept accept 815:5-9 GRAMPROG KW_TRY PERLY_BRACE_OPEN PERLY_BRACE_CLOSE KW_CATCH PERLY_PAREN_OPEN PERLY_DOLLAR BAREWORD PERLY_PAREN_CLOSE PERLY_BRACE_OPEN PERLY_BRACE_CLOSE
 
 # A refusal kept from an action: the dangling comparison `$a < $b <`.
-relop-dangling sentence refuse@8 refuse@8 GRAMPROG PERLY_DOLLAR BAREWORD CHRELOP PERLY_DOLLAR BAREWORD CHRELOP PERLY_SEMICOLON
+relop-dangling sentence refuse@8 refuse@8 1582:1-3,1582:4-6,1474:1-6 GRAMPROG PERLY_DOLLAR BAREWORD CHRELOP PERLY_DOLLAR BAREWORD CHRELOP PERLY_SEMICOLON
