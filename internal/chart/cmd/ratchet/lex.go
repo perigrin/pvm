@@ -100,27 +100,23 @@ const lexRepeat = 25
 // long-lived figures, each pass lexing its buffer lexRepeat times (spec
 // §9.3, amended), lex-overhead-std5k and lex-overhead-aggregate.
 // The aggregate's cold-start figure is reported, never gated.
-func lexOverheadKeys(p Protocol, agg []string, measured map[string]string) {
+//
+// It first reads the 1-minute load once from p.LoadPath. Above p.LoadLimit,
+// or unreadable, it measures nothing and returns an error, so the ratchet
+// fails rather than gating on a noisy reading (perigrin, 2026-11-11).
+func lexOverheadKeys(p Protocol, agg []string, measured map[string]string) error {
+	l, err := loadAvg(p.LoadPath)
+	if err != nil {
+		return fmt.Errorf("lex-overhead: reading the load: %w", err)
+	}
+	if !(l <= p.LoadLimit) { // NaN too
+		return fmt.Errorf("lex-overhead: machine too busy to measure: 1-minute load %.2f above %g", l, p.LoadLimit)
+	}
 	s := p.Ratio("lex-overhead-std5k", slices.Repeat([]string{std5k}, lexRepeat), false)
 	e := p.Ratio("lex-overhead-edit5k", slices.Repeat([]string{edit5k}, lexRepeat), false)
 	measured["lex-overhead"] = fmt.Sprintf("%.3f", max(s, e))
 	measured["lex-overhead-std5k"] = fmt.Sprintf("%.3f", s)
 	measured["lex-overhead-aggregate"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-aggregate", agg, false))
-}
-
-// quietLexOverheadKeys reads load once and runs lexOverheadKeys only when it
-// is at most limit; above it, or unreadable, it measures nothing and returns
-// an error, so the ratchet fails rather than gating on a noisy reading
-// (perigrin, 2026-11-11).
-func quietLexOverheadKeys(p Protocol, agg []string, measured map[string]string, load func() (float64, error), limit float64) error {
-	l, err := load()
-	if err != nil {
-		return fmt.Errorf("lex-overhead: reading the load: %w", err)
-	}
-	if !(l <= limit) { // NaN too
-		return fmt.Errorf("lex-overhead: machine too busy to measure: 1-minute load %.2f above %g", l, limit)
-	}
-	lexOverheadKeys(p, agg, measured)
 	return nil
 }
 
@@ -139,10 +135,16 @@ func loadAvg(path string) (float64, error) {
 }
 
 // productionProtocol is the Protocol the ratchet times with: the monotonic
-// wall clock, and runtime.GC, which pass calls before its span starts.
+// wall clock, runtime.GC, which pass calls before its span starts, and the
+// machine's load with the CPU count as its limit: above it, runnable threads
+// wait for a CPU (README, "The speed protocol").
 func productionProtocol(chart, ref Side) Protocol {
 	start := time.Now()
-	return Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr}
+	return Protocol{
+		Chart: chart, Ref: ref,
+		Now: func() time.Duration { return time.Since(start) }, GC: runtime.GC, Stderr: os.Stderr,
+		LoadPath: "/proc/loadavg", LoadLimit: float64(runtime.NumCPU()),
+	}
 }
 
 // measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
@@ -164,8 +166,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	if err != nil {
 		return nil, err
 	}
-	// The load limit is the CPU count: above it, runnable threads wait for a CPU (README, "The speed protocol").
-	if err := quietLexOverheadKeys(p, agg, measured, func() (float64, error) { return loadAvg("/proc/loadavg") }, float64(runtime.NumCPU())); err != nil {
+	if err := lexOverheadKeys(p, agg, measured); err != nil {
 		return nil, err
 	}
 	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd

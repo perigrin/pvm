@@ -4,7 +4,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -138,9 +137,12 @@ func TestLexOverheadKeys(t *testing.T) {
 					}
 				}
 			}
-			p := Protocol{Chart: side(true), Ref: side(false), Now: func() time.Duration { return now }, GC: func() {}, Stderr: &strings.Builder{}}
+			p := Protocol{Chart: side(true), Ref: side(false), Now: func() time.Duration { return now }, GC: func() {}, Stderr: &strings.Builder{},
+				LoadPath: loadFile(t, "0.00 0.00 0.00 1/1 1"), LoadLimit: 4}
 			m := map[string]string{}
-			lexOverheadKeys(p, []string{"a.pl"}, m)
+			if err := lexOverheadKeys(p, []string{"a.pl"}, m); err != nil {
+				t.Fatal(err)
+			}
 			if m["lex-overhead"] != tc.wantMax || m["lex-overhead-std5k"] != tc.wantStd || m["lex-overhead-aggregate"] != tc.wantAgg {
 				t.Errorf("lex-overhead %s, std5k %s, aggregate %s; want %s, %s, %s",
 					m["lex-overhead"], m["lex-overhead-std5k"], m["lex-overhead-aggregate"], tc.wantMax, tc.wantStd, tc.wantAgg)
@@ -165,6 +167,7 @@ func TestLexOverheadKeys(t *testing.T) {
 // 1.3.
 func TestLexOverheadStableUnderLoad(t *testing.T) {
 	const tick = 100 * time.Microsecond
+	quiet := loadFile(t, "0.00 0.00 0.00 1/1 1")
 	var bad []string
 	for seed := range uint64(20) {
 		rng := rand.New(rand.NewPCG(seed, 1))
@@ -181,9 +184,12 @@ func TestLexOverheadStableUnderLoad(t *testing.T) {
 				}
 			}
 		}
-		p := Protocol{Chart: side(115), Ref: side(100), Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
+		p := Protocol{Chart: side(115), Ref: side(100), Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard,
+			LoadPath: quiet, LoadLimit: 4}
 		m := map[string]string{}
-		lexOverheadKeys(p, []string{"a.pl"}, m)
+		if err := lexOverheadKeys(p, []string{"a.pl"}, m); err != nil {
+			t.Fatal(err)
+		}
 		if v, err := strconv.ParseFloat(m["lex-overhead"], 64); err != nil || v > lexOverheadMax {
 			bad = append(bad, fmt.Sprintf("seed %d: %s", seed, m["lex-overhead"]))
 		}
@@ -212,6 +218,7 @@ func TestLexOverheadProductionClock(t *testing.T) {
 // reference costs 10 a buffer, the chart 10*chart(k, path). It logs each
 // pass as its file and run count.
 type lexWorld struct {
+	load   string // the load file's path
 	now    time.Duration
 	pass   int
 	passes [][]string
@@ -234,9 +241,10 @@ func (w *lexWorld) protocol() Protocol {
 	}
 	return Protocol{
 		Chart: side(true), Ref: side(false),
-		Now:    func() time.Duration { return w.now },
-		GC:     func() { w.pass++; w.passes = append(w.passes, nil) },
-		Stderr: &w.stderr,
+		Now:      func() time.Duration { return w.now },
+		GC:       func() { w.pass++; w.passes = append(w.passes, nil) },
+		Stderr:   &w.stderr,
+		LoadPath: w.load, LoadLimit: 4,
 	}
 }
 
@@ -252,7 +260,7 @@ func TestLexOverheadDefinitionUnchanged(t *testing.T) {
 		{1.11, 1.19, 1.12, 1.15, 1.17, 1.13, 1.16, 1.14, 7.0},
 	}
 	const perFile = 3 * 11 * 2
-	w := &lexWorld{chart: func(pass int, path string) float64 {
+	w := &lexWorld{load: loadFile(t, "0.00 0.00 0.00 1/1 1"), chart: func(pass int, path string) float64 {
 		k := pass - 1 // GC has already counted this pass
 		if path != std5k {
 			k -= perFile
@@ -269,7 +277,9 @@ func TestLexOverheadDefinitionUnchanged(t *testing.T) {
 		return rows[m][i-2]
 	}}
 	m := map[string]string{}
-	lexOverheadKeys(w.protocol(), []string{"a.pl"}, m)
+	if err := lexOverheadKeys(w.protocol(), []string{"a.pl"}, m); err != nil {
+		t.Fatal(err)
+	}
 	if m["lex-overhead"] != "1.200" || m["lex-overhead-std5k"] != "1.150" {
 		t.Errorf("lex-overhead %s, std5k %s; want 1.200 (edit5k's, the larger) and 1.150 (the median of medians 1.25, 1.05, 1.15)",
 			m["lex-overhead"], m["lex-overhead-std5k"])
@@ -311,14 +321,16 @@ func TestLexOverheadLimitNotSoftened(t *testing.T) {
 
 	// std5k reads 1.31 on its first figure and 1.0 on any pass after it.
 	const perFile = 3 * 11 * 2
-	w := &lexWorld{chart: func(pass int, path string) float64 {
+	w := &lexWorld{load: loadFile(t, "0.00 0.00 0.00 1/1 1"), chart: func(pass int, path string) float64 {
 		if path == std5k && pass <= perFile {
 			return 1.31
 		}
 		return 1
 	}}
 	m := map[string]string{}
-	lexOverheadKeys(w.protocol(), []string{"a.pl"}, m)
+	if err := lexOverheadKeys(w.protocol(), []string{"a.pl"}, m); err != nil {
+		t.Fatal(err)
+	}
 	n := 0
 	for _, p := range w.passes {
 		if p[0] == std5k {
@@ -333,30 +345,27 @@ func TestLexOverheadLimitNotSoftened(t *testing.T) {
 	}
 }
 
-// TestLexOverheadRefusesBusyMachine: above the load limit lex-overhead is
-// refused with "machine too busy to measure" and no reading, which fails the
-// ratchet; at the limit it is measured as before; an unreadable load is an
-// error, never a pass. The load is injected: the test reads no real load.
+// TestLexOverheadRefusesBusyMachine: above the load limit, or NaN, lex-overhead
+// is refused with "machine too busy to measure" and no reading, which fails
+// the ratchet; at the limit it is measured as before; an unreadable load is
+// an error, never a pass. The load is a file: the test reads no real load.
 func TestLexOverheadRefusesBusyMachine(t *testing.T) {
 	baseline := Format(report(map[string]string{"lex-overhead": "1.200", "lex-overhead-std5k": "1.200", "lex-overhead-aggregate": "1.200"}))
 	for _, tc := range []struct {
-		name    string
-		load    float64
-		loadErr error
-		refuse  string
+		name, load, refuse string
 	}{
-		{"above the limit", 4.01, nil, "machine too busy to measure"},
-		{"not a number", math.NaN(), nil, "machine too busy to measure"},
-		{"unreadable", 0, errors.New("no /proc/loadavg"), "no /proc/loadavg"},
-		{"at the limit", 4, nil, ""},
+		{"above the limit", loadFile(t, "4.01 0.00 0.00 1/1 1"), "machine too busy to measure"},
+		{"not a number", loadFile(t, "NaN 0.00 0.00 1/1 1"), "machine too busy to measure"},
+		{"unreadable", filepath.Join(t.TempDir(), "missing"), "reading the load"},
+		{"at the limit", loadFile(t, "4.00 0.00 0.00 1/1 1"), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w := &lexWorld{chart: func(int, string) float64 { return 1.1 }}
+			w := &lexWorld{load: tc.load, chart: func(int, string) float64 { return 1.1 }}
 			m := map[string]string{}
-			err := quietLexOverheadKeys(w.protocol(), []string{"a.pl"}, m, func() (float64, error) { return tc.load, tc.loadErr }, 4)
+			err := lexOverheadKeys(w.protocol(), []string{"a.pl"}, m)
 			if tc.refuse == "" {
 				if err != nil || m["lex-overhead"] != "1.100" || m["lex-overhead-std5k"] != "1.100" || m["lex-overhead-aggregate"] != "1.100" {
-					t.Errorf("load %v at limit 4: error %v, measured %v; want lex-overhead measured as before", tc.load, err, m)
+					t.Errorf("load at limit 4: error %v, measured %v; want lex-overhead measured as before", err, m)
 				}
 				return
 			}
@@ -373,23 +382,34 @@ func TestLexOverheadRefusesBusyMachine(t *testing.T) {
 	}
 }
 
+// TestLexOverheadProductionLoad: the ratchet's Protocol reads the machine's
+// load from /proc/loadavg and refuses above the CPU count.
+func TestLexOverheadProductionLoad(t *testing.T) {
+	p := productionProtocol(nil, nil)
+	if p.LoadPath != "/proc/loadavg" || p.LoadLimit != float64(runtime.NumCPU()) {
+		t.Errorf("production load %q limit %v; want /proc/loadavg limit %d (the CPU count)", p.LoadPath, p.LoadLimit, runtime.NumCPU())
+	}
+}
+
+// loadFile writes a /proc/loadavg-shaped file and returns its path.
+func loadFile(t *testing.T, text string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "loadavg")
+	if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
 // TestLoadAvg reads the 1-minute figure; a missing or empty file is an
 // error, which is how the ratchet behaves off Linux (a shortcut, README).
 func TestLoadAvg(t *testing.T) {
-	dir := t.TempDir()
-	write := func(name, text string) string {
-		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		return p
-	}
-	if got, err := loadAvg(write("loadavg", "0.31 0.07 0.02 1/200 4242\n")); err != nil || got != 0.31 {
+	if got, err := loadAvg(loadFile(t, "0.31 0.07 0.02 1/200 4242\n")); err != nil || got != 0.31 {
 		t.Errorf("loadAvg = %v, %v; want 0.31", got, err)
 	}
-	for _, p := range []string{write("empty", ""), filepath.Join(dir, "missing")} {
+	for _, p := range []string{loadFile(t, ""), filepath.Join(t.TempDir(), "missing")} {
 		if _, err := loadAvg(p); err == nil {
-			t.Errorf("loadAvg(%s) has no error; an unreadable load must not pass", filepath.Base(p))
+			t.Errorf("loadAvg(%s) has no error; an unreadable load must not pass", p)
 		}
 	}
 }
