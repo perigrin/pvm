@@ -348,10 +348,7 @@ func TestTDTAbsentReasonsHold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := make([]string, len(tab.Symbols))
-	for i, s := range tab.Symbols {
-		names[i] = s.Name
-	}
+	names := symbolNames(tab)
 	if err := holdAbsences(t, g.Classes, names, string(reviewed), srcs); err != nil {
 		t.Error(err)
 	}
@@ -372,4 +369,36 @@ func holdAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, revie
 		return fmt.Errorf("unseen-reviewed.txt claims absence, but:\n%s", strings.Join(bad, "\n"))
 	}
 	return nil
+}
+
+// symbolNames is the grammar's symbol names, which a class's Terminals index.
+func symbolNames(tab *grammar.Tables) []string {
+	names := make([]string, len(tab.Symbols))
+	for i, s := range tab.Symbols {
+		names[i] = s.Name
+	}
+	return names
+}
+
+// TestTDTAbsentReasonsCatchFalseClaimOverCorpus: over the committed grammar and the real corpus, an absence claim for
+// a key the corpus does contain (every corpus file ends statements with a semicolon) is caught and the key is named.
+func TestTDTAbsentReasonsCatchFalseClaimOverCorpus(t *testing.T) {
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const key = "PERLY_SEMICOLON Kind=Semicolon"
+	err = holdAbsences(t, g.Classes, symbolNames(tab), "reason: x "+absentPhrase+"\n"+key+"\n", srcs)
+	if err == nil || !strings.Contains(err.Error(), key+" admits ") {
+		t.Errorf("a false claim over the corpus: %v, want it caught and naming %q", err, key)
+	}
 }
