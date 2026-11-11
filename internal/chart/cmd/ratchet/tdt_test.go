@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -267,9 +268,33 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 // absentPhrase marks a reviewed tdt-unseen reason that claims the construct is absent from the corpora.
 const absentPhrase = "no corpus token matches the key"
 
+// corpusFile is a corpus file tokenized once, with what a claim's own token must have in it.
+type corpusFile struct {
+	src   []byte
+	raw   []lexer.Token
+	kinds map[lexer.Kind]bool
+	texts map[string]bool // of the words, operators and closing brackets, which are the tokens a key's Text names
+}
+
+// mayAdmit is false only where a table compiled from c alone admits no token of the file: the token's own Kind is the
+// key's, and, for a word, operator or closing bracket, its Text is the raw text, or CORE:: and the raw text (chart/lex reads CORE::kw as kw), or isa for
+// grammar.PlainIsa. It may be true for a file that admits nothing; it is never false for one that does.
+func (f corpusFile) mayAdmit(c grammar.TokenClass) bool {
+	if c.Kind != nil && !f.kinds[*c.Kind] {
+		return false
+	}
+	if c.Kind == nil || *c.Kind != lexer.Word && *c.Kind != lexer.Operator && *c.Kind != lexer.CloseBracket ||
+		c.Text == nil || *c.Text == "" || strings.Contains(*c.Text, "\x00") && *c.Text != grammar.PlainIsa {
+		return true
+	}
+	return f.texts[*c.Text] || f.texts["CORE::"+*c.Text] || *c.Text == grammar.PlainIsa && f.texts["isa"]
+}
+
 // falseAbsences returns, for each reviewed entry whose reason claims absentPhrase, the corpus tokens its key admits
-// compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. srcs is every corpus file's source,
-// whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
+// compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. A table shared between claims would
+// change what each matches (a named word is no longer an OtherWord), so each claim has its own; the cost is held down by
+// tokenizing each file once and mapping it only for the claims it could hold a token of (corpusFile.mayAdmit). srcs is
+// every corpus file's source, whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
 // ratchet, so a run that checks none can be told from one that found nothing false.
 func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, srcs map[string][]byte) (out []string, checked int) {
 	t.Helper()
@@ -279,9 +304,7 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, src
 			byKey[k] = d
 		}
 	}
-	// One class per claim, each admitting only its own index, so a token's set names the claims that admit it.
-	var claims []string
-	var classes []grammar.TokenClass
+	files := map[string]corpusFile{}
 	reason := ""
 	for _, l := range strings.Split(reviewed, "\n") {
 		l = strings.TrimSpace(l)
@@ -293,39 +316,42 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, src
 		if !ok || !strings.Contains(reason, absentPhrase) {
 			continue
 		}
-		c := d.Key
-		if c.Lone { // a Lone class cuts the other word classes of the table it is in, so it cannot share one
-			t.Fatalf("%s is a Lone class, which falseAbsences cannot map beside other claims", l)
+		checked++
+		if checked == 1 { // tokenized once, and only when a claim is to be checked
+			for p, src := range srcs {
+				f := corpusFile{src, lexer.Tokenize(src), map[lexer.Kind]bool{}, map[string]bool{}}
+				for _, tk := range f.raw {
+					f.kinds[tk.Kind] = true
+					if tk.Kind == lexer.Word || tk.Kind == lexer.Operator || tk.Kind == lexer.CloseBracket {
+						f.texts[string(src[tk.Start:tk.End])] = true
+					}
+				}
+				files[p] = f
+			}
 		}
-		c.Terminals = []int{len(claims)}
-		claims = append(claims, l)
-		classes = append(classes, c)
-	}
-	if len(claims) == 0 {
-		return nil, 0
-	}
-	tt, err := grammar.CompileTokens(classes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := make([][]string, len(claims))
-	for p, src := range srcs {
-		raw := lexer.Tokenize(src)
-		s, _ := lex.Map(src, raw, tt)
-		for _, tk := range s.Tokens {
-			for _, i := range tt.Sets[tk.TerminalSet] {
-				found[i] = append(found[i], fmt.Sprintf("%s admits %s %d", claims[i], p, raw[tk.Index].Start))
+		c := d.Key
+		c.Terminals = []int{0} // one class: which terminal it admits cannot change whether it admits a token
+		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p, f := range files {
+			if !f.mayAdmit(c) {
+				continue
+			}
+			s, _ := lex.Map(f.src, f.raw, tt)
+			for _, tk := range s.Tokens {
+				if tk.TerminalSet != 0 {
+					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, f.raw[tk.Index].Start))
+				}
 			}
 		}
 	}
-	for _, f := range found {
-		out = append(out, f...)
-	}
-	return out, len(claims)
+	return out, checked
 }
 
 // TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
-// none, over every corpus file (T1 included); about 30 s. A synthetic false claim is caught.
+// none, over every corpus file (T1 included); about 5 s. A synthetic false claim is caught.
 func TestTDTAbsentReasonsHold(t *testing.T) {
 	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
 	if got, n := falseAbsences(t, toyDecls, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
@@ -390,4 +416,125 @@ func TestTDTAbsentReasonsCatchFalseClaimOverCorpus(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), key+" admits ") {
 		t.Errorf("a false claim over the corpus: %v, want it caught and naming %q", err, key)
 	}
+}
+
+// refAbsences is the reference falseAbsences is held to: each claim judged by a table compiled from it alone, over
+// every file, with nothing shared between claims.
+func refAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, reviewed string, srcs map[string][]byte) (out []string) {
+	t.Helper()
+	ids := map[string]int{}
+	for i, n := range names {
+		ids[n] = i
+	}
+	byKey := map[string]grammar.ClassDecl{}
+	for _, d := range decls {
+		if k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key)); byKey[k].Terminal == "" {
+			byKey[k] = d
+		}
+	}
+	raws := map[string][]lexer.Token{}
+	for p, src := range srcs {
+		raws[p] = lexer.Tokenize(src)
+	}
+	reason := ""
+	for _, l := range strings.Split(reviewed, "\n") {
+		l = strings.TrimSpace(l)
+		if r, ok := strings.CutPrefix(l, "reason:"); ok {
+			reason = r
+			continue
+		}
+		d, ok := byKey[l]
+		if !ok || !strings.Contains(reason, absentPhrase) {
+			continue
+		}
+		c := d.Key
+		c.Terminals = []int{ids[d.Terminal]}
+		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p, raw := range raws {
+			s, _ := lex.Map(srcs[p], raw, tt)
+			for _, tk := range s.Tokens {
+				if tk.TerminalSet != 0 {
+					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, raw[tk.Index].Start))
+				}
+			}
+		}
+	}
+	return out
+}
+
+// TestTDTAbsentReasonsMatchPerClaimScan: falseAbsences reports exactly the admissions a table compiled from each claim
+// alone reports, over the real corpus, for the keys a shared table once masked (an OtherWord or IdentQuote neighbour,
+// which another claim's named word or quote changes the meaning of) and every 40th key besides.
+func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := symbolNames(tab)
+	var b strings.Builder
+	b.WriteString("reason: x " + absentPhrase + "\n")
+	for i, d := range g.Classes {
+		k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key))
+		masked := strings.Contains(k, grammar.OtherWord) || strings.Contains(k, grammar.IdentQuote)
+		if masked && (strings.HasPrefix(k, "METHCALL") || strings.HasPrefix(k, "MULOP")) || i%8 == 0 {
+			b.WriteString(k + "\n")
+		}
+	}
+	want := refAbsences(t, g.Classes, names, b.String(), srcs)
+	got, n := falseAbsences(t, g.Classes, b.String(), srcs)
+	if n < 20 || len(want) == 0 {
+		t.Fatalf("checked %d claims, the reference found %d admissions: the sample proves nothing", n, len(want))
+	}
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("falseAbsences reports %d admissions, a table per claim reports %d; first difference:\n%s", len(got), len(want), firstDiff(got, want))
+	}
+}
+
+func firstDiff(a, b []string) string {
+	for i := range min(len(a), len(b)) {
+		if a[i] != b[i] {
+			return a[i] + "\nvs\n" + b[i]
+		}
+	}
+	return fmt.Sprintf("one is a prefix of the other, %d vs %d", len(a), len(b))
+}
+
+// TestTDTAbsentReasonsClaimsAreIndependent: of two claims over one file, the false one is named and the true one is not,
+// though the true one names a word ("a") that the false one's OtherWord neighbour stands for.
+func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
+	word := ptr(lexer.Word)
+	truth := grammar.ClassDecl{Terminal: "WORD", Key: grammar.TokenClass{Kind: word, Text: ptr("q"), Prev1: &grammar.Neighbour{Kind: lexer.Word, Text: "a"}}}
+	lie := grammar.ClassDecl{Terminal: "WORD", Key: grammar.TokenClass{Kind: word, Prev1: &grammar.Neighbour{Kind: lexer.Word, Text: grammar.OtherWord}}}
+	tk, lk := "WORD "+keyText(truth.Key), "WORD "+keyText(lie.Key)
+	decls := []grammar.ClassDecl{truth, lie}
+	src := map[string][]byte{"toy.pl": []byte("a b;")}
+	reviewed := "reason: x " + absentPhrase + "\n" + tk + "\n" + lk + "\n"
+	got, n := falseAbsences(t, decls, reviewed, src)
+	want := refAbsences(t, decls, toyNames, reviewed, src)
+	if n != 2 || len(want) != 1 || !slices.Equal(got, want) || !strings.HasPrefix(got[0], lk+" admits toy.pl ") {
+		t.Errorf("got %q from %d claims, want %q (the false claim only)", got, n, want)
+	}
+}
+
+// symbolNames is the grammar's symbol names, which a class's Terminals index.
+func symbolNames(tab *grammar.Tables) []string {
+	names := make([]string, len(tab.Symbols))
+	for i, s := range tab.Symbols {
+		names[i] = s.Name
+	}
+	return names
 }
