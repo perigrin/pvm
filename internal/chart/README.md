@@ -310,9 +310,7 @@ clock and a collector, so it is tested on fake timings
   cause: every span held one collection on each side, and `GOGC=off` left the
   spread unchanged). The 9 pairs, the medians, the wall clock and the GC
   placement are unchanged (`TestLexOverheadDefinitionUnchanged`,
-  `TestLexOverheadProductionClock`); `TestLexOverheadStableUnderLoad` models
-  the delays on a fake clock, and `cmd/ratchet/loadcheck.sh` runs two
-  ratchets beside a busy loop per CPU and fails on a reading above 1.3. The 1.3 protects chart/lex's share of an
+  `TestLexOverheadProductionClock`). The 1.3 protects chart/lex's share of an
   LSP call, which re-lexes one buffer in a warm process; over many small
   files each call starts with cold CPU caches, so the aggregate measures
   per-call start-up and is reported, never gated.
