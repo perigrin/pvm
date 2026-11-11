@@ -1,6 +1,6 @@
 #!/bin/sh
 # ABOUTME: Captures every waypoint-1 corpus file's -DT stream with tdt-capture.sh, then aligns them to internal/lexer tokens.
-# ABOUTME: Writes $TDT_FIXTURES/<file>.tdt and testdata/tdt/sample.tdt; offline. Usage: TDT_FIXTURES=<dir> T1_CORPUS=<dir> tdt-align.sh <perl>.
+# ABOUTME: Writes $TDT_FIXTURES/<file>.tdt and testdata/tdt/sample.tdt; offline. Usage: TDT_FIXTURES=<dir> T1_CORPUS=<dir> [PERL5_CORPUS=<dir>] tdt-align.sh <perl>.
 set -eu
 
 perl=${1:?usage: TDT_FIXTURES=<dir> T1_CORPUS=<PerlOnJava unit dir> tdt-align.sh <debugging-perl>}
@@ -36,7 +36,9 @@ case "${out%/}/" in "$topreal/"*) refuse ;; esac
 mkdir -p "$out"
 here=$top/internal/chart/offline
 cap=$(mktemp -d)
-trap 'rm -rf "$cap"' EXIT
+shim=$(mktemp -d)
+trap 'rm -rf "$cap" "$shim"' EXIT
+sh "$here/perlgit-shim.sh" "$perl" "$shim"
 
 # capture <cwd> <PERL5LIB> <path from cwd> <key>: one stream, run as label.sh runs perl.
 # Exit 1 (refused, timeout) and 2 with a `# truncated` line are streams; any other exit 2 stops the run.
@@ -63,7 +65,11 @@ t1root=$(git -C "$t1" rev-parse --show-prefix)
 for f in $(cd "$t1" && ls -- *.t); do
 	capture "$t1top" "" "${t1root%/}/$f" "T1/$f"
 done
+# perl.git t/ from the shim's t/, as label.sh runs it: perlgit/<path under t/>.
+for f in $(cd "$shim/t" && find . -name '*.t' | sed 's|^\./||' | LC_ALL=C sort); do
+	capture "$shim/t" "" "$f" "perlgit/$f"
+done
 echo "tdt-align.sh: captured in $(($(date +%s) - start)) s"
-go run ./internal/chart/offline/tdt/align "$cap" "$t1" "$out"
+go run ./internal/chart/offline/tdt/align "$cap" "$t1" "${PERL5_CORPUS:-/opt/corpora/perl5}/t" "$out"
 # The sample's alignment is committed: the golden one TestAlignSample compares against.
 mv "$out/$sample.tdt" internal/chart/testdata/tdt/sample.tdt

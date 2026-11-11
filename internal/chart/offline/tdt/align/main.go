@@ -1,8 +1,9 @@
 // ABOUTME: Aligns each corpus file's -DT token stream to internal/lexer's tokens and writes one fixture per file (spec §12).
-// ABOUTME: Offline only, run by tdt-align.sh: go run ./internal/chart/offline/tdt/align <capture-dir> <t1-dir> <out-dir>.
+// ABOUTME: Offline only, run by tdt-align.sh: go run ./internal/chart/offline/tdt/align <capture-dir> <t1-dir> <perlgit-t-dir> <out-dir>.
 
 // The capture directory holds one tdt-capture.sh stream per corpus file at
-// its key: the repository path for in-tree files, T1/<name>.t for T1's. Each
+// its key: the repository path for in-tree files, T1/<name>.t for T1's,
+// perlgit/<path under t/> for perl.git t/'s. Each
 // fixture is written to <out-dir>/<key>.tdt (TDT_FIXTURES), in the form
 // offline/README.md states, and a summary goes to stdout: per file, the
 // toke.c runs no pvm token matched, which is where module tokens leaking past
@@ -24,17 +25,17 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Fprintln(os.Stderr, "usage: align <capture-dir> <t1-dir> <out-dir>")
+	if len(os.Args) != 5 {
+		fmt.Fprintln(os.Stderr, "usage: align <capture-dir> <t1-dir> <perlgit-t-dir> <out-dir>")
 		os.Exit(2)
 	}
-	if err := run(os.Args[1], os.Args[2], os.Args[3]); err != nil {
+	if err := run(os.Args[1], os.Args[2], os.Args[3], os.Args[4]); err != nil {
 		fmt.Fprintln(os.Stderr, "align:", err)
 		os.Exit(2)
 	}
 }
 
-func run(capDir, t1Dir, outDir string) error {
+func run(capDir, t1Dir, perlgitDir, outDir string) error {
 	begin := time.Now()
 	if err := clearFixtures(outDir); err != nil {
 		return err
@@ -49,6 +50,8 @@ func run(capDir, t1Dir, outDir string) error {
 		srcPath := key
 		if name, ok := strings.CutPrefix(key, "T1/"); ok {
 			srcPath = filepath.Join(t1Dir, name)
+		} else if name, ok := strings.CutPrefix(key, "perlgit/"); ok {
+			srcPath = filepath.Join(perlgitDir, name)
 		}
 		src, err := os.ReadFile(srcPath)
 		if err != nil {
