@@ -310,10 +310,33 @@ clock and a collector, so it is tested on fake timings
   cause: every span held one collection on each side, and `GOGC=off` left the
   spread unchanged). The 9 pairs, the medians, the wall clock and the GC
   placement are unchanged (`TestLexOverheadDefinitionUnchanged`,
-  `TestLexOverheadProductionClock`). The 1.3 protects chart/lex's share of an
+  `TestLexOverheadProductionClock`). `TestLexOverheadStableUnderLoad` shows
+  why on a fake clock: delays landing independently per unit of work average
+  out over 25 copies. Real load did not behave so: under heavier load (1-minute
+  load 10 to 14 rising to 26 and 27) the 25-copy pass still read 1.306 and
+  1.553, which is why lex-overhead is now measured only on a quiet machine
+  (next point). The 1.3 protects chart/lex's share of an
   LSP call, which re-lexes one buffer in a warm process; over many small
   files each call starts with cold CPU caches, so the aggregate measures
   per-call start-up and is reported, never gated.
+- **A quiet machine only** (perigrin, 2026-11-11). Just before lex-overhead
+  is measured, chart-ratchet reads the 1-minute load average once from
+  `/proc/loadavg`; above the CPU count (`runtime.NumCPU()`, 4 on the machine
+  the readings came from) it measures nothing and exits 2 with
+  `chart-ratchet: lex-overhead: machine too busy to measure: 1-minute load
+  <load> above <limit>`, printing no keys, so it never passes; a close waits
+  for a quiet machine. The limit is the CPU count because above it runnable
+  threads queue for a CPU, the cause LEXLOAD established. In the readings it
+  sits at the highest load a reliable reading was seen at and below the
+  lowest any failure started from: a ratchet at load 3.8 to 4.9 read 1.179
+  (per-pair ratios 0.94 to 1.56; on the 25-copy pass, 2026-11-11), and one
+  at 3.9 rising to 8.2 read 1.169, while the failures started at 6.37 (1.336,
+  rising to 22) and at 10 to 14 (1.306 and 1.553). The ratchet's own thread
+  counts toward the load it reads. An unreadable load is an error, never a
+  pass; off Linux there is no `/proc/loadavg`, so there the ratchet fails
+  (a shortcut, pinned in `TestLoadAvg`). Only chart-ratchet reads the load:
+  `make test` tests the gate on an injected load
+  (`TestLexOverheadRefusesBusyMachine`).
 - **What the speed ratios run.** The chart side is `chart/lex` then
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
   pass's files (its intern table and cache persist), cold makes a fresh

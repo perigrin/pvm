@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -107,10 +108,34 @@ func lexOverheadKeys(p Protocol, agg []string, measured map[string]string) {
 	measured["lex-overhead-aggregate"] = fmt.Sprintf("%.3f", p.Ratio("lex-overhead-aggregate", agg, false))
 }
 
-// quietLexOverheadKeys is lexOverheadKeys on a machine quiet enough to measure.
+// quietLexOverheadKeys reads load once and runs lexOverheadKeys only when it
+// is at most limit; above it, or unreadable, it measures nothing and returns
+// an error, so the ratchet fails rather than gating on a noisy reading
+// (perigrin, 2026-11-11).
 func quietLexOverheadKeys(p Protocol, agg []string, measured map[string]string, load func() (float64, error), limit float64) error {
+	l, err := load()
+	if err != nil {
+		return fmt.Errorf("lex-overhead: reading the load: %w", err)
+	}
+	if l > limit {
+		return fmt.Errorf("lex-overhead: machine too busy to measure: 1-minute load %.2f above %g", l, limit)
+	}
 	lexOverheadKeys(p, agg, measured)
 	return nil
+}
+
+// loadAvg is the 1-minute load average, read from path (/proc/loadavg).
+// shortcut: Linux's /proc/loadavg only, so elsewhere the ratchet fails; read the platform's load if it must run off Linux.
+func loadAvg(path string) (float64, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	f := strings.Fields(string(b))
+	if len(f) == 0 {
+		return 0, fmt.Errorf("%s is empty", path)
+	}
+	return strconv.ParseFloat(f[0], 64)
 }
 
 // productionProtocol is the Protocol the ratchet times with: the monotonic
@@ -139,7 +164,10 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	if err != nil {
 		return nil, err
 	}
-	lexOverheadKeys(p, agg, measured)
+	// The load limit is the CPU count: above it, runnable threads wait for a CPU (README, "The speed protocol").
+	if err := quietLexOverheadKeys(p, agg, measured, func() (float64, error) { return loadAvg("/proc/loadavg") }, float64(runtime.NumCPU())); err != nil {
+		return nil, err
+	}
 	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
 	measureSpeed(p, agg, srcs, measured)
 	return unmapped, nil

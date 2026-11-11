@@ -9,6 +9,8 @@ import (
 	"io"
 	"math"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
@@ -150,10 +152,13 @@ func TestLexOverheadKeys(t *testing.T) {
 	}
 }
 
-// TestLexOverheadStableUnderLoad reproduces LEXLOAD's established cause: under
-// load the measuring thread waits for a CPU for most of a pass, in delays
-// that land per unit of work at random, so a short pass's wall time is
-// decided by the scheduler rather than by the work. The fake chart does 1.15
+// TestLexOverheadStableUnderLoad models LEXLOAD's established cause on a fake
+// clock: the measuring thread waits for a CPU in delays that land per unit of
+// work at random, so a short pass's wall time is decided by the scheduler
+// rather than by the work, and 25 copies a pass average it out. It shows the
+// 25-copy pass's rationale, not that real load averages out: under heavy
+// real load it did not, so the ratchet measures only on a quiet machine
+// (TestLexOverheadRefusesBusyMachine). The fake chart does 1.15
 // times the reference's work, 11.5 ms against 10 ms a buffer; one 100 µs
 // tick of work in 50 waits an exponential delay averaging 10 ms, so a pass's
 // wall time is about three times its work, in a few large delays. Over 20 seeds lex-overhead must stay within
@@ -364,5 +369,26 @@ func TestLexOverheadRefusesBusyMachine(t *testing.T) {
 				t.Error("a refused lex-overhead passes the ratchet's check")
 			}
 		})
+	}
+}
+
+// TestLoadAvg reads the 1-minute figure; a missing or empty file is an
+// error, which is how the ratchet behaves off Linux (a shortcut, README).
+func TestLoadAvg(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, text string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	if got, err := loadAvg(write("loadavg", "0.31 0.07 0.02 1/200 4242\n")); err != nil || got != 0.31 {
+		t.Errorf("loadAvg = %v, %v; want 0.31", got, err)
+	}
+	for _, p := range []string{write("empty", ""), filepath.Join(dir, "missing")} {
+		if _, err := loadAvg(p); err == nil {
+			t.Errorf("loadAvg(%s) has no error; an unreadable load must not pass", filepath.Base(p))
+		}
 	}
 }
