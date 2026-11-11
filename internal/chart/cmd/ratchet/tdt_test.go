@@ -470,14 +470,11 @@ func refAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, review
 // which another claim's named word or quote changes the meaning of) and every 40th key besides.
 func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
 	t.Chdir("../../../..")
-	g, ref, err := grammar.Committed()
+	g, _, err := grammar.Committed()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tab := committedTables(t)
 	_, srcs, err := corpus()
 	if err != nil {
 		t.Fatal(err)
@@ -490,12 +487,6 @@ func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
 		masked := strings.Contains(k, grammar.OtherWord) || strings.Contains(k, grammar.IdentQuote)
 		if masked && (strings.HasPrefix(k, "METHCALL") || strings.HasPrefix(k, "MULOP")) || i%8 == 0 {
 			b.WriteString(k + "\n")
-		}
-	}
-	// The reference is slow, so it reads a tenth of the files, with the three that held the admissions a shared table lost.
-	for i, p := range slices.Sorted(maps.Keys(srcs)) {
-		if i%10 != 0 && p != "T1/control_flow.t" && p != "T1/source_location_index.t" && !strings.HasSuffix(p, "Statements-SubStatement-086.pl") {
-			delete(srcs, p)
 		}
 	}
 	want := refAbsences(t, g.Classes, names, b.String(), srcs)

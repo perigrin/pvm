@@ -7,24 +7,33 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 )
 
-// committedTables is the committed grammar's tables.
+// committedTables is the committed grammar's tables, generated once for the package's tests, none of which writes them.
 func committedTables(t *testing.T) *grammar.Tables {
 	t.Helper()
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
+	committed.Do(func() {
+		g, ref, err := grammar.Committed()
+		if err == nil {
+			committed.tab, err = grammar.Generate(g, ref)
+		}
+		committed.err = err
+	})
+	if committed.err != nil {
+		t.Fatal(committed.err)
 	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tab
+	return committed.tab
+}
+
+var committed struct {
+	sync.Once
+	tab *grammar.Tables
+	err error
 }
 
 // flat is n top-level statements in the shape of T1/code_too_large.t, each

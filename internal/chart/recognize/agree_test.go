@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -90,6 +91,18 @@ func (f sampleFile) lattice(n int) *lex.Lattice[lex.None] {
 func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 	t.Helper()
 	tab := committedTables(t)
+	sample.Do(func() { sample.files = readSample(t, tab) })
+	return tab, sample.files
+}
+
+// sample is corpusSample's files, lexed and cut once for the package's tests, none of which writes them.
+var sample struct {
+	sync.Once
+	files []sampleFile
+}
+
+func readSample(t *testing.T, tab *grammar.Tables) []sampleFile {
+	t.Helper()
 	var files []sampleFile
 	for _, p := range samplePaths(t) {
 		s, _ := lex.Lex(readFile(t, p), tab.Tokens)
@@ -102,7 +115,7 @@ func corpusSample(t *testing.T) (*grammar.Tables, []sampleFile) {
 		}
 		files = append(files, f)
 	}
-	return tab, files
+	return files
 }
 
 // samplePaths is the sample's files: std5k.pl, every port snippet, and

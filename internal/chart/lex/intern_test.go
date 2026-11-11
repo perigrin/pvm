@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"unsafe"
 
@@ -22,20 +23,31 @@ import (
 // classes it was compiled from.
 func committed(tb testing.TB) (*grammar.TokenTable, []grammar.TokenClass) {
 	tb.Helper()
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		tb.Fatal(err)
+	committedOnce.Do(func() {
+		g, ref, err := grammar.Committed()
+		var tab *grammar.Tables
+		if err == nil {
+			tab, err = grammar.Generate(g, ref)
+		}
+		if err == nil {
+			committedClasses, err = g.ResolveClasses(tab)
+			committedTokens = tab.Tokens
+		}
+		committedErr = err
+	})
+	if committedErr != nil {
+		tb.Fatal(committedErr)
 	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	classes, err := g.ResolveClasses(tab)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	return tab.Tokens, classes
+	return committedTokens, committedClasses
 }
+
+// The committed table and its classes, generated once for the package's tests, none of which writes them.
+var (
+	committedOnce    sync.Once
+	committedTokens  *grammar.TokenTable
+	committedClasses []grammar.TokenClass
+	committedErr     error
+)
 
 var (
 	refStrictVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
@@ -203,7 +215,8 @@ func refBlanks(src []byte, start, end int) bool {
 func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar.TokenClass) []int {
 	// A neighbour of grammar.OtherWord is a word, flags as given, that no class names.
 	named := map[string]bool{}
-	for _, c := range classes {
+	for ci := range classes {
+		c := &classes[ci] // by pointer: a TokenClass is large, and the loops below run over every class for every token
 		if c.Text != nil {
 			named[*c.Text] = true
 		}
@@ -233,7 +246,8 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if n.Name {
 			return true
 		}
-		for _, c := range classes {
+		for ci := range classes {
+			c := &classes[ci]
 			if !c.Completes || c.Prev1 != nil {
 				continue
 			}
@@ -318,17 +332,24 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 	}
 	// name is whether a sub's name starts at toks[i]: an identifier start, or a word opening with :: or '.
 	name := func(i int) bool { return ident(i) || i >= 0 && i < len(toks) && toks[i].v.Kind == lexer.Word }
+	var lones []*grammar.TokenClass
+	for ci := range classes {
+		if classes[ci].Lone {
+			lones = append(lones, &classes[ci])
+		}
+	}
 	// lone is whether a Lone class holds at toks[i]: all of its neighbours match, and a word class other than a Lone one is cut off there.
 	lone := func(i int) bool {
-		return slices.ContainsFunc(classes, func(l grammar.TokenClass) bool {
-			return l.Lone && is(l.Prev2, nb(i-2)) && is(l.Prev1, nb(i-1)) && is(l.Next, nb(i+1)) && (l.Blanks == nil || *l.Blanks == toks[i].v.Blanks)
+		return slices.ContainsFunc(lones, func(l *grammar.TokenClass) bool {
+			return is(l.Prev2, nb(i-2)) && is(l.Prev1, nb(i-1)) && is(l.Next, nb(i+1)) && (l.Blanks == nil || *l.Blanks == toks[i].v.Blanks)
 		})
 	}
 	ids := make([]int, len(toks))
 	for i, t := range toks {
 		var set []int
 		alone := lone(i)
-		for _, c := range classes {
+		for ci := range classes {
+			c := &classes[ci]
 			if alone && !c.Lone && c.Kind != nil && *c.Kind == lexer.Word {
 				continue
 			}
