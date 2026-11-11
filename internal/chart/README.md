@@ -326,17 +326,23 @@ clock and a collector, so it is tested on fake timings
   `chart-ratchet: lex-overhead: machine too busy to measure: 1-minute load
   <load> above <limit>`, printing no keys, so it never passes; a close waits
   for a quiet machine. The limit is the CPU count because above it runnable
-  threads queue for a CPU, the cause LEXLOAD established. In the readings it
-  sits at the highest load a reliable reading was seen at and below the
-  lowest any failure started from: a ratchet at load 3.8 to 4.9 read 1.179
-  (per-pair ratios 0.94 to 1.56; on the 25-copy pass, 2026-11-11), and one
-  at 3.9 rising to 8.2 read 1.169, while the failures started at 6.37 (1.336,
-  rising to 22) and at 10 to 14 (1.306 and 1.553). The ratchet's own thread
-  counts toward the load it reads. An unreadable load is an error, never a
-  pass; off Linux there is no `/proc/loadavg`, so there the ratchet fails
+  threads queue for a CPU, the cause LEXLOAD established. The evidence for
+  it is thin and is stated by pass length (loads are 1-minute averages when
+  the run started). On the 25-copy pass: one ratchet started at 3.76 (3.8 to
+  4.9 while lex-overhead ran) read 1.179, per-pair ratios 0.94 to 1.56; the
+  failures, beside a busy loop per CPU and a second ratchet, started
+  at 14.46 (1.306) and 10.44 (1.553); one ratchet alone started at 22.48
+  read 1.160, so a busy machine can also pass by luck. On the one-buffer
+  pass, before the amendment: a ratchet started at 3.88 (rising to 8.24)
+  read 1.169, and the reproduction started at 6.37 (rising to 22.34) read
+  1.336. The limit sits at the highest load the 25-copy pass was seen
+  reliable at and below the lowest load any failure started from. The
+  ratchet's own thread counts toward the load it reads. An unreadable load
+  is an error, never a pass; off Linux there is no `/proc/loadavg`, so there the ratchet fails
   (a shortcut, pinned in `TestLoadAvg`). Only chart-ratchet reads the load:
   `make test` tests the gate on an injected load
-  (`TestLexOverheadRefusesBusyMachine`).
+  (`TestLexOverheadRefusesBusyMachine`), and `TestLexOverheadProductionLoad`
+  pins the production path and limit.
 - **What the speed ratios run.** The chart side is `chart/lex` then
   `recognize.Recognize` on one recognizer: long-lived reuses it across a
   pass's files (its intern table and cache persist), cold makes a fresh
