@@ -27,10 +27,38 @@ func inTreeFiles(t *testing.T) []string {
 	return files
 }
 
-// TestPerlLabels: the committed labels cover every in-tree corpus file, and
-// every T1 file, under the pinned perl.
+// perl5Root is PERL5_CORPUS when set, else the development machine's perl5
+// tree (perigrin: "Accept it, pinned").
+func perl5Root() string {
+	if r := os.Getenv("PERL5_CORPUS"); r != "" {
+		return r
+	}
+	return "/opt/corpora/perl5"
+}
+
+// perlGitFiles is every .t file under dir, perl.git's t/, by its slash path
+// under dir.
+func perlGitFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	var files []string
+	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".t") {
+			rel, _ := filepath.Rel(dir, p)
+			files = append(files, filepath.ToSlash(rel))
+		}
+		return err
+	})
+	if err != nil || len(files) == 0 {
+		t.Fatalf("%s holds no .t file (%v)", dir, err)
+	}
+	return files
+}
+
+// TestPerlLabels: the committed labels cover every in-tree corpus file, every
+// T1 file and, where the perl5 tree is present, every perl.git t/ file, under
+// the pinned perl.
 func TestPerlLabels(t *testing.T) {
-	check := func(name string, files []string) {
+	check := func(t *testing.T, name string, files []string) {
 		lf, err := ReadLabels(filepath.Join(labelsDir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -39,7 +67,7 @@ func TestPerlLabels(t *testing.T) {
 			t.Errorf("%s: %s", name, p)
 		}
 	}
-	check("in-tree.txt", inTreeFiles(t))
+	check(t, "in-tree.txt", inTreeFiles(t))
 
 	root := t1Root()
 	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
@@ -52,7 +80,15 @@ func TestPerlLabels(t *testing.T) {
 	for i, m := range matches {
 		matches[i] = filepath.Base(m)
 	}
-	check("t1.txt", matches)
+	check(t, "t1.txt", matches)
+
+	t.Run("perlgit", func(t *testing.T) {
+		dir := filepath.Join(perl5Root(), "t")
+		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+			t.Skipf("no perl.git t/ at %s; set PERL5_CORPUS to the perl5 tree at 94e50866 (%v)", dir, err)
+		}
+		check(t, "perlgit.txt", perlGitFiles(t, dir))
+	})
 }
 
 // TestPerlLabelsRefusesMalformed: each defect in a synthetic label set is
