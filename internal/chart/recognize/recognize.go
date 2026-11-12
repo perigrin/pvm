@@ -150,6 +150,8 @@ func (g *grammarTables) extend(tab *grammar.Tables) *classes {
 
 // New is a recognizer over tab. The grammar-only tables are tab's shared
 // ones; the intern table, cache and counters are the recognizer's own.
+// The first `New` over a tables value writes beside it, so do not copy
+// `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
 	g := tab.Derived(func(t *grammar.Tables) any { return buildGrammar(t) }).(*grammarTables)
 	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}

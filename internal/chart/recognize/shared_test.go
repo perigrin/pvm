@@ -194,3 +194,27 @@ func TestNewOverAnyTablesValue(t *testing.T) {
 		}
 	}
 }
+
+// TestCopyTablesBesideLaterNew: once one New over a tables value is done,
+// copying the value beside further News over it is race-free under -race.
+// Only the first New writes beside the value.
+func TestCopyTablesBesideLaterNew(t *testing.T) {
+	tab := toyStmt(t)
+	New(tab, Options{})
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			c := *tab
+			if !run(t, New(&c, Options{}), "Print Num Semi").Accepted() {
+				t.Error("a copy made beside a later New refused Print Num Semi")
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			New(tab, Options{})
+		}()
+	}
+	wg.Wait()
+}

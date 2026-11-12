@@ -89,6 +89,7 @@ func (t *Tables) Derived(build func(*Tables) any) any {
 	deriveMu.Lock()
 	defer deriveMu.Unlock()
 	if t.derivedFor != t {
+		// shortcut: this write races with a copy of *t made during the first call; hold the slot behind a pointer every copy shares if a caller must copy tables while recognizers are first built.
 		t.derived, t.derivedFor = build(t), t
 	}
 	return t.derived

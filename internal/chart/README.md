@@ -1152,7 +1152,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   (`TestRecognizersExtendSharedTablesConcurrently`). The tables' states,
   rules, items, symbols and FOLLOW sets must not change after the first
   `New`; a copy of a tables value is a value of its own and shares nothing
-  (`TestRecognizersOverDistinctTablesShareNothing`).
+  (`TestRecognizersOverDistinctTablesShareNothing`). The first `New` over a
+  tables value writes beside it, so do not copy `*tab` while that `New` runs;
+  copying it beside a later `New` is safe (`TestCopyTablesBesideLaterNew`).
 - **Not safe for concurrent use.** A `Recognizer`'s intern table and
   transition cache change with every recognition, across inputs, and stay
   its own (`TestRecognizerStateNotShared`).
