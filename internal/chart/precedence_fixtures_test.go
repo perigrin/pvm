@@ -293,25 +293,24 @@ func readNonRoundTrip(dir string) (map[string]string, error) {
 	return listed, nil
 }
 
-// renderTerms joins the lexemes of terms by spaces; ok is false when a terminal has none.
-func renderTerms(lexemes map[string]string, terms []string) (src, missing string, ok bool) {
-	var words []string
+// renderTerms is the lexemes of terms, one word per terminal; ok is false when a terminal has none.
+func renderTerms(lexemes map[string]string, terms []string) (words []string, missing string, ok bool) {
 	for _, t := range terms {
 		if t == startSelector {
 			continue
 		}
 		x, found := lexemes[t]
 		if !found {
-			return "", t, false
+			return nil, t, false
 		}
 		words = append(words, x)
 	}
-	return strings.Join(words, " "), "", true
+	return words, "", true
 }
 
-// roundTrip reads src through internal/lexer and chart/lex and returns why it does not lex back to terms, or "" when each
-// token's terminal set holds its terminal and there is one token per terminal.
-func roundTrip(tab *grammar.Tables, src string, terms []string) string {
+// roundTrip reads words, joined by spaces, through internal/lexer and chart/lex and returns why they do not lex back to
+// terms, or "" when there is one token per terminal, each token is its word, and its terminal set holds its terminal.
+func roundTrip(tab *grammar.Tables, words, terms []string) string {
 	id := map[string]int{}
 	for i, s := range tab.Symbols {
 		if s.Terminal {
@@ -324,11 +323,18 @@ func roundTrip(tab *grammar.Tables, src string, terms []string) string {
 			want = append(want, t)
 		}
 	}
+	src := strings.Join(words, " ")
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
-	if len(s.Tokens) != len(want) {
-		return "the lexer makes a different number of tokens than there are terminals"
+	switch {
+	case len(s.Tokens) > len(want):
+		return "the lexer makes more tokens than there are terminals"
+	case len(s.Tokens) < len(want):
+		return "the lexer makes fewer tokens than there are terminals"
 	}
 	for i, t := range s.Tokens {
+		if r := s.Raw[t.Index]; src[r.Start:r.End] != words[i] {
+			return want[i] + " is read as " + src[r.Start:r.End] + ", not its lexeme " + words[i]
+		}
 		if !slices.Contains(tab.TerminalSets[t.TerminalSet], id[want[i]]) {
 			return want[i] + " is not among the terminals its token admits"
 		}
@@ -338,14 +344,14 @@ func roundTrip(tab *grammar.Tables, src string, terms []string) string {
 
 // renderingCause is why a sentence is not kept, or "" when it is.
 func renderingCause(tab *grammar.Tables, lexemes map[string]string, s precedenceSentence) string {
-	src, missing, ok := renderTerms(lexemes, s.terms)
+	words, missing, ok := renderTerms(lexemes, s.terms)
 	if !ok {
 		if strings.HasPrefix(missing, "PLUGIN_") {
 			return "no rendering for " + missing + " until a library operator is in scope"
 		}
 		return "no single-lexeme rendering for " + missing
 	}
-	return roundTrip(tab, src, s.terms)
+	return roundTrip(tab, words, s.terms)
 }
 
 func TestPrecedenceRenderingRoundTrips(t *testing.T) {
@@ -372,7 +378,8 @@ func TestPrecedenceRenderingRoundTrips(t *testing.T) {
 	kept := 0
 	for _, s := range sentences {
 		cause := renderingCause(tab, lexemes, s)
-		src, _, _ := renderTerms(lexemes, s.terms)
+		words, _, _ := renderTerms(lexemes, s.terms)
+		src := strings.Join(words, " ")
 		switch {
 		case cause == "" && listed[s.id] != "":
 			t.Errorf("%s round-trips and is on nonroundtrip-reviewed.txt", s.id)
@@ -411,7 +418,8 @@ func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string
 		if cause := renderingCause(tab, lexemes, s); cause != "" {
 			byCause[cause] = append(byCause[cause], s.id)
 		} else {
-			r, _, _ = renderTerms(lexemes, s.terms)
+			w, _, _ := renderTerms(lexemes, s.terms)
+			r = strings.Join(w, " ")
 			keptNow[s.id] = true
 		}
 		out.WriteString(strings.Join(append(f, r), "\t") + "\n")
@@ -455,21 +463,24 @@ func TestPrecedenceRenderingRejectsNonRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, c := range map[string]struct {
-		src   string
-		terms []string
+		words, terms []string
+		want         string
 	}{
-		"an inserted ;":                       {"qw(a) ;", []string{"QWLIST"}},
-		"UNIOP ( read as FUNC1":               {"ref (", []string{"UNIOP", "PERLY_PAREN_OPEN"}},
-		"two tokens for one terminal":         {"qw(a) qw(b)", []string{"QWLIST"}},
-		"one token where two terminals stand": {"qw(a)", []string{"QWLIST", "QWLIST"}},
+		// The lexer inserts no ;, the recognizer does: an inserted ; is modelled as a written one.
+		"an inserted ;":                       {[]string{"qw(a)", ";"}, []string{"QWLIST"}, "more tokens"},
+		"UNIOP ( read as FUNC1":               {[]string{"ref", "("}, []string{"UNIOP", "PERLY_PAREN_OPEN"}, "UNIOP is not among"},
+		"two tokens for one terminal":         {[]string{"qw(a) qw(b)"}, []string{"QWLIST"}, "more tokens"},
+		"one token where two terminals stand": {[]string{"qw(a)"}, []string{"QWLIST", "QWLIST"}, "fewer tokens"},
+		// Three tokens for three terminals, each admitted, but the boundaries moved: foo; reads as foo and ;, and $ bar as one.
+		"token boundaries that shifted": {[]string{"foo;", "$", "bar"}, []string{"BAREWORD", "PERLY_SEMICOLON", "PERLY_DOLLAR"}, "is read as"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if why := roundTrip(tab, c.src, c.terms); why == "" {
-				t.Fatalf("%q round-trips as %v", c.src, c.terms)
+			if why := roundTrip(tab, c.words, c.terms); !strings.Contains(why, c.want) {
+				t.Fatalf("%q as %v: got %q, want a reason containing %q", c.words, c.terms, why, c.want)
 			}
 		})
 	}
-	if why := roundTrip(tab, "qw(a) + qw(b) ;", []string{startSelector, "QWLIST", "ADDOP", "QWLIST", "PERLY_SEMICOLON"}); why != "" {
+	if why := roundTrip(tab, []string{"qw(a)", "+", "qw(b)", ";"}, []string{startSelector, "QWLIST", "ADDOP", "QWLIST", "PERLY_SEMICOLON"}); why != "" {
 		t.Fatalf("a plain sum does not round-trip: %s", why)
 	}
 }

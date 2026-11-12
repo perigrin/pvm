@@ -5,7 +5,6 @@
 #   NCRELOP     is isa, a word until the isa feature is on
 #   POSTJOIN    exists only inside an interpolated string, where the lexer makes one token
 #   PERLY_DOLLAR  merges with the word after it into one variable token
-#   UNIOPSUB, BLKLSTOP  need a declared sub
 QWLIST	qw(a)
 PERLY_SEMICOLON	;
 CHRELOP	<
@@ -52,3 +51,5 @@ PERLY_BRACKET_OPEN	[
 PERLY_BRACKET_CLOSE	]
 PERLY_BRACE_OPEN	{
 PERLY_BRACE_CLOSE	}
+UNIOPSUB	foo
+BLKLSTOP	any
