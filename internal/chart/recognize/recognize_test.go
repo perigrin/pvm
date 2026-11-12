@@ -242,7 +242,7 @@ func TestExpectedIgnoresLookahead(t *testing.T) {
 func TestAcceptedNeedsOriginZero(t *testing.T) {
 	tab := toyTables(t, rightRec...)
 	c := run(t, New(tab, Options{}), "A")
-	start := slices.IndexFunc(c.Sets[1].Items(), func(it Item) bool { return slices.Contains(c.r.lhs[it.State], tab.Start) })
+	start := slices.IndexFunc(c.Sets[1].Items(), func(it Item) bool { return slices.Contains(c.r.g.lhs[it.State], tab.Start) })
 	if !c.Accepted() || start < 0 {
 		t.Fatal("A is refused, or its last set holds no complete start item")
 	}

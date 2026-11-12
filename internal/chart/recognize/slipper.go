@@ -16,7 +16,7 @@ import (
 func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
 	v := &builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: true}
 	for _, it := range c.Sets[pos].Items() {
-		if k, ok := r.goTo(it.State, r.semi); ok {
+		if k, ok := r.goTo(it.State, r.g.semi); ok {
 			v.add(k, pos-it.Dist)
 		}
 	}
@@ -33,7 +33,7 @@ func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
 // slip scans e's }, beside its scan from e.From's set, from the items an
 // inserted ; advances there; their origin sets are this node's dependencies.
 func (b *builder) slip(e lex.Edge) {
-	v := b.r.semiAt(b.c, e.From, b.r.bits[e.Token.TerminalSet])
+	v := b.r.semiAt(b.c, e.From, b.r.cls.bits[e.Token.TerminalSet])
 	if v == nil {
 		return
 	}
@@ -49,7 +49,7 @@ func (b *builder) slip(e lex.Edge) {
 		if b.r.tab.States[it[0]].Predicted {
 			continue
 		}
-		for _, t := range b.r.terms[e.Token.TerminalSet] {
+		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it[0], t); ok {
 				b.add(k, it[1])
 			}
@@ -62,20 +62,20 @@ func (b *builder) slip(e lex.Edge) {
 // input completes the start. out is the set ids leaving each node.
 func (c *Chart) slipped(out [][]int) {
 	r, last := c.r, len(c.Sets)-1
-	if r.semi < 0 {
+	if r.g.semi < 0 {
 		return
 	}
 	for pos, s := range c.Sets {
-		if pos != last && !slices.ContainsFunc(out[pos], func(id int) bool { return r.closes[id] }) {
+		if pos != last && !slices.ContainsFunc(out[pos], func(id int) bool { return r.cls.closes[id] }) {
 			continue
 		}
-		if slices.ContainsFunc(s.Items(), func(it Item) bool { _, ok := r.goTo(it.State, r.semi); return ok }) {
+		if slices.ContainsFunc(s.Items(), func(it Item) bool { _, ok := r.goTo(it.State, r.g.semi); return ok }) {
 			c.inserted = append(c.inserted, pos)
 		}
 	}
-	if v := r.semiAt(c, last, r.bits[len(r.bits)-1]); v != nil {
+	if v := r.semiAt(c, last, r.g.eofBits); v != nil {
 		c.slipAccepted = slices.ContainsFunc(v.items, func(it [2]int) bool {
-			return it[1] == 0 && slices.Contains(r.lhs[it[0]], r.tab.Start)
+			return it[1] == 0 && slices.Contains(r.g.lhs[it[0]], r.tab.Start)
 		})
 	}
 }

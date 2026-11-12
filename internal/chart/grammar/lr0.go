@@ -6,6 +6,7 @@ package grammar
 import (
 	"fmt"
 	"slices"
+	"sync"
 )
 
 // TableSymbol is a grammar symbol in the tables: a terminal or a nonterminal,
@@ -72,6 +73,26 @@ type Tables struct {
 	// Tokens is the compiled token table whose ids index TerminalSets; nil
 	// until the generator compiles the grammar's classes.
 	Tokens *TokenTable
+	// derived is what Derived built for this value, and derivedFor the
+	// value it was built for: a copy of a Tables holds the original's
+	// address there, so it builds its own. Both are written under deriveMu.
+	derived    any
+	derivedFor *Tables
+}
+
+var deriveMu sync.Mutex
+
+// Derived is build(t), made by the first call on this tables value and kept
+// beside it: recognize's grammar-only tables. A copy of t makes its own. It
+// is safe from any goroutine, but copying t races with the first call on t.
+func (t *Tables) Derived(build func(*Tables) any) any {
+	deriveMu.Lock()
+	defer deriveMu.Unlock()
+	if t.derivedFor != t {
+		// shortcut: this write races with a copy of *t made during the first call; hold the slot behind a pointer every copy shares if a caller must copy tables while recognizers are first built.
+		t.derived, t.derivedFor = build(t), t
+	}
+	return t.derived
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting

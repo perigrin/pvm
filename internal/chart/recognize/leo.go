@@ -3,6 +3,8 @@
 
 package recognize
 
+import "tamarou.com/pvm/internal/chart/grammar"
+
 // memo is a Leo memo at node at for a symbol B: the Earley set there holds
 // one item awaiting B, a Leo item A ::= α . B from node origin. Completing B
 // back to at would add A ::= α B . from origin, which completes A back to
@@ -18,12 +20,12 @@ type memo struct {
 
 // leoItems is, per (state, symbol), the LHS of the state's Leo item for that
 // symbol (grammar's static eligibility).
-func leoItems(r *Recognizer) map[[2]int]int {
+func leoItems(tab *grammar.Tables) map[[2]int]int {
 	m := map[[2]int]int{}
-	for s, st := range r.tab.States {
+	for s, st := range tab.States {
 		for _, i := range st.Leo {
-			it := r.tab.Items[i]
-			rule := r.tab.Rules[it.Rule]
+			it := tab.Items[i]
+			rule := tab.Rules[it.Rule]
 			m[[2]int{s, rule.RHS[it.Dot]}] = rule.LHS
 		}
 	}
@@ -42,7 +44,7 @@ func (b *builder) leo(origin, sym int, la bitset) ([2]int, bool) {
 	if m == nil {
 		return [2]int{}, false
 	}
-	if la != nil && !b.r.follow[b.r.lhs[m.top[0]][0]].intersects(la) {
+	if la != nil && !b.r.g.follow[b.r.g.lhs[m.top[0]][0]].intersects(la) {
 		return [2]int{}, false
 	}
 	// The chain read the set at every link and at its end; a cache hit

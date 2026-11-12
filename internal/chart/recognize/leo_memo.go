@@ -19,7 +19,7 @@ func (c *Chart) memoAt(at, sym int) *memo {
 			state, origin, k = it.State, at-it.Dist, to
 		}
 	}
-	if lhs, ok := c.r.leo[[2]int{state, sym}]; ok && n == 1 {
+	if lhs, ok := c.r.g.leo[[2]int{state, sym}]; ok && n == 1 {
 		m = &memo{at: at, origin: origin, top: [2]int{k, origin}}
 		// A predicted item's origin is this node; its chain stops here. So
 		// does one at a start-rule item from node 0, which acceptance reads.
