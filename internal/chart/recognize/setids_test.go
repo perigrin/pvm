@@ -156,26 +156,36 @@ func TestClassKeysAllocationFree(t *testing.T) {
 	}); n != 0 {
 		t.Errorf("the class lookup allocated %v times per run, want 0", n)
 	}
-	if key != semi || !slices.Equal(bits, r.bits[semi]) {
+	if key != semi || !slices.Equal(bits, r.cls.bits[semi]) {
 		t.Errorf("lookahead({Semi}) = %d, want the set id %d and its bitset", key, semi)
 	}
-	if eofKey != len(tab.TerminalSets) || eofBits == nil || eofBits[tab.EOF/64]&(1<<(tab.EOF%64)) == 0 {
-		t.Errorf("lookahead at the end = %d, want the end-of-input class %d holding EOF", eofKey, len(tab.TerminalSets))
+	if eofKey != eofClass || eofBits == nil || eofBits[tab.EOF/64]&(1<<(tab.EOF%64)) == 0 {
+		t.Errorf("lookahead at the end = %d, want the end-of-input class %d holding EOF", eofKey, eofClass)
 	}
 }
 
-// TestRecognizeSetAddedAfterNew: New keeps its own copy of the set table,
-// so sets added to the tables afterwards are outside that recognizer's
-// table: an error, never a panic, and its verdicts on known sets unchanged.
+// TestRecognizeSetAddedAfterNew: a set added to the tables after New is
+// recognized as its terminals, by a recognizer that has already used the
+// end-of-input class, whose key no added set takes; a set id beyond the
+// table is an error, never a panic; verdicts on known sets are unchanged.
 func TestRecognizeSetAddedAfterNew(t *testing.T) {
 	tab := toyStmt(t)
 	r := New(tab, Options{})
 	prt, num, semi := termSet(tab, "Print"), termSet(tab, "Num"), termSet(tab, "Semi")
+	if mustRecognize(t, r, setLattice(prt, num)).Accepted() {
+		t.Fatal("Print Num, unterminated, accepted")
+	}
 	added := []int{addSet(tab, "Semi"), addSet(tab, "Semi", "RBrace")}
 	for _, s := range added {
-		if _, err := Recognize(r, setLattice(prt, num, s)); err == nil {
-			t.Errorf("set %d, added after New: no error", s)
+		if !mustRecognize(t, r, setLattice(prt, num, s)).Accepted() {
+			t.Errorf("Print Num and set %d, added after New: refused", s)
 		}
+		if mustRecognize(t, r, setLattice(prt, s, num)).Accepted() {
+			t.Errorf("Print, set %d, added after New, then Num: accepted", s)
+		}
+	}
+	if _, err := Recognize(r, setLattice(prt, num, len(tab.TerminalSets))); err == nil {
+		t.Errorf("set %d, beyond the table: no error", len(tab.TerminalSets))
 	}
 	if !mustRecognize(t, r, setLattice(prt, num, semi)).Accepted() {
 		t.Error("Print Num Semi refused after sets were added to the tables")

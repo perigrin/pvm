@@ -13,7 +13,11 @@ package recognize
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
+	"weak"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -36,67 +40,138 @@ type Options struct {
 type Recognizer struct {
 	tab  *grammar.Tables
 	opts Options
-	// terms is tab.TerminalSets as New saw it: validation, scan and bits
-	// all read this one copy.
-	terms [][]int
-	// lhs is, per state, the distinct LHS symbols of its reduce rules.
-	lhs [][]int
-	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
-	follow []bitset
-	eof    int
-	// bits is each lookahead class as a bitset: the terminal sets by id,
-	// then the end of input at id len(terms).
-	bits  []bitset
+	// g is the grammar-only tables, shared with every recognizer over tab;
+	// cls is the classes as this recognizer last read them from g.
+	g     *grammarTables
+	cls   *classes
 	sets  interner
 	cache map[cacheKey]*cacheNode // each key's trie root
 	trie  map[cacheEdge]*cacheNode
 	// stored counts the cache's stores, to order its entries; longestScan
 	// is the most trie distances one lookup examined, for the test of its bound.
 	stored, longestScan int
-	leo                 map[[2]int]int // (state, symbol) to the LHS of its Leo item
 	// expectedComputed counts Expected's computations, for the test of its
 	// memo, which lives in the cache's trie (expected.go).
 	expectedComputed int
-	// semi is PERLY_SEMICOLON's symbol id, and closes marks the classes
-	// holding PERLY_BRACE_CLOSE: the ruby slipper's (slipper.go). -1 and
-	// none where the grammar lacks them.
-	semi   int
+}
+
+// grammarTables is what New derives from the tables alone. It is built once
+// per *grammar.Tables, by the first New over it, and read by every
+// recognizer over that value from any goroutine, so the tables' states,
+// rules, items, symbols and FOLLOW sets must not change after the first New.
+// The rule: nothing in it is written after it is built except cls, the one
+// part derived from TerminalSets, which may grow after New. A set appended to
+// the tables is covered by extend, under mu, which publishes new classes and
+// never writes ones already published; a set id once covered is never
+// rebuilt, so TerminalSets may be appended to but its existing sets never
+// changed. A tables value with other contents is a copy with its own part.
+type grammarTables struct {
+	// lhs is, per state, the distinct LHS symbols of its reduce rules.
+	lhs [][]int
+	// follow is tab.Follow per symbol as bitsets, with bit eof for the end of input.
+	follow []bitset
+	eof    int
+	leo    map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	// semi is PERLY_SEMICOLON's symbol id and brace PERLY_BRACE_CLOSE's,
+	// the ruby slipper's (slipper.go); -1 where the grammar lacks them.
+	semi, brace int
+	// eofBits is the end of input's lookahead class, key eofClass.
+	eofBits bitset
+	mu      sync.Mutex
+	cls     atomic.Pointer[classes]
+}
+
+// classes is the lookahead classes of the terminal sets with ids below
+// len(terms). Published classes are never written.
+type classes struct {
+	// terms is the sets as read from tab.TerminalSets: validation, scan
+	// and bits all read this one copy.
+	terms [][]int
+	// bits is each set as a lookahead bitset, by id; closes marks the sets
+	// holding PERLY_BRACE_CLOSE, before which the slipper inserts a ;.
+	bits   []bitset
 	closes []bool
 }
 
-// New is a recognizer over tab.
-func New(tab *grammar.Tables, opts Options) *Recognizer {
-	r := &Recognizer{tab: tab, opts: opts, terms: slices.Clone(tab.TerminalSets), eof: tab.EOF, sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
+// eofClass is the end of input's lookahead class key: no set id, so a set
+// added later never takes it.
+const eofClass = -2
+
+// shared is each tables value's grammarTables, held weakly so a tables
+// value no recognizer reaches can be collected (a fuzzed grammar's).
+var shared sync.Map // weak.Pointer[grammar.Tables] to *grammarTables
+
+// grammarOf is tab's grammarTables, built on the first call for tab.
+func grammarOf(tab *grammar.Tables) *grammarTables {
+	k := weak.Make(tab)
+	if g, ok := shared.Load(k); ok {
+		return g.(*grammarTables)
+	}
+	g, loaded := shared.LoadOrStore(k, buildGrammar(tab))
+	if !loaded {
+		runtime.AddCleanup(tab, func(k weak.Pointer[grammar.Tables]) { shared.Delete(k) }, k)
+	}
+	return g.(*grammarTables)
+}
+
+// buildGrammar derives tab's grammar-only tables. It keeps no reference to
+// tab, so the weak key in shared can be collected.
+func buildGrammar(tab *grammar.Tables) *grammarTables {
 	terminal := func(name string) int {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
 	}
-	brace := terminal("PERLY_BRACE_CLOSE")
-	r.semi = terminal("PERLY_SEMICOLON")
-	for _, ids := range r.terms {
-		r.closes = append(r.closes, brace >= 0 && slices.Contains(ids, brace))
-		r.bits = append(r.bits, r.bitsOf(ids))
+	g := &grammarTables{eof: tab.EOF, semi: terminal("PERLY_SEMICOLON"), brace: terminal("PERLY_BRACE_CLOSE"), leo: leoItems(tab)}
+	g.eofBits = g.bitsOf([]int{g.eof})
+	if g.semi >= 0 {
+		g.eofBits.set(g.semi) // the end of input closes, so a ; may be inserted there
 	}
-	r.bits = append(r.bits, r.bitsOf([]int{r.eof}))
-	r.closes = append(r.closes, true) // the end of input
-	// Where a ; may be inserted, completion must also see it may follow.
-	for i, b := range r.bits {
-		if r.closes[i] && r.semi >= 0 {
-			b.set(r.semi)
-		}
-	}
-	r.lhs = make([][]int, len(tab.States))
+	g.lhs = make([][]int, len(tab.States))
 	for s, st := range tab.States {
 		for _, rule := range st.Reduces {
-			r.lhs[s] = append(r.lhs[s], tab.Rules[rule].LHS)
+			g.lhs[s] = append(g.lhs[s], tab.Rules[rule].LHS)
 		}
-		slices.Sort(r.lhs[s])
-		r.lhs[s] = slices.Compact(r.lhs[s])
+		slices.Sort(g.lhs[s])
+		g.lhs[s] = slices.Compact(g.lhs[s])
 	}
 	for _, ids := range tab.Follow {
-		r.follow = append(r.follow, r.bitsOf(ids))
+		g.follow = append(g.follow, g.bitsOf(ids))
 	}
-	r.leo = leoItems(r)
-	return r
+	g.cls.Store(&classes{})
+	g.extend(tab)
+	return g
+}
+
+// extend is the classes covering every set tab now has, publishing new
+// classes for the sets added since the last; tab is the value g was built from.
+func (g *grammarTables) extend(tab *grammar.Tables) *classes {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	old := g.cls.Load()
+	if len(tab.TerminalSets) <= len(old.terms) {
+		return old
+	}
+	// Clipped, so append copies rather than write past what old's readers see.
+	c := &classes{terms: slices.Clip(old.terms), bits: slices.Clip(old.bits), closes: slices.Clip(old.closes)}
+	for _, ids := range tab.TerminalSets[len(old.terms):] {
+		closes := g.brace >= 0 && slices.Contains(ids, g.brace)
+		b := g.bitsOf(ids)
+		// Where a ; may be inserted, completion must also see it may follow.
+		if closes && g.semi >= 0 {
+			b.set(g.semi)
+		}
+		c.terms = append(c.terms, ids)
+		c.bits = append(c.bits, b)
+		c.closes = append(c.closes, closes)
+	}
+	g.cls.Store(c)
+	return c
+}
+
+// New is a recognizer over tab. The grammar-only tables are tab's shared
+// ones; the intern table, cache and counters are the recognizer's own.
+func New(tab *grammar.Tables, opts Options) *Recognizer {
+	g := grammarOf(tab)
+	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where
@@ -120,14 +195,20 @@ type Chart struct {
 // outside branches only").
 func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error) {
 	n := len(l.Nodes)
+	for _, e := range l.Edges {
+		if e.Token.TerminalSet >= len(r.cls.terms) {
+			r.cls = r.g.extend(r.tab) // a set added to the tables after New
+			break
+		}
+	}
 	for i, e := range l.Edges {
 		switch {
 		case e.From < 0 || e.To >= n:
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, has a node outside the lattice's %d", i, e.From, e.To, n)
 		case e.From >= e.To:
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, does not run forward", i, e.From, e.To)
-		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.terms):
-			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.terms))
+		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.cls.terms):
+			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.cls.terms))
 		}
 	}
 	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
@@ -149,7 +230,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		la, laBits := r.lookahead(out[pos])
 		var key cacheKey
 		// The key names the source set by its id, so it must be interned.
-		cacheable := la >= 0 && !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
+		cacheable := la != -1 && !r.opts.NoCache && !branch[pos] && len(in[pos]) == 1 && c.Sets[in[pos][0].From] != nil && c.Sets[in[pos][0].From].id >= 0
 		if cacheable {
 			e := in[pos][0]
 			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: e.Token.TerminalSet, la: la}
@@ -161,7 +242,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: cacheable}
 		for _, e := range in[pos] {
 			b.scan(e)
-			if r.closes[e.Token.TerminalSet] {
+			if r.cls.closes[e.Token.TerminalSet] {
 				b.slip(e)
 			}
 		}
@@ -198,7 +279,7 @@ func (c *Chart) Accepted() bool {
 	}
 	last := len(c.Sets) - 1
 	for _, it := range c.Sets[last].Items() {
-		if it.Dist == last && slices.Contains(c.r.lhs[it.State], c.r.tab.Start) {
+		if it.Dist == last && slices.Contains(c.r.g.lhs[it.State], c.r.tab.Start) {
 			return true
 		}
 	}
@@ -253,7 +334,7 @@ func (b *builder) scan(e lex.Edge) {
 	}
 	b.read(e.From, src)
 	for _, it := range src.items {
-		for _, t := range b.r.terms[e.Token.TerminalSet] {
+		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it.State, t); ok {
 				b.add(k, e.From-it.Dist)
 			}
@@ -273,8 +354,8 @@ func (b *builder) complete(la bitset) {
 		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
-		for _, lhs := range b.r.lhs[state] {
-			if la != nil && !b.r.follow[lhs].intersects(la) {
+		for _, lhs := range b.r.g.lhs[state] {
+			if la != nil && !b.r.g.follow[lhs].intersects(la) {
 				continue
 			}
 			src := b.c.Sets[origin]
@@ -334,8 +415,8 @@ func (r *Recognizer) goTo(state, sym int) (int, bool) {
 }
 
 // bitsOf is ids as a bitset over the terminals and the end of input.
-func (r *Recognizer) bitsOf(ids []int) bitset {
-	b := newBitset(r.eof + 1)
+func (g *grammarTables) bitsOf(ids []int) bitset {
+	b := newBitset(g.eof + 1)
 	for _, id := range ids {
 		b.set(id)
 	}
@@ -343,26 +424,26 @@ func (r *Recognizer) bitsOf(ids []int) bitset {
 }
 
 // lookahead is the class key and bitset of the set ids leaving a node: the
-// one set id, or the end-of-input class where none leave. Where different
+// one set id, or eofClass where none leave. Where different
 // sets leave, the key is -1, uncacheable, and the bitset their union.
 // shortcut: the union is built per node and never cached; intern unions
 // when interleaved mode makes forks common.
 func (r *Recognizer) lookahead(out []int) (int, bitset) {
 	if len(out) == 0 {
-		return len(r.bits) - 1, r.bits[len(r.bits)-1]
+		return eofClass, r.g.eofBits
 	}
 	for _, s := range out[1:] {
 		if s != out[0] {
-			u := newBitset(r.eof + 1)
+			u := newBitset(r.g.eof + 1)
 			for _, s := range out {
-				for i, w := range r.bits[s] {
+				for i, w := range r.cls.bits[s] {
 					u[i] |= w
 				}
 			}
 			return -1, u
 		}
 	}
-	return out[0], r.bits[out[0]]
+	return out[0], r.cls.bits[out[0]]
 }
 
 // bitset is a fixed-size set of small integers.
