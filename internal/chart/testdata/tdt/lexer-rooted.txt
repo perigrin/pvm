@@ -188,8 +188,10 @@ perlgit/base/lex.t 9734 01a0dc72-2609
 perlgit/base/lex.t 9885 01a0dc72-2609
 perlgit/comp/hints.t 6968 01a1ad1d-bc7b
 perlgit/comp/our.t 650 01a1ad1d-bc7b
+perlgit/comp/parser.t 3363 01a1aec4-5d3a
 perlgit/comp/proto.t 23335 01a1ad1d-bc96
 perlgit/comp/proto.t 9674 01a1ad1d-bc96
+perlgit/comp/use.t 4889 01a1c83a-0466
 perlgit/io/msg.t 2184 01a1ad1d-bc7b
 perlgit/io/open.t 11280 01a1ad1d-bc7b
 perlgit/io/scalar.t 1847 01a1ad1d-bc7b
@@ -349,6 +351,7 @@ perlgit/op/ver.t 7112 01a0dc72-2609
 perlgit/op/ver.t 7433 01a0dc72-2609
 perlgit/opbasic/magic_phase.t 715 01a1ad1d-bc7b
 perlgit/opbasic/magic_phase.t 819 01a1ad1d-bc7b
+perlgit/perf/opcount.t 33688 01a1aec4-5d3a
 perlgit/re/pat.t 56909 01a1cfc4-5141
 perlgit/re/pat_rt_report.t 14631 01a1ad1d-bc7b
 perlgit/re/pat_rt_report.t 1746 01a0dc72-2609
