@@ -216,6 +216,7 @@ func TestClassifyCleanStderrIsNoFailure(t *testing.T) {
 // prints an empty threads flag, so its output ends "\n\n". Only the one
 // trailing newline is the line terminator; the empty line is the answer.
 func TestObservePinReadsAPerlWithoutThreads(t *testing.T) {
+	requirePOSIXOracle(t) // the fake perl is a #!/bin/sh script
 	perl := filepath.Join(t.TempDir(), "perl")
 	if err := os.WriteFile(perl, []byte("#!/bin/sh\nprintf '5.045000\\n\\n'\n"), 0o755); err != nil {
 		t.Fatal(err)
