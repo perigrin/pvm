@@ -3,8 +3,9 @@
 
 // Command ratchet is the chart spike's ratchet. Its output contract is in
 // internal/chart/README.md. It reads the working tree, from the repository
-// root (T1 is in the tree; T1_CORPUS overrides it), and the tdt fixtures
-// (TDT_FIXTURES) outside it: no commit, no refs/zhi, no network.
+// root (T1 is in the tree; T1_CORPUS overrides it), perl.git t/
+// (PERL5_CORPUS) and the tdt fixtures (TDT_FIXTURES) outside it: no commit,
+// no refs/zhi, no network.
 package main
 
 import (
@@ -48,6 +49,11 @@ func main() {
 	var srcs map[string][]byte
 	if err == nil {
 		files, srcs, err = corpus()
+	}
+	if err == nil {
+		var pg []File
+		pg, err = perlGit(perl5Root(), srcs)
+		files = append(files, pg...)
 	}
 	if err == nil {
 		err = measureLeo(tab, files, srcs, measured)

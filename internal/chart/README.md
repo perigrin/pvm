@@ -148,11 +148,20 @@ retired.
   non-zero because the waypoint's exit is still unmet. `go run` turns every
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
-- **Inputs.** The ratchet reads the working tree and one directory outside
-  it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default (below).
-  T1 is in the tree: `testdata/perlonjava/unit` (see
-  `testdata/perlonjava/README.md`), and `T1_CORPUS` overrides it. It reads
-  no commit, no
+- **Inputs.** The ratchet reads the working tree and two directories
+  outside it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default
+  (below), and perl.git `t/` (spec §9.1), every `.t` file under
+  `$PERL5_CORPUS/t` (default `/opt/corpora/perl5`, the variable
+  `parseoracle` reads), as the corpus `perlgit`, each file named
+  `perlgit/<path under t/>` as `testdata/labels/perlgit.txt` names it
+  (perigrin, 2026-11-10: "Accept it, pinned"). That tree must be clean
+  (`git status --porcelain` empty) and at 94e50866, or the ratchet exits 2
+  with one stderr line naming the tree and the reason:
+  `perl.git corpus <path>: no such directory`, `: not clean` or
+  `: not at 94e50866`. perl.git `t/` joins every corpus key, the superset
+  population and the speed aggregate. T1 is in the tree:
+  `testdata/perlonjava/unit` (see `testdata/perlonjava/README.md`), and
+  `T1_CORPUS` overrides it. It reads no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
@@ -207,7 +216,10 @@ To take a baseline after an intended change, run
 - **The tdt keys read `TDT_FIXTURES`**, the directory `offline/tdt-align.sh`
   writes the aligned pairs into (they are not committed). Unset, it is
   `/var/tmp/pvm-chart-tdt`, where this milestone generates them; naming no directory, or a corpus file with no fixture there, is an
-  error (exit 2). A pair is a token class and the terminal it declares, written
+  error (exit 2). perl.git's fixtures sit under `perlgit/` there; the one
+  file `testdata/tdt/perlgit-uncaptured.txt` lists (`re/pat_psycho.t`,
+  perigrin: "Exclude it from capture") has none and is left out of the tdt
+  keys only. A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`, where each entry
   sits under a `reason:` line saying why toke.c never produces it over the
   corpora; an entry naming no pair of the table is an error. Only whole

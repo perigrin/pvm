@@ -158,10 +158,10 @@ func lexerListed() (map[string]bool, error) {
 }
 
 // labelVerdicts reads perl's verdicts from the committed label files in dir
-// (offline/label.sh's in-tree.txt and t1.txt), by corpus path.
+// (offline/label.sh's in-tree.txt, t1.txt and perlgit.txt), by corpus path.
 func labelVerdicts(dir string) (func(path string) *perlVerdict, error) {
 	out := map[string]*perlVerdict{}
-	for name, prefix := range map[string]string{"in-tree.txt": "", "t1.txt": "T1/"} {
+	for name, prefix := range map[string]string{"in-tree.txt": "", "t1.txt": "T1/", "perlgit.txt": "perlgit/"} {
 		lf, err := chart.ReadLabels(filepath.Join(dir, name))
 		if err != nil {
 			return nil, err
