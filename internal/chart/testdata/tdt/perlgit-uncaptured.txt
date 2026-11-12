@@ -1,0 +1,5 @@
+# perl.git t/ files tdt-align.sh does not capture, by path under t/ (perigrin, 2026-11-12: "Exclude it from capture").
+# re/pat_psycho.t calls watchdog() in BEGIN, which forks; the child's -DpT trace interleaves with the parent's on the
+# shared stderr, so no capture of it is the file's own stream. label.sh keeps its perl -c label, read from the exit status.
+# TestPerlGitUncaptured holds this list to that one file.
+re/pat_psycho.t

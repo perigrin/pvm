@@ -155,6 +155,47 @@ func TestTDTFixtures(t *testing.T) {
 		keys[i] = "T1/" + filepath.Base(m)
 	}
 	checkTDTFixtures(t, dir, keys, matches, fams)
+
+	t.Run("perlgit", func(t *testing.T) {
+		pg := filepath.Join(perl5Root(), "t")
+		if fi, err := os.Stat(pg); err != nil || !fi.IsDir() {
+			t.Skipf("no perl.git t/ at %s; set PERL5_CORPUS to the perl5 tree at 94e50866 (%v)", pg, err)
+		}
+		skip := perlGitUncaptured(t)
+		var keys, paths []string
+		for _, f := range perlGitFiles(t, pg) {
+			if !skip[f] {
+				keys, paths = append(keys, "perlgit/"+f), append(paths, filepath.Join(pg, f))
+			}
+		}
+		checkTDTFixtures(t, dir, keys, paths, fams)
+	})
+}
+
+// perlGitUncaptured is testdata/tdt/perlgit-uncaptured.txt: the perl.git t/
+// files tdt-align.sh does not capture, by path under t/.
+func perlGitUncaptured(t *testing.T) map[string]bool {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(tdtDir, "perlgit-uncaptured.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]bool{}
+	for _, l := range strings.Split(string(data), "\n") {
+		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
+			out[l] = true
+		}
+	}
+	return out
+}
+
+// TestPerlGitUncaptured pins the capture's exclusions to re/pat_psycho.t
+// alone (perigrin: "Exclude it from capture"); another file needs a ruling.
+func TestPerlGitUncaptured(t *testing.T) {
+	got := perlGitUncaptured(t)
+	if len(got) != 1 || !got["re/pat_psycho.t"] {
+		t.Errorf("perlgit-uncaptured.txt lists %v, want exactly re/pat_psycho.t", got)
+	}
 }
 
 // TestTDTFixturesRefusesMalformed: each defect in a synthetic fixture is

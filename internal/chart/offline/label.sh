@@ -1,12 +1,14 @@
 #!/bin/sh
-# ABOUTME: Labels every waypoint-1 corpus file with the pinned -DDEBUGGING perl's perl -c verdict (spec §9.1).
-# ABOUTME: Writes testdata/labels/{in-tree,t1}.txt with a provenance header; each refusal gets a proposed category and its evidence.
+# ABOUTME: Labels every corpus file, waypoint 1's and perl.git t/, with the pinned -DDEBUGGING perl's perl -c verdict (spec §9.1).
+# ABOUTME: Writes testdata/labels/{in-tree,t1,perlgit}.txt with a provenance header; each refusal gets a proposed category and its evidence.
 #
-# usage: T1_CORPUS=<PerlOnJava>/src/test/resources/unit [TDT_FIXTURES=<dir>] \
+# usage: T1_CORPUS=<PerlOnJava>/src/test/resources/unit [TDT_FIXTURES=<dir>] [PERL5_CORPUS=<dir>] \
 #        sh internal/chart/offline/label.sh <perl> <referee-dir>
 #
 # <referee-dir> holds referee-prec and referee-noprec (referee/build.sh).
 # TDT_FIXTURES is tdt-align.sh's output (default /var/tmp/pvm-chart-tdt).
+# PERL5_CORPUS is the perl5 tree at 94e50866 (default /opt/corpora/perl5);
+# its t/ runs from a shim t/ (offline/shim, parseoracle.BuildShim), with the paths under t/.
 #
 # Each file is checked with `perl -c` under `env -i` (PATH and PERL5LIB only)
 # and a per-file timeout. A refusal's category is proposed from perl's first
@@ -43,15 +45,22 @@ fixtures=$(cd "$fixtures" && pwd)
 top=$(git rev-parse --show-toplevel)
 here=$top/internal/chart/offline
 out=$top/internal/chart/testdata/labels
+nocap=$top/internal/chart/testdata/tdt/perlgit-uncaptured.txt
 mkdir -p "$out"
+shim=$(mktemp -d)
+trap 'rm -rf "$shim"' EXIT
+(cd "$top" && go run ./internal/chart/offline/shim "$perl" "${PERL5_CORPUS:-/opt/corpora/perl5}" "$shim")
 
 # category<TAB>ERE, matched against perl's first error, in order.
 # "$# / $* is no longer supported" is grammar, not semantic: -DpT shows gv.c
 # croaking from toke.c's S_pending_ident before the name token reaches the
 # parser, so it is a fatal lexing error (LABELS-review overturned semantic).
-patterns='environment	^Can.t locate .* in @INC
+# A module a use loads by eval, and a ./ or ../ require, which searches no
+# @INC, are perl.git t/ files needing what the shim's lib/ or t/ lacks.
+patterns='environment	^(use [A-Za-z_:]+: )?Can.t locate .* in @INC
+environment	^Can.t locate [.][.]?/[^ ]* at
 environment	^This Perl not built to support threads
-environment	^"-T" is on the #! line
+environment	^"-[Tt]" is on the #! line
 environment	too modern--this is v
 semantic	^Can.t modify
 semantic	not allowed while "strict subs" in use
@@ -98,6 +107,11 @@ label() {
 		err=$(cd "$cwd" && env -i PATH="$PATH" PERL5LIB="$lib" \
 			timeout "$timeout" "$perl" -c "${root:+$root/}$f" 2>&1 >/dev/null </dev/null) || s=$?
 		if [ "$s" -eq 0 ]; then
+			# A perl.git file tdt-align.sh does not capture keeps its perl -c verdict unchecked for a skip in BEGIN.
+			if [ "$fx" = "$fixtures/perlgit" ] && grep -qxF "$f" "$nocap"; then
+				printf '%s\taccept\n' "$f"
+				continue
+			fi
 			c=$(sed -n 2p "$fx/$f.tdt") || die "$f: no -DT capture in $fx"
 			case $c in
 			'# capture: truncated'*)
@@ -139,3 +153,7 @@ t1root=$(git -C "$t1" rev-parse --show-prefix)
 label "$t1top" "${t1root%/}" "" "PerlOnJava $t1commit" "$fixtures/T1" \
 	$(cd "$t1" && ls -- *.t) >"$out/t1.txt.tmp"
 mv "$out/t1.txt.tmp" "$out/t1.txt"
+
+(cd "$shim/t" && label "." "" "" "perl.git t/ at $commit, run from a shim t/ (offline/shim, parseoracle.BuildShim): perl5 t/ beside the pinned perl's library as ../lib" \
+	"$fixtures/perlgit" $(find . -name '*.t' | sed 's|^\./||' | LC_ALL=C sort)) >"$out/perlgit.txt.tmp"
+mv "$out/perlgit.txt.tmp" "$out/perlgit.txt"

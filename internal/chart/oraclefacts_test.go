@@ -14,9 +14,9 @@ import (
 var oracleDir = filepath.Join("testdata", "oracle")
 
 // oracleKeys is the key set each facts file must hold exactly: the files
-// perl accepts by the committed labels, and for perl.git t/ (no labels yet)
-// every .t file, whose own ok says whether perl accepts it. The perl.git set
-// is nil when the corpus is absent.
+// perl accepts by the committed labels, and for perl.git t/ every .t file,
+// whose own ok says whether perl accepts it. The perl.git set is nil when the
+// corpus is absent.
 func oracleKeys(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	accepted := func(name, prefix string) map[string]bool {
@@ -165,20 +165,29 @@ func TestOracleFactsScriptRefusesAMissingPerl(t *testing.T) {
 	}
 }
 
-// TestOracleFactsLabelAcceptedWithoutOKFacts pins the one known limit: a file
+// TestOracleFactsLabelAcceptedWithoutOKFacts pins the known limits: files
 // the labels accept whose facts say ok false. T1/cpan_tooling_regressions.t
 // compiles under perl -c but B::Concise dies on it (Can't locate object method
 // NAME via package B::NULL, Concise.pm:925). A regeneration that adds another
-// is a change to review, not to commit. perl.git t/ has no labels yet, so no
-// perlgit file is label-accepted and its ok:false records are not in scope.
-// shortcut: once PERLGITLABELS (01a1c324-1b3f) commits those labels, add
-// "perlgit.txt": {} below and drop the perlgit exception in
-// offline/oracle/main.go.
+// is a change to review, not to commit. perl.git t/'s facts cover every .t
+// file, so only those perlgit.txt labels accept are in scope:
+// perlgit/re/pat_psycho.t has none (its BEGIN forks a watchdog that holds
+// perl's stderr past the 180 s timeout); its 26 other ok:false records are
+// files the labels refuse.
 func TestOracleFactsLabelAcceptedWithoutOKFacts(t *testing.T) {
 	keys := oracleKeys(t)
+	lf, err := ReadLabels(filepath.Join(labelsDir, "perlgit.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys["perlgit.txt"] = map[string]bool{}
+	for _, l := range lf.Labels {
+		keys["perlgit.txt"]["perlgit/"+l.Path] = !l.Refused()
+	}
 	for name, want := range map[string]map[string]bool{
 		"in-tree.txt": {},
 		"t1.txt":      {"T1/cpan_tooling_regressions.t": true},
+		"perlgit.txt": {"perlgit/re/pat_psycho.t": true},
 	} {
 		got := map[string]bool{}
 		for _, r := range readOracle(t, name).Records {

@@ -78,6 +78,13 @@ func main() {
 		}
 		return p
 	}
+	// accepted is every key the labels accept; perl.git t/'s facts are taken over every file, refused ones too.
+	accepted := map[string]bool{}
+	for name, prefix := range map[string]string{"in-tree.txt": "", "t1.txt": "T1/", "perlgit.txt": "perlgit/"} {
+		for _, p := range acceptedLabels(name) {
+			accepted[prefix+p] = true
+		}
+	}
 	var perlgit []string
 	filepath.WalkDir(filepath.Join(tree, "t"), func(p string, d os.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".t") {
@@ -131,11 +138,9 @@ func main() {
 			if r.Err != "" {
 				rec.Missing = r.Err
 			}
-			// shortcut: a label-accepted file with no ok facts is reported, not refused (only T1/cpan_tooling_regressions.t today,
-			// pinned by TestOracleFactsLabelAcceptedWithoutOKFacts); refuse here once B::Concise handles it or the file is relabelled.
-			// shortcut: perl.git t/ has no labels until PERLGITLABELS (01a1c324-1b3f) lands; then drop this
-			// exception and add "perlgit.txt": {} to TestOracleFactsLabelAcceptedWithoutOKFacts.
-			if g.file != "perlgit.txt" && !r.Facts.OK {
+			// shortcut: a label-accepted file with no ok facts is reported, not refused (T1/cpan_tooling_regressions.t and
+			// perlgit/re/pat_psycho.t today, pinned by TestOracleFactsLabelAcceptedWithoutOKFacts); refuse here once each is fixed.
+			if accepted[rec.Key] && !r.Facts.OK {
 				bad++ // a label accepted it and perl's facts did not: reported, still recorded
 			}
 			line, err := chart.FormatOracleRecord(rec)
