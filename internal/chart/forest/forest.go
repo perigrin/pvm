@@ -111,7 +111,6 @@ type builder struct {
 	semiLeaf map[int]*Node
 	pre      []*Node       // the prefix node kept beside each item
 	prefixes map[int]*Node // the others
-	maxDot   int
 	// leo is each symbol some Leo item awaits, numbered from 1; memo is the
 	// Leo memo at node at for the symbol numbered x, at memo[at*nleo+x-1]:
 	// 0 not yet looked up, -1 none, else 1 + its index in links.
@@ -173,7 +172,6 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *F
 		leo: make([]int, len(tab.Symbols)), core: make([]int, len(tab.Rules))}
 	b.semi = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == "PERLY_SEMICOLON" })
 	for r, rule := range tab.Rules {
-		b.maxDot = max(b.maxDot, len(rule.RHS)+1)
 		if r+1 < len(tab.Rules) {
 			b.core[r+1] = b.core[r] + len(rule.RHS) + 1
 		}
