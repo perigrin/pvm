@@ -251,24 +251,32 @@ func readSentences(dir string) ([]precedenceSentence, error) {
 	return out, nil
 }
 
-// readLexemes reads rendering.txt: per line a terminal and its one lexeme, tab separated.
-func readLexemes(dir string) (map[string]string, error) {
+// lexeme is a terminal's rendering: its one word, and the source that must precede a sentence holding it ("" for none)
+// for the lexer to read the word as that terminal, such as `use feature "isa";` for isa.
+type lexeme struct{ text, preamble string }
+
+// readLexemes reads rendering.txt: per line a terminal, its one lexeme and optionally its preamble, tab separated.
+func readLexemes(dir string) (map[string]lexeme, error) {
 	lines, err := fixtureLines(filepath.Join(dir, "rendering.txt"))
 	if err != nil {
 		return nil, err
 	}
-	lex := map[string]string{}
+	table := map[string]lexeme{}
 	for _, l := range lines {
-		t, x, ok := strings.Cut(l, "\t")
-		if !ok || x == "" || strings.ContainsAny(x, " \t") {
-			return nil, fmt.Errorf("rendering.txt: want a terminal and one lexeme: %q", l)
+		f := strings.Split(l, "\t")
+		if len(f) < 2 || len(f) > 3 || f[1] == "" || strings.Contains(f[1], " ") {
+			return nil, fmt.Errorf("rendering.txt: want a terminal, one lexeme and optionally a preamble: %q", l)
 		}
-		if _, dup := lex[t]; dup {
-			return nil, fmt.Errorf("rendering.txt: %s has two lexemes", t)
+		if _, dup := table[f[0]]; dup {
+			return nil, fmt.Errorf("rendering.txt: %s has two lexemes", f[0])
 		}
-		lex[t] = x
+		x := lexeme{text: f[1]}
+		if len(f) == 3 {
+			x.preamble = f[2]
+		}
+		table[f[0]] = x
 	}
-	return lex, nil
+	return table, nil
 }
 
 // readNonRoundTrip reads nonroundtrip-reviewed.txt: sentence ids, each under a reason: line. It returns id to reason.
@@ -293,24 +301,34 @@ func readNonRoundTrip(dir string) (map[string]string, error) {
 	return listed, nil
 }
 
-// renderTerms is the lexemes of terms, one word per terminal; ok is false when a terminal has none.
-func renderTerms(lexemes map[string]string, terms []string) (words []string, missing string, ok bool) {
+// renderTerms is the lexemes of terms, one word per terminal, and the preamble they need (each distinct preamble once,
+// in order); ok is false when a terminal has none.
+func renderTerms(lexemes map[string]lexeme, terms []string) (preamble string, words []string, missing string, ok bool) {
 	for _, t := range terms {
 		if t == startSelector {
 			continue
 		}
 		x, found := lexemes[t]
 		if !found {
-			return nil, t, false
+			return "", nil, t, false
 		}
-		words = append(words, x)
+		words = append(words, x.text)
+		if x.preamble != "" && !strings.Contains(preamble, x.preamble) {
+			preamble += x.preamble + " "
+		}
 	}
-	return words, "", true
+	return strings.TrimSpace(preamble), words, "", true
 }
 
-// roundTrip reads words, joined by spaces, through internal/lexer and chart/lex and returns why they do not lex back to
-// terms, or "" when there is one token per terminal, each token is its word, and its terminal set holds its terminal.
-func roundTrip(tab *grammar.Tables, words, terms []string) string {
+// source is the rendering: the preamble, then the words joined by spaces.
+func source(preamble string, words []string) string {
+	return strings.TrimSpace(preamble + " " + strings.Join(words, " "))
+}
+
+// roundTrip reads source(preamble, words) through internal/lexer and chart/lex and returns why the words do not lex back
+// to terms, or "" when there is one token per terminal, each token is its word, and its terminal set holds its terminal.
+// The preamble's own tokens, counted by lexing it alone, are left out of the comparison.
+func roundTrip(tab *grammar.Tables, preamble string, words, terms []string) string {
 	id := map[string]int{}
 	for i, s := range tab.Symbols {
 		if s.Terminal {
@@ -323,15 +341,24 @@ func roundTrip(tab *grammar.Tables, words, terms []string) string {
 			want = append(want, t)
 		}
 	}
-	src := strings.Join(words, " ")
+	src := source(preamble, words)
+	skip := 0
+	if preamble != "" {
+		p, _ := lex.Lex([]byte(preamble), tab.Tokens)
+		skip = len(p.Tokens)
+	}
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
+	if len(s.Tokens) < skip {
+		return "the lexer reads the preamble as fewer tokens in front of the sentence"
+	}
+	toks := s.Tokens[skip:]
 	switch {
-	case len(s.Tokens) > len(want):
+	case len(toks) > len(want):
 		return "the lexer makes more tokens than there are terminals"
-	case len(s.Tokens) < len(want):
+	case len(toks) < len(want):
 		return "the lexer makes fewer tokens than there are terminals"
 	}
-	for i, t := range s.Tokens {
+	for i, t := range toks {
 		if r := s.Raw[t.Index]; src[r.Start:r.End] != words[i] {
 			return want[i] + " is read as " + src[r.Start:r.End] + ", not its lexeme " + words[i]
 		}
@@ -343,15 +370,15 @@ func roundTrip(tab *grammar.Tables, words, terms []string) string {
 }
 
 // renderingCause is why a sentence is not kept, or "" when it is.
-func renderingCause(tab *grammar.Tables, lexemes map[string]string, s precedenceSentence) string {
-	words, missing, ok := renderTerms(lexemes, s.terms)
+func renderingCause(tab *grammar.Tables, lexemes map[string]lexeme, s precedenceSentence) string {
+	preamble, words, missing, ok := renderTerms(lexemes, s.terms)
 	if !ok {
 		if strings.HasPrefix(missing, "PLUGIN_") {
 			return "no rendering for " + missing + " until a library operator is in scope"
 		}
 		return "no single-lexeme rendering for " + missing
 	}
-	return roundTrip(tab, words, s.terms)
+	return roundTrip(tab, preamble, words, s.terms)
 }
 
 func TestPrecedenceRenderingRoundTrips(t *testing.T) {
@@ -378,8 +405,8 @@ func TestPrecedenceRenderingRoundTrips(t *testing.T) {
 	kept := 0
 	for _, s := range sentences {
 		cause := renderingCause(tab, lexemes, s)
-		words, _, _ := renderTerms(lexemes, s.terms)
-		src := strings.Join(words, " ")
+		pre, words, _, _ := renderTerms(lexemes, s.terms)
+		src := source(pre, words)
 		switch {
 		case cause == "" && listed[s.id] != "":
 			t.Errorf("%s round-trips and is on nonroundtrip-reviewed.txt", s.id)
@@ -397,7 +424,7 @@ func TestPrecedenceRenderingRoundTrips(t *testing.T) {
 }
 
 // writeRendering rewrites sentences.txt's rendering column and nonroundtrip-reviewed.txt.
-func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string, sentences []precedenceSentence) {
+func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]lexeme, sentences []precedenceSentence) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(precedenceDir, "sentences.txt"))
 	if err != nil {
@@ -418,8 +445,8 @@ func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string
 		if cause := renderingCause(tab, lexemes, s); cause != "" {
 			byCause[cause] = append(byCause[cause], s.id)
 		} else {
-			w, _, _ := renderTerms(lexemes, s.terms)
-			r = strings.Join(w, " ")
+			pre, w, _, _ := renderTerms(lexemes, s.terms)
+			r = source(pre, w)
 			keptNow[s.id] = true
 		}
 		out.WriteString(strings.Join(append(f, r), "\t") + "\n")
@@ -475,13 +502,22 @@ func TestPrecedenceRenderingRejectsNonRoundTrip(t *testing.T) {
 		"token boundaries that shifted": {[]string{"foo;", "$", "bar"}, []string{"BAREWORD", "PERLY_SEMICOLON", "PERLY_DOLLAR"}, "is read as"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if why := roundTrip(tab, c.words, c.terms); !strings.Contains(why, c.want) {
+			if why := roundTrip(tab, "", c.words, c.terms); !strings.Contains(why, c.want) {
 				t.Fatalf("%q as %v: got %q, want a reason containing %q", c.words, c.terms, why, c.want)
 			}
 		})
 	}
-	if why := roundTrip(tab, []string{"qw(a)", "+", "qw(b)", ";"}, []string{startSelector, "QWLIST", "ADDOP", "QWLIST", "PERLY_SEMICOLON"}); why != "" {
+	if why := roundTrip(tab, "", []string{"qw(a)", "+", "qw(b)", ";"}, []string{startSelector, "QWLIST", "ADDOP", "QWLIST", "PERLY_SEMICOLON"}); why != "" {
 		t.Fatalf("a plain sum does not round-trip: %s", why)
+	}
+	// isa is a word until the feature is on: with its preamble the sentence is kept, and the preamble's tokens are not
+	// compared; without it NCRELOP is refused.
+	isa, terms := []string{"qw(a)", "isa", "qw(a)", ";"}, []string{startSelector, "QWLIST", "NCRELOP", "QWLIST", "PERLY_SEMICOLON"}
+	if why := roundTrip(tab, `use feature "isa";`, isa, terms); why != "" {
+		t.Errorf("an isa sentence with its preamble does not round-trip: %s", why)
+	}
+	if why := roundTrip(tab, "", isa, terms); !strings.Contains(why, "NCRELOP is not among") {
+		t.Errorf("an isa sentence without its preamble: got %q", why)
 	}
 }
 

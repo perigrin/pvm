@@ -168,19 +168,26 @@ rendering the lexer reads as another terminal (`ref (` as `FUNC1`), as more or
 fewer tokens (two tokens for one terminal), or as tokens whose text is not the
 lexemes (a boundary that shifted), is not kept. The lexer inserts no `;`, the
 recognizer does, so the inserted-`;` case is modelled as a written `;`.
+A terminal's row in `rendering.txt` may carry a third column, a **preamble**:
+source the lexer needs before the word to read it as that terminal. `NCRELOP`
+is `isa`, a word until the feature is on, so its preamble is `use feature
+"isa";`. A sentence's preambles (each distinct one once) are written before its
+words and are part of the stored rendering, but their own tokens are left out of
+the comparison, which still requires one token per terminal, with exactly the
+lexeme's text, after them. Without the preamble the same sentence is not kept.
 `sentences.txt`'s fifth column is the kept rendering, or `-`. Every sentence
 not kept is on `nonroundtrip-reviewed.txt` under a `reason:` line, the
 cause `TestPrecedenceRenderingRoundTrips` recomputes: a terminal with no
 single-lexeme rendering (the `PLUGIN_*` terminals until a library operator is
-in scope; `NCRELOP`, which is `isa`, a word without the feature; `POSTJOIN`,
+in scope; `POSTJOIN`,
 which only an interpolated string has; `PERLY_DOLLAR`, which merges with the
 word after it), or the terminal the lexer reads differently. (`UNIOPSUB`
 renders as `foo`, any word, and `BLKLSTOP` as `any`.) At 94e50866 the filter
-keeps 654 of the 1,341 sentences and drops 687, every one for a terminal with no rendering; none
+keeps 708 of the 1,341 sentences and drops 633, every one for a terminal with no rendering; none
 fails the lexer's read of a rendering. A resolution is covered only by a kept
-sentence, so the 687 whose sentences are all dropped are on
+sentence, so the 631 whose sentences are all dropped are on
 `uncovered-reviewed.txt` under `reason: the rendering cannot reach it`
-(`TestPrecedenceUnreachableIsNonRoundTrip`), and 660 of 1,347 are covered.
+(`TestPrecedenceUnreachableIsNonRoundTrip`), and 716 of 1,347 are covered.
 `go test ./internal/chart/ -run TestPrecedenceRenderingRoundTrips -chart.update-rendering`
 rewrites the rendering column and both lists from `rendering.txt`.
 
