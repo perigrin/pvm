@@ -1123,22 +1123,38 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   scanning. `BuildTables` leaves `TerminalSets` empty; `grammar.Generate`
   fills it from the grammar's compiled token classes, and tests on toy
   grammars fill it themselves (the empty set, then one singleton set per
-  terminal). It is complete before `New`, which keeps its own copy: a set
-  added afterwards is outside that recognizer's table. Nodes are
+  terminal). Sets may be appended after `New`, and a recognizer built
+  earlier reads them (`TestRecognizeSetAddedAfterNew`); a set already
+  there is never changed. Nodes are
   numbered so that every edge runs forward. `Recognize` validates this and
   returns an error, never a panic, for an edge with a node outside the
   lattice, an edge that does not run forward (a zero-length one included),
   or a set id outside the table. A lattice with no edges is valid: the
   grammar accepts or refuses it.
 - **Class keys are set ids.** A token's class is its set id. The lookahead
-  at a node is the set id of the edges leaving it, or one end-of-input class
-  past the table's last set where none leave; each class's bitset is built
-  once in `New`, so the per-token lookup allocates nothing
+  at a node is the set id of the edges leaving it, or the end-of-input class,
+  key -2, where none leave, so a set appended later never takes its key; each
+  class's bitset is built once per tables value (below), so the per-token
+  lookup allocates nothing
   (`TestClassKeysAllocationFree`). Where edges with different sets leave one
   node, its lookahead is their union, built there, and the transition cache
   is not used at that node.
+- **Construction.** What depends only on the tables (each state's LHS
+  sets, the FOLLOW bitsets, the Leo items, each set's lookahead bitset and
+  whether it holds a `}`) is built by the first `New` over a
+  `*grammar.Tables` and shared read-only by every recognizer over that
+  value, from any goroutine; a later `New` allocates 6 objects where it
+  allocated 1,672 at c99366f8 (`BenchmarkNew`). The shared part is held weakly, so a
+  tables value nothing reaches is collected with it. A set appended to the
+  tables is covered when a recognizer first meets its id, under a lock,
+  without writing what other recognizers read
+  (`TestRecognizersExtendSharedTablesConcurrently`). The tables' states,
+  rules and FOLLOW sets must not change after the first `New`; a copy of a
+  tables value is a value of its own and shares nothing
+  (`TestRecognizersOverDistinctTablesShareNothing`).
 - **Not safe for concurrent use.** A `Recognizer`'s intern table and
-  transition cache change with every recognition, across inputs.
+  transition cache change with every recognition, across inputs, and stay
+  its own (`TestRecognizerStateNotShared`).
 - **Items** are an LR(0) state and the distance in lattice nodes back to the
   item's origin. A set is its items, sorted, interned as a (core, distances)
   pair, so two positions with equal content share one `*Set`. A node that an
