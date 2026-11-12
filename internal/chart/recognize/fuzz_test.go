@@ -483,7 +483,7 @@ func TestOracleCatchesSkewUnderOneOption(t *testing.T) {
 // key the entry stored first, whether or not the sets it read hold: an
 // earlier input's entry.
 func TestFuzzWarmCacheCatchesWrongHit(t *testing.T) {
-	tab := toyTables(t, "S ::= U U T | N V", "T ::= A", "U ::= V | T U", "V ::= V N | B | V S S", "N ::= C*")
+	tab := toyTables(t, leoChainGrammar...)
 	for _, wrong := range []bool{false, true} {
 		warm := New(tab, Options{})
 		mustRecognize(t, warm, tokens(tab, "A", "A", "B", "A"))
