@@ -360,7 +360,6 @@ BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFo
 BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Number Prefix="S" Prev1={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Number Prefix="S" Prev2={Kind:Word Text:package OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#2:bddc64a3a1526
-BAREWORD Kind=Number Prev1={Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="0" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="0" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 BAREWORD Kind=Quote Prefix="0" Prev1={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -440,7 +439,6 @@ BAREWORD Kind=Quote Prefix="v" Prev1={Kind:Word Text:use OpensBlock:false TermFo
 
 reason: construct absent from the corpora, no corpus token matches the key: BAREWORD in this slot
 BAREWORD Kind=Word Prefix=":" Next={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-BAREWORD Kind=Word Prev1={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} NotText=#265:a77f39af6c1
 BAREWORD Kind=Word Prev1={Kind:Word Text:do OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#267:0c2826d7c93
 BAREWORD Kind=Word Prev1={Kind:Word Text:dump OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
 BAREWORD Kind=Word Prev1={Kind:Word Text:goto OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
@@ -449,7 +447,6 @@ BAREWORD Kind=Word Prev1={Kind:Word Text:next OpensBlock:false TermFollows:false
 BAREWORD Kind=Word Prev1={Kind:Word Text:redo OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
 BAREWORD Kind=Word Prev1={Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
 BAREWORD Kind=Word Prev2={Kind:Word Text:class OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9 NotPrev1=#268:107324121b9 NotNext={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-BAREWORD Kind=Word Prev2={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9 NotNext=#255:ff9ca151a0f
 BAREWORD Kind=Word Prev2={Kind:Word Text:package OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9 NotPrev1=#268:107324121b9 NotNext={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: AUTOLOAD, DESTROY, BEGIN, UNITCHECK, CHECK, INIT or END as a plain word in this slot, outside a statement start (yyl_just_a_word, toke.c:8313-8322)
@@ -557,7 +554,6 @@ NOAMP Kind=Word Text="UNITCHECK" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev
 PRIVATEREF Kind=Word Text="BEGIN" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 PRIVATEREF Kind=Word Text="CHECK" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 PRIVATEREF Kind=Word Text="DESTROY" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-PRIVATEREF Kind=Word Text="END" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 PRIVATEREF Kind=Word Text="INIT" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 PRIVATEREF Kind=Word Text="UNITCHECK" Prefix="\x00" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#24:6c97c6b016c3 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 UNIOPSUB Kind=Word Text="AUTOLOAD" Prefix="\x00" NotPrev1=#23:68c95b4261be NotPrev2=#2:279a67fa5bcce NotNext=#2:c96cd92cd7e0e
@@ -571,10 +567,7 @@ reason: construct absent from the corpora, no corpus token matches the key: `x` 
 BAREWORD Kind=Word Text="x" Prev2={Kind:Word Text:class OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#268:107324121b9
 BAREWORD Kind=Word Text="x" Prev2={Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext=#255:ff9ca151a0f
 BAREWORD Kind=Word Text="x" Prev2={Kind:Word Text:package OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#268:107324121b9
-BAREWORD Kind=Word Text="x" Prev2={Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext=#255:ff9ca151a0f
 
-reason: construct absent from the corpora, no corpus token matches the key: `le` as CHRELOP in this slot
-CHRELOP Kind=Word Text="le" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `all` as FUNC in this slot
 FUNC Kind=Word Text="all" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -582,17 +575,9 @@ FUNC Kind=Word Text="all" Next={Kind:Operator Text:( OpensBlock:false TermFollow
 reason: construct absent from the corpora, no corpus token matches the key: `any` as FUNC in this slot
 FUNC Kind=Word Text="any" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `chown` as FUNC in this slot
-FUNC Kind=Word Text="chown" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `dbmopen` as FUNC in this slot
-FUNC Kind=Word Text="dbmopen" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `exec` as FUNC in this slot
-FUNC Kind=Word Text="exec" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `formline` as FUNC in this slot
-FUNC Kind=Word Text="formline" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `gethostbyaddr` as FUNC in this slot
 FUNC Kind=Word Text="gethostbyaddr" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -615,11 +600,7 @@ FUNC Kind=Word Text="getservbyport" Next={Kind:Operator Text:( OpensBlock:false 
 reason: construct absent from the corpora, no corpus token matches the key: `ioctl` as FUNC in this slot
 FUNC Kind=Word Text="ioctl" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `link` as FUNC in this slot
-FUNC Kind=Word Text="link" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `map` as FUNC in this slot
-FUNC Kind=Word Text="map" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `msgctl` as FUNC in this slot
 FUNC Kind=Word Text="msgctl" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -627,32 +608,16 @@ FUNC Kind=Word Text="msgctl" Next={Kind:Operator Text:( OpensBlock:false TermFol
 reason: construct absent from the corpora, no corpus token matches the key: `msgget` as FUNC in this slot
 FUNC Kind=Word Text="msgget" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `msgrcv` as FUNC in this slot
-FUNC Kind=Word Text="msgrcv" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `msgsnd` as FUNC in this slot
-FUNC Kind=Word Text="msgsnd" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `opendir` as FUNC in this slot
-FUNC Kind=Word Text="opendir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `rindex` as FUNC in this slot
-FUNC Kind=Word Text="rindex" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `seekdir` as FUNC in this slot
-FUNC Kind=Word Text="seekdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `semctl` as FUNC in this slot
-FUNC Kind=Word Text="semctl" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `semget` as FUNC in this slot
 FUNC Kind=Word Text="semget" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `semop` as FUNC in this slot
-FUNC Kind=Word Text="semop" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `setpgrp` as FUNC in this slot
-FUNC Kind=Word Text="setpgrp" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `setpriority` as FUNC in this slot
 FUNC Kind=Word Text="setpriority" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -660,41 +625,21 @@ FUNC Kind=Word Text="setpriority" Next={Kind:Operator Text:( OpensBlock:false Te
 reason: construct absent from the corpora, no corpus token matches the key: `shmctl` as FUNC in this slot
 FUNC Kind=Word Text="shmctl" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmget` as FUNC in this slot
-FUNC Kind=Word Text="shmget" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmread` as FUNC in this slot
-FUNC Kind=Word Text="shmread" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmwrite` as FUNC in this slot
-FUNC Kind=Word Text="shmwrite" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `shutdown` as FUNC in this slot
-FUNC Kind=Word Text="shutdown" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `splice` as FUNC in this slot
-FUNC Kind=Word Text="splice" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `syscall` as FUNC in this slot
 FUNC Kind=Word Text="syscall" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `sysseek` as FUNC in this slot
-FUNC Kind=Word Text="sysseek" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `truncate` as FUNC in this slot
-FUNC Kind=Word Text="truncate" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `unshift` as FUNC in this slot
-FUNC Kind=Word Text="unshift" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `__CLASS__` as FUNC0 in this slot
 FUNC0 Kind=Word Text="__CLASS__" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `break` as FUNC0 in this slot
-FUNC0 Kind=Word Text="break" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `continue` as FUNC0 in this slot
-FUNC0 Kind=Word Text="continue" NotNext=#2:fc498d5e75ae4
 
 reason: construct absent from the corpora, no corpus token matches the key: `endgrent` as FUNC0 in this slot
 FUNC0 Kind=Word Text="endgrent" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -726,8 +671,6 @@ FUNC0 Kind=Word Text="getlogin" NotNext={Kind:Operator Text:=> OpensBlock:false 
 reason: construct absent from the corpora, no corpus token matches the key: `getnetent` as FUNC0 in this slot
 FUNC0 Kind=Word Text="getnetent" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `getppid` as FUNC0 in this slot
-FUNC0 Kind=Word Text="getppid" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `getprotoent` as FUNC0 in this slot
 FUNC0 Kind=Word Text="getprotoent" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -750,17 +693,11 @@ FUNC0 Kind=Word Text="times" NotNext={Kind:Operator Text:=> OpensBlock:false Ter
 reason: construct absent from the corpora, no corpus token matches the key: `chroot` as FUNC1 in this slot
 FUNC1 Kind=Word Text="chroot" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `closedir` as FUNC1 in this slot
-FUNC1 Kind=Word Text="closedir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `dbmclose` as FUNC1 in this slot
 FUNC1 Kind=Word Text="dbmclose" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `delete` as FUNC1 in this slot
-FUNC1 Kind=Word Text="delete" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `each` as FUNC1 in this slot
-FUNC1 Kind=Word Text="each" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `getgrnam` as FUNC1 in this slot
 FUNC1 Kind=Word Text="getgrnam" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -780,23 +717,11 @@ FUNC1 Kind=Word Text="getpwnam" Next={Kind:Operator Text:( OpensBlock:false Term
 reason: construct absent from the corpora, no corpus token matches the key: `getpwuid` as FUNC1 in this slot
 FUNC1 Kind=Word Text="getpwuid" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `lcfirst` as FUNC1 in this slot
-FUNC1 Kind=Word Text="lcfirst" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `lstat` as FUNC1 in this slot
-FUNC1 Kind=Word Text="lstat" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `readdir` as FUNC1 in this slot
-FUNC1 Kind=Word Text="readdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `readpipe` as FUNC1 in this slot
-FUNC1 Kind=Word Text="readpipe" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `rewinddir` as FUNC1 in this slot
-FUNC1 Kind=Word Text="rewinddir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `rmdir` as FUNC1 in this slot
-FUNC1 Kind=Word Text="rmdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `sethostent` as FUNC1 in this slot
 FUNC1 Kind=Word Text="sethostent" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -810,17 +735,9 @@ FUNC1 Kind=Word Text="setprotoent" Next={Kind:Operator Text:( OpensBlock:false T
 reason: construct absent from the corpora, no corpus token matches the key: `setservent` as FUNC1 in this slot
 FUNC1 Kind=Word Text="setservent" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `sleep` as FUNC1 in this slot
-FUNC1 Kind=Word Text="sleep" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `srand` as FUNC1 in this slot
-FUNC1 Kind=Word Text="srand" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `study` as FUNC1 in this slot
-FUNC1 Kind=Word Text="study" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `ucfirst` as FUNC1 in this slot
-FUNC1 Kind=Word Text="ucfirst" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `undef` as FUNC1 in this slot
 FUNC1 Kind=Word Text="undef" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -828,11 +745,7 @@ FUNC1 Kind=Word Text="undef" Next={Kind:Operator Text:( OpensBlock:false TermFol
 reason: construct absent from the corpora, no corpus token matches the key: `untie` as FUNC1 in this slot
 FUNC1 Kind=Word Text="untie" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `values` as FUNC1 in this slot
-FUNC1 Kind=Word Text="values" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `finally` as KW_FINALLY in this slot
-KW_FINALLY Kind=Word Text="finally" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: `bind` as LSTOP in this slot
 LSTOP Kind=Word Text="bind" NotNext=#2:c96cd92cd7e0e
@@ -840,8 +753,6 @@ LSTOP Kind=Word Text="bind" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `connect` as LSTOP in this slot
 LSTOP Kind=Word Text="connect" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `crypt` as LSTOP in this slot
-LSTOP Kind=Word Text="crypt" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `dbmopen` as LSTOP in this slot
 LSTOP Kind=Word Text="dbmopen" NotNext=#2:c96cd92cd7e0e
@@ -873,17 +784,11 @@ LSTOP Kind=Word Text="getservbyport" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `getsockopt` as LSTOP in this slot
 LSTOP Kind=Word Text="getsockopt" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `index` as LSTOP in this slot
-LSTOP Kind=Word Text="index" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `listen` as LSTOP in this slot
 LSTOP Kind=Word Text="listen" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `msgctl` as LSTOP in this slot
-LSTOP Kind=Word Text="msgctl" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `msgget` as LSTOP in this slot
-LSTOP Kind=Word Text="msgget" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `msgrcv` as LSTOP in this slot
 LSTOP Kind=Word Text="msgrcv" NotNext=#2:c96cd92cd7e0e
@@ -891,8 +796,6 @@ LSTOP Kind=Word Text="msgrcv" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `msgsnd` as LSTOP in this slot
 LSTOP Kind=Word Text="msgsnd" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `read` as LSTOP in this slot
-LSTOP Kind=Word Text="read" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `recv` as LSTOP in this slot
 LSTOP Kind=Word Text="recv" NotNext=#2:c96cd92cd7e0e
@@ -900,14 +803,8 @@ LSTOP Kind=Word Text="recv" NotNext=#2:c96cd92cd7e0e
 reason: toke.c never reports return: OLDLOP returns its LSTOP without -DT's report (unreported-return family, toke.c:387), so no pvm return aligns to LSTOP
 LSTOP Kind=Word Text="return" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `rindex` as LSTOP in this slot
-LSTOP Kind=Word Text="rindex" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `semctl` as LSTOP in this slot
-LSTOP Kind=Word Text="semctl" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `semget` as LSTOP in this slot
-LSTOP Kind=Word Text="semget" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `semop` as LSTOP in this slot
 LSTOP Kind=Word Text="semop" NotNext=#2:c96cd92cd7e0e
@@ -924,23 +821,13 @@ LSTOP Kind=Word Text="setpriority" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `setsockopt` as LSTOP in this slot
 LSTOP Kind=Word Text="setsockopt" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmctl` as LSTOP in this slot
-LSTOP Kind=Word Text="shmctl" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmget` as LSTOP in this slot
-LSTOP Kind=Word Text="shmget" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmread` as LSTOP in this slot
-LSTOP Kind=Word Text="shmread" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `shmwrite` as LSTOP in this slot
-LSTOP Kind=Word Text="shmwrite" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `shutdown` as LSTOP in this slot
 LSTOP Kind=Word Text="shutdown" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `socket` as LSTOP in this slot
-LSTOP Kind=Word Text="socket" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `syscall` as LSTOP in this slot
 LSTOP Kind=Word Text="syscall" NotNext=#2:c96cd92cd7e0e
@@ -949,14 +836,11 @@ reason: construct absent from the corpora, no corpus token matches the key: `sys
 LSTOP Kind=Word Text="sysseek" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `x` as MULOP in this slot
-MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:HeredocOpen Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#1:30bf0e8f1ee04 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-MULOP Kind=Word Text="x" Prev1={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} NotPrev2=#1:30bf0e8f1ee04 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#7:1105275887a69 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:BEGIN OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#23:68c95b4261be NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1010,33 +894,17 @@ OROR Kind=Operator Text="^^"
 reason: construct absent from the corpora, no corpus token matches the key: `ADJUST` as PHASER in this slot
 PHASER Kind=Word Text="ADJUST" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora, no corpus token matches the key: `CORE` as PRIVATEREF in this slot
-PRIVATEREF Kind=Word Text="CORE" Prev1={Kind:Word Text:do OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora, no corpus token matches the key: a v-string without its v (1.2.3) as a term (scan_num, toke.c:13135-13137)
 THING Kind=Quote Prefix="0" NotPrev2=#2:279a67fa5bcce
-THING Kind=Quote Prefix="2" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="3" NotPrev2=#2:279a67fa5bcce
-THING Kind=Quote Prefix="4" NotPrev2=#2:279a67fa5bcce
-THING Kind=Quote Prefix="6" NotPrev2=#2:279a67fa5bcce
-THING Kind=Quote Prefix="7" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="8" NotPrev2=#2:279a67fa5bcce
 THING Kind=Quote Prefix="9" NotPrev2=#2:279a67fa5bcce
 
-reason: construct absent from the corpora: a digit-led v-string as a term; every corpus token this key admits stands after require, where toke.c forces the version (force_version, toke.c:7401)
-THING Kind=Quote Prefix="5" NotPrev2=#2:279a67fa5bcce
 
-reason: construct absent from the corpora, no corpus token matches the key: `-A` as UNIOP in this slot
-UNIOP Kind=Operator Text="-A"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-B` as UNIOP in this slot
-UNIOP Kind=Operator Text="-B"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-C` as UNIOP in this slot
-UNIOP Kind=Operator Text="-C"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-M` as UNIOP in this slot
-UNIOP Kind=Operator Text="-M"
 
 reason: construct absent from the corpora, no corpus token matches the key: `-O` as UNIOP in this slot
 UNIOP Kind=Operator Text="-O"
@@ -1044,8 +912,6 @@ UNIOP Kind=Operator Text="-O"
 reason: construct absent from the corpora, no corpus token matches the key: `-R` as UNIOP in this slot
 UNIOP Kind=Operator Text="-R"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-T` as UNIOP in this slot
-UNIOP Kind=Operator Text="-T"
 
 reason: construct absent from the corpora, no corpus token matches the key: `-W` as UNIOP in this slot
 UNIOP Kind=Operator Text="-W"
@@ -1053,11 +919,7 @@ UNIOP Kind=Operator Text="-W"
 reason: construct absent from the corpora, no corpus token matches the key: `-X` as UNIOP in this slot
 UNIOP Kind=Operator Text="-X"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-b` as UNIOP in this slot
-UNIOP Kind=Operator Text="-b"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-c` as UNIOP in this slot
-UNIOP Kind=Operator Text="-c"
 
 reason: construct absent from the corpora, no corpus token matches the key: `-g` as UNIOP in this slot
 UNIOP Kind=Operator Text="-g"
@@ -1065,38 +927,22 @@ UNIOP Kind=Operator Text="-g"
 reason: construct absent from the corpora, no corpus token matches the key: `-k` as UNIOP in this slot
 UNIOP Kind=Operator Text="-k"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-l` as UNIOP in this slot
-UNIOP Kind=Operator Text="-l"
 
 reason: construct absent from the corpora, no corpus token matches the key: `-o` as UNIOP in this slot
 UNIOP Kind=Operator Text="-o"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-p` as UNIOP in this slot
-UNIOP Kind=Operator Text="-p"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-r` as UNIOP in this slot
-UNIOP Kind=Operator Text="-r"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-u` as UNIOP in this slot
-UNIOP Kind=Operator Text="-u"
 
-reason: construct absent from the corpora, no corpus token matches the key: `-w` as UNIOP in this slot
-UNIOP Kind=Operator Text="-w"
 
 reason: construct absent from the corpora, no corpus token matches the key: `chroot` as UNIOP in this slot
 UNIOP Kind=Word Text="chroot" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `cos` as UNIOP in this slot
-UNIOP Kind=Word Text="cos" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `dbmclose` as UNIOP in this slot
 UNIOP Kind=Word Text="dbmclose" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `exp` as UNIOP in this slot
-UNIOP Kind=Word Text="exp" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `getc` as UNIOP in this slot
-UNIOP Kind=Word Text="getc" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `getgrgid` as UNIOP in this slot
 UNIOP Kind=Word Text="getgrgid" NotNext=#2:c96cd92cd7e0e
@@ -1110,8 +956,6 @@ UNIOP Kind=Word Text="gethostbyname" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `getnetbyname` as UNIOP in this slot
 UNIOP Kind=Word Text="getnetbyname" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `getpeername` as UNIOP in this slot
-UNIOP Kind=Word Text="getpeername" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `getpgrp` as UNIOP in this slot
 UNIOP Kind=Word Text="getpgrp" NotNext=#2:c96cd92cd7e0e
@@ -1128,26 +972,14 @@ UNIOP Kind=Word Text="getpwuid" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `getsockname` as UNIOP in this slot
 UNIOP Kind=Word Text="getsockname" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `int` as UNIOP in this slot
-UNIOP Kind=Word Text="int" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `lcfirst` as UNIOP in this slot
-UNIOP Kind=Word Text="lcfirst" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `lstat` as UNIOP in this slot
-UNIOP Kind=Word Text="lstat" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `oct` as UNIOP in this slot
-UNIOP Kind=Word Text="oct" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `quotemeta` as UNIOP in this slot
-UNIOP Kind=Word Text="quotemeta" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `readlink` as UNIOP in this slot
 UNIOP Kind=Word Text="readlink" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `readpipe` as UNIOP in this slot
-UNIOP Kind=Word Text="readpipe" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: `rewinddir` as UNIOP in this slot
 UNIOP Kind=Word Text="rewinddir" NotNext=#2:c96cd92cd7e0e
@@ -1164,27 +996,13 @@ UNIOP Kind=Word Text="setprotoent" NotNext=#2:c96cd92cd7e0e
 reason: construct absent from the corpora, no corpus token matches the key: `setservent` as UNIOP in this slot
 UNIOP Kind=Word Text="setservent" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `sqrt` as UNIOP in this slot
-UNIOP Kind=Word Text="sqrt" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `study` as UNIOP in this slot
-UNIOP Kind=Word Text="study" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `tell` as UNIOP in this slot
-UNIOP Kind=Word Text="tell" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora, no corpus token matches the key: `ucfirst` as UNIOP in this slot
-UNIOP Kind=Word Text="ucfirst" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: AUTOLOAD or DESTROY at a statement start with no sub before it (really_sub, toke.c:8315); every corpus AUTOLOAD and DESTROY this key admits is a name after sub (BAREWORD)
-KW_SUB_named Kind=Word Text="AUTOLOAD" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
-KW_SUB_named Kind=Word Text="DESTROY" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
 
-reason: construct absent from the corpora: an anonymous method (method { ... } under the class feature, toke.c:7580); every corpus method this key admits is a name or a method call
-KW_METHOD_anon Kind=Word Text="method" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNextName=true
 
 reason: construct absent from the corpora: an indirect method call on a block (WORD { ... } on an undeclared word, toke.c:8215); every corpus word this key admits before a block is a name toke.c forced (after sub, package, class or method), a declared sub taking a block (LSTOPSUB) or an attribute
-METHCALL0 Kind=Word Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotText=#266:29e824fefb9
 METHCALL0 Kind=Word Text="AUTOLOAD" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="BEGIN" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 METHCALL0 Kind=Word Text="CHECK" Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1199,41 +1017,21 @@ LSTOPSUB Kind=Word Prefix="\x00" Next={Kind:Operator Text:{ OpensBlock:false Ter
 reason: construct absent from the corpora: the builtin getgrgid in this slot; never the builtin in the corpora: every corpus getgrgid this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
 FUNC1 Kind=Word Text="getgrgid" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora: the builtin localtime in this slot; never the builtin in the corpora: every corpus localtime this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-FUNC1 Kind=Word Text="localtime" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: construct absent from the corpora: the builtin reset in this slot; every corpus reset this key admits is a method name after -> ($obj->reset), which toke.c forces to METHCALL0 and the key does not see the -> before
 FUNC1 Kind=Word Text="reset" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora: the builtin stat in this slot; never the builtin in the corpora: every corpus stat this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-FUNC1 Kind=Word Text="stat" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora: the builtin write in this slot; every corpus write this key admits is a method name after -> ($obj->write), which toke.c forces to METHCALL0 and the key does not see the -> before
-FUNC1 Kind=Word Text="write" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora: the builtin rename in this slot; never the builtin in the corpora: every corpus rename this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-FUNC Kind=Word Text="rename" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: construct absent from the corpora: fc as a unary operator without parentheses; the one corpus fc this key admits is a sub's name (sub fc)
-UNIOP Kind=Word Text="fc" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: the builtin log in this slot; never the builtin in the corpora: every corpus log this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-UNIOP Kind=Word Text="log" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: the builtin lock in this slot; never the builtin in the corpora: every corpus lock this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-UNIOP Kind=Word Text="lock" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: prototype as a unary operator without parentheses; every corpus prototype this key admits is an attribute name (:prototype(...), ATTRLIST)
-UNIOP Kind=Word Text="prototype" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: reset as a unary operator without parentheses; the one corpus reset this key admits is a sub's name (sub reset)
-UNIOP Kind=Word Text="reset" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora: the builtin accept in this slot; every corpus accept this key admits is a method name after -> ($obj->accept), which toke.c forces to METHCALL0 and the key does not see the -> before
 LSTOP Kind=Word Text="accept" NotNext=#2:c96cd92cd7e0e
 
-reason: construct absent from the corpora: the builtin atan2 in this slot; never the builtin in the corpora: every corpus atan2 this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
-LSTOP Kind=Word Text="atan2" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora: the builtin all in this slot; never the builtin in the corpora: every corpus all this key admits is a call the file overrides, which overrides.txt skips (toke.c returns the sub, yyl_secondclass_keyword, toke.c:6090-6112), or the overriding sub's own name
 BLKLSTOP Kind=Word Text="all" NotNext=#2:c96cd92cd7e0e
@@ -1266,38 +1064,18 @@ METHCALL Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word 
 METHCALL0 Kind=Word Text="END" Prefix="\x00" Next={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev1=#5:1804e338b1a32 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: the tokens this key matches are only in files perl does not capture whole (T1/taint_mode.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-FUNC Kind=Word Text="crypt" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-FUNC Kind=Word Text="printf" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-KW_GIVEN Kind=Word Text="given" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-KW_WHEN Kind=Word Text="when" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
-LSTOP Kind=Word Text="chown" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="formline" NotNext=#2:c96cd92cd7e0e
 LSTOP Kind=Word Text="ioctl" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="kill" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="link" NotNext=#2:c96cd92cd7e0e
 LSTOP Kind=Word Text="sysopen" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="truncate" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="utime" NotNext=#2:c96cd92cd7e0e
-NCEQOP Kind=Operator Text="~~"
 
-reason: the tokens this key matches are only in files perl does not capture whole (T1/threads_api_phase29.t, T1/threads_lifecycle_unadvertised.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-FUNC Kind=Word Text="kill" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: the tokens this key matches are only in files perl does not capture whole (T1/text_csv.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 FUNC Kind=Word Text="say" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: the tokens this key matches are only in files perl does not capture whole (T1/taint_cwd.t, T1/taint_filespec.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-FUNC1 Kind=Word Text="chdir" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: the tokens this key matches are only in files perl does not capture whole (T1/threads_lifecycle_unadvertised.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-FUNC1 Kind=Word Text="exit" Next={Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `{default}` at T1/encode_export_tags.t 451 and T1/encode_export_tags.t 746, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679); one more, T1/taint_mode.t 12556, is in a file perl does not capture whole
-KW_DEFAULT Kind=Word Text="default" NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
 reason: the tokens this key matches are only in files perl does not capture whole (T1/cpan_tooling_runtime.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 LSTOP Kind=Word Text="socketpair" NotNext=#2:c96cd92cd7e0e
-LSTOP Kind=Word Text="syswrite" NotNext=#2:c96cd92cd7e0e
 
 reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `sub x {` at T1/autoload.t 71 and internal/chart/testdata/guacamole/parses/Statements-SubStatement-086.pl 25, a sub's name after sub, which toke.c reads as BAREWORD (yyl_sub scans it at toke.c:5874 and forces it through force_ident_maybe_lex at toke.c:5969)
 MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotPrev2=#2:18613df85d114 NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
@@ -1305,11 +1083,7 @@ MULOP Kind=Word Text="x" Prev1={Kind:Word Text:\x00other-word OpensBlock:false T
 reason: matching corpus tokens exist, but a more specific class takes each one in the full table, so toke.c never reports this pair for them: `$a->{x}` at T1/hash_autovivification.t 4878, T1/hash_autovivification.t 5025, T1/hash_autovivification.t 5098 and T1/tie_autovivification.t 3486, a word alone in a subscript's braces, which toke.c forces to BAREWORD (yyl_leftcurly, toke.c:6656-6679)
 MULOP Kind=Word Text="x" Prev2={Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
 
-reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parses/Statements-PackageStatement-012.pl, internal/chart/testdata/guacamole/parses/Statements-PackageStatement-014.pl): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-THING Kind=Quote Prefix="1" NotPrev2=#2:279a67fa5bcce
 
-reason: the tokens this key matches are only in files perl does not capture whole (T1/html_parser_default_handler.t, T1/html_parser_literal_eof.t): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
-UNIOP Kind=Word Text="eof" NotNext=#2:c96cd92cd7e0e
 
 reason: construct absent from the corpora, no corpus token matches the key: x at a statement start as a declared sub's name (FUNC0SUB, UNIOPSUB, LSTOPSUB, NOAMP, METHCALL0, METHCALL; KEY_x falls through to a word where no operator is expected, toke.c:9209-9219) and the { after it as a block (METHCALL0's XBLOCKTERM, toke.c:8215); no corpus file starts a statement with a call to a sub named x
 METHCALL0 Kind=Word Text="x" Prefix="\x00" Prev1={Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} Next={Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} NotNext={Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false}
