@@ -13,7 +13,7 @@ set -eu
 perl=$1 tree=$2 outdir=$3
 die() { echo "oracle-facts.sh: $*" >&2; exit 1; }
 
-[ -x "$perl" ] || die "perl $perl is missing or not executable"
+[ -x "$perl" ] || die "perl $perl is missing or not executable; refusing to read the tree $tree"
 commit=$("$perl" -MConfig -e 'print $Config{git_commit_id}') || die "$perl does not run"
 case $commit in 94e50866*) ;; *) die "$perl is at commit '$commit', not 94e50866" ;; esac
 case " $("$perl" -MConfig -e 'print $Config{ccflags}') " in *" -DDEBUGGING "*) ;; *) die "$perl is not a -DDEBUGGING build" ;; esac
@@ -27,18 +27,6 @@ t1commit=$(git -C "$t1" rev-parse --short=8 HEAD) || die "T1_CORPUS=$t1 is not a
 [ "$t1commit" = 73be162b ] || die "T1_CORPUS=$t1 is at PerlOnJava $t1commit, not 73be162b"
 [ -z "$(git -C "$t1" status --porcelain)" ] || die "T1_CORPUS=$t1 has uncommitted changes; the pinned corpus must be clean"
 
-# perl's t/ compiles only from inside a shim whose lib/ holds the perl's own
-# library (t/test.pl clears @INC and unshifts ../lib), from every @INC
-# directory but site_perl and vendor_perl, the first root winning (cp -rn).
-# parseoracle.BuildShim does this but refuses a perl built without threads.
-shim=$(mktemp -d)
-trap 'rm -rf "$shim"' EXIT
-mkdir "$shim/lib"
-cp -r "$tree/t" "$shim/t"
-"$perl" -e 'for (@INC) { print "$_\n" if -d && !m{site_perl|vendor_perl} }' | while read -r root; do
-	cp -rn "$root/." "$shim/lib/"
-done
-
 mkdir -p "$outdir"
 cd "$(git rev-parse --show-toplevel)"
-go run ./internal/chart/offline/oracle "$perl" "$tree" "$shim" "$outdir"
+go run ./internal/chart/offline/oracle "$perl" "$tree" "$outdir"

@@ -1,5 +1,5 @@
 // ABOUTME: Writes perl's oracle facts over the oracle-graded corpora to <outdir>/{in-tree,t1,perlgit}.txt; run by oracle-facts.sh.
-// ABOUTME: Offline only: make test never runs it. usage: oracle <perl> <perl5-tree> <shim> <outdir>, from the repository root, T1_CORPUS set.
+// ABOUTME: Offline only: make test never runs it. usage: oracle <perl> <perl5-tree> <outdir>, from the repository root, T1_CORPUS set.
 package main
 
 import (
@@ -20,7 +20,11 @@ import (
 // t/re/pat_psycho.t wedges for its whole budget.
 const timeout = 180 * time.Second
 
+// shim is the temporary shim tree, removed on every exit.
+var shim string
+
 func die(format string, a ...any) {
+	os.RemoveAll(shim)
 	fmt.Fprintf(os.Stderr, "oracle-facts: "+format+"\n", a...)
 	os.Exit(1)
 }
@@ -43,13 +47,23 @@ type group struct {
 }
 
 func main() {
-	if len(os.Args) != 5 {
-		die("usage: oracle <perl> <perl5-tree> <shim> <outdir>")
+	if len(os.Args) != 4 {
+		die("usage: oracle <perl> <perl5-tree> <outdir>")
 	}
-	perl, tree, shim, outdir := os.Args[1], os.Args[2], os.Args[3], os.Args[4]
+	perl, tree, outdir := os.Args[1], os.Args[2], os.Args[3]
 	t1 := os.Getenv("T1_CORPUS")
 	config := func(k string) string { return out(perl, "-MConfig", "-e", "print $Config{"+k+"}") }
 	commit := config("git_commit_id")
+
+	// perl.git t/ compiles only from inside a shim whose lib/ holds the perl's own library.
+	var err error
+	if shim, err = os.MkdirTemp("", "oracle-shim-"); err != nil {
+		die("%v", err)
+	}
+	defer os.RemoveAll(shim)
+	if err := parseoracle.BuildShim(perl, tree, shim, out("git", "-C", tree, "rev-parse", "HEAD")); err != nil {
+		die("building the shim: %v", err)
+	}
 
 	acceptedLabels := func(name string) []string {
 		lf, err := chart.ReadLabels(filepath.Join("internal", "chart", "testdata", "labels", name))

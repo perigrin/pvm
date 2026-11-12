@@ -493,9 +493,7 @@ not clean, exiting 1 with its name, the tree and the reason on stderr.
   `ReadOracleFacts` never reads it as accepted, and fails on a truncated or
   malformed line.
 - perl.git `t/` compiles only from a shim `t/` whose `lib/` holds the perl's
-  own library, which the script builds in a temporary directory.
-  `parseoracle.BuildShim` is not used: its `ObservePin` fails on a perl built
-  without threads, as the pinned perl is.
+  own library, which `parseoracle.BuildShim` builds in a temporary directory.
 - `T1/cpan_tooling_regressions.t` is accepted by its label (`perl -c`) but
   its facts say `ok` false (`-MO=Concise` fails on it); the record keeps perl's
   facts and the script reports the disagreement on stderr.

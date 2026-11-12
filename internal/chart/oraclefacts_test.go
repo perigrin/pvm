@@ -5,6 +5,7 @@ package chart
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -146,5 +147,20 @@ func TestOracleFactsMalformedRecordFails(t *testing.T) {
 	}
 	if r := of.Records[1]; r.Facts.OK || r.Missing == "" {
 		t.Errorf("a file with no facts reads as accepted: %+v", r)
+	}
+}
+
+// TestOracleFactsScriptRefusesAMissingPerl pins the refusal's wording: the
+// script's name, the missing perl and the tree it was asked to read, exit 1.
+func TestOracleFactsScriptRefusesAMissingPerl(t *testing.T) {
+	tree := t.TempDir()
+	cmd := exec.Command("sh", filepath.Join("offline", "oracle-facts.sh"), "/nonexistent/perl", tree, t.TempDir())
+	out, err := cmd.CombinedOutput()
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 {
+		t.Fatalf("exit = %v, want 1; output: %s", err, out)
+	}
+	want := "oracle-facts.sh: perl /nonexistent/perl is missing or not executable; refusing to read the tree " + tree + "\n"
+	if string(out) != want {
+		t.Errorf("stderr = %q, want %q", out, want)
 	}
 }
