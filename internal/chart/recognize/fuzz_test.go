@@ -116,12 +116,17 @@ func fuzzGrammar(gram string) []string {
 
 // checkGrammar holds the recognizer to the reference on a fuzzed grammar:
 // src picks the input's first 24 tokens among the grammar's terminals. A grammar the
-// generator refuses is skipped.
-func checkGrammar(t *testing.T, src, gram string) {
-	tab, err := buildToy(fuzzGrammar(gram))
-	if err != nil {
-		t.Skip(err)
+// generator refuses is skipped. warm is the grammar's recognizer across
+// inputs, made on its first and held by the caller.
+func checkGrammar(t *testing.T, src, gram string, warm map[string]*Recognizer) {
+	if warm[gram] == nil {
+		tab, err := buildToy(fuzzGrammar(gram))
+		if err != nil {
+			t.Skip(err)
+		}
+		warm[gram] = New(tab, Options{})
 	}
+	tab := warm[gram].tab
 	var terms []string
 	for _, s := range tab.Symbols {
 		if s.Terminal {
@@ -132,9 +137,33 @@ func checkGrammar(t *testing.T, src, gram string) {
 	for i := 0; i < min(len(src), 24) && len(terms) > 0; i++ { // the reference is cubic
 		words = append(words, terms[int(src[i])%len(terms)])
 	}
-	if d := oracleDisagreement(tab, builds(tab), tokens(tab, words...)); d != "" {
+	l := tokens(tab, words...)
+	if d := oracleDisagreement(tab, builds(tab), l); d != "" {
 		t.Fatalf("grammar %q, input %q: %s", fuzzGrammar(gram), words, d)
 	}
+	if d := warmDisagreement(tab, warm[gram], l); d != "" {
+		t.Fatalf("grammar %q, input %q: %s", fuzzGrammar(gram), words, d)
+	}
+}
+
+// warmDisagreement is "" where warm, a recognizer that has served earlier
+// inputs, accepts the linear lattice l and expects at each node what the
+// reference does; otherwise it says what differs.
+func warmDisagreement(tab *grammar.Tables, warm *Recognizer, l *lex.Lattice[lex.None]) string {
+	sets, _, want := refRun(tab, tokenIDs(l))
+	c, err := Recognize(warm, l)
+	if err != nil {
+		return err.Error()
+	}
+	if c.Accepted() != want {
+		return fmt.Sprintf("accepted %v with the warm cache, the reference %v", c.Accepted(), want)
+	}
+	for pos, items := range sets {
+		if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(tab, items)) {
+			return fmt.Sprintf("node %d: Expected %v (err %v) with the warm cache, the reference %v", pos, got, err, refExpected(tab, items))
+		}
+	}
+	return ""
 }
 
 // FuzzRecognize takes an input and a grammar; with no grammar, the input is
@@ -152,9 +181,12 @@ func FuzzRecognize(f *testing.F) {
 	// transitions to later ones.
 	var mu sync.Mutex
 	warm := New(tab, Options{})
+	warmGrammars := map[string]*Recognizer{} // per fuzzed grammar, likewise
 	f.Fuzz(func(t *testing.T, src, gram string) {
 		if gram != "" {
-			checkGrammar(t, src, gram)
+			mu.Lock()
+			defer mu.Unlock()
+			checkGrammar(t, src, gram, warmGrammars)
 			return
 		}
 		lattices := []*lex.Lattice[lex.None]{fuzzLattice(tab, src)}
@@ -444,4 +476,49 @@ func TestOracleCatchesSkewUnderOneOption(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestFuzzWarmCacheCatchesWrongHit: the fuzz target's warm check passes a
+// recognizer warmed on another input, and fails one whose cache serves each
+// key the entry stored first, whether or not the sets it read hold: an
+// earlier input's entry.
+func TestFuzzWarmCacheCatchesWrongHit(t *testing.T) {
+	tab := toyTables(t, "S ::= U U T | N V", "T ::= A", "U ::= V | T U", "V ::= V N | B | V S S", "N ::= C*")
+	for _, wrong := range []bool{false, true} {
+		warm := New(tab, Options{})
+		mustRecognize(t, warm, tokens(tab, "A", "A", "B", "A"))
+		if wrong {
+			for _, root := range warm.cache {
+				first := firstEntry(warm, root)
+				root.seq, root.result, root.names = -1, first.result, first.names
+			}
+		}
+		d := warmDisagreement(tab, warm, tokens(tab, "B", "A", "B", "A"))
+		if (d != "") != wrong {
+			t.Errorf("a cache serving another input's entry %v: the warm check says %q", wrong, d)
+		}
+	}
+}
+
+// firstEntry is the entry stored first in n's trie.
+func firstEntry(r *Recognizer, n *cacheNode) *cacheNode {
+	var first *cacheNode
+	if n.seq != 0 {
+		first = n
+	}
+	children := []*cacheNode{n.firstTo}
+	for e, child := range r.trie {
+		if e.from == n {
+			children = append(children, child)
+		}
+	}
+	for _, child := range children {
+		if child == nil {
+			continue
+		}
+		if f := firstEntry(r, child); f != nil && (first == nil || f.seq < first.seq) {
+			first = f
+		}
+	}
+	return first
 }
