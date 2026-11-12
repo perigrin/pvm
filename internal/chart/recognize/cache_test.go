@@ -16,7 +16,7 @@ import (
 )
 
 // committedTables is the committed grammar's tables, generated once for the package's tests, none of which writes them.
-func committedTables(t *testing.T) *grammar.Tables {
+func committedTables(t testing.TB) *grammar.Tables {
 	t.Helper()
 	committed.Do(func() {
 		g, ref, err := grammar.Committed()
