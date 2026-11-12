@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -145,6 +146,9 @@ func checkTree(tab *grammar.Tables, l *lex.Lattice[lex.None], inserted []int, t 
 		}
 		return nil
 	}
+	if t.Rule < 0 {
+		return fmt.Errorf("%s over %d-%d has no derivation", tab.Symbols[t.Sym].Name, t.From, t.To)
+	}
 	r := tab.Rules[t.Rule]
 	if r.LHS != t.Sym || len(r.RHS) != len(t.Kids) {
 		return fmt.Errorf("%s over %d-%d uses rule %d with %d children", tab.Symbols[t.Sym].Name, t.From, t.To, t.Rule, len(t.Kids))
@@ -163,6 +167,27 @@ func checkTree(tab *grammar.Tables, l *lex.Lattice[lex.None], inserted []int, t 
 	}
 	if at != t.To {
 		return fmt.Errorf("rule %d's children end at %d, not %d", t.Rule, at, t.To)
+	}
+	return nil
+}
+
+// selfLoop is a node reachable in f with an Alt whose child is the node itself, or nil.
+func selfLoop(f *Forest) *Node {
+	seen := map[*Node]bool{}
+	work := []*Node{f.Root}
+	for len(work) > 0 {
+		n := work[len(work)-1]
+		work = work[:len(work)-1]
+		if n == nil || seen[n] {
+			continue
+		}
+		seen[n] = true
+		for _, a := range n.Alts {
+			if a.Left == n || a.Right == n {
+				return n
+			}
+			work = append(work, a.Left, a.Right)
+		}
 	}
 	return nil
 }
@@ -280,6 +305,7 @@ var forestToys = []struct {
 // the file's tokens as its leaves, in order.
 func TestForestFromChart(t *testing.T) {
 	t.Run("toys", func(t *testing.T) {
+		chains := 0
 		for _, toy := range forestToys {
 			tab := toyTables(t, toy.rules...)
 			for _, words := range inputs(toy.words, toy.n) {
@@ -298,7 +324,10 @@ func TestForestFromChart(t *testing.T) {
 					if f == nil {
 						continue
 					}
-					trees := f.Root.Derivations(want + 1)
+					trees, cut := f.Derivations(f.Root, want+1)
+					if cut {
+						t.Errorf("%s %q %+v: enumeration cut short below its limit", toy.name, words, opts)
+					}
 					distinct := map[string]bool{}
 					for _, tr := range trees {
 						if err := checkTree(tab, l, c.Inserted(), tr, map[[3]int]bool{}); err != nil {
@@ -309,8 +338,20 @@ func TestForestFromChart(t *testing.T) {
 					if len(trees) != want || len(distinct) != want {
 						t.Errorf("%s %q %+v: %d derivations, %d distinct; brute force counts %d", toy.name, words, opts, len(trees), len(distinct), want)
 					}
+					if opts == (recognize.Options{}) {
+						for pos := range c.Sets {
+							for sym := range tab.Symbols {
+								if _, _, _, ok := c.LeoLink(pos, sym); ok {
+									chains++
+								}
+							}
+						}
+					}
 				}
 			}
+		}
+		if chains == 0 {
+			t.Error("no toy input made a Leo memo, so the forest's Leo expansion went untested")
 		}
 	})
 
@@ -322,7 +363,7 @@ func TestForestFromChart(t *testing.T) {
 			if f == nil {
 				t.Fatalf("%q: no forest", src)
 			}
-			trees := f.Root.Derivations(1)
+			trees, _ := f.Derivations(f.Root, 1)
 			if len(trees) != 1 {
 				t.Fatalf("%q: %d derivations, want 1", src, len(trees))
 			}
@@ -332,6 +373,30 @@ func TestForestFromChart(t *testing.T) {
 			if !slices.ContainsFunc(leaves(trees[0]), func(lf *Tree) bool { return lf.Sym == semi && lf.From == lf.To }) {
 				t.Errorf("%q: the derivation has no zero-width ; leaf; inserted at %v", src, c.Inserted())
 			}
+		}
+		// The inserted ; is no extra null statement beside a written one.
+		if f, _ := Parse(tab, []byte("{ 1; }")); f == nil {
+			t.Error("{ 1; }: no forest")
+		} else if trees, cut := f.Derivations(f.Root, 10); len(trees) != 1 || cut {
+			t.Errorf("{ 1; }: %d derivations, cut %v; want exactly one", len(trees), cut)
+		}
+	})
+
+	// A cache hit at node j runs no completion, so the side table holds no
+	// memo for a chain whose top j's set holds; the forest must not read it.
+	t.Run("Leo off on cached sets", func(t *testing.T) {
+		tab := committedTables(t)
+		var src strings.Builder
+		for _, name := range []string{"new", "make", "build", "clone"} {
+			fmt.Fprintf(&src, "sub %s { my ($class, %%args) = @_; my $self = {%%args}; return bless($self, $class); }\n", name)
+		}
+		on, c, _ := perlForest(t, tab, src.String(), recognize.Options{})
+		off, _, _ := perlForest(t, tab, src.String(), recognize.Options{NoLeo: true})
+		if on == nil || dump(on) != dump(off) {
+			t.Errorf("subs returning bless(...): the forest with Leo on (%v) differs from the one with it off", on != nil)
+		}
+		if !slices.Contains(c.Cached, true) {
+			t.Error("no node was served by the transition cache, so the case is not exercised")
 		}
 	})
 
@@ -355,6 +420,9 @@ func TestForestFromChart(t *testing.T) {
 			}
 			accepted++
 			checkYield(t, p, tab, f, c, l)
+			if n := selfLoop(f); n != nil {
+				t.Errorf("%s: %s over %d-%d has an Alt whose child is itself", p, tab.Symbols[n.Sym].Name, n.From, n.To)
+			}
 			if p == samplePaths(t)[0] {
 				continue // std5k.pl: its Leo-off forest is checked by the toys' and smaller files' agreement
 			}
@@ -373,7 +441,7 @@ func TestForestFromChart(t *testing.T) {
 // grammar over l whose non-zero-width leaves are every token, in order.
 func checkYield(t *testing.T, name string, tab *grammar.Tables, f *Forest, c *recognize.Chart, l *lex.Lattice[lex.None]) {
 	t.Helper()
-	trees := f.Root.Derivations(1)
+	trees, _ := f.Derivations(f.Root, 1)
 	if len(trees) != 1 {
 		t.Fatalf("%s: %d derivations, want 1", name, len(trees))
 	}
@@ -411,21 +479,22 @@ func perlForest(t *testing.T, tab *grammar.Tables, src string, opts recognize.Op
 // file, and no forest, never a partial one.
 func TestForestRefusedChartHasNoForest(t *testing.T) {
 	tab := committedTables(t)
-	for _, tc := range []struct {
-		src  string
-		byte int
+	for _, want := range []struct {
+		src string
+		Refusal
 	}{
-		{"my $x = ;\n", 8},
-		{"print 1;\n$h{1;};\n", 13},
-		{"if ($x) {\n", 10},
-		{"1 +", 3},
+		{"my $x = ;\n", Refusal{8, "grammar"}},
+		{"print 1;\n$h{1;};\n", Refusal{13, "grammar"}},
+		{"if ($x) {\n", Refusal{10, "grammar"}},
+		{"1 +", Refusal{3, "grammar"}},
+		{"print <<EOT;\nno terminator\n", Refusal{6, "lex-unmapped"}},
 	} {
-		f, ref := Parse(tab, []byte(tc.src))
+		f, ref := Parse(tab, []byte(want.src))
 		if f != nil {
-			t.Errorf("%q: a forest of %v for a refused file", tc.src, f.Root)
+			t.Errorf("%q: a forest of %v for a refused file", want.src, f.Root)
 		}
-		if ref.Reason == "" || ref.Byte != tc.byte {
-			t.Errorf("%q: refusal %+v, want one at byte %d", tc.src, ref, tc.byte)
+		if ref != want.Refusal {
+			t.Errorf("%q: refusal %+v, want %+v", want.src, ref, want.Refusal)
 		}
 	}
 	f, ref := Parse(tab, []byte("my $x = 1;\n"))
@@ -435,17 +504,79 @@ func TestForestRefusedChartHasNoForest(t *testing.T) {
 }
 
 // TestForestEnumerationBounded: enumerating a highly ambiguous, cyclic and
-// nullable toy's derivations stops at the bound, however many there are.
+// nullable toy's derivations stops at the limit, however many there are;
+// and on a diamond of unit-rule cycles, whose dead ends grow exponentially
+// with its depth, it stops at its step budget and says it was cut short.
 func TestForestEnumerationBounded(t *testing.T) {
 	tab := toyTables(t, "S ::= S S | S | A |")
-	words := slices.Repeat([]string{"A"}, 40)
-	f, _, _ := toyForest(t, tab, words, recognize.Options{})
+	f, _, _ := toyForest(t, tab, slices.Repeat([]string{"A"}, 40), recognize.Options{})
 	if f == nil {
 		t.Fatal("no forest")
 	}
 	for _, limit := range []int{1, 7, 500} {
-		if got := len(f.Root.Derivations(limit)); got != limit {
-			t.Errorf("Derivations(%d) gave %d", limit, got)
+		if got, cut := f.Derivations(f.Root, limit); len(got) != limit || !cut {
+			t.Errorf("Derivations(%d) gave %d, cut %v", limit, len(got), cut)
+		}
+	}
+
+	const k = 28
+	rules := []string{"A1 ::= A2 | B2 | X"}
+	for i := 2; i < k; i++ {
+		rules = append(rules, fmt.Sprintf("A%d ::= A%d | B%d", i, i+1, i+1), fmt.Sprintf("B%d ::= A%d | B%d", i, i+1, i+1))
+	}
+	rules = append(rules, fmt.Sprintf("A%d ::= A1", k), fmt.Sprintf("B%d ::= A1", k))
+	f, _, _ = toyForest(t, toyTables(t, rules...), []string{"X"}, recognize.Options{})
+	if f == nil {
+		t.Fatal("diamond: no forest")
+	}
+	start := time.Now()
+	got, cut := f.Derivations(f.Root, 10)
+	if d := time.Since(start); d > 2*time.Second || len(got) > 1 || len(got) == 0 && !cut {
+		t.Errorf("diamond of depth %d: %d derivations, cut %v, in %v; want at most its one, or a cut, within 2s", k, len(got), cut, d)
+	}
+}
+
+// TestForestLinearLatticesOnly: build refuses a lattice that branches, which
+// it would misread (shortcut in build), and builds the linear one beside it.
+func TestForestLinearLatticesOnly(t *testing.T) {
+	tab := toyTables(t, "S ::= X C", "X ::= A | B B")
+	set := func(name string) lex.Token { return toyLattice(tab, []string{name}).Edges[0].Token }
+	branched := &lex.Lattice[lex.None]{Nodes: make([]lex.Node[lex.None], 4), Edges: []lex.Edge{
+		{From: 0, To: 2, Token: set("A")}, {From: 0, To: 1, Token: set("B")}, {From: 1, To: 2, Token: set("B")}, {From: 2, To: 3, Token: set("C")},
+	}}
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), branched)
+	if err != nil || !c.Accepted() {
+		t.Fatalf("the branched lattice: %v, accepted %v", err, err == nil && c.Accepted())
+	}
+	if f := build(tab, c, branched); f != nil {
+		t.Error("build made a forest of a branched lattice")
+	}
+	if f, _, _ := toyForest(t, tab, []string{"B", "B", "C"}, recognize.Options{}); f == nil {
+		t.Error("build refused the linear lattice B B C")
+	}
+}
+
+// TestForestRightRecursionLinear: the forest's work (facts recorded and
+// splits tried) and size grow linearly in a right recursion Leo keeps linear
+// for the recognizer, if-elsif chains and runs of !, and in the left
+// recursion of a statement sequence.
+func TestForestRightRecursionLinear(t *testing.T) {
+	tab := committedTables(t)
+	for name, src := range map[string]func(n int) string{
+		"elsif":      func(n int) string { return "if ($x) { 1 }" + strings.Repeat(" elsif ($x) { 1 }", n) + "\n" },
+		"!":          func(n int) string { return strings.Repeat("!", n) + "$x;\n" },
+		"statements": func(n int) string { return strings.Repeat("$x = 1;\n", n) }, // left recursion
+	} {
+		var steps, size [2]int
+		for i, n := range []int{400, 800} {
+			f, _, _ := perlForest(t, tab, src(n), recognize.Options{})
+			if f == nil {
+				t.Fatalf("%s × %d: no forest", name, n)
+			}
+			steps[i], size[i] = f.steps, f.size
+		}
+		if steps[1] > 5*steps[0]/2 || size[1] > 5*size[0]/2 {
+			t.Errorf("%s: doubling the chain took the forest's work from %d to %d and its size from %d to %d, want at most 2.5×", name, steps[0], steps[1], size[0], size[1])
 		}
 	}
 }
@@ -468,7 +599,7 @@ func TestForestDegenerateFiles(t *testing.T) {
 }
 
 // committedTables is the committed grammar's tables, generated once for the package's tests, none of which writes them.
-func committedTables(t *testing.T) *grammar.Tables {
+func committedTables(t testing.TB) *grammar.Tables {
 	t.Helper()
 	committed.Do(func() {
 		g, ref, err := grammar.Committed()
