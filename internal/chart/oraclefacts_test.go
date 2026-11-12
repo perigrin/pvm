@@ -164,3 +164,34 @@ func TestOracleFactsScriptRefusesAMissingPerl(t *testing.T) {
 		t.Errorf("stderr = %q, want %q", out, want)
 	}
 }
+
+// TestOracleFactsLabelAcceptedWithoutOKFacts pins the one known limit: a file
+// the labels accept whose facts say ok false. T1/cpan_tooling_regressions.t
+// compiles under perl -c but B::Concise dies on it (Can't locate object method
+// NAME via package B::NULL, Concise.pm:925). A regeneration that adds another
+// is a change to review, not to commit. perl.git t/ has no labels yet, so no
+// perlgit file is label-accepted and its ok:false records are not in scope.
+func TestOracleFactsLabelAcceptedWithoutOKFacts(t *testing.T) {
+	keys := oracleKeys(t)
+	for name, want := range map[string]map[string]bool{
+		"in-tree.txt": {},
+		"t1.txt":      {"T1/cpan_tooling_regressions.t": true},
+	} {
+		got := map[string]bool{}
+		for _, r := range readOracle(t, name).Records {
+			if keys[name][r.Key] && !r.Facts.OK {
+				got[r.Key] = true
+			}
+		}
+		for k := range got {
+			if !want[k] {
+				t.Errorf("%s: %s: label-accepted but its facts are not ok; a new limit", name, k)
+			}
+		}
+		for k := range want {
+			if !got[k] {
+				t.Errorf("%s: %s: the pinned limit is gone; update this test and the README", name, k)
+			}
+		}
+	}
+}

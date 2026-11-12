@@ -131,6 +131,8 @@ func main() {
 			if r.Err != "" {
 				rec.Missing = r.Err
 			}
+			// shortcut: a label-accepted file with no ok facts is reported, not refused (only T1/cpan_tooling_regressions.t today,
+			// pinned by TestOracleFactsLabelAcceptedWithoutOKFacts); refuse here once B::Concise handles it or the file is relabelled.
 			if g.file != "perlgit.txt" && !r.Facts.OK {
 				bad++ // a label accepted it and perl's facts did not: reported, still recorded
 			}
