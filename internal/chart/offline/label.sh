@@ -45,6 +45,7 @@ fixtures=$(cd "$fixtures" && pwd)
 top=$(git rev-parse --show-toplevel)
 here=$top/internal/chart/offline
 out=$top/internal/chart/testdata/labels
+nocap=$top/internal/chart/testdata/tdt/perlgit-uncaptured.txt
 mkdir -p "$out"
 shim=$(mktemp -d)
 trap 'rm -rf "$shim"' EXIT
@@ -106,6 +107,11 @@ label() {
 		err=$(cd "$cwd" && env -i PATH="$PATH" PERL5LIB="$lib" \
 			timeout "$timeout" "$perl" -c "${root:+$root/}$f" 2>&1 >/dev/null </dev/null) || s=$?
 		if [ "$s" -eq 0 ]; then
+			# A perl.git file tdt-align.sh does not capture keeps its perl -c verdict unchecked for a skip in BEGIN.
+			if [ "$fx" = "$fixtures/perlgit" ] && grep -qxF "$f" "$nocap"; then
+				printf '%s\taccept\n' "$f"
+				continue
+			fi
 			c=$(sed -n 2p "$fx/$f.tdt") || die "$f: no -DT capture in $fx"
 			case $c in
 			'# capture: truncated'*)

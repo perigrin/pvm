@@ -66,7 +66,11 @@ for f in $(cd "$t1" && ls -- *.t); do
 	capture "$t1top" "" "${t1root%/}/$f" "T1/$f"
 done
 # perl.git t/ from the shim's t/, as label.sh runs it: perlgit/<path under t/>.
-for f in $(cd "$shim/t" && find . -name '*.t' | sed 's|^\./||' | LC_ALL=C sort); do
+# shortcut: the files on testdata/tdt/perlgit-uncaptured.txt (re/pat_psycho.t, whose BEGIN forks a watchdog whose
+# -DpT trace interleaves with the parent's) get no capture, so the tdt keys never compare them; upgrade when a
+# capture can keep one process's trace.
+nocap=$top/internal/chart/testdata/tdt/perlgit-uncaptured.txt
+for f in $(cd "$shim/t" && find . -name '*.t' | sed 's|^\./||' | LC_ALL=C sort | grep -vxF -f "$nocap"); do
 	capture "$shim/t" "" "$f" "perlgit/$f"
 done
 echo "tdt-align.sh: captured in $(($(date +%s) - start)) s"
