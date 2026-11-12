@@ -72,7 +72,7 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 	}
 	// perl -c (94e50866) accepts both: past a statement start x is BAREWORD only where no operator is expected (the
 	// shortcut on the scope-decided classes in grammar/perly.go).
-	for _, src := range []string{"$y = x {1};", "sub x {1} $y = x 1, 2;"} {
+	for _, src := range []string{"$y = x { 1 };", "sub x {1} $y = x 1, 2;"} {
 		if recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}

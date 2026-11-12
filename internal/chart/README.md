@@ -64,7 +64,7 @@ them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
 
 Three limits hold off the corpus, where the gates cannot see them:
 
-- **Refused where perl accepts.** `$y = x {1};` and `sub x {1} $y = x 1, 2;`
+- **Refused where perl accepts.** `$y = x { 1 };` and `sub x {1} $y = x 1, 2;`
   are refused (`perl -c`: syntax OK). Where a statement starts the table
   (`grammar/perly.go`, `addStatementX`) gives the word `x` every reading any
   plain word gets there, so `x {1};`, `sub x {} x {1};` and
