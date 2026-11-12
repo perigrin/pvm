@@ -214,3 +214,16 @@ func TestXOperatorAfterTermUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// Known limit: stateStarts reads a do, eval or anonymous-sub block's } as a statement start (the 01a1a422 shortcut on
+// stateStarts in grammar/perly.go), so x after one carries the statement-start word readings though perl expects an
+// operator there. No verdict changes: the grammar never sets two terms side by side.
+func TestXAfterBlockBraceKnownLimit(t *testing.T) {
+	src := "$y = do { 1 } x 3;"
+	if v := recognizeSource(t, []byte(src)); !v.accepted {
+		t.Errorf("%q is refused at %d; perl accepts it", src, v.at)
+	}
+	if got, want := terminalsAt(t, src, 14), []string{"BAREWORD", "FUNC0SUB", "MULOP", "NOAMP", "UNIOPSUB"}; !slices.Equal(got, want) {
+		t.Errorf("x in %q admits %v, not %v; the known limit changed, so update the README line", src, got, want)
+	}
+}

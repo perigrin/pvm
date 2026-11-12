@@ -1917,7 +1917,9 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 
 // addStatementX gives x, where a statement starts, every class of a word that no class names and no neighbour before it
 // decides: no operator is expected there, so KEY_x falls through to a word (toke.c:9209-9219) that scope may make a
-// declared sub, as any word. x has BAREWORD and PRIVATEREF classes of its own.
+// declared sub, as any word. x has BAREWORD and PRIVATEREF classes of its own. stateStarts holds every block's }, so
+// the readings also follow the } of a do, eval or anonymous sub, where perl expects an operator (the 01a1a422
+// shortcut); no verdict changes, as the grammar never sets two terms side by side (TestXAfterBlockBraceKnownLimit).
 func addStatementX(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
 	for _, d := range classes {

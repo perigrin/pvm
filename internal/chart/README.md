@@ -65,11 +65,12 @@ them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
 Three limits hold off the corpus, where the gates cannot see them:
 
 - **Refused where perl accepts.** `$y = x { 1 };` and `sub x {1} $y = x 1, 2;`
-  are refused (`perl -c`: syntax OK). Where a statement starts the table
+  are refused (`perl -c`: syntax OK). After a statement-start token (a file's
+  start, `;`, a block's `{` or `}`, a label's colon) the table
   (`grammar/perly.go`, `addStatementX`) gives the word `x` every reading any
   plain word gets there, so `x {1};`, `sub x {} x {1};` and
   `sub x {1} x 1, 2;` are accepted as perl accepts them
-  (`TestScopeDecidedParity`); past a statement start `x` where no operator is
+  (`TestScopeDecidedParity`); elsewhere `x` where no operator is
   expected is still `BAREWORD` only, plus `PRIVATEREF` before `(`. The ruling
   (01a18fa6-ec70) makes `x` a word wherever an operator is not expected; the
   rest of that is a shortcut, pinned in `TestPortScopeDecidedKnownLimits`.
@@ -678,16 +679,26 @@ toke.c's `KEY_x` makes `x` the repetition operator exactly when `PL_expect`
 is XOPERATOR, which a token that completes a term leaves; otherwise it is a
 word. A token class marked `Completes` is such a token, and `init` in
 `grammar/perly.go` derives MULOP's `x` classes from the marks. As a word `x`
-is `BAREWORD`, `PRIVATEREF` before `(`, and where a statement starts every
-scope-decided reading a plain word gets there (`addStatementX`: `FUNC0SUB`,
-`UNIOPSUB`, `LSTOPSUB`, `NOAMP`, `METHCALL0`, `METHCALL`), with the `{` after
-it a block as after any such word, so `x {1};`, `x { a => 1 } 1;` and
-`sub x {1} x 1, 2;` are accepted as perl accepts them. After a term the set
-is unchanged (`TestXOperatorAfterTermUnchanged`). The widening raised
+is `BAREWORD`, `PRIVATEREF` before `(`, and after each statement-start token
+(`stateStarts`: a file's start, `;`, a block's `{` or `}`, a label's colon)
+every scope-decided reading a plain word gets there (`addStatementX`:
+`FUNC0SUB`, `UNIOPSUB`, `LSTOPSUB`, `NOAMP`, `METHCALL0`, `METHCALL`), with the
+`{` after it a block as after any such word, so `x {1};`, `x { a => 1 } 1;` and
+`sub x {1} x 1, 2;` are accepted as perl accepts them. A block's `}` includes
+the `}` of `map`, `grep` and `sort`, so `@a = sort { 1 } x 1;` and
+`@a = map { 1 } x 3;` are accepted too, as perl accepts them once `sub x;` is
+declared. After a term that is not a block the set is unchanged
+(`TestXOperatorAfterTermUnchanged`). After the `}` of a `do`, `eval` or
+anonymous sub, where perl expects an operator, the readings follow as well,
+by the shortcut that reads such a `}` as a statement start
+(`01a1a422-9176-7153-8625-6535b483a4b4`): `$y = do { 1 } x 3;` gives `x`
+`BAREWORD FUNC0SUB MULOP NOAMP UNIOPSUB`. No verdict changes, because the
+grammar never sets two terms side by side; the set is pinned in
+`TestXAfterBlockBraceKnownLimit`. The widening raised
 `tdt-unseen` from 860 to 915: no corpus file starts a statement with a call to
 a sub named `x`, so perl's `-DT` never shows the 55 new pairs, each reviewed in
 `testdata/tdt/unseen-reviewed.txt`. `terminals-per-token` stayed 1.213, as no
-corpus token is `x` at a statement start. Known limits:
+corpus token is `x` after a statement-start token. Known limits:
 
 - A block's `}` is not treated as completing a term for the `*` that follows
   it (`if (1) { } *print x 3;` is accepted, as perl does), because the
@@ -997,7 +1008,7 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   leave PL_expect at XTERM and do not.
 
 Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
-named `x` carries the scope-decided readings only where a statement starts (`addStatementX`), so
+named `x` carries the scope-decided readings only after a statement-start token (`addStatementX`), so
 `sub x {1} $y = x 1, 2;` is refused where perl accepts it; a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
 `my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
