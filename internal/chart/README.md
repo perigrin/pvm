@@ -64,18 +64,15 @@ them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
 
 Three limits hold off the corpus, where the gates cannot see them:
 
-- **Refused where perl accepts.** `x {1};` and `sub x {} x {1};` are refused
-  (`perl -c`: syntax OK; recursive descent accepts them). At statement start
-  the table (`grammar/perly.go`) gives the word `x` only `BAREWORD`, plus
-  `PRIVATEREF` before `(`, where every other plain word also gets the
-  scope-decided readings. `rd-accepted-chart-refused` is 0 because §9.1
-  defines the superset claim over the corpora: it was established on the
-  corpus's 1,394 files, not on every program. The ruling (01a18fa6-ec70) makes
-  `x` the repetition operator exactly after a token that completes a term, and
-  a word everywhere else; the narrowing at statement start is the
-  implementation's and falls short of it (`TestPortScopeDecidedKnownLimits`).
-  perigrin ruled that the defect is recorded for waypoint 2's refinement, with
-  no grammar change at waypoint 1.
+- **Refused where perl accepts.** `$y = x {1};` and `sub x {1} $y = x 1, 2;`
+  are refused (`perl -c`: syntax OK). Where a statement starts the table
+  (`grammar/perly.go`, `addStatementX`) gives the word `x` every reading any
+  plain word gets there, so `x {1};`, `sub x {} x {1};` and
+  `sub x {1} x 1, 2;` are accepted as perl accepts them
+  (`TestScopeDecidedParity`); past a statement start `x` where no operator is
+  expected is still `BAREWORD` only, plus `PRIVATEREF` before `(`. The ruling
+  (01a18fa6-ec70) makes `x` a word wherever an operator is not expected; the
+  rest of that is a shortcut, pinned in `TestPortScopeDecidedKnownLimits`.
   `catch =>` followed by a `$` variable that is no plain name is refused in any
   list (`catch => $_;`, `(catch => $_)`, `foo(catch => $_);`,
   `x(catch => $Foo::x);`; `perl -c`: syntax OK, `catch` is a hash key there) by
@@ -680,7 +677,17 @@ term to toke.c. Known limits:
 toke.c's `KEY_x` makes `x` the repetition operator exactly when `PL_expect`
 is XOPERATOR, which a token that completes a term leaves; otherwise it is a
 word. A token class marked `Completes` is such a token, and `init` in
-`grammar/perly.go` derives MULOP's `x` classes from the marks. Known limits:
+`grammar/perly.go` derives MULOP's `x` classes from the marks. As a word `x`
+is `BAREWORD`, `PRIVATEREF` before `(`, and where a statement starts every
+scope-decided reading a plain word gets there (`addStatementX`: `FUNC0SUB`,
+`UNIOPSUB`, `LSTOPSUB`, `NOAMP`, `METHCALL0`, `METHCALL`), with the `{` after
+it a block as after any such word, so `x {1};`, `x { a => 1 } 1;` and
+`sub x {1} x 1, 2;` are accepted as perl accepts them. After a term the set
+is unchanged (`TestXOperatorAfterTermUnchanged`). The widening raised
+`tdt-unseen` from 860 to 915: no corpus file starts a statement with a call to
+a sub named `x`, so perl's `-DT` never shows the 55 new pairs, each reviewed in
+`testdata/tdt/unseen-reviewed.txt`. `terminals-per-token` stayed 1.213, as no
+corpus token is `x` at a statement start. Known limits:
 
 - A block's `}` is not treated as completing a term for the `*` that follows
   it (`if (1) { } *print x 3;` is accepted, as perl does), because the
@@ -990,15 +997,16 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   leave PL_expect at XTERM and do not.
 
 Limits, each with a `shortcut:` comment, pinned in `TestPortScopeDecidedKnownLimits` where a test can: a declared sub
-named `x` is BAREWORD only, as the other keywords are, so `sub x {1} x 1, 2;` is refused (`x 1;` is refused by perl
-too); a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
+named `x` carries the scope-decided readings only where a statement starts (`addStatementX`), so
+`sub x {1} $y = x 1, 2;` is refused where perl accepts it; a word two after `use` or `no` carries no scope-decided reading (afterUse, the version family's).
 `my sub Foo::bar {1}`, its `our` and `state` forms, `CORE::foo(1);` and `$y = CORE::;` are accepted, where toke.c croaks while it
 scans the word; by perigrin's ruling ("Pin as known limits") the root is the lexer's (v0.1 `01a1aa1e`).
 `CORE::qw`, `CORE::q`, `CORE::qq`, `CORE::m`, `CORE::qr`, `CORE::qx`, `CORE::s`, `CORE::tr` and `CORE::y` with their
 delimiters (`@y = CORE::qw(a b);`, `$y = CORE::q{x};`, `$y = CORE::tr/a/b/;`) are refused where perl accepts them:
 internal/lexer emits a `CORE::` quote-like as a word and loose tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves
 the operator's name with no delimiters.
-`print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above).
+`print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above), and `x 1;` is
+accepted as `foo 1;` is: perl refuses both, and accepts each once a sub of that name is declared (`sub x; x 1;`).
 `terminals-per-token` and `items-per-token` rise by design.
 
 ### Builtin classes against `parse.CoreShapes()`
