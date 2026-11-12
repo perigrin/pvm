@@ -372,7 +372,7 @@ func ObservePin(ctx context.Context, perl, revision string) (Pin, error) {
 	if err != nil {
 		return Pin{}, fmt.Errorf("asking perl what it is: %w", err)
 	}
-	lines := strings.SplitN(strings.TrimRight(string(out), "\n"), "\n", 2)
+	lines := strings.SplitN(strings.TrimSuffix(string(out), "\n"), "\n", 2)
 	if len(lines) != 2 {
 		return Pin{}, fmt.Errorf("perl reported %q, want a version and a threads flag", out)
 	}

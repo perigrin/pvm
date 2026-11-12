@@ -4,6 +4,7 @@
 package parseoracle_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -208,5 +209,23 @@ func TestClassifyPrefersEnvironmentalOverSyntax(t *testing.T) {
 func TestClassifyCleanStderrIsNoFailure(t *testing.T) {
 	if got := parseoracle.Classify("op/sub.t syntax OK\n"); got != parseoracle.NoFailure {
 		t.Errorf("Classify(clean) = %v, want NoFailure", got)
+	}
+}
+
+// TestObservePinReadsAPerlWithoutThreads: a perl built without threads
+// prints an empty threads flag, so its output ends "\n\n". Only the one
+// trailing newline is the line terminator; the empty line is the answer.
+func TestObservePinReadsAPerlWithoutThreads(t *testing.T) {
+	requirePOSIXOracle(t) // the fake perl is a #!/bin/sh script
+	perl := filepath.Join(t.TempDir(), "perl")
+	if err := os.WriteFile(perl, []byte("#!/bin/sh\nprintf '5.045000\\n\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pin, err := parseoracle.ObservePin(context.Background(), perl, "deadbeef")
+	if err != nil {
+		t.Fatalf("ObservePin: %v", err)
+	}
+	if pin.Interpreter != "5.045000" || pin.Threads {
+		t.Errorf("pin = %+v, want interpreter 5.045000 and threads false", pin)
 	}
 }

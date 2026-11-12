@@ -464,3 +464,40 @@ the only differences from the committed files were the `# status:` header and
 `reviewed` becoming `proposed` on 221 lines (68 in-tree, 153 T1). Restore the reviewed files with
 `git checkout -- internal/chart/testdata/labels`, or review the rerun again.
 `TestPerlLabels` checks the result.
+
+## oracle-facts.sh
+
+`T1_CORPUS=<unit dir> sh internal/chart/offline/oracle-facts.sh <perl> <perl5-tree> <outdir>`
+asks the pinned perl for its per-file parse facts (`parseoracle`'s
+`parse_facts.pl`) over the oracle-graded corpora and writes `in-tree.txt`,
+`t1.txt` and `perlgit.txt` into `<outdir>`; commit them as
+`internal/chart/testdata/oracle/`. The ratchet then grades without spawning
+perl (a live sweep is about six minutes, over its 300 s budget). It refuses a
+perl that is missing or not the `-DDEBUGGING` build at 94e50866, a perl5 tree
+not at 94e50866 or not clean, and a T1 checkout not at PerlOnJava 73be162b or
+not clean, exiting 1 with its name, the tree and the reason on stderr.
+
+- The oracle-graded corpora are the files perl accepts by the committed
+  labels (the in-tree Guacamole snippets, `std5k.pl` and `edit5k.pl`: 827;
+  T1: 833), and every `.t` file of perl.git `t/` (620), whose own `ok` says
+  whether perl accepts it until the perl.git labels are committed.
+- Each file starts with the label files' provenance header: the perl, its
+  version, `git_commit_id` and `ccflags`, the corpus, working directory, root,
+  `PERL5LIB`, the environment and the timeout (180 s per file).
+- Then one tab-separated line per file, keyed `<path>` (in-tree, from the
+  repository root), `T1/<name>.t` or `perlgit/<path under t/>`:
+  `<key> facts <json>` with `ok`, `walked`, `op_count`, `sites` and
+  `prototypes`, the fields `parseoracle.CompareFacts` reads (not the op
+  sequence); or `<key> none <reason>` for a file perl produced no facts for.
+  `t/re/pat_psycho.t` is the one `none` (its watchdog outlives the timeout);
+  `ReadOracleFacts` never reads it as accepted, and fails on a truncated or
+  malformed line.
+- perl.git `t/` compiles only from a shim `t/` whose `lib/` holds the perl's
+  own library, which `parseoracle.BuildShim` builds in a temporary directory.
+- `T1/cpan_tooling_regressions.t` is accepted by its label (`perl -c`) but
+  its facts say `ok` false (`-MO=Concise` fails on it); the record keeps perl's
+  facts and the script reports the disagreement on stderr.
+
+Cost: 7 m 43 s wall clock on the 4-core development machine under load
+average about 13 (3 m 34 s user), most of it perl.git `t/`. Commit the output
+only from a run that exits 0.
