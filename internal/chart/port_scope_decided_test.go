@@ -173,3 +173,39 @@ func TestPortScopeDecidedStatementWords(t *testing.T) {
 		}
 	}
 }
+
+// Forms perl -c (94e50866) accepts whose refusal waypoint 1 left to scope. x at a statement start is a word, as toke.c's
+// KEY_x makes it wherever no operator is expected (ruling 01a18fa6-ec70), with every reading scope gives a word there.
+func TestScopeDecidedParity(t *testing.T) {
+	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;"} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d, expecting %v; perl accepts it", src, v.at, v.expected)
+		}
+	}
+	for _, tail := range []string{" {1};", " 1, 2;", " $y;", ";"} {
+		if got, want := terminalsAt(t, "x"+tail, 0), terminalsAt(t, "foo"+tail, 0); !slices.Equal(got, want) {
+			t.Errorf("x%s at a statement start admits %v; foo there admits %v", tail, got, want)
+		}
+	}
+}
+
+// Where perl expects an operator x is repetition (KEY_x), and widening x where a statement starts leaves it so.
+func TestXOperatorAfterTermUnchanged(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		at   int
+		want []string
+	}{
+		{"$s x 3;", 3, []string{"BAREWORD", "MULOP"}},
+		{"my @a = (1) x 3;", 12, []string{"ATTRLIST", "BAREWORD", "MULOP"}},
+		{"print $a x 3;", 9, []string{"BAREWORD", "MULOP"}},
+		{"x x 3;", 2, []string{"BAREWORD", "MULOP"}},
+	} {
+		if v := recognizeSource(t, []byte(tc.src)); !v.accepted {
+			t.Errorf("%q is refused at %d; perl accepts it", tc.src, v.at)
+		}
+		if got := terminalsAt(t, tc.src, tc.at); !slices.Equal(got, tc.want) {
+			t.Errorf("x in %q admits %v, want only %v: no scope-decided word reading after a term", tc.src, got, tc.want)
+		}
+	}
+}
