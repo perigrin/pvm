@@ -1246,8 +1246,9 @@ var perlyClasses = []ClassDecl{
 	// A word no neighbour decides may be a declared sub, which scope decides (waypoint 2), so it is each reading
 	// yyl_subproto gives one (toke.c:6590-6636) beside BAREWORD and NOAMP: FUNC0SUB for an empty prototype, which
 	// completes a term (TERM), UNIOPSUB for a one-argument one, and LSTOPSUB for one opening with & before a {.
-	// shortcut: a declared sub named x carries these only where a statement starts (addStatementX), so `$y = x { 1 };` is refused
-	// where perl accepts it; upgrade by giving x them wherever no operator is expected, if a corpus file calls one so.
+	// shortcut: a declared sub named x carries these only after a statement-start token (addStatementX; stateStarts, which
+	// includes every block's }), so `$y = x { 1 };` is refused where perl accepts it; upgrade by giving x them wherever no
+	// operator is expected, if a corpus file calls one so.
 	// shortcut: a word two after use or no carries none of them, as the version classes own it; upgrade with the version family. After package or class the version slot is a BAREWORD alone, and no rule takes these terminals there.
 	{"FUNC0SUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, NotNext: nextUndecided, Completes: true}},
 
