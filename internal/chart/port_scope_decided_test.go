@@ -6,6 +6,7 @@ package chart
 import (
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -31,8 +32,8 @@ func TestPortScopeDecided(t *testing.T) {
 
 // Whether a bareword is a declared sub, and of which prototype, is scope's, so the chart accepts what any
 // declaration would let perl accept and refuses what none would. `print FH x 3;`, `new Foo x 3;`,
-// `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted, as the indirect objects left them: perl accepts
-// each with some declaration.
+// `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted, as the indirect objects left them, and `x 1;` as `foo 1;`
+// is: perl accepts each with some declaration (`sub x; x 1;`).
 func TestPortScopeDecidedRefusals(t *testing.T) {
 	for _, f := range snippets(t, "scope-decided-refused") {
 		src, err := os.ReadFile(f)
@@ -43,14 +44,14 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 			t.Errorf("%s is accepted; perl refuses it", f)
 		}
 	}
-	for _, src := range []string{"foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "x 1;", "next CORE(1);"} {
+	for _, src := range []string{"foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "next CORE(1);"} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
 	}
 	for _, src := range []string{
 		"foo;", "foo(1);", "sub foo; foo 1, 2;", "my sub bar { 1 } bar();", "&foo;", "f()->{foo};",
-		"print FH x 3;", "new Foo x 3;", "foo bar x 3;", "foo { a => 1 } x 3;", // scope's, above
+		"print FH x 3;", "new Foo x 3;", "foo bar x 3;", "foo { a => 1 } x 3;", "x 1;", // scope's, above
 		"new Foo::(1);", "Foo::->new;", "foo => 1;", "x(1);", "$y = do foo;", "$y = do foo 1;",
 		"do x(1);", "next x(1);", "goto x(1);", "require x(1);", "sub CORE {1} do CORE(1);", // keywords force_word and yyl_do leave alone
 	} {
@@ -61,17 +62,17 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 }
 
 // Known limits, pinned so they are noticed when they end. perl refuses the first four by a toke.c croak while it
-// scans the word, which internal/lexer does not make (v0.1 01a1aa1e); a declared sub named x is BAREWORD only (the
-// shortcut on the scope-decided classes in grammar/perly.go).
+// scans the word, which internal/lexer does not make (v0.1 01a1aa1e); a declared sub named x is BAREWORD only past a
+// statement start (the shortcut on the scope-decided classes in grammar/perly.go).
 func TestPortScopeDecidedKnownLimits(t *testing.T) {
 	for _, src := range []string{"my sub Foo::bar {1}", "our sub Foo::bar {1}", "state sub Foo::bar {1}", "CORE::foo(1);", "$y = CORE::;"} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
-	// perl -c (94e50866) accepts all three: the statement-start table gives x only BAREWORD and PRIVATEREF, short of
-	// the x ruling (01a18fa6-ec70), which waypoint 2's refinement takes up.
-	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;"} {
+	// perl -c (94e50866) accepts both: past a statement start x is BAREWORD only where no operator is expected (the
+	// shortcut on the scope-decided classes in grammar/perly.go).
+	for _, src := range []string{"$y = x {1};", "sub x {1} $y = x 1, 2;"} {
 		if recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}
@@ -177,7 +178,7 @@ func TestPortScopeDecidedStatementWords(t *testing.T) {
 // Forms perl -c (94e50866) accepts whose refusal waypoint 1 left to scope. x at a statement start is a word, as toke.c's
 // KEY_x makes it wherever no operator is expected (ruling 01a18fa6-ec70), with every reading scope gives a word there.
 func TestScopeDecidedParity(t *testing.T) {
-	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;"} {
+	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;", "x { a => 1 } 1;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v; perl accepts it", src, v.at, v.expected)
 		}
@@ -185,6 +186,10 @@ func TestScopeDecidedParity(t *testing.T) {
 	for _, tail := range []string{" {1};", " 1, 2;", " $y;", ";"} {
 		if got, want := terminalsAt(t, "x"+tail, 0), terminalsAt(t, "foo"+tail, 0); !slices.Equal(got, want) {
 			t.Errorf("x%s at a statement start admits %v; foo there admits %v", tail, got, want)
+		}
+		at := len(tail) - len(strings.TrimLeft(tail, " "))
+		if got, want := terminalsAt(t, "x"+tail, 1+at), terminalsAt(t, "foo"+tail, 3+at); !slices.Equal(got, want) {
+			t.Errorf("the token after x in x%s admits %v; after foo it admits %v", tail, got, want)
 		}
 	}
 }
