@@ -8,3 +8,16 @@ T1/nested_heredoc.t 1829 01a1a846-5aea
 T1/operator_overrides.t 5679 01a1ad1d-bc96
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-013.pl 33 01a1a481-ebef
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-015.pl 33 01a1a481-ebef
+perlgit/class/inherit.t 1579 01a19fb5-79d7
+perlgit/comp/proto.t 9674 01a1ad1d-bc96
+perlgit/comp/use.t 4889 01a1c83a-0466
+perlgit/op/anonconst.t 577 01a1ad1d-bc96
+perlgit/op/attrhand.t 317 01a19fb5-79d7
+perlgit/op/const-optree.t 1405 01a1ad1d-bc96
+perlgit/op/current_sub.t 1893 01a1ad1d-bc96
+perlgit/op/goto.t 14715 01a1ad1d-bc96
+perlgit/op/override.t 506 01a1ad1d-bc96
+perlgit/op/protowarn.t 632 01a1ad1d-bc96
+perlgit/op/tie_fetch_count.t 6416 01a1cfc4-5141
+perlgit/re/pat.t 56909 01a1cfc4-5141
+perlgit/re/subst.t 23429 01a1cfc4-5141
