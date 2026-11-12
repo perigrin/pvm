@@ -1246,7 +1246,9 @@ var perlyClasses = []ClassDecl{
 	// A word no neighbour decides may be a declared sub, which scope decides (waypoint 2), so it is each reading
 	// yyl_subproto gives one (toke.c:6590-6636) beside BAREWORD and NOAMP: FUNC0SUB for an empty prototype, which
 	// completes a term (TERM), UNIOPSUB for a one-argument one, and LSTOPSUB for one opening with & before a {.
-	// shortcut: a declared sub named x (`sub x {} x 1, 2;`) is BAREWORD only, as the other keywords are; upgrade if a corpus file calls one.
+	// shortcut: a declared sub named x carries these only after a statement-start token (addStatementX; stateStarts, which
+	// includes every block's }), so `$y = x { 1 };` is refused where perl accepts it; upgrade by giving x them wherever no
+	// operator is expected, if a corpus file calls one so.
 	// shortcut: a word two after use or no carries none of them, as the version classes own it; upgrade with the version family. After package or class the version slot is a BAREWORD alone, and no rule takes these terminals there.
 	{"FUNC0SUB", TokenClass{Kind: ptr(lexer.Word), NotText: lexer.Keywords(), Prefix: ptr(byte(0)), NotPrev1: forcedWord, NotPrev2: afterUse, NotNext: nextUndecided, Completes: true}},
 
@@ -1887,6 +1889,7 @@ func init() {
 		}
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 	}
+	perlyClasses = addStatementX(perlyClasses) // after x's MULOP: these complete a term the word x's BAREWORD already completes
 	limitBlockBrace(perlyClasses)
 	perlyClasses = cutBeforeFatComma(perlyClasses)
 	addVersions() // after x and the cut: neither applies to the version classes
@@ -1909,6 +1912,32 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 			c.Text, c.NotText, c.NotPrev1 = &w, nil, append(slices.Clone(c.NotPrev1), stateStarts...)
 			classes = append(classes, ClassDecl{d.Terminal, c})
 		}
+	}
+	return classes
+}
+
+// addStatementX gives x, where a statement starts, every class of a word that no class names and no neighbour before it
+// decides: no operator is expected there, so KEY_x falls through to a word (toke.c:9209-9219) that scope may make a
+// declared sub, as any word. x has BAREWORD and PRIVATEREF classes of its own. stateStarts holds every block's }, so
+// the readings also follow the } of a do, eval or anonymous sub, where perl expects an operator (the 01a1a422
+// shortcut); no verdict changes, as the grammar never sets two terms side by side (TestXAfterBlockBraceKnownLimit).
+func addStatementX(classes []ClassDecl) []ClassDecl {
+	keywords := lexer.Keywords()
+	for _, d := range classes {
+		if !slices.Equal(d.Key.NotText, keywords) || d.Key.Prev1 != nil || d.Key.Prev2 != nil ||
+			d.Terminal == "BAREWORD" || d.Terminal == "PRIVATEREF" {
+			continue
+		}
+		for _, s := range stateStarts {
+			c := d.Key
+			c.Text, c.NotText, c.Prev1 = ptr("x"), nil, &s
+			classes = append(classes, ClassDecl{d.Terminal, c})
+		}
+	}
+	// The { after it is a block whatever the lexer decided, as after any word no class names (METHCALL0's XBLOCKTERM).
+	for _, s := range stateStarts {
+		classes = append(classes, ClassDecl{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"),
+			OpensBlock: ptr(false), Prev2: &s, Prev1: &Neighbour{Kind: lexer.Word, Text: "x"}}})
 	}
 	return classes
 }
