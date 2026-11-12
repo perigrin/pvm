@@ -1917,11 +1917,12 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 
 // addStatementX gives x, where a statement starts, every class of a word that no class names and no neighbour before it
 // decides: no operator is expected there, so KEY_x falls through to a word (toke.c:9209-9219) that scope may make a
-// declared sub, as any word.
+// declared sub, as any word. x has BAREWORD and PRIVATEREF classes of its own.
 func addStatementX(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
 	for _, d := range classes {
-		if !slices.Equal(d.Key.NotText, keywords) || d.Key.Prev1 != nil || d.Key.Prev2 != nil {
+		if !slices.Equal(d.Key.NotText, keywords) || d.Key.Prev1 != nil || d.Key.Prev2 != nil ||
+			d.Terminal == "BAREWORD" || d.Terminal == "PRIVATEREF" {
 			continue
 		}
 		for _, s := range stateStarts {
