@@ -274,12 +274,17 @@ files give 827 whole and 68 refused.
 perl.git `t/`, measured 2026-11-12 the same way from the shim's `t/` with
 `PERL5LIB` empty, other workers running: 619 of the 620 `.t` files take 369 s
 in all (0.6 s each); 575 captures are whole, 31 refused, 13 truncated by an
-`exit` in `BEGIN`, none timed out. The 620th, `re/pat_psycho.t`, has no
-capture: it calls `watchdog()` in `BEGIN`, which forks, and the child's
-`-DpT` trace interleaves with the parent's on the shared stderr. The capture
+`exit` in `BEGIN`, none timed out.
+
+**`re/pat_psycho.t` is not captured** (perigrin, 2026-11-12: "Exclude it from
+capture"). It calls `watchdog()` in `BEGIN`, which forks, so the child's
+`-DpT` trace interleaves with the parent's on the shared stderr. A capture
 then either fails (`unexpected token report`, exit 2) or ends whole but holds
-the child's tokens, and in both cases waits on the pipe for the watchdog's
-300 s. How to capture it is open for perigrin.
+the child's tokens, and either way waits on the pipe for the watchdog's 300 s.
+`testdata/tdt/perlgit-uncaptured.txt` lists it; `tdt-align.sh` captures no
+file on that list, `label.sh` keeps its `perl -c` label (`accept`) without
+reading a capture, and `TestPerlGitUncaptured` holds the list to that one
+file.
 
 ## perlgit-shim.sh
 
@@ -298,8 +303,8 @@ wall clock and 155 MB of temporary disk (2026-11-12).
 ## tdt-align.sh
 
 `TDT_FIXTURES=<dir> T1_CORPUS=<unit dir> [PERL5_CORPUS=<dir>] sh internal/chart/offline/tdt-align.sh <perl>`
-captures every waypoint-1 corpus file, every perl.git `t/` file, and the
-committed sample, with `tdt-capture.sh` into a temporary directory, run as
+captures every waypoint-1 corpus file, every perl.git `t/` file but those
+on `testdata/tdt/perlgit-uncaptured.txt` (above), and the committed sample, with `tdt-capture.sh` into a temporary directory, run as
 `label.sh` runs perl (in-tree files from the repository root with the
 Guacamole `stubs/` on `PERL5LIB`, T1 files from the PerlOnJava root with
 `PERL5LIB` empty, perl.git `t/` files from a shim `t/` with `PERL5LIB` empty;
@@ -329,8 +334,8 @@ milestone generates them with:
 TDT_FIXTURES=/var/tmp/pvm-chart-tdt T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit sh internal/chart/offline/tdt-align.sh /opt/perl-94e50866-debug/bin/perl
 ```
 
-`TestTDTFixtures` checks the fixtures in `TDT_FIXTURES`; it never runs perl
-or the aligner. With `TDT_FIXTURES` unset it skips, so `make test` and CI
+`TestTDTFixtures` checks the fixtures in `TDT_FIXTURES`, perl.git `t/`'s
+among them where `$PERL5_CORPUS/t` exists; it never runs perl or the aligner. With `TDT_FIXTURES` unset it skips, so `make test` and CI
 pass without the debug perl; a `TDT_FIXTURES` that names no directory fails.
 Committed are the aligner (`tdt/align/main.go`, checked by `tdt/align/main_test.go`), this script, `testdata/tdt/fitting-families.txt`
 and `testdata/tdt/sample.tdt`, the sample's golden alignment, which
@@ -416,17 +421,17 @@ files: 376482 of 378652 pvm tokens aligned, 37 unmatched toke.c runs, 0.8 s`
 sample's out to `testdata/tdt/sample.tdt`) matched `/var/tmp/pvm-chart-tdt`
 byte for byte (`diff -r`) and `testdata/tdt/sample.tdt` was unchanged.
 
-**With perl.git `t/` the script does not finish at 94e50866.** On
-2026-11-12 it captured the waypoint-1 files and perl.git `t/` up to
-`re/pat_psycho.t`, then stopped with `tdt-align.sh:
-perlgit/re/pat_psycho.t: capture failed` after 2,455 s (see
-`tdt-capture.sh` above), so no fixture was written. A scratch run capturing
-the other 619 perl.git files the same way and aligning them with this
-aligner took 369 s and 2.1 s (`go run` included) and printed `aligned 619
-files: 503691 of 505662 pvm tokens aligned, 298 unmatched toke.c runs, 1.0
-s`; the fixtures come to 16 MB, none over 500 KB. Its tdt findings are
-measured in PERLGITLABELS's commits; the lexer-rooted ones are on
-`testdata/tdt/lexer-rooted.txt` as `perlgit/<path>`.
+With perl.git `t/` (2026-11-12, other workers running, files
+one at a time): capturing the 1,881 waypoint-1 files, 619 perl.git files and
+the sample took 2,031 s and aligning them 3.8 s (2,062 s wall clock in all),
+printing `aligned 2501 files: 880180 of 884314 pvm tokens aligned, 329
+unmatched toke.c runs, 3.8 s`. The waypoint-1 fixtures matched
+`/var/tmp/pvm-chart-tdt` byte for byte (`diff -r`), and
+`testdata/tdt/sample.tdt` was unchanged. The perl.git fixtures come to 16 MB
+(32 MB for all 2,500), none over 500 KB, and are not committed either. Their
+tdt findings, measured by a scratch run of the ratchet's measures, are in
+the commit that lists the lexer-rooted ones on `testdata/tdt/lexer-rooted.txt`
+as `perlgit/<path>`.
 
 ## label.sh
 
@@ -521,18 +526,14 @@ Cost (K6): one run labels 1,881 files in about 2.5 min wall clock on this
 machine (147 s, 4 cores, files one at a time, other workers running; 42 s
 before the review evidence was added; 122 s on 2026-11-04).
 
-With perl.git `t/` it needs a capture of every perl.git file perl accepts,
-and at 94e50866 `re/pat_psycho.t` has none (`tdt-capture.sh` above). On
-2026-11-12, against the waypoint-1 fixtures in `/var/tmp/pvm-chart-tdt` and a
-scratch capture of the other 619 perl.git files, the run labelled in-tree,
-T1 and perl.git `t/` up to `re/` and stopped there with `label.sh:
-re/pat_psycho.t: no -DT capture in ...` after 361 s, having rewritten
-`in-tree.txt` and `t1.txt` (restored with `git checkout`). The committed
-`perlgit.txt` was labelled from a capture of `re/pat_psycho.t` that ended
-whole; that file's label, `accept`, is `perl -c`'s exit status and does not
-read the capture.
+With perl.git `t/` (2026-11-12, against fixtures from the run above and
+freshly built referees) one run labels 2,501 files in 367 s. Against the
+committed files, the only differences were the `# status:` header,
+`reviewed` becoming `proposed`, and `comp/final_line_num.t`, which the run
+proposes environment and the review overturned (above); `re/pat_psycho.t`
+stays `accept` with no capture read.
 
-The run overwrites both committed label files with every category
+The run overwrites all three committed label files with every category
 `proposed`: on 2026-11-04, against the fixtures in `/var/tmp/pvm-chart-tdt` and freshly built referees,
 the only differences from the committed files were the `# status:` header and
 `reviewed` becoming `proposed` on 221 lines (68 in-tree, 153 T1). Restore the reviewed files with
