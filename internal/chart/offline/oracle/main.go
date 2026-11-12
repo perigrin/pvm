@@ -133,6 +133,8 @@ func main() {
 			}
 			// shortcut: a label-accepted file with no ok facts is reported, not refused (only T1/cpan_tooling_regressions.t today,
 			// pinned by TestOracleFactsLabelAcceptedWithoutOKFacts); refuse here once B::Concise handles it or the file is relabelled.
+			// shortcut: perl.git t/ has no labels until PERLGITLABELS (01a1c324-1b3f) lands; then drop this
+			// exception and add "perlgit.txt": {} to TestOracleFactsLabelAcceptedWithoutOKFacts.
 			if g.file != "perlgit.txt" && !r.Facts.OK {
 				bad++ // a label accepted it and perl's facts did not: reported, still recorded
 			}

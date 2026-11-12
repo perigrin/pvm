@@ -171,6 +171,9 @@ func TestOracleFactsScriptRefusesAMissingPerl(t *testing.T) {
 // NAME via package B::NULL, Concise.pm:925). A regeneration that adds another
 // is a change to review, not to commit. perl.git t/ has no labels yet, so no
 // perlgit file is label-accepted and its ok:false records are not in scope.
+// shortcut: once PERLGITLABELS (01a1c324-1b3f) commits those labels, add
+// "perlgit.txt": {} below and drop the perlgit exception in
+// offline/oracle/main.go.
 func TestOracleFactsLabelAcceptedWithoutOKFacts(t *testing.T) {
 	keys := oracleKeys(t)
 	for name, want := range map[string]map[string]bool{
