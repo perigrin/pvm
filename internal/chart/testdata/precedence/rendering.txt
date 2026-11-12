@@ -1,0 +1,58 @@
+# One sample lexeme per perly.y terminal the referee sentences use (spec section 8), joined by spaces to render a sentence.
+# A third column is a preamble: source that must precede any sentence holding the terminal for the lexer to read its
+# lexeme as that terminal (isa is a word until the feature is on). A sentence's preambles are written once each, before
+# its words, and their own tokens are not compared.
+# GRAMPROG is a start selector, not a token, and renders to nothing. A terminal absent here has no single-lexeme
+# rendering; every sentence holding one is on nonroundtrip-reviewed.txt. Those at 94e50866:
+#   PLUGIN_*    waits for a library operator in scope (the plugin issue removes the entries when it renders them)
+#   POSTJOIN    exists only inside an interpolated string, where the lexer makes one token
+#   PERLY_DOLLAR  merges with the word after it into one variable token
+QWLIST	qw(a)
+PERLY_SEMICOLON	;
+CHRELOP	<
+CHEQOP	==
+NCEQOP	<=>
+SHIFTOP	>>
+POWOP	**
+MULOP	*
+PERLY_QUESTION_MARK	?
+PERLY_COLON	:
+OROR	||
+MATCHOP	=~
+DOTDOT	..
+DORDOR	//
+BITOROP	|
+BITANDOP	&
+ASSIGNOP	=
+ANDAND	&&
+ADDOP	+
+REFGEN	\
+NOTOP	not
+POSTINC	++
+POSTDEC	--
+METHCALL0	meth
+ARROW	->
+PERLY_COMMA	,
+UNIOP	ref
+PREINC	++
+PREDEC	--
+PERLY_TILDE	~
+PERLY_PLUS	+
+PERLY_MINUS	-
+PERLY_EXCLAMATION_MARK	!
+LOOPEX	last
+KW_REQUIRE	require
+KW_MY	my
+KW_LOCAL	local
+KW_DO	do
+OROP	or
+ANDOP	and
+LSTOP	print
+BAREWORD	foo
+PERLY_BRACKET_OPEN	[
+PERLY_BRACKET_CLOSE	]
+PERLY_BRACE_OPEN	{
+PERLY_BRACE_CLOSE	}
+UNIOPSUB	foo
+BLKLSTOP	any
+NCRELOP	isa	use feature "isa";

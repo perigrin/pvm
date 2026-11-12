@@ -153,10 +153,43 @@ allows: the script names it on stderr, lists it nowhere, and exits 1, a stop
 to report to perigrin. At 94e50866 neither happens: every resolution is
 covered, by 1,341 sentences.
 
-Committed under `internal/chart/testdata/precedence/` are the first three
-files, byte for byte as the script writes them, and `uncovered-reviewed.txt`
-once reviewed (`reason: the rendering cannot reach it` is the rendering's,
-spec §8). `TestPrecedenceFixturesWellFormed` reads them and never runs bison.
+Committed under `internal/chart/testdata/precedence/` are `bison-conflicts.txt`
+and `resolutions.txt`, byte for byte as the script writes them; `sentences.txt`
+with the rendering column below added; and `uncovered-reviewed.txt` once
+reviewed. `TestPrecedenceFixturesWellFormed` reads them and never runs bison.
+
+**The rendering and its round-trip filter** (spec §8). `testdata/precedence/rendering.txt`
+gives one lexeme to each `perly.y` terminal the sentences use that has one
+(`GRAMPROG`, a start selector and no token, renders to nothing). A sentence is
+rendered by joining its terminals' lexemes with spaces, and kept only if the
+rendering round-trips: `internal/lexer` then chart/lex read it as exactly one
+token per terminal, each token's terminal set holding its terminal. A
+rendering the lexer reads as another terminal (`ref (` as `FUNC1`), as more or
+fewer tokens (two tokens for one terminal), or as tokens whose text is not the
+lexemes (a boundary that shifted), is not kept. The lexer inserts no `;`, the
+recognizer does, so the inserted-`;` case is modelled as a written `;`.
+A terminal's row in `rendering.txt` may carry a third column, a **preamble**:
+source the lexer needs before the word to read it as that terminal. `NCRELOP`
+is `isa`, a word until the feature is on, so its preamble is `use feature
+"isa";`. A sentence's preambles (each distinct one once) are written before its
+words and are part of the stored rendering, but their own tokens are left out of
+the comparison, which still requires one token per terminal, with exactly the
+lexeme's text, after them. Without the preamble the same sentence is not kept.
+`sentences.txt`'s fifth column is the kept rendering, or `-`. Every sentence
+not kept is on `nonroundtrip-reviewed.txt` under a `reason:` line, the
+cause `TestPrecedenceRenderingRoundTrips` recomputes: a terminal with no
+single-lexeme rendering (the `PLUGIN_*` terminals until a library operator is
+in scope; `POSTJOIN`,
+which only an interpolated string has; `PERLY_DOLLAR`, which merges with the
+word after it), or the terminal the lexer reads differently. (`UNIOPSUB`
+renders as `foo`, any word, and `BLKLSTOP` as `any`.) At 94e50866 the filter
+keeps 708 of the 1,341 sentences and drops 633, every one for a terminal with no rendering; none
+fails the lexer's read of a rendering. A resolution is covered only by a kept
+sentence, so the 631 whose sentences are all dropped are on
+`uncovered-reviewed.txt` under `reason: the rendering cannot reach it`
+(`TestPrecedenceUnreachableIsNonRoundTrip`), and 716 of 1,347 are covered.
+`go test ./internal/chart/ -run TestPrecedenceRenderingRoundTrips -chart.update-rendering`
+rewrites the rendering column and both lists from `rendering.txt`.
 
 Cost (K6): 75 s to 4.5 min wall clock end to end on the 4-core machine,
 depending on load from other workers (263 s on 2026-11-10, after the
