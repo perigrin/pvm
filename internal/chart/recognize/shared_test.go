@@ -99,14 +99,18 @@ func TestRecognizersShareGrammarTables(t *testing.T) {
 }
 
 // TestRecognizersOverDistinctTablesShareNothing: recognizers over two tables
-// values, equal in content, share no grammar-only tables, and a set added to
-// one is outside the other's table.
+// values, equal in content or one a copy of the other made after New, share
+// no grammar-only tables, and a set added to one is outside the other's table.
 func TestRecognizersOverDistinctTablesShareNothing(t *testing.T) {
-	a, b := toyStmt(t), toyStmt(t)
-	ra, rb := New(a, Options{}), New(b, Options{})
-	if ra.g == rb.g {
-		t.Fatal("recognizers over two tables values share their grammar-only tables")
+	a := toyStmt(t)
+	ra := New(a, Options{})
+	for name, b := range map[string]*grammar.Tables{"built apart": toyStmt(t), "copied": ownTables(a)} {
+		if New(b, Options{}).g == ra.g {
+			t.Errorf("recognizers over two tables values, %s, share their grammar-only tables", name)
+		}
 	}
+	b := ownTables(a)
+	rb := New(b, Options{})
 	semi := addSet(a, "Semi")
 	l := setLattice(termSet(a, "Print"), termSet(a, "Num"), semi)
 	if !mustRecognize(t, ra, l).Accepted() {
@@ -171,6 +175,22 @@ func TestRecognizersExtendSharedTablesConcurrently(t *testing.T) {
 			if g != want {
 				t.Errorf("set %d: recognizer %d read %s, one built after the set was added %s", semi, i, g, want)
 			}
+		}
+	}
+}
+
+// packageTables is a tables value the linker allocates, not the heap.
+var packageTables grammar.Tables
+
+// TestNewOverAnyTablesValue: New and Recognize work over a tables value
+// wherever it lives, a local variable's or a package variable's, not only
+// one the heap holds.
+func TestNewOverAnyTablesValue(t *testing.T) {
+	var local grammar.Tables
+	for name, tab := range map[string]*grammar.Tables{"local": &local, "package": &packageTables} {
+		*tab = *toyStmt(t)
+		if !run(t, New(tab, Options{}), "Print Num Semi").Accepted() {
+			t.Errorf("%s tables value: Print Num Semi refused", name)
 		}
 	}
 }

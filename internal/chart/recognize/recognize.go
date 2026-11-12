@@ -13,11 +13,9 @@ package recognize
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
-	"weak"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -56,7 +54,8 @@ type Recognizer struct {
 }
 
 // grammarTables is what New derives from the tables alone. It is built once
-// per *grammar.Tables, by the first New over it, and read by every
+// per *grammar.Tables, by the first New over it, kept beside it
+// (grammar.Tables.Derived), and read by every
 // recognizer over that value from any goroutine, so the tables' states,
 // rules, items, symbols and FOLLOW sets must not change after the first New.
 // The rule: nothing in it is written after it is built except cls, the one
@@ -97,25 +96,7 @@ type classes struct {
 // added later never takes it.
 const eofClass = -2
 
-// shared is each tables value's grammarTables, held weakly so a tables
-// value no recognizer reaches can be collected (a fuzzed grammar's).
-var shared sync.Map // weak.Pointer[grammar.Tables] to *grammarTables
-
-// grammarOf is tab's grammarTables, built on the first call for tab.
-func grammarOf(tab *grammar.Tables) *grammarTables {
-	k := weak.Make(tab)
-	if g, ok := shared.Load(k); ok {
-		return g.(*grammarTables)
-	}
-	g, loaded := shared.LoadOrStore(k, buildGrammar(tab))
-	if !loaded {
-		runtime.AddCleanup(tab, func(k weak.Pointer[grammar.Tables]) { shared.Delete(k) }, k)
-	}
-	return g.(*grammarTables)
-}
-
-// buildGrammar derives tab's grammar-only tables. It keeps no reference to
-// tab, so the weak key in shared can be collected.
+// buildGrammar derives tab's grammar-only tables.
 func buildGrammar(tab *grammar.Tables) *grammarTables {
 	terminal := func(name string) int {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
@@ -170,7 +151,7 @@ func (g *grammarTables) extend(tab *grammar.Tables) *classes {
 // New is a recognizer over tab. The grammar-only tables are tab's shared
 // ones; the intern table, cache and counters are the recognizer's own.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	g := grammarOf(tab)
+	g := tab.Derived(func(t *grammar.Tables) any { return buildGrammar(t) }).(*grammarTables)
 	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
 }
 

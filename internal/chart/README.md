@@ -1142,15 +1142,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
 - **Construction.** What depends only on the tables (each state's LHS
   sets, the FOLLOW bitsets, the Leo items, each set's lookahead bitset and
   whether it holds a `}`) is built by the first `New` over a
-  `*grammar.Tables` and shared read-only by every recognizer over that
-  value, from any goroutine; a later `New` allocates 6 objects where it
-  allocated 1,672 at c99366f8 (`BenchmarkNew`). The shared part is held weakly, so a
-  tables value nothing reaches is collected with it. A set appended to the
-  tables is covered when a recognizer first meets its id, under a lock,
-  without writing what other recognizers read
+  `*grammar.Tables`, kept beside that value (`Tables.Derived`), and shared
+  read-only by every recognizer over it, from any goroutine; a later `New`
+  allocates 6 objects where it allocated 1,672 at c99366f8 (`BenchmarkNew`).
+  A tables value anywhere works, a package variable's included
+  (`TestNewOverAnyTablesValue`). A set appended to the tables is covered when
+  a recognizer first meets its id, without writing what other recognizers
+  read; two recognizers doing so at once agree, race-free
   (`TestRecognizersExtendSharedTablesConcurrently`). The tables' states,
-  rules and FOLLOW sets must not change after the first `New`; a copy of a
-  tables value is a value of its own and shares nothing
+  rules, items, symbols and FOLLOW sets must not change after the first
+  `New`; a copy of a tables value is a value of its own and shares nothing
   (`TestRecognizersOverDistinctTablesShareNothing`).
 - **Not safe for concurrent use.** A `Recognizer`'s intern table and
   transition cache change with every recognition, across inputs, and stay
