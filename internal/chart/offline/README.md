@@ -554,8 +554,8 @@ not clean, exiting 1 with its name, the tree and the reason on stderr.
 
 - The oracle-graded corpora are the files perl accepts by the committed
   labels (the in-tree Guacamole snippets, `std5k.pl` and `edit5k.pl`: 827;
-  T1: 833), and every `.t` file of perl.git `t/` (620), whose own `ok` says
-  whether perl accepts it until the perl.git labels are committed.
+  T1: 833), and every `.t` file of perl.git `t/` (620), refused or not; for
+  perl.git, `perlgit.txt`'s labels say which perl accepts.
 - Each file starts with the label files' provenance header: the perl, its
   version, `git_commit_id` and `ccflags`, the corpus, working directory, root,
   `PERL5LIB`, the environment and the timeout (180 s per file).
@@ -571,7 +571,10 @@ not clean, exiting 1 with its name, the tree and the reason on stderr.
   own library, which `parseoracle.BuildShim` builds in a temporary directory.
 - `T1/cpan_tooling_regressions.t` is accepted by its label (`perl -c`) but
   its facts say `ok` false (`-MO=Concise` fails on it); the record keeps perl's
-  facts and the script reports the disagreement on stderr.
+  facts and the script reports the disagreement on stderr. The same holds
+  for `perlgit/re/pat_psycho.t`, accepted by its label and recorded `none`;
+  perl.git's 26 other records with `ok` false are files its labels refuse.
+  `TestOracleFactsLabelAcceptedWithoutOKFacts` pins both.
 
 Cost: 7 m 43 s wall clock on the 4-core development machine under load
 average about 13 (3 m 34 s user), most of it perl.git `t/`. Commit the output
