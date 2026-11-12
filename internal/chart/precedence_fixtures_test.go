@@ -25,11 +25,11 @@ var precedenceDir = filepath.Join("testdata", "precedence")
 // offline/referee/sentences.sh copies it into bison-conflicts.txt.
 var bisonConflict = regexp.MustCompile(`^\s*Conflict between rule (\d+) and token (\S+) resolved as (shift|reduce|an error) \(.*\)\.$`)
 
-// uncoveredReasons are the two reasons spec §8 allows a resolution to stay uncovered.
-var uncoveredReasons = map[string]bool{
-	"reason: generation timed out":          true,
-	"reason: the rendering cannot reach it": true,
-}
+// The two reasons spec §8 allows a resolution to stay uncovered.
+const (
+	reasonTimedOut    = "reason: generation timed out"
+	reasonUnreachable = "reason: the rendering cannot reach it"
+)
 
 // fixtureLines returns a file's lines less blank ones and # comments.
 func fixtureLines(path string) ([]string, error) {
@@ -50,7 +50,8 @@ func fixtureLines(path string) ([]string, error) {
 }
 
 // checkPrecedenceFixtures checks the four fixture files in dir and returns
-// how many resolutions a sentence covers, and how many there are.
+// how many resolutions a kept sentence covers, and how many there are. A
+// sentence is kept when its rendering round-trips (TestPrecedenceRenderingRoundTrips).
 func checkPrecedenceFixtures(dir string) (covered, total int, err error) {
 	read := func(name string) []string {
 		if err != nil {
@@ -77,24 +78,24 @@ func checkPrecedenceFixtures(dir string) (covered, total int, err error) {
 		return 0, 0, fmt.Errorf("bison-conflicts.txt: %d lines, %d resolutions", len(conflicts), len(action))
 	}
 
-	verdict := map[string]string{}
+	verdict, kept := map[string]string{}, map[string]bool{}
 	for _, l := range sentences {
 		f := strings.Split(l, "\t")
-		if len(f) != 4 || f[1] == "" || f[3] == "" {
-			return 0, 0, fmt.Errorf("sentences.txt: want id, terminals, verdict, grouping: %q", l)
+		if len(f) != 5 || f[1] == "" || f[3] == "" || f[4] == "" {
+			return 0, 0, fmt.Errorf("sentences.txt: want id, terminals, verdict, grouping, rendering: %q", l)
 		}
 		if _, dup := verdict[f[0]]; dup {
 			return 0, 0, fmt.Errorf("sentences.txt: %s twice", f[0])
 		}
-		verdict[f[0]] = f[2]
+		verdict[f[0]], kept[f[0]] = f[2], f[4] != "-"
 	}
 
-	listed := map[string]bool{}
+	listed := map[string]string{} // "rule token" => its reason
 	reason := ""
 	for _, l := range uncovered {
 		switch {
 		case strings.HasPrefix(l, "reason:"):
-			if !uncoveredReasons[l] {
+			if l != reasonTimedOut && l != reasonUnreachable {
 				return 0, 0, fmt.Errorf("uncovered-reviewed.txt: %q is not a reason spec §8 allows", l)
 			}
 			reason = l
@@ -102,10 +103,10 @@ func checkPrecedenceFixtures(dir string) (covered, total int, err error) {
 			return 0, 0, fmt.Errorf("uncovered-reviewed.txt: %q is under no reason", l)
 		case action[l] == "":
 			return 0, 0, fmt.Errorf("uncovered-reviewed.txt: %q is not a resolution in bison's report", l)
-		case listed[l]:
+		case listed[l] != "":
 			return 0, 0, fmt.Errorf("uncovered-reviewed.txt: %q listed twice", l)
 		default:
-			listed[l] = true
+			listed[l] = reason
 		}
 	}
 
@@ -125,27 +126,29 @@ func checkPrecedenceFixtures(dir string) (covered, total int, err error) {
 			return 0, 0, fmt.Errorf("resolutions.txt: %s listed twice", key)
 		}
 		seen[key] = true
-		if f[3] == "-" {
-			if !listed[key] {
-				return 0, 0, fmt.Errorf("resolutions.txt: %s is covered by no sentence and not reviewed", key)
+		anyKept, accepted := false, false
+		if f[3] != "-" {
+			for _, id := range strings.Split(f[3], ",") {
+				v, ok := verdict[id]
+				if !ok {
+					return 0, 0, fmt.Errorf("resolutions.txt: %s names sentence %s, which sentences.txt lacks", key, id)
+				}
+				anyKept = anyKept || kept[id]
+				accepted = accepted || kept[id] && v == "accept"
 			}
-			continue
 		}
-		if listed[key] {
+		switch {
+		case anyKept && listed[key] != "":
 			return 0, 0, fmt.Errorf("resolutions.txt: %s is covered and also on the uncovered list", key)
-		}
-		accepted := false
-		for _, id := range strings.Split(f[3], ",") {
-			v, ok := verdict[id]
-			if !ok {
-				return 0, 0, fmt.Errorf("resolutions.txt: %s names sentence %s, which sentences.txt lacks", key, id)
-			}
-			accepted = accepted || v == "accept"
-		}
-		if f[2] == "error" && !accepted {
+		case anyKept && f[2] == "error" && !accepted:
 			return 0, 0, fmt.Errorf("resolutions.txt: %s is resolved as an error and no accepted neighbour covers it", key)
+		case anyKept:
+			covered++
+		case listed[key] == "":
+			return 0, 0, fmt.Errorf("resolutions.txt: %s is covered by no kept sentence and not reviewed", key)
+		case (listed[key] == reasonTimedOut) != (f[3] == "-"):
+			return 0, 0, fmt.Errorf("resolutions.txt: %s is under %q with sentences %s", key, listed[key], f[3])
 		}
-		covered++
 	}
 	for key := range action {
 		if !seen[key] {
@@ -169,7 +172,7 @@ func TestPrecedenceFixturesRejectMalformed(t *testing.T) {
 			"    Conflict between rule 2 and token CHRELOP resolved as an error (%nonassoc CHRELOP).\n" +
 			"    Conflict between rule 3 and token MULOP resolved as shift (ADDOP < MULOP).\n",
 		"resolutions.txt":        "1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n",
-		"sentences.txt":          "s0001\tGRAMPROG THING ADDOP THING ADDOP THING\taccept\t1:1-4\ns0002\tGRAMPROG THING\trefuse@4\t-\n",
+		"sentences.txt":          "s0001\tGRAMPROG THING ADDOP THING ADDOP THING\taccept\t1:1-4\tx + x + x\ns0002\tGRAMPROG THING\trefuse@4\t-\tx\n",
 		"uncovered-reviewed.txt": "# reviewed\nreason: generation timed out\n3 MULOP\n",
 	}
 	write := func(t *testing.T, edits map[string]string) string {
@@ -188,16 +191,20 @@ func TestPrecedenceFixturesRejectMalformed(t *testing.T) {
 		t.Fatalf("the well-formed fixture is refused: %v", err)
 	}
 	for name, c := range map[string]struct{ file, body, want string }{
-		"a resolution missing":                 {"resolutions.txt", "1\tADDOP\treduce\ts0001\n3\tMULOP\tshift\t-\n", "is missing"},
-		"an error with no accepted neighbour":  {"resolutions.txt", "1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002\n3\tMULOP\tshift\t-\n", "no accepted neighbour"},
-		"a dangling sentence id":               {"resolutions.txt", "1\tADDOP\treduce\ts0009\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "sentences.txt lacks"},
-		"a resolution listed twice":            {"resolutions.txt", "1\tADDOP\treduce\ts0001\n1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "listed twice"},
-		"covered and on the uncovered list":    {"uncovered-reviewed.txt", "reason: generation timed out\n3 MULOP\n1 ADDOP\n", "also on the uncovered list"},
-		"uncovered and unreviewed":             {"uncovered-reviewed.txt", "# none\n", "not reviewed"},
-		"a reason section 8 does not allow":    {"uncovered-reviewed.txt", "reason: too hard\n3 MULOP\n", "not a reason"},
-		"an entry under no reason":             {"uncovered-reviewed.txt", "3 MULOP\nreason: generation timed out\n", "under no reason"},
-		"an action bison's report contradicts": {"resolutions.txt", "1\tADDOP\tshift\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "bison's report says"},
-		"a resolution bison does not report":   {"resolutions.txt", "1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n4\tPOWOP\tshift\ts0001\n", "not in bison's report"},
+		"a resolution missing":                        {"resolutions.txt", "1\tADDOP\treduce\ts0001\n3\tMULOP\tshift\t-\n", "is missing"},
+		"an error with no accepted neighbour":         {"resolutions.txt", "1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002\n3\tMULOP\tshift\t-\n", "no accepted neighbour"},
+		"a dangling sentence id":                      {"resolutions.txt", "1\tADDOP\treduce\ts0009\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "sentences.txt lacks"},
+		"a resolution listed twice":                   {"resolutions.txt", "1\tADDOP\treduce\ts0001\n1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "listed twice"},
+		"covered and on the uncovered list":           {"uncovered-reviewed.txt", "reason: generation timed out\n3 MULOP\n1 ADDOP\n", "also on the uncovered list"},
+		"uncovered and unreviewed":                    {"uncovered-reviewed.txt", "# none\n", "not reviewed"},
+		"a reason section 8 does not allow":           {"uncovered-reviewed.txt", "reason: too hard\n3 MULOP\n", "not a reason"},
+		"an entry under no reason":                    {"uncovered-reviewed.txt", "3 MULOP\nreason: generation timed out\n", "under no reason"},
+		"a sentence with no rendering column":         {"sentences.txt", "s0001\tGRAMPROG THING\taccept\t1:1-4\n", "want id, terminals"},
+		"a resolution only an unkept sentence covers": {"sentences.txt", "s0001\tGRAMPROG THING ADDOP THING ADDOP THING\taccept\t1:1-4\t-\ns0002\tGRAMPROG THING\trefuse@4\t-\tx\n", "no kept sentence"},
+		"unreachable with no generated sentence":      {"uncovered-reviewed.txt", "reason: the rendering cannot reach it\n3 MULOP\n", "is under"},
+		"timed out with a generated sentence":         {"uncovered-reviewed.txt", "reason: generation timed out\n3 MULOP\n1 ADDOP\n", "also on the uncovered list"},
+		"an action bison's report contradicts":        {"resolutions.txt", "1\tADDOP\tshift\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n", "bison's report says"},
+		"a resolution bison does not report":          {"resolutions.txt", "1\tADDOP\treduce\ts0001\n2\tCHRELOP\terror\ts0002,s0001\n3\tMULOP\tshift\t-\n4\tPOWOP\tshift\ts0001\n", "not in bison's report"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := checkPrecedenceFixtures(write(t, map[string]string{c.file: c.body}))
@@ -333,7 +340,10 @@ func roundTrip(tab *grammar.Tables, src string, terms []string) string {
 func renderingCause(tab *grammar.Tables, lexemes map[string]string, s precedenceSentence) string {
 	src, missing, ok := renderTerms(lexemes, s.terms)
 	if !ok {
-		return "no rendering for " + missing + " (a PLUGIN_* terminal waits for a library operator in scope; a sub-declared one for a declaration)"
+		if strings.HasPrefix(missing, "PLUGIN_") {
+			return "no rendering for " + missing + " until a library operator is in scope"
+		}
+		return "no single-lexeme rendering for " + missing
 	}
 	return roundTrip(tab, src, s.terms)
 }
@@ -386,7 +396,7 @@ func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string
 	if err != nil {
 		t.Fatal(err)
 	}
-	byCause := map[string][]string{}
+	byCause, keptNow := map[string][]string{}, map[string]bool{}
 	var out strings.Builder
 	n := 0
 	for _, l := range strings.SplitAfter(string(raw), "\n") {
@@ -402,6 +412,7 @@ func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string
 			byCause[cause] = append(byCause[cause], s.id)
 		} else {
 			r, _, _ = renderTerms(lexemes, s.terms)
+			keptNow[s.id] = true
 		}
 		out.WriteString(strings.Join(append(f, r), "\t") + "\n")
 	}
@@ -411,7 +422,27 @@ func writeRendering(t *testing.T, tab *grammar.Tables, lexemes map[string]string
 	for _, cause := range slices.Sorted(maps.Keys(byCause)) {
 		list += "reason: " + cause + "\n" + strings.Join(byCause[cause], "\n") + "\n"
 	}
-	for name, body := range map[string]string{"sentences.txt": out.String(), "nonroundtrip-reviewed.txt": list} {
+	// A resolution with sentences and none of them kept is unreachable; one with none is generation's (sentences.sh).
+	timedOut, unreachable := "", ""
+	resolutions, err := fixtureLines(filepath.Join(precedenceDir, "resolutions.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range resolutions {
+		f := strings.Split(l, "\t")
+		switch ids := strings.Split(f[3], ","); {
+		case f[3] == "-":
+			timedOut += f[0] + " " + f[1] + "\n"
+		case !slices.ContainsFunc(ids, func(id string) bool { return keptNow[id] }):
+			unreachable += f[0] + " " + f[1] + "\n"
+		}
+	}
+	uncovered := "# Resolutions no kept sentence covers, each under its reason (spec section 8): `reason: generation timed out`\n" +
+		"# (no sentence was generated; none at 94e50866) or `reason: the rendering cannot reach it` (every sentence generated\n" +
+		"# for it is on nonroundtrip-reviewed.txt). Written by the -chart.update-rendering run that writes\n" +
+		"# sentences.txt's rendering column.\n" +
+		reasonTimedOut + "\n" + timedOut + reasonUnreachable + "\n" + unreachable
+	for name, body := range map[string]string{"sentences.txt": out.String(), "nonroundtrip-reviewed.txt": list, "uncovered-reviewed.txt": uncovered} {
 		if err := os.WriteFile(filepath.Join(precedenceDir, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
