@@ -38,7 +38,7 @@ here=$top/internal/chart/offline
 cap=$(mktemp -d)
 shim=$(mktemp -d)
 trap 'rm -rf "$cap" "$shim"' EXIT
-sh "$here/perlgit-shim.sh" "$perl" "$shim"
+(cd "$top" && go run ./internal/chart/offline/shim "$perl" "${PERL5_CORPUS:-/opt/corpora/perl5}" "$shim")
 
 # capture <cwd> <PERL5LIB> <path from cwd> <key>: one stream, run as label.sh runs perl.
 # Exit 1 (refused, timeout) and 2 with a `# truncated` line are streams; any other exit 2 stops the run.

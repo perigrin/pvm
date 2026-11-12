@@ -286,19 +286,20 @@ file on that list, `label.sh` keeps its `perl -c` label (`accept`) without
 reading a capture, and `TestPerlGitUncaptured` holds the list to that one
 file.
 
-## perlgit-shim.sh
+## shim/
 
-`sh internal/chart/offline/perlgit-shim.sh <perl> <dest>` builds the tree
-perl.git `t/` compiles in, for `tdt-align.sh` and `label.sh`, which run it
-into a temporary directory. `t/test.pl` clears `@INC` and unshifts `../lib`,
-so a perl.git test compiles only from a `t/` whose `../lib` holds a built
-library (the oracle's measurement, `parseoracle.BuildShim`). The script
-copies `$PERL5_CORPUS/t` (default `/opt/corpora/perl5`) to `<dest>/t` and
-every `@INC` root of `<perl>` but `site_perl` and `vendor_perl` to
-`<dest>/lib`, and refuses a tree not at 94e50866 or not clean. What the
-shim lacks (`TestInit.pm`, `Maintainers.pm`, XS::APItest, Win32, files
-outside `t/` and `lib/`) shows as environment labels. Cost (K6): 0.6 s
-wall clock and 155 MB of temporary disk (2026-11-12).
+`go run ./internal/chart/offline/shim <perl> <perl5-tree> <dest>` builds the
+tree perl.git `t/` compiles in, for `tdt-align.sh` and `label.sh`, which run
+it into a temporary directory with `$PERL5_CORPUS` (default
+`/opt/corpora/perl5`) as the tree. `t/test.pl` clears `@INC` and unshifts
+`../lib`, so a perl.git test compiles only from a `t/` whose `../lib` holds a
+built library. It calls `parseoracle.BuildShim`, the builder the oracle facts
+use (`offline/oracle`), so the labels, the captures and the oracle facts are
+measured in one shim, and refuses a tree not at 94e50866 or not clean,
+exiting 1 with the tree and the reason on stderr. What the shim lacks
+(`TestInit.pm`, `Maintainers.pm`, XS::APItest, Win32, files outside `t/` and
+`lib/`) shows as environment labels. Cost (K6): 0.9 s wall clock with `go
+run`, and 155 MB of temporary disk (2026-11-12).
 
 ## tdt-align.sh
 
@@ -308,7 +309,7 @@ on `testdata/tdt/perlgit-uncaptured.txt` (above), and the committed sample, with
 `label.sh` runs perl (in-tree files from the repository root with the
 Guacamole `stubs/` on `PERL5LIB`, T1 files from the PerlOnJava root with
 `PERL5LIB` empty, perl.git `t/` files from a shim `t/` with `PERL5LIB` empty;
-see `perlgit-shim.sh` below), then runs the aligner, `go run
+see `shim/` below), then runs the aligner, `go run
 ./internal/chart/offline/tdt/align <capture-dir> <t1-dir> <perlgit-t-dir>
 <out-dir>`, which reads perl.git sources from `$PERL5_CORPUS/t`. A capture
 failure (exit 2 without a `# truncated` line) stops the run. The aligner
@@ -449,13 +450,13 @@ names them `perlgit/<path>`). `<referee-dir>` holds `referee/build.sh`'s two
 referees; `TDT_FIXTURES` (default `/var/tmp/pvm-chart-tdt`) holds
 `tdt-align.sh`'s captures. It refuses a perl that is not a `-DDEBUGGING` build
 at 94e50866, a T1 checkout not at PerlOnJava 73be162b, and (through
-`perlgit-shim.sh`) a perl5 tree not at 94e50866 or not clean.
+`shim/`) a perl5 tree not at 94e50866 or not clean.
 
 - Each file runs under `env -i` with only `PATH` and `PERL5LIB` set and a 30 s
   timeout. In-tree files run from the repository root with the Guacamole
   `stubs/` on `PERL5LIB`; T1 files run from the PerlOnJava root, where their
   `use lib 'src/test/resources/unit/lib'` resolves, with `PERL5LIB` empty;
-  perl.git `t/` files run from the shim's `t/` (`perlgit-shim.sh`), where
+  perl.git `t/` files run from the shim's `t/` (`shim/`), where
   `t/test.pl` finds `../lib`, with `PERL5LIB` empty and `# cwd: .` in the
   header.
 - Each label file opens with a provenance header (`# key: value`): the perl,

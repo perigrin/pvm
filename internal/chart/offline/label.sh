@@ -8,7 +8,7 @@
 # <referee-dir> holds referee-prec and referee-noprec (referee/build.sh).
 # TDT_FIXTURES is tdt-align.sh's output (default /var/tmp/pvm-chart-tdt).
 # PERL5_CORPUS is the perl5 tree at 94e50866 (default /opt/corpora/perl5);
-# its t/ runs from a shim t/ (perlgit-shim.sh), with the paths under t/.
+# its t/ runs from a shim t/ (offline/shim, parseoracle.BuildShim), with the paths under t/.
 #
 # Each file is checked with `perl -c` under `env -i` (PATH and PERL5LIB only)
 # and a per-file timeout. A refusal's category is proposed from perl's first
@@ -49,7 +49,7 @@ nocap=$top/internal/chart/testdata/tdt/perlgit-uncaptured.txt
 mkdir -p "$out"
 shim=$(mktemp -d)
 trap 'rm -rf "$shim"' EXIT
-sh "$here/perlgit-shim.sh" "$perl" "$shim"
+(cd "$top" && go run ./internal/chart/offline/shim "$perl" "${PERL5_CORPUS:-/opt/corpora/perl5}" "$shim")
 
 # category<TAB>ERE, matched against perl's first error, in order.
 # "$# / $* is no longer supported" is grammar, not semantic: -DpT shows gv.c
@@ -154,6 +154,6 @@ label "$t1top" "${t1root%/}" "" "PerlOnJava $t1commit" "$fixtures/T1" \
 	$(cd "$t1" && ls -- *.t) >"$out/t1.txt.tmp"
 mv "$out/t1.txt.tmp" "$out/t1.txt"
 
-(cd "$shim/t" && label "." "" "" "perl.git t/ at $commit, run from a shim t/ (perlgit-shim.sh): perl5 t/ beside the pinned perl's library as ../lib" \
+(cd "$shim/t" && label "." "" "" "perl.git t/ at $commit, run from a shim t/ (offline/shim, parseoracle.BuildShim): perl5 t/ beside the pinned perl's library as ../lib" \
 	"$fixtures/perlgit" $(find . -name '*.t' | sed 's|^\./||' | LC_ALL=C sort)) >"$out/perlgit.txt.tmp"
 mv "$out/perlgit.txt.tmp" "$out/perlgit.txt"
