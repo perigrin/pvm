@@ -189,13 +189,18 @@ func TestLeoKeepsAcceptance(t *testing.T) {
 	}
 }
 
+// leoChainGrammar is a grammar whose memo chains read sets completion
+// does not, so a warm cache serves A A B A's transitions to B A B A only
+// if it keeps those dependencies.
+var leoChainGrammar = []string{"S ::= U U T | N V", "T ::= A", "U ::= V | T U", "V ::= V N | B | V S S", "N ::= C*"}
+
 // TestLeoChainReadsAreCacheDeps: a memo chain reads sets beyond the origin
 // sets completion reads, and each is a transition-cache dependency. A
 // recognizer warmed on A A B A caches transitions whose chains read sets B
 // A B A does not have there, so without those dependencies it serves B A B A
 // a wrong set (#549's gate, F2).
 func TestLeoChainReadsAreCacheDeps(t *testing.T) {
-	tab := toyTables(t, "S ::= U U T | N V", "T ::= A", "U ::= V | T U", "V ::= V N | B | V S S", "N ::= C*")
+	tab := toyTables(t, leoChainGrammar...)
 	warm := New(tab, Options{})
 	mustRecognize(t, warm, tokens(tab, "A", "A", "B", "A"))
 	l := tokens(tab, "B", "A", "B", "A")

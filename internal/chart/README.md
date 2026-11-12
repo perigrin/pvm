@@ -489,6 +489,12 @@ tables hold 349 rules over 112 nonterminals and 124 terminals.
   `testdata/refusals/<line>/refused.pl`, which the chart refuses (a chain's
   dangling form, `$a <=> $b <=>`), beside `accepted.pl`, a nearby form the
   chart accepts; the pinned perl gives both verdicts.
+  `testdata/port/refused-where.txt` holds where each port snippet under a
+  `*-refused` directory is refused, one `<snippet> <table|grammar> <byte>`
+  line each: `table` where chart/lex finds a token no class admits
+  (`lex-unmapped`), `grammar` where the recognizer refuses.
+  `TestRefusedSnippetsRefusedWhere` fails on a snippet
+  that moves to the other cause or byte until the list is reviewed.
 - **Start forms.** All seven of `perly.y`'s start forms (`perly.y:187-268`)
   are start rules. The program form is the one a file is recognized by, and
   the only one graded. Each of the other six begins with its `GRAM*`

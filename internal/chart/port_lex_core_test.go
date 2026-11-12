@@ -33,6 +33,7 @@ type verdict struct {
 	accepted bool
 	at       int
 	expected []string
+	by       string // a refusal's cause: "table", chart/lex's lex-unmapped, or "grammar", the recognizer
 }
 
 // recognizeSource runs src through chart/lex and the recognizer over the committed tables.
@@ -42,7 +43,7 @@ func recognizeSource(t *testing.T, src []byte) verdict {
 	if err != nil {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
-	s, _ := lex.Lex(src, tab.Tokens)
+	s, unmapped := lex.Lex(src, tab.Tokens)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +63,12 @@ func recognizeSource(t *testing.T, src []byte) verdict {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return verdict{at: at, expected: exp}
+	// A token no class admits has the empty set, so the recognizer refuses at it.
+	by := "grammar"
+	if at == unmapped {
+		by = "table"
+	}
+	return verdict{at: at, expected: exp, by: by}
 }
 
 func snippets(t *testing.T, dir string) []string {

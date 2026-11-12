@@ -236,3 +236,21 @@ func TestExpectedIgnoresLookahead(t *testing.T) {
 		t.Errorf("Expected after `My Var Assign Num` = %v, want Add among them", exp)
 	}
 }
+
+// TestAcceptedNeedsOriginZero: a complete start-rule item at the last node
+// accepts only from node 0. The same item from node 1 does not.
+func TestAcceptedNeedsOriginZero(t *testing.T) {
+	tab := toyTables(t, rightRec...)
+	c := run(t, New(tab, Options{}), "A")
+	start := slices.IndexFunc(c.Sets[1].Items(), func(it Item) bool { return slices.Contains(c.r.lhs[it.State], tab.Start) })
+	if !c.Accepted() || start < 0 {
+		t.Fatal("A is refused, or its last set holds no complete start item")
+	}
+	state := c.Sets[1].Items()[start].State
+	for dist, want := range map[int]bool{2: true, 1: false} {
+		moved := &Chart{r: c.r, Sets: []*Set{c.Sets[0], c.Sets[1], {items: []Item{{State: state, Dist: dist}}}}}
+		if got := moved.Accepted(); got != want {
+			t.Errorf("a complete start item from node %d at node 2: accepted %v, want %v", 2-dist, got, want)
+		}
+	}
+}
