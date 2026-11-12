@@ -271,18 +271,45 @@ the slowest other file takes 8.9 s, almost all of it perl loading
 refused, 2 timed out and 32 truncated by an `exit` in `BEGIN`; the in-tree
 files give 827 whole and 68 refused.
 
+perl.git `t/`, measured 2026-11-12 the same way from the shim's `t/` with
+`PERL5LIB` empty, other workers running: 619 of the 620 `.t` files take 369 s
+in all (0.6 s each); 575 captures are whole, 31 refused, 13 truncated by an
+`exit` in `BEGIN`, none timed out. The 620th, `re/pat_psycho.t`, has no
+capture: it calls `watchdog()` in `BEGIN`, which forks, and the child's
+`-DpT` trace interleaves with the parent's on the shared stderr. The capture
+then either fails (`unexpected token report`, exit 2) or ends whole but holds
+the child's tokens, and in both cases waits on the pipe for the watchdog's
+300 s. How to capture it is open for perigrin.
+
+## perlgit-shim.sh
+
+`sh internal/chart/offline/perlgit-shim.sh <perl> <dest>` builds the tree
+perl.git `t/` compiles in, for `tdt-align.sh` and `label.sh`, which run it
+into a temporary directory. `t/test.pl` clears `@INC` and unshifts `../lib`,
+so a perl.git test compiles only from a `t/` whose `../lib` holds a built
+library (the oracle's measurement, `parseoracle.BuildShim`). The script
+copies `$PERL5_CORPUS/t` (default `/opt/corpora/perl5`) to `<dest>/t` and
+every `@INC` root of `<perl>` but `site_perl` and `vendor_perl` to
+`<dest>/lib`, and refuses a tree not at 94e50866 or not clean. What the
+shim lacks (`TestInit.pm`, `Maintainers.pm`, XS::APItest, Win32, files
+outside `t/` and `lib/`) shows as environment labels. Cost (K6): 0.6 s
+wall clock and 155 MB of temporary disk (2026-11-12).
+
 ## tdt-align.sh
 
-`TDT_FIXTURES=<dir> T1_CORPUS=<unit dir> sh internal/chart/offline/tdt-align.sh <perl>`
-captures every waypoint-1 corpus file, and the committed sample, with
-`tdt-capture.sh` into a temporary directory, run as `label.sh` runs perl
-(in-tree files from the repository root with the Guacamole `stubs/` on
-`PERL5LIB`, T1 files from the PerlOnJava root with `PERL5LIB` empty), then
-runs the aligner, `go run ./internal/chart/offline/tdt/align <capture-dir>
-<t1-dir> <out-dir>`. A capture failure (exit 2 without a `# truncated` line)
-stops the run. The aligner writes one fixture per corpus file to
-`$TDT_FIXTURES/<key>.tdt`, the key being the repository path or
-`T1/<name>.t`, removing the old `*.tdt` files there and nothing else, and prints each file's unmatched
+`TDT_FIXTURES=<dir> T1_CORPUS=<unit dir> [PERL5_CORPUS=<dir>] sh internal/chart/offline/tdt-align.sh <perl>`
+captures every waypoint-1 corpus file, every perl.git `t/` file, and the
+committed sample, with `tdt-capture.sh` into a temporary directory, run as
+`label.sh` runs perl (in-tree files from the repository root with the
+Guacamole `stubs/` on `PERL5LIB`, T1 files from the PerlOnJava root with
+`PERL5LIB` empty, perl.git `t/` files from a shim `t/` with `PERL5LIB` empty;
+see `perlgit-shim.sh` below), then runs the aligner, `go run
+./internal/chart/offline/tdt/align <capture-dir> <t1-dir> <perlgit-t-dir>
+<out-dir>`, which reads perl.git sources from `$PERL5_CORPUS/t`. A capture
+failure (exit 2 without a `# truncated` line) stops the run. The aligner
+writes one fixture per corpus file to `$TDT_FIXTURES/<key>.tdt`, the key
+being the repository path, `T1/<name>.t`, or `perlgit/<path under t/>`
+(`perlgit/op/sub.t`), removing the old `*.tdt` files there and nothing else, and prints each file's unmatched
 toke.c runs and a total to stdout. The sample's fixture becomes the committed
 `testdata/tdt/sample.tdt`. The script makes `TDT_FIXTURES` absolute before it
 changes directory and refuses any directory inside the repository or holding
@@ -389,25 +416,43 @@ files: 376482 of 378652 pvm tokens aligned, 37 unmatched toke.c runs, 0.8 s`
 sample's out to `testdata/tdt/sample.tdt`) matched `/var/tmp/pvm-chart-tdt`
 byte for byte (`diff -r`) and `testdata/tdt/sample.tdt` was unchanged.
 
+**With perl.git `t/` the script does not finish at 94e50866.** On
+2026-11-12 it captured the waypoint-1 files and perl.git `t/` up to
+`re/pat_psycho.t`, then stopped with `tdt-align.sh:
+perlgit/re/pat_psycho.t: capture failed` after 2,455 s (see
+`tdt-capture.sh` above), so no fixture was written. A scratch run capturing
+the other 619 perl.git files the same way and aligning them with this
+aligner took 369 s and 2.1 s (`go run` included) and printed `aligned 619
+files: 503691 of 505662 pvm tokens aligned, 298 unmatched toke.c runs, 1.0
+s`; the fixtures come to 16 MB, none over 500 KB. Its tdt findings are
+measured in PERLGITLABELS's commits; the lexer-rooted ones are on
+`testdata/tdt/lexer-rooted.txt` as `perlgit/<path>`.
+
 ## label.sh
 
 Build the referees somewhere that persists first, for example
 `sh internal/chart/offline/referee/build.sh /opt/corpora/perl5 /var/tmp/pvm-chart-referee`,
 and pass that directory as `<referee-dir>`.
 
-`T1_CORPUS=<unit dir> sh internal/chart/offline/label.sh <perl> <referee-dir>`
-labels every waypoint-1 corpus file with the pinned perl's `perl -c` verdict
+`T1_CORPUS=<unit dir> [PERL5_CORPUS=<dir>] sh internal/chart/offline/label.sh <perl> <referee-dir>`
+labels every corpus file with the pinned perl's `perl -c` verdict
 (spec §9.1) and writes `testdata/labels/in-tree.txt` (the Guacamole `parses`
-and `parsent` cases, `std5k.pl`, `edit5k.pl`) and `testdata/labels/t1.txt`
-(T1's 986 top-level `*.t`). `<referee-dir>` holds `referee/build.sh`'s two
+and `parsent` cases, `std5k.pl`, `edit5k.pl`), `testdata/labels/t1.txt`
+(T1's 986 top-level `*.t`) and `testdata/labels/perlgit.txt` (perl.git
+`t/`'s 620 `*.t` at 94e50866, by path under `t/`, `op/sub.t`; the ratchet
+names them `perlgit/<path>`). `<referee-dir>` holds `referee/build.sh`'s two
 referees; `TDT_FIXTURES` (default `/var/tmp/pvm-chart-tdt`) holds
 `tdt-align.sh`'s captures. It refuses a perl that is not a `-DDEBUGGING` build
-at 94e50866, and a T1 checkout not at PerlOnJava 73be162b.
+at 94e50866, a T1 checkout not at PerlOnJava 73be162b, and (through
+`perlgit-shim.sh`) a perl5 tree not at 94e50866 or not clean.
 
 - Each file runs under `env -i` with only `PATH` and `PERL5LIB` set and a 30 s
   timeout. In-tree files run from the repository root with the Guacamole
   `stubs/` on `PERL5LIB`; T1 files run from the PerlOnJava root, where their
-  `use lib 'src/test/resources/unit/lib'` resolves, with `PERL5LIB` empty.
+  `use lib 'src/test/resources/unit/lib'` resolves, with `PERL5LIB` empty;
+  perl.git `t/` files run from the shim's `t/` (`perlgit-shim.sh`), where
+  `t/test.pl` finds `../lib`, with `PERL5LIB` empty and `# cwd: .` in the
+  header.
 - Each label file opens with a provenance header (`# key: value`): the perl,
   its version, `git_commit_id` and `ccflags`, the corpus, working directory,
   root, `PERL5LIB`, timeout, the first-error limit, the status and how the
@@ -452,11 +497,40 @@ semantic and is grammar. `-DpT` shows gv.c croaking from toke.c's
 parser; the referees find the stream `viable`. That is a fatal lexing error,
 §9.1's grammar, not a check after parsing.
 
-`TestPerlLabels` reads the labels; it never runs perl.
+PERLGITLABELS (01a1c324-1b3f, 2026-11-11) reviewed perl.git `t/`'s 44
+refusals the same way; 576 of the 620 files are accepted:
+
+| Category | perl.git `t/` | Evidence |
+|---|---|---|
+| grammar | 1 | `comp/final_line_num.t`: both referees refuse its stream at the same token |
+| precedence, scope, semantic | 0 | none |
+| environment | 43 | modules the shim lacks: `TestInit.pm`, `Maintainers.pm`, XS::APItest, Win32 (24); `-T` or `-t` on the `#!` line (5); a `./` or `../` require outside `t/` (2); a skip in `BEGIN`: no ithreads, no dtrace, Windows or cygwin only, `encoding.pm` gone, XS::APItest or `PERL_RC_STACK` absent (12) |
+
+One proposal was overturned: `comp/final_line_num.t` was proposed
+environment as a skip in `BEGIN` (its capture is truncated), but its
+`$SIG{__DIE__}` exits 0 on the syntax error at EOF the file provokes on
+purpose. Printing `$_[0]` in a copy recovers the error, `syntax error at
+comp/final_line_num.t line 13, at EOF`, and both referees refuse its `-DT`
+stream at the same token: grammar. A rerun proposes environment again.
+
+`TestPerlLabels` reads the labels; it never runs perl. Its perl.git subtest
+reads the `.t` files under `$PERL5_CORPUS/t` (default `/opt/corpora/perl5`)
+and skips where that tree is absent.
 
 Cost (K6): one run labels 1,881 files in about 2.5 min wall clock on this
 machine (147 s, 4 cores, files one at a time, other workers running; 42 s
 before the review evidence was added; 122 s on 2026-11-04).
+
+With perl.git `t/` it needs a capture of every perl.git file perl accepts,
+and at 94e50866 `re/pat_psycho.t` has none (`tdt-capture.sh` above). On
+2026-11-12, against the waypoint-1 fixtures in `/var/tmp/pvm-chart-tdt` and a
+scratch capture of the other 619 perl.git files, the run labelled in-tree,
+T1 and perl.git `t/` up to `re/` and stopped there with `label.sh:
+re/pat_psycho.t: no -DT capture in ...` after 361 s, having rewritten
+`in-tree.txt` and `t1.txt` (restored with `git checkout`). The committed
+`perlgit.txt` was labelled from a capture of `re/pat_psycho.t` that ended
+whole; that file's label, `accept`, is `perl -c`'s exit status and does not
+read the capture.
 
 The run overwrites both committed label files with every category
 `proposed`: on 2026-11-04, against the fixtures in `/var/tmp/pvm-chart-tdt` and freshly built referees,
