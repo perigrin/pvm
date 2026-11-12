@@ -40,9 +40,9 @@ milestone, not here, since a timing is true only of the run that took it.
 Waypoint 1's speed figure is a lower bound: it can stop the spike, not pass it
 (spec §2).
 
-**Not built.** Waypoint 2 (spec §9.4), refined only after waypoint 1's
-verdict: the forest, the precedence constraint, resolve by scope, the oracle
-and perl.git `t/`. Recognition reads no precedence and, but for the `isa`
+**Not built.** The rest of waypoint 2 (spec §9.4), whose first code is the
+forest (`forest`, below): the precedence constraint, resolve by scope, the
+oracle and perl.git `t/`. Recognition reads no precedence and, but for the `isa`
 feature, no scope, so a form perl refuses only by precedence
 (`$a <=> $b <=> $c;`) or for want of a declaration is accepted here; the
 sections below name the ones known. Error
@@ -163,11 +163,12 @@ retired.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
-  `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and the
-  ratchet runs the same bodies with `testing.Benchmark`, after every key is
-  measured, printing one stderr line each: `chart-ratchet: BenchLex <n> ns/op
-  <n> allocs/op` (likewise `BenchRecognize`, `BenchExpected`). They are not
-  keys and nothing compares them. On a file the chart
+  `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and
+  `BenchmarkForest` in `forest/bench.go`; the ratchet runs the same bodies
+  with `testing.Benchmark`, after every key is measured, printing one stderr
+  line each: `chart-ratchet: BenchLex <n> ns/op <n> allocs/op` (likewise
+  `BenchRecognize`, `BenchExpected`, `BenchForest`). They are not keys and
+  nothing compares them. On a file the chart
   refuses, `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix
   the grammar reaches.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
@@ -1305,6 +1306,85 @@ through `chart/lex`, at most 300 tokens). Agreement does not need acceptance:
 its first `=`, else its first token but `;`) and requires both to refuse at the same node with the same `Expected`.
 `TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
 transition the sample uses and requires the disagreement to be reported.
+
+## The forest: `forest`
+
+`forest.Parse(tab, src)` lexes and recognizes `src`, then builds its shared
+packed forest after recognition (spec §9.4). It is the single entry the
+precedence constraint, resolve and the readings count extend. A file the
+chart refuses gets a `Refusal` and no forest, never a partial one
+(`TestForestRefusedChartHasNoForest`). The refusal is `lex-unmapped` at the
+first token no terminal admits, else `grammar` at the token whose set died,
+or at the end of the file.
+
+- **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
+  (state, distance), recognition stays Boolean, and no existing file of
+  `recognize` changes for the forest. It reads the chart through two
+  read-only accessors in `recognize/finished.go`. A rule the chart completed
+  is a reduce of a state in some set, or one a Leo memo skipped
+  (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
+  Each is a derivation the chart proved, so every node has one. Every node on
+  a derivation of the file is completed in the chart, so none is missing.
+- **A node** is a symbol over a span of lattice nodes, or a rule position
+  there: a rule's first symbols, which binarizes a long rule so the forest
+  stays cubic. A node's `Alts` are the ways its span divides, each the rule's
+  earlier symbols (`Left`) and its last (`Right`). A node is tried only by
+  the rules the chart completed for it. A split is tried only where the
+  rule's earlier symbols stand as an item in the chart. The candidate starts
+  are read from whichever list is shorter: the last symbol's completions at
+  the node's end, or the nodes where an item from its start stands. That keeps
+  a right recursion and a left one linear (`TestForestRightRecursionLinear`).
+- **Leo.** Where a memo completed a right recursion in one step, the links it
+  skipped are added at a node only where the chain's top is among that
+  node's completions, which is where recognition took the chain. Each memo
+  is read once, as `LeoLink` makes it from the sets. A node the transition
+  cache served ran no completion and made no memo, though its set holds the
+  chain's top, so `LeoLink` reads the sets rather than the side table, and
+  stores nothing. Leo on and off give the same forest, on a file of cached
+  sets included (`TestForestFromChart`).
+- **The slipper's `;`** is a zero-width `PERLY_SEMICOLON` leaf at a node in
+  `Inserted()`. `Slipped` closes the items it advances with Leo off, so
+  replaying it after a cache hit writes no memo. A derivation's `;` leaves
+  are a subset of `Inserted()`, not all of it: `{ 1; }` uses none, though
+  the slipper inserted at the `}`. Aligning leaves to `-DT`'s tokens must
+  allow for that.
+- **Cycles.** No node has an `Alt` whose child is the node itself; such an
+  `Alt` is dropped as it is built, since no derivation can use it. That
+  removes perly.y's one cycle shape, `stmtseq` over a span beside a
+  zero-width `;` statement, so perly.y forests are acyclic over the corpus
+  sample (`TestForestFromChart`). A longer cycle is not removed. A count over
+  the forest must treat a node met again on its own path as having no
+  derivation there, as `Derivations` does.
+- **Derivations.** `(*Forest).Derivations(n, limit)` enumerates at most
+  `limit` trees of node `n`. It also reports whether a bound cut it short:
+  the limit, or a budget of steps proportional to `limit` and the forest's
+  size. A derivation never holds a (symbol, span) node inside itself. So a
+  cycle adds none, and a slipper `;` appears only where a statement needs
+  it, never as a null statement beside one that does not (`{ 1; }` has one
+  derivation, not one per `;`; `TestForestFromChart`). Enumeration stops at
+  its limit on a cyclic, nullable, exponentially ambiguous toy. On a diamond
+  of unit-rule cycles, whose dead ends grow exponentially with its depth, it
+  stops at its budget and says so (`TestForestEnumerationBounded`).
+- **Outside reference** (spec rule 11). On toy grammars (left and right
+  recursion, nullable chains, ambiguity, a cycle, Leo beside ambiguity), under
+  every recognizer option, every derivation is checked against the grammar's
+  rules, and their number equals a brute-force enumerator's, written in the
+  test from the rules alone. Over the corpus sample (`std5k.pl`, the port
+  snippets, every 24th Guacamole case) a file has a forest exactly where the
+  chart accepts it, and a derivation whose leaves are its tokens in order. An
+  empty file, one of comments only, and files of `;` do too
+  (`TestForestDegenerateFiles`).
+- **Linear lattices only.** shortcut: the token ending at node j is edge
+  j-1, and an inserted `;` is followed only by its `}`, as up-front lexing
+  makes them; `build` refuses any other lattice
+  (`TestForestLinearLatticesOnly`). Index the edges by node, and keep a
+  `;`'s completions apart, when interleaved lexing branches.
+- **Cost.** `BenchmarkForest` times the forest of `std5k.pl` after
+  recognition. At 8b834a3d, in five rounds interleaved with
+  `BenchmarkRecognize` (`-benchtime 40x`, load 7.5–8.1), it took a median
+  29.6 ms per op, 21.2 MB and 20,509 allocations, beside recognition's
+  19.4 ms. The forest first submitted on this branch (e6d1ea22) took 36.0 ms
+  in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
 
 ## The generated tables: `make chart-tables`
 
