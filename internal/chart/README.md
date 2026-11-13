@@ -410,12 +410,14 @@ clock and a collector, so it is tested on fake timings
   The `speed-ratio-*` keys keep that definition. Each `speed-stage-*` key
   times only its own stage against recursive descent, long-lived, its inputs
   prepared once outside the span (lattices for recognize, charts for the
-  forest; a file the chart refuses has no forest, so its forest stage does
-  nothing, as in `forest.Parse`), so the forest key times the build after
+  forest; a file the chart refuses has no forest, so `forest.Build` returns
+  nil at once), so the forest key times the build after
   recognition as `forest.Bench` does, not `forest.Parse`, which runs all
   three (`TestSpeedStagesTimed`). The three are in RD units and their sum,
   lex + recognize + forest, is printed on stderr
-  (`speed-stage sum lex+recognize+forest`), not a key.
+  (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
+  three keys' medians, each against its own recursive-descent passes, not
+  one ratio.
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
   file whose recursive-descent time alone is more than 10% of recursive
   descent's time over the **whole** population, whatever subset is timed.
