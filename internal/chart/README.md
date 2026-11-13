@@ -1351,14 +1351,18 @@ or at the end of the file.
 - **Cycles.** No node has an `Alt` whose child is the node itself; such an
   `Alt` is dropped as it is built, since no derivation can use it. That
   removes perly.y's one cycle shape, `stmtseq` over a span beside a
-  zero-width `;` statement, so perly.y forests are acyclic over the corpus
-  sample (`TestForestFromChart`). A longer cycle is not removed. A count over
-  the forest must treat a node met again on its own path as having no
-  derivation there, as `Derivations` does.
+  zero-width `;` statement. So a perly.y forest is acyclic, and a count of
+  readings taken as a product over its packed nodes is exact. The test holds
+  every forest of the corpus sample to that with a full cycle search, not
+  only self-loops (`TestForestFromChart`; `TestForestCycleCheck` shows the
+  search finds a two-node cycle). A cycle in a perly.y forest is a defect to
+  fix, not something to count around. A toy grammar can still build a
+  longer cycle, which `Derivations` survives by treating a node met again on
+  its own path as having no derivation there.
 - **Derivations.** `(*Forest).Derivations(n, limit)` enumerates at most
-  `limit` trees of node `n`. It also reports whether a bound cut it short:
-  the limit, or a budget of steps proportional to `limit` and the forest's
-  size. A derivation never holds a (symbol, span) node inside itself. So a
+  `limit` trees of node `n`. It also reports `cut` when a bound stopped it:
+  the limit, reached even if exactly `limit` trees exist, or a budget of
+  steps proportional to `limit` and the forest's size. A derivation never holds a (symbol, span) node inside itself. So a
   cycle adds none, and a slipper `;` appears only where a statement needs
   it, never as a null statement beside one that does not (`{ 1; }` has one
   derivation, not one per `;`; `TestForestFromChart`). Enumeration stops at
@@ -1380,11 +1384,11 @@ or at the end of the file.
   (`TestForestLinearLatticesOnly`). Index the edges by node, and keep a
   `;`'s completions apart, when interleaved lexing branches.
 - **Cost.** `BenchmarkForest` times the forest of `std5k.pl` after
-  recognition. At 8b834a3d, in five rounds interleaved with
+  recognition. When it was added, in five rounds interleaved with
   `BenchmarkRecognize` (`-benchtime 40x`, load 7.5–8.1), it took a median
   29.6 ms per op, 21.2 MB and 20,509 allocations, beside recognition's
-  19.4 ms. The forest first submitted on this branch (e6d1ea22) took 36.0 ms
-  in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
+  19.4 ms. An earlier build of the forest, which expanded every Leo chain
+  and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
 
 ## The generated tables: `make chart-tables`
 
