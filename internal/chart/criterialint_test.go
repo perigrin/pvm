@@ -105,6 +105,13 @@ func TestCriteriaLintSectionsAndGuards(t *testing.T) {
 			`[{"id":"01cc0004-0000-7","title":"E","state":"pending","blocks":["01cc0005-0000-7"],"body":"- paths: ` + "`internal/chart/README.md`" + `\n` + ac + `"},` +
 				`{"id":"01cc0005-0000-7","title":"P","state":"pending","body":"` + ac + `- [ ] guard: the README is pinned (` + "`cmp internal/chart/README.md /dev/null`" + `)\n"}]`,
 			""},
+		{"criterion text printed verbatim",
+			`[{"id":"01cc0008-0000-7","title":"V","state":"pending","body":"` + ac + `- [ ] it prints a\\n literally\n"}]`,
+			`01cc0008-0000 "V": no command: it prints a\n literally` + "\n"},
+		{"symbol on a later paths: line is not a file",
+			`[{"id":"01cc0006-0000-7","title":"S","state":"pending","blocks":["01cc0007-0000-7"],"body":"` + ac + `- [ ] guard: the golden is unchanged (` + "`git diff --quiet -- TestSetDigestGolden`" + `)\n"},` +
+				`{"id":"01cc0007-0000-7","title":"L","state":"pending","body":"- paths: ` + "`internal/chart/recognize/sets.go` (`Set`)" + `\n` + ac + `"}]`,
+			""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			out, stderr, code := runCriteriaLint(t, []byte(c.input))

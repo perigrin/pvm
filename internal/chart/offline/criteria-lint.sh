@@ -26,14 +26,15 @@ jq -e 'type == "array"' "$in" >/dev/null 2>&1 ||
 
 # shortcut: a pin is recognised by its command's verb (a hash, cmp/diff, a
 # commit log or count), not by what it asserts; widen the pattern when a pin
-# in another shape gets past it.
+# in another shape gets past it. A paths: span is a file only if it holds a
+# `/`, so the symbols those lines name in parentheses are not taken for files.
 jq -r '
   def criteria: reduce ((.body // "") | split("\n"))[] as $l ({in: false, out: []};
       if ($l | test("^## ")) then .in = ($l | test("^## Acceptance Criteria\\s*$"))
       elif .in and ($l | test("^\\s*- \\[[ xX]\\] ")) then .out += [$l | sub("^\\s*- \\[[ xX]\\] "; "")]
       else . end) | .out;
   def command: [match("\\(`([^`]*)`\\)"; "g")] | if length == 0 then null else last.captures[0].string end;
-  def paths: [(.body // "") | split("\n")[] | select(test("^\\s*- paths:")) | match("`([^`]+)`"; "g").captures[0].string];
+  def paths: [(.body // "") | split("\n")[] | select(test("^\\s*- paths:")) | match("`([^`]+)`"; "g").captures[0].string | select(contains("/"))];
   def name: "\(.id[0:13]) \"\(.title)\"";
   (map({key: .id, value: (.blocks // [])}) | from_entries) as $blocks
   | (map({key: .id, value: paths}) | from_entries) as $paths
@@ -51,7 +52,7 @@ jq -r '
 ' "$in" >"$script"
 
 found=0
-say() { echo "$1"; found=1; }
-check() { if (sh -c "$2") </dev/null >/dev/null 2>&1; then say "$1"; fi; }
+say() { printf '%s\n' "$1"; found=1; }
+check() { if sh -c "$2" </dev/null >/dev/null 2>&1; then say "$1"; fi; }
 . "$script"
 exit "$found"
