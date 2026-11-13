@@ -31,14 +31,7 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 		text     string
 	}
 	var lines []line
-	seen := map[*Node]bool{}
-	for work := []*Node{f.Root}; len(work) > 0; {
-		n := work[len(work)-1]
-		work = work[:len(work)-1]
-		if n == nil || seen[n] {
-			continue
-		}
-		seen[n] = true
+	for _, n := range reachable(f) {
 		label := fmt.Sprintf("rule %d dot %d", n.Rule, n.Dot)
 		if n.Sym >= 0 {
 			label = "sym " + tab.Symbols[n.Sym].Name
@@ -50,7 +43,6 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 				split = a.Right.From
 			}
 			alts = append(alts, fmt.Sprintf("%d@%d", a.Rule, split))
-			work = append(work, a.Left, a.Right)
 		}
 		slices.Sort(alts)
 		lines = append(lines, line{n.From, n.To, label + " " + strings.Join(alts, " ")})
@@ -146,6 +138,21 @@ func TestForestDigestDetectsChange(t *testing.T) {
 // rebuilt is a deep copy of f whose nodes are allocated in the reverse of
 // f's discovery order and whose Alts are reversed.
 func rebuilt(f *Forest) *Forest {
+	order := reachable(f)
+	copied := map[*Node]*Node{nil: nil}
+	for _, n := range slices.Backward(order) {
+		copied[n] = &Node{Sym: n.Sym, Rule: n.Rule, Dot: n.Dot, From: n.From, To: n.To}
+	}
+	for _, n := range order {
+		for _, a := range slices.Backward(n.Alts) {
+			copied[n].Alts = append(copied[n].Alts, Alt{Rule: a.Rule, Left: copied[a.Left], Right: copied[a.Right]})
+		}
+	}
+	return &Forest{Root: copied[f.Root]}
+}
+
+// reachable is every node reachable from f's root, each once, in discovery order.
+func reachable(f *Forest) []*Node {
 	var order []*Node
 	seen := map[*Node]bool{}
 	for work := []*Node{f.Root}; len(work) > 0; {
@@ -160,14 +167,5 @@ func rebuilt(f *Forest) *Forest {
 			work = append(work, a.Left, a.Right)
 		}
 	}
-	copied := map[*Node]*Node{nil: nil}
-	for _, n := range slices.Backward(order) {
-		copied[n] = &Node{Sym: n.Sym, Rule: n.Rule, Dot: n.Dot, From: n.From, To: n.To}
-	}
-	for _, n := range order {
-		for _, a := range slices.Backward(n.Alts) {
-			copied[n].Alts = append(copied[n].Alts, Alt{Rule: a.Rule, Left: copied[a.Left], Right: copied[a.Right]})
-		}
-	}
-	return &Forest{Root: copied[f.Root]}
+	return order
 }
