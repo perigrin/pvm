@@ -1,0 +1,28 @@
+[
+  {
+    "id": "01bb0001-0000-7000-8000-000000000001",
+    "title": "Edits speed.go first",
+    "state": "pending",
+    "blocks": ["01bb0002-0000-7000-8000-000000000002"],
+    "body": "## Context\n\n- paths: `internal/chart/cmd/ratchet/speed.go`\n\n## Steps\n\n- [ ] Write the test, with no command on this line\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the key is printed (`false`)\n"
+  },
+  {
+    "id": "01bb0002-0000-7000-8000-000000000002",
+    "title": "Pins speed.go after its editor",
+    "state": "pending",
+    "blocks": ["01bb0003-0000-7000-8000-000000000003"],
+    "body": "## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the new check holds (`false`)\n- [ ] guard: speed.go is untouched since the editor (`sh -c 'sha256sum internal/chart/cmd/ratchet/speed.go | grep -q ^0000'`)\n- [ ] guard: the build still passes (`true`)\n\n### Negative Scenarios\n- [ ] the bad input is refused (`false`)\n"
+  },
+  {
+    "id": "01bb0003-0000-7000-8000-000000000003",
+    "title": "Edits an unrelated file later",
+    "state": "pending",
+    "body": "## Context\n\n- paths: `internal/chart/README.md`\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the README says so (`false`)\n"
+  },
+  {
+    "id": "01bb0004-0000-7000-8000-000000000004",
+    "title": "Already done",
+    "state": "done",
+    "body": "## Acceptance Criteria\n\n### Positive Scenarios\n- [x] it holds now that it is built (`true`)\n"
+  }
+]
