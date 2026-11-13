@@ -1443,7 +1443,7 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   (`TestForestDegenerateFiles`).
 - **Linear lattices only.** shortcut: the token ending at node j is edge
   j-1, and an inserted `;` is followed only by its `}`, as up-front lexing
-  makes them; `build` refuses any other lattice
+  makes them; `Build` refuses any other lattice
   (`TestForestLinearLatticesOnly`). Index the edges by node, and keep a
   `;`'s completions apart, when interleaved lexing branches.
 - **Forest identity.** `TestForestDigestGolden`

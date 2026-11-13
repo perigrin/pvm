@@ -182,6 +182,62 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 	measured["alloc-per-token-rd"] = fmt.Sprintf("%.3f", allocsPer(p.Ref, agg, tokens))
 }
 
+// measureStages adds the three speed-stage-*-aggregate-longlived keys: chart
+// lex, recognition and the forest each timed alone against p's Ref (recursive
+// descent) on agg, long-lived, each stage's inputs prepared outside its span
+// (lattices for recognition, charts for the forest). They are in RD units, so
+// their sum, printed on stderr and not a key, is the whole chart side's.
+func measureStages[L, C any](p Protocol, agg []string, lexOf func(path string) L, recognizer func() func(L) C,
+	forestOf func(C, L), measured map[string]string) {
+	ls, cs := make(map[string]L, len(agg)), make(map[string]C, len(agg))
+	rec := recognizer()
+	for _, f := range agg {
+		ls[f] = lexOf(f)
+		cs[f] = rec(ls[f])
+	}
+	sum := 0.0
+	for _, s := range []struct {
+		key  string
+		side Side
+	}{
+		{"speed-stage-lex-aggregate-longlived", func() Runner { return func(f string) { lexOf(f) } }},
+		{"speed-stage-recognize-aggregate-longlived", func() Runner { rec := recognizer(); return func(f string) { rec(ls[f]) } }},
+		{"speed-stage-forest-aggregate-longlived", func() Runner { return func(f string) { forestOf(cs[f], ls[f]) } }},
+	} {
+		p.Chart = s.side
+		r := p.Ratio(s.key, agg, false)
+		sum += r
+		measured[s.key] = fmt.Sprintf("%.4f", r)
+	}
+	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4g\n", sum)
+}
+
+// chartStages times the chart's stages (measureStages) over tab. Like
+// recognizerFor, a recognizer error panics; a refused file has no forest
+// (forest.Parse's rule), so its forest stage does nothing.
+func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, measured map[string]string) {
+	measureStages(p, agg,
+		func(path string) *lex.Lattice[lex.None] {
+			s, _ := lex.Lex(srcs[path], tab.Tokens)
+			return lex.Linear(s)
+		},
+		func() func(*lex.Lattice[lex.None]) *recognize.Chart {
+			r := recognize.New(tab, recognize.Options{})
+			return func(l *lex.Lattice[lex.None]) *recognize.Chart {
+				c, err := recognize.Recognize(r, l)
+				if err != nil {
+					panic("chart-ratchet: speed: " + err.Error())
+				}
+				return c
+			}
+		},
+		func(c *recognize.Chart, l *lex.Lattice[lex.None]) {
+			if c.Accepted() {
+				forest.Build(tab, c, l)
+			}
+		}, measured)
+}
+
 // measureBench runs chart's BenchLex, BenchRecognize and BenchExpected, and forest's Bench as BenchForest, on std5k.pl
 // (spec §9.3: benchmarks run in the ratchet, not in make test) and writes one measurement line each to stderr. They are
 // not keys.

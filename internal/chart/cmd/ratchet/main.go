@@ -27,12 +27,14 @@ var (
 )
 
 // keys is spec §9.5's key set in its fixed print order. It was fixed at the
-// reset; the one key added since is lex-overhead-aggregate (spec §9.3, fdb2ece2).
+// reset; added since are lex-overhead-aggregate (spec §9.3, fdb2ece2) and the
+// speed-stage-* keys (the Chart Parser Recovery Plan, perigrin's D2 and D5).
 var keys = []string{
 	"tables-drift", "leo-disagree", "ledger-gaps", "rd-accepted-chart-refused", "chart-accepted-both-refused",
 	"lex-unmapped", "tdt-aligned", "tdt-mismatch", "tdt-unseen", "terminals-per-token",
 	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate",
 	"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-cold",
+	"speed-stage-lex-aggregate-longlived", "speed-stage-recognize-aggregate-longlived", "speed-stage-forest-aggregate-longlived",
 	"alloc-per-token-chart", "alloc-per-token-rd", "items-per-token", "set-reuse", "ledger-excluded",
 	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",
 }

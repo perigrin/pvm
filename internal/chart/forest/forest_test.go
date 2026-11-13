@@ -301,7 +301,7 @@ func toyForest(t *testing.T, tab *grammar.Tables, words []string, opts recognize
 	if !c.Accepted() {
 		return nil, c, l
 	}
-	return build(tab, c, l), c, l
+	return Build(tab, c, l), c, l
 }
 
 // inputs is every string of up to n of words.
@@ -510,7 +510,7 @@ func perlForest(t *testing.T, tab *grammar.Tables, src string, opts recognize.Op
 	if !c.Accepted() {
 		return nil, c, l
 	}
-	return build(tab, c, l), c, l
+	return Build(tab, c, l), c, l
 }
 
 // TestForestRefusedChartHasNoForest: a file the chart refuses gets a
@@ -638,7 +638,7 @@ func TestForestLinearLatticesOnly(t *testing.T) {
 	if err != nil || !c.Accepted() {
 		t.Fatalf("the branched lattice: %v, accepted %v", err, err == nil && c.Accepted())
 	}
-	if f := build(tab, c, branched); f != nil {
+	if f := Build(tab, c, branched); f != nil {
 		t.Error("build made a forest of a branched lattice")
 	}
 	if f, _, _ := toyForest(t, tab, []string{"B", "B", "C"}, recognize.Options{}); f == nil {

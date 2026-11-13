@@ -27,6 +27,6 @@ func Bench(b *testing.B, tab *grammar.Tables, src []byte) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		build(tab, c, l)
+		Build(tab, c, l)
 	}
 }
