@@ -1445,14 +1445,19 @@ or at the end of the file.
   dump visits every node reachable from the root and writes them in a fixed
   order, by span, then symbol name or rule position, never by pointer, map or
   allocation order: a symbol node gives its symbol's name and span, a rule
-  position its rule, dot and span, and each alternative its rule and split
-  (where its last symbol starts), sorted. It names no Go type, so a rewrite of
+  position its rule, dot and span, and each alternative its rule, its split
+  (where its last symbol starts, or the node's end for an empty rule) and both
+  children's keys, a child's key being its label and span
+  (`s<symbol>:<from>-<to>` or `r<rule>.<dot>:<from>-<to>`, `-` for none);
+  the alternatives are sorted. It names no Go type, so a rewrite of
   the node types rewrites the dump and leaves the golden. Only
   `go test ./internal/chart/forest -run '^TestForestDigestGolden$' -forest.update-forest-digest`
   rewrites the golden; nothing regenerates it by default.
   `TestForestDigestDetectsChange` keeps it from passing vacuously: the sample
-  has accepted files, one alternative's split or one node's span changes the
-  dump, and the same nodes built in reverse order with reversed alternatives
+  has accepted files; one alternative's split, its Left rewired to a
+  same-span node or nil, its Right to a same-start node, its Left and Right
+  swapped around a zero-width Left, or one node's span each changes the
+  dump; and the same nodes built in reverse order with reversed alternatives
   do not. A change that moves the golden has changed the forest: it is never
   regenerated to make a change pass, and in chart-recovery a regeneration
   after P5 is a stop reported to perigrin.
