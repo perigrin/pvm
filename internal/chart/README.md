@@ -1202,7 +1202,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   whether it holds a `}`) is built by the first `New` over a
   `*grammar.Tables`, kept beside that value keyed by the built value's type
   (`grammar.Derived`, so each builder gets its own value, built once per
-  tables value: `TestDerivedTwoBuilders`), and shared
+  tables value: `TestDerivedTwoBuilders`; a builder asking for its own type, directly or
+  through another builder, deadlocks), and shared
   read-only by every recognizer over it, from any goroutine; a later `New`
   allocates 6 objects where it allocated 1,672 at c99366f8 (`BenchmarkNew`).
   A tables value anywhere works, a package variable's included

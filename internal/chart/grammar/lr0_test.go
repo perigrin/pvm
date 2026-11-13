@@ -488,3 +488,13 @@ func TestDerivedBuilderPanicReleases(t *testing.T) {
 		t.Fatal("the next call did not build again")
 	}
 }
+
+// A builder of an interface type may return nil.
+func TestDerivedNilInterface(t *testing.T) {
+	tab := derivedTestTables(t)
+	for range 2 {
+		if got := Derived(tab, func(*Tables) fmt.Stringer { return nil }); got != nil {
+			t.Fatalf("got %v, want nil", got)
+		}
+	}
+}

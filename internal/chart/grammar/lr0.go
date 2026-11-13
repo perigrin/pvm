@@ -96,7 +96,8 @@ var deriveMu sync.Mutex
 // kept beside it: recognize's grammar-only tables, forest's. Each type has its
 // own value, built once. A copy of t makes its own. It is safe from any
 // goroutine, but copying t races with the first call on t. A builder that
-// panics stores nothing, so the next call builds again.
+// panics stores nothing, so the next call builds again. A builder that asks
+// for its own type, directly or through another builder, deadlocks.
 func Derived[T any](t *Tables, build func(*Tables) T) T {
 	deriveMu.Lock()
 	if t.derivedFor != t {
@@ -117,7 +118,8 @@ func Derived[T any](t *Tables, build func(*Tables) T) T {
 		slot.value = build(t)
 		slot.done = true
 	}
-	return slot.value.(T)
+	v, _ := slot.value.(T) // a nil interface value fails the assertion; its zero value is nil
+	return v
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting
