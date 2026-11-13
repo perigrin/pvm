@@ -1343,6 +1343,22 @@ its first `=`, else its first token but `;`) and requires both to refuse at the 
 `TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
 transition the sample uses and requires the disagreement to be reported.
 
+`TestSetDigestGolden` (`recognize/setdigest_test.go`) holds set identity to
+its golden, `recognize/testdata/set-digest.golden`. Over the same corpus
+sample, each file recognized whole, with one recognizer per option set
+(`Options{}`, `NoCache`, `NoLeo`, `NoCache` with `NoLeo`, `NoLookahead`), it
+hashes every set at every node (`Set.Items()`), `Inserted()` and `Expected` at
+every 37th node, and writes one line per option set: its name, the accepted
+count, the cached count and the digest. Only
+`go test ./internal/chart/recognize -run '^TestSetDigestGolden$' -recognize.update-set-digest`
+rewrites the golden; nothing regenerates it by default.
+`TestSetDigestDetectsChange` keeps it from passing vacuously: every option set
+accepts files, the cached count is 0 under `NoCache` and above 0 otherwise, and
+one changed item, `Inserted` entry or sampled `Expected` each moves the digest.
+A change that moves the golden has changed set identity: it is never
+regenerated to make a change pass, and in chart-recovery a regeneration after
+P2 is a stop reported to perigrin.
+
 ## The forest: `forest`
 
 `forest.Parse(tab, src)` lexes and recognizes `src`, then builds its shared
