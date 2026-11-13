@@ -1,18 +1,19 @@
 # Chart Parser Recovery Plan
 
-*pvm `internal/chart`, after waypoint 2. Revision 2, 2026-11-13.*
+*pvm `internal/chart`, after waypoint 2. Revision 3, 2026-11-13.*
 
-Revision 2. It is grounded in the sources themselves this time: Aycock's thesis, Opedal et al., YAEP, Marpa and Chalk were read, not remembered. It answers the assessment's ten held findings and shows what each piece of work does to the figure that stopped waypoint 2.
+Revision 3. It applies perigrin's scope for the run and answers the two round-2 assessments. Section 7 lists each round-2 finding and what changed. The sources (Aycock's thesis, Opedal et al., YAEP, Marpa and Chalk) were read for revision 2, and that account stands.
 
-## What changed from revision 1
+## The run's scope (perigrin)
 
-- **The recognizer already is Aycock–Horspool.** `builder.complete` is the thesis's Figure 7.5 line for line. The slow part is the thesis's own completion loop. The fix (a postdot index) comes from YAEP and Marpa, not from Aycock.
-- **R7, directly-executable code, leaves the plan.** The thesis shows it could not be compiled for a grammar the size of perly.y, and its completion step is the same full walk of the parent set that R1 removes.
-- **The lexer workstream follows Schrödinger's Token, not recognizer-driven lexing.** The thesis argues against lexical feedback by name. pvm already scans a token as a set of terminals; the work is to use that more, inside `internal/chart`.
-- **The split ε-DFA stays.** No source gives a measured reason to drop it.
-- **Measurement comes first, not last** (assessment A1), and the plan now carries a projection onto 3.51 (A8).
-- **A new option from perigrin's Chalk direction:** prune by precedence during recognition. The plan evaluates it, names its conflicts with the accepted spec, and recommends a measured spike of one narrow form.
-- **The honest headline:** the recognizer and forest work together project to about 2.2–2.6 on the kill figure, before precedence, resolve and readings exist. That is under the old limit with 0.4–0.8 to spare, not comfortably under it.
+- **In scope:** P1–P5, M1–M3, R1–R5, F1–F2, and the C1 spike. P5 is new in this revision (a forest-identity golden; round-2 finding B-B2).
+- **Out of scope:** R6, R7, L and S. Each has one line in section 3 and nothing else.
+- **C1** carries precedence as a value on items, Chalk-style: multiply to zero, and add keeps every survivor. It is built in a scratch worktree and never merged.
+- **Merged code keeps items as (state, distance).**
+- **Order:** P1–P3 and M1–M3 first. Every R and F issue then reports its stage key's change.
+- **Milestone:** `chart-recovery`, new.
+- **Decisions** D1, D2, D4, D5, D7 and D11 go to perigrin before chain-review. Nothing merges before D1, D2, D4 and D5 are ruled.
+- **The headline is unchanged:** the recognizer and forest work together project to about 2.2–2.6 on the kill figure of 3.51, before precedence, resolve and readings exist.
 
 ## Where things stand
 
@@ -40,7 +41,7 @@ Waypoint 2 stopped at the §10 speed kill: forest-timed aggregate long-lived rat
 
 So the prototype's recognizer changes alone move the whole pipeline on this corpus from about 3.1 to about 2.4, with the forest untouched. The forest figure is a subtraction of two minimums and is noisy. This is not the ratchet's protocol and not the kill's corpus.
 
-Garbage collection: the runtime's own counter (`/cpu/classes/gc/total:cpu-seconds`) reads 0.43–0.49 s of collector CPU during an 0.76–0.85 s `forest.Parse` pass, and 0.12–0.14 s during RD's 0.24 s. Collection is heavy on both sides, not only the chart's.
+Garbage collection: the runtime's own counter (`/cpu/classes/gc/total:cpu-seconds`) reads 0.43–0.49 CPU-seconds of collector work during an 0.76–0.85 s `forest.Parse` pass, and 0.12–0.14 during RD's 0.24 s. These are CPU-seconds summed over four cores against wall seconds, so they are not a share of anything; mark workers run in parallel. They show only that collection is heavy on both sides, not only the chart's.
 
 ## 1. What the sources say
 
@@ -64,21 +65,9 @@ Each claim names where it was read. Anything not verified is marked unverified.
 - **Code size:** SHALLOW's stripped executables were 1.5× (expression grammar) and 9.0× (Java) the size of Bison's (§4.5).
 - The thesis's own verdict on shipping DEEP in its tool: "a definite 'not yet'" (§4.5).
 
-### Schrödinger's Token (thesis ch. 5)
+### Schrödinger's Token and safe sets (thesis ch. 5, 6)
 
-- A token whose type depends on context is returned as a *set* of types. A general parser repeats every type-dependent operation for each type in the set (§5.1, §5.3.2, Figure 5.4b). The grammar is unchanged.
-- **The thesis argues against lexical feedback** (§5.2.1): it "couples the scanner and parser tightly", and the scanner can no longer "tokenize the entire input in a tight loop". One of the technique's five listed advantages is "no tight coupling between scanner and parser" (§5.5).
-- It also rejects scannerless parsing on two counts: the grammar must spell out whitespace and comments, and a pushdown machine does per character what a finite automaton would (§5.2.7). It notes no timings existed then.
-- Where token *boundaries* differ (Fortran's `DO57I`, C++'s `>>`), the scanner emits both sequences, padding the shorter with null tokens the grammar ignores (§5.4.3).
-- **pvm already does the first half.** Spec rule 12 says "a token is a superposition". `builder.scan` loops over `cls.terms[e.Token.TerminalSet]`, which is Figure 5.4b. And `lex.Lattice` is a more general form of §5.4.3's padding.
-
-### Early action and safe sets (thesis ch. 6)
-
-- A set is *safe* if it has a final item, no other item shares a final item's last symbol before its dot, and no final item is an empty rule (§6.1, Properties 1–3; Lemma 1).
-- At a safe set every final item is on a real derivation (Theorem 1) and the parse is locally unambiguous (Corollary 1). So trees for everything before it can be built at once, and the sets between the last safe set and this one can be deleted (§6.2).
-- **Perl is the thesis's worst case.** On Perl 5.6.0's grammar, with its 485 conflicts kept: 61% of sets hold a final item, 31% of those are safe, the mean window is 7.5 tokens, and 59% of sets (70% of items) must be retained. Java retains 12%. The thesis blames right recursion (Tables 6.2–6.5, 6.7).
-- Those counts came from an unmodified Earley parser. The thesis notes that LR states, lookahead and set compression all change them (§6.3).
-- **Does it let later stages do less?** In principle yes: between two safe sets the forest, precedence and resolve could each work on one small window, and at a safe set no alternative needs searching. Nothing in the thesis measures that. For pvm it is unmeasured, and the memory half does not apply: pvm's sets are interned and shared (21,026 sets for 263,245 nodes), so there is little to delete.
+Both bear only on workstreams that are out of scope for this run (L and S). Revision 2 (commit 186a6af4) holds the full account; nothing below relies on it.
 
 ### Opedal et al., "Efficient Semiring-Weighted Earley Parsing"
 
@@ -89,7 +78,7 @@ Each claim names where it was read. Anything not verified is marked unverified.
 - **What that means for the planned stages:**
   - The forest *is* a semiring value: Goodman's derivation semiring, non-commutative (App. A). An SPPF built after recognition is the usual way to hold it.
   - The readings count is the counting semiring, commutative. Over the forest it is a sum of products, exact because perly.y forests are acyclic (chart README, "Cycles"). Done inside the recognizer it would need the nullable rules removed first, which pvm's ε-DFA exists to avoid.
-  - Precedence, as §8 defines it (each derivation's exposed operator context at both edges), is a finite relation and so a legitimate, non-commutative semiring. Opedal's route for that is the automaton grammar: the constraint is multiplied into the grammar, not carried beside it.
+  - Precedence, as §8 defines it (each derivation's exposed operator context at both edges), is a finite relation and so a legitimate, non-commutative semiring. Opedal's route for that is the automaton grammar: the constraint is multiplied into the grammar, not carried beside it. perigrin has ruled that form out (section 3, C).
   - Scope and type facts are not weights on rules at all. They depend on position and declarations.
 
 ### YAEP and Marpa
@@ -112,10 +101,9 @@ Each claim names where it was read. Anything not verified is marked unverified.
 - **Scanless.** Terminals are regexes matched at each character position; each LR(0) state's terminal map is tried once per position behind a cache. Its own note: 93% of attempted scans fail (`docs/architecture/earley-parser.md`, "Scan Caching").
 - **It uses the LR(0) DFA only to cluster prediction and scanning.** Chart items are dotted rules: `chart[pos][core_id][rel_dist] = value`. Completion reads a static list of waiting rule positions per nonterminal (`%_waiting_core_ids` in `Earley.pm` `_complete`).
 - **Every item carries a value.** `multiply` runs at each scan and completion and may return zero, which kills the item. `add` merges two derivations of one item by choosing a winner (`FilterComposite` `_filter_compare`; `Precedence.pm` `add` prefers the higher level number). Where no filter prefers either, the two are kept as a packed value (`_pack_survivors`).
-- **It needs one parse, and says so:** "By SemanticAction, exactly one parse survives" (ARCHITECTURE.md). The known costs of choosing early are recorded in its own documents: a merge hook to recover state the loser carried, Leo chain extension disabled to keep values equal, and `_fixup_stmts` listed as a violation of its invariants.
+- **It needs one parse, and says so:** "By SemanticAction, exactly one parse survives" (ARCHITECTURE.md). The known costs of choosing early are recorded in its own documents: a merge hook to recover state the loser carried, Leo chain extension disabled to keep values equal (`earley-parser.md`, "Chain Extension (Disabled)"; guarded by `t/bootstrap/leo-graph-equivalence.t`), and `_fixup_stmts` listed as a violation of its invariants.
 - **It parses a restricted Perl.** Indirect objects and bareword resolution are excluded; heredocs, POD and formats are planned as a pre-lex layer outside the grammar; bare regexes are single-line (`ambiguity-classes.md`).
 - **Speed:** about 5,000 lines in roughly a second with its XS build (`earley-parser.md`, "Measurement Results"). pvm recognizes `std5k.pl` in 13–19 ms. Chalk is a source of design, not a speed reference.
-- It implements Aycock's safe sets, with Property 2 tightened because zero-width terminals break the original test ("Safe-Set Garbage Collection"). pvm's inserted `;` is zero-width, so the same care applies.
 
 ### Corrections to the earlier review and to revision 1
 
@@ -127,7 +115,7 @@ Each claim names where it was read. Anything not verified is marked unverified.
 | Revision 1: "Next state: table lookup in the precomputed automaton" for all three                                     | YAEP and Marpa have no automaton. They advance a dotted rule.                                                                                                    |
 | Revision 1: "Lexing: Marpa: the lexer asks the recognizer"                                                            | Marpa allows that and also ambiguous tokens. YAEP lexes up front. The thesis argues for ambiguous tokens and against feedback.                                   |
 | Review: YAEP's figure includes "tree building"                                                                        | One tree (`one_parse_p = 1`), not a forest. pvm's forest keeps every reading, so the comparison flatters YAEP.                                                   |
-| Neither covered Schrödinger's Token, safe sets, Opedal or Chalk.                                                      | Covered above.                                                                                                                                                   |
+| Neither covered Schrödinger's Token, safe sets, Opedal or Chalk.                                                      | Opedal and Chalk are covered above; the other two in revision 2.                                                                                                 |
 
 The review's code findings and its prototype stand. I re-ran the prototype tree and saw the same direction of gain.
 
@@ -135,64 +123,90 @@ The review's code findings and its prototype stand. I re-ran the prototype tree 
 
 ## 2. Decisions the plan needs first
 
-Nothing merges before D1–D5. The full list, with options and a recommendation each, is in section 8.
+The full list, with options and a recommendation each, is in section 8.
 
-- **D1** what replaces the 3× limit. **D2** the spec's status. **D3** where the work lives. **D4** budget and due date. **D5** new and redefined ratchet keys.
-- **D6** lexer direction. **D7** precedence pruning during recognition. These authorise spikes; neither blocks the recognizer or forest work.
+- **Before chain-review, to perigrin:** D1 (what replaces the 3× limit, with provisional ceilings now), D2 (the spec's status), D4 (budget and due date), D5 (new and redefined ratchet keys), D7 (what C1's report may lead to), D11 (criterion repairs).
+- **Nothing merges before D1, D2, D4 and D5 are ruled.** Refinement may write M1, M2 and the exit issue before then; chain-review refuses the chain until the rulings exist.
+- **What refinement carries** is this file, committed under `docs/plans/`. D2 decides its standing against the accepted spec.
 
 ## 3. Workstreams
 
 Each is a pull request behind the usual gate unless marked *spike*. A spike is scratch work that ends in a written report and is never merged.
 
-**On the criteria below.** Each is a runnable command that fails on 3487d258. None is a time (§9.3). Where a bound is a number, it is provisional: §10 forbids writing a hypothesised count into a criterion, so refinement takes each bound from the prototype measured under the ratchet. A criterion on a test uses `go test -v … | grep -q '^--- PASS: Name'`, because `go test -run` exits 0 when no test matches. A criterion on a key uses an `awk` with an `END` guard, because a missing key must fail.
+**On the criteria below.**
 
-### P · Prerequisites (first in the chain)
+- Each is a runnable command that fails on 3487d258. None is a time (§9.3).
+- A criterion on a test uses `go test -v … | grep -q '^--- PASS: Name'`, because `go test -run` exits 0 when no test matches.
+- The ratchet prints `chart-ratchet: <key> <value>` (`testdata/ratchet/baseline.txt`). So a criterion on a key tests field 2 for the key and field 3 for the value, with an `END` guard so a missing key fails.
+- A bound written `B` is provisional. §10 forbids a hypothesised count in a criterion, so refinement takes each `B` from the ratchet: from M3's first reading, or from the review prototype run under the ratchet.
+- A check that already passes today is a guard, never the red criterion.
+- Test and key names here are new. None reuses a name a `chart-perly-w2` criterion already holds.
+
+### P · Prerequisites
 
 1.  **P1 · Key `Tables.Derived` by type** *(low risk)*
 
-    The slot holds one untyped value (`grammar/lr0.go` `Derived`); a second user gets the first one's value. R4 and F2 are second users. Resolves A5.
+    The slot holds one untyped value (`grammar/lr0.go` `Derived`); a second user gets the first one's value. F2 is a second user.
 
     **Criterion:** `go test ./internal/chart/grammar -run '^TestDerivedTwoBuilders$' -v | grep -q '^--- PASS: TestDerivedTwoBuilders'`
 
 2.  **P2 · Commit the set-identity guard** *(low risk)*
 
-    A digest of every set at every node, `Inserted`, sampled `Expected` and the cached count, under five option sets, compared with a committed golden file. It exists in the review's scratch tree (`zz_digest_test.go`). Resolves A10.
+    A digest of every set at every node, `Inserted`, sampled `Expected` and the cached count, under five option sets, compared with a committed golden file. It exists in the review's scratch tree (`zz_digest_test.go`), where it logs and has no golden yet.
 
-    **Criterion:** `go test ./internal/chart/recognize -run '^TestSetDigestGolden$' -v | grep -q '^--- PASS: TestSetDigestGolden'`. Every R issue keeps it green without regenerating the golden file.
+    **Criterion:** `go test ./internal/chart/recognize -run '^TestSetDigestGolden$' -v | grep -q '^--- PASS: TestSetDigestGolden'`. Every R issue keeps it green. **An R issue that needs the golden regenerated is a stop reported to perigrin.**
 
 3.  **P3 · A brute-force toy grammar with `;` and `}`** *(low risk)*
 
-    The slipper's derivations are checked today only for `{ 1; }` (review Q3). Resolves A6; must land before F2.
+    The slipper's derivations are checked today only for `{ 1; }` (review Q3). Must land before F2.
 
     **Criterion:** `go test ./internal/chart/forest -run '^TestForestSlipperBruteForce$' -v | grep -q '^--- PASS: TestForestSlipperBruteForce'`
 
-4.  **P4 · Repair the criteria git-zhi cannot run, and lint new ones** *(needs rulings (D11))*
+4.  **P4 · Repair the criteria git-zhi cannot run, and lint new ones** *(needs D11)*
 
     Four merged issues (4202, 1b0f, 41c7, 01a1bd9f), milestone criterion 7 (green without its work) and the w1 `speed.go` pin. The lint is one script run at refinement: refuse a criterion with no command, one that passes on the unchanged tree, or one pinned to a file a later issue edits.
 
-    **Criterion:** `sh internal/chart/offline/lint-criteria.sh chart-recovery` exits 0, and exits non-zero on a fixture milestone holding one of each defect.
+    - The lint's criterion is its fixture only. Running it on the live milestone at close would re-run every criterion on a baseline checkout and double a verify that already took eight attempts on w1.
+    - The w1 pin asserts how many commits touched `speed.go`. M1, M2 and M3 each touch that file. So P4 lands before M1 if D11 is ruled by then; otherwise the repair converts the pin to a check that does not count commits.
+
+    **Criterion:** `sh internal/chart/offline/lint-criteria.sh internal/chart/offline/testdata/lint-fixture; test $? -ne 0`, with the fixture holding one criterion of each defect.
+
+5.  **P5 · Commit a forest-identity golden** *(low risk; new in revision 3)*
+
+    F1 rewrites every forest node type, and its named guard in revision 2 (a node-for-node reference over 2,678 forests) was run once by FOREST's gate and never committed. The tests that are committed are written against `*Node`, so F1 would rewrite its own guards.
+
+    P5 commits a digest of each corpus-sample forest taken from a text dump: symbol, span, and each alternative's rule and split, in a fixed order. The dump names no Go type, so it survives F1.
+
+    **Criterion:** `go test ./internal/chart/forest -run '^TestForestDigestGolden$' -v | grep -q '^--- PASS: TestForestDigestGolden'`. F1 and F2 keep it green. **Regenerating it is a stop reported to perigrin.**
 
 ### M · Measurement (before any R or F issue)
 
 1.  **M1 · Time every stage that exists, each on its own key** *(needs D5)*
 
-    The ratchet's chart side becomes lex, recognize and forest, reported together and separately, beside RD's lex and parse. This is VERDICT's (1f72) speed half, moved forward. It also fixes three review findings a re-measurement depends on: Q2 (`forest.Parse` and `recognizeSource` report `lex-unmapped` by different rules), Q9 (BenchForest can time nothing) and Q12 (the load gate compares load with `NumCPU`).
+    The ratchet reports lex, recognize and forest on the chart side, together and separately, beside RD's lex and parse. It also fixes two review findings a re-measurement depends on: Q2 (`forest.Parse` and `recognizeSource` report `lex-unmapped` by different rules) and Q9 (BenchForest can time nothing).
 
-    **Criterion:** `make -s chart-ratchet | awk '$1=="speed-stage-forest-aggregate-longlived"{f=1} END{exit !f}'`, and `TestSpeedChartSideIsPipeline` passing. Guard: `TestLexOverheadDefinitionUnchanged`.
+    Revision 2 also put review Q12 here (the load gate compares load with `NumCPU`). That gate's threshold is part of a ruled definition (2026-11-11, quiet machine only), so it is **dropped from M1** and listed under D12.
+
+    **Criterion:** `make -s chart-ratchet | awk '$2=="speed-stage-forest-aggregate-longlived"{f=1} END{exit !f}'`, and `go test ./internal/chart/cmd/ratchet -run '^TestSpeedStagesTimed$' -v | grep -q '^--- PASS: TestSpeedStagesTimed'`. Guard: `TestLexOverheadDefinitionUnchanged`.
 
 2.  **M2 · Say what "cold" means now** *(needs D5)*
 
-    Since CTORONCE, "cold" reuses grammar tables an earlier `New` built (review Q1). Keep the key under an honest name and add a truly cold one only if perigrin wants it.
+    Since CTORONCE, "cold" reuses grammar tables an earlier `New` built (review Q1). The key is renamed for what it measures: a fresh recognizer per file.
 
-    **Criterion:** the renamed key prints a number and the old name is absent from the ratchet's output.
+    **Criterion:** `make -s chart-ratchet | awk '$2=="speed-ratio-aggregate-cold"{old=1} $2=="speed-ratio-aggregate-perfile"{new=1} END{exit !(new && !old)}'`
 
-3.  **M3 · Report allocation and collector CPU per stage** *(low risk)*
+3.  **M3 · Report allocation per stage, and collector CPU for the whole side** *(needs D5)*
 
-    Allocations per token for recognize and forest separately, and collector CPU per stage read from `runtime/metrics` (`/cpu/classes/gc/total:cpu-seconds`) around each timed span. That is a counter, not a profile share, so it repeats. Reported, never gated. Answers A19.
+    - `alloc-per-token-recognize` and `alloc-per-token-forest`, each counted over its own stage. Today's `alloc-per-token-chart` covers lexing plus recognition, and after M1 the forest too, so no R or F bound may sit on it.
+    - `gc-cpu-share-chart` and `gc-cpu-share-rd`: collector CPU-seconds over total process CPU-seconds, both read from `runtime/metrics` (`/cpu/classes/gc/total` over `/cpu/classes/total`) around one side's whole pass. That is the stated denominator.
+    - There is **no per-stage collector key**. Collection is concurrent and process-wide: garbage made in recognition is collected during the forest's span. So F1 reports its stage time key and `alloc-per-token-forest`, with `gc-cpu-share-chart` as context only.
+    - All reported, never gated.
 
-    **Criterion:** `make -s chart-ratchet | awk '$1=="gc-cpu-share-forest"{f=1} END{exit !f}'`
+    **Criterion:** `make -s chart-ratchet | awk '$2=="alloc-per-token-forest"{a=1} $2=="gc-cpu-share-chart"{g=1} END{exit !(a&&g)}'`
 
-**Every R and F issue then reports its own stage key before and after, under the ratchet's protocol.** The verdict reading is still taken once, at the end. This resolves A1 without breaking "before we re-measure anything": no verdict is retaken early.
+**Every R and F issue then reports its own stage key before and after, under the ratchet's protocol**, as a median of three measurements with their min and max. The verdict reading is taken once, at the end.
+
+**An issue that shows no gain is reported before it merges.** If an R or F issue meets its counting criterion but its stage key's median stays inside the before-reading's min–max range, that goes to perigrin before the merge. R4, R5, F1 and F2 are unprototyped, and pvm's rule is to measure before optimizing.
 
 ### R · Recognizer
 
@@ -204,27 +218,31 @@ Each is a pull request behind the usual gate unless marked *spike*. A spike is s
 
     YAEP `core_symb_vect_find`; Marpa PIM. Not in Aycock.
 
-    **Criterion:** a test that counts `goTo` probes per token over the corpus sample and requires at most a stated bound. Today about 5.6 (1.61M over 286k). `go test ./internal/chart/recognize -run '^TestCompletionProbesBounded$' -v | grep -q '^--- PASS'`. Guards: P2, `TestCacheMatchesNoCache`, the fuzz target.
+    **Criterion:** a test that counts `goTo` probes per token over the corpus sample and requires at most `B`. Today about 5.6 (1.61M over 286k). `go test ./internal/chart/recognize -run '^TestCompletionProbesBounded$' -v | grep -q '^--- PASS: TestCompletionProbesBounded'`. Guards: P2, `TestCacheMatchesNoCache`, the fuzz target.
 
 2.  **R2 · No per-node maps or slices** *(medium risk · prototyped)*
 
-    **The design is the prototype's**, stated here because revision 1 described a different one (A16): find duplicates by scanning, switch to a map at 24 items; carve `in` and `out` from one array; reuse the builder's buffers; copy items only for a new set. `Chart.Slipped` clones, which is where the prototype's one aliasing bug was.
+    The design is the prototype's: find duplicates by scanning, switch to a map at 24 items; carve `in` and `out` from one array; reuse the builder's buffers; copy items only for a new set. `Chart.Slipped` clones, which is where the prototype's one aliasing bug was.
 
     YAEP `sit_dist_insert` and its object stacks, adapted.
 
-    **Criterion:** `make -s chart-ratchet | awk '$1=="alloc-per-token-chart"{f=1; ok=($2<=3.0)} END{exit !(f&&ok)}'`. Today 11.40 on the ratchet's key. Guards: P2, and a `-race` test on `Slipped`.
+    **Criterion:** `make -s chart-ratchet | awk '$2=="alloc-per-token-recognize"{f=1; ok=($3<=B)} END{exit !(f&&ok)}'`. The key is M3's, recognition only. `B` is provisional: refinement takes it from the prototype run under the ratchet. The review's own meter read 8.2 falling to 1.2; the ratchet's meter reads differently (11.40 for lexing plus recognition), so neither figure is the bound. Guards: P2, and a `-race` test on `Slipped`.
 
 3.  **R3 · Make Leo cheap; do not change its default** *(low risk · prototyped)*
 
-    Test eligibility in constant time from the index and store only real memos. Revision 1's "Leo off when lookahead is on" is dropped (A17): Leo is a carried-over component (§5.1), `leo-disagree` is gated, and the lexer work may want lookahead 0, where Leo is what keeps `elsif` chains linear. Changing the default is D9.
+    Test eligibility in constant time from the index and store only real memos. Leo stays on by default: it is a carried-over component (§5.1) and `leo-disagree` is gated.
 
-    **Criterion:** a test that counts whole-set scans by `memoAt` per node and requires at most a stated bound. Today about 1 per node (263,000 over 263,245). Guards: `leo-disagree 0`, `TestForestFromChart`.
+    **Criterion:** a test that counts whole-set scans by `memoAt` per node and requires at most `B`. Today about 1 per node (263,000 over 263,245). `go test ./internal/chart/recognize -run '^TestLeoMemoScansBounded$' -v | grep -q '^--- PASS: TestLeoMemoScansBounded'`. Guards: `leo-disagree 0`, `TestForestFromChart`.
 
-4.  **R4 · Generate the next-state and waiting tables with the grammar** *(low risk)*
+4.  **R4 · A dense next-state table, only if a profile asks for it** *(low risk · gated · unpriced)*
 
-    This is where "the grammar is fixed" pays. The per-state part of R1's index, and a dense next-state table, are emitted by `make chart-tables` as data, not built at run time. After P1.
+    Revision 2 said `make chart-tables` could emit this as data. That was wrong: `make chart-tables` writes only the text files the `tables-drift` key compares, and nothing loads them. Production tables are built at run time by `grammar.Generate`, once per tables value.
 
-    **Criterion:** the R1 probe test's counter of binary searches reads 0; `tables-drift 0`.
+    So R4 is the smallest thing that removes the binary search: a dense state-by-symbol table built once in `buildGrammar`, beside the other grammar-only tables. It needs neither the generator nor P1.
+
+    **Gate:** after R1, scan and completion over interned sets no longer call `goTo`. What still does: branch sets, the slipper (`slipper.go`) and `finished.go`. R4 is refined only if a profile taken after R3 names `goTo` above the reading's noise. Otherwise it is dropped, and that is reported.
+
+    **Criterion, if refined:** `go test ./internal/chart/recognize -run '^TestGoToIsTableLookup$' -v | grep -q '^--- PASS: TestGoToIsTableLookup'`, a test that counts binary searches over the corpus sample and requires 0. Guard: P2.
 
 5.  **R5 · Hash each set once in the interner** *(low risk · estimate only)*
 
@@ -232,98 +250,97 @@ Each is a pull request behind the usual gate unless marked *spike*. A spike is s
 
     YAEP `set_core.hash`, `dists_hash`.
 
-    **Criterion:** a test counting map lookups per interned set, at most 1 (today 3). Guard: P2.
+    **Criterion:** a test counting map lookups per interned set, at most 1 (today 3). `go test ./internal/chart/recognize -run '^TestInternOneLookup$' -v | grep -q '^--- PASS: TestInternOneLookup'`. Guard: P2.
 
-**Removed: R7, a directly-executable recognizer.** perigrin asked that it not be ruled out, so here is the case in full.
+**Out of scope: R6** (cheaper transition-cache storage). It overlaps input 41df, ruled out on 2026-11-10.
 
-- DEEP's completion runs every item of the parent set (Figures 4.1, 4.7). pvm measured that walk at 1.61M probes for 360k hits. R1 removes the walk; DEEP would compile it.
-- On a 350-rule grammar DEEP produced 19,000 lines in one function and could not be compiled (§4.3). perly.y has 348 alternatives and 770 states here.
-- DEEP depends on computed goto, on rewriting threaded code while it runs, and on guard pages (§4.1.3). Go offers none of the three. That last sentence is my knowledge of Go, not a source I read for this.
-- The measured prize was small: SHALLOW to DEEP is about 0.28 s to 0.20 s on the toy grammar (Figure 4.12).
-- 69% of pvm's nodes are served from the transition cache and never run the builder at all.
-
-What a fixed grammar does buy is R4: generated tables. Reopen R7 only if a profile after R1–R5 shows table dispatch as the largest remaining term.
-
-**Removed for now: R6, cheaper transition-cache storage.** Its "bound entries per key" overlaps input 41df, which perigrin ruled out of waypoint 2 on 2026-11-10 ("Both stay out"). It is unprototyped and the riskiest change in the review. It returns only by D10.
+**Out of scope: R7** (a directly-executable recognizer). The thesis could not compile DEEP for a 350-rule grammar (§4.3); revision 2 holds the full case.
 
 ### F · Forest
 
 1.  **F1 · Pointer-free, index-based nodes** *(medium risk · unmeasured)*
 
-    `forest.Node` and `Alt` become int32 indexes into slices that hold no pointers, so the collector has nothing to trace. No production caller reads `Node` or `Alt`; `cmd/ratchet/speed.go` uses only `forest.Bench` (A21). It touches no recognizer code, so it runs beside R1. It must land before any precedence or resolve issue, since it changes the API they are written against.
+    `forest.Node` and `Alt` become int32 indexes into slices that hold no pointers, so the collector has nothing to trace. No production caller reads `Node` or `Alt`; `cmd/ratchet/speed.go` uses only `forest.Bench`. It touches no recognizer code, so it runs beside R1. It must land before F2 and before any precedence or resolve issue, since it changes the code they are written against.
 
-    **Criterion:** `go test ./internal/chart/forest -run '^TestForestNodesPointerFree$' -v | grep -q '^--- PASS'` (reflect over the node and alternative types). Guard: the 2,678-forest node-for-node reference. Reports M3's `gc-cpu-share-forest` before and after.
+    **Criterion:** `go test ./internal/chart/forest -run '^TestForestNodesPointerFree$' -v | grep -q '^--- PASS: TestForestNodesPointerFree'` (reflect over the node and alternative types). Guard: P5's golden, unregenerated. Reports the forest stage key and `alloc-per-token-forest` before and after.
 
 2.  **F2 · Size and reuse forest memory** *(low risk)*
 
-    Size the first blocks from the file, build grammar-only forest data once (after P1), and reuse recognition's inserted-`;` results (after P3 and R2).
+    Three parts, after P1, P3, P5, R2 and F1:
 
-    **Criterion:** `make -s chart-ratchet | awk '$1=="alloc-per-token-forest"{f=1; ok=($2<=B)} END{exit !(f&&ok)}'`, with B taken from M3's first reading. Guard: P3.
+    - Size the first blocks from the file.
+    - Build grammar-only forest data once per tables value (P1).
+    - **Reuse inserted-`;` results, for built nodes only.** `Recognize` computes the slipper's closure only when it builds a node (`builder.slip`). A node served from the transition cache skips the builder, and most nodes are served that way. So the chart keeps the closure for the nodes it built, and the forest reads it there. For a cache-served node the forest calls `Chart.Slipped` and recomputes, exactly as today. **The cache is not touched and stores nothing new**; that would be R6.
+    - The issue reports what share of inserted-`;` nodes the reuse covered. If the share is small, this part is dropped and the other two stand.
 
-### S · Safe sets *(spike)*
+    **Criterion:** `make -s chart-ratchet | awk '$2=="alloc-per-token-forest"{f=1; ok=($3<=B)} END{exit !(f&&ok)}'`, with `B` taken from M3's first reading after F1. Guards: P3, P5.
 
-1.  **S1 · Count safe sets on pvm's own charts** *(spike)*
+**Out of scope: S** (counting safe sets). Not in this run.
 
-    Apply Properties 1–3 (thesis §6.1) to the items inside each state at each node, with Chalk's care for zero-width terminals, over the corpus. Report the share of safe nodes and the window-length distribution.
+**Out of scope: L** (lexer shape). Not in this run; D6 is not asked.
 
-    Why bother when the thesis's Perl numbers are its worst: pvm's sets are pruned by lookahead, which the thesis says may raise the count (§6.3), and superposed tokens, which should lower it. Nobody knows which wins.
+### C · Precedence on items *(one scratch spike; perigrin's Chalk direction)*
 
-    If windows are short, the forest, precedence and resolve can each be written per window, and a safe node is a place an incremental reparse can stop. If they are long, drop the idea with a number attached.
+perigrin's point: Chalk prunes by precedence while it parses, it gave up the SPPF only because it needs one parse, and pvm could keep every surviving reading.
 
-    **Deliverable:** a report. If it is worth keeping, its merged form is one reported key, `safe-set-share`.
+**The forms, and where each stands.**
 
-### L · Lexer shape
+| Form | What it is | Standing |
+|---|---|---|
+| Value on items, `add` picks a winner | Chalk as written (`Precedence.pm` `add`) | Not built. It discards readings, and its rule is a heuristic, not bison's resolution. |
+| **Value on items, `add` keeps every survivor** | Chalk's packed survivors (`FilterComposite.pm` `_pack_survivors`) | **C1, as scoped.** Scratch only. |
+| Compiled into the tables | The same finite context multiplied into the grammar | **Ruled out by perigrin:** it grows the grammar, and Earley's cost scales with grammar size. |
+| Scope or type on items | Declared subs, imports, features | Out. These depend on position, so no two nodes could share a set. |
 
-**This workstream is about maintainability, not the kill figure.** The shared lexer costs the chart what it costs RD (99 ms each). The chart's own mapping is 23 ms, about 0.12 of the 3.51. Superposition moves work into the recognizer, so it can only cost time (spec §7, "What it costs").
+**Why the spec does not forbid the spike.** Rule 12 and §10's "facts in items" bind merged code. C1 is never merged, so it breaches neither.
 
-1.  **L1 · Type superposition, inside `internal/chart` only** *(spike · needs D6)*
+1.  **C1 · Precedence as a value on items, measured** *(scratch spike; D7)*
 
-    The token table decides a token's terminals from two previous neighbours and one next (spec §7). Each such decision is a guess made before the grammar is consulted. For three families, drop the neighbour from the key and emit the union instead: `{` as block, hash or subscript; a word as call, string or label; unary or binary operators. Let the grammar collapse them.
+    **What rides on an item.** An item is (state, distance), and an LR(0) state holds many dotted rules. A single value per item could not kill one rule inside a state. So in the spike:
 
-    Report, per family: token-table keys and lexer-list entries removed, and the change in `terminals-per-token`, `items-per-token`, `set-reuse` and the cache hit rate. Run it after R1, since its cost depends on R1.
+    - **The value is per dotted rule.** A kernel item carries one entry for each kernel dotted rule of its state. Each entry is the set of exposed operator contexts (§8's own value: the context at both edges) of the derivations that reach that dotted rule there.
+    - A dotted rule whose entry is empty is dead at that item. An item whose every entry is empty is dropped.
+    - A predicted item carries no entries: every prediction starts at one.
+    - **Multiply** runs at scan and at completion. It combines a waiting entry with what was scanned or completed, and yields the empty set where bison's resolution forbids the combination. The table of resolutions is the committed `testdata/precedence/bison-conflicts.txt`.
+    - **Add** is set union. Nothing is discarded, so every surviving reading is kept.
+    - The spike keeps the split ε-DFA. Each transition needs a map from the source state's dotted rules to the target's, built in scratch from `Tables.Items`. Whether that stays tractable is itself a result.
+    - One assumption to check first: no rule that carries precedence is nullable. The ε-DFA moves the dot over nullable symbols before any multiply could run.
 
-    This needs no lexer export and no `Expected` at lex time, so A2 and A3 do not arise. Lookahead stays on: a wider set is still one set id, and `Recognizer.lookahead` stays cacheable.
+    **How a set is identified.** Sets are interned today as (core, distances). The spike interns them as (core, distances, values). That is the growth it exists to measure: two nodes with equal items and different values are two sets.
 
-    Thesis §5.1, §5.3.2; spec rule 12; YAEP's ambiguous-typedef C grammar.
+    **How Leo carries the value.** A memo's `top` is added in one step, skipping the links between (`leo.go` `builder.leo`). A value must not skip them.
 
-2.  **L2 · Boundary superposition for `/`** *(scratch spike · cannot merge without a §11 ruling)*
+    - Chalk met this and chose one multiply per chain level: it disabled chain extension so that Leo-on and Leo-off values are equal, and holds that with `t/bootstrap/leo-graph-equivalence.t` (`earley-parser.md`, "Chain Extension (Disabled)").
+    - The spike does the same. A memo stores no value. `builder.leo` already walks the chain link by link to record cache dependencies; the spike multiplies along that walk, and the top's value is the product.
+    - `Chart.LeoLink` is unchanged. It reads links from the sets and stores nothing, and the skipped links are in no set. The tree-side check below recomputes their values.
+    - **Guard:** every set and every value equal with `NoLeo` on and off, over the referee sentences and the corpus sample. That is Chalk's test, carried over.
+    - `Chart.Slipped` already closes with Leo off, so the inserted `;` needs no separate rule.
 
-    Regex-or-divide changes where later tokens start, so it cannot be a wider set. The thesis's answer is both token sequences side by side (§5.4.3); pvm's form is a lattice branch that rejoins.
+    **What it measures,** each with and without values, on the same corpus the ratchet's aggregate uses:
 
-    Two real obstacles, both from the code: `internal/lexer` exports no way to lex from a position under a chosen expectation (`checkpoint.go`), and sets inside a branch are neither interned nor cached, while the forest refuses non-linear lattices (chart README, "Linear lattices only").
+    - items per token, and items dropped by a zero value;
+    - distinct interned sets, and `set-reuse`;
+    - the transition-cache hit rate;
+    - agreement with the bison referee (below);
+    - and, from the unchanged forest, the share of packed alternatives whose rule is an operator rule or carries `%prec`. That is what in-parse pruning could spare the forest.
 
-    So the spike is a scratch copy of the lexer with one added entry point. It reports how many nodes sit inside branches, how long branches run before rejoining, and the cost with interning off there. Only with those numbers does perigrin decide on the export.
+    **What "agreement" means.** The fixtures are `testdata/precedence/sentences.txt` (708 sentences kept, each with bison's verdict and bison's grouping as rule-and-span pairs) and `resolutions.txt` (716 resolutions covered). `TestPrecedenceReferee` does not exist; it belongs to the pending issue 1df0. So the spike reads the fixtures directly.
 
-**Why not recognizer-driven lexing, and why not scanless.**
+    - **Verdict, required, all 708.** The spike accepts a sentence exactly where bison's verdict is `accept`.
+    - **Grouping, required, every accepted sentence.** The spike enumerates the sentence's derivations from the unchanged forest (`Forest.Derivations`, with its limit), evaluates the same value bottom-up on each tree, and keeps the trees whose value is not empty. Agreement is that exactly one tree survives and its rule-and-span pairs are bison's. A sentence whose enumeration is cut is counted, not passed.
+    - **A cross-check that comes free:** the recognizer with values accepts exactly where some tree survives the tree-side evaluation. A disagreement is a defect in the spike, or the first sign that §10's stop "precedence not expressible" is real.
+    - **A resolution agrees** when every sentence covering it agrees. The report gives the count out of 716.
 
-- *Recognizer-driven* (revision 1's L1) is lexical feedback. The thesis's objection is exactly pvm's situation: the lexer could no longer run ahead in one loop (§5.2.1). It also needs the set at a node before the token that the set's lookahead is built from (A3).
-- *Scanless*, as Chalk does it, puts an Earley set at every character and tries each expected regex there. Chalk reports 93% of scan attempts failing, and keeps heredocs, POD and formats outside the grammar. For a parser whose problem is speed, that multiplies the number of sets by the mean token length. It also discards the lexer's symbol-table state, which every option still needs.
-- Chalk's lesson worth keeping is narrower: its semirings do what toke.c's `PL_expect` does, after the fact (`ambiguity-classes.md`, "Relationship to toke.c"). L1 tests that same move in pvm, with the grammar doing the collapsing.
+    **Its size.** This is not two numbers. The multiply rule and the tree-side evaluator are the unbuilt core of the precedence issues (1dc5, 1df0), built here in scratch. D4 must size it.
 
-### C · Precedence during recognition *(spike; perigrin's Chalk direction)*
+    **What its numbers can decide for merged code.** Merged items stay (state, distance), and the compiled form is ruled out. So exactly two outcomes are open, and perigrin rules between them (D7):
 
-perigrin's point: Chalk prunes by precedence and type while it parses, it gave up the SPPF only because it needs one parse, and pvm could keep an SPPF of the survivors.
+    - **§8 as written.** Precedence acts on the forest after recognition. The spike's tree-side evaluator and its agreement counts then go to the re-refinement of 1dc5 and 1df0 as evidence that the constraint is expressible.
+    - **A successor design** that amends the spec (rule 12, and §10's "facts in items") to allow one finite precedence value on items. The spike's numbers are its evidence.
 
-| Form                             | What it is                                                                                                                   | Keeps every surviving reading?                                                                               | Conflicts with the accepted spec                                                                                                                                                                                                                                                           | Effect on interning and the cache                                                                   |
-|----------------------------------|------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| **C-a** Chalk's, ported          | A value on each item; `multiply` kills, `add` picks a winner                                                                 | No. `add` discards the loser. Chalk's rule (prefer the higher level) is a heuristic, not bison's resolution. | §8; rule 12 ("items stay (state, distance)"); rule 6 (a weight may order, never decide); §10 "facts in items"                                                                                                                                                                              | Breaks both: two nodes with equal items but different values are no longer one set.                 |
-| **C-b** set-valued               | Each item carries the *set* of exposed operator contexts its derivations have (§8's own value), as Chalk's packed survivors  | Yes                                                                                                          | §8; rule 12; §10 "facts in items", squarely                                                                                                                                                                                                                                                | Survives only if the value is interned with the item, which makes it part of the item.              |
-| **C-c** compiled into the tables | The same finite context, multiplied into the grammar by `make chart-tables`. The recognizer runs unchanged over more states. | Yes. The forest builder is unchanged and builds only what survived.                                          | §8's first paragraph ("precedence leaves recognition … recognition uses perly.y's rules as written"). Not rule 12: items stay (state, distance) and recognition stays Boolean. §10 only if a state that encodes operator context counts as a fact in an item, which is perigrin's to rule. | None in kind. More states, so possibly fewer shared sets. Size unmeasured. |
-| **C-d** type or scope too        | Declared subs, imports, features deciding during recognition                                                                 | —                                                                                                            | Rule 2 (context never inside items); §10                                                                                                                                                                                                                                                   | Fatal. These depend on position, so no two nodes could share a set.                                 |
+    The plan sets no threshold. It says which way each number argues: sets and cache hits barely moved, with a large operator share in the forest, argue for a successor design; sets multiplied or cache hits fallen argue for §8 as written. Either way nothing from C1 merges in this run.
 
-**How this relates to Opedal.** Opedal's system does attach a weight to every item, as Chalk does, and proves the cost stays within a constant factor. But its weights form a real semiring (⊕ distributes; nothing is discarded), they come from rules, and a non-commutative one needs the grammar in automaton form (App. K). Chalk's filters have a semiring's interface without its laws, which is fine for one parse. §8's precedence value is non-commutative. So the Opedal-shaped way to do precedence in the recognizer is C-c: multiply the constraint into the automaton.
-
-**The dividing line.** A value that is finite and does not depend on position can ride in the recognizer without costing the sharing that makes it fast. Operator context is such a value. Scope and type are not. That is why C-c is worth a spike and C-d is not.
-
-**What it could buy.** The precedence stage would not exist as a pass, and the forest would never hold the readings precedence forbids. How much that is worth depends on how much of today's forest is operator-chain ambiguity, which is unmeasured. The chart README notes operator chains are quadratic in items at lookahead 0 and that real chains are short.
-
-1.  **C1 · Measure before designing** *(spike · needs D7)*
-
-    Two numbers, both from code that exists. First, over the corpus forests, the share of packed alternatives whose rule is an operator rule or carries `%prec`. Second, the state count of a product automaton for a six-level operator ladder and then for all of perly.y's 32 precedence lines, built in scratch by the existing generator.
-
-    If the first is small, precedence in the forest is cheap and §8 stands as written. If the second is large, C-c is dead. Only if the first is large and the second small does C-c become a design for perigrin to accept, with the bison referee (already built: 708 sentences, 716 resolutions) as its test.
-
-**What this means for the split ε-DFA.** C-a and C-b need a value per dotted rule, and an LR state holds many. Chalk keeps its chart by rule position for that reason, and Marpa's notes record LR states complicating its forest. So choosing C-a or C-b would also mean giving up the state representation, and with it items-per-node of 4.46. C-c keeps it. This is the one place the sources bear on keeping the ε-DFA, and it argues for keeping it.
+    **Deliverable:** a report holding the figures above, the guard's result, and the two agreement counts.
 
 ## 4. Projection onto the kill figure
 
@@ -331,163 +348,207 @@ perigrin's point: Chalk prunes by precedence and type while it parses, it gave u
 
 **Factors, and where each comes from.**
 
-- **R1–R3:** recognize × 0.50 (good) to × 0.70 (cautious). The review measured 0.46–0.53 on recognition alone. My runs today give 0.51–0.69 with lattice building inside the span (224–270 ms against 393–437 ms).
-- **R4 + R5:** a further × 0.92. An estimate: `intern` was 17% of the prototype's profile and R5 might halve it. Unprototyped.
-- **F2:** forest × 0.65–0.70. The over-engineering review's estimate for its cuts S2–S4 ("30–35% of build time"). Unprototyped.
+- **R1–R3:** recognize × 0.50 (good) to × 0.70 (cautious). The review measured 0.46–0.53 on recognition alone. My runs give 0.51–0.69 with lattice building inside the span (224–270 ms against 393–437 ms).
+- **R5:** a further × 0.92. An estimate: `intern` was 17% of the prototype's profile and R5 might halve it. Unprototyped. **R4 contributes nothing here**; it is unpriced and gated.
+- **F2:** forest × 0.65–0.70. The over-engineering review's estimate for its cuts S2–S4 ("30–35% of build time"). Unprototyped, and its inserted-`;` part now covers built nodes only.
 - **F1:** unknown. No source or measurement prices it. The row below assumes forest × 0.80 and is labelled as an assumption.
-- **L, S, C, M, P:** no projected change. L1 may raise recognize.
+- **P, M, C1:** no projected change. C1 is never merged.
 
 | Combination                        | Lex  | Recognize   | Forest      | Total (good) | Total (cautious) |
 |------------------------------------|------|-------------|-------------|--------------|------------------|
 | Today (the kill reading)           | 0.65 | 1.55        | 1.31        | 3.51         |                  |
 | R1–R3                              | 0.65 | 0.78 / 1.09 | 1.31        | 2.74         | 3.05             |
-| R1–R5                              | 0.65 | 0.71 / 1.00 | 1.31        | 2.67         | 2.96             |
+| R1–R3 + R5                         | 0.65 | 0.71 / 1.00 | 1.31        | 2.67         | 2.96             |
 | F2 alone                           | 0.65 | 1.55        | 0.85 / 0.92 | 3.05         | 3.12             |
-| **R1–R5 + F2**                     | 0.65 | 0.71 / 1.00 | 0.85 / 0.92 | **2.21**     | **2.57**         |
-| R1–R5 + F2 + F1 *(assumed × 0.80)* | 0.65 | 0.71 / 1.00 | 0.68 / 0.74 | 2.04         | 2.39             |
+| **R1–R3 + R5 + F2**                | 0.65 | 0.71 / 1.00 | 0.85 / 0.92 | **2.21**     | **2.57**         |
+| The same + F1 *(assumed × 0.80)*   | 0.65 | 0.71 / 1.00 | 0.68 / 0.74 | 2.04         | 2.39             |
 | Floor: lexing alone                | 0.65 | —           | —           | 0.65         |                  |
 
 Arithmetic for the bold row: 1.55 × 0.50 × 0.92 = 0.71 and 1.55 × 0.70 × 0.92 = 1.00; 1.31 × 0.65 = 0.85 and 1.31 × 0.70 = 0.92; 0.65 + 0.71 + 0.85 = 2.21 and 0.65 + 1.00 + 0.92 = 2.57.
 
 **A check against a measurement.** The R1–R3 row predicts a fall of 0.46–0.77. My probe, a different corpus and protocol, measured the whole pipeline falling from 3.05–3.24 to 2.28–2.58, about 0.5–0.9. The two agree in size.
 
-**What the table does not contain.** Precedence, resolve and the readings count are unbuilt, and nothing here prices them. Under the old limit of 3 they would have 0.43–0.79 between them after the bold row. The forest alone took 1.31 when it arrived. So this plan does not show the full waypoint fitting under 3. It shows the two stages that exist coming down by about a third, and it leaves the limit question to D1.
+**What the table does not contain.** Precedence, resolve and the readings count are unbuilt, and nothing here prices them. Under the old limit of 3 they would have 0.43–0.79 between them after the bold row. The forest alone took 1.31 when it arrived. So this plan does not show the full waypoint fitting under 3. It shows the two stages that exist coming down by about a third.
 
-**Caveats.** The shares are CPU, not wall time. Collector work was a further 35% of samples and is not attributed. The prototype was timed on a probe without perl.git, which is 38% of the aggregate. The factors are assumed independent.
+**Caveats.**
+
+- The shares are CPU, not wall time. Collector work was a further 35% of samples and is not attributed.
+- The factors are assumed independent.
+- The prototype was timed on a probe corpus, not the kill reading's aggregate. Both are without perl.git: the kill aggregate was 1,391 files and held none of it. (Revision 2 said perl.git "is 38% of the aggregate". That figure is from one non-quiet run on PERLGITPARITY's unmerged branch, and describes what the aggregate would become, not the kill reading.)
 
 ## 5. The sixteen open waypoint-2 issues
 
-Resolves A7. "Hold" means untouched and still pending; nothing is cancelled by this plan.
+"Hold" means untouched and still pending. Nothing is cancelled, split or edited by this run.
 
-| Issue                                                    | Disposition                                                          | Why                                                                                               |
-|----------------------------------------------------------|----------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| VERDICT (1f72)                                           | Split. Its speed half is M1 now; its verdict half holds.             | It sat behind READINGS, which is why nothing timed the forest.                                    |
-| KEYS (1fa1)                                              | Hold; re-refine.                                                     | Its ruling covers waypoint 2's keys. M's keys need their own (D5).                                |
-| Precedence (1dc5, 1df0)                                  | Hold; re-refine after F1 and after C1 reports.                       | F1 changes the forest API they are written against; C1 may change where precedence lives.         |
-| Resolve and scope (1e1e, 1e4b)                           | Hold; re-refine after F1.                                            | Same API. Scope stays after the chart under every option above.                                   |
-| READINGS (1eb1)                                          | Hold; re-refine after F1.                                            | A sum of products over the acyclic forest.                                                        |
-| Oracle (1eda, 1f12, 1fd7), PLUGIN (1f41), PRINTFH (4137) | Hold.                                                                | Downstream of precedence and resolve. PRINTFH is what milestone criterion 7 falsely reports done. |
-| EXIT (2009)                                              | Hold; its criterion changes with D1.                                 | The resolution command hard-codes `lim = 3`.                                                      |
-| COMPILEFMT (4189), TESTDEDUP (423a)                      | Free to proceed.                                                     | Independent of everything here.                                                                   |
-| PERLGITPARITY (1d6a)                                     | Stays stopped. Its drafted split is filed only after the re-measure. | perl.git is 38% of the aggregate; widening the population mid-recovery moves the denominator.     |
+| Issue | Disposition | Why |
+|---|---|---|
+| VERDICT (1f72) | Hold, unedited. Re-refined after the verdict reading. | M1 is a new issue in `chart-recovery` with its own test and key names, so none of 1f72's criteria turns green early. 1f72's speed criteria are restated against M1's keys when it is re-refined. Revision 2's "split" is withdrawn. |
+| KEYS (1fa1) | Hold; re-refine. | Its ruling covers waypoint 2's keys. M's keys need their own (D5). |
+| Precedence (1dc5, 1df0) | Hold; re-refine after F1 and after C1's report and D7. | F1 changes the forest code they are written against; D7 decides where precedence lives. |
+| Resolve and scope (1e1e, 1e4b) | Hold; re-refine after F1. | Same code. Scope stays after the chart under every option. |
+| READINGS (1eb1) | Hold; re-refine after F1. | A sum of products over the acyclic forest. |
+| Oracle (1eda, 1f12, 1fd7), PLUGIN (1f41), PRINTFH (4137) | Hold. | Downstream of precedence and resolve. PRINTFH is what milestone criterion 7 falsely reports done. |
+| EXIT (2009) | Hold; its criterion changes with D1. | The resolution command hard-codes `lim = 3`. |
+| COMPILEFMT (4189), TESTDEDUP (423a) | Free to proceed. | Independent of everything here. |
+| PERLGITPARITY (1d6a) | Stays stopped. Its drafted split is filed only after the verdict reading. | Admitting perl.git would make it about 38% of the aggregate (one non-quiet run on its branch). Widening the population mid-recovery moves the denominator. |
 
-## 6. Order
+**Who re-refines the held issues:** the step after the verdict reading (section 6, step 7), under whatever D1 and D7 then say. It is outside this run's budget.
 
-1.  **Decisions D1–D5.** D6 and D7 to authorise spikes.
-2.  **P1, P2, P3, then M1–M3.** From here every issue reports its stage key.
-3.  **R1 → R2 → R3**, with **F1 alongside**. F1 shares no code with R and is the largest single lever on the forest.
-4.  **R4, R5**; **F2** once P3 and R2 are in.
-5.  **Spikes, in scratch, from step 3 on:** S1 and C1 at once; L1 after R1; L2 last and only if D6 allows.
-6.  **One verdict reading** under M, compared with section 4's projection.
-7.  **Then decide** from the spike reports: C-c or §8 as written; the lexer export; whether R6 or R7 has earned a place. Re-refine the held issues against whatever D1 set.
+## 6. Order, exit and stops
 
-The only hard dependencies are P1 before R4 and F2, P2 before R1, P3 and R2 before F2, F1 before any precedence or resolve issue, and M before everything that claims a speed effect.
+### Order
 
-## 7. The assessment's held findings
+1.  **Decisions** D1, D2, D4, D5, D7 and D11 to perigrin, before chain-review.
+2.  **P1, P2, P3, then M1–M3.** P4 before M1 if D11 is ruled; P5 any time before F1.
+3.  **R1 → R2 → R3**, with **F1 alongside** (after P5).
+4.  **R5**; **F2** once P1, P3, R2 and F1 are in; **R4** only if the post-R3 profile names `goTo`.
+5.  **C1**, in a scratch worktree, any time after P2. It shares no branch with the merged work.
+6.  **One verdict reading** under M, compared with section 4's projection. The exit issue records it.
+7.  **Afterwards, outside this run:** perigrin rules D7 on C1's report and revises D1's ceilings; the held issues are re-refined.
 
-| Finding                                             | How this revision answers it                                                                                                                                                        | Status                             |
-|-----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
-| **A1** measurement comes last                       | M1–M3 land before R1. Each issue reports its own delta under the ratchet's protocol. One verdict reading at the end.                                                                | Resolved                           |
-| **A2** L1 cannot be built in `internal/chart`       | The new L1 is type superposition through the token table and needs no lexer call. The part that does need the lexer (L2) is a scratch spike that never merges without a §11 ruling. | Resolved for L1; L2 waits on D6    |
-| **A3** `Expected` depends on the token being chosen | The premise is gone. Nothing reads `Expected` at lex time, and lookahead stays on. L1 reports the costs A3 asked for: nodes affected, items, set reuse, cache hits.                 | Resolved                           |
-| **A4** the spec and the kill have no status         | Made a decision of its own, D2, with a recommendation. The plan cannot resolve it; nothing merges until perigrin does.                                                              | Not resolved by design: perigrin's |
-| **A5** `Tables.Derived` is one untyped slot         | P1, first in the chain.                                                                                                                                                             | Resolved                           |
-| **A6** F2 changes the one untested forest path      | P3 lands before F2.                                                                                                                                                                 | Resolved                           |
-| **A7** sixteen issues without a disposition         | Section 5.                                                                                                                                                                          | Resolved, subject to D3            |
-| **A8** no projection onto the kill figure           | Section 4, with arithmetic and a measured cross-check. It agrees with the assessor's 2.7 for the recognizer alone.                                                                  | Resolved                           |
-| **A9** five decisions missing                       | D2 (spec status), D4 (budget and date), D5 (keys), D6 (the lexer and §11), D11 (criterion repairs).                                                                                 | Resolved                           |
-| **A10** no committed set-identity guard             | P2, before R1.                                                                                                                                                                      | Resolved                           |
+**Hard dependencies:** P2 before R1. P5 before F1. F1 before F2. P1, P3 and R2 before F2. M1–M3 before every R and F issue. F1 before any precedence or resolve issue.
 
-**The lesser findings.** A11: Q2, Q9 and Q12 are in M1; ponytail S7 and L4 are not taken up and are listed under D12. A12: D1's options now cite §2's latency measure and YAEP's own ratio. A13: the thesis and Opedal are read; R7 no longer rests on memory. A14: D6 asks only to authorise spikes. A15: the over-engineering review's ids are written "ponytail L1" and "ponytail L5" so they cannot be mistaken for this plan's L1 and L2. A16: R2 names the prototype's design and the ratchet's key. A17: R3 leaves the Leo default alone. A18: R6 is out. A19: M3 measures collector CPU with a counter. A20: every P item is an issue with a criterion. A21: F1's wording corrected.
+### Exit: what `chart-recovery`'s resolution checks
+
+The milestone closes on its last issue, which takes the verdict reading. Its resolution is one command, in the form `chart-perly-w2`'s takes, and it checks:
+
+- **Every stage key prints a number:** the three `speed-stage-*-aggregate-longlived` keys, `alloc-per-token-recognize`, `alloc-per-token-forest`, `gc-cpu-share-chart`.
+- **The gated count keys hold:** `tables-drift 0`, `leo-disagree 0`, `rd-accepted-chart-refused 0`, `chart-accepted-both-refused 0`, `tdt-mismatch 0`, and `lex-unmapped` at its known list.
+- **`lex-overhead` is at or under 1.3.**
+- **Both goldens pass unregenerated:** `TestSetDigestGolden` and `TestForestDigestGolden`.
+- **`make test` passes.**
+
+It does not check a speed limit, because timing keys are never compared strictly (§9.3). The verdict reading itself (three quiet measurements, each stage's median, min and max) is recorded in the milestone's Records and in the chart README's status by the exit issue. C1's report is attached to Records.
+
+**"Done" is:** the resolution green, the reading recorded beside section 4's projection, and C1's report delivered. It is not "the chart fits under a limit". That question goes back to perigrin with the reading.
+
+### Stops, each reported to perigrin
+
+- **A stage key above the ceiling D1 sets,** read as the median of three measurements at an issue's close.
+- **The verdict reading above the cautious projection, 2.57,** for lex, recognize and forest together. A stop to report, not a kill.
+- **P2's golden, or P5's, needing regeneration.**
+- **`lex-overhead` above 1.3.**
+- **Facts in items in merged code:** any merged item that is not (state, distance).
+- **An issue whose stage key does not move** (M, above): reported before it merges.
+- **The usual list:** twice the budget D4 sets (§14); a definition amended twice by the orchestrator (§10); a change needed outside `internal/chart` (§11); a criterion that cannot run or passes without its work; a gated count key that regresses.
+
+## 7. The round-2 findings
+
+Assessment A is the round-1 assessor, resumed. Assessment B is the fresh participant. A released all ten of round 1's held findings; they are not repeated here.
+
+| Finding | What revision 3 does | Status |
+|---|---|---|
+| **A-B1, B-B1** C1 is not the spike perigrin scoped | C1 rewritten as the scoped spike (section 3, C): a value per dotted rule on each item; how sets are identified; how Leo carries the value, after Chalk; what agreement means; its size; what it can decide. The compiled form is marked ruled out. D7 rewritten. | Resolved |
+| **A-B2, B-B3** no exit; budgets only after the verdict | Section 6 gives the resolution, what "done" is, and the stops. D1 now recommends provisional per-stage ceilings from the start. | Resolved, subject to D1 |
+| **B-B2** F1's guard is not in the tree | P5 commits a forest-identity golden before F1. | Resolved |
+| **B-B6** no rule for an issue that shows no gain | Stated under M and in the stops: reported to perigrin before it merges. | Resolved |
+| **B-B4** R4's premise is wrong, and R4 is unpriced | R4 is now a dense table built once in `buildGrammar`, gated on a post-R3 profile. Section 4 credits it nothing. | Resolved |
+| **B-B5** F2's reuse is unavailable on cache-served nodes | F2 reuses for built nodes only, recomputes for cache-served nodes as today, leaves the cache alone, and reports the share covered. | Resolved |
+| **A-B3** criteria read the wrong field | Every key criterion tests field 2 for the key and field 3 for the value. | Resolved |
+| **A-B4, B-B7** criteria without commands; a guard used as red | M2, R3, R4 and R5 have commands. `tables-drift 0` is no longer a criterion. | Resolved |
+| **A-B5, B-B7** R2's bound is on a key that includes lexing | Bound moved to M3's `alloc-per-token-recognize`, as a provisional `B` taken from the ratchet. | Resolved |
+| **A-B6** `TestSpeedChartSideIsPipeline` is taken | M1 uses `TestSpeedStagesTimed`. | Resolved |
+| **B-B7** P4 lints the live milestone; P4 has no place in the order | Fixture-only criterion. P4 before M1 if D11 is ruled, else the pin is converted. | Resolved |
+| **A-B7** the load gate is a ruled definition | Q12 dropped from M1 and listed under D12. | Resolved |
+| **A-B7, B-B8** M3's collector figure has no denominator and is not per-stage | M3 states the denominator, reports per side not per stage, and F1 leans on the stage time key. | Resolved |
+| **A-B7** section 9 says the plan is not in the repository | Corrected; it is committed under `docs/plans/`. | Resolved |
+| **A-B7** R4 placed "after P1" | R4 no longer needs P1. | Resolved |
+| **B-B8** F1 before F2 unstated | Added to the hard dependencies. | Resolved |
+| **B-B8** VERDICT's split leaves 1f72 stale | The split is withdrawn; 1f72 holds unedited and M1 takes new names. | Resolved |
+| **B-B8** D2's timing | D2 goes to perigrin before chain-review; refinement carries this file. | Resolved |
+| **B-B9** the perl.git caveat | Corrected in section 4 and reworded in section 5. | Resolved |
+
+**Not resolved by the plan, because they are perigrin's:** the rulings D1, D2, D4, D5, D7 and D11 themselves.
 
 ## 8. Decisions for perigrin
+
+D1, D2, D4, D5, D7 and D11 are asked before chain-review. The rest are recorded so the numbering holds.
 
 1.  **D1 · What replaces the 3× limit**
 
     - **(a)** Keep 3× on the whole pipeline. The projection reaches it for lex, recognize and forest; nobody knows about the rest.
-    - **(b)** A budget per stage in RD units, each stage's issue held to its share (the postmortem's first change).
-    - **(c)** An absolute latency: §13's "an edit to a re-parsed tree under 10 ms at p99". That is the measure the chart is wanted for, but it belongs to interleaved mode, which is not built.
+    - **(b)** A ceiling per stage in RD units, each stage's issues held to it (the postmortem's first change).
+    - **(c)** An absolute latency: §13's "an edit to a re-parsed tree under 10 ms at p99". It belongs to interleaved mode, which is not built.
     - **(d)** No limit; report only.
 
-    **Recommendation: (b), with numbers set after the verdict reading, not now.** Report every stage from M1 on. After the reading, perigrin names a whole-pipeline figure with the unbuilt stages' shares stated. Whatever is chosen stays a stop reported to him, not a target. The literature supports a looser figure than 3 for a parser that keeps every reading (thesis §4.3: 2–5× for recognition alone; YAEP: 2.5–6× with one tree).
+    **Recommendation: (b), with provisional ceilings now and a revision after the verdict.**
+
+    - **Now:** no stage may get worse than it is. The ceilings are each stage key's first quiet reading under M1, which section 4 expects near **lex 0.65, recognize 1.55 and forest 1.31**, and M1's issue writes the three numbers down. `lex-overhead` keeps its 1.3.
+    - **After the verdict reading:** perigrin revises the three, and names a whole-pipeline figure with the unbuilt stages' shares stated.
+    - A breach is a stop reported to him, not a target and not a kill. The literature supports a looser whole figure than 3 for a parser that keeps every reading (thesis §4.3: 2–5× for recognition alone; YAEP: 2.5–6× with one tree).
 
 2.  **D2 · The accepted spec's status**
 
-    §2 and §10 say a speed kill closes up-front mode. Options: amend the accepted spec; write a successor decision that supersedes §2's question, §10's speed line and §9.5's key rule; or record a ruling in Records.
+    §2 and §10 say a speed kill closes up-front mode. Options: amend the accepted spec; accept this plan as a successor decision that supersedes §2's question, §10's speed line and §9.5's key rule for the recovery; or record a ruling in Records.
 
-    **Recommendation: a successor decision.** An accepted document is frozen; this plan, once accepted, is what refinement carries onto a milestone.
+    **Recommendation: a successor decision, ruled before chain-review.** The accepted spec is frozen. This file is what refinement carries onto `chart-recovery`.
 
 3.  **D3 · Where the work lives**
 
-    Reopen `chart-perly-w2`, or a new milestone. **Recommendation: a new milestone** for P, M, R, F and the spikes. Waypoint 2 keeps its verdict and its sixteen issues as section 5 disposes of them.
+    Settled by the scope: a new milestone, `chart-recovery`. Waypoint 2 keeps its verdict and its sixteen issues as section 5 disposes of them.
 
 4.  **D4 · Budget and due date**
 
-    §14 makes twice a waypoint's budget a stop, and waypoint 2 is due 2026-11-30. **Recommendation:** the new milestone gets its own budget, sized at refinement, covering P, M, R1–R5, F1–F2 and four spike reports. The spikes' follow-on work is not in it.
+    §14 makes twice a waypoint's budget a stop, and waypoint 2 is due 2026-11-30. **Recommendation:** `chart-recovery` gets its own budget and date, sized at refinement, covering P1–P5, M1–M3, R1–R5, F1–F2 and C1. C1 is the item to size with care: its multiply rule and tree-side evaluator are the unbuilt core of two pending issues. Re-refining the held issues is not in it.
 
 5.  **D5 · New and redefined ratchet keys**
 
-    §9.5 says keys are never added after the reset. M1 and M3 add keys; M2 renames one. The precedent is the 2026-11-10 ruling "Yes, in one issue". **Recommendation: the same ruling again**, one issue taking every new baseline. R's counters are tests, not keys, to keep this ruling small.
+    §9.5 says keys are never added after the reset. M1 and M3 add keys; M2 renames one. The precedent is the 2026-11-10 ruling "Yes, in one issue". **Recommendation: the same ruling again**, covering the three `speed-stage-*` keys, `alloc-per-token-recognize`, `alloc-per-token-forest`, the two `gc-cpu-share-*` keys and the rename of the cold key. R's counters are tests, not keys, to keep the ruling small.
 
-6.  **D6 · Lexer direction**
+6.  **D6 · Lexer direction.** Not asked. L is out of scope.
 
-    - **(a)** Leave it.
-    - **(b)** Type superposition inside `internal/chart` (L1).
-    - **(c)** Boundary superposition through lattice branches, which needs a new `internal/lexer` export and so a §11 ruling (L2).
-    - **(d)** Recognizer-driven lexing.
-    - **(e)** Scanless, as Chalk.
+7.  **D7 · What C1's report may lead to**
 
-    **Recommendation: authorise L1 now and L2 as scratch only.** Decide the export when L2's report exists. Not (d): the thesis argues against it and the code cannot supply it. Not (e): it multiplies the sets and gives up the lexer's state. Neither spike is expected to help the kill figure.
+    C1 itself is scoped: a value on items, add keeping every survivor, scratch only. What perigrin is asked before chain-review is to confirm the three choices the spike rests on:
 
-7.  **D7 · Precedence during recognition**
+    - the value is **per dotted rule** within an LR(0)-state item;
+    - Leo multiplies **link by link**, with Leo-off equality as the guard;
+    - agreement means **the verdict on all 708 and the grouping on every accepted sentence**.
 
-    - **(a)** §8 as written: precedence over the forest.
-    - **(b)** C-c: compile the operator context into the tables. Needs §8's first paragraph amended, and a ruling on whether a state that encodes context is a "fact in an item" under §10.
-    - **(c)** C-a or C-b: values on items, as Chalk. Needs rule 12 and §10 withdrawn, and gives up set interning and the ε-DFA.
-    - **(d)** Scope or type in the recognizer as well.
+    What he rules after the report is which of two outcomes follows for merged code:
 
-    **Recommendation: authorise the C1 measurement and decide between (a) and (b) on its two numbers.** Rule out (c) and (d) for up-front mode. perigrin is right that keeping an SPPF of the survivors is not hard, and under (b) it is free: the forest builder does not change.
+    - **(a)** §8 as written: precedence over the forest. C1's evaluator and counts feed 1dc5 and 1df0.
+    - **(b)** A successor design that amends rule 12 and §10 to allow one finite precedence value on items.
 
-8.  **D8 · Keep the split ε-DFA?**
+    The compiled form is ruled out, and scope or type on items stays out. **Recommendation: none between (a) and (b) until the numbers exist.** Section 3 says which way each number argues. Revision 2 recommended against values on items without having measured them; that recommendation is withdrawn.
 
-    YAEP and Marpa do without it; neither gives a measurement against it. **Recommendation: keep it.** It is why a node holds 4.46 items. Revisit only if D7 goes to (c).
+8.  **D8 · Keep the split ε-DFA?** Not asked. Merged code keeps it. C1 keeps it too, and reports whether per-rule values stay tractable on LR(0) states.
 
-9.  **D9 · Leo's default**
+9.  **D9 · Leo's default.** Not asked. It stays on; R3 removes its cost.
 
-    The review suggested Leo off when lookahead is on. **Recommendation: leave it on.** R3 removes its cost; turning it off buys little after that and would have to be undone for lookahead 0.
-
-10. **D10 · R6 and R7**
-
-    **Recommendation: both out of this plan.** R6 only if the 41df ruling is reopened and a post-R profile names the cache. R7 only if a post-R profile names table dispatch, and then as SHALLOW's shape, not DEEP's.
+10. **D10 · R6 and R7.** Not asked. Both are out of scope.
 
 11. **D11 · Criterion repairs**
 
-    Six: the four unrunnable criteria (4202, 1b0f, 41c7, 01a1bd9f), milestone criterion 7, and the w1 `speed.go` pin FOREST broke. Each earlier repair of this kind was a ruling. **Recommendation:** one ruling, "convert or move, as before", applied in P4.
+    Six: the four unrunnable criteria (4202, 1b0f, 41c7, 01a1bd9f), milestone criterion 7, and the w1 `speed.go` pin FOREST broke. Each earlier repair of this kind was a ruling. **Recommendation:** one ruling, "convert or move, as before", applied in P4, with the pin converted to a check that does not count commits to `speed.go`.
 
-12. **D12 · Held from waypoint 2**
+12. **D12 · Held, not asked now**
 
-    Unchanged by this plan and still his: the four PERLGITPARITY split decisions (aligner amendment 4; NOAMP as a fitted terminal; widening `overrides.txt`; admitting 01a1c678 into FEATWORDS); ponytail L5 (the 25-copy lex pass); ponytail L1 (test-only shared-table machinery); ponytail S7 and L4. **Recommendation:** leave all of them until after the verdict reading.
+    Still perigrin's, and unchanged by this run: the four PERLGITPARITY split decisions (aligner amendment 4; NOAMP as a fitted terminal; widening `overrides.txt`; admitting 01a1c678 into FEATWORDS); ponytail L5 (the 25-copy lex pass); ponytail L1 (test-only shared-table machinery); ponytail S7 and L4; and review Q12, the load gate's comparison with `NumCPU`, which touches the 2026-11-11 ruling. **Recommendation:** leave all of them until after the verdict reading.
 
 ## 9. Risks and unknowns
 
 - **The projection is arithmetic on shares.** Only R1–R3 are prototyped. F1, the largest hoped-for forest gain, has no number at all.
-- **The unbuilt stages.** Precedence, resolve and readings have never been timed. The plan's end state is "two stages cheaper", not "the waypoint fits".
-- **Collection.** Collector CPU is about half of wall time in every stage I measured, RD included. F1 addresses the forest's part; nothing here addresses the recognizer's beyond R2.
+- **The unbuilt stages.** Precedence, resolve and readings have never been timed. The run's end state is "two stages cheaper", not "the waypoint fits".
+- **Collection.** Collector work is heavy in every stage I measured, RD included. F1 addresses the forest's part; nothing here addresses the recognizer's beyond R2. M3's side-wide key cannot attribute it to a stage.
 - **R2's buffer reuse** is where aliasing bugs hide. P2 and a race test are its net.
-- **L1 may make recognition slower** and reduce set sharing, on which R's gains were measured. That is why it is a spike that runs after R1 and reports those counts.
-- **C-c's state count** could be large enough to end the idea. C1 exists to find out cheaply.
-- **Scope.** Recovery (P, M, R, F) is one project. The lexer and precedence questions are others. The plan keeps them as spikes so they cannot hold the recovery up.
-- **This page is not a decision in the repository.** Until D2 is ruled and a document with criteria exists, refinement has nothing to carry.
+- **R4, R5, F1 and F2 may show nothing.** The no-gain rule exists for them.
+- **C1 is larger than it looks.** It builds the precedence constraint's core in scratch. If its tree-side evaluation cannot agree with bison, that is §10's "precedence not expressible" stop arriving early, which is worth knowing.
+- **C1's per-rule value on LR(0) states** may not stay tractable. The spike reports that as a result, not a failure.
+- **The provisional ceilings rest on M1's first reading.** If that reading is taken on a loaded machine, every later stop is measured against a soft number. M1's issue takes it quiet, as a median of three.
+- **This file is a plan, not yet a decision.** It is committed under `docs/plans/`. Its standing against the accepted spec is D2.
 
 ### Not verified
 
 - Aycock and Horspool's 2002 journal paper and Leo 1991: not available to me. The thesis covers the same construction but reports no timings for it.
 - Why Marpa dropped the automaton: its source says that it did, not why.
 - DEEP's ratios to Bison are read off scanned plots.
-- That Go cannot express DEEP's threaded code is my knowledge of the language, not a source read here.
-- Chalk: I read the four documents in full, `Earley.pm`'s `_complete`, and `Precedence.pm`'s and `FilterComposite.pm`'s `multiply`/`add` paths. I did not read every line of the other semirings.
+- Chalk: I read the four documents in full, `Earley.pm`'s `_complete`, and `Precedence.pm`'s and `FilterComposite.pm`'s `multiply`/`add` paths. I did not read every line of the other semirings, and I did not open `t/bootstrap/leo-graph-equivalence.t`; I cite it from `Earley.pm`'s own comment.
 - My timings: a scratch probe at load 0.7–1.8, two runs per tree, not the ratchet's protocol. `make test` and `make chart-ratchet` were not run.
-- The safe-set rate, the repeat rate of (symbol, origin) completions, the operator share of forest ambiguity, and the product automaton's size are all unmeasured; each has a spike or a counter above.
-- The quotation "recognition decides what is Perl; the forest decides which reading" is from the brief. The spec's §8 says it as "precedence leaves recognition … recognition uses perly.y's rules as written, is Boolean".
+- For revision 3 I checked three things in the tree: the ratchet's line format (`baseline.txt`), the precedence fixtures' columns (`sentences.txt`, `resolutions.txt`), and the Leo code (`leo.go`, `finished.go`). The other code claims the round-2 findings rest on (`buildGrammar`, `builder.slip`, `speed.go`'s allocation meter, the 2026-11-11 ruling, 1f72's criteria) are taken from the two assessments.
+- That `bison-conflicts.txt` is enough to state C1's multiply rule is an assumption. It is the first thing the spike finds out.
+- Whether any precedence-bearing rule is nullable: unchecked; C1 checks it first.
+- The repeat rate of (symbol, origin) completions and the operator share of forest ambiguity are unmeasured; R1 and C1 each count one.
+- 4.46 items per node, 69% of nodes cache-served and 21,026 sets for 263,245 nodes are the review probe's figures. The ratchet's nearest keys read 4.874 and 0.712 on a different meter.
 
-Sources: Aycock, PhD thesis (2001), ch. 3–7 and Figures 4.9, 4.11, 4.12 from the PDF; Opedal et al. (ACL 2023), §1–§8 and App. A, C, G, H, K, L; YAEP `src/yaep.c`, `doc/Internals.txt`, README; libmarpa `marpa.w`, `legacy.w`; Kegler's `ah2002_notes.ltx`; Chalk at e26caaff; pvm at origin/pu 352b3671 (code identical to 3487d258 under `internal/` except two READMEs); the v2 design spec; the `chart-perly-w2` milestone Records; the waypoint-2 postmortem; the assessment; the earlier review and its prototype.
+Sources: Aycock, PhD thesis (2001), ch. 3–7 and Figures 4.9, 4.11, 4.12 from the PDF; Opedal et al. (ACL 2023), §1–§8 and App. A, C, G, H, K, L; YAEP `src/yaep.c`, `doc/Internals.txt`, README; libmarpa `marpa.w`, `legacy.w`; Kegler's `ah2002_notes.ltx`; Chalk at e26caaff; pvm at origin/pu 352b3671 (code identical to 3487d258 under `internal/` except two READMEs); the v2 design spec; the `chart-perly-w2` milestone Records; the waypoint-2 postmortem; the round-1 and round-2 assessments; the earlier review and its prototype.
