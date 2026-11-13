@@ -542,6 +542,57 @@ func TestForestRefusedChartHasNoForest(t *testing.T) {
 	}
 }
 
+// TestParseRefusalMatchesRecognition: Parse refuses each refused port
+// snippet where and why the reviewed list (the package chart's
+// recognizeSource rule) says: "table" there is Parse's lex-unmapped.
+func TestParseRefusalMatchesRecognition(t *testing.T) {
+	tab := committedTables(t)
+	data, err := os.ReadFile(filepath.Join("..", "testdata", "port", "refused-where.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for _, line := range lines {
+		var name, by string
+		var at int
+		if _, err := fmt.Sscanf(line, "%s %s %d", &name, &by, &at); err != nil {
+			t.Fatalf("refused-where.txt: %q: %v", line, err)
+		}
+		src, err := os.ReadFile(filepath.Join("..", "testdata", "port", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := Refusal{Byte: at, Reason: map[string]string{"table": "lex-unmapped", "grammar": "grammar"}[by]}
+		if f, ref := Parse(tab, src); f != nil || ref != want {
+			t.Errorf("%s: forest %v, refusal %+v; want none and %+v", name, f != nil, ref, want)
+		}
+	}
+	if len(lines) < 300 {
+		t.Errorf("refused-where.txt has %d lines; the port's refused snippets are over 300", len(lines))
+	}
+}
+
+// TestParseRefusalUnmappedAfterDeadSet: an unmapped token past the first
+// dead set does not move the refusal; one at the dead set is lex-unmapped.
+func TestParseRefusalUnmappedAfterDeadSet(t *testing.T) {
+	tab := committedTables(t)
+	for _, c := range []struct {
+		src      string
+		unmapped int
+		want     Refusal
+	}{
+		{"my $x = ;\nprint <<EOT;\n", 16, Refusal{8, "grammar"}},
+		{"print <<EOT;\nno terminator\n", 6, Refusal{6, "lex-unmapped"}},
+	} {
+		if _, u := lex.Lex([]byte(c.src), tab.Tokens); u != c.unmapped {
+			t.Fatalf("%q: first unmapped byte %d, want %d", c.src, u, c.unmapped)
+		}
+		if f, ref := Parse(tab, []byte(c.src)); f != nil || ref != c.want {
+			t.Errorf("%q: forest %v, refusal %+v; want none and %+v", c.src, f != nil, ref, c.want)
+		}
+	}
+}
+
 // TestForestEnumerationBounded: enumerating a highly ambiguous, cyclic and
 // nullable toy's derivations stops at the limit, however many there are;
 // and on a diamond of unit-rule cycles, whose dead ends grow exponentially

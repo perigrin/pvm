@@ -61,13 +61,11 @@ type Refusal struct {
 
 // Parse recognizes src over tab's grammar and, where the chart accepts it,
 // builds its forest. A refused file has a refusal and no forest: at the
-// first token no terminal admits (lex-unmapped), else at the token whose
-// set died, or the end of the file (grammar).
+// token whose set died, or the end of the file, lex-unmapped where that is
+// the first token no terminal admits, else grammar (recognition's rule,
+// testdata/port/refused-where.txt).
 func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
-	if unmapped >= 0 {
-		return nil, Refusal{Byte: unmapped, Reason: "lex-unmapped"}
-	}
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
 	if err != nil {
@@ -77,6 +75,9 @@ func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 		at := len(src) // every set survived: the file ends too soon
 		if d := slices.Index(c.Sets, nil); d > 0 {
 			at = s.Raw[s.Tokens[d-1].Index].Start
+		}
+		if at == unmapped { // its empty set is where recognition died
+			return nil, Refusal{Byte: at, Reason: "lex-unmapped"}
 		}
 		return nil, Refusal{Byte: at, Reason: "grammar"}
 	}

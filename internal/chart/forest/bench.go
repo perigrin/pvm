@@ -13,7 +13,7 @@ import (
 
 // Bench times building src's forest after recognition: the chart is
 // recognized once, outside the timed loop. A file the chart refuses has no
-// forest, so nothing is timed for it.
+// forest, so it fails the benchmark rather than timing nothing.
 func Bench(b *testing.B, tab *grammar.Tables, src []byte) {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
@@ -21,11 +21,12 @@ func Bench(b *testing.B, tab *grammar.Tables, src []byte) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	if !c.Accepted() {
+		b.Fatal("the chart refuses the source, so it has no forest to time")
+	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if c.Accepted() {
-			build(tab, c, l)
-		}
+		build(tab, c, l)
 	}
 }
