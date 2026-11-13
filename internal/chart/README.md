@@ -15,8 +15,9 @@ by spec §10's long-lived speed kill. With the forest timed on the chart side
 (lex, recognize, forest build) under the ratchet's own protocol, the
 aggregate long-lived chart/recursive-descent ratio read 3.51, 3.64 and 3.47
 in three quiet readings at 3487d258, a median of 3.51 against the limit of 3;
-the same runs read 2.20 without the forest. The committed ratchet does not
-yet time the forest, so its own `speed-ratio-aggregate-longlived` still reads
+the same runs read 2.20 without the forest. The ratchet times the forest on
+its own key, `speed-stage-forest-aggregate-longlived`; its
+`speed-ratio-aggregate-longlived` still times lex plus recognize, so it reads
 about 2.2. `docs/postmortems/chart-perly-w2.md` records why the waypoint
 stopped and what a successor must know.
 
@@ -160,7 +161,13 @@ write a list for the first time.
 against it, so this section is a contract. The key set below was fixed by the
 reset of `docs/plans/2026-10-30-chart-parser-v2-design.md` §9.5: **no key is
 added, renamed or retired after it**, except `lex-overhead-aggregate`
-(perigrin, 2026-11-07, spec §9.3). Every key of the first attempt is
+(perigrin, 2026-11-07, spec §9.3). For the recovery that rule is superseded
+by the Chart Parser Recovery Plan
+(`docs/plans/2026-11-13-chart-parser-recovery-plan.md` on
+`docs/chart-recovery-plan`; perigrin's D2 and D5, 2026-11-13), which adds
+`speed-stage-lex-aggregate-longlived`,
+`speed-stage-recognize-aggregate-longlived` and
+`speed-stage-forest-aggregate-longlived`. Every key of the first attempt is
 retired.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
@@ -187,6 +194,7 @@ retired.
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
   `recognize` for `leo-disagree`, the verdict keys and the speed ratios,
+  `forest` for the forest stage key and `BenchForest`,
   `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
   reference side and the tdt keys, and `internal/parse` for recursive
   descent's verdicts and times.
@@ -223,8 +231,9 @@ To take a baseline after an intended change, run
 - **May not rise:** `tables-drift`, `leo-disagree`, `ledger-gaps`,
   `rd-accepted-chart-refused`, `chart-accepted-both-refused`, `lex-unmapped`.
   **May not fall:** `tdt-aligned`.
-- **Timing** keys (`lex-overhead*`, `speed-ratio-*`, `alloc-per-token-*`) are
-  never compared with the baseline. `lex-overhead` fails **absolutely** when
+- **Timing** keys (`lex-overhead*`, `speed-ratio-*`, `speed-stage-*`,
+  `alloc-per-token-*`) are never compared with the baseline, and no speed
+  key has a limit (D1). `lex-overhead` fails **absolutely** when
   it prints a number above 1.3, whatever its baseline.
 - **From the port's completion**, read from the same run's `ledger-gaps`
   being `0`: `tdt-mismatch`, `tdt-unseen-unlisted` and
@@ -295,6 +304,9 @@ To take a baseline after an intended change, run
 | `speed-ratio-std5k-cold` | the same, cold | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
 | `speed-ratio-aggregate-cold` | the same, cold | timing |
+| `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
+| `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
+| `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
 | `alloc-per-token-chart` | the chart's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
@@ -395,6 +407,15 @@ clock and a collector, so it is tested on fake timings
   them), so each chart pass starts with the pool empty. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
+  The `speed-ratio-*` keys keep that definition. Each `speed-stage-*` key
+  times only its own stage against recursive descent, long-lived, its inputs
+  prepared once outside the span (lattices for recognize, charts for the
+  forest; a file the chart refuses has no forest, so its forest stage does
+  nothing, as in `forest.Parse`), so the forest key times the build after
+  recognition as `forest.Bench` does, not `forest.Parse`, which runs all
+  three (`TestSpeedStagesTimed`). The three are in RD units and their sum,
+  lex + recognize + forest, is printed on stderr
+  (`speed-stage sum lex+recognize+forest`), not a key.
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
   file whose recursive-descent time alone is more than 10% of recursive
   descent's time over the **whole** population, whatever subset is timed.
