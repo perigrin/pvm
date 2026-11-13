@@ -1,5 +1,5 @@
 <!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the perl build, the bison referees, the perl labels, the -DT capture and its alignment, and what each costs to run. -->
+<!-- ABOUTME: Covers the perl build, the shim, the bison referees, the perl labels, the oracle facts, the -DT capture and its alignment, and what each costs to run. -->
 
 # internal/chart/offline
 
