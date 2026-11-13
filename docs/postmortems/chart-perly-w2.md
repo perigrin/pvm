@@ -22,10 +22,11 @@ by design.
 ## What Worked Well
 
 - **The kill was measured early and properly, not projected.** FOREST's gate
-  projected 3.9 to 4.2. perigrin ruled "Measure properly first". The answer came
-  from three quiet readings under the unchanged protocol, 6 to 12 minutes after
-  FOREST merged (01:44 UTC; readings at 01:50, 01:53 and 01:56). It came before precedence, resolve or readings were built on a
-  forest that cannot fit.
+  projected 3.9 to 4.2. perigrin ruled "Measure properly first". The answer
+  came from three quiet readings under the unchanged protocol, 6 to 12 minutes
+  after FOREST merged (01:44 UTC; readings at 01:50, 01:53 and 01:56). It came
+  before precedence, resolve or readings were built on a forest that cannot
+  fit.
 - **Gates caught real defects before merge.** Examples:
   - CTORONCE: a `weak.Make` crash on non-heap tables.
   - FOREST: superlinear forest construction (if/elsif ×2000 took 5.2 s; after
@@ -35,9 +36,9 @@ by design.
   - PERLGITLABELS: two lexer sites that were never listed.
 
   No issue went past three reopens.
-- **Mutation checking stayed the norm.** In CACHEGAPS, CTORONCE, XWORD and
-  FOREST each new guard was shown red under a named mutation, re-run by the
-  gate. FOREST's corpus forests were compared node for node against a
+- **Gates re-ran mutations and references.** CACHEGAPS's and CTORONCE's gates
+  re-ran each named mutation; XWORD's gate ran two against its known-limit
+  test. FOREST's corpus forests were compared node for node against a
   reference built with no pruning, 2,678 files in all.
 
 ## What Didn't Work
@@ -65,10 +66,10 @@ by design.
   w1's repaired `speed.go` check.
 - **Shared-machine incidents.**
   - A worker's `pkill -f "make test"` killed another runner's test.
-  - A worker used bare `git stash` across shared worktrees (its own report,
-    2026-11-12).
-  - The Go build cache filled the disk at 19 GB and stopped a test runner
-    (orchestrator session, 2026-11-12).
+  - A worker used bare `git stash` across shared worktrees (orchestrator
+    session, 2026-11-12).
+  - The Go build cache filled the disk and stopped a test runner with "no
+    space left on device" (run-forest-2, 2026-11-12).
 
   The worker brief now forbids pattern kills and bare stash.
 
