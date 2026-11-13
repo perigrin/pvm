@@ -38,7 +38,10 @@ jq -r '
   def name: "\(.id[0:13]) \"\(.title)\"";
   (map({key: .id, value: (.blocks // [])}) | from_entries) as $blocks
   | (map({key: .id, value: paths}) | from_entries) as $paths
-  | def later($id): ($blocks[$id] // []) as $d | ($d + ([$d[] | later(.)[]])) | unique;
+  | def later($id): {seen: [], todo: ($blocks[$id] // [])}
+      | until(.todo == []; .todo[0] as $x | .todo |= .[1:]
+          | if .seen | index([$x]) then . else .seen += [$x] | .todo += ($blocks[$x] // []) end)
+      | .seen;
   .[] | select(.state != "done" and .state != "cancelled") | . as $i
   | criteria[] as $c | ($c | command) as $cmd
   | if $cmd == null then "say \("\($i | name): no command: \($c)" | @sh)"

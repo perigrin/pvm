@@ -108,6 +108,16 @@ func TestCriteriaLintSectionsAndGuards(t *testing.T) {
 		{"criterion text printed verbatim",
 			`[{"id":"01cc0008-0000-7","title":"V","state":"pending","body":"` + ac + `- [ ] it prints a\\n literally\n"}]`,
 			`01cc0008-0000 "V": no command: it prints a\n literally` + "\n"},
+		// The pin check's shortcut: a pin is recognised by its command's verb, so
+		// one written as test "$(cat f)" = ... is not caught (criteria-lint.sh).
+		{"pin by test and cat is not recognised",
+			`[{"id":"01cc0009-0000-7","title":"T","state":"pending","blocks":["01cc0010-0000-7"],"body":"` + ac + `- [ ] guard: the README is pinned (` + "`test \\\"$(cat internal/chart/README.md)\\\" = x`" + `)\n"},` +
+				`{"id":"01cc0010-0000-7","title":"R","state":"pending","body":"- paths: ` + "`internal/chart/README.md`" + `\n` + ac + `"}]`,
+			""},
+		{"cycle in blocks terminates",
+			`[{"id":"01cc0011-0000-7","title":"A","state":"pending","blocks":["01cc0012-0000-7"],"body":"` + ac + `- [ ] guard: the README is pinned (` + "`cmp internal/chart/README.md /dev/null`" + `)\n"},` +
+				`{"id":"01cc0012-0000-7","title":"B","state":"pending","blocks":["01cc0011-0000-7"],"body":"- paths: ` + "`internal/chart/README.md`" + `\n` + ac + `"}]`,
+			`01cc0011-0000 "A": pins internal/chart/README.md, which 01cc0012-0000 edits: guard: the README is pinned (` + "`cmp internal/chart/README.md /dev/null`" + `)` + "\n"},
 		{"symbol on a later paths: line is not a file",
 			`[{"id":"01cc0006-0000-7","title":"S","state":"pending","blocks":["01cc0007-0000-7"],"body":"` + ac + `- [ ] guard: the golden is unchanged (` + "`git diff --quiet -- TestSetDigestGolden`" + `)\n"},` +
 				`{"id":"01cc0007-0000-7","title":"L","state":"pending","body":"- paths: ` + "`internal/chart/recognize/sets.go` (`Set`)" + `\n` + ac + `"}]`,
