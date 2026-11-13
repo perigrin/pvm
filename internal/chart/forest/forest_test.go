@@ -88,6 +88,10 @@ func brute(tab *grammar.Tables, words []string, sym, i, j int, path map[[3]int]b
 		if j == i+1 && words[i] == tab.Symbols[sym].Name {
 			return 1
 		}
+		// toke.c's zero-width ;: exactly before a } and at end of input.
+		if i == j && tab.Symbols[sym].Name == "PERLY_SEMICOLON" && (i == len(words) || words[i] == "PERLY_BRACE_CLOSE") {
+			return 1
+		}
 		return 0
 	}
 	k := [3]int{sym, i, j}
@@ -671,4 +675,155 @@ func samplePaths(t *testing.T) []string {
 		t.Fatalf("the sample found %d port snippets and %d Guacamole cases", len(port), len(cases))
 	}
 	return paths
+}
+
+// slipperToys name PERLY_SEMICOLON and PERLY_BRACE_CLOSE, so the recognizer
+// gives them the slipper. Each is statement lists in braces with ;-terminated
+// statements: a right-recursive list (Leo), a nullable before the ;, a
+// nullable after it, a null statement.
+var slipperToys = []struct {
+	name  string
+	rules []string
+}{
+	{"block", []string{"P ::= L", "L ::= L ST |", "ST ::= A PERLY_SEMICOLON | LB L PERLY_BRACE_CLOSE"}},
+	{"right-recursive list", []string{"P ::= L", "L ::= ST L |", "ST ::= A PERLY_SEMICOLON | LB L PERLY_BRACE_CLOSE"}},
+	{"nullable before ;", []string{"P ::= L", "L ::= L ST |", "ST ::= A N PERLY_SEMICOLON | LB L PERLY_BRACE_CLOSE", "N ::= C |"}},
+	{"nullable after ;", []string{"P ::= L", "L ::= L ST |", "ST ::= A PERLY_SEMICOLON N | LB L PERLY_BRACE_CLOSE", "N ::= C |"}},
+	{"null statement", []string{"P ::= L", "L ::= L ST |", "ST ::= A PERLY_SEMICOLON | PERLY_SEMICOLON | LB L PERLY_BRACE_CLOSE"}},
+}
+
+var slipperWords = []string{"A", "C", "LB", "PERLY_SEMICOLON", "PERLY_BRACE_CLOSE"}
+
+// slipperTrees is the derivations of words under tab and opts, each checked
+// against the grammar, or nil where the chart refuses.
+func slipperTrees(t *testing.T, tab *grammar.Tables, words []string, opts recognize.Options) ([]*Tree, *recognize.Chart) {
+	t.Helper()
+	f, c, l := toyForest(t, tab, words, opts)
+	if f == nil {
+		return nil, c
+	}
+	trees, cut := f.Derivations(f.Root, 1<<16)
+	if cut {
+		t.Fatalf("%q %+v: enumeration cut short", words, opts)
+	}
+	for _, tr := range trees {
+		if err := checkTree(tab, l, c.Inserted(), tr, map[[3]int]bool{}); err != nil {
+			t.Fatalf("%q %+v: %v", words, opts, err)
+		}
+	}
+	return trees, c
+}
+
+// slipperToy is the tables of the toy named name.
+func slipperToy(t *testing.T, name string) *grammar.Tables {
+	t.Helper()
+	for _, toy := range slipperToys {
+		if toy.name == name {
+			return toyTables(t, toy.rules...)
+		}
+	}
+	t.Fatalf("no slipper toy %q", name)
+	return nil
+}
+
+// TestForestSlipperBruteForce: on toys naming both terminals, over every
+// input up to five words, the forest's derivations, under every recognizer
+// option, are a multiset equal to a brute force that admits a zero-width ;
+// exactly before } and at end of input: none missing, none extra.
+func TestForestSlipperBruteForce(t *testing.T) {
+	for _, toy := range slipperToys {
+		tab := toyTables(t, toy.rules...)
+		for _, words := range inputs(slipperWords, 5) {
+			want := brute(tab, words, tab.Start, 0, len(words), map[[3]int]bool{})
+			for _, opts := range optionSets {
+				trees, _ := slipperTrees(t, tab, words, opts)
+				seen := map[string]bool{}
+				for _, tr := range trees {
+					if text := treeText(tr); seen[text] {
+						t.Fatalf("%s %q %+v: derivation %s counted twice", toy.name, words, opts, text)
+					} else {
+						seen[text] = true
+					}
+				}
+				if len(trees) != want {
+					t.Fatalf("%s %q %+v: %d derivations, brute force counts %d", toy.name, words, opts, len(trees), want)
+				}
+			}
+		}
+	}
+}
+
+// TestForestSlipperToysExercised: the toys reach the slipper. Each case has
+// a non-zero brute-force count and a derivation with a zero-width ; leaf,
+// Leo on and off; the right-recursive one makes a Leo memo with Leo on.
+func TestForestSlipperToysExercised(t *testing.T) {
+	for _, tc := range []struct{ name, toy, words string }{
+		{"before }", "block", "LB A PERLY_BRACE_CLOSE"},
+		{"end of input", "block", "A"},
+		{"right-recursive list, Leo", "right-recursive list", "A PERLY_SEMICOLON A PERLY_SEMICOLON A"},
+		{"after the nullable before ;", "nullable before ;", "LB A PERLY_BRACE_CLOSE"},
+		{"after the nullable after ;", "nullable after ;", "LB A PERLY_BRACE_CLOSE"},
+	} {
+		tab := slipperToy(t, tc.toy)
+		words := strings.Fields(tc.words)
+		if brute(tab, words, tab.Start, 0, len(words), map[[3]int]bool{}) == 0 {
+			t.Errorf("%s: brute force counts none", tc.name)
+		}
+		for _, opts := range []recognize.Options{{}, {NoLeo: true}} {
+			trees, c := slipperTrees(t, tab, words, opts)
+			if len(trees) == 0 || !slices.ContainsFunc(leaves(trees[0]), func(lf *Tree) bool { return lf.From == lf.To }) {
+				t.Errorf("%s %+v: no derivation with a zero-width ; leaf (%d derivations)", tc.name, opts, len(trees))
+			}
+			if len(c.Inserted()) == 0 {
+				t.Errorf("%s %+v: the slipper inserted nowhere", tc.name, opts)
+			}
+			if tc.toy == "right-recursive list" && !opts.NoLeo {
+				memos := 0
+				for pos := range c.Sets {
+					for sym := range tab.Symbols {
+						if _, _, _, ok := c.LeoLink(pos, sym); ok {
+							memos++
+						}
+					}
+				}
+				if memos == 0 {
+					t.Errorf("%s: no Leo memo, so the list went untested with Leo on", tc.name)
+				}
+			}
+		}
+	}
+}
+
+// TestForestSlipperRefusesMisplacedInsert: two statements with nothing
+// between them mid-block would need a ; away from } and end of input; the
+// chart refuses them and the enumerator counts none, Leo on and off.
+func TestForestSlipperRefusesMisplacedInsert(t *testing.T) {
+	for _, name := range []string{"block", "right-recursive list"} {
+		tab := slipperToy(t, name)
+		for _, src := range []string{"LB A A PERLY_SEMICOLON PERLY_BRACE_CLOSE", "A A PERLY_SEMICOLON"} {
+			words := strings.Fields(src)
+			if n := brute(tab, words, tab.Start, 0, len(words), map[[3]int]bool{}); n != 0 {
+				t.Errorf("%s %q: brute force counts %d", name, src, n)
+			}
+			for _, opts := range []recognize.Options{{}, {NoLeo: true}} {
+				if trees, c := slipperTrees(t, tab, words, opts); c.Accepted() || len(trees) != 0 {
+					t.Errorf("%s %q %+v: accepted %v, %d derivations", name, src, opts, c.Accepted(), len(trees))
+				}
+			}
+		}
+	}
+}
+
+// TestForestSlipperNoDoubleCount: an explicit ; before } is not an inserted
+// one as well: `LB A ; RB` has exactly one derivation, Leo on and off.
+func TestForestSlipperNoDoubleCount(t *testing.T) {
+	for _, name := range []string{"block", "right-recursive list"} {
+		tab := slipperToy(t, name)
+		words := strings.Fields("LB A PERLY_SEMICOLON PERLY_BRACE_CLOSE")
+		for _, opts := range []recognize.Options{{}, {NoLeo: true}} {
+			if trees, _ := slipperTrees(t, tab, words, opts); len(trees) != 1 {
+				t.Errorf("%s %+v: %d derivations, want 1", name, opts, len(trees))
+			}
+		}
+	}
 }
