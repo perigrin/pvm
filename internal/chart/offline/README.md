@@ -1,11 +1,13 @@
-<!-- ABOUTME: The chart spike's offline scripts: run by hand, never by make test or the ratchet. -->
-<!-- ABOUTME: Covers the perl build, the shim, the bison referees, the perl labels, the oracle facts, the -DT capture and its alignment, and what each costs to run. -->
+<!-- ABOUTME: The chart spike's offline scripts: run by hand, never by the ratchet, and by make test only through TestCriteriaLint's fixtures. -->
+<!-- ABOUTME: Covers the perl build, the shim, the bison referees, the perl labels, the oracle facts, the -DT capture and its alignment, the criteria lint, and what each costs to run. -->
 
 # internal/chart/offline
 
-Scripts run by hand against perl blead 94e50866 in `/opt/corpora/perl5`.
+Scripts run by hand, all but `criteria-lint.sh` against perl blead 94e50866
+in `/opt/corpora/perl5`.
 
-- They never run in `make test` or `make chart-ratchet`.
+- They never run in `make chart-ratchet`, nor in `make test`, with one
+  exception: `TestCriteriaLint` runs `criteria-lint.sh` on its two fixtures.
 - Nothing they build (perls, referee binaries) is committed.
 - Output that tests read is committed.
 - The entries below are in dependency order: `build-perl.sh` first, then the
@@ -613,3 +615,45 @@ not clean, exiting 1 with its name, the tree and the reason on stderr.
 Cost: 7 m 43 s wall clock on the 4-core development machine under load
 average about 13 (3 m 34 s user), most of it perl.git `t/`. Commit the output
 only from a run that exits 0.
+
+## criteria-lint.sh
+
+```sh
+git zhi issue list --all --format json |
+    jq '[.[] | select(.milestone=="chart-recovery")]' |
+    sh internal/chart/offline/criteria-lint.sh
+```
+
+reads an issue list in `git zhi issue list --format json`'s shape (a bare
+array of issues with `id`, `title`, `state`, `body` and `blocks`) on stdin and
+lints each acceptance criterion: a checkbox line under `## Acceptance
+Criteria`, Positive and Negative Scenarios alike, whose command is the last
+paren-wrapped backtick span on the line. It names three defects:
+
+- **no command**: no paren-wrapped backtick span (a bare backtick span does not
+  count);
+- **passes on the current tree**: a criterion not starting `guard:` whose
+  command, run with `sh -c` in the current directory, exits 0;
+- **pins `<file>`, which `<issue>` edits**: the command asserts a file's exact
+  content, hash or commit count (it uses a `sha*sum`, `md5sum`, `cksum`,
+  `hash-object`, `cmp`, `diff`, `git log` or `rev-list`), and an issue the
+  pinning issue blocks, directly or through `blocks`, names that file under its
+  `- paths:` line (a backtick span there is a file only if it holds a `/`, so
+  the symbols named beside the files are not). A file named only by an
+  earlier or unrelated issue is not a defect. The verbs are a `shortcut:` in the script: a pin in another shape
+  gets past it.
+
+Issues in state `done` or `cancelled` are not linted (their criteria are green
+by their own work) but still count as later issues. It prints one line per
+defect, `<id prefix> "<title>": <defect>: <criterion>`, and exits 1 if there
+are any, 0 if none; input that is not a JSON array exits 2 with
+`criteria-lint.sh:` and the reason on stderr. It needs `jq` and no perl and no
+pinned tree; run it from the repository root, since that is where the commands
+run, and expect it to take as long as the slowest criteria it runs (a
+`make chart-ratchet` criterion is several minutes).
+
+It is run by hand on a chain at refinement, before the issues it checks land,
+never on a live milestone at close. `TestCriteriaLint` runs it on
+`testdata/criteria-lint/bad.json` (one issue per defect, the pin through a
+transitive `blocks`) and `clean.json`; `TestCriteriaLintSectionsAndGuards` and
+`TestCriteriaLintRejectsMalformedInput` pin the line rules and the refusals.

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "01aa0001-0000-7000-8000-000000000001",
+    "title": "Criterion in prose",
+    "state": "pending",
+    "body": "## Steps\n\n- [ ] Write it\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the thing holds (`false`)\n- [ ] the other thing holds, said in prose only\n"
+  },
+  {
+    "id": "01aa0002-0000-7000-8000-000000000002",
+    "title": "Criterion green before its work",
+    "state": "pending",
+    "body": "## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] it already holds (`true`)\n"
+  },
+  {
+    "id": "01aa0003-0000-7000-8000-000000000003",
+    "title": "Pin on speed.go",
+    "state": "pending",
+    "blocks": ["01aa0004-0000-7000-8000-000000000004"],
+    "body": "## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] guard: speed.go is untouched (`git diff --quiet c6de5c76 -- internal/chart/cmd/ratchet/speed.go`)\n"
+  },
+  {
+    "id": "01aa0004-0000-7000-8000-000000000004",
+    "title": "Between the pin and its editor",
+    "state": "pending",
+    "blocks": ["01aa0005-0000-7000-8000-000000000005"],
+    "body": "## Context\n\n- paths: `internal/chart/README.md`\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the README says so (`false`)\n"
+  },
+  {
+    "id": "01aa0005-0000-7000-8000-000000000005",
+    "title": "Edits speed.go",
+    "state": "pending",
+    "body": "## Context\n\n- paths: `internal/chart/cmd/ratchet/speed.go`, `internal/chart/testdata/ratchet/baseline.txt`\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the key is printed (`false`)\n"
+  }
+]
