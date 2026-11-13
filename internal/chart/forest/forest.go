@@ -488,8 +488,9 @@ func (b *builder) add(n *Node, a Alt) {
 	n.Alts, b.alts = b.alts[:1:1], b.alts[1:]
 }
 
-// Derivations is at most limit of n's derivations, and whether a bound cut
-// them short: the limit, or a budget of steps proportional to limit and the
+// Derivations is at most limit of n's derivations, and cut, true when a
+// bound stopped the enumeration: the limit, reached even where exactly limit
+// derivations exist, or a budget of steps proportional to limit and the
 // forest's size, so a forest whose cycles hide exponentially many dead ends
 // still returns. A derivation never holds a node inside itself, so a cycle
 // adds none, and a slipper ; appears only where a derivation needs it, never

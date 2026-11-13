@@ -171,25 +171,60 @@ func checkTree(tab *grammar.Tables, l *lex.Lattice[lex.None], inserted []int, t 
 	return nil
 }
 
-// selfLoop is a node reachable in f with an Alt whose child is the node itself, or nil.
-func selfLoop(f *Forest) *Node {
-	seen := map[*Node]bool{}
-	work := []*Node{f.Root}
-	for len(work) > 0 {
-		n := work[len(work)-1]
-		work = work[:len(work)-1]
-		if n == nil || seen[n] {
+// cycle is a node reachable from f's root that is its own descendant
+// through Alts, Left or Right, or nil where the forest is acyclic: an
+// iterative depth-first search, a node grey while on the path.
+func cycle(f *Forest) *Node {
+	const grey, black = 1, 2
+	colour := map[*Node]int{}
+	type frame struct {
+		n    *Node
+		next int // the next child to visit, two per Alt
+	}
+	stack := []frame{{n: f.Root}}
+	colour[f.Root] = grey
+	for len(stack) > 0 {
+		top := &stack[len(stack)-1]
+		if top.next == 2*len(top.n.Alts) {
+			colour[top.n] = black
+			stack = stack[:len(stack)-1]
 			continue
 		}
-		seen[n] = true
-		for _, a := range n.Alts {
-			if a.Left == n || a.Right == n {
-				return n
-			}
-			work = append(work, a.Left, a.Right)
+		a := top.n.Alts[top.next/2]
+		kid := a.Left
+		if top.next%2 == 1 {
+			kid = a.Right
+		}
+		top.next++
+		switch {
+		case kid == nil || colour[kid] == black:
+		case colour[kid] == grey:
+			return kid
+		default:
+			colour[kid] = grey
+			stack = append(stack, frame{n: kid})
 		}
 	}
 	return nil
+}
+
+// TestForestCycleCheck: cycle finds a cycle of two nodes and a self-loop,
+// and none in a shared but acyclic forest.
+func TestForestCycleCheck(t *testing.T) {
+	a, b, c := &Node{Sym: 0}, &Node{Sym: 0}, &Node{Sym: 1}
+	a.Alts = []Alt{{Left: c, Right: b}}
+	b.Alts = []Alt{{Right: a}}
+	if cycle(&Forest{Root: a}) == nil {
+		t.Error("a two-node cycle went unseen")
+	}
+	b.Alts = []Alt{{Right: b}}
+	if cycle(&Forest{Root: a}) == nil {
+		t.Error("a self-loop went unseen")
+	}
+	b.Alts = []Alt{{Left: c, Right: c}}
+	if n := cycle(&Forest{Root: a}); n != nil {
+		t.Errorf("an acyclic forest sharing a node has a cycle at %+v", n)
+	}
 }
 
 // treeText is t as text, to tell two derivations apart.
@@ -420,8 +455,8 @@ func TestForestFromChart(t *testing.T) {
 			}
 			accepted++
 			checkYield(t, p, tab, f, c, l)
-			if n := selfLoop(f); n != nil {
-				t.Errorf("%s: %s over %d-%d has an Alt whose child is itself", p, tab.Symbols[n.Sym].Name, n.From, n.To)
+			if n := cycle(f); n != nil {
+				t.Errorf("%s: the forest has a cycle through node %d over %d-%d", p, n.Sym, n.From, n.To)
 			}
 			if p == samplePaths(t)[0] {
 				continue // std5k.pl: its Leo-off forest is checked by the toys' and smaller files' agreement
