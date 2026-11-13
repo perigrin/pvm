@@ -878,3 +878,20 @@ func TestForestSlipperNoDoubleCount(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildRefusedChartIsNil: a chart that does not accept has no forest, so
+// Build returns nil rather than a forest with no root.
+func TestBuildRefusedChartIsNil(t *testing.T) {
+	tab := committedTables(t)
+	for _, src := range []string{"my $x = ;\n", "sub {", "1 +", "}"} {
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+		if err != nil || c.Accepted() {
+			t.Fatalf("%q: %v, accepted %v; want a refusing chart", src, err, err == nil && c.Accepted())
+		}
+		if f := Build(tab, c, l); f != nil {
+			t.Errorf("%q: Build of a refused chart = %+v, want nil", src, f)
+		}
+	}
+}

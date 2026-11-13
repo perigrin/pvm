@@ -209,12 +209,12 @@ func measureStages[L, C any](p Protocol, agg []string, lexOf func(path string) L
 		sum += r
 		measured[s.key] = fmt.Sprintf("%.4f", r)
 	}
-	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4g\n", sum)
+	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4f\n", sum)
 }
 
 // chartStages times the chart's stages (measureStages) over tab. Like
-// recognizerFor, a recognizer error panics; a refused file has no forest
-// (forest.Parse's rule), so its forest stage does nothing.
+// recognizerFor, a recognizer error panics; a refused file has no forest, so
+// forest.Build returns at once and its forest stage does almost nothing.
 func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, measured map[string]string) {
 	measureStages(p, agg,
 		func(path string) *lex.Lattice[lex.None] {
@@ -231,11 +231,7 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string]
 				return c
 			}
 		},
-		func(c *recognize.Chart, l *lex.Lattice[lex.None]) {
-			if c.Accepted() {
-				forest.Build(tab, c, l)
-			}
-		}, measured)
+		func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }, measured)
 }
 
 // measureBench runs chart's BenchLex, BenchRecognize and BenchExpected, and forest's Bench as BenchForest, on std5k.pl
