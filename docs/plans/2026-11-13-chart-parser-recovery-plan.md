@@ -1,12 +1,12 @@
 # Chart Parser Recovery Plan
 
-*pvm `internal/chart`, after waypoint 2. Revision 3, 2026-11-13.*
+*pvm `internal/chart`, after waypoint 2. Revision 4, 2026-11-13.*
 
-Revision 3. It applies perigrin's scope for the run and answers the two round-2 assessments. Section 7 lists each round-2 finding and what changed. The sources (Aycock's thesis, Opedal et al., YAEP, Marpa and Chalk) were read for revision 2, and that account stands.
+Revision 4. It applies perigrin's scope for the run and answers the round-2 and round-3 assessments. Section 7 lists each finding from both rounds and what changed. The sources (Aycock's thesis, Opedal et al., YAEP, Marpa and Chalk) were read for revision 2, and that account stands.
 
 ## The run's scope (perigrin)
 
-- **In scope:** P1–P5, M1–M3, R1–R5, F1–F2, and the C1 spike. P5 is new in this revision (a forest-identity golden; round-2 finding B-B2).
+- **In scope:** P1–P5, M1–M3, R1–R5, F1–F2, and the C1 spike. **P5 is this plan's addition, beyond the P1–P4 perigrin scoped** (a forest-identity golden; round-2 finding B-B2). It is his to rule in or out, with D4.
 - **Out of scope:** R6, R7, L and S. Each has one line in section 3 and nothing else.
 - **C1** carries precedence as a value on items, Chalk-style: multiply to zero, and add keeps every survivor. It is built in a scratch worktree and never merged.
 - **Merged code keeps items as (state, distance).**
@@ -169,13 +169,13 @@ Each is a pull request behind the usual gate unless marked *spike*. A spike is s
     - The lint's criterion is its fixture only. Running it on the live milestone at close would re-run every criterion on a baseline checkout and double a verify that already took eight attempts on w1.
     - The w1 pin asserts how many commits touched `speed.go`. M1, M2 and M3 each touch that file. So P4 lands before M1 if D11 is ruled by then; otherwise the repair converts the pin to a check that does not count commits.
 
-    **Criterion:** `sh internal/chart/offline/lint-criteria.sh internal/chart/offline/testdata/lint-fixture; test $? -ne 0`, with the fixture holding one criterion of each defect.
+    **Criterion:** `go test ./internal/chart -run '^TestCriteriaLint$' -v | grep -q '^--- PASS: TestCriteriaLint'`. The test runs the lint on two fixtures. On the bad one it requires a non-zero exit and one named line per defect; on the clean one it requires exit 0. A missing script fails both halves. (Revision 3's shell form passed when the script was absent, since `sh` then exits 127.)
 
 5.  **P5 · Commit a forest-identity golden** *(low risk; new in revision 3)*
 
     F1 rewrites every forest node type, and its named guard in revision 2 (a node-for-node reference over 2,678 forests) was run once by FOREST's gate and never committed. The tests that are committed are written against `*Node`, so F1 would rewrite its own guards.
 
-    P5 commits a digest of each corpus-sample forest taken from a text dump: symbol, span, and each alternative's rule and split, in a fixed order. The dump names no Go type, so it survives F1.
+    P5 commits a digest of each corpus-sample forest taken from a text dump, in a fixed order: for a symbol node its symbol and span; for a rule-position node its rule, dot and span; and for each alternative its rule and split. The dump names no Go type, so it survives F1.
 
     **Criterion:** `go test ./internal/chart/forest -run '^TestForestDigestGolden$' -v | grep -q '^--- PASS: TestForestDigestGolden'`. F1 and F2 keep it green. **Regenerating it is a stop reported to perigrin.**
 
@@ -240,7 +240,7 @@ Each is a pull request behind the usual gate unless marked *spike*. A spike is s
 
     So R4 is the smallest thing that removes the binary search: a dense state-by-symbol table built once in `buildGrammar`, beside the other grammar-only tables. It needs neither the generator nor P1.
 
-    **Gate:** after R1, scan and completion over interned sets no longer call `goTo`. What still does: branch sets, the slipper (`slipper.go`) and `finished.go`. R4 is refined only if a profile taken after R3 names `goTo` above the reading's noise. Otherwise it is dropped, and that is reported.
+    **Gate:** after R1, scan and completion over interned sets no longer call `goTo`. What still does: branch sets, `memoAt`'s fallback for branch sets, the slipper (`slipper.go`) and `finished.go`. R4 is refined only if a profile taken after R3 names `goTo` above the reading's noise. Otherwise it is dropped, and that is reported.
 
     **Criterion, if refined:** `go test ./internal/chart/recognize -run '^TestGoToIsTableLookup$' -v | grep -q '^--- PASS: TestGoToIsTableLookup'`, a test that counts binary searches over the corpus sample and requires 0. Guard: P2.
 
@@ -271,6 +271,7 @@ Each is a pull request behind the usual gate unless marked *spike*. A spike is s
     - Size the first blocks from the file.
     - Build grammar-only forest data once per tables value (P1).
     - **Reuse inserted-`;` results, for built nodes only.** `Recognize` computes the slipper's closure only when it builds a node (`builder.slip`). A node served from the transition cache skips the builder, and most nodes are served that way. So the chart keeps the closure for the nodes it built, and the forest reads it there. For a cache-served node the forest calls `Chart.Slipped` and recomputes, exactly as today. **The cache is not touched and stores nothing new**; that would be R6.
+    - **The two closures differ today, and F2's issue must reconcile them.** Recognition closes the slipper's items with Leo on (`slipper.go` `semiAt`); `Chart.Slipped` closes them with Leo off, link by link. A forest that reads recognition's closure for some nodes and `Slipped`'s for others must get the same forest from both. P3 and P5 are the guards.
     - The issue reports what share of inserted-`;` nodes the reuse covered. If the share is small, this part is dropped and the other two stand.
 
     **Criterion:** `make -s chart-ratchet | awk '$2=="alloc-per-token-forest"{f=1; ok=($3<=B)} END{exit !(f&&ok)}'`, with `B` taken from M3's first reading after F1. Guards: P3, P5.
@@ -303,6 +304,7 @@ perigrin's point: Chalk prunes by precedence while it parses, it gave up the SPP
     - A predicted item carries no entries: every prediction starts at one.
     - **Multiply** runs at scan and at completion. It combines a waiting entry with what was scanned or completed, and yields the empty set where bison's resolution forbids the combination. The table of resolutions is the committed `testdata/precedence/bison-conflicts.txt`.
     - **Add** is set union. Nothing is discarded, so every surviving reading is kept.
+    - **An item whose value grows must complete again.** `builder.add` never revisits an item it has seen. With add as union, a later derivation can widen the value of an item that has already completed, and what it completed into must then be widened too. The spike re-queues such an item until values stop changing. The cross-check below would expose a spike that skips this.
     - The spike keeps the split ε-DFA. Each transition needs a map from the source state's dotted rules to the target's, built in scratch from `Tables.Items`. Whether that stays tractable is itself a result.
     - One assumption to check first: no rule that carries precedence is nullable. The ε-DFA moves the dot over nullable symbols before any multiply could run.
 
@@ -313,7 +315,8 @@ perigrin's point: Chalk prunes by precedence while it parses, it gave up the SPP
     - Chalk met this and chose one multiply per chain level: it disabled chain extension so that Leo-on and Leo-off values are equal, and holds that with `t/bootstrap/leo-graph-equivalence.t` (`earley-parser.md`, "Chain Extension (Disabled)").
     - The spike does the same. A memo stores no value. `builder.leo` already walks the chain link by link to record cache dependencies; the spike multiplies along that walk, and the top's value is the product.
     - `Chart.LeoLink` is unchanged. It reads links from the sets and stores nothing, and the skipped links are in no set. The tree-side check below recomputes their values.
-    - **Guard:** every set and every value equal with `NoLeo` on and off, over the referee sentences and the corpus sample. That is Chalk's test, carried over.
+    - **Guard:** Leo on and off agree on acceptance, and on the value of every item present in both runs, chain tops included, over the referee sentences and the corpus sample. Whole sets cannot be compared: a Leo set leaves out the links between by design, which is why `leo-disagree` compares acceptance and `Expected`, not sets. This is Chalk's test, fitted to that.
+    - **A cost to report:** the walk recomputes the chain's product on every use, so a long right recursion costs quadratic time. The report says how much of the measured time that is.
     - `Chart.Slipped` already closes with Leo off, so the inserted `;` needs no separate rule.
 
     **What it measures,** each with and without values, on the same corpus the ratchet's aggregate uses:
@@ -327,8 +330,10 @@ perigrin's point: Chalk prunes by precedence while it parses, it gave up the SPP
     **What "agreement" means.** The fixtures are `testdata/precedence/sentences.txt` (708 sentences kept, each with bison's verdict and bison's grouping as rule-and-span pairs) and `resolutions.txt` (716 resolutions covered). `TestPrecedenceReferee` does not exist; it belongs to the pending issue 1df0. So the spike reads the fixtures directly.
 
     - **Verdict, required, all 708.** The spike accepts a sentence exactly where bison's verdict is `accept`.
+    - **Which readings count.** A rendered token's set can hold terminals the sentence does not name (`foo` reads as more than one). Agreement is judged only over readings whose leaves are the sentence's own terminals. The spike gets that by **narrowing**: it lexes the rendering as usual, then replaces each token's set with the single terminal the sentence names at that position. The recognizer and the forest both run on the narrowed input, so both sides see the same readings. Tokens of a preamble keep their lexed sets. A sentence whose tokens do not line up one to one with its terminals is counted and left out.
+    - The spike also runs each sentence un-narrowed and reports the difference. **A disagreement that comes only from another reading is not §10's "precedence not expressible" stop.** It is scope's to collapse, later.
     - **Grouping, required, every accepted sentence.** The spike enumerates the sentence's derivations from the unchanged forest (`Forest.Derivations`, with its limit), evaluates the same value bottom-up on each tree, and keeps the trees whose value is not empty. Agreement is that exactly one tree survives and its rule-and-span pairs are bison's. A sentence whose enumeration is cut is counted, not passed.
-    - **A cross-check that comes free:** the recognizer with values accepts exactly where some tree survives the tree-side evaluation. A disagreement is a defect in the spike, or the first sign that §10's stop "precedence not expressible" is real.
+    - **A cross-check that comes free:** the recognizer with values accepts exactly where some tree survives the tree-side evaluation. On the narrowed input, a disagreement is a defect in the spike, or the first sign that §10's stop "precedence not expressible" is real.
     - **A resolution agrees** when every sentence covering it agrees. The report gives the count out of 716.
 
     **Its size.** This is not two numbers. The multiply rule and the tree-side evaluator are the unbuilt core of the precedence issues (1dc5, 1df0), built here in scratch. D4 must size it.
@@ -413,7 +418,7 @@ Arithmetic for the bold row: 1.55 × 0.50 × 0.92 = 0.71 and 1.55 × 0.70 × 0.9
 The milestone closes on its last issue, which takes the verdict reading. Its resolution is one command, in the form `chart-perly-w2`'s takes, and it checks:
 
 - **Every stage key prints a number:** the three `speed-stage-*-aggregate-longlived` keys, `alloc-per-token-recognize`, `alloc-per-token-forest`, `gc-cpu-share-chart`.
-- **The gated count keys hold:** `tables-drift 0`, `leo-disagree 0`, `rd-accepted-chart-refused 0`, `chart-accepted-both-refused 0`, `tdt-mismatch 0`, and `lex-unmapped` at its known list.
+- **The gated count keys hold:** `tables-drift 0`, `leo-disagree 0`, `rd-accepted-chart-refused 0`, `chart-accepted-both-refused 0`, `tdt-mismatch 0`, `ledger-gaps 0`, `tdt-unseen-unlisted 0`, `tdt-unaligned-unlisted 0`, and `lex-unmapped` at its known list.
 - **`lex-overhead` is at or under 1.3.**
 - **Both goldens pass unregenerated:** `TestSetDigestGolden` and `TestForestDigestGolden`.
 - **`make test` passes.**
@@ -424,15 +429,15 @@ It does not check a speed limit, because timing keys are never compared strictly
 
 ### Stops, each reported to perigrin
 
-- **A stage key above the ceiling D1 sets,** read as the median of three measurements at an issue's close.
-- **The verdict reading above the cautious projection, 2.57,** for lex, recognize and forest together. A stop to report, not a kill.
+- **A stage key above the ceiling D1 sets,** read as the median of three measurements at an issue's close. The ceiling is the highest of M1's three measurements, so unchanged code does not trip it.
+- **The verdict reading above the cautious projection, 2.57,** for lex, recognize and forest together, with the same margin: it fires only if the lowest of the reading's three measurements is above 2.57. A stop to report, not a kill.
 - **P2's golden, or P5's, needing regeneration.**
 - **`lex-overhead` above 1.3.**
 - **Facts in items in merged code:** any merged item that is not (state, distance).
 - **An issue whose stage key does not move** (M, above): reported before it merges.
 - **The usual list:** twice the budget D4 sets (§14); a definition amended twice by the orchestrator (§10); a change needed outside `internal/chart` (§11); a criterion that cannot run or passes without its work; a gated count key that regresses.
 
-## 7. The round-2 findings
+## 7. The round-2 and round-3 findings
 
 Assessment A is the round-1 assessor, resumed. Assessment B is the fresh participant. A released all ten of round 1's held findings; they are not repeated here.
 
@@ -458,7 +463,23 @@ Assessment A is the round-1 assessor, resumed. Assessment B is the fresh partici
 | **B-B8** D2's timing | D2 goes to perigrin before chain-review; refinement carries this file. | Resolved |
 | **B-B9** the perl.git caveat | Corrected in section 4 and reworded in section 5. | Resolved |
 
-**Not resolved by the plan, because they are perigrin's:** the rulings D1, D2, D4, D5, D7 and D11 themselves.
+**Round 3.** Assessment A's findings are G1–G6; assessment B's are N1–N4. Both seats released every round-2 finding.
+
+| Finding | What revision 4 does | Status |
+|---|---|---|
+| **G1** C1's Leo guard cannot pass | The guard compares acceptance and the value of every item present in both runs, chain tops included. Whole sets are not compared. | Resolved |
+| **G2** agreement ignores tokens with several terminals | Agreement is judged on input narrowed to the sentence's own terminals. Un-narrowed runs are reported, and a disagreement from another reading is not §10's stop. | Resolved |
+| **G3, N1** a ceiling at one reading trips on noise | Each ceiling is the maximum of M1's three measurements. The 2.57 report fires only if the lowest of three is above it. | Resolved |
+| **G4, N2** P4's criterion passes with the script missing | Replaced by `TestCriteriaLint`, which needs each defect named on the bad fixture and exit 0 on the clean one. | Resolved |
+| **G5** exit checks omit three gated keys | `ledger-gaps`, `tdt-unseen-unlisted` and `tdt-unaligned-unlisted`, each 0, added. | Resolved |
+| **G6** the Leo walk is quadratic | C1's report states the cost. | Resolved |
+| **N4** `builder.add` never revisits an item | C1's brief requires an item whose value grows to complete again. | Resolved |
+| **N3** the slipper's two closures differ in Leo | F2's issue must reconcile them, with P3 and P5 as guards. | Passed to F2's issue |
+| **B4 note** `memoAt`'s branch-set fallback calls `goTo` | Added to R4's list of callers. | Resolved |
+| **P5's provenance** | The scope section and D4 say P5 is the plan's addition, for perigrin to rule on. | Resolved |
+| **P5's dump** | It includes a rule position's rule and dot. | Resolved |
+
+**Not resolved by the plan, because they are perigrin's:** whether P5 is in, and the rulings D1, D2, D4, D5, D7 and D11 themselves.
 
 ## 8. Decisions for perigrin
 
@@ -473,7 +494,7 @@ D1, D2, D4, D5, D7 and D11 are asked before chain-review. The rest are recorded 
 
     **Recommendation: (b), with provisional ceilings now and a revision after the verdict.**
 
-    - **Now:** no stage may get worse than it is. The ceilings are each stage key's first quiet reading under M1, which section 4 expects near **lex 0.65, recognize 1.55 and forest 1.31**, and M1's issue writes the three numbers down. `lex-overhead` keeps its 1.3.
+    - **Now:** no stage may get worse than it is. Each ceiling is the **maximum of the three measurements** in that stage key's first quiet reading under M1, not their median. The kill reading's own nine measurements ran from 3.42 to 3.70, so a ceiling at the median would stop about half of all closes on noise. Section 4 expects the medians near **lex 0.65, recognize 1.55 and forest 1.31**; M1's issue writes the three ceilings down. `lex-overhead` keeps its 1.3.
     - **After the verdict reading:** perigrin revises the three, and names a whole-pipeline figure with the unbuilt stages' shares stated.
     - A breach is a stop reported to him, not a target and not a kill. The literature supports a looser whole figure than 3 for a parser that keeps every reading (thesis §4.3: 2–5× for recognition alone; YAEP: 2.5–6× with one tree).
 
@@ -489,7 +510,7 @@ D1, D2, D4, D5, D7 and D11 are asked before chain-review. The rest are recorded 
 
 4.  **D4 · Budget and due date**
 
-    §14 makes twice a waypoint's budget a stop, and waypoint 2 is due 2026-11-30. **Recommendation:** `chart-recovery` gets its own budget and date, sized at refinement, covering P1–P5, M1–M3, R1–R5, F1–F2 and C1. C1 is the item to size with care: its multiply rule and tree-side evaluator are the unbuilt core of two pending issues. Re-refining the held issues is not in it.
+    §14 makes twice a waypoint's budget a stop, and waypoint 2 is due 2026-11-30. **Recommendation:** `chart-recovery` gets its own budget and date, sized at refinement, covering P1–P4, M1–M3, R1–R5, F1–F2 and C1, plus P5 if he rules it in. **P5 is the plan's addition beyond the scoped P1–P4;** without it F1 has no corpus guard that survives its own rewrite. C1 is the item to size with care: its multiply rule and tree-side evaluator are the unbuilt core of two pending issues. Re-refining the held issues is not in it.
 
 5.  **D5 · New and redefined ratchet keys**
 
@@ -535,7 +556,7 @@ D1, D2, D4, D5, D7 and D11 are asked before chain-review. The rest are recorded 
 - **R4, R5, F1 and F2 may show nothing.** The no-gain rule exists for them.
 - **C1 is larger than it looks.** It builds the precedence constraint's core in scratch. If its tree-side evaluation cannot agree with bison, that is §10's "precedence not expressible" stop arriving early, which is worth knowing.
 - **C1's per-rule value on LR(0) states** may not stay tractable. The spike reports that as a result, not a failure.
-- **The provisional ceilings rest on M1's first reading.** If that reading is taken on a loaded machine, every later stop is measured against a soft number. M1's issue takes it quiet, as a median of three.
+- **The provisional ceilings rest on M1's first reading.** If that reading is taken on a loaded machine, every later stop is measured against a soft number. M1's issue takes it quiet, three measurements, and the ceiling is their maximum.
 - **This file is a plan, not yet a decision.** It is committed under `docs/plans/`. Its standing against the accepted spec is D2.
 
 ### Not verified
@@ -545,7 +566,7 @@ D1, D2, D4, D5, D7 and D11 are asked before chain-review. The rest are recorded 
 - DEEP's ratios to Bison are read off scanned plots.
 - Chalk: I read the four documents in full, `Earley.pm`'s `_complete`, and `Precedence.pm`'s and `FilterComposite.pm`'s `multiply`/`add` paths. I did not read every line of the other semirings, and I did not open `t/bootstrap/leo-graph-equivalence.t`; I cite it from `Earley.pm`'s own comment.
 - My timings: a scratch probe at load 0.7–1.8, two runs per tree, not the ratchet's protocol. `make test` and `make chart-ratchet` were not run.
-- For revision 3 I checked three things in the tree: the ratchet's line format (`baseline.txt`), the precedence fixtures' columns (`sentences.txt`, `resolutions.txt`), and the Leo code (`leo.go`, `finished.go`). The other code claims the round-2 findings rest on (`buildGrammar`, `builder.slip`, `speed.go`'s allocation meter, the 2026-11-11 ruling, 1f72's criteria) are taken from the two assessments.
+- For revision 3 I checked three things in the tree: the ratchet's line format (`baseline.txt`), the precedence fixtures' columns (`sentences.txt`, `resolutions.txt`), and the Leo code (`leo.go`, `finished.go`). The other code claims the round-2 findings rest on (`buildGrammar`, `builder.slip`, `speed.go`'s allocation meter, the 2026-11-11 ruling, 1f72's criteria) are taken from the two assessments. So are round 3's: `semiAt` closing with Leo on, `memoAt`'s branch-set fallback, and the three extra gated keys. That `builder.add` never revisits a seen item I read myself in `recognize.go`.
 - That `bison-conflicts.txt` is enough to state C1's multiply rule is an assumption. It is the first thing the spike finds out.
 - Whether any precedence-bearing rule is nullable: unchecked; C1 checks it first.
 - The repeat rate of (symbol, origin) completions and the operator share of forest ambiguity are unmeasured; R1 and C1 each count one.
