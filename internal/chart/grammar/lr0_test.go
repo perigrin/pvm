@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -404,6 +406,95 @@ func TestBuildLR0SequenceRuleArity(t *testing.T) {
 			t.Errorf("%d symbols: %v", n, err)
 		case !ok && (err == nil || !strings.Contains(err.Error(), "S ::=")):
 			t.Errorf("%d symbols: error %v does not name the rule", n, err)
+		}
+	}
+}
+
+func derivedTestTables(t *testing.T) *Tables {
+	t.Helper()
+	tab, err := BuildLR0("S", alts("S", "a"), []string{"a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tab
+}
+
+type derivedA struct{ n int }
+type derivedB struct{ n int }
+
+// Two builders of different types on one tables value each get their own
+// value, each built once; a copy of the tables builds its own.
+func TestDerivedTwoBuilders(t *testing.T) {
+	tab := derivedTestTables(t)
+	var builtA, builtB int
+	buildA := func(*Tables) *derivedA { builtA++; return &derivedA{builtA} }
+	buildB := func(*Tables) *derivedB { builtB++; return &derivedB{builtB} }
+	a, b := Derived(tab, buildA), Derived(tab, buildB)
+	if a2 := Derived(tab, buildA); a2 != a || Derived(tab, buildB) != b {
+		t.Fatal("a second ask built again")
+	}
+	if builtA != 1 || builtB != 1 {
+		t.Fatalf("built %d and %d times, want 1 and 1", builtA, builtB)
+	}
+	cp := *tab
+	if Derived(&cp, buildA) == a || builtA != 2 {
+		t.Fatalf("a copy shared the original's value (built %d times)", builtA)
+	}
+}
+
+func TestDerivedConcurrentFirstCall(t *testing.T) {
+	tab := derivedTestTables(t)
+	var built atomic.Int32
+	build := func(*Tables) *derivedA { built.Add(1); return &derivedA{} }
+	var wg sync.WaitGroup
+	got := make([]*derivedA, 8)
+	for i := range got {
+		wg.Add(1)
+		go func() { defer wg.Done(); got[i] = Derived(tab, build) }()
+	}
+	wg.Wait()
+	for _, g := range got {
+		if g != got[0] {
+			t.Fatal("goroutines got different values")
+		}
+	}
+	if built.Load() != 1 {
+		t.Fatalf("built %d times, want 1", built.Load())
+	}
+}
+
+// A builder may ask for another type on the same tables value.
+func TestDerivedNestedBuilder(t *testing.T) {
+	tab := derivedTestTables(t)
+	b := Derived(tab, func(t *Tables) *derivedB {
+		return &derivedB{Derived(t, func(*Tables) *derivedA { return &derivedA{7} }).n}
+	})
+	if b.n != 7 {
+		t.Fatalf("nested value %d, want 7", b.n)
+	}
+}
+
+func TestDerivedBuilderPanicReleases(t *testing.T) {
+	tab := derivedTestTables(t)
+	func() {
+		defer func() {
+			if recover() != "boom" {
+				t.Fatal("the builder's panic did not reach its caller")
+			}
+		}()
+		Derived(tab, func(*Tables) *derivedA { panic("boom") })
+	}()
+	if got := Derived(tab, func(*Tables) *derivedA { return &derivedA{1} }); got.n != 1 {
+		t.Fatal("the next call did not build again")
+	}
+}
+
+// A builder of an interface type may return nil.
+func TestDerivedNilInterface(t *testing.T) {
+	tab := derivedTestTables(t)
+	for range 2 {
+		if got := Derived(tab, func(*Tables) fmt.Stringer { return nil }); got != nil {
+			t.Fatalf("got %v, want nil", got)
 		}
 	}
 }

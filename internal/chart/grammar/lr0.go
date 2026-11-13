@@ -5,6 +5,7 @@ package grammar
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 )
@@ -73,26 +74,52 @@ type Tables struct {
 	// Tokens is the compiled token table whose ids index TerminalSets; nil
 	// until the generator compiles the grammar's classes.
 	Tokens *TokenTable
-	// derived is what Derived built for this value, and derivedFor the
-	// value it was built for: a copy of a Tables holds the original's
-	// address there, so it builds its own. Both are written under deriveMu.
-	derived    any
+	// derived holds what Derived built for this value, one slot per built
+	// type, and derivedFor the value it was built for: a copy of a Tables
+	// holds the original's address there, so it builds its own. Both are
+	// written under deriveMu.
+	derived    map[reflect.Type]*derivedSlot
 	derivedFor *Tables
+}
+
+// derivedSlot is one built value; its own lock lets a builder ask for another
+// type on the same tables without deadlocking.
+type derivedSlot struct {
+	mu    sync.Mutex
+	done  bool
+	value any
 }
 
 var deriveMu sync.Mutex
 
-// Derived is build(t), made by the first call on this tables value and kept
-// beside it: recognize's grammar-only tables. A copy of t makes its own. It
-// is safe from any goroutine, but copying t races with the first call on t.
-func (t *Tables) Derived(build func(*Tables) any) any {
+// Derived is build(t), made by the first call for T on this tables value and
+// kept beside it: recognize's grammar-only tables, forest's. Each type has its
+// own value, built once. A copy of t makes its own. It is safe from any
+// goroutine, but copying t races with the first call on t. A builder that
+// panics stores nothing, so the next call builds again. A builder that asks
+// for its own type, directly or through another builder, deadlocks.
+func Derived[T any](t *Tables, build func(*Tables) T) T {
 	deriveMu.Lock()
-	defer deriveMu.Unlock()
 	if t.derivedFor != t {
-		// shortcut: this write races with a copy of *t made during the first call; hold the slot behind a pointer every copy shares if a caller must copy tables while recognizers are first built.
-		t.derived, t.derivedFor = build(t), t
+		// shortcut: this write races with a copy of *t made during the first call; hold the slots behind a pointer every copy shares if a caller must copy tables while recognizers are first built.
+		t.derived, t.derivedFor = map[reflect.Type]*derivedSlot{}, t
 	}
-	return t.derived
+	key := reflect.TypeFor[T]()
+	slot := t.derived[key]
+	if slot == nil {
+		slot = &derivedSlot{}
+		t.derived[key] = slot
+	}
+	deriveMu.Unlock()
+
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if !slot.done {
+		slot.value = build(t)
+		slot.done = true
+	}
+	v, _ := slot.value.(T) // a nil interface value fails the assertion; its zero value is nil
+	return v
 }
 
 // BuildLR0 builds the tables for rules, whose terminals are named, starting

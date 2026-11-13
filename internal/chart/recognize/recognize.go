@@ -55,7 +55,7 @@ type Recognizer struct {
 
 // grammarTables is what New derives from the tables alone. It is built once
 // per *grammar.Tables, by the first New over it, kept beside it
-// (grammar.Tables.Derived), and read by every
+// (grammar.Derived), and read by every
 // recognizer over that value from any goroutine, so the tables' states,
 // rules, items, symbols and FOLLOW sets must not change after the first New.
 // The rule: nothing in it is written after it is built except cls, the one
@@ -153,7 +153,7 @@ func (g *grammarTables) extend(tab *grammar.Tables) *classes {
 // The first `New` over a tables value writes beside it, so do not copy
 // `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	g := tab.Derived(func(t *grammar.Tables) any { return buildGrammar(t) }).(*grammarTables)
+	g := grammar.Derived(tab, buildGrammar)
 	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
 }
 
