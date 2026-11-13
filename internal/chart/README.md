@@ -1409,7 +1409,10 @@ or at the end of the file.
   recursion, nullable chains, ambiguity, a cycle, Leo beside ambiguity), under
   every recognizer option, every derivation is checked against the grammar's
   rules, and their number equals a brute-force enumerator's, written in the
-  test from the rules alone. Over the corpus sample (`std5k.pl`, the port
+  test from the rules alone. Toy grammars naming `PERLY_SEMICOLON` and
+  `PERLY_BRACE_CLOSE` put the slipper in that comparison, with an enumerator
+  that admits a zero-width `;` exactly before `}` and at end of input, Leo on
+  and off (`TestForestSlipperBruteForce`). Over the corpus sample (`std5k.pl`, the port
   snippets, every 24th Guacamole case) a file has a forest exactly where the
   chart accepts it, and a derivation whose leaves are its tokens in order. An
   empty file, one of comments only, and files of `;` do too
