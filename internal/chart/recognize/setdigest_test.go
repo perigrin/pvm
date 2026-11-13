@@ -160,26 +160,22 @@ func TestSetDigestDetectsChange(t *testing.T) {
 		return fmt.Sprintf("%x", h.Sum(nil))
 	}
 	want := sum(base)
-	clone := func() chartFacts {
-		f := chartFacts{inserted: slices.Clone(base.inserted)}
-		for _, s := range base.items {
-			f.items = append(f.items, slices.Clone(s))
-		}
-		for _, e := range base.expected {
-			f.expected = append(f.expected, slices.Clone(e))
-		}
-		return f
-	}
-	item, ins, exp := clone(), clone(), clone()
+	// Each copy shares base's slices but the one it changes.
+	item, ins, exp := base, base, base
+	item.items = slices.Clone(base.items)
+	item.items[0] = slices.Clone(base.items[0])
 	item.items[0][0].Dist++
+	ins.inserted = slices.Clone(base.inserted)
 	ins.inserted[0]++
+	exp.expected = slices.Clone(base.expected)
+	exp.expected[0] = slices.Clone(base.expected[0])
 	exp.expected[0][0] += "x"
 	for name, f := range map[string]chartFacts{"item": item, "Inserted": ins, "Expected": exp} {
 		if sum(f) == want {
 			t.Errorf("changing one %s left the digest unchanged", name)
 		}
 	}
-	if sum(clone()) != want {
-		t.Error("an unchanged copy changed the digest")
+	if sum(base) != want {
+		t.Error("changing a copy changed base's digest")
 	}
 }
