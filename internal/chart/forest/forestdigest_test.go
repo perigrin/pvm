@@ -23,29 +23,35 @@ var updateForestDigest = flag.Bool("forest.update-forest-digest", false,
 var forestDigestPath = filepath.Join("testdata", "forest-digest.golden")
 
 // forestText is f as text in a fixed order: each node reachable from the root
-// by span, then symbol name or rule position, with its alternatives' rules and
-// splits sorted. Nothing in it depends on pointers, allocation or Alt order.
+// by span, then symbol name or rule position, with its alternatives sorted,
+// each its rule, split and both children's keys (label and span, - for none).
+// Nothing in it depends on pointers, allocation or Alt order.
 func forestText(tab *grammar.Tables, f *Forest) string {
 	type line struct {
 		from, to int
 		text     string
 	}
+	key := func(n *Node) string {
+		switch {
+		case n == nil:
+			return "-"
+		case n.Sym >= 0:
+			return fmt.Sprintf("s%s:%d-%d", tab.Symbols[n.Sym].Name, n.From, n.To)
+		}
+		return fmt.Sprintf("r%d.%d:%d-%d", n.Rule, n.Dot, n.From, n.To)
+	}
 	var lines []line
 	for _, n := range reachable(f) {
-		label := fmt.Sprintf("rule %d dot %d", n.Rule, n.Dot)
-		if n.Sym >= 0 {
-			label = "sym " + tab.Symbols[n.Sym].Name
-		}
 		var alts []string
 		for _, a := range n.Alts {
 			split := n.To // an empty rule
 			if a.Right != nil {
 				split = a.Right.From
 			}
-			alts = append(alts, fmt.Sprintf("%d@%d", a.Rule, split))
+			alts = append(alts, fmt.Sprintf("%d@%d(%s,%s)", a.Rule, split, key(a.Left), key(a.Right)))
 		}
 		slices.Sort(alts)
-		lines = append(lines, line{n.From, n.To, label + " " + strings.Join(alts, " ")})
+		lines = append(lines, line{n.From, n.To, key(n) + " " + strings.Join(alts, " ")})
 	}
 	slices.SortFunc(lines, func(x, y line) int {
 		return cmp.Or(cmp.Compare(x.from, y.from), cmp.Compare(x.to, y.to), strings.Compare(x.text, y.text))
@@ -96,8 +102,9 @@ func TestForestDigestGolden(t *testing.T) {
 
 // TestForestDigestDetectsChange: the digest cannot pass vacuously and keys on
 // content, not construction. The sample has accepted files; one alternative's
-// split or one node's span changed changes the text; the same nodes built in
-// another order, with their Alts reversed, do not.
+// split, Left (to a same-span node, or nil), Right (to a same-start node), or
+// Left and Right swapped, or one node's span, changes the text; the same nodes
+// built in another order, with their Alts reversed, do not.
 func TestForestDigestDetectsChange(t *testing.T) {
 	if _, n := forestDigest(t); n == 0 {
 		t.Fatal("the chart accepts no file of the sample")
@@ -113,16 +120,26 @@ func TestForestDigestDetectsChange(t *testing.T) {
 		t.Errorf("the same nodes built in another order changed the text:\n%s\nwant:\n%s", got, want)
 	}
 
-	// Only alternative 0's split moves, from 1 to 0: every node stays reachable
-	// through the third alternative, so no node's own line changes.
+	// Only alternative 0 changes: every node stays reachable through the
+	// others, so no node's own line changes, only that alternative's.
 	a, b := &Node{Sym: 1, Rule: -1, From: 0, To: 1}, &Node{Sym: 2, Rule: -1, From: 1, To: 2}
 	c, d := &Node{Sym: 1, Rule: -1, From: 0, To: 0}, &Node{Sym: 2, Rule: -1, From: 0, To: 2}
-	split := func(l, r *Node) string {
-		root := &Node{Sym: 0, Rule: -1, From: 0, To: 2, Alts: []Alt{{1, l, r}, {2, c, d}, {3, a, b}}}
+	pos := &Node{Sym: -1, Rule: 5, Dot: 1, From: 0, To: 1} // a's span, another label
+	e := &Node{Sym: 3, Rule: -1, From: 1, To: 2}           // b's span, another label
+	alt0 := func(l, r *Node) string {
+		root := &Node{Sym: 0, Rule: -1, From: 0, To: 2, Alts: []Alt{{1, l, r}, {2, c, d}, {3, a, b}, {4, pos, b}, {6, a, e}}}
 		return forestText(tab, &Forest{Root: root})
 	}
-	if split(a, b) == split(c, d) {
-		t.Error("changing one alternative's split left the text unchanged")
+	for name, pair := range map[string][2][2]*Node{
+		"split":                       {{a, b}, {c, d}},
+		"Left, to a same-span node":   {{a, b}, {pos, b}},
+		"Left and Right, swapped":     {{c, d}, {d, c}}, // a zero-width Left: the split stays 0
+		"Left, to nil":                {{a, b}, {nil, b}},
+		"Right, to a same-start node": {{a, b}, {a, e}},
+	} {
+		if alt0(pair[0][0], pair[0][1]) == alt0(pair[1][0], pair[1][1]) {
+			t.Errorf("changing one alternative's %s left the text unchanged", name)
+		}
 	}
 
 	g := rebuilt(f)
