@@ -198,9 +198,11 @@ retired.
   with `testing.Benchmark`, after every key is measured, printing one stderr
   line each: `chart-ratchet: BenchLex <n> ns/op <n> allocs/op` (likewise
   `BenchRecognize`, `BenchExpected`, `BenchForest`). They are not keys and
-  nothing compares them. On a file the chart
-  refuses, `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix
-  the grammar reaches.
+  nothing compares them. On a file the chart refuses, `BenchForest` (and so
+  `measureBench`) is an error, not a figure: there is no forest to time
+  (`TestMeasureBenchNeedsAcceptance`). Run by hand there,
+  `BenchmarkRecognize` and `BenchmarkExpected` time only the prefix the
+  grammar reaches.
 - **Mainline.** `make test` never runs the ratchet. Its CI job,
   `.github/workflows/chart-ratchet.yml`, runs on changes under
   `internal/chart/**` and `internal/lexer/**` and is advisory
@@ -1365,9 +1367,12 @@ P2 is a stop reported to perigrin.
 packed forest after recognition (spec §9.4). It is the single entry the
 precedence constraint, resolve and the readings count extend. A file the
 chart refuses gets a `Refusal` and no forest, never a partial one
-(`TestForestRefusedChartHasNoForest`). The refusal is `lex-unmapped` at the
-first token no terminal admits, else `grammar` at the token whose set died,
-or at the end of the file.
+(`TestForestRefusedChartHasNoForest`). `Parse` recognizes first, as the
+port's refusal list does: the refusal is at the token whose set died, or at
+the end of the file, and is `lex-unmapped` only when that byte is the first
+token no terminal admits, else `grammar` (`TestParseRefusalMatchesRecognition`
+over `testdata/port/refused-where.txt`; an unmapped token past the dead set
+does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
 
 - **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
   (state, distance), recognition stays Boolean, and no existing file of
