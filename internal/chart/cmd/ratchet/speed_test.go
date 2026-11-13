@@ -255,3 +255,16 @@ func TestMeasureBenchReportsFailure(t *testing.T) {
 		t.Errorf("measureBench wrote %q before failing; want nothing", out.String())
 	}
 }
+
+// TestMeasureBenchNeedsAcceptance: a source the chart refuses has no forest
+// to time, so BenchForest on it is an error, not a figure of about 0 ns/op.
+func TestMeasureBenchNeedsAcceptance(t *testing.T) {
+	var out strings.Builder
+	err := measureBench(committedTables(t), []byte("my $x = ;\n"), &out)
+	if err == nil || !strings.Contains(err.Error(), "BenchForest") || !strings.Contains(err.Error(), "refuses") {
+		t.Fatalf("measureBench = %v; want an error naming BenchForest and the refusal", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("measureBench wrote %q before failing; want nothing", out.String())
+	}
+}

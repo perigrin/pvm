@@ -187,11 +187,16 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 // not keys.
 //
 // A b.Fatal inside testing.Benchmark panics here, outside a test binary, so the one step that can fail,
-// recognizing src, is checked first, and a failure is returned naming the benchmarks that run it.
+// recognizing src, is checked first, and a failure, or a source the chart refuses, is returned naming the benchmarks
+// that run it.
 func measureBench(tab *grammar.Tables, src []byte, stderr io.Writer) error {
 	s, _ := lex.Lex(src, tab.Tokens)
-	if _, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s)); err != nil {
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
+	if err != nil {
 		return fmt.Errorf("BenchRecognize, BenchExpected and BenchForest: %w", err)
+	}
+	if !c.Accepted() { // BenchForest would time nothing and report it as a figure
+		return fmt.Errorf("BenchForest: the chart refuses the source, so it has no forest to time")
 	}
 	for _, b := range []struct {
 		name string
