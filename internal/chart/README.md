@@ -34,8 +34,11 @@ What waypoint 2 built before the stop:
 - the recognizer's grammar-only tables built once per tables value, `x` at a
   statement start read as a word, and the cache and Leo test gaps closed.
 
-Not built: the precedence constraint, resolve by scope, the readings count,
-oracle grading, `PLUGIN_*`, perl.git `t/` parity and speed checkpoint 3.
+Not built, among the issues still pending on `chart-perly-w2`: the precedence
+constraint, resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
+the whole-pipeline ratchet keys, perl.git `t/` parity and speed checkpoint 3.
+Where a section below calls a limit "waypoint 2's" work, that work was not
+done before the stop and is left to a successor.
 
 ### Waypoint 1
 

@@ -23,8 +23,8 @@ by design.
 
 - **The kill was measured early and properly, not projected.** FOREST's gate
   projected 3.9 to 4.2. perigrin ruled "Measure properly first". The answer came
-  from three quiet readings under the unchanged protocol, about an hour after
-  FOREST merged. It came before precedence, resolve or readings were built on a
+  from three quiet readings under the unchanged protocol, 6 to 12 minutes after
+  FOREST merged (01:44 UTC; readings at 01:50, 01:53 and 01:56). It came before precedence, resolve or readings were built on a
   forest that cannot fit.
 - **Gates caught real defects before merge.** Examples:
   - CTORONCE: a `weak.Make` crash on non-heap tables.
@@ -35,11 +35,10 @@ by design.
   - PERLGITLABELS: two lexer sites that were never listed.
 
   No issue went past three reopens.
-- **Mutation checking stayed the norm.** Every new guard was shown red under a
-  named mutation. FOREST's corpus forests were compared node for node against a
+- **Mutation checking stayed the norm.** In CACHEGAPS, CTORONCE, XWORD and
+  FOREST each new guard was shown red under a named mutation, re-run by the
+  gate. FOREST's corpus forests were compared node for node against a
   reference built with no pruning, 2,678 files in all.
-- **The chart stays simple.** Its parser core has mean cyclomatic complexity
-  6.7, against 8.2 for recursive descent. 2 functions are above 30, against 19.
 
 ## What Didn't Work
 
@@ -66,8 +65,10 @@ by design.
   w1's repaired `speed.go` check.
 - **Shared-machine incidents.**
   - A worker's `pkill -f "make test"` killed another runner's test.
-  - Bare `git stash` was used across shared worktrees.
-  - The Go build cache filled the disk at 19 GB.
+  - A worker used bare `git stash` across shared worktrees (its own report,
+    2026-11-12).
+  - The Go build cache filled the disk at 19 GB and stopped a test runner
+    (orchestrator session, 2026-11-12).
 
   The worker brief now forbids pattern kills and bare stash.
 
@@ -76,16 +77,18 @@ by design.
 - **The cold key changed meaning.** After CTORONCE the aggregate cold ratio fell
   from 4.99 to 2.72, but long-lived barely moved. "Cold" now reuses tables an
   earlier `New` built.
-- **Garbage collection costs as much as the forest.** Of the chart side's CPU,
-  lex takes 19%, recognize 45% and forest build 35%. GC marking is a further 35%
-  of all samples, and most of it traces the forest's pointer graph.
+- **Garbage collection costs more than the forest.** In the forest-timed
+  profile, forest build took 2.71 s and GC mark workers 4.66 s of 13.32 s of
+  samples. The profile cannot split GC by source; by inference a large part of
+  it traces the forest's pointer graph.
 - **The perl.git corpus is heavy.** It is 38% of the speed aggregate in the one
   non-quiet run that included it. It raised the aggregate before any forest
   existed.
 
 ## Where A Human Had To Act
 
-**Collaboration, as designed.** perigrin made 29 rulings. Among them:
+**Collaboration, as designed.** The milestone's Records hold 24 rulings by
+perigrin during the waypoint. Among them:
 
 - the library-operator design;
 - three w1 criterion repairs;
@@ -97,16 +100,17 @@ by design.
 
 Each of these was his call.
 
-**Friction to engineer away:**
+**Friction to engineer away** (from Records and the orchestrator's session):
 
 - Long closes outlived the 2-hour background limit and container restarts. They
   ran detached and were re-run by hand.
 - The disk-full stop.
-- GitHub rewrites the PR body footer on every PR.
-- The Windows updater test timed out repeatedly and was rerun by hand.
-- Stop-hook prompts to commit `test/e2e/.perl-version` during runs.
-- Questions on the speed outlook had to be asked twice before a measurement
-  settled them.
+- The environment rewrites the PR body footer on every PR (ORACLEFACTS gate F3,
+  PRs #561 to #565).
+- The Windows `internal/updater` test timed out on PRs #564 and #565 and was
+  rerun by hand.
+- Stop-hook prompts to commit `test/e2e/.perl-version` while runs held it
+  modified.
 
 ## What Will We Change
 
@@ -122,9 +126,10 @@ Each of these was his call.
   - Refuse any criterion that passes on the unchanged tree.
   - Refuse any criterion pinned to a file a later issue may edit. FOREST broke
     one such pin.
-- **Design the forest for the collector.** Before another attempt, the forest
-  should be index-based and pointer-free, and building it should reuse memory
-  across files. That is the only lever the review found on the GC cost.
+- **Make a GC budget part of a stage's design review.** Before refining another
+  attempt, the forest's issue should state its memory shape and be measured
+  for collector cost as well as build time; the review found index-based,
+  pointer-free nodes (ponytail S1) the only lever on the GC cost here.
 - **Check whether a successor can fit at all.** With lex plus recognize at 2.2,
   a successor has to answer whether precedence, resolve and readings can fit in
   0.8, before anyone refines a third attempt.
