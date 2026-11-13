@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer and the tables. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest and the tables. -->
 
 # internal/chart
 
@@ -8,7 +8,39 @@ recursive-descent parser in `internal/parse` and measured against it. The
 design is `docs/plans/2026-10-30-chart-parser-v2-design.md` (on the branch
 `docs/chart-parser-v2-design`). Nothing outside the spike consumes this tree.
 
-## Status: waypoint 1, recognizes Perl
+## Status: waypoint 2 stopped by its speed kill
+
+Waypoint 2 (spec §9.4, milestone `chart-perly-w2`) was stopped on 2026-11-13
+by spec §10's long-lived speed kill. With the forest timed on the chart side
+(lex, recognize, forest build) under the ratchet's own protocol, the
+aggregate long-lived chart/recursive-descent ratio read 3.51, 3.64 and 3.47
+in three quiet readings at 3487d258, a median of 3.51 against the limit of 3;
+the same runs read 2.20 without the forest. The committed ratchet does not
+yet time the forest, so its own `speed-ratio-aggregate-longlived` still reads
+about 2.2. `docs/postmortems/chart-perly-w2.md` records why the waypoint
+stopped and what a successor must know.
+
+What waypoint 2 built before the stop:
+
+- **the forest** over a recognized chart, adding no facts to its items
+  (`forest`, below);
+- **perl's oracle facts** over the oracle-graded corpora
+  (`testdata/oracle/`), and **perl.git `t/` labelled** with the pinned perl's
+  verdicts (`testdata/labels/perlgit.txt`), its lexer-rooted findings on the
+  lexer lists (below) and its `-DT` captures made offline but not committed;
+- **the precedence referee's sentences**, generated from bison's resolutions
+  of perly.y and rendered to source where they round-trip through the lexer
+  (`testdata/precedence/`);
+- the recognizer's grammar-only tables built once per tables value, `x` at a
+  statement start read as a word, and the cache and Leo test gaps closed.
+
+Not done, among the issues still open on `chart-perly-w2`: the precedence
+constraint, resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
+the whole-pipeline ratchet keys, perl.git `t/` parity and speed checkpoint 3.
+Where a section below calls a limit "waypoint 2's" work, that work was not
+done before the stop and is left to a successor.
+
+### Waypoint 1
 
 This is the spike's second attempt. The first (`chart-waypoint`, design
 `docs/plans/2026-10-29-chart-parser-design.md`) was stopped on 2026-10-30 by
@@ -40,9 +72,7 @@ milestone, not here, since a timing is true only of the run that took it.
 Waypoint 1's speed figure is a lower bound: it can stop the spike, not pass it
 (spec §2).
 
-**Not built.** The rest of waypoint 2 (spec §9.4), whose first code is the
-forest (`forest`, below): the precedence constraint, resolve by scope, the
-oracle and perl.git `t/`. Recognition reads no precedence and, but for the `isa`
+**Not built.** Recognition reads no precedence and, but for the `isa`
 feature, no scope, so a form perl refuses only by precedence
 (`$a <=> $b <=> $c;`) or for want of a declaration is accepted here; the
 sections below name the ones known. Error
@@ -441,7 +471,11 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   or a `*.pl` directly under `internal/chart/testdata/guacamole/parses/` or
   `.../parsent/`. A T1 file is `T1/<name>.t`, a top-level `*.t` of T1,
   resolved as `<name>.t` under `testdata/perlonjava/unit`, or under
-  `$T1_CORPUS` when that is set.
+  `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
+  a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
+  `/opt/corpora/perl5`). `lexer-defects.txt` holds 13 such entries and
+  `tdt/lexer-rooted.txt` 193; `lex-unmapped-known.txt` holds none yet, since
+  the ratchet does not measure perl.git.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
   `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
@@ -457,7 +491,9 @@ that exists and that its byte lies inside it. It never calls `git zhi`, so
 `make test` never reads the chain; a separate criterion resolves the refs and
 checks the issues are open. T1 entries resolve
 against the in-tree copy, so the test does not skip. `T1_CORPUS` set but
-naming no directory fails the test.
+naming no directory fails the test. perl.git entries are checked only where
+the perl5 tree is present: without it the test leaves them unchecked rather
+than failing.
 
 ## The grammar: `grammar/perly.go`
 
