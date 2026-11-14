@@ -1368,8 +1368,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   tables value at once; each recognizer owns its cores. Branch sets are not
   interned and have no core, so they keep the whole-set loop (a `shortcut:`
   in code, until interleaved mode makes branches common). `Chart.LeoLink`
-  still binary-searches, through the uncounted `transition`, and the slipper
-  with `goTo`.
+  reads the index too, for an interned set, and scans a branch set through
+  the uncounted `transition`; the slipper still uses `goTo`.
 - **No per-node maps or slices.** A node's builder finds duplicate items
   and origin-set dependencies by scanning while it holds at most 24 of
   each, and keeps a map only past that (YAEP's `sit_dist_insert`, adapted;
@@ -1584,10 +1584,10 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
 - **Leo.** Where a memo completed a right recursion in one step, the links it
   skipped are added at a node only where the chain's top is among that
   node's completions, which is where recognition took the chain. Each memo
-  is read once, as `LeoLink` makes it from the sets. A node the transition
-  cache served ran no completion and made no memo, though its set holds the
-  chain's top, so `LeoLink` reads the sets rather than the side table, and
-  stores nothing. Leo on and off give the same forest, on a file of cached
+  is read once, as `LeoLink` makes it from the sets, through the postdot
+  index where the set is interned. A node the transition cache served ran no
+  completion and made no memo, though its set holds the chain's top, so
+  `LeoLink` reads the sets rather than the side table, and stores nothing. Leo on and off give the same forest, on a file of cached
   sets included (`TestForestFromChart`).
 - **The slipper's `;`** is a zero-width `PERLY_SEMICOLON` leaf at a node in
   `Inserted()`; `Slipped` is the items it advances there, closed under
@@ -1598,15 +1598,16 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   recognition (`TestBuiltSlipperClosureOwnedByChart`, under `-race`). That
   covers 0.894 of the aggregate's inserted-`;` nodes (chart-recovery's
   `F2 reuse share`). A node the transition cache served made no closure, so
+  the closure is cached with the transition (R6): the storing node's kept
+  closure rides on the cache entry, and a hit keeps it for the served node,
+  which follows from the key and dependencies the hit checked
+  (`TestSlippedCacheServedNodesKeepClosure`). Where no closure was kept,
   `Slipped` recomputes it with Leo off, link by link, writing no memo, in
   buffers of its own rather than the recognizer's
   (`TestSlippedOwnsItsItems` and `TestForestConcurrentBuildsOneRecognizer`,
   under `-race`); any new caller of the builder's sorted items must copy
   them the same way. On either path what `Slipped` returns is read-only:
-  the caller writes none of it. shortcut: a
-  cache-served node recomputes its closure on every `Slipped` call
-  (`TestSlippedRecomputesCacheServedNodes` pins it); caching the closure
-  with the transition (R6) is the upgrade if that shows. The two
+  the caller writes none of it. The two
   closures give the forest the same completed (symbol, origin, rule) facts
   once Leo chains are expanded as the forest expands them
   (`TestSlipperClosuresAgree`, over the corpus sample, where no slipper
