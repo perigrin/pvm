@@ -1676,23 +1676,14 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   do not. A change that moves the golden has changed the forest: it is never
   regenerated to make a change pass, and in chart-recovery a regeneration
   after P5 is a stop reported to perigrin.
-- **Cost.** `BenchmarkForest` times the forest of `std5k.pl` after
-  recognition. With index-based nodes (c5c9a4db5), in five rounds
-  interleaved with the pointer-based build before it (`-benchtime 40x`,
-  load 1.1–1.6), it took a median 27.0 ms per op, 22.1 MB and 18,203
-  allocations, against 24.1 ms, 21.2 MB and 20,509. The loss is the slices'
-  growth: `Nodes` and `Alts` start at 1,024 and double on each build, about
-  seven times for `std5k.pl`, so `slices.Grow` and its copying cost every
-  build over 1,024 nodes or alternatives, long-lived passes included (with
-  the first size raised to 1<<18 the same build ran 20.3–21.8 ms against
-  22.8–23.8). Over the aggregate the forest stage key still fell by about a
-  fifth (chart-recovery's `F1 reading`). F2 sizes the first blocks from the
-  file and keeps the slipper closures recognition built: in the ratchet's
-  `BenchForest`, three runs interleaved with pu d6c53b07 (load 0.5–3.5), a
-  median 15.7 ms per op and 8,331 allocations against 22.1 ms and 12,907. When the benchmark was
-  added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
-  19.4 ms. An earlier build of the forest, which expanded every Leo chain
-  and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
+- **Cost.** `BenchmarkForest`, and the ratchet's `BenchForest` (the same
+  `forest.Bench`), time the forest of `std5k.pl` after recognition: a median
+  15.7 ms per op and 8,331 allocations in `BenchForest` (three runs
+  interleaved with pu d6c53b07, load 0.5–3.5, chart-recovery's F2). Its
+  first blocks are sized from the file ("First blocks"), so most builds
+  never grow `Nodes` or `Alts`, and it reads the slipper closures
+  recognition built rather than recomputing them. The span checkpoint 3
+  times includes it (spec §9.3).
 
 ## The generated tables: `make chart-tables`
 
