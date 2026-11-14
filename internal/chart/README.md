@@ -1587,29 +1587,28 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   is read once, as `LeoLink` makes it from the sets, through the postdot
   index where the set is interned. A node the transition cache served ran no
   completion and made no memo, though its set holds the chain's top, so
-  `LeoLink` reads the sets rather than the side table, and stores nothing. Leo on and off give the same forest, on a file of cached
-  sets included (`TestForestFromChart`).
+  `LeoLink` reads the sets rather than the side table, and stores nothing.
+  Leo on and off give the same forest, on a file of cached sets included
+  (`TestForestFromChart`).
 - **The slipper's `;`** is a zero-width `PERLY_SEMICOLON` leaf at a node in
   `Inserted()`; `Slipped` is the items it advances there, closed under
   completion. Where recognition built the node after the `;`, or the `;` is
   at the end of input, recognition already closed them (`semiAt`, Leo on),
   and the chart keeps a copy by node and next terminal set, which `Slipped`
-  returns for the forest to read; it is the chart's own, unchanged by later
-  recognition (`TestBuiltSlipperClosureOwnedByChart`, under `-race`). That
-  covers 0.894 of the aggregate's inserted-`;` nodes (chart-recovery's
-  `F2 reuse share`). A node the transition cache served made no closure, so
-  the closure is cached with the transition (R6): the storing node's kept
-  closure rides on the cache entry, and a hit keeps it for the served node,
-  which follows from the key and dependencies the hit checked
-  (`TestSlippedCacheServedNodesKeepClosure`). Where no closure was kept,
-  `Slipped` recomputes it with Leo off, link by link, writing no memo, in
-  buffers of its own rather than the recognizer's
-  (`TestSlippedOwnsItsItems` and `TestForestConcurrentBuildsOneRecognizer`,
-  under `-race`); any new caller of the builder's sorted items must copy
-  them the same way. On either path what `Slipped` returns is read-only:
-  the caller writes none of it. The two
-  closures give the forest the same completed (symbol, origin, rule) facts
-  once Leo chains are expanded as the forest expands them
+  returns for the forest to read. A node the transition cache served made no
+  closure, so the closure is cached with the transition (R6): the storing
+  node's kept closure rides on the cache entry, and a hit keeps it for the
+  served node, which follows from the key and dependencies the hit checked
+  (`TestSlippedCacheServedNodesKeepClosure`). Every node the slipper ran at
+  therefore keeps its closure, and `Slipped` returns it or nil, recomputing
+  nothing. One kept closure is shared by the storing chart, the cache entry
+  and every chart the entry serves; nothing writes it once it is kept, so a
+  later recognition on the same recognizer leaves it unchanged
+  (`TestBuiltSlipperClosureOwnedByChart` and `TestSlippedOwnsItsItems`,
+  under `-race`). What `Slipped` returns is read-only: the caller writes
+  none of it. The Leo-off recomputation (`slippedLeoOff`) survives as a test
+  reference: the two closures give the forest the same completed (symbol,
+  origin, rule) facts once Leo chains are expanded as the forest expands them
   (`TestSlipperClosuresAgree`, over the corpus sample, where no slipper
   closure takes a Leo memo, and the right-recursive slipper toys, where some
   do), and the forest is the same with the cache and Leo each on or off
