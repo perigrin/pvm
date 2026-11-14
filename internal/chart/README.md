@@ -100,7 +100,9 @@ What waypoint 2 built before the stop:
 
 Not done, among the issues still open on `chart-perly-w2`: the precedence
 constraint, resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
-perl.git `t/` parity and speed checkpoint 3.
+the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
+M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
+`t/` parity and speed checkpoint 3.
 Where a section below calls a limit "waypoint 2's" work, that work was not
 done before the stop and is left to a successor.
 
