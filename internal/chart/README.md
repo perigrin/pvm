@@ -24,7 +24,7 @@ brought the recognizer and forest in line with the literature under the
 recovery plan, with no speed limit (perigrin's D1: every key reported, none
 gated but `lex-overhead`'s 1.3), and ended with one verdict reading.
 
-**The verdict reading**, 2026-11-14 on pu cd855330 (every recovery issue
+**The verdict reading**, 2026-11-14 on pu cd855330 (every R and F issue
 merged; R4 dropped by R3's profile; F2's inserted-`;` reuse kept): three quiet
 ratchet runs, 08:10–08:16 UTC, each started at a 1-minute load below 3 (0.78,
 0.83, 1.53) with no other ratchet, `make test` or `go test` on the machine.
@@ -54,11 +54,12 @@ against this host's own quiet reading before any R or F issue, on 57caafca:
 lex 0.5980, recognize 1.4246, forest 1.1348, sum 3.1329. Against it,
 recognize fell × 0.505 (§4: × 0.46–0.64 for R1–R3 with R5), forest × 0.606
 (§4: × 0.65–0.70 for F2, × 0.52–0.56 with F1 at × 0.80) and lex × 1.007
-(unchanged, as §4 assumes). §4's factors applied to 3.1329 project 1.99
-(good) to 2.31 (cautious) for R1–R3 + R5 + F2, and 1.84 to 2.15 with F1; the
-reading's 2.02 lies inside both ranges: recognition near the good end, and
-the forest past F2 alone but short of the F1 row (× 0.606 against
-× 0.52–0.56). The machine also drifts between
+(unchanged, as §4 assumes). §4's factors applied to the per-stage medians
+above (sum 3.1574) project 1.99 (good) to 2.31 (cautious) for R1–R3 + R5 +
+F2, and 1.84 to 2.15 with F1; scaled to 3.1329, 1.98 to 2.29 and 1.83 to
+2.14. The reading's 2.02 lies inside both ranges: recognition near the
+good end, and the forest past F2 alone but short of the F1 row (× 0.606
+against × 0.52–0.56). The machine also drifts between
 sessions on one commit (recognize read about 0.77 and about 0.90 on
 a5498fa4), so only this reading's own three runs bound it. The absolute
 comparison is flattered by the host move; the projection is met either way,
