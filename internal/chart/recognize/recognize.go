@@ -176,6 +176,14 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 // Chart is one recognition: the Earley set at each lattice node, nil where
 // no item survives. Interned marks a node whose set was already in the
 // intern table; Cached, a node served by the transition cache.
+//
+// Once Recognize returns, its reads other than Expected write nothing:
+// Sets, Accepted, Inserted, LeoLink and Slipped, forest.Build's reads, may be
+// made from any number of goroutines at once, on one chart or on several
+// charts of one recognizer (TestForestConcurrentBuildsOneRecognizer).
+// LeoLink and Slipped read the recognizer, so they must not overlap a
+// Recognize on it; Expected memoizes in the recognizer's cache, so it is a
+// use of the recognizer, which is not safe for concurrent use.
 type Chart struct {
 	r        *Recognizer
 	Sets     []*Set

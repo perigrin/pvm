@@ -3,8 +3,6 @@
 
 package recognize
 
-import "slices"
-
 // LeoLink is the first completion a Leo memo at node at for sym skips:
 // completing sym from at to a later node also completes rule from origin
 // there, though no set holds that item (Leo 1991). ok is false where no memo
@@ -66,15 +64,16 @@ func (c *Chart) slippedLeoOff(pos, next int) []Item {
 		la = c.r.cls.bits[next]
 	}
 	// The copy shares the intern table and cache, but semiAt with Leo off
-	// writes neither: its builder reads sets and keeps its items to itself.
-	// It may build a set core's postdot index, which depends on the core alone.
+	// writes neither: its builder reads sets and keeps its items to itself,
+	// in buffers of its own, so concurrent calls share no memory they write.
 	r := *c.r
 	r.opts.NoLeo = true
+	r.itemsBuf, r.depsBuf, r.relBuf = nil, nil, nil
 	nc := *c
 	nc.r = &r
 	v := r.semiAt(&nc, pos, la)
 	if v == nil {
 		return nil
 	}
-	return slices.Clone(v.relative())
+	return v.relative()
 }
