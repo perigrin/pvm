@@ -1295,6 +1295,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   interned and have no core, so they keep the whole-set loop (a `shortcut:`
   in code, until interleaved mode makes branches common). `Chart.LeoLink`
   and the slipper still search with `goTo`.
+- **No per-node maps or slices.** A node's builder finds duplicate items
+  and origin-set dependencies by scanning while it holds at most 24 of
+  each, and keeps a map only past that (YAEP's `sit_dist_insert`, adapted;
+  `TestAddDedupAcrossMapThreshold`). Every node's in and out edges are
+  carved from one array each, and the builder's item, dependency and
+  sorted-item buffers are the recognizer's, reused from node to node and
+  from file to file (`TestRecognizerReuseMatchesFresh`). So whatever keeps
+  a builder's items copies them: the interner copies a new set's items,
+  and its key lookup allocates nothing
+  (`TestInternedSetsSurviveBufferReuse`); a branch set copies its own.
 - **Lookahead.** In up-front mode a complete item's rule completes only if
   the next token, or the end of input, can follow its LHS. That keeps
   out of each set the completions the next token cannot continue. Observed
@@ -1489,7 +1499,10 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   sets included (`TestForestFromChart`).
 - **The slipper's `;`** is a zero-width `PERLY_SEMICOLON` leaf at a node in
   `Inserted()`. `Slipped` closes the items it advances with Leo off, so
-  replaying it after a cache hit writes no memo. A derivation's `;` leaves
+  replaying it after a cache hit writes no memo. The items it returns are
+  the caller's, a copy rather than the recognizer's buffer, which the next
+  recognition overwrites (`TestSlippedOwnsItsItems`, under `-race`); any
+  new caller of the builder's sorted items must copy them the same way. A derivation's `;` leaves
   are a subset of `Inserted()`, not all of it: `{ 1; }` uses none, though
   the slipper inserted at the `}`. Aligning leaves to `-DT`'s tokens must
   allow for that.
