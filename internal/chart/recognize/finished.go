@@ -68,12 +68,13 @@ func (c *Chart) slippedLeoOff(pos, next int) []Item {
 	// in buffers of its own, so concurrent calls share no memory they write.
 	r := *c.r
 	r.opts.NoLeo = true
-	r.itemsBuf, r.depsBuf, r.relBuf = nil, nil, nil
+	r.itemsBuf, r.depsBuf = nil, nil
 	nc := *c
 	nc.r = &r
 	v := r.semiAt(&nc, pos, la)
 	if v == nil {
 		return nil
 	}
+	r.relBuf = make([]Item, 0, len(v.items)) // the result, in one allocation
 	return v.relative()
 }
