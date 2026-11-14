@@ -17,7 +17,7 @@ func TestInternOneLookup(t *testing.T) {
 		t.Fatal("nothing was interned")
 	}
 	per := float64(r.sets.lookups) / float64(r.sets.interns)
-	t.Logf("%d map lookups over %d interned sets: %.4f per set", r.sets.lookups, r.sets.interns, per)
+	t.Logf("%d map lookups (and %d inserts of new cores) over %d interned sets: %.4f per set", r.sets.lookups, r.sets.inserts, r.sets.interns, per)
 	if per > 1 {
 		t.Errorf("%.4f map lookups per interned set, above 1", per)
 	}
@@ -37,6 +37,19 @@ func TestInternHashCollisionKeepsSetsDistinct(t *testing.T) {
 		if existed {
 			t.Fatalf("set %d existed on first interning", i)
 		}
+		got = append(got, s)
+	}
+	for i, items := range sets {
+		if s, existed := in.intern(items); s != got[i] || !existed {
+			t.Errorf("set %d interned again as set %d (existed %v)", got[i].id, s.id, existed)
+		}
+	}
+	for d := 2; d < 40; d++ { // one core past several table growths
+		sets = append(sets, []Item{{1, 0}, {2, d}})
+	}
+	got = nil
+	for _, items := range sets {
+		s, _ := in.intern(items)
 		got = append(got, s)
 	}
 	for i, items := range sets {

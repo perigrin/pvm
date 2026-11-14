@@ -28,11 +28,13 @@ type Set struct {
 // set's items, target state). Items are sorted by state, so one index
 // holds for every set of the core.
 type setCore struct {
-	id   int
-	sets []*Set   // interned sets of this core, in creation order
-	next *setCore // the next core under the same hash
-	off  []int32  // by symbol, into ent; nil until first used
-	ent  []coreEnt
+	id    int
+	first *Set     // the core's first interned set, which stands for its states
+	tab   []*Set   // the core's interned sets, open-addressed by distance hash
+	n     int      // sets in tab
+	next  *setCore // the next core under the same hash
+	off   []int32  // by symbol, into ent; nil until first used
+	ent   []coreEnt
 }
 
 type coreEnt struct{ idx, target int32 }
@@ -75,31 +77,38 @@ func (s *Set) Items() []Item {
 }
 
 // interner is YAEP's: a set is its core (the states) and its distances. One
-// hash of the states keys a table of cores, each holding its sets, which
-// carry a hash of their distances. Hashes only narrow the search: items
-// decide identity, so a collision never merges two sets.
+// hash of the states keys a table of cores, each holding its sets in a small
+// open-addressed table keyed by a hash of their distances. Hashes only narrow
+// the search: items decide identity, so a collision never merges two sets.
 type interner struct {
 	cores         map[uint64]*setCore
 	nsets, ncores int
 	// hashMask is all ones; a test clears it to force every hash to collide.
 	hashMask uint64
-	// interns and lookups count intern calls and the map reads they made.
-	interns, lookups int
+	// interns counts intern calls; lookups and inserts count reads and
+	// writes of cores.
+	interns, lookups, inserts int
 }
 
 func newInterner() interner {
 	return interner{cores: map[uint64]*setCore{}, hashMask: ^uint64(0)}
 }
 
+// hashSeed is nonzero so that leading zero values change a hash.
+const hashSeed = 0x9e3779b97f4a7c15
+
 // mix folds x into h.
 func mix(h, x uint64) uint64 {
 	return bits.RotateLeft64(h^x, 29) * 0x9e3779b97f4a7c15
 }
 
+// slot is where dh starts probing in a table of size len(tab).
+func slot(dh uint64, size int) int { return int((dh ^ dh>>32) & uint64(size-1)) }
+
 // intern is the one set with items' content, and whether it existed. A new
 // set copies items, so the caller may reuse them.
 func (in *interner) intern(items []Item) (*Set, bool) {
-	var ch, dh uint64
+	ch, dh := uint64(hashSeed), uint64(hashSeed)
 	for _, it := range items {
 		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist))
 	}
@@ -108,24 +117,49 @@ func (in *interner) intern(items []Item) (*Set, bool) {
 	in.lookups++
 	head := in.cores[ch]
 	co := head
-	for co != nil && !sameStates(co.sets[0].items, items) {
+	for co != nil && !sameStates(co.first.items, items) {
 		co = co.next
 	}
 	if co == nil {
-		co = &setCore{id: in.ncores, next: head}
+		co = &setCore{id: in.ncores, next: head, tab: make([]*Set, 4)}
 		in.ncores++
+		in.inserts++
 		in.cores[ch] = co
 	}
-	// shortcut: a linear scan of the core's sets by distance hash, 453 long at most over corpusSample; index them if a profile shows it.
-	for _, s := range co.sets {
-		if s.dh == dh && slices.Equal(s.items, items) {
+	i := slot(dh, len(co.tab))
+	for ; co.tab[i] != nil; i = (i + 1) & (len(co.tab) - 1) {
+		if s := co.tab[i]; s.dh == dh && slices.Equal(s.items, items) {
 			return s, true
 		}
 	}
 	s := &Set{id: in.nsets, items: slices.Clone(items), core: co, dh: dh}
 	in.nsets++
-	co.sets = append(co.sets, s)
+	if co.first == nil {
+		co.first = s
+	}
+	co.n++
+	if 2*co.n > len(co.tab) { // keep the table at most half full
+		old := co.tab
+		co.tab = make([]*Set, 2*len(old))
+		for _, o := range old {
+			if o != nil {
+				co.place(o)
+			}
+		}
+		co.place(s)
+	} else {
+		co.tab[i] = s
+	}
 	return s, false
+}
+
+// place stores s in the first free slot from its distance hash.
+func (co *setCore) place(s *Set) {
+	i := slot(s.dh, len(co.tab))
+	for co.tab[i] != nil {
+		i = (i + 1) & (len(co.tab) - 1)
+	}
+	co.tab[i] = s
 }
 
 func sameStates(a, b []Item) bool {

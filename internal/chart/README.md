@@ -1281,12 +1281,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   item's origin. A set is its items, sorted, so two positions with equal
   content share one `*Set`. It is interned by one hash of its states and one
   map lookup (`TestInternOneLookup`; YAEP's `set_core.hash` and `dists_hash`):
-  the table's value is the core, which holds its sets, each carrying a hash of
-  its distances. Hashes only narrow the search and items decide identity, so a
+  the table's value is the core, which holds its sets in an
+  open-addressed table keyed by a hash of their distances (a core's list was
+  3235 sets long over the ratchet's aggregate, so a scan cost 220 steps per
+  intern). Hashes only narrow the search and items decide identity, so a
   collision never merges two sets (`TestInternHashCollisionKeepsSetsDistinct`).
-  Sets of one core are found by scanning the core's list, 453 long at most over
-  the corpus sample (a `shortcut:` in `interner.intern`, to be indexed if a
-  profile shows the scan). A node that an edge passes over is inside a branch:
+  A node that an edge passes over is inside a branch:
   its set is built but not interned.
 - **Postdot index.** Per interned set core, built on first use, the items
   waiting on each symbol and their target states (YAEP's `core_symb_vect`,

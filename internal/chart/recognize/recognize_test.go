@@ -354,7 +354,10 @@ func TestInternedSetsSurviveBufferReuse(t *testing.T) {
 	var want [][]Item
 	for _, co := range r.sets.cores {
 		for ; co != nil; co = co.next {
-			for _, s := range co.sets {
+			for _, s := range co.tab {
+				if s == nil {
+					continue
+				}
 				sets, want = append(sets, s), append(want, slices.Clone(s.items))
 			}
 		}
