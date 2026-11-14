@@ -325,3 +325,41 @@ func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
 		}
 	}
 }
+
+// TestSlippedRecomputesCacheServedNodes pins the shortcut on Slipped: where
+// the transition cache served the node after an inserted ;, recognition made
+// no slipper closure, so the chart keeps none and Slipped recomputes it, Leo
+// off, a fresh slice on every call. Caching the closure with the transition
+// (R6) is the upgrade; when it lands this test changes with it.
+func TestSlippedRecomputesCacheServedNodes(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{}) // long-lived, so the cache serves nodes
+	served := 0
+	for _, f := range files {
+		c := mustRecognize(t, r, f.l)
+		for _, p := range c.Inserted() {
+			next := -1
+			if p < len(f.l.Edges) {
+				next = f.l.Edges[p].Token.TerminalSet
+			}
+			if _, kept := c.slips[[2]int{p, next}]; kept {
+				continue
+			}
+			served++
+			a, b := c.Slipped(p, next), c.Slipped(p, next)
+			if len(a) == 0 || &a[0] == &b[0] {
+				t.Fatalf("%s node %d: Slipped did not recompute a fresh closure on each call", f.name, p)
+			}
+			if want := c.slippedLeoOff(p, next); !slices.Equal(a, want) {
+				t.Fatalf("%s node %d: Slipped %v, the Leo-off recomputation %v", f.name, p, a, want)
+			}
+			if _, kept := c.slips[[2]int{p, next}]; kept {
+				t.Fatalf("%s node %d: Slipped kept the closure it recomputed", f.name, p)
+			}
+		}
+	}
+	if served == 0 {
+		t.Fatal("no inserted ; in the corpus sample sits before a cache-served node")
+	}
+	t.Logf("%d inserted-; nodes before a cache-served node", served)
+}

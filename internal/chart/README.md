@@ -1260,12 +1260,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   whether it holds a `}`) is built by the first `New` over a
   `*grammar.Tables`, kept beside that value keyed by the built value's type
   (`grammar.Derived`, so each builder gets its own value, built once per
-  tables value: `TestDerivedTwoBuilders`; a builder asking for its own type, directly or
-  through another builder, deadlocks), and shared
+  tables value: `TestDerivedTwoBuilders`; a builder asking for its own
+  type, directly or through another builder, deadlocks), and shared
   read-only by every recognizer over it, from any goroutine. The forest is
   the second builder beside the same value (its grammar-only data, below);
- a later `New`
-  allocates 6 objects where it allocated 1,672 at c99366f8 (`BenchmarkNew`).
+  a later `New` allocates 6 objects where it allocated 1,672 at c99366f8
+  (`BenchmarkNew`).
   A tables value anywhere works, a package variable's included
   (`TestNewOverAnyTablesValue`). A set appended to the tables is covered when
   a recognizer first meets its id, without writing what other recognizers
@@ -1536,8 +1536,9 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   items are the caller's, a copy rather than the recognizer's buffer
   (`TestSlippedOwnsItsItems`, under `-race`); any new caller of the
   builder's sorted items must copy them the same way. shortcut: a
-  cache-served node recomputes its closure on every `Slipped` call; caching
-  the closure with the transition (R6) is the upgrade if that shows. The two
+  cache-served node recomputes its closure on every `Slipped` call
+  (`TestSlippedRecomputesCacheServedNodes` pins it); caching the closure
+  with the transition (R6) is the upgrade if that shows. The two
   closures give the forest the same completed (symbol, origin, rule) facts
   once Leo chains are expanded as the forest expands them
   (`TestSlipperClosuresAgree`, over the corpus sample, where no slipper
