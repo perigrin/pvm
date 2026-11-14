@@ -1445,8 +1445,19 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   a derivation of the file is completed in the chart, so none is missing.
 - **A node** is a symbol over a span of lattice nodes, or a rule position
   there: a rule's first symbols, which binarizes a long rule so the forest
-  stays cubic. A node's `Alts` are the ways its span divides, each the rule's
-  earlier symbols (`Left`) and its last (`Right`). A node is tried only by
+  stays cubic. A node's alternatives are the ways its span divides, each the
+  rule's earlier symbols (`Left`) and its last (`Right`). Nodes and
+  alternatives are int32 indexes into `Forest.Nodes` and `Forest.Alts`,
+  slices that hold no pointers, so the collector traces nothing in them
+  (`TestForestNodesPointerFree`). Index 0 is none in both, its slot a
+  placeholder; a node's `Alt` is its first alternative and each one's `Next`
+  the one after. One forest's indexes never reach into another's, and a
+  refused source has no forest while an empty one has a well-formed
+  zero-width one (`TestForestReparseIndependent`,
+  `TestForestRefusedAndEmptySources`). shortcut: an index wraps past
+  2^31-1 nodes or alternatives, over 48 GiB of nodes alone, and nothing
+  checks for it (`TestForestNodesPointerFree` pins the int32 width); widen
+  the indexes if a forest nears that. A node is tried only by
   the rules the chart completed for it. A split is tried only where the
   rule's earlier symbols stand as an item in the chart. The candidate starts
   are read from whichever list is shorter: the last symbol's completions at
@@ -1477,8 +1488,8 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   fix, not something to count around. A toy grammar can still build a
   longer cycle, which `Derivations` survives by treating a node met again on
   its own path as having no derivation there.
-- **Derivations.** `(*Forest).Derivations(n, limit)` enumerates at most
-  `limit` trees of node `n`. It also reports `cut` when a bound stopped it:
+- **Derivations.** `(*Forest).Derivations(n int32, limit int) ([]*Tree, bool)`
+  enumerates at most `limit` trees of node `n`. It also reports `cut` when a bound stopped it:
   the limit, reached even if exactly `limit` trees exist, or a budget of
   steps proportional to `limit` and the forest's size. A derivation never holds a (symbol, span) node inside itself. So a
   cycle adds none, and a slipper `;` appears only where a statement needs
@@ -1528,9 +1539,13 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   regenerated to make a change pass, and in chart-recovery a regeneration
   after P5 is a stop reported to perigrin.
 - **Cost.** `BenchmarkForest` times the forest of `std5k.pl` after
-  recognition. When it was added, in five rounds interleaved with
-  `BenchmarkRecognize` (`-benchtime 40x`, load 7.5–8.1), it took a median
-  29.6 ms per op, 21.2 MB and 20,509 allocations, beside recognition's
+  recognition. With index-based nodes (c5c9a4db5), in five rounds
+  interleaved with the pointer-based build before it (`-benchtime 40x`,
+  load 1.1–1.6), it took a median 27.0 ms per op, 22.1 MB and 18,203
+  allocations, against 24.1 ms, 21.2 MB and 20,509. That is one file in a
+  fresh process; over the aggregate, long-lived, the forest stage key fell
+  by about a fifth (chart-recovery's `F1 reading`). When the benchmark was
+  added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
   19.4 ms. An earlier build of the forest, which expanded every Leo chain
   and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
 
