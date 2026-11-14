@@ -1281,6 +1281,20 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   item's origin. A set is its items, sorted, interned as a (core, distances)
   pair, so two positions with equal content share one `*Set`. A node that an
   edge passes over is inside a branch: its set is built but not interned.
+- **Postdot index.** Per interned set core, built on first use, the items
+  waiting on each symbol and their target states (YAEP's `core_symb_vect`,
+  Marpa's postdot index). Items are sorted by state, so one index serves
+  every set of its core. Scan, completion and the Leo test read it, so
+  completion no longer walks the whole parent set with a `goTo` binary
+  search per item: over the corpus sample, default options, 8.31 searches
+  per token became 0.60 (`TestCompletionProbesBounded`, its bound recorded
+  in chart-recovery's Records). `TestPostdotIndexMatchesSetScan` holds the
+  index to a whole-set scan at every set, and
+  `TestPostdotIndexConcurrentRecognizers` runs two recognizers over one
+  tables value at once; each recognizer owns its cores. Branch sets are not
+  interned and have no core, so they keep the whole-set loop (a `shortcut:`
+  in code, until interleaved mode makes branches common). `Chart.LeoLink`
+  and the slipper still search with `goTo`.
 - **Lookahead.** In up-front mode a complete item's rule completes only if
   the next token, or the end of input, can follow its LHS. That keeps
   out of each set the completions the next token cannot continue. Observed
@@ -1302,7 +1316,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   branch is never cached. A key's entries are a trie over those origin sets,
   in the order the transition read them: which set it reads next follows
   from the key and the sets already read, so a lookup reads one set per
-  dependency and follows its id. A lookup returns what a scan of the entries
+  dependency and follows its id. For a token with several terminals, scan
+  adds items terminal by terminal from the postdot index, so the order a
+  transition reads its origin sets follows the index. A lookup returns what a scan of the entries
   in the order stored would, the first whose sets hold
   (`TestCacheMatchesNoCache`, which also holds a warm cache to no cache on
   acceptance and `Expected` at every node of the corpus sample's whole
