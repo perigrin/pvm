@@ -1619,9 +1619,11 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   seven times for `std5k.pl`, so `slices.Grow` and its copying cost every
   build over 1,024 nodes or alternatives, long-lived passes included (with
   the first size raised to 1<<18 the same build ran 20.3–21.8 ms against
-  22.8–23.8). F2's sizing of the first blocks from the file removes it. Over
-  the aggregate the forest stage key still fell by about a fifth
-  (chart-recovery's `F1 reading`). When the benchmark was
+  22.8–23.8). Over the aggregate the forest stage key still fell by about a
+  fifth (chart-recovery's `F1 reading`). F2 sizes the first blocks from the
+  file and keeps the slipper closures recognition built: in the ratchet's
+  `BenchForest`, three runs interleaved with pu d6c53b07 (load 0.5–3.5), a
+  median 15.7 ms per op and 8,331 allocations against 22.1 ms and 12,907. When the benchmark was
   added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
   19.4 ms. An earlier build of the forest, which expanded every Leo chain
   and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
