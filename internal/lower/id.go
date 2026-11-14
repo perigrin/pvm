@@ -65,26 +65,15 @@ const (
 // well-formed shape: every child of every node is visited.
 func AssignIDs(root *parse.Node) map[*parse.Node]ID {
 	ids := map[*parse.Node]ID{}
-	assignIDsFrom(ids, root, "", map[string]int{}, map[string]int{})
-	return ids
-}
-
-// subIDs is what AssignIDs gives the nodes of sub, a sub not inside another
-// named sub, whose anchor is anchor: an anchor's numbering, and that of the
-// subs nested in it, reads nothing outside the anchor.
-func subIDs(sub *parse.Node, anchor string) map[*parse.Node]ID {
-	ids := map[*parse.Node]ID{sub: {Anchor: anchor}}
-	next := map[string]int{anchor: 1}
-	seen := map[string]int{}
-	for _, c := range sub.Children {
-		assignIDsFrom(ids, c, anchor, next, seen)
-	}
+	assignIDsFrom(ids, nil, root, "", map[string]int{}, map[string]int{})
 	return ids
 }
 
 // assignIDsFrom numbers n and its subtree under anchor; next is each
-// anchor's next Local, seen each anchor key's uses so far.
-func assignIDsFrom(ids map[*parse.Node]ID, n *parse.Node, anchor string, next, seen map[string]int) {
+// anchor's next Local, seen each anchor key's uses so far. With spans
+// non-nil it records each node's span by its id as it walks, so a reader
+// keyed by id never reads a node's offsets itself.
+func assignIDsFrom(ids map[*parse.Node]ID, spans map[ID]span, n *parse.Node, anchor string, next, seen map[string]int) {
 	var walk func(n *parse.Node, anchor string)
 	walk = func(n *parse.Node, anchor string) {
 		if key, ok := AnchorKey(n); ok {
@@ -98,7 +87,11 @@ func assignIDsFrom(ids map[*parse.Node]ID, n *parse.Node, anchor string, next, s
 			anchor = key + "#" + strconv.Itoa(seen[key])
 			seen[key]++
 		}
-		ids[n] = ID{Anchor: anchor, Local: next[anchor]}
+		id := ID{Anchor: anchor, Local: next[anchor]}
+		ids[n] = id
+		if spans != nil {
+			spans[id] = span{n.Start, n.End}
+		}
 		next[anchor]++
 		for _, c := range n.Children {
 			walk(c, anchor)

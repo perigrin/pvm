@@ -42,6 +42,11 @@ type FileAnalysis struct {
 	// walked, in walk order; it replayed every other. Nil for a full one.
 	Walked []string
 
+	// Syntax is the caller's: what it found of the file's syntax errors
+	// beside the analysis, kept for its next edit to reuse. Analysis
+	// neither sets nor reads it.
+	Syntax any
+
 	// traces is what walking each top-level sub did, by anchor, for
 	// Reanalyze to replay; assigned is AssignedNames of File.
 	traces   map[string]*subTrace

@@ -95,6 +95,72 @@ func parseErrors(root *parse.Node) (errs []infer.Diagnostic, gates []span) {
 	return errs, gates
 }
 
+// stmtErrors is parseErrors of one top-level statement that holds an
+// error: its index among the root's children, the statement as the tree
+// it was found in holds it, and its errors and gates in that tree.
+type stmtErrors struct {
+	i     int
+	node  *parse.Node
+	errs  []infer.Diagnostic
+	gates []span
+}
+
+// syntaxErrors is parseErrors of root, by top-level statement, in order.
+func syntaxErrors(root *parse.Node) []stmtErrors {
+	var out []stmtErrors
+	for i := range root.Children {
+		out = appendErrors(out, root, i)
+	}
+	return out
+}
+
+// resyntax is syntaxErrors(root) for root, the tree of an edit, given prev,
+// syntaxErrors of the tree before it, and redo, in order, the indexes of
+// the top-level statements the edit changed (lower.Positions.Renumbered).
+// Every other statement is one of the old tree's moved whole, so its
+// errors are prev's, still in the old tree's offsets (flatten moves them).
+func resyntax(prev []stmtErrors, root *parse.Node, redo []int) []stmtErrors {
+	var out []stmtErrors
+	for len(prev) > 0 || len(redo) > 0 {
+		if len(redo) == 0 || len(prev) > 0 && prev[0].i < redo[0] {
+			out, prev = append(out, prev[0]), prev[1:]
+			continue
+		}
+		if len(prev) > 0 && prev[0].i == redo[0] {
+			prev = prev[1:]
+		}
+		out, redo = appendErrors(out, root, redo[0]), redo[1:]
+	}
+	return out
+}
+
+// appendErrors is out and parseErrors of root's i-th statement, if it
+// holds an error.
+func appendErrors(out []stmtErrors, root *parse.Node, i int) []stmtErrors {
+	if errs, gates := parseErrors(root.Children[i]); len(errs) != 0 {
+		out = append(out, stmtErrors{i, root.Children[i], errs, gates})
+	}
+	return out
+}
+
+// flatten is the errors and gates of syn, root's syntaxErrors, in root's
+// offsets: each statement's moved by how far it moved since they were
+// found. The move is added mod 2^32, so a statement that moved back
+// subtracts.
+func flatten(syn []stmtErrors, root *parse.Node) (errs []infer.Diagnostic, gates []span) {
+	for _, e := range syn {
+		d := uint32(root.Children[e.i].Start - e.node.Start)
+		for _, x := range e.errs {
+			x.StartByte, x.EndByte = x.StartByte+d, x.EndByte+d
+			errs = append(errs, x)
+		}
+		for _, g := range e.gates {
+			gates = append(gates, span{g.start + d, g.end + d})
+		}
+	}
+	return errs, gates
+}
+
 // filterParse is what diagFilter admits of errs, which are in source order.
 func filterParse(errs []infer.Diagnostic) []infer.Diagnostic {
 	var f diagFilter
