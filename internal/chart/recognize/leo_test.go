@@ -221,12 +221,10 @@ const leoMemoEntriesBound = 0.036
 // memoStore is the number of entries c's memo store holds, and how many of
 // them are memos rather than a stored "none".
 func memoStore(c *Chart) (entries, real int) {
-	for _, byNode := range c.leo {
-		for _, m := range byNode {
-			entries++
-			if m != nil {
-				real++
-			}
+	for _, m := range c.leo {
+		entries++
+		if m != nil {
+			real++
 		}
 	}
 	return entries, real
@@ -234,7 +232,7 @@ func memoStore(c *Chart) (entries, real int) {
 
 // storedMemo is the entry c's memo store holds for (at, sym), if any.
 func storedMemo(c *Chart, at, sym int) (*memo, bool) {
-	m, ok := c.leo[at][sym]
+	m, ok := c.leo[[2]int{at, sym}]
 	return m, ok
 }
 

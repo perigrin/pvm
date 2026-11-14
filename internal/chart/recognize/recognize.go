@@ -82,6 +82,7 @@ type grammarTables struct {
 	follow []bitset
 	eof    int
 	leo    map[[2]int]int // (state, symbol) to the LHS of its Leo item
+	leoSym []bool         // per symbol, whether any state has a Leo item awaiting it
 	// semi is PERLY_SEMICOLON's symbol id and brace PERLY_BRACE_CLOSE's,
 	// the ruby slipper's (slipper.go); -1 where the grammar lacks them.
 	semi, brace int
@@ -113,6 +114,10 @@ func buildGrammar(tab *grammar.Tables) *grammarTables {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
 	}
 	g := &grammarTables{eof: tab.EOF, semi: terminal("PERLY_SEMICOLON"), brace: terminal("PERLY_BRACE_CLOSE"), leo: leoItems(tab)}
+	g.leoSym = make([]bool, len(tab.Symbols))
+	for k := range g.leo {
+		g.leoSym[k[1]] = true
+	}
 	g.eofBits = g.bitsOf([]int{g.eof})
 	if g.semi >= 0 {
 		g.eofBits.set(g.semi) // the end of input closes, so a ; may be inserted there
@@ -176,8 +181,8 @@ type Chart struct {
 	Sets     []*Set
 	Interned []bool
 	Cached   []bool
-	leo      []map[int]*memo // the side table: per node, Leo memos by symbol
-	inserted []int           // nodes where the slipper scanned a ;
+	leo      map[[2]int]*memo // the side table: real Leo memos by (node, symbol); nil until one is made
+	inserted []int            // nodes where the slipper scanned a ;
 	// slipAccepted is whether the ; inserted at end of input completes the start.
 	slipAccepted bool
 }
@@ -205,7 +210,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.cls.terms))
 		}
 	}
-	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n), leo: make([]map[int]*memo, n)}
+	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n)}
 	if n == 0 {
 		return c, nil
 	}
