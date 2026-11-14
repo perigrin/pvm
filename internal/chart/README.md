@@ -1594,10 +1594,12 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   recognition (`TestBuiltSlipperClosureOwnedByChart`, under `-race`). That
   covers 0.894 of the aggregate's inserted-`;` nodes (chart-recovery's
   `F2 reuse share`). A node the transition cache served made no closure, so
-  `Slipped` recomputes it with Leo off, link by link, writing no memo; those
-  items are the caller's, a copy rather than the recognizer's buffer
-  (`TestSlippedOwnsItsItems`, under `-race`); any new caller of the
-  builder's sorted items must copy them the same way. shortcut: a
+  `Slipped` recomputes it with Leo off, link by link, writing no memo, in
+  buffers of its own rather than the recognizer's
+  (`TestSlippedOwnsItsItems` and `TestForestConcurrentBuildsOneRecognizer`,
+  under `-race`); any new caller of the builder's sorted items must copy
+  them the same way. On either path what `Slipped` returns is read-only:
+  the caller writes none of it. shortcut: a
   cache-served node recomputes its closure on every `Slipped` call
   (`TestSlippedRecomputesCacheServedNodes` pins it); caching the closure
   with the transition (R6) is the upgrade if that shows. The two

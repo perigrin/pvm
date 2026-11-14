@@ -39,11 +39,11 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 // is next, or at the end of input where next is -1; nil where no item at
 // pos awaits a ;. They are beside the set at pos, never in it (slipper.go).
 // Where recognition built the node after pos, or pos is the last, they are
-// the closure it kept, Leo on; the caller reads them and writes none. Where
-// the transition cache served that node, no closure was made, so they are
-// recomputed with Leo off, link by link, since making a memo here would
-// write the chart; those are the caller's, a copy. The two give the forest
+// the closure it kept, Leo on. Where the transition cache served that node,
+// no closure was made, so they are recomputed with Leo off, link by link,
+// since making a memo here would write the chart. The two give the forest
 // the same facts once Leo chains are expanded (TestSlipperClosuresAgree).
+// Either way the result is read-only: the caller writes none of it.
 // shortcut: a cache-served node recomputes its closure on every call; cache
 // the closure with the transition (R6) if that recomputation shows.
 func (c *Chart) Slipped(pos, next int) []Item {
