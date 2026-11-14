@@ -37,7 +37,7 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	items := set.Items()
 	var deps []dep
 	if items != nil && !c.r.opts.NoLookahead {
-		b := builder{r: c.r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: memo}
+		b := builder{r: c.r, c: c, pos: pos, interned: memo}
 		for _, it := range items {
 			b.add(it.State, pos-it.Dist)
 		}

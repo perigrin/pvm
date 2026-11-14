@@ -270,3 +270,115 @@ func TestItemIsStateDistanceR2(t *testing.T) {
 		t.Errorf("Item's fields are %q, want %q", got, want)
 	}
 }
+
+// TestAddDedupAcrossMapThreshold: a builder finds duplicates by scanning a
+// small set and by a map once the set is big. Sets of one item fewer than
+// the switch, at it and one past it, with each item added again both
+// while the set is small and after it is big, hold each item once; so do
+// a node's origin-set dependencies, which switch the same way.
+func TestAddDedupAcrossMapThreshold(t *testing.T) {
+	r := New(toyStmt(t), Options{})
+	state := slices.IndexFunc(r.tab.States, func(s grammar.State) bool { return s.Epsilon < 0 })
+	if state < 0 {
+		t.Fatal("the toy has no state without a predicted state")
+	}
+	for _, n := range []int{23, 24, 25} {
+		b := builder{r: r, pos: n}
+		for i := range n {
+			b.add(state, i)
+			b.add(state, i/2) // already there, whatever the set's size
+			b.read(i, &Set{id: i})
+			b.read(i/2, &Set{id: i / 2})
+		}
+		for i := range n {
+			b.add(state, i)
+			b.read(i, &Set{id: i})
+		}
+		var origins []int
+		for _, it := range b.items {
+			origins = append(origins, it[1])
+		}
+		slices.Sort(origins)
+		if len(origins) != n || len(slices.Compact(origins)) != n {
+			t.Errorf("%d items: the set holds origins %v", n, origins)
+		}
+		if len(b.deps) != n {
+			t.Errorf("%d items: %d dependencies, want %d: %v", n, len(b.deps), n, b.deps)
+		}
+	}
+}
+
+// TestRecognizerReuseMatchesFresh: one recognizer over the corpus sample,
+// in order and in reverse, gives every file the sets, Inserted and Expected
+// a fresh recognizer gives it alone. Its charts are read only after the last
+// recognition, so a buffer a later file reuses cannot hide in an earlier chart.
+func TestRecognizerReuseMatchesFresh(t *testing.T) {
+	tab, files := corpusSample(t)
+	fresh := make([]chartFacts, len(files))
+	for i, f := range files {
+		fresh[i] = factsOf(mustRecognize(t, New(tab, Options{}), f.l))
+	}
+	for _, reverse := range []bool{false, true} {
+		order := make([]int, len(files))
+		for i := range order {
+			order[i] = i
+		}
+		if reverse {
+			slices.Reverse(order)
+		}
+		r := New(tab, Options{})
+		charts := make([]*Chart, len(files))
+		for _, i := range order {
+			charts[i] = mustRecognize(t, r, files[i].l)
+		}
+		for _, i := range order {
+			if got := factsOf(charts[i]); !reflect.DeepEqual(got, fresh[i]) {
+				t.Errorf("reverse %v, %s: one recognizer over the sample builds other sets, Inserted or Expected than a fresh one", reverse, files[i].name)
+			}
+		}
+	}
+}
+
+// TestInternedSetsSurviveBufferReuse: an interned set owns its items. Every
+// set interned over half the sample keeps its items, and interning them
+// again finds that set, after the recognizer has built the other half
+// through the same buffers (and, under -race, while they are read).
+func TestInternedSetsSurviveBufferReuse(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{})
+	half := len(files) / 2
+	for _, f := range files[:half] {
+		mustRecognize(t, r, f.l)
+	}
+	sets := make([]*Set, 0, len(r.sets.sets))
+	var want [][]Item
+	for _, s := range r.sets.sets {
+		sets, want = append(sets, s), append(want, slices.Clone(s.items))
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, f := range files[half:] {
+			if _, err := Recognize(r, f.l); err != nil {
+				t.Errorf("%s: %v", f.name, err) // Fatal may not leave a goroutine the test did not start
+			}
+		}
+	}()
+	for reading := true; reading; {
+		select {
+		case <-done:
+			reading = false
+		default:
+		}
+		for i, s := range sets {
+			if !slices.Equal(s.items, want[i]) {
+				t.Fatalf("interned set %d's items changed under a later recognition", s.id)
+			}
+		}
+	}
+	for i, s := range sets {
+		if got, existed := r.sets.intern(slices.Clone(want[i])); got != s || !existed {
+			t.Errorf("interning set %d's items again found set %d (existed %v)", s.id, got.id, existed)
+		}
+	}
+}
