@@ -271,6 +271,21 @@ func TestItemIsStateDistanceR2(t *testing.T) {
 	}
 }
 
+// TestItemIsStateDistanceF2: keeping the slipper's closure for a built node
+// beside the chart adds nothing to an item (rule 2): Item's fields are
+// exactly State and Dist, both int, as on pu.
+func TestItemIsStateDistanceF2(t *testing.T) {
+	typ := reflect.TypeFor[Item]()
+	var got []string
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		got = append(got, f.Name+" "+f.Type.String())
+	}
+	if want := []string{"State int", "Dist int"}; !slices.Equal(got, want) {
+		t.Errorf("Item's fields are %q, want %q", got, want)
+	}
+}
+
 // TestAddDedupAcrossMapThreshold: a builder finds duplicates by scanning a
 // small set and by a map once the set is big. Sets of one item fewer than
 // the switch, at it and one past it, with each item added again both
