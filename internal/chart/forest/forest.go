@@ -12,6 +12,7 @@ package forest
 
 import (
 	"slices"
+	"sync/atomic"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -114,9 +115,9 @@ func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 type builder struct {
 	Forest
 	tab      *grammar.Tables
+	g        *forestGrammar
 	c        *recognize.Chart
 	l        *lex.Lattice[lex.None]
-	semi     int
 	inserted []bool
 	// facts is each (symbol, origin, rule) the chart completed, those ending
 	// at node j being facts[at[j]:at[j+1]], sorted; node is the node of a
@@ -129,9 +130,6 @@ type builder struct {
 	// stands, which is how a split is checked against the chart.
 	items []placed
 	from  []int
-	// core is each rule's first core item id: rule r with its dot at m is
-	// core item core[r]+m.
-	core []int
 	// leaf is each token's leaves, one per terminal of its set, edge k's from
 	// leafAt[k]; semiLeaf is the zero-width ; at each inserted node.
 	leaf     []int32
@@ -139,11 +137,8 @@ type builder struct {
 	semiLeaf map[int]int32
 	pre      []int32       // the prefix node kept beside each item
 	prefixes map[int]int32 // the others
-	// leo is each symbol some Leo item awaits, numbered from 1; memo is the
-	// Leo memo at node at for the symbol numbered x, at memo[at*nleo+x-1]:
-	// 0 not yet looked up, -1 none, else 1 + its index in links.
-	leo   []int
-	nleo  int
+	// memo is the Leo memo at node at for the symbol numbered x (g.leo), at
+	// memo[at*g.nleo+x-1]: 0 not yet looked up, -1 none, else 1 + its index in links.
 	memo  []int32
 	links []link
 	work  []int // facts whose node waits for its Alts
@@ -179,12 +174,59 @@ func cmpFact(x, y fact) int {
 	return int(x.rule - y.rule)
 }
 
+// forestGrammar is what Build derives from the tables alone, built once per
+// tables value (grammar.Derived) and only read after.
+type forestGrammar struct {
+	semi int // PERLY_SEMICOLON's symbol id, -1 where the grammar lacks it
+	// core is each rule's first core item id: rule r with its dot at m is
+	// core item core[r]+m.
+	core []int
+	// leo is each symbol some Leo item awaits, numbered from 1, and nleo how many.
+	leo  []int
+	nleo int
+}
+
+// forestGrammarBuilds counts buildForestGrammar's calls, for the test that it runs once per tables value.
+var forestGrammarBuilds atomic.Int64
+
+// buildForestGrammar derives tab's grammar-only forest data.
+func buildForestGrammar(tab *grammar.Tables) *forestGrammar {
+	forestGrammarBuilds.Add(1)
+	g := &forestGrammar{leo: make([]int, len(tab.Symbols)), core: make([]int, len(tab.Rules))}
+	g.semi = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == "PERLY_SEMICOLON" })
+	for r, rule := range tab.Rules {
+		if r+1 < len(tab.Rules) {
+			g.core[r+1] = g.core[r] + len(rule.RHS) + 1
+		}
+	}
+	for _, st := range tab.States {
+		for _, i := range st.Leo {
+			it := tab.Items[i]
+			if sym := tab.Rules[it.Rule].RHS[it.Dot]; g.leo[sym] == 0 {
+				g.nleo++
+				g.leo[sym] = g.nleo
+			}
+		}
+	}
+	return g
+}
+
+// nodesPerToken and altsPerToken size a forest's first blocks from its
+// file's token count: about the 90th percentile over the ratchet's aggregate
+// (medians 5.0 and 3.9), so most builds never grow either slice.
+const nodesPerToken, altsPerToken = 6, 5
+
 // Build is the forest of c, a chart of l; nil where c does not accept or l is not linear.
 // shortcut: l must be linear, as up-front lexing makes it, so the token
 // ending at node j is edge j-1 and an inserted ; is followed only by its };
 // index the edges by node, and keep a ;'s facts apart, when interleaved
 // lexing branches (TestForestLinearLatticesOnly).
 func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *Forest {
+	return build(tab, c, l, len(l.Edges))
+}
+
+// build is Build with its first blocks sized for tokens tokens.
+func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], tokens int) *Forest {
 	if !c.Accepted() {
 		return nil
 	}
@@ -194,27 +236,11 @@ func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *F
 			return nil
 		}
 	}
-	// The placeholders at 0, with room for 1,024 nodes and alternatives before either slice grows.
-	b := &builder{Forest: Forest{Nodes: make([]Node, 1, 1025), Alts: make([]Alt, 1, 1025)},
-		tab: tab, c: c, l: l, inserted: make([]bool, n), at: make([]int, n+1), from: make([]int, n+1),
-		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]int32{}, prefixes: map[int]int32{},
-		leo: make([]int, len(tab.Symbols)), core: make([]int, len(tab.Rules))}
-	b.semi = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == "PERLY_SEMICOLON" })
-	for r, rule := range tab.Rules {
-		if r+1 < len(tab.Rules) {
-			b.core[r+1] = b.core[r] + len(rule.RHS) + 1
-		}
-	}
-	for _, st := range tab.States {
-		for _, i := range st.Leo {
-			it := tab.Items[i]
-			if sym := tab.Rules[it.Rule].RHS[it.Dot]; b.leo[sym] == 0 {
-				b.nleo++
-				b.leo[sym] = b.nleo
-			}
-		}
-	}
-	b.memo = make([]int32, n*b.nleo)
+	// The placeholders at 0, with room for the file's nodes and alternatives before either slice grows.
+	b := &builder{Forest: Forest{Nodes: make([]Node, 1, 1+nodesPerToken*tokens), Alts: make([]Alt, 1, 1+altsPerToken*tokens)},
+		tab: tab, g: grammar.Derived(tab, buildForestGrammar), c: c, l: l, inserted: make([]bool, n), at: make([]int, n+1), from: make([]int, n+1),
+		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]int32{}, prefixes: map[int]int32{}}
+	b.memo = make([]int32, n*b.g.nleo)
 	for _, p := range c.Inserted() {
 		b.inserted[p] = true
 	}
@@ -285,7 +311,7 @@ func (b *builder) leoFacts(j int) {
 	seg = slices.Compact(seg)
 	b.facts = b.facts[:b.at[j]+len(seg)]
 	for _, f := range seg {
-		if b.leo[f.sym] == 0 {
+		if b.g.leo[f.sym] == 0 {
 			continue
 		}
 		l := b.link(int(f.from), int(f.sym))
@@ -311,10 +337,10 @@ func (b *builder) leoFacts(j int) {
 // link is the index in links of the Leo memo at node at for sym, made
 // once; -1 where none applies.
 func (b *builder) link(at, sym int) int {
-	if b.leo[sym] == 0 {
+	if b.g.leo[sym] == 0 {
 		return -1 // no Leo item awaits sym, so no memo is made for it
 	}
-	k := at*b.nleo + b.leo[sym] - 1
+	k := at*b.g.nleo + b.g.leo[sym] - 1
 	if b.memo[k] != 0 {
 		return int(b.memo[k]) - 1
 	}
@@ -346,7 +372,7 @@ func (b *builder) find(sym, from, to int) (int, bool) {
 // holds rule r with its dot at m, or -1 where the chart has none.
 func (b *builder) item(r, m, i, k int) int {
 	run := b.items[b.from[i]:b.from[i+1]]
-	core := b.core[r] + m
+	core := b.g.core[r] + m
 	for x, _ := slices.BinarySearchFunc(run, k, func(p placed, k int) int { return int(p.at) - k }); x < len(run) && int(run[x].at) == k; x++ {
 		if _, ok := slices.BinarySearch(b.tab.States[int(run[x].state)].Items, core); ok {
 			return b.from[i] + x
@@ -371,7 +397,7 @@ func (b *builder) child(sym, from, to int) int32 {
 		return 0
 	}
 	if from == to {
-		if sym != b.semi || !b.inserted[to] {
+		if sym != b.g.semi || !b.inserted[to] {
 			return 0
 		}
 		if b.semiLeaf[to] == 0 {
@@ -414,7 +440,7 @@ func (b *builder) prefix(r, m, from, to int) int32 {
 	if n := b.pre[x]; n != 0 && b.Nodes[n].Rule == int32(r) && b.Nodes[n].Dot == int32(m) {
 		return n
 	}
-	k := x*len(b.tab.Items) + b.core[r] + m
+	k := x*len(b.tab.Items) + b.g.core[r] + m
 	if n := b.prefixes[k]; n != 0 {
 		return n
 	}
