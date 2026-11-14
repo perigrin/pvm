@@ -326,12 +326,10 @@ func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
 	}
 }
 
-// TestSlippedRecomputesCacheServedNodes pins the shortcut on Slipped: where
-// the transition cache served the node after an inserted ;, recognition made
-// no slipper closure, so the chart keeps none and Slipped recomputes it, Leo
-// off, a fresh slice on every call. Caching the closure with the transition
-// (R6) is the upgrade; when it lands this test changes with it.
-func TestSlippedRecomputesCacheServedNodes(t *testing.T) {
+// TestSlippedCacheServedNodesKeepClosure: the closure is cached with the
+// transition (R6), so a node the cache served keeps the closure the storing
+// node built; its facts are the Leo-off recomputation's.
+func TestSlippedCacheServedNodesKeepClosure(t *testing.T) {
 	tab, files := corpusSample(t)
 	r := New(tab, Options{}) // long-lived, so the cache serves nodes
 	served := 0
@@ -342,19 +340,16 @@ func TestSlippedRecomputesCacheServedNodes(t *testing.T) {
 			if p < len(f.l.Edges) {
 				next = f.l.Edges[p].Token.TerminalSet
 			}
-			if _, kept := c.slips[[2]int{p, next}]; kept {
+			kept, ok := c.slips[[2]int{p, next}]
+			if !ok {
+				t.Fatalf("%s node %d: no closure kept", f.name, p)
+			}
+			if p+1 >= len(c.Cached) || !c.Cached[p+1] {
 				continue
 			}
 			served++
-			a, b := c.Slipped(p, next), c.Slipped(p, next)
-			if len(a) == 0 || &a[0] == &b[0] {
-				t.Fatalf("%s node %d: Slipped did not recompute a fresh closure on each call", f.name, p)
-			}
-			if want := c.slippedLeoOff(p, next); !slices.Equal(a, want) {
-				t.Fatalf("%s node %d: Slipped %v, the Leo-off recomputation %v", f.name, p, a, want)
-			}
-			if _, kept := c.slips[[2]int{p, next}]; kept {
-				t.Fatalf("%s node %d: Slipped kept the closure it recomputed", f.name, p)
+			if got, want := slipperFacts(c, p, kept), slipperFacts(c, p, c.slippedLeoOff(p, next)); !slices.Equal(got, want) {
+				t.Fatalf("%s node %d: the cached closure gives facts %v, the Leo-off recomputation %v", f.name, p, got, want)
 			}
 		}
 	}

@@ -11,15 +11,27 @@ package recognize
 // link, at a predicted item or a start rule from node 0, as memoAt stops. It
 // is the link memoAt makes, read from the sets and not stored, because a
 // node the transition cache served ran no completion and so made no memo,
-// though its set holds the chain's top.
+// though its set holds the chain's top. An interned set is read through its
+// postdot index, as memoAt reads it; a branch set has no core and is scanned.
 func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	if c.r.opts.NoLeo || at < 0 || at >= len(c.Sets) {
 		return 0, 0, false, false
 	}
 	n, state := 0, 0
-	for _, it := range c.Sets[at].Items() {
-		if _, ok := transition(c.r.tab, it.State, sym); ok {
-			n, state, origin = n+1, it.State, at-it.Dist
+	if set := c.Sets[at]; set != nil && set.core != nil {
+		if !c.r.g.leoSym[sym] {
+			return 0, 0, false, false
+		}
+		en := c.r.awaiting(set, sym)
+		if n = len(en); n == 1 {
+			it := set.items[en[0].idx]
+			state, origin = it.State, at-it.Dist
+		}
+	} else {
+		for _, it := range c.Sets[at].Items() {
+			if _, ok := transition(c.r.tab, it.State, sym); ok {
+				n, state, origin = n+1, it.State, at-it.Dist
+			}
 		}
 	}
 	lhs, ok := c.r.g.leo[[2]int{state, sym}]
@@ -40,12 +52,11 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 // pos awaits a ;. They are beside the set at pos, never in it (slipper.go).
 // Where recognition built the node after pos, or pos is the last, they are
 // the closure it kept, Leo on. Where the transition cache served that node,
-// no closure was made, so they are recomputed with Leo off, link by link,
-// since making a memo here would write the chart. The two give the forest
-// the same facts once Leo chains are expanded (TestSlipperClosuresAgree).
+// they are the closure the storing node kept, cached with the transition
+// (R6). Where no closure was kept, they are recomputed with Leo off, link by
+// link, since making a memo here would write the chart. The two give the
+// forest the same facts once Leo chains are expanded (TestSlipperClosuresAgree).
 // Either way the result is read-only: the caller writes none of it.
-// shortcut: a cache-served node recomputes its closure on every call; cache
-// the closure with the transition (R6) if that recomputation shows.
 func (c *Chart) Slipped(pos, next int) []Item {
 	if c.r.g.semi < 0 || pos < 0 || pos >= len(c.Sets) {
 		return nil
