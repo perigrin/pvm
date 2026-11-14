@@ -31,9 +31,10 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 		from, to int
 		text     string
 	}
-	key := func(n *Node) string {
+	key := func(i int32) string {
+		n := f.Nodes[i]
 		switch {
-		case n == nil:
+		case i == 0:
 			return "-"
 		case n.Sym >= 0:
 			return fmt.Sprintf("s%s:%d-%d", tab.Symbols[n.Sym].Name, n.From, n.To)
@@ -41,17 +42,19 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 		return fmt.Sprintf("r%d.%d:%d-%d", n.Rule, n.Dot, n.From, n.To)
 	}
 	var lines []line
-	for _, n := range reachable(f) {
+	for _, i := range reachable(f) {
+		n := f.Nodes[i]
 		var alts []string
-		for _, a := range n.Alts {
+		for x := n.Alt; x != 0; x = f.Alts[x].Next {
+			a := f.Alts[x]
 			split := n.To // an empty rule
-			if a.Right != nil {
-				split = a.Right.From
+			if a.Right != 0 {
+				split = f.Nodes[a.Right].From
 			}
 			alts = append(alts, fmt.Sprintf("%d@%d(%s,%s)", a.Rule, split, key(a.Left), key(a.Right)))
 		}
 		slices.Sort(alts)
-		lines = append(lines, line{n.From, n.To, key(n) + " " + strings.Join(alts, " ")})
+		lines = append(lines, line{int(n.From), int(n.To), key(i) + " " + strings.Join(alts, " ")})
 	}
 	slices.SortFunc(lines, func(x, y line) int {
 		return cmp.Or(cmp.Compare(x.from, y.from), cmp.Compare(x.to, y.to), strings.Compare(x.text, y.text))
@@ -122,19 +125,27 @@ func TestForestDigestDetectsChange(t *testing.T) {
 
 	// Only alternative 0 changes: every node stays reachable through the
 	// others, so no node's own line changes, only that alternative's.
-	a, b := &Node{Sym: 1, Rule: -1, From: 0, To: 1}, &Node{Sym: 2, Rule: -1, From: 1, To: 2}
-	c, d := &Node{Sym: 1, Rule: -1, From: 0, To: 0}, &Node{Sym: 2, Rule: -1, From: 0, To: 2}
-	pos := &Node{Sym: -1, Rule: 5, Dot: 1, From: 0, To: 1} // a's span, another label
-	e := &Node{Sym: 3, Rule: -1, From: 1, To: 2}           // b's span, another label
-	alt0 := func(l, r *Node) string {
-		root := &Node{Sym: 0, Rule: -1, From: 0, To: 2, Alts: []Alt{{1, l, r}, {2, c, d}, {3, a, b}, {4, pos, b}, {6, a, e}}}
-		return forestText(tab, &Forest{Root: root})
+	const a, b, c, d, pos, e = 1, 2, 3, 4, 5, 6 // pos has a's span, e b's, each another label
+	alt0 := func(l, r int32) string {
+		g := handForest()
+		for _, n := range []Node{
+			{Sym: 1, Rule: -1, From: 0, To: 1}, {Sym: 2, Rule: -1, From: 1, To: 2},
+			{Sym: 1, Rule: -1, From: 0, To: 0}, {Sym: 2, Rule: -1, From: 0, To: 2},
+			{Sym: -1, Rule: 5, Dot: 1, From: 0, To: 1}, {Sym: 3, Rule: -1, From: 1, To: 2},
+		} {
+			g.newNode(n)
+		}
+		g.Root = g.newNode(Node{Sym: 0, Rule: -1, From: 0, To: 2})
+		for _, x := range []Alt{{Rule: 1, Left: l, Right: r}, {Rule: 2, Left: c, Right: d}, {Rule: 3, Left: a, Right: b}, {Rule: 4, Left: pos, Right: b}, {Rule: 6, Left: a, Right: e}} {
+			g.add(g.Root, x)
+		}
+		return forestText(tab, g)
 	}
-	for name, pair := range map[string][2][2]*Node{
+	for name, pair := range map[string][2][2]int32{
 		"split":                       {{a, b}, {c, d}},
 		"Left, to a same-span node":   {{a, b}, {pos, b}},
 		"Left and Right, swapped":     {{c, d}, {d, c}}, // a zero-width Left: the split stays 0
-		"Left, to nil":                {{a, b}, {nil, b}},
+		"Left, to none":               {{a, b}, {0, b}},
 		"Right, to a same-start node": {{a, b}, {a, e}},
 	} {
 		if alt0(pair[0][0], pair[0][1]) == alt0(pair[1][0], pair[1][1]) {
@@ -143,7 +154,7 @@ func TestForestDigestDetectsChange(t *testing.T) {
 	}
 
 	g := rebuilt(f)
-	g.Root.To++
+	g.Nodes[g.Root].To++
 	if forestText(tab, g) == want {
 		t.Error("changing one node's span left the text unchanged")
 	}
@@ -152,36 +163,41 @@ func TestForestDigestDetectsChange(t *testing.T) {
 	}
 }
 
-// rebuilt is a deep copy of f whose nodes are allocated in the reverse of
-// f's discovery order and whose Alts are reversed.
+// rebuilt is a copy of f whose nodes are numbered in the reverse of f's
+// discovery order and whose Alts are in the reverse of f's order.
 func rebuilt(f *Forest) *Forest {
 	order := reachable(f)
-	copied := map[*Node]*Node{nil: nil}
+	g := handForest()
+	copied := make([]int32, len(f.Nodes)) // 0 stays 0
 	for _, n := range slices.Backward(order) {
-		copied[n] = &Node{Sym: n.Sym, Rule: n.Rule, Dot: n.Dot, From: n.From, To: n.To}
+		nd := f.Nodes[n]
+		nd.Alt = 0
+		copied[n] = g.newNode(nd)
 	}
 	for _, n := range order {
-		for _, a := range slices.Backward(n.Alts) {
-			copied[n].Alts = append(copied[n].Alts, Alt{Rule: a.Rule, Left: copied[a.Left], Right: copied[a.Right]})
+		for x := f.Nodes[n].Alt; x != 0; x = f.Alts[x].Next {
+			a := f.Alts[x]
+			g.add(copied[n], Alt{Rule: a.Rule, Left: copied[a.Left], Right: copied[a.Right]})
 		}
 	}
-	return &Forest{Root: copied[f.Root]}
+	g.Root = copied[f.Root]
+	return g
 }
 
 // reachable is every node reachable from f's root, each once, in discovery order.
-func reachable(f *Forest) []*Node {
-	var order []*Node
-	seen := map[*Node]bool{}
-	for work := []*Node{f.Root}; len(work) > 0; {
+func reachable(f *Forest) []int32 {
+	var order []int32
+	seen := make([]bool, len(f.Nodes))
+	for work := []int32{f.Root}; len(work) > 0; {
 		n := work[len(work)-1]
 		work = work[:len(work)-1]
-		if n == nil || seen[n] {
+		if n == 0 || seen[n] {
 			continue
 		}
 		seen[n] = true
 		order = append(order, n)
-		for _, a := range n.Alts {
-			work = append(work, a.Left, a.Right)
+		for x := f.Nodes[n].Alt; x != 0; x = f.Alts[x].Next {
+			work = append(work, f.Alts[x].Left, f.Alts[x].Right)
 		}
 	}
 	return order

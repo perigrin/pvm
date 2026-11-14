@@ -176,58 +176,65 @@ func checkTree(tab *grammar.Tables, l *lex.Lattice[lex.None], inserted []int, t 
 }
 
 // cycle is a node reachable from f's root that is its own descendant
-// through Alts, Left or Right, or nil where the forest is acyclic: an
+// through Alts, Left or Right, or 0 where the forest is acyclic: an
 // iterative depth-first search, a node grey while on the path.
-func cycle(f *Forest) *Node {
+func cycle(f *Forest) int32 {
 	const grey, black = 1, 2
-	colour := map[*Node]int{}
+	colour := make([]int8, len(f.Nodes))
 	type frame struct {
-		n    *Node
-		next int // the next child to visit, two per Alt
+		n, alt int32 // the Alt whose child is visited next
+		right  bool  // its Right, else its Left
 	}
-	stack := []frame{{n: f.Root}}
+	stack := []frame{{n: f.Root, alt: f.Nodes[f.Root].Alt}}
 	colour[f.Root] = grey
 	for len(stack) > 0 {
 		top := &stack[len(stack)-1]
-		if top.next == 2*len(top.n.Alts) {
+		if top.alt == 0 {
 			colour[top.n] = black
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		a := top.n.Alts[top.next/2]
+		a := f.Alts[top.alt]
 		kid := a.Left
-		if top.next%2 == 1 {
-			kid = a.Right
+		if top.right {
+			kid, top.alt = a.Right, a.Next
 		}
-		top.next++
+		top.right = !top.right
 		switch {
-		case kid == nil || colour[kid] == black:
+		case kid == 0 || colour[kid] == black:
 		case colour[kid] == grey:
 			return kid
 		default:
 			colour[kid] = grey
-			stack = append(stack, frame{n: kid})
+			stack = append(stack, frame{n: kid, alt: f.Nodes[kid].Alt})
 		}
 	}
-	return nil
+	return 0
 }
+
+// handForest is an empty forest to build by hand: only the placeholders.
+func handForest() *Forest { return &Forest{Nodes: make([]Node, 1), Alts: make([]Alt, 1)} }
 
 // TestForestCycleCheck: cycle finds a cycle of two nodes and a self-loop,
 // and none in a shared but acyclic forest.
 func TestForestCycleCheck(t *testing.T) {
-	a, b, c := &Node{Sym: 0}, &Node{Sym: 0}, &Node{Sym: 1}
-	a.Alts = []Alt{{Left: c, Right: b}}
-	b.Alts = []Alt{{Right: a}}
-	if cycle(&Forest{Root: a}) == nil {
+	f := handForest()
+	a, b, c := f.newNode(Node{Sym: 0}), f.newNode(Node{Sym: 0}), f.newNode(Node{Sym: 1})
+	f.Root = a
+	f.add(a, Alt{Left: c, Right: b})
+	f.add(b, Alt{Right: a})
+	if cycle(f) == 0 {
 		t.Error("a two-node cycle went unseen")
 	}
-	b.Alts = []Alt{{Right: b}}
-	if cycle(&Forest{Root: a}) == nil {
+	f.Nodes[b].Alt = 0
+	f.add(b, Alt{Right: b})
+	if cycle(f) == 0 {
 		t.Error("a self-loop went unseen")
 	}
-	b.Alts = []Alt{{Left: c, Right: c}}
-	if n := cycle(&Forest{Root: a}); n != nil {
-		t.Errorf("an acyclic forest sharing a node has a cycle at %+v", n)
+	f.Nodes[b].Alt = 0
+	f.add(b, Alt{Left: c, Right: c})
+	if n := cycle(f); n != 0 {
+		t.Errorf("an acyclic forest sharing a node has a cycle at %+v", f.Nodes[n])
 	}
 }
 
@@ -259,24 +266,26 @@ func dump(f *Forest) string {
 	if f == nil {
 		return "no forest"
 	}
-	key := func(n *Node) string {
-		if n == nil {
+	key := func(i int32) string {
+		if i == 0 {
 			return "-"
 		}
+		n := f.Nodes[i]
 		return fmt.Sprintf("%d/%d.%d@%d-%d", n.Sym, n.Rule, n.Dot, n.From, n.To)
 	}
-	seen := map[*Node]bool{}
+	seen := make([]bool, len(f.Nodes))
 	var lines []string
-	work := []*Node{f.Root}
+	work := []int32{f.Root}
 	for len(work) > 0 {
 		n := work[len(work)-1]
 		work = work[:len(work)-1]
-		if n == nil || seen[n] {
+		if n == 0 || seen[n] {
 			continue
 		}
 		seen[n] = true
 		var alts []string
-		for _, a := range n.Alts {
+		for x := f.Nodes[n].Alt; x != 0; x = f.Alts[x].Next {
+			a := f.Alts[x]
 			alts = append(alts, fmt.Sprintf("%d:%s,%s", a.Rule, key(a.Left), key(a.Right)))
 			work = append(work, a.Left, a.Right)
 		}
@@ -459,8 +468,8 @@ func TestForestFromChart(t *testing.T) {
 			}
 			accepted++
 			checkYield(t, p, tab, f, c, l)
-			if n := cycle(f); n != nil {
-				t.Errorf("%s: the forest has a cycle through node %d over %d-%d", p, n.Sym, n.From, n.To)
+			if n := cycle(f); n != 0 {
+				t.Errorf("%s: the forest has a cycle through node %d over %d-%d", p, f.Nodes[n].Sym, f.Nodes[n].From, f.Nodes[n].To)
 			}
 			if p == samplePaths(t)[0] {
 				continue // std5k.pl: its Leo-off forest is checked by the toys' and smaller files' agreement
@@ -663,7 +672,7 @@ func TestForestRightRecursionLinear(t *testing.T) {
 			if f == nil {
 				t.Fatalf("%s × %d: no forest", name, n)
 			}
-			steps[i], size[i] = f.steps, f.size
+			steps[i], size[i] = f.steps, len(f.Nodes)
 		}
 		if steps[1] > 5*steps[0]/2 || size[1] > 5*size[0]/2 {
 			t.Errorf("%s: doubling the chain took the forest's work from %d to %d and its size from %d to %d, want at most 2.5×", name, steps[0], steps[1], size[0], size[1])
