@@ -167,8 +167,10 @@ by the Chart Parser Recovery Plan
 `docs/chart-recovery-plan`; perigrin's D2 and D5, 2026-11-13), which adds
 `speed-stage-lex-aggregate-longlived`,
 `speed-stage-recognize-aggregate-longlived` and
-`speed-stage-forest-aggregate-longlived`, and renames
-`speed-ratio-aggregate-cold` to `speed-ratio-aggregate-perfile` (below). Every
+`speed-stage-forest-aggregate-longlived`, renames
+`speed-ratio-aggregate-cold` to `speed-ratio-aggregate-perfile`, and adds
+`alloc-per-token-recognize`, `alloc-per-token-forest`, `gc-cpu-share-chart`
+and `gc-cpu-share-rd` (below). Every
 key of the first attempt is retired.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
@@ -233,7 +235,7 @@ To take a baseline after an intended change, run
   `rd-accepted-chart-refused`, `chart-accepted-both-refused`, `lex-unmapped`.
   **May not fall:** `tdt-aligned`.
 - **Timing** keys (`lex-overhead*`, `speed-ratio-*`, `speed-stage-*`,
-  `alloc-per-token-*`) are never compared with the baseline, and no speed
+  `alloc-per-token-*`, `gc-cpu-share-*`) are never compared with the baseline, and no speed
   key has a limit (D1). `lex-overhead` fails **absolutely** when
   it prints a number above 1.3, whatever its baseline.
 - **From the port's completion**, read from the same run's `ledger-gaps`
@@ -308,8 +310,12 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `alloc-per-token-chart` | the chart's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate | timing |
+| `alloc-per-token-chart` | the chart's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it covers lex plus recognition (not the forest), so no recognizer or forest bound sits on it | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
+| `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
+| `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
+| `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of the chart side, lex, recognize and forest, over the aggregate; 0 to 1 | timing |
+| `gc-cpu-share-rd` | the same around one pass of recursive descent | timing |
 | `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
 | `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`, `folded-into-token`) | reported |
@@ -423,6 +429,30 @@ clock and a collector, so it is tested on fake timings
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
   one ratio.
+- **Allocation per stage.** `alloc-per-token-recognize` and
+  `alloc-per-token-forest` count `Mallocs` over one long-lived pass of the
+  same stage side the `speed-stage-*` key times, its prepared inputs and its
+  recognizer made before the count, over the same tokens as
+  `alloc-per-token-chart` (`TestAllocPerStage`). `alloc-per-token-chart`
+  stays as it was: cold, lex plus recognition.
+- **Collector share.** `gc-cpu-share-chart` and `gc-cpu-share-rd` are
+  `/cpu/classes/gc/total:cpu-seconds` over
+  `/cpu/classes/total:cpu-seconds`, the difference of each across one
+  long-lived pass of that side over the aggregate. The runtime updates the
+  `/cpu/classes` metrics only when a collection ends, so a forced collection
+  precedes each read: the window is the pass, with its own last garbage
+  collected inside it. The denominator is the runtime's, GOMAXPROCS
+  integrated over the wall-clock span, so idle processors count in it; the
+  share is comparable between the two sides and across runs on one machine,
+  not with process CPU time. Both are taken before the stage keys prepare
+  their lattices and charts, so those (about 400 MB) are not live. An
+  unsupported metric, or a total that does not move, is an error, never a
+  0 or NaN figure (`TestGCShareMissingMetricIsError`). **There is no
+  per-stage collector key**: collection is concurrent and process-wide, so
+  garbage made in recognition is collected during the forest's span, and a
+  stage's collector time cannot be separated from its neighbours'. A forest
+  change reports its stage key and `alloc-per-token-forest`, with
+  `gc-cpu-share-chart` as context only.
 - **The aggregate** is the timed set less `std5k.pl`, `edit5k.pl` and any
   file whose recursive-descent time alone is more than 10% of recursive
   descent's time over the **whole** population, whatever subset is timed.
