@@ -183,6 +183,10 @@ type Chart struct {
 	Cached   []bool
 	leo      map[[2]int]*memo // the side table: real Leo memos by (node, symbol); nil until one is made
 	inserted []int            // nodes where the slipper scanned a ;
+	// slips is the slipper's closure at each node recognition built it for,
+	// by (node, the next token's terminal set, -1 at the end of input), Leo
+	// on as recognition closed it; nil until one is kept (Slipped).
+	slips map[[2]int][]Item
 	// slipAccepted is whether the ; inserted at end of input completes the start.
 	slipAccepted bool
 }

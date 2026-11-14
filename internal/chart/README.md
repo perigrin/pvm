@@ -1260,10 +1260,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   whether it holds a `}`) is built by the first `New` over a
   `*grammar.Tables`, kept beside that value keyed by the built value's type
   (`grammar.Derived`, so each builder gets its own value, built once per
-  tables value: `TestDerivedTwoBuilders`; a builder asking for its own type, directly or
-  through another builder, deadlocks), and shared
-  read-only by every recognizer over it, from any goroutine; a later `New`
-  allocates 6 objects where it allocated 1,672 at c99366f8 (`BenchmarkNew`).
+  tables value: `TestDerivedTwoBuilders`; a builder asking for its own
+  type, directly or through another builder, deadlocks), and shared
+  read-only by every recognizer over it, from any goroutine. The forest is
+  the second builder beside the same value (its grammar-only data, below);
+  a later `New` allocates 6 objects where it allocated 1,672 at c99366f8
+  (`BenchmarkNew`).
   A tables value anywhere works, a package variable's included
   (`TestNewOverAnyTablesValue`). A set appended to the tables is covered when
   a recognizer first meets its id, without writing what other recognizers
@@ -1475,13 +1477,24 @@ over `testdata/port/refused-where.txt`; an unmapped token past the dead set
 does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
 
 - **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
-  (state, distance), recognition stays Boolean, and no existing file of
-  `recognize` changes for the forest. It reads the chart through two
-  read-only accessors in `recognize/finished.go`. A rule the chart completed
+  (state, distance), recognition stays Boolean, and nothing recognition
+  stores beside the sets is shaped for the forest except the slipper's
+  closures (below). It reads the chart through two read-only accessors in
+  `recognize/finished.go`. A rule the chart completed
   is a reduce of a state in some set, or one a Leo memo skipped
   (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
   Each is a derivation the chart proved, so every node has one. Every node on
   a derivation of the file is completed in the chart, so none is missing.
+- **Grammar-only data** (the `;` symbol, each rule's first core item id,
+  the symbols a Leo item awaits) is built once per tables value through
+  `grammar.Derived`, keyed by its own type beside the recognizer's, and only
+  read after; a copy of the tables builds its own, and the recognizer's
+  value is untouched (`TestForestGrammarDataOncePerTables`).
+- **First blocks.** `Nodes` and `Alts` start sized from the file: 6 and 5
+  per token, about the 90th percentile over the ratchet's aggregate (medians
+  5.0 and 3.9), so most builds never grow them; one that does doubles. A
+  zero- or one-token source sizes them without panic and gets the same
+  forest as unsized blocks (`TestForestBlocksSizedForTinySources`).
 - **A node** is a symbol over a span of lattice nodes, or a rule position
   there: a rule's first symbols, which binarizes a long rule so the forest
   stays cubic. A node's alternatives are the ways its span divides, each the
@@ -1511,11 +1524,27 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   stores nothing. Leo on and off give the same forest, on a file of cached
   sets included (`TestForestFromChart`).
 - **The slipper's `;`** is a zero-width `PERLY_SEMICOLON` leaf at a node in
-  `Inserted()`. `Slipped` closes the items it advances with Leo off, so
-  replaying it after a cache hit writes no memo. The items it returns are
-  the caller's, a copy rather than the recognizer's buffer, which the next
-  recognition overwrites (`TestSlippedOwnsItsItems`, under `-race`); any
-  new caller of the builder's sorted items must copy them the same way. A derivation's `;` leaves
+  `Inserted()`; `Slipped` is the items it advances there, closed under
+  completion. Where recognition built the node after the `;`, or the `;` is
+  at the end of input, recognition already closed them (`semiAt`, Leo on),
+  and the chart keeps a copy by node and next terminal set, which `Slipped`
+  returns for the forest to read; it is the chart's own, unchanged by later
+  recognition (`TestBuiltSlipperClosureOwnedByChart`, under `-race`). That
+  covers 0.894 of the aggregate's inserted-`;` nodes (chart-recovery's
+  `F2 reuse share`). A node the transition cache served made no closure, so
+  `Slipped` recomputes it with Leo off, link by link, writing no memo; those
+  items are the caller's, a copy rather than the recognizer's buffer
+  (`TestSlippedOwnsItsItems`, under `-race`); any new caller of the
+  builder's sorted items must copy them the same way. shortcut: a
+  cache-served node recomputes its closure on every `Slipped` call
+  (`TestSlippedRecomputesCacheServedNodes` pins it); caching the closure
+  with the transition (R6) is the upgrade if that shows. The two
+  closures give the forest the same completed (symbol, origin, rule) facts
+  once Leo chains are expanded as the forest expands them
+  (`TestSlipperClosuresAgree`, over the corpus sample, where no slipper
+  closure takes a Leo memo, and the right-recursive slipper toys, where some
+  do), and the forest is the same with the cache and Leo each on or off
+  (`TestForestSameAcrossCacheAndLeo`). A derivation's `;` leaves
   are a subset of `Inserted()`, not all of it: `{ 1; }` uses none, though
   the slipper inserted at the `}`. Aligning leaves to `-DT`'s tokens must
   allow for that.
@@ -1591,9 +1620,11 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   seven times for `std5k.pl`, so `slices.Grow` and its copying cost every
   build over 1,024 nodes or alternatives, long-lived passes included (with
   the first size raised to 1<<18 the same build ran 20.3–21.8 ms against
-  22.8–23.8). F2's sizing of the first blocks from the file removes it. Over
-  the aggregate the forest stage key still fell by about a fifth
-  (chart-recovery's `F1 reading`). When the benchmark was
+  22.8–23.8). Over the aggregate the forest stage key still fell by about a
+  fifth (chart-recovery's `F1 reading`). F2 sizes the first blocks from the
+  file and keeps the slipper closures recognition built: in the ratchet's
+  `BenchForest`, three runs interleaved with pu d6c53b07 (load 0.5–3.5), a
+  median 15.7 ms per op and 8,331 allocations against 22.1 ms and 12,907. When the benchmark was
   added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
   19.4 ms. An earlier build of the forest, which expanded every Leo chain
   and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
