@@ -14,7 +14,7 @@ import (
 // awaits a ; (spec §5.2). toke.c inserts that ; before the } that closes a
 // scope (yyl_rightcurly) and at the end of the file (yyl_fake_eof).
 func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
-	v := &builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: true}
+	v := &builder{r: r, c: c, pos: pos, interned: true}
 	for _, it := range c.Sets[pos].Items() {
 		if k, ok := r.goTo(it.State, r.g.semi); ok {
 			v.add(k, pos-it.Dist)

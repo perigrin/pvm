@@ -3,7 +3,10 @@
 
 package recognize
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"slices"
+)
 
 // Item is an Earley item: an LR(0) state and the distance in lattice nodes
 // back to its origin. Distance 0 is a prediction at this node.
@@ -74,37 +77,39 @@ type interner struct {
 	cores map[string]*setCore
 	dists map[string]int
 	sets  map[[2]int]*Set
+	// coreBuf and distBuf are intern's key buffers, reused from set to set.
+	coreBuf, distBuf []byte
 }
 
 func newInterner() interner {
 	return interner{cores: map[string]*setCore{}, dists: map[string]int{}, sets: map[[2]int]*Set{}}
 }
 
-// intern is the one set with items' content, and whether it existed.
+// intern is the one set with items' content, and whether it existed. A new
+// set copies items, so the caller may reuse them.
 func (in *interner) intern(items []Item) (*Set, bool) {
-	var core, dist []byte
+	core, dist := in.coreBuf[:0], in.distBuf[:0]
 	for _, it := range items {
 		core = binary.AppendUvarint(core, uint64(it.State))
 		dist = binary.AppendUvarint(dist, uint64(it.Dist))
 	}
+	in.coreBuf, in.distBuf = core, dist
+	// A lookup by string(bytes) does not allocate; only a stored key is copied.
 	co, ok := in.cores[string(core)]
 	if !ok {
 		co = &setCore{id: len(in.cores)}
 		in.cores[string(core)] = co
 	}
-	k := [2]int{co.id, idOf(in.dists, string(dist))}
+	di, ok := in.dists[string(dist)]
+	if !ok {
+		di = len(in.dists)
+		in.dists[string(dist)] = di
+	}
+	k := [2]int{co.id, di}
 	if s, ok := in.sets[k]; ok {
 		return s, true
 	}
-	s := &Set{id: len(in.sets), items: items, core: co}
+	s := &Set{id: len(in.sets), items: slices.Clone(items), core: co}
 	in.sets[k] = s
 	return s, false
-}
-
-func idOf(m map[string]int, k string) int {
-	if id, ok := m[k]; ok {
-		return id
-	}
-	m[k] = len(m)
-	return m[k]
 }

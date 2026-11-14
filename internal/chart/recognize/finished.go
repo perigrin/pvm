@@ -3,6 +3,8 @@
 
 package recognize
 
+import "slices"
+
 // LeoLink is the first completion a Leo memo at node at for sym skips:
 // completing sym from at to a later node also completes rule from origin
 // there, though no set holds that item (Leo 1991). ok is false where no memo
@@ -39,7 +41,8 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 // is next, or at the end of input where next is -1; nil where no item at
 // pos awaits a ;. They are beside the set at pos, never in it (slipper.go).
 // They are closed with Leo off, link by link, since a node the cache served
-// made no memo and making one here would write the chart.
+// made no memo and making one here would write the chart. They are the
+// caller's: a copy, not the recognizer's buffer, which later recognition reuses.
 func (c *Chart) Slipped(pos, next int) []Item {
 	if c.r.g.semi < 0 || pos < 0 || pos >= len(c.Sets) {
 		return nil
@@ -59,5 +62,5 @@ func (c *Chart) Slipped(pos, next int) []Item {
 	if v == nil {
 		return nil
 	}
-	return v.relative()
+	return slices.Clone(v.relative())
 }

@@ -54,6 +54,11 @@ type Recognizer struct {
 	// probes counts goTo's binary searches, for the test of the postdot
 	// index's bound (probes_test.go).
 	probes int
+	// itemsBuf, depsBuf and relBuf are Recognize's builder's buffers,
+	// reused from node to node: what keeps their contents copies them.
+	itemsBuf [][2]int
+	depsBuf  []dep
+	relBuf   []Item
 }
 
 // grammarTables is what New derives from the tables alone. It is built once
@@ -204,6 +209,17 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 	in := make([][]lex.Edge, n)
 	out := make([][]int, n) // the set ids leaving each node
 	branch := make([]bool, n)
+	// One backing array each, carved by count, instead of a slice per node.
+	nin, nout := make([]int32, n), make([]int32, n)
+	for _, e := range l.Edges {
+		nin[e.To]++
+		nout[e.From]++
+	}
+	inAll, outAll := make([]lex.Edge, len(l.Edges)), make([]int, len(l.Edges))
+	for i, a, b := 0, 0, 0; i < n; i++ {
+		in[i], out[i] = inAll[a:a:a+int(nin[i])], outAll[b:b:b+int(nout[i])]
+		a, b = a+int(nin[i]), b+int(nout[i])
+	}
 	for _, e := range l.Edges {
 		in[e.To] = append(in[e.To], e)
 		out[e.From] = append(out[e.From], e.Token.TerminalSet)
@@ -225,7 +241,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 				continue
 			}
 		}
-		b := builder{r: r, c: c, pos: pos, seen: map[[2]int]bool{}, interned: cacheable}
+		b := builder{r: r, c: c, pos: pos, interned: cacheable, items: r.itemsBuf[:0], deps: r.depsBuf[:0]}
 		for _, e := range in[pos] {
 			b.scan(e)
 			if r.cls.closes[e.Token.TerminalSet] {
@@ -237,12 +253,13 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			follows = laBits
 		}
 		b.complete(follows)
+		r.itemsBuf, r.depsBuf = b.items, b.deps
 		if len(b.items) == 0 {
 			continue
 		}
 		items := b.relative()
 		if branch[pos] {
-			c.Sets[pos] = &Set{id: -1, items: items}
+			c.Sets[pos] = &Set{id: -1, items: slices.Clone(items)}
 			continue
 		}
 		c.Sets[pos], c.Interned[pos] = r.sets.intern(items)
@@ -287,7 +304,9 @@ func (c *Chart) Reuse() (hits, positions int) {
 }
 
 // builder makes one node's set: items as (state, absolute origin) while it
-// is built, and the origin sets completion read, for the cache.
+// is built, and the origin sets completion read, for the cache. Each finds
+// its duplicates by scanning while small and keeps a map (seen, depSeen)
+// only once it holds more than smallSet (YAEP's sit_dist_insert, adapted).
 type builder struct {
 	r        *Recognizer
 	c        *Chart
@@ -299,13 +318,38 @@ type builder struct {
 	interned bool // the node is cacheable and every set read is interned
 }
 
+// smallSet is the size up to which a builder finds duplicates by scanning.
+const smallSet = 24
+
+// isNew reports whether x is not yet in list, and records it in seen once
+// the list is past smallSet; the caller appends it.
+func isNew[T comparable](list []T, seen *map[T]bool, x T) bool {
+	if *seen != nil {
+		if (*seen)[x] {
+			return false
+		}
+		(*seen)[x] = true
+		return true
+	}
+	if slices.Contains(list, x) {
+		return false
+	}
+	if len(list) == smallSet {
+		*seen = make(map[T]bool, 4*smallSet)
+		for _, y := range list {
+			(*seen)[y] = true
+		}
+		(*seen)[x] = true
+	}
+	return true
+}
+
 // add adds an item, and a kernel state's predicted state at this node.
 func (b *builder) add(state, origin int) {
 	k := [2]int{state, origin}
-	if b.seen[k] {
+	if !isNew(b.items, &b.seen, k) {
 		return
 	}
-	b.seen[k] = true
 	b.items = append(b.items, k)
 	if eps := b.r.tab.States[state].Epsilon; eps >= 0 {
 		b.add(eps, b.pos)
@@ -383,21 +427,19 @@ func (b *builder) read(origin int, s *Set) {
 		return
 	}
 	d := dep{dist: b.pos - origin, set: s.id}
-	if b.depSeen == nil {
-		b.depSeen = map[dep]bool{}
-	}
-	if !b.depSeen[d] {
-		b.depSeen[d] = true
+	if isNew(b.deps, &b.depSeen, d) {
 		b.deps = append(b.deps, d)
 	}
 }
 
-// relative is the items as (state, distance), sorted, the set's content.
+// relative is the items as (state, distance), sorted, the set's content, in
+// the recognizer's buffer: a caller that keeps it copies it.
 func (b *builder) relative() []Item {
-	items := make([]Item, len(b.items))
-	for i, it := range b.items {
-		items[i] = Item{State: it[0], Dist: b.pos - it[1]}
+	items := b.r.relBuf[:0]
+	for _, it := range b.items {
+		items = append(items, Item{State: it[0], Dist: b.pos - it[1]})
 	}
+	b.r.relBuf = items
 	slices.SortFunc(items, func(x, y Item) int {
 		if x.State != y.State {
 			return x.State - y.State

@@ -123,3 +123,46 @@ func agree(t *testing.T, tab *grammar.Tables, words ...string) {
 		t.Errorf("of %d inputs %d were accepted and %d had an insertion, want some of each", len(inputs), accepted, inserted)
 	}
 }
+
+// TestSlippedOwnsItsItems: the items Slipped returns are the caller's. A
+// recognition on the same recognizer afterwards, run while they are read
+// (under -race), writes none of them: they share no buffer it reuses.
+func TestSlippedOwnsItsItems(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{})
+	c := mustRecognize(t, r, files[0].l)
+	var got, want [][]Item
+	for _, p := range c.Inserted() {
+		next := -1
+		if p < len(files[0].l.Edges) {
+			next = files[0].l.Edges[p].Token.TerminalSet
+		}
+		if s := c.Slipped(p, next); s != nil {
+			got, want = append(got, s), append(want, slices.Clone(s))
+		}
+	}
+	if len(got) == 0 {
+		t.Fatalf("%s: no node's inserted ; advances an item", files[0].name)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, f := range files[1:] {
+			if _, err := Recognize(r, f.l); err != nil {
+				t.Errorf("%s: %v", f.name, err) // Fatal may not leave a goroutine the test did not start
+			}
+		}
+	}()
+	for reading := true; reading; {
+		select {
+		case <-done:
+			reading = false
+		default:
+		}
+		for i := range got {
+			if !slices.Equal(got[i], want[i]) {
+				t.Fatalf("Slipped's items at the %dth inserted ; changed under a later recognition", i)
+			}
+		}
+	}
+}
