@@ -1,10 +1,10 @@
-// ABOUTME: Interned Earley sets: a set is its (state, distance) items, interned as a (core, distances) pair.
-// ABOUTME: Cores and distance vectors are each deduplicated, so equal content at two positions is one *Set.
+// ABOUTME: Interned Earley sets: a set is its (state, distance) items, interned by one hash of its states and one map lookup.
+// ABOUTME: Equal content at two positions is one *Set; sets of one core share its postdot index.
 
 package recognize
 
 import (
-	"encoding/binary"
+	"math/bits"
 	"slices"
 )
 
@@ -20,6 +20,7 @@ type Set struct {
 	id    int
 	items []Item
 	core  *setCore // nil for a set built inside a branch
+	dh    uint64   // hash of the distances, set by intern
 }
 
 // setCore is a set core's postdot index (YAEP's core_symb_vect, Marpa's
@@ -27,9 +28,13 @@ type Set struct {
 // set's items, target state). Items are sorted by state, so one index
 // holds for every set of the core.
 type setCore struct {
-	id  int
-	off []int32 // by symbol, into ent; nil until first used
-	ent []coreEnt
+	id    int
+	first *Set     // the core's first interned set, which stands for its states
+	tab   []*Set   // the core's interned sets, open-addressed by distance hash
+	n     int      // sets in tab
+	next  *setCore // the next core under the same hash
+	off   []int32  // by symbol, into ent; nil until first used
+	ent   []coreEnt
 }
 
 type coreEnt struct{ idx, target int32 }
@@ -71,45 +76,100 @@ func (s *Set) Items() []Item {
 	return s.items
 }
 
-// interner is YAEP's: the states of a set are its core, its distances a
-// vector, each deduplicated, and a set is interned as the pair of their ids.
+// interner is YAEP's: a set is its core (the states) and its distances. One
+// hash of the states keys a table of cores, each holding its sets in a small
+// open-addressed table keyed by a hash of their distances. Hashes only narrow
+// the search: items decide identity, so a collision never merges two sets.
 type interner struct {
-	cores map[string]*setCore
-	dists map[string]int
-	sets  map[[2]int]*Set
-	// coreBuf and distBuf are intern's key buffers, reused from set to set.
-	coreBuf, distBuf []byte
+	cores         map[uint64]*setCore
+	nsets, ncores int
+	// hashMask is all ones; a test clears it to force every hash to collide.
+	hashMask uint64
+	// interns counts intern calls; lookups and inserts count reads and
+	// writes of cores.
+	interns, lookups, inserts int
 }
 
 func newInterner() interner {
-	return interner{cores: map[string]*setCore{}, dists: map[string]int{}, sets: map[[2]int]*Set{}}
+	return interner{cores: map[uint64]*setCore{}, hashMask: ^uint64(0)}
 }
+
+// hashSeed is nonzero so that leading zero values change a hash.
+const hashSeed = 0x9e3779b97f4a7c15
+
+// mix folds x into h.
+func mix(h, x uint64) uint64 {
+	return bits.RotateLeft64(h^x, 29) * 0x9e3779b97f4a7c15
+}
+
+// slot is where dh starts probing in a table of size len(tab).
+func slot(dh uint64, size int) int { return int((dh ^ dh>>32) & uint64(size-1)) }
 
 // intern is the one set with items' content, and whether it existed. A new
 // set copies items, so the caller may reuse them.
 func (in *interner) intern(items []Item) (*Set, bool) {
-	core, dist := in.coreBuf[:0], in.distBuf[:0]
+	ch, dh := uint64(hashSeed), uint64(hashSeed)
 	for _, it := range items {
-		core = binary.AppendUvarint(core, uint64(it.State))
-		dist = binary.AppendUvarint(dist, uint64(it.Dist))
+		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist))
 	}
-	in.coreBuf, in.distBuf = core, dist
-	// A lookup by string(bytes) does not allocate; only a stored key is copied.
-	co, ok := in.cores[string(core)]
-	if !ok {
-		co = &setCore{id: len(in.cores)}
-		in.cores[string(core)] = co
+	ch, dh = ch&in.hashMask, dh&in.hashMask
+	in.interns++
+	in.lookups++
+	head := in.cores[ch]
+	co := head
+	for co != nil && !sameStates(co.first.items, items) {
+		co = co.next
 	}
-	di, ok := in.dists[string(dist)]
-	if !ok {
-		di = len(in.dists)
-		in.dists[string(dist)] = di
+	if co == nil {
+		co = &setCore{id: in.ncores, next: head, tab: make([]*Set, 4)}
+		in.ncores++
+		in.inserts++
+		in.cores[ch] = co
 	}
-	k := [2]int{co.id, di}
-	if s, ok := in.sets[k]; ok {
-		return s, true
+	i := slot(dh, len(co.tab))
+	for ; co.tab[i] != nil; i = (i + 1) & (len(co.tab) - 1) {
+		if s := co.tab[i]; s.dh == dh && slices.Equal(s.items, items) {
+			return s, true
+		}
 	}
-	s := &Set{id: len(in.sets), items: slices.Clone(items), core: co}
-	in.sets[k] = s
+	s := &Set{id: in.nsets, items: slices.Clone(items), core: co, dh: dh}
+	in.nsets++
+	if co.first == nil {
+		co.first = s
+	}
+	co.n++
+	if 2*co.n > len(co.tab) { // keep the table at most half full
+		old := co.tab
+		co.tab = make([]*Set, 2*len(old))
+		for _, o := range old {
+			if o != nil {
+				co.place(o)
+			}
+		}
+		co.place(s)
+	} else {
+		co.tab[i] = s
+	}
 	return s, false
+}
+
+// place stores s in the first free slot from its distance hash.
+func (co *setCore) place(s *Set) {
+	i := slot(s.dh, len(co.tab))
+	for co.tab[i] != nil {
+		i = (i + 1) & (len(co.tab) - 1)
+	}
+	co.tab[i] = s
+}
+
+func sameStates(a, b []Item) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].State != b[i].State {
+			return false
+		}
+	}
+	return true
 }

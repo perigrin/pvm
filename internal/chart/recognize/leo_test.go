@@ -147,7 +147,7 @@ func leoAgree(t testing.TB, tab *grammar.Tables, l *lex.Lattice[lex.None]) strin
 		if a != b {
 			return fmt.Sprintf("lookahead off %v: accepted %v with Leo, %v without", la, a, b)
 		}
-		if x, y := len(on.sets.sets), len(off.sets.sets); x != y {
+		if x, y := on.sets.nsets, off.sets.nsets; x != y {
 			return fmt.Sprintf("lookahead off %v: %d distinct sets with Leo, %d without", la, x, y)
 		}
 	}

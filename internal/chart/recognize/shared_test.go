@@ -128,7 +128,7 @@ func TestRecognizerStateNotShared(t *testing.T) {
 	tab := toyStmt(t)
 	r1, r2 := New(tab, Options{}), New(tab, Options{})
 	state := func(r *Recognizer) string {
-		return fmt.Sprint(len(r.sets.sets), len(r.sets.cores), len(r.sets.dists), len(r.cache), len(r.trie), r.stored, r.longestScan, r.expectedComputed)
+		return fmt.Sprint(r.sets.nsets, r.sets.ncores, len(r.cache), len(r.trie), r.stored, r.longestScan, r.expectedComputed)
 	}
 	c := run(t, r1, decl+" "+decl)
 	if _, err := c.Expected(2); err != nil {

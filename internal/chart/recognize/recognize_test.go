@@ -350,10 +350,17 @@ func TestInternedSetsSurviveBufferReuse(t *testing.T) {
 	for _, f := range files[:half] {
 		mustRecognize(t, r, f.l)
 	}
-	sets := make([]*Set, 0, len(r.sets.sets))
+	sets := make([]*Set, 0, r.sets.nsets)
 	var want [][]Item
-	for _, s := range r.sets.sets {
-		sets, want = append(sets, s), append(want, slices.Clone(s.items))
+	for _, co := range r.sets.cores {
+		for ; co != nil; co = co.next {
+			for _, s := range co.tab {
+				if s == nil {
+					continue
+				}
+				sets, want = append(sets, s), append(want, slices.Clone(s.items))
+			}
+		}
 	}
 	done := make(chan struct{})
 	go func() {
