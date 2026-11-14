@@ -22,6 +22,10 @@ chart-ratchet: speed-stage-recognize-aggregate-longlived 1.6175
 chart-ratchet: speed-stage-forest-aggregate-longlived 1.4048
 chart-ratchet: alloc-per-token-chart 11.403
 chart-ratchet: alloc-per-token-rd 2.517
+chart-ratchet: alloc-per-token-recognize 6.249
+chart-ratchet: alloc-per-token-forest 0.639
+chart-ratchet: gc-cpu-share-chart 0.1478
+chart-ratchet: gc-cpu-share-rd 0.1270
 chart-ratchet: items-per-token 4.874
 chart-ratchet: set-reuse 0.712
 chart-ratchet: ledger-excluded 18
