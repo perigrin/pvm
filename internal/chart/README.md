@@ -51,7 +51,7 @@ kill reading, taken on a different host: the session moved hosts on
 stage sum fell from 3.638 (M1's reading) to 3.1329 (on pu 57caafca), so
 readings across the move are not comparable. The like-for-like comparison is
 against this host's own quiet reading before any R or F issue, on 57caafca:
-lex 0.5980, recognize 1.4246, forest 1.1348, sum 3.1329. Against it,
+lex 0.5980, recognize 1.4246, forest 1.1348, median per-run sum 3.1329. Against it,
 recognize fell × 0.505 (§4: × 0.46–0.64 for R1–R3 with R5), forest × 0.606
 (§4: × 0.65–0.70 for F2, × 0.52–0.56 with F1 at × 0.80) and lex × 1.007
 (unchanged, as §4 assumes). §4's factors applied to the per-stage medians
