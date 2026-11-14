@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -252,5 +253,20 @@ func TestAcceptedNeedsOriginZero(t *testing.T) {
 		if got := moved.Accepted(); got != want {
 			t.Errorf("a complete start item from node %d at node 2: accepted %v, want %v", 2-dist, got, want)
 		}
+	}
+}
+
+// TestItemIsStateDistanceR2: a merged item is (state, distance) and nothing
+// else (rule 2): Item's fields are exactly State and Dist, both int, as on pu
+// before the builder's buffers were reused.
+func TestItemIsStateDistanceR2(t *testing.T) {
+	typ := reflect.TypeFor[Item]()
+	var got []string
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		got = append(got, f.Name+" "+f.Type.String())
+	}
+	if want := []string{"State int", "Dist int"}; !slices.Equal(got, want) {
+		t.Errorf("Item's fields are %q, want %q", got, want)
 	}
 }
