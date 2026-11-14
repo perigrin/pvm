@@ -4,6 +4,8 @@
 
 Revision 4. It applies perigrin's scope for the run and answers the round-2 and round-3 assessments. Section 7 lists each finding from both rounds and what changed. The sources (Aycock's thesis, Opedal et al., YAEP, Marpa and Chalk) were read for revision 2, and that account stands.
 
+*Erratum, 2026-11-14 (after the assessed revision, cab519d7):* section 3 C's table called `Precedence.pm`'s pick-a-winner `add` "Chalk as written". Chalk as written is `FilterComposite.pm`'s `add`, which unions the survivors; perigrin corrected this. Only that table changed.
+
 ## The run's scope (perigrin)
 
 - **In scope:** P1–P5, M1–M3, R1–R5, F1–F2, and the C1 spike. **P5 is this plan's addition, beyond the P1–P4 perigrin scoped** (a forest-identity golden; round-2 finding B-B2). It is his to rule in or out, with D4.
@@ -288,8 +290,8 @@ perigrin's point: Chalk prunes by precedence while it parses, it gave up the SPP
 
 | Form | What it is | Standing |
 |---|---|---|
-| Value on items, `add` picks a winner | Chalk as written (`Precedence.pm` `add`) | Not built. It discards readings, and its rule is a heuristic, not bison's resolution. |
-| **Value on items, `add` keeps every survivor** | Chalk's packed survivors (`FilterComposite.pm` `_pack_survivors`) | **C1, as scoped.** Scratch only. |
+| Value on items, `add` picks a winner | `Precedence.pm` `add` on its own, which picks per slot. Chalk never runs it alone. | Not built. It discards readings, and its rule is a heuristic, not bison's resolution. |
+| **Value on items, `add` keeps every survivor** | Chalk as written: `FilterComposite.pm` `add` unions the survivors (`_pack_survivors`). Chalk then needs one parse: `Earley.pm`'s Phase 4 stopgap picks the first survivor, and Phase 5 plans an error. | **C1, as scoped.** Scratch only. |
 | Compiled into the tables | The same finite context multiplied into the grammar | **Ruled out by perigrin:** it grows the grammar, and Earley's cost scales with grammar size. |
 | Scope or type on items | Declared subs, imports, features | Out. These depend on position, so no two nodes could share a set. |
 
