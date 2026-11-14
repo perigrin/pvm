@@ -86,10 +86,13 @@ perl5/lib, parse costs 20-50× `Analyze`:
 Cost tracks grammar pathology, not file size, so it cannot be predicted or
 debounced away. A 350 ms parse is 35× over an interactive budget.
 
-The parse column is the tree-sitter parser's (2026-09-04), which is what
-PSC still consumes. The hand-written `internal/parse/` has not been
-benchmarked on these files; the `Analyze` column is unaffected by which
-parser produced the tree.
+The parse column is the tree-sitter parser's (2026-09-04), which PSC
+consumed until #486 retired it. The hand-written `internal/parse/` that
+replaced it took about 1.2 ms on `overload.pm` and 0.9 ms on `sigtrap.pm`
+in a one-off run on 2026-10-26 (a 4-vCPU VM, not the machine above). No
+committed benchmark holds either number; M2's latency gate (plan §5 M2)
+is where one belongs. The `Analyze` column is unaffected by which parser
+produced the tree.
 
 **4. Modern Perl deletes an ambiguity class.** `S_intuit_method` returns 0 when
 the `indirect` feature is off (`toke.c:5071`). `my $o = new Foo;` is a **syntax
@@ -98,39 +101,37 @@ to resolve a bareword is opt-out, and most new code has opted out.
 
 ## Status
 
-The specification is complete. A parser exists and is measured against it.
-Re-measured at d2ebe02a on 2026-09-17: 408 of 986 T1 files (41.4%) are
-clean, 4,944 `Unknown` nodes remain, and round-trip holds on all 986. T1
-graded is PerlOnJava's `unit/*.t` at top level — 986 files, top level only,
-which is the count the plan's M4 target uses. Walking that tree recursively
-gives 1,508 and adding `module/` gives 1,935; both are different corpora and
-their numbers are not comparable to these.
+The specification is complete, and `internal/parse/` is the only Perl
+parser pvm ships: tree-sitter was retired in #486. Plan §5's M0, M1 and M3
+gates are closed; M2 (incremental re-parse) and M4-M6 are open. Measured on
+pu at 1d6aed46 (2026-10-26), each number read from its committed ratchet:
 
-At commit 3b9422eb the corresponding figures were reported as 341 clean
-(34.6%) and 5,289 `Unknown`, alongside 84.2% of the oracle corpus parsing,
-620/620 round-trip, and 1,000,000 fuzz executions. The two commits since
-then changed no parse outcome — d2ebe02a measured exactly neutral — so the
-gap is a measurement difference rather than progress, and the earlier
-numbers should be treated as the less reliable pair. The M1 gate (issue 01a0a70f) is in
-progress; against the plan's M1 targets (100% of T2, ≥70% of T1-easy, oracle
-WRONG = 0) it is materially incomplete. What exists in code:
+- T1 graded: 985 of 986 files parse without `Unknown` (`t1.ratchet`), canon
+  is a fixpoint on all 986 (`t1canon.ratchet`), and perl Deparses canon as
+  it Deparses the source on 982 (`t1fidelity.ratchet`). T1 graded is
+  PerlOnJava's `unit/*.t` at top level, the count the plan's M4 target
+  uses; walking it recursively (1,508) or adding `module/` (1,935) gives
+  different corpora whose numbers are not comparable.
+- perl.git `t/`: 619 of 619 parse without `Unknown` (`perlgitt.ratchet`).
+- T2 core: 56 of 56 (`TestT2HoldsAll56`).
+
+What exists in code:
 
 - `internal/lexer/` and `internal/parse/` — the hand-written lexer and
-  parser this specification describes. 23 node kinds
-  (`internal/parse/parse.go:146-201`); `Unknown` for what it declines to
+  parser this specification describes. `Unknown` for what it declines to
   parse; `Call{Resolved:false}` for a call to an unseen sub.
-- `internal/parseoracle/` — extracts perl's parse decisions as JSON, plus the
-  test that records the fidelity gap.
-- `internal/infer/` — PSC's type inference. It still consumes the tree-sitter
-  tree through `internal/parser/`; its conversion to `internal/parse/`, and
-  the lowering pass that conversion goes through, is chapter 6 §6.1.6.
+- `internal/lower/` — the lowering pass between the parse tree and
+  inference (chapter 6 §6.1.6).
+- `internal/infer/` — PSC's type inference, reading `internal/parse/`'s
+  tree through `internal/lower/`, as `psc check` and the LSP do.
+- `internal/parseoracle/` — extracts perl's parse decisions as JSON and
+  holds `internal/parse/` to them, per file and per marker site.
 
-A measured defect in `internal/parse/` is recorded rather than hidden:
-`${$h->{k}}` lexes to one token and parses to one childless leaf (issue
-01a0ad52). It passes round-trip, which proves no byte was lost and nothing
-about structure (chapter 7 §7.2(c)). Chapter 6 §6.1.8 lists it with the
-rest of what is open. The defect once recorded beside it, `($x)` losing its
-`Paren` node, is fixed: a parenthesised term keeps the flag, and canon
+Two defects once recorded here are fixed. `${$h->{k}}` lexed to one token
+and parsed to one childless leaf (issue 01a0ad52, done): it passed
+round-trip, which proves no byte was lost and nothing about structure
+(chapter 7 §7.2(c)). And `($x)` lost its `Paren` node: a parenthesised
+term now keeps the flag, and canon
 writes a `Paren` node's parens once. canon is precedence-aware and writes a
 call's parens only where the source had them or binding power requires
 them, and `Faithful` forgives exactly two differences: a block's last `;`,
