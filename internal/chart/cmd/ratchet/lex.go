@@ -148,7 +148,7 @@ func productionProtocol(chart, ref Side) Protocol {
 }
 
 // measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
-// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage keys (chartStages) to measured.
+// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
 // It returns lex-unmapped's files as "<path> <byte>" pairs.
 func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
 	tt := tab.Tokens
@@ -170,7 +170,10 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 		return nil, err
 	}
 	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
-	measureSpeed(p, agg, srcs, measured)
-	chartStages(p, tab, agg, srcs, measured)
-	return unmapped, nil
+	tokens := 0 // the allocation keys' denominator
+	for _, f := range agg {
+		tokens += len(lexer.Tokenize(srcs[f]))
+	}
+	measureSpeed(p, agg, tokens, measured)
+	return unmapped, chartStages(p, tab, agg, tokens, srcs, measured)
 }

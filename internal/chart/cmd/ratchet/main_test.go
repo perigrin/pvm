@@ -19,7 +19,8 @@ var resetKeys = []string{
 	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate",
 	"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile",
 	"speed-stage-lex-aggregate-longlived", "speed-stage-recognize-aggregate-longlived", "speed-stage-forest-aggregate-longlived",
-	"alloc-per-token-chart", "alloc-per-token-rd", "items-per-token", "set-reuse", "ledger-excluded",
+	"alloc-per-token-chart", "alloc-per-token-rd", "alloc-per-token-recognize", "alloc-per-token-forest",
+	"gc-cpu-share-chart", "gc-cpu-share-rd", "items-per-token", "set-reuse", "ledger-excluded",
 	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",
 }
 

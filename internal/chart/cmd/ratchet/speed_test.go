@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -283,7 +284,7 @@ func TestSpeedStagesTimed(t *testing.T) {
 		Now: func() time.Duration { return now }, GC: func() {}, Stderr: &stderr,
 	}
 	m := map[string]string{}
-	measureStages(p, files,
+	measureStages(p, files, 1,
 		func(path string) string { now++; return "lattice " + path },
 		func() func(string) string {
 			recognizers++
@@ -303,10 +304,80 @@ func TestSpeedStagesTimed(t *testing.T) {
 			t.Errorf("%s = %q, want %s: the stage alone over recursive descent", k, m[k], want)
 		}
 	}
-	if want := 3*(warmupPairs+timedPairs) + 1; recognizers != want { // one per timed pass, one to prepare the charts
+	if want := 3*(warmupPairs+timedPairs) + 2; recognizers != want { // one per timed pass, one to prepare the charts, one to count allocations
 		t.Errorf("%d recognizers constructed, want %d (long-lived)", recognizers, want)
 	}
 	if s := stderr.String(); !strings.Contains(s, "speed-stage sum lex+recognize+forest 0.7") {
 		t.Errorf("stderr %q does not print the stages' sum", s)
+	}
+}
+
+// TestAllocPerStage: on fake stages allocating known counts per file (lexing
+// 3000, recognition 1000, the forest 2000, a recognizer 5000 when made), each
+// stage key counts its own stage alone over 100 tokens, so 20 and 40; and a
+// GC share is collector over total CPU-seconds between the two reads that
+// bracket one long-lived pass, each read after a forced collection.
+func TestAllocPerStage(t *testing.T) {
+	files := []string{"a.pl", "b.pl"}
+	alloc := func(n int) {
+		for range n {
+			allocSink = append(allocSink[:0], make([]byte, 64))
+		}
+	}
+	var now time.Duration
+	p := Protocol{Ref: func() Runner { return func(string) { now += 10 } },
+		Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
+	m := map[string]string{}
+	measureStages(p, files, 100,
+		func(path string) string { now++; alloc(3000); return path },
+		func() func(string) string {
+			alloc(5000)
+			return func(l string) string { now += 2; alloc(1000); return l }
+		},
+		func(string, string) { now += 4; alloc(2000) }, m)
+	for k, want := range map[string]float64{"alloc-per-token-recognize": 20, "alloc-per-token-forest": 40} {
+		got, err := strconv.ParseFloat(m[k], 64)
+		if err != nil || got < want || got > want+5 { // plus the runtime's own
+			t.Errorf("%s = %q, want about %v: its own stage's allocations alone", k, m[k], want)
+		}
+	}
+
+	if gcCPUMetric != "/cpu/classes/gc/total:cpu-seconds" || totalCPUMetric != "/cpu/classes/total:cpu-seconds" {
+		t.Fatalf("GC share reads %s over %s, not the named metrics", gcCPUMetric, totalCPUMetric)
+	}
+	if _, _, err := cpuSeconds(gcCPUMetric, totalCPUMetric); err != nil {
+		t.Fatalf("this runtime does not support the named metrics: %v", err)
+	}
+	reads := [][2]float64{{1, 10}, {3, 20}}
+	var events []string
+	side := func() Runner { events = append(events, "side"); return func(f string) { events = append(events, f) } }
+	share, err := gcShare(side, files, func() { events = append(events, "gc") }, func() (float64, float64, error) {
+		events = append(events, "read")
+		r := reads[0]
+		reads = reads[1:]
+		return r[0], r[1], nil
+	})
+	if err != nil || share != 0.2 {
+		t.Errorf("gcShare = %v, %v; want (3-1)/(20-10) = 0.2", share, err)
+	}
+	if want := []string{"gc", "read", "side", "a.pl", "b.pl", "gc", "read"}; !slices.Equal(events, want) {
+		t.Errorf("gcShare ran %q, want %q: one long-lived pass between collected reads", events, want)
+	}
+}
+
+// A GC share is an error, never a figure, when a metric is unsupported or
+// the total CPU-seconds did not move.
+func TestGCShareMissingMetricIsError(t *testing.T) {
+	if _, _, err := cpuSeconds(gcCPUMetric, "/no/such:cpu-seconds"); err == nil || !strings.Contains(err.Error(), "/no/such:cpu-seconds") {
+		t.Errorf("an unsupported metric read as %v; want an error naming it", err)
+	}
+	side := func() Runner { return func(string) {} }
+	missing := func() (float64, float64, error) { return 0, 0, fmt.Errorf("unsupported") }
+	if s, err := gcShare(side, []string{"a"}, func() {}, missing); err == nil {
+		t.Errorf("a failed read gave the share %v; want an error", s)
+	}
+	still := func() (float64, float64, error) { return 1, 10, nil }
+	if s, err := gcShare(side, []string{"a"}, func() {}, still); err == nil || !strings.Contains(err.Error(), "total") {
+		t.Errorf("zero total CPU gave the share %v (%v); want an error naming the total", s, err)
 	}
 }

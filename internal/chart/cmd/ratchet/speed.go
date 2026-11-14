@@ -9,6 +9,7 @@ import (
 	"maps"
 	"path/filepath"
 	"runtime"
+	"runtime/metrics"
 	"slices"
 	"testing"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
-	"tamarou.com/pvm/internal/lexer"
 )
 
 // Runner parses one file. Side makes a fresh one: once per pass long-lived,
@@ -159,10 +159,54 @@ func allocsPer(side Side, files []string, tokens int) float64 {
 	return float64(after.Mallocs-before.Mallocs) / float64(tokens)
 }
 
+const (
+	gcCPUMetric    = "/cpu/classes/gc/total:cpu-seconds"
+	totalCPUMetric = "/cpu/classes/total:cpu-seconds"
+)
+
+// cpuSeconds reads the two named runtime/metrics; one this runtime does not
+// support is an error, never a zero.
+func cpuSeconds(gcName, totalName string) (gc, total float64, err error) {
+	s := []metrics.Sample{{Name: gcName}, {Name: totalName}}
+	metrics.Read(s)
+	for _, m := range s {
+		if m.Value.Kind() != metrics.KindFloat64 {
+			return 0, 0, fmt.Errorf("runtime/metrics does not support %s", m.Name)
+		}
+	}
+	return s[0].Value.Float64(), s[1].Value.Float64(), nil
+}
+
+// gcShare is collector CPU-seconds over total CPU-seconds across one
+// long-lived pass of side over files. The /cpu/classes metrics move only when
+// a collection ends, so a forced one (gc) precedes each read: the window is
+// the pass, its own last garbage collected. A total that did not move is an
+// error, never 0 or NaN.
+func gcShare(side Side, files []string, gc func(), read func() (gc, total float64, err error)) (float64, error) {
+	gc()
+	g0, t0, err := read()
+	if err != nil {
+		return 0, err
+	}
+	run := side()
+	for _, f := range files {
+		run(f)
+	}
+	gc()
+	g1, t1, err := read()
+	if err != nil {
+		return 0, err
+	}
+	if t1 <= t0 {
+		return 0, fmt.Errorf("the total CPU-seconds did not move over the pass")
+	}
+	return (g1 - g0) / (t1 - t0), nil
+}
+
 // measureSpeed adds the six speed and allocation keys to measured: p's Chart
 // against its Ref (recursive descent) on std5k.pl alone and on the aggregate
-// agg, long-lived and cold; allocations are per lexer token over agg.
-func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map[string]string) {
+// agg, long-lived and cold; allocations are per lexer token (tokens) over agg.
+func measureSpeed(p Protocol, agg []string, tokens int, measured map[string]string) {
 	one := []string{std5k}
 	for _, r := range []struct {
 		key   string
@@ -174,10 +218,6 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 	} {
 		measured[r.key] = fmt.Sprintf("%.4f", p.Ratio(r.key, r.files, r.cold))
 	}
-	tokens := 0
-	for _, f := range agg {
-		tokens += len(lexer.Tokenize(srcs[f]))
-	}
 	measured["alloc-per-token-chart"] = fmt.Sprintf("%.3f", allocsPer(p.Chart, agg, tokens))
 	measured["alloc-per-token-rd"] = fmt.Sprintf("%.3f", allocsPer(p.Ref, agg, tokens))
 }
@@ -186,8 +226,11 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 // lex, recognition and the forest each timed alone against p's Ref (recursive
 // descent) on agg, long-lived, each stage's inputs prepared outside its span
 // (lattices for recognition, charts for the forest). They are in RD units, so
-// their sum, printed on stderr and not a key, is the whole chart side's.
-func measureStages[L, C any](p Protocol, agg []string, lexOf func(path string) L, recognizer func() func(L) C,
+// their sum, printed on stderr and not a key, is the whole chart side's. It
+// also adds alloc-per-token-recognize and alloc-per-token-forest: one pass of
+// that stage alone over agg, its inputs and its recognizer made outside the
+// count, per lexer token (tokens).
+func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(path string) L, recognizer func() func(L) C,
 	forestOf func(C, L), measured map[string]string) {
 	ls, cs := make(map[string]L, len(agg)), make(map[string]C, len(agg))
 	rec := recognizer()
@@ -197,41 +240,66 @@ func measureStages[L, C any](p Protocol, agg []string, lexOf func(path string) L
 	}
 	sum := 0.0
 	for _, s := range []struct {
-		key  string
-		side Side
+		key, alloc string
+		side       Side
 	}{
-		{"speed-stage-lex-aggregate-longlived", func() Runner { return func(f string) { lexOf(f) } }},
-		{"speed-stage-recognize-aggregate-longlived", func() Runner { rec := recognizer(); return func(f string) { rec(ls[f]) } }},
-		{"speed-stage-forest-aggregate-longlived", func() Runner { return func(f string) { forestOf(cs[f], ls[f]) } }},
+		{"speed-stage-lex-aggregate-longlived", "", func() Runner { return func(f string) { lexOf(f) } }},
+		{"speed-stage-recognize-aggregate-longlived", "alloc-per-token-recognize",
+			func() Runner { rec := recognizer(); return func(f string) { rec(ls[f]) } }},
+		{"speed-stage-forest-aggregate-longlived", "alloc-per-token-forest",
+			func() Runner { return func(f string) { forestOf(cs[f], ls[f]) } }},
 	} {
 		p.Chart = s.side
 		r := p.Ratio(s.key, agg, false)
 		sum += r
 		measured[s.key] = fmt.Sprintf("%.4f", r)
+		if s.alloc != "" {
+			run := s.side() // long-lived: one runner for the pass, made before the count
+			measured[s.alloc] = fmt.Sprintf("%.3f", allocsPer(func() Runner { return run }, agg, tokens))
+		}
 	}
 	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4f\n", sum)
 }
 
-// chartStages times the chart's stages (measureStages) over tab. Like
-// recognizerFor, a recognizer error panics; a refused file has no forest, so
-// forest.Build returns at once and its forest stage does almost nothing.
-func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, measured map[string]string) {
-	measureStages(p, agg,
-		func(path string) *lex.Lattice[lex.None] {
-			s, _ := lex.Lex(srcs[path], tab.Tokens)
-			return lex.Linear(s)
-		},
-		func() func(*lex.Lattice[lex.None]) *recognize.Chart {
-			r := recognize.New(tab, recognize.Options{})
-			return func(l *lex.Lattice[lex.None]) *recognize.Chart {
-				c, err := recognize.Recognize(r, l)
-				if err != nil {
-					panic("chart-ratchet: speed: " + err.Error())
-				}
-				return c
+// chartStages times the chart's stages (measureStages) over tab, and adds
+// gc-cpu-share-chart (lex, recognize and forest) and gc-cpu-share-rd (p's
+// Ref), each over one pass of agg, taken before measureStages prepares its
+// lattices and charts so they are not live. Like recognizerFor, a recognizer
+// error panics; a refused file has no forest, so forest.Build returns at once
+// and its forest stage does almost nothing.
+func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, measured map[string]string) error {
+	lexOf := func(path string) *lex.Lattice[lex.None] {
+		s, _ := lex.Lex(srcs[path], tab.Tokens)
+		return lex.Linear(s)
+	}
+	recognizer := func() func(*lex.Lattice[lex.None]) *recognize.Chart {
+		r := recognize.New(tab, recognize.Options{})
+		return func(l *lex.Lattice[lex.None]) *recognize.Chart {
+			c, err := recognize.Recognize(r, l)
+			if err != nil {
+				panic("chart-ratchet: speed: " + err.Error())
 			}
-		},
-		func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }, measured)
+			return c
+		}
+	}
+	forestOf := func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }
+	chart := func() Runner {
+		rec := recognizer()
+		return func(f string) { l := lexOf(f); forestOf(rec(l), l) }
+	}
+	read := func() (float64, float64, error) { return cpuSeconds(gcCPUMetric, totalCPUMetric) }
+	for _, g := range []struct {
+		key  string
+		side Side
+	}{{"gc-cpu-share-chart", chart}, {"gc-cpu-share-rd", p.Ref}} {
+		share, err := gcShare(g.side, agg, p.GC, read)
+		if err != nil {
+			return fmt.Errorf("%s: %w", g.key, err)
+		}
+		measured[g.key] = fmt.Sprintf("%.4f", share)
+	}
+	measureStages(p, agg, tokens, lexOf, recognizer, forestOf, measured)
+	return nil
 }
 
 // measureBench runs chart's BenchLex, BenchRecognize and BenchExpected, and forest's Bench as BenchForest, on std5k.pl
