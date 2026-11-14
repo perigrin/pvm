@@ -6,20 +6,82 @@
 An Earley chart recognizer for Perl, built as a research spike beside the
 recursive-descent parser in `internal/parse` and measured against it. The
 design is `docs/plans/2026-10-30-chart-parser-v2-design.md` (on the branch
-`docs/chart-parser-v2-design`). Nothing outside the spike consumes this tree.
+`docs/chart-parser-v2-design`). For the recovery after waypoint 2's stop, the
+Chart Parser Recovery Plan, `docs/plans/2026-11-13-chart-parser-recovery-plan.md`
+(on the branch `docs/chart-recovery-plan`), is the successor decision: it
+supersedes the design's §2 question, its §10 speed line and its §9.5 key rule,
+and the design binds everything else. Nothing outside the spike consumes this
+tree.
 
-## Status: waypoint 2 stopped by its speed kill
+## Status: chart-recovery's verdict reading
 
 Waypoint 2 (spec §9.4, milestone `chart-perly-w2`) was stopped on 2026-11-13
-by spec §10's long-lived speed kill. With the forest timed on the chart side
-(lex, recognize, forest build) under the ratchet's own protocol, the
-aggregate long-lived chart/recursive-descent ratio read 3.51, 3.64 and 3.47
-in three quiet readings at 3487d258, a median of 3.51 against the limit of 3;
-the same runs read 2.20 without the forest. The ratchet times the forest on
-its own key, `speed-stage-forest-aggregate-longlived`; its
-`speed-ratio-aggregate-longlived` still times lex plus recognize, so it reads
-about 2.2. `docs/postmortems/chart-perly-w2.md` records why the waypoint
-stopped and what a successor must know.
+by spec §10's long-lived speed kill: with the forest timed on the chart side,
+the aggregate long-lived chart/recursive-descent ratio read a median of 3.51
+in three quiet readings at 3487d258, against the limit of 3
+(`docs/postmortems/chart-perly-w2.md`). The milestone `chart-recovery` then
+brought the recognizer and forest in line with the literature under the
+recovery plan, with no speed limit (perigrin's D1: every key reported, none
+gated but `lex-overhead`'s 1.3), and ended with one verdict reading.
+
+**The verdict reading**, 2026-11-14 on pu cd855330 (every recovery issue
+merged; R4 dropped by R3's profile; F2's inserted-`;` reuse kept): three quiet
+ratchet runs, 08:10–08:16 UTC, each started at a 1-minute load below 3 (0.78,
+0.83, 1.53) with no other ratchet, `make test` or `go test` on the machine.
+Median (min–max), in recursive-descent units:
+
+| Key | Reading | Plan §4, R1–R3 + R5 + F2 (good / cautious) | The same + F1 at × 0.80 |
+|---|---|---|---|
+| `speed-stage-lex-aggregate-longlived` | 0.6023 (0.5988–0.6151) | 0.65 | 0.65 |
+| `speed-stage-recognize-aggregate-longlived` | 0.7194 (0.7185–0.7244) | 0.71 / 1.00 | 0.71 / 1.00 |
+| `speed-stage-forest-aggregate-longlived` | 0.6874 (0.6767–0.6982) | 0.85 / 0.92 | 0.68 / 0.74 |
+| sum, lex + recognize + forest | 2.0210 (1.9949–2.0249) | 2.21 / 2.57 | 2.04 / 2.39 |
+
+The floor, lexing alone, is 0.65 in §4's units. Also from the same runs:
+`lex-overhead` 1.144 (1.140–1.164), within 1.3; `alloc-per-token-recognize`
+1.094 and `alloc-per-token-forest` 0.261 (exact counts, identical in all
+three); `gc-cpu-share-chart` 0.1204 (0.1170–0.1205) and `gc-cpu-share-rd`
+0.1081 (0.1074–0.1098); `speed-ratio-aggregate-longlived`, lex plus
+recognize, 1.3996 (1.3594–1.4130). Every run exited 0 with every gated count
+key 0.
+
+**Which comparison is like for like.** §4's figures are in units of the 3.51
+kill reading, taken on a different host: the session moved hosts on
+2026-11-14, and with no recognizer or forest change between them the quiet
+stage sum fell from 3.638 (M1's reading) to 3.1329 (on pu 57caafca), so
+readings across the move are not comparable. The like-for-like comparison is
+against this host's own quiet reading before any R or F issue, on 57caafca:
+lex 0.5980, recognize 1.4246, forest 1.1348, sum 3.1329. Against it,
+recognize fell × 0.505 (§4: × 0.46–0.64 for R1–R3 with R5), forest × 0.606
+(§4: × 0.65–0.70 for F2, × 0.52–0.56 with F1 at × 0.80) and lex × 1.007
+(unchanged, as §4 assumes). §4's factors applied to 3.1329 project 1.99
+(good) to 2.31 (cautious) for R1–R3 + R5 + F2, and 1.84 to 2.15 with F1; the
+reading's 2.02 lies inside both ranges: recognition near the good end, and
+the forest past F2 alone but short of the F1 row (× 0.606 against
+× 0.52–0.56). The machine also drifts between
+sessions on one commit (recognize read about 0.77 and about 0.90 on
+a5498fa4), so only this reading's own three runs bound it. The absolute
+comparison is flattered by the host move; the projection is met either way,
+and the lowest sum is below 2.57, so nothing is reported under D1.
+
+What chart-recovery changed, each in its own section below:
+
+- **the postdot index** per set core for scan, completion and the Leo test
+  (R1; "Postdot index" under `recognize`);
+- **no per-node maps or slices** in the recognizer's builder (R2; "No
+  per-node maps or slices");
+- **Leo eligibility in constant time**, storing only real memos (R3; "Leo
+  memos");
+- **each set hashed once** in the interner (R5; "Items");
+- **a pointer-free forest**, nodes and alternatives as int32 indexes (F1; "A
+  node" under `forest`);
+- **F2's parts as kept**: first blocks sized from the file, grammar-only data
+  once per tables value, and the slipper closures recognition built reused
+  for built nodes ("First blocks", "Grammar-only data" and "The slipper's
+  `;`").
+
+The sixteen held `chart-perly-w2` issues are re-refined next, outside
+chart-recovery.
 
 What waypoint 2 built before the stop:
 
