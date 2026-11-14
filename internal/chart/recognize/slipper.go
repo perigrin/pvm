@@ -37,6 +37,7 @@ func (b *builder) slip(e lex.Edge) {
 	if v == nil {
 		return
 	}
+	b.c.keep(e.From, e.Token.TerminalSet, v)
 	b.interned = b.interned && v.interned
 	for _, d := range v.deps {
 		b.read(e.From-d.dist, b.c.Sets[e.From-d.dist])
@@ -74,10 +75,21 @@ func (c *Chart) slipped(out [][]int) {
 		}
 	}
 	if v := r.semiAt(c, last, r.g.eofBits); v != nil {
+		c.keep(last, -1, v)
 		c.slipAccepted = slices.ContainsFunc(v.items, func(it [2]int) bool {
 			return it[1] == 0 && slices.Contains(r.g.lhs[it[0]], r.tab.Start)
 		})
 	}
+}
+
+// keep keeps v, the slipper's closure at pos before the terminal set next
+// (-1 at the end of input), for Slipped: a copy, since v's items are
+// relative in the recognizer's buffer.
+func (c *Chart) keep(pos, next int, v *builder) {
+	if c.slips == nil {
+		c.slips = map[[2]int][]Item{}
+	}
+	c.slips[[2]int{pos, next}] = slices.Clone(v.relative())
 }
 
 // Inserted is the nodes where the slipper scanned a ;, ascending.

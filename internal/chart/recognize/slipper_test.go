@@ -172,8 +172,9 @@ func TestSlippedOwnsItsItems(t *testing.T) {
 // TestSlipperClosuresAgree: at every node of the corpus sample where a ; is
 // inserted, the completed (symbol, origin, rule) facts the forest reads
 // there are the same whether the slipper's items are recognition's closure
-// (semiAt, Leo on) or Slipped's (Leo off), Leo links expanded as the forest
-// expands them: a chain is walked where its top is among the node's facts.
+// (semiAt, Leo on, as the chart keeps it) or Slipped's recomputation (Leo
+// off), Leo links expanded as the forest expands them: a chain is walked
+// where its top is among the node's facts.
 // No corpus-sample closure takes a Leo memo, so the slipper toys, whose
 // statement sequence is right-recursive, are checked too, and some of their
 // closures must differ in items for the check to mean anything.
@@ -229,11 +230,11 @@ func closuresAgree(t *testing.T, name string, c *Chart, l *lex.Lattice[lex.None]
 		if next >= 0 {
 			la = r.cls.bits[next]
 		}
-		var on []Item
-		if v := r.semiAt(c, p, la); v != nil {
+		on, kept := c.slips[[2]int{p, next}]            // recognition's closure, where it built the node after p
+		if v := r.semiAt(c, p, la); v != nil && !kept { // a cache-served node: what recognition would have kept
 			on = slices.Clone(v.relative())
 		}
-		off := c.Slipped(p, next)
+		off := c.slippedLeoOff(p, next)
 		nodes++
 		if !slices.Equal(on, off) {
 			differ++
@@ -280,4 +281,45 @@ func slipperFacts(c *Chart, p int, slipped []Item) [][3]int {
 		return cmp.Or(cmp.Compare(x[0], y[0]), cmp.Compare(x[1], y[1]), cmp.Compare(x[2], y[2]))
 	})
 	return slices.Compact(facts)
+}
+
+// TestBuiltSlipperClosureOwnedByChart: the slipper closure the chart keeps
+// for a node recognition built is what Slipped returns there, and is the
+// chart's own: a recognition on the same recognizer afterwards, run while it
+// is read (under -race), writes none of it.
+func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{})
+	c := mustRecognize(t, r, files[0].l)
+	var got, want [][]Item
+	for k, items := range c.slips {
+		if s := c.Slipped(k[0], k[1]); len(s) == 0 || &s[0] != &items[0] {
+			t.Errorf("%s: Slipped(%d, %d) is not the closure the chart kept", files[0].name, k[0], k[1])
+		}
+		got, want = append(got, items), append(want, slices.Clone(items))
+	}
+	if len(got) == 0 {
+		t.Fatalf("%s: the chart kept no slipper closure", files[0].name)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, f := range files[1:] {
+			if _, err := Recognize(r, f.l); err != nil {
+				t.Errorf("%s: %v", f.name, err) // Fatal may not leave a goroutine the test did not start
+			}
+		}
+	}()
+	for reading := true; reading; {
+		select {
+		case <-done:
+			reading = false
+		default:
+		}
+		for i := range got {
+			if !slices.Equal(got[i], want[i]) {
+				t.Fatalf("a kept slipper closure changed under a later recognition")
+			}
+		}
+	}
 }

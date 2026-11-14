@@ -40,13 +40,27 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 // completion as recognition closed them before the token whose terminal set
 // is next, or at the end of input where next is -1; nil where no item at
 // pos awaits a ;. They are beside the set at pos, never in it (slipper.go).
-// They are closed with Leo off, link by link, since a node the cache served
-// made no memo and making one here would write the chart. They are the
-// caller's: a copy, not the recognizer's buffer, which later recognition reuses.
+// Where recognition built the node after pos, or pos is the last, they are
+// the closure it kept, Leo on; the caller reads them and writes none. Where
+// the transition cache served that node, no closure was made, so they are
+// recomputed with Leo off, link by link, since making a memo here would
+// write the chart; those are the caller's, a copy. The two give the forest
+// the same facts once Leo chains are expanded (TestSlipperClosuresAgree).
+// shortcut: a cache-served node recomputes its closure on every call; cache
+// the closure with the transition (R6) if that recomputation shows.
 func (c *Chart) Slipped(pos, next int) []Item {
 	if c.r.g.semi < 0 || pos < 0 || pos >= len(c.Sets) {
 		return nil
 	}
+	if s, ok := c.slips[[2]int{pos, next}]; ok {
+		return s
+	}
+	return c.slippedLeoOff(pos, next)
+}
+
+// slippedLeoOff is Slipped's recomputation, Leo off, whether or not the
+// chart kept a closure at pos.
+func (c *Chart) slippedLeoOff(pos, next int) []Item {
 	la := c.r.g.eofBits
 	if next >= 0 {
 		la = c.r.cls.bits[next]
