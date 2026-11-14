@@ -176,6 +176,14 @@ func New(tab *grammar.Tables, opts Options) *Recognizer {
 // Chart is one recognition: the Earley set at each lattice node, nil where
 // no item survives. Interned marks a node whose set was already in the
 // intern table; Cached, a node served by the transition cache.
+//
+// Once Recognize returns, its reads other than Expected write nothing:
+// Sets, Accepted, Inserted, LeoLink and Slipped, forest.Build's reads, may be
+// made from any number of goroutines at once, on one chart or on several
+// charts of one recognizer (TestForestConcurrentBuildsOneRecognizer).
+// LeoLink and Slipped read the recognizer, so they must not overlap a
+// Recognize on it; Expected memoizes in the recognizer's cache, so it is a
+// use of the recognizer, which is not safe for concurrent use.
 type Chart struct {
 	r        *Recognizer
 	Sets     []*Set
@@ -239,7 +247,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			branch[k] = true
 		}
 	}
-	c.Sets[0], c.Interned[0] = r.sets.intern([]Item{{State: 0}})
+	c.Sets[0], c.Interned[0] = r.intern([]Item{{State: 0}})
 	for pos := 1; pos < n; pos++ {
 		la, laBits := r.lookahead(out[pos])
 		var key cacheKey
@@ -274,7 +282,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			c.Sets[pos] = &Set{id: -1, items: slices.Clone(items)}
 			continue
 		}
-		c.Sets[pos], c.Interned[pos] = r.sets.intern(items)
+		c.Sets[pos], c.Interned[pos] = r.intern(items)
 		if cacheable && b.interned {
 			r.store(key, b.deps, c.Sets[pos])
 		}
@@ -461,10 +469,16 @@ func (b *builder) relative() []Item {
 	return items
 }
 
-// goTo is state's transition on sym.
+// goTo is state's transition on sym, counted in probes: recognition's
+// lookup. A read of a finished chart uses transition, which writes nothing.
 func (r *Recognizer) goTo(state, sym int) (int, bool) {
 	r.probes++
-	tr := r.tab.States[state].Transitions
+	return transition(r.tab, state, sym)
+}
+
+// transition is state's transition on sym.
+func transition(tab *grammar.Tables, state, sym int) (int, bool) {
+	tr := tab.States[state].Transitions
 	i, ok := slices.BinarySearchFunc(tr, sym, func(t grammar.Transition, s int) int { return t.Symbol - s })
 	if !ok {
 		return 0, false

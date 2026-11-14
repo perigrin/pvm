@@ -217,6 +217,8 @@ func buildForestGrammar(tab *grammar.Tables) *forestGrammar {
 const nodesPerToken, altsPerToken = 6, 5
 
 // Build is the forest of c, a chart of l; nil where c does not accept or l is not linear.
+// It only reads c, so builds of one recognizer's charts may run at once, from
+// any goroutines, while that recognizer is not recognizing (recognize.Chart).
 // shortcut: l must be linear, as up-front lexing makes it, so the token
 // ending at node j is edge j-1 and an inserted ; is followed only by its };
 // index the edges by node, and keep a ;'s facts apart, when interleaved

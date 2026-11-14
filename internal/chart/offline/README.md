@@ -1,4 +1,4 @@
-<!-- ABOUTME: The chart spike's offline scripts: run by hand, never by the ratchet, and by make test only through TestCriteriaLint's fixtures. -->
+<!-- ABOUTME: The chart spike's offline scripts: run by hand, never by the ratchet, and by make test only through the TestCriteriaLint tests. -->
 <!-- ABOUTME: Covers the perl build, the shim, the bison referees, the perl labels, the oracle facts, the -DT capture and its alignment, the criteria lint, and what each costs to run. -->
 
 # internal/chart/offline
@@ -7,7 +7,9 @@ Scripts run by hand, all but `criteria-lint.sh` against perl blead 94e50866
 in `/opt/corpora/perl5`.
 
 - They never run in `make chart-ratchet`, nor in `make test`, with one
-  exception: `TestCriteriaLint` runs `criteria-lint.sh` on its two fixtures.
+  exception: `TestCriteriaLint` runs `criteria-lint.sh` on its two fixtures,
+  and `TestCriteriaLintSectionsAndGuards` and
+  `TestCriteriaLintRejectsMalformedInput` run it on inline input.
 - Nothing they build (perls, referee binaries) is committed.
 - Output that tests read is committed.
 - The entries below are in dependency order: `build-perl.sh` first, then the

@@ -1,11 +1,12 @@
 // ABOUTME: Tests F2's forest memory: first blocks sized from the file, grammar-only data built once per tables value,
-// ABOUTME: and one forest whichever of the slipper's closures (kept from recognition, or recomputed) a node reads.
+// ABOUTME: one forest whichever of the slipper's closures a node reads, and one forest when builds of one recognizer's charts run at once.
 
 package forest
 
 import (
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -139,4 +140,52 @@ func TestForestSameAcrossCacheAndLeo(t *testing.T) {
 	if accepted == 0 {
 		t.Fatal("no file of the corpus sample has a forest")
 	}
+}
+
+// TestForestConcurrentBuildsOneRecognizer: Build only reads a chart, so the
+// charts of one long-lived recognizer, those of the corpus sample with an
+// inserted ;, build the same forests from four goroutines at once as one
+// after another (and without a race, under -race).
+func TestForestConcurrentBuildsOneRecognizer(t *testing.T) {
+	tab := committedTables(t)
+	r := recognize.New(tab, recognize.Options{})
+	var cs []*recognize.Chart
+	var ls []*lex.Lattice[lex.None]
+	var want []string
+	for _, p := range samplePaths(t) {
+		src, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, _ := lex.Lex(src, tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(r, l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Accepted() && len(c.Inserted()) > 0 {
+			cs, ls = append(cs, c), append(ls, l)
+		}
+	}
+	if len(cs) == 0 {
+		t.Fatal("no file of the corpus sample is accepted with an inserted ;")
+	}
+	for i, c := range cs {
+		want = append(want, dump(Build(tab, c, ls[i])))
+	}
+	t.Logf("%d charts with an inserted ;", len(cs))
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i, c := range cs {
+				if dump(Build(tab, c, ls[i])) != want[i] {
+					t.Errorf("file %d: a concurrent build differs from the sequential one", i)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

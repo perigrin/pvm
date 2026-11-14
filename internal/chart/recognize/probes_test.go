@@ -1,5 +1,5 @@
 // ABOUTME: Holds the postdot index to its bound: goTo binary searches per lexer token over the corpus sample.
-// ABOUTME: Also checks the index against a whole-set scan at every set, and its first-use build under two recognizers at once.
+// ABOUTME: Also checks the index against a whole-set scan at every set, and its build under two recognizers at once.
 
 package recognize
 
@@ -92,7 +92,7 @@ func TestPostdotIndexMatchesSetScan(t *testing.T) {
 }
 
 // TestPostdotIndexConcurrentRecognizers: two recognizers over one tables
-// value, each building its cores' indexes on first use, run at once without
+// value, each building its cores' indexes as it interns them, run at once without
 // a race (under -race) and build the sets one recognizer builds alone.
 func TestPostdotIndexConcurrentRecognizers(t *testing.T) {
 	tab, files := corpusSample(t)
@@ -120,7 +120,7 @@ func TestPostdotIndexConcurrentRecognizers(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	// Alone, after: a first-use build run beside another must come first.
+	// Alone, after: a build run beside another must come first.
 	want := sets(New(tab, Options{}))
 	for i, g := range got {
 		if g != want {

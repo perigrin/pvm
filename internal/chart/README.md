@@ -24,7 +24,7 @@ brought the recognizer and forest in line with the literature under the
 recovery plan, with no speed limit (perigrin's D1: every key reported, none
 gated but `lex-overhead`'s 1.3), and ended with one verdict reading.
 
-**The verdict reading**, 2026-11-14 on pu cd855330 (every recovery issue
+**The verdict reading**, 2026-11-14 on pu cd855330 (every R and F issue
 merged; R4 dropped by R3's profile; F2's inserted-`;` reuse kept): three quiet
 ratchet runs, 08:10–08:16 UTC, each started at a 1-minute load below 3 (0.78,
 0.83, 1.53) with no other ratchet, `make test` or `go test` on the machine.
@@ -51,14 +51,15 @@ kill reading, taken on a different host: the session moved hosts on
 stage sum fell from 3.638 (M1's reading) to 3.1329 (on pu 57caafca), so
 readings across the move are not comparable. The like-for-like comparison is
 against this host's own quiet reading before any R or F issue, on 57caafca:
-lex 0.5980, recognize 1.4246, forest 1.1348, sum 3.1329. Against it,
+lex 0.5980, recognize 1.4246, forest 1.1348, median per-run sum 3.1329. Against it,
 recognize fell × 0.505 (§4: × 0.46–0.64 for R1–R3 with R5), forest × 0.606
 (§4: × 0.65–0.70 for F2, × 0.52–0.56 with F1 at × 0.80) and lex × 1.007
-(unchanged, as §4 assumes). §4's factors applied to 3.1329 project 1.99
-(good) to 2.31 (cautious) for R1–R3 + R5 + F2, and 1.84 to 2.15 with F1; the
-reading's 2.02 lies inside both ranges: recognition near the good end, and
-the forest past F2 alone but short of the F1 row (× 0.606 against
-× 0.52–0.56). The machine also drifts between
+(unchanged, as §4 assumes). §4's factors applied to the per-stage medians
+above (sum 3.1574) project 1.99 (good) to 2.31 (cautious) for R1–R3 + R5 +
+F2, and 1.84 to 2.15 with F1; scaled to 3.1329, 1.98 to 2.29 and 1.83 to
+2.14. The reading's 2.02 lies inside both ranges: recognition near the
+good end, and the forest past F2 alone but short of the F1 row (× 0.606
+against × 0.52–0.56). The machine also drifts between
 sessions on one commit (recognize read about 0.77 and about 0.90 on
 a5498fa4), so only this reading's own three runs bound it. The absolute
 comparison is flattered by the host move; the projection is met either way,
@@ -99,7 +100,9 @@ What waypoint 2 built before the stop:
 
 Not done, among the issues still open on `chart-perly-w2`: the precedence
 constraint, resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
-the whole-pipeline ratchet keys, perl.git `t/` parity and speed checkpoint 3.
+the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
+M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
+`t/` parity and speed checkpoint 3.
 Where a section below calls a limit "waypoint 2's" work, that work was not
 done before the stop and is left to a successor.
 
@@ -1352,7 +1355,7 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   collision never merges two sets (`TestInternHashCollisionKeepsSetsDistinct`).
   A node that an edge passes over is inside a branch:
   its set is built but not interned.
-- **Postdot index.** Per interned set core, built on first use, the items
+- **Postdot index.** Per interned set core, built with the core, the items
   waiting on each symbol and their target states (YAEP's `core_symb_vect`,
   Marpa's postdot index). Items are sorted by state, so one index serves
   every set of its core. Scan, completion and the Leo test read it, so
@@ -1594,10 +1597,12 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   recognition (`TestBuiltSlipperClosureOwnedByChart`, under `-race`). That
   covers 0.894 of the aggregate's inserted-`;` nodes (chart-recovery's
   `F2 reuse share`). A node the transition cache served made no closure, so
-  `Slipped` recomputes it with Leo off, link by link, writing no memo; those
-  items are the caller's, a copy rather than the recognizer's buffer
-  (`TestSlippedOwnsItsItems`, under `-race`); any new caller of the
-  builder's sorted items must copy them the same way. shortcut: a
+  `Slipped` recomputes it with Leo off, link by link, writing no memo, in
+  buffers of its own rather than the recognizer's
+  (`TestSlippedOwnsItsItems` and `TestForestConcurrentBuildsOneRecognizer`,
+  under `-race`); any new caller of the builder's sorted items must copy
+  them the same way. On either path what `Slipped` returns is read-only:
+  the caller writes none of it. shortcut: a
   cache-served node recomputes its closure on every `Slipped` call
   (`TestSlippedRecomputesCacheServedNodes` pins it); caching the closure
   with the transition (R6) is the upgrade if that shows. The two
@@ -1673,23 +1678,14 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   do not. A change that moves the golden has changed the forest: it is never
   regenerated to make a change pass, and in chart-recovery a regeneration
   after P5 is a stop reported to perigrin.
-- **Cost.** `BenchmarkForest` times the forest of `std5k.pl` after
-  recognition. With index-based nodes (c5c9a4db5), in five rounds
-  interleaved with the pointer-based build before it (`-benchtime 40x`,
-  load 1.1–1.6), it took a median 27.0 ms per op, 22.1 MB and 18,203
-  allocations, against 24.1 ms, 21.2 MB and 20,509. The loss is the slices'
-  growth: `Nodes` and `Alts` start at 1,024 and double on each build, about
-  seven times for `std5k.pl`, so `slices.Grow` and its copying cost every
-  build over 1,024 nodes or alternatives, long-lived passes included (with
-  the first size raised to 1<<18 the same build ran 20.3–21.8 ms against
-  22.8–23.8). Over the aggregate the forest stage key still fell by about a
-  fifth (chart-recovery's `F1 reading`). F2 sizes the first blocks from the
-  file and keeps the slipper closures recognition built: in the ratchet's
-  `BenchForest`, three runs interleaved with pu d6c53b07 (load 0.5–3.5), a
-  median 15.7 ms per op and 8,331 allocations against 22.1 ms and 12,907. When the benchmark was
-  added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
-  19.4 ms. An earlier build of the forest, which expanded every Leo chain
-  and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
+- **Cost.** `BenchmarkForest`, and the ratchet's `BenchForest` (the same
+  `forest.Bench`), time the forest of `std5k.pl` after recognition: a median
+  15.7 ms per op and 8,331 allocations in `BenchForest` (three runs
+  interleaved with pu d6c53b07, load 0.5–3.5, chart-recovery's F2). Its
+  first blocks are sized from the file ("First blocks"), so most builds
+  never grow `Nodes` or `Alts`, and it reads the slipper closures
+  recognition built rather than recomputing them. The span checkpoint 3
+  times includes it (spec §9.3).
 
 ## The generated tables: `make chart-tables`
 
