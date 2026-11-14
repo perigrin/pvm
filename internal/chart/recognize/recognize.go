@@ -191,9 +191,11 @@ type Chart struct {
 	Cached   []bool
 	leo      map[[2]int]*memo // the side table: real Leo memos by (node, symbol); nil until one is made
 	inserted []int            // nodes where the slipper scanned a ;
-	// slips is the slipper's closure at each node recognition built it for,
-	// by (node, the next token's terminal set, -1 at the end of input), Leo
-	// on as recognition closed it; nil until one is kept (Slipped).
+	// slips is the slipper's closure at each node it ran at, built there or
+	// served with the transition (R6), by (node, the next token's terminal
+	// set, -1 at the end of input), Leo on as recognition closed it; nil until
+	// one is kept (Slipped). A served closure is shared with the cache entry,
+	// and nothing writes either.
 	slips map[[2]int][]Item
 	// slipAccepted is whether the ; inserted at end of input completes the start.
 	slipAccepted bool
@@ -256,8 +258,11 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		if cacheable {
 			e := in[pos][0]
 			key = cacheKey{set: c.Sets[e.From].id, span: pos - e.From, tok: e.Token.TerminalSet, la: la}
-			if s := r.lookup(c, pos, key); s != nil {
-				c.Sets[pos], c.Interned[pos], c.Cached[pos] = s, true, true
+			if h := r.hit(c, pos, key); h != nil && h.result != nil {
+				c.Sets[pos], c.Interned[pos], c.Cached[pos] = h.result, true, true
+				if h.slip != nil { // the closure follows from the key and dependencies the hit checked
+					c.keepSlip(e.From, e.Token.TerminalSet, h.slip)
+				}
 				continue
 			}
 		}
@@ -284,7 +289,9 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		}
 		c.Sets[pos], c.Interned[pos] = r.intern(items)
 		if cacheable && b.interned {
-			r.store(key, b.deps, c.Sets[pos])
+			if n := r.slot(key, b.deps); n != nil {
+				n.result, n.slip = c.Sets[pos], b.slipKept
+			}
 		}
 	}
 	c.slipped(out)
@@ -335,7 +342,8 @@ type builder struct {
 	seen     map[[2]int]bool
 	deps     []dep
 	depSeen  map[dep]bool
-	interned bool // the node is cacheable and every set read is interned
+	interned bool   // the node is cacheable and every set read is interned
+	slipKept []Item // the closure slip kept, for the cache
 }
 
 // smallSet is the size up to which a builder finds duplicates by scanning.

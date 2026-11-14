@@ -27,10 +27,13 @@ type dep struct {
 // follows its id (cacheEdge), instead of checking every entry (a key's
 // entries grew by one per flat statement).
 type cacheNode struct {
-	seq    int      // the order of the entry ending here among the stores, 0 for none
-	result *Set     // the transition ending here
-	names  []string // or the Expected ending here (expected.go)
-	dists  []int    // the distances of the next dependencies
+	seq    int  // the order of the entry ending here among the stores, 0 for none
+	result *Set // the transition ending here
+	// slip is the slipper's closure the storing node kept, nil where it
+	// kept none; a hit keeps it for the served node (R6).
+	slip  []Item
+	names []string // or the Expected ending here (expected.go)
+	dists []int    // the distances of the next dependencies
 	// first is the first edge stored from here, and where it leads, checked
 	// before the trie map: most nodes have one edge, and a map access costs
 	// more than the scan it replaces on a short list (std5k.pl).

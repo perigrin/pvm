@@ -126,9 +126,10 @@ func agree(t *testing.T, tab *grammar.Tables, words ...string) {
 	}
 }
 
-// TestSlippedOwnsItsItems: the items Slipped returns are the caller's. A
-// recognition on the same recognizer afterwards, run while they are read
-// (under -race), writes none of them: they share no buffer it reuses.
+// TestSlippedOwnsItsItems: the items Slipped returns are shared with the
+// cache entry and other charts, and nothing writes them: a recognition on
+// the same recognizer afterwards, run while they are read (under -race),
+// writes none of them.
 func TestSlippedOwnsItsItems(t *testing.T) {
 	tab, files := corpusSample(t)
 	r := New(tab, Options{})
@@ -172,8 +173,8 @@ func TestSlippedOwnsItsItems(t *testing.T) {
 // TestSlipperClosuresAgree: at every node of the corpus sample where a ; is
 // inserted, the completed (symbol, origin, rule) facts the forest reads
 // there are the same whether the slipper's items are recognition's closure
-// (semiAt, Leo on, as the chart keeps it) or Slipped's recomputation (Leo
-// off), Leo links expanded as the forest expands them: a chain is walked
+// (semiAt, Leo on, as the chart keeps it) or the Leo-off reference
+// (slippedLeoOff), Leo links expanded as the forest expands them: a chain is walked
 // where its top is among the node's facts.
 // No corpus-sample closure takes a Leo memo, so the slipper toys, whose
 // statement sequence is right-recursive, are checked too, and some of their
@@ -220,21 +221,15 @@ func TestSlipperClosuresAgree(t *testing.T) {
 // says, and is how many there are and how many closures differ in items.
 func closuresAgree(t *testing.T, name string, c *Chart, l *lex.Lattice[lex.None]) (nodes, differ int) {
 	t.Helper()
-	r := c.r
 	for _, p := range c.Inserted() {
 		next := -1
 		if p < len(l.Edges) {
 			next = l.Edges[p].Token.TerminalSet
 		}
-		la := r.g.eofBits
-		if next >= 0 {
-			la = r.cls.bits[next]
-		}
-		on, kept := c.slips[[2]int{p, next}] // recognition's closure, where it built the node after p
-		if !kept {                           // a cache-served node: what recognition would have kept
-			if v := r.semiAt(c, p, la); v != nil {
-				on = slices.Clone(v.relative())
-			}
+		on, kept := c.slips[[2]int{p, next}] // recognition's closure, built or served with the transition
+		if !kept {
+			t.Errorf("%s node %d: no slipper closure kept", name, p)
+			continue
 		}
 		off := c.slippedLeoOff(p, next)
 		nodes++
@@ -242,7 +237,7 @@ func closuresAgree(t *testing.T, name string, c *Chart, l *lex.Lattice[lex.None]
 			differ++
 		}
 		if got, want := slipperFacts(c, p, on), slipperFacts(c, p, off); !slices.Equal(got, want) {
-			t.Errorf("%s node %d: the Leo-on closure gives facts %v, Slipped's %v", name, p, got, want)
+			t.Errorf("%s node %d: the Leo-on closure gives facts %v, the Leo-off reference's %v", name, p, got, want)
 		}
 	}
 	return nodes, differ
@@ -286,9 +281,9 @@ func slipperFacts(c *Chart, p int, slipped []Item) [][3]int {
 }
 
 // TestBuiltSlipperClosureOwnedByChart: the slipper closure the chart keeps
-// for a node recognition built is what Slipped returns there, and is the
-// chart's own: a recognition on the same recognizer afterwards, run while it
-// is read (under -race), writes none of it.
+// is what Slipped returns there, and nothing writes it: a recognition on the
+// same recognizer afterwards, run while it is read (under -race), which may
+// serve the same closure from the cache, writes none of it.
 func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
 	tab, files := corpusSample(t)
 	r := New(tab, Options{})
@@ -326,12 +321,10 @@ func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
 	}
 }
 
-// TestSlippedRecomputesCacheServedNodes pins the shortcut on Slipped: where
-// the transition cache served the node after an inserted ;, recognition made
-// no slipper closure, so the chart keeps none and Slipped recomputes it, Leo
-// off, a fresh slice on every call. Caching the closure with the transition
-// (R6) is the upgrade; when it lands this test changes with it.
-func TestSlippedRecomputesCacheServedNodes(t *testing.T) {
+// TestSlippedCacheServedNodesKeepClosure: the closure is cached with the
+// transition (R6), so a node the cache served keeps the closure the storing
+// node built; its facts are the Leo-off recomputation's.
+func TestSlippedCacheServedNodesKeepClosure(t *testing.T) {
 	tab, files := corpusSample(t)
 	r := New(tab, Options{}) // long-lived, so the cache serves nodes
 	served := 0
@@ -342,19 +335,16 @@ func TestSlippedRecomputesCacheServedNodes(t *testing.T) {
 			if p < len(f.l.Edges) {
 				next = f.l.Edges[p].Token.TerminalSet
 			}
-			if _, kept := c.slips[[2]int{p, next}]; kept {
+			kept, ok := c.slips[[2]int{p, next}]
+			if !ok {
+				t.Fatalf("%s node %d: no closure kept", f.name, p)
+			}
+			if p+1 >= len(c.Cached) || !c.Cached[p+1] {
 				continue
 			}
 			served++
-			a, b := c.Slipped(p, next), c.Slipped(p, next)
-			if len(a) == 0 || &a[0] == &b[0] {
-				t.Fatalf("%s node %d: Slipped did not recompute a fresh closure on each call", f.name, p)
-			}
-			if want := c.slippedLeoOff(p, next); !slices.Equal(a, want) {
-				t.Fatalf("%s node %d: Slipped %v, the Leo-off recomputation %v", f.name, p, a, want)
-			}
-			if _, kept := c.slips[[2]int{p, next}]; kept {
-				t.Fatalf("%s node %d: Slipped kept the closure it recomputed", f.name, p)
+			if got, want := slipperFacts(c, p, kept), slipperFacts(c, p, c.slippedLeoOff(p, next)); !slices.Equal(got, want) {
+				t.Fatalf("%s node %d: the cached closure gives facts %v, the Leo-off recomputation %v", f.name, p, got, want)
 			}
 		}
 	}
