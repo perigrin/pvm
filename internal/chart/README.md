@@ -1352,7 +1352,7 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   collision never merges two sets (`TestInternHashCollisionKeepsSetsDistinct`).
   A node that an edge passes over is inside a branch:
   its set is built but not interned.
-- **Postdot index.** Per interned set core, built on first use, the items
+- **Postdot index.** Per interned set core, built with the core, the items
   waiting on each symbol and their target states (YAEP's `core_symb_vect`,
   Marpa's postdot index). Items are sorted by state, so one index serves
   every set of its core. Scan, completion and the Leo test read it, so

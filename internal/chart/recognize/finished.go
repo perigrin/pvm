@@ -20,7 +20,7 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	}
 	n, state := 0, 0
 	for _, it := range c.Sets[at].Items() {
-		if _, ok := c.r.goTo(it.State, sym); ok {
+		if _, ok := transition(c.r.tab, it.State, sym); ok {
 			n, state, origin = n+1, it.State, at-it.Dist
 		}
 	}

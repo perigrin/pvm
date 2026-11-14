@@ -33,38 +33,49 @@ type setCore struct {
 	tab   []*Set   // the core's interned sets, open-addressed by distance hash
 	n     int      // sets in tab
 	next  *setCore // the next core under the same hash
-	off   []int32  // by symbol, into ent; nil until first used
+	off   []int32  // by symbol, into ent; built with the core (intern)
 	ent   []coreEnt
 }
 
 type coreEnt struct{ idx, target int32 }
 
-// awaiting is s's items awaiting sym, in item order; s must have a core.
-// The core's index is built on first use, by the recognizer that interned
-// it, which owns it.
-func (r *Recognizer) awaiting(s *Set, sym int) []coreEnt {
+// intern is r.sets.intern, which indexes a new core: the index is built
+// when the core is, so a finished chart's reads never write it.
+func (r *Recognizer) intern(items []Item) (*Set, bool) {
+	s, existed := r.sets.intern(items)
+	if s.core.off == nil {
+		r.index(s)
+	}
+	return s, existed
+}
+
+// index builds s's core's postdot index.
+func (r *Recognizer) index(s *Set) {
 	c := s.core
-	if c.off == nil {
-		states := r.tab.States
-		c.off = make([]int32, len(r.tab.Symbols)+2)
-		n := 0
-		for _, it := range s.items {
-			for _, tr := range states[it.State].Transitions {
-				c.off[tr.Symbol+2]++
-				n++
-			}
-		}
-		for i := 2; i < len(c.off); i++ {
-			c.off[i] += c.off[i-1]
-		}
-		c.ent = make([]coreEnt, n)
-		for i, it := range s.items {
-			for _, tr := range states[it.State].Transitions {
-				c.ent[c.off[tr.Symbol+1]] = coreEnt{int32(i), int32(tr.Target)}
-				c.off[tr.Symbol+1]++
-			}
+	states := r.tab.States
+	c.off = make([]int32, len(r.tab.Symbols)+2)
+	n := 0
+	for _, it := range s.items {
+		for _, tr := range states[it.State].Transitions {
+			c.off[tr.Symbol+2]++
+			n++
 		}
 	}
+	for i := 2; i < len(c.off); i++ {
+		c.off[i] += c.off[i-1]
+	}
+	c.ent = make([]coreEnt, n)
+	for i, it := range s.items {
+		for _, tr := range states[it.State].Transitions {
+			c.ent[c.off[tr.Symbol+1]] = coreEnt{int32(i), int32(tr.Target)}
+			c.off[tr.Symbol+1]++
+		}
+	}
+}
+
+// awaiting is s's items awaiting sym, in item order; s must have a core.
+func (r *Recognizer) awaiting(s *Set, sym int) []coreEnt {
+	c := s.core
 	return c.ent[c.off[sym]:c.off[sym+1]]
 }
 
