@@ -1489,7 +1489,9 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   longer cycle, which `Derivations` survives by treating a node met again on
   its own path as having no derivation there.
 - **Derivations.** `(*Forest).Derivations(n int32, limit int) ([]*Tree, bool)`
-  enumerates at most `limit` trees of node `n`. It also reports `cut` when a bound stopped it:
+  enumerates at most `limit` trees of node `n`, in no promised order: a
+  node's alternatives are listed newest first, and which trees a cut keeps
+  follows that order, while a complete enumeration gives the same set. It also reports `cut` when a bound stopped it:
   the limit, reached even if exactly `limit` trees exist, or a budget of
   steps proportional to `limit` and the forest's size. A derivation never holds a (symbol, span) node inside itself. So a
   cycle adds none, and a slipper `;` appears only where a statement needs
@@ -1542,9 +1544,14 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   recognition. With index-based nodes (c5c9a4db5), in five rounds
   interleaved with the pointer-based build before it (`-benchtime 40x`,
   load 1.1–1.6), it took a median 27.0 ms per op, 22.1 MB and 18,203
-  allocations, against 24.1 ms, 21.2 MB and 20,509. That is one file in a
-  fresh process; over the aggregate, long-lived, the forest stage key fell
-  by about a fifth (chart-recovery's `F1 reading`). When the benchmark was
+  allocations, against 24.1 ms, 21.2 MB and 20,509. The loss is the slices'
+  growth: `Nodes` and `Alts` start at 1,024 and double on each build, about
+  seven times for `std5k.pl`, so `slices.Grow` and its copying cost every
+  build over 1,024 nodes or alternatives, long-lived passes included (with
+  the first size raised to 1<<18 the same build ran 20.3–21.8 ms against
+  22.8–23.8). F2's sizing of the first blocks from the file removes it. Over
+  the aggregate the forest stage key still fell by about a fifth
+  (chart-recovery's `F1 reading`). When the benchmark was
   added (load 7.5–8.1) the forest took 29.6 ms beside recognition's
   19.4 ms. An earlier build of the forest, which expanded every Leo chain
   and tried every split, took 36.0 ms in the same rounds. The span checkpoint 3 times includes it (spec §9.3).
