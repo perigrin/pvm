@@ -50,42 +50,14 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 // completion as recognition closed them before the token whose terminal set
 // is next, or at the end of input where next is -1; nil where no item at
 // pos awaits a ;. They are beside the set at pos, never in it (slipper.go).
-// Where recognition built the node after pos, or pos is the last, they are
-// the closure it kept, Leo on. Where the transition cache served that node,
-// they are the closure the storing node kept, cached with the transition
-// (R6). Where no closure was kept, they are recomputed with Leo off, link by
-// link, since making a memo here would write the chart. The two give the
-// forest the same facts once Leo chains are expanded (TestSlipperClosuresAgree).
-// Either way the result is read-only: the caller writes none of it.
+// They are the closure recognition kept, Leo on: built at the node after
+// pos, or at pos where it is the last, or, where the transition cache served
+// that node, the closure its storing node kept, cached with the transition
+// (R6). Every node the slipper ran at keeps one, so nothing is recomputed.
+// The result is shared and read-only: the caller writes none of it.
 func (c *Chart) Slipped(pos, next int) []Item {
 	if c.r.g.semi < 0 || pos < 0 || pos >= len(c.Sets) {
 		return nil
 	}
-	if s, ok := c.slips[[2]int{pos, next}]; ok {
-		return s
-	}
-	return c.slippedLeoOff(pos, next)
-}
-
-// slippedLeoOff is Slipped's recomputation, Leo off, whether or not the
-// chart kept a closure at pos.
-func (c *Chart) slippedLeoOff(pos, next int) []Item {
-	la := c.r.g.eofBits
-	if next >= 0 {
-		la = c.r.cls.bits[next]
-	}
-	// The copy shares the intern table and cache, but semiAt with Leo off
-	// writes neither: its builder reads sets and keeps its items to itself,
-	// in buffers of its own, so concurrent calls share no memory they write.
-	r := *c.r
-	r.opts.NoLeo = true
-	r.itemsBuf, r.depsBuf = nil, nil
-	nc := *c
-	nc.r = &r
-	v := r.semiAt(&nc, pos, la)
-	if v == nil {
-		return nil
-	}
-	r.relBuf = make([]Item, 0, len(v.items)) // the result, in one allocation
-	return v.relative()
+	return c.slips[[2]int{pos, next}]
 }

@@ -286,9 +286,9 @@ func slipperFacts(c *Chart, p int, slipped []Item) [][3]int {
 }
 
 // TestBuiltSlipperClosureOwnedByChart: the slipper closure the chart keeps
-// for a node recognition built is what Slipped returns there, and is the
-// chart's own: a recognition on the same recognizer afterwards, run while it
-// is read (under -race), writes none of it.
+// is what Slipped returns there, and nothing writes it: a recognition on the
+// same recognizer afterwards, run while it is read (under -race), which may
+// serve the same closure from the cache, writes none of it.
 func TestBuiltSlipperClosureOwnedByChart(t *testing.T) {
 	tab, files := corpusSample(t)
 	r := New(tab, Options{})
