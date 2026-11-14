@@ -170,6 +170,10 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 		return nil, err
 	}
 	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
-	measureSpeed(p, agg, srcs, measured)
-	return unmapped, chartStages(p, tab, agg, srcs, measured)
+	tokens := 0 // the allocation keys' denominator
+	for _, f := range agg {
+		tokens += len(lexer.Tokenize(srcs[f]))
+	}
+	measureSpeed(p, agg, tokens, measured)
+	return unmapped, chartStages(p, tab, agg, tokens, srcs, measured)
 }

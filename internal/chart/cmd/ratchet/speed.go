@@ -19,7 +19,6 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
-	"tamarou.com/pvm/internal/lexer"
 )
 
 // Runner parses one file. Side makes a fresh one: once per pass long-lived,
@@ -160,15 +159,6 @@ func allocsPer(side Side, files []string, tokens int) float64 {
 	return float64(after.Mallocs-before.Mallocs) / float64(tokens)
 }
 
-// tokensOver is the lexer's token count over files, the allocation keys' denominator.
-func tokensOver(files []string, srcs map[string][]byte) int {
-	tokens := 0
-	for _, f := range files {
-		tokens += len(lexer.Tokenize(srcs[f]))
-	}
-	return tokens
-}
-
 const (
 	gcCPUMetric    = "/cpu/classes/gc/total:cpu-seconds"
 	totalCPUMetric = "/cpu/classes/total:cpu-seconds"
@@ -208,15 +198,15 @@ func gcShare(side Side, files []string, gc func(), read func() (gc, total float6
 		return 0, err
 	}
 	if t1 <= t0 {
-		return 0, fmt.Errorf("gc-cpu-share: the total CPU-seconds did not move over the pass")
+		return 0, fmt.Errorf("the total CPU-seconds did not move over the pass")
 	}
 	return (g1 - g0) / (t1 - t0), nil
 }
 
 // measureSpeed adds the six speed and allocation keys to measured: p's Chart
 // against its Ref (recursive descent) on std5k.pl alone and on the aggregate
-// agg, long-lived and cold; allocations are per lexer token over agg.
-func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map[string]string) {
+// agg, long-lived and cold; allocations are per lexer token (tokens) over agg.
+func measureSpeed(p Protocol, agg []string, tokens int, measured map[string]string) {
 	one := []string{std5k}
 	for _, r := range []struct {
 		key   string
@@ -228,7 +218,6 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 	} {
 		measured[r.key] = fmt.Sprintf("%.4f", p.Ratio(r.key, r.files, r.cold))
 	}
-	tokens := tokensOver(agg, srcs)
 	measured["alloc-per-token-chart"] = fmt.Sprintf("%.3f", allocsPer(p.Chart, agg, tokens))
 	measured["alloc-per-token-rd"] = fmt.Sprintf("%.3f", allocsPer(p.Ref, agg, tokens))
 }
@@ -278,7 +267,7 @@ func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(pa
 // lattices and charts so they are not live. Like recognizerFor, a recognizer
 // error panics; a refused file has no forest, so forest.Build returns at once
 // and its forest stage does almost nothing.
-func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, measured map[string]string) error {
+func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, measured map[string]string) error {
 	lexOf := func(path string) *lex.Lattice[lex.None] {
 		s, _ := lex.Lex(srcs[path], tab.Tokens)
 		return lex.Linear(s)
@@ -299,14 +288,17 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string]
 		return func(f string) { l := lexOf(f); forestOf(rec(l), l) }
 	}
 	read := func() (float64, float64, error) { return cpuSeconds(gcCPUMetric, totalCPUMetric) }
-	for key, side := range map[string]Side{"gc-cpu-share-chart": chart, "gc-cpu-share-rd": p.Ref} {
-		share, err := gcShare(side, agg, p.GC, read)
+	for _, g := range []struct {
+		key  string
+		side Side
+	}{{"gc-cpu-share-chart", chart}, {"gc-cpu-share-rd", p.Ref}} {
+		share, err := gcShare(g.side, agg, p.GC, read)
 		if err != nil {
-			return fmt.Errorf("%s: %w", key, err)
+			return fmt.Errorf("%s: %w", g.key, err)
 		}
-		measured[key] = fmt.Sprintf("%.4f", share)
+		measured[g.key] = fmt.Sprintf("%.4f", share)
 	}
-	measureStages(p, agg, tokensOver(agg, srcs), lexOf, recognizer, forestOf, measured)
+	measureStages(p, agg, tokens, lexOf, recognizer, forestOf, measured)
 	return nil
 }
 
