@@ -230,9 +230,11 @@ func closuresAgree(t *testing.T, name string, c *Chart, l *lex.Lattice[lex.None]
 		if next >= 0 {
 			la = r.cls.bits[next]
 		}
-		on, kept := c.slips[[2]int{p, next}]            // recognition's closure, where it built the node after p
-		if v := r.semiAt(c, p, la); v != nil && !kept { // a cache-served node: what recognition would have kept
-			on = slices.Clone(v.relative())
+		on, kept := c.slips[[2]int{p, next}] // recognition's closure, where it built the node after p
+		if !kept {                           // a cache-served node: what recognition would have kept
+			if v := r.semiAt(c, p, la); v != nil {
+				on = slices.Clone(v.relative())
+			}
 		}
 		off := c.slippedLeoOff(p, next)
 		nodes++
