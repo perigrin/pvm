@@ -211,3 +211,149 @@ func TestLeoChainReadsAreCacheDeps(t *testing.T) {
 		}
 	}
 }
+
+// leoMemoEntriesBound is the most stored Leo memo entries per node the
+// corpus sample may leave under default options: the review prototype's
+// count, rounded up, recorded with the base tree's as chart-recovery's
+// "R3 bound" bullet.
+const leoMemoEntriesBound = 0.036
+
+// memoStore is the number of entries c's memo store holds, and how many of
+// them are memos rather than a stored "none".
+func memoStore(c *Chart) (entries, real int) {
+	for _, m := range c.leo {
+		entries++
+		if m != nil {
+			real++
+		}
+	}
+	return entries, real
+}
+
+// storedMemo is the entry c's memo store holds for (at, sym), if any.
+func storedMemo(c *Chart, at, sym int) (*memo, bool) {
+	m, ok := c.leo[[2]int{at, sym}]
+	return m, ok
+}
+
+// TestLeoMemoEntriesBounded: memoAt stores only real memos, so the entries
+// per node over corpusSample stay within leoMemoEntriesBound. A store that
+// keeps every computation, "none" included, holds about one per
+// computation.
+func TestLeoMemoEntriesBounded(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{})
+	nodes, entries := 0, 0
+	for _, f := range files {
+		c := mustRecognize(t, r, f.l)
+		n, _ := memoStore(c)
+		nodes, entries = nodes+len(c.Sets), entries+n
+	}
+	per := float64(entries) / float64(nodes)
+	t.Logf("%d stored Leo memo entries over %d nodes: %.4f per node", entries, nodes, per)
+	if per > leoMemoEntriesBound {
+		t.Errorf("%.4f stored Leo memo entries per node, above the bound %v", per, leoMemoEntriesBound)
+	}
+}
+
+// TestLeoOnByDefault: Options{} recognizing a right recursion makes a memo.
+func TestLeoOnByDefault(t *testing.T) {
+	tab := toyTables(t, rightRec...)
+	c := mustRecognize(t, New(tab, Options{}), tokens(tab, slices.Repeat([]string{"A"}, 5)...))
+	if !c.Accepted() {
+		t.Fatal("refused")
+	}
+	if _, real := memoStore(c); real == 0 {
+		t.Error("Options{} made no Leo memo on S ::= A S | A")
+	}
+}
+
+// TestLeoMemoOnlyWhenUnique: recognition stores a memo for (node, symbol)
+// where exactly one item awaits the symbol and it is a Leo item, and stores
+// nothing where two items await it or the one is not a Leo item. In each
+// case completion asks memoAt at node 1 for S.
+func TestLeoMemoOnlyWhenUnique(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		grammar []string
+		in      []string
+		memo    bool
+	}{
+		{"one Leo item", rightRec, []string{"A", "A", "A"}, true},
+		// After A: S ::= A . S and, through T ::= A, S ::= T . S.
+		{"two items", []string{"S ::= A S | T S | A", "T ::= A"}, []string{"A", "A"}, false},
+		// After C: only S ::= C . S D, which is no Leo item, since D follows S.
+		{"not a Leo item", []string{"S ::= C S D | A"}, []string{"C", "A", "D"}, false},
+	} {
+		tab := toyTables(t, tc.grammar...)
+		c := mustRecognize(t, New(tab, Options{}), tokens(tab, tc.in...))
+		if !c.Accepted() {
+			t.Fatalf("%s: refused", tc.name)
+		}
+		m, ok := storedMemo(c, 1, tab.Start)
+		if ok != tc.memo || (ok && m == nil) {
+			t.Errorf("%s: node 1 stores %v (%v) for S, want a memo %v", tc.name, m, ok, tc.memo)
+		}
+		if entries, real := memoStore(c); entries != real {
+			t.Errorf("%s: %d entries stored, only %d of them memos", tc.name, entries, real)
+		}
+	}
+}
+
+// rightRecLattice is n As for S ::= A S | A; with branch, also one A from
+// node n/2 to n/2+2, so node n/2+1 holds a branch set, which has no postdot
+// index and takes memoAt's whole-set fallback.
+func rightRecLattice(tab *grammar.Tables, n int, branch bool) *lex.Lattice[lex.None] {
+	l := tokens(tab, slices.Repeat([]string{"A"}, n)...)
+	if branch {
+		l.Edges = append(l.Edges, toyEdge(tab, n/2, n/2+2, "A"))
+		slices.SortStableFunc(l.Edges, func(a, b lex.Edge) int { return a.From - b.From })
+	}
+	return l
+}
+
+// TestLeoDeepRightRecursionAgrees: on a right recursion 2,000 deep, plain
+// and through a branch set, Leo on and off agree on acceptance and on
+// Expected at every node, with and without lookahead.
+func TestLeoDeepRightRecursionAgrees(t *testing.T) {
+	tab := toyTables(t, rightRec...)
+	for _, branch := range []bool{false, true} {
+		l := rightRecLattice(tab, 2000, branch)
+		for _, la := range []bool{false, true} {
+			on := mustRecognize(t, New(tab, Options{NoLookahead: la}), l)
+			off := mustRecognize(t, New(tab, Options{NoLookahead: la, NoLeo: true}), l)
+			if on.Accepted() != off.Accepted() || !on.Accepted() {
+				t.Fatalf("branch %v, lookahead off %v: accepted %v with Leo, %v without", branch, la, on.Accepted(), off.Accepted())
+			}
+			for pos := range l.Nodes {
+				a, errA := on.Expected(pos)
+				b, errB := off.Expected(pos)
+				if errA != nil || errB != nil || !slices.Equal(a, b) {
+					t.Fatalf("branch %v, lookahead off %v, node %d: Expected %v (%v) with Leo, %v (%v) without", branch, la, pos, a, errA, b, errB)
+				}
+			}
+		}
+	}
+}
+
+// TestNoLeoStoresNoMemo: with NoLeo, recognition through a branch set
+// stores no memo and makes no whole-set scan in memoAt; with Leo on, the
+// same input makes one, so the count is live.
+func TestNoLeoStoresNoMemo(t *testing.T) {
+	tab := toyTables(t, rightRec...)
+	l := rightRecLattice(tab, 50, true)
+	for _, noLeo := range []bool{true, false} {
+		r := New(tab, Options{NoLeo: noLeo})
+		c := mustRecognize(t, r, l)
+		entries, _ := memoStore(c)
+		if !c.Accepted() {
+			t.Fatalf("NoLeo %v: refused", noLeo)
+		}
+		if noLeo && (entries != 0 || r.memoScans != 0) {
+			t.Errorf("NoLeo: %d memo entries stored, %d whole-set scans", entries, r.memoScans)
+		}
+		if !noLeo && (entries == 0 || r.memoScans == 0) {
+			t.Errorf("Leo on: %d memo entries stored, %d whole-set scans: the branch set took no fallback", entries, r.memoScans)
+		}
+	}
+}

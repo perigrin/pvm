@@ -1350,7 +1350,13 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   made at a node for a symbol B only where the node's whole set holds one
   item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It
   resolves the chain of completions to its top item, by reference to the
-  memo at the item's origin. Memos live in a per-node side table, never in
+  memo at the item's origin. The test reads the set's postdot index, so it
+  is constant time; a branch set, which has no index, searches every item
+  on each call. Only real memos are stored, in one map per chart keyed by
+  (node, symbol), never a "none": 1,278 entries over corpusSample's 35,645
+  nodes, where a per-node table storing every computation held 20,511
+  (`TestLeoMemoEntriesBounded`, `TestLeoMemoOnlyWhenUnique`). Leo is on by
+  default (`TestLeoOnByDefault`). Memos live beside the sets, never in
   a set, so two nodes whose sets differ only in their tops share one set
   (`TestLeoTopOutsideSetIdentity`). With lookahead, a chain whose top cannot
   be followed by the next token is completed link by link, as without Leo.

@@ -1,5 +1,5 @@
 // ABOUTME: Leo (1991) memos: a right recursion's completions resolved to their top item, once per position and symbol.
-// ABOUTME: Memos live in a per-position side table outside set identity; every set a memo read is a cache dependency.
+// ABOUTME: Memos live in one per-chart side table outside set identity; every set a memo read is a cache dependency.
 
 package recognize
 
