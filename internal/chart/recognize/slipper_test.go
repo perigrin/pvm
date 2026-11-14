@@ -4,11 +4,13 @@
 package recognize
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 )
 
 // slipperGrammar has statements ending in ;, blocks, and a hash H whose }
@@ -165,4 +167,117 @@ func TestSlippedOwnsItsItems(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSlipperClosuresAgree: at every node of the corpus sample where a ; is
+// inserted, the completed (symbol, origin, rule) facts the forest reads
+// there are the same whether the slipper's items are recognition's closure
+// (semiAt, Leo on) or Slipped's (Leo off), Leo links expanded as the forest
+// expands them: a chain is walked where its top is among the node's facts.
+// No corpus-sample closure takes a Leo memo, so the slipper toys, whose
+// statement sequence is right-recursive, are checked too, and some of their
+// closures must differ in items for the check to mean anything.
+func TestSlipperClosuresAgree(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := New(tab, Options{})
+	nodes, leo := 0, 0
+	for _, f := range files {
+		n, d := closuresAgree(t, f.name, mustRecognize(t, r, f.l), f.l)
+		nodes, leo = nodes+n, leo+d
+	}
+	if nodes == 0 {
+		t.Fatal("no inserted ; in the corpus sample")
+	}
+	t.Logf("corpus sample: %d inserted-; nodes, %d whose closures differ in items", nodes, leo)
+	nodes, leo = 0, 0
+	for _, g := range [][]string{slipperGrammar, slipperEmptyGrammar} {
+		tab := toyTables(t, g...)
+		r := New(tab, Options{})
+		inputs := [][]string{nil}
+		for n := 0; n < len(inputs); n++ {
+			if len(inputs[n]) < 5 {
+				for _, w := range []string{"X", ";", "{", "}", "HASH"} {
+					inputs = append(inputs, append(slices.Clone(inputs[n]), slip.Replace(w)))
+				}
+			}
+		}
+		for _, in := range inputs {
+			if slices.Contains(in, "HASH") && !slices.Equal(g, slipperGrammar) {
+				continue
+			}
+			l := tokens(tab, in...)
+			n, d := closuresAgree(t, strings.Join(in, " "), mustRecognize(t, r, l), l)
+			nodes, leo = nodes+n, leo+d
+		}
+	}
+	if leo == 0 {
+		t.Errorf("of the toys' %d inserted-; nodes none took a Leo memo: the check is vacuous", nodes)
+	}
+}
+
+// closuresAgree checks c's inserted-; nodes, as TestSlipperClosuresAgree
+// says, and is how many there are and how many closures differ in items.
+func closuresAgree(t *testing.T, name string, c *Chart, l *lex.Lattice[lex.None]) (nodes, differ int) {
+	t.Helper()
+	r := c.r
+	for _, p := range c.Inserted() {
+		next := -1
+		if p < len(l.Edges) {
+			next = l.Edges[p].Token.TerminalSet
+		}
+		la := r.g.eofBits
+		if next >= 0 {
+			la = r.cls.bits[next]
+		}
+		var on []Item
+		if v := r.semiAt(c, p, la); v != nil {
+			on = slices.Clone(v.relative())
+		}
+		off := c.Slipped(p, next)
+		nodes++
+		if !slices.Equal(on, off) {
+			differ++
+		}
+		if got, want := slipperFacts(c, p, on), slipperFacts(c, p, off); !slices.Equal(got, want) {
+			t.Errorf("%s node %d: the Leo-on closure gives facts %v, Slipped's %v", name, p, got, want)
+		}
+	}
+	return nodes, differ
+}
+
+// slipperFacts is the sorted (symbol, origin, rule) facts at node p of the
+// set there and the slipper's items, each Leo chain whose top is among them
+// expanded link by link, as the forest reads them (forest.leoFacts).
+func slipperFacts(c *Chart, p int, slipped []Item) [][3]int {
+	tab := c.r.tab
+	var facts [][3]int
+	for _, items := range [2][]Item{c.Sets[p].Items(), slipped} {
+		for _, it := range items {
+			for _, rule := range tab.States[it.State].Reduces {
+				facts = append(facts, [3]int{tab.Rules[rule].LHS, p - it.Dist, rule})
+			}
+		}
+	}
+	has := func(f [3]int) bool { return slices.Contains(facts, f) }
+	for _, f := range slices.Clone(facts) {
+		var chain [][3]int
+		for at, sym := f[1], f[0]; ; {
+			rule, origin, more, ok := c.LeoLink(at, sym)
+			if !ok {
+				break
+			}
+			chain = append(chain, [3]int{tab.Rules[rule].LHS, origin, rule})
+			if !more {
+				break
+			}
+			at, sym = origin, tab.Rules[rule].LHS
+		}
+		if len(chain) > 0 && has(chain[len(chain)-1]) {
+			facts = append(facts, chain...)
+		}
+	}
+	slices.SortFunc(facts, func(x, y [3]int) int {
+		return cmp.Or(cmp.Compare(x[0], y[0]), cmp.Compare(x[1], y[1]), cmp.Compare(x[2], y[2]))
+	})
+	return slices.Compact(facts)
 }
