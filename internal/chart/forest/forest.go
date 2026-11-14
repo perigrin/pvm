@@ -19,30 +19,56 @@ import (
 )
 
 // Forest is a file's shared packed forest, built only for a file the chart
-// accepts. No node has an Alt whose child is the node itself.
+// accepts. Nodes and alternatives are int32 indexes into Nodes and Alts,
+// which hold no pointers, so the collector traces nothing in them. Index 0
+// is none in both: Nodes[0] and Alts[0] are placeholders. No node has an
+// Alt whose child is the node itself.
+// shortcut: an index wraps past 2^31-1 nodes or alternatives, which would
+// take over 48 GiB of nodes alone; widen the indexes if a forest nears it.
 type Forest struct {
-	Root  *Node
-	size  int // the nodes built, which bounds Derivations' work
+	Root  int32
+	Nodes []Node
+	Alts  []Alt
 	steps int // facts recorded and splits tried, for the scaling test
 }
 
 // Node is a symbol over a span of lattice nodes, From to To, or a rule
 // position there: the first Dot symbols of Rule, Sym -1. A terminal is a
 // leaf, one token wide, or zero-width where it is a ; the slipper inserted.
-// A nonterminal or a rule position has one Alt per way its span divides.
+// A nonterminal or a rule position has one Alt per way its span divides:
+// Alt is the first, each Alt's Next the one after, 0 ending them.
 type Node struct {
-	Sym, Rule, Dot int
-	From, To       int
-	Alts           []Alt
+	Sym, Rule, Dot int32
+	From, To       int32
+	Alt            int32
 }
 
 // Alt is one packed derivation: Rule's symbols up to the node's last, as
-// Left (nil where there are none; that symbol's node where there is one; a
+// Left (0 where there are none; that symbol's node where there is one; a
 // rule position where there are more), then the last symbol's node as Right
-// (nil for an empty rule).
+// (0 for an empty rule). Next is the node's next Alt, 0 for none.
 type Alt struct {
-	Rule        int
-	Left, Right *Node
+	Rule, Left, Right, Next int32
+}
+
+// newNode appends n and is its index. Both slices double when full: append
+// alone grows a large slice by about 1.25×, copying several times its final size.
+func (f *Forest) newNode(n Node) int32 {
+	if len(f.Nodes) == cap(f.Nodes) {
+		f.Nodes = slices.Grow(f.Nodes, len(f.Nodes))
+	}
+	f.Nodes = append(f.Nodes, n)
+	return int32(len(f.Nodes) - 1)
+}
+
+// add puts a first among n's Alts.
+func (f *Forest) add(n int32, a Alt) {
+	a.Next = f.Nodes[n].Alt
+	if len(f.Alts) == cap(f.Alts) {
+		f.Alts = slices.Grow(f.Alts, len(f.Alts))
+	}
+	f.Alts = append(f.Alts, a)
+	f.Nodes[n].Alt = int32(len(f.Alts) - 1)
 }
 
 // Tree is one derivation of a symbol over From to To: the rule, and its
@@ -84,8 +110,9 @@ func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 	return Build(tab, c, l), Refusal{}
 }
 
-// builder holds what the chart proved, and the nodes built from it.
+// builder holds what the chart proved, and the forest built from it.
 type builder struct {
+	Forest
 	tab      *grammar.Tables
 	c        *recognize.Chart
 	l        *lex.Lattice[lex.None]
@@ -96,7 +123,7 @@ type builder struct {
 	// (symbol, origin), on the first of its facts.
 	facts []fact
 	at    []int
-	node  []*Node
+	node  []int32
 	// items is every item by origin, those from node i being
 	// items[from[i]:from[i+1]], in node order: where a rule position from i
 	// stands, which is how a split is checked against the chart.
@@ -107,11 +134,11 @@ type builder struct {
 	core []int
 	// leaf is each token's leaves, one per terminal of its set, edge k's from
 	// leafAt[k]; semiLeaf is the zero-width ; at each inserted node.
-	leaf     []*Node
+	leaf     []int32
 	leafAt   []int
-	semiLeaf map[int]*Node
-	pre      []*Node       // the prefix node kept beside each item
-	prefixes map[int]*Node // the others
+	semiLeaf map[int]int32
+	pre      []int32       // the prefix node kept beside each item
+	prefixes map[int]int32 // the others
 	// leo is each symbol some Leo item awaits, numbered from 1; memo is the
 	// Leo memo at node at for the symbol numbered x, at memo[at*nleo+x-1]:
 	// 0 not yet looked up, -1 none, else 1 + its index in links.
@@ -119,11 +146,7 @@ type builder struct {
 	nleo  int
 	memo  []int32
 	links []link
-	slab  []Node
-	alts  []Alt
 	work  []int // facts whose node waits for its Alts
-	size  int
-	steps int
 }
 
 // fact is a rule the chart completed for sym from from, small to keep the
@@ -171,8 +194,10 @@ func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *F
 			return nil
 		}
 	}
-	b := &builder{tab: tab, c: c, l: l, inserted: make([]bool, n), at: make([]int, n+1), from: make([]int, n+1),
-		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]*Node{}, prefixes: map[int]*Node{},
+	// The placeholders at 0, with room for 1,024 nodes and alternatives before either slice grows.
+	b := &builder{Forest: Forest{Nodes: make([]Node, 1, 1025), Alts: make([]Alt, 1, 1025)},
+		tab: tab, c: c, l: l, inserted: make([]bool, n), at: make([]int, n+1), from: make([]int, n+1),
+		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]int32{}, prefixes: map[int]int32{},
 		leo: make([]int, len(tab.Symbols)), core: make([]int, len(tab.Rules))}
 	b.semi = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == "PERLY_SEMICOLON" })
 	for r, rule := range tab.Rules {
@@ -212,7 +237,7 @@ func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *F
 		b.from[i+1] += b.from[i]
 	}
 	size := b.from[n]
-	b.items, b.pre = make([]placed, size), make([]*Node, size)
+	b.items, b.pre = make([]placed, size), make([]int32, size)
 	fill := slices.Clone(b.from)
 	b.facts = make([]fact, 0, size)
 	for j, s := range c.Sets {
@@ -231,22 +256,23 @@ func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *F
 	}
 	b.at[n] = len(b.facts)
 	b.steps += len(b.facts)
-	b.node = make([]*Node, len(b.facts))
+	b.node = make([]int32, len(b.facts))
 	for k, e := range l.Edges {
 		b.leafAt[k+1] = b.leafAt[k] + len(tab.TerminalSets[e.Token.TerminalSet])
 	}
-	b.leaf = make([]*Node, b.leafAt[len(l.Edges)])
-	root := b.child(tab.Start, 0, n-1)
+	b.leaf = make([]int32, b.leafAt[len(l.Edges)])
+	b.Root = b.child(tab.Start, 0, n-1)
 	for len(b.work) > 0 {
 		i := b.work[len(b.work)-1]
 		b.work = b.work[:len(b.work)-1]
 		nd, f := b.node[i], b.facts[i]
-		for ; i < b.at[nd.To+1] && b.facts[i].sym == f.sym && b.facts[i].from == f.from; i++ {
+		for to := b.Nodes[nd].To; i < b.at[to+1] && b.facts[i].sym == f.sym && b.facts[i].from == f.from; i++ {
 			r := int(b.facts[i].rule)
 			b.split(nd, r, len(tab.Rules[r].RHS))
 		}
 	}
-	return &Forest{Root: root, size: b.size, steps: b.steps}
+	f := b.Forest // a copy, so the forest keeps none of the builder's tables alive
+	return &f
 }
 
 // leoFacts sorts node j's facts and adds the completions a Leo memo skipped
@@ -329,78 +355,71 @@ func (b *builder) item(r, m, i, k int) int {
 	return -1
 }
 
-// alloc is a fresh node, from a slab.
-func (b *builder) alloc(n Node) *Node {
-	if len(b.slab) == 0 {
-		b.slab = make([]Node, 1024)
-	}
-	p := &b.slab[0]
-	b.slab = b.slab[1:]
-	*p = n
-	b.size++
-	return p
+// leafNode is a fresh leaf of terminal sym over from to to.
+func (b *builder) leafNode(sym, from, to int) int32 {
+	return b.newNode(Node{Sym: int32(sym), Rule: -1, From: int32(from), To: int32(to)})
 }
 
-// child is sym's node over from to to, made once, or nil where the chart
+// child is sym's node over from to to, made once, or 0 where the chart
 // does not prove sym derives there: a completed fact, a token, or a ;
 // inserted at the node.
-func (b *builder) child(sym, from, to int) *Node {
+func (b *builder) child(sym, from, to int) int32 {
 	if !b.tab.Symbols[sym].Terminal {
 		if i, ok := b.find(sym, from, to); ok {
 			return b.factNode(i, to)
 		}
-		return nil
+		return 0
 	}
 	if from == to {
 		if sym != b.semi || !b.inserted[to] {
-			return nil
+			return 0
 		}
-		if b.semiLeaf[to] == nil {
-			b.semiLeaf[to] = b.alloc(Node{Sym: sym, Rule: -1, From: from, To: to})
+		if b.semiLeaf[to] == 0 {
+			b.semiLeaf[to] = b.leafNode(sym, from, to)
 		}
 		return b.semiLeaf[to]
 	}
 	if to != from+1 {
-		return nil
+		return 0
 	}
 	i, ok := slices.BinarySearch(b.tab.TerminalSets[b.l.Edges[from].Token.TerminalSet], sym)
 	if !ok {
-		return nil
+		return 0
 	}
 	slot := &b.leaf[b.leafAt[from]+i]
-	if *slot == nil {
-		*slot = b.alloc(Node{Sym: sym, Rule: -1, From: from, To: to})
+	if *slot == 0 {
+		*slot = b.leafNode(sym, from, to)
 	}
 	return *slot
 }
 
 // factNode is the node of fact i, which ends at node to, made once; it waits for its Alts.
-func (b *builder) factNode(i, to int) *Node {
-	if b.node[i] == nil {
+func (b *builder) factNode(i, to int) int32 {
+	if b.node[i] == 0 {
 		f := b.facts[i]
-		b.node[i] = b.alloc(Node{Sym: int(f.sym), Rule: -1, From: int(f.from), To: to})
+		b.node[i] = b.newNode(Node{Sym: f.sym, Rule: -1, From: f.from, To: int32(to)})
 		b.work = append(b.work, i)
 	}
 	return b.node[i]
 }
 
 // prefix is the node of rule r's first m symbols, m at least 2, over from
-// to to, made once, or nil where the chart holds no item for them there. It
+// to to, made once, or 0 where the chart holds no item for them there. It
 // is kept beside that item, in a map where the item already keeps another.
-func (b *builder) prefix(r, m, from, to int) *Node {
+func (b *builder) prefix(r, m, from, to int) int32 {
 	x := b.item(r, m, from, to)
 	if x < 0 {
-		return nil
+		return 0
 	}
-	if n := b.pre[x]; n != nil && n.Rule == r && n.Dot == m {
+	if n := b.pre[x]; n != 0 && b.Nodes[n].Rule == int32(r) && b.Nodes[n].Dot == int32(m) {
 		return n
 	}
 	k := x*len(b.tab.Items) + b.core[r] + m
-	if n := b.prefixes[k]; n != nil {
+	if n := b.prefixes[k]; n != 0 {
 		return n
 	}
-	n := b.alloc(Node{Sym: -1, Rule: r, Dot: m, From: from, To: to})
-	if b.pre[x] == nil {
+	n := b.newNode(Node{Sym: -1, Rule: int32(r), Dot: int32(m), From: int32(from), To: int32(to)})
+	if b.pre[x] == 0 {
 		b.pre[x] = n
 	} else {
 		b.prefixes[k] = n
@@ -412,84 +431,73 @@ func (b *builder) prefix(r, m, from, to int) *Node {
 // split adds to n an Alt for each way rule r's first m symbols cover its
 // span, by where the m-th begins: a token's start, the node itself for a ;
 // inserted there, or an origin the chart completed it from. The starts are
-// read from whichever is shorter, the m-th symbol's completions at n.To or
-// the nodes where an item from n.From stands; alt checks the first m-1.
-func (b *builder) split(n *Node, r, m int) {
+// read from whichever is shorter, the m-th symbol's completions at n's end or
+// the nodes where an item from n's start stands; alt checks the first m-1.
+func (b *builder) split(n int32, r, m int) {
+	from, to := int(b.Nodes[n].From), int(b.Nodes[n].To)
 	if m == 0 {
-		if n.From == n.To {
-			b.add(n, Alt{Rule: r})
+		if from == to {
+			b.add(n, Alt{Rule: int32(r)})
 		}
 		return
 	}
 	x := b.tab.Rules[r].RHS[m-1]
 	switch {
 	case b.tab.Symbols[x].Terminal:
-		for _, k := range [2]int{n.To - 1, n.To} {
-			if k >= n.From {
-				b.alt(n, r, m, k, b.child(x, k, n.To))
+		for _, k := range [2]int{to - 1, to} {
+			if k >= from {
+				b.alt(n, r, m, k, b.child(x, k, to))
 			}
 		}
 		return
 	case m == 1:
-		b.alt(n, r, m, n.From, b.child(x, n.From, n.To))
+		b.alt(n, r, m, from, b.child(x, from, to))
 		return
 	}
-	lo, _ := b.find(x, n.From, n.To)
-	hi, _ := b.find(x+1, -1, n.To)
-	run := b.items[b.from[n.From]:b.from[n.From+1]]
-	end, _ := slices.BinarySearchFunc(run, n.To+1, func(p placed, k int) int { return int(p.at) - k })
+	lo, _ := b.find(x, from, to)
+	hi, _ := b.find(x+1, -1, to)
+	run := b.items[b.from[from]:b.from[from+1]]
+	end, _ := slices.BinarySearchFunc(run, to+1, func(p placed, k int) int { return int(p.at) - k })
 	if hi-lo <= end {
 		for i := lo; i < hi; i++ {
 			if i == lo || b.facts[i-1].from != b.facts[i].from {
-				b.alt(n, r, m, int(b.facts[i].from), b.factNode(i, n.To))
+				b.alt(n, r, m, int(b.facts[i].from), b.factNode(i, to))
 			}
 		}
 		return
 	}
 	for i, p := range run[:end] {
 		if i == 0 || run[i-1].at != p.at {
-			b.alt(n, r, m, int(p.at), b.child(x, int(p.at), n.To))
+			b.alt(n, r, m, int(p.at), b.child(x, int(p.at), to))
 		}
 	}
 }
 
 // alt adds to n the Alt of rule r whose m-th symbol is right, from k, where
-// the chart proves right (non-nil) and the first m-1 symbols from n.From to
+// the chart proves right (non-zero) and the first m-1 symbols from n's start to
 // k, as a symbol it completed or as an item standing at k. An Alt whose
 // child is n itself is dropped: no derivation can use it.
-func (b *builder) alt(n *Node, r, m, k int, right *Node) {
+func (b *builder) alt(n int32, r, m, k int, right int32) {
 	b.steps++
-	if right == nil || right == n {
+	if right == 0 || right == n {
 		return
 	}
-	var left *Node
+	from := int(b.Nodes[n].From)
+	var left int32
 	switch {
 	case m == 1:
-		if k != n.From {
+		if k != from {
 			return
 		}
 	case m == 2:
-		left = b.child(b.tab.Rules[r].RHS[0], n.From, k)
+		left = b.child(b.tab.Rules[r].RHS[0], from, k)
 	default:
-		left = b.prefix(r, m-1, n.From, k)
+		left = b.prefix(r, m-1, from, k)
 	}
-	if m > 1 && left == nil || left == n {
+	if m > 1 && left == 0 || left == n {
 		return
 	}
-	b.add(n, Alt{Rule: r, Left: left, Right: right})
-}
-
-// add appends a to n's Alts; most nodes have one, so the first comes from a slab.
-func (b *builder) add(n *Node, a Alt) {
-	if n.Alts != nil {
-		n.Alts = append(n.Alts, a)
-		return
-	}
-	if len(b.alts) == 0 {
-		b.alts = make([]Alt, 1024)
-	}
-	b.alts[0] = a
-	n.Alts, b.alts = b.alts[:1:1], b.alts[1:]
+	b.add(n, Alt{Rule: int32(r), Left: left, Right: right})
 }
 
 // Derivations is at most limit of n's derivations, and cut, true when a
@@ -499,25 +507,27 @@ func (b *builder) add(n *Node, a Alt) {
 // still returns. A derivation never holds a node inside itself, so a cycle
 // adds none, and a slipper ; appears only where a derivation needs it, never
 // as an extra null statement beside one that does not.
-func (f *Forest) Derivations(n *Node, limit int) (trees []*Tree, cut bool) {
-	e := &enum{path: map[*Node]bool{}, budget: 64 * max(limit, 1) * (f.size + 1)}
+func (f *Forest) Derivations(n int32, limit int) (trees []*Tree, cut bool) {
+	e := &enum{f: f, path: map[int32]bool{}, budget: 64 * max(limit, 1) * len(f.Nodes)}
 	trees = e.trees(n, limit)
 	return trees, e.budget < 0 || len(trees) >= limit
 }
 
-// enum is one enumeration: the symbol nodes on the current path, and the steps left.
+// enum is one enumeration of f: the symbol nodes on the current path, and the steps left.
 type enum struct {
-	path   map[*Node]bool
+	f      *Forest
+	path   map[int32]bool
 	budget int
 }
 
 // trees is at most limit derivations of symbol node n that avoid every node on the path.
-func (e *enum) trees(n *Node, limit int) []*Tree {
+func (e *enum) trees(n int32, limit int) []*Tree {
 	if e.budget--; limit <= 0 || e.budget < 0 {
 		return nil
 	}
-	if n.Alts == nil {
-		return []*Tree{{Sym: n.Sym, Rule: -1, From: n.From, To: n.To}}
+	nd := e.f.Nodes[n]
+	if nd.Alt == 0 {
+		return []*Tree{{Sym: int(nd.Sym), Rule: -1, From: int(nd.From), To: int(nd.To)}}
 	}
 	if e.path[n] {
 		return nil
@@ -525,9 +535,10 @@ func (e *enum) trees(n *Node, limit int) []*Tree {
 	e.path[n] = true
 	defer delete(e.path, n)
 	var out []*Tree
-	for _, a := range n.Alts {
+	for x := nd.Alt; x != 0; x = e.f.Alts[x].Next {
+		a := e.f.Alts[x]
 		for _, kids := range e.seqs(a, limit-len(out)) {
-			out = append(out, &Tree{Sym: n.Sym, Rule: a.Rule, From: n.From, To: n.To, Kids: kids})
+			out = append(out, &Tree{Sym: int(nd.Sym), Rule: int(a.Rule), From: int(nd.From), To: int(nd.To), Kids: kids})
 		}
 		if len(out) >= limit {
 			break
@@ -543,21 +554,21 @@ func (e *enum) seqs(a Alt, limit int) [][]*Tree {
 	}
 	var lefts [][]*Tree
 	switch {
-	case a.Left == nil:
+	case a.Left == 0:
 		lefts = [][]*Tree{nil}
-	case a.Left.Sym >= 0:
+	case e.f.Nodes[a.Left].Sym >= 0:
 		for _, t := range e.trees(a.Left, limit) {
 			lefts = append(lefts, []*Tree{t})
 		}
 	default:
-		for _, la := range a.Left.Alts {
-			lefts = append(lefts, e.seqs(la, limit-len(lefts))...)
+		for x := e.f.Nodes[a.Left].Alt; x != 0; x = e.f.Alts[x].Next {
+			lefts = append(lefts, e.seqs(e.f.Alts[x], limit-len(lefts))...)
 			if len(lefts) >= limit {
 				break
 			}
 		}
 	}
-	if a.Right == nil {
+	if a.Right == 0 {
 		return lefts
 	}
 	var out [][]*Tree
