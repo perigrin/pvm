@@ -1368,7 +1368,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   tables value at once; each recognizer owns its cores. Branch sets are not
   interned and have no core, so they keep the whole-set loop (a `shortcut:`
   in code, until interleaved mode makes branches common). `Chart.LeoLink`
-  and the slipper still search with `goTo`.
+  still binary-searches, through the uncounted `transition`, and the slipper
+  with `goTo`.
 - **No per-node maps or slices.** A node's builder finds duplicate items
   and origin-set dependencies by scanning while it holds at most 24 of
   each, and keeps a map only past that (YAEP's `sit_dist_insert`, adapted;
