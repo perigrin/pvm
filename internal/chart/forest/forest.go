@@ -81,7 +81,7 @@ func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 		}
 		return nil, Refusal{Byte: at, Reason: "grammar"}
 	}
-	return build(tab, c, l), Refusal{}
+	return Build(tab, c, l), Refusal{}
 }
 
 // builder holds what the chart proved, and the nodes built from it.
@@ -156,12 +156,15 @@ func cmpFact(x, y fact) int {
 	return int(x.rule - y.rule)
 }
 
-// build is the forest of c, a chart of l that accepts; nil where l is not linear.
+// Build is the forest of c, a chart of l; nil where c does not accept or l is not linear.
 // shortcut: l must be linear, as up-front lexing makes it, so the token
 // ending at node j is edge j-1 and an inserted ; is followed only by its };
 // index the edges by node, and keep a ;'s facts apart, when interleaved
 // lexing branches (TestForestLinearLatticesOnly).
-func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *Forest {
+func Build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None]) *Forest {
+	if !c.Accepted() {
+		return nil
+	}
 	n := len(c.Sets)
 	for k, e := range l.Edges {
 		if e.From != k || e.To != k+1 {

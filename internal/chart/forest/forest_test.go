@@ -301,7 +301,7 @@ func toyForest(t *testing.T, tab *grammar.Tables, words []string, opts recognize
 	if !c.Accepted() {
 		return nil, c, l
 	}
-	return build(tab, c, l), c, l
+	return Build(tab, c, l), c, l
 }
 
 // inputs is every string of up to n of words.
@@ -510,7 +510,7 @@ func perlForest(t *testing.T, tab *grammar.Tables, src string, opts recognize.Op
 	if !c.Accepted() {
 		return nil, c, l
 	}
-	return build(tab, c, l), c, l
+	return Build(tab, c, l), c, l
 }
 
 // TestForestRefusedChartHasNoForest: a file the chart refuses gets a
@@ -638,7 +638,7 @@ func TestForestLinearLatticesOnly(t *testing.T) {
 	if err != nil || !c.Accepted() {
 		t.Fatalf("the branched lattice: %v, accepted %v", err, err == nil && c.Accepted())
 	}
-	if f := build(tab, c, branched); f != nil {
+	if f := Build(tab, c, branched); f != nil {
 		t.Error("build made a forest of a branched lattice")
 	}
 	if f, _, _ := toyForest(t, tab, []string{"B", "B", "C"}, recognize.Options{}); f == nil {
@@ -875,6 +875,23 @@ func TestForestSlipperNoDoubleCount(t *testing.T) {
 			if trees, _ := slipperTrees(t, tab, words, opts); len(trees) != 1 {
 				t.Errorf("%s %+v: %d derivations, want 1", name, opts, len(trees))
 			}
+		}
+	}
+}
+
+// TestBuildRefusedChartIsNil: a chart that does not accept has no forest, so
+// Build returns nil rather than a forest with no root.
+func TestBuildRefusedChartIsNil(t *testing.T) {
+	tab := committedTables(t)
+	for _, src := range []string{"my $x = ;\n", "sub {", "1 +", "}"} {
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+		if err != nil || c.Accepted() {
+			t.Fatalf("%q: %v, accepted %v; want a refusing chart", src, err, err == nil && c.Accepted())
+		}
+		if f := Build(tab, c, l); f != nil {
+			t.Errorf("%q: Build of a refused chart = %+v, want nil", src, f)
 		}
 	}
 }

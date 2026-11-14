@@ -268,3 +268,45 @@ func TestMeasureBenchNeedsAcceptance(t *testing.T) {
 		t.Errorf("measureBench wrote %q before failing; want nothing", out.String())
 	}
 }
+
+// TestSpeedStagesTimed: on the fake clock lexing costs 1, recognition 2 and
+// the forest 4 per file against recursive descent's 10, so each stage key
+// reads its own stage alone (0.1, 0.2, 0.4) only if its inputs are prepared
+// outside the span; recognition is long-lived, one recognizer per pass.
+func TestSpeedStagesTimed(t *testing.T) {
+	files := []string{"a.pl", "b.pl"}
+	var now time.Duration
+	recognizers := 0
+	var stderr strings.Builder
+	p := Protocol{
+		Ref: func() Runner { return func(string) { now += 10 } },
+		Now: func() time.Duration { return now }, GC: func() {}, Stderr: &stderr,
+	}
+	m := map[string]string{}
+	measureStages(p, files,
+		func(path string) string { now++; return "lattice " + path },
+		func() func(string) string {
+			recognizers++
+			return func(l string) string { now += 2; return "chart of " + l }
+		},
+		func(c, l string) {
+			now += 4
+			if c != "chart of "+l {
+				t.Errorf("forest built from %q with %q, want that lattice's chart", c, l)
+			}
+		}, m)
+	for k, want := range map[string]string{
+		"speed-stage-lex-aggregate-longlived": "0.1000", "speed-stage-recognize-aggregate-longlived": "0.2000",
+		"speed-stage-forest-aggregate-longlived": "0.4000",
+	} {
+		if m[k] != want {
+			t.Errorf("%s = %q, want %s: the stage alone over recursive descent", k, m[k], want)
+		}
+	}
+	if want := 3*(warmupPairs+timedPairs) + 1; recognizers != want { // one per timed pass, one to prepare the charts
+		t.Errorf("%d recognizers constructed, want %d (long-lived)", recognizers, want)
+	}
+	if s := stderr.String(); !strings.Contains(s, "speed-stage sum lex+recognize+forest 0.7") {
+		t.Errorf("stderr %q does not print the stages' sum", s)
+	}
+}
