@@ -54,6 +54,9 @@ type Recognizer struct {
 	// probes counts goTo's binary searches, for the test of the postdot
 	// index's bound (probes_test.go).
 	probes int
+	// memoScans counts memoAt's whole-set scans, which only a branch set
+	// takes, for the test that NoLeo makes none (leo_test.go).
+	memoScans int
 	// itemsBuf, depsBuf and relBuf are Recognize's builder's buffers,
 	// reused from node to node: what keeps their contents copies them.
 	itemsBuf [][2]int

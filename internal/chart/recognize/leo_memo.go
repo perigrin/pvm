@@ -21,6 +21,7 @@ func (c *Chart) memoAt(at, sym int) *memo {
 		}
 	} else {
 		// shortcut: as in scan, a branch set searches every item.
+		c.r.memoScans++
 		for _, it := range set.Items() {
 			if to, ok := c.r.goTo(it.State, sym); ok {
 				n++
