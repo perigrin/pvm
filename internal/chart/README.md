@@ -167,8 +167,9 @@ by the Chart Parser Recovery Plan
 `docs/chart-recovery-plan`; perigrin's D2 and D5, 2026-11-13), which adds
 `speed-stage-lex-aggregate-longlived`,
 `speed-stage-recognize-aggregate-longlived` and
-`speed-stage-forest-aggregate-longlived`. Every key of the first attempt is
-retired.
+`speed-stage-forest-aggregate-longlived`, and renames
+`speed-ratio-aggregate-cold` to `speed-ratio-aggregate-perfile` (below). Every
+key of the first attempt is retired.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
@@ -303,7 +304,7 @@ To take a baseline after an intended change, run
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
 | `speed-ratio-std5k-cold` | the same, cold | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
-| `speed-ratio-aggregate-cold` | the same, cold | timing |
+| `speed-ratio-aggregate-perfile` | the same over the aggregate, a fresh recognizer per file over tables already derived; renamed from `speed-ratio-aggregate-cold` (review Q1) because since CTORONCE (01a1b913-414b) a later `recognize.New` no longer derives tables, so the old key fell from 4.99 to 2.72 by redefinition, not by recognition getting faster; not comparable with cold figures from before CTORONCE | timing |
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
@@ -334,7 +335,11 @@ clock and a collector, so it is tested on fake timings
   median of the 9 per-pair ratios (chart pass over reference pass), with min
   and max printed on stderr. A figure is the median of three measurements.
 - **Lifetimes.** Long-lived: one parser per pass, reused across its files.
-  Cold: a fresh recognizer per file. chart/lex's pooled lookup cache
+  Cold: a fresh recognizer per file. `speed-ratio-std5k-cold` keeps its name
+  and what it measures, a fresh recognizer per pass of one file; the same
+  CTORONCE change means it too reuses the derived tables after the first
+  `recognize.New` of the process, and perigrin's D5 renames only the aggregate
+  key. chart/lex's pooled lookup cache
   (`grammar.LookupCache`, from a `sync.Pool`) persists from file to file
   within a pass, cold or not; the GCs forced before each pass empty the pool,
   so no pass replays a cache warmed by an earlier pass. A `lex-overhead`

@@ -16,7 +16,7 @@ chart-ratchet: lex-overhead-aggregate 1.230
 chart-ratchet: speed-ratio-std5k-longlived 1.2261
 chart-ratchet: speed-ratio-std5k-cold 1.2054
 chart-ratchet: speed-ratio-aggregate-longlived 2.1904
-chart-ratchet: speed-ratio-aggregate-cold 2.6752
+chart-ratchet: speed-ratio-aggregate-perfile 2.6752
 chart-ratchet: speed-stage-lex-aggregate-longlived 0.6148
 chart-ratchet: speed-stage-recognize-aggregate-longlived 1.6175
 chart-ratchet: speed-stage-forest-aggregate-longlived 1.4048
