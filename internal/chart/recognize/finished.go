@@ -50,6 +50,7 @@ func (c *Chart) Slipped(pos, next int) []Item {
 	}
 	// The copy shares the intern table and cache, but semiAt with Leo off
 	// writes neither: its builder reads sets and keeps its items to itself.
+	// It may build a set core's postdot index, which depends on the core alone.
 	r := *c.r
 	r.opts.NoLeo = true
 	nc := *c
