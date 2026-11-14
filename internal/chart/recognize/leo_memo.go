@@ -13,10 +13,19 @@ func (c *Chart) memoAt(at, sym int) *memo {
 	}
 	var m *memo
 	n, state, origin, k := 0, 0, 0, 0
-	for _, it := range c.Sets[at].Items() {
-		if to, ok := c.r.goTo(it.State, sym); ok {
-			n++
-			state, origin, k = it.State, at-it.Dist, to
+	if set := c.Sets[at]; set != nil && set.core != nil {
+		en := c.r.awaiting(set, sym)
+		if n = len(en); n == 1 {
+			it := set.items[en[0].idx]
+			state, origin, k = it.State, at-it.Dist, int(en[0].target)
+		}
+	} else {
+		// shortcut: as in scan, a branch set searches every item.
+		for _, it := range set.Items() {
+			if to, ok := c.r.goTo(it.State, sym); ok {
+				n++
+				state, origin, k = it.State, at-it.Dist, to
+			}
 		}
 	}
 	if lhs, ok := c.r.g.leo[[2]int{state, sym}]; ok && n == 1 {

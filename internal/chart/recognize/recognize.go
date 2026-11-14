@@ -51,6 +51,9 @@ type Recognizer struct {
 	// expectedComputed counts Expected's computations, for the test of its
 	// memo, which lives in the cache's trie (expected.go).
 	expectedComputed int
+	// probes counts goTo's binary searches, for the test of the postdot
+	// index's bound (probes_test.go).
+	probes int
 }
 
 // grammarTables is what New derives from the tables alone. It is built once
@@ -316,6 +319,16 @@ func (b *builder) scan(e lex.Edge) {
 		return
 	}
 	b.read(e.From, src)
+	if src.core != nil {
+		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
+			for _, en := range b.r.awaiting(src, t) {
+				b.add(int(en.target), e.From-src.items[en.idx].Dist)
+			}
+		}
+		return
+	}
+	// shortcut: a branch set has no core, so it searches every item; give
+	// branch sets a postdot index when interleaved mode makes them common.
 	for _, it := range src.items {
 		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
 			if k, ok := b.r.goTo(it.State, t); ok {
@@ -347,6 +360,13 @@ func (b *builder) complete(la bitset) {
 				b.add(top[0], top[1])
 				continue
 			}
+			if src.core != nil {
+				for _, en := range b.r.awaiting(src, lhs) {
+					b.add(int(en.target), origin-src.items[en.idx].Dist)
+				}
+				continue
+			}
+			// shortcut: as in scan, a branch set searches every item.
 			for _, it := range src.items {
 				if k, ok := b.r.goTo(it.State, lhs); ok {
 					b.add(k, origin-it.Dist)
@@ -389,6 +409,7 @@ func (b *builder) relative() []Item {
 
 // goTo is state's transition on sym.
 func (r *Recognizer) goTo(state, sym int) (int, bool) {
+	r.probes++
 	tr := r.tab.States[state].Transitions
 	i, ok := slices.BinarySearchFunc(tr, sym, func(t grammar.Transition, s int) int { return t.Symbol - s })
 	if !ok {
