@@ -27,12 +27,12 @@ package Tie::Hash;
 # for that reason (ooExempt), and held instead by
 # TestTieHashInheritedMethodsReturn, which measures the subclass-dispatch
 # paths above directly.
-sub new (Str $class: List @args) Object;
-sub TIEHASH (Str $class: List @args) Object;
+sub new (Str $class: List @args) BlessedRef;
+sub TIEHASH (Str $class: List @args) BlessedRef;
 # EXISTS and CLEAR are instance methods (perltie: "EXISTS this, key",
 # "CLEAR this"), not class ones.
-sub EXISTS (Object $self: Str $key) None;
-sub CLEAR (Object $self:) Any;
+sub EXISTS (BlessedRef $self: Str $key) None;
+sub CLEAR (BlessedRef $self:) Any;
 
 # Tie::StdHash and Tie::ExtraHash (audit-C.md finding 35) are
 # separate packages in Tie/Hash.pm, not this one, and this declaration

@@ -277,7 +277,7 @@ func TestFileStatTakesHandles(t *testing.T) {
 // type it actually uses -- measured on 5.42.0,
 // stat_cando([CORE::stat("...")], S_IRUSR, 1) returns 1, the same as
 // passing the blessed File::stat object. A plain ArrayRef is not an
-// Object, so $stat_object must admit both.
+// BlessedRef, so $stat_object must admit both.
 //
 // File::stat::stat_cando already has a parameterExempt entry (for its
 // third argument, $effective's literal-1 Boolean idiom), and that

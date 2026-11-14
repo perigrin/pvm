@@ -318,7 +318,7 @@ func (a *analysis) ternaryPossibleUndef(n *lower.Ternary) bool {
 // as a whole fails expected.
 //
 // Then a single bit of it fitting on its own -- Symbol::qualify's Ref return,
-// with its ScalarRef, ArrayRef, HashRef, CodeRef and Object members
+// with its ScalarRef, ArrayRef, HashRef, CodeRef and BlessedRef members
 // beside the GlobRef that fits -- counts as a possible mismatch: psc
 // knows only that the value is some reference, never which kind, the
 // same loss of precision possible-undef forgives for a declared call's
@@ -782,7 +782,7 @@ func (o Options) handleSatisfies(actual, expected types.Type) bool {
 	if expected&types.Glob == 0 {
 		return false
 	}
-	handle := expected | types.FileHandle | types.Object
+	handle := expected | types.FileHandle | types.BlessedRef
 	return o.satisfies(actual, handle) || o.satisfies(actual, handle&types.Scalar)
 }
 
@@ -909,7 +909,7 @@ func (a *analysis) aggElemType(n lower.Node) types.Type {
 	return types.Unknown
 }
 
-// methodCall types a method call. `Class->new` is an Object
+// methodCall types a method call. `Class->new` is a BlessedRef
 // of Class, recorded under the call's id for the assignment that takes it.
 // Another class method, and a method on a variable whose class is
 // recorded, is resolved through the project index. Anything else -- a
@@ -927,7 +927,7 @@ func (a *analysis) methodCall(n *lower.MethodCall) types.Type {
 	case *lower.Bareword:
 		if n.Name == "new" {
 			a.classTypes[n.ID] = inv.Name
-			return types.Object
+			return types.BlessedRef
 		}
 		class = inv.Name
 	case *lower.Var:

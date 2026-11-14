@@ -1,2 +1,2 @@
-sym $x Object
+sym $x BlessedRef
 sym $x Scalar

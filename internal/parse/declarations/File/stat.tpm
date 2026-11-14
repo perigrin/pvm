@@ -35,9 +35,9 @@ our Int $st_blocks :export_ok(FIELDS);
 # GLOB reference", so it keeps its one candidate. Each returns the object on
 # success, or -- measured on 5.42.0, calling either on a path that does
 # not exist -- nothing: the empty list in list context, undef in scalar.
-sub stat :export(FIELDS) :prototype($) (Str|FileHandle $file) Object|Undef;
-multi sub lstat :export(FIELDS) :prototype($) (Glob $file) Object|Undef;
-multi sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
+sub stat :export(FIELDS) :prototype($) (Str|FileHandle $file) BlessedRef|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Glob $file) BlessedRef|Undef;
+multi sub lstat :export(FIELDS) :prototype($) (Str $file) BlessedRef|Undef;
 # stat_cando is `cando`'s alias (measured: `*stat_cando = \&cando`),
 # which tests a stat object's mode bits and ends `return 1` or
 # `return ""`, a plain Int, not perl's own boolean (measured with
@@ -48,4 +48,4 @@ multi sub lstat :export(FIELDS) :prototype($) (Str $file) Object|Undef;
 # 1) returns 1, the same as the blessed object form. :listop: it has no
 # prototype (measured), so its typed parameters derive none either
 # (RFC 0001, "Builtins with no prototype").
-sub stat_cando :export_ok :listop (ArrayRef|Object $stat_object, Int $mode, Boolean $effective) Int;
+sub stat_cando :export_ok :listop (ArrayRef|BlessedRef $stat_object, Int $mode, Boolean $effective) Int;

@@ -60,7 +60,7 @@ sub like :export :prototype($$;$) (Any $got, Any $pattern, Str $name = undef) In
 # new_ok's own final statement, `return $obj`, holds whatever $class->new
 # returned (measured: a class whose new returns undef, as new_ok's own
 # error path does nothing to replace, leaves new_ok undef too).
-sub new_ok :export (List @args) Object|Undef;
+sub new_ok :export (List @args) BlessedRef|Undef;
 sub note :export (List @args) Int;
 sub ok :export :prototype($;$) (Any $test, Str $name = undef) Int;
 sub pass :export :prototype(;$) (Str $name = undef) Int;

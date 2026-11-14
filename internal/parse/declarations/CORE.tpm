@@ -125,7 +125,7 @@ sub bind (Glob *socket, Str $name) Boolean|Undef;
 # handle `binmode $fh` and `binmode $fh, ":raw"` leave the same layers),
 # and yields true, or undef for a closed handle.
 sub binmode (Glob *fh, Str $layer = ":raw") Boolean|Undef;
-sub bless (Ref $ref, Str $class = __PACKAGE__) Object;
+sub bless (Ref $ref, Str $class = __PACKAGE__) BlessedRef;
 # break, continue and dump never return: break leaves a given block and
 # continue a when block, each dying "Can't "break" outside a given block"
 # and "Can't "continue" outside a when block" elsewhere, and CORE::dump
@@ -201,7 +201,7 @@ sub dbmclose (Hash \%hash) Boolean;
 # dbmopen ties the hash to a database and yields the tied object, an
 # AnyDBM_File, or undef when it cannot open one (measured: a missing
 # directory, or a mode of undef for a database that does not exist).
-sub dbmopen (Hash \%hash, Str $dbname, Int $mode) Object|Undef;
+sub dbmopen (Hash \%hash, Str $dbname, Int $mode) BlessedRef|Undef;
 # defined, delete and exists have no prototype and are named unaries:
 # `defined $a, $b` is `defined($a), $b`, `delete $h{a}, $b` is
 # `delete($h{a}), $b` (B::Deparse -p). defined takes `$_` with none

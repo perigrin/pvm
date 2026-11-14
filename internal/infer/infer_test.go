@@ -657,7 +657,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 }
 
 func TestFlowNarrowingIsaGuard(t *testing.T) {
-	// if ($x isa Foo): if-body $x → Object (isa guard narrows to Object).
+	// if ($x isa Foo): if-body $x → BlessedRef (isa guard narrows to BlessedRef).
 	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -667,11 +667,11 @@ func TestFlowNarrowingIsaGuard(t *testing.T) {
 
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "if-body $x should be BlessedRef after isa guard")
 }
 
 func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
-	// if ($x isa Foo): if-body → Object, else-body → Scalar (isa negation is not useful).
+	// if ($x isa Foo): if-body → BlessedRef, else-body → Scalar (isa negation is not useful).
 	src := []byte("use feature 'isa';\nmy $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -681,7 +681,7 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 
 	ifBodyTyp, ifOk := annotations.at(offsets[2])
 	assert.True(t, ifOk, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "if-body $x should be BlessedRef after isa guard")
 
 	elseBodyTyp, elseOk := annotations.at(offsets[3])
 	assert.True(t, elseOk, "else-body $x should be annotated")
@@ -723,7 +723,7 @@ func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 
 	elsif2BodyTyp, ok2 := annotations.at(offsets[6])
 	assert.True(t, ok2, "second elsif-body $x should be annotated")
-	assert.Equal(t, types.Object, elsif2BodyTyp, "second elsif-body $x should be Object (isa guard)")
+	assert.Equal(t, types.BlessedRef, elsif2BodyTyp, "second elsif-body $x should be BlessedRef (isa guard)")
 }
 
 func TestFlowNarrowingElsifWithElse(t *testing.T) {
@@ -1161,14 +1161,14 @@ func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
 // --- Guard pattern library tests (builtin:: functions) ---
 
 func TestGuardLibraryBlessedNarrows(t *testing.T) {
-	// if (builtin::blessed($x)): body $x → Object
+	// if (builtin::blessed($x)): body $x → BlessedRef
 	src := []byte("my $x = get();\nif (builtin::blessed($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "blessed guard narrows to Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "blessed guard narrows to BlessedRef")
 }
 
 func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
@@ -1179,7 +1179,7 @@ func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
 	require.True(t, len(offsets) >= 3)
 	ifBodyTyp, ok := annotations.at(offsets[2])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "bare blessed guard narrows to Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "bare blessed guard narrows to BlessedRef")
 }
 
 func TestGuardLibraryReftypeNarrows(t *testing.T) {
@@ -1205,18 +1205,18 @@ func TestGuardLibraryIsBoolNarrows(t *testing.T) {
 }
 
 func TestGuardLibraryNegatedBlessed(t *testing.T) {
-	// if (!builtin::blessed($x)) { } else { $x } — else $x → Object
+	// if (!builtin::blessed($x)) { } else { $x } — else $x → BlessedRef
 	src := []byte("my $x = get();\nif (!builtin::blessed($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4)
 	elseBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "else-body $x should be annotated")
-	assert.Equal(t, types.Object, elseBodyTyp, "negated blessed: else → Object")
+	assert.Equal(t, types.BlessedRef, elseBodyTyp, "negated blessed: else → BlessedRef")
 }
 
 func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
-	// if (defined($x) && builtin::blessed($x)): body $x → Object
+	// if (defined($x) && builtin::blessed($x)): body $x → BlessedRef
 	// offsets: [0]=decl, [1]=defined($x), [2]=blessed($x), [3]=if-body ref
 	src := []byte("my $x = get();\nif (defined($x) && builtin::blessed($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
@@ -1224,7 +1224,7 @@ func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
 	require.True(t, len(offsets) >= 4, "should find at least 4 $x, got %d", len(offsets))
 	ifBodyTyp, ok := annotations.at(offsets[3])
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, ifBodyTyp, "defined && blessed → Object")
+	assert.Equal(t, types.BlessedRef, ifBodyTyp, "defined && blessed → BlessedRef")
 }
 
 // --- Subroutine return type inference ---
@@ -1564,7 +1564,7 @@ func TestUserDefinedGuardFuncIsa(t *testing.T) {
 	ifBodyXOffset := findLastVarOffset(src, "$x")
 	typ, ok := annotations.at(ifBodyXOffset)
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Object, typ, "if-body $x should be Object after isa guard")
+	assert.Equal(t, types.BlessedRef, typ, "if-body $x should be BlessedRef after isa guard")
 }
 
 func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {
@@ -2274,7 +2274,7 @@ func TestArrayAssignmentKeepsAggregate(t *testing.T) {
 func TestUnresolvedMethodCallIsUnknownNotAny(t *testing.T) {
 	// A class method that is not a constructor, with no project index to
 	// resolve it: this is the path that had no answer and returned Any.
-	// `Foo->new` is different — it yields Object by construction — and
+	// `Foo->new` is different — it yields BlessedRef by construction — and
 	// `$obj->m` reads the invocant's recorded class, so neither reaches here.
 	src := []byte("my $r = Foo->compute;\n")
 	annotations, _ := analyzeSource(t, src)

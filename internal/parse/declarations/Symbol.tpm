@@ -40,11 +40,11 @@ multi sub qualify :export (Str $name, Optional[Str] $pkg) Str;
 # Ref was too wide: measured, qualify_to_ref({}), qualify_to_ref(\"x")
 # and qualify_to_ref(sub{}) all die "Not a GLOB reference" -- values Ref
 # admits that perl has no coercion for and dies on, narrowed to GlobRef.
-# Object is added: a blessed reference whose underlying referent is a
+# BlessedRef is added: a blessed reference whose underlying referent is a
 # glob (IO::Handle and the like) is accepted and preserved unchanged
 # (measured, `ref qualify_to_ref(IO::Handle->new)` is IO::Handle, not
 # GlobRef), the return widened to match.
-sub qualify_to_ref :export (Str|GlobRef|Object $name, Optional[Str] $pkg) GlobRef|Object;
+sub qualify_to_ref :export (Str|GlobRef|BlessedRef $name, Optional[Str] $pkg) GlobRef|BlessedRef;
 # delete_package answers scalar context only (it never returns an Array
 # or Hash), so the oracle never calls it in list context, where measured
 # on 5.42.0 a `return;` with no package found yields the empty list:
@@ -56,4 +56,4 @@ sub qualify_to_ref :export (Str|GlobRef|Object $name, Optional[Str] $pkg) GlobRe
 sub delete_package :export_ok (Str $pkg) Glob|Undef;
 # geniosym forces the IO slot of a fresh anonymous glob and returns it,
 # always blessed: measured on 5.42.0, prototype() reports "".
-sub geniosym :export_ok () Object;
+sub geniosym :export_ok () BlessedRef;

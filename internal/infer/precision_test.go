@@ -47,22 +47,23 @@ type observation struct {
 
 // observedToLattice maps an observed type name to the PSC type it should be.
 var observedToLattice = map[string]types.Type{
-	"Undef":     types.Undef,
-	"Inf":       types.Inf,
-	"NaN":       types.NaN,
-	"Boolean":   types.Boolean,
-	"DualVar":   types.DualVar,
-	"Int":       types.Int,
-	"Num":       types.Num,
-	"Str":       types.Str,
-	"Regex":     types.Regex,
-	"ScalarRef": types.ScalarRef,
-	"ArrayRef":  types.ArrayRef,
-	"HashRef":   types.HashRef,
-	"CodeRef":   types.CodeRef,
-	"Glob":      types.Glob,
-	"GlobRef":   types.GlobRef,
-	"Object":    types.Object,
+	"Undef":      types.Undef,
+	"Inf":        types.Inf,
+	"NaN":        types.NaN,
+	"Boolean":    types.Boolean,
+	"DualVar":    types.DualVar,
+	"Int":        types.Int,
+	"Num":        types.Num,
+	"Str":        types.Str,
+	"Regex":      types.Regex,
+	"ScalarRef":  types.ScalarRef,
+	"ArrayRef":   types.ArrayRef,
+	"HashRef":    types.HashRef,
+	"CodeRef":    types.CodeRef,
+	"Glob":       types.Glob,
+	"GlobRef":    types.GlobRef,
+	"BlessedRef": types.BlessedRef,
+	"Object":     types.Object,
 }
 
 func runObserver(t *testing.T) []observation {
@@ -242,4 +243,34 @@ func checkPrecisionFloor(exact int) error {
 func TestPrecisionFloorRejectsADrop(t *testing.T) {
 	assert.Error(t, checkPrecisionFloor(64), "an exact count of 64 is below the floor")
 	assert.NoError(t, checkPrecisionFloor(65), "an exact count of 65 is the floor")
+}
+
+// TestObserverNamesBlessedRefAndObject: the observer is the ground truth the
+// precision test scores against, so it must name a blessed reference as the
+// lattice does. Measured on 5.42: `bless {}` is blessed with reftype HASH (a
+// BlessedRef), a `class` instance has reftype OBJECT (an Object), and qr// is
+// a Regex. Reporting every blessed value as Object scored a correct
+// BlessedRef inference as wider than the truth.
+func TestObserverNamesBlessedRefAndObject(t *testing.T) {
+	perl, err := exec.LookPath("perl")
+	if err != nil {
+		t.Skip("perl not found in PATH — the observer runs a real interpreter")
+	}
+	src := `require "./internal/infer/testdata/observe_types.pl";
+my @v = (bless({}, "X"), qr/x/);
+push @v, eval q{use experimental "class"; class Obs::C { } Obs::C->new} if $] >= 5.038;
+print join(",", map { observe($_) } @v), "\n";`
+	cmd := exec.Command(perl, "-e", src)
+	cmd.Dir = repoRoot(t)
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	got := strings.Split(strings.TrimSpace(strings.Split(string(out), "\n")[0]), ",")
+	assert.Equal(t, "BlessedRef", got[0], "bless {} is a BlessedRef")
+	assert.Equal(t, "Regex", got[1], "qr// is a Regex")
+	if len(got) > 2 {
+		assert.Equal(t, "Object", got[2], "a class instance is an Object")
+	}
+	for name, want := range map[string]types.Type{"BlessedRef": types.BlessedRef, "Object": types.Object} {
+		assert.Equal(t, want, observedToLattice[name], "observedToLattice[%q]", name)
+	}
 }

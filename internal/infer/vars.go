@@ -97,10 +97,12 @@ func (a *analysis) key(n *lower.Key) types.Type {
 // nothing of its own: its base is the aggregate itself, not a scalar
 // holding a reference to one.
 //
-// base's existing Object bit, if any, is kept alongside the ref this
+// base's existing blessed bit, if any, is kept alongside the ref this
 // deref asserts, rather than overwriting it away: a blessed reference
 // derefed through an accessor, `find_encoding("UTF-8")->{Name}`, is still
-// the same blessed reference after it, not a plain HashRef. Any other Ref
+// the same blessed reference after it, not a plain HashRef. Only the plain
+// blessed reference survives: a `class` instance (Object) and a qr//
+// (Regex) die "Not a HASH reference" on `->{k}` (measured, 5.42). Any other Ref
 // bit base held -- a real union, `$x = $c ? {} : []` -- does not survive:
 // the arrow-hash or arrow-array form proves specifically which kind this
 // is, so it replaces the rest of the union along with Undef and whatever
@@ -122,7 +124,7 @@ func (a *analysis) narrowDerefBase(base lower.Node, arrow bool, ref types.Type) 
 	if v, ok := base.(*lower.Var); ok && v.Sigil == "$" {
 		name := "$" + v.Name
 		sym, _ := a.st.Lookup(name)
-		a.st.UpdateType(name, (sym.Type&types.Object)|ref)
+		a.st.UpdateType(name, (sym.Type&(types.BlessedRef&^(types.Object|types.Regex)))|ref)
 		a.markLoopDeref(base, name)
 	}
 }
