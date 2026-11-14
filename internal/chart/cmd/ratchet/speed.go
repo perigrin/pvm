@@ -170,7 +170,7 @@ func measureSpeed(p Protocol, agg []string, srcs map[string][]byte, measured map
 		cold  bool
 	}{
 		{"speed-ratio-std5k-longlived", one, false}, {"speed-ratio-std5k-cold", one, true},
-		{"speed-ratio-aggregate-longlived", agg, false}, {"speed-ratio-aggregate-cold", agg, true},
+		{"speed-ratio-aggregate-longlived", agg, false}, {"speed-ratio-aggregate-perfile", agg, true},
 	} {
 		measured[r.key] = fmt.Sprintf("%.4f", p.Ratio(r.key, r.files, r.cold))
 	}
