@@ -1868,8 +1868,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   a block in others). The facts come from whatever `forest.Parse` runs: today
   resolve, not yet the precedence constraint or the readings collapse.
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
-  has a `\`, `*` or `+` slot, or whose prototype resolve cannot see, is
-  `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`); code
+  has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
+  nothing declares included, since a module resolve cannot see may give it
+  one), is `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`,
+  `is_shared(@array)` under `use threads::shared`); only a call to a declared
+  sub with none of those slots is decided; code
   interpolated in a string or heredoc is one token the forest does not read,
   so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
   descent hedges every marker.

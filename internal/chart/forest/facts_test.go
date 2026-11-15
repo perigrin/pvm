@@ -19,11 +19,16 @@ import (
 func TestOracleSubject(t *testing.T) {
 	tab := committedTables(t)
 	samples := []struct{ file, want string }{
-		// a call, under a prototype or none; f's may take @a by reference, which is Unresolved, not fitted (facts.go)
+		// a call, under a prototype or none; f's may take @a by reference, and g's prototype resolve cannot see, so
+		// each is Unresolved, not fitted (facts.go); only h, declared with no \, * or + slot, is decided
 		{"call.pl", `{"ok":true,"prototypes":{"f":"\\@","h":"$"},"call_sites":[
 			{"line":3,"end_line":3,"name":"f","took_reference":false,"unresolved":true},
-			{"line":4,"end_line":4,"name":"g","took_reference":false},
+			{"line":4,"end_line":4,"name":"g","took_reference":false,"unresolved":true},
 			{"line":6,"end_line":6,"name":"h","took_reference":false}]}`},
+		// a call to a word nothing declares, where a module resolve cannot see may give it a \ prototype: perl
+		// takes @array by reference here, so the call is Unresolved, not "took no reference"
+		{"undeclared.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"line":3,"end_line":3,"name":"is_shared","took_reference":false,"unresolved":true}]}`},
 		// a \ the source wrote, on its statement's first and last lines; code interpolated in a string is one token
 		// the forest does not read, so its \ reports nothing (README "The chart as a parseoracle subject")
 		{"reference.pl", `{"ok":true,"prototypes":{},"call_sites":[

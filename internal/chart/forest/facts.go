@@ -152,7 +152,8 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: line[first], EndLine: line[last], Unresolved: sf.uncertain[k]}
 		if kind == kindCall {
 			cs.Name = r.text(at)
-			if d, st := r.lookup(cs.Name, at); st == unknown || st == declared && strings.ContainsAny(d.proto, `\*+`) {
+			if d, st := r.lookup(cs.Name, at); st != declared || strings.ContainsAny(d.proto, `\*+`) {
+				// a word nothing declares may still be a sub a module resolve cannot see gave a \ prototype.
 				// shortcut: a call whose prototype may take an argument by reference is Unresolved rather than
 				// fitted slot by slot, which grades WIDER where perl took one; upgrade when ORACLEGRADE shows the
 				// WIDER sites cost exact ones recursive descent has.
