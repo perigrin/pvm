@@ -51,12 +51,11 @@ func Committed() (*Grammar, []Entry, error) {
 	}
 	for _, e := range ledger {
 		if e.Mark == "refused-by-precedence" {
-			lhs, rhs, _ := strings.Cut(e.Text, ":")
-			r := Rule{LHS: lhs, Line: e.Line, Cite: citePrefix + strconv.Itoa(e.Line)}
-			for _, s := range strings.Fields(rhs) {
-				r.RHS = append(r.RHS, Symbol{Name, s})
+			r, err := ParseRules(e.Text + " # " + citePrefix + strconv.Itoa(e.Line))
+			if err != nil {
+				return nil, nil, err
 			}
-			g.Refused = append(g.Refused, r)
+			g.Refused = append(g.Refused, r...)
 		}
 	}
 	defined := map[string]bool{}

@@ -47,19 +47,19 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 	for id, s := range tab.Symbols {
 		sym[s.Name] = id
 	}
-	rules, items := tab.Rules, tab.Items
+	rules, items, rulePrec := slices.Clone(tab.Rules), slices.Clone(tab.Items), slices.Clone(rulePrec)
 	base := slices.Clone(grammar.Derived(tab, buildForestGrammar).core) // base[r] is rule r's item at dot 0
 	for _, r := range refused {
 		var rhs []int
 		for _, s := range r.RHS {
 			rhs = append(rhs, sym[s.Text])
 		}
-		rulePrec = append(slices.Clip(rulePrec), r.Prec)
+		rulePrec = append(rulePrec, r.Prec)
 		base = append(base, len(items))
 		for dot := 0; dot <= len(rhs); dot++ {
-			items = append(slices.Clip(items), grammar.CoreItem{Rule: len(rules), Dot: dot})
+			items = append(items, grammar.CoreItem{Rule: len(rules), Dot: dot})
 		}
-		rules = append(slices.Clip(rules), grammar.BNFRule{LHS: sym[r.LHS], RHS: rhs})
+		rules = append(rules, grammar.BNFRule{LHS: sym[r.LHS], RHS: rhs})
 	}
 	// shortcut: tab's FIRST sets and nullability leave the refused rules out, exact while each begins with its own
 	// left-hand side, as perly.y's four do (TestPrecedenceRefusedRulesLeftRecursive); derive them over rules if one does not.

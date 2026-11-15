@@ -74,7 +74,7 @@ func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
 	}
 	for _, r := range g.Refused {
 		if r.RHS[0].Text != r.LHS {
-			t.Errorf("perly.y:%d %s: does not begin with %s", r.Line, r.LHS, r.LHS)
+			t.Errorf("%s %s: does not begin with %s", r.Cite, r.LHS, r.LHS)
 		}
 	}
 }
