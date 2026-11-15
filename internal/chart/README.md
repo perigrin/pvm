@@ -1732,7 +1732,7 @@ item gains a fact.
 - **Keep.** A reduction with a terminal next that the state could also shift
   survives only where bison's resolution is reduce; a shift survives only
   where every reduction the state before it holds, with that terminal in its
-  follow set, resolves to shift. So of two derivations of one span the one
+  LALR(1) lookahead there, resolves to shift. So of two derivations of one span the one
   bison builds is kept, and the other is dropped even where the one bison
   builds does not exist (`print $fh []`).
 - **Forbid.** A `%nonassoc` resolution is an error action and fails both
@@ -1744,20 +1744,23 @@ item gains a fact.
   derivation holding it there, and a file whose root has none is refused
   (`Constrain` returns false); the alternatives no surviving derivation uses
   are unlinked from the forest.
-- **The toy referees.** `offline/referee/toys/build.sh` builds eight toys with
+- **The toy referees.** `offline/referee/toys/build.sh` builds nine toys with
   bison (a `%left`/`%right` ladder, `%nonassoc` chains, prefix and postfix
   operators, indirob and indirob after `sort`, two states after one symbol,
-  empty rules, and all of the operators mixed) and commits every sentence of
+  a lookahead narrower than the follow set, empty rules, and all of the
+  operators mixed) and commits every sentence of
   up to five to seven terminals with bison's verdict and grouping
   (`testdata/precedence/toys/`). `TestPrecedenceToyReferees` requires both on
-  every one of the 4,282 sentences; `TestPrecedenceConstraintOrderInvariant`
+  every one of the 4,290 sentences; `TestPrecedenceConstraintOrderInvariant`
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
 
-Known limits, each for PRECPERLY to measure on `perly.y`: the parser state is
-exact, but a reduction's lookahead set is the follow set, not bison's LALR
-set, so a reduction bison's state holds without that lookahead could still
-be counted against a shift; an alternative kept in one parser state is kept
+Known limits, each for PRECPERLY to measure on `perly.y`: none in the parser
+states or their lookaheads, which are bison's (each reduction's LALR(1)
+lookahead is propagated over the LR(0) automaton to a fixed point, and on
+every toy equals bison's report state for state; the follow set, used before
+gate pass 2, refused `Y W T Z` in the `follow` toy, where bison has no
+conflict); an alternative kept in one parser state is kept
 in all (the `shortcut:` on `Constrain`), which leaves the verdict exact and
 can only add a derivation to what a later reader enumerates; and rules refused in an action (`termrelop NCRELOP`), whose
 items make the non-chaining comparisons' conflicts, are not in the port's

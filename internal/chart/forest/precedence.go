@@ -6,6 +6,7 @@ package forest
 import (
 	"fmt"
 	"maps"
+	"math/bits"
 	"slices"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -22,10 +23,11 @@ type Precedence struct {
 	states []lrState // state 0 is the file's start
 }
 
-// lrState is an LR(0) state: the terminals it shifts and the rules it reduces, both sorted, and its goto on
-// each symbol after a dot.
+// lrState is an LR(0) state: the terminals it shifts, sorted, the rules it reduces with each one's LALR(1)
+// lookahead (la[i] the sorted terminals reduce[i] reduces on), and its goto on each symbol after a dot.
 type lrState struct {
 	shift, reduce []int32
+	la            [][]int32
 	next          map[int32]int32
 }
 
@@ -34,8 +36,9 @@ type lrState struct {
 //
 // The states are bison's: the canonical LR(0) automaton of the grammar, closure and goto, which bison's LALR(1)
 // tables share. The constraint carries the one a derivation reaches, from the file's start along the symbols
-// before it, so a conflict is found exactly where bison's state has one. They are built from the tables alone,
-// never read from the chart, whose split states are not bison's.
+// before it, so a conflict is found exactly where bison's state has one. Each reduction's lookahead there is
+// bison's LALR(1) set, not the follow set. Both are built from the tables alone, never read from the chart,
+// whose split states are not bison's.
 func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string) *Precedence {
 	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), rule: make([]int, len(tab.Rules)),
 		assoc: []string{""}}
@@ -124,7 +127,89 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		}
 		p.states = append(p.states, st)
 	}
+	p.lookaheads(items, base, byLHS)
 	return p
+}
+
+// lookaheads sets each state's LALR(1) lookaheads by propagation to a fixed point over every item of every
+// state: the start items read the end of input; an item passes its lookahead to its advance in the goto
+// state, and to the first item of each rule its dot predicts, with what follows the predicted symbol (and its
+// own lookahead where that derives the empty string). Merging by LR(0) state is what makes it LALR(1).
+func (p *Precedence) lookaheads(items [][]int, base []int, byLHS [][]int) {
+	tab := p.tab
+	words := (tab.EOF + 64) / 64
+	la := make([][][]uint64, len(items)) // la[s][k]: the lookahead of state s's k-th item
+	at := func(s int32, item int) []uint64 {
+		k, _ := slices.BinarySearch(items[s], item)
+		return la[s][k]
+	}
+	for s := range items {
+		la[s] = make([][]uint64, len(items[s]))
+		for k := range la[s] {
+			la[s][k] = make([]uint64, words)
+		}
+	}
+	for _, i := range items[0] {
+		if tab.Rules[tab.Items[i].Rule].LHS == tab.Start && tab.Items[i].Dot == 0 {
+			at(0, i)[tab.EOF/64] |= 1 << (tab.EOF % 64)
+		}
+	}
+	union := func(dst, src []uint64) bool {
+		changed := false
+		for w := range dst {
+			if dst[w]|src[w] != dst[w] {
+				dst[w] |= src[w]
+				changed = true
+			}
+		}
+		return changed
+	}
+	first := make([]uint64, words)
+	for changed := true; changed; {
+		changed = false
+		for s := range items {
+			for k, i := range items[s] {
+				it := tab.Items[i]
+				rhs := tab.Rules[it.Rule].RHS
+				if it.Dot == len(rhs) {
+					continue
+				}
+				x := rhs[it.Dot]
+				changed = union(at(p.states[s].next[int32(x)], i+1), la[s][k]) || changed
+				if tab.Symbols[x].Terminal {
+					continue
+				}
+				clear(first) // what can follow x here: FIRST of the rest, and this item's lookahead if it can vanish
+				nullable := true
+				for _, y := range rhs[it.Dot+1:] {
+					for _, t := range tab.First[y] {
+						first[t/64] |= 1 << (t % 64)
+					}
+					if nullable = tab.Symbols[y].Nullable; !nullable {
+						break
+					}
+				}
+				if nullable {
+					union(first, la[s][k])
+				}
+				for _, r := range byLHS[x] {
+					changed = union(at(int32(s), base[r]), first) || changed
+				}
+			}
+		}
+	}
+	for s := range items {
+		st := &p.states[s]
+		for _, r := range st.reduce {
+			var ts []int32
+			for t, w := range at(int32(s), base[r]+len(tab.Rules[r].RHS)) {
+				for ; w != 0; w &= w - 1 {
+					ts = append(ts, int32(t*64+bits.TrailingZeros64(w)))
+				}
+			}
+			st.la = append(st.la, ts)
+		}
+	}
 }
 
 // walk is the state reached from state s over syms. Every state a derivation begins a rule in holds the
@@ -184,11 +269,11 @@ func (p *Precedence) reduces(r int, s int32, t int) bool {
 	return res == unresolved || res == reduce
 }
 
-// shifts reports whether bison's resolution lets t shift in state s: every rule s can reduce with t next must
-// lose to the shift.
+// shifts reports whether bison's resolution lets t shift in state s: every rule s reduces on t, by its LALR(1)
+// lookahead there, must lose to the shift.
 func (p *Precedence) shifts(s int32, t int) bool {
-	for _, r := range p.states[s].reduce {
-		if _, la := slices.BinarySearch(p.tab.Follow[p.tab.Rules[r].LHS], t); !la {
+	for i, r := range p.states[s].reduce {
+		if _, la := slices.BinarySearch(p.states[s].la[i], int32(t)); !la {
 			continue
 		}
 		if res := p.resolve(int(r), t); res == reduce || res == refuse {
