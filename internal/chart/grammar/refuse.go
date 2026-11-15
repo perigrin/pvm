@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -40,9 +41,22 @@ func Committed() (*Grammar, []Entry, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	g := &Grammar{G1: rules, Classes: perlyClasses}
+	ledger, err := ParseEntries(ledgerText, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	g := &Grammar{G1: rules, Classes: perlyClasses, Levels: levels}
 	for _, l := range levels {
 		g.Prec = append(g.Prec, l.Tokens...)
+	}
+	for _, e := range ledger {
+		if e.Mark == "refused-by-precedence" {
+			r, err := ParseRules(e.Text + " # " + citePrefix + strconv.Itoa(e.Line))
+			if err != nil {
+				return nil, nil, err
+			}
+			g.Refused = append(g.Refused, r...)
+		}
 	}
 	defined := map[string]bool{}
 	for _, r := range rules {

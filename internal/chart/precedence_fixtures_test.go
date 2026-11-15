@@ -225,10 +225,11 @@ var updateRendering = flag.Bool("chart.update-rendering", false,
 // selector"), so it renders to nothing.
 const startSelector = "GRAMPROG"
 
-// precedenceSentence is one row of sentences.txt: its id, terminals, and rendering ("-" when not kept).
+// precedenceSentence is one row of sentences.txt: its id, terminals, bison's verdict and grouping, and its rendering
+// ("-" when not kept).
 type precedenceSentence struct {
-	id, rendering string
-	terms         []string
+	id, verdict, grouping, rendering string
+	terms                            []string
 }
 
 func readSentences(dir string) ([]precedenceSentence, error) {
@@ -242,7 +243,7 @@ func readSentences(dir string) ([]precedenceSentence, error) {
 		if len(f) < 4 {
 			return nil, fmt.Errorf("sentences.txt: %q", l)
 		}
-		s := precedenceSentence{id: f[0], terms: strings.Fields(f[1]), rendering: "-"}
+		s := precedenceSentence{id: f[0], terms: strings.Fields(f[1]), verdict: f[2], grouping: f[3], rendering: "-"}
 		if len(f) > 4 {
 			s.rendering = f[4]
 		}

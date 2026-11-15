@@ -18,7 +18,7 @@ import (
 type Precedence struct {
 	tab    *grammar.Tables
 	term   []int     // by symbol: a terminal's level, 0 for none
-	rule   []int     // by rule: its level, 0 for none
+	rule   []int     // by rule, the tables' then the refused ones: its level, 0 for none
 	assoc  []string  // by level: left, right or nonassoc
 	states []lrState // state 0 is the file's start
 }
@@ -33,15 +33,43 @@ type lrState struct {
 
 // NewPrecedence is levels, loosest first, over tab, whose rule r carries the %prec token rulePrec[r] ("" for
 // none). A token that is no terminal of tab, as a %prec-only token is, still gives its rules their level.
+// refused are rules over tab's symbols that refuse in their action: no forest derives them, but bison's states
+// hold their items, so they are in the automaton (perly.y's termeqop: termeqop NCEQOP shifts the second <=>).
 //
 // The states are bison's: the canonical LR(0) automaton of the grammar, closure and goto, which bison's LALR(1)
 // tables share. The constraint carries the one a derivation reaches, from the file's start along the symbols
 // before it, so a conflict is found exactly where bison's state has one. Each reduction's lookahead there is
 // bison's LALR(1) set, not the follow set. Both are built from the tables alone, never read from the chart,
-// whose split states are not bison's.
-func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string) *Precedence {
-	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), rule: make([]int, len(tab.Rules)),
-		assoc: []string{""}}
+// whose split states are not bison's. A refused rule naming a symbol tab lacks is an error.
+func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string, refused []grammar.Rule) (*Precedence, error) {
+	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), assoc: []string{""}}
+	sym := map[string]int{}
+	for id, s := range tab.Symbols {
+		sym[s.Name] = id
+	}
+	rules, items, rulePrec := slices.Clone(tab.Rules), slices.Clone(tab.Items), slices.Clone(rulePrec)
+	base := slices.Clone(grammar.Derived(tab, buildForestGrammar).core) // base[r] is rule r's item at dot 0
+	for _, r := range refused {
+		var rhs []int
+		for _, s := range append([]grammar.Symbol{{Text: r.LHS}}, r.RHS...) {
+			id, ok := sym[s.Text]
+			if !ok {
+				return nil, fmt.Errorf("forest: the refused rule %s: names %s, which is no symbol of the tables", r.LHS, s.Text)
+			}
+			rhs = append(rhs, id)
+		}
+		lhs, rhs := rhs[0], rhs[1:]
+		rulePrec = append(rulePrec, r.Prec)
+		base = append(base, len(items))
+		for dot := 0; dot <= len(rhs); dot++ {
+			items = append(items, grammar.CoreItem{Rule: len(rules), Dot: dot})
+		}
+		rules = append(rules, grammar.BNFRule{LHS: lhs, RHS: rhs})
+	}
+	// shortcut: tab's FIRST sets and nullability leave the refused rules out, exact while each begins with its own
+	// left-hand side, which derives no empty string, as perly.y's four do (TestPrecedenceRefusedRulesLeftRecursive);
+	// derive them over rules if one does not.
+	p.rule = make([]int, len(rules))
 	level := map[string]int{}
 	for i, l := range levels {
 		p.assoc = append(p.assoc, l.Assoc)
@@ -54,7 +82,7 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 			p.term[id] = level[s.Name]
 		}
 	}
-	for r, rule := range tab.Rules {
+	for r, rule := range rules {
 		if rulePrec[r] != "" {
 			p.rule[r] = level[rulePrec[r]]
 			continue
@@ -66,50 +94,49 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 			}
 		}
 	}
-	base := grammar.Derived(tab, buildForestGrammar).core // base[r] is rule r's item at dot 0
 	byLHS := make([][]int, len(tab.Symbols))
 	var start []int
-	for r, rule := range tab.Rules {
+	for r, rule := range rules {
 		byLHS[rule.LHS] = append(byLHS[rule.LHS], r)
 		if rule.LHS == tab.Start {
 			start = append(start, base[r])
 		}
 	}
-	closure := func(items []int) []int {
-		items = slices.Clone(items)
+	closure := func(set []int) []int {
+		set = slices.Clone(set)
 		in := map[int]bool{}
-		for i := 0; i < len(items); i++ {
-			if in[items[i]] {
+		for i := 0; i < len(set); i++ {
+			if in[set[i]] {
 				continue
 			}
-			in[items[i]] = true
-			it := tab.Items[items[i]]
-			if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) {
+			in[set[i]] = true
+			it := items[set[i]]
+			if rhs := rules[it.Rule].RHS; it.Dot < len(rhs) {
 				for _, r := range byLHS[rhs[it.Dot]] {
-					items = append(items, base[r])
+					set = append(set, base[r])
 				}
 			}
 		}
 		return slices.Sorted(maps.Keys(in))
 	}
 	id := map[string]int32{} // each state's items, as text, to its index
-	var items [][]int
+	var states [][]int
 	intern := func(set []int) int32 {
 		k := fmt.Sprint(set)
 		if i, ok := id[k]; ok {
 			return i
 		}
-		id[k] = int32(len(items))
-		items = append(items, set)
+		id[k] = int32(len(states))
+		states = append(states, set)
 		return id[k]
 	}
 	intern(closure(start))
-	for s := 0; s < len(items); s++ { // breadth first; intern appends the states it finds
+	for s := 0; s < len(states); s++ { // breadth first; intern appends the states it finds
 		st := lrState{next: map[int32]int32{}}
 		kernels := map[int][]int{} // each symbol after a dot, and the items it advances to
-		for _, i := range items[s] {
-			it := tab.Items[i]
-			rhs := tab.Rules[it.Rule].RHS
+		for _, i := range states[s] {
+			it := items[i]
+			rhs := rules[it.Rule].RHS
 			switch {
 			case it.Dot == len(rhs):
 				st.reduce = append(st.reduce, int32(it.Rule))
@@ -127,30 +154,30 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		}
 		p.states = append(p.states, st)
 	}
-	p.lookaheads(items, base, byLHS)
-	return p
+	p.lookaheads(states, rules, items, base, byLHS)
+	return p, nil
 }
 
 // lookaheads sets each state's LALR(1) lookaheads by propagation to a fixed point over every item of every
 // state: the start items read the end of input; an item passes its lookahead to its advance in the goto
 // state, and to the first item of each rule its dot predicts, with what follows the predicted symbol (and its
 // own lookahead where that derives the empty string). Merging by LR(0) state is what makes it LALR(1).
-func (p *Precedence) lookaheads(items [][]int, base []int, byLHS [][]int) {
+func (p *Precedence) lookaheads(states [][]int, rules []grammar.BNFRule, items []grammar.CoreItem, base []int, byLHS [][]int) {
 	tab := p.tab
 	words := (tab.EOF + 64) / 64
-	la := make([][][]uint64, len(items)) // la[s][k]: the lookahead of state s's k-th item
+	la := make([][][]uint64, len(states)) // la[s][k]: the lookahead of state s's k-th item
 	at := func(s int32, item int) []uint64 {
-		k, _ := slices.BinarySearch(items[s], item)
+		k, _ := slices.BinarySearch(states[s], item)
 		return la[s][k]
 	}
-	for s := range items {
-		la[s] = make([][]uint64, len(items[s]))
+	for s := range states {
+		la[s] = make([][]uint64, len(states[s]))
 		for k := range la[s] {
 			la[s][k] = make([]uint64, words)
 		}
 	}
-	for _, i := range items[0] {
-		if tab.Rules[tab.Items[i].Rule].LHS == tab.Start && tab.Items[i].Dot == 0 {
+	for _, i := range states[0] {
+		if rules[items[i].Rule].LHS == tab.Start && items[i].Dot == 0 {
 			at(0, i)[tab.EOF/64] |= 1 << (tab.EOF % 64)
 		}
 	}
@@ -167,10 +194,10 @@ func (p *Precedence) lookaheads(items [][]int, base []int, byLHS [][]int) {
 	first := make([]uint64, words)
 	for changed := true; changed; {
 		changed = false
-		for s := range items {
-			for k, i := range items[s] {
-				it := tab.Items[i]
-				rhs := tab.Rules[it.Rule].RHS
+		for s := range states {
+			for k, i := range states[s] {
+				it := items[i]
+				rhs := rules[it.Rule].RHS
 				if it.Dot == len(rhs) {
 					continue
 				}
@@ -198,11 +225,11 @@ func (p *Precedence) lookaheads(items [][]int, base []int, byLHS [][]int) {
 			}
 		}
 	}
-	for s := range items {
+	for s := range states {
 		st := &p.states[s]
 		for _, r := range st.reduce {
 			var ts []int32
-			for t, w := range at(int32(s), base[r]+len(tab.Rules[r].RHS)) {
+			for t, w := range at(int32(s), base[r]+len(rules[r].RHS)) {
 				for ; w != 0; w &= w - 1 {
 					ts = append(ts, int32(t*64+bits.TrailingZeros64(w)))
 				}
