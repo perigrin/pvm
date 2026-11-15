@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 )
 
@@ -76,10 +77,6 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 		if recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}
-	}
-	// perl refuses it (syntax error); a word before a Variable may read as METHCALL0 after print.
-	if !recognizeSource(t, []byte("print STDOUT $foo bar();")).accepted {
-		t.Errorf("print STDOUT $foo bar(); is refused; the known limit is gone, so drop the README line")
 	}
 	// perl accepts both: catch is a hash key and a method name there. The PERLY_DOLLAR class two tokens after catch
 	// refuses the first, and the arrow before the word makes it a name (Neighbour.Name), which spares the second (grammar/perly.go).
@@ -175,9 +172,33 @@ func TestPortScopeDecidedStatementWords(t *testing.T) {
 	}
 }
 
-// Forms perl -c (94e50866) accepts whose refusal waypoint 1 left to scope. x at a statement start is a word, as toke.c's
-// KEY_x makes it wherever no operator is expected (ruling 01a18fa6-ec70), with every reading scope gives a word there.
+// checkParses holds each row's forest.Parse verdict, nothing imported, to the pinned perl -c's (94e50866).
+func checkParses(t *testing.T, rows map[string]bool) {
+	t.Helper()
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for src, accepted := range rows {
+		if f, _ := forest.Parse(tab, []byte(src), forest.Scope{}); (f != nil) != accepted {
+			t.Errorf("%q: forest.Parse accepts=%v, perl -c accepts=%v", src, f != nil, accepted)
+		}
+	}
+}
+
+// Forms whose verdict waypoint 1 left to scope, each as perl -c (94e50866) gives it. x at a statement start is a word,
+// as toke.c's KEY_x makes it wherever no operator is expected (ruling 01a18fa6-ec70), with every reading scope gives
+// a word there. After print or say a word is a filehandle, BAREWORD only (toke.c lexes it with PL_expect XREF), and the
+// variable after it is lexed at XTERM, leaving XOPERATOR, where bar is "Bareword found where operator expected".
+// Recognition accepts the three refused rows, reading the handle as METHCALL0 with $foo its indirect object
+// ($foo->STDOUT(bar()), as perl reads `STDOUT $foo bar();`); resolve drops that reading from a word in a filehandle's slot.
 func TestScopeDecidedParity(t *testing.T) {
+	checkParses(t, map[string]bool{
+		"print STDOUT $foo bar();":                  false,
+		"use feature 'say'; say STDOUT $foo bar();": false,
+		"print STDOUT $foo bar;":                    false,
+		"print $foo bar();":                         true, // $foo is the handle: XREF reads a $ before a word as one
+	})
 	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;", "x { a => 1 } 1;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v; perl accepts it", src, v.at, v.expected)
@@ -192,6 +213,26 @@ func TestScopeDecidedParity(t *testing.T) {
 			t.Errorf("the token after x in x%s admits %v; after foo it admits %v", tail, got, want)
 		}
 	}
+}
+
+// The refusal of print FILEHANDLE $var word() does not hang on how the handle is spelled, and the forms around it
+// perl accepts stay accepted. {$fh} is refused by recognition; the rest by resolve.
+func TestPrintFilehandleVarWordForms(t *testing.T) {
+	checkParses(t, map[string]bool{
+		"print STDERR $foo bar();":            false,
+		"print {$fh} $foo bar();":             false,
+		"print(STDOUT $foo bar());":           false,
+		"printf STDOUT $foo bar();":           false,
+		"sub FH {} print FH $foo bar();":      false,
+		"sub bar {} print STDOUT $foo bar();": false,
+		"print STDOUT $foo $bar;":             false,
+		"print STDOUT $foo;":                  true,
+		"print $foo bar();":                   true,
+		"print STDOUT $foo, bar();":           true,
+		"print STDOUT $foo->bar;":             true,
+		"print STDOUT $foo x 3;":              true,
+		"STDOUT $foo bar();":                  true, // the method call recognition reads inside the refused rows
+	})
 }
 
 // Where perl expects an operator x is repetition (KEY_x), and widening x where a statement starts leaves it so.
