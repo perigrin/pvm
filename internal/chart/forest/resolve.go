@@ -305,6 +305,10 @@ func (r *resolver) word(k int) {
 	g := r.g
 	d, st := r.lookup(r.text(k), k)
 	if st == unknown {
+		if r.fileSlot(k) && !r.isWord(k+1) {
+			// toke.c reads a filehandle slot's word before a non-word as a bareword or, were it a sub, a call: never a method
+			r.dead[[2]int{k, g.methcall0}], r.dead[[2]int{k, g.methcall}] = true, true
+		}
 		return
 	}
 	cls := notWord
