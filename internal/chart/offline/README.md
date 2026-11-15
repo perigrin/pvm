@@ -205,15 +205,16 @@ wrote byte-identical files (`cmp`).
 
 `sh internal/chart/offline/referee/toys/build.sh <outdir>` builds each toy
 grammar in `referee/toys/` (`ladder`, `nonassoc`, `prefix`, `indirob`,
-`indirobsort`, `twostates`, `follow`, `empty`, `mixed`) with bison, through `toys/toys.pl`, and writes `<toy>.txt` into
+`indirobsort`, `twostates`, `follow`, `lalr`, `nullsuf`, `nullpred`,
+`empty`, `emptyred`, `mixed`) with bison, through `toys/toys.pl`, and writes `<toy>.txt` into
 `outdir`: the toy's precedence levels and rules, then every sentence of up to
 the toy's stated number of terminals and every prefix of one, each with
 bison's verdict and grouping (every reduction, `rule:from-to`, in reduction
 order). An unresolved conflict fails the build. Unlike the perly.y referees it
 reads no pinned tree. The committed output is
 `internal/chart/testdata/precedence/toys/`, which a fresh build reproduces
-byte for byte; `TestPrecedenceToyReferees` reads it. About 1.2 s, nearly all
-of it nine bison and cc builds.
+byte for byte; `TestPrecedenceToyReferees` reads it. About 1.8 s, nearly all
+of it thirteen bison and cc builds.
 
 ## tdt-capture.sh
 

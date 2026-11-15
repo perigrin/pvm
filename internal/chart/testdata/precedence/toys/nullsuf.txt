@@ -1,0 +1,44 @@
+# nullsuf: written by build.sh from toys/nullsuf.y; do not edit.
+level left T
+level left HIGH
+rule 0 s: X a T Z
+rule 1 s: Y a
+rule 2 a: b opt opt2
+rule 3 opt:
+rule 4 opt: Q
+rule 5 opt2:
+rule 6 opt2: P
+rule 7 b: W %prec HIGH
+rule 8 b: W T R
+refuse	-	X
+refuse	-	Y
+refuse	-	X W
+accept	7:1-2,3:2-2,5:2-2,2:1-2,1:0-2	Y W
+refuse	-	X W P
+refuse	-	X W Q
+refuse	-	X W T
+accept	7:1-2,3:2-2,6:2-3,2:1-3,1:0-3	Y W P
+accept	7:1-2,4:2-3,5:3-3,2:1-3,1:0-3	Y W Q
+refuse	-	Y W T
+refuse	-	X W P T
+refuse	-	X W Q P
+refuse	-	X W Q T
+refuse	-	X W T R
+accept	7:1-2,3:2-2,5:2-2,2:1-2,0:0-4	X W T Z
+accept	7:1-2,4:2-3,6:3-4,2:1-4,1:0-4	Y W Q P
+refuse	-	Y W T R
+accept	7:1-2,3:2-2,6:2-3,2:1-3,0:0-5	X W P T Z
+refuse	-	X W Q P T
+accept	7:1-2,4:2-3,5:3-3,2:1-3,0:0-5	X W Q T Z
+refuse	-	X W T R P
+refuse	-	X W T R Q
+refuse	-	X W T R T
+refuse	-	Y W T R P
+refuse	-	Y W T R Q
+accept	7:1-2,4:2-3,6:3-4,2:1-4,0:0-6	X W Q P T Z
+refuse	-	X W T R P T
+refuse	-	X W T R Q T
+refuse	-	X W T R T Z
+refuse	-	Y W T R Q P
+refuse	-	X W T R P T Z
+refuse	-	X W T R Q T Z

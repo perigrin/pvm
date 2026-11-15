@@ -1,0 +1,19 @@
+# lalr: written by build.sh from toys/lalr.y; do not edit.
+level left T
+level left HIGH
+rule 0 s: X g T Z
+rule 1 s: Y g
+rule 2 g: e
+rule 3 g: W T Q
+rule 4 e: W %prec HIGH
+refuse	-	X
+refuse	-	Y
+refuse	-	X W
+accept	4:1-2,2:1-2,1:0-2	Y W
+refuse	-	X W T
+refuse	-	Y W T
+refuse	-	X W T Q
+accept	4:1-2,2:1-2,0:0-4	X W T Z
+refuse	-	Y W T Q
+refuse	-	X W T Q T
+refuse	-	X W T Q T Z

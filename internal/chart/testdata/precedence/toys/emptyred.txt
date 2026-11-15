@@ -1,0 +1,14 @@
+# emptyred: written by build.sh from toys/emptyred.y; do not edit.
+level nonassoc LB
+level nonassoc HIGH
+rule 0 s: VAR opt LB NUM RB
+rule 1 s: VAR opt
+rule 2 opt: %prec HIGH
+rule 3 opt: LB NUM RB
+accept	2:1-1,1:0-1	VAR
+refuse	-	VAR LB
+refuse	-	VAR LB NUM
+accept	2:1-1,0:0-4	VAR LB NUM RB
+refuse	-	VAR LB NUM RB LB
+refuse	-	VAR LB NUM RB LB NUM
+refuse	-	VAR LB NUM RB LB NUM RB

@@ -1744,14 +1744,15 @@ item gains a fact.
   derivation holding it there, and a file whose root has none is refused
   (`Constrain` returns false); the alternatives no surviving derivation uses
   are unlinked from the forest.
-- **The toy referees.** `offline/referee/toys/build.sh` builds nine toys with
+- **The toy referees.** `offline/referee/toys/build.sh` builds thirteen toys with
   bison (a `%left`/`%right` ladder, `%nonassoc` chains, prefix and postfix
   operators, indirob and indirob after `sort`, two states after one symbol,
-  a lookahead narrower than the follow set, empty rules, and all of the
-  operators mixed) and commits every sentence of
+  a lookahead narrower than the follow set, lookaheads merged by state and
+  passed through nullable symbols, empty rules and an empty rule's reduction
+  beating a shift, and all of the operators mixed) and commits every sentence of
   up to five to seven terminals with bison's verdict and grouping
   (`testdata/precedence/toys/`). `TestPrecedenceToyReferees` requires both on
-  every one of the 4,290 sentences; `TestPrecedenceConstraintOrderInvariant`
+  every one of the 4,395 sentences; `TestPrecedenceConstraintOrderInvariant`
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
 
