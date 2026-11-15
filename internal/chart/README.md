@@ -1239,16 +1239,37 @@ with reason `scope`, at the first dropped reading reached from the root.
   FUNC0SUB, a one-argument one UNIOPSUB, `&` before a `{` LSTOPSUB, any other or none NOAMP, each but the first
   with XTERM after it.
 
-Limits, each pinned in `TestResolveKnownLimits` or `TestResolveImportsAreFileWide`: shortcut: a qualified name the
-file does not declare keeps every reading, since a module's subs are seen only through what it imports; shortcut: a
-declared sub before a word that is no keyword and no declared sub keeps its method readings, since intuit_method then
-asks whether that word names a package or a filehandle, which resolve cannot see; shortcut: after a filehandle a
-declared `x` keeps its operator reading, since the token table gives `x` after a word no call reading
-(`addStatementX`), so `sub x {} print FH x 3;` is accepted with perl's verdict and not its grouping; `print x x 3;` is
-accepted (above, "Indirect objects"); `new Foo * 2;` is refused where perl reads `*2` as a glob, since
-internal/lexer emits the `2` a Number. Subs a `BEGIN` block or `use subs` makes are not seen, nor `class`'s package.
-The corpus guard: resolve refuses no Guacamole case or `std5k.pl` that perl accepts and recognition accepts, with the
-scope `parse.ParseFileFrom` gives each (`TestResolveKeepsCorpusAccepted`, 823 files).
+- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment, the subs of a file a `BEGIN` requires
+  (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
+  package, keyed by its qualified name. A declared sub before a word naming a package the file declares earlier is a
+  method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
+- **After a term `&` is the bitwise and.** internal/lexer emits an `&` after a word as a sub's sigil; the token table
+  gives that `&` BITANDOP beside PERLY_AMPERSAND wherever `x` is the repetition operator (yyl_ampersand,
+  PL_expect XOPERATOR), so `my $x = FOO & BAR;` stands where `FOO` is no call and `foo &bar;` keeps the sigil where it
+  is one. A `{` after a `*` after a word opens a block as well, since a call there leaves XTERM and yyl_star reads the
+  `*` as a glob's sigil (`sub is {} is *{$x}, 1;`); the word after such a `*` is the glob's name, no word of scope's.
+
+Limits, each pinned in `TestResolveKnownLimits` or `TestResolveImportsAreFileWide`, each beside perl's verdict:
+shortcut: a qualified name neither the file nor its imports declare keeps every reading (`Foo::bar 1;` and
+`package A; sub foo {} package main; A::bar 1;` are accepted), since a module's subs are seen only through what it
+imports; shortcut: a declared sub before a word that is no keyword and no declared sub keeps its method readings where
+the file declares no such package, since a package or filehandle created elsewhere (a module it loads, naming
+`Foo::bar`) cannot be seen (`sub new {} Foo::bar(); new Foo x 3;` is accepted); shortcut: after a filehandle a declared
+`x` keeps its operator reading, since the token table gives `x` after a word no call reading (`addStatementX`), so
+`sub x {} print FH x 3;` is accepted with perl's verdict and not its grouping; shortcut: a sub `use subs` predeclares
+or `use builtin` imports is undeclared, since parse.Imports reports neither (`use subs qw(foo); foo 1;` and
+`use builtin qw(indexed)` with `(indexed @a)` are refused; the second is perl.git's `t/perf/opcount.t`);
+`print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
+glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
+`sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
+expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
+glob, since internal/lexer emits the `2` a Number. `class`'s package is not read.
+The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
+recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
+scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and
+recognition accept, perl.git `t/` included, resolve refuses four: `t/perf/opcount.t` (`use builtin`, above), and three
+recursive descent refuses too. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
+`forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
 
 ### Builtin classes against `parse.CoreShapes()`
 
