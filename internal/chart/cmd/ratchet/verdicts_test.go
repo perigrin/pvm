@@ -229,7 +229,7 @@ var committed struct {
 // counts as a token nor holds a terminal, so it does not lower the width.
 func TestChartInputsUnmappedIsRefused(t *testing.T) {
 	srcs := map[string][]byte{"ok.pl": []byte("1;"), "rep.pl": []byte("1; 1; 1; 1;"), "bad.pl": []byte("1 \x01;")}
-	in := chartInputs(committedTables(t), srcs, nil, nil)
+	in := chartInputs(committedTables(t), srcs, nil, nil, filepath.Dir)
 	ok, err := in.Chart("ok.pl")
 	if err != nil || !ok.Accepted {
 		t.Fatalf("1; = %+v, %v; want accepted", ok, err)

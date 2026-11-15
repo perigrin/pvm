@@ -272,12 +272,15 @@ key of the first attempt is retired.
   `internal/parse/declarations/*.tpm` and follows `use` (a module it cannot
   find stays lenient). Bare `parse.Parse` resolves nothing, so it refused
   paren-less calls to imported functions (`plan skip_all => ...`) that psc
-  accepts. Every speed key (`speed-ratio-*`, `speed-stage-*`) and
-  `lex-overhead` keep bare `parse.Parse` as the denominator: "Leave it out"
-  (perigrin, 2026-11-10) computes scope facts outside the timed span, and the
-  chart resolves nothing yet, so a resolving denominator would charge
-  recursive descent for work the chart skips. The loader searches no
-  directory beside a file, because no corpus file has a sibling module.
+  accepts, searching the file's own directory as `parse.ParseFileFrom` does.
+  The speed ratios and stages (`speed-ratio-*`, `speed-stage-*`) and
+  `lex-overhead-aggregate`'s file exclusion time bare `parse.Parse`: "Leave it
+  out" (perigrin, 2026-11-10) computes scope facts outside the timed span, and
+  the chart resolves nothing yet, so a resolving denominator would charge
+  recursive descent for work the chart skips. (`lex-overhead`'s reference side
+  is `lexer.Tokenize`.) The speed keys' aggregate is drawn from the superset
+  population, which now uses resolving recursive descent: that adds 163
+  files, and their timing baselines are retaken by KEYS or VERDICT.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on

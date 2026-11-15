@@ -183,14 +183,23 @@ func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, err
 	if err != nil {
 		return verdictInputs{}, err
 	}
-	return chartInputs(tab, srcs, excluded, perl), nil
+	return chartInputs(tab, srcs, excluded, perl, realDir), nil
+}
+
+// realDir is the directory a corpus path's file really sits in: T1 files are
+// named T1/<name> and live in the T1 directory, every other path is real.
+func realDir(path string) string {
+	if strings.HasPrefix(path, "T1/") {
+		return t1Dir()
+	}
+	return filepath.Dir(path)
 }
 
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
 // fresh recognizer per file, recursive descent follows `use` as psc does, perl
 // is the committed labels. The speed side's recursive descent stays bare
 // (speedParse): the chart resolves nothing yet.
-func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict) verdictInputs {
+func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict, dir func(string) string) verdictInputs {
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
 			s, _ := lex.Lex(srcs[path], tab.Tokens) // an unmapped token has the empty set, which refuses
@@ -215,10 +224,8 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			return r, nil
 		},
 		RD: func(path string) (bool, error) {
-			// A non-nil loader reads the .tpm declarations. shortcut: no search
-			// directory, since no corpus file has a sibling module; upgrade
-			// to DirLoader(dir) when one does.
-			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader()) })
+			// ParseFile's search: the file's own directory, then the declarations.
+			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader(dir(path))) })
 		},
 		Perl:     perl,
 		Excluded: excluded,
