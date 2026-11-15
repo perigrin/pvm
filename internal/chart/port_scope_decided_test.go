@@ -78,6 +78,13 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}
 	}
+	// perl refuses both: with its feature on the word is the keyword only. Recognition cannot see a feature, so the
+	// word reading stands until resolve collapses it by feature (SCOPEFEAT).
+	for _, src := range []string{`use feature "try"; foo(try, 1);`, `use feature "class"; no warnings; my $x = method;`} {
+		if !recognizeSource(t, []byte(src)).accepted {
+			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
+		}
+	}
 	// perl accepts both: catch is a hash key and a method name there. The PERLY_DOLLAR class two tokens after catch
 	// refuses the first, and the arrow before the word makes it a name (Neighbour.Name), which spares the second (grammar/perly.go).
 	for _, src := range []string{"catch => $_;", "(catch => $_);", "foo(catch => $_);", "x(catch => $Foo::x);"} {
