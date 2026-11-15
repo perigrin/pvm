@@ -29244,20 +29244,7 @@ node 4617 part 6 otherwise 4613
   {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4611
   {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4610
   {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4612
-node 4618 part 7 otherwise 4612
-  {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4613
-node 4619 part 6 otherwise 4613
-  {Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
-  {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
-  {Kind:DerefSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4611
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4611
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4618
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 4611
-  {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4610
-  {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4612
-node 4620 part 6 otherwise 4613
+node 4618 part 6 otherwise 4613
   {Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
   {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
   {Kind:DerefSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4611
@@ -29267,7 +29254,7 @@ node 4620 part 6 otherwise 4613
   {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4610
   {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4610
   {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4612
-node 4621 part 5 otherwise 4620
+node 4619 part 5 otherwise 4618
   {Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4614
   {Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4614
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 4616
@@ -29275,9 +29262,8 @@ node 4621 part 5 otherwise 4620
   {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:true SortParen:false Array:false} -> 4614
   {Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} -> 4614
   {Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4614
-  {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4619
-node 4622 part 6 otherwise 4610
-node 4623 part 6 otherwise 4610
+node 4620 part 6 otherwise 4610
+node 4621 part 6 otherwise 4610
   {Kind:Word Text:accept OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Word Text:atan2 OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Word Text:bind OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
@@ -29358,13 +29344,13 @@ node 4623 part 6 otherwise 4610
   {Kind:Word Text:vec OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Word Text:waitpid OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Word Text:warn OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
-node 4624 part 5 otherwise 4623
-  {Kind:Word Text:sub OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4622
-node 4625 part 2 otherwise 11
-  0 -> 4621
-  1 -> 4624
-node 4626 leaf set 878
-node 4627 part 1 otherwise 11
+node 4622 part 5 otherwise 4621
+  {Kind:Word Text:sub OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4620
+node 4623 part 2 otherwise 11
+  0 -> 4619
+  1 -> 4622
+node 4624 leaf set 878
+node 4625 part 1 otherwise 11
   "!" -> 4579
   "!=" -> 2139
   "!~" -> 4580
@@ -29447,197 +29433,53 @@ node 4627 part 1 otherwise 11
   "^=" -> 4470
   "^^" -> 4609
   "^^=" -> 4470
-  "{" -> 4625
+  "{" -> 4623
   "|" -> 4608
   "|." -> 4608
   "|.=" -> 4470
   "|=" -> 4470
   "||" -> 4609
   "||=" -> 4470
-  "~" -> 4626
-  "~." -> 4626
+  "~" -> 4624
+  "~." -> 4624
   "~~" -> 1523
-node 4628 leaf set 876
-node 4629 leaf set 634
-node 4630 part 6 otherwise 94
-  {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:HeredocOpen Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: ident-quote OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4629
-  {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__CLASS__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__FILE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__LINE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__PACKAGE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__SUB__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:break OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:continue OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endhostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:fork OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:gethostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getlogin OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getppid OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:time OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:times OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wait OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wantarray OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:x OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-node 4631 part 6 otherwise 4629
-node 4632 part 6 otherwise 94
-  {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:HeredocOpen Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: ident-quote OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4629
-  {Kind:Word Text:__CLASS__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__FILE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__LINE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__PACKAGE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__SUB__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:break OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:continue OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endhostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:fork OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:gethostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getlogin OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getppid OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:time OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:times OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wait OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wantarray OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-node 4633 part 6 otherwise 94
-  {Kind:CloseBracket Text:) OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:] OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:HeredocOpen Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:++ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Operator Text:-- OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: ident-quote OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Readline Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Variable Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:true} -> 4629
-  {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:AUTOLOAD OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:BEGIN OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:CHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:DESTROY OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:END OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:INIT OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:UNITCHECK OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__CLASS__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__FILE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__LINE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__PACKAGE__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:__SUB__ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:break OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:continue OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endhostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:endservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:fork OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:gethostent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getlogin OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getnetent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getppid OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getprotoent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:getservent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setgrent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:setpwent OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:time OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:times OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wait OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:wantarray OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-  {Kind:Word Text:x OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4629
-node 4634 part 5 otherwise 4633
-  {Kind:CloseBracket Text:} OpensBlock:true TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4630
-  {Kind:FuncSigil Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4631
-  {Kind:Kind(?) Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4630
-  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 4632
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 4631
-  {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4631
-  {Kind:Operator Text:: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:true SortParen:false Array:false} -> 4630
-  {Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} -> 4630
-  {Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4630
-  {Kind:Word Text:sort OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4632
-node 4635 part 6 otherwise 118
+node 4626 leaf set 876
+node 4627 leaf set 634
+node 4628 part 6 otherwise 94
+  {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 4627
+node 4629 part 5 otherwise 4628
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 94
+  {Kind:Word Text:sort OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 94
+node 4630 part 6 otherwise 118
   {Kind:Operator Text:-> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 53
-node 4636 part 1 otherwise 11
+node 4631 part 1 otherwise 11
   "$" -> 37
   "%" -> 84
-  "@" -> 4635
-node 4637 leaf set 885
-node 4638 leaf set 872
-node 4639 leaf set 865
-node 4640 leaf set 863
-node 4641 part 2 otherwise 11
-  0 -> 4640
-  1 -> 4640
-node 4642 part 1 otherwise 11
-  ")" -> 4638
-  "]" -> 4639
-  "}" -> 4641
-node 4643 leaf set 662
-node 4644 part 0 otherwise 11
+  "@" -> 4630
+node 4632 leaf set 885
+node 4633 leaf set 872
+node 4634 leaf set 865
+node 4635 leaf set 863
+node 4636 part 2 otherwise 11
+  0 -> 4635
+  1 -> 4635
+node 4637 part 1 otherwise 11
+  ")" -> 4633
+  "]" -> 4634
+  "}" -> 4636
+node 4638 leaf set 662
+node 4639 part 0 otherwise 11
   3 -> 35
   5 -> 135
   6 -> 4568
   7 -> 4578
-  8 -> 4627
-  9 -> 4628
+  8 -> 4625
+  9 -> 4626
   10 -> 5
-  11 -> 4634
-  12 -> 4636
-  13 -> 4637
-  14 -> 4642
+  11 -> 4629
+  12 -> 4631
+  13 -> 4632
+  14 -> 4637
   15 -> 5
-  19 -> 4643
-root 4644
+  19 -> 4638
+root 4639

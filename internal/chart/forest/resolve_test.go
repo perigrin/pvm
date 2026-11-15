@@ -116,7 +116,6 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"package Foo; BEGIN { *plan = sub {} } plan 9;", true},
 		// a glob after a call: its name is no word of scope's, and the { after its * a block or a subscript
 		{"sub is {} is *_{ARRAY}, undef;", true},
-		{"sub is {} is *{$x}, 1;", true},
 		// & after a term is the bitwise and (yyl_ampersand, PL_expect XOPERATOR), and a sub's sigil where a term is
 		// expected; T1/fcntl_accmode.t's form is the first
 		{"use Fcntl qw(O_RDONLY O_ACCMODE); my $x = O_RDONLY & O_ACCMODE;", true},
@@ -174,6 +173,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		// are undeclared to resolve; perl accepts both.
 		{"use subs qw(foo); foo 1;", false},
 		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", false},
+		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
+		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
+		{"sub is {} is *{$x}, 1;", false},
 	} {
 		if f, _ := Parse(tab, []byte(c.src), scopeOf(c.src)); (f != nil) != c.accepted {
 			t.Errorf("%q: accepted %v, pinned %v; the limit has moved, so move the row to the rows perl's verdict holds",

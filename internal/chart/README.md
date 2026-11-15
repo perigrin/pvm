@@ -1243,11 +1243,13 @@ with reason `scope`, at the first dropped reading reached from the root.
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
   package, keyed by its qualified name. A declared sub before a word naming a package the file declares earlier is a
   method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
-- **After a term `&` is the bitwise and.** internal/lexer emits an `&` after a word as a sub's sigil; the token table
-  gives that `&` BITANDOP beside PERLY_AMPERSAND wherever `x` is the repetition operator (yyl_ampersand,
-  PL_expect XOPERATOR), so `my $x = FOO & BAR;` stands where `FOO` is no call and `foo &bar;` keeps the sigil where it
-  is one. A `{` after a `*` after a word opens a block as well, since a call there leaves XTERM and yyl_star reads the
-  `*` as a glob's sigil (`sub is {} is *{$x}, 1;`); the word after such a `*` is the glob's name, no word of scope's.
+- **After a term `&` is the bitwise and.** internal/lexer emits an `&` after a word as a sub's sigil (v0.1
+  `01a1aec4-5d6a`); after a word no class names, on `x`'s neighbours, the token table gives that `&` BITANDOP beside
+  PERLY_AMPERSAND (yyl_ampersand, PL_expect XOPERATOR), so `my $x = FOO & BAR;` stands where `FOO` is no call and
+  `foo &bar;` keeps the sigil where it is one. T1/fcntl_accmode.t's three `&` sites now align, so they left
+  `testdata/tdt/lexer-rooted.txt`. shortcut: a keyword that completes a term keeps the sigil alone (`time & 1`), as
+  before. The word after a `*` that XTERM makes a glob's sigil is the glob's name, no word of scope's
+  (`sub is {} is *_{ARRAY}, undef;`).
 
 Limits, each pinned in `TestResolveKnownLimits` or `TestResolveImportsAreFileWide`, each beside perl's verdict:
 shortcut: a qualified name neither the file nor its imports declare keeps every reading (`Foo::bar 1;` and
@@ -1263,12 +1265,14 @@ or `use builtin` imports is undeclared, since parse.Imports reports neither (`us
 glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
-glob, since internal/lexer emits the `2` a Number. `class`'s package is not read.
+glob, since internal/lexer emits the `2` a Number; `sub is {} is *{$x}, 1;` is refused, where after a call toke.c reads
+`*{` as a glob's sigil and a block and the token table reads a `*` after a word as no glob's and the `{` after it as an
+anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and
-recognition accept, perl.git `t/` included, resolve refuses four: `t/perf/opcount.t` (`use builtin`, above), and three
-recursive descent refuses too. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
+recognition accept, perl.git `t/` included, resolve refuses five: `t/perf/opcount.t` (`use builtin`) and
+`t/uni/parser.t` (`*{` after a call), both above, and three recursive descent refuses too. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
 `forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
 
 ### Builtin classes against `parse.CoreShapes()`
