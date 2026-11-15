@@ -1921,18 +1921,21 @@ var featureKeywords = []string{"ADJUST", "__CLASS__", "__SUB__", "all", "any", "
 	"defer", "evalbytes", "fc", "field", "finally", "given", "method", "state", "try", "when"}
 
 // addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
-// keyword), after anything but a statement start, and each feature keyword every such class, unqualified: CORE::kw
-// is the keyword whatever the feature (yyl_key_core).
+// keyword), after anything but a statement start, and each feature keyword every such class and those of a word after
+// sort or do (keywordsButX, keywordsAndCORE), unqualified: CORE::kw is the keyword whatever the feature (yyl_key_core).
 func addStatementWords(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
 	for _, d := range classes {
-		if !slices.Equal(d.Key.NotText, keywords) {
+		plain := slices.Equal(d.Key.NotText, keywords)
+		if !plain && !slices.Equal(d.Key.NotText, keywordsButX) && !slices.Equal(d.Key.NotText, keywordsAndCORE) {
 			continue
 		}
-		for _, w := range statementWords {
-			c := d.Key
-			c.Text, c.NotText, c.NotPrev1 = &w, nil, append(slices.Clone(c.NotPrev1), stateStarts...)
-			classes = append(classes, ClassDecl{d.Terminal, c})
+		if plain {
+			for _, w := range statementWords {
+				c := d.Key
+				c.Text, c.NotText, c.NotPrev1 = &w, nil, append(slices.Clone(c.NotPrev1), stateStarts...)
+				classes = append(classes, ClassDecl{d.Terminal, c})
+			}
 		}
 		for _, w := range featureKeywords {
 			c := d.Key

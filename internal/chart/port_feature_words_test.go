@@ -17,7 +17,7 @@ func TestFeatureWordsReadAsWords(t *testing.T) {
 		`foo(catch, 1);`, `foo(catch, $x);`, `print catch . $_;`,
 		`my $x = method;`, `my $x = field;`, `my $x = state;`, `my $x = finally;`,
 		`sub given {} given 1;`, `when(1);`, `sub default {} default 1;`,
-		`ADJUST(1);`, `class(1);`, `sub all {} my @x = all 1, 2;`,
+		`ADJUST(1);`, `class(1);`, `sub all {} my @x = all 1, 2;`, `@y = sort try @x;`,
 		`my $x = __CLASS__;`, `my $x = __SUB__;`, `my $x = break;`, `my $x = fc;`, `my $x = evalbytes;`, `my $x = any;`,
 	} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
