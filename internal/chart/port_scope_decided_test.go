@@ -78,22 +78,33 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}
 	}
-	// perl refuses both: with its feature on the word is the keyword only. Recognition cannot see a feature, so the
-	// word reading stands until resolve collapses it by feature (SCOPEFEAT).
+	// perl refuses these: with its feature on the word is the keyword only. Recognition cannot see a feature, so the
+	// word reading stands until resolve collapses it by feature (SCOPEFEAT). The snippets are the families' refusals
+	// that a feature-gated word's word reading accepts.
 	for _, src := range []string{`use feature "try"; foo(try, 1);`, `use feature "class"; no warnings; my $x = method;`} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
-	// perl accepts both: catch is a hash key and a method name there. The PERLY_DOLLAR class two tokens after catch
-	// refuses the first, and the arrow before the word makes it a name (Neighbour.Name), which spares the second (grammar/perly.go).
-	for _, src := range []string{"catch => $_;", "(catch => $_);", "foo(catch => $_);", "x(catch => $Foo::x);"} {
-		if recognizeSource(t, []byte(src)).accepted {
-			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+	for _, f := range snippets(t, "feature-gated") {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !recognizeSource(t, src).accepted {
+			t.Errorf("%s is refused; the known limit is gone, so move it back to its family's refusals", f)
 		}
 	}
-	if !recognizeSource(t, []byte("$p->catch($Foo::x);")).accepted {
-		t.Errorf("$p->catch($Foo::x); is refused; perl accepts it")
+	// perl accepts it with the try feature off (a call to catch); the PERLY_DOLLAR class that guards a `catch (`
+	// variable refuses it (the shortcut in grammar/perly.go).
+	if recognizeSource(t, []byte("catch($_);")).accepted {
+		t.Errorf("catch($_); is accepted; the known limit is gone, so drop the shortcut and the README line")
+	}
+	// perl accepts each: catch is a hash key and a method name there. Only `catch (` guards its variable (grammar/perly.go).
+	for _, src := range []string{"catch => $_;", "(catch => $_);", "foo(catch => $_);", "x(catch => $Foo::x);", "$p->catch($Foo::x);"} {
+		if v := recognizeSource(t, []byte(src)); !v.accepted {
+			t.Errorf("%q is refused at %d; perl accepts it", src, v.at)
+		}
 	}
 	// perl accepts both: CORE::qw and CORE::q are quote-likes, which internal/lexer emits as a word and loose tokens
 	// (v0.1 01a1ae56), so the stripped word is qw or q with no delimiters.

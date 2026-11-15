@@ -971,8 +971,12 @@ var perlyClasses = []ClassDecl{
 	// A variable that is no plain name (`$::e`, `$1`, `$^W`, `$'`, `$_`) is not a catch variable: the action of
 	// perly.y:815 declares it with my and refuses it, so two tokens after catch it is no scalar.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), NotPrev1: afterArrow, Completes: true}},
-	// shortcut: this class also refuses `catch =>` before a variable that is no plain name, in any list (`foo(catch => $_)`), which perl accepts (catch is a hash key); it sees only the word two tokens back, so upgrade by letting it see => as Prev1, pinned in TestPortScopeDecidedKnownLimits.
-	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev1: afterArrow, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
+	// Two classes, so only `catch (` is excluded: `print catch . $_` and `catch => $_` keep the variable.
+	// shortcut: `catch($_)` is refused too, which perl accepts with the try feature off (catch a sub's name); the
+	// exclusion is a token's, which cannot see the feature, so upgrade when resolve refuses the variable by feature
+	// (SCOPEFEAT), pinned in TestPortScopeDecidedKnownLimits.
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev1: append(slices.Clone(afterArrow), parenOpen), Completes: true}},
+	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), Prev1: &parenOpen, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 	// After -> a $ variable is a method's name (`$o->$m`), $* the postfix dereference, and a lone $ (pvm's for `->${`) a cast's.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), NotText: []string{"$*", "$"}, Prev1: &arrow, Completes: true}},
 
@@ -1909,8 +1913,16 @@ func init() {
 // elsewhere (yyl_just_a_word, toke.c:8313-8322).
 var statementWords = []string{"AUTOLOAD", "DESTROY", "BEGIN", "UNITCHECK", "CHECK", "INIT", "END"}
 
+// featureKeywords are the keywords keywords.c at 94e50866 returns only under FEATURE_*_IS_ENABLED: with the feature off
+// toke.c reads each as a plain word (yyl_just_a_word). Recognition cannot see a feature, so each keeps its keyword
+// classes and gains a word's; resolve collapses them by feature (SCOPEFEAT). isa is chart/lex's (it reads use
+// statements), and say stays out: internal/lexer marks its filehandle either way (tdt/overrides.txt).
+var featureKeywords = []string{"ADJUST", "__CLASS__", "__SUB__", "all", "any", "break", "catch", "class", "default",
+	"defer", "evalbytes", "fc", "field", "finally", "given", "method", "state", "try", "when"}
+
 // addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
-// keyword), after anything but a statement start.
+// keyword), after anything but a statement start, and each feature keyword every such class, unqualified: CORE::kw
+// is the keyword whatever the feature (yyl_key_core).
 func addStatementWords(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
 	for _, d := range classes {
@@ -1920,6 +1932,14 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 		for _, w := range statementWords {
 			c := d.Key
 			c.Text, c.NotText, c.NotPrev1 = &w, nil, append(slices.Clone(c.NotPrev1), stateStarts...)
+			classes = append(classes, ClassDecl{d.Terminal, c})
+		}
+		for _, w := range featureKeywords {
+			c := d.Key
+			c.Text, c.NotText = &w, nil
+			if c.Prefix == nil {
+				c.Prefix = ptr(byte(0))
+			}
 			classes = append(classes, ClassDecl{d.Terminal, c})
 		}
 	}
