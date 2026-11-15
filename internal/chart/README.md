@@ -266,6 +266,21 @@ key of the first attempt is retired.
   `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
   reference side and the tdt keys, and `internal/parse` for recursive
   descent's verdicts and times.
+- **Recursive descent has two sides.** Verdict keys only (perigrin,
+  2026-11-14): the verdict keys and the superset population judge recursive
+  descent as psc runs it, `parse.ParseWithLoader` with a loader, which reads
+  `internal/parse/declarations/*.tpm` and follows `use` (a module it cannot
+  find stays lenient). Bare `parse.Parse` resolves nothing, so it refused
+  paren-less calls to imported functions (`plan skip_all => ...`) that psc
+  accepts, searching the file's own directory as `parse.ParseFileFrom` does.
+  The speed ratios and stages (`speed-ratio-*`, `speed-stage-*`) and
+  `lex-overhead-aggregate`'s file exclusion time bare `parse.Parse`: "Leave it
+  out" (perigrin, 2026-11-10) computes scope facts outside the timed span, and
+  the chart resolves nothing yet, so a resolving denominator would charge
+  recursive descent for work the chart skips. (`lex-overhead`'s reference side
+  is `lexer.Tokenize`.) The speed keys' aggregate is drawn from the superset
+  population, which now uses resolving recursive descent: that adds 163
+  files, and their timing baselines are retaken by KEYS or VERDICT.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on

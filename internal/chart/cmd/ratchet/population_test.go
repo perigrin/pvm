@@ -166,3 +166,92 @@ func TestRealInputsExcludeTheLexerLists(t *testing.T) {
 		t.Error("the real inputs hold no perl label for a Guacamole file")
 	}
 }
+
+const resolveFixture = "use Test::More;\nplan skip_all => 'x';\n"
+
+func TestRDVerdictsResolveUse(t *testing.T) {
+	srcs := map[string][]byte{"f.pl": []byte(resolveFixture)}
+	if bare, _ := rdAccepts("f.pl", func() *parse.Node { return parse.Parse(srcs["f.pl"]) }); bare {
+		t.Fatal("bare Parse accepts the fixture, so it proves nothing about resolving")
+	}
+	if ok, err := chartInputs(nil, srcs, nil, nil, filepath.Dir).RD("f.pl"); err != nil || !ok {
+		t.Errorf("the verdict side's RD: accepted %v, %v; want true, nil", ok, err)
+	}
+}
+
+func TestSpeedRDUnresolved(t *testing.T) {
+	srcs := map[string][]byte{"f.pl": []byte(resolveFixture)}
+	var tree *parse.Node
+	old := speedParse
+	speedParse = func(src []byte) *parse.Node { tree = old(src); return tree }
+	defer func() { speedParse = old }()
+	rdRunner(srcs)()("f.pl")
+	if tree == nil || !refusedAnywhere(tree) {
+		t.Error("the speed side's RD did not parse the fixture bare (a bare parse refuses it)")
+	}
+}
+
+// The verdict RD is parse.ParseFileFrom's on the real path: a module beside
+// the file is followed, and a file with none is judged the same.
+func TestRDVerdictsMatchParseFile(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"Mine.pm":  "package Mine;\nuse Exporter 'import';\nour @EXPORT = qw(mine);\nsub mine :prototype($$) { 1 }\n1;\n",
+		"uses.pl":  "use Mine;\nmine 1, 2;\n",
+		"none.pl":  resolveFixture,
+		"alone.pl": "use Missing::Mod;\n$x = 1;\n",
+	}
+	srcs := map[string][]byte{}
+	for name, text := range files {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		srcs[p] = []byte(text)
+	}
+	in := chartInputs(nil, srcs, nil, nil, filepath.Dir)
+	for p := range srcs {
+		if strings.HasSuffix(p, ".pm") {
+			continue
+		}
+		tree, err := parse.ParseFileFrom(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := in.RD(p)
+		if err != nil || got != !refusedAnywhere(tree) {
+			t.Errorf("%s: verdict RD %v, %v; ParseFileFrom accepts %v", filepath.Base(p), got, err, !refusedAnywhere(tree))
+		}
+	}
+	// The module beside the file is what accepts it: with no search directory it is refused.
+	p := filepath.Join(dir, "uses.pl")
+	if bare := parse.ParseWithLoader(srcs[p], parse.DirLoader()); !refusedAnywhere(bare) {
+		t.Error("uses.pl is accepted without its sibling module, so the sample proves nothing about the search directory")
+	}
+	if ok, _ := in.RD(p); !ok {
+		t.Error("the verdict RD refuses uses.pl, which its sibling module declares")
+	}
+}
+
+// measureLex times the bare parse: it takes its recursive descent from
+// rdRunner, not from the verdict side. The first thing it times is the
+// population's RD, so a panic there stands in for the rest of the run.
+func TestMeasureLexTimesBareRD(t *testing.T) {
+	t.Chdir("../../../..")
+	called := false
+	old := speedParse
+	speedParse = func([]byte) *parse.Node { called = true; panic("stop") }
+	defer func() { speedParse = old }()
+	in := verdictInputs{
+		RD:   func(string) (bool, error) { return true, nil },
+		Perl: func(string) *perlVerdict { return &perlVerdict{} },
+	}
+	srcs := map[string][]byte{"a.pl": []byte("1;")}
+	func() {
+		defer func() { recover() }()
+		measureLex(committedTables(t), []File{{"a.pl", "x"}}, in, srcs, map[string]string{})
+	}()
+	if !called {
+		t.Error("measureLex did not time parse.Parse through rdRunner")
+	}
+}
