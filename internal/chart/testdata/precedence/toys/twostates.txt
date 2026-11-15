@@ -1,0 +1,20 @@
+# twostates: written by build.sh from toys/twostates.y; do not edit.
+level nonassoc PREC_LOW
+level left LB
+rule 0 s: P R ind LB NUM RB
+rule 1 s: Q R elem
+rule 2 ind: VAR %prec PREC_LOW
+rule 3 elem: VAR LB NUM RB
+rule 4 elem: VAR
+refuse	-	P
+refuse	-	Q
+refuse	-	P R
+refuse	-	Q R
+refuse	-	P R VAR
+accept	4:2-3,1:0-3	Q R VAR
+refuse	-	P R VAR LB
+refuse	-	Q R VAR LB
+refuse	-	P R VAR LB NUM
+refuse	-	Q R VAR LB NUM
+accept	2:2-3,0:0-6	P R VAR LB NUM RB
+accept	3:2-6,1:0-6	Q R VAR LB NUM RB

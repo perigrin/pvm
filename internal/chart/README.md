@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest and the tables. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the precedence constraint and the tables. -->
 
 # internal/chart
 
@@ -1702,6 +1702,70 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   never grow `Nodes` or `Alts`, and it reads the slipper closures
   recognition built rather than recomputing them. The span checkpoint 3
   times includes it (spec §9.3).
+
+## The precedence constraint: `forest/precedence.go`
+
+Spec §8, built and refereed on toy grammars only (PRECTOY); PRECPERLY applies
+it to `perly.y`, and until then `forest.Parse` does not call it, so nothing the
+chart accepts, refuses or groups on Perl source has changed. It runs after the
+forest is built and reads only the forest and the grammar's tables: no Earley
+item gains a fact.
+
+- **The edge-context value.** `Constrain` judges each derivation in its edge
+  context: the parser state the derivation holding it has reached at its
+  span's start (the start state at the root) and the terminal after it. What
+  it carries up the forest is the first terminals of the derivations that
+  survive in that context, so the parent can judge the boundary between two
+  children.
+- **The parser states are bison's**, built from the grammar's tables alone
+  (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
+  LALR(1) tables share, never the chart's split states. A child's state is
+  its parent's advanced over the symbols before it, so a conflict is found
+  exactly where bison's state has one. Bison resolves a conflict only in a
+  state where it arises: `indirob: scalar %prec PREC_LOW` meets `[` in a
+  conflict after `print` (LSTOP), where `scalar [` can follow, and never after
+  `@` (T1/array.t's `@$array[1..3]`, which keying on the rule and the token
+  alone refused) nor after `sort print`, whose state after LSTOP is another
+  (the `indirobsort` toy). An earlier form keyed the state on the one symbol
+  before the span, which over-refused where two states share it (the
+  `twostates` and `indirobsort` toys, found at the gate).
+- **Keep.** A reduction with a terminal next that the state could also shift
+  survives only where bison's resolution is reduce; a shift survives only
+  where every reduction the state before it holds, with that terminal in its
+  LALR(1) lookahead there, resolves to shift. So of two derivations of one span the one
+  bison builds is kept, and the other is dropped even where the one bison
+  builds does not exist (`print $fh []`).
+- **Forbid.** A `%nonassoc` resolution is an error action and fails both
+  sides, adjacent (`1 .. 2 .. 3`) or split by a tighter operator
+  (`1 .. 2 + 3 .. 4`). Prefix after prefix is no conflict and is kept
+  (`- - 1`, `++ ++ $x`); a prefix and a postfix at one `%nonassoc` level
+  (`++$x++`) are refused.
+- **Refuse.** A span with no derivation left in its context fails every
+  derivation holding it there, and a file whose root has none is refused
+  (`Constrain` returns false); the alternatives no surviving derivation uses
+  are unlinked from the forest.
+- **The toy referees.** `offline/referee/toys/build.sh` builds thirteen toys with
+  bison (a `%left`/`%right` ladder, `%nonassoc` chains, prefix and postfix
+  operators, indirob and indirob after `sort`, two states after one symbol,
+  a lookahead narrower than the follow set, lookaheads merged by state and
+  passed through nullable symbols, empty rules and an empty rule's reduction
+  beating a shift, and all of the operators mixed) and commits every sentence of
+  up to five to seven terminals with bison's verdict and grouping
+  (`testdata/precedence/toys/`). `TestPrecedenceToyReferees` requires both on
+  every one of the 4,395 sentences; `TestPrecedenceConstraintOrderInvariant`
+  the same results with Leo off, the cache off and every node's alternatives
+  reversed.
+
+Known limits, each for PRECPERLY to measure on `perly.y`: none in the parser
+states or their lookaheads, which are bison's (each reduction's LALR(1)
+lookahead is propagated over the LR(0) automaton to a fixed point, and on
+every toy equals bison's report state for state; the follow set, used before
+gate pass 2, refused `Y W T Z` in the `follow` toy, where bison has no
+conflict); an alternative kept in one parser state is kept
+in all (the `shortcut:` on `Constrain`), which leaves the verdict exact and
+can only add a derivation to what a later reader enumerates; and rules refused in an action (`termrelop NCRELOP`), whose
+items make the non-chaining comparisons' conflicts, are not in the port's
+tables, so a non-chaining comparison chain is no toy here.
 
 ## The generated tables: `make chart-tables`
 

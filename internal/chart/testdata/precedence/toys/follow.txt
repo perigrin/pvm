@@ -1,0 +1,16 @@
+# follow: written by build.sh from toys/follow.y; do not edit.
+level left T
+level left HIGH
+rule 0 s: X e T Z
+rule 1 s: Y e
+rule 2 s: Y f
+rule 3 e: W %prec HIGH
+rule 4 f: W T Z
+refuse	-	X
+refuse	-	Y
+refuse	-	X W
+accept	3:1-2,1:0-2	Y W
+refuse	-	X W T
+refuse	-	Y W T
+accept	3:1-2,0:0-4	X W T Z
+accept	4:1-4,2:0-4	Y W T Z

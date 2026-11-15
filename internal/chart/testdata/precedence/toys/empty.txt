@@ -1,0 +1,20 @@
+# empty: written by build.sh from toys/empty.y; do not edit.
+level nonassoc LOW
+level nonassoc LB
+rule 0 s: VAR opt LB NUM RB
+rule 1 s: VAR opt
+rule 2 s: lead RB
+rule 3 opt: %prec LOW
+rule 4 opt: LB NUM RB
+rule 5 lead:
+rule 6 lead: NUM
+refuse	-	NUM
+accept	5:0-0,2:0-1	RB
+accept	3:1-1,1:0-1	VAR
+accept	6:0-1,2:0-2	NUM RB
+refuse	-	VAR LB
+refuse	-	VAR LB NUM
+accept	4:1-4,1:0-4	VAR LB NUM RB
+refuse	-	VAR LB NUM RB LB
+refuse	-	VAR LB NUM RB LB NUM
+accept	4:1-4,0:0-7	VAR LB NUM RB LB NUM RB
