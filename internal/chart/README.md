@@ -1288,7 +1288,9 @@ glob sigils and `?` as a pattern, which the token table gives no reading after a
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
 glob, since internal/lexer emits the `2` a Number; `sub is {} is *{$x}, 1;` is refused, where after a call toke.c reads
 `*{` as a glob's sigil and a block and the token table reads a `*` after a word as no glob's and the `{` after it as an
-anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read.
+anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read. shortcut: a feature-gated keyword
+("Scope-decided words" above) keeps every reading, since toke.c reads it as a word only with its feature off, which
+resolve cannot see, so `given 1;` is accepted until SCOPEFEAT reads the features.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and

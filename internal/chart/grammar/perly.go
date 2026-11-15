@@ -1920,6 +1920,9 @@ var statementWords = []string{"AUTOLOAD", "DESTROY", "BEGIN", "UNITCHECK", "CHEC
 var featureKeywords = []string{"ADJUST", "__CLASS__", "__SUB__", "all", "any", "break", "catch", "class", "default",
 	"defer", "evalbytes", "fc", "field", "finally", "given", "method", "state", "try", "when"}
 
+// IsFeatureKeyword is whether toke.c reads word as a keyword only with its feature on (featureKeywords).
+func IsFeatureKeyword(word string) bool { return slices.Contains(featureKeywords, word) }
+
 // addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
 // keyword), after anything but a statement start, and each feature keyword every such class and those of a word after
 // sort or do (keywordsButX, keywordsAndCORE), unqualified: CORE::kw is the keyword whatever the feature (yyl_key_core).
