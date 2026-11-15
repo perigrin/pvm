@@ -77,7 +77,7 @@ func forestDigest(t *testing.T) (string, int) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f, _ := Parse(tab, src); f != nil {
+		if f, _ := Parse(tab, src, Scope{}); f != nil {
 			lines = append(lines, fmt.Sprintf("%s %x", filepath.ToSlash(p), sha256.Sum256([]byte(forestText(tab, f)))))
 		}
 	}
@@ -113,7 +113,7 @@ func TestForestDigestDetectsChange(t *testing.T) {
 		t.Fatal("the chart accepts no file of the sample")
 	}
 	tab := committedTables(t)
-	f, _ := Parse(tab, []byte("my $x = 1 + 2;\nprint $x;\n"))
+	f, _ := Parse(tab, []byte("my $x = 1 + 2;\nprint $x;\n"), Scope{})
 	if f == nil {
 		t.Fatal("no forest")
 	}

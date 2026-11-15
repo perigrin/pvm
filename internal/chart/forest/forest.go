@@ -91,7 +91,7 @@ type Refusal struct {
 // token whose set died, or the end of the file, lex-unmapped where that is
 // the first token no terminal admits, else grammar (recognition's rule,
 // testdata/port/refused-where.txt).
-func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
+func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)

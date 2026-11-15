@@ -16,7 +16,21 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
+
+// builtForest is src's forest as forest.Build makes it from the chart, before resolve: the precedence constraint and
+// its bison referee read the token sequence's grammar, which scope does not decide.
+// A recognition error gives no forest, as forest.Parse's refusal did.
+func builtForest(tab *grammar.Tables, src []byte) *forest.Forest {
+	s, _ := lex.Lex(src, tab.Tokens)
+	l := lex.Linear(s)
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	if err != nil {
+		return nil
+	}
+	return forest.Build(tab, c, l)
+}
 
 func TestPrecedenceIgnoredByRecognition(t *testing.T) {
 	g, _, err := grammar.Committed()
@@ -102,7 +116,7 @@ func constrainSource(t *testing.T, src []byte) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, _ := forest.Parse(tab, src)
+	f := builtForest(tab, src)
 	return f != nil && f.Constrain(p)
 }
 
@@ -174,7 +188,7 @@ func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
 	for _, name := range s.terms[1:] { // after GRAMPROG
 		want = append(want, r.terminal[name])
 	}
-	f, _ := forest.Parse(r.tab, []byte(s.rendering))
+	f := builtForest(r.tab, []byte(s.rendering))
 	if f == nil || !narrow(f, want, skip) || !f.Constrain(r.p) {
 		return "refuse", "-"
 	}
@@ -352,7 +366,7 @@ func TestPrecedenceKeepsCorpusAccepted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f, _ := forest.Parse(tab, src)
+		f := builtForest(tab, src)
 		if f == nil {
 			continue
 		}

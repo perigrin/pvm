@@ -423,7 +423,7 @@ func TestForestFromChart(t *testing.T) {
 			}
 		}
 		// The inserted ; is no extra null statement beside a written one.
-		if f, _ := Parse(tab, []byte("{ 1; }")); f == nil {
+		if f, _ := Parse(tab, []byte("{ 1; }"), Scope{}); f == nil {
 			t.Error("{ 1; }: no forest")
 		} else if trees, cut := f.Derivations(f.Root, 10); len(trees) != 1 || cut {
 			t.Errorf("{ 1; }: %d derivations, cut %v; want exactly one", len(trees), cut)
@@ -460,7 +460,7 @@ func TestForestFromChart(t *testing.T) {
 			if (f != nil) != c.Accepted() {
 				t.Fatalf("%s: forest %v where the chart's verdict is %v", p, f != nil, c.Accepted())
 			}
-			if g, _ := Parse(tab, src); (g != nil) != c.Accepted() {
+			if g, _ := Parse(tab, src, Scope{}); (g != nil) != c.Accepted() {
 				t.Fatalf("%s: Parse gives forest %v where the chart's verdict is %v", p, g != nil, c.Accepted())
 			}
 			if f == nil {
@@ -537,7 +537,7 @@ func TestForestRefusedChartHasNoForest(t *testing.T) {
 		{"1 +", Refusal{3, "grammar"}},
 		{"print <<EOT;\nno terminator\n", Refusal{6, "lex-unmapped"}},
 	} {
-		f, ref := Parse(tab, []byte(want.src))
+		f, ref := Parse(tab, []byte(want.src), Scope{})
 		if f != nil {
 			t.Errorf("%q: a forest of %v for a refused file", want.src, f.Root)
 		}
@@ -545,7 +545,7 @@ func TestForestRefusedChartHasNoForest(t *testing.T) {
 			t.Errorf("%q: refusal %+v, want %+v", want.src, ref, want.Refusal)
 		}
 	}
-	f, ref := Parse(tab, []byte("my $x = 1;\n"))
+	f, ref := Parse(tab, []byte("my $x = 1;\n"), Scope{})
 	if f == nil || ref != (Refusal{}) {
 		t.Errorf("my $x = 1;: forest %v, refusal %+v; want a forest and no refusal", f != nil, ref)
 	}
@@ -572,7 +572,7 @@ func TestParseRefusalMatchesRecognition(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := Refusal{Byte: at, Reason: map[string]string{"table": "lex-unmapped", "grammar": "grammar"}[by]}
-		if f, ref := Parse(tab, src); f != nil || ref != want {
+		if f, ref := Parse(tab, src, Scope{}); f != nil || ref != want {
 			t.Errorf("%s: forest %v, refusal %+v; want none and %+v", name, f != nil, ref, want)
 		}
 	}
@@ -596,7 +596,7 @@ func TestParseRefusalUnmappedAfterDeadSet(t *testing.T) {
 		if _, u := lex.Lex([]byte(c.src), tab.Tokens); u != c.unmapped {
 			t.Fatalf("%q: first unmapped byte %d, want %d", c.src, u, c.unmapped)
 		}
-		if f, ref := Parse(tab, []byte(c.src)); f != nil || ref != c.want {
+		if f, ref := Parse(tab, []byte(c.src), Scope{}); f != nil || ref != c.want {
 			t.Errorf("%q: forest %v, refusal %+v; want none and %+v", c.src, f != nil, ref, c.want)
 		}
 	}
@@ -690,7 +690,7 @@ func TestForestDegenerateFiles(t *testing.T) {
 		if f == nil {
 			t.Fatalf("%q: no forest", src)
 		}
-		if g, ref := Parse(tab, []byte(src)); g == nil {
+		if g, ref := Parse(tab, []byte(src), Scope{}); g == nil {
 			t.Fatalf("%q: Parse refuses it: %+v", src, ref)
 		}
 		checkYield(t, fmt.Sprintf("%q", src), tab, f, c, l)
