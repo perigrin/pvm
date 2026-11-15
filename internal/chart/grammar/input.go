@@ -59,6 +59,13 @@ type Grammar struct {
 	// each declared by the name of the terminal it admits.
 	Prec    []string
 	Classes []ClassDecl
+	// Levels are the precedence declarations, loosest first. Refused are the
+	// rules whose action refuses that the ledger marks refused-by-precedence:
+	// never built into the tables, so recognition never derives them, but in
+	// bison's parser states, where their items make the conflicts that refuse a
+	// non-chaining comparison chain. Both are the precedence constraint's.
+	Levels  []Level
+	Refused []Rule
 }
 
 // ClassDecl declares that tokens matching Key admit the terminal named Terminal.
