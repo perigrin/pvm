@@ -1184,7 +1184,7 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   `defer`, `evalbytes`, `fc`, `field`, `finally`, `given`, `method`, `state`, `try`, `when`) read as words as well as
   keywords: keywords.c at 94e50866 returns each one's KEY_ only under its `FEATURE_*_IS_ENABLED`, and toke.c reads it
   as yyl_just_a_word otherwise. Recognition cannot see a feature, so init's `addStatementWords` gives each, unqualified,
-  every class of a word no class names beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
+  every class of a word no class names, and a word's after `sort` or `do`, beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
   `my $x = method;`), and resolve (SCOPEFEAT) collapses the two by feature. `CORE::try` stays the keyword. `isa` is
   chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`).
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
