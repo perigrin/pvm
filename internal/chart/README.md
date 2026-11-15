@@ -1797,8 +1797,9 @@ alternative kept in one parser state is kept in all (the `shortcut:` on
 what a later reader enumerates; on the 708 sentences it adds none (each keeps
 one grouping). The refused rules leave the tables' FIRST sets and
 nullability as they are (the `shortcut:` in `NewPrecedence`), exact because
-each of the four begins with its own left-hand side
-(`TestPrecedenceRefusedRulesLeftRecursive`). `optlistexpr: empty %prec
+each of the four begins with its own left-hand side, which derives no
+empty string (`TestPrecedenceRefusedRulesLeftRecursive`; a nullable `A` in
+`A: A X` would add FIRST(X) to FIRST(A)). `optlistexpr: empty %prec
 PREC_LOW` (perly.y:1787), the one nullable rule with a precedence, is in the
 automaton as written: no bison resolution names it (ruled 2026-11-14, no
 guard added).

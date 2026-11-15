@@ -40,8 +40,8 @@ type lrState struct {
 // tables share. The constraint carries the one a derivation reaches, from the file's start along the symbols
 // before it, so a conflict is found exactly where bison's state has one. Each reduction's lookahead there is
 // bison's LALR(1) set, not the follow set. Both are built from the tables alone, never read from the chart,
-// whose split states are not bison's.
-func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string, refused []grammar.Rule) *Precedence {
+// whose split states are not bison's. A refused rule naming a symbol tab lacks is an error.
+func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string, refused []grammar.Rule) (*Precedence, error) {
 	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), assoc: []string{""}}
 	sym := map[string]int{}
 	for id, s := range tab.Symbols {
@@ -51,18 +51,24 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 	base := slices.Clone(grammar.Derived(tab, buildForestGrammar).core) // base[r] is rule r's item at dot 0
 	for _, r := range refused {
 		var rhs []int
-		for _, s := range r.RHS {
-			rhs = append(rhs, sym[s.Text])
+		for _, s := range append([]grammar.Symbol{{Text: r.LHS}}, r.RHS...) {
+			id, ok := sym[s.Text]
+			if !ok {
+				return nil, fmt.Errorf("forest: the refused rule %s: names %s, which is no symbol of the tables", r.LHS, s.Text)
+			}
+			rhs = append(rhs, id)
 		}
+		lhs, rhs := rhs[0], rhs[1:]
 		rulePrec = append(rulePrec, r.Prec)
 		base = append(base, len(items))
 		for dot := 0; dot <= len(rhs); dot++ {
 			items = append(items, grammar.CoreItem{Rule: len(rules), Dot: dot})
 		}
-		rules = append(rules, grammar.BNFRule{LHS: sym[r.LHS], RHS: rhs})
+		rules = append(rules, grammar.BNFRule{LHS: lhs, RHS: rhs})
 	}
 	// shortcut: tab's FIRST sets and nullability leave the refused rules out, exact while each begins with its own
-	// left-hand side, as perly.y's four do (TestPrecedenceRefusedRulesLeftRecursive); derive them over rules if one does not.
+	// left-hand side, which derives no empty string, as perly.y's four do (TestPrecedenceRefusedRulesLeftRecursive);
+	// derive them over rules if one does not.
 	p.rule = make([]int, len(rules))
 	level := map[string]int{}
 	for i, l := range levels {
@@ -149,7 +155,7 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		p.states = append(p.states, st)
 	}
 	p.lookaheads(states, rules, items, base, byLHS)
-	return p
+	return p, nil
 }
 
 // lookaheads sets each state's LALR(1) lookaheads by propagation to a fixed point over every item of every

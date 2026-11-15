@@ -65,7 +65,11 @@ func loadToy(t *testing.T, name string) toy {
 		}
 	}
 	out.tab = toyTables(t, statements...)
-	out.prec = NewPrecedence(out.tab, levels, rulePrec, nil)
+	prec, err := NewPrecedence(out.tab, levels, rulePrec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out.prec = prec
 	return out
 }
 
@@ -270,5 +274,15 @@ func TestPrecedenceToyResolutionNeedsConflict(t *testing.T) {
 		if v, g := ty.constrained(t, s.words, recognize.Options{}, false); v != s.verdict || g != s.grouping {
 			t.Errorf("%s: got %s %s, bison %s %s", c.words, v, g, s.verdict, s.grouping)
 		}
+	}
+}
+
+// TestPrecedenceRefusedRuleUnknownSymbol requires a refused rule naming a symbol the tables lack to be an error naming
+// it, never a silent symbol 0.
+func TestPrecedenceRefusedRuleUnknownSymbol(t *testing.T) {
+	ty := loadToy(t, "nonassoc")
+	bad := grammar.Rule{LHS: ty.tab.Symbols[ty.tab.Start].Name, RHS: []grammar.Symbol{{Kind: grammar.Name, Text: "NOSUCHSYMBOL"}}}
+	if _, err := NewPrecedence(ty.tab, nil, make([]string, len(ty.tab.Rules)), []grammar.Rule{bad}); err == nil || !strings.Contains(err.Error(), "NOSUCHSYMBOL") {
+		t.Fatalf("got %v, want an error naming NOSUCHSYMBOL", err)
 	}
 }

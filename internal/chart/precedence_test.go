@@ -59,15 +59,24 @@ var perlyPrecedence = sync.OnceValues(func() (*forest.Precedence, error) {
 	for r, rule := range g.G1 {
 		rulePrec[r] = rule.Prec
 	}
-	return forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused), nil
+	return forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused)
 })
 
 // TestPrecedenceRefusedRulesLeftRecursive pins NewPrecedence's shortcut: each rule refused by precedence begins with
-// its own left-hand side, so leaving it out of the tables' FIRST sets and nullability changes neither.
+// its own left-hand side, which derives no empty string, so leaving it out of the tables' FIRST sets and nullability
+// changes neither (a nullable A in A: A X would add FIRST(X) to FIRST(A)).
 func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
 	g, _, err := grammar.Committed()
 	if err != nil {
 		t.Fatal(err)
+	}
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nullable := map[string]bool{}
+	for _, s := range tab.Symbols {
+		nullable[s.Name] = s.Nullable
 	}
 	if len(g.Refused) != 4 {
 		t.Errorf("%d rules refused by precedence, want perly.y's four comparison chains", len(g.Refused))
@@ -75,6 +84,9 @@ func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
 	for _, r := range g.Refused {
 		if r.RHS[0].Text != r.LHS {
 			t.Errorf("%s %s: does not begin with %s", r.Cite, r.LHS, r.LHS)
+		}
+		if nullable[r.LHS] {
+			t.Errorf("%s %s: derives the empty string", r.Cite, r.LHS)
 		}
 	}
 }
@@ -166,7 +178,10 @@ func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
 	if f == nil || !narrow(f, want, skip) || !f.Constrain(r.p) {
 		return "refuse", "-"
 	}
-	trees, _ := f.Derivations(f.Root, 16)
+	trees, cut := f.Derivations(f.Root, 16)
+	if cut {
+		return "accept", "more than 16 derivations left, not all compared"
+	}
 	groupings := map[string]bool{}
 	for _, tr := range trees {
 		var g []string
