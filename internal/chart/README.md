@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the precedence constraint and the tables. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the oracle subject facts, the precedence constraint and the tables. -->
 
 # internal/chart
 
@@ -1833,6 +1833,53 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   never grow `Nodes` or `Alts`, and it reads the slipper closures
   recognition built rather than recomputing them. The span checkpoint 3
   times includes it (spec §9.3).
+
+## The chart as a parseoracle subject: `forest/facts.go`
+
+Spec §9.4's per-site grading needs the chart to answer `parseoracle`'s subject
+contract (`internal/parseoracle/subject.go`), as recursive descent does through
+`internal/parse/cmd/subject`. The chart answers in-process:
+`forest.SubjectFacts(tab, src, path, scope)` returns `parseoracle.SubjectFacts`,
+which marshals to the contract's JSON as it stands. There is no command-line
+wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
+
+- **`ok`** is `forest.Parse`'s verdict under `scope`. A refused file answers
+  `ok` false, an empty one `ok` true, each with both lists empty, never `null`
+  (`TestSubjectFactsRefusedAndEmpty`).
+- **`prototypes`** are the ones resolve saw: the file's own named subs (the
+  last declaration of each) and its imports' known prototypes, keyed `name` in
+  main and `Pkg::name` elsewhere, spelled as `prototype()` returns them.
+- **`call_sites`** are one per decision at an oracle marker, read from the
+  forest's rules and leaves: a call to a sub (NOAMP, UNIOPSUB, FUNC0SUB,
+  LSTOPSUB, or `f(...)`; a written `&f(...)` bypasses the prototype and
+  decides nothing); a `\` the source wrote (`term: REFGEN term`); a hash read
+  (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
+  or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
+  reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
+  `readline`; `<*.c>` is a glob); an anonymous hash (`HASHBRACK`). Each is on
+  its top-level statement's first and last lines, as `parse.PerlLines`
+  numbers them after `#line`; a site a directive moves into another file is
+  dropped.
+- **Ambiguity is answered honestly.** A site is keyed by its kind and token.
+  At each node with more than one alternative, the sites every derivation
+  holds are intersected and those any holds united; a site some readings hold
+  and others do not is `Unresolved`, which grades WIDER, never a guess
+  (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
+  a block in others). The facts come from whatever `forest.Parse` runs: today
+  resolve, not yet the precedence constraint or the readings collapse.
+- **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
+  has a `\`, `*` or `+` slot, or whose prototype resolve cannot see, is
+  `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`); code
+  interpolated in a string or heredoc is one token the forest does not read,
+  so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
+  descent hedges every marker.
+
+**How ORACLEGRADE grades it**: over the oracle-graded corpora with committed
+perl facts, `parseoracle.CompareFacts(perl's facts, forest.SubjectFacts(...))`
+per file, into EXACT, WIDER, WRONG and no-answer, beside recursive descent
+with import resolution graded the same way. `TestOracleSubject` decodes each
+sample's JSON with `parseoracle`'s own decoder, through a subject command that
+prints it, so the facts are the contract's and not only Go values.
 
 ## The precedence constraint: `forest/precedence.go`
 
