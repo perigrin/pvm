@@ -4,9 +4,9 @@
 package forest
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -108,10 +108,36 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"print FH foo;", true},
 		{"select(FH);", true},
 		{"open(FH x 3);", false},
+		// a declared sub before a package the file declares is a method (intuit_method's gv_stashpvn)
+		{"sub new {} package Foo; package main; new Foo x 3;", false},
+		{"sub new {} package Foo; package main; new Foo 1, 2;", true},
+		// subs parse.Imports reports: a BEGIN's glob assignment, and an import into another package
+		{"BEGIN { *foo = sub {} } my $x = foo 1;", true},
+		{"package Foo; BEGIN { *plan = sub {} } plan 9;", true},
+		// a glob after a call: its name is no word of scope's, and the { after its * a block or a subscript
+		{"sub is {} is *_{ARRAY}, undef;", true},
+		{"sub is {} is *{$x}, 1;", true},
+		// & after a term is the bitwise and (yyl_ampersand, PL_expect XOPERATOR), and a sub's sigil where a term is
+		// expected; T1/fcntl_accmode.t's form is the first
+		{"use Fcntl qw(O_RDONLY O_ACCMODE); my $x = O_RDONLY & O_ACCMODE;", true},
+		{"my $x = FOO & BAR;", true},
+		{"my $x = FOO & 2;", true},
+		{"sub FOO () {1} my $x = FOO & 2;", true},
+		{"my $x = FOO & ;", false},
+		{"sub FOO () {1} my $x = FOO & ;", false},
+		{"foo &bar;", true},
+		{"&$code;", true},
+		{"sub foo {} foo &bar;", true},
+		{"sub foo {} my $x = foo & 2;", true}, // foo(&2)
+		{"sub foo ($) {} my $x = foo & 2;", true},
+		{"print FH &bar;", true},
+		{"new Foo &bar;", true},
+		{"my $x = foo &$c;", true},
+		{"return &bar;", true},
 	})
 }
 
-// TestResolveKnownLimits pins resolve's limits, each with its root outside resolve.
+// TestResolveKnownLimits pins resolve's limits, each beside the pinned perl's verdict, which it does not give.
 func TestResolveKnownLimits(t *testing.T) {
 	tab := committedTables(t)
 	// shortcut (xterm): after a filehandle toke.c reads a declared x as a call, which the token table gives no call
@@ -123,15 +149,36 @@ func TestResolveKnownLimits(t *testing.T) {
 	} else if countSym(t, tab, f, "MULOP") == 0 {
 		t.Errorf("%q has no x operator left; the shortcut is gone, so drop this row", src)
 	}
-	// perl -c refuses it; x right after print carries no scope-decided reading in the token table, so resolve
-	// cannot read it as a filehandle.
-	if f, _ := Parse(tab, []byte("print x x 3;"), Scope{}); f == nil {
-		t.Error("print x x 3; is refused; the token-table limit is gone, so move it to TestResolveScopeDecidedWords")
-	}
-	// perl -c accepts it as 'Foo'->new(*2): after the class toke.c reads *2 as a glob, where internal/lexer emits
-	// the 2 as a Number, which no glob's name is.
-	if f, _ := Parse(tab, []byte("new Foo * 2;"), Scope{}); f != nil {
-		t.Error("new Foo * 2; is accepted; the lexer limit is gone, so move it to TestResolveScopeDecidedWords")
+	for _, c := range []verdict{
+		// x right after print carries no scope-decided reading in the token table, so resolve cannot read it as a
+		// filehandle; perl refuses it.
+		{"print x x 3;", true},
+		// shortcut (lookup): a qualified name neither the file nor its imports declare keeps every reading; perl
+		// refuses both.
+		{"Foo::bar 1;", true},
+		{"package A; sub foo {} package main; A::bar 1;", true},
+		// shortcut (word): a package created outside the file's package statements, here by naming Foo::bar, makes
+		// new a method to perl, which refuses it.
+		{"sub new {} Foo::bar(); new Foo x 3;", true},
+		// toke.c leaves XTERM after a call, where < opens a <> and ** a glob's * twice and ? an old pattern match,
+		// which the token table gives no reading after a word; perl refuses all three, the last for its arguments.
+		{"sub foo {} foo < 3;", true},
+		{"sub foo {} my $x = foo ** 2;", true},
+		{"sub foo ($) {} foo ? 1 : 2;", true},
+		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where internal/lexer emits the
+		// 2 a Number, which no glob's name is; perl accepts all three.
+		{"new Foo * 2;", false},
+		{"sub foo {} foo * 2;", false},
+		{"print STDOUT * 2;", false},
+		// shortcut (lookup): parse.Imports reports nothing for use subs and use builtin, so the names they declare
+		// are undeclared to resolve; perl accepts both.
+		{"use subs qw(foo); foo 1;", false},
+		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", false},
+	} {
+		if f, _ := Parse(tab, []byte(c.src), scopeOf(c.src)); (f != nil) != c.accepted {
+			t.Errorf("%q: accepted %v, pinned %v; the limit has moved, so move the row to the rows perl's verdict holds",
+				c.src, f != nil, c.accepted)
+		}
 	}
 }
 
@@ -226,47 +273,66 @@ func TestResolveEmptyScope(t *testing.T) {
 	}
 }
 
-// TestResolveKeepsCorpusAccepted: over the Guacamole cases and std5k.pl, resolve refuses no file the pinned perl
-// accepts (labels/in-tree.txt) and recognition accepts, with the scope parse.ParseFileFrom gives each, the Guacamole
-// stubs on its path as the labels' PERL5LIB.
+// TestResolveKeepsCorpusAccepted: resolve refuses no labelled file that the pinned perl (labels/in-tree.txt,
+// labels/t1.txt), recursive descent following use statements as the ratchet's verdict side does, and recognition all
+// accept: the Guacamole cases, std5k.pl, edit5k.pl and T1 (T1_CORPUS, else the in-tree copy). Each file's scope is
+// parse.Imports over the same use-resolving tree, the labels' PERL5LIB on its path.
 func TestResolveKeepsCorpusAccepted(t *testing.T) {
 	tab := committedTables(t)
-	labels, err := os.Open(filepath.Join("..", "testdata", "labels", "in-tree.txt"))
+	repo := filepath.Join("..", "..", "..")
+	t1 := os.Getenv("T1_CORPUS")
+	if t1 == "" {
+		t1 = filepath.Join(repo, "testdata", "perlonjava", "unit")
+	}
+	stubs := filepath.Join(repo, "internal", "chart", "testdata", "guacamole", "stubs")
+	checked := 0
+	for _, c := range []struct{ labels, root, lib string }{{"in-tree.txt", repo, stubs}, {"t1.txt", t1, ""}} {
+		for _, rel := range acceptedLabels(t, filepath.Join("..", "testdata", "labels", c.labels)) {
+			p := filepath.Join(c.root, filepath.FromSlash(rel))
+			src, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatalf("%s (%s names it): %v", p, c.labels, err)
+			}
+			if built(t, string(src)) == nil {
+				continue // recognition refuses it: not resolve's
+			}
+			dirs := []string{filepath.Dir(p)}
+			if c.lib != "" {
+				dirs = append(dirs, c.lib)
+			}
+			root := parse.ParseWithLoader(src, parse.DirLoader(dirs...))
+			if refusedAnywhere(root) {
+				continue // recursive descent refuses it
+			}
+			checked++
+			if f, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); f == nil {
+				t.Errorf("%s is refused at byte %d (%s); perl and recursive descent accept it", p, ref.Byte, ref.Reason)
+			}
+		}
+	}
+	t.Logf("checked %d files", checked)
+	if checked < 1400 {
+		t.Errorf("checked %d files; the in-tree and T1 labels name over 1,400 that perl, recursive descent and recognition accept", checked)
+	}
+}
+
+// acceptedLabels is the paths a label file says the pinned perl accepts.
+func acceptedLabels(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer labels.Close()
-	stubs := filepath.Join("..", "testdata", "guacamole", "stubs")
-	checked := 0
-	sc := bufio.NewScanner(labels)
-	for sc.Scan() {
-		path, label, _ := strings.Cut(sc.Text(), "\t")
-		rel, ok := strings.CutPrefix(path, "internal/chart/")
-		if label != "accept" || !ok || !strings.HasPrefix(rel, "testdata/guacamole/") && rel != "testdata/std5k.pl" {
-			continue
-		}
-		p := filepath.Join("..", filepath.FromSlash(rel))
-		src, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if built(t, string(src)) == nil {
-			continue // recognition refuses it: not resolve's
-		}
-		root, err := parse.ParseFileFrom(p, stubs)
-		if err != nil {
-			t.Fatalf("%s: %v", p, err)
-		}
-		checked++
-		if f, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); f == nil {
-			t.Errorf("%s is refused at byte %d (%s); perl accepts it", p, ref.Byte, ref.Reason)
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if name, label, _ := strings.Cut(line, "\t"); label == "accept" {
+			out = append(out, name)
 		}
 	}
-	if err := sc.Err(); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("checked %d files", checked)
-	if checked < 700 {
-		t.Errorf("checked %d files; the labels name over 800 the chart accepts", checked)
-	}
+	return out
+}
+
+// refusedAnywhere is whether any node of n's tree is a refusal, recursive descent's verdict.
+func refusedAnywhere(n *parse.Node) bool {
+	return n.Refused() || slices.ContainsFunc(n.Children, refusedAnywhere)
 }

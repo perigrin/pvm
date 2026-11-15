@@ -957,6 +957,10 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &funcSigil, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &globStar, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev2: &globStar}},
+	// After a word scope may make a NOAMP, PL_expect is XTERM and yyl_star reads a * as a glob's sigil, but its
+	// neighbour reads that word as completing a term and the * as no glob's; so a { after that * opens a block too
+	// (`sub is {} is *{$x}, 1;`), which resolve keeps only where the word is a call.
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}, Prev2: &otherWord, NotNext: nextNotClose}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false), Completes: true}},
@@ -1888,6 +1892,11 @@ func init() {
 			seen[key] = true
 		}
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
+		// After a term toke.c's yyl_ampersand reads & as the bitwise and (PL_expect == XOPERATOR, BAop(OP_BIT_AND)),
+		// where internal/lexer emits the & after a word as a sub's sigil: the same neighbours as x's give it BITANDOP.
+		amp := x
+		amp.Kind, amp.Text = ptr(lexer.FuncSigil), nil
+		perlyClasses = append(perlyClasses, ClassDecl{"BITANDOP", amp})
 	}
 	perlyClasses = addStatementX(perlyClasses) // after x's MULOP: these complete a term the word x's BAREWORD already completes
 	limitBlockBrace(perlyClasses)

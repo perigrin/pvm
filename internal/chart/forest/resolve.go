@@ -101,8 +101,11 @@ type resolver struct {
 	pkg         []string         // the package at each token
 	subs        map[string][]sub // package subs, by qualified name
 	lexical     map[string][]sub // my and state subs, by name
+	own         map[string]bool  // every sub name the file declares, as written
+	packages    map[string]int   // the packages the file declares, by the token their first declaration starts at
 	dead        map[[2]int]bool  // (token, terminal) readings resolve drops
-	class       int              // the token a method forced to its class, which is no scope-decided word
+	// named is the tokens toke.c forces to a name, a method's class or a glob's, which are no scope-decided words
+	named []bool
 }
 
 // resolve drops from f each reading toke.c would not give a scope-decided
@@ -117,11 +120,11 @@ func resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Sc
 		return -1
 	}
 	r := &resolver{tab: tab, g: g, s: s, src: src, scope: scope, n: len(s.Tokens), subs: map[string][]sub{},
-		lexical: map[string][]sub{}, dead: map[[2]int]bool{}, class: -1}
+		lexical: map[string][]sub{}, own: map[string]bool{}, packages: map[string]int{}, dead: map[[2]int]bool{}, named: make([]bool, len(s.Tokens)+1)}
 	r.braces()
 	r.declarations(f)
 	for k, t := range s.Tokens {
-		if k != r.class && slices.Contains(tab.TerminalSets[t.TerminalSet], g.noamp) {
+		if !r.named[k] && slices.Contains(tab.TerminalSets[t.TerminalSet], g.noamp) {
 			r.word(k)
 		}
 	}
@@ -170,6 +173,11 @@ func (r *resolver) declarations(f *Forest) {
 	var pkgs []region
 	for _, nd := range f.Nodes[1:] {
 		from, to := int(nd.From), int(nd.To)
+		if s := int(nd.Sym); s == r.g.pkgStmt || s == r.g.pkgBlock {
+			if at, ok := r.packages[r.text(from+1)]; !ok || from < at {
+				r.packages[r.text(from+1)] = from
+			}
+		}
 		switch int(nd.Sym) {
 		case r.g.pkgStmt:
 			pkgs = append(pkgs, region{to, r.blockEnd(from), r.text(from + 1)})
@@ -208,6 +216,7 @@ func (r *resolver) declare(f *Forest, nd Node) {
 	}
 	name, body := r.text(k+1), int(f.Nodes[f.Alts[nd.Alt].Right].From)
 	d := sub{from: int(nd.To), to: r.n}
+	r.own[name] = true
 	for j := k + 2; j < body; j++ {
 		if slices.Contains(r.tab.TerminalSets[r.s.Tokens[j].TerminalSet], r.g.prototype) {
 			d.proto = r.text(j)
@@ -244,17 +253,25 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 	if d, ok := latest(r.subs[qualify(r.pkg[k], word)], k); ok {
 		return d, declared
 	}
-	if strings.Contains(word, "::") {
-		// shortcut: a module's subs are seen only through the names it imports, so a qualified name the file does not
-		// declare keeps every reading; upgrade when parse exports the subs each loaded package defines.
+	// parse keys an import into another package by its qualified name, and marks Local the subs the file and the
+	// files it requires declare; the file's own are read above, where they are declared.
+	im, ok := r.scope.Imports[word]
+	if !ok {
+		im, ok = r.scope.Imports[qualify(r.pkg[k], word)]
+	}
+	switch {
+	case ok && im.Local && r.own[word]:
+	case ok && !im.PrototypeKnown:
+		return sub{}, unknown
+	case ok:
+		return sub{proto: im.Prototype}, declared
+	case strings.Contains(word, "::"):
+		// shortcut: a module's subs are seen only through the names it imports, so a qualified name neither the file
+		// nor its imports declare keeps every reading; upgrade when parse exports the subs each loaded package defines.
 		return sub{}, unknown
 	}
-	if im, ok := r.scope.Imports[word]; ok && !im.Local {
-		if !im.PrototypeKnown {
-			return sub{}, unknown
-		}
-		return sub{proto: im.Prototype}, declared
-	}
+	// shortcut: a sub use subs predeclares, or one use builtin imports, is undeclared here, since parse.Imports
+	// reports neither; upgrade when it does.
 	return sub{}, undeclared
 }
 
@@ -305,19 +322,21 @@ func (r *resolver) word(k int) {
 	}
 	var keep []int
 	switch {
+	case st == declared && cls != notWord && cls != noClass && r.declaredPackage(r.text(k+1), k):
+		fallthrough // intuit_method takes a declared sub for a method where the word after it names a package
+	case st == undeclared && cls == isClass:
+		keep = []int{g.methcall0, g.methcall} // a method: its class is forced, and the token after that is a term's
+		r.named[k+1] = true
+		r.drop(k+1, []int{g.bareword})
+		r.xterm(k + 2)
 	case st == declared:
 		keep = r.called(k, d.proto)
 		if cls == isClass || cls == maybeClass {
-			// shortcut: intuit_method takes a declared sub for a method only where the word after it names a
-			// package or a filehandle, which resolve cannot see, so both readings stand; upgrade when the file's
-			// packages and handles are read as perl knows them.
+			// shortcut: a package or filehandle created outside the file (by a module it loads, or by naming
+			// Foo::bar) also makes intuit_method take a declared sub before that word for a method, which resolve
+			// cannot see, so both readings stand there; upgrade when parse exports the packages a file's uses create.
 			keep = append(keep, g.methcall0, g.methcall)
 		}
-	case cls == isClass:
-		keep = []int{g.methcall0, g.methcall} // a method: its class is forced, and the token after that is a term's
-		r.class = k + 1
-		r.drop(k+1, []int{g.bareword})
-		r.xterm(k + 2)
 	case r.is(k+1, "{") && !r.fileSlot(k):
 		keep = []int{g.methcall0} // a method whose indirect object is the block, after which a term is expected
 		r.xterm(r.match[k+1] + 1)
@@ -341,6 +360,12 @@ func (r *resolver) drop(k int, keep []int) {
 			r.dead[[2]int{k, x}] = true
 		}
 	}
+}
+
+// declaredPackage is whether the file declares package name before token k, as gv_stashpvn would find it there.
+func (r *resolver) declaredPackage(name string, k int) bool {
+	at, ok := r.packages[name]
+	return ok && at < k
 }
 
 // called is the reading a declared sub's name at token k takes by its
@@ -407,6 +432,7 @@ func (r *resolver) xterm(p int) {
 			r.dead[[2]int{p, x}] = true
 		}
 	}
+	r.named[p+1] = r.is(p, "*") // yyl_star's glob sigil: scan_ident takes the word after it as the glob's name
 }
 
 // prune unlinks every alternative a dropped reading leaves without a
