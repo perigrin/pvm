@@ -1111,11 +1111,12 @@ filehandle (`TestResolveKnownLimits`).
 
 `print STDOUT $foo bar();`, `say STDOUT $foo bar();`, `print STDOUT $foo bar;`
 and their kin (`print STDERR`, `print(STDOUT`, `printf`, a declared `FH` or
-`bar`): recognition reads the handle as METHCALL0 with `$foo` its indirect
+`bar`, a qualified `main::STDOUT` or `Foo::FH`): recognition reads the handle as METHCALL0 with `$foo` its indirect
 object, as in `STDOUT $foo bar();`, which perl accepts. After `print` toke.c
 reads the word as a filehandle, or a call if declared, never a method, lexes
 `$foo` at XTERM and `bar` where an operator is expected, a syntax error; resolve
-drops the method reading, so `forest.Parse` refuses each. `print $foo bar();`
+drops the method reading, a qualified handle's too though its other readings
+stand (the qualified-name shortcut below), so `forest.Parse` refuses each. `print $foo bar();`
 stays accepted, `$foo` the handle (`TestScopeDecidedParity`,
 `TestPrintFilehandleVarWordForms`). `print {$fh} $foo bar();` is refused by
 recognition. The token key cannot state it: `print` is three tokens before `bar`.

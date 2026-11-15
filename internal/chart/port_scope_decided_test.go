@@ -226,6 +226,8 @@ func TestPrintFilehandleVarWordForms(t *testing.T) {
 		"sub FH {} print FH $foo bar();":      false,
 		"sub bar {} print STDOUT $foo bar();": false,
 		"print STDOUT $foo $bar;":             false,
+		"print main::STDOUT $foo bar();":      false,
+		"print main::STDOUT $foo;":            true,
 		"print STDOUT $foo;":                  true,
 		"print $foo bar();":                   true,
 		"print STDOUT $foo, bar();":           true,
