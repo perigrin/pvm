@@ -1791,9 +1791,12 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
 ## The precedence constraint: `forest/precedence.go`
 
 Spec §8, built and refereed on toy grammars (PRECTOY) and applied to `perly.y`
-(PRECPERLY). `forest.Parse` builds the forest only; the constraint runs after
-it, `f.Constrain(forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`,
-as `TestWaypoint2Refusals` runs the pipeline. It reads only the forest, the
+(PRECPERLY). The constraint runs on a built forest,
+`f.Constrain(forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`.
+`TestWaypoint2Refusals`, the referee and the other precedence tests apply it
+to `forest.Build`'s forest, before resolve (`builtForest`), since a
+sentence's token choice, as bison read it, stands in for scope there;
+`forest.Parse` builds the forest and resolves it, and runs no constraint. It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The edge-context value.** `Constrain` judges each derivation in its edge
@@ -1849,9 +1852,10 @@ grammar's tables and its precedence: no Earley item gains a fact.
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
 
-- **The perly.y referee.** `TestPrecedenceReferee` runs `forest.Parse` and
-  the constraint on each of the 708 kept generated sentences' renderings
-  (`testdata/precedence/`, above) and requires bison's verdict and grouping
+- **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
+  `forest.Build`, before resolve, since bison's token choice stands in for
+  scope, and runs the constraint on each of the 708 kept generated sentences'
+  renderings (`testdata/precedence/`, above) and requires bison's verdict and grouping
   on every one; they cover 716 of bison's 1,347 resolutions. A token admits a
   set of terminals and bison read one, so the forest is first narrowed to
   the sentence's own terminals (`foo` is `UNIOPSUB` there, not a bareword),

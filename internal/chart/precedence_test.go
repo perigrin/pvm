@@ -105,7 +105,7 @@ func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
 	}
 }
 
-// constrainSource is the whole pipeline's verdict on src: chart/lex, recognition, the forest and the constraint.
+// constrainSource is the verdict on src of chart/lex, recognition, Build's forest before resolve and the constraint.
 func constrainSource(t *testing.T, src []byte) bool {
 	t.Helper()
 	tab, err := committed()
@@ -173,7 +173,8 @@ func newReferee(t *testing.T) *referee {
 	return r
 }
 
-// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: forest.Parse, its derivations
+// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: Build's forest before resolve,
+// since bison's token choice stands in for scope, its derivations
 // narrowed to s's own terminals (a token admits a set of terminals, and bison read one of them), then the constraint.
 // The grouping is the referee's: each reduction of a rule carrying a precedence, line:from-to over terminal indexes
 // (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
