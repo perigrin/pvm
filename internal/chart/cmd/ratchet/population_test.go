@@ -166,3 +166,27 @@ func TestRealInputsExcludeTheLexerLists(t *testing.T) {
 		t.Error("the real inputs hold no perl label for a Guacamole file")
 	}
 }
+
+const resolveFixture = "use Test::More;\nplan skip_all => 'x';\n"
+
+func TestRDVerdictsResolveUse(t *testing.T) {
+	srcs := map[string][]byte{"f.pl": []byte(resolveFixture)}
+	if bare, _ := rdAccepts("f.pl", func() *parse.Node { return parse.Parse(srcs["f.pl"]) }); bare {
+		t.Fatal("bare Parse accepts the fixture, so it proves nothing about resolving")
+	}
+	if ok, err := chartInputs(nil, srcs, nil, nil).RD("f.pl"); err != nil || !ok {
+		t.Errorf("the verdict side's RD: accepted %v, %v; want true, nil", ok, err)
+	}
+}
+
+func TestSpeedRDUnresolved(t *testing.T) {
+	srcs := map[string][]byte{"f.pl": []byte(resolveFixture)}
+	var tree *parse.Node
+	old := speedParse
+	speedParse = func(src []byte) *parse.Node { tree = old(src); return tree }
+	defer func() { speedParse = old }()
+	rdRunner(srcs)()("f.pl")
+	if tree == nil || !refusedAnywhere(tree) {
+		t.Error("the speed side's RD did not parse the fixture bare (a bare parse refuses it)")
+	}
+}

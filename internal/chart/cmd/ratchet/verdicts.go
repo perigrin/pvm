@@ -187,8 +187,9 @@ func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, err
 }
 
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
-// fresh recognizer per file, recursive descent is parse.Parse, perl is the
-// committed labels.
+// fresh recognizer per file, recursive descent follows `use` as psc does, perl
+// is the committed labels. The speed side's recursive descent stays bare
+// (speedParse): the chart resolves nothing yet.
 func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict) verdictInputs {
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
@@ -214,7 +215,10 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			return r, nil
 		},
 		RD: func(path string) (bool, error) {
-			return rdAccepts(path, func() *parse.Node { return parse.Parse(srcs[path]) })
+			// A non-nil loader reads the .tpm declarations. shortcut: no search
+			// directory, since no corpus file has a sibling module; upgrade
+			// to DirLoader(dir) when one does.
+			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader()) })
 		},
 		Perl:     perl,
 		Excluded: excluded,

@@ -29,7 +29,7 @@ chart-ratchet: gc-cpu-share-rd 0.1074
 chart-ratchet: items-per-token 4.874
 chart-ratchet: set-reuse 0.712
 chart-ratchet: ledger-excluded 18
-chart-ratchet: superset-population 1394
+chart-ratchet: superset-population 1557
 chart-ratchet: superset-recognized 1.000
-chart-ratchet: rd-accepted-perl-refused 147
+chart-ratchet: rd-accepted-perl-refused 187
 chart-ratchet: chart-accepted-perl-refused 170

@@ -67,6 +67,16 @@ func corpus() ([]File, map[string][]byte, error) {
 	return files, srcs, nil
 }
 
+// speedParse is recursive descent as every speed key times it: bare, resolving
+// nothing, because the chart does not resolve yet (perigrin, 2026-11-10 "Leave
+// it out"; 2026-11-14 "Verdict keys only").
+var speedParse = parse.Parse
+
+// rdRunner is the speed side's recursive descent over srcs.
+func rdRunner(srcs map[string][]byte) func() Runner {
+	return func() Runner { return func(path string) { speedParse(srcs[path]) } }
+}
+
 // lexSides are chart/lex and lexer.Tokenize as protocol sides over srcs.
 // The chart side calls tokenize inside its span, so lex-overhead's numerator
 // is the whole of chart/lex, the lexer included.
@@ -161,7 +171,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	measured["lex-unmapped"] = strconv.Itoa(len(unmapped))
 
 	p := productionProtocol(lexSides(srcs, tt, lexer.Tokenize))
-	rd := func() Runner { return func(path string) { parse.Parse(srcs[path]) } }
+	rd := rdRunner(srcs)
 	agg, err := aggregateFiles(p, rd, files, in)
 	if err != nil {
 		return nil, err
