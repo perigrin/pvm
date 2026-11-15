@@ -98,8 +98,11 @@ What waypoint 2 built before the stop:
 - the recognizer's grammar-only tables built once per tables value, `x` at a
   statement start read as a word, and the cache and Leo test gaps closed.
 
-Not done, among the issues still open on `chart-perly-w2`: the precedence
-constraint, resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
+Since the resumption, **the precedence constraint** is applied to `perly.y`
+and agrees with bison on every kept generated sentence
+(`forest/precedence.go`, below).
+
+Not done, among the issues still open on `chart-perly-w2`: resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
 the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
 M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
 `t/` parity and speed checkpoint 3.
@@ -140,8 +143,10 @@ Waypoint 1's speed figure is a lower bound: it can stop the spike, not pass it
 
 **Not built.** Recognition reads no precedence and, but for the `isa`
 feature, no scope, so a form perl refuses only by precedence
-(`$a <=> $b <=> $c;`) or for want of a declaration is accepted here; the
-sections below name the ones known. Error
+(`$a <=> $b <=> $c;`) or for want of a declaration is accepted by
+recognition; the forest's precedence constraint refuses the first kind
+(`forest/precedence.go`, below), and the sections below name the scope ones
+known. Error
 recovery and interleaved lexing (spec §13) are not built either.
 
 Some forms perl refuses as grammar fit neither category: nothing in the
@@ -1095,8 +1100,9 @@ accept them (scope, waypoint 2), each pinned in
   XTERM after `Foo`.
 - `foo { a => 1 } x 3;`: a block after a method, a hash after a declared sub.
 
-`print $fh [];` is accepted: perl refuses it through
-`indirob: scalar %prec PREC_LOW`, a precedence refusal (waypoint 2).
+`print $fh [];` is accepted by recognition and refused by the forest: perl
+refuses it through `indirob: scalar %prec PREC_LOW`, a precedence refusal
+(`TestWaypoint2Refusals`, beside `print $$fh[0];`).
 
 ### Slices, glob elements, postfix dereference and sigil casts
 
@@ -1217,9 +1223,13 @@ The correspondence is a hypothesis, amended once: `FUNC0OP` is niladic (`FUN0OP`
 `grammar/perly.go` states perly.y's 32 precedence declarations (`perlyPrecedence`, `%left|%right|%nonassoc
 TOKEN... # perly.y:N`, loosest first, each citing one line of `perly.y:150-182`), and every rule whose alternative
 carries a `%prec` carries it too, as `lhs: rhs %prec TOKEN # perly.y:N` (`TestPrecedenceCitations` holds them to
-perly.y's 39 uses). **Recognition ignores both** at waypoint 1 (spec §8): `TestPrecedenceIgnoredByRecognition`
-shows `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` still accepted. They are waypoint 2's data, and the
-generator's unused-precedence refusal reads them. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
+perly.y's 39 uses). **Recognition ignores both** (spec §8): `TestPrecedenceIgnoredByRecognition`
+shows `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` still accepted by recognition, and the forest's
+constraint refuses all three (`TestWaypoint2Refusals`). The generated tables (`make chart-tables`) carry no
+precedence: `grammar.Committed` carries it on the grammar, as `Grammar.Levels` (the declarations), each
+`Rule.Prec` (rule *r* of the grammar is rule *r* of its tables, since perly.y's port has no sequence rule) and
+`Grammar.Refused` (the four comparison chains the ledger marks refused-by-precedence, which the tables leave out),
+and `forest.NewPrecedence` reads them with the tables. The generator's unused-precedence refusal reads them too. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
 since its one rule (1512) is excluded interpolation-only and the refusal would refuse it.
 
 `TestLevelDifferences` (`grammar/levels.go`) compares each level, by number, with chapter 4's level table
@@ -1705,11 +1715,11 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
 
 ## The precedence constraint: `forest/precedence.go`
 
-Spec §8, built and refereed on toy grammars only (PRECTOY); PRECPERLY applies
-it to `perly.y`, and until then `forest.Parse` does not call it, so nothing the
-chart accepts, refuses or groups on Perl source has changed. It runs after the
-forest is built and reads only the forest and the grammar's tables: no Earley
-item gains a fact.
+Spec §8, built and refereed on toy grammars (PRECTOY) and applied to `perly.y`
+(PRECPERLY). `forest.Parse` builds the forest only; the constraint runs after
+it, `f.Constrain(forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`,
+as `TestWaypoint2Refusals` runs the pipeline. It reads only the forest, the
+grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The edge-context value.** `Constrain` judges each derivation in its edge
   context: the parser state the derivation holding it has reached at its
@@ -1744,6 +1754,14 @@ item gains a fact.
   derivation holding it there, and a file whose root has none is refused
   (`Constrain` returns false); the alternatives no surviving derivation uses
   are unlinked from the forest.
+- **Rules refused in an action.** `perly.y` refuses a non-chaining
+  comparison chain through four rules whose action is `yyerror`
+  (`termeqop: termeqop NCEQOP`, perly.y:1466-1487). The tables leave them out,
+  so recognition never derives them, but `NewPrecedence` builds their items
+  into its automaton and lookaheads, as bison's states hold them: there
+  `term: termeqop %prec PREC_LOW` meets the second `<=>` in a conflict the
+  shift wins, so `$a <=> $b <=> $c;` keeps no derivation, and neither does a
+  chain split by a tighter operator (`$a <=> $b + 1 <=> $c;`).
 - **The toy referees.** `offline/referee/toys/build.sh` builds thirteen toys with
   bison (a `%left`/`%right` ladder, `%nonassoc` chains, prefix and postfix
   operators, indirob and indirob after `sort`, two states after one symbol,
@@ -1756,16 +1774,34 @@ item gains a fact.
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
 
-Known limits, each for PRECPERLY to measure on `perly.y`: none in the parser
-states or their lookaheads, which are bison's (each reduction's LALR(1)
-lookahead is propagated over the LR(0) automaton to a fixed point, and on
-every toy equals bison's report state for state; the follow set, used before
-gate pass 2, refused `Y W T Z` in the `follow` toy, where bison has no
-conflict); an alternative kept in one parser state is kept
-in all (the `shortcut:` on `Constrain`), which leaves the verdict exact and
-can only add a derivation to what a later reader enumerates; and rules refused in an action (`termrelop NCRELOP`), whose
-items make the non-chaining comparisons' conflicts, are not in the port's
-tables, so a non-chaining comparison chain is no toy here.
+- **The perly.y referee.** `TestPrecedenceReferee` runs `forest.Parse` and
+  the constraint on each of the 708 kept generated sentences' renderings
+  (`testdata/precedence/`, above) and requires bison's verdict and grouping
+  on every one; they cover 716 of bison's 1,347 resolutions. A token admits a
+  set of terminals and bison read one, so the forest is first narrowed to
+  the sentence's own terminals (`foo` is `UNIOPSUB` there, not a bareword),
+  and a preamble's reductions are left out of the grouping, which counts
+  terminals from `GRAMPROG` at 0. `TestPrecedenceRefereeDetectsMismatch`
+  shows a swapped grouping and a flipped verdict reported, and
+  `TestPrecedenceKeepsCorpusAccepted` that no in-tree file perl and
+  recognition accept (the Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824)
+  is refused.
+
+Known limits, measured on `perly.y`: none in the parser states or their
+lookaheads, which are bison's (each reduction's LALR(1) lookahead is
+propagated over the LR(0) automaton to a fixed point, and on every toy equals
+bison's report state for state; the follow set, used before gate pass 2,
+refused `Y W T Z` in the `follow` toy, where bison has no conflict). An
+alternative kept in one parser state is kept in all (the `shortcut:` on
+`Constrain`), which leaves the verdict exact and can only add a derivation to
+what a later reader enumerates; on the 708 sentences it adds none (each keeps
+one grouping). The refused rules leave the tables' FIRST sets and
+nullability as they are (the `shortcut:` in `NewPrecedence`), exact because
+each of the four begins with its own left-hand side
+(`TestPrecedenceRefusedRulesLeftRecursive`). `optlistexpr: empty %prec
+PREC_LOW` (perly.y:1787), the one nullable rule with a precedence, is in the
+automaton as written: no bison resolution names it (ruled 2026-11-14, no
+guard added).
 
 ## The generated tables: `make chart-tables`
 
