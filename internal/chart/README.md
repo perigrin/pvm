@@ -182,12 +182,13 @@ Three limits hold off the corpus, where the gates cannot see them:
   `x(catch => $Foo::x);`; `perl -c`: syntax OK, `catch` is a hash key there) by
   the PERLY_DOLLAR class that guards a `catch (` variable, pinned in the same
   test.
-- **Accepted where perl refuses.** `print STDOUT $foo bar();` is accepted
-  (perl: syntax error). A non-keyword word before a `Variable` may read as
-  `METHCALL0` even after `print` or `say`, and `tdt-unseen` cannot see an
-  over-width inside a key it has already seen (`TestPortScopeDecidedKnownLimits`
-  pins the `print STDOUT $foo bar();` row). This is waypoint 2's refusal
-  work.
+- **Refused by resolve, accepted by recognition.** `print STDOUT $foo bar();`,
+  `say STDOUT $foo bar();` and `print STDOUT $foo bar;` are recognized, a
+  non-keyword word before a `Variable` reading as `METHCALL0` even after
+  `print` or `say`, and `forest.Parse` refuses them as perl does: resolve
+  (`forest/resolve.go`) keeps a word in a filehandle's slot BAREWORD only
+  (`TestScopeDecidedParity`, beside `print $foo bar();` accepted; see
+  "Indirect objects").
 
 ## The Guacamole corpus
 
@@ -1107,6 +1108,17 @@ refusal sits beside the declaration under which perl accepts it in
 `print x x 3;` stays accepted: `x` right after `print` carries no
 scope-decided reading in the token table, so resolve cannot read it as a
 filehandle (`TestResolveKnownLimits`).
+
+`print STDOUT $foo bar();`, `say STDOUT $foo bar();`, `print STDOUT $foo bar;`
+and their kin (`print STDERR`, `print(STDOUT`, `printf`, a declared `FH` or
+`bar`): recognition reads the handle as METHCALL0 with `$foo` its indirect
+object, as in `STDOUT $foo bar();`, which perl accepts. After `print` toke.c
+reads the word as a filehandle, or a call if declared, never a method, lexes
+`$foo` at XTERM and `bar` where an operator is expected, a syntax error; resolve
+drops the method reading, so `forest.Parse` refuses each. `print $foo bar();`
+stays accepted, `$foo` the handle (`TestScopeDecidedParity`,
+`TestPrintFilehandleVarWordForms`). `print {$fh} $foo bar();` is refused by
+recognition. The token key cannot state it: `print` is three tokens before `bar`.
 
 `print $fh [];` is accepted by recognition and refused by the forest: perl
 refuses it through `indirob: scalar %prec PREC_LOW`, a precedence refusal
