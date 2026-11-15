@@ -102,7 +102,9 @@ Since the resumption, **the precedence constraint** is applied to `perly.y`
 and agrees with bison on every kept generated sentence
 (`forest/precedence.go`, below).
 
-Not done, among the issues still open on `chart-perly-w2`: resolve by scope, the readings count, oracle grading, `PLUGIN_*`,
+Not done, among the issues still open on `chart-perly-w2`: resolve by
+features (resolve by declared and imported subs is built: "Scope-decided
+words"), the readings count, oracle grading, `PLUGIN_*`,
 the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
 M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
 `t/` parity and speed checkpoint 3.
@@ -509,7 +511,7 @@ clock and a collector, so it is tested on fake timings
   forest; a file the chart refuses has no forest, so `forest.Build` returns
   nil at once), so the forest key times the build after
   recognition as `forest.Bench` does, not `forest.Parse`, which runs all
-  three (`TestSpeedStagesTimed`). The three are in RD units and their sum,
+  three and resolve (`TestSpeedStagesTimed`). The three are in RD units and their sum,
   lex + recognize + forest, is printed on stderr
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
@@ -1088,17 +1090,23 @@ as-written rule, so `&$code`, `&$code(1)` and `\&$code` are accepted).
   package sub's, scope decides). A glob's name and a bareword filehandle are
   BAREWORD only.
 
-Accepted where perl refuses them, because a declaration would make perl
-accept them (scope, waypoint 2), each pinned in
-`TestPortIndirectObjectsRefusals`:
+Recognized where perl refuses them, because a declaration would make perl
+accept them, and refused by resolve ("Scope-decided words", `forest/resolve.go`).
+Recognition's acceptance is pinned in `TestPortIndirectObjectsRefusals`; each
+refusal sits beside the declaration under which perl accepts it in
+`TestResolveScopeDecidedWords`:
 
-- `print FH x 3;`, `print(FH x 3);`, `print x x 3;` and their kin after
-  printf, say, open, binmode, exec and system: toke.c reads the word as a
-  filehandle only when no sub of that name is declared, and
-  `use constant FH => 1; print FH x 3;` is valid perl.
-- `new Foo x 3;`: with no declared `new` intuit_method leaves PL_expect at
-  XTERM after `Foo`.
+- `print FH x 3;`, `print(FH x 3);` and their kin after printf, say, open,
+  binmode, exec and system: toke.c reads the word as a filehandle only when no
+  sub of that name is declared, and leaves PL_expect at XTERM after it, so `x`
+  is a word; `use constant FH => 1; print FH x 3;` is valid perl.
+- `new Foo x 3;` and `foo bar x 3;`: with no declared `new` or `foo`
+  intuit_method leaves PL_expect at XTERM after the class.
 - `foo { a => 1 } x 3;`: a block after a method, a hash after a declared sub.
+
+`print x x 3;` stays accepted: `x` right after `print` carries no
+scope-decided reading in the token table, so resolve cannot read it as a
+filehandle (`TestResolveKnownLimits`).
 
 `print $fh [];` is accepted by recognition and refused by the forest: perl
 refuses it through `indirob: scalar %prec PREC_LOW`, a precedence refusal
@@ -1152,7 +1160,7 @@ lexer's token (v0.1 `01a1a9d4`).
 
 ### Scope-decided words
 
-Whether a bareword is a declared sub, and of which prototype, is scope, decided after the chart (waypoint 2).
+Whether a bareword is a declared sub, and of which prototype, is scope, decided after the chart by resolve (below).
 A word the neighbours leave undecided (`TestPortScopeDecidedSuperpositionBounded`) is every terminal it could be:
 BAREWORD, NOAMP, FUNC0SUB and UNIOPSUB, LSTOPSUB too before a `{`, and METHCALL0 where the indirect objects
 put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the rest, as toke.c's yyl_just_a_word does:
@@ -1199,9 +1207,48 @@ scans the word; by perigrin's ruling ("Pin as known limits") the root is the lex
 delimiters (`@y = CORE::qw(a b);`, `$y = CORE::q{x};`, `$y = CORE::tr/a/b/;`) are refused where perl accepts them:
 internal/lexer emits a `CORE::` quote-like as a word and loose tokens (v0.1 `01a1ae56`), so stripping `CORE::` leaves
 the operator's name with no delimiters.
-`print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` stay accepted (scope, above), and `x 1;` is
-accepted as `foo 1;` is: perl refuses both, and accepts each once a sub of that name is declared (`sub x; x 1;`).
-`terminals-per-token` and `items-per-token` rise by design.
+Recognition accepts `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` ("Indirect objects"),
+and `x 1;` as `foo 1;`: perl refuses each, and accepts each once a sub of that name is declared (`sub x; x 1;`), and
+`forest.Parse` refuses each through resolve. `terminals-per-token` and `items-per-token` rise by design.
+
+#### Resolve: `forest/resolve.go`
+
+`forest.Parse(tab, src, scope)` runs resolve after `Build` (spec §3 rule 12, §9.4, the scope-decided half). A word
+whose token admits NOAMP is scope's; every other word keeps the readings its key gave it (`$x->foo`, `$h{foo}`,
+`foo => 1`; `TestResolveKeepsKeyDecidedWords`). For each, resolve looks up what the word names at its byte and keeps
+the readings toke.c's yyl_just_a_word and intuit_method give it there, then drops from the token after it the
+readings PL_expect rules out: where toke.c leaves XTERM, a token that can begin a term (`tab.First` of `term`) keeps
+only those readings. An alternative left without a derivation is unlinked; a file whose root keeps none is refused
+with reason `scope`, at the first dropped reading reached from the root.
+
+- **Declared subs** are read from the file's own forest: each `bare_statement_sub_traditional` or
+  `bare_statement_sub_signature` node naming a sub, in scope from its node's end, where perl compiles it
+  (`sub foo { foo 1; }` is refused, `sub foo; sub foo { foo 1; }` accepted). Its prototype is the last PROTOTYPE
+  token before its body, the `:prototype` attribute's included. A package sub is keyed by its qualified name, in the
+  package of the `package` statement or block around it (`TestResolvePackageScopedSubs`); a `my` or `state` sub
+  lasts to its block's `}`.
+- **Imported subs** are the caller's `forest.Scope`, `parse.Imports` over a tree from `parse.ParseFileFrom` or
+  `parse.ParseWithLoader`, names and prototypes; the forest loads no module, and an empty `Scope` imports nothing
+  (`TestResolveEmptyScope`). shortcut: imports are file-wide, so a call written before its `use` reads as imported
+  (perigrin, 2026-11-10, "File-wide for now"): the export does not carry each import's position
+  (`TestResolveImportsAreFileWide`). An import whose prototype parse does not know (an XS sub) keeps every reading.
+- **By what the word names.** Undeclared: before a word that is no keyword and no declared sub it is a method and
+  that word its class (METHCALL0 or METHCALL), XTERM after the class; before a `{` a method whose block is its
+  indirect object, XTERM after the block; after a list operator taking a filehandle a filehandle, XTERM after it;
+  else BAREWORD. Declared: by its prototype as yyl_just_a_word's switch reads it, an empty one BAREWORD or
+  FUNC0SUB, a one-argument one UNIOPSUB, `&` before a `{` LSTOPSUB, any other or none NOAMP, each but the first
+  with XTERM after it.
+
+Limits, each pinned in `TestResolveKnownLimits` or `TestResolveImportsAreFileWide`: shortcut: a qualified name the
+file does not declare keeps every reading, since a module's subs are seen only through what it imports; shortcut: a
+declared sub before a word that is no keyword and no declared sub keeps its method readings, since intuit_method then
+asks whether that word names a package or a filehandle, which resolve cannot see; shortcut: after a filehandle a
+declared `x` keeps its operator reading, since the token table gives `x` after a word no call reading
+(`addStatementX`), so `sub x {} print FH x 3;` is accepted with perl's verdict and not its grouping; `print x x 3;` is
+accepted (above, "Indirect objects"); `new Foo * 2;` is refused where perl reads `*2` as a glob, since
+internal/lexer emits the `2` a Number. Subs a `BEGIN` block or `use subs` makes are not seen, nor `class`'s package.
+The corpus guard: resolve refuses no Guacamole case or `std5k.pl` that perl accepts and recognition accepts, with the
+scope `parse.ParseFileFrom` gives each (`TestResolveKeepsCorpusAccepted`, 823 files).
 
 ### Builtin classes against `parse.CoreShapes()`
 
@@ -1556,8 +1603,10 @@ P2 is a stop reported to perigrin.
 
 ## The forest: `forest`
 
-`forest.Parse(tab, src)` lexes and recognizes `src`, then builds its shared
-packed forest after recognition (spec §9.4). It is the single entry the
+`forest.Parse(tab, src, scope)` lexes and recognizes `src`, then builds its shared
+packed forest after recognition (spec §9.4), and resolves its scope-decided
+words ("Scope-decided words"), refusing with reason `scope` a file resolve
+leaves no derivation. It is the single entry the
 precedence constraint, resolve and the readings count extend. A file the
 chart refuses gets a `Refusal` and no forest, never a partial one
 (`TestForestRefusedChartHasNoForest`). `Parse` recognizes first, as the
@@ -1682,7 +1731,8 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   (`TestForestLinearLatticesOnly`). Index the edges by node, and keep a
   `;`'s completions apart, when interleaved lexing branches.
 - **Forest identity.** `TestForestDigestGolden`
-  (`forest/forestdigest_test.go`) holds the forests of the corpus sample to
+  (`forest/forestdigest_test.go`) holds the forests `Build` makes of the
+  corpus sample, before resolve, to
   `forest/testdata/forest-digest.golden`: the accepted count, then one line
   per accepted file, its path and the hash of a text dump of its forest. The
   dump visits every node reachable from the root and writes them in a fixed

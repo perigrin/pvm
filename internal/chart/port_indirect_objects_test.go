@@ -34,10 +34,11 @@ func TestPortIndirectObjects(t *testing.T) {
 // word and perl refuses `sort foo x 3;`. A ( after sort lets the word after it be one too (yyl_leftparen,
 // "allow print(STDOUT 123)"). After the other list operators that take a filehandle, the bareword is one
 // only when no sub of that name is declared: `print FH x 3;` is refused by perl without a declaration
-// and accepted with `use constant FH => 1;`, so scope decides it and the chart accepts it.
-// `new Foo x 3;` is the same: perl refuses it unless `new` is a declared sub (intuit_method leaves
-// PL_expect at XTERM after Foo only when it is not), and so is `foo { a => 1 } x 3;`, a block after a method
-// and a hash after a declared sub.
+// and accepted with `use constant FH => 1;`, so scope decides it: recognition accepts it and resolve
+// refuses it (forest.TestResolveScopeDecidedWords). `new Foo x 3;` is the same: perl refuses it unless `new`
+// is a declared sub (intuit_method leaves PL_expect at XTERM after Foo only when it is not), and so is
+// `foo { a => 1 } x 3;`, a block after a method and a hash after a declared sub. `print x x 3;` stays
+// accepted after resolve too: x after print carries no scope-decided reading (forest.TestResolveKnownLimits).
 func TestPortIndirectObjectsRefusals(t *testing.T) {
 	for _, f := range snippets(t, "indirect-objects-refused") {
 		src, err := os.ReadFile(f)
