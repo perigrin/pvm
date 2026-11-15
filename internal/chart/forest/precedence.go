@@ -1,9 +1,10 @@
 // ABOUTME: The precedence constraint (spec §8): bison's resolutions applied to a built forest, after recognition.
-// ABOUTME: Each derivation is judged by its edge context, the symbol before it and the terminal after it; items are untouched.
+// ABOUTME: Each derivation is judged by its edge context, the parser state before it and the terminal after it; items are untouched.
 
 package forest
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
@@ -11,31 +12,33 @@ import (
 )
 
 // Precedence is a grammar's precedence declarations, bison's way: each terminal's level, each rule's (its %prec
-// token's, else its last terminal's), each level's associativity, and what a parser state can shift and reduce
-// after each pair of symbols, read from the grammar alone.
+// token's, else its last terminal's), each level's associativity, and bison's LR(0) parser states, read from
+// the grammar alone.
 type Precedence struct {
-	tab   *grammar.Tables
-	term  []int    // by symbol: a terminal's level, 0 for none
-	rule  []int    // by rule: its level, 0 for none
-	assoc []string // by level: left, right or nonassoc
-	// at is the state after each symbol, at[λ+1] (λ -1 the start of the file): the terminals it shifts.
-	// after is the state after λ then X: the terminals it shifts and the rules it reduces.
-	at    [][]int32
-	after map[[2]int32]step
+	tab    *grammar.Tables
+	term   []int     // by symbol: a terminal's level, 0 for none
+	rule   []int     // by rule: its level, 0 for none
+	assoc  []string  // by level: left, right or nonassoc
+	states []lrState // state 0 is the file's start
 }
 
-// step is a state's shifts, terminal ids, and reductions, rule ids, both sorted.
-type step struct{ shift, reduce []int32 }
+// lrState is an LR(0) state: the terminals it shifts and the rules it reduces, both sorted, and its goto on
+// each symbol after a dot.
+type lrState struct {
+	shift, reduce []int32
+	next          map[int32]int32
+}
 
 // NewPrecedence is levels, loosest first, over tab, whose rule r carries the %prec token rulePrec[r] ("" for
 // none). A token that is no terminal of tab, as a %prec-only token is, still gives its rules their level.
 //
-// The state after a symbol λ is approximated from λ alone: every item whose dot follows λ, closed. That is the
-// derivation's left edge context, never the chart's state; bison's state after λ holds a subset of those items,
-// so a conflict found here that bison's state lacks is a disagreement the toy referees would show.
+// The states are bison's: the canonical LR(0) automaton of the grammar, closure and goto, which bison's LALR(1)
+// tables share. The constraint carries the one a derivation reaches, from the file's start along the symbols
+// before it, so a conflict is found exactly where bison's state has one. They are built from the tables alone,
+// never read from the chart, whose split states are not bison's.
 func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string) *Precedence {
 	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), rule: make([]int, len(tab.Rules)),
-		assoc: []string{""}, after: map[[2]int32]step{}}
+		assoc: []string{""}}
 	level := map[string]int{}
 	for i, l := range levels {
 		p.assoc = append(p.assoc, l.Assoc)
@@ -62,14 +65,11 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 	}
 	base := grammar.Derived(tab, buildForestGrammar).core // base[r] is rule r's item at dot 0
 	byLHS := make([][]int, len(tab.Symbols))
-	seeds := make([][]int, len(tab.Symbols)+1) // seeds[λ+1]: the items whose dot follows λ, the start's at 0
+	var start []int
 	for r, rule := range tab.Rules {
 		byLHS[rule.LHS] = append(byLHS[rule.LHS], r)
 		if rule.LHS == tab.Start {
-			seeds[0] = append(seeds[0], base[r])
-		}
-		for d, x := range rule.RHS {
-			seeds[x+1] = append(seeds[x+1], base[r]+d+1)
+			start = append(start, base[r])
 		}
 	}
 	closure := func(items []int) []int {
@@ -89,35 +89,55 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		}
 		return slices.Sorted(maps.Keys(in))
 	}
-	steps := func(items []int) step {
-		var s step
-		for _, i := range items {
-			it := tab.Items[i]
-			if rhs := tab.Rules[it.Rule].RHS; it.Dot == len(rhs) {
-				s.reduce = append(s.reduce, int32(it.Rule))
-			} else if tab.Symbols[rhs[it.Dot]].Terminal {
-				s.shift = append(s.shift, int32(rhs[it.Dot]))
-			}
+	id := map[string]int32{} // each state's items, as text, to its index
+	var items [][]int
+	intern := func(set []int) int32 {
+		k := fmt.Sprint(set)
+		if i, ok := id[k]; ok {
+			return i
 		}
-		slices.Sort(s.shift)
-		s.shift = slices.Compact(s.shift)
-		return s
+		id[k] = int32(len(items))
+		items = append(items, set)
+		return id[k]
 	}
-	for lambda := -1; lambda < len(tab.Symbols); lambda++ {
-		state := closure(seeds[lambda+1])
-		p.at = append(p.at, steps(state).shift)
-		next := map[int][]int{} // each symbol after a dot, and the items it advances to
-		for _, i := range state {
+	intern(closure(start))
+	for s := 0; s < len(items); s++ { // breadth first; intern appends the states it finds
+		st := lrState{next: map[int32]int32{}}
+		kernels := map[int][]int{} // each symbol after a dot, and the items it advances to
+		for _, i := range items[s] {
 			it := tab.Items[i]
-			if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) {
-				next[rhs[it.Dot]] = append(next[rhs[it.Dot]], i+1)
+			rhs := tab.Rules[it.Rule].RHS
+			switch {
+			case it.Dot == len(rhs):
+				st.reduce = append(st.reduce, int32(it.Rule))
+			case tab.Symbols[rhs[it.Dot]].Terminal:
+				st.shift = append(st.shift, int32(rhs[it.Dot]))
+			}
+			if it.Dot < len(rhs) {
+				kernels[rhs[it.Dot]] = append(kernels[rhs[it.Dot]], i+1)
 			}
 		}
-		for x, items := range next {
-			p.after[[2]int32{int32(lambda), int32(x)}] = steps(closure(items))
+		slices.Sort(st.shift)
+		st.shift = slices.Compact(st.shift)
+		for _, x := range slices.Sorted(maps.Keys(kernels)) {
+			st.next[int32(x)] = intern(closure(kernels[x]))
 		}
+		p.states = append(p.states, st)
 	}
 	return p
+}
+
+// walk is the state reached from state s over syms. Every state a derivation begins a rule in holds the
+// rule's first item, so the goto exists; a missing one is a constrainer bug.
+func (p *Precedence) walk(s int32, syms []int) int32 {
+	for _, x := range syms {
+		next, ok := p.states[s].next[int32(x)]
+		if !ok {
+			panic("forest: no goto in the precedence constraint's parser state")
+		}
+		s = next
+	}
+	return s
 }
 
 // resolution is bison's resolution of a conflict between reducing a rule and shifting a terminal.
@@ -153,29 +173,21 @@ func (p *Precedence) resolve(r, t int) resolution {
 	return refuse
 }
 
-// reduces reports whether bison's resolution lets rule r reduce with t next, its last symbol following lambda
-// (its own, or the derivation's where the rule has one symbol): where the state can also shift t, the
-// resolution must be reduce.
-func (p *Precedence) reduces(r int, lambda int32, t int) bool {
-	rhs := p.tab.Rules[r].RHS
-	shifts := p.at[lambda+1]
-	if n := len(rhs); n > 0 {
-		if n > 1 {
-			lambda = int32(rhs[n-2])
-		}
-		shifts = p.after[[2]int32{lambda, int32(rhs[n-1])}].shift
-	}
-	if _, conflict := slices.BinarySearch(shifts, int32(t)); !conflict {
+// reduces reports whether bison's resolution lets rule r, begun in state s, reduce with t next: where the
+// state after its symbols can also shift t, the resolution must be reduce.
+func (p *Precedence) reduces(r int, s int32, t int) bool {
+	s = p.walk(s, p.tab.Rules[r].RHS)
+	if _, conflict := slices.BinarySearch(p.states[s].shift, int32(t)); !conflict {
 		return true
 	}
 	res := p.resolve(r, t)
 	return res == unresolved || res == reduce
 }
 
-// shifts reports whether bison's resolution lets t shift after x, which follows lambda: every rule the state
-// there can reduce with t next must lose to the shift.
-func (p *Precedence) shifts(lambda, x int32, t int) bool {
-	for _, r := range p.after[[2]int32{lambda, x}].reduce {
+// shifts reports whether bison's resolution lets t shift in state s: every rule s can reduce with t next must
+// lose to the shift.
+func (p *Precedence) shifts(s int32, t int) bool {
+	for _, r := range p.states[s].reduce {
 		if _, la := slices.BinarySearch(p.tab.Follow[p.tab.Rules[r].LHS], t); !la {
 			continue
 		}
@@ -188,18 +200,19 @@ func (p *Precedence) shifts(lambda, x int32, t int) bool {
 
 // Constrain applies p to f in place: it keeps each alternative some derivation of the file bison's
 // resolutions would build passes through and drops the rest, true; or refuses the file, false, where the root
-// keeps no derivation. A derivation is judged in its edge context: lambda, the symbol before its span in the
-// derivation holding it (-1 at the file's start), and the terminal after it. Each reduction is checked against
-// the terminal after it, each shift against the reductions the state before it holds; a span left with no
-// derivation in its context fails every derivation holding it there.
-// shortcut: an alternative kept in one context is kept in all, so a node shared by contexts that keep different
-// alternatives can leave a combination no context passes; the toy forests share none, revisit in PRECPERLY.
+// keeps no derivation. A derivation is judged in its edge context: the parser state the derivation holding it
+// reaches at its span's start (state 0 at the file's start), and the terminal after it. Each reduction is
+// checked against the terminal after it, each shift against the reductions the state before it holds; a span
+// left with no derivation in its context fails every derivation holding it there.
+// shortcut: an alternative kept in one context is kept in all, so a node reached in two parser states that keep
+// different alternatives keeps both; the verdict is exact, and only the derivations a later reader enumerates
+// can include one bison builds in neither state. Revisit if READINGS counts one.
 func (f *Forest) Constrain(p *Precedence) bool {
 	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
-	if len(c.eval(f.Root, -1, p.tab.EOF)) == 0 {
+	if len(c.eval(f.Root, 0, p.tab.EOF)) == 0 {
 		return false
 	}
-	c.mark(f.Root, -1, p.tab.EOF, -1)
+	c.mark(f.Root, 0, p.tab.EOF, -1)
 	for n := range f.Nodes {
 		a := &f.Nodes[n].Alt
 		for *a != 0 {
@@ -222,9 +235,9 @@ type constrainer struct {
 	kept   []bool          // by alternative
 }
 
-// ctx is a node in an edge context: the symbol before it and the terminal after it, and for mark the
+// ctx is a node in an edge context: the parser state at its start and the terminal after it, and for mark the
 // terminal its derivations must begin with (-1 any).
-type ctx struct{ n, lambda, t, first int32 }
+type ctx struct{ n, state, t, first int32 }
 
 // rule is the rule of a symbol node's or rule position's alternative a, and how many of its symbols a covers.
 func (c *constrainer) rule(n, a int32) (r, m int) {
@@ -235,24 +248,24 @@ func (c *constrainer) rule(n, a int32) (r, m int) {
 	return r, len(c.p.tab.Rules[r].RHS)
 }
 
-// eval is the first terminals of n's derivations that bison's resolutions pass in context (lambda, t), sorted;
+// eval is the first terminals of n's derivations that bison's resolutions pass in context (s, t), sorted;
 // none where every one is forbidden. A span with no tokens begins with t.
-func (c *constrainer) eval(n, lambda int32, t int) []int32 {
+func (c *constrainer) eval(n, s int32, t int) []int32 {
 	nd := c.f.Nodes[n]
 	if nd.Alt == 0 {
 		return []int32{nd.Sym} // a leaf
 	}
-	k := ctx{n, lambda, int32(t), -1}
+	k := ctx{n, s, int32(t), -1}
 	if out, ok := c.firsts[k]; ok {
 		return out
 	}
 	var out []int32
 	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
 		r, m := c.rule(n, a)
-		if nd.Sym >= 0 && !c.p.reduces(r, lambda, t) {
+		if nd.Sym >= 0 && !c.p.reduces(r, s, t) {
 			continue
 		}
-		out = append(out, c.seq(a, r, m, lambda, t, nil)...)
+		out = append(out, c.seq(a, r, m, s, t, nil)...)
 	}
 	slices.Sort(out)
 	out = slices.Compact(out)
@@ -260,26 +273,20 @@ func (c *constrainer) eval(n, lambda int32, t int) []int32 {
 	return out
 }
 
-// seq is the first terminals of alternative a's derivations, rule r's first m symbols after lambda with t next,
-// that bison's resolutions pass. With keep it also marks, through keep, the children of each derivation whose
-// first terminal it accepts.
-func (c *constrainer) seq(a int32, r, m int, lambda int32, t int, keep func(first int32) bool) []int32 {
+// seq is the first terminals of alternative a's derivations, rule r's first m symbols begun in state s with t
+// next, that bison's resolutions pass. With keep it also marks, through keep, the children of each derivation
+// whose first terminal it accepts.
+func (c *constrainer) seq(a int32, r, m int, s int32, t int, keep func(first int32) bool) []int32 {
 	if m == 0 {
 		return []int32{int32(t)}
 	}
-	rhs := c.p.tab.Rules[r].RHS
 	alt := c.f.Alts[a]
-	before := func(i int) int32 { // the symbol before rule r's i-th, from 0
-		if i == 0 {
-			return lambda
-		}
-		return int32(rhs[i-1])
-	}
-	right := c.eval(alt.Right, before(m-1), t)
+	before := c.p.walk(s, c.p.tab.Rules[r].RHS[:m-1]) // the state the right child begins in
+	right := c.eval(alt.Right, before, t)
 	if m == 1 {
 		for _, f := range right {
 			if keep != nil && keep(f) {
-				c.mark(alt.Right, before(0), t, f)
+				c.mark(alt.Right, before, t, f)
 			}
 		}
 		return right
@@ -287,30 +294,30 @@ func (c *constrainer) seq(a int32, r, m int, lambda int32, t int, keep func(firs
 	var out []int32
 	empty := c.f.Nodes[alt.Right].From == c.f.Nodes[alt.Right].To && c.f.Nodes[alt.Right].Alt != 0
 	for _, f := range right {
-		// A shift of f after symbol m-1, unless the right child is empty and reduces before f is read.
-		if !empty && !c.p.shifts(before(m-2), int32(rhs[m-2]), int(f)) {
+		// A shift of f where the right child begins, unless the right child is empty and reduces before f is read.
+		if !empty && !c.p.shifts(before, int(f)) {
 			continue
 		}
-		left := c.eval(alt.Left, lambda, int(f))
+		left := c.eval(alt.Left, s, int(f))
 		out = append(out, left...)
 		if keep == nil {
 			continue
 		}
 		for _, l := range left {
 			if keep(l) {
-				c.mark(alt.Right, before(m-1), t, f)
-				c.mark(alt.Left, lambda, int(f), l)
+				c.mark(alt.Right, before, t, f)
+				c.mark(alt.Left, s, int(f), l)
 			}
 		}
 	}
 	return out
 }
 
-// mark keeps the alternatives of n's derivations that bison's resolutions pass in context (lambda, t) and that
+// mark keeps the alternatives of n's derivations that bison's resolutions pass in context (s, t) and that
 // begin with first (-1 any), and those of their children.
-func (c *constrainer) mark(n, lambda int32, t int, first int32) {
+func (c *constrainer) mark(n, s int32, t int, first int32) {
 	nd := c.f.Nodes[n]
-	k := ctx{n, lambda, int32(t), first}
+	k := ctx{n, s, int32(t), first}
 	if nd.Alt == 0 || c.marked[k] {
 		return
 	}
@@ -318,10 +325,10 @@ func (c *constrainer) mark(n, lambda int32, t int, first int32) {
 	keep := func(f int32) bool { return first < 0 || f == first }
 	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
 		r, m := c.rule(n, a)
-		if nd.Sym >= 0 && !c.p.reduces(r, lambda, t) {
+		if nd.Sym >= 0 && !c.p.reduces(r, s, t) {
 			continue
 		}
-		if slices.ContainsFunc(c.seq(a, r, m, lambda, t, keep), keep) {
+		if slices.ContainsFunc(c.seq(a, r, m, s, t, keep), keep) {
 			c.kept[a] = true
 		}
 	}

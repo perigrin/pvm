@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # ABOUTME: Reads a toy grammar (stdin) and writes its bison referee, its fixture header, or its sentences (stdout).
-# ABOUTME: Usage: toys.pl bison|header|sentences <toy.y>; build.sh runs all three. Toys have no empty rules.
+# ABOUTME: Usage: toys.pl bison|header|sentences <toy.y>; build.sh runs all three.
 use strict;
 use warnings;
 
@@ -26,7 +26,6 @@ for (split /\n/, $rules) {
 	else                  { die "toys.pl: cannot read rule line: $_\n" }
 	my ($syms, $prec) = /^(.*?)(?:%prec\s+(\w+))?\s*$/;
 	my @s = split ' ', $syms;
-	die "toys.pl: $lhs has an empty alternative\n" unless @s;
 	push @alts, [ $lhs, \@s, $prec ];
 }
 my %nonterm = map { $_->[0] => 1 } @alts;
@@ -35,7 +34,7 @@ if ($mode eq 'header') {
 	print "level $_->[0] @$_[1 .. $#$_]\n" for @levels;
 	for my $i (0 .. $#alts) {
 		my ($l, $s, $p) = @{ $alts[$i] };
-		print "rule $i $l: @$s", (defined $p ? " %prec $p" : ''), "\n";
+		print "rule $i $l:", (@$s ? " @$s" : ''), (defined $p ? " %prec $p" : ''), "\n";
 	}
 	exit;
 }
@@ -43,8 +42,8 @@ if ($mode eq 'header') {
 if ($mode eq 'sentences') {
 	# Every string the rules derive of up to $max terminals, by length, then every proper prefix of one.
 	my %lang;    # nonterminal => length => {string => 1}
-	for my $n (1 .. $max) {
-		for (my $changed = 1; $changed;) {    # unit rules feed one length from itself
+	for my $n (0 .. $max) {
+		for (my $changed = 1; $changed;) {    # unit and empty rules feed one length from itself
 			$changed = 0;
 			for my $a (@alts) {
 				for my $str (derive($a->[1], $n, \%lang)) {
@@ -62,27 +61,28 @@ if ($mode eq 'sentences') {
 	exit;
 }
 
-# The strings of exactly $n terminals that the symbols @$syms derive, from %$lang's shorter strings.
+# The strings of exactly $n terminals that the symbols @$syms derive, from %$lang's strings so far.
 sub derive {
 	my ($syms, $n, $lang) = @_;
+	return $n == 0 ? ('') : () unless @$syms;
 	my ($first, @rest) = @$syms;
-	return () if $n < @$syms;
 	my @out;
-	for my $k (1 .. $n - @rest) {
+	for my $k (0 .. $n) {
 		my @heads = $nonterm{$first} ? keys %{ $lang->{$first}{$k} // {} } : $k == 1 ? ($first) : ();
-		next unless @heads;
-		my @tails = @rest ? derive(\@rest, $n - $k, $lang) : $k == $n ? ('') : ();
-		for my $h (@heads) { push @out, map { $_ eq '' ? $h : "$h $_" } @tails }
+		for my $h (@heads) {
+			push @out, map { join ' ', grep { $_ ne '' } $h, $_ } derive(\@rest, $n - $k, $lang);
+		}
 	}
 	return @out;
 }
 
 # bison: the toy with a grouping trace on every rule and a driver reading one sentence per line.
 print "%{\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n",
-  "int yylex(void);\nvoid yyerror(const char *);\nstatic void trace(int, int, int);\n%}\n%locations\n", $decls, "%%\n";
+  "int yylex(void);\nvoid yyerror(const char *);\nstatic void trace(int, int, int);\n%}\n%locations\n",
+  "%initial-action { \@\$.first_line = \@\$.last_line = 0; }\n", $decls, "%%\n";
 for my $i (0 .. $#alts) {
 	my ($l, $s, $p) = @{ $alts[$i] };
-	print "$l: @$s", (defined $p ? " %prec $p" : ''), " { trace($i, \@\$.first_line, \@\$.last_line); };\n";
+	print "$l: ", (@$s ? "@$s" : '%empty'), (defined $p ? " %prec $p" : ''), " { trace($i, \@\$.first_line, \@\$.last_line); };\n";
 }
 print "%%\nstatic const struct { const char *name; int tok; } table[] = {\n";
 print qq|\t{ "$_", $_ },\n| for @tokens;

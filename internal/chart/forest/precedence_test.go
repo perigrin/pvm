@@ -19,7 +19,7 @@ import (
 var toyDir = filepath.Join("..", "testdata", "precedence", "toys")
 
 // toyNames are the toys build.sh writes; a missing or extra fixture fails TestPrecedenceToyFixturesNonEmpty.
-var toyNames = []string{"indirob", "ladder", "mixed", "nonassoc", "prefix"}
+var toyNames = []string{"empty", "indirob", "indirobsort", "ladder", "mixed", "nonassoc", "prefix", "twostates"}
 
 // toySentence is one fixture line: bison's verdict, its grouping (- where refused) and the terminals.
 type toySentence struct {
