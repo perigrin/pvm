@@ -16,7 +16,21 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
+
+// builtForest is src's forest as forest.Build makes it from the chart, before resolve: the precedence constraint and
+// its bison referee read the token sequence's grammar, which scope does not decide.
+// A recognition error gives no forest, as forest.Parse's refusal did.
+func builtForest(tab *grammar.Tables, src []byte) *forest.Forest {
+	s, _ := lex.Lex(src, tab.Tokens)
+	l := lex.Linear(s)
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	if err != nil {
+		return nil
+	}
+	return forest.Build(tab, c, l)
+}
 
 func TestPrecedenceIgnoredByRecognition(t *testing.T) {
 	g, _, err := grammar.Committed()
@@ -91,7 +105,7 @@ func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
 	}
 }
 
-// constrainSource is the whole pipeline's verdict on src: chart/lex, recognition, the forest and the constraint.
+// constrainSource is the verdict on src of chart/lex, recognition, Build's forest before resolve and the constraint.
 func constrainSource(t *testing.T, src []byte) bool {
 	t.Helper()
 	tab, err := committed()
@@ -102,7 +116,7 @@ func constrainSource(t *testing.T, src []byte) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, _ := forest.Parse(tab, src)
+	f := builtForest(tab, src)
 	return f != nil && f.Constrain(p)
 }
 
@@ -159,7 +173,8 @@ func newReferee(t *testing.T) *referee {
 	return r
 }
 
-// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: forest.Parse, its derivations
+// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: Build's forest before resolve,
+// since bison's token choice stands in for scope, its derivations
 // narrowed to s's own terminals (a token admits a set of terminals, and bison read one of them), then the constraint.
 // The grouping is the referee's: each reduction of a rule carrying a precedence, line:from-to over terminal indexes
 // (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
@@ -174,7 +189,7 @@ func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
 	for _, name := range s.terms[1:] { // after GRAMPROG
 		want = append(want, r.terminal[name])
 	}
-	f, _ := forest.Parse(r.tab, []byte(s.rendering))
+	f := builtForest(r.tab, []byte(s.rendering))
 	if f == nil || !narrow(f, want, skip) || !f.Constrain(r.p) {
 		return "refuse", "-"
 	}
@@ -352,7 +367,7 @@ func TestPrecedenceKeepsCorpusAccepted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f, _ := forest.Parse(tab, src)
+		f := builtForest(tab, src)
 		if f == nil {
 			continue
 		}

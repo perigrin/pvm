@@ -119,7 +119,7 @@ func TestForestReparseIndependent(t *testing.T) {
 // parsed is src's forest, failing t where the chart refuses it.
 func parsed(t *testing.T, tab *grammar.Tables, src []byte) *Forest {
 	t.Helper()
-	f, ref := Parse(tab, src)
+	f, ref := Parse(tab, src, Scope{})
 	if f == nil {
 		t.Fatalf("%.40q: refused %+v", src, ref)
 	}
@@ -133,12 +133,12 @@ func parsed(t *testing.T, tab *grammar.Tables, src []byte) *Forest {
 func TestForestRefusedAndEmptySources(t *testing.T) {
 	tab := committedTables(t)
 	for _, src := range []string{"my $x = ;\n", "1 +", "}", "print <<EOT;\nno terminator\n"} {
-		if f, ref := Parse(tab, []byte(src)); f != nil || ref == (Refusal{}) {
+		if f, ref := Parse(tab, []byte(src), Scope{}); f != nil || ref == (Refusal{}) {
 			t.Errorf("%q: forest %v, refusal %+v; want none and a refusal", src, f != nil, ref)
 		}
 	}
 	for _, src := range []string{"", "\n", "# a comment\n"} {
-		f, ref := Parse(tab, []byte(src))
+		f, ref := Parse(tab, []byte(src), Scope{})
 		if f == nil {
 			t.Fatalf("%q: refused %+v", src, ref)
 		}

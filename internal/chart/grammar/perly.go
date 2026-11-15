@@ -1888,6 +1888,16 @@ func init() {
 			seen[key] = true
 		}
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
+		// After a term toke.c's yyl_ampersand reads & as the bitwise and (PL_expect == XOPERATOR, BAop(OP_BIT_AND)),
+		// where internal/lexer emits the & after a word as a sub's sigil: after a word no class names, which scope
+		// may leave a term (`my $x = FOO & BAR;`), it is BITANDOP too, on x's neighbours.
+		// shortcut: only after such a word, the one resolve reads; a keyword that completes a term (`time & 1`)
+		// keeps the sigil alone, as before; widen to every x neighbour when a corpus shows one.
+		if n := x.Prev1; n != nil && n.Kind == lexer.Word && n.Text == OtherWord {
+			amp := x
+			amp.Kind, amp.Text = ptr(lexer.FuncSigil), nil
+			perlyClasses = append(perlyClasses, ClassDecl{"BITANDOP", amp})
+		}
 	}
 	perlyClasses = addStatementX(perlyClasses) // after x's MULOP: these complete a term the word x's BAREWORD already completes
 	limitBlockBrace(perlyClasses)

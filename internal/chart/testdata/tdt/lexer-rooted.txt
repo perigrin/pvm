@@ -62,9 +62,6 @@ T1/end_capture_destruction_order.t 120 01a1ad1d-bc7b
 T1/eval_main_nested_package_method.t 755 01a1ad1d-bc7b
 T1/eval_string_seed_alias_cleanup.t 560 01a1ad1d-bc7b
 T1/eval_string_source_types.t 866 01a1ad1d-bc7b
-T1/fcntl_accmode.t 178 01a1aec4-5d6a
-T1/fcntl_accmode.t 251 01a1aec4-5d6a
-T1/fcntl_accmode.t 323 01a1aec4-5d6a
 T1/global_code_runtime_semantics.t 602 01a1ad1d-bc96
 T1/hash_literal_anonymous_ref_cleanup.t 85 01a1ad1d-bc7b
 T1/hash_ref_disambiguation.t 1007 01a1aec4-5d3a

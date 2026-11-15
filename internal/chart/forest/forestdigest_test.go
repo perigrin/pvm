@@ -15,12 +15,18 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/parse"
 )
 
 var updateForestDigest = flag.Bool("forest.update-forest-digest", false,
 	"rewrite testdata/forest-digest.golden from this tree's forest")
 
 var forestDigestPath = filepath.Join("testdata", "forest-digest.golden")
+
+var updateResolvedDigest = flag.Bool("forest.update-resolved-digest", false,
+	"rewrite testdata/resolved-forest-digest.golden from this tree's resolved forest")
+
+var resolvedDigestPath = filepath.Join("testdata", "resolved-forest-digest.golden")
 
 // forestText is f as text in a fixed order: each node reachable from the root
 // by span, then symbol name or rule position, with its alternatives sorted,
@@ -67,8 +73,13 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 }
 
 // forestDigest is the golden's text: the accepted count, then each accepted
-// file's path and the hash of its forest's text.
+// file's path and the hash of its forest's text, the forest Build makes.
 func forestDigest(t *testing.T) (string, int) {
+	return sampleDigest(t, func(_ string, src []byte) *Forest { return built(t, string(src)) })
+}
+
+// sampleDigest is forestDigest over the forests forestOf gives the sample's files.
+func sampleDigest(t *testing.T, forestOf func(path string, src []byte) *Forest) (string, int) {
 	t.Helper()
 	tab := committedTables(t)
 	var lines []string
@@ -77,7 +88,7 @@ func forestDigest(t *testing.T) (string, int) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f, _ := Parse(tab, src); f != nil {
+		if f := forestOf(p, src); f != nil {
 			lines = append(lines, fmt.Sprintf("%s %x", filepath.ToSlash(p), sha256.Sum256([]byte(forestText(tab, f)))))
 		}
 	}
@@ -103,6 +114,31 @@ func TestForestDigestGolden(t *testing.T) {
 	}
 }
 
+// TestResolvedForestDigestGolden: the forests forest.Parse leaves after resolve, over the same sample with each file's
+// imports, equal testdata/resolved-forest-digest.golden, so a change in what resolve prunes shows. Never regenerate it
+// to make a change pass.
+func TestResolvedForestDigestGolden(t *testing.T) {
+	tab := committedTables(t)
+	stubs := filepath.Join("..", "testdata", "guacamole", "stubs")
+	got, _ := sampleDigest(t, func(p string, src []byte) *Forest {
+		root := parse.ParseWithLoader(src, parse.DirLoader(filepath.Dir(p), stubs))
+		f, _ := Parse(tab, src, Scope{Imports: parse.Imports(root)})
+		return f
+	})
+	if *updateResolvedDigest {
+		if err := os.WriteFile(resolvedDigestPath, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(resolvedDigestPath)
+	if err != nil {
+		t.Fatalf("%v (regenerate with -forest.update-resolved-digest)", err)
+	}
+	if got != string(want) {
+		t.Errorf("resolved forest identity moved from %s:\ngot:\n%swant:\n%s", resolvedDigestPath, got, want)
+	}
+}
+
 // TestForestDigestDetectsChange: the digest cannot pass vacuously and keys on
 // content, not construction. The sample has accepted files; one alternative's
 // split, Left (to a same-span node, or nil), Right (to a same-start node), or
@@ -113,7 +149,7 @@ func TestForestDigestDetectsChange(t *testing.T) {
 		t.Fatal("the chart accepts no file of the sample")
 	}
 	tab := committedTables(t)
-	f, _ := Parse(tab, []byte("my $x = 1 + 2;\nprint $x;\n"))
+	f, _ := Parse(tab, []byte("my $x = 1 + 2;\nprint $x;\n"), Scope{})
 	if f == nil {
 		t.Fatal("no forest")
 	}

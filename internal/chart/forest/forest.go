@@ -87,11 +87,12 @@ type Refusal struct {
 }
 
 // Parse recognizes src over tab's grammar and, where the chart accepts it,
-// builds its forest. A refused file has a refusal and no forest: at the
-// token whose set died, or the end of the file, lex-unmapped where that is
-// the first token no terminal admits, else grammar (recognition's rule,
-// testdata/port/refused-where.txt).
-func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
+// builds its forest and resolves it under scope (resolve.go). A refused file
+// has a refusal and no forest: at the token whose set died, or the end of
+// the file, lex-unmapped where that is the first token no terminal admits,
+// else grammar (recognition's rule, testdata/port/refused-where.txt); or
+// scope, where resolve leaves the forest no derivation.
+func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
@@ -108,7 +109,11 @@ func Parse(tab *grammar.Tables, src []byte) (*Forest, Refusal) {
 		}
 		return nil, Refusal{Byte: at, Reason: "grammar"}
 	}
-	return Build(tab, c, l), Refusal{}
+	f := Build(tab, c, l)
+	if at := resolve(tab, f, s, src, scope); at >= 0 {
+		return nil, Refusal{Byte: at, Reason: "scope"}
+	}
+	return f, Refusal{}
 }
 
 // builder holds what the chart proved, and the forest built from it.
