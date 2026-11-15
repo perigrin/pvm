@@ -201,6 +201,20 @@ coverage checks; 29 s of user time, 74 s of system time), most of it
 starting the referees on the candidates. Two runs
 wrote byte-identical files (`cmp`).
 
+### The toy referees (spec §12)
+
+`sh internal/chart/offline/referee/toys/build.sh <outdir>` builds each toy
+grammar in `referee/toys/` (`ladder`, `nonassoc`, `prefix`, `indirob`,
+`mixed`) with bison, through `toys/toys.pl`, and writes `<toy>.txt` into
+`outdir`: the toy's precedence levels and rules, then every sentence of up to
+the toy's stated number of terminals and every prefix of one, each with
+bison's verdict and grouping (every reduction, `rule:from-to`, in reduction
+order). An unresolved conflict fails the build. Unlike the perly.y referees it
+reads no pinned tree. The committed output is
+`internal/chart/testdata/precedence/toys/`, which a fresh build reproduces
+byte for byte; `TestPrecedenceToyReferees` reads it. About 2.5 s, nearly all
+of it five bison and cc builds.
+
 ## tdt-capture.sh
 
 `sh internal/chart/offline/tdt-capture.sh <perl> <file>` runs `<perl> -c -DpT

@@ -1,5 +1,5 @@
 <!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest and the tables. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the precedence constraint and the tables. -->
 
 # internal/chart
 
@@ -1702,6 +1702,58 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   never grow `Nodes` or `Alts`, and it reads the slipper closures
   recognition built rather than recomputing them. The span checkpoint 3
   times includes it (spec §9.3).
+
+## The precedence constraint: `forest/precedence.go`
+
+Spec §8, built and refereed on toy grammars only (PRECTOY); PRECPERLY applies
+it to `perly.y`, and until then `forest.Parse` does not call it, so nothing the
+chart accepts, refuses or groups on Perl source has changed. It runs after the
+forest is built and reads only the forest and the grammar's tables: no Earley
+item gains a fact.
+
+- **The edge-context value.** `Constrain` judges each derivation in its edge
+  context: the symbol before its span in the derivation holding it (the start
+  of the file at the root) and the terminal after it. What it carries up the
+  forest is the first terminals of the derivations that survive in that
+  context, so the parent can judge the boundary between two children.
+- **The state after a symbol** is read from the grammar alone
+  (`NewPrecedence`): every item whose dot follows that symbol, closed, and the
+  same advanced over the next symbol. Bison resolves a conflict only in a
+  state where it arises, and this is how the constraint asks: `indirob:
+  scalar %prec PREC_LOW` meets `[` in a conflict after `print` (LSTOP), where
+  `scalar [` can follow, and never after `@` (T1/array.t's `@$array[1..3]`,
+  which keying on the rule and the token alone refused).
+- **Keep.** A reduction with a terminal next that the state could also shift
+  survives only where bison's resolution is reduce; a shift survives only
+  where every reduction the state before it holds, with that terminal in its
+  follow set, resolves to shift. So of two derivations of one span the one
+  bison builds is kept, and the other is dropped even where the one bison
+  builds does not exist (`print $fh []`).
+- **Forbid.** A `%nonassoc` resolution is an error action and fails both
+  sides, adjacent (`1 .. 2 .. 3`) or split by a tighter operator
+  (`1 .. 2 + 3 .. 4`). Prefix after prefix is no conflict and is kept
+  (`- - 1`, `++ ++ $x`); a prefix and a postfix at one `%nonassoc` level
+  (`++$x++`) are refused.
+- **Refuse.** A span with no derivation left in its context fails every
+  derivation holding it there, and a file whose root has none is refused
+  (`Constrain` returns false); the alternatives no surviving derivation uses
+  are unlinked from the forest.
+- **The toy referees.** `offline/referee/toys/build.sh` builds five toys with
+  bison (a `%left`/`%right` ladder, `%nonassoc` chains, prefix and postfix
+  operators, indirob, and all of them mixed) and commits every sentence of up
+  to five to seven terminals with bison's verdict and grouping
+  (`testdata/precedence/toys/`). `TestPrecedenceToyReferees` requires both on
+  every one of the 3,980 sentences; `TestPrecedenceConstraintOrderInvariant`
+  the same results with Leo off, the cache off and every node's alternatives
+  reversed.
+
+Known limits, each for PRECPERLY to measure on `perly.y`: the state after a
+symbol is a superset of bison's, so a conflict bison's state lacks would
+over-refuse; a reduction's lookahead set is the follow set, not bison's
+LALR set; an alternative kept in one context is kept in all (the `shortcut:`
+on `Constrain`); and rules refused in an action (`termrelop NCRELOP`), whose
+items make the non-chaining comparisons' conflicts, are not in the port's
+tables, so a non-chaining comparison chain is no toy here.
 
 ## The generated tables: `make chart-tables`
 
