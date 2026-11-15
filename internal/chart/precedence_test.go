@@ -59,8 +59,25 @@ var perlyPrecedence = sync.OnceValues(func() (*forest.Precedence, error) {
 	for r, rule := range g.G1 {
 		rulePrec[r] = rule.Prec
 	}
-	return forest.NewPrecedence(tab, g.Levels, rulePrec), nil
+	return forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused), nil
 })
+
+// TestPrecedenceRefusedRulesLeftRecursive pins NewPrecedence's shortcut: each rule refused by precedence begins with
+// its own left-hand side, so leaving it out of the tables' FIRST sets and nullability changes neither.
+func TestPrecedenceRefusedRulesLeftRecursive(t *testing.T) {
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Refused) != 4 {
+		t.Errorf("%d rules refused by precedence, want perly.y's four comparison chains", len(g.Refused))
+	}
+	for _, r := range g.Refused {
+		if r.RHS[0].Text != r.LHS {
+			t.Errorf("perly.y:%d %s: does not begin with %s", r.Line, r.LHS, r.LHS)
+		}
+	}
+}
 
 // constrainSource is the whole pipeline's verdict on src: chart/lex, recognition, the forest and the constraint.
 func constrainSource(t *testing.T, src []byte) bool {

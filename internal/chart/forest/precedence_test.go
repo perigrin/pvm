@@ -65,7 +65,7 @@ func loadToy(t *testing.T, name string) toy {
 		}
 	}
 	out.tab = toyTables(t, statements...)
-	out.prec = NewPrecedence(out.tab, levels, rulePrec)
+	out.prec = NewPrecedence(out.tab, levels, rulePrec, nil)
 	return out
 }
 
