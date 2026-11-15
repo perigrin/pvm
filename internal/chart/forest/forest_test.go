@@ -17,6 +17,7 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // toyTables is the tables of a toy grammar, one string per statement:
@@ -460,8 +461,12 @@ func TestForestFromChart(t *testing.T) {
 			if (f != nil) != c.Accepted() {
 				t.Fatalf("%s: forest %v where the chart's verdict is %v", p, f != nil, c.Accepted())
 			}
-			if g, _ := Parse(tab, src, Scope{}); (g != nil) != c.Accepted() {
-				t.Fatalf("%s: Parse gives forest %v where the chart's verdict is %v", p, g != nil, c.Accepted())
+			root, err := parse.ParseFileFrom(p, filepath.Join("..", "testdata", "guacamole", "stubs"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); (g != nil) != c.Accepted() {
+				t.Fatalf("%s: Parse gives forest %v (%+v) where the chart's verdict is %v", p, g != nil, ref, c.Accepted())
 			}
 			if f == nil {
 				continue

@@ -68,7 +68,7 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"sub FH () {1} print(FH x 3);", true},
 		{"sub STDOUT () {1} print STDOUT x 3;", true},
 		{"sub FH {} print FH x 3;", false}, // NOAMP leaves PL_expect at XTERM
-		{"sub x {} print FH x 3;", true},   // x is then a call (see TestResolveDeclaredXAfterFilehandle)
+		{"sub x {} print FH x 3;", true},   // x is then a call (see TestResolveKnownLimits)
 		// intuit_method: an undeclared word before a word that is no keyword and no declared sub is a method, its
 		// class forced, and PL_expect XTERM after the class.
 		{"new Foo x 3;", false},
@@ -103,26 +103,35 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"foo bar;", true},
 		{"sub bar {} foo bar;", false}, // intuit_method finds no class before a declared sub
 		{"new Foo, 1;", true},
+		{"new Foo { a => 1 };", true}, // the class intuit_method forces is no scope-decided word
 		{"print FH 1;", true},
 		{"print FH foo;", true},
 		{"select(FH);", true},
 		{"open(FH x 3);", false},
-		{"print x x 3;", false},
 	})
 }
 
-// TestResolveDeclaredXAfterFilehandle pins a shortcut: after a filehandle, toke.c reads a declared x as a call, which
-// the token table cannot give x after a word (README "Scope-decided words", addStatementX), so resolve leaves the x
-// operator there and the chart accepts it as print(FH x 3): perl's verdict, not perl's grouping.
-func TestResolveDeclaredXAfterFilehandle(t *testing.T) {
+// TestResolveKnownLimits pins resolve's limits, each with its root outside resolve.
+func TestResolveKnownLimits(t *testing.T) {
 	tab := committedTables(t)
+	// shortcut (xterm): after a filehandle toke.c reads a declared x as a call, which the token table gives no call
+	// reading after a word (README "Scope-decided words", addStatementX), so the x operator stands and the chart
+	// accepts it as print(FH x 3): perl's verdict, not perl's grouping.
 	src := "sub x {} print FH x 3;"
-	f, _ := Parse(tab, []byte(src), Scope{})
-	if f == nil {
-		t.Fatalf("%q is refused; perl accepts it", src)
+	if f, _ := Parse(tab, []byte(src), Scope{}); f == nil {
+		t.Errorf("%q is refused; perl accepts it", src)
+	} else if countSym(t, tab, f, "MULOP") == 0 {
+		t.Errorf("%q has no x operator left; the shortcut is gone, so drop this row", src)
 	}
-	if got := countSym(t, tab, f, "MULOP"); got == 0 {
-		t.Errorf("%q has no x operator left; the shortcut is gone, so move this row to TestResolveScopeDecidedWords", src)
+	// perl -c refuses it; x right after print carries no scope-decided reading in the token table, so resolve
+	// cannot read it as a filehandle.
+	if f, _ := Parse(tab, []byte("print x x 3;"), Scope{}); f == nil {
+		t.Error("print x x 3; is refused; the token-table limit is gone, so move it to TestResolveScopeDecidedWords")
+	}
+	// perl -c accepts it as 'Foo'->new(*2): after the class toke.c reads *2 as a glob, where internal/lexer emits
+	// the 2 as a Number, which no glob's name is.
+	if f, _ := Parse(tab, []byte("new Foo * 2;"), Scope{}); f != nil {
+		t.Error("new Foo * 2; is accepted; the lexer limit is gone, so move it to TestResolveScopeDecidedWords")
 	}
 }
 
@@ -256,6 +265,7 @@ func TestResolveKeepsCorpusAccepted(t *testing.T) {
 	if err := sc.Err(); err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("checked %d files", checked)
 	if checked < 700 {
 		t.Errorf("checked %d files; the labels name over 800 the chart accepts", checked)
 	}

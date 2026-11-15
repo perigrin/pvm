@@ -77,7 +77,7 @@ func forestDigest(t *testing.T) (string, int) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f, _ := Parse(tab, src, Scope{}); f != nil {
+		if f := built(t, string(src)); f != nil { // the forest built from the chart, before resolve
 			lines = append(lines, fmt.Sprintf("%s %x", filepath.ToSlash(p), sha256.Sum256([]byte(forestText(tab, f)))))
 		}
 	}
