@@ -250,6 +250,8 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 	if d, ok := latest(r.lexical[word], k); ok && !strings.Contains(word, "::") {
 		return d, declared
 	}
+	// shortcut: a sub the file declares is read before an import, so a use builtin of its name does not shadow it,
+	// where perl takes whichever came last; upgrade when parse.Imports says where each import was made.
 	if d, ok := latest(r.subs[qualify(r.pkg[k], word)], k); ok {
 		return d, declared
 	}

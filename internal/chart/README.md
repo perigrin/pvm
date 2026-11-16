@@ -1284,6 +1284,9 @@ or a `use builtin` inside a block imports is undeclared, or for the latter read 
 prototype if there is one, since parse.Imports, which is file-wide, reports neither (`use subs qw(foo); foo 1;` and
 `{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }` are refused, and
 `use M qw(true); { use builtin qw(true); my @x = (true 1, 2); }` is accepted, M's `true` having no prototype);
+shortcut: a sub the file declares is read before an import, so a `use builtin` of its name does not shadow it, where
+perl takes whichever came last, since parse.Imports keeps one entry per name and not where it was made
+(`sub true {1} use builtin qw(true); my @x = (true 1, 2);` and its form with the `use` in a block are accepted);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
 glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
