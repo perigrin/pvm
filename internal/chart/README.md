@@ -589,25 +589,9 @@ started empty; an entry is added only by the issue that meets the defect, filed
 against the v0.1 milestone, and the gate review confirms the construct at the
 entry's byte is that issue's.
 
-**The chart refuses some `return {…}` and `bless {…}, $class`.** The lexer
-defect 01a1ad1d-bc7b guesses the open brace's type there, and where it guesses
-wrong the chart's table leaves the brace unmapped; `return { "a", 1 }` and
-`bless { a => 1 }, $c` happen to be guessed right and are accepted. Observed
-at aa5aed2f, counting `lex-unmapped-known.txt` against the committed perl labels
-(`testdata/labels/`): the defect accounts for 105 of its 114 entries, and the
-labels mark 91 of those 105 accepted (and 92 of all 114). The 91 are 90 T1
-files and one in-tree file (`parses/…Value-Literal-063.pl`); at their
-unmapped brace, 89 read `bless {` (one inside `Storable::dclone(…)`) and 2
-`return {`. The other 14 are files perl refuses: 12 at `bless {` and the two
-`sprintf {…}` files under `parsent/`.
-Recursive descent already refuses 33 of the 91, so the list takes 58 files
-out of the superset population (§9.1 allows this), not 91.
-`TestLexerListHidesNoChartGap` rewrites every brace the defect leaves
-unmapped as `+{` in each of the 91 and holds the chart to accepting all of
-them, and the count to 91, so the 01a1ad1d-bc7b entries hide no gap of the
-chart's own. That is all it tests. The 92nd perl-accepted entry,
-`T1/nested_heredoc.t 1821 01a1a846-5aea`, is a heredoc lexer defect, and
-nothing checks that the chart would accept that file lexed right.
+`lex-unmapped-known.txt` holds 9 entries. One perl accepts,
+`T1/nested_heredoc.t 1821 01a1a846-5aea`, a heredoc lexer defect, and nothing
+checks that the chart would accept that file lexed right.
 
 Each non-blank line is one entry, `<path> <byte> <issue ref>`:
 
