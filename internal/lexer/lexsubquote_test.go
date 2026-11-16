@@ -3,7 +3,10 @@
 
 package lexer
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // TestLexicalSubShadowsQuoteOp: measured on 5.42.0,
 //
@@ -60,6 +63,45 @@ func TestLexicalSubShadowsKeyword(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("if %d: LexSub %v, want %v (all: %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// TestLexicalSubNotLookedUp: where toke.c reads a word without consulting
+// the pad, a lexical sub of that name does not shadow it, so the word is not
+// LexSub. Each row's verdicts are the pinned perl's (94e50866):
+//   - inside its own body a my, state or our sub is not yet in scope:
+//     `sub foo {"P"} my sub foo { "L" . (@_ ? "" : foo(1)) } print foo`
+//     prints LP, and `my sub lc { "L:" . lc("AB") }` calls CORE::lc; after
+//     a forward declaration it is (`my sub foo; sub foo { foo(1) }`);
+//   - a word before `=>` is a string, as toke.c checks the fat comma first;
+//   - a lone word in a subscript is a string: `$h{foo}`, `$h{ foo }`, but
+//     not `$h{+foo}`;
+//   - a label, and the label after last, next, redo or goto.
+func TestLexicalSubNotLookedUp(t *testing.T) {
+	for _, tc := range []struct {
+		src, word string
+		want      []bool
+	}{
+		{`my sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`state sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`our sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`my sub lc { lc("AB") } lc;`, "lc", []bool{false, false, true}},
+		{`my sub foo; sub foo { foo(1) } foo;`, "foo", []bool{false, false, true, true}},
+		{`{ my sub foo { 1 } } foo;`, "foo", []bool{false, false}},
+		{`my sub foo { 1 } my %h = (foo => 1, foo=>2);`, "foo", []bool{false, false, false}},
+		{`my sub foo { 1 } $h{foo}; $h{ foo }; $h{+foo};`, "foo", []bool{false, false, false, true}},
+		{"my sub foo { 1 } foo: { last foo; next foo; redo foo; goto foo; } foo;", "foo",
+			[]bool{false, false, false, false, false, false, true}},
+	} {
+		var got []bool
+		for _, tok := range Tokenize([]byte(tc.src)) {
+			if tok.Kind == Word && tc.src[tok.Start:tok.End] == tc.word {
+				got = append(got, tok.LexSub)
+			}
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: LexSub on each %s %v, want %v", tc.src, tc.word, got, tc.want)
 		}
 	}
 }
