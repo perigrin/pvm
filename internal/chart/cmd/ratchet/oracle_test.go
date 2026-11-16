@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart"
-	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
 )
@@ -50,19 +49,6 @@ func writeFacts(t *testing.T, text string) string {
 	return p
 }
 
-func committedTablesForTest(t *testing.T) *grammar.Tables {
-	t.Helper()
-	g, ref, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := grammar.Generate(g, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tab
-}
-
 // fakeSubject answers every file with the facts its row gives, by sample name.
 func fakeSubject(name string, by map[string]parseoracle.SubjectFacts) oracleSubject {
 	return oracleSubject{name, func(path string, _ []byte, _ *parse.Node) parseoracle.SubjectFacts {
@@ -97,7 +83,7 @@ func TestOracleGrading(t *testing.T) {
 		"collapsed.pl": {OK: true, CallSites: []parseoracle.SubjectCallSite{ref(5), ref(7)}},
 	})
 	var stderr bytes.Buffer
-	got, err := gradeOracle([]oracleCorpus{c}, append(defaultSubjects(committedTablesForTest(t)), agree, wrong), &stderr)
+	got, err := gradeOracle([]oracleCorpus{c}, append(defaultSubjects(committedTables(t)), agree, wrong), &stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +92,7 @@ func TestOracleGrading(t *testing.T) {
 		want    parseoracle.Totals
 	}{
 		{"chart", totals(2, 2, 0, 0)},
-		{"rd", totals(2, 2, 0, 0)},
+		{"rd", totals(4, 0, 0, 0)}, // it fits f's \@ slot, and nothing collapses for it
 		{"agree", totals(4, 0, 0, 0)},
 		{"wrong", totals(3, 0, 1, 0)},
 	} {
@@ -125,7 +111,7 @@ func TestOracleGrading(t *testing.T) {
 // TestOracleGradingWithoutFactsFails: no committed facts is an error, never WRONG 0; a malformed record is an
 // error; a record whose file cannot be read is named on stderr and counted, its sites no-answer.
 func TestOracleGradingWithoutFactsFails(t *testing.T) {
-	subjects := defaultSubjects(committedTablesForTest(t))
+	subjects := defaultSubjects(committedTables(t))
 	if _, err := gradeOracle(nil, subjects, &bytes.Buffer{}); err == nil {
 		t.Error("grading no corpus: no error")
 	}
@@ -183,7 +169,7 @@ func TestOracleGradingNoAnswerIsNotExact(t *testing.T) {
 // TestOracleGradingRDResolvesImports: import.pl's r(@a) takes @a by reference only under R's \@ prototype, from
 // lib/R.pm; recursive descent grades it EXACT with lib searched, and not without.
 func TestOracleGradingRDResolvesImports(t *testing.T) {
-	subjects := defaultSubjects(committedTablesForTest(t))
+	subjects := defaultSubjects(committedTables(t))
 	for _, c := range []struct {
 		roots []string
 		exact int
