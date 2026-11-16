@@ -100,11 +100,13 @@ What waypoint 2 built before the stop:
 
 Since the resumption, **the precedence constraint** is applied to `perly.y`
 and agrees with bison on every kept generated sentence
-(`forest/precedence.go`, below).
+(`forest/precedence.go`, below), and `forest.Parse` applies it, resolves
+scope and counts each statement's readings, collapsing a statement above
+2^10 ("The forest", Readings).
 
 Not done, among the issues still open on `chart-perly-w2` (resolve by
 declared and imported subs and by features is built: "Scope-decided
-words"): the readings count, oracle grading, `PLUGIN_*`,
+words"): oracle grading, `PLUGIN_*`,
 the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
 M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
 `t/` parity and speed checkpoint 3.
@@ -1350,7 +1352,8 @@ scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files); and resolv
 `use feature ':5.36'`) or `std5k.pl` that perl and recognition accept (`TestResolveFeaturesKeepCorpusAccepted`). Over the 2,068 labelled files perl and
 recognition accept, perl.git `t/` included, resolve refuses four: `t/uni/parser.t` (`*{` after a call),
 above, and three recursive descent refuses too. `t/perf/opcount.t`, refused while parse.Imports did not report
-`use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
+`use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the forests `forest.Parse` leaves of the forest's
+sample, constrained by precedence and resolved, to
 `forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
 
 ### Builtin classes against `parse.CoreShapes()`
@@ -1711,10 +1714,14 @@ P2 is a stop reported to perigrin.
 ## The forest: `forest`
 
 `forest.Parse(tab, src, scope)` lexes and recognizes `src`, then builds its shared
-packed forest after recognition (spec §9.4), and resolves its scope-decided
+packed forest after recognition (spec §9.4), applies the precedence
+constraint, refusing with reason `precedence` a file whose root it leaves no
+derivation ("The precedence constraint"), resolves its scope-decided
 words ("Scope-decided words"), refusing with reason `scope` a file resolve
-leaves no derivation. It is the single entry the
-precedence constraint, resolve and the readings count extend. A file the
+leaves no derivation, and counts the readings left (Readings, below). `tab`
+is the committed `perly.y`'s tables, whose precedence it builds once per
+tables value; other tables are refused, never constrained by perly.y's
+levels. A file the
 chart refuses gets a `Refusal` and no forest, never a partial one
 (`TestForestRefusedChartHasNoForest`). `Parse` recognizes first, as the
 port's refusal list does: the refusal is at the token whose set died, or at
@@ -1837,6 +1844,41 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   makes them; `Build` refuses any other lattice
   (`TestForestLinearLatticesOnly`). Index the edges by node, and keep a
   `;`'s completions apart, when interleaved lexing branches.
+- **Readings** (`forest/readings.go`, spec §9.4). After precedence and
+  resolve, `Parse` counts each statement's readings into `Forest.Readings`:
+  `Statements`, `Collapsed` and `Total`. A statement is perly.y's
+  `fullstmt` at any depth, a node reachable from the root that is wider than
+  the slipper's zero-width `;`; one nested in another's block is counted once,
+  as its own (`TestReadingsNestedStatementsCountedOnce`). Its readings are the
+  derivations left under its node, a product over its packed nodes summed over
+  their alternatives, memoized per node and saturating at `math.MaxUint64`, so
+  no derivation is enumerated and a statement with more readings than a
+  uint64 holds is counted in time linear in the forest
+  (`TestReadingsCountBoundedOnPathologicalInput`). An outer statement's count
+  includes its nested statements', so readings multiply up a block. **A
+  statement with more than 2^10 (`CollapseAbove`) readings collapses**: it is
+  counted once as collapsed, contributes one to `Total`, and no reading of it
+  is enumerated or chosen; at exactly 2^10 it is kept (`TestReadingsCollapse`,
+  on toys checked against brute force and on perly.y, where five
+  `Foo::bar { a => 1 };` in a block are 4^5 readings and six collapse it).
+  **Collapse is not a refusal**: the file is accepted and its other
+  statements keep their counts (`TestReadingsCollapsedFileStillAccepted`).
+  Anything that needs a collapsed statement's reading treats it as undecided:
+  its oracle sites answer `Unresolved` (WIDER), which ORACLEGRADE
+  (`01a1c324-1f12`) builds in `forest/facts.go`; until then they are graded
+  like any other site (below). A node met again on its own path counts 0,
+  exact on perly.y's acyclic forests; shortcut: on a toy's cyclic forest a
+  count memoized below a cycle omits that path wherever the node is reached
+  again (the cyclic row of `TestReadingsCollapse`). The per-corpus rate is measured, not stored:
+  `go test ./internal/chart/forest -run '^TestReadingsCorpusRate$' -forest.readings-rate -v`
+  logs each corpus's statements and collapsed statements (with `T1_CORPUS`
+  and `PERL5_CORPUS` as the ratchet reads them) and whether it is over spec
+  §10's limit, more than 1% and at least 5 of a corpus's statements
+  collapsing, which is a stop reported to perigrin, never tuned toward; the
+  ratchet's `collapse-over-limit` is the gate. Most of the ambiguity that
+  multiplies into a collapse is two token-table widths resolve does not
+  decide: a string literal reads as `THING` or `FUNC`, and a named sub's name
+  as `BAREWORD` or `PRIVATEREF`. Neither changes what the chart accepts.
 - **Forest identity.** `TestForestDigestGolden`
   (`forest/forestdigest_test.go`) holds the forests `Build` makes of the
   corpus sample, before resolve, to
@@ -1905,8 +1947,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   holds are intersected and those any holds united; a site some readings hold
   and others do not is `Unresolved`, which grades WIDER, never a guess
   (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
-  a block in others). The facts come from whatever `forest.Parse` runs: today
-  resolve, not yet the precedence constraint or the readings collapse.
+  a block in others). The facts come from whatever `forest.Parse` runs: the
+  precedence constraint, resolve and the readings count. A collapsed
+  statement's sites are to answer `Unresolved` (WIDER), which ORACLEGRADE
+  (`01a1c324-1f12`) builds here; until then they are graded like any other
+  site.
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
   has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
   nothing declares included, since a module resolve cannot see may give it
@@ -1941,7 +1986,9 @@ Spec §8, built and refereed on toy grammars (PRECTOY) and applied to `perly.y`
 `TestWaypoint2Refusals`, the referee and the other precedence tests apply it
 to `forest.Build`'s forest, before resolve (`builtForest`), since a
 sentence's token choice, as bison read it, stands in for scope there;
-`forest.Parse` builds the forest and resolves it, and runs no constraint. It reads only the forest, the
+`forest.Parse` applies it to the forest it builds, before resolve, and refuses a file it leaves no derivation
+with reason `precedence`. shortcut: `Constrain` reports only the root's verdict, so that refusal's `Byte` is 0;
+locate it at the first span left with no derivation when a gate compares refusal bytes. It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The edge-context value.** `Constrain` judges each derivation in its edge
