@@ -252,6 +252,13 @@ func TestPrintFilehandleVarWordForms(t *testing.T) {
 		"print STDOUT $foo->bar;":             true,
 		"print STDOUT $foo x 3;":              true,
 		"STDOUT $foo bar();":                  true, // the method call recognition reads inside the refused rows
+		// a feature-gated keyword in the handle's slot is no method either, its feature on or off
+		"print try $x bar();":                                  false,
+		"sub try {} print try $x bar();":                       false,
+		"use feature 'try'; no warnings; print try $x bar();":  false,
+		"print try $x;":                                        true,
+		"print STDOUT $foo try();":                             false,
+		"use feature 'say'; sub try {} say STDOUT $foo try();": false,
 	})
 }
 
