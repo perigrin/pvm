@@ -114,6 +114,7 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		// subs parse.Imports reports: a BEGIN's glob assignment, and an import into another package
 		{"BEGIN { *foo = sub {} } my $x = foo 1;", true},
 		{"package Foo; BEGIN { *plan = sub {} } plan 9;", true},
+		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", true}, // perl.git t/perf/opcount.t
 		// a glob after a call: its name is no word of scope's, and the { after its * a block or a subscript
 		{"sub is {} is *_{ARRAY}, undef;", true},
 		// & after a term is the bitwise and (yyl_ampersand, PL_expect XOPERATOR), and a sub's sigil where a term is
@@ -169,10 +170,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"new Foo * 2;", false},
 		{"sub foo {} foo * 2;", false},
 		{"print STDOUT * 2;", false},
-		// shortcut (lookup): parse.Imports reports nothing for use subs and use builtin, so the names they declare
-		// are undeclared to resolve; perl accepts both.
+		// shortcut (lookup): parse.Imports reports nothing for use subs, so the names it declares are undeclared to
+		// resolve; perl accepts it.
 		{"use subs qw(foo); foo 1;", false},
-		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", false},
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},
