@@ -61,6 +61,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	// block's } restores them from scopes; each change is recorded for resolve (Stream.Features).
 	var on Features
 	scopes := make([]Features, 0, 16)
+	var st stashes
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -81,6 +82,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
+		if st.typedClass(t, text, on) {
+			continue // toke.c consumes a typed my's class name (KEY_my's PL_in_my_stash) and emits no token for it
+		}
+		st.note(t, text, on)
 		plainIsa, was := false, on
 		switch n := t.End - t.Start; t.Kind {
 		case lexer.Operator:
@@ -125,6 +130,72 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		}
 	}
 	return s, first
+}
+
+// stashes are the packages a file has made so far, as far as its tokens show, and the significant word before the
+// current token: what a typed my's class name needs (typedClass).
+type stashes struct {
+	made map[string]bool
+	prev string // the last significant token's text if it was a Word, else ""
+}
+
+// startStashes are the stashes the pinned perl (94e50866) starts with, measured by `my X $f;` under perl -c.
+var startStashes = map[string]bool{"main": true, "UNIVERSAL": true, "CORE": true, "CORE::GLOBAL": true,
+	"Internals": true, "utf8": true, "re": true, "version": true, "PerlIO": true, "PerlIO::Layer": true, "Regexp": true,
+	"DB": true, "DynaLoader": true, "Exporter": true, "constant": true, "IO": true, "IO::File": true,
+	"IO::Seekable": true, "IO::Handle": true, "Tie": true, "Tie::Hash": true, "Tie::Hash::NamedCapture": true,
+	"mro": true, "builtin": true}
+
+// typedClass is whether t is a typed my's class name: a word after my, our or state (its feature maybe on) other than
+// sub or method, naming a stash that exists. toke.c croaks "No such class" for any other, so that word is kept and,
+// with no reading the grammar takes there, refuses.
+// shortcut: a stash made other than by package, class, use, no, require or a qualified name before it (a string
+// eval, a glob assignment, a module that makes another package) is not seen, so that typed my is refused; upgrade
+// when a corpus shows one.
+func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
+	if t.Kind != lexer.Word || st.prev != "my" && st.prev != "our" && (st.prev != "state" || (on.On|on.Maybe)&FeatureState == 0) {
+		return false
+	}
+	w := strings.TrimSuffix(text[t.Start:t.End], "::")
+	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
+}
+
+// note records the stashes t makes: the name after package, class (its feature on), use, no or require, and each
+// package a qualified name passes through (`$Foo::x`, `Foo::Bar::f`); then t as the previous word.
+func (st *stashes) note(t lexer.Token, text string, on Features) {
+	tx := text[t.Start:t.End]
+	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
+		st.prev = ""
+		return
+	}
+	add := func(n string) {
+		if st.made == nil {
+			st.made = map[string]bool{}
+		}
+		st.made[n] = true
+	}
+	if t.Kind == lexer.Word {
+		switch st.prev {
+		case "package", "use", "no", "require":
+			add(strings.TrimSuffix(tx, "::"))
+		case "class":
+			if on.On&FeatureClass != 0 {
+				add(strings.TrimSuffix(tx, "::"))
+			}
+		}
+	}
+	if strings.Contains(tx, "::") {
+		parts := strings.Split(strings.TrimLeft(tx, "$@%&*#{"), "::")
+		for k := 1; k < len(parts); k++ {
+			if p := strings.Join(parts[:k], "::"); p != "" {
+				add(p)
+			}
+		}
+	}
+	st.prev = ""
+	if t.Kind == lexer.Word {
+		st.prev = tx
+	}
 }
 
 // caches lends each Map call its own LookupCache, so concurrent calls never share one, and a cache keeps its

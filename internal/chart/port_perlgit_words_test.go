@@ -90,3 +90,39 @@ func TestLexSubOverridesKeyword(t *testing.T) {
 		"my sub if { 1 } if (1) { 2 }":              false,
 	})
 }
+
+// toke.c consumes a typed my's class name and emits no token for it (KEY_my, PL_in_my_stash), but croaks "No such
+// class" when no stash of that name exists yet; chart/lex drops the name where the file has made the package before
+// it or perl starts with it. perl.git t/op/multideref.t's form and its neighbours, each as perl -c (94e50866) gives it.
+func TestTypedMy(t *testing.T) {
+	checkParses(t, map[string]bool{
+		"{ package Foo; our %FIELDS = (); my Foo $f; }":    true,
+		"package Foo; package main; my Foo $f = 1;":        true,
+		"package Foo::Bar; package main; our Foo::Bar $f;": true,
+		"package Foo; package main; my Foo ($a, $b);":      true,
+		"package Foo; package main; my Foo @a;":            true,
+		"package Foo; package main; my Foo:: $f;":          true,
+		"package Foo; package main; for my Foo $f (1) {}":  true,
+		"$Foo::x = 1; my Foo $f;":                          true,
+		"sub Foo::Bar::f {} my Foo::Bar $f;":               true,
+		"require Foo; my Foo $f;":                          true,
+		"my main $f;":                                      true,
+		"my __PACKAGE__ $f;":                               true,
+		"my UNIVERSAL $f;":                                 true,
+		"my Nope $f;":                                      false,
+		"my Carp $f;":                                      false,
+		"package Foo; package main; my Foo::Bar $f;":       false,
+		"my Foo $f; package Foo;":                          false,
+		"my Foo::Bar $f; Foo::Bar::f();":                   false,
+		"package Foo; package main; my Foo;":               false,
+		"my $x = 'Foo'; Foo->new; my Foo $f;":              false,
+	})
+}
+
+// Known limit (the shortcut on chart/lex's typedClass): a stash made by a string eval is not seen, so its typed my is
+// refused where perl -c (94e50866) accepts it.
+func TestTypedMyKnownLimit(t *testing.T) {
+	if src := `BEGIN { eval "package Foo; 1" } my Foo $f;`; pipelineSource(t, src) {
+		t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+	}
+}

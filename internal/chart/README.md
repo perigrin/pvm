@@ -1214,6 +1214,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   internal/lexer marks that word `LexSub`, and chart/lex gives a marked keyword the text `grammar.PlainWord`, a word
   no class names. So `our sub if() { 42 } my $x = if if if;` parses as `$x = if() if if()` (perl.git
   `op/lexsub.t`), and `my sub if { 1 } if (1) { 2 }` is refused, as by perl.
+- A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
+  `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
+  `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature
+  on), `use`, `no`, `require` or a qualified name (`$Foo::x`). Any other is kept, which the grammar refuses, as
+  perl's "No such class" does. shortcut: a stash made any other way (a string eval, a glob assignment, a module
+  that makes another package) is not seen, so that typed my is refused.
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its
