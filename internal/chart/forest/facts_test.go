@@ -58,6 +58,14 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"reference","line":3,"end_line":3,"took_reference":true}]}`},
 		// under use utf8 a handle's name is runes, not bytes: perl reads <FÉ> as readline, not a glob
 		{"utf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},
+		// without use utf8 in force, perl reads <FÉ> as a glob: none at all, one a block ended, one no utf8 turned off
+		{"noutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		// known limit (facts.go utf8At): a utf8 a BEGIN block imports is not seen, so <FÉ> reports nothing where
+		// perl reads it as readline on line 2
+		{"beginutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		// a name may open with a digit: perl reads <1> and <$1> as readline
+		{"digitreadline.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"readline","line":1,"end_line":1},{"kind":"readline","line":2,"end_line":2}]}`},
 		// known limit (facts.go): the file's own r is read before the later import of R's r, so its call is decided
 		// on the file's declaration; perl applies the import's \@, reports prototypes {"r":"\\@"} and a \ on line 4
 		{"own_then_import.pl", `{"ok":true,"prototypes":{},"call_sites":[

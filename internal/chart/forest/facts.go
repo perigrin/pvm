@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -320,7 +321,7 @@ func (sf *subjectFacts) leafSite(n int32) (int, bool) {
 	switch {
 	case int(nd.Sym) == sf.g.pmfunc && (quoteOp(text) == "m"):
 		return site(kindMatch, k), true
-	case t.Kind == lexer.Readline && readsLine(text):
+	case t.Kind == lexer.Readline && readsLine(text, len(text) == utf8.RuneCountInString(text) || sf.utf8At(sf.s.Tokens[k].Index)):
 		return site(kindReadline, k), true
 	case t.Kind == lexer.Word && (text == "readline" || text == "CORE::readline") && !sf.g.notCore[nd.Sym]:
 		return site(kindReadline, k), true
@@ -347,21 +348,45 @@ func isWordByte(c byte) bool {
 }
 
 // readsLine is whether a <...> token is readline rather than glob, as toke.c's scan_inputsymbol decides: empty,
-// <<>>, or a bare handle or simple scalar inside, its name in runes, since use utf8 widens it (<FÉ>).
-// shortcut: this mirrors parse's unexported isReadlineTerm; replace it with that predicate if perigrin rules it
-// exported.
-func readsLine(text string) bool {
+// <<>>, or a bare handle or simple scalar inside, its name in runes only where wide says use utf8 is in force (<FÉ>).
+// shortcut: this mirrors parse's unexported isReadlineTerm, which takes no utf8 state; replace it with that
+// predicate if perigrin rules it exported and it learns the pragma.
+func readsLine(text string, wide bool) bool {
 	in := strings.TrimSuffix(strings.TrimPrefix(text, "<"), ">")
 	if in == "" || in == "<>" {
 		return true
 	}
-	in = strings.TrimPrefix(in, "$")
-	if in == "" || in[0] >= '0' && in[0] <= '9' {
+	if in = strings.TrimPrefix(in, "$"); in == "" {
 		return false
 	}
 	return strings.IndexFunc(in, func(c rune) bool {
-		return c != '_' && c != ':' && !unicode.IsLetter(c) && !unicode.IsDigit(c)
+		return c != '_' && c != ':' && (c >= utf8.RuneSelf && !wide || !unicode.IsLetter(c) && !unicode.IsDigit(c))
 	}) < 0
+}
+
+// utf8At is whether use utf8 is in force at raw token at: a use or no utf8 statement sets it for the rest of its
+// block, as lex reads the isa feature.
+// shortcut: a utf8 a BEGIN block or a string eval turns on is not seen; upgrade if a corpus file needs one.
+func (sf *subjectFacts) utf8At(at int) bool {
+	raw := sf.s.Raw
+	on, scopes := false, []bool{}
+	for i, t := range raw[:at] {
+		switch w := sf.src[t.Start:t.End]; {
+		case t.Kind == lexer.Operator && string(w) == "{":
+			scopes = append(scopes, on)
+		case t.Kind == lexer.CloseBracket && string(w) == "}" && len(scopes) > 0:
+			on, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
+		case t.Kind == lexer.Word && (string(w) == "use" || string(w) == "no"):
+			j := i + 1
+			for j < at && lexer.IsTrivia(raw[j].Kind) {
+				j++
+			}
+			if j < at && string(sf.src[raw[j].Start:raw[j].End]) == "utf8" {
+				on = w[0] == 'u'
+			}
+		}
+	}
+	return on
 }
 
 // statement is the top-level statement holding token at.

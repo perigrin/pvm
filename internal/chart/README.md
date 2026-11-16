@@ -1856,9 +1856,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
-  `readline`; a handle's name is read in runes, so `<FÉ>` under `use utf8` is
-  readline, by a copy of `parse`'s unexported `isReadlineTerm`; `<*.c>` is a
-  glob); an anonymous hash (`HASHBRACK`). Each is on
+  `readline`; a handle's name may open with a digit (`<1>`, `<$1>`) and is
+  read in runes only where a `use utf8` statement is in force, block by block,
+  so `<FÉ>` is readline under `use utf8` and a glob without it, after its
+  block ends, or after `no utf8`, by a copy of `parse`'s unexported
+  `isReadlineTerm`; `<*.c>` is a glob); an anonymous hash (`HASHBRACK`). Each is on
   its top-level statement's first and last lines, as `parse.PerlLines`
   numbers them after `#line`; a site a directive moves into another file is
   dropped.
@@ -1882,7 +1884,9 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   interpolated in a string or heredoc is one token the forest does not read,
   so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
   descent hedges every marker; hedging it needs `parse`'s unexported
-  `interpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it.
+  `interpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
+  a `BEGIN` block or string eval imports is not seen, so `<FÉ>` after
+  `BEGIN { utf8->import }` reports nothing where perl reads a readline.
 
 **How ORACLEGRADE grades it**: over the oracle-graded corpora with committed
 perl facts, `parseoracle.CompareFacts(perl's facts, forest.SubjectFacts(...))`
