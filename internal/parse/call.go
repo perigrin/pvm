@@ -598,6 +598,12 @@ func (p *parser) parseListOpBlock(op string) *Node {
 
 // braceCloses reports whether the `{` at open has a matching `}`.
 func (p *parser) braceCloses(open lexer.Token) bool {
+	_, ok := p.closingBrace(open)
+	return ok
+}
+
+// closingBrace is the `}` matching the `{` at open.
+func (p *parser) closingBrace(open lexer.Token) (lexer.Token, bool) {
 	depth := 0
 	for _, tok := range p.toks[p.pos:] {
 		if tok.Start < open.Start {
@@ -609,11 +615,11 @@ func (p *parser) braceCloses(open lexer.Token) bool {
 		case "}":
 			depth--
 			if depth == 0 {
-				return true
+				return tok, true
 			}
 		}
 	}
-	return false
+	return lexer.Token{}, false
 }
 
 // featureTakesBlock reports whether op is `any` or `all` with its feature

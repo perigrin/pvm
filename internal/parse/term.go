@@ -337,6 +337,15 @@ func (p *parser) parseTerm() *Node {
 		// because a new CST kind is a change every consumer must learn.
 		p.advanceTo(tok)
 
+		// `$#{ EXPR }` stays the one leaf it was while the lexer emitted it
+		// as one Variable: lower and Sites read it whole.
+		if open, ok := p.peekSignificant(); ok && text == "$#" && p.text(open) == "{" {
+			if close, ok := p.closingBrace(open); ok {
+				p.advanceTo(close)
+				return &Node{Kind: Term, Text: string(p.src[tok.Start:close.End]), Start: tok.Start, End: close.End}
+			}
+		}
+
 		// The braces of `${EXPR}` GROUP; they do not construct. Letting
 		// parseTerm see the `{` made an AnonHash of it, so the tree said a
 		// hash was being built around the very expression being

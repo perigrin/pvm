@@ -3,7 +3,10 @@
 
 package lexer
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // TestLastIndexOfPunctuationArray holds toke.c's rule for `$#`:
 //
@@ -28,20 +31,29 @@ func TestLastIndexOfPunctuationArray(t *testing.T) {
 	}
 }
 
-// TestUnclosedLastIndexBraceIsUnknownRest is the parser fuzzer's `$#{`: a
-// braced last index the file ends inside. perl 5.42 says "Missing right curly
-// or square bracket" for `$#{` and `$#{a` under `perl -c`. Lexed as a whole
-// Variable, canon wrote it back with a `;` after it, inside the brace that
-// never closed, and every emission grew by one more.
-func TestUnclosedLastIndexBraceIsUnknownRest(t *testing.T) {
-	for src, want := range map[string]Kind{
-		"$#{":   UnknownRest,
-		"$#{a":  UnknownRest,
-		"$#{a}": Variable,
+// TestUnclosedLastIndexBraceOpensAnUnclosedBlock is the parser fuzzer's `$#{`:
+// a braced last index the file ends inside. perl 5.42 says "Missing right
+// curly or square bracket" for `$#{` and `$#{a` under `perl -c`. Lexed as a
+// whole Variable, canon wrote it back with a `;` after it, inside the brace
+// that never closed, and every emission grew by one more. It now lexes as
+// `${` does: the sigil, then a `{` the parser finds unclosed.
+func TestUnclosedLastIndexBraceOpensAnUnclosedBlock(t *testing.T) {
+	for src, want := range map[string][]Kind{
+		"$#{":   {DerefSigil, Operator},
+		"$#{a":  {DerefSigil, Operator, Word},
+		"$#{a}": {Variable},
 	} {
 		toks := Tokenize([]byte(src))
-		if len(toks) != 1 || toks[0].Kind != want || toks[0].End != len(src) {
-			t.Errorf("%q: tokens %v, want one %v spanning it all", src, toks, want)
+		if !slices.Equal(kindsOfTokens(toks), want) || toks[len(toks)-1].End != len(src) {
+			t.Errorf("%q: tokens %v, want %v spanning it all", src, toks, want)
 		}
 	}
+}
+
+func kindsOfTokens(toks []Token) []Kind {
+	ks := make([]Kind, len(toks))
+	for i, tk := range toks {
+		ks[i] = tk.Kind
+	}
+	return ks
 }
