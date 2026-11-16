@@ -55,8 +55,7 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 	}
 	// And FuzzParser's `(A*"=>)`, whose `"` no `=>` quotes, as it does the
 	// `s` of `A*s => 1`.
-	// And a quote-op name after a closer: FuzzParser's `{{}*y}`.
-	for _, src := range []string{`(A*"=>)`, "A*#=>", "{{}*y}", `{{}*"}`} {
+	for _, src := range []string{`(A*"=>)`, "A*#=>"} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
 		}
@@ -64,8 +63,10 @@ func TestStarPercentAfterWordParses(t *testing.T) {
 	clean(t, "A*s => 1;")
 	// `{x*$}` is `{'x' * $}` with its `}` missing, to perl 5.44.0, and
 	// FuzzParser's `(A*/)` an unterminated pattern.
-	// And after a closer: FuzzParser's `{{}*$}`.
-	for _, src := range []string{"{x*$}", "(A*/)", "A*?;", "A*|", "{{}*$}"} {
+	// And after a closer: FuzzParser's `{{}*$}`, `{{}*y}` and `{{}*"}`. The
+	// inner `{}` is an anonymous hash, as toke.c reads it, so the `*`
+	// multiplies and perl 5.44.0 rejects the operand that follows.
+	for _, src := range []string{"{x*$}", "(A*/)", "A*?;", "A*|", "{{}*$}", "{{}*y}", `{{}*"}`} {
 		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
 			t.Errorf("%q: perl rejects this, but it parses", src)
 		}

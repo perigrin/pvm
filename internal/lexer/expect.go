@@ -260,7 +260,7 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// A PHASER's brace is always a block, never a hash, so the word
 		// alone settles it -- no lookahead, the way a sub name needs none.
 		// perl reaches PREBLOCK for these the same way.
-		if isPhaser(string(t.text)) {
+		if isPhaser(string(t.text)) || t.nextIsOpenBrace && preblock[string(t.text)] {
 			return XBlock
 		}
 		// `do {...}` and `eval {...}` are terms whose brace is always a
@@ -331,9 +331,8 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// was classified as an anonymous hash. `sub r { { $s = 1; $x = 2; } }`
 		// closed its inner block after `$s = 1` and every brace after it was
 		// off by one. XState rather than XBlock for the reason the label
-		// branch below gives: a statement-start brace is refined by the
-		// parser's braceOpensAnonHash, which is where perl's intuit_curly
-		// lookahead is applied.
+		// branch below gives: a statement-start brace is refined by
+		// braceIsHash in trackBrackets, perl's intuit_curly lookahead.
 		if t.openedBlock {
 			return XState
 		}
@@ -403,8 +402,8 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// the brace where a STATEMENT-START brace is classified, which is the
 		// layer that already refines it: perl runs intuit_curly after a label
 		// too -- `L: {a=>1};` deparses as `L: +{'a', 1};`, a labelled
-		// anonymous HASH -- and the parser's braceOpensAnonHash is what
-		// applies that lookahead, for every statement-start brace at once.
+		// anonymous HASH -- and trackBrackets' braceIsHash is what applies
+		// that lookahead, for every statement-start brace at once.
 		// And it makes the NEXT word a statement-boundary word, which is how
 		// `A: B: { ... }` stacks with no second rule.
 		//

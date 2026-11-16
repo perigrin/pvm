@@ -377,16 +377,10 @@ func TestLabelColonOpensBlock(t *testing.T) {
 		{"skip: { print 1; }", true, "perl accepts a lowercase label"},
 		{"print 1; SKIP: { print 2; }", true, "a label mid-file"},
 		{"if (1) { SKIP: { print 2; } }", true, "a label first inside a block"},
-		// A labelled hash is NOT distinguished here, and that is this layer's
-		// documented boundary rather than a gap: trackBrackets is
-		// "intuit_curly minus its lookahead", and the lookahead is the
-		// parser's decision (spec §4.9.2, and see trackBrackets' own
-		// comment). A statement-start `{ a => 1 };` gets the same `true`, so
-		// the labelled form matching the unlabelled one is exactly right --
-		// the parser's braceOpensAnonHash refines both, and
-		// TestLabelledBareBlock holds that end.
-		{"{ a => 1 };", true, "the unlabelled control: this layer says block too"},
-		{"L: { a => 1 };", true, "so the labelled form must agree with it"},
+		// A statement-start brace takes toke.c's lookahead, labelled or not:
+		// both of these read HASHBRACK on the pinned perl's -DT.
+		{"{ a => 1 };", false, "the unlabelled control: an anonymous hash"},
+		{"L: { a => 1 };", false, "so the labelled form must agree with it"},
 	} {
 		opens, found := lastBraceOpensBlock(tc.src)
 		if !found {

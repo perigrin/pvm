@@ -662,9 +662,9 @@ func (l *lexer) emit(k Kind, start int) {
 		// all of them -- see keyword.go.
 		// A label's `:` does NOT need it, even though perl runs intuit_curly
 		// after a label too. It leaves XState, where the brace is classified
-		// the way a statement-start brace already is -- and the parser's
-		// braceOpensAnonHash is what applies the lookahead there, for every
-		// statement-start brace at once. See the labelColon branch in
+		// the way a statement-start brace already is -- trackBrackets'
+		// braceIsHash applies the lookahead there, for every statement-start
+		// brace at once. See the labelColon branch in
 		// expect.go.
 		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash),
 		listOpParen:      inListOpParen,
