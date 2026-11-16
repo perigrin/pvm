@@ -336,6 +336,13 @@ func (e Expect) after(k Kind, t transition) Expect {
 		if t.openedBlock {
 			return XState
 		}
+		// An attribute list's colon, an empty list's included: toke.c's
+		// yyl_colon leaves XBLOCK after a named sub's COLONATTR, and an
+		// anonymous sub is still a term. Neighbours cannot decide this:
+		// `$c ? foo : { a => 1 }` has the same ones.
+		if t.afterDeclName && string(t.text) == ":" {
+			return attrState(e)
+		}
 		// `->` is the one operator whose next token is not a plain term.
 		// perl's XPOSTDEREF, and the state was declared for exactly this:
 		//
@@ -415,6 +422,10 @@ func (e Expect) after(k Kind, t transition) Expect {
 			return XState
 		}
 		return XTerm
+	case Prototype:
+		// toke.c leaves an anonymous sub's prototype at XATTRTERM, so its
+		// body is a block and that block a term: `sub ($$) { 1 }`.
+		return attrState(e)
 	case Semicolon:
 		return XState
 	case FormatBody:
@@ -423,4 +434,14 @@ func (e Expect) after(k Kind, t transition) Expect {
 		return XState
 	}
 	return e
+}
+
+// attrState is the state after a sub's prototype or an attribute colon: a
+// named sub's head is already at XBlock (see afterDeclName), and any other is
+// an anonymous sub's, whose block is a term's.
+func attrState(e Expect) Expect {
+	if e == XBlock || e == XAttrBlock {
+		return XAttrBlock
+	}
+	return XAttrTerm
 }
