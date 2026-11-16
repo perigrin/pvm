@@ -38,3 +38,28 @@ func TestLexicalSubShadowsQuoteOp(t *testing.T) {
 		t.Errorf("want the one substitution s/a/b/ outside the block, got %q", quotes)
 	}
 }
+
+// TestLexicalSubShadowsKeyword: toke.c checks the pad before the keyword
+// table wherever it does not expect an operator (yyl_keylookup), so a
+// lexical sub overrides every keyword there: perl.git t/op/lexsub.t:72,
+// `our sub if() { 42 } my $x = if if if;`, is `$x = if() if if()`. The
+// word is marked LexSub; the declaration's own name, the `if` after a
+// niladic call, and an `if` after the sub's block has closed are not.
+func TestLexicalSubShadowsKeyword(t *testing.T) {
+	src := `{ our sub if() { 42 } my $x = if if if; } if (1) { 2 }`
+	var got []bool
+	for _, tok := range Tokenize([]byte(src)) {
+		if tok.Kind == Word && src[tok.Start:tok.End] == "if" {
+			got = append(got, tok.LexSub)
+		}
+	}
+	want := []bool{false, true, false, true, false}
+	if len(got) != len(want) {
+		t.Fatalf("want %d ifs, got %v", len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("if %d: LexSub %v, want %v (all: %v)", i, got[i], want[i], got)
+		}
+	}
+}

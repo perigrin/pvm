@@ -206,6 +206,13 @@ type Token struct {
 	// the same Operator `-` as subtraction's. The parser reads this bit to
 	// take the slot, so the handle is decided once.
 	TermFollows bool
+
+	// LexSub is set on a Word naming a lexical sub in scope (`my`, `our` or
+	// `state sub`) where no operator is expected: toke.c checks the pad
+	// before the keyword table there (yyl_keylookup), so the word is the
+	// sub's call whatever keyword it spells. The declaration's own name is
+	// not marked.
+	LexSub bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
