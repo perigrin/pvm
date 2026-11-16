@@ -1288,7 +1288,11 @@ with reason `scope`, at the first dropped reading reached from the root.
   `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,
   `:all`), a bare `no feature` turns them all off, and `use VERSION` replaces them with its version's bundle (state
   from 5.10, switch from 5.10 to 5.34, current_sub, fc and evalbytes from 5.15, signatures from 5.35, try from 5.39);
-  each holds to the end of its block (`TestResolveFeaturesLexicalScope`). A feature-gated keyword ("Scope-decided
+  each holds to the end of its block (`TestResolveFeaturesLexicalScope`). As internal/parse reads them
+  (`featuresMayBeOn`), a `use` of a module that is no quiet pragma, a feature list not all quoted names, or a `BEGIN`
+  block may turn any feature on, so each feature known off is unknown after one (`use if 1, feature => 'try'`,
+  `use Mojo::Base -signatures`), and a feature-gated keyword, or `sub`, keeps every reading where its feature is unknown
+  (`TestResolveFeaturesMayBeOn`). A feature-gated keyword ("Scope-decided
   words") keeps its keyword readings only with its feature on, and a plain word's (BAREWORD, NOAMP, FUNC0SUB,
   UNIOPSUB, LSTOPSUB, METHCALL0, METHCALL and PRIVATEREF) only with it off, where it is then decided as any word is
   (`try 1;` and `state 1;` are refused, `use feature "try"; foo(try, 1);` too). Where toke.c forces a name (after
@@ -1299,8 +1303,9 @@ with reason `scope`, at the first dropped reading reached from the root.
   `croak_kw_unless_class` refuses them, where a byte is in a class if its package is one a class statement declared
   before it (`class Foo {} package Foo; method m {}` is accepted, as by perl; `TestResolveClassScopeEnds`).
 - **An attribute's argument** follows its name directly: toke.c reads one only where `(` follows the name with no gap,
-  which the token table cannot see, so resolve drops the ATTRLIST reading of the token after such a `(` where a gap
-  parts it from the name (`sub f :Foo (bar) {}` and `my $x :shared ($y);` are refused, as by perl).
+  which the token table cannot see, so resolve drops the ATTRLIST reading of the token after such a `(`, and the
+  PROTOTYPE reading of a Prototype token the lexer scans whole, where a gap parts it from the name (`sub f :Foo (bar) {}`,
+  `my $x :shared ($y);` and `sub f :prototype ($) {}` are refused, as by perl; `sub f :prototype($) {}` is accepted).
 - **After a term `&` is the bitwise and.** internal/lexer emits an `&` after a word as a sub's sigil (v0.1
   `01a1aec4-5d6a`); after a word no class names, on `x`'s neighbours, the token table gives that `&` BITANDOP beside
   PERLY_AMPERSAND (yyl_ampersand, PL_expect XOPERATOR), so `my $x = FOO & BAR;` stands where `FOO` is no call and
@@ -1332,8 +1337,8 @@ glob sigils and `?` and `/` as a pattern, which the token table gives no reading
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
 glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside a method or a field's initializer is
 accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
-scope and not a method's. shortcut: a feature a module or a `BEGIN` block turns on (`use Modern::Perl`,
-`BEGIN { feature->import('try') }`) is not seen, so its keywords read as words there. `use feature 'class'; class Foo
+scope and not a method's. The `indirect` feature is not read, so a word before a variable stays a method where it is
+off: `use v5.36; no feature "state"; state $x = 1;` is accepted, where perl refuses it. `use feature 'class'; class Foo
 v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields").
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the

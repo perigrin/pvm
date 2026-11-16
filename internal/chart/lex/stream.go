@@ -35,23 +35,23 @@ type Stream struct {
 // FeatureChange is the features in force from token At on.
 type FeatureChange struct {
 	At int
-	On Feature
+	Features
 }
 
 // change records that the features in force after the token Map is reading are on, where they were was.
-func (s *Stream) change(was, on Feature) {
+func (s *Stream) change(was, on Features) {
 	if on != was {
 		s.Features = append(s.Features, FeatureChange{len(s.Tokens) + 1, on})
 	}
 }
 
 // FeaturesAt is the features in force at Tokens[k].
-func (s *Stream) FeaturesAt(k int) Feature {
+func (s *Stream) FeaturesAt(k int) Features {
 	i, _ := slices.BinarySearchFunc(s.Features, k+1, func(c FeatureChange, at int) int { return c.At - at })
 	if i == 0 {
-		return 0
+		return Features{}
 	}
-	return s.Features[i-1].On
+	return s.Features[i-1].Features
 }
 
 // Body is a heredoc body and the index in Tokens of its opener.

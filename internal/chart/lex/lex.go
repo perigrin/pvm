@@ -57,10 +57,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	}
 	var opens []int // heredoc openers whose bodies have not come yet
 	// on is the features in force: toke.c reads isa as a keyword only with its feature on (keywords.c:353). A use or
-	// no statement sets them (featuresAfter) for the rest of its block, and the block's } restores them from scopes;
-	// each change is recorded for resolve (Stream.Features).
-	var on Feature
-	scopes := make([]Feature, 0, 16)
+	// no statement sets them (featuresAfter), and a BEGIN block may (mayBeOn), for the rest of its block, and the
+	// block's } restores them from scopes; each change is recorded for resolve (Stream.Features).
+	var on Features
+	scopes := make([]Features, 0, 16)
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -92,10 +92,13 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 				on, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
 			}
 		case lexer.Word:
-			if w := text[t.Start:t.End]; n == 3 && w == "use" || n == 2 && w == "no" {
+			switch w := text[t.Start:t.End]; {
+			case n == 3 && w == "use" || n == 2 && w == "no":
 				on = featuresAfter(raw, i, text, on)
-			} else {
-				plainIsa = on&FeatureIsa == 0 && n == 3 && w == "isa"
+			case n == 5 && w == "BEGIN": // `BEGIN { require feature; feature->import('isa') }`
+				on = on.mayBeOn()
+			default:
+				plainIsa = on.On&FeatureIsa == 0 && n == 3 && w == "isa"
 			}
 		}
 		s.change(was, on)
@@ -180,6 +183,23 @@ const (
 	featureAll = FeatureKeywordAll<<1 - 1
 )
 
+// Features is the features known on at a byte, and those an import or a BEGIN block may have turned on there,
+// which no statement the chart reads has turned on or off since.
+type Features struct{ On, Maybe Feature }
+
+// mayBeOn is f after an import the chart does not run: each feature known off may be on, as internal/parse's
+// featuresMayBeOn reads it (`use if 1, feature => 'try'`, `use Mojo::Base -signatures`).
+func (f Features) mayBeOn() Features {
+	f.Maybe |= featureAll &^ f.On
+	return f
+}
+
+// quietPragmas are the core pragmas whose import turns no feature on: internal/parse's list of them, and constant
+// and subs, which it leaves out only because they declare subs.
+var quietPragmas = map[string]bool{"strict": true, "warnings": true, "utf8": true, "open": true, "vars": true,
+	"lib": true, "integer": true, "bytes": true, "less": true, "sort": true, "overload": true, "parent": true,
+	"base": true, "mro": true, "locale": true, "constant": true, "subs": true}
+
 // featureNames are the features by the names feature.pm and experimental.pm take.
 var featureNames = map[string]Feature{"isa": FeatureIsa, "signatures": FeatureSignatures, "try": FeatureTry,
 	"defer": FeatureDefer, "class": FeatureClass, "state": FeatureState, "switch": FeatureSwitch,
@@ -210,10 +230,10 @@ func bundle(m int) Feature {
 // featuresAfter is the features in force after the use or no statement at raw[i], given on before it, as feature.pm
 // and experimental.pm set them: a feature or experimental statement turns on (use) or off (no) each feature it names,
 // and each of a bundle's (:all, :5.36); a bare `no feature` returns to the default bundle, which holds none of them;
-// and use VERSION replaces them with its version's bundle.
-// shortcut: a feature a module or a BEGIN block imports (`BEGIN { feature->import('isa') }`, `use Modern::Perl`) is
-// not seen, nor one in a string eval; upgrade if a corpus file needs one.
-func featuresAfter(raw []lexer.Token, i int, text string, on Feature) Feature {
+// and use VERSION replaces them with its version's bundle. A list not all quoted names, or a use of a module that is
+// no quiet pragma, may turn any on (mayBeOn).
+// shortcut: a feature turned on in a string eval is not seen; upgrade if a corpus file needs one.
+func featuresAfter(raw []lexer.Token, i int, text string, on Features) Features {
 	use := text[raw[i].Start] == 'u'
 	j := i + 1
 	for j < len(raw) && lexer.IsTrivia(raw[j].Kind) {
@@ -227,8 +247,11 @@ func featuresAfter(raw []lexer.Token, i int, text string, on Feature) Feature {
 	case k == lexer.Word && (w == "feature" || w == "experimental"):
 		named := false
 		for j++; j < len(raw) && raw[j].Kind != lexer.Semicolon; j++ {
-			if raw[j].Kind != lexer.Quote {
+			switch k := raw[j].Kind; {
+			case lexer.IsTrivia(k) || k == lexer.Operator && (text[raw[j].Start:raw[j].End] == "," || text[raw[j].Start:raw[j].End] == "=>"):
 				continue
+			case k != lexer.Quote:
+				return on.mayBeOn() // `use feature @f`
 			}
 			for _, f := range strings.FieldsFunc(quoted(text[raw[j].Start:raw[j].End]), notName) {
 				named = true
@@ -237,17 +260,20 @@ func featuresAfter(raw []lexer.Token, i int, text string, on Feature) Feature {
 					set = bundle(minor("v" + f[1:]))
 				}
 				if use {
-					on |= set
+					on.On |= set
 				} else {
-					on &^= set
+					on.On &^= set
 				}
+				on.Maybe &^= set
 			}
 		}
 		if !named && !use && w == "feature" {
-			return 0 // `no feature` returns to the default bundle
+			return Features{} // `no feature` returns to the default bundle
 		}
 	case use && (k == lexer.Number || k == lexer.Quote && (w[0] == 'v' || '0' <= w[0] && w[0] <= '9')):
-		on = bundle(minor(w))
+		on = Features{On: bundle(minor(w))}
+	case use && k == lexer.Word && !quietPragmas[w]:
+		on = on.mayBeOn()
 	}
 	return on
 }

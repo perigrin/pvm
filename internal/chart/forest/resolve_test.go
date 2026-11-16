@@ -195,6 +195,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		// the lexer scans no v-string after a name (Word:v1 Operator:. Number:2.3, 01a1a481-ebef), so class's keyword
 		// reading, the only one the class feature leaves, fails; perl accepts it.
 		{"use feature 'class'; no warnings; class Foo v1.2.3;", false},
+		// the indirect feature is not read, so a word before a variable stays a method with it off (v5.36's bundle);
+		// perl refuses it ("Scalar found where operator expected").
+		{`use v5.36; no feature "state"; state $x = 1;`, true},
 	} {
 		if f, _ := Parse(tab, []byte(c.src), scopeOf(c.src)); (f != nil) != c.accepted {
 			t.Errorf("%q: accepted %v, pinned %v; the limit has moved, so move the row to the rows perl's verdict holds",
@@ -416,10 +419,53 @@ func TestResolveFeatures(t *testing.T) {
 		// toke.c reads an attribute's argument only where ( follows its name directly
 		{"sub f :Foo (bar) {}", false},
 		{"my $x :shared ($y);", false},
+		{"sub f :prototype ($) {}", false},
+		{"sub f :prototype ($x) {}", false},
+		{"sub f :prototype($) {}", true},
+		{"my $s = sub :prototype($) {1};", true},
+		// an import, a list not all quoted names, or a BEGIN block may turn a feature on, so its keywords keep every
+		// reading after one; quiet pragmas turn none on
+		{"use if 1, feature => 'try'; try { 1 } catch ($e) { 2 }", true},
+		{"use if $] >= 5.036, feature => 'signatures'; sub f :lvalue ($x) {}", true},
+		{"use if 1, experimental => 'class'; class Foo { method m { 1 } }", true},
+		{"my @f; BEGIN { @f = ('try') } use feature @f; try { 1 } catch ($e) { 2 }", true},
+		{"BEGIN { require feature; feature->import('try') } try { 1 } catch ($e) { 2 }", true},
+		{"use strict; use warnings; use constant X => 1; try 1;", false},
 		{"use v5.36; sub f :lvalue ($x) {}", true},
 		{"use feature 'signatures'; sub f :lvalue ($x) {}", true},
 		{"use experimental 'signatures'; sub f :lvalue ($x) {}", true},
 	})
+}
+
+// TestResolveFeaturesMayBeOn: a module may turn a feature on, so after its use a feature-gated keyword keeps every
+// reading. The pinned perl lacks these modules; recursive descent accepts each, and so must forest.Parse. The
+// perl.git file is Test2's, whose `field first => 42;` its bundle's import makes a call.
+func TestResolveFeaturesMayBeOn(t *testing.T) {
+	tab := committedTables(t)
+	srcs := []string{
+		"use Object::Pad; class Foo { method m { 1 } }",
+		"use Syntax::Keyword::Try; try { 1 } catch ($e) { 2 }",
+		"use Mojo::Base -signatures; sub f :lvalue ($x) {}",
+	}
+	if src, err := os.ReadFile(filepath.Join(perl5Root(), "cpan", "Test-Simple", "t", "regression", "10-set_and_dne.t")); err == nil {
+		srcs = append(srcs, string(src))
+	}
+	for _, src := range srcs {
+		if refusedAnywhere(parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })) {
+			t.Errorf("%q: recursive descent refuses it, so the row pins nothing", src)
+		}
+		if f, ref := Parse(tab, []byte(src), scopeOf(src)); f == nil {
+			t.Errorf("%q is refused (%+v); recursive descent accepts it", src, ref)
+		}
+	}
+}
+
+// perl5Root is PERL5_CORPUS when set, else the development machine's perl5 tree, as the chart package reads it.
+func perl5Root() string {
+	if r := os.Getenv("PERL5_CORPUS"); r != "" {
+		return r
+	}
+	return "/opt/corpora/perl5"
 }
 
 // TestResolveFeaturesPrototypeNotRefused: without the signatures feature a parenthesised list straight after a sub's

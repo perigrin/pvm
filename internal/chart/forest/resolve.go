@@ -206,7 +206,11 @@ func (r *resolver) declarations(f *Forest) {
 	var pkgs []region
 	for _, nd := range f.Nodes[1:] {
 		from, to, s := int(nd.From), int(nd.To), int(nd.Sym)
-		class := (s == r.g.classStmt || s == r.g.classBlock) && r.s.FeaturesAt(from)&lex.FeatureClass != 0
+		class := false
+		if s == r.g.classStmt || s == r.g.classBlock {
+			fs := r.s.FeaturesAt(from)
+			class = (fs.On|fs.Maybe)&lex.FeatureClass != 0
+		}
 		if !class && s != r.g.pkgStmt && s != r.g.pkgBlock {
 			continue
 		}
@@ -333,7 +337,9 @@ func latest(ds []sub, k int) (sub, bool) {
 // whether it is a feature-gated keyword with its feature on: a keyword then, which no scope decides. Such a keyword
 // keeps its own readings only with its feature on and a plain word's only with it off (keywords.c, yyl_just_a_word);
 // field, method and ADJUST with it on keep none outside a class (croak_kw_unless_class); and sub keeps its signature
-// readings only with the signatures feature on, its prototype's only with it off (yyl_sub's is_sigsub).
+// readings only with the signatures feature on, its prototype's only with it off (yyl_sub's is_sigsub). Where an
+// import or a BEGIN block may have turned the feature on (lex.Features.Maybe), every reading stands, as for a word
+// resolve cannot see (keepAll).
 func (r *resolver) feature(k int, set []int) bool {
 	g := r.g
 	has := func(of []bool) bool { return slices.ContainsFunc(set, func(x int) bool { return of[x] }) }
@@ -343,13 +349,19 @@ func (r *resolver) feature(k int, set []int) bool {
 	}
 	var drop func(x int) bool
 	keyword, w := false, r.text(k)
+	fs := r.s.FeaturesAt(k)
 	switch f, ok := featureOf[w]; {
+	case sig && fs.Maybe&lex.FeatureSignatures != 0:
+		return false
 	case sig:
-		on := r.s.FeaturesAt(k)&lex.FeatureSignatures != 0
+		on := fs.On&lex.FeatureSignatures != 0
 		drop = func(x int) bool { return on && g.plainSub[x] || !on && g.sig[x] }
 	case !ok:
 		return false
-	case r.s.FeaturesAt(k)&f == 0:
+	case fs.Maybe&f != 0:
+		r.keepAll(k)
+		return true
+	case fs.On&f == 0:
 		drop = func(x int) bool { return g.keyword[x] }
 	case !slices.Contains(set, g.noamp) && (!slices.Contains(set, g.privateref) || slices.Contains(set, g.bareword)):
 		// a name toke.c forces (after ->, sub, & or *, where a BAREWORD or a lone METHCALL0 reads it), which it never
@@ -368,16 +380,22 @@ func (r *resolver) feature(k int, set []int) bool {
 	return keyword
 }
 
-// attrArg drops token k's reading as an attribute's argument where a gap parts the ( before it from the attribute's
-// name: toke.c reads an argument only where ( follows the name directly (yyl_colon's scan_str), so `sub f :lvalue ($x)`
-// has no argument, which the token table, reading no gaps, cannot tell.
+// attrArg drops token k's reading as an attribute's argument where a gap parts it from the attribute's name: toke.c
+// reads an argument only where ( follows the name directly (yyl_colon's scan_str), so `sub f :lvalue ($x)` and
+// `sub f :prototype ($)` have none, which the token table, reading no gaps, cannot tell. The argument is the ATTRLIST
+// after a (, or a Prototype token the lexer scans whole.
 func (r *resolver) attrArg(k int, set []int) {
-	if k < 2 || !r.is(k-1, "(") || !slices.Contains(set, r.g.attrlist) ||
-		!slices.Contains(r.tab.TerminalSets[r.s.Tokens[k-2].TerminalSet], r.g.attrlist) {
+	arg, name, x := k-1, k-2, r.g.attrlist
+	if r.s.Raw[r.s.Tokens[k].Index].Kind == lexer.Prototype {
+		arg, name, x = k, k-1, r.g.prototype
+	} else if !r.is(k-1, "(") {
 		return
 	}
-	if r.s.Raw[r.s.Tokens[k-1].Index].Start > r.s.Raw[r.s.Tokens[k-2].Index].End {
-		r.dead[[2]int{k, r.g.attrlist}] = true
+	if name < 0 || !slices.Contains(set, x) || !slices.Contains(r.tab.TerminalSets[r.s.Tokens[name].TerminalSet], r.g.attrlist) {
+		return
+	}
+	if r.s.Raw[r.s.Tokens[arg].Index].Start > r.s.Raw[r.s.Tokens[name].Index].End {
+		r.dead[[2]int{k, x}] = true
 	}
 }
 
@@ -385,6 +403,14 @@ func (r *resolver) attrArg(k int, set []int) {
 func (r *resolver) inClass(k int) bool {
 	at, ok := r.classes[r.pkg[k]]
 	return ok && at < k
+}
+
+// keepAll keeps every reading of a word resolve cannot decide, at token k, but a method's in a filehandle's slot
+// before a non-word: toke.c reads a word there as a bareword or, were it a sub, a call, never a method.
+func (r *resolver) keepAll(k int) {
+	if r.fileSlot(k) && !r.isWord(k+1) {
+		r.dead[[2]int{k, r.g.methcall0}], r.dead[[2]int{k, r.g.methcall}] = true, true
+	}
 }
 
 // What the word after a scope-decided one is to intuit_method: not a word;
@@ -405,10 +431,7 @@ func (r *resolver) word(k int) {
 	g := r.g
 	d, st := r.lookup(r.text(k), k)
 	if st == unknown {
-		if r.fileSlot(k) && !r.isWord(k+1) {
-			// toke.c reads a filehandle slot's word before a non-word as a bareword or, were it a sub, a call: never a method
-			r.dead[[2]int{k, g.methcall0}], r.dead[[2]int{k, g.methcall}] = true, true
-		}
+		r.keepAll(k)
 		return
 	}
 	cls := notWord
