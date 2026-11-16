@@ -4,6 +4,9 @@
 package parse_test
 
 import (
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -115,5 +118,87 @@ func TestBuiltinBundlesImportTheirNames(t *testing.T) {
 	src := `use v5.40; my $r = blessed $x, 1;`
 	if c := findCall(parse.Parse([]byte(src)), "blessed"); c == nil || len(c.Children) != 1 {
 		t.Errorf("%q: blessed takes one argument; got %s", src, shape(parse.Parse([]byte(src))))
+	}
+}
+
+// TestImportsUseBuiltin: parse.Imports reports what `use builtin` imports,
+// as it does any module's imports, each with the prototype perl gives it.
+// builtin is XS and has no Exporter list; its importable names and their
+// prototypes, observed on 94e50866 (perl 5.45.0):
+//
+//	$ perl -e 'for (sort keys %builtin::) { print "$_ ", prototype("builtin::$_") // "undef", "\n" }'
+//
+// true, false, inf and nan are "", indexed "@", export_lexically none, and
+// the other fifteen "$". `use builtin qw(import)` dies "'import' is not
+// recognised as a builtin function". A bundle imports the 13 that
+// TestBuiltinBundlesImportTheirNames names.
+func TestImportsUseBuiltin(t *testing.T) {
+	want := map[string]string{
+		"true": "()", "false": "()", "inf": "()", "nan": "()", "indexed": "(@)", "export_lexically": "",
+		"blessed": "($)", "ceil": "($)", "created_as_number": "($)", "created_as_string": "($)",
+		"floor": "($)", "is_bool": "($)", "is_tainted": "($)", "is_weak": "($)", "load_module": "($)",
+		"refaddr": "($)", "reftype": "($)", "stringify": "($)", "trim": "($)", "unweaken": "($)", "weaken": "($)",
+	}
+	src := "use builtin qw(" + strings.Join(slices.Collect(maps.Keys(want)), " ") + ");\n"
+	imps := parse.Imports(parse.ParseWithLoader([]byte(src), nil))
+	for name, proto := range want {
+		if imp, ok := imps[name]; !ok || !imp.PrototypeKnown || imp.Prototype != proto {
+			t.Errorf("%s imported as %+v (found %v), want prototype %q", name, imp, ok, proto)
+		}
+	}
+	bundle := parse.Imports(parse.ParseWithLoader([]byte("use builtin ':5.40';\n"), nil))
+	if imp, ok := bundle["indexed"]; !ok || imp.Prototype != "(@)" {
+		t.Errorf("use builtin ':5.40' imports indexed; got %+v (found %v)", imp, ok)
+	}
+}
+
+// TestImportsUseBuiltinUnlisted: a name `use builtin` did not import is not
+// reported. Observed on 94e50866, `use builtin qw(true); my @a; foreach my
+// ($i, $v) (indexed @a) {}` is a syntax error near "indexed @a", and
+// `use builtin ':5.40'` leaves is_bool, which is NO_BUNDLE, unimported.
+func TestImportsUseBuiltinUnlisted(t *testing.T) {
+	for src, absent := range map[string][]string{
+		"use builtin qw(true);\n":   {"indexed", "false", "blessed"},
+		"use builtin;\n":            {"true", "indexed"},
+		"use builtin ':5.40';\n":    {"is_bool", "inf", "export_lexically"},
+		"use builtin qw(import);\n": {"import"},
+	} {
+		imps := parse.Imports(parse.ParseWithLoader([]byte(src), nil))
+		for _, name := range absent {
+			if imp, ok := imps[name]; ok {
+				t.Errorf("%q: %s is not imported; got %+v", src, name, imp)
+			}
+		}
+	}
+	if imps := parse.Imports(parse.ParseWithLoader([]byte("use builtin qw(true);\n"), nil)); len(imps) != 1 {
+		t.Errorf("use builtin qw(true) imports true alone; got %v", imps)
+	}
+}
+
+// TestImportsUseBuiltinFileScope: use builtin's import is lexical, so Imports,
+// which is file-wide, reports only one at file scope. Observed on 94e50866,
+// `{ use builtin qw(indexed); } my @a; for my ($i, $v) (indexed @a) {}` is a
+// syntax error, as it is after a sub body, if block or package block, and
+// `use M qw(true); { use builtin qw(true); } my @x = (true 1, 2);` compiles
+// with M's true.
+func TestImportsUseBuiltinFileScope(t *testing.T) {
+	for _, src := range []string{
+		"{ use builtin qw(indexed); }\n",
+		"sub f { use builtin 'indexed'; }\n",
+		"if (1) { use builtin qw(indexed); }\n",
+		"{ use v5.40; }\n",
+		"{ use builtin ':5.40'; }\n",
+		"package Foo { use builtin qw(indexed); }\n",
+	} {
+		if imp, ok := parse.Imports(parse.ParseWithLoader([]byte(src), nil))["indexed"]; ok {
+			t.Errorf("%q: indexed is imported only inside the block; got %+v", src, imp)
+		}
+	}
+	load := func(name string) ([]byte, bool) {
+		return []byte("package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(true);\nsub true {1}\n1;\n"), name == "M"
+	}
+	src := "use M qw(true); { use builtin qw(true); }\n"
+	if imp := parse.Imports(parse.ParseWithLoader([]byte(src), load))["true"]; imp.Prototype == "()" {
+		t.Errorf("%q: M's true is the one in scope after the block; got %+v", src, imp)
 	}
 }

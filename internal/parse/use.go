@@ -859,7 +859,18 @@ func (p *parser) importBuiltin(name string) {
 	// Lexical, as `my sub` is: in scope whatever package follows.
 	// Measured on 5.42.0, `use builtin "refaddr"; package P; my $a =
 	// refaddr $x, 1` compiles.
-	p.declareLexical(Import{Name: name, Prototype: proto, PrototypeKnown: true})
+	imp := Import{Name: name, Prototype: proto, PrototypeKnown: true}
+	p.declareLexical(imp)
+	// shortcut: Imports is file-wide, so it reports only a file-scope import; a name one inside a block imports
+	// stays undeclared to the chart there, or keeps a file-scope module import's prototype if there is one;
+	// upgrade when Imports says where each name is in scope.
+	if p.inBlock {
+		return
+	}
+	if p.builtins == nil {
+		p.builtins = map[string]Import{}
+	}
+	p.builtins[name] = imp
 }
 
 // resolveRequiredFile reads a `require './helper.pl'` and records every

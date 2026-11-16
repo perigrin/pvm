@@ -1280,8 +1280,14 @@ the file declares no such package, since a package or filehandle created elsewhe
 `Foo::bar`) cannot be seen (`sub new {} Foo::bar(); new Foo x 3;` is accepted); shortcut: after a filehandle a declared
 `x` keeps its operator reading, since the token table gives `x` after a word no call reading (`addStatementX`), so
 `sub x {} print FH x 3;` is accepted with perl's verdict and not its grouping; shortcut: a sub `use subs` predeclares
-or `use builtin` imports is undeclared, since parse.Imports reports neither (`use subs qw(foo); foo 1;` and
-`use builtin qw(indexed)` with `(indexed @a)` are refused; the second is perl.git's `t/perf/opcount.t`);
+or a `use builtin` inside a block imports is undeclared, or for the latter read with a file-scope module import's
+prototype if there is one, since parse.Imports, which is file-wide, reports neither (`use subs qw(foo); foo 1;` and
+`{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }` are refused, and
+`use M qw(true); { use builtin qw(true); my @x = (true 1, 2); }` is accepted, M's `true` having no prototype);
+shortcut: a sub the file declares is read before an import, so an import of its name, by `use builtin` or by a module,
+does not shadow it, where perl takes whichever came last, since parse.Imports keeps one entry per name and not where it
+was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form with the `use` in a block and
+`sub nil {} use M qw(nil); my @x = (nil 1);` are accepted);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
 glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
@@ -1297,8 +1303,9 @@ and, with the feature on, `use feature "try"; try 1;`, `use feature "current_sub
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and
-recognition accept, perl.git `t/` included, resolve refuses five: `t/perf/opcount.t` (`use builtin`) and
-`t/uni/parser.t` (`*{` after a call), both above, and three recursive descent refuses too. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
+recognition accept, perl.git `t/` included, resolve refuses four: `t/uni/parser.t` (`*{` after a call),
+above, and three recursive descent refuses too. `t/perf/opcount.t`, refused while parse.Imports did not report
+`use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to
 `forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
 
 ### Builtin classes against `parse.CoreShapes()`

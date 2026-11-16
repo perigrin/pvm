@@ -60,6 +60,7 @@ var parserFields = map[string]int{
 	"packages":       snapshotted,
 	"listed":         snapshotted,
 	"lexical":        snapshotted,
+	"builtins":       snapshotted,
 	"pkg":            snapshotted,
 	"imports":        snapshotted,
 	"bodied":         snapshotted,
@@ -111,6 +112,7 @@ func (p *parser) clone() parser {
 	c.packages = maps.Clone(p.packages)
 	c.listed = maps.Clone(p.listed)
 	c.lexical = maps.Clone(p.lexical)
+	c.builtins = maps.Clone(p.builtins)
 	c.imports = maps.Clone(p.imports)
 	c.bodied = maps.Clone(p.bodied)
 	c.closedEarly = maps.Clone(p.closedEarly)

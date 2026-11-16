@@ -18,7 +18,7 @@ import (
 
 // testModules are the modules a row's use loads. perl's verdicts for the rows that use M were taken with this M.pm on @INC.
 var testModules = map[string]string{
-	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\n1;\n",
+	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true false);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\nsub false () { 0 }\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -96,6 +96,7 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"use M qw(foo); foo 1;", true},
 		{"use M qw(one); one 1, 2;", true},
 		{"use M qw(nil); nil 1;", false},
+		{"use M qw(false); { use builtin qw(false); my @x = (false 1, 2); }", false},
 		{"use M qw(nil); nil + 1;", true},
 		{"use M qw(first); first { 1 } 2;", true},
 		{"use constant FH => 1; print FH x 3;", true},
@@ -114,6 +115,7 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		// subs parse.Imports reports: a BEGIN's glob assignment, and an import into another package
 		{"BEGIN { *foo = sub {} } my $x = foo 1;", true},
 		{"package Foo; BEGIN { *plan = sub {} } plan 9;", true},
+		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", true}, // perl.git t/perf/opcount.t
 		// a glob after a call: its name is no word of scope's, and the { after its * a block or a subscript
 		{"sub is {} is *_{ARRAY}, undef;", true},
 		// & after a term is the bitwise and (yyl_ampersand, PL_expect XOPERATOR), and a sub's sigil where a term is
@@ -169,10 +171,20 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"new Foo * 2;", false},
 		{"sub foo {} foo * 2;", false},
 		{"print STDOUT * 2;", false},
-		// shortcut (lookup): parse.Imports reports nothing for use subs and use builtin, so the names they declare
-		// are undeclared to resolve; perl accepts both.
+		// shortcut (lookup): parse.Imports reports nothing for use subs, so the names it declares are undeclared to
+		// resolve; perl accepts it.
 		{"use subs qw(foo); foo 1;", false},
-		{"use builtin qw(indexed); my @a; for my ($i, $v) (indexed @a) {}", false},
+		// shortcut (lookup): parse.Imports reports only a file-scope use builtin, so a name one imports inside a block
+		// is undeclared there too; perl accepts it.
+		{"{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }", false},
+		// and where a module imports the name at file scope, the chart reads it there with the module's prototype,
+		// where perl reads builtin's; perl refuses it ("Number found where operator expected").
+		{"use M qw(true); { use builtin qw(true); my @x = (true 1, 2); }", true},
+		// shortcut (lookup): a sub the file declares is read before an import, so an import of its name, by use builtin
+		// or by a module, does not shadow it; perl refuses each ("Number found where operator expected").
+		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
+		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
+		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},

@@ -250,6 +250,9 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 	if d, ok := latest(r.lexical[word], k); ok && !strings.Contains(word, "::") {
 		return d, declared
 	}
+	// shortcut: a sub the file declares is read before an import, so an import of its name, by use builtin or by a
+	// module, does not shadow it, where perl takes whichever came last; upgrade when parse.Imports says where each
+	// import was made.
 	if d, ok := latest(r.subs[qualify(r.pkg[k], word)], k); ok {
 		return d, declared
 	}
@@ -270,8 +273,9 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 		// nor its imports declare keeps every reading; upgrade when parse exports the subs each loaded package defines.
 		return sub{}, unknown
 	}
-	// shortcut: a sub use subs predeclares, or one use builtin imports, is undeclared here, since parse.Imports
-	// reports neither; upgrade when it does.
+	// shortcut: a sub use subs predeclares, or one a use builtin inside a block imports, is undeclared here (the
+	// latter read with a file-scope module import's prototype if there is one, above), since parse.Imports, which is
+	// file-wide, reports neither; upgrade when it does.
 	return sub{}, undeclared
 }
 
