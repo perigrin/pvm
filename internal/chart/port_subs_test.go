@@ -15,9 +15,6 @@ import (
 // unconditionally in its action: it is left to the issue that completes the port, which marks it
 // excluded refused-in-action and holds its refusal in TestLedgerRefusals. Attribute arguments and names carry the attrlist limits
 // (01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a): an argument is one token, so `:Foo(a, b)` is refused.
-// An anonymous sub's prototype, and an attribute colon with no attribute after it, leave
-// internal/lexer's `{` outside a block, so `sub ($$) { 1 }` and `sub foo : { 1 }` are refused until
-// 01a1a445-61f0-73c8-81db-1cc65a3620f5: no snippet carries them.
 var subsLines = []int{574, 638, 893, 895, 1029, 1045, 1051, 1052, 1057, 1058, 1065, 1218, 1219, 1224, 1300, 1306,
 	1538, 1541, 1566}
 
@@ -36,7 +33,8 @@ func TestPortSubs(t *testing.T) {
 	}
 	// ADJUST outside a class is perl's scope refusal, which resolve makes (TestWaypoint2Refusals), so no snippet can hold it.
 	for _, src := range []string{"ADJUST { 1 }", "ADJUST;", "sub foo { 1 }", "sub foo;", "sub foo ($$) { 1 }", "sub foo :lvalue { 1 }",
-		"BEGIN { 1 }", "my $s = sub { 1 };", "sub BEGIN { 1 }", "$y = $x->&foo"} {
+		"BEGIN { 1 }", "my $s = sub { 1 };", "sub BEGIN { 1 }", "$y = $x->&foo",
+		"sub ($$) { 1 }", "sub () { 1 }", "my $s = sub ($$) { 1 } / 2;", "sub foo : { 1 }", "sub foo :lvalue : { 1 }"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}

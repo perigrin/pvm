@@ -900,12 +900,6 @@ Beyond them:
   are the same with or without a space before the parenthesis, so the chart
   cannot tell an argument from a stray list. Until the lexer scans an argument
   only where the parenthesis touches the name (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`).
-- The `{` that ends a sub head after an anonymous sub's prototype
-  (`sub ($$) { ... }`, `sub () { ... }`) or after an attribute colon with no
-  attribute (`sub foo : { ... }`, `sub foo :lvalue : { ... }`) is not marked as
-  a block by the lexer, so those forms are refused where perl accepts them
-  (`01a1a445-61f0-73c8-81db-1cc65a3620f5`). Five T1 files hit the first and are
-  on `lexer-defects.txt`.
 - The lexer scans a prototype only after `sub NAME`, so the `(` after `BEGIN`,
   `END` and their kin is an ordinary parenthesis and `BEGIN ($$) { 1 }` is
   refused where perl accepts it (`01a1a44e-8f26-706b-96d4-b3e6d7f55c3f`). No corpus file meets this.
@@ -967,8 +961,7 @@ no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 - `class Foo v1.2.3;` is recognized, as perl accepts it, but only by `class`'s word reading: its keyword reading is the
   package limit above (`01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`; the lexer emits `Word:v1 Operator:. Number:2.3`), so
   `forest.Parse`, which keeps only the keyword under the class feature, refuses it (`TestResolveKnownLimits`).
-- Refused where perl accepts: `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
-  and `method m : { }` (the `sub foo : { }` limit above).
+- Refused where perl accepts: `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`).
 - Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
   is refused where perl accepts it: pvm emits `( Word Number )` where toke.c delivers one ATTRLIST. And `method m :lvalue ($$) { 1 }`,
   `method m :lvalue (1) { 1 }` and `my $c = method :lvalue (1) { 1 };` are accepted where perl refuses them as bad signatures: pvm emits
