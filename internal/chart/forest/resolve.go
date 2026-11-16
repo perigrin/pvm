@@ -24,6 +24,9 @@ import (
 // not say which use brought a name in; upgrade when it carries each import's position.
 type Scope struct {
 	Imports map[string]parse.Import
+	// LibraryOperators are the infix operators the file's use statements bring into scope, as
+	// parse.LibraryOperators gives them over the same tree: each from the byte its use starts at.
+	LibraryOperators []parse.LibraryOperator
 }
 
 // scopeGrammar is the perly.y symbols resolve reads, by id, built once per

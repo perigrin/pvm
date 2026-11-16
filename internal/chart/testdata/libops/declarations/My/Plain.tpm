@@ -1,0 +1,5 @@
+# ABOUTME: A library declaring a sub named plus and no infix operator, for library_operators_test.go.
+# ABOUTME: Its use brings no PLUGIN_* reading: plus is a call there, as perl reads an imported sub.
+package My::Plain;
+
+sub plus :export (Num $x, Num $y) Num;
