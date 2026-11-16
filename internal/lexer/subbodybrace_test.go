@@ -28,17 +28,29 @@ func TestSubBodyBraceOpensBlock(t *testing.T) {
 
 // TestSubBodyBraceAnonIsTerm: an anonymous sub is a term, so its body's `}`
 // leaves an operator expected, as toke.c's XATTRTERM does: the `/` divides.
+// Measured with -DT on the pinned perl, each reads XOPERATOR after the `}`,
+// an attribute word in the head included.
 func TestSubBodyBraceAnonIsTerm(t *testing.T) {
-	src := `my $c = sub ($$) { 1 } / 2;`
-	for _, tok := range Tokenize([]byte(src)) {
-		if src[tok.Start:tok.End] == "/" {
-			if tok.Kind != Operator {
-				t.Errorf("%q: `/` is %v; want Operator", src, tok.Kind)
+	for _, src := range []string{
+		`my $c = sub ($$) { 1 } / 2;`,
+		`my $c = sub :lvalue : { 1 } / 2;`,
+		`my $c = sub ($) :lvalue : { 1 } / 2;`,
+		`my $c = sub ($$) : lvalue { 1 } / 2;`,
+		`my $c = sub :lvalue { 1 } / 2;`,
+	} {
+		found := false
+		for _, tok := range Tokenize([]byte(src)) {
+			if src[tok.Start:tok.End] == "/" {
+				found = true
+				if tok.Kind != Operator {
+					t.Errorf("%q: `/` is %v; want Operator", src, tok.Kind)
+				}
 			}
-			return
+		}
+		if !found {
+			t.Errorf("%q: no `/` token", src)
 		}
 	}
-	t.Errorf("%q: no `/` token", src)
 }
 
 // TestSubBodyBraceLeavesHashAlone: the same neighbours outside a sub head
@@ -51,6 +63,24 @@ func TestSubBodyBraceLeavesHashAlone(t *testing.T) {
 		open, closer := braceAndCloserOpenBlock(t, src)
 		if open || closer {
 			t.Errorf("%q: `{` OpensBlock=%v, `}` OpensBlock=%v; want an anonymous hash (false, false)", src, open, closer)
+		}
+	}
+}
+
+// TestSubBodyBraceAttrName: an attribute's name in a sub head is marked, as
+// toke.c's yyl_colon scans it as ATTRLIST; the same word after a ternary's
+// colon is not.
+func TestSubBodyBraceAttrName(t *testing.T) {
+	for src, want := range map[string]bool{
+		`sub foo :lvalue { 1 }`:            true,
+		`my $c = sub ($) : lvalue { 1 };`:  true,
+		`my $c = sub :lvalue : { 1 } / 2;`: true,
+		`$c ? f : lvalue { 1 }`:            false,
+	} {
+		for _, tok := range Tokenize([]byte(src)) {
+			if src[tok.Start:tok.End] == "lvalue" && tok.AttrName != want {
+				t.Errorf("%q: lvalue AttrName=%v; want %v", src, tok.AttrName, want)
+			}
 		}
 	}
 }

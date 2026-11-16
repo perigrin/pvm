@@ -39,6 +39,12 @@ func TestPortSubs(t *testing.T) {
 			t.Errorf("%q is refused at %d", src, v.at)
 		}
 	}
+	// An anonymous sub's body is a term's block, attribute words in its head or not (toke.c's XATTRTERM).
+	for _, src := range []string{"my $c = sub ($$) : lvalue { 1 } + 1;", "my $c = sub :lvalue : { 1 } / 2;", "my $c = sub ($) :lvalue : { 1 } / 2;"} {
+		if !pipelineSource(t, src) {
+			t.Errorf("%q is refused; perl accepts it", src)
+		}
+	}
 }
 
 func TestPortSubsRefusals(t *testing.T) {

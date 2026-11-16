@@ -120,6 +120,9 @@ type transition struct {
 	// afterDeclName is set on the NAME of a `sub NAME` or `package NAME`,
 	// after which a block is expected rather than a term.
 	afterDeclName bool
+	// anonHead is set while the declaration head is an anonymous sub's, whose
+	// block is a term's: see lexer.anonHead.
+	anonHead bool
 	// nextBraceIsBlock is intuitCurly's answer for the `{` that follows,
 	// and is meaningful only when nextIsOpenBrace is set.
 	nextBraceIsBlock bool
@@ -245,7 +248,7 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// a name whatever builtin it shares a spelling with: `sub time { 1 }`
 		// declares a sub named time.
 		if t.afterDeclName {
-			return XBlock
+			return attrState(t.anonHead, XBlock)
 		}
 		// A niladic builtin has produced a value, so an operator comes next.
 		// Measured before the table existed:
@@ -341,7 +344,7 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// anonymous sub is still a term. Neighbours cannot decide this:
 		// `$c ? foo : { a => 1 }` has the same ones.
 		if t.afterDeclName && string(t.text) == ":" {
-			return attrState(e)
+			return attrState(t.anonHead, XAttrBlock)
 		}
 		// `->` is the one operator whose next token is not a plain term.
 		// perl's XPOSTDEREF, and the state was declared for exactly this:
@@ -425,7 +428,7 @@ func (e Expect) after(k Kind, t transition) Expect {
 	case Prototype:
 		// toke.c leaves an anonymous sub's prototype at XATTRTERM, so its
 		// body is a block and that block a term: `sub ($$) { 1 }`.
-		return attrState(e)
+		return attrState(t.anonHead, XAttrBlock)
 	case Semicolon:
 		return XState
 	case FormatBody:
@@ -436,12 +439,12 @@ func (e Expect) after(k Kind, t transition) Expect {
 	return e
 }
 
-// attrState is the state after a sub's prototype or an attribute colon: a
-// named sub's head is already at XBlock (see afterDeclName), and any other is
-// an anonymous sub's, whose block is a term's.
-func attrState(e Expect) Expect {
-	if e == XBlock || e == XAttrBlock {
-		return XAttrBlock
+// attrState is the state after a sub head's prototype, attribute colon or
+// attribute word: toke.c's XATTRTERM in an anonymous sub's head, whose block
+// is a term's, and named in a named one's.
+func attrState(anon bool, named Expect) Expect {
+	if anon {
+		return XAttrTerm
 	}
-	return XAttrTerm
+	return named
 }
