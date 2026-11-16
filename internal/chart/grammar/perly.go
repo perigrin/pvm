@@ -1967,6 +1967,11 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 			classes = append(classes, ClassDecl{d.Terminal, c})
 		}
 	}
+	// A quote-like's name has a text of its own, which otherWord does not cover: the { after its * is a block's too.
+	for _, w := range quoteOpWords {
+		classes = append(classes, ClassDecl{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"),
+			OpensBlock: ptr(false), Prev2: &Neighbour{Kind: lexer.Word, Text: w}, Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}, NotNext: nextNotClose}})
+	}
 	return classes
 }
 

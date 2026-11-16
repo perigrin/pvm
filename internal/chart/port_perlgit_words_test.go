@@ -53,6 +53,8 @@ func TestPerlGitWords(t *testing.T) {
 	rows := map[string]bool{}
 	for _, src := range []string{
 		"sub is {} is *{$_[0]};", "is *{$_[0]};", "sub foo {} foo *{$x};", `print STDOUT *{"x"};`, `new Foo *{"x"};`,
+		// a quote-like's name has a text of its own, so the { after its * needs a class of its own (quoteOpWords)
+		`my sub q { 1 } q *{"x"};`, `my sub s { 1 } s *{$x};`,
 	} {
 		if got := terminalsAt(t, src, strings.Index(src, "*{")+1); !slices.Contains(got, "PERLY_BRACE_OPEN") {
 			t.Errorf("the { of %q admits %v, no PERLY_BRACE_OPEN", src, got)

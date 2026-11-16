@@ -1192,7 +1192,8 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   that name is declared, which toke.c reads before the quote-like (it checks the pad first). So `addStatementWords`
   gives each the classes a feature keyword gets (`quoteOpWords`): `my sub s { 1 } s(1);` and
   `my sub y { 1 } my @a = (y, 1);` are calls (perl.git `op/lexsub.t`, `op/lvref.t`), and a method named `m` reads as
-  any other. After a package sub of that name toke.c reads the quote-like, and so does internal/lexer, so
+  any other; the `{` after such a name and a `*` gets its own block class too, since otherWord does not cover
+  a word with a text (`my sub q { 1 } q *{"x"};`). After a package sub of that name toke.c reads the quote-like, and so does internal/lexer, so
   `sub y { 1 } my @a = (y, 1);` is refused at lex, as by perl. shortcut: before a subscript's `}` the name has no
   word's reading, since internal/lexer emits a Word there even across a newline, where toke.c reads `$h{q` and a
   newline as a quote; so `my sub q {1} my %h; my $y = $h{q` and a newline and `};` is refused, where perl accepts it.
@@ -1298,8 +1299,9 @@ does not shadow it, where perl takes whichever came last, since parse.Imports ke
 was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form with the `use` in a block and
 `sub nil {} use M qw(nil); my @x = (nil 1);` are accepted);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
-glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
-`sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
+glob sigils and `?` and `/` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
+`sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and
+`my sub s { 1 } s/a/b/e;` are accepted; `*` before a Number wherever toke.c
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
 glob, since internal/lexer emits the `2` a Number. `class`'s package is not read. shortcut: a feature-gated keyword
 ("Scope-decided words" above) keeps every reading but a method's in a filehandle's slot before a non-word (as an

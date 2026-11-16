@@ -161,11 +161,14 @@ func TestResolveKnownLimits(t *testing.T) {
 		// shortcut (word): a package created outside the file's package statements, here by naming Foo::bar, makes
 		// new a method to perl, which refuses it.
 		{"sub new {} Foo::bar(); new Foo x 3;", true},
-		// toke.c leaves XTERM after a call, where < opens a <> and ** a glob's * twice and ? an old pattern match,
-		// which the token table gives no reading after a word; perl refuses all three, the last for its arguments.
+		// toke.c leaves XTERM after a call, where < opens a <> and ** a glob's * twice and ? an old pattern match and
+		// / a pattern, which the token table gives no reading after a word; perl refuses all five, the ? row for its
+		// arguments and the / rows for the pattern's modifiers ("Unknown regexp modifier").
 		{"sub foo {} foo < 3;", true},
 		{"sub foo {} my $x = foo ** 2;", true},
 		{"sub foo ($) {} foo ? 1 : 2;", true},
+		{"sub foo {} foo/a/b/e;", true},
+		{"my sub s { 1 } s/a/b/e;", true},
 		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where internal/lexer emits the
 		// 2 a Number, which no glob's name is; perl accepts all three.
 		{"new Foo * 2;", false},

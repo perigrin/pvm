@@ -38516,6 +38516,15 @@ node 7971 part 5 otherwise 7970
   {Kind:Operator Text:{ OpensBlock:true TermFollows:false Brace:1 Glob:false Name:false Label:false SortParen:false Array:false} -> 7964
   {Kind:Semicolon Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7964
   {Kind:Word Text: other-word OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:m OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:q OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:qq OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:qr OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:qw OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:qx OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:s OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:tr OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
+  {Kind:Word Text:y OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7969
 node 7972 part 6 otherwise 7960
 node 7973 part 6 otherwise 7960
   {Kind:Word Text:accept OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
