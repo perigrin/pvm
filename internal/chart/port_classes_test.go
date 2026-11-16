@@ -61,14 +61,14 @@ func TestPortClassesRefusals(t *testing.T) {
 func TestPortClassesKnownLimits(t *testing.T) {
 	const feature = "use feature 'class'; no warnings 'experimental::class'; "
 	for src, accepted := range map[string]bool{
-		"class Foo v1.2.3;":                                            true,  // 01a1a481-ebef: the lexer scans no v-string after a name; accepted by class's word reading alone, which resolve drops by feature (SCOPEFEAT)
+		"class Foo v1.2.3;":                                            true,  // 01a1a481-ebef: the lexer scans no v-string after a name; accepted by class's word reading alone, which resolve drops by feature
 		"class Foo { field $x :param //= 1; }":                         false, // 01a1aa23-746a: the lexer scans // after an attribute as a pattern
 		"class Foo { method m : { } }":                                 false, // 01a1a445-61f0: the lexer does not mark the { after a bare attribute colon
 		"class Bar { } class Foo :isa(Bar 1.2);":                       false, // 01a19fb5: pvm emits ( Word Number ), toke.c one ATTRLIST
 		"class Foo { method m :lvalue ($$) { 1 } }":                    true,  // 01a19fb5: tokens ( Variable:$$ ), the same with or without the space
 		"class Foo { method m :lvalue (1) { 1 } }":                     true,  // 01a19fb5: tokens ( Number ), as a signature perl refuses
 		"class Foo { method m { my $c = method :lvalue (1) { 1 }; } }": true,  // 01a19fb5, likewise
-		"field $x;":                         true, // outside a class: waypoint 2's scope refusal
+		"field $x;":                         true, // outside a class: resolve refuses it (TestWaypoint2Refusals)
 		"method m { 1 }":                    true, // likewise
 		"my $c = method { 1 };":             true, // likewise
 		"class Foo { field $::x; }":         true, // the field is a package variable
@@ -77,7 +77,7 @@ func TestPortClassesKnownLimits(t *testing.T) {
 		"class Foo { method BEGIN { 1 } }":  true, // perl dies calling it, not parsing it
 		"class Foo { field $x = 1 = 2; }":   true, // can't modify a constant, an action's
 		"class Foo { field $x :Foo(bar); }": true, // an unrecognised field attribute, an action's
-		// The feature-gated words read as words (FEATWORDS), which perl does only with the feature off: resolve's by feature (SCOPEFEAT).
+		// The feature-gated words read as words, which perl does only with the feature off: resolve refuses them by feature.
 		"class if Bar;": true, "class Foo Bar;": true, "class Foo Bar { }": true,
 		"class Foo { method m { my $c = method; } }": true, "class Foo { method ; }": true,
 	} {

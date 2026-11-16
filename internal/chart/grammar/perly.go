@@ -977,8 +977,8 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(false), NotPrev1: afterArrow, Completes: true}},
 	// Two classes, so only `catch (` is excluded: `print catch . $_` and `catch => $_` keep the variable.
 	// shortcut: `catch($_)` is refused too, which perl accepts with the try feature off (catch a sub's name); the
-	// exclusion is a token's, which cannot see the feature, so upgrade when resolve refuses the variable by feature
-	// (SCOPEFEAT), pinned in TestPortScopeDecidedKnownLimits.
+	// exclusion is a token's, which cannot see the feature, so upgrade by moving it to resolve, which reads the
+	// features (forest/resolve.go); pinned in TestPortScopeDecidedKnownLimits.
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), NotPrev1: append(slices.Clone(afterArrow), parenOpen), Completes: true}},
 	{"PERLY_DOLLAR", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('$')), Global: ptr(true), Prev1: &parenOpen, NotPrev2: []Neighbour{{Kind: lexer.Word, Text: "catch"}}, Completes: true}},
 	// After -> a $ variable is a method's name (`$o->$m`), $* the postfix dereference, and a lone $ (pvm's for `->${`) a cast's.
@@ -1919,7 +1919,7 @@ var statementWords = []string{"AUTOLOAD", "DESTROY", "BEGIN", "UNITCHECK", "CHEC
 
 // featureKeywords are the keywords keywords.c at 94e50866 returns only under FEATURE_*_IS_ENABLED: with the feature off
 // toke.c reads each as a plain word (yyl_just_a_word). Recognition cannot see a feature, so each keeps its keyword
-// classes and gains a word's; resolve collapses them by feature (SCOPEFEAT). isa is chart/lex's (it reads use
+// classes and gains a word's; resolve keeps one by feature (forest/resolve.go). isa is chart/lex's (it reads use
 // statements), and say stays out: internal/lexer marks its filehandle either way (tdt/overrides.txt).
 var featureKeywords = []string{"ADJUST", "__CLASS__", "__SUB__", "all", "any", "break", "catch", "class", "default",
 	"defer", "evalbytes", "fc", "field", "finally", "given", "method", "state", "try", "when"}
@@ -1934,12 +1934,22 @@ var wordKeywords = append(slices.Clone(featureKeywords), quoteOpWords...)
 // IsFeatureKeyword is whether toke.c reads word as a keyword only with its feature on (featureKeywords).
 func IsFeatureKeyword(word string) bool { return slices.Contains(featureKeywords, word) }
 
+// featureReadings are the terminals the feature keywords' own classes give them, which addStatementWords finds.
+var featureReadings = map[string]bool{}
+
+// FeatureReading is whether terminal is a reading a feature keyword's own class gives it, which toke.c gives it only
+// with its feature on; its other readings are a plain word's.
+func FeatureReading(terminal string) bool { return featureReadings[terminal] }
+
 // addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
 // keyword), after anything but a statement start, and each of wordKeywords every such class and those of a word after
 // sort or do (keywordsButX, keywordsAndCORE), unqualified: CORE::kw is the keyword whatever the feature (yyl_key_core).
 func addStatementWords(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
 	for _, d := range classes {
+		if d.Key.Text != nil && IsFeatureKeyword(*d.Key.Text) {
+			featureReadings[d.Terminal] = true
+		}
 		plain := slices.Equal(d.Key.NotText, keywords)
 		if !plain && !slices.Equal(d.Key.NotText, keywordsButX) && !slices.Equal(d.Key.NotText, keywordsAndCORE) {
 			continue

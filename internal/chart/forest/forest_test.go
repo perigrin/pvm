@@ -465,7 +465,9 @@ func TestForestFromChart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if g, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); (g != nil) != c.Accepted() {
+			// perl refuses the feature-gated snippets with their feature on, which recognition cannot see and resolve does
+			gated := filepath.Base(filepath.Dir(p)) == "feature-gated"
+			if g, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); (g != nil) != (c.Accepted() && !gated) {
 				t.Fatalf("%s: Parse gives forest %v (%+v) where the chart's verdict is %v", p, g != nil, ref, c.Accepted())
 			}
 			if f == nil {

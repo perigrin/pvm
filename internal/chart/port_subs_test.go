@@ -34,7 +34,7 @@ func TestPortSubs(t *testing.T) {
 			t.Errorf("%s is refused at byte %d (expected %v); perl accepts it", f, v.at, v.expected)
 		}
 	}
-	// ADJUST outside a class is perl's scope refusal (waypoint 2's), so no snippet can hold it.
+	// ADJUST outside a class is perl's scope refusal, which resolve makes (TestWaypoint2Refusals), so no snippet can hold it.
 	for _, src := range []string{"ADJUST { 1 }", "ADJUST;", "sub foo { 1 }", "sub foo;", "sub foo ($$) { 1 }", "sub foo :lvalue { 1 }",
 		"BEGIN { 1 }", "my $s = sub { 1 };", "sub BEGIN { 1 }", "$y = $x->&foo"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {

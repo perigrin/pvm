@@ -1,5 +1,5 @@
-// ABOUTME: Resolve, after the forest: a scope-decided word keeps only the readings toke.c gives it under the subs in scope at its byte.
-// ABOUTME: Declared subs and packages come from the file's own forest; imported subs from the caller's Scope, parse.Imports' file-wide answer.
+// ABOUTME: Resolve, after the forest: a scope-decided word keeps only the readings toke.c gives it under the subs and features in scope at its byte.
+// ABOUTME: Declared subs, packages, classes and features come from the file itself; imported subs from the caller's Scope, parse.Imports' file-wide answer.
 
 package forest
 
@@ -32,10 +32,11 @@ type scopeGrammar struct {
 	ok bool
 	// the readings scope decides
 	noamp, func0sub, uniopsub, lstopsub, methcall0, methcall, bareword int
-	lstop, fn, prototype                                               int
-	subStmt, sigStmt, pkgStmt, pkgBlock                                int
-	// decided is the readings above, and term the terminals that begin a term, by symbol id
-	decided, term []bool
+	lstop, fn, prototype, privateref, attrlist                         int
+	subStmt, sigStmt, pkgStmt, pkgBlock, classStmt, classBlock         int
+	// decided is the readings above, term the terminals that begin a term, keyword the readings a feature keyword's
+	// own classes give it (grammar.FeatureReading), and sig and plainSub a sub's with signatures on and off, by symbol id
+	decided, term, keyword, sig, plainSub []bool
 }
 
 func buildScopeGrammar(tab *grammar.Tables) *scopeGrammar {
@@ -44,19 +45,26 @@ func buildScopeGrammar(tab *grammar.Tables) *scopeGrammar {
 	}
 	g := &scopeGrammar{noamp: id("NOAMP"), func0sub: id("FUNC0SUB"), uniopsub: id("UNIOPSUB"), lstopsub: id("LSTOPSUB"),
 		methcall0: id("METHCALL0"), methcall: id("METHCALL"), bareword: id("BAREWORD"), lstop: id("LSTOP"), fn: id("FUNC"),
-		prototype: id("PROTOTYPE"), subStmt: id("bare_statement_sub_traditional"), sigStmt: id("bare_statement_sub_signature"),
-		pkgStmt: id("bare_statement_package_declaration"), pkgBlock: id("bare_statement_package_definition")}
-	t := id("term")
-	g.ok = !slices.Contains([]int{g.noamp, g.func0sub, g.uniopsub, g.lstopsub, g.methcall0, g.methcall, g.bareword, g.lstop,
-		g.fn, g.prototype, g.subStmt, g.sigStmt, g.pkgStmt, g.pkgBlock, t}, -1)
+		prototype: id("PROTOTYPE"), privateref: id("PRIVATEREF"), attrlist: id("ATTRLIST"), subStmt: id("bare_statement_sub_traditional"),
+		sigStmt: id("bare_statement_sub_signature"), pkgStmt: id("bare_statement_package_declaration"),
+		pkgBlock: id("bare_statement_package_definition"), classStmt: id("bare_statement_class_declaration"),
+		classBlock: id("bare_statement_class_definition")}
+	t, subs := id("term"), []int{id("KW_SUB_named"), id("KW_SUB_anon"), id("KW_SUB_named_sig"), id("KW_SUB_anon_sig")}
+	g.ok = !slices.Contains(append([]int{g.noamp, g.func0sub, g.uniopsub, g.lstopsub, g.methcall0, g.methcall, g.bareword,
+		g.lstop, g.fn, g.prototype, g.privateref, g.attrlist, g.subStmt, g.sigStmt, g.pkgStmt, g.pkgBlock, g.classStmt, g.classBlock, t}, subs...), -1)
 	if g.ok {
-		g.decided, g.term = make([]bool, len(tab.Symbols)), make([]bool, len(tab.Symbols))
+		n := len(tab.Symbols)
+		g.decided, g.term, g.keyword, g.sig, g.plainSub = make([]bool, n), make([]bool, n), make([]bool, n), make([]bool, n), make([]bool, n)
 		for _, x := range []int{g.noamp, g.func0sub, g.uniopsub, g.lstopsub, g.methcall0, g.methcall, g.bareword} {
 			g.decided[x] = true
 		}
 		for _, x := range tab.First[t] {
 			g.term[x] = true
 		}
+		for x, sym := range tab.Symbols {
+			g.keyword[x] = grammar.FeatureReading(sym.Name)
+		}
+		g.plainSub[subs[0]], g.plainSub[subs[1]], g.sig[subs[2]], g.sig[subs[3]] = true, true, true, true
 	}
 	return g
 }
@@ -70,6 +78,21 @@ var fileOps = map[string]bool{"print": true, "printf": true, "say": true, "exec"
 	"sysread": true, "syswrite": true, "seek": true, "fcntl": true, "ioctl": true, "flock": true, "send": true,
 	"recv": true, "socket": true, "socketpair": true, "bind": true, "connect": true, "listen": true, "accept": true,
 	"shutdown": true, "getsockopt": true, "setsockopt": true, "opendir": true}
+
+// featureOf is the feature keywords.c reads each feature-gated keyword under (FEATURE_*_IS_ENABLED).
+var featureOf = map[string]lex.Feature{"try": lex.FeatureTry, "catch": lex.FeatureTry, "finally": lex.FeatureTry,
+	"defer": lex.FeatureDefer, "given": lex.FeatureSwitch, "when": lex.FeatureSwitch, "default": lex.FeatureSwitch,
+	"break": lex.FeatureSwitch, "state": lex.FeatureState, "__SUB__": lex.FeatureCurrentSub, "field": lex.FeatureClass,
+	"method": lex.FeatureClass, "class": lex.FeatureClass, "ADJUST": lex.FeatureClass, "__CLASS__": lex.FeatureClass,
+	"any": lex.FeatureKeywordAny, "all": lex.FeatureKeywordAll, "fc": lex.FeatureFc, "evalbytes": lex.FeatureEvalbytes}
+
+// shortcut: the indirect feature is not read, so a word before a variable stays a method where a bundle turns it off
+// (`use v5.36; no feature "state"; state $x = 1;`, refused by perl); upgrade when lex.Features carries indirect.
+
+// classOnly are the keywords toke.c refuses outside a class (croak_kw_unless_class).
+// shortcut: __CLASS__ outside a method or a field's initializer, which perl also refuses, is accepted; upgrade when
+// resolve reads the method and field scopes.
+var classOnly = map[string]bool{"field": true, "method": true, "ADJUST": true}
 
 // sub is a sub the file declares: in scope over tokens from to to, with its
 // prototype as written, parens included, or "" for none.
@@ -103,9 +126,12 @@ type resolver struct {
 	lexical     map[string][]sub // my and state subs, by name
 	own         map[string]bool  // every sub name the file declares, as written
 	packages    map[string]int   // the packages the file declares, by the token their first declaration starts at
+	classes     map[string]int   // the packages of those that a class statement declares, by the token it starts at
 	dead        map[[2]int]bool  // (token, terminal) readings resolve drops
 	// named is the tokens toke.c forces to a name, a method's class or a glob's, which are no scope-decided words
 	named []bool
+	// local is set while word decides a feature-gated keyword whose feature may be on, which leaves its neighbours alone
+	local bool
 }
 
 // resolve drops from f each reading toke.c would not give a scope-decided
@@ -120,7 +146,9 @@ func resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Sc
 		return -1
 	}
 	for k, t := range s.Tokens {
-		if !r.named[k] && slices.Contains(tab.TerminalSets[t.TerminalSet], r.g.noamp) {
+		set := tab.TerminalSets[t.TerminalSet]
+		r.attrArg(k, set)
+		if !r.named[k] && !r.feature(k, set) && slices.Contains(set, r.g.noamp) {
 			r.word(k)
 		}
 	}
@@ -137,7 +165,8 @@ func newResolver(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scop
 		return nil
 	}
 	r := &resolver{tab: tab, g: g, s: s, src: src, scope: scope, n: len(s.Tokens), subs: map[string][]sub{},
-		lexical: map[string][]sub{}, own: map[string]bool{}, packages: map[string]int{}, dead: map[[2]int]bool{}, named: make([]bool, len(s.Tokens)+1)}
+		lexical: map[string][]sub{}, own: map[string]bool{}, packages: map[string]int{}, classes: map[string]int{},
+		dead: map[[2]int]bool{}, named: make([]bool, len(s.Tokens)+1)}
 	r.braces()
 	r.declarations(f)
 	return r
@@ -181,17 +210,26 @@ func (r *resolver) declarations(f *Forest) {
 	}
 	var pkgs []region
 	for _, nd := range f.Nodes[1:] {
-		from, to := int(nd.From), int(nd.To)
-		if s := int(nd.Sym); s == r.g.pkgStmt || s == r.g.pkgBlock {
-			if at, ok := r.packages[r.text(from+1)]; !ok || from < at {
-				r.packages[r.text(from+1)] = from
-			}
+		from, to, s := int(nd.From), int(nd.To), int(nd.Sym)
+		class := false
+		if s == r.g.classStmt || s == r.g.classBlock {
+			fs := r.s.FeaturesAt(from)
+			class = (fs.On|fs.Maybe)&lex.FeatureClass != 0
 		}
-		switch int(nd.Sym) {
-		case r.g.pkgStmt:
-			pkgs = append(pkgs, region{to, r.blockEnd(from), r.text(from + 1)})
-		case r.g.pkgBlock:
-			pkgs = append(pkgs, region{from, to, r.text(from + 1)})
+		if !class && s != r.g.pkgStmt && s != r.g.pkgBlock {
+			continue
+		}
+		name := r.text(from + 1)
+		if at, ok := r.packages[name]; !ok || from < at {
+			r.packages[name] = from
+		}
+		if at, ok := r.classes[name]; class && (!ok || from < at) {
+			r.classes[name] = from
+		}
+		if s == r.g.pkgStmt || s == r.g.classStmt {
+			pkgs = append(pkgs, region{to, r.blockEnd(from), name})
+		} else {
+			pkgs = append(pkgs, region{from, to, name})
 		}
 	}
 	slices.SortStableFunc(pkgs, func(x, y region) int { return x.from - y.from })
@@ -300,6 +338,84 @@ func latest(ds []sub, k int) (sub, bool) {
 	return best, found
 }
 
+// feature drops the readings the features in force at token k, whose readings are set, rule out, and reports
+// whether it is a feature-gated keyword with its feature on: a keyword then, which no scope decides. Such a keyword
+// keeps its own readings only with its feature on and a plain word's only with it off (keywords.c, yyl_just_a_word);
+// field, method and ADJUST with it on keep none outside a class (croak_kw_unless_class); and sub keeps its signature
+// readings only with the signatures feature on, its prototype's only with it off (yyl_sub's is_sigsub). Where an
+// import or a BEGIN block may have turned the feature on (lex.Features.Maybe), a keyword keeps what either gives it,
+// and sub both its readings.
+func (r *resolver) feature(k int, set []int) bool {
+	g := r.g
+	has := func(of []bool) bool { return slices.ContainsFunc(set, func(x int) bool { return of[x] }) }
+	sig := has(g.sig) && has(g.plainSub)
+	if !sig && !has(g.keyword) {
+		return false // most tokens, before their text is read
+	}
+	var drop func(x int) bool
+	keyword, w := false, r.text(k)
+	fs := r.s.FeaturesAt(k)
+	switch f, ok := featureOf[w]; {
+	case sig && fs.Maybe&lex.FeatureSignatures != 0:
+		return false
+	case sig:
+		on := fs.On&lex.FeatureSignatures != 0
+		drop = func(x int) bool { return on && g.plainSub[x] || !on && g.sig[x] }
+	case !ok:
+		return false
+	case fs.Maybe&f != 0:
+		// both: its keyword readings stand, and a plain word's are decided as any word's, at its own token only,
+		// since what toke.c would expect after the word is no constraint on the keyword's reading
+		if slices.Contains(set, g.noamp) {
+			r.local = true
+			r.word(k)
+			r.local = false
+		}
+		return true
+	case fs.On&f == 0:
+		drop = func(x int) bool { return g.keyword[x] }
+	case !slices.Contains(set, g.noamp) && (!slices.Contains(set, g.privateref) || slices.Contains(set, g.bareword)):
+		// a name toke.c forces (after ->, sub, & or *, where a BAREWORD or a lone METHCALL0 reads it), which it never
+		// looks up; where it does, the word admits NOAMP, or before ( a call's PRIVATEREF alone
+		return false
+	case classOnly[w] && !r.inClass(k):
+		drop, keyword = func(int) bool { return true }, true
+	default:
+		drop, keyword = func(x int) bool { return g.decided[x] || x == g.privateref }, true
+	}
+	for _, x := range set {
+		if drop(x) {
+			r.dead[[2]int{k, x}] = true
+		}
+	}
+	return keyword
+}
+
+// attrArg drops token k's reading as an attribute's argument where a gap parts it from the attribute's name: toke.c
+// reads an argument only where ( follows the name directly (yyl_colon's scan_str), so `sub f :lvalue ($x)` and
+// `sub f :prototype ($)` have none, which the token table, reading no gaps, cannot tell. The argument is the ATTRLIST
+// after a (, or a Prototype token the lexer scans whole.
+func (r *resolver) attrArg(k int, set []int) {
+	arg, name, x := k-1, k-2, r.g.attrlist
+	if r.s.Raw[r.s.Tokens[k].Index].Kind == lexer.Prototype {
+		arg, name, x = k, k-1, r.g.prototype
+	} else if !r.is(k-1, "(") {
+		return
+	}
+	if name < 0 || !slices.Contains(set, x) || !slices.Contains(r.tab.TerminalSets[r.s.Tokens[name].TerminalSet], r.g.attrlist) {
+		return
+	}
+	if r.s.Raw[r.s.Tokens[arg].Index].Start > r.s.Raw[r.s.Tokens[name].Index].End {
+		r.dead[[2]int{k, x}] = true
+	}
+}
+
+// inClass is whether token k is in a package a class statement declared before it, as HvSTASH_IS_CLASS reads PL_curstash.
+func (r *resolver) inClass(k int) bool {
+	at, ok := r.classes[r.pkg[k]]
+	return ok && at < k
+}
+
 // What the word after a scope-decided one is to intuit_method: not a word;
 // a word it takes for no class (a keyword, a declared sub, a word before =>,
 // or any word after a sub whose prototype opens with *); one it would take
@@ -317,10 +433,7 @@ const (
 func (r *resolver) word(k int) {
 	g := r.g
 	d, st := r.lookup(r.text(k), k)
-	// shortcut: resolve does not know the feature state, so every reading of a feature-gated keyword stands but a
-	// method's in a filehandle's slot, which neither state gives it, and any one before a term is accepted with its
-	// feature on or off (given 1;, try 1;, refused by perl); upgrade when SCOPEFEAT reads the features.
-	if st == unknown || grammar.IsFeatureKeyword(r.text(k)) {
+	if st == unknown {
 		if r.fileSlot(k) && !r.isWord(k+1) {
 			// toke.c reads a filehandle slot's word before a non-word as a bareword or, were it a sub, a call: never a method
 			r.dead[[2]int{k, g.methcall0}], r.dead[[2]int{k, g.methcall}] = true, true
@@ -346,9 +459,11 @@ func (r *resolver) word(k int) {
 		fallthrough // intuit_method takes a declared sub for a method where the word after it names a package
 	case st == undeclared && cls == isClass:
 		keep = []int{g.methcall0, g.methcall} // a method: its class is forced, and the token after that is a term's
-		r.named[k+1] = true
-		r.drop(k+1, []int{g.bareword})
-		r.xterm(k + 2)
+		if !r.local {
+			r.named[k+1] = true
+			r.drop(k+1, []int{g.bareword})
+			r.xterm(k + 2)
+		}
 	case st == declared:
 		keep = r.called(k, d.proto)
 		if cls == isClass || cls == maybeClass {
@@ -432,7 +547,7 @@ func (r *resolver) fileSlot(k int) bool {
 // xterm marks token p as lexed with PL_expect at XTERM: where it can begin a
 // term, toke.c reads it as one, so its other readings are dropped.
 func (r *resolver) xterm(p int) {
-	if p <= 0 || p >= r.n {
+	if p <= 0 || p >= r.n || r.local {
 		return
 	}
 	set := r.tab.TerminalSets[r.s.Tokens[p].TerminalSet]
