@@ -270,8 +270,9 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 		// nor its imports declare keeps every reading; upgrade when parse exports the subs each loaded package defines.
 		return sub{}, unknown
 	}
-	// shortcut: a sub use subs predeclares, or one a use builtin inside a block imports, is undeclared here, since
-	// parse.Imports, which is file-wide, reports neither; upgrade when it does.
+	// shortcut: a sub use subs predeclares, or one a use builtin inside a block imports, is undeclared here (the
+	// latter read with a file-scope module import's prototype if there is one, above), since parse.Imports, which is
+	// file-wide, reports neither; upgrade when it does.
 	return sub{}, undeclared
 }
 

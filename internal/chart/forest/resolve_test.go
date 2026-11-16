@@ -18,7 +18,7 @@ import (
 
 // testModules are the modules a row's use loads. perl's verdicts for the rows that use M were taken with this M.pm on @INC.
 var testModules = map[string]string{
-	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\n1;\n",
+	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -176,6 +176,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		// shortcut (lookup): parse.Imports reports only a file-scope use builtin, so a name one imports inside a block
 		// is undeclared there too; perl accepts it.
 		{"{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }", false},
+		// and where a module imports the name at file scope, the chart reads it there with the module's prototype,
+		// where perl reads builtin's; perl refuses it ("Number found where operator expected").
+		{"use M qw(true); { use builtin qw(true); my @x = (true 1, 2); }", true},
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},
