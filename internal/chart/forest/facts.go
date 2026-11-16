@@ -6,6 +6,7 @@ package forest
 import (
 	"slices"
 	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -159,6 +160,10 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 				// WIDER sites cost exact ones recursive descent has.
 				cs.Unresolved = true
 			}
+			// shortcut: lookup reads the file's own sub before an import of its name, so a later use importing one
+			// with a \ prototype is decided on the file's declaration, where perl applies the import's and grades it
+			// WRONG; parse.Imports keeps one entry per name with no position (resolve.go's lookup); upgrade when it
+			// says where each import was made.
 		}
 		cs.TookReference = kind == kindReference && !cs.Unresolved
 		facts.CallSites = append(facts.CallSites, cs)
@@ -173,6 +178,9 @@ func bareProto(p string) string {
 
 // walk visits every node a derivation of the root reaches: it records the statements, every site in all, and,
 // at each node with more than one alternative, the sites its alternatives disagree on in uncertain.
+// shortcut: code interpolated in a string or heredoc is one token the forest does not read, so a marker inside it
+// reports nothing, which grades WRONG where perl built one; hedging it needs parse's unexported interpolatesCode,
+// pending perigrin's export ruling, and WRONGZERO (01a1c324-1fd7) owns it.
 func (sf *subjectFacts) walk() {
 	f := sf.f
 	seen := make([]bool, len(f.Nodes))
@@ -339,17 +347,21 @@ func isWordByte(c byte) bool {
 }
 
 // readsLine is whether a <...> token is readline rather than glob, as toke.c's scan_inputsymbol decides: empty,
-// <<>>, or a bare handle or simple scalar inside.
+// <<>>, or a bare handle or simple scalar inside, its name in runes, since use utf8 widens it (<FÉ>).
+// shortcut: this mirrors parse's unexported isReadlineTerm; replace it with that predicate if perigrin rules it
+// exported.
 func readsLine(text string) bool {
 	in := strings.TrimSuffix(strings.TrimPrefix(text, "<"), ">")
 	if in == "" || in == "<>" {
 		return true
 	}
 	in = strings.TrimPrefix(in, "$")
-	if in == "" || !(in[0] == '_' || in[0] == ':' || isWordByte(in[0]) && (in[0] < '0' || in[0] > '9')) {
+	if in == "" || in[0] >= '0' && in[0] <= '9' {
 		return false
 	}
-	return strings.IndexFunc(in, func(c rune) bool { return c > 127 || !isWordByte(byte(c)) && c != ':' }) < 0
+	return strings.IndexFunc(in, func(c rune) bool {
+		return c != '_' && c != ':' && !unicode.IsLetter(c) && !unicode.IsDigit(c)
+	}) < 0
 }
 
 // statement is the top-level statement holding token at.

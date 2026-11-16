@@ -1856,7 +1856,9 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
-  `readline`; `<*.c>` is a glob); an anonymous hash (`HASHBRACK`). Each is on
+  `readline`; a handle's name is read in runes, so `<FÉ>` under `use utf8` is
+  readline, by a copy of `parse`'s unexported `isReadlineTerm`; `<*.c>` is a
+  glob); an anonymous hash (`HASHBRACK`). Each is on
   its top-level statement's first and last lines, as `parse.PerlLines`
   numbers them after `#line`; a site a directive moves into another file is
   dropped.
@@ -1872,10 +1874,15 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   nothing declares included, since a module resolve cannot see may give it
   one), is `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`,
   `is_shared(@array)` under `use threads::shared`); only a call to a declared
-  sub with none of those slots is decided; code
+  sub with none of those slots is decided; a file's own sub is read before a
+  later `use` that imports one of the same name, so a call to it is decided on
+  the file's declaration where perl applies the import's prototype
+  (`sub r {1} use R qw(r); r(@a);` under R's `\@` grades WRONG), since
+  `parse.Imports` keeps one entry per name with no position; code
   interpolated in a string or heredoc is one token the forest does not read,
   so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
-  descent hedges every marker.
+  descent hedges every marker; hedging it needs `parse`'s unexported
+  `interpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it.
 
 **How ORACLEGRADE grades it**: over the oracle-graded corpora with committed
 perl facts, `parseoracle.CompareFacts(perl's facts, forest.SubjectFacts(...))`

@@ -56,6 +56,15 @@ func TestOracleSubject(t *testing.T) {
 			{"line":2,"end_line":2,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true},
 			{"kind":"reference","line":3,"end_line":3,"took_reference":true}]}`},
+		// under use utf8 a handle's name is runes, not bytes: perl reads <FÉ> as readline, not a glob
+		{"utf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},
+		// known limit (facts.go): the file's own r is read before the later import of R's r, so its call is decided
+		// on the file's declaration; perl applies the import's \@, reports prototypes {"r":"\\@"} and a \ on line 4
+		{"own_then_import.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"line":4,"end_line":4,"name":"r","took_reference":false}]}`},
+		// known limit (facts.go), owned by WRONGZERO: code interpolated in a heredoc reports nothing, where perl
+		// reports the \ on line 3
+		{"heredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
 		// #line renumbers what follows it, and a name other than the file's moves it out of the file's sites
 		{"line.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
