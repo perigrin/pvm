@@ -52,6 +52,8 @@ func TestStatementStartBraceIsAnonHash(t *testing.T) {
 		`L: { a => 1 };`,
 		`{ qux, 1 };`,
 		`{ , 1 };`,
+		// Only the skip before the first term crosses a line.
+		"{\n a => 1 };",
 		// map runs the same lookahead.
 		`map { 1, 2 } @a;`,
 	} {
@@ -82,6 +84,28 @@ func TestStatementStartBraceStaysBlock(t *testing.T) {
 		`try { 1 } catch ($e) { 3, 4 }`,
 		`if (1) { } else { a => 1 }`,
 		`defer { a => 1 }`,
+		// toke.c runs the lookahead only in its default case, XSTATE or an
+		// XREF list operator's brace. An anonymous sub's brace is XBLOCK,
+		// and after any other word the -DT reads PERLY_BRACE_OPEN.
+		`sub { 1, 2 };`,
+		`my $f = sub { 1, 2 };`,
+		`foo(sub { 1, 2 });`,
+		`return sub { 1, 2 };`,
+		`my $f = sub { a => 1 };`,
+		`zzz { 1, 2 } print "b";`,
+		`foo { 1, 2 };`,
+		`Foo { 1, 2 };`,
+		`any { 1, 2 } @a;`,
+		`first { 1, 2 } @a;`,
+		// The lookahead stops at the end of the first term's line: in a file
+		// each of these is PERLY_BRACE_OPEN.
+		"{ A\n => 1 };",
+		"{ \"a\nb\", 1 };",
+		"{ q(a\nb), 1 };",
+		"{ A\n, 1 };",
+		// shortcut pinned: ASCII word characters only, so a `use utf8` key
+		// reads as a block where perl reads HASHBRACK. See braceIsHash.
+		"use utf8; { \u00e9 => 1 };",
 	} {
 		open, closer := lastBraceAndCloserOpenBlock(t, src)
 		if !open || !closer {
