@@ -270,10 +270,12 @@ var phaser = map[string]bool{
 
 // preblock are the keywords toke.c lexes with PREBLOCK when a `{` follows
 // them (toke.c 8371-9127), so their brace is a block with no lookahead:
-// `try { 1, 2 }` and `default { 8, 9 }` do not open a hash.
+// `try { 1, 2 }` and `default { 8, 9 }` do not open a hash. An anonymous
+// `sub` leaves XATTRBLOCK, which yyl_leftcurly treats as XBLOCK
+// (toke.c:6686): `sub { 1, 2 }` is a block.
 var preblock = map[string]bool{
 	"catch": true, "continue": true, "default": true, "defer": true,
-	"else": true, "finally": true, "try": true,
+	"else": true, "finally": true, "try": true, "sub": true,
 }
 
 // isPhaser reports whether a `{` after this word opens a phaser's block.

@@ -1051,6 +1051,10 @@ where toke.c forces the string, because `internal/lexer` emits `-e` as one token
 the minus rule above holds for every other word. `f()->{foo}` is accepted through the scope-decided family's
 call (see "Scope-decided words").
 
+A statement-start `{` is `HASHBRACK` where toke.c's `yyl_leftcurly` default case says so (`internal/lexer`'s
+`braceIsHash`, issue `01a1aec4-5d3a`). One limit, pinned in the lexer's `TestStatementStartBraceStaysBlock`: word
+characters are ASCII only, so under `use utf8` `{ é => 1 };` reads as a block where perl reads `HASHBRACK`.
+
 ### Indirect objects
 
 `indirob` is ported as written: a bareword, a scalar, a block or a

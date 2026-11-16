@@ -3,7 +3,10 @@
 
 package lexer
 
-import "strings"
+import (
+	"bytes"
+	"strings"
+)
 
 // intuitCurly reports whether the `{` at the next non-space byte opens a
 // BLOCK. It is perl's own heuristic, toke.c's intuit_curly (6698-6842).
@@ -28,11 +31,12 @@ import "strings"
 // the same rule to a brace at statement start, because perl runs this one
 // function for both.
 //
-// An EMPTY brace -- its `}` the first thing after the `{`, past whitespace
-// and comments -- is a hash when emptyIsHash is set, which is the caller
-// saying the word is `map`, `grep`, `sort`, or the handle or program slot of
-// `print`, `printf`, `system` or `exec` (emptyBraceIsHash). toke.c answers HASHBRACK for
-// it before the first-tokens heuristic runs (toke.c:6706), measured on 5.42.0:
+// xref is the caller saying the word is one toke.c leaves at XREF -- `map`,
+// `grep`, `sort`, or the handle or program slot of `print`, `printf`,
+// `system` or `exec` (emptyBraceIsHash) -- whose brace reaches yyl_leftcurly's
+// default case and so takes braceIsHash whole. An EMPTY brace there is a
+// hash: toke.c answers HASHBRACK for it before the first-tokens heuristic
+// runs (toke.c:6706), measured on 5.42.0:
 //
 //	map {}, @a                map({}, @a)              a HASHREF
 //	map {} @a                 syntax error near "} @a"   a hash, then no comma
@@ -44,15 +48,37 @@ import "strings"
 // Byte scanning rather than tokenizing, for peekIsOpenBrace's reason: the
 // lexer stays single-pass, and a lookahead that lexed would have to undo its
 // own state changes.
-func (l *lexer) intuitCurly(emptyIsHash bool) bool {
+func (l *lexer) intuitCurly(xref bool) bool {
 	i := skipSpaceFrom(l.src, l.pos)
 	if i >= len(l.src) || l.src[i] != '{' {
 		return false
 	}
-	if j := skipSpaceAndCommentsFrom(l.src, i+1); j < len(l.src) && l.src[j] == '}' {
-		return !emptyIsHash
+	if xref {
+		return !braceIsHash(l.src, i+1)
 	}
-	return !braceIsHash(l.src, i+1)
+	// After any other word toke.c's brace never reaches the default case,
+	// so the narrower guess pu shipped stands: an empty brace is a block,
+	// and a word or plain string before `,` or `=>` a hash.
+	i = skipSpaceAndCommentsFrom(l.src, i+1)
+	if i >= len(l.src) || l.src[i] == '}' {
+		return true
+	}
+	end := i
+	switch c := l.src[i]; {
+	case c == '\'' || c == '"':
+		if end = skipQuotedFrom(l.src, i); end < 0 {
+			return true
+		}
+	case isAsciiLetter(c) || c == '_':
+		for end < len(l.src) && isWordByte(l.src[end]) {
+			end++
+		}
+	default:
+		return true
+	}
+	end = skipSpaceFrom(l.src, end)
+	return end >= len(l.src) || l.src[end] != ',' &&
+		(l.src[end] != '=' || end+1 >= len(l.src) || l.src[end+1] != '>')
 }
 
 // braceIsHash is toke.c's yyl_leftcurly default case (6698-6814): whether
@@ -73,6 +99,10 @@ func braceIsHash(src []byte, i int) bool {
 	}
 	if src[s] == '}' {
 		return true
+	}
+	// toke.c scans no further than PL_bufend, the end of the first term's line.
+	if nl := bytes.IndexByte(src[s:], '\n'); nl >= 0 {
+		src = src[:s+nl+1]
 	}
 	t := s
 	switch c := src[s]; {
