@@ -3,7 +3,10 @@
 
 package lexer
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // TestLexicalSubShadowsQuoteOp: measured on 5.42.0,
 //
@@ -36,5 +39,87 @@ func TestLexicalSubShadowsQuoteOp(t *testing.T) {
 	}
 	if len(quotes) != 1 || quotes[0] != "s/a/b/" {
 		t.Errorf("want the one substitution s/a/b/ outside the block, got %q", quotes)
+	}
+}
+
+// TestLexicalSubShadowsKeyword: toke.c checks the pad before the keyword
+// table wherever it does not expect an operator (yyl_keylookup), so a
+// lexical sub overrides every keyword there: perl.git t/op/lexsub.t:72,
+// `our sub if() { 42 } my $x = if if if;`, is `$x = if() if if()`. The
+// word is marked LexSub; the declaration's own name, the `if` after a
+// niladic call, and an `if` after the sub's block has closed are not.
+func TestLexicalSubShadowsKeyword(t *testing.T) {
+	src := `{ our sub if() { 42 } my $x = if if if; } if (1) { 2 }`
+	var got []bool
+	for _, tok := range Tokenize([]byte(src)) {
+		if tok.Kind == Word && src[tok.Start:tok.End] == "if" {
+			got = append(got, tok.LexSub)
+		}
+	}
+	want := []bool{false, true, false, true, false}
+	if len(got) != len(want) {
+		t.Fatalf("want %d ifs, got %v", len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("if %d: LexSub %v, want %v (all: %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// TestLexicalSubNotLookedUp: where toke.c reads a word without consulting
+// the pad, a lexical sub of that name does not shadow it, so the word is not
+// LexSub. Each row's verdicts are the pinned perl's (94e50866):
+//   - inside its own body a my, state or our sub is not yet in scope:
+//     `sub foo {"P"} my sub foo { "L" . (@_ ? "" : foo(1)) } print foo`
+//     prints LP, and `my sub lc { "L:" . lc("AB") }` calls CORE::lc; after
+//     a forward declaration it is (`my sub foo; sub foo { foo(1) }`);
+//   - a word before `=>` is a string, as toke.c checks the fat comma first;
+//   - a lone word in a subscript is a string: `$h{foo}`, `$h{ foo }`, but
+//     not `$h{+foo}`, nor `$h{foo` and a newline (perl prints 1, 2, 2 for
+//     `$h{foo\n}, $h{ foo }, $h{foo\t}` with `my sub foo {"L"}` and
+//     `%h = (L => 1, foo => 2)`);
+//   - a label, and the label after last, next, redo, goto, dump or
+//     CORE::dump.
+func TestLexicalSubNotLookedUp(t *testing.T) {
+	for _, tc := range []struct {
+		src, word string
+		want      []bool
+	}{
+		{`my sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`state sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`our sub foo { foo(1) } foo;`, "foo", []bool{false, false, true}},
+		{`my sub lc { lc("AB") } lc;`, "lc", []bool{false, false, true}},
+		{`my sub foo; sub foo { foo(1) } foo;`, "foo", []bool{false, false, true, true}},
+		{`{ my sub foo { 1 } } foo;`, "foo", []bool{false, false}},
+		{`my sub foo { 1 } my %h = (foo => 1, foo=>2);`, "foo", []bool{false, false, false}},
+		{`my sub foo { 1 } $h{foo}; $h{ foo }; $h{+foo};`, "foo", []bool{false, false, false, true}},
+		// toke.c autoquotes only across spaces and tabs (yyl_leftcurly's
+		// SPACE_OR_TAB): before a newline the word is the lexical sub's call.
+		{"my sub foo { 1 } $h{foo\t}; $h{foo\n};", "foo", []bool{false, false, true}},
+		// a sub declared in another's body settles first, then the outer
+		// one at its own body's close: perl prints 1, 2 and Q.
+		{`my sub outer { my sub inner { 1 } inner() } outer;`, "outer", []bool{false, true}},
+		{`my sub outer { my sub inner { 1 } inner() } outer;`, "inner", []bool{false, true}},
+		{`my sub outer { my sub inner; sub inner { 2 } inner() } outer;`, "outer", []bool{false, true}},
+		{`my sub q { my sub r {1} "Q" } print q(1);`, "q", []bool{false, true}},
+		// only spaces and tabs, and an optional -, may sit between the
+		// subscript's { and an autoquoted word: `$h{\nfoo}` and
+		// `$h{#c\nfoo}` are calls, `$h{-foo}` and `$h{ - foo }` strings.
+		{"my sub foo { 1 } $h{\nfoo}; $h{#c\nfoo};", "foo", []bool{false, true, true}},
+		{"my sub foo { 1 } $h{-foo}; $h{ - foo };", "foo", []bool{false, false, false}},
+		{"my sub foo { 1 } CORE::dump foo; dump foo;", "foo", []bool{false, false, false}},
+		{"my sub foo { 1 } foo: { last foo; next foo; redo foo; goto foo; } foo;", "foo",
+			[]bool{false, false, false, false, false, false, true}},
+	} {
+		var got []bool
+		for _, tok := range Tokenize([]byte(tc.src)) {
+			if tok.Kind == Word && tc.src[tok.Start:tok.End] == tc.word {
+				got = append(got, tok.LexSub)
+			}
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: LexSub on each %s %v, want %v", tc.src, tc.word, got, tc.want)
+		}
 	}
 }

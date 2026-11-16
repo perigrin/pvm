@@ -3,7 +3,10 @@
 
 package lexer
 
-import "unicode/utf8"
+import (
+	"bytes"
+	"unicode/utf8"
+)
 
 // scanPrototype takes a balanced `(...)` directly after `sub NAME` as one
 // token, without lexing its contents.
@@ -376,6 +379,7 @@ func (l *lexer) afterArrow(start int) bool {
 type lexSub struct {
 	name  string
 	depth int
+	open  bool // in lexSubBodies: its body's `{` has opened
 }
 
 // noteLexSub records a sub NAME just emitted if a `my`, `state` or `our`
@@ -394,8 +398,79 @@ func (l *lexer) noteLexSub(word string) {
 	}
 	switch string(l.src[l.toks[decl].Start:l.toks[decl].End]) {
 	case "my", "state", "our":
-		l.lexSubs = append(l.lexSubs, lexSub{name: word, depth: len(l.brackets)})
+		l.lexSubBodies = append(l.lexSubBodies, lexSub{name: word, depth: len(l.brackets)})
 	}
+}
+
+// settleLexSub brings the innermost of lexSubBodies into scope at the token
+// just emitted, if that is the `;` of a forward declaration or the `}`
+// closing its body: measured on 94e50866, `sub foo {"P"} my sub foo { "L" .
+// (@_ ? "" : foo(1)) } print foo` prints LP, and after `my sub foo; sub foo
+// { ... }` the body's foo is the lexical sub.
+func (l *lexer) settleLexSub(start int) {
+	n := len(l.lexSubBodies)
+	if n == 0 || l.pos-start != 1 {
+		return
+	}
+	b := &l.lexSubBodies[n-1]
+	switch c := l.src[start]; {
+	case c == '{' && !b.open && len(l.brackets) == b.depth+1:
+		b.open = true
+	case c == ';' && !b.open && len(l.brackets) == b.depth,
+		c == '}' && b.open && len(l.brackets) == b.depth:
+		l.lexSubs = append(l.lexSubs, lexSub{name: b.name, depth: b.depth})
+		l.lexSubBodies = l.lexSubBodies[:n-1]
+	}
+}
+
+// lexSubCall is whether the Word just emitted at start is where toke.c looks
+// a lexical sub in scope up in the pad (yyl_keylookup): no operator is
+// expected, and it is not a string or a label, which toke.c settles first --
+// a word before `=>`, a lone word in a subscript (autoquoted), a label
+// (`foo: {`) or the label after last, next, redo, goto or dump.
+func (l *lexer) lexSubCall(start int) bool {
+	if len(l.lexSubs) == 0 || l.expect == XOperator || l.expect == XPostDeref ||
+		!l.lexSubInScope(string(l.src[start:l.pos])) {
+		return false
+	}
+	rest := l.src[skipSpaceFrom(l.src, l.pos):]
+	if bytes.HasPrefix(rest, []byte("=>")) {
+		return false
+	}
+	label := len(rest) > 0 && rest[0] == ':' && !bytes.HasPrefix(rest, []byte("::"))
+	if label && (l.expect == XState || l.expect == XBlock) {
+		return false
+	}
+	if l.inSubscript() && autoquoted(l.src, start, l.pos) {
+		return false
+	}
+	if p := l.significantBefore(len(l.toks) - 1); p >= 0 {
+		switch string(l.src[l.toks[p].Start:l.toks[p].End]) {
+		case "last", "next", "redo", "goto", "dump", "CORE::dump":
+			return false
+		}
+	}
+	return true
+}
+
+// autoquoted is whether the word at src[start:end] is a subscript's lone
+// word, which toke.c reads as a string (yyl_leftcurly): only spaces and tabs
+// and an optional `-` between the `{` and it, and only spaces and tabs
+// between it and the `}`. `$h{-foo}` is a string, `$h{\nfoo}` a call.
+func autoquoted(src []byte, start, end int) bool {
+	blank := func(c byte) bool { return c == ' ' || c == '\t' }
+	i := start - 1
+	for i >= 0 && blank(src[i]) {
+		i--
+	}
+	if i >= 0 && src[i] == '-' {
+		for i--; i >= 0 && blank(src[i]); i-- {
+		}
+	}
+	for end < len(src) && blank(src[end]) {
+		end++
+	}
+	return i >= 0 && src[i] == '{' && end < len(src) && src[end] == '}'
 }
 
 // closeLexSubScope drops the lexical subs declared inside a block that has

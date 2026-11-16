@@ -206,6 +206,13 @@ type Token struct {
 	// the same Operator `-` as subtraction's. The parser reads this bit to
 	// take the slot, so the handle is decided once.
 	TermFollows bool
+
+	// LexSub is set on a Word naming a lexical sub in scope (`my`, `our` or
+	// `state sub`) where no operator is expected: toke.c checks the pad
+	// before the keyword table there (yyl_keylookup), so the word is the
+	// sub's call whatever keyword it spells. The declaration's own name is
+	// not marked.
+	LexSub bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
@@ -342,6 +349,11 @@ type lexer struct {
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.
 	lexSubs []lexSub
+	// lexSubBodies are the lexical subs declared but not yet in scope,
+	// innermost last: perl brings a name in when its body closes, or at a
+	// forward declaration's `;`, never inside its own body, and a sub
+	// declared in another's body settles first.
+	lexSubBodies []lexSub
 	// sawPackageName is set on that NAME, so a version after it --
 	// `package Foo 1.0 { }` -- keeps the head open for the block.
 	sawPackageName bool
@@ -577,6 +589,8 @@ func (l *lexer) emit(k Kind, start int) {
 	l.noteSignatures(k, start)
 	l.noteSignatureParens(k, start)
 	afterDeclName := l.noteSubName(k, start)
+	l.toks[len(l.toks)-1].LexSub = k == Word && !afterDeclName && l.lexSubCall(start)
+	l.settleLexSub(start)
 
 	// A block-taking word's `(` inherits the lookahead. `map({...} @a)` puts
 	// the brace one token further along than `map {...} @a`, and the answer
@@ -637,7 +651,10 @@ func (l *lexer) emit(k Kind, start int) {
 		afterDeclName:   afterDeclName,
 		// A sub's name after its `&` is a whole term too, whatever keyword it
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
-		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] || l.afterFuncSigilAt(len(l.toks)-1) || globName),
+		// A keyword stays the keyword unless a lexical sub shadows it here
+		// (LexSub): `our sub if() {42} $x = if if if` is `$x = if() if if()`.
+		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] && (l.toks[len(l.toks)-1].LexSub || !IsKeyword(string(l.src[start:l.pos]))) ||
+			l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:
