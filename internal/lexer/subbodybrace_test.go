@@ -37,6 +37,9 @@ func TestSubBodyBraceAnonIsTerm(t *testing.T) {
 		`my $c = sub ($) :lvalue : { 1 } / 2;`,
 		`my $c = sub ($$) : lvalue { 1 } / 2;`,
 		`my $c = sub :lvalue { 1 } / 2;`,
+		`my $c = sub :method lvalue { 1 } / 2;`,
+		`my $c = sub : lvalue method { 1 } / 2;`,
+		`my $c = sub :prototype($) lvalue { 1 } / 2;`,
 	} {
 		found := false
 		for _, tok := range Tokenize([]byte(src)) {
@@ -72,10 +75,12 @@ func TestSubBodyBraceLeavesHashAlone(t *testing.T) {
 // colon is not.
 func TestSubBodyBraceAttrName(t *testing.T) {
 	for src, want := range map[string]bool{
-		`sub foo :lvalue { 1 }`:            true,
-		`my $c = sub ($) : lvalue { 1 };`:  true,
-		`my $c = sub :lvalue : { 1 } / 2;`: true,
-		`$c ? f : lvalue { 1 }`:            false,
+		`sub foo :lvalue { 1 }`:             true,
+		`my $c = sub ($) : lvalue { 1 };`:   true,
+		`my $c = sub :lvalue : { 1 } / 2;`:  true,
+		`$c ? f : lvalue { 1 }`:             false,
+		`my $c = sub :method lvalue { 1 };`: true,
+		`sub foo :method lvalue { }`:        true,
 	} {
 		for _, tok := range Tokenize([]byte(src)) {
 			if src[tok.Start:tok.End] == "lvalue" && tok.AttrName != want {

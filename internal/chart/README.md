@@ -900,6 +900,10 @@ Beyond them:
   are the same with or without a space before the parenthesis, so the chart
   cannot tell an argument from a stray list. Until the lexer scans an argument
   only where the parenthesis touches the name (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`).
+- A colonless attribute after `method` or after `:prototype(...)` is refused
+  where perl accepts it (`sub :method lvalue { 1 }`, `sub :prototype($) lvalue { 1 }`): the token table
+  reads a word as ATTRLIST after a colon, a parenthesis or a word no class names, and `method` is named
+  and a Prototype is no word (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). No corpus file meets this.
 - The lexer scans a prototype only after `sub NAME`, so the `(` after `BEGIN`,
   `END` and their kin is an ordinary parenthesis and `BEGIN ($$) { 1 }` is
   refused where perl accepts it (`01a1a44e-8f26-706b-96d4-b3e6d7f55c3f`). No corpus file meets this.

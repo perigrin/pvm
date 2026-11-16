@@ -374,12 +374,12 @@ type lexer struct {
 	// `sub f :lvalue { 1 }` lexed its `{` as an anonymous hash's and the
 	// whole body was lost.
 	inSubAttrs bool
-	// sawAttrColon is set when the token just emitted was an attribute's `:`,
-	// so the Word after it is the attribute's NAME rather than a bareword. A
-	// one-token carry, the same shape as sawSubWord, and it exists for
-	// `:prototype(...)`: that argument is a prototype and must be scanned
-	// opaquely, because `$)` is a real perl variable that would otherwise eat
-	// the closing paren.
+	// sawAttrColon is set from a head's first attribute `:` until the head
+	// closes, so every Word after it is an attribute's NAME rather than a
+	// bareword or the sub's name: toke.c's yyl_colon reads `:method lvalue`
+	// as one attribute list. It exists for `:prototype(...)` too: that
+	// argument is a prototype and must be scanned opaquely, because `$)` is a
+	// real perl variable that would otherwise eat the closing paren.
 	sawAttrColon bool
 	// attrArgDepth is the paren depth inside an attribute's argument,
 	// `:Foo(bar)`, whose contents the parser reads opaquely. Nothing in it

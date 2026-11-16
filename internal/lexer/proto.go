@@ -164,7 +164,6 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		// scans it by balancing brackets; only `prototype`'s contents can
 		// break that, because only they can hide a `)`.
 		if l.sawAttrColon {
-			l.sawAttrColon = false
 			l.toks[len(l.toks)-1].AttrName = true
 			l.expectPrototype = l.sigilAttribute(word)
 			return true

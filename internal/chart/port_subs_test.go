@@ -40,7 +40,8 @@ func TestPortSubs(t *testing.T) {
 		}
 	}
 	// An anonymous sub's body is a term's block, attribute words in its head or not (toke.c's XATTRTERM).
-	for _, src := range []string{"my $c = sub ($$) : lvalue { 1 } + 1;", "my $c = sub :lvalue : { 1 } / 2;", "my $c = sub ($) :lvalue : { 1 } / 2;"} {
+	for _, src := range []string{"my $c = sub ($$) : lvalue { 1 } + 1;", "my $c = sub :lvalue : { 1 } / 2;", "my $c = sub ($) :lvalue : { 1 } / 2;",
+		"my $c = sub : lvalue method { 1 } / 2;", "my $c = sub :lvalue method { 1 } + 1;", "sub foo :lvalue method { } 1 / 2;"} {
 		if !pipelineSource(t, src) {
 			t.Errorf("%q is refused; perl accepts it", src)
 		}
@@ -61,6 +62,14 @@ func TestPortSubsRefusals(t *testing.T) {
 	// until 01a1a44e-8f26-706b-96d4-b3e6d7f55c3f. This fails when the limit goes; move it to the accepts then.
 	if src := "BEGIN ($$) { 1 }"; recognizeSource(t, []byte(src)).accepted {
 		t.Errorf("%q is accepted; the known limit is gone, so move it to the accepted forms and drop the README line", src)
+	}
+	// Known limit: a colonless attribute after `method` or after `:prototype(...)` has no ATTRLIST reading in the
+	// token table (shortcut in grammar/perly.go), so perl's `sub :method lvalue { 1 }` is refused until
+	// 01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a. This fails when the limit goes; move them to the accepts then.
+	for _, src := range []string{"my $c = sub :method lvalue { 1 } / 2;", "my $c = sub :prototype($) lvalue { 1 } / 2;", "sub foo :method lvalue { 1 }"} {
+		if pipelineSource(t, src) {
+			t.Errorf("%q is accepted; the known limit is gone, so move it to the accepted forms and drop the README line", src)
+		}
 	}
 	// Forms perl refuses and the chart does too, for a reason of its own: a sub's attribute argument is
 	// one token until 01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a, so perl's `:Foo(a, b)` is refused.
