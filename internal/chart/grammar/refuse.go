@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -18,12 +17,11 @@ import (
 var alternativesText string
 
 // classExceptions are the terminals that need no class: the GRAM* start
-// selectors are never lexed, PLUGEXPR and PLUGSTMT are keyword plugins, and the
-// PLUGIN_* terminals are waypoint 2's. The exceptions are exact, not prefixes.
+// selectors are never lexed, and PLUGEXPR and PLUGSTMT are keyword plugins.
 var classExceptions = []string{"GRAMPROG", "GRAMEXPR", "GRAMBLOCK", "GRAMBARESTMT", "GRAMFULLSTMT", "GRAMSTMTSEQ", "GRAMSUBSIGNATURE", "PLUGEXPR", "PLUGSTMT"}
 
 func needsClass(terminal string) bool {
-	return !strings.HasPrefix(terminal, "PLUGIN_") && !slices.Contains(classExceptions, terminal)
+	return !slices.Contains(classExceptions, terminal)
 }
 
 // Committed is the grammar perly.go holds, its terminals the symbols no rule

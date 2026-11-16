@@ -145,12 +145,12 @@ func TestClassNamesAreTerminals(t *testing.T) {
 }
 
 func TestGeneratorRefusalExceptionsExact(t *testing.T) {
-	for _, term := range []string{"PLUGIN_ADD_OP", "GRAMPROG", "GRAMSUBSIGNATURE", "PLUGEXPR", "PLUGSTMT"} {
+	for _, term := range []string{"GRAMPROG", "GRAMSUBSIGNATURE", "PLUGEXPR", "PLUGSTMT"} {
 		if err := classless(term).generate(); err != nil {
 			t.Errorf("classless %s is refused: %v", term, err)
 		}
 	}
-	for _, term := range []string{"PLUGINS", "PLUGIN", "GRAMMAR", "GRAM", "PLUGEXPRESSION", "PLUGSTMTS", "XPLUGEXPR", "NOPLUGIN_ADD_OP"} {
+	for _, term := range []string{"PLUGINS", "PLUGIN", "GRAMMAR", "GRAM", "PLUGEXPRESSION", "PLUGSTMTS", "XPLUGEXPR", "NOPLUGIN_ADD_OP", "PLUGIN_ADD_OP"} {
 		wantErr(t, "classless "+term, classless(term).generate(), term, "class")
 	}
 }
