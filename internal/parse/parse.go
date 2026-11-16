@@ -789,6 +789,12 @@ func (p *parser) finish(root *Node) {
 	root.declErrs = p.res.declErrs
 	root.declWarns = p.res.declWarns
 	root.imports = p.imports
+	for name, imp := range p.builtins {
+		if root.imports == nil {
+			root.imports = map[string]Import{}
+		}
+		root.imports[name] = imp // lexical, so it shadows a package's import of the name
+	}
 	root.libraryOperators = p.libraryOperatorsIn(root)
 
 	// A local sub shadows an import, and its OWN prototype is the one
@@ -1049,6 +1055,11 @@ type parser struct {
 	// lexical holds the lexical subs in scope, by bare name; see
 	// declareLexical.
 	lexical map[string]Import
+
+	// builtins are the words `use builtin` imported anywhere in the file,
+	// which Imports reports as it does a module's; p.lexical, which a call
+	// reads, holds them only while in scope.
+	builtins map[string]Import
 
 	// pkg is the package the parse stands in, "" for main: `package NAME;`
 	// sets it to the end of the enclosing block, and `package NAME BLOCK`

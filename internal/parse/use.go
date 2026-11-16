@@ -859,7 +859,12 @@ func (p *parser) importBuiltin(name string) {
 	// Lexical, as `my sub` is: in scope whatever package follows.
 	// Measured on 5.42.0, `use builtin "refaddr"; package P; my $a =
 	// refaddr $x, 1` compiles.
-	p.declareLexical(Import{Name: name, Prototype: proto, PrototypeKnown: true})
+	imp := Import{Name: name, Prototype: proto, PrototypeKnown: true}
+	p.declareLexical(imp)
+	if p.builtins == nil {
+		p.builtins = map[string]Import{}
+	}
+	p.builtins[name] = imp
 }
 
 // resolveRequiredFile reads a `require './helper.pl'` and records every
