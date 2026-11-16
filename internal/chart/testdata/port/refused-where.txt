@@ -56,8 +56,8 @@ list-operators-refused/func-two-terms.pl grammar 9
 list-operators-refused/lstop-comma-x-word.pl grammar 11
 list-operators-refused/lstop-two-terms.pl grammar 8
 list-operators-refused/lstop-unclosed.pl grammar 10
-list-operators-refused/lstop-xterm-block-push.pl table 5
-list-operators-refused/lstop-xterm-block.pl table 8
+list-operators-refused/lstop-xterm-block-push.pl grammar 11
+list-operators-refused/lstop-xterm-block.pl grammar 14
 list-operators-refused/method-bare-term.pl grammar 6
 list-operators-refused/method-number.pl grammar 4
 list-operators-refused/method-two-terms.pl grammar 9

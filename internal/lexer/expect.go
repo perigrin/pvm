@@ -279,7 +279,19 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// orphaned into a statement of its own. The same held for `defer { 1 }
 		// print "b"` and for an arbitrary `zzz { 1 } print "b"`; see
 		// keyword.go for why the word itself cannot narrow this.
-		if t.nextIsOpenBrace {
+		//
+		// Except after a word toke.c leaves at XTERM or XTERMORDORDOR: there
+		// yyl_leftcurly returns HASHBRACK with no lookahead, so `bless {}, $c`
+		// and `return { 1, 2 }` open anonymous hashes. See leavesXTerm.
+		//
+		// A UNIDOR builtin wants a term too, but a `//` after it is
+		// defined-or rather than an empty pattern -- see isUnidor. It sits
+		// after the name case because `sub pop { ... }` must still open a
+		// block.
+		if isUnidor(string(t.text)) {
+			return XTermOrDorDor
+		}
+		if t.nextIsOpenBrace && !leavesXTerm(string(t.text)) {
 			if t.nextBraceIsBlock {
 				return XBlock
 			}
@@ -307,14 +319,6 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// which no table can settle: perl consults the stash, and three
 		// different parses come out of `zzz / 2` depending on whether and how
 		// zzz was declared (see isNiladic). That one stays a hedge.
-		//
-		// A UNIDOR builtin wants a term too, but a `//` after it is
-		// defined-or rather than an empty pattern -- see isUnidor. It sits
-		// after the name and brace cases because `sub pop { ... }` must
-		// still open a block.
-		if isUnidor(string(t.text)) {
-			return XTermOrDorDor
-		}
 		return XTerm
 	case Operator:
 		// A block's opening brace leaves a STATEMENT boundary: the first thing
