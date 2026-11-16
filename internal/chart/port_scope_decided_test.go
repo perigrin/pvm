@@ -224,11 +224,23 @@ func TestScopeDecidedParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// An import inside a block, sub body or package block ends with it, so a call after the block is a word
+	// again; and one there does not shadow M's true after it.
+	load := func(name string) ([]byte, bool) {
+		return []byte("package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(true);\nsub true {1}\n1;\n"), name == "M"
+	}
 	for src, accepted := range map[string]bool{
-		"use builtin qw(indexed); my @a; foreach my ($i, $v) (indexed @a) {}": true,
-		"use builtin qw(true); my @a; foreach my ($i, $v) (indexed @a) {}":    false,
+		"use builtin qw(indexed); my @a; foreach my ($i, $v) (indexed @a) {}":             true,
+		"use builtin qw(true); my @a; foreach my ($i, $v) (indexed @a) {}":                false,
+		"{ use builtin qw(indexed); } my @a; foreach my ($i, $v) (indexed @a) {}":         false,
+		"sub f { use builtin 'indexed'; } my @a; indexed @a;":                             false,
+		"if (1) { use builtin qw(indexed); } my @a; for my ($i, $v) (indexed @a) {}":      false,
+		"{ use v5.40; } my @a; for my ($i, $v) (indexed @a) {}":                           false,
+		"{ use builtin ':5.40'; } my @a; for my ($i, $v) (indexed @a) {}":                 false,
+		"package Foo { use builtin qw(indexed); } my @a; for my ($i, $v) (indexed @a) {}": false,
+		"use M qw(true); { use builtin qw(true); } my @x = (true 1, 2);":                  true,
 	} {
-		scope := forest.Scope{Imports: parse.Imports(parse.ParseWithLoader([]byte(src), nil))}
+		scope := forest.Scope{Imports: parse.Imports(parse.ParseWithLoader([]byte(src), load))}
 		if f, _ := forest.Parse(tab, []byte(src), scope); (f != nil) != accepted {
 			t.Errorf("%q: forest.Parse accepts=%v, perl -c accepts=%v", src, f != nil, accepted)
 		}

@@ -861,6 +861,11 @@ func (p *parser) importBuiltin(name string) {
 	// refaddr $x, 1` compiles.
 	imp := Import{Name: name, Prototype: proto, PrototypeKnown: true}
 	p.declareLexical(imp)
+	// shortcut: Imports is file-wide, so it reports only a file-scope import; one inside a block stays
+	// undeclared to the chart; upgrade when Imports says where each name is in scope.
+	if p.inBlock {
+		return
+	}
 	if p.builtins == nil {
 		p.builtins = map[string]Import{}
 	}

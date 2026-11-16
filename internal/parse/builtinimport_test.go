@@ -174,3 +174,31 @@ func TestImportsUseBuiltinUnlisted(t *testing.T) {
 		t.Errorf("use builtin qw(true) imports true alone; got %v", imps)
 	}
 }
+
+// TestImportsUseBuiltinFileScope: use builtin's import is lexical, so Imports,
+// which is file-wide, reports only one at file scope. Observed on 94e50866,
+// `{ use builtin qw(indexed); } my @a; for my ($i, $v) (indexed @a) {}` is a
+// syntax error, as it is after a sub body, if block or package block, and
+// `use M qw(true); { use builtin qw(true); } my @x = (true 1, 2);` compiles
+// with M's true.
+func TestImportsUseBuiltinFileScope(t *testing.T) {
+	for _, src := range []string{
+		"{ use builtin qw(indexed); }\n",
+		"sub f { use builtin 'indexed'; }\n",
+		"if (1) { use builtin qw(indexed); }\n",
+		"{ use v5.40; }\n",
+		"{ use builtin ':5.40'; }\n",
+		"package Foo { use builtin qw(indexed); }\n",
+	} {
+		if imp, ok := parse.Imports(parse.ParseWithLoader([]byte(src), nil))["indexed"]; ok {
+			t.Errorf("%q: indexed is imported only inside the block; got %+v", src, imp)
+		}
+	}
+	load := func(name string) ([]byte, bool) {
+		return []byte("package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(true);\nsub true {1}\n1;\n"), name == "M"
+	}
+	src := "use M qw(true); { use builtin qw(true); }\n"
+	if imp := parse.Imports(parse.ParseWithLoader([]byte(src), load))["true"]; imp.Prototype == "()" {
+		t.Errorf("%q: M's true is the one in scope after the block; got %+v", src, imp)
+	}
+}

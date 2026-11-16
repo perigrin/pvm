@@ -1056,7 +1056,7 @@ type parser struct {
 	// declareLexical.
 	lexical map[string]Import
 
-	// builtins are the words `use builtin` imported anywhere in the file,
+	// builtins are the words a file-scope `use builtin` imported,
 	// which Imports reports as it does a module's; p.lexical, which a call
 	// reads, holds them only while in scope.
 	builtins map[string]Import

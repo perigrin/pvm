@@ -173,6 +173,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		// shortcut (lookup): parse.Imports reports nothing for use subs, so the names it declares are undeclared to
 		// resolve; perl accepts it.
 		{"use subs qw(foo); foo 1;", false},
+		// shortcut (lookup): parse.Imports reports only a file-scope use builtin, so a name one imports inside a block
+		// is undeclared there too; perl accepts it.
+		{"{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }", false},
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},

@@ -1280,7 +1280,8 @@ the file declares no such package, since a package or filehandle created elsewhe
 `Foo::bar`) cannot be seen (`sub new {} Foo::bar(); new Foo x 3;` is accepted); shortcut: after a filehandle a declared
 `x` keeps its operator reading, since the token table gives `x` after a word no call reading (`addStatementX`), so
 `sub x {} print FH x 3;` is accepted with perl's verdict and not its grouping; shortcut: a sub `use subs` predeclares
-is undeclared, since parse.Imports does not report it (`use subs qw(foo); foo 1;` is refused);
+or a `use builtin` inside a block imports is undeclared, since parse.Imports, which is file-wide, reports neither
+(`use subs qw(foo); foo 1;` and `{ use builtin 'indexed'; my @a; for my ($i, $v) (indexed @a) {} }` are refused);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
 glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
