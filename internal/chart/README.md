@@ -1948,10 +1948,10 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   and others do not is `Unresolved`, which grades WIDER, never a guess
   (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
   a block in others). The facts come from whatever `forest.Parse` runs: the
-  precedence constraint, resolve and the readings count. A collapsed
-  statement's sites are to answer `Unresolved` (WIDER), which ORACLEGRADE
-  (`01a1c324-1f12`) builds here; until then they are graded like any other
-  site.
+  precedence constraint, resolve and the readings count. Every site of a
+  statement with more than 2^10 readings, nested ones included, is
+  `Unresolved` (WIDER): its readings are not enumerated, so nothing in it is
+  decided (`collapsed.pl`).
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
   has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
   nothing declares included, since a module resolve cannot see may give it
@@ -1971,12 +1971,45 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls
   neither import nor unimport and leaves the pragma as it was.
 
-**How ORACLEGRADE grades it**: over the oracle-graded corpora with committed
-perl facts, `parseoracle.CompareFacts(perl's facts, forest.SubjectFacts(...))`
-per file, into EXACT, WIDER, WRONG and no-answer, beside recursive descent
-with import resolution graded the same way. `TestOracleSubject` decodes each
-sample's JSON with `parseoracle`'s own decoder, through a subject command that
-prints it, so the facts are the contract's and not only Go values.
+`TestOracleSubject` decodes each sample's JSON with `parseoracle`'s own
+decoder, through a subject command that prints it, so the facts are the
+contract's and not only Go values.
+
+### Per-site grading: `cmd/ratchet/oracle.go`
+
+Spec §9.4 grades the chart and recursive descent per site against perl's
+committed facts (`testdata/oracle/`). For every record of `in-tree.txt`,
+`t1.txt` and `perlgit.txt`, in-process, `gradeOracle` parses the file once with
+recursive descent, `parse.Session.ParseSourceFrom` searching the corpus's
+directories as perl was run (in-tree: Guacamole's stubs; T1: the file's own;
+perl.git: `t/`, the tree and `lib/`, as `internal/parse/cmd/subject` does).
+That tree gives recursive descent's answer, `parse.Sites` renumbered by
+`parse.PerlLines`, and the chart's scope, `parse.Imports`, for
+`forest.SubjectFacts`. `parseoracle.CompareFacts` grades each, and each of
+perl's sites is counted in the bucket `parseoracle.Result.SiteBuckets` gives it:
+
+- **EXACT**: the subject decided the marker in the site's statement.
+- **WIDER**: it marked the statement `Unresolved` for that marker instead.
+- **WRONG**: it committed to the statement with no such site and no hedge.
+- **no-answer**: it refused the file, or reported no site of the marker's
+  kind anywhere in it; never EXACT (`TestOracleGradingNoAnswerIsNotExact`).
+
+A corpus with no record is an error, never WRONG 0, and so is a malformed
+record; a record whose file cannot be read is named on stderr and counted,
+each subject's sites on it no-answer (`TestOracleGradingWithoutFactsFails`).
+Recursive descent is graded with its imports resolved: an imported `\@`
+prototype grades EXACT only with its module found
+(`TestOracleGradingRDResolvesImports`).
+
+`go run ./internal/chart/cmd/ratchet oracle` (from the repository root, under
+`env -u T1_CORPUS -u TDT_FIXTURES`; perl.git from `$PERL5_CORPUS`, default
+`/opt/corpora/perl5`) prints one line per subject and corpus,
+`oracle-grade: <chart|rd> <in-tree|T1|perl.git> exact <n> wider <n> wrong <n> no-answer <n>`,
+then `oracle-grade: unreadable <n>` and `oracle-grade: seconds <s>`, and lists
+each WRONG site on stderr as `oracle-grade: <subject> WRONG <file>:<line> <marker>`.
+It takes about 15 s. It is not yet a ratchet key: KEYS (`01a1c324-1fa1`)
+turns it into `oracle-wrong` and the exact-site keys, and WRONGZERO
+(`01a1c324-1fd7`) drives the chart's WRONG count to 0.
 
 ## The precedence constraint: `forest/precedence.go`
 
