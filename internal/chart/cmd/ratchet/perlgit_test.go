@@ -194,11 +194,31 @@ func TestTDTLeavesOutPerlGit(t *testing.T) {
 	}
 }
 
-// TestRealDirPerlGit: recursive descent resolves a perl.git file's imports
-// from the file's real directory under $PERL5_CORPUS/t, not from its corpus name.
-func TestRealDirPerlGit(t *testing.T) {
+// TestRealDirsPerlGit: recursive descent resolves a perl.git file's imports
+// as the oracle's RD subject does from t/: the file's real directory, then
+// t/, the tree and its lib/, never the corpus name.
+func TestRealDirsPerlGit(t *testing.T) {
 	t.Setenv("PERL5_CORPUS", "/p5")
-	if got := realDir("perlgit/op/x.t"); got != "/p5/t/op" {
-		t.Errorf("realDir(perlgit/op/x.t) = %s, want /p5/t/op", got)
+	want := []string{"/p5/t/op", "/p5/t", "/p5", "/p5/lib"}
+	if got := realDirs("perlgit/op/x.t"); !slices.Equal(got, want) {
+		t.Errorf("realDirs(perlgit/op/x.t) = %v, want %v", got, want)
+	}
+}
+
+// TestPerlGitOutOfWidthKeys: perl.git t/ joins the verdict keys but not the
+// width and cost keys, which are not result keys (perigrin, 2026-11-15).
+func TestPerlGitOutOfWidthKeys(t *testing.T) {
+	m := map[string]vfile{
+		"a.pl":           {rd: true, chart: true, perl: accept(), res: chartResult{Tokens: 2, Terminals: 2, Positions: 2, Items: 4, Hits: 1}},
+		"perlgit/op/x.t": {rd: true, chart: true, perl: accept(), res: chartResult{Tokens: 2, Terminals: 8, Positions: 2, Items: 40, Hits: 0}},
+	}
+	measured := map[string]string{}
+	if _, err := measureVerdicts([]File{{"a.pl", "in-tree"}, {"perlgit/op/x.t", "perlgit"}}, vinputs(m), measured); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"terminals-per-token": "1.000", "items-per-token": "2.000", "set-reuse": "0.500", "superset-population": "2"} {
+		if measured[k] != want {
+			t.Errorf("%s = %q, want %q", k, measured[k], want)
+		}
 	}
 }

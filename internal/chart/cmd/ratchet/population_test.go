@@ -174,7 +174,7 @@ func TestRDVerdictsResolveUse(t *testing.T) {
 	if bare, _ := rdAccepts("f.pl", func() *parse.Node { return parse.Parse(srcs["f.pl"]) }); bare {
 		t.Fatal("bare Parse accepts the fixture, so it proves nothing about resolving")
 	}
-	if ok, err := chartInputs(nil, srcs, nil, nil, filepath.Dir).RD("f.pl"); err != nil || !ok {
+	if ok, err := chartInputs(nil, srcs, nil, nil, ownDir).RD("f.pl"); err != nil || !ok {
 		t.Errorf("the verdict side's RD: accepted %v, %v; want true, nil", ok, err)
 	}
 }
@@ -209,7 +209,7 @@ func TestRDVerdictsMatchParseFile(t *testing.T) {
 		}
 		srcs[p] = []byte(text)
 	}
-	in := chartInputs(nil, srcs, nil, nil, filepath.Dir)
+	in := chartInputs(nil, srcs, nil, nil, ownDir)
 	for p := range srcs {
 		if strings.HasSuffix(p, ".pm") {
 			continue

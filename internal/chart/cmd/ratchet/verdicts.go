@@ -69,6 +69,9 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 			return nil, fmt.Errorf("%s has no perl label", f.Path)
 		}
 		res, rd, verdicts = append(res, r), append(rd, a), append(verdicts, v)
+		if f.Corpus == "perlgit" { // the width and cost keys are not result keys (perigrin, 2026-11-15, results first)
+			continue
+		}
 		tokens, terminals = tokens+r.Tokens, terminals+r.Terminals
 		if r.Accepted { // §7's cost is the cost on recognized input
 			positions, items, hits = positions+r.Positions, items+r.Items, hits+r.Hits
@@ -183,27 +186,33 @@ func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, err
 	if err != nil {
 		return verdictInputs{}, err
 	}
-	return chartInputs(tab, srcs, excluded, perl, realDir), nil
+	return chartInputs(tab, srcs, excluded, perl, realDirs), nil
 }
 
-// realDir is the directory a corpus path's file really sits in: T1 files are
-// named T1/<name> and live in the T1 directory, perl.git's are named
-// perlgit/<path under t/> and live under $PERL5_CORPUS/t, every other path is real.
-func realDir(path string) string {
+// realDirs are the directories recursive descent searches for a corpus
+// path's imports, the file's real directory first: T1 files are named
+// T1/<name> and live in the T1 directory; perl.git's are named
+// perlgit/<path under t/> and search as the oracle's RD subject does from
+// t/ (".", "..", "../lib"); every other path is real.
+func realDirs(path string) []string {
 	if strings.HasPrefix(path, "T1/") {
-		return t1Dir()
+		return []string{t1Dir()}
 	}
 	if rel, ok := strings.CutPrefix(path, "perlgit/"); ok {
-		return filepath.Join(perl5Root(), "t", filepath.Dir(rel))
+		t := filepath.Join(perl5Root(), "t")
+		return []string{filepath.Join(t, filepath.Dir(rel)), t, perl5Root(), filepath.Join(perl5Root(), "lib")}
 	}
-	return filepath.Dir(path)
+	return []string{filepath.Dir(path)}
 }
+
+// ownDir is realDirs for a path that is real: its own directory alone.
+func ownDir(path string) []string { return []string{filepath.Dir(path)} }
 
 // chartInputs are the real sides over srcs: the chart is chart/lex then a
 // fresh recognizer per file, recursive descent follows `use` as psc does, perl
 // is the committed labels. The speed side's recursive descent stays bare
 // (speedParse): the chart resolves nothing yet.
-func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict, dir func(string) string) verdictInputs {
+func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict, dirs func(string) []string) verdictInputs {
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
 			s, _ := lex.Lex(srcs[path], tab.Tokens) // an unmapped token has the empty set, which refuses
@@ -228,8 +237,8 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			return r, nil
 		},
 		RD: func(path string) (bool, error) {
-			// ParseFile's search: the file's own directory, then the declarations.
-			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader(dir(path))) })
+			// ParseFileFrom's search: the file's own directory, then its roots, then the declarations.
+			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader(dirs(path)...)) })
 		},
 		Perl:     perl,
 		Excluded: excluded,

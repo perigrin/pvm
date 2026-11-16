@@ -270,7 +270,10 @@ key of the first attempt is retired.
   `perl.git corpus <path>: no such directory`, `: not clean` or
   `: not at 94e50866`. perl.git `t/` joins the result keys (`lex-unmapped`,
   the superset population, both refusal gates, `leo-disagree`) and the speed
-  aggregate, never the tdt keys (perigrin, 2026-11-15, results first). T1 is in the tree:
+  aggregate, never the tdt keys nor `terminals-per-token`, `items-per-token`
+  and `set-reuse` (perigrin, 2026-11-15, results first). Recursive descent
+  resolves a perl.git file's imports from its own directory, then `t/`, the
+  tree and its `lib/`, as the oracle's subject does from `t/`. T1 is in the tree:
   `testdata/perlonjava/unit` (see `testdata/perlonjava/README.md`), and
   `T1_CORPUS` overrides it. It reads no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
