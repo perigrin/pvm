@@ -106,6 +106,9 @@ func TestStatementStartBraceStaysBlock(t *testing.T) {
 		// shortcut pinned: ASCII word characters only, so a `use utf8` key
 		// reads as a block where perl reads HASHBRACK. See braceIsHash.
 		"use utf8; { \u00e9 => 1 };",
+		// shortcut pinned: a declared sub named like a PREBLOCK keyword
+		// still takes a block; perl reads HASHBRACK. See preblock.
+		`sub try {} try { "a", 1 };`,
 	} {
 		open, closer := lastBraceAndCloserOpenBlock(t, src)
 		if !open || !closer {

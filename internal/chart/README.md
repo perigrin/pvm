@@ -1054,6 +1054,9 @@ call (see "Scope-decided words").
 A statement-start `{` is `HASHBRACK` where toke.c's `yyl_leftcurly` default case says so (`internal/lexer`'s
 `braceIsHash`, issue `01a1aec4-5d3a`). One limit, pinned in the lexer's `TestStatementStartBraceStaysBlock`: word
 characters are ASCII only, so under `use utf8` `{ é => 1 };` reads as a block where perl reads `HASHBRACK`.
+A second, pinned in the same test: after `try`, `catch`, `finally` or `default` the `{` is always a block
+(`preblock`), so a declared sub of that name called with a hash, `sub try {} try { "a", 1 };`, reads as a block
+where perl reads `HASHBRACK`.
 
 ### Indirect objects
 

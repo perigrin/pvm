@@ -273,6 +273,10 @@ var phaser = map[string]bool{
 // `try { 1, 2 }` and `default { 8, 9 }` do not open a hash. An anonymous
 // `sub` leaves XATTRBLOCK, which yyl_leftcurly treats as XBLOCK
 // (toke.c:6686): `sub { 1, 2 }` is a block.
+//
+// shortcut: a declared sub named try, catch, finally or default, called with
+// a hash argument, reads as a block where perl reads HASHBRACK (`sub try {}
+// try { "a", 1 };`). Upgrade when the lexer tracks plain sub declarations.
 var preblock = map[string]bool{
 	"catch": true, "continue": true, "default": true, "defer": true,
 	"else": true, "finally": true, "try": true, "sub": true,
