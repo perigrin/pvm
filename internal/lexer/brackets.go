@@ -116,14 +116,14 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		// otherwise. Everywhere else a term is expected, where perl's own
 		// answer is an anonymous hash -- also a value.
 		switch {
-		case l.expect == XTermBlock:
+		case l.expect == XTermBlock || l.expect == XAttrTerm:
 			l.brackets = append(l.brackets, braceTermBlock)
 			l.openedBlock = true
 		case l.expect == XState && braceIsHash(l.src, l.pos):
 			// toke.c reaches a statement-start `{` in yyl_leftcurly's
 			// default case, whose lookahead can make it HASHBRACK.
 			l.brackets = append(l.brackets, braceTerm)
-		case l.expect == XState || l.expect == XBlock:
+		case l.expect == XState || l.expect == XBlock || l.expect == XAttrBlock:
 			l.brackets = append(l.brackets, braceBlock)
 			l.openedBlock = true
 		case l.expect == XOperator || l.expect == XPostDeref:

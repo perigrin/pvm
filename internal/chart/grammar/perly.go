@@ -1174,6 +1174,9 @@ var perlyClasses = []ClassDecl{
 
 	// An attribute's name follows its colon, the attribute before it or its argument's parenthesis; its
 	// one-token argument, never a parenthesis, follows its own.
+	// shortcut: a colonless attribute after a word some class names (`:method lvalue`) or after a Prototype
+	// (`:prototype($) lvalue`) has no reading, though internal/lexer marks it AttrName; upgrade with the attrlist
+	// work (01a19fb5) by keying these classes on Token.AttrName.
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: ":"}}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: OtherWord}}},
 	{"ATTRLIST", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.CloseBracket, Text: ")"}}},

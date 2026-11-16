@@ -30,6 +30,10 @@ func TestPortClasses(t *testing.T) {
 			t.Errorf("%s is refused at byte %d (expected %v); perl accepts it", f, v.at, v.expected)
 		}
 	}
+	const feature = "use feature 'class'; no warnings 'experimental::class'; "
+	if src := "class Foo { method m : { } }"; !recognizeSource(t, []byte(feature+src)).accepted {
+		t.Errorf("%q is refused; perl accepts it", src)
+	}
 }
 
 // There is no refused snippet for an attribute list after a class block (`class Foo { } :isa(Bar)`): neither tokenizer
@@ -63,7 +67,6 @@ func TestPortClassesKnownLimits(t *testing.T) {
 	for src, accepted := range map[string]bool{
 		"class Foo v1.2.3;":                                            true,  // 01a1a481-ebef: the lexer scans no v-string after a name; accepted by class's word reading alone, which resolve drops by feature
 		"class Foo { field $x :param //= 1; }":                         false, // 01a1aa23-746a: the lexer scans // after an attribute as a pattern
-		"class Foo { method m : { } }":                                 false, // 01a1a445-61f0: the lexer does not mark the { after a bare attribute colon
 		"class Bar { } class Foo :isa(Bar 1.2);":                       false, // 01a19fb5: pvm emits ( Word Number ), toke.c one ATTRLIST
 		"class Foo { method m :lvalue ($$) { 1 } }":                    true,  // 01a19fb5: tokens ( Variable:$$ ), the same with or without the space
 		"class Foo { method m :lvalue (1) { 1 } }":                     true,  // 01a19fb5: tokens ( Number ), as a signature perl refuses

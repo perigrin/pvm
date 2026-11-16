@@ -213,6 +213,11 @@ type Token struct {
 	// sub's call whatever keyword it spells. The declaration's own name is
 	// not marked.
 	LexSub bool
+
+	// AttrName is set on a Word naming an attribute in a sub, package or
+	// class head (`sub :lvalue {`): toke.c's yyl_colon scans it as ATTRLIST,
+	// never as a word, which `$c ? f : lvalue { 1 }` has the same tokens for.
+	AttrName bool
 }
 
 // Tokenize splits src into tokens covering every byte exactly once.
@@ -319,6 +324,11 @@ type lexer struct {
 	// opens a prototype rather than a list.
 	sawSubWord      bool
 	expectPrototype bool
+	// anonHead is set while an anonymous sub's or method's head is open:
+	// from the keyword until a name, which makes it a named one's. toke.c
+	// expects XATTRTERM after an anonymous head and XATTRBLOCK after a named
+	// one, so its body's `}` ends a term or a statement.
+	anonHead bool
 	// methodHead is set while a `method`'s head is open: its parenthesised
 	// head is a signature whatever the signatures feature says. Measured on
 	// perl 5.44.0, `use feature "class"; class C { method m (%o) { keys %o }
@@ -364,12 +374,12 @@ type lexer struct {
 	// `sub f :lvalue { 1 }` lexed its `{` as an anonymous hash's and the
 	// whole body was lost.
 	inSubAttrs bool
-	// sawAttrColon is set when the token just emitted was an attribute's `:`,
-	// so the Word after it is the attribute's NAME rather than a bareword. A
-	// one-token carry, the same shape as sawSubWord, and it exists for
-	// `:prototype(...)`: that argument is a prototype and must be scanned
-	// opaquely, because `$)` is a real perl variable that would otherwise eat
-	// the closing paren.
+	// sawAttrColon is set from a head's first attribute `:` until the head
+	// closes, so every Word after it is an attribute's NAME rather than a
+	// bareword or the sub's name: toke.c's yyl_colon reads `:method lvalue`
+	// as one attribute list. It exists for `:prototype(...)` too: that
+	// argument is a prototype and must be scanned opaquely, because `$)` is a
+	// real perl variable that would otherwise eat the closing paren.
 	sawAttrColon bool
 	// attrArgDepth is the paren depth inside an attribute's argument,
 	// `:Foo(bar)`, whose contents the parser reads opaquely. Nothing in it
@@ -649,6 +659,7 @@ func (l *lexer) emit(k Kind, start int) {
 		closedTermBlock: l.closedTermBlock,
 		nextIsOpenBrace: l.peekIsOpenBrace(),
 		afterDeclName:   afterDeclName,
+		anonHead:        l.anonHead,
 		// A sub's name after its `&` is a whole term too, whatever keyword it
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
 		// A keyword stays the keyword unless a lexical sub shadows it here

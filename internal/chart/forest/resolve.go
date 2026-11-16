@@ -148,7 +148,7 @@ func resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Sc
 	for k, t := range s.Tokens {
 		set := tab.TerminalSets[t.TerminalSet]
 		r.attrArg(k, set)
-		if !r.named[k] && !r.feature(k, set) && slices.Contains(set, r.g.noamp) {
+		if !r.named[k] && !r.s.Raw[t.Index].AttrName && !r.feature(k, set) && slices.Contains(set, r.g.noamp) {
 			r.word(k)
 		}
 	}

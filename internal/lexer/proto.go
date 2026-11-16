@@ -164,7 +164,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		// scans it by balancing brackets; only `prototype`'s contents can
 		// break that, because only they can hide a `)`.
 		if l.sawAttrColon {
-			l.sawAttrColon = false
+			l.toks[len(l.toks)-1].AttrName = true
 			l.expectPrototype = l.sigilAttribute(word)
 			return true
 		}
@@ -181,6 +181,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			l.closeDeclHead()
 		case word == "sub" || word == "method" && l.classSyntax:
 			l.sawSubWord = true
+			l.anonHead = true
 			l.sawPackageWord = false
 			l.methodHead = word == "method"
 			// An ANONYMOUS sub's prototype or signature follows the keyword
@@ -200,12 +201,14 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			// semicolon, but never by a prototype.
 			l.sawPackageWord = true
 			l.sawSubWord = false
+			l.anonHead = false
 			l.expectPrototype = false
 			l.inSubAttrs = false
 		case l.sawSubWord:
 			// The name after `sub`. A prototype may follow it, and so may an
 			// attribute list, and so may a block.
 			l.sawSubWord = false
+			l.anonHead = false
 			l.noteLexSub(word)
 			l.expectPrototype = true
 			l.inSubAttrs = true
@@ -253,6 +256,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 // impossible.
 func (l *lexer) closeDeclHead() {
 	l.sawSubWord = false
+	l.anonHead = false
 	l.methodHead = false
 	l.sawPackageWord = false
 	l.sawPackageName = false
