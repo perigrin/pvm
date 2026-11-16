@@ -615,7 +615,7 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   resolved as `<name>.t` under `testdata/perlonjava/unit`, or under
   `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
   a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
-  `/opt/corpora/perl5`). `lexer-defects.txt` holds 14 such entries and
+  `/opt/corpora/perl5`). `lexer-defects.txt` holds 13 such entries and
   `tdt/lexer-rooted.txt` 99; `lex-unmapped-known.txt` holds none, since no
   perl.git file has a token the table leaves unmapped.
 - **byte** is a decimal offset inside that file (below its size), with no
