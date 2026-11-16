@@ -1971,9 +1971,8 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 				c.Prefix = ptr(byte(0))
 			}
 			// shortcut: internal/lexer emits a quote-like's name before a subscript's } as a Word, newline between or
-			// not, where toke.c reads `$h{q\n}` as a quote; so there the name has no word's reading, and a lexical sub
-			// of that name called bare there (`my sub q {1} $h{q\n}`) is refused; upgrade when the lexer emits the
-			// quote there.
+			// not, where toke.c reads `$h{q\n}` as a quote; so there the name has no word's reading (a lexical sub of
+			// that name is LexSub and reads as PlainWord instead); upgrade when the lexer emits the quote there.
 			if lexer.IsQuoteOpName(w) {
 				c.NotNext = append(slices.Clone(c.NotNext), subscriptClose)
 			}

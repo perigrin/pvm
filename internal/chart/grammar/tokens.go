@@ -154,6 +154,10 @@ const CoreQualified = 'C'
 // there (keywords.c:353), so it is a word no class names. It opens with a letter, so it is not the NonIdentWord class.
 const PlainIsa = "isa\x00plain"
 
+// PlainWord is the text chart/lex gives a keyword internal/lexer marks LexSub: a lexical sub in scope overrides every
+// keyword where toke.c expects no operator (yyl_keylookup checks the pad first), so it is a word no class names.
+const PlainWord = "w\x00plain"
+
 // IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
 // as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
 const IdentQuote = "\x00ident-quote"

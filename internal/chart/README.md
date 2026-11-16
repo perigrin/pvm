@@ -1208,7 +1208,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   a word with a text (`my sub q { 1 } q *{"x"};`). After a package sub of that name toke.c reads the quote-like, and so does internal/lexer, so
   `sub y { 1 } my @a = (y, 1);` is refused at lex, as by perl. shortcut: before a subscript's `}` the name has no
   word's reading, since internal/lexer emits a Word there even across a newline, where toke.c reads `$h{q` and a
-  newline as a quote; so `my sub q {1} my %h; my $y = $h{q` and a newline and `};` is refused, where perl accepts it.
+  newline as a quote. A lexical sub of that name in scope is still a call there: internal/lexer marks it `LexSub`
+  and chart/lex reads it as `grammar.PlainWord`.
+- A lexical sub overrides every keyword where toke.c expects no operator (yyl_keylookup checks the pad first):
+  internal/lexer marks that word `LexSub`, and chart/lex gives a marked keyword the text `grammar.PlainWord`, a word
+  no class names. So `our sub if() { 42 } my $x = if if if;` parses as `$x = if() if if()` (perl.git
+  `op/lexsub.t`), and `my sub if { 1 } if (1) { 2 }` is refused, as by perl.
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its

@@ -73,3 +73,20 @@ func TestPerlGitWordsBounded(t *testing.T) {
 		}
 	}
 }
+
+// A lexical sub overrides every keyword where toke.c does not expect an operator (it checks the pad first,
+// yyl_keylookup): internal/lexer marks that word LexSub and chart/lex reads it as a word no class names. perl.git
+// t/op/lexsub.t:72's form and its neighbours, each as perl -c (94e50866) gives it.
+func TestLexSubOverridesKeyword(t *testing.T) {
+	checkParses(t, map[string]bool{
+		"{ our sub if() { 42 } my $x = if if if; }": true,
+		"our sub if() { 42 } my $x = if if if;":     true,
+		"my sub if { 42 } my $x = if(1);":           true,
+		"my sub if { 42 } my @a = (if, 1);":         true,
+		"my sub unless { 1 } my $z = unless(2);":    true,
+		"my sub if { 1 } my $z = 1 if 1;":           true,
+		"my $x = if if if;":                         false,
+		"{ our sub if() { 42 } } my $x = if if if;": false,
+		"my sub if { 1 } if (1) { 2 }":              false,
+	})
+}

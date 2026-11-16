@@ -74,10 +74,14 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
 	}
-	// perl -c (94e50866) accepts it: a lexical sub named after a quote-like, called bare before a subscript's }, which
-	// the table gives no word's reading there (the shortcut in grammar/perly.go's addStatementWords).
-	if src := "my sub q {1} my %h; my $y = $h{q\n};"; recognizeSource(t, []byte(src)).accepted {
-		t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+	// A quote-like's name before a subscript's } has no word's reading (the shortcut in grammar/perly.go's
+	// addStatementWords), so without a lexical sub of that name the quote perl reads there still refuses (perl -c:
+	// "Can't find string terminator"); with one, internal/lexer marks it LexSub and it is a call, as perl reads it.
+	if src := "my %h; my $y = $h{q\n};"; recognizeSource(t, []byte(src)).accepted {
+		t.Errorf("%q is accepted; perl refuses it", src)
+	}
+	if src := "my sub q {1} my %h; my $y = $h{q\n};"; !recognizeSource(t, []byte(src)).accepted {
+		t.Errorf("%q is refused; perl accepts it", src)
 	}
 	// perl -c (94e50866) accepts both: past a statement start x is BAREWORD only where no operator is expected (the
 	// shortcut on the scope-decided classes in grammar/perly.go).

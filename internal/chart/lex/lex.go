@@ -148,6 +148,9 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 	if plainIsa {
 		tx = grammar.PlainIsa
 	}
+	if t.LexSub && lexer.IsKeyword(tx) {
+		tx = grammar.PlainWord
+	}
 	var next byte // 0 at the end of the file, which ends a version as toke.c's NUL does
 	if t.Kind == lexer.Number && t.End < len(text) {
 		next = text[t.End]
