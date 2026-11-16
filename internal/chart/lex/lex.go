@@ -56,10 +56,11 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		p2, p1 = p1, cur.Class
 	}
 	var opens []int // heredoc openers whose bodies have not come yet
-	// isa is whether the isa feature is on: toke.c reads isa as a keyword only then (keywords.c:353). A use or no
-	// statement sets it (isaAfter) for the rest of its block, and the block's } restores it from scopes.
-	var isa bool
-	scopes := make([]bool, 0, 16)
+	// on is the features in force: toke.c reads isa as a keyword only with its feature on (keywords.c:353). A use or
+	// no statement sets them (featuresAfter) for the rest of its block, and the block's } restores them from scopes;
+	// each change is recorded for resolve (Stream.Features).
+	var on Feature
+	scopes := make([]Feature, 0, 16)
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -80,23 +81,24 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
-		plainIsa := false
+		plainIsa, was := false, on
 		switch n := t.End - t.Start; t.Kind {
 		case lexer.Operator:
 			if n == 1 && text[t.Start] == '{' {
-				scopes = append(scopes, isa)
+				scopes = append(scopes, on)
 			}
 		case lexer.CloseBracket:
 			if text[t.Start] == '}' && len(scopes) > 0 {
-				isa, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
+				on, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
 			}
 		case lexer.Word:
 			if w := text[t.Start:t.End]; n == 3 && w == "use" || n == 2 && w == "no" {
-				isa = isaAfter(raw, i, text, isa)
+				on = featuresAfter(raw, i, text, on)
 			} else {
-				plainIsa = !isa && n == 3 && w == "isa"
+				plainIsa = on&FeatureIsa == 0 && n == 3 && w == "isa"
 			}
 		}
+		s.change(was, on)
 		it := &slots[len(s.Tokens)&1]
 		intern(tt, text, t, lineColon(raw, i, text), blanks(raw, i, text), plainIsa, pred, it)
 		if len(s.Tokens) > 0 {
@@ -158,13 +160,60 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 	tt.Intern(&v, pred, it)
 }
 
-// isaAfter is the isa feature's state after the use or no statement at raw[i], given on before it, as feature.pm and
-// experimental.pm set it: a feature or experimental statement naming isa, :all or a bundle from :5.35 turns it on (use)
-// or off (no), and a bare `no feature` turns it off; use VERSION turns it on from 5.35 and off below it, as the
-// version's bundle replaces the features named before it.
-// shortcut: a feature a module or a BEGIN block imports (`BEGIN { feature->import('isa') }`) is not seen, nor one
-// in a string eval; upgrade if a corpus file needs one.
-func isaAfter(raw []lexer.Token, i int, text string, on bool) bool {
+// Feature is a set of the features feature.pm names that the chart reads, one bit each.
+type Feature uint16
+
+// The features the chart reads: isa here, the rest in resolve.
+const (
+	FeatureIsa Feature = 1 << iota
+	FeatureSignatures
+	FeatureTry
+	FeatureDefer
+	FeatureClass
+	FeatureState
+	FeatureSwitch
+	FeatureCurrentSub
+	FeatureFc
+	FeatureEvalbytes
+	FeatureKeywordAny
+	FeatureKeywordAll
+	featureAll = FeatureKeywordAll<<1 - 1
+)
+
+// featureNames are the features by the names feature.pm and experimental.pm take.
+var featureNames = map[string]Feature{"isa": FeatureIsa, "signatures": FeatureSignatures, "try": FeatureTry,
+	"defer": FeatureDefer, "class": FeatureClass, "state": FeatureState, "switch": FeatureSwitch,
+	"current_sub": FeatureCurrentSub, "fc": FeatureFc, "evalbytes": FeatureEvalbytes, "keyword_any": FeatureKeywordAny,
+	"keyword_all": FeatureKeywordAll, ":all": featureAll}
+
+// bundle is the features of feature.pm's bundle for minor version m (5.m), as use VERSION and :5.m name it.
+func bundle(m int) Feature {
+	var f Feature
+	if m >= 10 {
+		f |= FeatureState
+	}
+	if m >= 10 && m < 35 {
+		f |= FeatureSwitch
+	}
+	if m >= 15 {
+		f |= FeatureCurrentSub | FeatureFc | FeatureEvalbytes
+	}
+	if m >= 35 {
+		f |= FeatureIsa | FeatureSignatures
+	}
+	if m >= 39 {
+		f |= FeatureTry
+	}
+	return f
+}
+
+// featuresAfter is the features in force after the use or no statement at raw[i], given on before it, as feature.pm
+// and experimental.pm set them: a feature or experimental statement turns on (use) or off (no) each feature it names,
+// and each of a bundle's (:all, :5.36); a bare `no feature` returns to the default bundle, which holds none of them;
+// and use VERSION replaces them with its version's bundle.
+// shortcut: a feature a module or a BEGIN block imports (`BEGIN { feature->import('isa') }`, `use Modern::Perl`) is
+// not seen, nor one in a string eval; upgrade if a corpus file needs one.
+func featuresAfter(raw []lexer.Token, i int, text string, on Feature) Feature {
 	use := text[raw[i].Start] == 'u'
 	j := i + 1
 	for j < len(raw) && lexer.IsTrivia(raw[j].Kind) {
@@ -183,20 +232,22 @@ func isaAfter(raw []lexer.Token, i int, text string, on bool) bool {
 			}
 			for _, f := range strings.FieldsFunc(quoted(text[raw[j].Start:raw[j].End]), notName) {
 				named = true
-				if f == "isa" || f == ":all" || strings.HasPrefix(f, ":5.") && minor("v"+f[1:]) >= 35 {
-					on = use
+				set := featureNames[f]
+				if strings.HasPrefix(f, ":5.") {
+					set = bundle(minor("v" + f[1:]))
+				}
+				if use {
+					on |= set
+				} else {
+					on &^= set
 				}
 			}
 		}
 		if !named && !use && w == "feature" {
-			return false // `no feature` returns to the default bundle, which has no isa
+			return 0 // `no feature` returns to the default bundle
 		}
 	case use && (k == lexer.Number || k == lexer.Quote && (w[0] == 'v' || '0' <= w[0] && w[0] <= '9')):
-		if m := minor(w); m >= 35 {
-			on = true
-		} else {
-			on = false
-		}
+		on = bundle(minor(w))
 	}
 	return on
 }

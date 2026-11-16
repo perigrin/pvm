@@ -189,13 +189,12 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
 		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
 		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
-		// shortcut (word): resolve does not know the feature state, so a feature-gated keyword's readings all stand
-		// and any one before a term is accepted with its feature on or off; perl refuses each, the word there
-		// followed by 1, no operator.
-		{"given 1;", true},
-		{"state 1;", true},
-		{"method 1;", true},
-		{"try 1;", true},
+		// shortcut (classOnly): __CLASS__ is refused only outside a method or a field's initializer, which resolve
+		// does not read; perl refuses it ("Cannot use __CLASS__ outside of a method or field initializer expression").
+		{"use feature 'class'; no warnings; my $x = __CLASS__;", true},
+		// the lexer scans no v-string after a name (Word:v1 Operator:. Number:2.3, 01a1a481-ebef), so class's keyword
+		// reading, the only one the class feature leaves, fails; perl accepts it.
+		{"use feature 'class'; no warnings; class Foo v1.2.3;", false},
 	} {
 		if f, _ := Parse(tab, []byte(c.src), scopeOf(c.src)); (f != nil) != c.accepted {
 			t.Errorf("%q: accepted %v, pinned %v; the limit has moved, so move the row to the rows perl's verdict holds",
@@ -235,14 +234,15 @@ func TestResolveImportsAreFileWide(t *testing.T) {
 }
 
 // TestResolveKeepsKeyDecidedWords: a word whose readings its key already decided (after ->, in a hash subscript,
-// before =>) is not collapsed, a declaration of that name or not: Parse's forest is Build's.
+// before =>) is not collapsed, a declaration of that name or not: Parse's forest is Build's. The name is declared by
+// an import, since resolve decides a sub statement's own readings by the signatures feature.
 func TestResolveKeepsKeyDecidedWords(t *testing.T) {
 	tab := committedTables(t)
 	for _, src := range []string{
 		"$x->foo;", "$h{foo};", "%h = (foo => 1);", "$x->foo x 3;",
-		"sub foo {} $x->foo;", "sub foo {} $h{foo} x 3;", "sub foo {} %h = (foo => 1);", "sub foo {} $x->foo x 3;",
+		"use M qw(foo); $x->foo;", "use M qw(foo); $h{foo} x 3;", "use M qw(foo); %h = (foo => 1);", "use M qw(foo); $x->foo x 3;",
 	} {
-		f, ref := Parse(tab, []byte(src), Scope{})
+		f, ref := Parse(tab, []byte(src), scopeOf(src))
 		if f == nil {
 			t.Errorf("%q is refused (%+v); perl accepts it", src, ref)
 			continue
@@ -379,6 +379,11 @@ func TestResolveFeatures(t *testing.T) {
 		{`use feature "class"; no warnings; my $x = method;`, false},
 		{`use feature "try"; try 1;`, false},
 		{`use feature 'try'; sub try {} try *{$x};`, false},
+		{`use feature "try"; catch ($e);`, false},
+		{`use feature "try"; my $x = try(1);`, false},
+		// where toke.c forces a name it looks up no keyword, its feature on or off
+		{`use feature "try"; $x->catch(1); sub catch ($x) {} Foo->try(1); &try(1); %h = (try => 1); $h{try}; *try = \1;`, true},
+		{"use feature 'class'; no warnings; class Foo { method class { 1 } }", true},
 		{`use feature "try"; no warnings; try { 1 } catch ($e) { 2 }`, true},
 		{`use feature "defer"; no warnings; defer { 1 }`, true},
 		{`use feature "keyword_any"; no warnings; my @a; my $x = any { $_ } @a;`, true},
@@ -408,6 +413,9 @@ func TestResolveFeatures(t *testing.T) {
 		// a signature after an attribute list needs the feature
 		{"sub f :lvalue ($x) {}", false},
 		{"sub f :prototype($) ($x) {}", false},
+		// toke.c reads an attribute's argument only where ( follows its name directly
+		{"sub f :Foo (bar) {}", false},
+		{"my $x :shared ($y);", false},
 		{"use v5.36; sub f :lvalue ($x) {}", true},
 		{"use feature 'signatures'; sub f :lvalue ($x) {}", true},
 		{"use experimental 'signatures'; sub f :lvalue ($x) {}", true},

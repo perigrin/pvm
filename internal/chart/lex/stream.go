@@ -28,6 +28,30 @@ type Stream struct {
 	Raw    []lexer.Token
 	Tokens []Token
 	Bodies []Body
+	// Features is each change in the features in force, in token order (Map's use statements and block ends).
+	Features []FeatureChange
+}
+
+// FeatureChange is the features in force from token At on.
+type FeatureChange struct {
+	At int
+	On Feature
+}
+
+// change records that the features in force after the token Map is reading are on, where they were was.
+func (s *Stream) change(was, on Feature) {
+	if on != was {
+		s.Features = append(s.Features, FeatureChange{len(s.Tokens) + 1, on})
+	}
+}
+
+// FeaturesAt is the features in force at Tokens[k].
+func (s *Stream) FeaturesAt(k int) Feature {
+	i, _ := slices.BinarySearchFunc(s.Features, k+1, func(c FeatureChange, at int) int { return c.At - at })
+	if i == 0 {
+		return 0
+	}
+	return s.Features[i-1].On
 }
 
 // Body is a heredoc body and the index in Tokens of its opener.
