@@ -358,3 +358,122 @@ func acceptedLabels(t *testing.T, path string) []string {
 func refusedAnywhere(n *parse.Node) bool {
 	return n.Refused() || slices.ContainsFunc(n.Children, refusedAnywhere)
 }
+
+// TestResolveFeatures: a feature-gated keyword keeps its keyword readings only where its feature is in force at its
+// byte, and a plain word's only where it is not (keywords.c's FEATURE_*_IS_ENABLED, yyl_just_a_word); field, method
+// and ADJUST with the class feature on croak outside a class (croak_kw_unless_class); a sub's signature reading needs
+// the signatures feature (yyl_sub's is_sigsub). Each verdict is the pinned perl -c's.
+func TestResolveFeatures(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		// with the feature off each is a word, and an undeclared word before a term: "Number found where operator expected"
+		{"try 1;", false}, {"catch 1;", false}, {"finally 1;", false}, {"defer 1;", false}, {"given 1;", false},
+		{"when 1;", false}, {"default 1;", false}, {"break 1;", false}, {"state 1;", false}, {"__SUB__ 1;", false},
+		{"field 1;", false}, {"method 1;", false}, {"class 1;", false}, {"ADJUST 1;", false}, {"__CLASS__ 1;", false},
+		{"any 1;", false}, {"all 1;", false}, {"fc 1;", false}, {"evalbytes 1;", false},
+		// and declared, or where no term follows, the word perl accepts
+		{"sub try {} try 1;", true}, {"open(try, \"/dev/null\");", true}, {"foo(catch, 1);", true},
+		{"state $x = 1;", true}, {"field $x;", true}, {"my $c = method { 1 };", true},
+		{"use feature 'try'; no feature 'try'; try 1;", false},
+		// with the feature on each is the keyword only
+		{`use feature "try"; foo(try, 1);`, false},
+		{`use feature "class"; no warnings; my $x = method;`, false},
+		{`use feature "try"; try 1;`, false},
+		{`use feature 'try'; sub try {} try *{$x};`, false},
+		{`use feature "try"; no warnings; try { 1 } catch ($e) { 2 }`, true},
+		{`use feature "defer"; no warnings; defer { 1 }`, true},
+		{`use feature "keyword_any"; no warnings; my @a; my $x = any { $_ } @a;`, true},
+		{`use v5.38; use experimental "class"; class C { field $x; method m { 1 } ADJUST { 1 } }`, true},
+		// a version's bundle: switch from 5.10 to 5.34, state from 5.10, try from 5.39
+		{"use v5.10; given (1) { when (1) { 1 } default { 1 } }", true},
+		{"use v5.36; given (1) { }", false},
+		{"use v5.36; state $x = 1;", true},
+		{"use 5.010; state $x = 1;", true},
+		{"use feature ':5.10'; state $x = 1;", true},
+		{"use v5.40; try { 1 } catch ($e) { 2 }", true},
+		{"use v5.36; try { 1 } catch ($e) { 2 }", false},
+		{"use feature 'switch'; no feature; given (1) {}", false},
+		{"use feature ':all'; my $x = fc \"a\";", true},
+		{"use v5.36; my $x = __SUB__;", true},
+		// the class feature's keywords outside a class: "Cannot 'field' outside of a 'class'"
+		{"use feature 'class'; no warnings; field $x;", false},
+		{"use feature 'class'; no warnings; method m { 1 }", false},
+		{"use feature 'class'; no warnings; my $c = method { 1 };", false},
+		{"use feature 'class'; no warnings; ADJUST { 1 }", false},
+		{"use feature 'class'; no warnings; class Foo { field $x; }", true},
+		{"use feature 'class'; no warnings; class Foo { method m { 1 } }", true},
+		{"use feature 'class'; no warnings; class Foo { method m { my $c = method { 1 }; } }", true},
+		{"use feature 'class'; no warnings; class Foo { ADJUST { 1 } }", true},
+		{"use feature 'class'; no warnings; class Foo { package Bar; method m {} }", false},
+		{"use feature 'class'; no warnings; class Foo {} package Foo; method m {}", true}, // the stash is a class's
+		// a signature after an attribute list needs the feature
+		{"sub f :lvalue ($x) {}", false},
+		{"sub f :prototype($) ($x) {}", false},
+		{"use v5.36; sub f :lvalue ($x) {}", true},
+		{"use feature 'signatures'; sub f :lvalue ($x) {}", true},
+		{"use experimental 'signatures'; sub f :lvalue ($x) {}", true},
+	})
+}
+
+// TestResolveFeaturesPrototypeNotRefused: without the signatures feature a parenthesised list straight after a sub's
+// name is a prototype, which perl -c accepts; only one after an attribute list is refused.
+func TestResolveFeaturesPrototypeNotRefused(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{"sub f ($x) {}", true},
+		{"sub f ($x = 1) {}", true},
+		{"sub f :lvalue ($x) {}", false},
+		{"use v5.36; sub f :lvalue ($x) {}", true},
+	})
+}
+
+// TestResolveFeaturesLexicalScope: a use or no feature statement holds to the end of its block, as perl's hints do.
+func TestResolveFeaturesLexicalScope(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{"{ use v5.36; } sub f :lvalue ($x) {}", false},
+		{"use v5.36; { no feature 'signatures'; } sub f :lvalue ($x) {}", true},
+		{"{ use v5.36; sub f :lvalue ($x) {} }", true},
+		{"use v5.36; { no feature 'signatures'; sub f :lvalue ($x) {} }", false},
+	})
+}
+
+// TestResolveClassScopeEnds: a class holds where its package does: over its block, or from its statement to the end
+// of the enclosing block or the next package statement.
+func TestResolveClassScopeEnds(t *testing.T) {
+	const on = "use v5.38; use experimental 'class'; "
+	checkVerdicts(t, []verdict{
+		{on + "class Foo { } method m {}", false},
+		{on + "{ class Foo; } method m {}", false},
+		{on + "class Foo; package Bar; method m {}", false},
+		{on + "class Foo; method m {}", true},
+	})
+}
+
+// TestResolveFeaturesKeepCorpusAccepted: resolve refuses no Guacamole case (each under `use feature ':5.36'`) or
+// std5k.pl that the pinned perl (labels/in-tree.txt) and recognition accept.
+func TestResolveFeaturesKeepCorpusAccepted(t *testing.T) {
+	tab := committedTables(t)
+	repo := filepath.Join("..", "..", "..")
+	stubs := filepath.Join(repo, "internal", "chart", "testdata", "guacamole", "stubs")
+	checked := 0
+	for _, rel := range acceptedLabels(t, filepath.Join("..", "testdata", "labels", "in-tree.txt")) {
+		if !strings.Contains(rel, "/guacamole/") && !strings.HasSuffix(rel, "/std5k.pl") {
+			continue
+		}
+		p := filepath.Join(repo, filepath.FromSlash(rel))
+		src, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if built(t, string(src)) == nil {
+			continue // recognition refuses it: not resolve's
+		}
+		checked++
+		scope := Scope{Imports: parse.Imports(parse.ParseWithLoader(src, parse.DirLoader(filepath.Dir(p), stubs)))}
+		if f, ref := Parse(tab, src, scope); f == nil {
+			t.Errorf("%s is refused at byte %d (%s); perl accepts it", p, ref.Byte, ref.Reason)
+		}
+	}
+	t.Logf("checked %d files", checked)
+	if checked < 700 {
+		t.Errorf("checked %d files; the labels name over 700 Guacamole cases and std5k.pl that perl and recognition accept", checked)
+	}
+}

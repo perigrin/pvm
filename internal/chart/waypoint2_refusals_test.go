@@ -1,9 +1,13 @@
 // ABOUTME: Waypoint 2's refusals through the whole pipeline (chart/lex, recognition, the forest, its constraints), each
-// ABOUTME: beside a nearby form perl accepts: the precedence refusals the ledger and spec §5.2 name.
+// ABOUTME: beside a nearby form perl accepts: the precedence refusals and the scope refusals the ledger and spec §5.2 name.
 
 package chart
 
-import "testing"
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/forest"
+)
 
 // waypoint2Refusals are perl -c's verdicts (94e50866) on the precedence refusals, each beside a nearby form it accepts.
 var waypoint2Refusals = []struct {
@@ -35,10 +39,54 @@ var waypoint2Refusals = []struct {
 	{"print $$fh[0];", true},
 }
 
+// classOn is the preamble the class rows take: perl reads field, method and ADJUST as keywords only under it.
+const classOn = "use feature 'class'; no warnings; "
+
+// waypoint2ScopeRefusals are perl -c's verdicts (94e50866) on the refusals resolve makes under scope and features,
+// each src read after its pre, beside a nearby form perl accepts: the class feature's keywords outside a class
+// ("Cannot 'field' outside of a 'class'"), and a signature after an attribute list with signatures off.
+var waypoint2ScopeRefusals = []struct {
+	src, pre string
+	accepted bool
+}{
+	{src: "field $x;", pre: classOn},
+	{src: "class Foo { field $x; }", pre: classOn, accepted: true},
+	{src: "method m { 1 }", pre: classOn},
+	{src: "class Foo { method m { 1 } }", pre: classOn, accepted: true},
+	{src: "my $c = method { 1 };", pre: classOn},
+	{src: "class Foo { method m { my $c = method { 1 }; } }", pre: classOn, accepted: true},
+	{src: "ADJUST { 1 }", pre: classOn},
+	{src: "class Foo { ADJUST { 1 } }", pre: classOn, accepted: true},
+	{src: "sub f :lvalue ($x) {}"},
+	{src: "sub f :lvalue ($x) {}", pre: "use v5.36; ", accepted: true},
+	{src: "sub f ($x) {}", accepted: true},
+}
+
 func TestWaypoint2Refusals(t *testing.T) {
 	for _, c := range waypoint2Refusals {
-		if got := constrainSource(t, []byte(c.src)); got != c.accepted {
+		if got := pipelineSource(t, c.src); got != c.accepted {
 			t.Errorf("%q: the chart accepts=%v, perl -c accepts=%v", c.src, got, c.accepted)
 		}
 	}
+	for _, c := range waypoint2ScopeRefusals {
+		if got := pipelineSource(t, c.pre+c.src); got != c.accepted {
+			t.Errorf("%q: the chart accepts=%v, perl -c accepts=%v", c.pre+c.src, got, c.accepted)
+		}
+	}
+}
+
+// pipelineSource is whether src survives the whole pipeline: forest.Parse, with resolve and nothing imported, and
+// then the precedence constraint.
+func pipelineSource(t *testing.T, src string) bool {
+	t.Helper()
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := perlyPrecedence()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, _ := forest.Parse(tab, []byte(src), forest.Scope{})
+	return f != nil && f.Constrain(p)
 }
