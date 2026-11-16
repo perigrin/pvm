@@ -11,6 +11,7 @@ perlgit/op/attrhand.t 317 01a19fb5-79d7
 perlgit/op/const-optree.t 1405 01a1ad1d-bc96
 perlgit/op/current_sub.t 1893 01a1ad1d-bc96
 perlgit/op/goto.t 14715 01a1ad1d-bc96
+perlgit/op/hash.t 1910 01a1a445-61f0-73c8-81db-1cc65a3620f5
 perlgit/op/override.t 506 01a1ad1d-bc96
 perlgit/op/protowarn.t 632 01a1ad1d-bc96
 perlgit/op/tie_fetch_count.t 6416 01a1cfc4-5141
