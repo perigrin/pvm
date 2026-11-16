@@ -431,32 +431,51 @@ func TestResolveFeatures(t *testing.T) {
 		{"my @f; BEGIN { @f = ('try') } use feature @f; try { 1 } catch ($e) { 2 }", true},
 		{"BEGIN { require feature; feature->import('try') } try { 1 } catch ($e) { 2 }", true},
 		{"use strict; use warnings; use constant X => 1; try 1;", false},
+		// where a feature may be on, a keyword keeps what either state gives it: the keyword's readings, and the
+		// word's as any word's
+		{"use Carp; try 1;", false},
+		{"use Carp; sub try {} try 1;", true},
+		{"use POSIX; state 1;", false},
+		{"use POSIX; state $x = 1;", true},
+		{"use Carp; given 1;", false},
+		{"use Carp; method 1;", false},
+		// a BEGIN that opens no block is a hash key or a method's name
+		{"my %h = (BEGIN => 1); try 1;", false},
+		{"Foo->BEGIN; try 1;", false},
 		{"use v5.36; sub f :lvalue ($x) {}", true},
 		{"use feature 'signatures'; sub f :lvalue ($x) {}", true},
 		{"use experimental 'signatures'; sub f :lvalue ($x) {}", true},
 	})
 }
 
-// TestResolveFeaturesMayBeOn: a module may turn a feature on, so after its use a feature-gated keyword keeps every
-// reading. The pinned perl lacks these modules; recursive descent accepts each, and so must forest.Parse. The
-// perl.git file is Test2's, whose `field first => 42;` its bundle's import makes a call.
+// TestResolveFeaturesMayBeOn: a module may turn a feature on, so after its use a feature-gated keyword keeps its
+// keyword readings. The pinned perl lacks these modules; recursive descent accepts each, and so must forest.Parse.
 func TestResolveFeaturesMayBeOn(t *testing.T) {
 	tab := committedTables(t)
-	srcs := []string{
+	for _, src := range []string{
 		"use Object::Pad; class Foo { method m { 1 } }",
 		"use Syntax::Keyword::Try; try { 1 } catch ($e) { 2 }",
 		"use Mojo::Base -signatures; sub f :lvalue ($x) {}",
-	}
-	if src, err := os.ReadFile(filepath.Join(perl5Root(), "cpan", "Test-Simple", "t", "regression", "10-set_and_dne.t")); err == nil {
-		srcs = append(srcs, string(src))
-	}
-	for _, src := range srcs {
+	} {
 		if refusedAnywhere(parse.ParseWithLoader([]byte(src), func(string) ([]byte, bool) { return nil, false })) {
 			t.Errorf("%q: recursive descent refuses it, so the row pins nothing", src)
 		}
 		if f, ref := Parse(tab, []byte(src), scopeOf(src)); f == nil {
 			t.Errorf("%q is refused (%+v); recursive descent accepts it", src, ref)
 		}
+	}
+}
+
+// TestResolveFeaturesOpaqueImportLimit pins a limit: perl.git's Test-Simple t/regression/10-set_and_dne.t calls
+// `field first => 42;`, field a sub Test2::Bundle::Extended exports through an import list parse.Imports cannot read,
+// so resolve takes field's word reading for an undeclared word, which refuses it there, where perl accepts the file.
+func TestResolveFeaturesOpaqueImportLimit(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join(perl5Root(), "cpan", "Test-Simple", "t", "regression", "10-set_and_dne.t"))
+	if err != nil {
+		t.Skip(err)
+	}
+	if f, _ := Parse(committedTables(t), src, Scope{Imports: parse.Imports(parse.ParseWithLoader(src, parse.DirLoader()))}); f != nil {
+		t.Error("10-set_and_dne.t is accepted; the limit is gone, so move it to TestResolveFeaturesMayBeOn and drop the README line")
 	}
 }
 

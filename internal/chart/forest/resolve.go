@@ -86,6 +86,9 @@ var featureOf = map[string]lex.Feature{"try": lex.FeatureTry, "catch": lex.Featu
 	"method": lex.FeatureClass, "class": lex.FeatureClass, "ADJUST": lex.FeatureClass, "__CLASS__": lex.FeatureClass,
 	"any": lex.FeatureKeywordAny, "all": lex.FeatureKeywordAll, "fc": lex.FeatureFc, "evalbytes": lex.FeatureEvalbytes}
 
+// shortcut: the indirect feature is not read, so a word before a variable stays a method where a bundle turns it off
+// (`use v5.36; no feature "state"; state $x = 1;`, refused by perl); upgrade when lex.Features carries indirect.
+
 // classOnly are the keywords toke.c refuses outside a class (croak_kw_unless_class).
 // shortcut: __CLASS__ outside a method or a field's initializer, which perl also refuses, is accepted; upgrade when
 // resolve reads the method and field scopes.
@@ -127,6 +130,8 @@ type resolver struct {
 	dead        map[[2]int]bool  // (token, terminal) readings resolve drops
 	// named is the tokens toke.c forces to a name, a method's class or a glob's, which are no scope-decided words
 	named []bool
+	// local is set while word decides a feature-gated keyword whose feature may be on, which leaves its neighbours alone
+	local bool
 }
 
 // resolve drops from f each reading toke.c would not give a scope-decided
@@ -338,8 +343,8 @@ func latest(ds []sub, k int) (sub, bool) {
 // keeps its own readings only with its feature on and a plain word's only with it off (keywords.c, yyl_just_a_word);
 // field, method and ADJUST with it on keep none outside a class (croak_kw_unless_class); and sub keeps its signature
 // readings only with the signatures feature on, its prototype's only with it off (yyl_sub's is_sigsub). Where an
-// import or a BEGIN block may have turned the feature on (lex.Features.Maybe), every reading stands, as for a word
-// resolve cannot see (keepAll).
+// import or a BEGIN block may have turned the feature on (lex.Features.Maybe), a keyword keeps what either gives it,
+// and sub both its readings.
 func (r *resolver) feature(k int, set []int) bool {
 	g := r.g
 	has := func(of []bool) bool { return slices.ContainsFunc(set, func(x int) bool { return of[x] }) }
@@ -359,7 +364,13 @@ func (r *resolver) feature(k int, set []int) bool {
 	case !ok:
 		return false
 	case fs.Maybe&f != 0:
-		r.keepAll(k)
+		// both: its keyword readings stand, and a plain word's are decided as any word's, at its own token only,
+		// since what toke.c would expect after the word is no constraint on the keyword's reading
+		if slices.Contains(set, g.noamp) {
+			r.local = true
+			r.word(k)
+			r.local = false
+		}
 		return true
 	case fs.On&f == 0:
 		drop = func(x int) bool { return g.keyword[x] }
@@ -405,14 +416,6 @@ func (r *resolver) inClass(k int) bool {
 	return ok && at < k
 }
 
-// keepAll keeps every reading of a word resolve cannot decide, at token k, but a method's in a filehandle's slot
-// before a non-word: toke.c reads a word there as a bareword or, were it a sub, a call, never a method.
-func (r *resolver) keepAll(k int) {
-	if r.fileSlot(k) && !r.isWord(k+1) {
-		r.dead[[2]int{k, r.g.methcall0}], r.dead[[2]int{k, r.g.methcall}] = true, true
-	}
-}
-
 // What the word after a scope-decided one is to intuit_method: not a word;
 // a word it takes for no class (a keyword, a declared sub, a word before =>,
 // or any word after a sub whose prototype opens with *); one it would take
@@ -431,7 +434,10 @@ func (r *resolver) word(k int) {
 	g := r.g
 	d, st := r.lookup(r.text(k), k)
 	if st == unknown {
-		r.keepAll(k)
+		if r.fileSlot(k) && !r.isWord(k+1) {
+			// toke.c reads a filehandle slot's word before a non-word as a bareword or, were it a sub, a call: never a method
+			r.dead[[2]int{k, g.methcall0}], r.dead[[2]int{k, g.methcall}] = true, true
+		}
 		return
 	}
 	cls := notWord
@@ -453,9 +459,11 @@ func (r *resolver) word(k int) {
 		fallthrough // intuit_method takes a declared sub for a method where the word after it names a package
 	case st == undeclared && cls == isClass:
 		keep = []int{g.methcall0, g.methcall} // a method: its class is forced, and the token after that is a term's
-		r.named[k+1] = true
-		r.drop(k+1, []int{g.bareword})
-		r.xterm(k + 2)
+		if !r.local {
+			r.named[k+1] = true
+			r.drop(k+1, []int{g.bareword})
+			r.xterm(k + 2)
+		}
 	case st == declared:
 		keep = r.called(k, d.proto)
 		if cls == isClass || cls == maybeClass {
@@ -539,7 +547,7 @@ func (r *resolver) fileSlot(k int) bool {
 // xterm marks token p as lexed with PL_expect at XTERM: where it can begin a
 // term, toke.c reads it as one, so its other readings are dropped.
 func (r *resolver) xterm(p int) {
-	if p <= 0 || p >= r.n {
+	if p <= 0 || p >= r.n || r.local {
 		return
 	}
 	set := r.tab.TerminalSets[r.s.Tokens[p].TerminalSet]

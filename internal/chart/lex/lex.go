@@ -95,8 +95,8 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			switch w := text[t.Start:t.End]; {
 			case n == 3 && w == "use" || n == 2 && w == "no":
 				on = featuresAfter(raw, i, text, on)
-			case n == 5 && w == "BEGIN": // `BEGIN { require feature; feature->import('isa') }`
-				on = on.mayBeOn()
+			case n == 5 && w == "BEGIN" && beginBlock(raw, i, text, s):
+				on = on.mayBeOn() // `BEGIN { require feature; feature->import('isa') }`
 			default:
 				plainIsa = on.On&FeatureIsa == 0 && n == 3 && w == "isa"
 			}
@@ -276,6 +276,21 @@ func featuresAfter(raw []lexer.Token, i int, text string, on Features) Features 
 		on = on.mayBeOn()
 	}
 	return on
+}
+
+// beginBlock is whether the BEGIN at raw[i] opens a block: a { follows it, and no -> is before it (s's last token).
+func beginBlock(raw []lexer.Token, i int, text string, s *Stream) bool {
+	if n := len(s.Tokens); n > 0 {
+		if p := raw[s.Tokens[n-1].Index]; text[p.Start:p.End] == "->" {
+			return false
+		}
+	}
+	for j := i + 1; j < len(raw); j++ {
+		if !lexer.IsTrivia(raw[j].Kind) {
+			return text[raw[j].Start:raw[j].End] == "{"
+		}
+	}
+	return false
 }
 
 // quoted is a quote-like's contents: its text without the operator's letters and the delimiters.

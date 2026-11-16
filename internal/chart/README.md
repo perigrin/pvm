@@ -1290,9 +1290,13 @@ with reason `scope`, at the first dropped reading reached from the root.
   from 5.10, switch from 5.10 to 5.34, current_sub, fc and evalbytes from 5.15, signatures from 5.35, try from 5.39);
   each holds to the end of its block (`TestResolveFeaturesLexicalScope`). As internal/parse reads them
   (`featuresMayBeOn`), a `use` of a module that is no quiet pragma, a feature list not all quoted names, or a `BEGIN`
-  block may turn any feature on, so each feature known off is unknown after one (`use if 1, feature => 'try'`,
-  `use Mojo::Base -signatures`), and a feature-gated keyword, or `sub`, keeps every reading where its feature is unknown
-  (`TestResolveFeaturesMayBeOn`). A feature-gated keyword ("Scope-decided
+  block (a `BEGIN` before `{`, not after `->`) may turn any feature on, so each feature known off is unknown after one
+  (`use if 1, feature => 'try'`, `use Mojo::Base -signatures`). Where its feature is unknown a feature-gated keyword
+  keeps what either state gives it: its keyword readings, and a plain word's as any word's are decided, at its own
+  token only (`use Carp; try 1;` is refused, `use Carp; sub try {} try 1;` accepted); and `sub` keeps both its
+  readings (`TestResolveFeaturesMayBeOn`). perl.git's Test-Simple `t/regression/10-set_and_dne.t` is refused where perl
+  accepts it: its `field first => 42;` calls a sub Test2::Bundle::Extended exports through an import list
+  parse.Imports cannot read, so `field`'s word reading is an undeclared word's (`TestResolveFeaturesOpaqueImportLimit`). A feature-gated keyword ("Scope-decided
   words") keeps its keyword readings only with its feature on, and a plain word's (BAREWORD, NOAMP, FUNC0SUB,
   UNIOPSUB, LSTOPSUB, METHCALL0, METHCALL and PRIVATEREF) only with it off, where it is then decided as any word is
   (`try 1;` and `state 1;` are refused, `use feature "try"; foo(try, 1);` too). Where toke.c forces a name (after
