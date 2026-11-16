@@ -76,7 +76,9 @@ func TestLexicalSubShadowsKeyword(t *testing.T) {
 //     a forward declaration it is (`my sub foo; sub foo { foo(1) }`);
 //   - a word before `=>` is a string, as toke.c checks the fat comma first;
 //   - a lone word in a subscript is a string: `$h{foo}`, `$h{ foo }`, but
-//     not `$h{+foo}`;
+//     not `$h{+foo}`, nor `$h{foo` and a newline (perl prints 1, 2, 2 for
+//     `$h{foo\n}, $h{ foo }, $h{foo\t}` with `my sub foo {"L"}` and
+//     `%h = (L => 1, foo => 2)`);
 //   - a label, and the label after last, next, redo or goto.
 func TestLexicalSubNotLookedUp(t *testing.T) {
 	for _, tc := range []struct {
@@ -91,6 +93,9 @@ func TestLexicalSubNotLookedUp(t *testing.T) {
 		{`{ my sub foo { 1 } } foo;`, "foo", []bool{false, false}},
 		{`my sub foo { 1 } my %h = (foo => 1, foo=>2);`, "foo", []bool{false, false, false}},
 		{`my sub foo { 1 } $h{foo}; $h{ foo }; $h{+foo};`, "foo", []bool{false, false, false, true}},
+		// toke.c autoquotes only across spaces and tabs (yyl_leftcurly's
+		// SPACE_OR_TAB): before a newline the word is the lexical sub's call.
+		{"my sub foo { 1 } $h{foo\t}; $h{foo\n};", "foo", []bool{false, false, true}},
 		{"my sub foo { 1 } foo: { last foo; next foo; redo foo; goto foo; } foo;", "foo",
 			[]bool{false, false, false, false, false, false, true}},
 	} {

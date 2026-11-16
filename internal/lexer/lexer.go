@@ -349,6 +349,11 @@ type lexer struct {
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.
 	lexSubs []lexSub
+	// lexSubBody is a lexical sub declared but not yet in scope: perl brings
+	// its name in when its body closes, or at a forward declaration's `;`,
+	// never inside its own body. lexSubBodyOpen says its `{` has opened.
+	lexSubBody     lexSub
+	lexSubBodyOpen bool
 	// sawPackageName is set on that NAME, so a version after it --
 	// `package Foo 1.0 { }` -- keeps the head open for the block.
 	sawPackageName bool
@@ -584,8 +589,8 @@ func (l *lexer) emit(k Kind, start int) {
 	l.noteSignatures(k, start)
 	l.noteSignatureParens(k, start)
 	afterDeclName := l.noteSubName(k, start)
-	l.toks[len(l.toks)-1].LexSub = k == Word && !afterDeclName && len(l.lexSubs) > 0 &&
-		l.expect != XOperator && l.expect != XPostDeref && l.lexSubInScope(string(l.src[start:l.pos]))
+	l.toks[len(l.toks)-1].LexSub = k == Word && !afterDeclName && l.lexSubCall(start)
+	l.settleLexSub(start)
 
 	// A block-taking word's `(` inherits the lookahead. `map({...} @a)` puts
 	// the brace one token further along than `map {...} @a`, and the answer
