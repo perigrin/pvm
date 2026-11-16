@@ -30,7 +30,9 @@ type Forest struct {
 	Root  int32
 	Nodes []Node
 	Alts  []Alt
-	steps int // facts recorded and splits tried, for the scaling test
+	// Readings is the statements' readings count, which Parse sets after precedence and resolve (readings.go).
+	Readings Readings
+	steps    int // facts recorded and splits tried, for the scaling test
 }
 
 // Node is a symbol over a span of lattice nodes, From to To, or a rule
