@@ -304,7 +304,10 @@ const (
 func (r *resolver) word(k int) {
 	g := r.g
 	d, st := r.lookup(r.text(k), k)
-	if st == unknown {
+	// shortcut: resolve does not know the feature state, so every reading of a feature-gated keyword stands but a
+	// method's in a filehandle's slot, which neither state gives it, and any one before a term is accepted with its
+	// feature on or off (given 1;, try 1;, refused by perl); upgrade when SCOPEFEAT reads the features.
+	if st == unknown || grammar.IsFeatureKeyword(r.text(k)) {
 		if r.fileSlot(k) && !r.isWord(k+1) {
 			// toke.c reads a filehandle slot's word before a non-word as a bareword or, were it a sub, a call: never a method
 			r.dead[[2]int{k, g.methcall0}], r.dead[[2]int{k, g.methcall}] = true, true

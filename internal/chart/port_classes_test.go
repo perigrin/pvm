@@ -47,8 +47,8 @@ func TestPortClassesRefusals(t *testing.T) {
 	// Perl refuses these other than as a syntax error (an invalid version, an illegal anonymous declaration, a signature
 	// error), so they are not snippets. The anonymous-method refusals are 1553's: the rule is not ported, so they refuse.
 	const feature = "use feature 'class'; no warnings 'experimental::class'; "
-	for _, src := range []string{"class Foo 1.2 field", "class if Bar;", "package if Bar;", "class Foo Bar;", "class Foo Bar { }", "class Foo { method m { my $c = method; } }",
-		"class Foo { method ; }", "my sub { 1 }", "class Foo { method m ($y { 1 } }"} {
+	for _, src := range []string{"class Foo 1.2 field", "package if Bar;", "class Foo { method m { my $c = method :lvalue; } }",
+		"my sub { 1 }", "class Foo { method m ($y { 1 } }"} {
 		if v := recognizeSource(t, []byte(feature+src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
@@ -61,7 +61,7 @@ func TestPortClassesRefusals(t *testing.T) {
 func TestPortClassesKnownLimits(t *testing.T) {
 	const feature = "use feature 'class'; no warnings 'experimental::class'; "
 	for src, accepted := range map[string]bool{
-		"class Foo v1.2.3;":                                            false, // 01a1a481-ebef: the lexer scans no v-string after a name
+		"class Foo v1.2.3;":                                            true,  // 01a1a481-ebef: the lexer scans no v-string after a name; accepted by class's word reading alone, which resolve drops by feature (SCOPEFEAT)
 		"class Foo { field $x :param //= 1; }":                         false, // 01a1aa23-746a: the lexer scans // after an attribute as a pattern
 		"class Foo { method m : { } }":                                 false, // 01a1a445-61f0: the lexer does not mark the { after a bare attribute colon
 		"class Bar { } class Foo :isa(Bar 1.2);":                       false, // 01a19fb5: pvm emits ( Word Number ), toke.c one ATTRLIST
@@ -77,6 +77,9 @@ func TestPortClassesKnownLimits(t *testing.T) {
 		"class Foo { method BEGIN { 1 } }":  true, // perl dies calling it, not parsing it
 		"class Foo { field $x = 1 = 2; }":   true, // can't modify a constant, an action's
 		"class Foo { field $x :Foo(bar); }": true, // an unrecognised field attribute, an action's
+		// The feature-gated words read as words (FEATWORDS), which perl does only with the feature off: resolve's by feature (SCOPEFEAT).
+		"class if Bar;": true, "class Foo Bar;": true, "class Foo Bar { }": true,
+		"class Foo { method m { my $c = method; } }": true, "class Foo { method ; }": true,
 	} {
 		if v := recognizeSource(t, []byte(feature+src)); v.accepted != accepted {
 			t.Errorf("%q: the recorded limit moved (accepted=%v)", src, v.accepted)

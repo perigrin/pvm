@@ -177,11 +177,6 @@ Three limits hold off the corpus, where the gates cannot see them:
   expected is still `BAREWORD` only, plus `PRIVATEREF` before `(`. The ruling
   (01a18fa6-ec70) makes `x` a word wherever an operator is not expected; the
   rest of that is a shortcut, pinned in `TestPortScopeDecidedKnownLimits`.
-  `catch =>` followed by a `$` variable that is no plain name is refused in any
-  list (`catch => $_;`, `(catch => $_)`, `foo(catch => $_);`,
-  `x(catch => $Foo::x);`; `perl -c`: syntax OK, `catch` is a hash key there) by
-  the PERLY_DOLLAR class that guards a `catch (` variable, pinned in the same
-  test.
 - **Refused by resolve, accepted by recognition.** `print STDOUT $foo bar();`,
   `say STDOUT $foo bar();` and `print STDOUT $foo bar;` are recognized, a
   non-keyword word before a `Variable` reading as `METHCALL0` even after
@@ -785,9 +780,8 @@ feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 `use feature 'try'` or `'defer'` (toke.c reads them as words without it), so
 `try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
 feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
-The other side is under-acceptance: where perl reads them as plain words,
-`sub try {} try 1;` and `catch(1)` are refused (`try => 1;` and `$h{try}` are
-accepted, as every word is there).
+Where perl reads them as plain words they are words too (see "Scope-decided
+words"), so `sub try {} try 1;` and `catch(1)` are accepted.
 
 A LABEL is a word with no package separator and a one-byte colon after it on
 its own line (blanks only between; the word's `LineColon`), where a statement may start: toke.c's label
@@ -798,14 +792,12 @@ scan reads a line at a time and scans the word without `::`. `L\n: 1;`,
 `catch ($_)`, `catch ($1)`, `catch ($^W)` and `catch ($')` are refused, as the
 action declares the variable with `my`, and `catch ($e)`, `catch ($a)` and
 `catch ($ARGV)` are accepted. The refusal is a PERLY_DOLLAR class excluded two
-tokens after the word `catch` (a `Global` part: no plain identifier, or `$_`).
-shortcut: that class also refuses `catch =>` followed by a variable that is no
-plain name, in any list (`catch => $_;`, `foo(catch => $_);`), which perl
-accepts (`catch` is a hash key). `$p->catch($Foo::x);` is accepted because a word
-after `->` is a name (`Neighbour.Name`), which the exclusion's `catch` word does
-not match. The exclusion sees only the word two tokens back, not the token
-between, so the upgrade is to let it see `=>` as the variable's predecessor
-(Prev1); it is pinned in `TestPortScopeDecidedKnownLimits`.
+tokens after the word `catch` with a `(` between (a `Global` part: no plain
+identifier, or `$_`), so `catch => $_;` and `print catch . $_;` keep the
+variable. `$p->catch($Foo::x);` is accepted because a word after `->` is a name
+(`Neighbour.Name`), which the exclusion's `catch` word does not match.
+shortcut: the exclusion also refuses `catch($_);`, which perl accepts with the
+try feature off; it is pinned in `TestPortScopeDecidedKnownLimits`.
 
 ### Version tokens after `package`, `use` and `no`
 
@@ -977,12 +969,14 @@ Known limits, each pinned in `TestPortSignaturesKnownLimits`, accepted where per
 forces first, so each rule has a form with and without the version BAREWORD, and a word two after `class` is never the
 version (`afterWordSlot`). The name is a BAREWORD wherever it stands, keyword or not (`toke.c` KEY_class forces it with no
 keyword check), as is a method's (`yyl_sub`). `method` is KW_METHOD_named or KW_METHOD_anon on the same split as `sub`
-(a name follows or not), and `class`, `field` and `method` are keywords wherever they stand: the chart does not track the
-feature. The mid-rule actions (`$@8`, `$@24`) are not ported. 1553 (`method` with no body) refuses in its action and has
+(a name follows or not). `class`, `field`, `method`, `ADJUST` and `__CLASS__` are feature-gated: each is its keyword and,
+as toke.c reads it with the class feature off, a word (`class(1);`, `my $x = field;`; see "Scope-decided words"), and
+resolve (SCOPEFEAT) collapses the two by feature. The mid-rule actions (`$@8`, `$@24`) are not ported. 1553 (`method` with no body) refuses in its action and has
 no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 
-- Refused where perl accepts: `class Foo v1.2.3;` (the package limit above, `01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`);
-  `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
+- `class Foo v1.2.3;` is accepted, as by perl, but only by `class`'s word reading: its keyword reading is the package
+  limit above (`01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`), so it is refused once resolve keeps only the keyword.
+- Refused where perl accepts: `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
   and `method m : { }` (the `sub foo : { }` limit above).
 - Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
   is refused where perl accepts it: pvm emits `( Word Number )` where toke.c delivers one ATTRLIST. And `method m :lvalue ($$) { 1 }`,
@@ -991,6 +985,8 @@ no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 - There is no refusal row for an attribute list after a class block: neither tokenizer marks that colon as an attribute colon.
 - Accepted where perl refuses, each by an action or a scope rather than the grammar: `field` and `method` outside a class
   (waypoint 2's scope refusals), a field named `$::x`, `$_` or `$1`, and a class that inherits from itself.
+- Accepted where perl refuses, by a word reading resolve drops by feature (SCOPEFEAT): `class if Bar;`, `class Foo Bar;`,
+  `method ;`, `my $c = method;`, and the forms under `testdata/port/feature-gated/` (`class ;`, `field ($x);`, ...).
 
 ### Formats
 
@@ -1184,6 +1180,13 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
 - `AUTOLOAD`, `DESTROY`, `BEGIN`, `UNITCHECK`, `CHECK`, `INIT` and `END` name a sub only where a statement starts
   and are any word elsewhere (toke.c:8313-8322), so init's `addStatementWords` gives them each class of a word no
   class names, after anything but a statement start (`$y = AUTOLOAD();`, `$y = END x 3`).
+- The feature-gated keywords (`ADJUST`, `__CLASS__`, `__SUB__`, `all`, `any`, `break`, `catch`, `class`, `default`,
+  `defer`, `evalbytes`, `fc`, `field`, `finally`, `given`, `method`, `state`, `try`, `when`) read as words as well as
+  keywords: keywords.c at 94e50866 returns each one's KEY_ only under its `FEATURE_*_IS_ENABLED`, and toke.c reads it
+  as yyl_just_a_word otherwise. Recognition cannot see a feature, so init's `addStatementWords` gives each, unqualified,
+  every class of a word no class names, and a word's after `sort` or `do`, beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
+  `my $x = method;`), and resolve (SCOPEFEAT) collapses the two by feature. `CORE::try` stays the keyword. `isa` is
+  chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`).
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its
@@ -1223,6 +1226,11 @@ the operator's name with no delimiters.
 Recognition accepts `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` ("Indirect objects"),
 and `x 1;` as `foo 1;`: perl refuses each, and accepts each once a sub of that name is declared (`sub x; x 1;`), and
 `forest.Parse` refuses each through resolve. `terminals-per-token` and `items-per-token` rise by design.
+Until SCOPEFEAT, the forms perl refuses only because a feature is on are accepted through a feature-gated word's word
+reading (`use feature "try"; foo(try, 1);`, `use feature "class"; no warnings; my $x = method;`, and the families'
+former refusals under `testdata/port/feature-gated/`, such as `try { 1 }` with no catch); `catch($_);` is refused
+where perl accepts it with the try feature off, because the PERLY_DOLLAR class that guards a `catch (` variable cannot
+see the feature (a `shortcut:` in `grammar/perly.go`).
 
 #### Resolve: `forest/resolve.go`
 
@@ -1280,7 +1288,12 @@ glob sigils and `?` as a pattern, which the token table gives no reading after a
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
 glob, since internal/lexer emits the `2` a Number; `sub is {} is *{$x}, 1;` is refused, where after a call toke.c reads
 `*{` as a glob's sigil and a block and the token table reads a `*` after a word as no glob's and the `{` after it as an
-anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read.
+anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read. shortcut: a feature-gated keyword
+("Scope-decided words" above) keeps every reading but a method's in a filehandle's slot before a non-word (as an
+unknown name does, so `print try $x bar();` is refused as perl refuses it), since resolve does not know the feature state, so any feature-gated
+keyword before a term is accepted whether its feature is on or off: `given 1;`, `state 1;`, `method 1;`, `try 1;`,
+and, with the feature on, `use feature "try"; try 1;`, `use feature "current_sub"; __SUB__ { 1 }` and
+`use v5.40; use experimental "class"; __CLASS__ { 1 }` are accepted, where perl refuses each, until SCOPEFEAT reads the features.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and
@@ -1472,7 +1485,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   completion no longer walks the whole parent set with a `goTo` binary
   search per item: over the corpus sample, default options, 8.31 searches
   per token became 0.60 (`TestCompletionProbesBounded`, its bound recorded
-  in chart-recovery's Records). `TestPostdotIndexMatchesSetScan` holds the
+  in chart-recovery's Records; 0.63 since the feature-gated keywords read as
+  words too, which widened the grammar). `TestPostdotIndexMatchesSetScan` holds the
   index to a whole-set scan at every set, and
   `TestPostdotIndexConcurrentRecognizers` runs two recognizers over one
   tables value at once; each recognizer owns its cores. Branch sets are not

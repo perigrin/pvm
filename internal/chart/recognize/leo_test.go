@@ -215,8 +215,9 @@ func TestLeoChainReadsAreCacheDeps(t *testing.T) {
 // leoMemoEntriesBound is the most stored Leo memo entries per node the
 // corpus sample may leave under default options: the review prototype's
 // count, rounded up, recorded with the base tree's as chart-recovery's
-// "R3 bound" bullet.
-const leoMemoEntriesBound = 0.036
+// "R3 bound" bullet, retaken when FEATWORDS gave the feature-gated keywords
+// a word's readings (0.0359 to 0.0382).
+const leoMemoEntriesBound = 0.039
 
 // memoStore is the number of entries c's memo store holds, and how many of
 // them are memos rather than a stored "none".

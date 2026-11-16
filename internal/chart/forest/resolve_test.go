@@ -176,6 +176,13 @@ func TestResolveKnownLimits(t *testing.T) {
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},
+		// shortcut (word): resolve does not know the feature state, so a feature-gated keyword's readings all stand
+		// and any one before a term is accepted with its feature on or off; perl refuses each, the word there
+		// followed by 1, no operator.
+		{"given 1;", true},
+		{"state 1;", true},
+		{"method 1;", true},
+		{"try 1;", true},
 	} {
 		if f, _ := Parse(tab, []byte(c.src), scopeOf(c.src)); (f != nil) != c.accepted {
 			t.Errorf("%q: accepted %v, pinned %v; the limit has moved, so move the row to the rows perl's verdict holds",
