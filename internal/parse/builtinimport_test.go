@@ -4,6 +4,7 @@
 package parse_test
 
 import (
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/parse"
@@ -115,5 +116,63 @@ func TestBuiltinBundlesImportTheirNames(t *testing.T) {
 	src := `use v5.40; my $r = blessed $x, 1;`
 	if c := findCall(parse.Parse([]byte(src)), "blessed"); c == nil || len(c.Children) != 1 {
 		t.Errorf("%q: blessed takes one argument; got %s", src, shape(parse.Parse([]byte(src))))
+	}
+}
+
+// TestImportsUseBuiltin: parse.Imports reports what `use builtin` imports,
+// as it does any module's imports, each with the prototype perl gives it.
+// builtin is XS and has no Exporter list; its importable names and their
+// prototypes, observed on 94e50866 (perl 5.45.0):
+//
+//	$ perl -e 'for (sort keys %builtin::) { print "$_ ", prototype("builtin::$_") // "undef", "\n" }'
+//
+// true, false, inf and nan are "", indexed "@", export_lexically none, and
+// the other fifteen "$". `use builtin qw(import)` dies "'import' is not
+// recognised as a builtin function". A bundle imports the 13 that
+// TestBuiltinBundlesImportTheirNames names.
+func TestImportsUseBuiltin(t *testing.T) {
+	want := map[string]string{
+		"true": "()", "false": "()", "inf": "()", "nan": "()", "indexed": "(@)", "export_lexically": "",
+		"blessed": "($)", "ceil": "($)", "created_as_number": "($)", "created_as_string": "($)",
+		"floor": "($)", "is_bool": "($)", "is_tainted": "($)", "is_weak": "($)", "load_module": "($)",
+		"refaddr": "($)", "reftype": "($)", "stringify": "($)", "trim": "($)", "unweaken": "($)", "weaken": "($)",
+	}
+	var names []string
+	for name := range want {
+		names = append(names, name)
+	}
+	src := "use builtin qw(" + strings.Join(names, " ") + ");\n"
+	imps := parse.Imports(parse.ParseWithLoader([]byte(src), nil))
+	for name, proto := range want {
+		if imp, ok := imps[name]; !ok || !imp.PrototypeKnown || imp.Prototype != proto {
+			t.Errorf("%s imported as %+v (found %v), want prototype %q", name, imp, ok, proto)
+		}
+	}
+	bundle := parse.Imports(parse.ParseWithLoader([]byte("use builtin ':5.40';\n"), nil))
+	if imp, ok := bundle["indexed"]; !ok || imp.Prototype != "(@)" {
+		t.Errorf("use builtin ':5.40' imports indexed; got %+v (found %v)", imp, ok)
+	}
+}
+
+// TestImportsUseBuiltinUnlisted: a name `use builtin` did not import is not
+// reported. Observed on 94e50866, `use builtin qw(true); my @a; foreach my
+// ($i, $v) (indexed @a) {}` is a syntax error near "indexed @a", and
+// `use builtin ':5.40'` leaves is_bool, which is NO_BUNDLE, unimported.
+func TestImportsUseBuiltinUnlisted(t *testing.T) {
+	for src, absent := range map[string][]string{
+		"use builtin qw(true);\n":   {"indexed", "false", "blessed"},
+		"use builtin;\n":            {"true", "indexed"},
+		"use builtin ':5.40';\n":    {"is_bool", "inf", "export_lexically"},
+		"use builtin qw(import);\n": {"import"},
+	} {
+		imps := parse.Imports(parse.ParseWithLoader([]byte(src), nil))
+		for _, name := range absent {
+			if imp, ok := imps[name]; ok {
+				t.Errorf("%q: %s is not imported; got %+v", src, name, imp)
+			}
+		}
+	}
+	if imps := parse.Imports(parse.ParseWithLoader([]byte("use builtin qw(true);\n"), nil)); len(imps) != 1 {
+		t.Errorf("use builtin qw(true) imports true alone; got %v", imps)
 	}
 }

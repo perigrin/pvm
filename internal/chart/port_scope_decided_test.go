@@ -11,6 +11,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // scopeDecidedLines are the perly.y alternatives this family ports or fits. None is left for a completing issue.
@@ -217,6 +218,21 @@ func TestScopeDecidedParity(t *testing.T) {
 		"print STDOUT $foo bar;":                    false,
 		"print $foo bar();":                         true, // $foo is the handle: XREF reads a $ before a word as one
 	})
+	// use builtin imports a word with builtin.c's prototype, as parse.Imports reports it: indexed is "@", so a call; a
+	// name it did not import stays undeclared, a word before @a, which perl refuses (perl.git t/perf/opcount.t).
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for src, accepted := range map[string]bool{
+		"use builtin qw(indexed); my @a; foreach my ($i, $v) (indexed @a) {}": true,
+		"use builtin qw(true); my @a; foreach my ($i, $v) (indexed @a) {}":    false,
+	} {
+		scope := forest.Scope{Imports: parse.Imports(parse.ParseWithLoader([]byte(src), nil))}
+		if f, _ := forest.Parse(tab, []byte(src), scope); (f != nil) != accepted {
+			t.Errorf("%q: forest.Parse accepts=%v, perl -c accepts=%v", src, f != nil, accepted)
+		}
+	}
 	for _, src := range []string{"x {1};", "sub x {} x {1};", "sub x {1} x 1, 2;", "x { a => 1 } 1;"} {
 		if v := recognizeSource(t, []byte(src)); !v.accepted {
 			t.Errorf("%q is refused at %d, expecting %v; perl accepts it", src, v.at, v.expected)
