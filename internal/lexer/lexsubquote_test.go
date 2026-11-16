@@ -79,7 +79,8 @@ func TestLexicalSubShadowsKeyword(t *testing.T) {
 //     not `$h{+foo}`, nor `$h{foo` and a newline (perl prints 1, 2, 2 for
 //     `$h{foo\n}, $h{ foo }, $h{foo\t}` with `my sub foo {"L"}` and
 //     `%h = (L => 1, foo => 2)`);
-//   - a label, and the label after last, next, redo or goto.
+//   - a label, and the label after last, next, redo, goto, dump or
+//     CORE::dump.
 func TestLexicalSubNotLookedUp(t *testing.T) {
 	for _, tc := range []struct {
 		src, word string
@@ -96,6 +97,18 @@ func TestLexicalSubNotLookedUp(t *testing.T) {
 		// toke.c autoquotes only across spaces and tabs (yyl_leftcurly's
 		// SPACE_OR_TAB): before a newline the word is the lexical sub's call.
 		{"my sub foo { 1 } $h{foo\t}; $h{foo\n};", "foo", []bool{false, false, true}},
+		// a sub declared in another's body settles first, then the outer
+		// one at its own body's close: perl prints 1, 2 and Q.
+		{`my sub outer { my sub inner { 1 } inner() } outer;`, "outer", []bool{false, true}},
+		{`my sub outer { my sub inner { 1 } inner() } outer;`, "inner", []bool{false, true}},
+		{`my sub outer { my sub inner; sub inner { 2 } inner() } outer;`, "outer", []bool{false, true}},
+		{`my sub q { my sub r {1} "Q" } print q(1);`, "q", []bool{false, true}},
+		// only spaces and tabs, and an optional -, may sit between the
+		// subscript's { and an autoquoted word: `$h{\nfoo}` and
+		// `$h{#c\nfoo}` are calls, `$h{-foo}` and `$h{ - foo }` strings.
+		{"my sub foo { 1 } $h{\nfoo}; $h{#c\nfoo};", "foo", []bool{false, true, true}},
+		{"my sub foo { 1 } $h{-foo}; $h{ - foo };", "foo", []bool{false, false, false}},
+		{"my sub foo { 1 } CORE::dump foo; dump foo;", "foo", []bool{false, false, false}},
 		{"my sub foo { 1 } foo: { last foo; next foo; redo foo; goto foo; } foo;", "foo",
 			[]bool{false, false, false, false, false, false, true}},
 	} {
