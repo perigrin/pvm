@@ -96,6 +96,7 @@ func TestResolveScopeDecidedWords(t *testing.T) {
 		{"use M qw(foo); foo 1;", true},
 		{"use M qw(one); one 1, 2;", true},
 		{"use M qw(nil); nil 1;", false},
+		{"use M qw(false); { use builtin qw(false); my @x = (false 1, 2); }", false},
 		{"use M qw(nil); nil + 1;", true},
 		{"use M qw(first); first { 1 } 2;", true},
 		{"use constant FH => 1; print FH x 3;", true},
@@ -179,12 +180,11 @@ func TestResolveKnownLimits(t *testing.T) {
 		// and where a module imports the name at file scope, the chart reads it there with the module's prototype,
 		// where perl reads builtin's; perl refuses it ("Number found where operator expected").
 		{"use M qw(true); { use builtin qw(true); my @x = (true 1, 2); }", true},
-		// M's false has a () prototype, which refuses the row as perl does: the chart reads the module's prototype there.
-		{"use M qw(false); { use builtin qw(false); my @x = (false 1, 2); }", false},
-		// shortcut (lookup): a sub the file declares is read before an import, so a use builtin of its name, at file
-		// scope or in a block, does not shadow it; perl refuses both ("Number found where operator expected").
+		// shortcut (lookup): a sub the file declares is read before an import, so an import of its name, by use builtin
+		// or by a module, does not shadow it; perl refuses each ("Number found where operator expected").
 		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
 		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
+		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
 		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
 		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
 		{"sub is {} is *{$x}, 1;", false},
