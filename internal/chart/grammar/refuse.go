@@ -167,7 +167,8 @@ func refuseLiterals(classes []TokenClass) (errs []error) {
 // short context where a class stands: between two terms, as an operator does, or from a
 // statement's start, reached through the lexer's checkpoint and resume; or, for a class keyed on a -> before
 // it (postfix), after one and before a subscript, where the lexer reads a postfix dereference or a slice's sigil;
-// a deref sigil before a variable, as in a cast.
+// a deref sigil before a variable, as in a cast; or a word after a lexical sub of its name, which is how the lexer
+// emits a quote-like's name as a Word.
 func lexesAs(kind *lexer.Kind, text string, postfix bool) bool {
 	one := func(src string, toks []lexer.Token, n, at int) bool {
 		var sig []lexer.Token
@@ -180,10 +181,11 @@ func lexesAs(kind *lexer.Kind, text string, postfix bool) bool {
 	}
 	infix := "$a " + text + " $b"
 	_, cps := lexer.Checkpoints(nil, lexer.StartState())
-	after, cast := "$a->"+text+"[0]", text+"$b"
+	after, cast, lexsub := "$a->"+text+"[0]", text+"$b", "my sub "+text+" {} "+text
 	return one(infix, lexer.Tokenize([]byte(infix)), 3, 1) || one(text, lexer.Resume([]byte(text), cps[0]), 1, 0) ||
 		postfix && one(after, lexer.Tokenize([]byte(after)), 6, 2) ||
-		kind != nil && *kind == lexer.DerefSigil && one(cast, lexer.Tokenize([]byte(cast)), 2, 0)
+		kind != nil && *kind == lexer.DerefSigil && one(cast, lexer.Tokenize([]byte(cast)), 2, 0) ||
+		kind != nil && *kind == lexer.Word && one(lexsub, lexer.Tokenize([]byte(lexsub)), 6, 5)
 }
 
 // refuseClassless refuses a terminal no class admits, but the excepted ones.

@@ -1187,6 +1187,16 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   every class of a word no class names, and a word's after `sort` or `do`, beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
   `my $x = method;`), and resolve (SCOPEFEAT) collapses the two by feature. `CORE::try` stays the keyword. `isa` is
   chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`).
+- A quote-like's name (`m`, `q`, `qq`, `qr`, `qw`, `qx`, `s`, `tr`, `y`) is a Word only where internal/lexer declines
+  the quote: a name it forces (after `->`, `&`, `sub`), before `=>` or a subscript's `}`, and once a lexical sub of
+  that name is declared, which toke.c reads before the quote-like (it checks the pad first). So `addStatementWords`
+  gives each the classes a feature keyword gets (`quoteOpWords`): `my sub s { 1 } s(1);` and
+  `my sub y { 1 } my @a = (y, 1);` are calls (perl.git `op/lexsub.t`, `op/lvref.t`), and a method named `m` reads as
+  any other; the `{` after such a name and a `*` gets its own block class too, since otherWord does not cover
+  a word with a text (`my sub q { 1 } q *{"x"};`). After a package sub of that name toke.c reads the quote-like, and so does internal/lexer, so
+  `sub y { 1 } my @a = (y, 1);` is refused at lex, as by perl. shortcut: before a subscript's `}` the name has no
+  word's reading, since internal/lexer emits a Word there even across a newline, where toke.c reads `$h{q` and a
+  newline as a quote; so `my sub q {1} my %h; my $y = $h{q` and a newline and `};` is refused, where perl accepts it.
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its
@@ -1289,12 +1299,11 @@ does not shadow it, where perl takes whichever came last, since parse.Imports ke
 was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form with the `use` in a block and
 `sub nil {} use M qw(nil); my @x = (nil 1);` are accepted);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
-glob sigils and `?` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
-`sub foo {} my $x = foo ** 2;` and `sub foo ($) {} foo ? 1 : 2;` are accepted; `*` before a Number wherever toke.c
+glob sigils and `?` and `/` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
+`sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and
+`my sub s { 1 } s/a/b/e;` are accepted; `*` before a Number wherever toke.c
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
-glob, since internal/lexer emits the `2` a Number; `sub is {} is *{$x}, 1;` is refused, where after a call toke.c reads
-`*{` as a glob's sigil and a block and the token table reads a `*` after a word as no glob's and the `{` after it as an
-anonymous hash's (perl.git `t/uni/parser.t`). `class`'s package is not read. shortcut: a feature-gated keyword
+glob, since internal/lexer emits the `2` a Number. `class`'s package is not read. shortcut: a feature-gated keyword
 ("Scope-decided words" above) keeps every reading but a method's in a filehandle's slot before a non-word (as an
 unknown name does, so `print try $x bar();` is refused as perl refuses it), since resolve does not know the feature state, so any feature-gated
 keyword before a term is accepted whether its feature is on or off: `given 1;`, `state 1;`, `method 1;`, `try 1;`,
@@ -1385,7 +1394,9 @@ whatever the file's length.
   reused where it is a neighbour. A neighbour's class carries what its own
   predecessor decided: a `{` its brace (subscript, hash or block), a `*`
   whether it is a glob sigil (`Glob`: the token before it completes no term,
-  toke.c's `yyl_star`), and a word whether it names something (`Name`: it
+  toke.c's `yyl_star`; after a word scope decides, so the `{` after that `*`
+  is a block's as well as an anonymous hash's, and `is *{$_[0]}` after a
+  declared `is` is a glob's), and a word whether it names something (`Name`: it
   follows `->`, `&` or a glob's `*`). This extends spec §7's neighbour class,
   by perigrin's ruling on the `x` fitting; the key still reads three classes,
   so the lookup stays constant-time and allocation-free.
@@ -1493,7 +1504,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   search per item: over the corpus sample, default options, 8.31 searches
   per token became 0.60 (`TestCompletionProbesBounded`, its bound recorded
   in chart-recovery's Records; 0.63 since the feature-gated keywords read as
-  words too, which widened the grammar). `TestPostdotIndexMatchesSetScan` holds the
+  words too, which widened the grammar, and 0.64 since the quote-likes' names
+  do). `TestPostdotIndexMatchesSetScan` holds the
   index to a whole-set scan at every set, and
   `TestPostdotIndexConcurrentRecognizers` runs two recognizers over one
   tables value at once; each recognizer owns its cores. Branch sets are not

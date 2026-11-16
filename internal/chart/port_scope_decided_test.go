@@ -46,7 +46,9 @@ func TestPortScopeDecidedRefusals(t *testing.T) {
 			t.Errorf("%s is accepted; perl refuses it", f)
 		}
 	}
-	for _, src := range []string{"foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "next CORE(1);"} {
+	// After a package sub y toke.c reads y as tr (only the pad comes before a quote-like), and internal/lexer reads it
+	// so too, as an unterminated quote: perl refuses it ("Transliteration pattern not terminated"), at lex here.
+	for _, src := range []string{"sub y { 1 } my @a = (y, 1);", "foo(1;", "foo 1 2;", "sub foo; foo 1 2;", "a::();", "Foo:: 1;", "Foo:: $x;", "next CORE(1);"} {
 		if v := recognizeSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
@@ -71,6 +73,11 @@ func TestPortScopeDecidedKnownLimits(t *testing.T) {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
 		}
+	}
+	// perl -c (94e50866) accepts it: a lexical sub named after a quote-like, called bare before a subscript's }, which
+	// the table gives no word's reading there (the shortcut in grammar/perly.go's addStatementWords).
+	if src := "my sub q {1} my %h; my $y = $h{q\n};"; recognizeSource(t, []byte(src)).accepted {
+		t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 	}
 	// perl -c (94e50866) accepts both: past a statement start x is BAREWORD only where no operator is expected (the
 	// shortcut on the scope-decided classes in grammar/perly.go).
