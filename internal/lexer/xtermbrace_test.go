@@ -46,6 +46,7 @@ func TestXTermBraceIsAnonHash(t *testing.T) {
 		`die { code => 1 }`,
 		`ref { 1 }`,
 		`CORE::bless { 1 }, "X"`,
+		`atan2 {}, 1`,
 		`shift { 1 }`,
 	} {
 		open, closer := braceAndCloserOpenBlock(t, src)
