@@ -4,7 +4,12 @@
 package forest
 
 import (
+	"cmp"
+	"flag"
+	"io/fs"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -162,5 +167,69 @@ func TestReadingsNestedStatementsCountedOnce(t *testing.T) {
 		if got := parsedReadings(t, c.src, Scope{}); got.Statements != c.want {
 			t.Errorf("%q: %d statements, want %d", c.src, got.Statements, c.want)
 		}
+	}
+}
+
+// TestParseAppliesPrecedence: Parse refuses a file the precedence constraint leaves no derivation, with reason
+// precedence and, by its shortcut, Byte 0.
+func TestParseAppliesPrecedence(t *testing.T) {
+	if f, ref := Parse(committedTables(t), []byte("$a <=> $b <=> $c;"), Scope{}); f != nil || ref != (Refusal{Reason: "precedence"}) {
+		t.Errorf("$a <=> $b <=> $c;: forest %v, refusal %+v; want refused by precedence at Byte 0", f != nil, ref)
+	}
+}
+
+var readingsRate = flag.Bool("forest.readings-rate", false, "log each corpus's collapsed statements (TestReadingsCorpusRate)")
+
+// TestReadingsCorpusRate logs, with -forest.readings-rate, each corpus's statements and collapsed statements as
+// forest.Parse leaves them, with each file's imports, and whether the corpus is over spec §10's limit (more than 1%,
+// and at least 5, collapsing). It measures; the ratchet's collapse-over-limit is the gate.
+func TestReadingsCorpusRate(t *testing.T) {
+	if !*readingsRate {
+		t.Skip("set -forest.readings-rate to measure")
+	}
+	tab := committedTables(t)
+	stubs := filepath.Join("..", "testdata", "guacamole", "stubs")
+	perl5 := cmp.Or(os.Getenv("PERL5_CORPUS"), "/opt/corpora/perl5")
+	var perlgit []string
+	_ = filepath.WalkDir(filepath.Join(perl5, "t"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".t") {
+			perlgit = append(perlgit, p)
+		}
+		return nil
+	})
+	glob := func(patterns ...string) []string {
+		var out []string
+		for _, g := range patterns {
+			ps, _ := filepath.Glob(g)
+			out = append(out, ps...)
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name  string
+		files []string
+	}{
+		{"guacamole", glob(filepath.Join("..", "testdata", "guacamole", "parses", "*.pl"), filepath.Join("..", "testdata", "guacamole", "parsent", "*.pl"))},
+		{"std5k", glob(filepath.Join("..", "testdata", "std5k.pl"))},
+		{"edit5k", glob(filepath.Join("..", "..", "psc", "testdata", "latency", "edit5k.pl"))},
+		{"T1", glob(filepath.Join(cmp.Or(os.Getenv("T1_CORPUS"), filepath.Join("..", "..", "..", "testdata", "perlonjava", "unit")), "*.t"))},
+		{"perlgit", perlgit},
+	} {
+		var accepted, statements, collapsed int
+		for _, p := range c.files {
+			src, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := parse.ParseWithLoader(src, parse.DirLoader(filepath.Dir(p), stubs))
+			if f, _ := Parse(tab, src, Scope{Imports: parse.Imports(root)}); f != nil {
+				accepted++
+				statements += f.Readings.Statements
+				collapsed += f.Readings.Collapsed
+			}
+		}
+		over := collapsed >= 5 && collapsed*100 > statements
+		t.Logf("%s: %d files, %d accepted, %d statements, %d collapsed (%.2f%%), over the limit: %v",
+			c.name, len(c.files), accepted, statements, collapsed, 100*float64(collapsed)/float64(max(statements, 1)), over)
 	}
 }

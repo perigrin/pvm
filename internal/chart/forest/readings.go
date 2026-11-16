@@ -25,9 +25,10 @@ type Readings struct {
 
 // countReadings is f's Readings with stmt the statement symbol. It enumerates no derivation: each node's count is
 // memoized, so the work is linear in the forest.
-// shortcut: a derivation never holds a node inside itself, so a node met again on the current path counts 0, and a
-// count memoized below such a cycle omits that path's node wherever it is reached; exact for an acyclic forest, as
-// perly.y's are on every corpus the ratchet reads; count per path if a cyclic forest's count is ever read.
+// A node met again on the current path counts 0, since a derivation never holds a node inside itself. That is exact
+// on perly.y, whose forests are acyclic (forest.go drops a self-loop; TestForestFromChart searches for longer cycles).
+// shortcut: on a toy's cyclic forest a count memoized below a cycle omits that path wherever the node is reached
+// again; count per path if a cyclic forest's readings are ever read.
 func (f *Forest) countReadings(stmt int) Readings {
 	var r Readings
 	count := f.counter()
