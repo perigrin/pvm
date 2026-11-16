@@ -331,7 +331,8 @@ func (sf *subjectFacts) leafSite(n int32) (int, bool) {
 		return site(kindMatch, k), true
 	case t.Kind == lexer.Readline && (text == "<<>>" || parse.IsReadlineTerm(text)) &&
 		(len(text) == utf8.RuneCountInString(text) || sf.utf8At(sf.s.Tokens[k].Index)):
-		// <<>> is readline to toke.c though parse.IsReadlineTerm calls it a glob; a non-ASCII name needs use utf8.
+		// shortcut: parse.IsReadlineTerm calls <<>> a glob where toke.c reads readline; drop the <<>> clause when
+		// parse's predicate learns it (recursive descent's answer moves then, so its own issue).
 		return site(kindReadline, k), true
 	case t.Kind == lexer.Word && (text == "readline" || text == "CORE::readline") && !sf.g.notCore[nd.Sym]:
 		return site(kindReadline, k), true
