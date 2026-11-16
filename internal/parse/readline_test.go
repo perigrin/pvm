@@ -15,7 +15,7 @@ import (
 //	$ perl -MO=Concise,-exec -e 'open my $fh,"<","/dev/null"; my $l = readline $fh;'
 //	c  <1> readline[t5] sKS/1
 //
-// isReadlineTerm (sites.go:299) matches a LEAF whose text is angle-delimited,
+// IsReadlineTerm (sites.go:299) matches a LEAF whose text is angle-delimited,
 // which is the lexer's own decision and correct as far as it goes. It says
 // nothing about the builtin, which arrives as a Call node and was reported
 // nowhere -- 20 of the 25 WRONG readline sites over the corpus.

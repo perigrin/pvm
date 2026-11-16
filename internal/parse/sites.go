@@ -249,10 +249,10 @@ func unreadHashNames(root *Node, src []byte) map[string]bool {
 		switch {
 		case n.Refused():
 			text = string(src[n.Start:n.End])
-		case n.Kind == Term && (hidesStructure(n.Text) ||
-			isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)):
+		case n.Kind == Term && (HidesStructure(n.Text) ||
+			isInterpolatingQuote(n.Text) && InterpolatesCode(n.Text)):
 			text = n.Text
-		case n.HeredocBody && interpolatesCode(string(src[n.Start:n.End])):
+		case n.HeredocBody && InterpolatesCode(string(src[n.Start:n.End])):
 			text = string(src[n.Start:n.End])
 		}
 		for _, m := range unreadHashName.FindAllStringSubmatch(text, -1) {
@@ -527,7 +527,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 			//	$ perl -MO=Concise,-exec -e 'my $l = readline $fh;'
 			//	c  <1> readline[t5] sKS/1
 			//
-			// isReadlineTerm below reads a LEAF's angle-delimited text, which
+			// IsReadlineTerm below reads a LEAF's angle-delimited text, which
 			// is the lexer's own decision and correct as far as it goes. It
 			// cannot see a call, so `readline $fh` was reported nowhere.
 			//
@@ -597,7 +597,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 			// and silence about hidden bytes is the same silent wrong answer
 			// a quiet Unknown would be. Hedge every marker and do not look
 			// further: a walk over nodes cannot reach text.
-			if hidesStructure(n.Text) {
+			if HidesStructure(n.Text) {
 				hedgeAll(n, reasonHiddenStructure)
 				return
 			}
@@ -616,8 +616,8 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 			// `<<'EOF'` body holding `@{[` hedges too. perl reports nothing
 			// there, so the hedge is never spent; pairing each body with its
 			// opener is the upgrade if the precision ever matters.
-			if (n.HeredocBody && interpolatesCode(string(src[n.Start:n.End]))) ||
-				(isInterpolatingQuote(n.Text) && interpolatesCode(n.Text)) {
+			if (n.HeredocBody && InterpolatesCode(string(src[n.Start:n.End]))) ||
+				(isInterpolatingQuote(n.Text) && InterpolatesCode(n.Text)) {
 				hedgeAll(n, reasonInterpolatedCode)
 			}
 			switch {
@@ -632,7 +632,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 				// perl: rv2hv. A dereference reads through a reference and
 				// emits the op however anything was declared.
 				add(parseoracle.SiteKindHash, n)
-			case isReadlineTerm(n.Text):
+			case IsReadlineTerm(n.Text):
 				// perl: readline.
 				add(parseoracle.SiteKindReadline, n)
 			case isBarePattern(n.Text):
@@ -678,7 +678,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 	return found
 }
 
-// hidesStructure reports whether a leaf's text contains a construct the
+// HidesStructure reports whether a leaf's text contains a construct the
 // parser never turned into a node.
 //
 // `internal/lexer/scan.go:77-94` brace-matches a braced name to its closer
@@ -705,7 +705,7 @@ func decidedMarkers(stmt *Node, src []byte, decls namedHashes) []decided {
 // the leaf text here is never `"$h{k}"`. Kept because this takes a string,
 // and a future caller may not have an Index standing between it and the
 // source.
-func hidesStructure(text string) bool {
+func HidesStructure(text string) bool {
 	// `$#{ EXPR }` is the same block behind a two-byte sigil, and the lexer
 	// swallows it the same way. Measured on 5.42.0: `$#{ \@a }` is a
 	// srefgen, `$#{$r->{a}}` a rv2hv, while `$#{$r}` and `$#$r` report none
@@ -754,17 +754,17 @@ func isInterpolatingQuote(text string) bool {
 	return false
 }
 
-// interpolatesCode reports whether an interpolating literal's bytes hold an
+// InterpolatesCode reports whether an interpolating literal's bytes hold an
 // expression rather than a plain variable: a `${ ... }` or `@{ ... }` block
 // around anything but a name, or a variable followed by a subscript or a
 // dereferencing arrow. Measured on 5.42.0, perl reports no marker for `"$x"`,
 // `"@a"`, `"${x}"` or `"$x->method"` (the arrow is text there), and the five
 // markers turn up only once there is code.
 //
-// Deliberately conservative, as hidesStructure is: `"$a[0]"` hedges though
+// Deliberately conservative, as HidesStructure is: `"$a[0]"` hedges though
 // perl folds it to aelemfast, because a false positive costs a hedge and a
 // false negative is silence over bytes perl found something in.
-func interpolatesCode(s string) bool {
+func InterpolatesCode(s string) bool {
 	for i := 0; i < len(s); i++ {
 		switch s[i] {
 		case '\\':
@@ -1556,7 +1556,7 @@ func isAggregate(n *Node) bool {
 	return false
 }
 
-// isReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
+// IsReadlineTerm reports whether a leaf is `<FH>`, `<$fh>` or `<>`.
 //
 // Same reasoning as the other leaf tests: scanAngle emits a Readline token
 // only in term position, so a leaf whose text is angle-delimited is the
@@ -1573,7 +1573,7 @@ func isAggregate(n *Node) bool {
 // The rule perl applies: readline iff the content is empty, a plain
 // `$scalar`, or a bareword identifier. Anything else -- a subscript, a
 // space, a metacharacter -- is a glob pattern.
-func isReadlineTerm(text string) bool {
+func IsReadlineTerm(text string) bool {
 	if len(text) < 2 || text[0] != '<' || text[len(text)-1] != '>' {
 		return false
 	}

@@ -456,10 +456,10 @@ func TestPlainDerefDoesNotHedge(t *testing.T) {
 		// An ARRAY subscript carries the same bracket characters and must
 		// not hedge on that account.
 		//
-		// This passes whatever `hidesStructure` does, and that is worth
+		// This passes whatever `HidesStructure` does, and that is worth
 		// saying rather than implying otherwise. `$a[0]` parses to an Index
 		// whose Term child is `$a` -- the brackets belong to the Index node,
-		// so the leaf text `hidesStructure` sees is never `"$a[0]"`. Its
+		// so the leaf text `HidesStructure` sees is never `"$a[0]"`. Its
 		// `text[1] != '{'` guard is therefore DEFENSIVE, not load-bearing:
 		// removing it leaves the whole suite green, because no parsed input
 		// reaches it. Kept because the function takes a string and a future
