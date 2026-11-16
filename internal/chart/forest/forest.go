@@ -88,12 +88,15 @@ type Refusal struct {
 	Reason string
 }
 
-// Parse recognizes src over tab's grammar and, where the chart accepts it,
-// builds its forest and resolves it under scope (resolve.go). A refused file
+// Parse recognizes src over tab's grammar, the committed perly.y's, and, where
+// the chart accepts it, builds its forest, applies the precedence constraint
+// (precedence.go), resolves it under scope (resolve.go) and counts its
+// statements' readings (readings.go). A refused file
 // has a refusal and no forest: at the token whose set died, or the end of
 // the file, lex-unmapped where that is the first token no terminal admits,
-// else grammar (recognition's rule, testdata/port/refused-where.txt); or
-// scope, where resolve leaves the forest no derivation.
+// else grammar (recognition's rule, testdata/port/refused-where.txt);
+// precedence, where the constraint leaves the root no derivation; or scope,
+// where resolve leaves the forest none.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	f, _, ref := parseStream(tab, src, scope)
 	return f, ref
@@ -118,9 +121,19 @@ func parseStream(tab *grammar.Tables, src []byte, scope Scope) (*Forest, *lex.St
 		return nil, s, Refusal{Byte: at, Reason: "grammar"}
 	}
 	f := Build(tab, c, l)
+	prec := grammar.Derived(tab, buildParsePrecedence)
+	if prec.err != nil {
+		return nil, s, Refusal{Reason: prec.err.Error()}
+	}
+	if !f.Constrain(prec.p) {
+		// shortcut: Constrain reports only the root's verdict, so a precedence refusal names no byte (Byte 0);
+		// locate it at the first span left with no derivation when a gate compares refusal bytes.
+		return nil, s, Refusal{Reason: "precedence"}
+	}
 	if at := resolve(tab, f, s, src, scope); at >= 0 {
 		return nil, s, Refusal{Byte: at, Reason: "scope"}
 	}
+	f.Readings = f.countReadings(grammar.Derived(tab, buildFactsGrammar).fullstmt)
 	return f, s, Refusal{}
 }
 
