@@ -112,18 +112,17 @@ func (l *lexer) trackBrackets(k Kind, start int) {
 		//
 		// In OPERATOR position a value has just been produced, so the `{`
 		// subscripts it: `$h{a}`, `$r->{k}`. In XSTATE a statement is
-		// starting, so it opens a block. Everywhere else a term is expected,
-		// where perl's own answer is an anonymous hash -- also a value.
-		//
-		// That is intuit_curly minus its lookahead at the first token inside.
-		// The lookahead settles `map { $_ => 1 }` versus `map { ; ... }`,
-		// which is the parser's decision (spec §4.9.2). Here the question is
-		// only which state the CLOSER leaves behind, and the opener's
-		// position answers it.
+		// starting, so it opens a block unless braceIsHash's lookahead says
+		// otherwise. Everywhere else a term is expected, where perl's own
+		// answer is an anonymous hash -- also a value.
 		switch {
 		case l.expect == XTermBlock:
 			l.brackets = append(l.brackets, braceTermBlock)
 			l.openedBlock = true
+		case l.expect == XState && braceIsHash(l.src, l.pos):
+			// toke.c reaches a statement-start `{` in yyl_leftcurly's
+			// default case, whose lookahead can make it HASHBRACK.
+			l.brackets = append(l.brackets, braceTerm)
 		case l.expect == XState || l.expect == XBlock:
 			l.brackets = append(l.brackets, braceBlock)
 			l.openedBlock = true

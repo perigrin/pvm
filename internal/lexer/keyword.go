@@ -268,6 +268,14 @@ var phaser = map[string]bool{
 	"UNITCHECK": true, "ADJUST": true,
 }
 
+// preblock are the keywords toke.c lexes with PREBLOCK when a `{` follows
+// them (toke.c 8371-9127), so their brace is a block with no lookahead:
+// `try { 1, 2 }` and `default { 8, 9 }` do not open a hash.
+var preblock = map[string]bool{
+	"catch": true, "continue": true, "default": true, "defer": true,
+	"else": true, "finally": true, "try": true,
+}
+
 // isPhaser reports whether a `{` after this word opens a phaser's block.
 func isPhaser(word string) bool {
 	return phaser[word]

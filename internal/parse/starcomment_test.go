@@ -71,14 +71,19 @@ func TestUndeclaredWordStarBeforePunctuationRefuses(t *testing.T) {
 		// instead: `A*;` and `{A*}` are syntax errors on 5.42.0. The
 		// merge-commit campaign's `A*}x0` canon'd as `A * } x 0`, where
 		// the `}` ends the operator's missing operand (R-g).
-		"A*}x0", "A*;", "{A*}",
-		// After any term, not only a word: FuzzParser's `{}*}{$0}` read the
-		// glob `*}` after an anonymous hash, perl 5.44.0's "Unmatched right
-		// curly", and canon wrote `{} * }{$0}`, which re-read differently.
-		"{}*}{$0}", "{}**;"} {
+		"A*}x0", "A*;", "{A*}"} {
 		found := collectUnknown(parse.Parse([]byte(src)))
 		if len(found) == 0 || found[0].Refusal != parse.AmbiguousSigil {
 			t.Errorf("%q: want an ambiguous_sigil refusal, got %v", src, refusalCodes(found))
+		}
+	}
+	// FuzzParser's `{}*}{$0}` once read the glob `*}` after a statement-start
+	// `{}`, and canon wrote `{} * }{$0}`, which re-read differently. The `{}`
+	// is now an anonymous hash, as toke.c reads it, so the `*` multiplies and
+	// the missing operand is refused: perl 5.44.0's "Unmatched right curly".
+	for _, src := range []string{"{}*}{$0}", "{}**;"} {
+		if found := collectUnknown(parse.Parse([]byte(src))); len(found) == 0 {
+			t.Errorf("%q: perl rejects this, but it parses", src)
 		}
 	}
 	// `*` glued to punctuation other than `#` or a quote multiplies,
