@@ -349,11 +349,11 @@ type lexer struct {
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.
 	lexSubs []lexSub
-	// lexSubBody is a lexical sub declared but not yet in scope: perl brings
-	// its name in when its body closes, or at a forward declaration's `;`,
-	// never inside its own body. lexSubBodyOpen says its `{` has opened.
-	lexSubBody     lexSub
-	lexSubBodyOpen bool
+	// lexSubBodies are the lexical subs declared but not yet in scope,
+	// innermost last: perl brings a name in when its body closes, or at a
+	// forward declaration's `;`, never inside its own body, and a sub
+	// declared in another's body settles first.
+	lexSubBodies []lexSub
 	// sawPackageName is set on that NAME, so a version after it --
 	// `package Foo 1.0 { }` -- keeps the head open for the block.
 	sawPackageName bool
