@@ -63,7 +63,7 @@ func oracleCorpora() []oracleCorpus {
 func defaultSubjects(tab *grammar.Tables) []oracleSubject {
 	return []oracleSubject{
 		{"chart", func(path string, src []byte, rd *parse.Node) parseoracle.SubjectFacts {
-			return forest.SubjectFacts(tab, src, path, forest.Scope{Imports: parse.Imports(rd)})
+			return forest.SubjectFacts(tab, src, path, forest.Scope{Imports: parse.Imports(rd), LibraryOperators: parse.LibraryOperators(rd)})
 		}},
 		{"rd", rdFacts},
 	}

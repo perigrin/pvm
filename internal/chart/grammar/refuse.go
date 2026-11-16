@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 
@@ -134,6 +135,7 @@ func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
 	}
 	var classes []TokenClass
 	var errs []error
+	var last TokenClass
 	for _, d := range g.Classes {
 		i, ok := id[d.Terminal]
 		switch {
@@ -141,11 +143,16 @@ func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
 			errs = append(errs, fmt.Errorf("a token class names %s, which no rule uses", d.Terminal))
 		case !t.Symbols[i].Terminal:
 			errs = append(errs, fmt.Errorf("a token class names %s, which is a nonterminal", d.Terminal))
+		case len(classes) > 0 && reflect.DeepEqual(d.Key, last):
+			// a key declared for several terminals in a row (the PLUGIN_* ones) is one class: CompileTokens's cost
+			// grows with the classes, and the union is the same
+			classes[len(classes)-1].Terminals = append(classes[len(classes)-1].Terminals, i)
 		default:
 			c := d.Key
 			c.Terminals = []int{i}
 			classes = append(classes, c)
 		}
+		last = d.Key
 	}
 	return classes, errors.Join(errs...)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -104,7 +105,9 @@ func TestPortClassesForcedName(t *testing.T) {
 		// a sub named class or method keeps its body's readings
 		{"sub class { foo 1 }", 12, []string{"BAREWORD", "FUNC0SUB", "NOAMP", "UNIOPSUB"}},
 	} {
-		if got := terminalsAt(t, tc.src, tc.at); !slices.Equal(got, tc.want) {
+		// After a word that completes a term a word may also be a library operator, which resolve keeps only in scope
+		got := slices.DeleteFunc(terminalsAt(t, tc.src, tc.at), func(x string) bool { return strings.HasPrefix(x, "PLUGIN_") })
+		if !slices.Equal(got, tc.want) {
 			t.Errorf("%q at %d admits %v, want only %v", tc.src, tc.at, got, tc.want)
 		}
 	}

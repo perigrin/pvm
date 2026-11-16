@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
@@ -69,6 +70,20 @@ func recognizeSource(t *testing.T, src []byte) verdict {
 		by = "table"
 	}
 	return verdict{at: at, expected: exp, by: by}
+}
+
+// parseSource is src's verdict through forest.Parse, nothing imported: recognition, then precedence and resolve, which
+// refuses a word read as a library operator none of which is in scope. A refusal's by is forest.Refusal's reason.
+func parseSource(t *testing.T, src []byte) verdict {
+	t.Helper()
+	tab, err := committed()
+	if err != nil {
+		t.Fatalf("the committed grammar generates no tables: %v", err)
+	}
+	if f, ref := forest.Parse(tab, src, forest.Scope{}); f == nil {
+		return verdict{at: ref.Byte, by: ref.Reason}
+	}
+	return verdict{accepted: true}
 }
 
 func snippets(t *testing.T, dir string) []string {

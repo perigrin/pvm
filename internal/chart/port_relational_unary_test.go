@@ -59,7 +59,8 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if v := recognizeSource(t, src); v.accepted {
+		// through resolve: where isa is a plain word, recognition also reads it as a library operator, which none is
+		if v := parseSource(t, src); v.accepted {
 			t.Errorf("%s is accepted; perl refuses it", name)
 		} else if want := strings.Index(string(src), c.at); v.at != want {
 			t.Errorf("%s is refused at byte %d, want %d", name, v.at, want)
@@ -88,7 +89,7 @@ func TestPortRelationalAndUnaryIsaLimits(t *testing.T) {
 		// perl clears the bit at use v5, but internal/lexer emits a bare v5 as a Word, no version (corpus-covers-t2 01a0dc72).
 		`use feature "isa"; use v5; $y = $x isa Foo;`: true,
 	} {
-		if v := recognizeSource(t, []byte(src)); v.accepted != accepted {
+		if v := parseSource(t, []byte(src)); v.accepted != accepted {
 			t.Errorf("%q: the recorded limit moved (accepted=%v); drop its shortcut or lexer note and the README line", src, v.accepted)
 		}
 	}

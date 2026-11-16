@@ -573,6 +573,53 @@ func (r *resolver) xterm(p int) {
 	r.named[p+1] = r.is(p, "*") // yyl_star's glob sigil: scan_ident takes the word after it as the glob's name
 }
 
+// pluginGrammar is the PLUGIN_* terminals by symbol id and by name, and by terminal set id whether a set holds one.
+type pluginGrammar struct {
+	is, sets []bool
+	id       map[string]int
+}
+
+func buildPluginGrammar(tab *grammar.Tables) *pluginGrammar {
+	g := &pluginGrammar{is: make([]bool, len(tab.Symbols)), sets: make([]bool, len(tab.TerminalSets)), id: map[string]int{}}
+	for x, sym := range tab.Symbols {
+		if sym.Terminal && strings.HasPrefix(sym.Name, "PLUGIN_") {
+			g.is[x], g.id[sym.Name] = true, x
+		}
+	}
+	for i, set := range tab.TerminalSets {
+		g.sets[i] = slices.ContainsFunc(set, func(x int) bool { return g.is[x] })
+	}
+	return g
+}
+
+// libraryOperators drops from f each PLUGIN_* reading but the one toke.c's tokentype_for_plugop gives the library
+// operator of the token's spelling whose use starts before it (the last such), then every alternative left without a
+// derivation. It returns what prune does.
+func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+	g := grammar.Derived(tab, buildPluginGrammar)
+	r := &resolver{tab: tab, s: s, src: src, n: len(s.Tokens), dead: map[[2]int]bool{}}
+	for k, t := range s.Tokens {
+		if !g.sets[t.TerminalSet] {
+			continue
+		}
+		keep := -1
+		for _, op := range scope.LibraryOperators {
+			if op.From < s.Raw[t.Index].Start && op.Name == r.text(k) {
+				keep = g.id[grammar.LibraryTerminal(op)]
+			}
+		}
+		for _, x := range tab.TerminalSets[t.TerminalSet] {
+			if g.is[x] && x != keep {
+				r.dead[[2]int{k, x}] = true
+			}
+		}
+	}
+	if len(r.dead) == 0 {
+		return -1
+	}
+	return r.prune(f)
+}
+
 // prune unlinks every alternative a dropped reading leaves without a
 // derivation. It returns -1 where the root keeps one, else the byte of the
 // first dropped reading reached from the root through nodes left without one.

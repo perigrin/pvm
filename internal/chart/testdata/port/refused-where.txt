@@ -216,9 +216,6 @@ relational-unary-refused/binary-minus.pl grammar 5
 relational-unary-refused/dangling-equality.pl grammar 6
 relational-unary-refused/dangling-relational.pl grammar 5
 relational-unary-refused/incdec-then-term.pl grammar 6
-relational-unary-refused/isa-infix-after-block.pl grammar 31
-relational-unary-refused/isa-infix-after-old-version.pl grammar 38
-relational-unary-refused/isa-infix-feature-off.pl grammar 8
 relational-unary-refused/isa-word-feature-on.pl grammar 27
 scope-decided-refused/call-then-term.pl grammar 21
 scope-decided-refused/call-unclosed.pl grammar 10
@@ -243,7 +240,7 @@ signatures-refused/two-sigs.pl grammar 37
 signatures-refused/unclosed.pl grammar 36
 slices-derefs-refused/array-block-subscript.pl grammar 4
 slices-derefs-refused/array-then-scalar.pl grammar 8
-slices-derefs-refused/array-then-word.pl grammar 3
+slices-derefs-refused/array-then-word.pl grammar 6
 slices-derefs-refused/arrow-hash-name.pl table 9
 slices-derefs-refused/arrow-last-index-name.pl table 9
 slices-derefs-refused/arrow-sigil-no-star.pl table 9
@@ -259,12 +256,12 @@ slices-derefs-refused/empty-cast-scalar.pl table 6
 slices-derefs-refused/glob-elem-empty.pl grammar 8
 slices-derefs-refused/glob-elem-written-semicolon.pl grammar 12
 slices-derefs-refused/glob-then-scalar.pl grammar 8
-slices-derefs-refused/glob-then-word.pl grammar 3
+slices-derefs-refused/glob-then-word.pl grammar 6
 slices-derefs-refused/hash-block-subscript.pl grammar 4
 slices-derefs-refused/hash-slice-subscript.pl grammar 10
 slices-derefs-refused/hash-slice-written-semicolon.pl grammar 9
 slices-derefs-refused/hash-then-scalar.pl grammar 8
-slices-derefs-refused/hash-then-word.pl grammar 3
+slices-derefs-refused/hash-then-word.pl grammar 6
 slices-derefs-refused/kv-slice-written-semicolon.pl grammar 9
 slices-derefs-refused/last-index-then-scalar.pl grammar 9
 slices-derefs-refused/method-cast-empty.pl table 10
@@ -277,7 +274,7 @@ slices-derefs-refused/postfix-scalar-subscript.pl grammar 11
 slices-derefs-refused/postfix-scalar-then-scalar.pl grammar 12
 slices-derefs-refused/scalar-block-subscript.pl grammar 4
 slices-derefs-refused/scalar-then-scalar.pl grammar 8
-slices-derefs-refused/scalar-then-word.pl grammar 3
+slices-derefs-refused/scalar-then-word.pl grammar 6
 slices-derefs-refused/slice-subscript.pl grammar 10
 slices-derefs-refused/slice-unclosed.pl grammar 12
 subs-refused/anon-named.pl grammar 8

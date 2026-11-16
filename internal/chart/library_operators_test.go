@@ -68,7 +68,8 @@ func grouping(t *testing.T, src string) string {
 func TestLibraryOperatorsAsPerl(t *testing.T) {
 	const use = "use My::Ops; "
 	for src, want := range map[string]string{
-		"1 lowop 2 or 3;":        "(1 lowop (2 or 3))",
+		"1 lowop 2 or 3;":        "((1 lowop 2) or 3)", // perly.y's termbinop: a term each side
+		"$x lowop $y = 3;":       "($x lowop ($y = 3))",
 		"1 orlow 2 and 3;":       "(1 orlow (2 and 3))",
 		"1 or 2 orlow 3;":        "((1 or 2) orlow 3)",
 		"1 or 2 andlow 3;":       "(1 or (2 andlow 3))",
@@ -101,6 +102,7 @@ func TestLibraryOperatorsAsPerl(t *testing.T) {
 	for _, src := range []string{
 		"1 plus 2;", "1 ⊕ 2;", "1 plus 2; use My::Ops;", "use My::Ops; 1 nosuch 2;",
 		"use My::Ops; 1 plus;", "use My::Ops; plus 2;",
+		"use My::Ops; 1 lowop 2 lowop 3;", // %nonassoc
 	} {
 		if got := grouping(t, src); got != "refused" {
 			t.Errorf("%q: got %s, want refused", src, got)
