@@ -957,6 +957,10 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &funcSigil, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev1: &globStar, NotNext: nextNotClose}},
 	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev2: &globStar}},
+	// After a word the * is a glob's sigil where scope makes the word a call, a filehandle or a method's class (toke.c
+	// leaves XTERM, yyl_star's PREREF) and a multiplication where it leaves the word a bareword: Intern reads it as the
+	// latter, so the { after it is a block's too, and resolve picks (uni/parser.t's `is *{$_[0]}`).
+	{"PERLY_BRACE_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("{"), OpensBlock: ptr(false), Prev2: &otherWord, Prev1: &Neighbour{Kind: lexer.Operator, Text: "*"}, NotNext: nextNotClose}},
 
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(true), Completes: true}},
 	{"PERLY_BRACE_CLOSE", TokenClass{Kind: ptr(lexer.CloseBracket), Text: ptr("}"), OpensBlock: ptr(false), Completes: true}},
@@ -1920,11 +1924,18 @@ var statementWords = []string{"AUTOLOAD", "DESTROY", "BEGIN", "UNITCHECK", "CHEC
 var featureKeywords = []string{"ADJUST", "__CLASS__", "__SUB__", "all", "any", "break", "catch", "class", "default",
 	"defer", "evalbytes", "fc", "field", "finally", "given", "method", "state", "try", "when"}
 
+// quoteOpWords are the quote-likes' names, which internal/lexer emits as a Word once a lexical sub of that name is
+// declared: toke.c checks the pad before it reads a quote-like (yyl_keylookup), so the word is the sub's call.
+var quoteOpWords = slices.DeleteFunc(lexer.Keywords(), func(w string) bool { return !lexer.IsQuoteOpName(w) })
+
+// wordKeywords are the keywords that take every class of a word no class names: the feature keywords and quoteOpWords.
+var wordKeywords = append(slices.Clone(featureKeywords), quoteOpWords...)
+
 // IsFeatureKeyword is whether toke.c reads word as a keyword only with its feature on (featureKeywords).
 func IsFeatureKeyword(word string) bool { return slices.Contains(featureKeywords, word) }
 
 // addStatementWords gives each statement word every class of a word that no class names (one whose NotText is every
-// keyword), after anything but a statement start, and each feature keyword every such class and those of a word after
+// keyword), after anything but a statement start, and each of wordKeywords every such class and those of a word after
 // sort or do (keywordsButX, keywordsAndCORE), unqualified: CORE::kw is the keyword whatever the feature (yyl_key_core).
 func addStatementWords(classes []ClassDecl) []ClassDecl {
 	keywords := lexer.Keywords()
@@ -1940,11 +1951,18 @@ func addStatementWords(classes []ClassDecl) []ClassDecl {
 				classes = append(classes, ClassDecl{d.Terminal, c})
 			}
 		}
-		for _, w := range featureKeywords {
+		for _, w := range wordKeywords {
 			c := d.Key
 			c.Text, c.NotText = &w, nil
 			if c.Prefix == nil {
 				c.Prefix = ptr(byte(0))
+			}
+			// shortcut: internal/lexer emits a quote-like's name before a subscript's } as a Word, newline between or
+			// not, where toke.c reads `$h{q\n}` as a quote; so there the name has no word's reading, and a lexical sub
+			// of that name called bare there (`my sub q {1} $h{q\n}`) is refused; upgrade when the lexer emits the
+			// quote there.
+			if lexer.IsQuoteOpName(w) {
+				c.NotNext = append(slices.Clone(c.NotNext), subscriptClose)
 			}
 			classes = append(classes, ClassDecl{d.Terminal, c})
 		}

@@ -185,9 +185,6 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
 		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
 		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
-		// after a call toke.c's XTERM reads *{ as a glob's sigil and a block, where the token table reads a * after a
-		// word as no glob's and the { after it as an anonymous hash's; perl accepts it (perl.git t/uni/parser.t).
-		{"sub is {} is *{$x}, 1;", false},
 		// shortcut (word): resolve does not know the feature state, so a feature-gated keyword's readings all stand
 		// and any one before a term is accepted with its feature on or off; perl refuses each, the word there
 		// followed by 1, no operator.

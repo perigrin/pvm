@@ -17,8 +17,9 @@ import (
 // the corpus sample may take under default options: the review prototype's
 // count, rounded up, recorded with the base tree's as chart-recovery's
 // "R1 bound" bullet, retaken when FEATWORDS gave the feature-gated keywords
-// a word's readings (0.6014 to 0.6298).
-const completionProbesBound = 0.63
+// a word's readings (0.6014 to 0.6298), and when WORDTABLE gave the
+// quote-likes' names them (0.6298 to 0.6321: a method named m reads as any).
+const completionProbesBound = 0.64
 
 // TestCompletionProbesBounded: scan, completion and the Leo test read the
 // postdot index, so goTo's binary searches per token over corpusSample stay
