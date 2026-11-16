@@ -63,6 +63,13 @@ func TestOracleSubject(t *testing.T) {
 		// known limit (facts.go utf8At): a utf8 a BEGIN block imports is not seen, so <FÉ> reports nothing where
 		// perl reads it as readline on line 2
 		{"beginutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		// an empty import list calls neither import nor unimport: use utf8 () leaves <FÉ> a glob, and no utf8 ()
+		// leaves use utf8 in force, so perl reads its <FÉ> as readline
+		{"emptyutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		{"noemptyutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},
+		// known limit (facts.go utf8At): a utf8 use if imports is not seen, so <FÉ> reports nothing where perl
+		// reads it as readline on line 2
+		{"ifutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
 		// a name may open with a digit: perl reads <1> and <$1> as readline
 		{"digitreadline.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"readline","line":1,"end_line":1},{"kind":"readline","line":2,"end_line":2}]}`},

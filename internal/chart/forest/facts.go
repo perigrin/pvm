@@ -366,7 +366,7 @@ func readsLine(text string, wide bool) bool {
 
 // utf8At is whether use utf8 is in force at raw token at: a use or no utf8 statement sets it for the rest of its
 // block, as lex reads the isa feature.
-// shortcut: a utf8 a BEGIN block or a string eval turns on is not seen; upgrade if a corpus file needs one.
+// shortcut: a utf8 a BEGIN block, a string eval or use if turns on is not seen; upgrade if a corpus file needs one.
 func (sf *subjectFacts) utf8At(at int) bool {
 	raw := sf.s.Raw
 	on, scopes := false, []bool{}
@@ -377,12 +377,22 @@ func (sf *subjectFacts) utf8At(at int) bool {
 		case t.Kind == lexer.CloseBracket && string(w) == "}" && len(scopes) > 0:
 			on, scopes = scopes[len(scopes)-1], scopes[:len(scopes)-1]
 		case t.Kind == lexer.Word && (string(w) == "use" || string(w) == "no"):
-			j := i + 1
-			for j < at && lexer.IsTrivia(raw[j].Kind) {
-				j++
+			next := func(j int) (int, string) {
+				for j++; j < at && lexer.IsTrivia(raw[j].Kind); j++ {
+				}
+				if j < at {
+					return j, string(sf.src[raw[j].Start:raw[j].End])
+				}
+				return j, ""
 			}
-			if j < at && string(sf.src[raw[j].Start:raw[j].End]) == "utf8" {
-				on = w[0] == 'u'
+			// an empty list, () or qw(), calls neither import nor unimport, so it leaves utf8 as it was
+			if j, word := next(i); word == "utf8" {
+				j, arg := next(j)
+				_, after := next(j)
+				body := strings.TrimSpace(strings.TrimPrefix(arg, "qw"))
+				if !(arg == "(" && after == ")" || arg != body && len(body) >= 2 && strings.TrimSpace(body[1:len(body)-1]) == "") {
+					on = w[0] == 'u'
+				}
 			}
 		}
 	}

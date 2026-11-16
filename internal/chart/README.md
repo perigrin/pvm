@@ -1885,8 +1885,10 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
   descent hedges every marker; hedging it needs `parse`'s unexported
   `interpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
-  a `BEGIN` block or string eval imports is not seen, so `<FÉ>` after
-  `BEGIN { utf8->import }` reports nothing where perl reads a readline.
+  a `BEGIN` block, string eval or `use if` imports is not seen, so `<FÉ>` after
+  `BEGIN { utf8->import }` or `use if 1, 'utf8';` reports nothing where perl
+  reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls
+  neither import nor unimport and leaves the pragma as it was.
 
 **How ORACLEGRADE grades it**: over the oracle-graded corpora with committed
 perl facts, `parseoracle.CompareFacts(perl's facts, forest.SubjectFacts(...))`
