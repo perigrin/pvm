@@ -584,6 +584,8 @@ func (l *lexer) emit(k Kind, start int) {
 	l.noteSignatures(k, start)
 	l.noteSignatureParens(k, start)
 	afterDeclName := l.noteSubName(k, start)
+	l.toks[len(l.toks)-1].LexSub = k == Word && !afterDeclName && len(l.lexSubs) > 0 &&
+		l.expect != XOperator && l.expect != XPostDeref && l.lexSubInScope(string(l.src[start:l.pos]))
 
 	// A block-taking word's `(` inherits the lookahead. `map({...} @a)` puts
 	// the brace one token further along than `map {...} @a`, and the answer
@@ -644,7 +646,10 @@ func (l *lexer) emit(k Kind, start int) {
 		afterDeclName:   afterDeclName,
 		// A sub's name after its `&` is a whole term too, whatever keyword it
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
-		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] || l.afterFuncSigilAt(len(l.toks)-1) || globName),
+		// A keyword stays the keyword unless a lexical sub shadows it here
+		// (LexSub): `our sub if() {42} $x = if if if` is `$x = if() if if()`.
+		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] && (l.toks[len(l.toks)-1].LexSub || !IsKeyword(string(l.src[start:l.pos]))) ||
+			l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
 		// word's parenthesised call. Every other token would pay a byte scan
 		// for an answer nothing reads. Which word it is does not narrow this:
