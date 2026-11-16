@@ -268,8 +268,9 @@ key of the first attempt is retired.
   (`git status --porcelain` empty) and at 94e50866, or the ratchet exits 2
   with one stderr line naming the tree and the reason:
   `perl.git corpus <path>: no such directory`, `: not clean` or
-  `: not at 94e50866`. perl.git `t/` joins every corpus key, the superset
-  population and the speed aggregate. T1 is in the tree:
+  `: not at 94e50866`. perl.git `t/` joins the result keys (`lex-unmapped`,
+  the superset population, both refusal gates, `leo-disagree`) and the speed
+  aggregate, never the tdt keys (perigrin, 2026-11-15, results first). T1 is in the tree:
   `testdata/perlonjava/unit` (see `testdata/perlonjava/README.md`), and
   `T1_CORPUS` overrides it. It reads no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
@@ -346,10 +347,7 @@ To take a baseline after an intended change, run
 - **The tdt keys read `TDT_FIXTURES`**, the directory `offline/tdt-align.sh`
   writes the aligned pairs into (they are not committed). Unset, it is
   `/var/tmp/pvm-chart-tdt`, where this milestone generates them; naming no directory, or a corpus file with no fixture there, is an
-  error (exit 2). perl.git's fixtures sit under `perlgit/` there; the one
-  file `testdata/tdt/perlgit-uncaptured.txt` lists (`re/pat_psycho.t`,
-  perigrin: "Exclude it from capture") has none and is left out of the tdt
-  keys only. A pair is a token class and the terminal it declares, written
+  error (exit 2). perl.git `t/` is not among their corpora. A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`, where each entry
   sits under a `reason:` line saying why toke.c never produces it over the
   corpora; an entry naming no pair of the table is an error. Only whole

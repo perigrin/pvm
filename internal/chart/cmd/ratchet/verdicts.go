@@ -187,10 +187,14 @@ func realInputs(tab *grammar.Tables, srcs map[string][]byte) (verdictInputs, err
 }
 
 // realDir is the directory a corpus path's file really sits in: T1 files are
-// named T1/<name> and live in the T1 directory, every other path is real.
+// named T1/<name> and live in the T1 directory, perl.git's are named
+// perlgit/<path under t/> and live under $PERL5_CORPUS/t, every other path is real.
 func realDir(path string) string {
 	if strings.HasPrefix(path, "T1/") {
 		return t1Dir()
+	}
+	if rel, ok := strings.CutPrefix(path, "perlgit/"); ok {
+		return filepath.Join(perl5Root(), "t", filepath.Dir(rel))
 	}
 	return filepath.Dir(path)
 }

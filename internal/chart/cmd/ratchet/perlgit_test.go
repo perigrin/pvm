@@ -162,9 +162,9 @@ func TestPerlGitPopulationFromLabels(t *testing.T) {
 	}
 }
 
-// TestTDTLeavesOutUncaptured: a perl.git file perlgit-uncaptured.txt lists
-// needs no fixture; any other perl.git file still does.
-func TestTDTLeavesOutUncaptured(t *testing.T) {
+// TestTDTLeavesOutPerlGit: perl.git t/ is never in the tdt keys, so a
+// perl.git file needs no fixture; any other corpus file still does.
+func TestTDTLeavesOutPerlGit(t *testing.T) {
 	t.Chdir("../../../..")
 	g := &grammar.Grammar{Classes: toyDecls}
 	tab := &grammar.Tables{}
@@ -178,21 +178,27 @@ func TestTDTLeavesOutUncaptured(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "perlgit"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "perlgit", "a.t.tdt"), []byte("# capture: whole\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "a.pl.tdt"), []byte("# capture: whole\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
-		path string
+		file File
 		ok   bool
-	}{{"perlgit/re/pat_psycho.t", true}, {"perlgit/re/pat.t", false}} {
-		files := []File{{"perlgit/a.t", "perlgit"}, {c.path, "perlgit"}}
-		srcs := map[string][]byte{files[0].Path: []byte("1;"), c.path: []byte("1;")}
+	}{{File{"perlgit/op/x.t", "perlgit"}, true}, {File{"b.pl", "in-tree"}, false}} {
+		files := []File{{"a.pl", "in-tree"}, c.file}
+		srcs := map[string][]byte{"a.pl": []byte("1;"), c.file.Path: []byte("1;")}
 		err := measureTDT(dir, g, tab, files, srcs, map[string]string{})
-		if c.ok && err != nil || !c.ok && (err == nil || !strings.Contains(err.Error(), c.path)) {
-			t.Errorf("%s without a fixture: %v", c.path, err)
+		if c.ok && err != nil || !c.ok && (err == nil || !strings.Contains(err.Error(), c.file.Path)) {
+			t.Errorf("%s without a fixture: %v", c.file.Path, err)
 		}
+	}
+}
+
+// TestRealDirPerlGit: recursive descent resolves a perl.git file's imports
+// from the file's real directory under $PERL5_CORPUS/t, not from its corpus name.
+func TestRealDirPerlGit(t *testing.T) {
+	t.Setenv("PERL5_CORPUS", "/p5")
+	if got := realDir("perlgit/op/x.t"); got != "/p5/t/op" {
+		t.Errorf("realDir(perlgit/op/x.t) = %s, want /p5/t/op", got)
 	}
 }
