@@ -16,9 +16,10 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// testModules are the modules a row's use loads. perl's verdicts for the rows that use M were taken with this M.pm on @INC.
+// testModules are the modules a row's use loads. perl's verdicts for the rows that use M or R were taken with this M.pm or R.pm on @INC.
 var testModules = map[string]string{
 	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true false);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\nsub false () { 0 }\n1;\n",
+	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.

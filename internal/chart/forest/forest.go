@@ -93,11 +93,17 @@ type Refusal struct {
 // else grammar (recognition's rule, testdata/port/refused-where.txt); or
 // scope, where resolve leaves the forest no derivation.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
+	f, _, ref := parseStream(tab, src, scope)
+	return f, ref
+}
+
+// parseStream is Parse, with the token stream the forest is over.
+func parseStream(tab *grammar.Tables, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
 	if err != nil {
-		return nil, Refusal{Reason: err.Error()}
+		return nil, s, Refusal{Reason: err.Error()}
 	}
 	if !c.Accepted() {
 		at := len(src) // every set survived: the file ends too soon
@@ -105,15 +111,15 @@ func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 			at = s.Raw[s.Tokens[d-1].Index].Start
 		}
 		if at == unmapped { // its empty set is where recognition died
-			return nil, Refusal{Byte: at, Reason: "lex-unmapped"}
+			return nil, s, Refusal{Byte: at, Reason: "lex-unmapped"}
 		}
-		return nil, Refusal{Byte: at, Reason: "grammar"}
+		return nil, s, Refusal{Byte: at, Reason: "grammar"}
 	}
 	f := Build(tab, c, l)
 	if at := resolve(tab, f, s, src, scope); at >= 0 {
-		return nil, Refusal{Byte: at, Reason: "scope"}
+		return nil, s, Refusal{Byte: at, Reason: "scope"}
 	}
-	return f, Refusal{}
+	return f, s, Refusal{}
 }
 
 // builder holds what the chart proved, and the forest built from it.

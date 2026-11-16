@@ -115,16 +115,12 @@ type resolver struct {
 // derivation. It returns the byte of the first dropped reading on the way to
 // the root where f has no derivation left, else -1.
 func resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
-	g := grammar.Derived(tab, buildScopeGrammar)
-	if !g.ok {
+	r := newResolver(tab, f, s, src, scope)
+	if r == nil {
 		return -1
 	}
-	r := &resolver{tab: tab, g: g, s: s, src: src, scope: scope, n: len(s.Tokens), subs: map[string][]sub{},
-		lexical: map[string][]sub{}, own: map[string]bool{}, packages: map[string]int{}, dead: map[[2]int]bool{}, named: make([]bool, len(s.Tokens)+1)}
-	r.braces()
-	r.declarations(f)
 	for k, t := range s.Tokens {
-		if !r.named[k] && slices.Contains(tab.TerminalSets[t.TerminalSet], g.noamp) {
+		if !r.named[k] && slices.Contains(tab.TerminalSets[t.TerminalSet], r.g.noamp) {
 			r.word(k)
 		}
 	}
@@ -132,6 +128,19 @@ func resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Sc
 		return -1
 	}
 	return r.prune(f)
+}
+
+// newResolver is f's resolver, its braces matched and its declarations read; nil for a grammar resolve leaves alone.
+func newResolver(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) *resolver {
+	g := grammar.Derived(tab, buildScopeGrammar)
+	if !g.ok {
+		return nil
+	}
+	r := &resolver{tab: tab, g: g, s: s, src: src, scope: scope, n: len(s.Tokens), subs: map[string][]sub{},
+		lexical: map[string][]sub{}, own: map[string]bool{}, packages: map[string]int{}, dead: map[[2]int]bool{}, named: make([]bool, len(s.Tokens)+1)}
+	r.braces()
+	r.declarations(f)
+	return r
 }
 
 // braces matches the file's braces.
