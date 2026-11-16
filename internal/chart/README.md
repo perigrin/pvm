@@ -616,7 +616,7 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
   a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
   `/opt/corpora/perl5`). `lexer-defects.txt` holds 14 such entries and
-  `tdt/lexer-rooted.txt` 193; `lex-unmapped-known.txt` holds none, since no
+  `tdt/lexer-rooted.txt` 101; `lex-unmapped-known.txt` holds none, since no
   perl.git file has a token the table leaves unmapped.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
