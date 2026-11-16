@@ -87,6 +87,8 @@ func TestOracleSubject(t *testing.T) {
 		// known limit (facts.go utf8At): a utf8 use if imports is not seen, so <FÉ> reports nothing where perl
 		// reads it as readline on line 2
 		{"ifutf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		// perl reads <<>> as readline, though parse.IsReadlineTerm calls it a glob
+		{"doublediamondreadline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":1,"end_line":1}]}`},
 		// a name may open with a digit: perl reads <1> and <$1> as readline
 		{"digitreadline.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"readline","line":1,"end_line":1},{"kind":"readline","line":2,"end_line":2}]}`},

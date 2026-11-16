@@ -251,6 +251,14 @@ func NonassocOperators() []string {
 	return out
 }
 
+// InfixInfo is a core infix or postfix operator's binding power and
+// associativity, as the parser reads them; ok is false for anything else.
+func InfixInfo(op string) (OpInfo, bool) {
+	derivePowers()
+	info, ok := infix[op]
+	return info, ok
+}
+
 var levelsPresent = map[int]string{
 	1:  "PREC_LOW, pseudo-token, never lexed",
 	2:  "LOOPEX: goto last next redo dump -- statement forms, ch5",

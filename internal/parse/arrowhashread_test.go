@@ -323,7 +323,7 @@ func TestArrowHashReadLvalueElementContextsFold(t *testing.T) {
 //	my $r; my $x = $#{$r->{a}};     rv2hv=1 multideref=0
 //	my $r; my @x = @{$r->{a}};      rv2hv=0 multideref=1
 //
-// The lexer reads `$#{ ... }` as one Variable token (hidesStructure,
+// The lexer reads `$#{ ... }` as one Variable token (HidesStructure,
 // 01a0ad52), so no node holds the chain and Sites cannot count its levels.
 // It hedges the hash site, which scores wider and never says "none".
 func TestArrowHashReadArrayLastIndexKeepsRv2hv(t *testing.T) {

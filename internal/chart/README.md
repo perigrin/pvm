@@ -1937,8 +1937,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   `readline`; a handle's name may open with a digit (`<1>`, `<$1>`) and is
   read in runes only where a `use utf8` statement is in force, block by block,
   so `<FÉ>` is readline under `use utf8` and a glob without it, after its
-  block ends, or after `no utf8`, by a copy of `parse`'s unexported
-  `isReadlineTerm`; `<*.c>` is a glob); an anonymous hash (`HASHBRACK`). Each is on
+  block ends, or after `no utf8`, by `parse.IsReadlineTerm`, with `<<>>`
+  read as readline beside it, a shortcut: `parse.IsReadlineTerm` calls `<<>>`
+  a glob where toke.c reads readline, and the `<<>>` clause is dropped when
+  parse's predicate learns it (recursive descent's answer moves then, so its
+  own issue); `<*.c>` is a glob); an anonymous hash (`HASHBRACK`). Each is on
   its top-level statement's first and last lines, as `parse.PerlLines`
   numbers them after `#line`; a site a directive moves into another file is
   dropped.
@@ -1964,8 +1967,8 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   `parse.Imports` keeps one entry per name with no position; code
   interpolated in a string or heredoc is one token the forest does not read,
   so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
-  descent hedges every marker; hedging it needs `parse`'s unexported
-  `interpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
+  descent hedges every marker; hedging it needs
+  `parse.InterpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
   a `BEGIN` block, string eval or `use if` imports is not seen, so `<FÉ>` after
   `BEGIN { utf8->import }` or `use if 1, 'utf8';` reports nothing where perl
   reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls
