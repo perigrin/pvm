@@ -47,6 +47,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
+	if len(os.Args) == 2 && os.Args[1] == "oracle" { // the grading measure alone, until KEYS makes it keys
+		os.Exit(printOracle(g, ref))
+	}
 	measured, tab, err := measure(g, ref, os.Stderr)
 	var files []File
 	var srcs map[string][]byte

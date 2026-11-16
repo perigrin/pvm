@@ -56,6 +56,23 @@ func TestOracleSubject(t *testing.T) {
 			{"line":2,"end_line":2,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true},
 			{"kind":"reference","line":3,"end_line":3,"took_reference":true}]}`},
+		// six ambiguous statements make the block 4^6 readings, above 2^10, so it collapses: every site in it is
+		// Unresolved, its \@a included; the \@a after it is decided
+		{"collapsed.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
+			{"kind":"reference","line":2,"end_line":6,"took_reference":false,"unresolved":true},
+			{"kind":"reference","line":7,"end_line":7,"took_reference":true}]}`},
 		// under use utf8 a handle's name is runes, not bytes: perl reads <FÉ> as readline, not a glob
 		{"utf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},
 		// without use utf8 in force, perl reads <FÉ> as a glob: none at all, one a block ended, one no utf8 turned off
