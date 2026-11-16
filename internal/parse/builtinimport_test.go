@@ -4,6 +4,8 @@
 package parse_test
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -137,11 +139,7 @@ func TestImportsUseBuiltin(t *testing.T) {
 		"floor": "($)", "is_bool": "($)", "is_tainted": "($)", "is_weak": "($)", "load_module": "($)",
 		"refaddr": "($)", "reftype": "($)", "stringify": "($)", "trim": "($)", "unweaken": "($)", "weaken": "($)",
 	}
-	var names []string
-	for name := range want {
-		names = append(names, name)
-	}
-	src := "use builtin qw(" + strings.Join(names, " ") + ");\n"
+	src := "use builtin qw(" + strings.Join(slices.Collect(maps.Keys(want)), " ") + ");\n"
 	imps := parse.Imports(parse.ParseWithLoader([]byte(src), nil))
 	for name, proto := range want {
 		if imp, ok := imps[name]; !ok || !imp.PrototypeKnown || imp.Prototype != proto {
