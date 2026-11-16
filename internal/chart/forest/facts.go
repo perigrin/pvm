@@ -6,7 +6,6 @@ package forest
 import (
 	"slices"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/chart/grammar"
@@ -184,8 +183,8 @@ func bareProto(p string) string {
 // every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
 // uncertain.
 // shortcut: code interpolated in a string or heredoc is one token the forest does not read, so a marker inside it
-// reports nothing, which grades WRONG where perl built one; hedging it needs parse's unexported interpolatesCode,
-// pending perigrin's export ruling, and WRONGZERO (01a1c324-1fd7) owns it.
+// reports nothing, which grades WRONG where perl built one; hedging it with parse.InterpolatesCode is
+// WRONGZERO's (01a1c324-1fd7).
 func (sf *subjectFacts) walk() {
 	f := sf.f
 	seen := make([]bool, len(f.Nodes))
@@ -330,7 +329,9 @@ func (sf *subjectFacts) leafSite(n int32) (int, bool) {
 	switch {
 	case int(nd.Sym) == sf.g.pmfunc && (quoteOp(text) == "m"):
 		return site(kindMatch, k), true
-	case t.Kind == lexer.Readline && readsLine(text, len(text) == utf8.RuneCountInString(text) || sf.utf8At(sf.s.Tokens[k].Index)):
+	case t.Kind == lexer.Readline && (text == "<<>>" || parse.IsReadlineTerm(text)) &&
+		(len(text) == utf8.RuneCountInString(text) || sf.utf8At(sf.s.Tokens[k].Index)):
+		// <<>> is readline to toke.c though parse.IsReadlineTerm calls it a glob; a non-ASCII name needs use utf8.
 		return site(kindReadline, k), true
 	case t.Kind == lexer.Word && (text == "readline" || text == "CORE::readline") && !sf.g.notCore[nd.Sym]:
 		return site(kindReadline, k), true
@@ -354,23 +355,6 @@ func quoteOp(text string) string {
 
 func isWordByte(c byte) bool {
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
-}
-
-// readsLine is whether a <...> token is readline rather than glob, as toke.c's scan_inputsymbol decides: empty,
-// <<>>, or a bare handle or simple scalar inside, its name in runes only where wide says use utf8 is in force (<FÉ>).
-// shortcut: this mirrors parse's unexported isReadlineTerm, which takes no utf8 state; replace it with that
-// predicate if perigrin rules it exported and it learns the pragma.
-func readsLine(text string, wide bool) bool {
-	in := strings.TrimSuffix(strings.TrimPrefix(text, "<"), ">")
-	if in == "" || in == "<>" {
-		return true
-	}
-	if in = strings.TrimPrefix(in, "$"); in == "" {
-		return false
-	}
-	return strings.IndexFunc(in, func(c rune) bool {
-		return c != '_' && c != ':' && (c >= utf8.RuneSelf && !wide || !unicode.IsLetter(c) && !unicode.IsDigit(c))
-	}) < 0
 }
 
 // utf8At is whether use utf8 is in force at raw token at: a use or no utf8 statement sets it for the rest of its
