@@ -1214,6 +1214,8 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   internal/lexer marks that word `LexSub`, and chart/lex gives a marked keyword the text `grammar.PlainWord`, a word
   no class names. So `our sub if() { 42 } my $x = if if if;` parses as `$x = if() if if()` (perl.git
   `op/lexsub.t`), and `my sub if { 1 } if (1) { 2 }` is refused, as by perl.
+- A glob's name may be digits (`local *1 = sub { 1 };`, perl.git `op/method.t`): yyl_star's scan_ident reads them
+  and forces BAREWORD, where internal/lexer emits a Number, so a Number after a glob's `*` gets BAREWORD too.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
   `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature

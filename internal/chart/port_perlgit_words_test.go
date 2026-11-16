@@ -126,3 +126,25 @@ func TestTypedMyKnownLimit(t *testing.T) {
 		t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 	}
 }
+
+// A glob's name may be digits: after a * that is a glob sigil yyl_star's scan_ident reads them as the name and
+// forces BAREWORD (perl -DT on `local *1 = sub { 1 };`: BAREWORD "1", PERLY_STAR), where internal/lexer emits a
+// Number. perl.git t/op/method.t's `local *1 = sub { 123 }` and its neighbours, each as perl -c (94e50866) gives it.
+func TestDigitGlob(t *testing.T) {
+	for _, src := range []string{"local *1 = sub { 1 };", "*12 = \\&f;", "my $x = *1;"} {
+		if got := terminalsAt(t, src, strings.Index(src, "*")+1); !slices.Contains(got, "BAREWORD") {
+			t.Errorf("the digits after the glob * of %q admit %v, no BAREWORD", src, got)
+		}
+	}
+	if got := terminalsAt(t, "my $x = 2 *1;", 11); slices.Contains(got, "BAREWORD") {
+		t.Errorf("the 1 after a multiplying * admits %v, BAREWORD among them", got)
+	}
+	checkParses(t, map[string]bool{
+		"local *1 = sub { 1 };": true,
+		"*12 = \\&f;":           true,
+		"my $x = *1;":           true,
+		"print *1{CODE};":       true,
+		"my $x = 2 *1;":         true,
+		"*1x = 1;":              false,
+	})
+}

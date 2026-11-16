@@ -1144,6 +1144,9 @@ var perlyClasses = []ClassDecl{
 	// A glob's name: yyl_star runs scan_ident, then sets PL_expect to XOPERATOR (TERM(PERLY_STAR)), but
 	// only for a * that is a glob sigil, which the neighbour class of the * says (Neighbour.Glob).
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Completes: true}},
+	// scan_ident takes digits as a glob's name too (`local *1 = sub {...}`, perl.git t/op/method.t), where
+	// internal/lexer emits a Number.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &globStar, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
