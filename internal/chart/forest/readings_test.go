@@ -72,6 +72,21 @@ func TestReadingsCollapse(t *testing.T) {
 		}
 	}
 
+	// shortcut, pinned: on a toy's two-node cycle fullstmt -> T -> fullstmt, counting fullstmt first memoizes T as 0
+	// (its one derivation, T -> fullstmt -> A, holds fullstmt, met on the path); T counted first would be 1.
+	cyc := toyTables(t, "fullstmt ::= T | A", "T ::= fullstmt")
+	cf, _, _ := toyForest(t, cyc, []string{"A"}, recognize.Options{})
+	if cf == nil {
+		t.Fatal("cyclic toy: no forest")
+	}
+	tn := int32(slices.IndexFunc(cf.Nodes, func(n Node) bool { return int(n.Sym) == symbol(cyc, "T") }))
+	if tn <= 0 {
+		t.Fatal("cyclic toy: no T node; the forest dropped the cycle")
+	}
+	if count := cf.counter(); count(cf.Root) != 1 || count(tn) != 0 {
+		t.Errorf("cyclic toy: fullstmt %d, then T %d; want 1, then 0 (the shortcut's undercount)", count(cf.Root), count(tn))
+	}
+
 	imported := Scope{Imports: map[string]parse.Import{"foo": {Name: "foo", Prototype: "($)", PrototypeKnown: true}}}
 	for _, c := range []struct {
 		what, src string

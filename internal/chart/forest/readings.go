@@ -28,7 +28,7 @@ type Readings struct {
 // A node met again on the current path counts 0, since a derivation never holds a node inside itself. That is exact
 // on perly.y, whose forests are acyclic (forest.go drops a self-loop; TestForestFromChart searches for longer cycles).
 // shortcut: on a toy's cyclic forest a count memoized below a cycle omits that path wherever the node is reached
-// again; count per path if a cyclic forest's readings are ever read.
+// again (pinned by TestReadingsCollapse's cyclic row); count per path if a cyclic forest's readings are ever read.
 func (f *Forest) countReadings(stmt int) Readings {
 	var r Readings
 	count := f.counter()

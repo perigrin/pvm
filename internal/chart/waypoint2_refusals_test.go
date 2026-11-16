@@ -75,18 +75,14 @@ func TestWaypoint2Refusals(t *testing.T) {
 	}
 }
 
-// pipelineSource is whether src survives the whole pipeline: forest.Parse, with resolve and nothing imported, and
-// then the precedence constraint.
+// pipelineSource is whether src survives the whole pipeline: forest.Parse, which applies the precedence constraint
+// and resolves scope with nothing imported.
 func pipelineSource(t *testing.T, src string) bool {
 	t.Helper()
 	tab, err := committed()
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := perlyPrecedence()
-	if err != nil {
-		t.Fatal(err)
-	}
 	f, _ := forest.Parse(tab, []byte(src), forest.Scope{})
-	return f != nil && f.Constrain(p)
+	return f != nil
 }
