@@ -65,6 +65,8 @@ func TestPortSlicesAndDerefsCastTerminals(t *testing.T) {
 		{"$y = $r->**;", "**", "CAST_STAR"},
 		{"$y = $r->&*;", "&*", "PERLY_AMPERSAND"},
 		{"$y = $r->$#*;", "$#*", "DOLSHARP"},
+		{"$y = $#{$x};", "$#{", "CAST_DOLSHARP"},
+		{"$y = $#x;", "$#x", "DOLSHARP"},
 		{"$y = $r->@[0];", "@[", "PERLY_SNAIL"},
 		{"$y = $r->@ {\"a\"};", "@ ", "PERLY_SNAIL"},
 		{"$y = $x;", "$x", "PERLY_DOLLAR"},
@@ -81,7 +83,7 @@ func TestPortSlicesAndDerefsCastTerminals(t *testing.T) {
 // DerefSigil and two `{` instead, and the chart reads a block holding an anonymous hash. This fails when the lexer
 // emits toke.c's token; drop the README line then.
 func TestPortSlicesAndDerefsKnownLimits(t *testing.T) {
-	for _, src := range []string{"$y = ${ {} };", "$y = ${{}};", "$y = @{ {} };", "$y = %{ {} };", "$y = &{ {} };", "$y = *{ {} };",
+	for _, src := range []string{"$y = ${ {} };", "$y = ${{}};", "$y = @{ {} };", "$y = %{ {} };", "$y = &{ {} };", "$y = *{ {} };", "$y = $#{ {} };",
 		"$y = $x->${ {} };", "$y = ${ {} }{a};", "print ${ {} };"} {
 		if !recognizeSource(t, []byte(src)).accepted {
 			t.Errorf("%q is refused; the known limit is gone, so drop the README line", src)
