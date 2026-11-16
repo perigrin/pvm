@@ -144,7 +144,7 @@ func (g *Grammar) ResolveClasses(t *Tables) ([]TokenClass, error) {
 		case !t.Symbols[i].Terminal:
 			errs = append(errs, fmt.Errorf("a token class names %s, which is a nonterminal", d.Terminal))
 		case len(classes) > 0 && reflect.DeepEqual(d.Key, last):
-			// a key declared for several terminals in a row (the PLUGIN_* ones) is one class: CompileTokens's cost
+			// a key declared for several terminals in a row (a library operator's eleven) is one class: CompileTokens's cost
 			// grows with the classes, and the union is the same
 			classes[len(classes)-1].Terminals = append(classes[len(classes)-1].Terminals, i)
 		default:
