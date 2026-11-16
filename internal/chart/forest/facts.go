@@ -40,6 +40,12 @@ type factsGrammar struct {
 	fullstmt int    // fullstmt's symbol id
 	pmfunc   int    // PMFUNC's
 	notCore  []bool // the terminals a word takes as a sub or method rather than a builtin
+	// refs is each rule's operands op.c's ref_array_or_hash takes a reference to where they are an array or a hash,
+	// each as how many symbols before the rule's last it stands: ~~'s two, and given's and when's condition.
+	refs       [][]int
+	smartmatch int    // the rule term NCEQOP term, whose operator may be <=> or cmp rather than ~~
+	paren      int    // the rule ( expr ), which leaves an array or hash inside it one
+	aggregate  []bool // the rules whose term is an array or a hash: @a, %h, @{...}, %$r, ->@* and ->%*
 }
 
 func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
@@ -47,7 +53,8 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == name })
 	}
 	g := &factsGrammar{kind: make([]int, len(tab.Rules)), last: make([]bool, len(tab.Rules)), matchop: -1,
-		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols))}
+		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols)),
+		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules))}
 	for _, w := range []string{"NOAMP", "FUNC0SUB", "UNIOPSUB", "LSTOPSUB", "METHCALL0", "METHCALL", "BAREWORD"} {
 		if x := id(w); x >= 0 {
 			g.notCore[x] = true
@@ -61,6 +68,19 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 			rhs[i] = name(x)
 		}
 		lhs, joined := name(rule.LHS), strings.Join(rhs, " ")
+		switch {
+		case lhs == "termeqop" && joined == "term NCEQOP term":
+			g.refs[r], g.smartmatch = []int{2, 0}, r
+		case joined == "KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock",
+			joined == "KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock":
+			g.refs[r] = []int{2}
+		case lhs == "sideff" && joined == "expr KW_WHEN condition":
+			g.refs[r] = []int{0}
+		case lhs == "term" && joined == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+			g.paren = r
+		case lhs == "term" && slices.Contains([]string{"ary", "hsh", "term ARROW CAST_SNAIL", "term ARROW CAST_PERCENT_SIGN"}, joined):
+			g.aggregate[r] = true
+		}
 		switch {
 		case len(rhs) > 0 && slices.Contains([]string{"NOAMP", "UNIOPSUB", "FUNC0SUB", "LSTOPSUB"}, rhs[0]),
 			lhs == "term" && len(rhs) > 0 && rhs[0] == "amper": // f(...), which toke.c lexes as &f(...); altSite drops a written &
@@ -214,6 +234,11 @@ func (sf *subjectFacts) walk() {
 			if k, ok := sf.altSite(n, a); ok {
 				sf.all[k] = true
 			}
+			ks, unsure := sf.refSites(a)
+			for _, k := range ks {
+				sf.all[k] = true
+				sf.uncertain[k] = sf.uncertain[k] || unsure
+			}
 			for _, c := range [2]int32{a.Left, a.Right} {
 				if c != 0 && !seen[c] {
 					seen[c] = true
@@ -281,6 +306,12 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 		if k, has := sf.altSite(n, a); has {
 			am, ay = union(am, []int{k}), union(ay, []int{k})
 		}
+		if ks, unsure := sf.refSites(a); len(ks) > 0 {
+			if !unsure {
+				am = union(am, ks)
+			}
+			ay = union(ay, ks)
+		}
 		if first {
 			must, may, first = am, ay, false
 			continue
@@ -316,6 +347,61 @@ func (sf *subjectFacts) altSite(n int32, a Alt) (int, bool) {
 		at = int(nd.To) - 1
 	}
 	return site(sf.g.kind[a.Rule], at), true
+}
+
+// refSites is the references op.c's ref_array_or_hash takes in alternative a, sorted: one for each operand of ~~,
+// given's condition or when's that is an array or a hash, at its first token; unsure where some readings of an
+// operand are one and others are not. A slice or an anonymous array is neither (perl builds no srefgen for it).
+func (sf *subjectFacts) refSites(a Alt) (sites []int, unsure bool) {
+	backs := sf.g.refs[a.Rule]
+	if backs == nil || int(a.Rule) == sf.g.smartmatch && sf.text(int(sf.f.Nodes[sf.child(a, 1)].From)) != "~~" {
+		return nil, false
+	}
+	for _, back := range backs {
+		o := sf.child(a, back)
+		if yes, no := sf.aggregate(o); yes {
+			sites, unsure = append(sites, site(kindReference, int(sf.f.Nodes[o].From))), unsure || no
+		}
+	}
+	return sites, unsure
+}
+
+// aggregate is whether some readings of node n are an array or a hash, through unit rules and parentheses, and
+// whether some are not.
+func (sf *subjectFacts) aggregate(n int32) (yes, no bool) {
+	f := sf.f
+	if f.Nodes[n].Alt == 0 {
+		return false, true
+	}
+	for x := f.Nodes[n].Alt; x != 0; x = f.Alts[x].Next {
+		a := f.Alts[x]
+		var y, o bool
+		switch {
+		case sf.g.aggregate[a.Rule]:
+			y = true
+		case int(a.Rule) == sf.g.paren:
+			y, o = sf.aggregate(sf.child(a, 1))
+		case a.Left == 0 && a.Right != 0:
+			y, o = sf.aggregate(a.Right)
+		default:
+			o = true
+		}
+		yes, no = yes || y, no || o
+	}
+	return yes, no
+}
+
+// child is the node of the symbol back places before the last of a's rule, through each rule position's first
+// alternative: a rule position's span ends where the next symbol's starts, and the rules refSites reads put a token
+// or a closed group there, so it divides one way.
+func (sf *subjectFacts) child(a Alt, back int) int32 {
+	for ; back > 0; back-- {
+		if sf.f.Nodes[a.Left].Sym >= 0 {
+			return a.Left // the rule's only symbol before its last
+		}
+		a = sf.f.Alts[sf.f.Nodes[a.Left].Alt]
+	}
+	return a.Right
 }
 
 // leafSite is the site leaf n stands for, if any: a pattern read as PMFUNC that matches, a <...> that reads a

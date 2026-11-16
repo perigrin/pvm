@@ -2129,7 +2129,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
 - **`call_sites`** are one per decision at an oracle marker, read from the
   forest's rules and leaves: a call to a sub (NOAMP, UNIOPSUB, FUNC0SUB,
   LSTOPSUB, or `f(...)`; a written `&f(...)` bypasses the prototype and
-  decides nothing); a `\` the source wrote (`term: REFGEN term`); a hash read
+  decides nothing); a `\` the source wrote (`term: REFGEN term`); the
+  reference op.c's `ref_array_or_hash` takes to an array or hash operand of
+  `~~`, or one that is `given`'s or `when`'s condition (`@a`, `%h`, `@{...}`,
+  `->@*`, `->%*`, through parentheses; not a slice or `[@a]`), unresolved
+  where some readings of the operand are one and others not
+  (`TestOracleGradingSmartmatch`); a hash read
   (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin

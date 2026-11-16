@@ -19,10 +19,11 @@ var oracleSamples = filepath.Join("testdata", "oracle")
 
 // samplePerl is the pinned perl's facts for each sample, as oracle-facts.sh records them.
 var samplePerl = map[string]parseoracle.Facts{
-	"exact.pl":     {OK: true, Walked: true, OpCount: 8, Sites: map[parseoracle.Marker][]int{"srefgen": {2}}},
-	"wider.pl":     {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"f": `\@`}},
-	"collapsed.pl": {OK: true, Walked: true, OpCount: 51, Sites: map[parseoracle.Marker][]int{"srefgen": {5, 7}}},
-	"import.pl":    {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"r": `\@`}},
+	"exact.pl":      {OK: true, Walked: true, OpCount: 8, Sites: map[parseoracle.Marker][]int{"srefgen": {2}}},
+	"wider.pl":      {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"f": `\@`}},
+	"collapsed.pl":  {OK: true, Walked: true, OpCount: 51, Sites: map[parseoracle.Marker][]int{"srefgen": {5, 7}}},
+	"import.pl":     {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"r": `\@`}},
+	"smartmatch.pl": {OK: true, Walked: true, OpCount: 65, Sites: map[parseoracle.Marker][]int{"srefgen": {3, 4, 5, 5, 6, 8, 9}}},
 }
 
 // sampleCorpus writes a facts file holding the named samples' records and returns it as a corpus over testdata/oracle.
@@ -105,6 +106,19 @@ func TestOracleGrading(t *testing.T) {
 	}
 	if strings.Contains(stderr.String(), "oracle-grade: chart WRONG") {
 		t.Errorf("stderr lists a chart WRONG site:\n%s", stderr.String())
+	}
+}
+
+// TestOracleGradingSmartmatch: perl takes a reference to an array or hash operand of ~~ and to one that is given's
+// or when's condition (op.c's ref_array_or_hash), not to a slice or an anonymous array; the chart grades every
+// such site EXACT (perl.git op/smartmatch.t:168-171 and op/switch.t:1101 were WRONG).
+func TestOracleGradingSmartmatch(t *testing.T) {
+	got, err := gradeOracle([]oracleCorpus{sampleCorpus(t, nil, "smartmatch.pl")}, defaultSubjects(committedTables(t)), &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := got.Sites["chart"]["sample"]; g != totals(7, 0, 0, 0) {
+		t.Errorf("chart: %v (exact, wider, wrong, no-answer by Bucket), want all 7 exact", g)
 	}
 }
 
