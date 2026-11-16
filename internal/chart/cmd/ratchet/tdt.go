@@ -28,6 +28,8 @@ var (
 	// (`<path> <byte> <reason>`).
 	rootedFile    = filepath.Join(testdata, "tdt", "lexer-rooted.txt")
 	overridesFile = filepath.Join(testdata, "tdt", "overrides.txt")
+	// perl.git t/ files tdt-align.sh does not capture, by path under t/ (perigrin: "Exclude it from capture").
+	uncapturedFile = filepath.Join(testdata, "tdt", "perlgit-uncaptured.txt")
 )
 
 // tdtFile is a corpus file and its aligned-pairs fixture (internal/chart/offline/README.md).
@@ -430,10 +432,18 @@ func fixturesDir(set, def string) string {
 }
 
 // measureTDT adds the tdt keys to measured, reading the fixtures in dir; a dir that is no directory is an error.
+// A perl.git file on perlgit-uncaptured.txt has no fixture and is left out.
 func measureTDT(dir string, g *grammar.Grammar, tab *grammar.Tables, files []File, srcs map[string][]byte, measured map[string]string) error {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return fmt.Errorf("TDT_FIXTURES=%s names no directory (%v)", dir, err)
 	}
+	uncaptured, err := listLines(uncapturedFile)
+	if err != nil {
+		return err
+	}
+	files = slices.DeleteFunc(slices.Clone(files), func(f File) bool {
+		return f.Corpus == "perlgit" && slices.Contains(uncaptured, strings.TrimPrefix(f.Path, "perlgit/"))
+	})
 	tfiles, err := loadTDT(dir, files, srcs)
 	if err != nil {
 		return err
