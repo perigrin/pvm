@@ -102,9 +102,9 @@ Since the resumption, **the precedence constraint** is applied to `perly.y`
 and agrees with bison on every kept generated sentence
 (`forest/precedence.go`, below).
 
-Not done, among the issues still open on `chart-perly-w2`: resolve by
-features (resolve by declared and imported subs is built: "Scope-decided
-words"), the readings count, oracle grading, `PLUGIN_*`,
+Not done, among the issues still open on `chart-perly-w2` (resolve by
+declared and imported subs and by features is built: "Scope-decided
+words"): the readings count, oracle grading, `PLUGIN_*`,
 the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
 M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
 `t/` parity and speed checkpoint 3.
@@ -933,10 +933,14 @@ Beyond them:
 ### Signatures
 
 toke.c makes `sub` KW_SUB_named_sig (or KW_SUB_anon_sig) under the signatures feature and KW_SUB_named
-otherwise (`yyl_sub`, `toke.c:5965-5975`, `is_sigsub`), and scans a prototype only without it. The chart does not
+otherwise (`yyl_sub`, `toke.c:5965-5975`, `is_sigsub`), and scans a prototype only without it. Recognition does not
 track the feature, so each `sub` is both terminals of its pair, and the split is the lexer's tokens: a Prototype
 token after the name is the traditional rule's, parentheses holding parameters are the signature's.
-`sub f { 1 }` and `sub f;` are therefore parsed both ways. The feature line itself is an ordinary `use` statement.
+`sub f { 1 }` and `sub f;` are therefore recognized both ways. Resolve keeps one by the feature in force at the `sub`
+(`use feature 'signatures'`, `use experimental 'signatures'`, `use v5.36`; "Resolve" below). Without the feature a
+parenthesised list straight after the name is a prototype, which perl accepts (`sub f ($x) {}`, `sub f ($x = 1) {}`),
+and one after an attribute list is refused, as perl refuses it (`sub f :lvalue ($x) {}`;
+`TestResolveFeaturesPrototypeNotRefused`, `TestWaypoint2Refusals`).
 
 `internal/lexer` emits a parameter's sigil and name as one Variable token (`$x`, `@r`, `%h`) and a bare placeholder
 as the sigil alone (`$`, `@`, `%`), which is the sigil's terminal either way (as `scalar: PERLY_DOLLAR` is fitted at
@@ -971,11 +975,12 @@ version (`afterWordSlot`). The name is a BAREWORD wherever it stands, keyword or
 keyword check), as is a method's (`yyl_sub`). `method` is KW_METHOD_named or KW_METHOD_anon on the same split as `sub`
 (a name follows or not). `class`, `field`, `method`, `ADJUST` and `__CLASS__` are feature-gated: each is its keyword and,
 as toke.c reads it with the class feature off, a word (`class(1);`, `my $x = field;`; see "Scope-decided words"), and
-resolve (SCOPEFEAT) collapses the two by feature. The mid-rule actions (`$@8`, `$@24`) are not ported. 1553 (`method` with no body) refuses in its action and has
+resolve keeps the keyword with the feature on and the word with it off. The mid-rule actions (`$@8`, `$@24`) are not ported. 1553 (`method` with no body) refuses in its action and has
 no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
 
-- `class Foo v1.2.3;` is accepted, as by perl, but only by `class`'s word reading: its keyword reading is the package
-  limit above (`01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`), so it is refused once resolve keeps only the keyword.
+- `class Foo v1.2.3;` is recognized, as perl accepts it, but only by `class`'s word reading: its keyword reading is the
+  package limit above (`01a1a481-ebef-7f2d-99bd-fab0cc8aaf7c`; the lexer emits `Word:v1 Operator:. Number:2.3`), so
+  `forest.Parse`, which keeps only the keyword under the class feature, refuses it (`TestResolveKnownLimits`).
 - Refused where perl accepts: `field $x :param //= 1;` (the lexer scans `//` after an attribute as a pattern, `01a1aa23-746a-7830-abd3-900a685fa6b0`);
   and `method m : { }` (the `sub foo : { }` limit above).
 - Attribute arguments are the sub family's limit (`01a19fb5-79d7-76c5-a8b1-25fd04ddfb4a`). `class Bar { } class Foo :isa(Bar 1.2);`
@@ -983,10 +988,14 @@ no rule. Known limits, pinned in `TestPortClassesKnownLimits`:
   `method m :lvalue (1) { 1 }` and `my $c = method :lvalue (1) { 1 };` are accepted where perl refuses them as bad signatures: pvm emits
   `( Variable:$$ )` and `( Number )` with or without a space before the parenthesis, so an argument and a stray list look alike.
 - There is no refusal row for an attribute list after a class block: neither tokenizer marks that colon as an attribute colon.
-- Accepted where perl refuses, each by an action or a scope rather than the grammar: `field` and `method` outside a class
-  (waypoint 2's scope refusals), a field named `$::x`, `$_` or `$1`, and a class that inherits from itself.
-- Accepted where perl refuses, by a word reading resolve drops by feature (SCOPEFEAT): `class if Bar;`, `class Foo Bar;`,
-  `method ;`, `my $c = method;`, and the forms under `testdata/port/feature-gated/` (`class ;`, `field ($x);`, ...).
+- Accepted where perl refuses, each by an action rather than the grammar: a field named `$::x`, `$_` or `$1`, and a
+  class that inherits from itself.
+- Recognized where perl refuses, and refused through `forest.Parse`: `field`, `method` (named and anonymous) and
+  `ADJUST` outside a class under the class feature ("Cannot 'field' outside of a 'class'", `croak_kw_unless_class`;
+  `TestWaypoint2Refusals`), a class's scope being its package's (`TestResolveClassScopeEnds`); and, by a word reading
+  resolve drops with the feature on, `class if Bar;`, `class Foo Bar;`, `method ;`, `my $c = method;` and the forms
+  under `testdata/port/feature-gated/` (`class ;`, `field ($x);`, ...). Without the feature `field $x;` and
+  `my $c = method { 1 };` are calls perl accepts, and so does the chart.
 
 ### Formats
 
@@ -1185,7 +1194,7 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   keywords: keywords.c at 94e50866 returns each one's KEY_ only under its `FEATURE_*_IS_ENABLED`, and toke.c reads it
   as yyl_just_a_word otherwise. Recognition cannot see a feature, so init's `addStatementWords` gives each, unqualified,
   every class of a word no class names, and a word's after `sort` or `do`, beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
-  `my $x = method;`), and resolve (SCOPEFEAT) collapses the two by feature. `CORE::try` stays the keyword. `isa` is
+  `my $x = method;`), and resolve keeps one by feature ("Resolve" below). `CORE::try` stays the keyword. `isa` is
   chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`).
 - A quote-like's name (`m`, `q`, `qq`, `qr`, `qw`, `qx`, `s`, `tr`, `y`) is a Word only where internal/lexer declines
   the quote: a name it forces (after `->`, `&`, `sub`), before `=>` or a subscript's `}`, and once a lexical sub of
@@ -1236,9 +1245,10 @@ the operator's name with no delimiters.
 Recognition accepts `print FH x 3;`, `new Foo x 3;`, `foo bar x 3;` and `foo { a => 1 } x 3;` ("Indirect objects"),
 and `x 1;` as `foo 1;`: perl refuses each, and accepts each once a sub of that name is declared (`sub x; x 1;`), and
 `forest.Parse` refuses each through resolve. `terminals-per-token` and `items-per-token` rise by design.
-Until SCOPEFEAT, the forms perl refuses only because a feature is on are accepted through a feature-gated word's word
+Recognition accepts the forms perl refuses only because a feature is on through a feature-gated word's word
 reading (`use feature "try"; foo(try, 1);`, `use feature "class"; no warnings; my $x = method;`, and the families'
-former refusals under `testdata/port/feature-gated/`, such as `try { 1 }` with no catch); `catch($_);` is refused
+former refusals under `testdata/port/feature-gated/`, such as `try { 1 }` with no catch), and `forest.Parse` refuses
+each through resolve (`TestResolveFeatures`, `forest.TestForestFromChart`); `catch($_);` is refused
 where perl accepts it with the try feature off, because the PERLY_DOLLAR class that guards a `catch (` variable cannot
 see the feature (a `shortcut:` in `grammar/perly.go`).
 
@@ -1274,6 +1284,23 @@ with reason `scope`, at the first dropped reading reached from the root.
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
   package, keyed by its qualified name. A declared sub before a word naming a package the file declares earlier is a
   method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
+- **Features** in force at a byte are chart/lex's (`Stream.FeaturesAt`), read as it reads `isa`'s: a `use feature`,
+  `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,
+  `:all`), a bare `no feature` turns them all off, and `use VERSION` replaces them with its version's bundle (state
+  from 5.10, switch from 5.10 to 5.34, current_sub, fc and evalbytes from 5.15, signatures from 5.35, try from 5.39);
+  each holds to the end of its block (`TestResolveFeaturesLexicalScope`). A feature-gated keyword ("Scope-decided
+  words") keeps its keyword readings only with its feature on, and a plain word's (BAREWORD, NOAMP, FUNC0SUB,
+  UNIOPSUB, LSTOPSUB, METHCALL0, METHCALL and PRIVATEREF) only with it off, where it is then decided as any word is
+  (`try 1;` and `state 1;` are refused, `use feature "try"; foo(try, 1);` too). Where toke.c forces a name (after
+  `->`, `sub`, `&` or `*`) it looks no keyword up, so both stand there (`$x->catch(1)`, `sub try {}`). `sub` keeps its
+  signature readings only with the signatures feature on, its prototype's only with it off (`TestResolveFeatures`).
+- **Classes**: a `class` statement or block, with the class feature on, declares its package as a `package` one does,
+  and marks it a class. `field`, `method` and `ADJUST` with the class feature on keep no reading outside a class, as
+  `croak_kw_unless_class` refuses them, where a byte is in a class if its package is one a class statement declared
+  before it (`class Foo {} package Foo; method m {}` is accepted, as by perl; `TestResolveClassScopeEnds`).
+- **An attribute's argument** follows its name directly: toke.c reads one only where `(` follows the name with no gap,
+  which the token table cannot see, so resolve drops the ATTRLIST reading of the token after such a `(` where a gap
+  parts it from the name (`sub f :Foo (bar) {}` and `my $x :shared ($y);` are refused, as by perl).
 - **After a term `&` is the bitwise and.** internal/lexer emits an `&` after a word as a sub's sigil (v0.1
   `01a1aec4-5d6a`); after a word no class names, on `x`'s neighbours, the token table gives that `&` BITANDOP beside
   PERLY_AMPERSAND (yyl_ampersand, PL_expect XOPERATOR), so `my $x = FOO & BAR;` stands where `FOO` is no call and
@@ -1303,15 +1330,15 @@ glob sigils and `?` and `/` as a pattern, which the token table gives no reading
 `sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and
 `my sub s { 1 } s/a/b/e;` are accepted; `*` before a Number wherever toke.c
 expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
-glob, since internal/lexer emits the `2` a Number. `class`'s package is not read. shortcut: a feature-gated keyword
-("Scope-decided words" above) keeps every reading but a method's in a filehandle's slot before a non-word (as an
-unknown name does, so `print try $x bar();` is refused as perl refuses it), since resolve does not know the feature state, so any feature-gated
-keyword before a term is accepted whether its feature is on or off: `given 1;`, `state 1;`, `method 1;`, `try 1;`,
-and, with the feature on, `use feature "try"; try 1;`, `use feature "current_sub"; __SUB__ { 1 }` and
-`use v5.40; use experimental "class"; __CLASS__ { 1 }` are accepted, where perl refuses each, until SCOPEFEAT reads the features.
+glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside a method or a field's initializer is
+accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
+scope and not a method's. shortcut: a feature a module or a `BEGIN` block turns on (`use Modern::Perl`,
+`BEGIN { feature->import('try') }`) is not seen, so its keywords read as words there. `use feature 'class'; class Foo
+v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields").
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
-scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files). Over the 2,068 labelled files perl and
+scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files); and resolve refuses no Guacamole case (each under
+`use feature ':5.36'`) or `std5k.pl` that perl and recognition accept (`TestResolveFeaturesKeepCorpusAccepted`). Over the 2,068 labelled files perl and
 recognition accept, perl.git `t/` included, resolve refuses four: `t/uni/parser.t` (`*{` after a call),
 above, and three recursive descent refuses too. `t/perf/opcount.t`, refused while parse.Imports did not report
 `use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the resolved forests of the forest's sample to

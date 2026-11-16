@@ -1,5 +1,5 @@
 // ABOUTME: Tests the feature-gated keywords, which toke.c reads as plain words with their feature off.
-// ABOUTME: Recognition cannot see a feature, so it gives both readings; resolve collapses them by feature (SCOPEFEAT).
+// ABOUTME: Recognition cannot see a feature, so it gives both readings; resolve keeps one by feature (forest.TestResolveFeatures).
 
 package chart
 
