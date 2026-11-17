@@ -30,7 +30,6 @@ perlgit/base/lex.t 9734 01a0dc72-2609
 perlgit/base/lex.t 9885 01a0dc72-2609
 perlgit/comp/proto.t 23335 01a1ad1d-bc96
 perlgit/comp/proto.t 9674 01a1ad1d-bc96
-perlgit/comp/use.t 4889 01a1c83a-0466
 perlgit/op/anonconst.t 577 01a1ad1d-bc96
 perlgit/op/bop.t 15922 01a0dc72-2609
 perlgit/op/bop.t 15928 01a0dc72-2609

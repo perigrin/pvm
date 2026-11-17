@@ -136,6 +136,9 @@ type transition struct {
 	// openedBlock is set on a `{` that opened a block rather than a subscript
 	// or an anonymous hash. See trackBrackets.
 	openedBlock bool
+	// useArg is set on a `use` or `no` statement's module name:
+	// see lexer.useArg.
+	useArg bool
 }
 
 // after returns the state following a token of kind k.
@@ -235,6 +238,9 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// statement.
 		if e == XPostDeref {
 			return XOperator
+		}
+		if t.useArg {
+			return XTerm
 		}
 		// A sub or package NAME is followed by a block, not a term. perl
 		// says so with PREBLOCK, which sets XBLOCK -- toke.c:6636 for a sub

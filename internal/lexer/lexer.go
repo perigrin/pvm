@@ -403,6 +403,10 @@ type lexer struct {
 	// Only the first has a word at a statement boundary, which is the same
 	// question parseLabels answers one layer up.
 	sawLabelWord bool
+	// useHead is set when the token just emitted was a `use` or `no` at a
+	// statement boundary, so the module name after it leaves a term
+	// expected: see useArg.
+	useHead bool
 	// signatures is whether the signatures feature is on, which decides
 	// whether that `(` is a prototype or a signature. File-level, like
 	// utf8Pragma and for the same reason.
@@ -643,6 +647,7 @@ func (l *lexer) emit(k Kind, start int) {
 		l.sawLabelWord = k == Word &&
 			(l.expect == XState || l.expect == XBlock)
 	}
+	useArg := l.useArg(k, start)
 
 	// A glob's name, as a sub's after `&`, is a whole term whatever keyword
 	// it spells: perl 5.44.0 reads `*gt*&;` as `*gt * &;`. Not after an
@@ -681,6 +686,7 @@ func (l *lexer) emit(k Kind, start int) {
 		listOpParen:      inListOpParen,
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
+		useArg:           useArg,
 	})
 	// A postfix `++` or `--`, after a term, ends the term: perl 5.44.0 reads
 	// `A++*&;` as `A++ * &;`, where the glob `*&` re-read differently.
@@ -836,4 +842,20 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+// useArg advances useHead past token k and reports whether k is a `use` or
+// `no` statement's module name, after which toke.c expects a term (its
+// S_tokenize_use sets XTERM): `use strict { () }` is KW_USE_or_NO BAREWORD
+// BAREWORD HASHBRACK. The keyword counts only at a statement boundary, as a
+// label does (see sawLabelWord).
+// shortcut: a version after the name still leaves an operator expected, where toke.c expects a term (`use M 1.0 %h` lexes % as modulus); upgrade with the chart's version/term shortcut in grammar/versions.go, which taking it exposes.
+func (l *lexer) useArg(k Kind, start int) bool {
+	if k == Whitespace || k == Comment {
+		return false
+	}
+	afterKeyword := l.useHead
+	word := string(l.src[start:l.pos])
+	l.useHead = k == Word && (word == "use" || word == "no") && (l.expect == XState || l.expect == XBlock)
+	return k == Word && afterKeyword
 }
