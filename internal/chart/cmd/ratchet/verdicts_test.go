@@ -122,16 +122,39 @@ func TestVerdictKeysNeedEveryLabel(t *testing.T) {
 
 // TestRatchetVerdictIsPipeline: the chart's verdict is the whole pipeline's
 // (forest.Parse), so a comparison chain (precedence) and a method outside a
-// class (scope), which recognition accepts, are refused; and
-// chart-accepted-both-refused counts a file perl refuses for precedence or
-// scope as it counts a grammar one, never a semantic one.
+// class under the class feature (scope), which recognition accepts and perl
+// -c refuses, are refused, while the same method word with the feature off,
+// which perl reads as a call, is accepted; a call to a sub a module beside the
+// file exports is accepted only under the file's scope facts (parse.Imports
+// over the verdict RD's tree). And chart-accepted-both-refused counts a file
+// perl refuses for precedence or scope as it counts a grammar one, never a
+// semantic one.
 func TestRatchetVerdictIsPipeline(t *testing.T) {
-	srcs := map[string][]byte{"prec.pl": []byte("$a <=> $b <=> $c;"), "scope.pl": []byte("method foo {}")}
-	in := chartInputs(committedTables(t), srcs, nil, nil, ownDir)
-	for p := range srcs {
-		if r, err := in.Chart(p); err != nil || !r.Recognized || r.Accepted {
-			t.Errorf("%s: %+v, %v; want recognized, and refused by the pipeline", p, r, err)
+	dir := t.TempDir()
+	srcs := map[string][]byte{}
+	for name, text := range map[string]string{
+		"prec.pl":    "$a <=> $b <=> $c;",
+		"scope.pl":   "use feature 'class'; no warnings; method foo {}",
+		"word.pl":    "method foo;",
+		"imports.pl": "use Mine;\nmine 1, 2;\n",
+		"Mine.pm":    "package Mine;\nuse Exporter 'import';\nour @EXPORT = qw(mine);\nsub mine :prototype($$) { 1 }\n1;\n",
+	} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
 		}
+		srcs[name] = []byte(text)
+	}
+	dirs := func(string) []string { return []string{dir} }
+	tab := committedTables(t)
+	in := chartInputs(tab, srcs, nil, nil, dirs)
+	for p, accepted := range map[string]bool{"prec.pl": false, "scope.pl": false, "word.pl": true, "imports.pl": true} {
+		if r, err := in.Chart(p); err != nil || !r.Recognized || r.Accepted != accepted {
+			t.Errorf("%s: %+v, %v; want recognized, and accepted=%v by the pipeline", p, r, err, accepted)
+		}
+	}
+	if r, _ := chartInputs(tab, srcs, nil, nil, ownDir).Chart("imports.pl"); r.Accepted {
+		t.Error("imports.pl is accepted without its module, so it proves nothing about the scope facts")
 	}
 	m := map[string]vfile{
 		"prec.pl":  {chart: true, perl: refuse("precedence")},

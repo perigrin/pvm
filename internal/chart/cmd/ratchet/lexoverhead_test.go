@@ -156,34 +156,47 @@ func TestLexOverheadKeys(t *testing.T) {
 	}
 }
 
-// TestLexOverheadExcludesPipeline: lex-overhead stays chart/lex alone. With
-// the whole pipeline (pipelineParse) charging the fake clock, and Tokenize
-// the only other cost, every lex-overhead figure reads 1 and the pipeline
-// never runs: its span holds no forest, constraint or resolve work.
+// TestLexOverheadExcludesPipeline: measureLex's own wiring, on a fake clock.
+// Its protocol charges 10 to each file of the sides it is made with (chart/lex
+// and Tokenize), the whole pipeline (pipelineParse) costs 15 a file and the
+// speed side's recursive descent 10. lex-overhead then reads 1.000, so its
+// span holds no forest, constraint or resolve work, and the speed ratios read
+// 1.5000, so measureLex times the pipeline there.
 func TestLexOverheadExcludesPipeline(t *testing.T) {
 	var now time.Duration
-	ran := false
-	old := pipelineParse
-	t.Cleanup(func() { pipelineParse = old })
-	pipelineParse = func(*grammar.Tables, *recognize.Recognizer, []byte, forest.Scope) (*forest.Forest, forest.Refusal) {
-		ran, now = true, now+1000
-		return nil, forest.Refusal{}
+	fakePipeline(t, &now, func(*recognize.Recognizer, []byte, forest.Scope) {})
+	old := measureProtocol
+	t.Cleanup(func() { measureProtocol = old })
+	measureProtocol = func(chart, ref Side) Protocol {
+		charged := func(s Side) Side {
+			return func() Runner { run := s(); return func(p string) { now += 10; run(p) } }
+		}
+		return Protocol{Chart: charged(chart), Ref: charged(ref), Now: func() time.Duration { return now }, GC: runtime.GC,
+			Stderr: io.Discard, LoadPath: loadFile(t, "0.00 0.00 0.00 1/1 1"), LoadLimit: 4}
 	}
-	srcs := map[string][]byte{std5k: []byte("$x = 1;"), edit5k: []byte("$y;"), "a.pl": []byte("$z;")}
-	chart, ref := lexSides(srcs, toyLexTable(t), func(src []byte) []lexer.Token { now += 10; return lexer.Tokenize(src) })
-	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard,
-		LoadPath: loadFile(t, "0.00 0.00 0.00 1/1 1"), LoadLimit: 4}
+	srcs := map[string][]byte{std5k: []byte("$x = 1;"), edit5k: []byte("$y;")}
+	files := []File{{std5k, "std5k"}, {edit5k, "edit5k"}}
+	for i := range 10 { // ten more, so none is above 10% of recursive descent's time
+		p := fmt.Sprintf("f%d.pl", i)
+		srcs[p] = []byte("$z;")
+		files = append(files, File{p, "x"})
+	}
+	in := verdictInputs{
+		RD:    func(string) (bool, error) { return true, nil },
+		Perl:  func(string) *perlVerdict { return &perlVerdict{} },
+		Scope: func(string) forest.Scope { return forest.Scope{} },
+	}
 	m := map[string]string{}
-	if err := lexOverheadKeys(p, []string{"a.pl"}, m); err != nil {
+	if _, err := measureLex(committedTables(t), files, in, srcs, m); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate"} {
-		if m[k] != "1.000" {
-			t.Errorf("%s = %q, want 1.000: chart/lex alone", k, m[k])
+	for k, want := range map[string]string{
+		"lex-overhead": "1.000", "lex-overhead-std5k": "1.000", "lex-overhead-aggregate": "1.000",
+		"speed-ratio-std5k-longlived": "1.5000", "speed-ratio-aggregate-longlived": "1.5000", "speed-ratio-aggregate-perfile": "1.5000",
+	} {
+		if m[k] != want {
+			t.Errorf("%s = %q, want %s", k, m[k], want)
 		}
-	}
-	if ran {
-		t.Error("lex-overhead's span ran the pipeline")
 	}
 }
 

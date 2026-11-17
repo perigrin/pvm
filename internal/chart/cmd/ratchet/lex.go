@@ -178,6 +178,9 @@ func lexUnmapped(tt *grammar.TokenTable, files []File, srcs map[string][]byte) [
 	return unmapped
 }
 
+// measureProtocol is the Protocol measureLex times with; tests put it on a fake clock.
+var measureProtocol = productionProtocol
+
 // measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
 // lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
 // It returns lex-unmapped's files as "<path> <byte>" pairs.
@@ -186,7 +189,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	unmapped := lexUnmapped(tt, files, srcs)
 	measured["lex-unmapped"] = strconv.Itoa(len(unmapped))
 
-	p := productionProtocol(lexSides(srcs, tt, lexer.Tokenize))
+	p := measureProtocol(lexSides(srcs, tt, lexer.Tokenize))
 	rd := rdRunner(srcs)
 	agg, err := aggregateFiles(p, rd, files, in)
 	if err != nil {

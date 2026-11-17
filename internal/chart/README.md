@@ -418,11 +418,11 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it covers the side the speed ratios time, the whole pipeline (`forest.ParseWith`), so no recognizer or forest bound sits on it | timing |
+| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition, the forest, the precedence constraint, resolve and the readings count) | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
 | `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
-| `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of the chart side, lex, recognize and forest, over the aggregate; 0 to 1 | timing |
+| `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of lex, recognition and `forest.Build` (not the precedence constraint, resolve or the readings count, so not the speed ratios' chart side), over the aggregate; 0 to 1 | timing |
 | `gc-cpu-share-rd` | the same around one pass of recursive descent | timing |
 | `items-per-token` | Earley items per token, over files recognition accepts (§7's cost on recognized input), whatever the pipeline does after | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files recognition accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
@@ -1396,7 +1396,10 @@ glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside
 accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
 scope and not a method's. The `indirect` feature is not read, so a word before a variable stays a method where it is
 off: `use v5.36; no feature "state"; state $x = 1;` is accepted, where perl refuses it. `use feature 'class'; class Foo
-v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields").
+v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields"). An empty `{}` after a
+word and a bareword is refused (`method foo {}` with the class feature off, `new Foo {};`, `meth foo {};`), where perl
+reads an indirect method call with an anonymous hash, `foo->method({})`: internal/lexer marks that `{` a block, so the
+forest holds no method-call reading and resolve finds the word undeclared.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files); and resolve refuses no Guacamole case (each under

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -410,6 +411,9 @@ func fakePipeline(t *testing.T, now *time.Duration, check func(r *recognize.Reco
 // speed ratio, long-lived and per-file, so each reads 15/10; a chart side
 // that timed recognition alone would read 0.1.
 func TestSpeedChartSideIsPipeline(t *testing.T) {
+	if reflect.ValueOf(pipelineParse).Pointer() != reflect.ValueOf(forest.ParseWith).Pointer() {
+		t.Fatal("the speed ratios' chart side is not forest.ParseWith")
+	}
 	var now time.Duration
 	fakePipeline(t, &now, func(*recognize.Recognizer, []byte, forest.Scope) {})
 	srcs := map[string][]byte{std5k: []byte("1;"), "a.pl": []byte("2;"), "b.pl": []byte("3;")}
