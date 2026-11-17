@@ -324,6 +324,9 @@ type lexer struct {
 	// `(`) whose `{` intuitCurly read as a block, so that `{` can apply
 	// toke.c's block_expectation. See blockExpectsTerm.
 	xrefBlock bool
+	// listOpXref rides with listOpParen: the word was the XREF builtin
+	// itself, not a sub or method NAME or a word after `->` or `&`.
+	listOpXref bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -618,14 +621,19 @@ func (l *lexer) emit(k Kind, start int) {
 	emptyIsHash := (k == Word && emptyBraceIsHash(string(l.src[start:l.pos]))) ||
 		(inListOpParen && l.listOpEmptyHash)
 	nextBraceIsBlock := (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash)
-	blockWantsTerm := l.openedBlock && l.xrefBlock && blockExpectsTerm(l.src, l.pos)
+	// toke.c reaches XREF only for the builtin: a sub or method NAME, a word
+	// after `->` and one after `&` spell it without calling it.
+	xref := emptyIsHash && (inListOpParen && l.listOpXref ||
+		k == Word && !afterDeclName && l.expect != XPostDeref && !l.afterFuncSigilAt(len(l.toks)-1))
+	blockWantsTerm := l.openedBlock && l.xrefBlock && l.blockExpectsTerm()
 	// Trivia does not clear the carry: `map ({...} @a)` has a space between
 	// the word and its paren, and the call is the same one.
 	if k != Whitespace && k != Comment {
 		l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
 			l.peekIsOpenParen()
 		l.listOpEmptyHash = l.listOpParen && emptyIsHash
-		l.xrefBlock = emptyIsHash && nextBraceIsBlock
+		l.listOpXref = l.listOpParen && xref
+		l.xrefBlock = xref && nextBraceIsBlock
 	}
 
 	// A label's `:`, carried from the Word before it. Read BEFORE the carry

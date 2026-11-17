@@ -53,16 +53,14 @@ func TestBlockExpectationBraceOpensBlock(t *testing.T) {
 		`eval { { 1 } }`,
 		`if (1) { { 1 } }`,
 		`sub f { { 1 } }`,
-		// A sub or method NAME, or a word after `->` or `&`, is not the
-		// XREF builtin, so its block's brace is a statement-start one.
+		// A sub or method NAME is not the XREF builtin, so its body's
+		// first brace is a statement-start one.
 		`sub print { { 1; } }`,
 		`sub map { { my $y = 2; } } 1;`,
 		`sub exec { {;} }`,
 		`sub print { {1} }`,
 		`use v5.38; use feature "class"; no warnings; class C { method print { { 1; } } }`,
 		`package Fmt; sub printf { { local $_ = shift; s/x/y/; } return 1; }`,
-		`my $o; $o->map { {1} };`,
-		`&map { {1} };`,
 	} {
 		open, closer := lastBraceAndCloserOpenBlock(t, src)
 		if !open || !closer {

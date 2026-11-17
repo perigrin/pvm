@@ -12,8 +12,16 @@ import "bytes"
 // It does not tokenize ahead: the lexer stays single-pass, and a lookahead
 // that lexed would have to undo its own state changes.
 func (l *lexer) peekIsOpenBrace() bool {
+	i := l.skipSpaceAt(l.pos)
+	return i < len(l.src) && l.src[i] == '{'
+}
+
+// skipSpaceAt returns the index of the first byte at or after i that perl's
+// skipspace would stop at: past spaces, comments, and the queued heredoc
+// bodies a newline leads into.
+func (l *lexer) skipSpaceAt(i int) int {
 	pending := l.pending
-	for i := l.pos; i < len(l.src); i++ {
+	for ; i < len(l.src); i++ {
 		switch l.src[i] {
 		case '\n':
 			// Queued heredoc bodies start after this newline, and perl has
@@ -25,28 +33,23 @@ func (l *lexer) peekIsOpenBrace() bool {
 			}
 			pending = nil
 			i = j - 1
-			continue
 		// Form feed and vertical tab too, as isSpace has them: FuzzParser's
 		// `A\f{0}` read a subscript where `A {0}` reads a block.
 		case ' ', '\t', '\r', '\f', '\v':
-			continue
 		case '#':
 			// A comment, skipped as perl's skipspace skips it: `if ($x) # c`
 			// with its `{` on the next line. Up to the newline, which the
 			// case above then takes.
 			nl := bytes.IndexByte(l.src[i:], '\n')
 			if nl < 0 {
-				return false
+				return len(l.src)
 			}
 			i += nl - 1
-			continue
-		case '{':
-			return true
 		default:
-			return false
+			return i
 		}
 	}
-	return false
+	return i
 }
 
 // peekIsOpenParen reports whether the next non-space byte is `(`, so a

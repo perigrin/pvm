@@ -139,19 +139,23 @@ func braceIsHash(src []byte, i int) bool {
 }
 
 // blockExpectsTerm is toke.c's block_expectation (6816-6836): whether the
-// block an XREF word's `{` just opened, at src[i], wants a TERM first rather
-// than a statement. It does when a `{` or `sub` then `:` comes next, so
+// block an XREF word's `{` just opened wants a TERM first rather than a
+// statement. It does when a `{` or `sub` then `:` comes next, so
 // `map { { $_->get_columns } } @x` builds an anonymous hash and `map { sub :
 // lvalue {1} } @x` an attributed anonymous sub, not a label. toke.c reaches it
-// only in XREF, the words emptyBraceIsHash names. Measured with -DT on the
-// pinned perl; see TestBlockExpectationBraceIsAnonHash.
-func blockExpectsTerm(src []byte, i int) bool {
-	s := skipSpaceAndCommentsFrom(src, i)
-	if s < len(src) && src[s] == '{' {
+// only in XREF: see xref in emit. Measured with -DT on the pinned perl; see
+// TestBlockExpectationBraceIsAnonHash.
+//
+// shortcut: a newline or comment between `sub` and `:` is skipped as spaces
+// are, where toke.c loses the `sub` with its line and perl refuses. Upgrade
+// if a corpus file has one (TestBlockExpectationBraceKnownLimits).
+func (l *lexer) blockExpectsTerm() bool {
+	s := l.skipSpaceAt(l.pos)
+	if s < len(l.src) && l.src[s] == '{' {
 		return true
 	}
-	d := skipSpaceAndCommentsFrom(src, s+3)
-	return bytes.HasPrefix(src[s:], []byte("sub")) && d < len(src) && src[d] == ':'
+	d := l.skipSpaceAt(s + 3)
+	return bytes.HasPrefix(l.src[s:], []byte("sub")) && d < len(l.src) && l.src[d] == ':'
 }
 
 // skipDelimitedFrom returns the index just past the q-like body whose opening
