@@ -76,13 +76,14 @@ func scanVariable(l *lexer) bool {
 				// `$r->$#*`, the postfix last index: the star closes the
 				// dereference as it does in `->@*`.
 				l.pos++
+			case b == '{' && !l.bracedNameFollowsAt(l.pos):
+				// `$#{ EXPR }`: scan_ident finds no name, so yyl_dollar
+				// emits PREREF(DOLSHARP) and the block is lexed as code,
+				// as for `${ EXPR }` (-DT on `$#{ ["}"] }`, perl 94e50866).
+				l.emit(DerefSigil, start)
+				return true
 			case isWordByte(b) || b == '{' || b == '$' || b == ':':
-				if !l.scanVarName() {
-					// `$#{` with no closing brace: perl 5.42 says
-					// "Missing right curly or square bracket".
-					l.emit(UnknownRest, start)
-					return true
-				}
+				l.scanVarName()
 			}
 		}
 		l.emit(Variable, start)
@@ -278,15 +279,29 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	// are NAMES, and the caret is part of the name rather than an operator.
 	// Splitting one into a sigil and an expression made `^TEST` a term the
 	// parser had to guess at, which is what TestLexDotTGoldenStream caught.
-	if i < len(l.src) && l.src[i] == '^' {
+	caret := i < len(l.src) && l.src[i] == '^'
+	if caret {
 		i++
+		// A caret, one of [ ] \ ^ ?, then word characters, as scan_ident: `${^^}`, `$#{^[}`, `${^^x}`.
+		if i < len(l.src) && strings.IndexByte("[]\\^?", l.src[i]) >= 0 {
+			i++
+		}
 	}
 
+	// The name is scan_ident's identifier, package separators included
+	// (`${x::y}`, `$#{x'y}`); a leading `::` opens a block there (`${::x}`).
+	// A caret name is word characters only: perl -c refuses `${^W::x}`.
 	nameStart := i
-	for i < len(l.src) && isWordByte(l.src[i]) {
+	if !caret && i < len(l.src) && l.src[i] != ':' {
+		save := l.pos
+		l.pos = i
+		l.scanIdentRunes()
+		i, l.pos = l.pos, save
+	}
+	for i < len(l.src) && isWordByte(l.src[i]) { // a digit name, `${1}`
 		i++
 	}
-	if i == nameStart {
+	if i == nameStart && !caret { // a bare caret is the variable `^` (perl -c accepts `$#{^}`, `${ ^ }`)
 		return false
 	}
 	for i < len(l.src) && blank(l.src[i]) {
@@ -296,11 +311,11 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 }
 
 // scanVarName consumes an identifier, a punctuation variable, or a braced
-// name after a sigil. It reports false only for a braced name the file ends
-// inside, which every caller but `$#{`'s has already ruled out.
-func (l *lexer) scanVarName() bool {
+// name after a sigil; every caller has already ruled out a braced name the
+// file ends inside.
+func (l *lexer) scanVarName() {
 	if l.pos >= len(l.src) {
-		return true
+		return
 	}
 	switch c := l.src[l.pos]; {
 	case c == '\'':
@@ -357,13 +372,12 @@ func (l *lexer) scanVarName() bool {
 				depth--
 				l.pos++
 				if depth == 0 {
-					return true
+					return
 				}
 				continue
 			}
 			l.pos++
 		}
-		return false
 	case c == '^' && l.caretNameFollows():
 		// A caret control variable: `$^O`, `$^W`, `$^_`. The caret and the
 		// character after it are ONE name, which is the same rule
@@ -399,14 +413,13 @@ func (l *lexer) scanVarName() bool {
 			n := l.src[l.pos]
 			if isWordByte(n) || n == '$' || n == '{' ||
 				n == ':' && l.pos+1 < len(l.src) && l.src[l.pos+1] == ':' {
-				return l.scanVarName()
+				l.scanVarName()
 			}
 		}
 	default:
 		// A punctuation variable: $_, $0, $!, $@, $/ and the rest. One byte.
 		l.pos++
 	}
-	return true
 }
 
 // caretNameFollows reports whether the `^` at the cursor begins a caret

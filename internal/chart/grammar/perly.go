@@ -709,6 +709,7 @@ hsh: PERLY_PERCENT_SIGN # perly.y:1856, fitted: pvm emits the sigil and the name
 hsh: CAST_PERCENT_SIGN indirob # perly.y:1856, fitted: pvm emits a cast's sigil as its own DerefSigil token, mapped to the cast terminal
 
 arylen: DOLSHARP # perly.y:1862, fitted: pvm emits the sigil and the name as one Variable token, $# its sigil
+arylen: CAST_DOLSHARP indirob # perly.y:1862, fitted: pvm emits $# before a block as its own DerefSigil token, mapped to the cast terminal
 
 arylen: term ARROW DOLSHARP # perly.y:1864, fitted: pvm emits $#* after -> as one Variable token
 
@@ -912,7 +913,8 @@ var (
 // CastTerminals are the fitted terminals perly.y does not declare, each with the perly.y sigil it stands for: perigrin's
 // ruling "Fitted cast terminal", an extension of spec §7 (see CAST_DOLLAR below). No other terminal is fitted.
 var CastTerminals = map[string]string{
-	"CAST_DOLLAR": "PERLY_DOLLAR", "CAST_PERCENT_SIGN": "PERLY_PERCENT_SIGN", "CAST_SNAIL": "PERLY_SNAIL", "CAST_STAR": "PERLY_STAR",
+	"CAST_DOLLAR": "PERLY_DOLLAR", "CAST_DOLSHARP": "DOLSHARP", "CAST_PERCENT_SIGN": "PERLY_PERCENT_SIGN", "CAST_SNAIL": "PERLY_SNAIL",
+	"CAST_STAR": "PERLY_STAR",
 }
 
 // perlyClasses are the token classes, each declared by the terminal it admits and so
@@ -1718,6 +1720,8 @@ var perlyClasses = []ClassDecl{
 
 	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Prefix: ptr(byte('#')), NotPrev1: afterArrow, Completes: true}},
 	{"DOLSHARP", TokenClass{Kind: ptr(lexer.Variable), Text: ptr("$#*"), Prev1: &arrow}},
+	// `$#{ EXPR }`'s $#, toke.c's PREREF(DOLSHARP) before a block: a cast's sigil, so `$#x $z` is no cast.
+	{"CAST_DOLSHARP", TokenClass{Kind: ptr(lexer.DerefSigil), Text: ptr("$#")}},
 
 	// A `{` the lexer did not open as a block is an anonymous hash unless it follows what ClassOf makes
 	// a subscript's or a block's: a variable, a closing bracket, `->` or a deref sigil.

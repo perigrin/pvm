@@ -1143,12 +1143,12 @@ opens a block (`*{"g"}`, `&{$c}(1)`, PREREF) unless its `}` follows at once, whi
 `BraceSubscript`, so a lone word there is a string as in `$h{if}`.
 
 **The fitted cast terminals**, an extension of spec §7 by perigrin's ruling ("Fitted cast terminal"): `CAST_DOLLAR`,
-`CAST_SNAIL`, `CAST_PERCENT_SIGN` and `CAST_STAR` are the only terminals perly.y does not declare
+`CAST_DOLSHARP`, `CAST_SNAIL`, `CAST_PERCENT_SIGN` and `CAST_STAR` are the only terminals perly.y does not declare
 (`grammar.CastTerminals`, held by `TestClassSlotsAreThePerlyYTokens`). pvm emits a whole variable (`$x`) as one token
-the variable heads fit as `PERLY_DOLLAR`, and a cast's sigil (`$$x`, `${ … }`, `@{ … }`) as its own `DerefSigil`;
+the variable heads fit as `PERLY_DOLLAR`, and a cast's sigil (`$$x`, `${ … }`, `@{ … }`, `$#{ … }`) as its own `DerefSigil`;
 were the sigil `PERLY_DOLLAR` too, `scalar: PERLY_DOLLAR indirob` would read `$y = $x $z;`, `$x{1; 2};` and
-`$x foo;` as casts. So a `DerefSigil` maps to the cast terminal, and `scalar`, `ary` and `hsh` gain
-`CAST_* indirob` rules fitted to 1846-1856; `star: PERLY_STAR indirob` (1868) needs none, since pvm already emits a
+`$x foo;` as casts. So a `DerefSigil` maps to the cast terminal, and `scalar`, `ary`, `hsh` and `arylen` gain
+`CAST_* indirob` rules fitted to 1846-1862 (`$#$r` and `$#{name}` stay one `Variable`, `arylen: DOLSHARP`); `star: PERLY_STAR indirob` (1868) needs none, since pvm already emits a
 glob's `*` apart from its name. The ratchet's tdt comparison reads a cast terminal as the perly.y terminal it names,
 matched against toke.c's head or, for the star of a postfix dereference, a type the `postfix-deref` family folds
 onto the token.
@@ -1174,7 +1174,7 @@ A blank between `->` and `@` leaves toke.c's `->` a `TERM(ARROW)`, and the namel
 the key cannot tell `*{` from `* {`.
 
 One limit, pinned in `TestPortSlicesAndDerefsKnownLimits`: a cast of a block that opens with `{}` is accepted
-(`${ {} }`, `@{ {} }`, `%{ {} }`, `&{ {} }`, `*{ {} }`, `$x->${ {} }`, `${ {} }{a}`, `print ${ {} };`), where
+(`${ {} }`, `@{ {} }`, `%{ {} }`, `&{ {} }`, `*{ {} }`, `$#{ {} }`, `$x->${ {} }`, `${ {} }{a}`, `print ${ {} };`), where
 toke.c's `scan_ident` reads `${ {` after any sigil as the punctuation variable `{` and perl refuses the `}` left
 over ("Unmatched right curly bracket"); `internal/lexer` emits a `DerefSigil` and two `{` there, so the root is the
 lexer's token (v0.1 `01a1a9d4`).

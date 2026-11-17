@@ -528,8 +528,9 @@ func units(toks []tok) []unit {
 		case t.typ == "PERLY_SEMICOLON" && typ(i+1) == "PERLY_BRACE_CLOSE":
 			us = append(us, unit{head: toks[i+1], folds: []fold{{"brace-semicolon", "PERLY_SEMICOLON"}}, match: texts("}")})
 			i++
-		case t.typ == "DOLSHARP" && (typ(i+1) == "PERLY_DOLLAR" || typ(i+1) == "PERLY_BRACE_OPEN"):
-			// pvm lexes `$#$x` and `$#{EXPR}` as one Variable; toke.c delivers $# and the expression.
+		case t.typ == "DOLSHARP" && typ(i+1) == "PERLY_DOLLAR":
+			// pvm lexes `$#$x` as one Variable; toke.c delivers $# and the expression. `$#{EXPR}`'s $# is pvm's
+			// DerefSigil, and its block's tokens are pvm's too.
 			u := unit{head: t, match: func(p pvmTok) bool { return p.kind == lexer.Variable && strings.HasPrefix(p.text, "$#") }}
 			depth := 0
 			for i++; i < len(toks); i++ {

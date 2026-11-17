@@ -181,10 +181,10 @@ func lexesAs(kind *lexer.Kind, text string, postfix bool) bool {
 	}
 	infix := "$a " + text + " $b"
 	_, cps := lexer.Checkpoints(nil, lexer.StartState())
-	after, cast, lexsub := "$a->"+text+"[0]", text+"$b", "my sub "+text+" {} "+text
+	after, cast, lexsub := "$a->"+text+"[0]", text+"{$b}", "my sub "+text+" {} "+text
 	return one(infix, lexer.Tokenize([]byte(infix)), 3, 1) || one(text, lexer.Resume([]byte(text), cps[0]), 1, 0) ||
 		postfix && one(after, lexer.Tokenize([]byte(after)), 6, 2) ||
-		kind != nil && *kind == lexer.DerefSigil && one(cast, lexer.Tokenize([]byte(cast)), 2, 0) ||
+		kind != nil && *kind == lexer.DerefSigil && one(cast, lexer.Tokenize([]byte(cast)), 4, 0) ||
 		kind != nil && *kind == lexer.Word && one(lexsub, lexer.Tokenize([]byte(lexsub)), 6, 5)
 }
 
