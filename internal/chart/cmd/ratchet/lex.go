@@ -86,11 +86,14 @@ func rdRunner(srcs map[string][]byte) func() Runner {
 	return func() Runner { return func(path string) { speedParse(srcs[path]) } }
 }
 
+// lexMap is chart/lex as lex-overhead's chart side runs it; tests record its calls.
+var lexMap = lex.Map
+
 // lexSides are chart/lex and lexer.Tokenize as protocol sides over srcs.
 // The chart side calls tokenize inside its span, so lex-overhead's numerator
 // is the whole of chart/lex, the lexer included.
 func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]byte) []lexer.Token) (chart, ref Side) {
-	chart = func() Runner { return func(p string) { lex.Map(srcs[p], tokenize(srcs[p]), tt) } }
+	chart = func() Runner { return func(p string) { lexMap(srcs[p], tokenize(srcs[p]), tt) } }
 	ref = func() Runner { return func(p string) { tokenize(srcs[p]) } }
 	return chart, ref
 }

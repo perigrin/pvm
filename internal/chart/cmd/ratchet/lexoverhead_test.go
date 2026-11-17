@@ -20,6 +20,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -167,10 +168,20 @@ func TestLexOverheadExcludesPipeline(t *testing.T) {
 	fakePipeline(t, &now, func(*recognize.Recognizer, []byte, forest.Scope) {})
 	old := measureProtocol
 	t.Cleanup(func() { measureProtocol = old })
+	if reflect.ValueOf(lexMap).Pointer() != reflect.ValueOf(lex.Map).Pointer() {
+		t.Fatal("lex-overhead's chart side does not run lex.Map")
+	}
+	mapped := false
+	oldMap := lexMap
+	t.Cleanup(func() { lexMap = oldMap })
+	lexMap = func(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*lex.Stream, int) {
+		mapped = true
+		return oldMap(src, raw, tt)
+	}
 	measureProtocol = func(chart, ref Side) Protocol {
-		// the fake clock charges by file, so the chart side must do chart/lex's work beyond Tokenize's for itself
-		if c, r := testing.AllocsPerRun(1, func() { chart()(std5k) }), testing.AllocsPerRun(1, func() { ref()(std5k) }); c <= r {
-			t.Errorf("lex-overhead's chart side allocates %v on std5k.pl, Tokenize %v: it does not run chart/lex", c, r)
+		// the fake clock charges by file, so the chart side must run chart/lex (lex.Map) itself
+		if chart()(std5k); !mapped {
+			t.Error("lex-overhead's chart side does not call lex.Map")
 		}
 		charged := func(s Side) Side {
 			return func() Runner { run := s(); return func(p string) { now += 10; run(p) } }
