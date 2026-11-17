@@ -116,14 +116,32 @@ func TestTypedMy(t *testing.T) {
 		"my Foo::Bar $f; Foo::Bar::f();":                   false,
 		"package Foo; package main; my Foo;":               false,
 		"my $x = 'Foo'; Foo->new; my Foo $f;":              false,
+		// a bareword or class name makes no stash; a variable, a &-sigilled word, a call with ( and a sub's name do
+		"Foo::bar; my Foo $f;":          false,
+		"Foo::Bar->x; my Foo $f;":       false,
+		"my $x = Foo::; my Foo $f;":     false,
+		"Foo::->x; my Foo $f;":          false,
+		"$x->Foo::bar; my Foo $f;":      false,
+		"Foo::bar(); my Foo $f;":        true,
+		"Foo::bar (); my Foo $f;":       true,
+		"&Foo::bar; my Foo $f;":         true,
+		`\&Foo::bar; my Foo $f;`:        true,
+		"@Foo::x = (); my Foo $f;":      true,
+		"$Foo'x = 1; my Foo $f;":        true,
+		"$main::Foo::x = 1; my Foo $f;": true,
+		"$::Foo::x = 1; my Foo $f;":     true,
+		`*Foo::x = \1; my Foo $f;`:      true,
 	})
 }
 
-// Known limit (the shortcut on chart/lex's typedClass): a stash made by a string eval is not seen, so its typed my is
-// refused where perl -c (94e50866) accepts it.
+// Known limits (the shortcut on chart/lex's typedClass): a stash made by a string eval, an interpolated variable or a
+// braced name is not seen, so its typed my is refused where perl -c (94e50866) accepts each.
 func TestTypedMyKnownLimit(t *testing.T) {
-	if src := `BEGIN { eval "package Foo; 1" } my Foo $f;`; pipelineSource(t, src) {
-		t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+	for _, src := range []string{`BEGIN { eval "package Foo; 1" } my Foo $f;`, `my $s = "$Foo::x"; my Foo $f;`,
+		`${Foo::x} = 1; my Foo $f;`} {
+		if pipelineSource(t, src) {
+			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
+		}
 	}
 }
 

@@ -137,6 +137,9 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 type stashes struct {
 	made map[string]bool
 	prev string // the last significant token's text if it was a Word, else ""
+	// prevKind and prevEnd are the last significant token's kind and end byte, which say whether a word is sigilled.
+	prevKind lexer.Kind
+	prevEnd  int
 }
 
 // startStashes are the stashes the pinned perl (94e50866) starts with, measured by `my X $f;` under perl -c.
@@ -149,9 +152,9 @@ var startStashes = map[string]bool{"main": true, "UNIVERSAL": true, "CORE": true
 // typedClass is whether t is a typed my's class name: a word after my, our or state (its feature maybe on) other than
 // sub or method, naming a stash that exists. toke.c croaks "No such class" for any other, so that word is kept and,
 // with no reading the grammar takes there, refuses.
-// shortcut: a stash made other than by package, class, use, no, require or a qualified name before it (a string
-// eval, a glob assignment, a module that makes another package) is not seen, so that typed my is refused; upgrade
-// when a corpus shows one.
+// shortcut: a stash made other than by package, class, use, no, require or a symbol's qualified name before it (a
+// string eval, an interpolated "$Foo::x", ${Foo::x}, a module that makes another package) is not seen, so that typed
+// my is refused; upgrade when a corpus shows one.
 func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	if t.Kind != lexer.Word || st.prev != "my" && st.prev != "our" && (st.prev != "state" || (on.On|on.Maybe)&FeatureState == 0) {
 		return false
@@ -161,11 +164,17 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 }
 
 // note records the stashes t makes: the name after package, class (its feature on), use, no or require, and each
-// package a qualified name passes through (`$Foo::x`, `Foo::Bar::f`); then t as the previous word.
+// package a qualified name passes through where perl makes a symbol of it -- a variable (`$Foo::x`, `$Foo'x`), a
+// &-sigilled or glob word (`&Foo::bar`, `*Foo::x`), a call with ( (`Foo::bar()`) or a sub's name (`sub Foo::bar`);
+// a bareword or class name (`Foo::bar;`, `Foo::Bar->x`, `Foo::`) makes none. Then t is the previous token.
 func (st *stashes) note(t lexer.Token, text string, on Features) {
 	tx := text[t.Start:t.End]
+	prev, prevKind, prevEnd := st.prev, st.prevKind, st.prevEnd
+	st.prev, st.prevKind, st.prevEnd = "", t.Kind, t.End
+	if t.Kind == lexer.Word {
+		st.prev = tx
+	}
 	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
-		st.prev = ""
 		return
 	}
 	add := func(n string) {
@@ -175,7 +184,7 @@ func (st *stashes) note(t lexer.Token, text string, on Features) {
 		st.made[n] = true
 	}
 	if t.Kind == lexer.Word {
-		switch st.prev {
+		switch prev {
 		case "package", "use", "no", "require":
 			add(strings.TrimSuffix(tx, "::"))
 		case "class":
@@ -184,17 +193,33 @@ func (st *stashes) note(t lexer.Token, text string, on Features) {
 			}
 		}
 	}
-	if strings.Contains(tx, "::") {
-		parts := strings.Split(strings.TrimLeft(tx, "$@%&*#{"), "::")
-		for k := 1; k < len(parts); k++ {
-			if p := strings.Join(parts[:k], "::"); p != "" {
-				add(p)
-			}
+	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
+		return
+	}
+	symbol := t.Kind == lexer.Variable || prevKind == lexer.FuncSigil || prev == "sub" ||
+		prevKind == lexer.Operator && prevEnd == t.Start && text[t.Start-1] == '*'
+	if !symbol {
+		rest := strings.TrimLeft(text[t.End:], " \t")
+		symbol = rest != "" && rest[0] == '('
+	}
+	if !symbol {
+		return
+	}
+	name := strings.ReplaceAll(strings.TrimLeft(tx, "$@%&*#{"), "'", "::")
+	for {
+		if n, ok := strings.CutPrefix(name, "::"); ok {
+			name = n
+		} else if n, ok := strings.CutPrefix(name, "main::"); ok {
+			name = n
+		} else {
+			break
 		}
 	}
-	st.prev = ""
-	if t.Kind == lexer.Word {
-		st.prev = tx
+	parts := strings.Split(name, "::")
+	for k := 1; k < len(parts); k++ {
+		if p := strings.Join(parts[:k], "::"); p != "" {
+			add(p)
+		}
 	}
 }
 
