@@ -201,8 +201,16 @@ func TestTypedMy(t *testing.T) {
 		"package Foo; package main; my main::'Foo $f;":          false,
 		"package main::::Foo; package main; my main::::Foo $f;": true,
 		"package Foo; package main; my main'main'Foo $f;":       true,
-		// a symbol's stash keeps a trailing ::, so $Foo::::x makes Foo and Foo::
-		"$Foo::::x = 1; my Foo:::: $f;": true,
+		// a name's trailing :: is a stash inside it (Foo::, or the stash named "" in main::::); the class word drops one
+		"$Foo::::x = 1; my Foo:::: $f;":                           true,
+		"package Foo::; package main; my Foo:::: $f;":             true,
+		"package Foo; package main; my Foo:::: $f;":               false,
+		"my main:::: $f;":                                         false,
+		"package main::; package main; my main:::: $f;":           true,
+		"$::::x = 1; my main:::: $f;":                             true,
+		"package main::::Foo; package main; my main:::: $f;":      true,
+		"package main::::Foo; package main; my main::::Foo:: $f;": true,
+		"$::x = 1; my main:::: $f;":                               false,
 		// a version after use, no or require names no stash
 		"use v5; my v5 $f;":     false,
 		"use v6; my v6 $f;":     false,

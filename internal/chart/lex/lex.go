@@ -163,15 +163,13 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	if strings.HasPrefix(w, "::") {
 		return false // perl reads `my ::Foo` as a syntax error
 	}
-	if w = strings.TrimSuffix(stashName(w), "::"); w == "" {
-		w = "main" // `my main::`
-	}
+	w = stashName(strings.TrimSuffix(w, "::")) // `my Foo::` is Foo, `my main::::` the stash named "" (main::::)
 	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
 }
 
 // stashName is the stash a qualified name n names, as perl reads it: ' is ::, and one leading :: and then any number
-// of main:: name nothing more (`::main::main::Foo'Bar` is Foo::Bar, `main::::Foo` is ::Foo). A package name's
-// trailing :: names nothing more either; its callers trim that.
+// of main:: name nothing more (`::main::main::Foo'Bar` is Foo::Bar, `main::::Foo` is ::Foo, inside the stash named
+// "", and `Foo::` is a stash inside Foo).
 func stashName(n string) string {
 	n = strings.TrimPrefix(strings.ReplaceAll(n, "'", "::"), "::")
 	for strings.HasPrefix(n, "main::") {
@@ -187,9 +185,7 @@ func (st *stashes) add(n string) {
 	}
 	for k := 0; k <= len(n); k++ {
 		if k == len(n) || strings.HasPrefix(n[k:], "::") {
-			if k > 0 {
-				st.made[n[:k]] = true
-			}
+			st.made[n[:k]] = true // "" too: main:: is in no stash, so only main::::'s parts name it
 		}
 	}
 }
@@ -219,7 +215,7 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 		prev == "class" && on.On&FeatureClass != 0) &&
 		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && strings.Trim(tx[1:], "0123456789") == "") {
 		// a v-string after use, no or require is a version, not a module
-		st.add(strings.TrimSuffix(stashName(tx), "::"))
+		st.add(stashName(tx))
 	}
 	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
 		return
@@ -243,7 +239,7 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	}
 	// the symbol's stash is all of its name before the last ::
 	name := strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(tx, "$@%&*#{ \t\n"), "} \t\n"), "'", "::")
-	if k := strings.LastIndex(name, "::"); k >= 0 {
+	if k := strings.LastIndex(name, "::"); k > 0 { // `$::x` is main's
 		st.add(stashName(name[:k]))
 	}
 }
