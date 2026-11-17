@@ -5,6 +5,8 @@ package grammar
 
 import (
 	"slices"
+	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -1859,6 +1861,9 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_PAREN_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("(")}},
 }
 
+// notIdent is whether r cannot be in a Perl identifier.
+func notIdent(r rune) bool { return r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
 // xrefListOperators are the list operators toke.c's lop() calls with XREF, the ones a block can follow.
 var xrefListOperators = []string{"print", "printf", "say", "sort", "map", "grep", "exec", "system"}
 
@@ -1879,11 +1884,12 @@ func init() {
 		prev2 bool
 	}
 	seen := map[repeat]bool{}
-	// The words a library operator's word class leaves out: the keywords, and the words a class names (x=, an
-	// operator internal/lexer lexes as a word).
+	// The words a library operator's word class leaves out: the keywords, and a word a class names that is no
+	// identifier, so cannot be a word plugin (x=, an operator internal/lexer lexes as a word). An identifier a class
+	// names (CORE) keeps the reading: yyl_keylookup asks the plugin about it.
 	named := lexer.Keywords()
 	for _, d := range perlyClasses {
-		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Word && k.Text != nil {
+		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Word && k.Text != nil && strings.ContainsFunc(*k.Text, notIdent) {
 			named = append(named, *k.Text)
 		}
 	}

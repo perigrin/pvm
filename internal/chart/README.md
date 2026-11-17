@@ -1430,9 +1430,10 @@ sample, constrained by precedence and resolved, to
 perigrin's ruling A (2026-11-10, "do what perl does"): an infix operator a
 library declares reads as the `PLUGIN_*` terminal toke.c's
 `tokentype_for_plugop` gives its level (toke.c:9264-9288, perl.h's
-`INFIX_PREC_*`). A word no class names (no keyword, nor `x=`, which internal/lexer lexes as a
-word) where `x` is the operator, and an operator no class names anywhere,
-also admit the eleven `PLUGIN_*` terminals
+`INFIX_PREC_*`). A word where `x` is the operator, unless it is a keyword or
+a class names it and it is no identifier (`x=`, which internal/lexer lexes as
+a word; `CORE`, which a class names, stays: `yyl_keylookup` asks the plugin
+about it), and an operator no class names anywhere, also admit the eleven `PLUGIN_*` terminals
 (perly.go's `init`; toke.c checks a plugin in `yyl_keylookup` and `yyl_try`).
 `forest.Scope.LibraryOperators` is `parse.LibraryOperators` over the tree the
 imports come from, and before the precedence constraint `forest.Parse` keeps a

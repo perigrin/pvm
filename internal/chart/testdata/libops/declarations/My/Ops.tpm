@@ -19,3 +19,6 @@ sub ⊕ :infix :tighter(+) :looser(*) (Num $x, Num $y) Num;
 
 # Spelled as a keyword, which toke.c asks the plugin about before the keyword.
 sub print :infix(ADD) (Num $x, Num $y) Num;
+
+# A word some class names (PRIVATEREF's CORE), which toke.c still asks the plugin about.
+sub CORE :infix(ADD) (Num $x, Num $y) Num;

@@ -91,6 +91,7 @@ func TestLibraryOperatorsAsPerl(t *testing.T) {
 		"1 * 2 pow 3;":           "(1 * (2 pow 3))",
 		"1 pow 2 pow 3;":         "(1 pow (2 pow 3))",
 		"1 ** 2 high 3;":         "(1 ** (2 high 3))",
+		"1 CORE 2;":              "(1 CORE 2)", // a word a class names (PRIVATEREF), still a plugin's: yyl_keylookup
 		// The parity limit: recursive descent places ⊕ between + and *, so it groups (1 ⊕ (2 * 3)) there; perl has no
 		// bucket between, and tokentype_for_plugop's <= puts it at PLUGIN_MUL_OP, so it groups ((1 ⊕ 2) * 3) here.
 		"1 ⊕ 2 * 3;": "((1 ⊕ 2) * 3)",
