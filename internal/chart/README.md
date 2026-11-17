@@ -1222,12 +1222,16 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
   `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature
   on), `use`, `no`, `require`, or a qualified name where perl makes a symbol: a variable (`$Foo::x`, `$Foo'x`), a
-  word after `&`, a word after a glob's `*` (one in term position, `grammar.Neighbour.Glob`) or after its `{`
-  (`* Foo::x`, `*{Foo::x}`), a word called with `(` or `->(` that is no method's name, or a sub's name. A bareword,
-  class or method name (`Foo::bar;`, `Foo::Bar->x`, `Foo::`, `$x->Foo::bar()`) and a word after a multiply's `*`
-  make no stash. Any other is kept, which the grammar refuses, as perl's "No such class" does. shortcut: a stash
-  made any other way (a string eval, an interpolated `"$Foo::x"`, `${Foo::x}`, a print's filehandle
-  `print Foo::x "a"`, a module that makes another package) is not seen, so that typed my is refused.
+  word after a sigil (`&Foo::bar`, a glob's `*Foo::x`: one in term position, `grammar.Neighbour.Glob`, which holds
+  after a repetition `x`, `grammar.Neighbour.Repeat`), a word alone in the braces after any sigil or cast
+  (`@{Foo::x}`, `&{Foo::bar}`, `*{ Foo::x }`, `${Foo::x}`), a word called with `(`, a word before `->` that no method
+  name follows (`Foo::bar->[0]`, `Foo::bar->@*`, `Foo::bar->()`), or a sub's name. Neighbours are significant tokens,
+  so whitespace, comments and POD between them do not count. A bareword, class or method name (`Foo::bar;`,
+  `Foo::Bar->x`, `Foo::bar->$m`, `Foo::`, `$x->Foo::bar()`), a block holding a string (`*{::Foo::x}`) and a word
+  after a multiply's `*` make no stash. Any other is kept, which the grammar refuses, as perl's "No such class" does.
+  shortcut: a stash made any other way (a string eval, an interpolated `"$Foo::x"` or `"@Foo::x"`, an `s///e`
+  replacement, a print's filehandle `print Foo::x "a"`, a module that makes another package) is not seen, so that
+  typed my is refused.
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its

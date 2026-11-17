@@ -146,14 +146,41 @@ func TestTypedMy(t *testing.T) {
 		"Foo::bar-> (); my Foo $f;":         true,
 		"Foo::Bar->x(); my Foo $f;":         false,
 		"$x->$Foo::m(); my Foo $f;":         true,
+		// the * after a repetition x is a glob's sigil
+		"my $y = $z x *Foo::x; my Foo $f;":  true,
+		"my $y = $z x*Foo::x; my Foo $f;":   true,
+		"my @y = (1) x *Foo::x; my Foo $f;": true,
+		// a word before -> is a class name only where a method follows; a deref makes it a call
+		"Foo::bar->[0]; my Foo $f;":  true,
+		"Foo::bar->{a}; my Foo $f;":  true,
+		"Foo::bar->@*; my Foo $f;":   true,
+		"Foo::bar->%*; my Foo $f;":   true,
+		"Foo::bar->$*; my Foo $f;":   true,
+		"Foo::bar->$#*; my Foo $f;":  true,
+		"Foo::bar->**; my Foo $f;":   true,
+		"Foo::bar->$m(); my Foo $f;": false,
+		// neighbours are significant tokens: a newline or a comment between them does not count
+		"Foo::bar\n(); my Foo $f;":     true,
+		"Foo::bar # c\n(); my Foo $f;": true,
+		"Foo::bar->\n(); my Foo $f;":   true,
+		"Foo::bar ->\n(); my Foo $f;":  true,
+		// a word alone in the braces after any sigil or cast is a name; a leading :: makes a block of a string
+		"&{Foo::bar}; my Foo $f;":         true,
+		"&{Foo::bar}(); my Foo $f;":       true,
+		`\&{Foo::bar}; my Foo $f;`:        true,
+		"@{Foo::x} = (); my Foo $f;":      true,
+		"%{Foo::x} = (); my Foo $f;":      true,
+		"${Foo::x} = 1; my Foo $f;":       true,
+		`*{::Foo::x} = \1; my Foo $f;`:    false,
+		`@{Foo::x . ""} = (); my Foo $f;`: false,
 	})
 }
 
-// Known limits (the shortcut on chart/lex's typedClass): a stash made by a string eval, an interpolated variable, a
-// braced name or a print's filehandle is not seen, so its typed my is refused where perl -c (94e50866) accepts each.
+// Known limits (the shortcut on chart/lex's typedClass): a stash made by a string eval, an interpolated variable, an
+// s///e replacement or a print's filehandle is not seen, so its typed my is refused where perl -c (94e50866) accepts each.
 func TestTypedMyKnownLimit(t *testing.T) {
 	for _, src := range []string{`BEGIN { eval "package Foo; 1" } my Foo $f;`, `my $s = "$Foo::x"; my Foo $f;`,
-		`${Foo::x} = 1; my Foo $f;`, `print Foo::x "a"; my Foo $f;`} {
+		`my $s = "@Foo::x"; my Foo $f;`, `$_ =~ s/a/Foo::bar()/e; my Foo $f;`, `print Foo::x "a"; my Foo $f;`} {
 		if pipelineSource(t, src) {
 			t.Errorf("%q is accepted; the known limit is gone, so drop the shortcut and the README line", src)
 		}
@@ -178,6 +205,7 @@ func TestDigitGlob(t *testing.T) {
 		"*12 = \\&f;":           true,
 		"my $x = *1;":           true,
 		"print *1{CODE};":       true,
+		"my $y = $z x *1;":      true,
 		"my $x = 2 *1;":         true,
 		"*1x = 1;":              false,
 		// scan_ident takes decimal digits only, and no second digit after a leading 0 ("Numeric variables with

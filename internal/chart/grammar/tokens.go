@@ -66,6 +66,10 @@ type Neighbour struct {
 	// SortParen is on a `(` right after sort (not a method named sort): toke.c's yyl_leftparen lets the word after it be
 	// sort's sub name (toke.c:8158), as the word right after sort is, so the ( says what it was, as Label does.
 	SortParen bool
+	// Repeat is on an x that is the repetition operator, one whose predecessor completes a term (KEY_x's XOPERATOR
+	// test): it expects a term, so a `*` after it is a glob's sigil (completes). Like Glob it needs the table
+	// (TokenTable.Intern), and no class key reads it, so x keeps one class either way.
+	Repeat bool
 	// Array is on a variable that opens with @ or $#, so a word's key can tell `foo @x`, which toke.c refuses,
 	// from `foo $x`, a method call. A class that names a Variable neighbour and means every sigil lists both.
 	Array bool
@@ -248,6 +252,9 @@ func (tt *TokenTable) completes(pred *Neighbour) bool {
 	if pred.Name {
 		return true
 	}
+	if pred.Repeat {
+		return false
+	}
 	n := *pred
 	n.Glob, n.Brace, n.SortParen = false, 0, false
 	if n.Kind == lexer.Word && tt.text[n.Text] == 0 {
@@ -425,6 +432,7 @@ func (tt *TokenTable) Intern(t *TokenView, pred *Neighbour, it *Token) {
 	if t.Kind == lexer.Operator && t.Text == "*" {
 		it.N.Glob = !tt.completes(pred)
 	}
+	it.N.Repeat = t.Kind == lexer.Word && t.Text == "x" && tt.completes(pred)
 	text := tt.textID(t.Text)
 	ct := text
 	if it.N.Text == "" {
