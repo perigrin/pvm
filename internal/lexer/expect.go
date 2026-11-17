@@ -136,6 +136,9 @@ type transition struct {
 	// openedBlock is set on a `{` that opened a block rather than a subscript
 	// or an anonymous hash. See trackBrackets.
 	openedBlock bool
+	// blockWantsTerm is set on an XREF block's `{` that block_expectation
+	// leaves at XTERM: see blockExpectsTerm.
+	blockWantsTerm bool
 	// useArg is set on a `use` or `no` statement's module name:
 	// see lexer.useArg.
 	useArg bool
@@ -343,6 +346,9 @@ func (e Expect) after(k Kind, t transition) Expect {
 		// branch below gives: a statement-start brace is refined by
 		// braceIsHash in trackBrackets, perl's intuit_curly lookahead.
 		if t.openedBlock {
+			if t.blockWantsTerm {
+				return XTerm
+			}
 			return XState
 		}
 		// An attribute list's colon, an empty list's included: toke.c's

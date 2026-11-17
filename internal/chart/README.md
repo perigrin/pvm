@@ -1081,6 +1081,17 @@ A second, pinned in the same test: after `try`, `catch`, `finally`, `default` or
 (`preblock`), so a declared sub of that name called with a hash, `sub try {} try { "a", 1 };`, reads as a block
 where perl reads `HASHBRACK`.
 
+The first token of a block opened in XREF (`map`, `grep`, `sort`, and the handle slot of `print`, `printf`,
+`system`, `exec` and `CORE::say`) follows toke.c's `block_expectation`: a `{` there is `HASHBRACK` whatever is
+inside it, and `sub` then `:` an attributed anonymous sub rather than a label (`internal/lexer`'s
+`blockExpectsTerm`, issue `01a1ea64-2d7c`). So `map { { $_->get_columns } } @x` builds an anonymous hash, and
+`map { { 1; } } @x` is refused, as perl -c refuses it. A sub or method named like one of those words is not
+XREF: `sub print { { 1; } }` keeps its block. Two limits, pinned in `TestBlockExpectationBraceKnownLimits` here and in
+the lexer: a bare `say` is not XREF, because the lexer does not track the say feature, so `use v5.10; say { {1;} } 1;`
+is accepted where perl reads `HASHBRACK` and refuses; and a newline or comment between `sub` and `:` is skipped as a
+space is, so `map { sub` NEWLINE `: lvalue {1} } @x` is accepted where toke.c loses the `sub` with its line and perl
+refuses.
+
 A `{` after `use` or `no` MODULE is `HASHBRACK`, as toke.c's `S_tokenize_use` leaves a term expected after
 the module name (`internal/lexer`'s `useArg`, issue `01a1c83a-0466`). One limit, pinned in the lexer's
 `TestUseModuleBraceVersionKnownLimit`: after the version the lexer still expects an operator where toke.c
