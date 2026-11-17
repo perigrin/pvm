@@ -279,8 +279,10 @@ key of the first attempt is retired.
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
-  `recognize` for `leo-disagree`, the verdict keys and the speed ratios,
-  `forest` for the forest stage key and `BenchForest`,
+  `recognize` for `leo-disagree`, the verdict keys' recognition counts and
+  the speed ratios' recognizer, `forest` for the chart's verdict and the
+  speed ratios' chart side (`forest.Parse`, `forest.ParseWith`), the forest
+  stage key and `BenchForest`,
   `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
   reference side and the tdt keys, and `internal/parse` for recursive
   descent's verdicts and times.
@@ -293,9 +295,11 @@ key of the first attempt is retired.
   accepts, searching the file's own directory as `parse.ParseFileFrom` does.
   The speed ratios and stages (`speed-ratio-*`, `speed-stage-*`) and
   `lex-overhead-aggregate`'s file exclusion time bare `parse.Parse`: "Leave it
-  out" (perigrin, 2026-11-10) computes scope facts outside the timed span, and
-  the chart resolves nothing yet, so a resolving denominator would charge
-  recursive descent for work the chart skips. (`lex-overhead`'s reference side
+  out" (perigrin, 2026-11-10) computes scope facts outside the timed span on
+  both sides. The chart's resolve reads them as `forest.Scope`, from
+  `parse.Imports` over the verdict side's tree, obtained once per file before
+  any timed span; so neither side is charged for loading modules
+  (`TestSpeedChartSideExcludesScopeFacts`). (`lex-overhead`'s reference side
   is `lexer.Tokenize`.) The speed keys' aggregate is drawn from the superset
   population, which now uses resolving recursive descent: that adds 163
   files, and their timing baselines are retaken by KEYS or VERDICT.
@@ -379,6 +383,12 @@ To take a baseline after an intended change, run
   compiled alone, each file tokenized once and mapped only for the claims it
   could hold a token of (`TestTDTAbsentReasonsHold`, about 5 s;
   `TestTDTAbsentReasonsMatchPerClaimScan` holds it to the unfiltered scan).
+- **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
+  file is accepted when `forest.Parse` accepts it, under its scope facts, so a
+  precedence or scope refusal is the chart's refusal
+  (`TestRatchetVerdictIsPipeline`, `TestRatchetCountsPipelineOverRefusal`).
+  `leo-disagree`, `items-per-token`, `set-reuse`, `terminals-per-token` and
+  `lex-unmapped` stay recognition's (`TestRecognitionKeysUnchangedByPipeline`).
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).
@@ -389,8 +399,8 @@ To take a baseline after an intended change, run
 | `tables-drift` | committed tables differing from what `make chart-tables` writes | may not rise; 0 at the exit |
 | `leo-disagree` | files where Leo on and off differ in acceptance or `Expected` at any position, over every corpus file | may not rise; 0 at the exit |
 | `ledger-gaps` | reference alternatives with no ledger mark, plus grammar citations not in the ledger | may not rise; 0 at the exit |
-| `rd-accepted-chart-refused` | superset-population files the chart refuses | may not rise; 0 at the exit |
-| `chart-accepted-both-refused` | perl grammar refusals recursive descent also refuses that the chart accepts, less both lexer lists | may not rise; 0 at the exit |
+| `rd-accepted-chart-refused` | superset-population files the chart refuses, by the whole pipeline's verdict (`forest.Parse`), so a constraint or resolve that over-refuses counts here | may not rise; 0 at the exit |
+| `chart-accepted-both-refused` | perl refusals in the categories grammar, precedence and scope that recursive descent also refuses and the chart (`forest.Parse`) accepts, less both lexer lists | may not rise; 0 at the exit |
 | `lex-unmapped` | files with a token the chart's table leaves unmapped | may not rise; known list from completion |
 | `tdt-aligned` | tokens aligned with perl's `-DT` | may not fall |
 | `tdt-mismatch` | aligned tokens whose terminal set misses perl's | 0 from completion |
@@ -408,17 +418,17 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `alloc-per-token-chart` | the chart's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it covers lex plus recognition (not the forest), so no recognizer or forest bound sits on it | timing |
+| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it covers the side the speed ratios time, the whole pipeline (`forest.ParseWith`), so no recognizer or forest bound sits on it | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
 | `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
 | `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of the chart side, lex, recognize and forest, over the aggregate; 0 to 1 | timing |
 | `gc-cpu-share-rd` | the same around one pass of recursive descent | timing |
-| `items-per-token` | Earley items per token, over files the chart accepts (§7's cost on recognized input) | reported |
-| `set-reuse` | share of positions whose Earley set was already interned, over files the chart accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
+| `items-per-token` | Earley items per token, over files recognition accepts (§7's cost on recognized input), whatever the pipeline does after | reported |
+| `set-reuse` | share of positions whose Earley set was already interned, over files recognition accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
 | `ledger-excluded` | ledger alternatives marked excluded (reasons, a closed list in `grammar/ledger.go`: `keyword-plugin`, `refused-in-action`, `conditional-refusal`, `error-recovery`, `interpolation-only`, `folded-into-token`) | reported |
 | `superset-population` | files both perl and recursive descent accept, less both lexer lists | reported |
-| `superset-recognized` | share of that population the chart accepts | reported |
+| `superset-recognized` | share of that population the chart (`forest.Parse`) accepts | reported |
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
 | `chart-accepted-perl-refused` | files the chart accepts and perl refuses | reported |
 
@@ -497,10 +507,13 @@ clock and a collector, so it is tested on fake timings
   `make test` tests the gate on an injected load
   (`TestLexOverheadRefusesBusyMachine`), and `TestLexOverheadProductionLoad`
   pins the production path and limit.
-- **What the speed ratios run.** The chart side is `chart/lex` then
-  `recognize.Recognize` on one recognizer: long-lived reuses it across a
-  pass's files (its intern table and cache persist), cold makes a fresh
-  one per file. Recursive descent is `parse.Parse`, which holds no state
+- **What the speed ratios run.** The chart side is the whole pipeline,
+  checkpoint 3's definition: `forest.ParseWith`, which is `forest.Parse` on a
+  recognizer the caller keeps (chart/lex, recognition, the forest, the
+  precedence constraint, resolve and the readings count), each file under
+  scope facts obtained before any timed span (`TestSpeedChartSideIsPipeline`).
+  Long-lived reuses the recognizer across a pass's files (its intern table and
+  cache persist), per-file makes a fresh one per file. Recursive descent is `parse.Parse`, which holds no state
   between files, so its two lifetimes coincide. On a file the chart refuses,
   every position after the refusal holds no items and costs little, so
   until the chart recognizes the population (`superset-recognized`) a ratio
@@ -516,7 +529,7 @@ clock and a collector, so it is tested on fake timings
   them), so each chart pass starts with the pool empty. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
-  The `speed-ratio-*` keys keep that definition. Each `speed-stage-*` key
+  `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`). Each `speed-stage-*` key
   times only its own stage against recursive descent, long-lived, its inputs
   prepared once outside the span (lattices for recognize, charts for the
   forest; a file the chart refuses has no forest, so `forest.Build` returns
