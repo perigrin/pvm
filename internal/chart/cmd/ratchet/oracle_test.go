@@ -64,9 +64,9 @@ func totals(e, w, x, n int) parseoracle.Totals {
 }
 
 // TestOracleGrading: per site, the chart grades an EXACT site, a WIDER one from a call whose reading hangs on a \
-// prototype slot it does not fit, and a collapsed statement's site WIDER beside the decided one after it; recursive
-// descent is graded the same way; a deliberately wrong fake subject grades WRONG, its site listed on stderr, and a
-// fake agreeing with perl everywhere grades no WRONG.
+// prototype slot it does not fit, and a collapsed statement's site every reading holds EXACT, as is the one after it;
+// recursive descent is graded the same way; a deliberately wrong fake subject grades WRONG, its site listed on
+// stderr, and a fake agreeing with perl everywhere grades no WRONG.
 func TestOracleGrading(t *testing.T) {
 	c := sampleCorpus(t, nil, "exact.pl", "wider.pl", "collapsed.pl")
 	ref := func(line int) parseoracle.SubjectCallSite {
@@ -92,8 +92,8 @@ func TestOracleGrading(t *testing.T) {
 		subject string
 		want    parseoracle.Totals
 	}{
-		{"chart", totals(2, 2, 0, 0)},
-		{"rd", totals(4, 0, 0, 0)}, // it fits f's \@ slot, and nothing collapses for it
+		{"chart", totals(3, 1, 0, 0)}, // a collapsed statement hedges only the sites its readings disagree on
+		{"rd", totals(4, 0, 0, 0)},    // it fits f's \@ slot, and nothing collapses for it
 		{"agree", totals(4, 0, 0, 0)},
 		{"wrong", totals(3, 0, 1, 0)},
 	} {

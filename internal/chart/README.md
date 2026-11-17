@@ -2062,10 +2062,10 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   `Foo::bar { a => 1 };` in a block are 4^5 readings and six collapse it).
   **Collapse is not a refusal**: the file is accepted and its other
   statements keep their counts (`TestReadingsCollapsedFileStillAccepted`).
-  Anything that needs a collapsed statement's reading treats it as undecided:
-  its oracle sites answer `Unresolved` (WIDER), which ORACLEGRADE
-  (`01a1c324-1f12`) builds in `forest/facts.go`; until then they are graded
-  like any other site (below). A node met again on its own path counts 0,
+  A collapsed statement's oracle sites are read from the packed forest, which
+  still holds every reading: only a site its readings disagree on answers
+  `Unresolved` (WIDER), as in any statement (perigrin, 2026-11-16, "Narrow
+  it"; `forest/facts.go`). A node met again on its own path counts 0,
   exact on perly.y's acyclic forests; shortcut: on a toy's cyclic forest a
   count memoized below a cycle omits that path wherever the node is reached
   again (the cyclic row of `TestReadingsCollapse`). The per-corpus rate is measured, not stored:
@@ -2155,10 +2155,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   and others do not is `Unresolved`, which grades WIDER, never a guess
   (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
   a block in others). The facts come from whatever `forest.Parse` runs: the
-  precedence constraint, resolve and the readings count. Every site of a
-  statement with more than 2^10 readings, nested ones included, is
-  `Unresolved` (WIDER): its readings are not enumerated, so nothing in it is
-  decided (`collapsed.pl`).
+  precedence constraint, resolve and the readings count. A statement with
+  more than 2^10 readings is answered the same way: its readings are not
+  enumerated, but the packed forest holds them all, so a site every reading
+  holds is decided and only one they disagree on is `Unresolved`
+  (`collapsed.pl`).
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
   has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
   nothing declares included, since a module resolve cannot see may give it

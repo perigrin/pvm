@@ -56,8 +56,9 @@ func TestOracleSubject(t *testing.T) {
 			{"line":2,"end_line":2,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true},
 			{"kind":"reference","line":3,"end_line":3,"took_reference":true}]}`},
-		// six ambiguous statements make the block 4^6 readings, above 2^10, so it collapses: every site in it is
-		// Unresolved, its \@a included; the \@a after it is decided
+		// six ambiguous statements make the block 4^6 readings, above 2^10, so it collapses; a collapsed statement
+		// hedges only the sites its readings disagree on (perigrin, 2026-11-16, "Narrow it"): each Foo::bar and its
+		// { a => 1 } stay Unresolved, and the \@a every reading holds is decided, as is the one after the block
 		{"collapsed.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
@@ -71,7 +72,7 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
 			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
-			{"kind":"reference","line":2,"end_line":6,"took_reference":false,"unresolved":true},
+			{"kind":"reference","line":2,"end_line":6,"took_reference":true},
 			{"kind":"reference","line":7,"end_line":7,"took_reference":true}]}`},
 		// under use utf8 a handle's name is runes, not bytes: perl reads <FÉ> as readline, not a glob
 		{"utf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},

@@ -120,14 +120,14 @@ type subjectFacts struct {
 	uncertain map[int]bool // the sites some readings hold and others do not
 	all       map[int]bool // every site any reading holds
 	stmts     [][2]int     // the statements' token spans, top level only, sorted
-	collapsed [][2]int     // the token spans of the statements with more than CollapseAbove readings
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
 // forest.Parse accepts it under scope, the prototypes resolve saw, and a site for each decision at an oracle
 // marker in the readings forest.Parse leaves, on its statement's lines as perl numbers them. A site some
-// readings hold and others do not is Unresolved, as is every site of a statement with more than CollapseAbove
-// readings. Neither list is ever nil.
+// readings hold and others do not is Unresolved, in a statement with more than CollapseAbove readings as in any
+// other: the packed forest holds every reading, so a collapsed one hedges only what its readings disagree on
+// (perigrin, 2026-11-16). Neither list is ever nil.
 func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) parseoracle.SubjectFacts {
 	facts := parseoracle.SubjectFacts{Prototypes: map[string]string{}, CallSites: []parseoracle.SubjectCallSite{}}
 	f, s, _ := parseStream(tab, recognize.New(tab, recognize.Options{}), src, scope)
@@ -174,7 +174,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 			continue // a #line directive moved it into another file
 		}
 		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: line[first], EndLine: line[last],
-			Unresolved: sf.uncertain[k] || slices.ContainsFunc(sf.collapsed, func(c [2]int) bool { return c[0] <= at && at < c[1] })}
+			Unresolved: sf.uncertain[k]}
 		if kind == kindCall {
 			cs.Name = r.text(at)
 			if d, st := r.lookup(cs.Name, at); st != declared || strings.ContainsAny(d.proto, `\*+`) {
@@ -200,8 +200,7 @@ func bareProto(p string) string {
 	return strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(p, "("), ")"), " ", "")
 }
 
-// walk visits every node a derivation of the root reaches: it records the statements, the collapsed ones among them,
-// every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
+// walk visits every node a derivation of the root reaches: it records the statements, every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
 // uncertain.
 // shortcut: code interpolated in a string or heredoc is one token the forest does not read, so a marker inside it
 // reports nothing, which grades WRONG where perl built one; hedging it with parse.InterpolatesCode is
@@ -211,7 +210,6 @@ func (sf *subjectFacts) walk() {
 	seen := make([]bool, len(f.Nodes))
 	seen[f.Root] = true
 	var spans [][2]int
-	count := f.counter()
 	stack := []int32{f.Root}
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
@@ -220,9 +218,6 @@ func (sf *subjectFacts) walk() {
 		if int(nd.Sym) == sf.g.fullstmt && nd.To > nd.From && int(nd.From) < len(sf.s.Tokens) {
 			sp := [2]int{int(nd.From), min(int(nd.To), len(sf.s.Tokens))}
 			spans = append(spans, sp)
-			if count(n) > CollapseAbove {
-				sf.collapsed = append(sf.collapsed, sp)
-			}
 		}
 		if k, ok := sf.leafSite(n); ok {
 			sf.all[k] = true
