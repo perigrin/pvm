@@ -77,8 +77,8 @@ func corpus() ([]File, map[string][]byte, error) {
 }
 
 // speedParse is recursive descent as every speed key times it: bare, resolving
-// nothing, because the chart does not resolve yet (perigrin, 2026-11-10 "Leave
-// it out"; 2026-11-14 "Verdict keys only").
+// nothing, as the chart's scope facts are obtained outside its timed span
+// (perigrin, 2026-11-10, "Leave it out").
 var speedParse = parse.Parse
 
 // rdRunner is the speed side's recursive descent over srcs.
@@ -86,11 +86,14 @@ func rdRunner(srcs map[string][]byte) func() Runner {
 	return func() Runner { return func(path string) { speedParse(srcs[path]) } }
 }
 
+// lexMap is chart/lex as lex-overhead's chart side runs it; tests record its calls.
+var lexMap = lex.Map
+
 // lexSides are chart/lex and lexer.Tokenize as protocol sides over srcs.
 // The chart side calls tokenize inside its span, so lex-overhead's numerator
 // is the whole of chart/lex, the lexer included.
 func lexSides(srcs map[string][]byte, tt *grammar.TokenTable, tokenize func([]byte) []lexer.Token) (chart, ref Side) {
-	chart = func() Runner { return func(p string) { lex.Map(srcs[p], tokenize(srcs[p]), tt) } }
+	chart = func() Runner { return func(p string) { lexMap(srcs[p], tokenize(srcs[p]), tt) } }
 	ref = func() Runner { return func(p string) { tokenize(srcs[p]) } }
 	return chart, ref
 }
@@ -166,20 +169,30 @@ func productionProtocol(chart, ref Side) Protocol {
 	}
 }
 
-// measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
-// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
-// It returns lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
-	tt := tab.Tokens
+// lexUnmapped is lex-unmapped's files, as "<path> <byte>" pairs: those with a
+// token tt cannot map.
+func lexUnmapped(tt *grammar.TokenTable, files []File, srcs map[string][]byte) []string {
 	var unmapped []string
 	for _, f := range files {
 		if _, at := lex.Lex(srcs[f.Path], tt); at >= 0 {
 			unmapped = append(unmapped, fmt.Sprintf("%s %d", f.Path, at))
 		}
 	}
+	return unmapped
+}
+
+// measureProtocol is the Protocol measureLex times with; tests put it on a fake clock.
+var measureProtocol = productionProtocol
+
+// measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
+// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
+// It returns lex-unmapped's files as "<path> <byte>" pairs.
+func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
+	tt := tab.Tokens
+	unmapped := lexUnmapped(tt, files, srcs)
 	measured["lex-unmapped"] = strconv.Itoa(len(unmapped))
 
-	p := productionProtocol(lexSides(srcs, tt, lexer.Tokenize))
+	p := measureProtocol(lexSides(srcs, tt, lexer.Tokenize))
 	rd := rdRunner(srcs)
 	agg, err := aggregateFiles(p, rd, files, in)
 	if err != nil {
@@ -188,7 +201,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	if err := lexOverheadKeys(p, agg, measured); err != nil {
 		return nil, err
 	}
-	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
+	p.Chart, p.Ref = pipelineSide(tab, files, in, srcs), rd
 	tokens := 0 // the allocation keys' denominator
 	for _, f := range agg {
 		tokens += len(lexer.Tokenize(srcs[f]))

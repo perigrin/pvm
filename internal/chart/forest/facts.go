@@ -10,6 +10,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 	"tamarou.com/pvm/internal/parseoracle"
@@ -109,7 +110,7 @@ type subjectFacts struct {
 // readings. Neither list is ever nil.
 func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) parseoracle.SubjectFacts {
 	facts := parseoracle.SubjectFacts{Prototypes: map[string]string{}, CallSites: []parseoracle.SubjectCallSite{}}
-	f, s, _ := parseStream(tab, src, scope)
+	f, s, _ := parseStream(tab, recognize.New(tab, recognize.Options{}), src, scope)
 	if f == nil {
 		return facts
 	}

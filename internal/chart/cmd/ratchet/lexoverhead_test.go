@@ -18,7 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/lexer"
 )
 
@@ -151,6 +154,64 @@ func TestLexOverheadKeys(t *testing.T) {
 				t.Errorf("files timed in order %v, want %v (the LSP buffers, then the aggregate)", order, want)
 			}
 		})
+	}
+}
+
+// TestLexOverheadExcludesPipeline: measureLex's own wiring, on a fake clock.
+// Its protocol charges 10 to each file of the sides it is made with (chart/lex
+// and Tokenize), the whole pipeline (pipelineParse) costs 15 a file and the
+// speed side's recursive descent 10. lex-overhead then reads 1.000, so its
+// span holds no forest, constraint or resolve work, and the speed ratios read
+// 1.5000, so measureLex times the pipeline there.
+func TestLexOverheadExcludesPipeline(t *testing.T) {
+	var now time.Duration
+	fakePipeline(t, &now, func(*recognize.Recognizer, []byte, forest.Scope) {})
+	old := measureProtocol
+	t.Cleanup(func() { measureProtocol = old })
+	if reflect.ValueOf(lexMap).Pointer() != reflect.ValueOf(lex.Map).Pointer() {
+		t.Fatal("lex-overhead's chart side does not run lex.Map")
+	}
+	mapped := false
+	oldMap := lexMap
+	t.Cleanup(func() { lexMap = oldMap })
+	lexMap = func(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*lex.Stream, int) {
+		mapped = true
+		return oldMap(src, raw, tt)
+	}
+	measureProtocol = func(chart, ref Side) Protocol {
+		// the fake clock charges by file, so the chart side must run chart/lex (lex.Map) itself
+		if chart()(std5k); !mapped {
+			t.Error("lex-overhead's chart side does not call lex.Map")
+		}
+		charged := func(s Side) Side {
+			return func() Runner { run := s(); return func(p string) { now += 10; run(p) } }
+		}
+		return Protocol{Chart: charged(chart), Ref: charged(ref), Now: func() time.Duration { return now }, GC: runtime.GC,
+			Stderr: io.Discard, LoadPath: loadFile(t, "0.00 0.00 0.00 1/1 1"), LoadLimit: 4}
+	}
+	srcs := map[string][]byte{std5k: []byte("$x = 1;"), edit5k: []byte("$y;")}
+	files := []File{{std5k, "std5k"}, {edit5k, "edit5k"}}
+	for i := range 10 { // ten more, so none is above 10% of recursive descent's time
+		p := fmt.Sprintf("f%d.pl", i)
+		srcs[p] = []byte("$z;")
+		files = append(files, File{p, "x"})
+	}
+	in := verdictInputs{
+		RD:    func(string) (bool, error) { return true, nil },
+		Perl:  func(string) *perlVerdict { return &perlVerdict{} },
+		Scope: func(string) forest.Scope { return forest.Scope{} },
+	}
+	m := map[string]string{}
+	if _, err := measureLex(committedTables(t), files, in, srcs, m); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{
+		"lex-overhead": "1.000", "lex-overhead-std5k": "1.000", "lex-overhead-aggregate": "1.000",
+		"speed-ratio-std5k-longlived": "1.5000", "speed-ratio-aggregate-longlived": "1.5000", "speed-ratio-aggregate-perfile": "1.5000",
+	} {
+		if m[k] != want {
+			t.Errorf("%s = %q, want %s", k, m[k], want)
+		}
 	}
 }
 

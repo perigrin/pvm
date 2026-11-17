@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/chart"
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
@@ -26,25 +27,33 @@ type perlVerdict struct {
 	Category string
 }
 
-// chartResult is one file's recognition: whether the chart accepts it, its
-// mapped tokens (those whose terminal set is not empty) and the terminals
-// those sets hold, and over the nodes after the first that have an Earley
-// set (Positions): their items and how many sets were already interned.
+// chartResult is one file's chart verdict and recognition: whether the
+// whole pipeline (forest.Parse) accepts it, whether recognition alone does,
+// its mapped tokens (those whose terminal set is not empty) and the
+// terminals those sets hold, and over the nodes after the first that have an
+// Earley set (Positions): their items and how many sets were already interned.
 type chartResult struct {
-	Accepted               bool
+	Accepted, Recognized   bool
 	Tokens, Terminals      int
 	Positions, Items, Hits int
 }
 
 // verdictInputs are the sides of a verdict, by corpus path. Perl returns nil
 // for a file with no label.
-// Excluded is Q11's set: the files on either lexer list.
+// Excluded is Q11's set: the files on either lexer list. Scope is a file's
+// scope facts, from the verdict RD's tree.
 type verdictInputs struct {
 	Chart    func(path string) (chartResult, error)
 	RD       func(path string) (bool, error)
 	Perl     func(path string) *perlVerdict
+	Scope    func(path string) forest.Scope
 	Excluded map[string]bool
 }
+
+// gatedCategory is perl's refusal categories chart-accepted-both-refused
+// counts: what perly.y refuses, and, since the verdict is the whole
+// pipeline, what the precedence constraint and resolve refuse (spec §9.2).
+var gatedCategory = map[string]bool{"grammar": true, "precedence": true, "scope": true}
 
 // measureVerdicts adds the verdict keys over files to measured. It returns
 // the files behind each gated count, for listRises. A recognizer error is an
@@ -73,7 +82,7 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 			continue
 		}
 		tokens, terminals = tokens+r.Tokens, terminals+r.Terminals
-		if r.Accepted { // §7's cost is the cost on recognized input
+		if r.Recognized { // §7's cost is the cost on recognized input, whatever the pipeline does after
 			positions, items, hits = positions+r.Positions, items+r.Items, hits+r.Hits
 		}
 	}
@@ -95,7 +104,7 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		}
 		if v.Refused && accepted {
 			perlRefused++
-			if v.Category == "grammar" && !rd[i] && !in.Excluded[f.Path] {
+			if gatedCategory[v.Category] && !rd[i] && !in.Excluded[f.Path] {
 				refused["chart-accepted-both-refused"] = append(refused["chart-accepted-both-refused"], f.Path)
 			}
 		}
@@ -208,11 +217,34 @@ func realDirs(path string) []string {
 // ownDir is realDirs for a path that is real: its own directory alone.
 func ownDir(path string) []string { return []string{filepath.Dir(path)} }
 
-// chartInputs are the real sides over srcs: the chart is chart/lex then a
-// fresh recognizer per file, recursive descent follows `use` as psc does, perl
-// is the committed labels. The speed side's recursive descent stays bare
-// (speedParse): the chart resolves nothing yet.
+// chartInputs are the real sides over srcs. The chart's verdict is the whole
+// pipeline, forest.Parse under the file's scope facts; its counts are
+// recognition's, chart/lex then a fresh recognizer. Recursive descent follows
+// `use` as psc does, and its tree gives the scope facts (parse.Imports), each
+// file parsed once; perl is the committed labels. The speed side's recursive
+// descent stays bare (speedParse).
 func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[string]bool, perl func(string) *perlVerdict, dirs func(string) []string) verdictInputs {
+	type rdResult struct {
+		ok    bool
+		scope forest.Scope
+		err   error
+	}
+	rds := map[string]rdResult{}
+	rd := func(path string) rdResult {
+		if r, ok := rds[path]; ok {
+			return r
+		}
+		var r rdResult
+		r.ok, r.err = rdAccepts(path, func() *parse.Node {
+			// ParseFileFrom's search: the file's own directory, then its roots, then the declarations.
+			n := parse.ParseWithLoader(srcs[path], parse.DirLoader(dirs(path)...))
+			r.scope.Imports = parse.Imports(n)
+			return n
+		})
+		rds[path] = r
+		return r
+	}
+	scope := func(path string) forest.Scope { return rd(path).scope }
 	return verdictInputs{
 		Chart: func(path string) (chartResult, error) {
 			s, _ := lex.Lex(srcs[path], tab.Tokens) // an unmapped token has the empty set, which refuses
@@ -227,20 +259,29 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			if err != nil {
 				return r, err
 			}
-			r.Accepted = c.Accepted()
+			r.Recognized = c.Accepted()
 			for _, set := range c.Sets[1:] {
 				r.Items += len(set.Items())
 			}
 			// Node 0 is a set of its own in a fresh recognizer, never a hit.
 			r.Hits, r.Positions = c.Reuse()
 			r.Positions--
+			if r.Recognized {
+				_, ref := forest.Parse(tab, srcs[path], scope(path))
+				if !pipelineReason[ref.Reason] {
+					return r, fmt.Errorf("the pipeline: %s", ref.Reason)
+				}
+				r.Accepted = ref.Reason == ""
+			}
 			return r, nil
 		},
-		RD: func(path string) (bool, error) {
-			// ParseFileFrom's search: the file's own directory, then its roots, then the declarations.
-			return rdAccepts(path, func() *parse.Node { return parse.ParseWithLoader(srcs[path], parse.DirLoader(dirs(path)...)) })
-		},
+		RD:       func(path string) (bool, error) { r := rd(path); return r.ok, r.err },
 		Perl:     perl,
+		Scope:    scope,
 		Excluded: excluded,
 	}
 }
+
+// pipelineReason is forest.Parse's verdicts: accepted (""), or refused for
+// one of its reasons. Any other reason is an error inside it.
+var pipelineReason = map[string]bool{"": true, "lex-unmapped": true, "grammar": true, "precedence": true, "scope": true}

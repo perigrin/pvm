@@ -195,6 +195,16 @@ func TestResolveKnownLimits(t *testing.T) {
 		// the lexer scans no v-string after a name (Word:v1 Operator:. Number:2.3, 01a1a481-ebef), so class's keyword
 		// reading, the only one the class feature leaves, fails; perl accepts it.
 		{"use feature 'class'; no warnings; class Foo v1.2.3;", false},
+		// internal/lexer opens a block at a { after a word and a bareword (an indirect object or a filehandle), empty or
+		// not unless its first item is followed by , or => (01a1e9a2), where toke.c reads an anonymous hash, so the
+		// forest holds no method-call or print-list reading of it; resolve finds the word undeclared (method's keyword
+		// reading needs the class feature) and leaves no derivation, refusing with reason scope. perl accepts all
+		// five, the first four as foo->method({...}).
+		{"method foo {}", false},
+		{"new Foo {};", false},
+		{"meth foo {};", false},
+		{"new Foo { %h };", false},
+		{"print STDOUT {};", false},
 		// the indirect feature is not read, so a word before a variable stays a method with it off (v5.36's bundle);
 		// perl refuses it ("Scalar found where operator expected").
 		{`use v5.36; no feature "state"; state $x = 1;`, true},
@@ -413,6 +423,9 @@ func TestResolveFeatures(t *testing.T) {
 		{"use feature 'class'; no warnings; class Foo { ADJUST { 1 } }", true},
 		{"use feature 'class'; no warnings; class Foo { package Bar; method m {} }", false},
 		{"use feature 'class'; no warnings; class Foo {} package Foo; method m {}", true}, // the stash is a class's
+		// with the feature off they are words, outside a class too: method foo; is foo->method
+		{"method foo;", true},
+		{"ADJUST { 1 }", true},
 		// a signature after an attribute list needs the feature
 		{"sub f :lvalue ($x) {}", false},
 		{"sub f :prototype($) ($x) {}", false},

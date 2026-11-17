@@ -98,6 +98,7 @@ func classOf(c *Neighbour, t *TokenView, pred *Neighbour) {
 	brace := BraceNone
 	if t.Kind == lexer.Operator && t.Text == "{" {
 		switch {
+		// shortcut: the lexer opens a block at a { after an indirect object or filehandle (01a1e9a2), which this keeps; upgrade when it lands
 		case t.OpensBlock, pred.Kind == lexer.DerefSigil:
 			brace = BraceBlock
 		case pred.Kind == lexer.Variable, pred.Kind == lexer.CloseBracket && !pred.OpensBlock,

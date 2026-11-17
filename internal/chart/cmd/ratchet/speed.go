@@ -121,26 +121,27 @@ func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string
 	return kept
 }
 
-// chartSide is the chart as a protocol side: construct makes one recognizer,
-// which the side calls on a file's bytes. Side makes a Runner per pass
-// (long-lived) or per file (cold), so the lifetimes live in the protocol.
-func chartSide(srcs map[string][]byte, construct func() func(src []byte)) Side {
-	return func() Runner {
-		recognizeSrc := construct()
-		return func(path string) { recognizeSrc(srcs[path]) }
-	}
-}
+// pipelineParse is the whole pipeline as the speed ratios time it; tests fake it on the protocol's clock.
+var pipelineParse = forest.ParseWith
 
-// recognizerFor is chart/lex then recognition on a fresh recognizer. A
-// recognizer error panics: the verdict keys have already recognized every
-// corpus file, so one here is a bug, not a slow file.
-func recognizerFor(tab *grammar.Tables) func() func([]byte) {
-	return func() func([]byte) {
+// pipelineSide is the chart as the speed ratios time it, checkpoint 3's
+// definition: chart/lex, recognition, the forest, the precedence constraint,
+// resolve and the readings count (forest.ParseWith) over srcs. Side makes a
+// recognizer per pass (long-lived) or per file (per-file), so the lifetimes
+// live in the protocol. Every file's scope facts are obtained here, from in,
+// before any timed span, as recursive descent's speed side resolves nothing
+// (perigrin, 2026-11-10, "Leave it out"). A pipeline error panics: the verdict
+// keys have already run the pipeline, so one here is a bug, not a slow file.
+func pipelineSide(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte) Side {
+	scopes := make(map[string]forest.Scope, len(files))
+	for _, f := range files {
+		scopes[f.Path] = in.Scope(f.Path)
+	}
+	return func() Runner {
 		r := recognize.New(tab, recognize.Options{})
-		return func(src []byte) {
-			s, _ := lex.Lex(src, tab.Tokens)
-			if _, err := recognize.Recognize(r, lex.Linear(s)); err != nil {
-				panic("chart-ratchet: speed: " + err.Error())
+		return func(path string) {
+			if _, ref := pipelineParse(tab, r, srcs[path], scopes[path]); !pipelineReason[ref.Reason] {
+				panic("chart-ratchet: speed: " + ref.Reason)
 			}
 		}
 	}
@@ -264,7 +265,7 @@ func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(pa
 // chartStages times the chart's stages (measureStages) over tab, and adds
 // gc-cpu-share-chart (lex, recognize and forest) and gc-cpu-share-rd (p's
 // Ref), each over one pass of agg, taken before measureStages prepares its
-// lattices and charts so they are not live. Like recognizerFor, a recognizer
+// lattices and charts so they are not live. Like pipelineSide, a recognizer
 // error panics; a refused file has no forest, so forest.Build returns at once
 // and its forest stage does almost nothing.
 func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, measured map[string]string) error {

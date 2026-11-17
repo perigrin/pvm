@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -43,6 +44,7 @@ func vinputs(m map[string]vfile, excluded ...string) verdictInputs {
 		Chart: func(p string) (chartResult, error) {
 			r := m[p].res
 			r.Accepted = m[p].chart
+			r.Recognized = r.Recognized || r.Accepted // the pipeline accepts only what recognition does
 			return r, m[p].err
 		},
 		RD:       func(p string) (bool, error) { return m[p].rd, nil },
@@ -118,18 +120,103 @@ func TestVerdictKeysNeedEveryLabel(t *testing.T) {
 	}
 }
 
-func TestVerdictKeysPrecedenceNotGated(t *testing.T) {
+// TestRatchetVerdictIsPipeline: the chart's verdict is the whole pipeline's
+// (forest.Parse), so a comparison chain (precedence) and a method outside a
+// class under the class feature (scope), which recognition accepts and perl
+// -c refuses, are refused, while the same method word with the feature off,
+// which perl reads as a call, is accepted; a call to a sub a module beside the
+// file exports is accepted only under the file's scope facts (parse.Imports
+// over the verdict RD's tree). And chart-accepted-both-refused counts a file
+// perl refuses for precedence or scope as it counts a grammar one, never a
+// semantic one.
+func TestRatchetVerdictIsPipeline(t *testing.T) {
+	dir := t.TempDir()
+	srcs := map[string][]byte{}
+	for name, text := range map[string]string{
+		"prec.pl":    "$a <=> $b <=> $c;",
+		"scope.pl":   "use feature 'class'; no warnings; method foo {}",
+		"word.pl":    "method foo;",
+		"imports.pl": "use Mine;\nmine 1, 2;\n",
+		"Mine.pm":    "package Mine;\nuse Exporter 'import';\nour @EXPORT = qw(mine);\nsub mine :prototype($$) { 1 }\n1;\n",
+	} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		srcs[name] = []byte(text)
+	}
+	dirs := func(string) []string { return []string{dir} }
+	tab := committedTables(t)
+	in := chartInputs(tab, srcs, nil, nil, dirs)
+	for p, accepted := range map[string]bool{"prec.pl": false, "scope.pl": false, "word.pl": true, "imports.pl": true} {
+		if r, err := in.Chart(p); err != nil || !r.Recognized || r.Accepted != accepted {
+			t.Errorf("%s: %+v, %v; want recognized, and accepted=%v by the pipeline", p, r, err, accepted)
+		}
+	}
+	if _, ok := in.Scope("imports.pl").Imports["mine"]; !ok {
+		t.Errorf("the scope facts of imports.pl are %v, without the module's mine", in.Scope("imports.pl"))
+	}
+	if r, _ := chartInputs(tab, srcs, nil, nil, ownDir).Chart("imports.pl"); r.Accepted {
+		t.Error("imports.pl is accepted without its module, so it proves nothing about the scope facts")
+	}
 	m := map[string]vfile{
 		"prec.pl":  {chart: true, perl: refuse("precedence")},
 		"scope.pl": {chart: true, perl: refuse("scope")},
 		"gram.pl":  {chart: true, perl: refuse("grammar")},
+		"sem.pl":   {chart: true, perl: refuse("semantic")},
 	}
 	got, refused := run(t, m)
-	if got["chart-accepted-perl-refused"] != "3" || got["chart-accepted-both-refused"] != "1" {
-		t.Errorf("perl-refused %q, both-refused %q; want 3 and 1", got["chart-accepted-perl-refused"], got["chart-accepted-both-refused"])
+	if g := strings.Join(refused["chart-accepted-both-refused"], " "); got["chart-accepted-both-refused"] != "3" || g != "gram.pl prec.pl scope.pl" {
+		t.Errorf("chart-accepted-both-refused %q over %q; want 3: gram.pl prec.pl scope.pl", got["chart-accepted-both-refused"], g)
 	}
-	if g := refused["chart-accepted-both-refused"]; len(g) != 1 || g[0] != "gram.pl" {
-		t.Errorf("both-refused list = %v, want gram.pl", g)
+}
+
+// TestRatchetCountsPipelineOverRefusal: a file recognition accepts and the
+// pipeline refuses is the chart's refusal, so in the population it counts in
+// rd-accepted-chart-refused and an over-refusing constraint cannot hide.
+func TestRatchetCountsPipelineOverRefusal(t *testing.T) {
+	m := map[string]vfile{"over.pl": {rd: true, perl: accept(), res: chartResult{Recognized: true}}}
+	got, refused := run(t, m)
+	if got["rd-accepted-chart-refused"] != "1" || len(refused["rd-accepted-chart-refused"]) != 1 || got["superset-recognized"] != "0.000" {
+		t.Errorf("rd-accepted-chart-refused %q (%v), superset-recognized %q; want 1 (over.pl) and 0.000",
+			got["rd-accepted-chart-refused"], refused["rd-accepted-chart-refused"], got["superset-recognized"])
+	}
+}
+
+// TestRecognitionKeysUnchangedByPipeline: leo-disagree, items-per-token,
+// set-reuse and lex-unmapped stay recognition's. On a file recognition
+// accepts and the pipeline refuses, each reads the same as under a verdict
+// that takes recognition's acceptance.
+func TestRecognitionKeysUnchangedByPipeline(t *testing.T) {
+	tab := committedTables(t)
+	srcs := map[string][]byte{"prec.pl": []byte("$a <=> $b <=> $c;")}
+	files := []File{{"prec.pl", "x"}}
+	piped := chartInputs(tab, srcs, nil, func(string) *perlVerdict { return refuse("precedence") }, ownDir)
+	if r, err := piped.Chart("prec.pl"); err != nil || r.Accepted || !r.Recognized {
+		t.Fatalf("the fixture: %+v, %v; want recognized and refused by the pipeline, or it proves nothing", r, err)
+	}
+	recognized := piped
+	recognized.Chart = func(p string) (chartResult, error) {
+		r, err := piped.Chart(p)
+		r.Accepted = r.Recognized
+		return r, err
+	}
+	keys := func(in verdictInputs) map[string]string {
+		m := map[string]string{}
+		if _, err := measureVerdicts(files, in, m); err != nil {
+			t.Fatal(err)
+		}
+		if err := measureLeo(tab, files, srcs, m); err != nil {
+			t.Fatal(err)
+		}
+		m["lex-unmapped"] = strconv.Itoa(len(lexUnmapped(tab.Tokens, files, srcs)))
+		return m
+	}
+	got, want := keys(piped), keys(recognized)
+	for _, k := range []string{"leo-disagree", "items-per-token", "set-reuse", "lex-unmapped"} {
+		if got[k] == "" || got[k] != want[k] {
+			t.Errorf("%s = %q under the pipeline's verdict, %q under recognition's; want the same number", k, got[k], want[k])
+		}
 	}
 }
 
