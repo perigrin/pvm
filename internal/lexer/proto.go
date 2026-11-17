@@ -5,6 +5,7 @@ package lexer
 
 import (
 	"bytes"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -216,6 +217,7 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case l.sawPackageWord:
 			l.sawPackageWord = false
 			l.sawPackageName = true
+			l.enterPackage(word)
 			if i := l.significantBefore(len(l.toks) - 1); i >= 0 &&
 				string(l.src[l.toks[i].Start:l.toks[i].End]) == "class" {
 				l.classSyntax = true
@@ -483,6 +485,50 @@ func (l *lexer) closeLexSubScope() {
 	for len(l.lexSubs) > 0 && l.lexSubs[len(l.lexSubs)-1].depth > len(l.brackets) {
 		l.lexSubs = l.lexSubs[:len(l.lexSubs)-1]
 	}
+	for len(l.packages) > 0 && l.packages[len(l.packages)-1].depth > len(l.brackets) {
+		l.packages = l.packages[:len(l.packages)-1]
+	}
+}
+
+// enterPackage puts name in force from `package NAME`: to the end of the
+// enclosing block, or through its own block in `package NAME VERSION {}`.
+func (l *lexer) enterPackage(name string) {
+	depth := len(l.brackets)
+	i := skipSpaceFrom(l.src, l.pos)
+	if i < len(l.src) && (isDigit(l.src[i]) || l.src[i] == 'v') {
+		for i < len(l.src) && (isWordByte(l.src[i]) || l.src[i] == '.') {
+			i++
+		}
+		i = skipSpaceFrom(l.src, i)
+	}
+	if i < len(l.src) && l.src[i] == '{' {
+		depth++
+	}
+	if n := len(l.packages); n > 0 && l.packages[n-1].depth == depth {
+		l.packages = l.packages[:n-1]
+	}
+	l.packages = append(l.packages, lexSub{name: l.qualify(name), depth: depth})
+}
+
+// qualify is a sub or package name in full, as gv_fetchpvn reads it: `'`
+// is `::`, a leading `::` or `main::` is main's, and a bare name is in the
+// package in force.
+func (l *lexer) qualify(name string) string {
+	name = strings.ReplaceAll(name, "'", "::")
+	switch {
+	case strings.HasPrefix(name, "::"):
+		name = "main" + name
+	case !strings.Contains(name, "::"):
+		pkg := "main"
+		if n := len(l.packages); n > 0 {
+			pkg = l.packages[n-1].name
+		}
+		name = pkg + "::" + name
+	}
+	for strings.HasPrefix(name, "main::") && strings.Contains(name[len("main::"):], "::") {
+		name = name[len("main::"):]
+	}
+	return name
 }
 
 // lexSubInScope reports whether a lexical sub of this name is in scope.
@@ -560,7 +606,7 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 			if l.subs == nil {
 				l.subs = map[string]bool{}
 			}
-			l.subs[text] = true
+			l.subs[l.qualify(text)] = true
 			l.constState, l.constKey = constSawName, text
 			return
 		}

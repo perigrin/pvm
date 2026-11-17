@@ -1253,6 +1253,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   and forces BAREWORD, where internal/lexer emits a Number, so a Number after a glob's `*` gets BAREWORD too: only
   decimal digits with no leading 0 (`*1_0`, `*1e3` and `*01` are refused, as by perl), which chart/lex marks with the
   Prefix `grammar.GlobDigits` after any `*`; that Number keeps its THING reading.
+- A glob's caret name (`*^R`, `*{^R}`, `* ^`) is one Word from internal/lexer, as scan_ident reads it. After a word
+  that is not a keyword, internal/lexer reads it only if the word is a sub declared by a `sub NAME` it has read
+  before then, in the package in force there, or a print's filehandle. Otherwise the star multiplies, as in toke.c.
+  shortcut: a sub declared any other way (an import, `use subs`, a glob assignment or an eval at BEGIN time) is
+  undeclared there, so `use POSIX qw(floor); floor *^R;` is refused where perl accepts it. Pinned in internal/lexer's
+  `TestGlobCaretNameAfterWord`.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
   `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature

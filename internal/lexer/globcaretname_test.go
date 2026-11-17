@@ -106,6 +106,7 @@ func TestGlobCaretNameAfterWord(t *testing.T) {
 	mul := func(src string, pre ...string) caretRow {
 		return caretRow{src, append(pre, "Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)")}
 	}
+	glob := func(pre ...string) []string { return append(pre, "Operator(*)", "Word(^R)", "Semicolon(;)") }
 	a := []string{"Word(A)"}
 	checkCaretRows(t, []caretRow{
 		mul("A*^R;", a...),
@@ -118,6 +119,30 @@ func TestGlobCaretNameAfterWord(t *testing.T) {
 		// A print's filehandle expects a term after it too: syntax OK.
 		{"print STDOUT * ^R;", []string{"Word(print)", "Word(STDOUT)", "Operator(*)", "Word(^R)", "Semicolon(;)"}},
 		{"print(STDOUT *{^R});", []string{"Word(print)", "Operator(()", "Word(STDOUT)", "Operator(*)", "Word({^R})", "CloseBracket())", "Semicolon(;)"}},
+		// A sub's name is its package's: `::A`, `main::A` and `'` for `::`
+		// name it in full, and a bare name is in the package in force where
+		// it is written. syntax OK on these.
+		{"sub main::A; A *^R;", glob("Word(sub)", "Word(main::A)", "Semicolon(;)", "Word(A)")},
+		{"sub A; main::A *^R;", glob("Word(sub)", "Word(A)", "Semicolon(;)", "Word(main::A)")},
+		{"sub A; ::A *^R;", glob("Word(sub)", "Word(A)", "Semicolon(;)", "Word(::A)")},
+		{"sub A'B; A::B *^R;", glob("Word(sub)", "Word(A'B)", "Semicolon(;)", "Word(A::B)")},
+		{"sub Foo::A; package Foo; A *^R;", glob("Word(sub)", "Word(Foo::A)", "Semicolon(;)", "Word(package)", "Word(Foo)", "Semicolon(;)", "Word(A)")},
+		{"package Foo; sub A; package main; Foo::A *^R;", glob("Word(package)", "Word(Foo)", "Semicolon(;)", "Word(sub)", "Word(A)", "Semicolon(;)", "Word(package)", "Word(main)", "Semicolon(;)", "Word(Foo::A)")},
+		{"package Foo { sub A {} A *^R; }", []string{"Word(package)", "Word(Foo)", "Operator({)", "Word(sub)", "Word(A)", "Operator({)", "CloseBracket(})", "Word(A)", "Operator(*)", "Word(^R)", "Semicolon(;)", "CloseBracket(})"}},
+		{"sub A; package Foo { 1 } A *^R;", glob("Word(sub)", "Word(A)", "Semicolon(;)", "Word(package)", "Word(Foo)", "Operator({)", "Number(1)", "CloseBracket(})", "Word(A)")},
+		// Elsewhere it is undeclared: syntax error near "*^" on each.
+		mul("package Foo; sub A; package main; A *^R;", "Word(package)", "Word(Foo)", "Semicolon(;)", "Word(sub)", "Word(A)", "Semicolon(;)", "Word(package)", "Word(main)", "Semicolon(;)", "Word(A)"),
+		mul("sub A; package Foo; A *^R;", "Word(sub)", "Word(A)", "Semicolon(;)", "Word(package)", "Word(Foo)", "Semicolon(;)", "Word(A)"),
+		mul("package Foo 1.0 { sub A {} } A *^R;", "Word(package)", "Word(Foo)", "Number(1.0)", "Operator({)", "Word(sub)", "Word(A)", "Operator({)", "CloseBracket(})", "CloseBracket(})", "Word(A)"),
+		// shortcut (wordTakesTerm): a sub declared other than by a `sub NAME`
+		// the lexer has read is undeclared here, so the star multiplies. perl
+		// -c: syntax OK on every row, which the chart and RD refuse.
+		mul("use POSIX qw(floor); floor *^R;", "Word(use)", "Word(POSIX)", "Quote(qw(floor))", "Semicolon(;)", "Word(floor)"),
+		mul("use subs 'A'; A *^R;", "Word(use)", "Word(subs)", "Quote('A')", "Semicolon(;)", "Word(A)"),
+		mul("use Scalar::Util qw(blessed); blessed *^R;", "Word(use)", "Word(Scalar::Util)", "Quote(qw(blessed))", "Semicolon(;)", "Word(blessed)"),
+		mul("BEGIN { *A = sub {} } A *^R;", "Word(BEGIN)", "Operator({)", "Operator(*)", "Word(A)", "Operator(=)", "Word(sub)", "Operator({)", "CloseBracket(})", "CloseBracket(})", "Word(A)"),
+		mul(`BEGIN { eval "sub A {}" } A *^R;`, "Word(BEGIN)", "Operator({)", "Word(eval)", `Quote("sub A {}")`, "CloseBracket(})", "Word(A)"),
+		{"use POSIX qw(floor); floor *{^R};", []string{"Word(use)", "Word(POSIX)", "Quote(qw(floor))", "Semicolon(;)", "Word(floor)", "Operator(*)", "Operator({)", "Operator(^)", "Word(R)", "CloseBracket(})", "Semicolon(;)"}},
 		{"sub A; A *{^R};", []string{"Word(sub)", "Word(A)", "Semicolon(;)", "Word(A)", "Operator(*)", "Word({^R})", "Semicolon(;)"}},
 	})
 }

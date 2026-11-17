@@ -1541,12 +1541,13 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 // wordTakesTerm reports whether toke.c expects a term after the word before
 // toks[i]: a sub the file declared before it with no empty prototype, or a
 // print's filehandle (`print STDOUT *^R`).
-// shortcut: one table for the file, as constSubs; a sub imported or declared
-// by `use subs` is undeclared here. Upgrade when the lexer reads imports.
+// shortcut: a sub declared other than by a `sub NAME` the lexer has read (an
+// import, `use subs`, a glob assignment or eval at BEGIN time) is undeclared
+// here. Upgrade when the lexer reads what BEGIN time declares.
 func (l *lexer) wordTakesTerm(i int) bool {
 	j := l.significantBefore(i)
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
-	return l.subs[w] && !l.constSubs[w] || l.inHandleSlot(j)
+	return l.subs[l.qualify(w)] && !l.constSubs[w] || l.inHandleSlot(j)
 }
 
 // closerBefore reports whether the last significant token before toks[i] is

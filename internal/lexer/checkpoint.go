@@ -112,6 +112,7 @@ func (s State) Clone() State {
 	c.barewordOps = cloneOrNil(c.barewordOps)
 	c.brackets = cloneOrNil(c.brackets)
 	c.lexSubs = cloneOrNil(c.lexSubs)
+	c.packages = cloneOrNil(c.packages)
 	c.lexSubBodies = cloneOrNil(c.lexSubBodies)
 	c.pending = cloneOrNil(c.pending)
 	for i := range c.pending {
