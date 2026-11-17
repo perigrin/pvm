@@ -12,6 +12,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/recognize"
+	"tamarou.com/pvm/internal/parse"
 )
 
 // fakeWorld is a deterministic clock that only moves when a side runs a
@@ -379,5 +384,73 @@ func TestGCShareMissingMetricIsError(t *testing.T) {
 	still := func() (float64, float64, error) { return 1, 10, nil }
 	if s, err := gcShare(side, []string{"a"}, func() {}, still); err == nil || !strings.Contains(err.Error(), "total") {
 		t.Errorf("zero total CPU gave the share %v (%v); want an error naming the total", s, err)
+	}
+}
+
+// fakePipeline puts the whole pipeline (pipelineParse) and the speed side's
+// recursive descent (speedParse) on the fake clock now: a chart file costs
+// recognition 1, the forest 2, the precedence constraint 4 and resolve 8,
+// 15 in all, and a recursive-descent file 10. check sees each call.
+func fakePipeline(t *testing.T, now *time.Duration, check func(r *recognize.Recognizer, src []byte, scope forest.Scope)) {
+	t.Helper()
+	oldP, oldRD := pipelineParse, speedParse
+	t.Cleanup(func() { pipelineParse, speedParse = oldP, oldRD })
+	pipelineParse = func(_ *grammar.Tables, r *recognize.Recognizer, src []byte, scope forest.Scope) (*forest.Forest, forest.Refusal) {
+		check(r, src, scope)
+		*now += 1 + 2 + 4 + 8
+		return nil, forest.Refusal{}
+	}
+	speedParse = func([]byte) *parse.Node { *now += 10; return nil }
+}
+
+// TestSpeedChartSideIsPipeline: on the fake clock, the time the forest, the
+// precedence constraint and resolve take lands on the chart side of every
+// speed ratio, long-lived and per-file, so each reads 15/10; a chart side
+// that timed recognition alone would read 0.1.
+func TestSpeedChartSideIsPipeline(t *testing.T) {
+	var now time.Duration
+	fakePipeline(t, &now, func(*recognize.Recognizer, []byte, forest.Scope) {})
+	srcs := map[string][]byte{std5k: []byte("1;"), "a.pl": []byte("2;"), "b.pl": []byte("3;")}
+	files := []File{{std5k, "std5k"}, {"a.pl", "x"}, {"b.pl", "x"}}
+	in := verdictInputs{Scope: func(string) forest.Scope { return forest.Scope{} }}
+	p := Protocol{Chart: pipelineSide(committedTables(t), files, in, srcs), Ref: rdRunner(srcs),
+		Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
+	m := map[string]string{}
+	measureSpeed(p, []string{"a.pl", "b.pl"}, 1, m)
+	for _, k := range []string{"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile"} {
+		if m[k] != "1.5000" {
+			t.Errorf("%s = %q, want 1.5000: the whole pipeline over recursive descent", k, m[k])
+		}
+	}
+}
+
+// TestSpeedChartSideExcludesScopeFacts: obtaining a file's scope facts costs
+// 1000 on the fake clock, yet the ratios read the pipeline's 15 over
+// recursive descent's 10, long-lived and per-file: the facts are obtained
+// once per file, outside every timed span, and reach the pipeline.
+func TestSpeedChartSideExcludesScopeFacts(t *testing.T) {
+	var now time.Duration
+	fakePipeline(t, &now, func(_ *recognize.Recognizer, src []byte, scope forest.Scope) {
+		if _, ok := scope.Imports[string(src)]; !ok {
+			t.Errorf("the pipeline ran %q under %v, not its own scope facts", src, scope)
+		}
+	})
+	srcs := map[string][]byte{"a.pl": []byte("a.pl"), "b.pl": []byte("b.pl")}
+	files := []File{{"a.pl", "x"}, {"b.pl", "x"}}
+	asked := map[string]int{}
+	in := verdictInputs{Scope: func(path string) forest.Scope {
+		now += 1000
+		asked[path]++
+		return forest.Scope{Imports: map[string]parse.Import{path: {}}}
+	}}
+	p := Protocol{Chart: pipelineSide(committedTables(t), files, in, srcs), Ref: rdRunner(srcs),
+		Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
+	for _, cold := range []bool{false, true} {
+		if r := p.Ratio("test", []string{"a.pl", "b.pl"}, cold); r != 1.5 {
+			t.Errorf("cold=%v: ratio %v, want 1.5: the pipeline over recursive descent, the scope facts on neither side", cold, r)
+		}
+	}
+	if asked["a.pl"] != 1 || asked["b.pl"] != 1 {
+		t.Errorf("scope facts obtained %v, want once per file", asked)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/chart"
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
@@ -26,23 +27,26 @@ type perlVerdict struct {
 	Category string
 }
 
-// chartResult is one file's recognition: whether the chart accepts it, its
-// mapped tokens (those whose terminal set is not empty) and the terminals
-// those sets hold, and over the nodes after the first that have an Earley
-// set (Positions): their items and how many sets were already interned.
+// chartResult is one file's chart verdict and recognition: whether the
+// whole pipeline (forest.Parse) accepts it, whether recognition alone does,
+// its mapped tokens (those whose terminal set is not empty) and the
+// terminals those sets hold, and over the nodes after the first that have an
+// Earley set (Positions): their items and how many sets were already interned.
 type chartResult struct {
-	Accepted               bool
+	Accepted, Recognized   bool
 	Tokens, Terminals      int
 	Positions, Items, Hits int
 }
 
 // verdictInputs are the sides of a verdict, by corpus path. Perl returns nil
 // for a file with no label.
-// Excluded is Q11's set: the files on either lexer list.
+// Excluded is Q11's set: the files on either lexer list. Scope is a file's
+// scope facts, from the verdict RD's tree.
 type verdictInputs struct {
 	Chart    func(path string) (chartResult, error)
 	RD       func(path string) (bool, error)
 	Perl     func(path string) *perlVerdict
+	Scope    func(path string) forest.Scope
 	Excluded map[string]bool
 }
 
@@ -227,7 +231,8 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			if err != nil {
 				return r, err
 			}
-			r.Accepted = c.Accepted()
+			r.Recognized = c.Accepted()
+			r.Accepted = r.Recognized
 			for _, set := range c.Sets[1:] {
 				r.Items += len(set.Items())
 			}

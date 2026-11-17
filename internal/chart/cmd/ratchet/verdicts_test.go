@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -43,6 +44,7 @@ func vinputs(m map[string]vfile, excluded ...string) verdictInputs {
 		Chart: func(p string) (chartResult, error) {
 			r := m[p].res
 			r.Accepted = m[p].chart
+			r.Recognized = r.Recognized || r.Accepted // the pipeline accepts only what recognition does
 			return r, m[p].err
 		},
 		RD:       func(p string) (bool, error) { return m[p].rd, nil },
@@ -118,18 +120,77 @@ func TestVerdictKeysNeedEveryLabel(t *testing.T) {
 	}
 }
 
-func TestVerdictKeysPrecedenceNotGated(t *testing.T) {
+// TestRatchetVerdictIsPipeline: the chart's verdict is the whole pipeline's
+// (forest.Parse), so a comparison chain (precedence) and a method outside a
+// class (scope), which recognition accepts, are refused; and
+// chart-accepted-both-refused counts a file perl refuses for precedence or
+// scope as it counts a grammar one, never a semantic one.
+func TestRatchetVerdictIsPipeline(t *testing.T) {
+	srcs := map[string][]byte{"prec.pl": []byte("$a <=> $b <=> $c;"), "scope.pl": []byte("method foo {}")}
+	in := chartInputs(committedTables(t), srcs, nil, nil, ownDir)
+	for p := range srcs {
+		if r, err := in.Chart(p); err != nil || !r.Recognized || r.Accepted {
+			t.Errorf("%s: %+v, %v; want recognized, and refused by the pipeline", p, r, err)
+		}
+	}
 	m := map[string]vfile{
 		"prec.pl":  {chart: true, perl: refuse("precedence")},
 		"scope.pl": {chart: true, perl: refuse("scope")},
 		"gram.pl":  {chart: true, perl: refuse("grammar")},
+		"sem.pl":   {chart: true, perl: refuse("semantic")},
 	}
 	got, refused := run(t, m)
-	if got["chart-accepted-perl-refused"] != "3" || got["chart-accepted-both-refused"] != "1" {
-		t.Errorf("perl-refused %q, both-refused %q; want 3 and 1", got["chart-accepted-perl-refused"], got["chart-accepted-both-refused"])
+	if g := strings.Join(refused["chart-accepted-both-refused"], " "); got["chart-accepted-both-refused"] != "3" || g != "gram.pl prec.pl scope.pl" {
+		t.Errorf("chart-accepted-both-refused %q over %q; want 3: gram.pl prec.pl scope.pl", got["chart-accepted-both-refused"], g)
 	}
-	if g := refused["chart-accepted-both-refused"]; len(g) != 1 || g[0] != "gram.pl" {
-		t.Errorf("both-refused list = %v, want gram.pl", g)
+}
+
+// TestRatchetCountsPipelineOverRefusal: a file recognition accepts and the
+// pipeline refuses is the chart's refusal, so in the population it counts in
+// rd-accepted-chart-refused and an over-refusing constraint cannot hide.
+func TestRatchetCountsPipelineOverRefusal(t *testing.T) {
+	m := map[string]vfile{"over.pl": {rd: true, perl: accept(), res: chartResult{Recognized: true}}}
+	got, refused := run(t, m)
+	if got["rd-accepted-chart-refused"] != "1" || len(refused["rd-accepted-chart-refused"]) != 1 || got["superset-recognized"] != "0.000" {
+		t.Errorf("rd-accepted-chart-refused %q (%v), superset-recognized %q; want 1 (over.pl) and 0.000",
+			got["rd-accepted-chart-refused"], refused["rd-accepted-chart-refused"], got["superset-recognized"])
+	}
+}
+
+// TestRecognitionKeysUnchangedByPipeline: leo-disagree, items-per-token,
+// set-reuse and lex-unmapped stay recognition's. On a file recognition
+// accepts and the pipeline refuses, each reads the same as under a verdict
+// that takes recognition's acceptance.
+func TestRecognitionKeysUnchangedByPipeline(t *testing.T) {
+	tab := committedTables(t)
+	srcs := map[string][]byte{"prec.pl": []byte("$a <=> $b <=> $c;")}
+	files := []File{{"prec.pl", "x"}}
+	piped := chartInputs(tab, srcs, nil, func(string) *perlVerdict { return refuse("precedence") }, ownDir)
+	if r, err := piped.Chart("prec.pl"); err != nil || r.Accepted || !r.Recognized {
+		t.Fatalf("the fixture: %+v, %v; want recognized and refused by the pipeline, or it proves nothing", r, err)
+	}
+	recognized := piped
+	recognized.Chart = func(p string) (chartResult, error) {
+		r, err := piped.Chart(p)
+		r.Accepted = r.Recognized
+		return r, err
+	}
+	keys := func(in verdictInputs) map[string]string {
+		m := map[string]string{}
+		if _, err := measureVerdicts(files, in, m); err != nil {
+			t.Fatal(err)
+		}
+		if err := measureLeo(tab, files, srcs, m); err != nil {
+			t.Fatal(err)
+		}
+		m["lex-unmapped"] = strconv.Itoa(len(lexUnmapped(tab.Tokens, files, srcs)))
+		return m
+	}
+	got, want := keys(piped), keys(recognized)
+	for _, k := range []string{"leo-disagree", "items-per-token", "set-reuse", "lex-unmapped"} {
+		if got[k] == "" || got[k] != want[k] {
+			t.Errorf("%s = %q under the pipeline's verdict, %q under recognition's; want the same number", k, got[k], want[k])
+		}
 	}
 }
 

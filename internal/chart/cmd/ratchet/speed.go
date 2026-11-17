@@ -131,6 +131,14 @@ func chartSide(srcs map[string][]byte, construct func() func(src []byte)) Side {
 	}
 }
 
+// pipelineParse is the whole pipeline as the speed ratios time it; tests fake it on the protocol's clock.
+var pipelineParse = forest.ParseWith
+
+// pipelineSide is the chart side of the speed ratios.
+func pipelineSide(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte) Side {
+	return chartSide(srcs, recognizerFor(tab))
+}
+
 // recognizerFor is chart/lex then recognition on a fresh recognizer. A
 // recognizer error panics: the verdict keys have already recognized every
 // corpus file, so one here is a bug, not a slow file.

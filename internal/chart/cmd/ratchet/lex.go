@@ -166,17 +166,24 @@ func productionProtocol(chart, ref Side) Protocol {
 	}
 }
 
-// measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
-// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
-// It returns lex-unmapped's files as "<path> <byte>" pairs.
-func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
-	tt := tab.Tokens
+// lexUnmapped is lex-unmapped's files, as "<path> <byte>" pairs: those with a
+// token tt cannot map.
+func lexUnmapped(tt *grammar.TokenTable, files []File, srcs map[string][]byte) []string {
 	var unmapped []string
 	for _, f := range files {
 		if _, at := lex.Lex(srcs[f.Path], tt); at >= 0 {
 			unmapped = append(unmapped, fmt.Sprintf("%s %d", f.Path, at))
 		}
 	}
+	return unmapped
+}
+
+// measureLex adds lex-unmapped over files, lex-overhead over the LSP buffers,
+// lex-overhead-std5k, lex-overhead-aggregate, the speed keys (measureSpeed) and the stage and GC-share keys (chartStages) to measured.
+// It returns lex-unmapped's files as "<path> <byte>" pairs.
+func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[string][]byte, measured map[string]string) ([]string, error) {
+	tt := tab.Tokens
+	unmapped := lexUnmapped(tt, files, srcs)
 	measured["lex-unmapped"] = strconv.Itoa(len(unmapped))
 
 	p := productionProtocol(lexSides(srcs, tt, lexer.Tokenize))
@@ -188,7 +195,7 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 	if err := lexOverheadKeys(p, agg, measured); err != nil {
 		return nil, err
 	}
-	p.Chart, p.Ref = chartSide(srcs, recognizerFor(tab)), rd
+	p.Chart, p.Ref = pipelineSide(tab, files, in, srcs), rd
 	tokens := 0 // the allocation keys' denominator
 	for _, f := range agg {
 		tokens += len(lexer.Tokenize(srcs[f]))

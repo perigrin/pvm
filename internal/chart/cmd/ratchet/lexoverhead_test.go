@@ -18,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/lexer"
 )
 
@@ -151,6 +153,37 @@ func TestLexOverheadKeys(t *testing.T) {
 				t.Errorf("files timed in order %v, want %v (the LSP buffers, then the aggregate)", order, want)
 			}
 		})
+	}
+}
+
+// TestLexOverheadExcludesPipeline: lex-overhead stays chart/lex alone. With
+// the whole pipeline (pipelineParse) charging the fake clock, and Tokenize
+// the only other cost, every lex-overhead figure reads 1 and the pipeline
+// never runs: its span holds no forest, constraint or resolve work.
+func TestLexOverheadExcludesPipeline(t *testing.T) {
+	var now time.Duration
+	ran := false
+	old := pipelineParse
+	t.Cleanup(func() { pipelineParse = old })
+	pipelineParse = func(*grammar.Tables, *recognize.Recognizer, []byte, forest.Scope) (*forest.Forest, forest.Refusal) {
+		ran, now = true, now+1000
+		return nil, forest.Refusal{}
+	}
+	srcs := map[string][]byte{std5k: []byte("$x = 1;"), edit5k: []byte("$y;"), "a.pl": []byte("$z;")}
+	chart, ref := lexSides(srcs, toyLexTable(t), func(src []byte) []lexer.Token { now += 10; return lexer.Tokenize(src) })
+	p := Protocol{Chart: chart, Ref: ref, Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard,
+		LoadPath: loadFile(t, "0.00 0.00 0.00 1/1 1"), LoadLimit: 4}
+	m := map[string]string{}
+	if err := lexOverheadKeys(p, []string{"a.pl"}, m); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate"} {
+		if m[k] != "1.000" {
+			t.Errorf("%s = %q, want 1.000: chart/lex alone", k, m[k])
+		}
+	}
+	if ran {
+		t.Error("lex-overhead's span ran the pipeline")
 	}
 }
 

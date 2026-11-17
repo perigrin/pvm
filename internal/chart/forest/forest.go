@@ -98,15 +98,21 @@ type Refusal struct {
 // precedence, where the constraint leaves the root no derivation; or scope,
 // where resolve leaves the forest none.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
-	f, _, ref := parseStream(tab, src, scope)
+	return ParseWith(tab, recognize.New(tab, recognize.Options{}), src, scope)
+}
+
+// ParseWith is Parse recognizing with r, a recognizer over tab that the
+// caller may keep across files, as the ratchet's long-lived speed side does.
+func ParseWith(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, Refusal) {
+	f, _, ref := parseStream(tab, r, src, scope)
 	return f, ref
 }
 
-// parseStream is Parse, with the token stream the forest is over.
-func parseStream(tab *grammar.Tables, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
+// parseStream is ParseWith, with the token stream the forest is over.
+func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	c, err := recognize.Recognize(r, l)
 	if err != nil {
 		return nil, s, Refusal{Reason: err.Error()}
 	}
