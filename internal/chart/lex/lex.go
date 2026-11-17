@@ -213,7 +213,7 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	}
 	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
 		prev == "class" && on.On&FeatureClass != 0) &&
-		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && strings.Trim(tx[1:], "0123456789") == "") {
+		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && tx[1] >= '0' && tx[1] <= '9' && strings.Trim(tx[1:], "0123456789_") == "") {
 		// a v-string after use, no or require is a version, not a module
 		st.add(stashName(tx))
 	}
