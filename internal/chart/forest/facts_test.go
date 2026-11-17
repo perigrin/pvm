@@ -19,10 +19,11 @@ import (
 func TestOracleSubject(t *testing.T) {
 	tab := committedTables(t)
 	samples := []struct{ file, want string }{
-		// a call, under a prototype or none; f's may take @a by reference, and g's prototype resolve cannot see, so
-		// each is Unresolved, not fitted (facts.go); only h, declared with no \, * or + slot, is decided
+		// a call, under a prototype or none: f's \@ slot takes @a by reference, fitted slot by slot (protoRefs); g's
+		// prototype resolve cannot see, so it is Unresolved; h, declared with a $ slot, takes none
 		{"call.pl", `{"ok":true,"prototypes":{"f":"\\@","h":"$"},"call_sites":[
-			{"line":3,"end_line":3,"name":"f","took_reference":false,"unresolved":true},
+			{"line":3,"end_line":3,"name":"f","took_reference":false},
+			{"kind":"reference","line":3,"end_line":3,"took_reference":true},
 			{"line":4,"end_line":4,"name":"g","took_reference":false,"unresolved":true},
 			{"line":6,"end_line":6,"name":"h","took_reference":false}]}`},
 		// a call to a word nothing declares, where a module resolve cannot see may give it a \ prototype: perl

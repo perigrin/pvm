@@ -2160,12 +2160,17 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   enumerated, but the packed forest holds them all, so a site every reading
   holds is decided and only one they disagree on is `Unresolved`
   (`collapsed.pl`).
+- **Prototype slots.** A call to a declared sub is fitted slot by slot, as
+  op.c's `ck_entersub_args_proto` does: a reference site at each argument a
+  `\` slot takes, `\[...]` included, at a `+` slot's array or hash, and at a
+  `*` slot's glob; none at `$`, `_`, `&` or `;`, nor from `@` or `%` on, nor
+  for `&f(...)` (`TestOracleGradingPrototypeSlots`, `protoslots.pl`). Where the
+  arguments are not one list of terms in every reading, the call's word is an
+  `Unresolved` reference site.
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
-  has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
-  nothing declares included, since a module resolve cannot see may give it
-  one), is `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`,
-  `is_shared(@array)` under `use threads::shared`); only a call to a declared
-  sub with none of those slots is decided; a file's own sub is read before a
+  resolve cannot see (a word nothing declares included, since a module resolve
+  cannot see may give it one) is `Unresolved` (`is_shared(@array)` under
+  `use threads::shared`); a file's own sub is read before a
   later `use` that imports one of the same name, so a call to it is decided on
   the file's declaration where perl applies the import's prototype
   (`sub r {1} use R qw(r); r(@a);` under R's `\@` grades WRONG), since

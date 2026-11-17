@@ -46,6 +46,17 @@ type factsGrammar struct {
 	smartmatch int    // the rule term NCEQOP term, whose operator may be <=> or cmp rather than ~~
 	paren      int    // the rule ( expr ), which leaves an array or hash inside it one
 	aggregate  []bool // the rules whose term is an array or a hash: @a, %h, @{...}, %$r, ->@* and ->%*
+	glob       []bool // the rules whose term is a glob: *FOO, *{...} and ->**
+	// calls is each call rule's shape: where its arguments stand, as refs counts; one where they are a single term,
+	// else a list; block where a block before them fills the prototype's first slot.
+	calls []callShape
+	// the rules a call's argument list is read through, down to its terms
+	listComma, listTrail, listOne, exprList, optList, optEmpty int
+}
+
+type callShape struct {
+	ok, one, block bool
+	back           int
 }
 
 func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
@@ -54,7 +65,9 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 	}
 	g := &factsGrammar{kind: make([]int, len(tab.Rules)), last: make([]bool, len(tab.Rules)), matchop: -1,
 		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols)),
-		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules))}
+		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules)),
+		glob: make([]bool, len(tab.Rules)), calls: make([]callShape, len(tab.Rules)),
+		listComma: -1, listTrail: -1, listOne: -1, exprList: -1, optList: -1, optEmpty: -1}
 	for _, w := range []string{"NOAMP", "FUNC0SUB", "UNIOPSUB", "LSTOPSUB", "METHCALL0", "METHCALL", "BAREWORD"} {
 		if x := id(w); x >= 0 {
 			g.notCore[x] = true
@@ -80,6 +93,28 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 			g.paren = r
 		case lhs == "term" && slices.Contains([]string{"ary", "hsh", "term ARROW CAST_SNAIL", "term ARROW CAST_PERCENT_SIGN"}, joined):
 			g.aggregate[r] = true
+		case lhs == "term" && (joined == "star" || joined == "term ARROW CAST_STAR"):
+			g.glob[r] = true
+		case lhs == "term" && joined == "NOAMP optlistexpr":
+			g.calls[r] = callShape{ok: true}
+		case lhs == "term" && joined == "UNIOPSUB term":
+			g.calls[r] = callShape{ok: true, one: true}
+		case lhs == "term" && joined == "amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+			g.calls[r] = callShape{ok: true, back: 1}
+		case lhs == "listop" && joined == "LSTOPSUB startanonsub block optlistexpr":
+			g.calls[r] = callShape{ok: true, block: true}
+		case lhs == "listexpr" && joined == "listexpr PERLY_COMMA term":
+			g.listComma = r
+		case lhs == "listexpr" && joined == "listexpr PERLY_COMMA":
+			g.listTrail = r
+		case lhs == "listexpr" && joined == "term":
+			g.listOne = r
+		case lhs == "expr" && joined == "listexpr":
+			g.exprList = r
+		case lhs == "optlistexpr" && joined == "listexpr":
+			g.optList = r
+		case lhs == "optlistexpr" && joined == "empty":
+			g.optEmpty = r
 		}
 		switch {
 		case len(rhs) > 0 && slices.Contains([]string{"NOAMP", "UNIOPSUB", "FUNC0SUB", "LSTOPSUB"}, rhs[0]),
@@ -117,9 +152,10 @@ type subjectFacts struct {
 	must, may map[int32][]int
 	busy      map[int32]bool
 	failed    map[int32]bool
-	uncertain map[int]bool // the sites some readings hold and others do not
-	all       map[int]bool // every site any reading holds
-	stmts     [][2]int     // the statements' token spans, top level only, sorted
+	proto     func(at int) (string, bool) // the prototype of the declared sub the word at token at calls, if it has one
+	uncertain map[int]bool                // the sites some readings hold and others do not
+	all       map[int]bool                // every site any reading holds
+	stmts     [][2]int                    // the statements' token spans, top level only, sorted
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -153,6 +189,10 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
 		uncertain: map[int]bool{}, all: map[int]bool{}}
+	sf.proto = func(at int) (string, bool) {
+		d, st := r.lookup(r.text(at), at)
+		return d.proto, st == declared && d.proto != ""
+	}
 	sf.walk()
 
 	keys := make([]int, 0, len(sf.all))
@@ -183,11 +223,9 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 			Unresolved: sf.uncertain[k]}
 		if kind == kindCall {
 			cs.Name = r.text(at)
-			if d, st := r.lookup(cs.Name, at); st != declared || strings.ContainsAny(d.proto, `\*+`) {
-				// a word nothing declares may still be a sub a module resolve cannot see gave a \ prototype.
-				// shortcut: a call whose prototype may take an argument by reference is Unresolved rather than
-				// fitted slot by slot, which grades WIDER where perl took one; upgrade when ORACLEGRADE shows the
-				// WIDER sites cost exact ones recursive descent has.
+			if _, st := r.lookup(cs.Name, at); st != declared {
+				// a word nothing declares may still be a sub a module resolve cannot see gave a \ prototype; a
+				// declared sub's prototype is fitted slot by slot (protoRefs)
 				cs.Unresolved = true
 			}
 			// shortcut: lookup reads the file's own sub before an import of its name, so a later use importing one
@@ -254,7 +292,7 @@ func (sf *subjectFacts) walk() {
 			if k, ok := sf.altSite(n, a); ok {
 				sf.all[k] = true
 			}
-			ks, unsure := sf.refSites(a)
+			ks, unsure := sf.refSites(n, a)
 			for _, k := range ks {
 				sf.all[k] = true
 				sf.uncertain[k] = sf.uncertain[k] || unsure
@@ -326,7 +364,7 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 		if k, has := sf.altSite(n, a); has {
 			am, ay = union(am, []int{k}), union(ay, []int{k})
 		}
-		if ks, unsure := sf.refSites(a); len(ks) > 0 {
+		if ks, unsure := sf.refSites(n, a); len(ks) > 0 {
 			if !unsure {
 				am = union(am, ks)
 			}
@@ -369,26 +407,106 @@ func (sf *subjectFacts) altSite(n int32, a Alt) (int, bool) {
 	return site(sf.g.kind[a.Rule], at), true
 }
 
-// refSites is the references op.c's ref_array_or_hash takes in alternative a, sorted: one for each operand of ~~,
-// given's condition or when's that is an array or a hash, at its first token; unsure where some readings of an
-// operand are one and others are not. A slice or an anonymous array is neither (perl builds no srefgen for it).
-func (sf *subjectFacts) refSites(a Alt) (sites []int, unsure bool) {
+// refSites is the references alternative a of node n takes, sorted, each at its operand's first token, and unsure
+// where some readings of an operand take one and others do not: op.c's ref_array_or_hash takes one for each operand
+// of ~~, given's condition or when's that is an array or a hash (not a slice or an anonymous array), and
+// ck_entersub_args_proto one for each argument a declared sub's prototype wraps (protoRefs).
+func (sf *subjectFacts) refSites(n int32, a Alt) (sites []int, unsure bool) {
+	if sf.g.calls[a.Rule].ok {
+		return sf.protoRefs(n, a)
+	}
 	backs := sf.g.refs[a.Rule]
 	if backs == nil || int(a.Rule) == sf.g.smartmatch && sf.text(int(sf.f.Nodes[sf.child(a, 1)].From)) != "~~" {
 		return nil, false
 	}
 	for _, back := range backs {
 		o := sf.child(a, back)
-		if yes, no := sf.aggregate(o); yes {
+		if yes, no := sf.is(o, sf.g.aggregate); yes {
 			sites, unsure = append(sites, site(kindReference, int(sf.f.Nodes[o].From))), unsure || no
 		}
 	}
 	return sites, unsure
 }
 
-// aggregate is whether some readings of node n are an array or a hash, through unit rules and parentheses, and
-// whether some are not.
-func (sf *subjectFacts) aggregate(n int32) (yes, no bool) {
+// protoRefs is the references ck_entersub_args_proto takes in call alternative a of node n, sorted: where the word
+// calls a declared sub with a prototype, one for each argument at a \ slot, \[...] included, at a + slot that is an
+// array or a hash, and at a * slot that is a glob; none at a $, _, & or ; slot, nor from a @ or % slot on. Where the
+// arguments are not a list of terms every reading divides the same way, the call's own token is an unsure site.
+func (sf *subjectFacts) protoRefs(n int32, a Alt) (sites []int, unsure bool) {
+	if sf.f.Nodes[n].Sym < 0 {
+		return nil, false // a rule position is no call; its rule's node is
+	}
+	at, shape := int(sf.f.Nodes[n].From), sf.g.calls[a.Rule]
+	proto, ok := sf.proto(at)
+	if !ok || sf.s.Raw[sf.s.Tokens[at].Index].Kind != lexer.Word || !strings.ContainsAny(proto, `\*+`) {
+		return nil, false // &f(...) bypasses the prototype
+	}
+	args, ok := []int32{sf.child(a, shape.back)}, true
+	if !shape.one {
+		args, ok = sf.terms(args[0])
+	}
+	if !ok {
+		return []int{site(kindReference, at)}, true
+	}
+	p := bareProto(proto)
+	if shape.block {
+		p = strings.TrimPrefix(strings.TrimLeft(p, ";"), "&")
+	}
+	for _, arg := range args {
+		if p = strings.TrimLeft(p, ";"); p == "" || p[0] == '@' || p[0] == '%' {
+			break
+		}
+		var yes, no bool
+		switch p[0] {
+		case '\\':
+			yes, p = true, p[1:]
+			if strings.HasPrefix(p, "[") {
+				p = p[max(strings.IndexByte(p, ']'), 0):]
+			}
+		case '+':
+			yes, no = sf.is(arg, sf.g.aggregate)
+		case '*':
+			yes, no = sf.is(arg, sf.g.glob)
+		}
+		if p != "" {
+			p = p[1:]
+		}
+		if yes {
+			sites, unsure = append(sites, site(kindReference, int(sf.f.Nodes[arg].From))), unsure || no
+		}
+	}
+	return sites, unsure
+}
+
+// terms is the terms of argument list n, an optlistexpr or an expr, in order, and ok false where n is no list of
+// terms, or one some node of divides more than one way.
+func (sf *subjectFacts) terms(n int32) (ts []int32, ok bool) {
+	f := sf.f
+	for {
+		nd := f.Nodes[n]
+		if nd.Alt == 0 || f.Alts[nd.Alt].Next != 0 {
+			return nil, false
+		}
+		switch a := f.Alts[nd.Alt]; int(a.Rule) {
+		case sf.g.optEmpty:
+			return ts, true
+		case sf.g.exprList, sf.g.optList:
+			n = a.Right
+		case sf.g.listOne:
+			return append([]int32{a.Right}, ts...), true
+		case sf.g.listComma:
+			ts, n = append([]int32{a.Right}, ts...), sf.child(a, 2)
+		case sf.g.listTrail:
+			n = sf.child(a, 1)
+		default:
+			return nil, false
+		}
+	}
+}
+
+// is is whether some readings of node n are a term of one of rules, through unit rules and parentheses, and whether
+// some are not.
+func (sf *subjectFacts) is(n int32, rules []bool) (yes, no bool) {
 	f := sf.f
 	if f.Nodes[n].Alt == 0 {
 		return false, true
@@ -397,12 +515,12 @@ func (sf *subjectFacts) aggregate(n int32) (yes, no bool) {
 		a := f.Alts[x]
 		var y, o bool
 		switch {
-		case sf.g.aggregate[a.Rule]:
+		case rules[a.Rule]:
 			y = true
 		case int(a.Rule) == sf.g.paren:
-			y, o = sf.aggregate(sf.child(a, 1))
+			y, o = sf.is(sf.child(a, 1), rules)
 		case a.Left == 0 && a.Right != 0:
-			y, o = sf.aggregate(a.Right)
+			y, o = sf.is(a.Right, rules)
 		default:
 			o = true
 		}

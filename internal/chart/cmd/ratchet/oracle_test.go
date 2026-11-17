@@ -24,6 +24,8 @@ var samplePerl = map[string]parseoracle.Facts{
 	"collapsed.pl":  {OK: true, Walked: true, OpCount: 51, Sites: map[parseoracle.Marker][]int{"srefgen": {5, 7}}},
 	"import.pl":     {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"r": `\@`}},
 	"smartmatch.pl": {OK: true, Walked: true, OpCount: 65, Sites: map[parseoracle.Marker][]int{"srefgen": {3, 4, 5, 5, 6, 8, 9}}},
+	"protoslots.pl": {OK: true, Walked: true, OpCount: 72, Sites: map[parseoracle.Marker][]int{"srefgen": {3, 4, 5, 5, 6, 7, 8, 8, 9, 10}},
+		Prototypes: map[string]string{"ar": `\@`, "hr": `\%`, "br": `\[@%]`, "pl": "+", "st": "*", "two": `\@\@`, "cb": `&\@`}},
 }
 
 // sampleCorpus writes a facts file holding the named samples' records and returns it as a corpus over testdata/oracle.
@@ -63,9 +65,9 @@ func totals(e, w, x, n int) parseoracle.Totals {
 	return t
 }
 
-// TestOracleGrading: per site, the chart grades an EXACT site, a WIDER one from a call whose reading hangs on a \
-// prototype slot it does not fit, and a collapsed statement's site every reading holds EXACT, as is the one after it;
-// recursive descent is graded the same way; a deliberately wrong fake subject grades WRONG, its site listed on
+// TestOracleGrading: per site, the chart grades an EXACT site, one a call's \ prototype slot takes EXACT, and a
+// collapsed statement's site every reading holds EXACT, as is the one after it; recursive descent is graded the same
+// way; a deliberately wrong fake subject grades WRONG, its site listed on
 // stderr, and a fake agreeing with perl everywhere grades no WRONG.
 func TestOracleGrading(t *testing.T) {
 	c := sampleCorpus(t, nil, "exact.pl", "wider.pl", "collapsed.pl")
@@ -92,7 +94,7 @@ func TestOracleGrading(t *testing.T) {
 		subject string
 		want    parseoracle.Totals
 	}{
-		{"chart", totals(3, 1, 0, 0)}, // a collapsed statement hedges only the sites its readings disagree on
+		{"chart", totals(4, 0, 0, 0)}, // a collapsed statement hedges only the sites its readings disagree on
 		{"rd", totals(4, 0, 0, 0)},    // it fits f's \@ slot, and nothing collapses for it
 		{"agree", totals(4, 0, 0, 0)},
 		{"wrong", totals(3, 0, 1, 0)},
@@ -119,6 +121,19 @@ func TestOracleGradingSmartmatch(t *testing.T) {
 	}
 	if g := got.Sites["chart"]["sample"]; g != totals(7, 0, 0, 0) {
 		t.Errorf("chart: %v (exact, wider, wrong, no-answer by Bucket), want all 7 exact", g)
+	}
+}
+
+// TestOracleGradingPrototypeSlots: perl takes a reference to the argument at each \ slot of a declared sub's
+// prototype, \[...] included, to an array or hash at a + slot and to a glob at a * slot (op.c's
+// ck_entersub_args_proto), and to none where & bypasses it; the chart grades all ten such sites EXACT.
+func TestOracleGradingPrototypeSlots(t *testing.T) {
+	got, err := gradeOracle([]oracleCorpus{sampleCorpus(t, nil, "protoslots.pl")}, defaultSubjects(committedTables(t)), &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := got.Sites["chart"]["sample"]; g != totals(10, 0, 0, 0) {
+		t.Errorf("chart: %v (exact, wider, wrong, no-answer by Bucket), want all 10 exact", g)
 	}
 }
 
