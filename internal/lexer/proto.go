@@ -557,6 +557,10 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	case constSawSub:
 		if k == Word {
+			if l.subs == nil {
+				l.subs = map[string]bool{}
+			}
+			l.subs[text] = true
 			l.constState, l.constKey = constSawName, text
 			return
 		}

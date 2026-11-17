@@ -1386,12 +1386,21 @@ func scanGlobName(l *lexer) bool {
 		end++
 	}
 	switch {
+	// After a word no sub declares, toke.c's star multiplies, so a caret
+	// name is no name: -DT on `A *^R;` shows BAREWORD then MULOP, and `A
+	// *{^R}` is a syntax error. A declared sub takes the glob, as in `sub A;
+	// A *^R;`, unless its empty prototype ends the term; so does a print's
+	// filehandle.
+	case (c == '^' || c == '{') && l.afterUserWord(star, true) && !l.wordTakesTerm(star):
+		return false
 	case c == '{':
 		end = l.caretBraceNameEnd(start)
 		if end < 0 {
 			return false
 		}
-	case end == start+1 && star != len(l.toks)-1:
+	// Only a caret name stands apart from its star, and a bare `^` is one:
+	// scan_ident takes the caret after skipspace whatever follows it.
+	case end == start+1 && star != len(l.toks)-1 && c != '^':
 		return false
 	case c == '$' && (isWordByte(next) || next >= utf8.RuneSelf || next == '$' || next == '{' || next == ':'),
 		c == ':' && next == ':':
@@ -1527,6 +1536,17 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 		return xIsWord && !l.endsTerm(l.significantBefore(j))
 	}
 	return !perlKeywords[w]
+}
+
+// wordTakesTerm reports whether toke.c expects a term after the word before
+// toks[i]: a sub the file declared before it with no empty prototype, or a
+// print's filehandle (`print STDOUT *^R`).
+// shortcut: one table for the file, as constSubs; a sub imported or declared
+// by `use subs` is undeclared here. Upgrade when the lexer reads imports.
+func (l *lexer) wordTakesTerm(i int) bool {
+	j := l.significantBefore(i)
+	w := string(l.src[l.toks[j].Start:l.toks[j].End])
+	return l.subs[w] && !l.constSubs[w] || l.inHandleSlot(j)
 }
 
 // closerBefore reports whether the last significant token before toks[i] is

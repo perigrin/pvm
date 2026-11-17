@@ -261,7 +261,7 @@ func TestLexStateEqualAndCloneAreDeep(t *testing.T) {
 func TestLexStateClonesEveryReference(t *testing.T) {
 	cloned := map[string]bool{
 		"src": true, "toks": true, // cleared, not cloned: the state holds neither
-		"barewordOps": true, "brackets": true, "lexSubs": true, "lexSubBodies": true, "pending": true, "constSubs": true,
+		"barewordOps": true, "brackets": true, "lexSubs": true, "lexSubBodies": true, "pending": true, "constSubs": true, "subs": true,
 	}
 	typ := reflect.TypeOf(lexer{})
 	for i := 0; i < typ.NumField(); i++ {

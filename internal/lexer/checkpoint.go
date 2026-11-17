@@ -122,6 +122,11 @@ func (s State) Clone() State {
 	} else {
 		c.constSubs = maps.Clone(c.constSubs)
 	}
+	if len(c.subs) == 0 {
+		c.subs = nil
+	} else {
+		c.subs = maps.Clone(c.subs)
+	}
 	return State{c}
 }
 

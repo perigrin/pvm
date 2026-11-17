@@ -453,7 +453,9 @@ type lexer struct {
 	// declaration being read; see noteConstSub.
 	//
 	// ponytail: one table for the file; perl scopes these to a package.
-	constSubs  map[string]bool
+	constSubs map[string]bool
+	// subs are the names `sub NAME` declares, read by subTakesTerm.
+	subs       map[string]bool
 	constState int
 	constDepth int
 	constKey   string
@@ -741,6 +743,20 @@ var handleTakers = map[string]bool{
 	"sort": true,
 }
 
+// inHandleSlot reports whether toks[i] is the first thing after a
+// handleTakers word.
+func (l *lexer) inHandleSlot(i int) bool {
+	prev := l.significantBefore(i)
+	// The parenthesised call counts too: toke.c compares PL_last_lop with the
+	// token TWO back, and for `print($fh` that is still `print`. Measured,
+	// `print($f <<"EOT")` is a heredoc on 5.42.0 -- and it is canon's own
+	// spelling, so without this its emission did not re-parse.
+	if prev >= 0 && l.src[l.toks[prev].Start] == '(' && l.toks[prev].End-l.toks[prev].Start == 1 {
+		prev = l.significantBefore(prev)
+	}
+	return prev >= 0 && l.toks[prev].Kind == Word && handleTakers[string(l.src[l.toks[prev].Start:l.toks[prev].End])]
+}
+
 // handleSlotTakesTerm reports whether the scalar just emitted at start fills a
 // handleTakers slot, so a TERM follows it rather than an operator.
 //
@@ -753,16 +769,7 @@ func (l *lexer) handleSlotTakesTerm(start int) bool {
 	if l.src[start] != '$' || l.pos >= len(l.src) || !isSpace(l.src[l.pos]) {
 		return false
 	}
-	prev := l.significantBefore(len(l.toks) - 1)
-	// The parenthesised call counts too: toke.c compares PL_last_lop with the
-	// token TWO back, and for `print($fh` that is still `print`. Measured,
-	// `print($f <<"EOT")` is a heredoc on 5.42.0 -- and it is canon's own
-	// spelling, so without this its emission did not re-parse.
-	if prev >= 0 && l.src[l.toks[prev].Start] == '(' && l.toks[prev].End-l.toks[prev].Start == 1 {
-		prev = l.significantBefore(prev)
-	}
-	if prev < 0 || l.toks[prev].Kind != Word ||
-		!handleTakers[string(l.src[l.toks[prev].Start:l.toks[prev].End])] {
+	if !l.inHandleSlot(len(l.toks) - 1) {
 		return false
 	}
 	s := l.pos

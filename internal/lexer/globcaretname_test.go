@@ -43,6 +43,13 @@ func TestGlobCaretName(t *testing.T) {
 		g("*^_ = 1;", "^_", eq1...), // syntax OK
 		g("*^^ = 1;", "^^", eq1...), // syntax OK
 		g("*^ = 1;", "^", eq1...),   // syntax OK: the glob named ^
+		// A bare ^ is the name across space too, as scan_ident takes the
+		// caret after skipspace: -DT on `* ^;` shows BAREWORD PV("^") forced
+		// before PERLY_STAR. syntax OK.
+		g("* ^ = 1;", "^", eq1...),
+		g("* ^;", "^", "Semicolon(;)"),
+		{"*\n^;", []string{"Operator(*)", "Word(^)", "Semicolon(;)"}},
+		{"* # c\n^;", []string{"Operator(*)", "Comment(# c)", "Word(^)", "Semicolon(;)"}},
 		// syntax OK: the subscript follows the name.
 		g("*^R{CODE};", "^R", "Operator({)", "Word(CODE)", "CloseBracket(})", "Semicolon(;)"),
 		// Space and comments before the name: scan_ident's skipspace. syntax OK.
@@ -83,6 +90,35 @@ func TestGlobCaretNameRefusals(t *testing.T) {
 		// syntax error near "{^": no name, so the brace opens a block.
 		{"*{^r} = 1;", []string{"Operator(*)", "Operator({)", "Operator(^)", "Word(r)", "CloseBracket(})", "Operator(=)", "Number(1)", "Semicolon(;)"}},
 		{"*{^1} = 1;", []string{"Operator(*)", "Operator({)", "Operator(^)", "Number(1)", "CloseBracket(})", "Operator(=)", "Number(1)", "Semicolon(;)"}},
+		// The bare glob ^ is one byte too: syntax error, Bareword found where
+		// operator expected before "r".
+		{"* ^r = 1;", []string{"Operator(*)", "Word(^)", "Word(r)", "Operator(=)", "Number(1)", "Semicolon(;)"}},
+	})
+}
+
+// TestGlobCaretNameAfterWord: after a word no declaration makes a sub, toke.c
+// has PL_expect at XOPERATOR and the star multiplies: -DT on `A *^R;` shows
+// BAREWORD then MULOP, and perl -c refuses every undeclared row with a syntax
+// error. A sub declared before the word takes the glob, its prototype not
+// empty: syntax OK on the two `sub A` rows. A constant's word ends a term,
+// so `use constant A=>1; A *^R;` is refused too.
+func TestGlobCaretNameAfterWord(t *testing.T) {
+	mul := func(src string, pre ...string) caretRow {
+		return caretRow{src, append(pre, "Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)")}
+	}
+	a := []string{"Word(A)"}
+	checkCaretRows(t, []caretRow{
+		mul("A*^R;", a...),
+		mul("A * ^R;", a...),
+		mul("Foo::Bar *^R;", "Word(Foo::Bar)"),
+		mul("use constant A=>1; A *^R;", "Word(use)", "Word(constant)", "Word(A)", "Operator(=>)", "Number(1)", "Semicolon(;)", "Word(A)"),
+		{"A*{^R};", []string{"Word(A)", "Operator(*)", "Operator({)", "Operator(^)", "Word(R)", "CloseBracket(})", "Semicolon(;)"}},
+		{"sub A {} A *^R;", []string{"Word(sub)", "Word(A)", "Operator({)", "CloseBracket(})", "Word(A)", "Operator(*)", "Word(^R)", "Semicolon(;)"}},
+		{"sub A; A *^R;", []string{"Word(sub)", "Word(A)", "Semicolon(;)", "Word(A)", "Operator(*)", "Word(^R)", "Semicolon(;)"}},
+		// A print's filehandle expects a term after it too: syntax OK.
+		{"print STDOUT * ^R;", []string{"Word(print)", "Word(STDOUT)", "Operator(*)", "Word(^R)", "Semicolon(;)"}},
+		{"print(STDOUT *{^R});", []string{"Word(print)", "Operator(()", "Word(STDOUT)", "Operator(*)", "Word({^R})", "CloseBracket())", "Semicolon(;)"}},
+		{"sub A; A *{^R};", []string{"Word(sub)", "Word(A)", "Semicolon(;)", "Word(A)", "Operator(*)", "Word({^R})", "Semicolon(;)"}},
 	})
 }
 
