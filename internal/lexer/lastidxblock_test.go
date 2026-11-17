@@ -29,6 +29,18 @@ func TestLastIndexBlockLexesItsInterior(t *testing.T) {
 		{`$#{ a }`, `Variable:$#{ a }`},
 		{`$#a`, `Variable:$#a`},
 		{`$#$r`, `Variable:$#$r`},
+		// A package-qualified name is a name too: -DT shows DOLSHARP then the
+		// identifier `@x::y` for each of these. A leading `::` opens a block.
+		{`$#{x'y}`, `Variable:$#{x'y}`},
+		{`$#{x::y}`, `Variable:$#{x::y}`},
+		{`$#{ x::y }`, `Variable:$#{ x::y }`},
+		{`$#{x::}`, `Variable:$#{x::}`},
+		{`$#{::x}`, `DerefSigil:$# Operator:{ Word:::x CloseBracket:}`},
+		// The other sigils read the braced name the same way (-DT: one identifier).
+		{`${x'y}`, `Variable:${x'y}`},
+		{`@{x'y}`, `Variable:@{x'y}`},
+		{`${x::y}`, `Variable:${x::y}`},
+		{`${::x}`, `DerefSigil:$ Operator:{ Word:::x CloseBracket:}`},
 	} {
 		var got []string
 		for _, tk := range Tokenize([]byte(c.src)) {

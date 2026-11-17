@@ -283,8 +283,16 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 		i++
 	}
 
+	// The name is scan_ident's identifier, package separators included
+	// (`${x::y}`, `$#{x'y}`); a leading `::` opens a block there (`${::x}`).
 	nameStart := i
-	for i < len(l.src) && isWordByte(l.src[i]) {
+	if i < len(l.src) && l.src[i] != ':' {
+		save := l.pos
+		l.pos = i
+		l.scanIdentRunes()
+		i, l.pos = l.pos, save
+	}
+	for i < len(l.src) && isWordByte(l.src[i]) { // a digit name, `${1}`
 		i++
 	}
 	if i == nameStart {
