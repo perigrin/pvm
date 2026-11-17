@@ -41,6 +41,12 @@ func TestLastIndexBlockLexesItsInterior(t *testing.T) {
 		{`@{x'y}`, `Variable:@{x'y}`},
 		{`${x::y}`, `Variable:${x::y}`},
 		{`${::x}`, `DerefSigil:$ Operator:{ Word:::x CloseBracket:}`},
+		// A caret name is word characters only: perl -c refuses `${^W::x}`, and -DT
+		// shows the { opening a block and ^ read as xor.
+		{`${^W}`, `Variable:${^W}`},
+		{`${^W::x}`, `DerefSigil:$ Operator:{ Operator:^ Word:W::x CloseBracket:}`},
+		{`${^W'x}`, `DerefSigil:$ Operator:{ Operator:^ Word:W'x CloseBracket:}`},
+		{`$#{^W::x}`, `DerefSigil:$# Operator:{ Operator:^ Word:W::x CloseBracket:}`},
 	} {
 		var got []string
 		for _, tk := range Tokenize([]byte(c.src)) {

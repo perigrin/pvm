@@ -279,14 +279,16 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	// are NAMES, and the caret is part of the name rather than an operator.
 	// Splitting one into a sigil and an expression made `^TEST` a term the
 	// parser had to guess at, which is what TestLexDotTGoldenStream caught.
-	if i < len(l.src) && l.src[i] == '^' {
+	caret := i < len(l.src) && l.src[i] == '^'
+	if caret {
 		i++
 	}
 
 	// The name is scan_ident's identifier, package separators included
 	// (`${x::y}`, `$#{x'y}`); a leading `::` opens a block there (`${::x}`).
+	// A caret name is word characters only: perl -c refuses `${^W::x}`.
 	nameStart := i
-	if i < len(l.src) && l.src[i] != ':' {
+	if !caret && i < len(l.src) && l.src[i] != ':' {
 		save := l.pos
 		l.pos = i
 		l.scanIdentRunes()
