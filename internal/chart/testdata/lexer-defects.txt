@@ -5,7 +5,6 @@ internal/chart/testdata/guacamole/parses/Statements-PackageStatement-013.pl 33 0
 internal/chart/testdata/guacamole/parses/Statements-PackageStatement-015.pl 33 01a1a481-ebef
 perlgit/class/inherit.t 1579 01a19fb5-79d7
 perlgit/comp/proto.t 9674 01a1ad1d-bc96
-perlgit/comp/use.t 4889 01a1c83a-0466
 perlgit/op/anonconst.t 577 01a1ad1d-bc96
 perlgit/op/attrhand.t 317 01a19fb5-79d7
 perlgit/op/const-optree.t 1405 01a1ad1d-bc96

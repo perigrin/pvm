@@ -615,8 +615,8 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   resolved as `<name>.t` under `testdata/perlonjava/unit`, or under
   `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
   a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
-  `/opt/corpora/perl5`). `lexer-defects.txt` holds 13 such entries and
-  `tdt/lexer-rooted.txt` 99; `lex-unmapped-known.txt` holds none, since no
+  `/opt/corpora/perl5`). `lexer-defects.txt` holds 12 such entries and
+  `tdt/lexer-rooted.txt` 98; `lex-unmapped-known.txt` holds none, since no
   perl.git file has a token the table leaves unmapped.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
@@ -1067,6 +1067,13 @@ characters are ASCII only, so under `use utf8` `{ é => 1 };` reads as a block w
 A second, pinned in the same test: after `try`, `catch`, `finally`, `default` or `defer` the `{` is always a block
 (`preblock`), so a declared sub of that name called with a hash, `sub try {} try { "a", 1 };`, reads as a block
 where perl reads `HASHBRACK`.
+
+A `{` after `use` or `no` MODULE is `HASHBRACK`, as toke.c's `S_tokenize_use` leaves a term expected after
+the module name (`internal/lexer`'s `useArg`, issue `01a1c83a-0466`). One limit, pinned in the lexer's
+`TestUseModuleBraceVersionKnownLimit`: after the version the lexer still expects an operator where toke.c
+expects a term, so `use M 1.0 %h;` reads `%` as modulus. Taking it moves `**`, `//` and `<=>` after a version
+off `notAfterVersion` (they lex as a glob, a match and a readline), and the version/term shortcut in
+`grammar/versions.go` then lets recognition take `use lib 1.2 ** 3;`, which `forest.Parse` refuses by scope.
 
 ### Indirect objects
 
