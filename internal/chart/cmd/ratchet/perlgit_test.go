@@ -199,7 +199,7 @@ func TestTDTLeavesOutPerlGit(t *testing.T) {
 // t/, the tree and its lib/, never the corpus name.
 func TestRealDirsPerlGit(t *testing.T) {
 	t.Setenv("PERL5_CORPUS", "/p5")
-	want := []string{"/p5/t/op", "/p5/t", "/p5", "/p5/lib"}
+	want := []string{filepath.Join("/p5", "t", "op"), filepath.Join("/p5", "t"), "/p5", filepath.Join("/p5", "lib")} // OS separators, as recursive descent opens them
 	if got := realDirs("perlgit/op/x.t"); !slices.Equal(got, want) {
 		t.Errorf("realDirs(perlgit/op/x.t) = %v, want %v", got, want)
 	}
