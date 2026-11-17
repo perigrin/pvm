@@ -1396,10 +1396,12 @@ glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside
 accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
 scope and not a method's. The `indirect` feature is not read, so a word before a variable stays a method where it is
 off: `use v5.36; no feature "state"; state $x = 1;` is accepted, where perl refuses it. `use feature 'class'; class Foo
-v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields"). An empty `{}` after a
-word and a bareword is refused (`method foo {}` with the class feature off, `new Foo {};`, `meth foo {};`), where perl
-reads an indirect method call with an anonymous hash, `foo->method({})`: internal/lexer marks that `{` a block, so the
-forest holds no method-call reading and resolve finds the word undeclared.
+v1.2.3;` is refused where perl accepts it (the lexer's v-string, "Classes, methods and fields"). A `{` the lexer opens as
+a block after a word and a bareword (an indirect object or a filehandle), empty or not unless its first item is followed
+by `,` or `=>`, is refused where perl reads an anonymous hash (01a1e9a2): `method foo {}` with the class feature off,
+`new Foo {};`, `meth foo {};` and `new Foo { %h };` (perl's `Foo->new({...})`), and `print STDOUT {};`. internal/lexer
+marks that `{` a block, so the forest holds no method-call or print-list reading of it and resolve finds the word
+undeclared.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files); and resolve refuses no Guacamole case (each under

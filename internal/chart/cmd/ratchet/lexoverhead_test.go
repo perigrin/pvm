@@ -168,6 +168,10 @@ func TestLexOverheadExcludesPipeline(t *testing.T) {
 	old := measureProtocol
 	t.Cleanup(func() { measureProtocol = old })
 	measureProtocol = func(chart, ref Side) Protocol {
+		// the fake clock charges by file, so the chart side must do chart/lex's work beyond Tokenize's for itself
+		if c, r := testing.AllocsPerRun(1, func() { chart()(std5k) }), testing.AllocsPerRun(1, func() { ref()(std5k) }); c <= r {
+			t.Errorf("lex-overhead's chart side allocates %v on std5k.pl, Tokenize %v: it does not run chart/lex", c, r)
+		}
 		charged := func(s Side) Side {
 			return func() Runner { run := s(); return func(p string) { now += 10; run(p) } }
 		}

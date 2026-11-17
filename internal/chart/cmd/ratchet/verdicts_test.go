@@ -153,6 +153,9 @@ func TestRatchetVerdictIsPipeline(t *testing.T) {
 			t.Errorf("%s: %+v, %v; want recognized, and accepted=%v by the pipeline", p, r, err, accepted)
 		}
 	}
+	if _, ok := in.Scope("imports.pl").Imports["mine"]; !ok {
+		t.Errorf("the scope facts of imports.pl are %v, without the module's mine", in.Scope("imports.pl"))
+	}
 	if r, _ := chartInputs(tab, srcs, nil, nil, ownDir).Chart("imports.pl"); r.Accepted {
 		t.Error("imports.pl is accepted without its module, so it proves nothing about the scope facts")
 	}
