@@ -2170,10 +2170,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   the file's declaration where perl applies the import's prototype
   (`sub r {1} use R qw(r); r(@a);` under R's `\@` grades WRONG), since
   `parse.Imports` keeps one entry per name with no position; code
-  interpolated in a string or heredoc is one token the forest does not read,
-  so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
-  descent hedges every marker; hedging it needs
-  `parse.InterpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
+  interpolated in a literal or heredoc body (`"@{[ \@a ]}"`, `/b${\ \@a}/`)
+  is one token the forest does not read, so its statement hedges every marker,
+  over the body's lines too, as recursive descent does; `parse.InterpolatesCode`
+  is asked of every quote and body, so a `'${\ x}'` or a `<<'E'` body holding
+  code hedges where perl compiles nothing, which costs nothing, since a hedge
+  explains only a deficit; a `use utf8`
   a `BEGIN` block, string eval or `use if` imports is not seen, so `<FÉ>` after
   `BEGIN { utf8->import }` or `use if 1, 'utf8';` reports nothing where perl
   reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls

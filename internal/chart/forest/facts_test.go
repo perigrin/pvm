@@ -29,11 +29,23 @@ func TestOracleSubject(t *testing.T) {
 		// takes @array by reference here, so the call is Unresolved, not "took no reference"
 		{"undeclared.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":3,"end_line":3,"name":"is_shared","took_reference":false,"unresolved":true}]}`},
-		// a \ the source wrote, on its statement's first and last lines; code interpolated in a string is one token
-		// the forest does not read, so its \ reports nothing (README "The chart as a parseoracle subject")
+		// a \ the source wrote, on its statement's first and last lines; code interpolated in a string or a pattern
+		// is one token the forest does not read, so its statement hedges every marker (parse.InterpolatesCode),
+		// while the pattern's own match stays decided
 		{"reference.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
-			{"kind":"reference","line":3,"end_line":4,"took_reference":true}]}`},
+			{"kind":"reference","line":3,"end_line":4,"took_reference":true},
+			{"kind":"match","line":6,"end_line":6},
+			{"kind":"reference","line":5,"end_line":5,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":5,"end_line":5,"unresolved":true},
+			{"kind":"match","line":5,"end_line":5,"unresolved":true},
+			{"kind":"readline","line":5,"end_line":5,"unresolved":true},
+			{"kind":"anonhash","line":5,"end_line":5,"unresolved":true},
+			{"kind":"reference","line":6,"end_line":6,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":6,"end_line":6,"unresolved":true},
+			{"kind":"match","line":6,"end_line":6,"unresolved":true},
+			{"kind":"readline","line":6,"end_line":6,"unresolved":true},
+			{"kind":"anonhash","line":6,"end_line":6,"unresolved":true}]}`},
 		// a hash read: %h, $h{a}, $r->{b}, its {c}, %$r and @h{'a'}, one site each
 		{"hash.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"hash","line":1,"end_line":1},
@@ -97,9 +109,14 @@ func TestOracleSubject(t *testing.T) {
 		// on the file's declaration; perl applies the import's \@, reports prototypes {"r":"\\@"} and a \ on line 4
 		{"own_then_import.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":4,"end_line":4,"name":"r","took_reference":false}]}`},
-		// known limit (facts.go), owned by WRONGZERO: code interpolated in a heredoc reports nothing, where perl
+		// code interpolated in a heredoc body hedges every marker over its statement and the body's lines: perl
 		// reports the \ on line 3
-		{"heredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		{"heredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":4,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":4,"unresolved":true},
+			{"kind":"match","line":2,"end_line":4,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":4,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":4,"unresolved":true}]}`},
 		// #line renumbers what follows it, and a name other than the file's moves it out of the file's sites
 		{"line.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},

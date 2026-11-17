@@ -162,18 +162,24 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	slices.Sort(keys)
 	line, own := parse.PerlLines(src, path)
 	starts := lineStarts(src)
+	// lines is the first and last lines of the statement holding token at, as perl numbers them, the last at least
+	// the source line end; ok false outside a statement or where a #line directive moved it into another file.
+	lines := func(at, end int) (int, int, bool) {
+		st, ok := sf.statement(at)
+		if !ok {
+			return 0, 0, false
+		}
+		first := lineAt(starts, s.Raw[s.Tokens[st[0]].Index].Start)
+		last := max(end, lineAt(starts, s.Raw[s.Tokens[st[1]-1].Index].End-1))
+		return line[first], line[last], own[first] && own[last]
+	}
 	for _, k := range keys {
 		kind, at := k%nkinds, k/nkinds
-		st, ok := sf.statement(at)
+		first, last, ok := lines(at, 0)
 		if !ok {
 			continue
 		}
-		first := lineAt(starts, s.Raw[s.Tokens[st[0]].Index].Start)
-		last := lineAt(starts, s.Raw[s.Tokens[st[1]-1].Index].End-1)
-		if !own[first] || !own[last] {
-			continue // a #line directive moved it into another file
-		}
-		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: line[first], EndLine: line[last],
+		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: first, EndLine: last,
 			Unresolved: sf.uncertain[k]}
 		if kind == kindCall {
 			cs.Name = r.text(at)
@@ -192,6 +198,28 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 		cs.TookReference = kind == kindReference && !cs.Unresolved
 		facts.CallSites = append(facts.CallSites, cs)
 	}
+	// Code interpolated in a literal or a heredoc body is one token the forest does not read, and perl compiles it
+	// into ordinary ops, so its statement hedges every marker, over the body's lines too.
+	// shortcut: parse.InterpolatesCode is asked of every quote and body, so '${\ x}' or a <<'E' body holding code
+	// hedges where perl compiles nothing; a hedge explains only a deficit, so it costs nothing there; upgrade if
+	// parse exports which literals interpolate.
+	hedge := func(at, end int) {
+		if first, last, ok := lines(at, end); ok {
+			for kind := kindReference; kind < nkinds; kind++ {
+				facts.CallSites = append(facts.CallSites, parseoracle.SubjectCallSite{Kind: kindName[kind], Line: first, EndLine: last, Unresolved: true})
+			}
+		}
+	}
+	for i, t := range s.Tokens {
+		if raw := s.Raw[t.Index]; raw.Kind == lexer.Quote && parse.InterpolatesCode(string(src[raw.Start:raw.End])) {
+			hedge(i, 0)
+		}
+	}
+	for _, b := range s.Bodies {
+		if parse.InterpolatesCode(string(src[b.Start:b.End])) {
+			hedge(b.Opener, lineAt(starts, b.End-1))
+		}
+	}
 	return facts
 }
 
@@ -202,9 +230,6 @@ func bareProto(p string) string {
 
 // walk visits every node a derivation of the root reaches: it records the statements, every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
 // uncertain.
-// shortcut: code interpolated in a string or heredoc is one token the forest does not read, so a marker inside it
-// reports nothing, which grades WRONG where perl built one; hedging it with parse.InterpolatesCode is
-// WRONGZERO's (01a1c324-1fd7).
 func (sf *subjectFacts) walk() {
 	f := sf.f
 	seen := make([]bool, len(f.Nodes))
