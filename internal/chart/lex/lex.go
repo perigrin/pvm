@@ -167,10 +167,14 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
 }
 
-// versionEnds reports whether the byte at end lets a v-string before it be a version, as toke.c's S_force_version
-// decides: whitespace, ;, {, } or the end of the source. Any other byte (`require v5_1, 1`) leaves it a module name.
+// versionEnds reports whether a v-string whose word ends at end is a version, as toke.c's S_force_version decides:
+// it walks digits, _ and . past the word (`v5_1. 1` is the version `v5_1.`), then wants an isSPACE_A byte, ;, {, }
+// or the end of the source. Any other byte (`require v5_1, 1`) leaves it a module name.
 func versionEnds(text string, end int) bool {
-	return end >= len(text) || strings.IndexByte(" \t\n\r\f;{}", text[end]) >= 0
+	for end < len(text) && (text[end] >= '0' && text[end] <= '9' || text[end] == '_' || text[end] == '.') {
+		end++
+	}
+	return end >= len(text) || strings.IndexByte(" \t\n\v\f\r;{}", text[end]) >= 0
 }
 
 // stashName is the stash a qualified name n names, as perl reads it: ' is ::, and one leading :: and then any number
