@@ -1228,7 +1228,12 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   name follows (`Foo::bar->[0]`, `Foo::bar->@*`, `Foo::bar->()`), or a sub's name. Neighbours are significant tokens,
   so whitespace, comments and POD between them do not count. A bareword, class or method name (`Foo::bar;`,
   `Foo::Bar->x`, `Foo::bar->$m`, `Foo::`, `$x->Foo::bar()`), a block holding a string (`*{::Foo::x}`) and a word
-  after a multiply's `*` make no stash. Any other is kept, which the grammar refuses, as perl's "No such class" does.
+  after a multiply's `*` make no stash. A name is read as perl reads it: `'` is `::`, one leading `::` and then any
+  number of `main::` name nothing more, and a trailing `::` is a stash inside the one before it (`package Foo::`
+  makes `Foo::`; `main::::Foo` is `Foo` inside the stash named ""); the class word drops one trailing `::` first
+  (`my Foo:: $f`, `my main:: $f`). A v-string after `use`, `no` or `require` (`use v5`) is a version and makes no
+  stash, and `CORE::package`, `CORE::require` or `CORE::my` is the bare keyword. Any other is kept, which the grammar
+  refuses, as perl's "No such class" does.
   shortcut: a stash made any other way (a string eval, an interpolated `"$Foo::x"` or `"@Foo::x"`, an `s///e`
   replacement, a print's filehandle `print Foo::x "a"`, a module that makes another package) is not seen, so that
   typed my is refused.
