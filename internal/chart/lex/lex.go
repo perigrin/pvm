@@ -163,23 +163,21 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	if strings.HasPrefix(w, "::") {
 		return false // perl reads `my ::Foo` as a syntax error
 	}
-	w = stashName(w)
+	if w = strings.TrimSuffix(stashName(w), "::"); w == "" {
+		w = "main" // `my main::`
+	}
 	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
 }
 
-// stashName is the stash a package name n names, as perl reads it: ' is ::, and a leading :: or main:: and a
-// trailing :: name nothing more (`main::Foo'Bar::` is Foo::Bar).
+// stashName is the stash a qualified name n names, as perl reads it: ' is ::, and one leading :: and then any number
+// of main:: name nothing more (`::main::main::Foo'Bar` is Foo::Bar, `main::::Foo` is ::Foo). A package name's
+// trailing :: names nothing more either; its callers trim that.
 func stashName(n string) string {
-	n = strings.ReplaceAll(n, "'", "::")
-	for {
-		if m, ok := strings.CutPrefix(n, "::"); ok {
-			n = m
-		} else if m, ok := strings.CutPrefix(n, "main::"); ok {
-			n = m
-		} else {
-			return strings.TrimSuffix(n, "::")
-		}
+	n = strings.TrimPrefix(strings.ReplaceAll(n, "'", "::"), "::")
+	for strings.HasPrefix(n, "main::") {
+		n = n[6:]
 	}
+	return n
 }
 
 // add records stash n and each stash it is nested in.
@@ -212,14 +210,16 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	prev, brace := st.prev, st.brace
 	st.prev, st.brace = "", sigil && t.Kind == lexer.Operator && tx == "{"
 	if t.Kind == lexer.Word {
-		st.prev = tx
+		st.prev = strings.TrimPrefix(tx, "CORE::") // toke.c reads CORE::kw as kw
 	}
 	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
 		return
 	}
 	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
-		prev == "class" && on.On&FeatureClass != 0) {
-		st.add(stashName(tx))
+		prev == "class" && on.On&FeatureClass != 0) &&
+		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && strings.Trim(tx[1:], "0123456789") == "") {
+		// a v-string after use, no or require is a version, not a module
+		st.add(strings.TrimSuffix(stashName(tx), "::"))
 	}
 	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
 		return

@@ -189,6 +189,32 @@ func TestTypedMy(t *testing.T) {
 		"my main::main $f;":                       true,
 		"my main::UNIVERSAL $f;":                  true,
 		"package Foo; package main; my ::Foo $f;": false,
+		"my main:: $f;":                           true,
+		"my main::main:: $f;":                     true,
+		// perl strips one leading :: and then any number of main::, nothing more; ' is ::
+		"package main::::Foo; package main; my Foo $f;":         false,
+		"$main::::Foo::x = 1; my Foo $f;":                       false,
+		"$::::Foo::x = 1; my Foo $f;":                           false,
+		"require main::::Foo if 0; my Foo $f;":                  false,
+		"package Foo; package main; my main::::Foo $f;":         false,
+		"package Foo; package main; my main::main::::Foo $f;":   false,
+		"package Foo; package main; my main::'Foo $f;":          false,
+		"package main::::Foo; package main; my main::::Foo $f;": true,
+		"package Foo; package main; my main'main'Foo $f;":       true,
+		// a symbol's stash keeps a trailing ::, so $Foo::::x makes Foo and Foo::
+		"$Foo::::x = 1; my Foo:::: $f;": true,
+		// a version after use, no or require names no stash
+		"use v5; my v5 $f;":     false,
+		"use v6; my v6 $f;":     false,
+		"use v5 (); my v5 $f;":  false,
+		"no v5; my v5 $f;":      false,
+		"require v5; my v5 $f;": false,
+		"package v5; my v5 $f;": true,
+		// CORE::kw is read as kw
+		"CORE::require Foo::Bar if 0; my Foo $f;":         true,
+		"CORE::package Foo; package main; my Foo $f;":     true,
+		"package Foo; package main; CORE::my Foo $f;":     true,
+		"CORE::GLOBAL::require Foo::Bar if 0; my Foo $f;": false,
 	})
 }
 
