@@ -197,20 +197,22 @@ func TestSpeedProtocolRefusesUnknownTimedPath(t *testing.T) {
 	w.aggregate(t, []File{{"a", "T1"}, {"b", "T1"}}, []string{"a", "b", "huge"})
 }
 
-// TestSpeedLifetimes: with an injected recognizer constructor, long-lived
-// constructs once per pass and cold once per file, and every pass visits
-// every file exactly once.
+// TestSpeedLifetimes: the chart side makes one recognizer per pass
+// long-lived and one per file per-file, and every pass visits every file
+// exactly once.
 func TestSpeedLifetimes(t *testing.T) {
 	files := []string{"a.pl", "b.pl", "c.pl"}
 	srcs := map[string][]byte{"a.pl": []byte("a"), "b.pl": []byte("b"), "c.pl": []byte("c")}
 	passes := 3 * (warmupPairs + timedPairs) // chart passes of one Ratio
+	in := verdictInputs{Scope: func(string) forest.Scope { return forest.Scope{} }}
 	for _, cold := range []bool{false, true} {
-		constructed, visits := 0, map[string]int{}
-		chart := chartSide(srcs, func() func([]byte) {
-			constructed++
-			return func(src []byte) { visits[string(src)]++ }
-		})
 		var tick time.Duration
+		recognizers, visits := map[*recognize.Recognizer]bool{}, map[string]int{}
+		fakePipeline(t, &tick, func(r *recognize.Recognizer, src []byte, _ forest.Scope) {
+			recognizers[r] = true
+			visits[string(src)]++
+		})
+		chart := pipelineSide(committedTables(t), []File{{"a.pl", "x"}, {"b.pl", "x"}, {"c.pl", "x"}}, in, srcs)
 		p := Protocol{Chart: chart, Ref: func() Runner { return func(string) {} },
 			Now: func() time.Duration { tick++; return tick }, GC: func() {}, Stderr: io.Discard}
 		p.Ratio("test", files, cold)
@@ -218,8 +220,8 @@ func TestSpeedLifetimes(t *testing.T) {
 		if cold {
 			wantBuilt = passes * len(files)
 		}
-		if constructed != wantBuilt {
-			t.Errorf("cold=%v: %d recognizers constructed, want %d", cold, constructed, wantBuilt)
+		if len(recognizers) != wantBuilt {
+			t.Errorf("cold=%v: %d recognizers constructed, want %d", cold, len(recognizers), wantBuilt)
 		}
 		for _, f := range files {
 			if visits[string(srcs[f])] != passes {

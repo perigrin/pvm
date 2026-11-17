@@ -77,8 +77,8 @@ func corpus() ([]File, map[string][]byte, error) {
 }
 
 // speedParse is recursive descent as every speed key times it: bare, resolving
-// nothing, because the chart does not resolve yet (perigrin, 2026-11-10 "Leave
-// it out"; 2026-11-14 "Verdict keys only").
+// nothing, as the chart's scope facts are obtained outside its timed span
+// (perigrin, 2026-11-10, "Leave it out").
 var speedParse = parse.Parse
 
 // rdRunner is the speed side's recursive descent over srcs.
