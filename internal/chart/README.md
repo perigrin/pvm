@@ -1259,14 +1259,18 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   without an empty prototype. Empty means after perl strips the spaces, whether the prototype follows the name or is
   `:prototype(...)` in the attribute list. "Names" is in gv_fetchpvn's sense. A qualified name's package is absolute (`'` is `::`, and a leading `::` or `main::` means
   main). A bare name is in the package that the last `package NAME` in an enclosing scope put in force (`class NAME` only
-  under the class feature, which `use feature` turns on and `no feature` off), or in main for the names gv.c's
-  `S_gv_is_in_main` forces there. Otherwise the star
+  under the class feature, which a `use feature` list naming `class` turns on and a `no feature` list naming it turns
+  off), or in main for the names gv.c's `S_gv_is_in_main` forces there. Otherwise the star
   multiplies, as in toke.c.
   shortcut: a sub declared any other way (an import, `use subs`, a glob assignment or an eval at BEGIN time) is
   undeclared there, so `use POSIX qw(floor); floor *^R;` is refused where perl accepts it. shortcut: a prototype
   spanning lines gets no Prototype token, so `sub A(` newline `) {1} A *^R;` is accepted where perl refuses it. shortcut:
   the class feature is read for the whole file, not to the end of its block, so `{ use feature 'class'; } sub A; class
-  Foo; A *^R;` is refused where perl accepts it. Pinned in internal/lexer's
+  Foo; A *^R;` is refused where perl accepts it. shortcut: `use feature ':all'` and a bare `no feature` leave the class
+  feature as it was. shortcut: the first prototype is read, where perl takes a later `:prototype(...)` over the parens,
+  so `sub A($) :prototype() {1} A *^R;` is accepted and `sub A() :prototype($) {1} A *^R;` refused, each against perl.
+  shortcut: the empty-prototype flag is the file's, by bare name, so a lexical sub shares a package sub's (`sub A() {1}
+  { my sub A {} A *^R; }` is refused where perl accepts it). Pinned in internal/lexer's
   `TestGlobCaretNameAfterWord` and `TestGlobCaretNameScope`.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,

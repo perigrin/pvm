@@ -500,6 +500,13 @@ func (l *lexer) closeLexSubScope() {
 	}
 }
 
+// prevWordIs reports whether the significant token before the one just
+// emitted is the word w.
+func (l *lexer) prevWordIs(w string) bool {
+	i := l.significantBefore(len(l.toks) - 1)
+	return i >= 0 && l.toks[i].Kind == Word && string(l.src[l.toks[i].Start:l.toks[i].End]) == w
+}
+
 // enterPackage puts name in force from `package NAME`: to the end of the
 // enclosing block, or through its own block in `package NAME VERSION {}`.
 func (l *lexer) enterPackage(name string) {
@@ -667,10 +674,19 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		// The prototype, perl stripping its spaces (S_strip_spaces), is
 		// after the name or in the attribute list: `sub A :lvalue
 		// :prototype() {1}`.
+		// shortcut: the first prototype is read, where perl takes a later
+		// `:prototype(...)` over the parens (`sub A($) :prototype() {1}`).
+		// Upgrade when a declaration's prototype is read whole.
 		switch {
 		case k == Prototype && strings.TrimSpace(text[1:len(text)-1]) == "":
 			declare(l.constKey)
-		case text == ":" || k == Word:
+		// `:prototype(` across lines is no Prototype token but its parens.
+		case text == "(" && l.prevWordIs("prototype"):
+			if i := skipSpaceFrom(l.src, l.pos); i < len(l.src) && l.src[i] == ')' {
+				declare(l.constKey)
+			}
+			return
+		case text == ":" || text == ")" || k == Word:
 			return
 		}
 	}

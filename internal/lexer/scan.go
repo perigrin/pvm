@@ -1549,6 +1549,9 @@ func (l *lexer) wordTakesTerm(i int) bool {
 	j := l.significantBefore(i)
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
 	niladic, declared := l.subs[l.qualify(w)]
+	// shortcut: constSubs is the file's, by bare name, so a lexical sub
+	// shares a package sub's empty prototype (`sub A() {1} { my sub A {}
+	// A *^R; }` is refused). Upgrade when lexSubs carries prototypes.
 	if !strings.Contains(w, "::") && !strings.Contains(w, "'") && l.lexSubInScope(w) {
 		niladic, declared = l.constSubs[w], true
 	}

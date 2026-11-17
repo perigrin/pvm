@@ -227,8 +227,25 @@ func TestGlobCaretNameScope(t *testing.T) {
 		{"sub A :lvalue {1} A *^R;", glob},
 		// shortcut (scanPrototype): a prototype across lines gets no
 		// Prototype token, so its emptiness is not read. perl -c: syntax
-		// error near "*^", which the chart and RD accept.
+		// error near "*^", which the chart and RD accept for this paren form.
 		{"sub A(\n) {1} A *^R;", glob},
+		// `:prototype(...)` across lines is its parens, read as empty when
+		// only space is between them: syntax error near "*^".
+		{"sub A :prototype(\n) {1} A *^R;", mul},
+		{"sub A :prototype( \n ) {1} A *^R;", mul},
+		// shortcut (noteConstSub): the first prototype is read, where perl
+		// takes a later `:prototype(...)` over the parens. perl -c: syntax
+		// error near "*^" on the first two, which the chart and RD accept;
+		// syntax OK on the third, which the chart refuses.
+		{"sub A($) :prototype() {1} A *^R;", glob},
+		{"sub A($) :prototype(); A *^R;", glob},
+		{"sub A() :prototype($) {1} A *^R;", mul},
+		// shortcut (wordTakesTerm): constSubs is the file's, by bare name, so
+		// a lexical sub shares a package sub's empty prototype. perl -c:
+		// syntax OK on each, which the chart refuses.
+		{"sub A() {1} { my sub A {} A *^R; }", []string{"Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)", "CloseBracket(})"}},
+		{"sub A() {1} my sub A($) {} A *^R;", mul},
+		{"{ my sub A() {1} } { my sub A {} A *^R; }", []string{"Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)", "CloseBracket(})"}},
 		// A lexical sub is declared only in its scope: syntax error near
 		// "*^" after the block, syntax OK inside it; an `our` sub is the
 		// package's (syntax OK).
@@ -247,6 +264,11 @@ func TestGlobCaretNameScope(t *testing.T) {
 		{"sub A; class Foo; sub B; class Bar; A *^R;", glob},
 		{"use feature 'class'; no feature 'class'; sub A; class Foo; A *^R;", glob},
 		{"{ use feature 'class'; } sub A; class Foo; A *^R;", mul},
+		// shortcut (ident.go): only a feature list naming `class` sets or
+		// clears it. perl -c: syntax error near "*^" on the first, which the
+		// chart and RD accept; syntax OK on the second, which they refuse.
+		{"use feature ':all'; no warnings; sub A; class Foo; A *^R;", glob},
+		{"use feature 'class'; no feature; sub A; class Foo; A *^R;", mul},
 		// The block after a package's name is found past a comment, so
 		// Foo::A is declared and main::A is not: syntax error near "*^", and
 		// Invalid version format on the version row and the POD row.
