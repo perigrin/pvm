@@ -46,11 +46,13 @@ func TestUseModuleBraceAfterStatementOpensBlock(t *testing.T) {
 // (TestUseModuleBraceIsAnonHash). Fails once the limit
 // goes; move the row to a positive test then.
 func TestUseModuleBraceVersionKnownLimit(t *testing.T) {
-	// perl -c reads a term after each version: `%h` a hash, `<FH>` a readline (both
-	// syntax OK), `/ 3;` an unterminated pattern (refused). The lexer reads an operator.
+	// perl -c reads a term after each version: `%h` a hash, `<FH>` a readline, `.5` a
+	// number (all syntax OK), `/ 3;` an unterminated pattern (refused). The lexer reads
+	// an operator.
 	for _, c := range []struct{ src, op string }{
 		{`use test_use 1.0 %h;`, "%"},
 		{`use test_use 1.0 <FH>;`, "<"},
+		{`use test_use 1.0 .5;`, "."},
 		{`use test_use 1.0 / 3;`, "/"},
 	} {
 		if got := significant(Tokenize([]byte(c.src)))[3]; got.Kind != Operator || c.src[got.Start:got.End] != c.op {
