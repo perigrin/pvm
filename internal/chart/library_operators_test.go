@@ -94,6 +94,10 @@ func TestLibraryOperatorsAsPerl(t *testing.T) {
 		// The parity limit: recursive descent places ⊕ between + and *, so it groups (1 ⊕ (2 * 3)) there; perl has no
 		// bucket between, and tokentype_for_plugop's <= puts it at PLUGIN_MUL_OP, so it groups ((1 ⊕ 2) * 3) here.
 		"1 ⊕ 2 * 3;": "((1 ⊕ 2) * 3)",
+		// The parity limit at LOW: recursive descent groups ($a lowop ($b or $c)).
+		"$a lowop $b or $c;": "(($a lowop $b) or $c)",
+		// The parity limit at =='s level (EQUALITY, ORDERING, :equiv(==)): recursive descent groups (($a < $b) same $c).
+		"$a < $b same $c;": "($a < ($b same $c))",
 	} {
 		if got := grouping(t, use+src); !strings.Contains(got, want) {
 			t.Errorf("%q: got %s, want %s", use+src, got, want)
@@ -103,9 +107,36 @@ func TestLibraryOperatorsAsPerl(t *testing.T) {
 		"1 plus 2;", "1 ⊕ 2;", "1 plus 2; use My::Ops;", "use My::Ops; 1 nosuch 2;",
 		"use My::Ops; 1 plus;", "use My::Ops; plus 2;",
 		"use My::Ops; 1 lowop 2 lowop 3;", // %nonassoc
+		// BEGIN runs the import at the use's ;, so the operator is not in scope inside its own use.
+		"use My::Ops (1 plus 2);", "use My::Ops 1 plus 2;", "BEGIN { require My::Ops; My::Ops->import; 1 plus 2 }",
+		// Recursive descent accepts these at =='s level; PLUGIN_REL_OP and PLUGIN_HIGH_OP are %nonassoc in perly.y.
+		"use My::Ops; $a same $b < $c;", "use My::Ops; 1 same 2 same 3;", "use My::Ops; 1 high 2 high 3;",
 	} {
 		if got := grouping(t, src); got != "refused" {
 			t.Errorf("%q: got %s, want refused", src, got)
+		}
+	}
+}
+
+// TestLibraryOperatorsLimits pins what the chart accepts and perl -c refuses under an XS module registering My::Ops's
+// operators, each a stated shortcut: its verdict changes only with the shortcut.
+func TestLibraryOperatorsLimits(t *testing.T) {
+	for src, want := range map[string]string{
+		// shortcut at forest.Scope.LibraryOperators: file-wide, so a block's end or a no does not end the scope.
+		"{ use My::Ops; } 1 plus 2;":             "(1 plus 2)",
+		"sub f { use My::Ops; } 1 plus 2;":       "", // accepted, with two derivations as `sub f { } 1 + 2;` has
+		"if (1) { use My::Ops; } 1 plus 2;":      "(1 plus 2)",
+		"use My::Ops; { no My::Ops; 1 plus 2; }": "(1 plus 2)",
+		// shortcut in perly.go: a library operator's word reads as one only where an operator is expected, where
+		// toke.c asks the plugin about every word.
+		"use My::Ops; my $x = plus;": "(my $x = plus)",
+		"use My::Ops; foo(plus);":    "foo ( plus )",
+		"use My::Ops; print plus;":   "print plus",
+		// shortcut in perly.go: a library operator spelled as a keyword reads as the keyword.
+		"use My::Ops; print 1 plus 2;": "print (1 plus 2)",
+	} {
+		if got := grouping(t, src); got == "refused" || !strings.Contains(got, want) {
+			t.Errorf("%q: got %s, want %s", src, got, want)
 		}
 	}
 }
@@ -118,7 +149,7 @@ func TestLibraryOperatorsLeaveCoreOperators(t *testing.T) {
 		t.Fatal(err)
 	}
 	const core = "$x = 1 + 2 * 3 ** 4 x 5 . 6 eq 7 == 8 < 9 lt 10 && 11 || 12 // 13 and 14 or 15 xor 16 | 17 & 18 << 19 =~ 20 .. 21 cmp 22 <=> 23;"
-	for _, src := range []string{core, "use My::Ops; " + core} {
+	for _, src := range []string{core, "use My::Ops; " + core, "$x x= 2;", "use My::Ops; $x x= 2;"} {
 		s, _ := lex.Lex([]byte(src), tab.Tokens)
 		for _, tok := range s.Tokens {
 			for _, id := range tab.TerminalSets[tok.TerminalSet] {

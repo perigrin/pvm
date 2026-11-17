@@ -1879,6 +1879,16 @@ func init() {
 		prev2 bool
 	}
 	seen := map[repeat]bool{}
+	// The words a library operator's word class leaves out: the keywords, and the words a class names (x=, an
+	// operator internal/lexer lexes as a word).
+	named := lexer.Keywords()
+	for _, d := range perlyClasses {
+		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Word && k.Text != nil {
+			named = append(named, *k.Text)
+		}
+	}
+	slices.Sort(named)
+	named = slices.Compact(named)
 	for _, d := range perlyClasses {
 		c := d.Key
 		if !c.Completes {
@@ -1909,10 +1919,14 @@ func init() {
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
 		// Where x is the operator any word no class names may be a library's infix operator, which toke.c reads as
 		// the PLUGIN_* terminal of its level (yyl_keylookup, toke.c:9364-9386); resolve keeps the one in scope.
-		// shortcut: a library operator spelled as a keyword, which toke.c's plugin check reads before the keyword,
-		// has no PLUGIN_* reading; upgrade when a library ships one.
+		// shortcut: a library operator spelled as a keyword reads as the keyword, where toke.c asks the plugin first:
+		// with a plugin operator print, `print 1 plus 2;` is accepted here and refused by perl
+		// (TestLibraryOperatorsLimits); upgrade when a library ships one.
+		// shortcut: a word reads as a library operator only here, where an operator is expected, where toke.c asks
+		// the plugin about every word whatever PL_expect is: `my $x = plus;` is accepted here and refused by perl under
+		// a plugin that registers plus (TestLibraryOperatorsLimits); upgrade if XS::Parse::Infix is shown to do so.
 		w := x
-		w.Text, w.NotText, w.NotNext = nil, lexer.Keywords(), []Neighbour{fatComma}
+		w.Text, w.NotText, w.NotNext = nil, named, []Neighbour{fatComma}
 		for _, l := range plugopLevels {
 			perlyClasses = append(perlyClasses, ClassDecl{l.terminal, w})
 		}

@@ -25,7 +25,10 @@ import (
 type Scope struct {
 	Imports map[string]parse.Import
 	// LibraryOperators are the infix operators the file's use statements bring into scope, as
-	// parse.LibraryOperators gives them over the same tree: each from the byte its use starts at.
+	// parse.LibraryOperators gives them over the same tree: each from the end of its use, where BEGIN imports it.
+	// shortcut: file-wide past that end, as parse's scope is, so a block's } or a no does not end it, where perl's
+	// %^H is lexical (`{ use My::Ops; } 1 plus 2;` is accepted, `TestLibraryOperatorsLimits`); upgrade when
+	// parse.LibraryOperators carries where each stops applying.
 	LibraryOperators []parse.LibraryOperator
 }
 
@@ -593,18 +596,24 @@ func buildPluginGrammar(tab *grammar.Tables) *pluginGrammar {
 }
 
 // libraryOperators drops from f each PLUGIN_* reading but the one toke.c's tokentype_for_plugop gives the library
-// operator of the token's spelling whose use starts before it (the last such), then every alternative left without a
+// operator of the token's spelling whose use ends before it (the last such), then every alternative left without a
 // derivation. It returns what prune does.
 func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
 	g := grammar.Derived(tab, buildPluginGrammar)
 	r := &resolver{tab: tab, s: s, src: src, n: len(s.Tokens), dead: map[[2]int]bool{}}
+	var from []int
 	for k, t := range s.Tokens {
 		if !g.sets[t.TerminalSet] {
 			continue
 		}
+		if from == nil {
+			for _, op := range scope.LibraryOperators {
+				from = append(from, r.statementEnd(op.From))
+			}
+		}
 		keep := -1
-		for _, op := range scope.LibraryOperators {
-			if op.From < s.Raw[t.Index].Start && op.Name == r.text(k) {
+		for i, op := range scope.LibraryOperators {
+			if from[i] <= s.Raw[t.Index].Start && op.Name == r.text(k) {
 				keep = g.id[grammar.LibraryTerminal(op)]
 			}
 		}
@@ -618,6 +627,26 @@ func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte,
 		return -1
 	}
 	return r.prune(f)
+}
+
+// statementEnd is the byte after the statement starting at byte at: its ; outside brackets, the } closing a BEGIN
+// block, or the } closing the block around it.
+func (r *resolver) statementEnd(at int) int {
+	k, _ := slices.BinarySearchFunc(r.s.Tokens, at, func(t lex.Token, at int) int { return r.s.Raw[t.Index].Start - at })
+	begin, depth := r.is(k, "BEGIN"), 0
+	for ; k < r.n; k++ {
+		switch t := r.s.Raw[r.s.Tokens[k].Index]; {
+		case t.Kind == lexer.Semicolon && depth == 0:
+			return t.End
+		case t.Kind == lexer.CloseBracket:
+			if depth--; depth < 0 || depth == 0 && begin {
+				return t.End
+			}
+		case r.is(k, "(") || r.is(k, "[") || r.is(k, "{"):
+			depth++
+		}
+	}
+	return len(r.src)
 }
 
 // prune unlinks every alternative a dropped reading leaves without a

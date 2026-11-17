@@ -43,6 +43,12 @@ func TestPlugopLevelBoundaries(t *testing.T) {
 			t.Errorf(":infix(%s): got %s, want %s", l.class, got, l.terminal)
 		}
 	}
+	// The shortcut: RELATION, which XS::Parse::Infix names and perl.h does not, is placed by its anchor <'s level,
+	// above REL.
+	rel, _ := parse.InfixInfo("<")
+	if got := LibraryTerminal(parse.LibraryOperator{Class: "RELATION", Info: rel}); got != "PLUGIN_ADD_OP" {
+		t.Errorf(":infix(RELATION): got %s, want PLUGIN_ADD_OP", got)
+	}
 	if got := LibraryTerminal(at(0)); got != "PLUGIN_LOGICAL_OR_LOW_OP" {
 		t.Errorf("a level below or's, placed by relation: got %s, want PLUGIN_LOGICAL_OR_LOW_OP", got)
 	}

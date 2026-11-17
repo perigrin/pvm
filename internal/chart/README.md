@@ -1430,13 +1430,15 @@ sample, constrained by precedence and resolved, to
 perigrin's ruling A (2026-11-10, "do what perl does"): an infix operator a
 library declares reads as the `PLUGIN_*` terminal toke.c's
 `tokentype_for_plugop` gives its level (toke.c:9264-9288, perl.h's
-`INFIX_PREC_*`). A word no class names where `x` is the operator, and an
-operator no class names anywhere, also admit the eleven `PLUGIN_*` terminals
+`INFIX_PREC_*`). A word no class names (no keyword, nor `x=`, which internal/lexer lexes as a
+word) where `x` is the operator, and an operator no class names anywhere,
+also admit the eleven `PLUGIN_*` terminals
 (perly.go's `init`; toke.c checks a plugin in `yyl_keylookup` and `yyl_try`).
 `forest.Scope.LibraryOperators` is `parse.LibraryOperators` over the tree the
 imports come from, and before the precedence constraint `forest.Parse` keeps a
 token's `PLUGIN_*` reading only where a library operator of its spelling is in
-scope, its `use` starting before the token, and only the terminal
+scope, its `use` statement ending before the token (BEGIN imports it at the
+`;`, so `use My::Ops 1 plus 2;` is refused), and only the terminal
 `grammar.LibraryTerminal` gives it: its `:infix(CLASS)` where that is one of
 perl's eleven, otherwise the first level whose anchor (`or`, `and`, `=`, `||`,
 `&&`, `==`, `+`, `*`, `**`) recursive descent places at or above it, by
@@ -1452,12 +1454,34 @@ operators either side, and refuses one before its `use` or with none.
 two of perl's levels (`:tighter(+) :looser(*)`), or at a level no plugin
 bucket names (`:equiv(&)`, `:equiv(..)`), groups here at the bucket above it,
 where recursive descent groups it between: `use My::Ops; 1 ⊕ 2 * 3;` is
-`((1 ⊕ 2) * 3)` at `PLUGIN_MUL_OP`, and `(1 ⊕ (2 * 3))` in recursive descent
-(pinned in `TestLibraryOperatorsAsPerl`). shortcut: a class XS::Parse::Infix
+`((1 ⊕ 2) * 3)` at `PLUGIN_MUL_OP`, and `(1 ⊕ (2 * 3))` in recursive descent.
+Two of perl's own buckets place differently from recursive descent too: `LOW`
+(`:infix(LOW)`), where `$a lowop $b or $c` is `(($a lowop $b) or $c)` here and
+in perl and `($a lowop ($b or $c))` in recursive descent; and `==`'s level
+(`EQUALITY`, `ORDERING`, `:equiv(==)`), read as `PLUGIN_REL_OP`, where
+`$a < $b same $c` is `($a < ($b same $c))` here and in perl and
+`(($a < $b) same $c)` in recursive descent, and `$a same $b < $c`,
+`1 same 2 same 3` and `1 high 2 high 3`, which recursive descent accepts, are
+refused here and by perl (`%nonassoc`). All pinned in
+`TestLibraryOperatorsAsPerl`. shortcut: a class XS::Parse::Infix
 names and perl.h does not (`EQUALITY`, `RELATION`, `ISA`, `MATCHRE`, ...) is
 placed by its anchor's level the same way, which puts `RELATION`, `ISA` and
-`MATCHRE` above `REL`. shortcut: a library operator spelled as a keyword has
-no `PLUGIN_*` reading, where toke.c checks the plugin before the keyword.
+`MATCHRE` above `REL` (pinned in `TestPlugopLevelBoundaries`).
+
+`TestLibraryOperatorsLimits` pins three shortcuts, each accepting what perl -c
+refuses under an XS module registering My::Ops's operators.
+shortcut: scope is file-wide past the `use`, as `parse.LibraryOperators` is,
+where perl's `%^H` is lexical: `{ use My::Ops; } 1 plus 2;`,
+`sub f { use My::Ops; } 1 plus 2;`, `if (1) { use My::Ops; } 1 plus 2;` and
+`use My::Ops; { no My::Ops; 1 plus 2; }` are accepted, as "File-wide for now"
+(perigrin, 2026-11-10) has imports; upgrade when the export carries where each
+operator stops applying. shortcut: a word reads as a library operator only
+where an operator is expected, where toke.c's `yyl_keylookup` asks the plugin
+about every word: `use My::Ops; my $x = plus;`, `foo(plus);` and `print plus;`
+are accepted (whether XS::Parse::Infix checks `PL_expect` is not known).
+shortcut: a library operator spelled as a keyword reads as the keyword, where
+toke.c asks the plugin first: with a plugin operator `print`,
+`use My::Ops; print 1 plus 2;` is accepted.
 
 Recognition reads every word after a term as a possible library operator,
 so the forms perl refuses as a word where an operator is expected are refused

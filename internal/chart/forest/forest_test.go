@@ -469,7 +469,7 @@ func TestForestFromChart(t *testing.T) {
 			gated := filepath.Base(filepath.Dir(p)) == "feature-gated"
 			// and a refused snippet recognition accepts by reading a word as a library operator, none of which is in scope
 			refused := strings.HasSuffix(filepath.Base(filepath.Dir(p)), "-refused")
-			if g, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); (g != nil) != (c.Accepted() && !gated) && !(refused && g == nil) {
+			if g, ref := Parse(tab, src, Scope{Imports: parse.Imports(root)}); (g != nil) != (c.Accepted() && !gated) && !(refused && g == nil && ref.Reason == "scope") {
 				t.Fatalf("%s: Parse gives forest %v (%+v) where the chart's verdict is %v", p, g != nil, ref, c.Accepted())
 			}
 			if f == nil {
