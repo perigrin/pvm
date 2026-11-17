@@ -243,7 +243,12 @@ by the Chart Parser Recovery Plan
 `speed-ratio-aggregate-cold` to `speed-ratio-aggregate-perfile`, and adds
 `alloc-per-token-recognize`, `alloc-per-token-forest`, `gc-cpu-share-chart`
 and `gc-cpu-share-rd` (below). Every
-key of the first attempt is retired.
+key of the first attempt is retired. Waypoint 2 adds its ten keys, from
+`oracle-wrong` to `chart-beats-rd` (KEYS, 01a1c324-1fa1), all in one issue
+that took their baselines, under perigrin's ruling of 2026-11-10:
+"Yes, in one issue".
+KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-14:
+"Retire speed-ratio-std5k-cold".
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
@@ -304,7 +309,7 @@ key of the first attempt is retired.
   (`TestSpeedChartSideExcludesScopeFacts`). (`lex-overhead`'s reference side
   is `lexer.Tokenize`.) The speed keys' aggregate is drawn from the superset
   population, which now uses resolving recursive descent: that adds 163
-  files, and their timing baselines are retaken by KEYS or VERDICT.
+  files, and their timing baselines were retaken by VERDICT and KEYS.
 - **Budget.** One run takes at most 300 s on the development machine.
   Corpus-wide sweeps and benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
@@ -336,8 +341,11 @@ To take a baseline after an intended change, run
 ### The rules
 
 - **May not rise:** `tables-drift`, `leo-disagree`, `ledger-gaps`,
-  `rd-accepted-chart-refused`, `chart-accepted-both-refused`, `lex-unmapped`.
-  **May not fall:** `tdt-aligned`.
+  `rd-accepted-chart-refused`, `chart-accepted-both-refused`, `lex-unmapped`,
+  `oracle-wrong`, `precedence-disagree`, `precedence-uncovered-unlisted`,
+  `collapse-over-limit`.
+  **May not fall:** `tdt-aligned`, `precedence-covered` (spec §8: "Coverage
+  may not fall").
 - **Timing** keys (`lex-overhead*`, `speed-ratio-*`, `speed-stage-*`,
   `alloc-per-token-*`, `gc-cpu-share-*`) are never compared with the baseline, and no speed
   key has a limit (D1). `lex-overhead` fails **absolutely** when
@@ -391,6 +399,34 @@ To take a baseline after an intended change, run
   (`TestRatchetVerdictIsPipeline`, `TestRatchetCountsPipelineOverRefusal`).
   `leo-disagree`, `items-per-token`, `set-reuse`, `terminals-per-token` and
   `lex-unmapped` stay recognition's (`TestRecognitionKeysUnchangedByPipeline`).
+- **The oracle keys** sum `gradeOracle`'s sites (below, "Per-site
+  grading") over `in-tree.txt`, `t1.txt` and `perlgit.txt`: `oracle-wrong`
+  is the chart's WRONG sites, `oracle-exact-chart` its EXACT ones and
+  `oracle-exact-rd` recursive descent's, graded with its imports resolved.
+  Each WRONG site is named on stderr. A facts file that is missing,
+  unreadable or holds no record is an error (exit 2), never a 0
+  (`TestWaypoint2KeysMissingInputIsError`).
+- **The precedence keys** are the perly.y referee's (below, "The precedence
+  constraint"), `chart.CountPrecedence` over `testdata/precedence/`, the same
+  code `TestPrecedenceReferee` holds at none: `precedence-disagree` counts
+  the kept sentences whose chart verdict or grouping differs from bison's,
+  `precedence-covered` the bison (rule, token) resolutions a kept sentence
+  covers, and `precedence-uncovered-unlisted` those no kept sentence covers
+  and `uncovered-reviewed.txt` does not list. Each disagreement and each
+  unlisted resolution is named on stderr. `PLUGIN_*` resolutions are among
+  them, under the same referee (perigrin's ruling A), so there is no
+  separate plugin key. A fixture file that is missing, unreadable or
+  malformed is an error (exit 2), never a 0.
+- **The readings keys** read `forest.Readings` from each file the pipeline
+  accepts, over every corpus, perl.git `t/` included: `readings-collapsed`
+  sums the statements above 2^10 readings, and `collapse-over-limit` counts
+  the corpora (`guacamole`, `std5k`, `edit5k`, `T1`, `perlgit`) where more
+  than 1%, and at least 5, of the statements collapse. That is a §10 stop:
+  report it to perigrin, never tune toward it.
+- **`superset-population-perlgit`** counts the perl.git `t/` files in
+  `superset-population` (PERLGITPARITY documents the corpus input), and
+  **`chart-beats-rd`** (41b5) the files perl and the chart accept that
+  recursive descent with import resolution, the verdict side's, refuses.
 - **The verdict keys read perl's committed labels** (`testdata/labels/`,
   reviewed categories); a missing label file, or a corpus file with no label,
   is an error (exit 2).
@@ -414,7 +450,6 @@ To take a baseline after an intended change, run
 | `lex-overhead-std5k` | the same on `std5k.pl` alone | timing |
 | `lex-overhead-aggregate` | the same over the aggregate, never gated | timing |
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
-| `speed-ratio-std5k-cold` | the same, cold | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
 | `speed-ratio-aggregate-perfile` | the same over the aggregate, a fresh recognizer per file over tables already derived; renamed from `speed-ratio-aggregate-cold` (review Q1) because since CTORONCE (01a1b913-414b) a later `recognize.New` no longer derives tables, so the old key fell from 4.99 to 2.72 by redefinition, not by recognition getting faster; not comparable with cold figures from before CTORONCE | timing |
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
@@ -433,6 +468,16 @@ To take a baseline after an intended change, run
 | `superset-recognized` | share of that population the chart (`forest.Parse`) accepts | reported |
 | `rd-accepted-perl-refused` | files recursive descent accepts and perl refuses | reported |
 | `chart-accepted-perl-refused` | files the chart accepts and perl refuses | reported |
+| `oracle-wrong` | the chart's WRONG sites over every oracle-graded file, perl.git `t/` included | may not rise; 0 at the exit |
+| `oracle-exact-chart` | the chart's EXACT sites over the same | reported; the exit needs it at or above `oracle-exact-rd` |
+| `oracle-exact-rd` | recursive descent's EXACT sites, with import resolution, over the same | reported |
+| `precedence-disagree` | kept generated sentences whose chart verdict or grouping differs from the referee's fixture | may not rise; 0 at the exit |
+| `precedence-covered` | bison (rule, token) resolutions covered by a kept sentence | may not fall |
+| `precedence-uncovered-unlisted` | resolutions covered by no kept sentence and on no reviewed list | may not rise; 0 at the exit |
+| `readings-collapsed` | statements collapsed (above 2^10 readings) over every corpus | reported |
+| `collapse-over-limit` | corpora where more than 1%, and at least 5, of the statements collapse | may not rise; 0 at the exit (a §10 stop) |
+| `superset-population-perlgit` | perl.git `t/` files in the superset population | reported |
+| `chart-beats-rd` | files perl and the chart accept that recursive descent with import resolution refuses | reported |
 
 ### The speed protocol
 
@@ -451,11 +496,8 @@ clock and a collector, so it is tested on fake timings
   median of the 9 per-pair ratios (chart pass over reference pass), with min
   and max printed on stderr. A figure is the median of three measurements.
 - **Lifetimes.** Long-lived: one parser per pass, reused across its files.
-  Cold: a fresh recognizer per file. `speed-ratio-std5k-cold` keeps its name
-  and what it measures, a fresh recognizer per pass of one file; the same
-  CTORONCE change means it too reuses the derived tables after the first
-  `recognize.New` of the process, and perigrin's D5 renames only the aggregate
-  key. chart/lex's pooled lookup cache
+  Cold: a fresh recognizer per file. std5k's cold figure is no longer a
+  key: a second speed line nothing gates on. chart/lex's pooled lookup cache
   (`grammar.LookupCache`, from a `sync.Pool`) persists from file to file
   within a pass, cold or not; the GCs forced before each pass empty the pool,
   so no pass replays a cache warmed by an earlier pass. A `lex-overhead`
@@ -2167,8 +2209,8 @@ prototype grades EXACT only with its module found
 `oracle-grade: <chart|rd> <in-tree|T1|perl.git> exact <n> wider <n> wrong <n> no-answer <n>`,
 then `oracle-grade: unreadable <n>` and `oracle-grade: seconds <s>`, and lists
 each WRONG site on stderr as `oracle-grade: <subject> WRONG <file>:<line> <marker>`.
-It takes about 15 s. It is not yet a ratchet key: KEYS (`01a1c324-1fa1`)
-turns it into `oracle-wrong` and the exact-site keys, and WRONGZERO
+It takes about 15 s. The ratchet sums the same grading over the three corpora
+into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`, and WRONGZERO
 (`01a1c324-1fd7`) drives the chart's WRONG count to 0.
 
 ## The precedence constraint: `forest/precedence.go`
