@@ -297,7 +297,7 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	for i < len(l.src) && isWordByte(l.src[i]) { // a digit name, `${1}`
 		i++
 	}
-	if i == nameStart {
+	if i == nameStart && !caret { // a bare caret is the variable `^` (perl -c accepts `$#{^}`, `${ ^ }`)
 		return false
 	}
 	for i < len(l.src) && blank(l.src[i]) {

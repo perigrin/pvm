@@ -47,6 +47,10 @@ func TestLastIndexBlockLexesItsInterior(t *testing.T) {
 		{`${^W::x}`, `DerefSigil:$ Operator:{ Operator:^ Word:W::x CloseBracket:}`},
 		{`${^W'x}`, `DerefSigil:$ Operator:{ Operator:^ Word:W'x CloseBracket:}`},
 		{`$#{^W::x}`, `DerefSigil:$# Operator:{ Operator:^ Word:W::x CloseBracket:}`},
+		// A bare caret is the variable `^`: perl -c accepts `$#{^}` and `${ ^ }`.
+		{`$#{^}`, `Variable:$#{^}`},
+		{`${ ^ }`, `Variable:${ ^ }`},
+		{`${^ W}`, `DerefSigil:$ Operator:{ Operator:^ Word:W CloseBracket:}`},
 	} {
 		var got []string
 		for _, tk := range Tokenize([]byte(c.src)) {
