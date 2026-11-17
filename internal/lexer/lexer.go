@@ -454,7 +454,8 @@ type lexer struct {
 	//
 	// ponytail: one table for the file; perl scopes these to a package.
 	constSubs map[string]bool
-	// subs are the names `sub NAME` declares, in full (see qualify), read by
+	// subs are the names `sub NAME` and `use constant` declare, in full (see
+	// qualify), each true where its prototype is empty; read by
 	// wordTakesTerm.
 	subs map[string]bool
 	// packages are the `package NAME` declarations in force, innermost

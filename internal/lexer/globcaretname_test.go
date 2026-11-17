@@ -3,7 +3,10 @@
 
 package lexer_test
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // caretRow is one source and its significant tokens. Every row's perl -c
 // verdict is in the comment beside it, read with the pinned
@@ -176,4 +179,58 @@ func TestGlobCaretNameOtherSigils(t *testing.T) {
 		// toke.c's `$#` test takes no caret.
 		{"$#^R;", []string{"Variable($#)", "Operator(^)", "Word(R)", "Semicolon(;)"}},
 	})
+}
+
+// TestGlobCaretNameScope: which sub a word names, read as gv_fetchpvn reads
+// it. Each row's want is the stream from its last star on; perl -c's
+// verdict is beside it.
+func TestGlobCaretNameScope(t *testing.T) {
+	glob := []string{"Operator(*)", "Word(^R)", "Semicolon(;)"}
+	mul := []string{"Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)"}
+	for _, c := range []caretRow{
+		// A package's name is absolute, never inside the package in force:
+		// syntax OK.
+		{"package Foo; { package Bar; sub A; } package Bar; A *^R;", glob},
+		{"sub A; { package Foo; { package main; A *^R; } }", []string{"Operator(*)", "Word(^R)", "Semicolon(;)", "CloseBracket(})", "CloseBracket(})"}},
+		{"package Foo; { package main; sub A; } package main; A *^R;", glob},
+		{"package Foo; { package Bar; sub A; } package main; Bar::A *^R;", glob},
+		{"package Foo { { package Bar; sub A; } } Bar::A *^R;", glob},
+		{"package main::Foo; sub A; package Foo; A *^R;", glob},
+		// syntax error near "*^": no Foo::Bar::A is declared.
+		{"package Foo; { package Bar; sub A; } package main; Foo::Bar::A *^R;", mul},
+		{"package Foo; sub f { package Bar; sub A; } package main; Foo::Bar::A *^R;", mul},
+		// ENV, INC, ARGV, ARGVOUT, SIG, STDIN, STDOUT, STDERR and _ are
+		// main's in every package (gv.c's S_gv_is_in_main): syntax OK.
+		{"sub ENV; package Foo; ENV *^R;", glob},
+		{"package Foo; sub ENV; package main; ENV *^R;", glob},
+		// The empty prototype is the sub's however it is named: syntax error
+		// near "*^" on each.
+		{"sub main::A(); A *^R;", mul},
+		{"sub A(); main::A *^R;", mul},
+		{"sub A(); ::A *^R;", mul},
+		{"package Foo; sub A(); package main; Foo::A *^R;", mul},
+		{"sub Foo::A(); package Foo; A *^R;", mul},
+		// `class` is a package only under the class feature: syntax OK
+		// without it, syntax error near "*^" with it.
+		{"sub A; class Foo; A *^R;", glob},
+		{"sub A; class Foo; A *{^R};", []string{"Operator(*)", "Word({^R})", "Semicolon(;)"}},
+		{"use feature 'class'; no warnings; sub A; class Foo; A *^R;", mul},
+		// The block after a package's name is found past a comment, so
+		// Foo::A is declared and main::A is not: syntax error near "*^", and
+		// Invalid version format on the version row and the POD row.
+		{"package Foo # c\n{ sub A {} } A *^R;", mul},
+		{"package Foo 1.0 # c\n{ sub A {} } A *^R;", mul},
+		{"package Foo\n\n=pod\n\n=cut\n\n{ sub A {} } A *^R;", mul},
+	} {
+		got := significant(c.src)
+		for i := len(got) - 1; i >= 0; i-- {
+			if got[i] == "Operator(*)" {
+				got = got[i:]
+				break
+			}
+		}
+		if strings.Join(got, " ") != strings.Join(c.want, " ") {
+			t.Errorf("%q lexes from its last star as %v, want %v", c.src, got, c.want)
+		}
+	}
 }

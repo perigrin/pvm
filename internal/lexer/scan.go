@@ -1547,7 +1547,8 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 func (l *lexer) wordTakesTerm(i int) bool {
 	j := l.significantBefore(i)
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
-	return l.subs[l.qualify(w)] && !l.constSubs[w] || l.inHandleSlot(j)
+	niladic, declared := l.subs[l.qualify(w)]
+	return declared && !niladic || l.inHandleSlot(j)
 }
 
 // closerBefore reports whether the last significant token before toks[i] is

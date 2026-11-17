@@ -217,10 +217,15 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case l.sawPackageWord:
 			l.sawPackageWord = false
 			l.sawPackageName = true
-			l.enterPackage(word)
+			// `class` is a package's keyword only under the class feature.
 			if i := l.significantBefore(len(l.toks) - 1); i >= 0 &&
 				string(l.src[l.toks[i].Start:l.toks[i].End]) == "class" {
+				if l.classSyntax {
+					l.enterPackage(word)
+				}
 				l.classSyntax = true
+			} else {
+				l.enterPackage(word)
 			}
 			l.expectPrototype = false
 			// `class Point :isa(Shape) { }`. A class's attributes take the
@@ -494,12 +499,12 @@ func (l *lexer) closeLexSubScope() {
 // enclosing block, or through its own block in `package NAME VERSION {}`.
 func (l *lexer) enterPackage(name string) {
 	depth := len(l.brackets)
-	i := skipSpaceFrom(l.src, l.pos)
+	i := skipSpaceAndPodFrom(l.src, l.pos)
 	if i < len(l.src) && (isDigit(l.src[i]) || l.src[i] == 'v') {
 		for i < len(l.src) && (isWordByte(l.src[i]) || l.src[i] == '.') {
 			i++
 		}
-		i = skipSpaceFrom(l.src, i)
+		i = skipSpaceAndPodFrom(l.src, i)
 	}
 	if i < len(l.src) && l.src[i] == '{' {
 		depth++
@@ -507,28 +512,60 @@ func (l *lexer) enterPackage(name string) {
 	if n := len(l.packages); n > 0 && l.packages[n-1].depth == depth {
 		l.packages = l.packages[:n-1]
 	}
-	l.packages = append(l.packages, lexSub{name: l.qualify(name), depth: depth})
+	l.packages = append(l.packages, lexSub{name: absPackage(name), depth: depth})
 }
 
-// qualify is a sub or package name in full, as gv_fetchpvn reads it: `'`
-// is `::`, a leading `::` or `main::` is main's, and a bare name is in the
-// package in force.
-func (l *lexer) qualify(name string) string {
-	name = strings.ReplaceAll(name, "'", "::")
-	switch {
-	case strings.HasPrefix(name, "::"):
-		name = "main" + name
-	case !strings.Contains(name, "::"):
-		pkg := "main"
-		if n := len(l.packages); n > 0 {
-			pkg = l.packages[n-1].name
+// skipSpaceAndPodFrom is skipSpaceAndCommentsFrom that also skips a POD
+// block, from a line opening with `=` and a letter through its `=cut` line.
+func skipSpaceAndPodFrom(src []byte, i int) int {
+	for i = skipSpaceAndCommentsFrom(src, i); i+1 < len(src) && src[i] == '=' && isAsciiLetter(src[i+1]) && (i == 0 || src[i-1] == '\n'); i = skipSpaceAndCommentsFrom(src, i) {
+		for i < len(src) && !isPodCut(src[i:i+lineLen(src[i:])]) {
+			i += lineLen(src[i:])
+			if i < len(src) {
+				i++
+			}
 		}
-		name = pkg + "::" + name
+		i += lineLen(src[i:])
 	}
-	for strings.HasPrefix(name, "main::") && strings.Contains(name[len("main::"):], "::") {
+	return i
+}
+
+// absPackage is a package's name in full: package names are absolute, `'`
+// is `::`, and a leading `::` or `main::` names the same package without it.
+func absPackage(name string) string {
+	name = strings.TrimPrefix(strings.ReplaceAll(name, "'", "::"), "::")
+	for strings.HasPrefix(name, "main::") {
 		name = name[len("main::"):]
 	}
+	if name == "" {
+		return "main"
+	}
 	return name
+}
+
+// qualify is a sub's name in full, as gv_fetchpvn reads it: a qualified
+// name's package is absolute, and a bare name is in the package in force
+// unless gv_is_in_main puts it in main.
+func (l *lexer) qualify(name string) string {
+	name = strings.ReplaceAll(name, "'", "::")
+	if i := strings.LastIndex(name, "::"); i >= 0 {
+		return absPackage(name[:i]) + "::" + name[i+2:]
+	}
+	pkg := "main"
+	if n := len(l.packages); n > 0 && !inMain(name) {
+		pkg = l.packages[n-1].name
+	}
+	return pkg + "::" + name
+}
+
+// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
+// package, and every name that does not open as an identifier.
+func inMain(name string) bool {
+	switch name {
+	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
+		return true
+	}
+	return name == "" || name[0] < utf8.RuneSelf && !isAsciiLetter(name[0]) && name[0] != '_'
 }
 
 // lexSubInScope reports whether a lexical sub of this name is in scope.
@@ -560,11 +597,15 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	}
 	text := string(l.src[start:l.pos])
+	if l.subs == nil {
+		l.subs = map[string]bool{}
+	}
 	declare := func(name string) {
 		if l.constSubs == nil {
 			l.constSubs = map[string]bool{}
 		}
 		l.constSubs[name] = true
+		l.subs[l.qualify(name)] = true
 	}
 	switch l.constState {
 	case constSawUse:
@@ -603,10 +644,7 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	case constSawSub:
 		if k == Word {
-			if l.subs == nil {
-				l.subs = map[string]bool{}
-			}
-			l.subs[l.qualify(text)] = true
+			l.subs[l.qualify(text)] = false
 			l.constState, l.constKey = constSawName, text
 			return
 		}
