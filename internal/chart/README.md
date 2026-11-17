@@ -258,11 +258,24 @@ key of the first attempt is retired.
   non-zero because the waypoint's exit is still unmet. `go run` turns every
   non-zero exit into 1 and `make` then returns 2, so through `make` only the
   stderr text (`exit status 2`) tells an error from a regression.
-- **Inputs.** The ratchet reads the working tree and one directory outside
-  it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default (below).
-  T1 is in the tree: `testdata/perlonjava/unit` (see
-  `testdata/perlonjava/README.md`), and `T1_CORPUS` overrides it. It reads
-  no commit, no
+- **Inputs.** The ratchet reads the working tree and two directories
+  outside it: the aligned `-DT` pairs (`TDT_FIXTURES`), with a default
+  (below), and perl.git `t/` (spec §9.1), every `.t` file under
+  `$PERL5_CORPUS/t` (default `/opt/corpora/perl5`, the variable
+  `parseoracle` reads), as the corpus `perlgit`, each file named
+  `perlgit/<path under t/>` as `testdata/labels/perlgit.txt` names it
+  (perigrin, 2026-11-10: "Accept it, pinned"). That tree must be clean
+  (`git status --porcelain` empty) and at 94e50866, or the ratchet exits 2
+  with one stderr line naming the tree and the reason:
+  `perl.git corpus <path>: no such directory`, `: not clean` or
+  `: not at 94e50866`. perl.git `t/` joins the result keys (`lex-unmapped`,
+  the superset population, both refusal gates, `leo-disagree`) and the speed
+  aggregate, never the tdt keys nor `terminals-per-token`, `items-per-token`
+  and `set-reuse` (perigrin, 2026-11-15, results first). Recursive descent
+  resolves a perl.git file's imports from its own directory, then `t/`, the
+  tree and its `lib/`, as the oracle's subject does from `t/`. T1 is in the tree:
+  `testdata/perlonjava/unit` (see `testdata/perlonjava/README.md`), and
+  `T1_CORPUS` overrides it. It reads no commit, no
   `refs/zhi` and no network. Of Guacamole it reads only the corpus snippets
   under `testdata/guacamole/`, never its grammar. It imports `chart/grammar`
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
@@ -337,7 +350,7 @@ To take a baseline after an intended change, run
 - **The tdt keys read `TDT_FIXTURES`**, the directory `offline/tdt-align.sh`
   writes the aligned pairs into (they are not committed). Unset, it is
   `/var/tmp/pvm-chart-tdt`, where this milestone generates them; naming no directory, or a corpus file with no fixture there, is an
-  error (exit 2). A pair is a token class and the terminal it declares, written
+  error (exit 2). perl.git `t/` is not among their corpora. A pair is a token class and the terminal it declares, written
   `<terminal> <key>` as in `testdata/tdt/unseen-reviewed.txt`, where each entry
   sits under a `reason:` line saying why toke.c never produces it over the
   corpora; an entry naming no pair of the table is an error. Only whole
@@ -603,8 +616,8 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
   a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
   `/opt/corpora/perl5`). `lexer-defects.txt` holds 13 such entries and
-  `tdt/lexer-rooted.txt` 193; `lex-unmapped-known.txt` holds none yet, since
-  the ratchet does not measure perl.git.
+  `tdt/lexer-rooted.txt` 99; `lex-unmapped-known.txt` holds none, since no
+  perl.git file has a token the table leaves unmapped.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
   `lex-unmapped`, the first byte the chart leaves unmapped; for a defect, the
@@ -1195,7 +1208,35 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   a word with a text (`my sub q { 1 } q *{"x"};`). After a package sub of that name toke.c reads the quote-like, and so does internal/lexer, so
   `sub y { 1 } my @a = (y, 1);` is refused at lex, as by perl. shortcut: before a subscript's `}` the name has no
   word's reading, since internal/lexer emits a Word there even across a newline, where toke.c reads `$h{q` and a
-  newline as a quote; so `my sub q {1} my %h; my $y = $h{q` and a newline and `};` is refused, where perl accepts it.
+  newline as a quote. A lexical sub of that name in scope is still a call there: internal/lexer marks it `LexSub`
+  and chart/lex reads it as `grammar.PlainWord`.
+- A lexical sub overrides every keyword where toke.c expects no operator (yyl_keylookup checks the pad first):
+  internal/lexer marks that word `LexSub`, and chart/lex gives a marked keyword the text `grammar.PlainWord`, a word
+  no class names. So `our sub if() { 42 } my $x = if if if;` parses as `$x = if() if if()` (perl.git
+  `op/lexsub.t`), and `my sub if { 1 } if (1) { 2 }` is refused, as by perl.
+- A glob's name may be digits (`local *1 = sub { 1 };`, perl.git `op/method.t`): yyl_star's scan_ident reads them
+  and forces BAREWORD, where internal/lexer emits a Number, so a Number after a glob's `*` gets BAREWORD too: only
+  decimal digits with no leading 0 (`*1_0`, `*1e3` and `*01` are refused, as by perl), which chart/lex marks with the
+  Prefix `grammar.GlobDigits` after any `*`; that Number keeps its THING reading.
+- A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
+  `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
+  `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature
+  on), `use`, `no`, `require`, or a qualified name where perl makes a symbol: a variable (`$Foo::x`, `$Foo'x`), a
+  word after a sigil (`&Foo::bar`, a glob's `*Foo::x`: one in term position, `grammar.Neighbour.Glob`, which holds
+  after a repetition `x`, `grammar.Neighbour.Repeat`), a word alone in the braces after any sigil or cast
+  (`@{Foo::x}`, `&{Foo::bar}`, `*{ Foo::x }`, `${Foo::x}`), a word called with `(`, a word before `->` that no method
+  name follows (`Foo::bar->[0]`, `Foo::bar->@*`, `Foo::bar->()`), or a sub's name. Neighbours are significant tokens,
+  so whitespace, comments and POD between them do not count. A bareword, class or method name (`Foo::bar;`,
+  `Foo::Bar->x`, `Foo::bar->$m`, `Foo::`, `$x->Foo::bar()`), a block holding a string (`*{::Foo::x}`) and a word
+  after a multiply's `*` make no stash. A name is read as perl reads it: `'` is `::`, one leading `::` and then any
+  number of `main::` name nothing more, and a trailing `::` is a stash inside the one before it (`package Foo::`
+  makes `Foo::`; `main::::Foo` is `Foo` inside the stash named ""); the class word drops one trailing `::` first
+  (`my Foo:: $f`, `my main:: $f`). A v-string after `use`, `no` or `require` (`use v5`) is a version and makes no
+  stash, and `CORE::package`, `CORE::require` or `CORE::my` is the bare keyword. Any other is kept, which the grammar
+  refuses, as perl's "No such class" does.
+  shortcut: a stash made any other way (a string eval, an interpolated `"$Foo::x"` or `"@Foo::x"`, an `s///e`
+  replacement, a print's filehandle `print Foo::x "a"`, a module that makes another package) is not seen, so that
+  typed my is refused.
 - `CORE::kw`, kw a keyword, is kw (yyl_key_core, toke.c:9230-9257): by perigrin's ruling ("Strip CORE:: in chart/lex")
   chart/lex gives such a word kw's text, so kw's classes and every neighbour check on kw apply, and the Prefix
   `CoreQualified` (`C`), a value of an existing key part as `PackageName` is. toke.c reaches yyl_key_core before its

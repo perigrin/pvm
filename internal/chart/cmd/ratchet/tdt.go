@@ -430,10 +430,12 @@ func fixturesDir(set, def string) string {
 }
 
 // measureTDT adds the tdt keys to measured, reading the fixtures in dir; a dir that is no directory is an error.
+// perl.git t/ is left out: it joins the result keys, never the tdt keys (perigrin, 2026-11-15, results first).
 func measureTDT(dir string, g *grammar.Grammar, tab *grammar.Tables, files []File, srcs map[string][]byte, measured map[string]string) error {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return fmt.Errorf("TDT_FIXTURES=%s names no directory (%v)", dir, err)
 	}
+	files = slices.DeleteFunc(slices.Clone(files), func(f File) bool { return f.Corpus == "perlgit" })
 	tfiles, err := loadTDT(dir, files, srcs)
 	if err != nil {
 		return err

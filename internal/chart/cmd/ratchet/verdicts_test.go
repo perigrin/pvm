@@ -229,7 +229,7 @@ var committed struct {
 // counts as a token nor holds a terminal, so it does not lower the width.
 func TestChartInputsUnmappedIsRefused(t *testing.T) {
 	srcs := map[string][]byte{"ok.pl": []byte("1;"), "rep.pl": []byte("1; 1; 1; 1;"), "bad.pl": []byte("1 \x01;")}
-	in := chartInputs(committedTables(t), srcs, nil, nil, filepath.Dir)
+	in := chartInputs(committedTables(t), srcs, nil, nil, ownDir)
 	ok, err := in.Chart("ok.pl")
 	if err != nil || !ok.Accepted {
 		t.Fatalf("1; = %+v, %v; want accepted", ok, err)
@@ -270,7 +270,8 @@ func TestLexerListedReadsBothLists(t *testing.T) {
 }
 
 // TestLabelVerdicts: the committed label files give perl's verdict by the
-// ratchet's corpus path (T1 files as T1/<name>.t); an unlabelled path is nil,
+// ratchet's corpus path (T1 files as T1/<name>.t, perl.git's as
+// perlgit/<path under t/>); an unlabelled path is nil,
 // and a missing label file is an error, never an empty set of verdicts.
 func TestLabelVerdicts(t *testing.T) {
 	dir := t.TempDir()
@@ -283,13 +284,16 @@ func TestLabelVerdicts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "t1.txt"), []byte("x.t\trefuse\tgrammar\treviewed\tsyntax error\treferee-noprec refuse@3; referee-prec refuse@3\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "perlgit.txt"), []byte("op/y.t\taccept\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	perl, err := labelVerdicts(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for path, want := range map[string]*perlVerdict{
 		"a.pl": {}, "b.pl": {Refused: true, Category: "semantic"}, "T1/x.t": {Refused: true, Category: "grammar"},
-		"x.t": nil, "c.pl": nil,
+		"perlgit/op/y.t": {}, "x.t": nil, "c.pl": nil, "op/y.t": nil,
 	} {
 		if got := perl(path); (got == nil) != (want == nil) || got != nil && *got != *want {
 			t.Errorf("%s: %+v, want %+v", path, got, want)

@@ -103,6 +103,9 @@ func refCore(k lexer.Kind, tx string) (string, bool) {
 
 // refPrefix is prefix as a regular expression reads a number: strict or lax version text, and only when
 // whitespace, ;, {, } or the end of the file follows it; and a word ending in ::. Anything else is prefix's.
+// refGlobDigits is a glob's name of digits: decimal, no leading 0 but a lone one.
+var refGlobDigits = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
+
 func refPrefix(k lexer.Kind, tx string, src []byte, end int) byte {
 	if k == lexer.Word {
 		if refPackageName.MatchString(tx) {
@@ -230,6 +233,7 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		}
 	}
 	is := func(want *grammar.Neighbour, got grammar.Neighbour) bool {
+		got.Repeat = false // no class key reads it
 		if want != nil && want.Text == grammar.NonIdentWord {
 			return got.Kind == lexer.Word && !named[got.Text] && !(got.Text[0] == '_' || got.Text[0]|0x20 >= 'a' && got.Text[0]|0x20 <= 'z' || got.Text[0] >= 0x80)
 		}
@@ -241,10 +245,14 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		return want == nil || *want == got
 	}
 	// completes is whether a token leaves PL_expect at XOPERATOR: a name, or a token some class marks
-	// Completes, other than a block's }, which ends a statement more often than it ends a term.
+	// Completes, other than a block's }, which ends a statement more often than it ends a term, and other than the
+	// repetition x, which expects one.
 	completes := func(n grammar.Neighbour) bool {
 		if n.Name {
 			return true
+		}
+		if n.Repeat {
+			return false
 		}
 		for ci := range classes {
 			c := &classes[ci]
@@ -312,11 +320,15 @@ func refIDs(tb testing.TB, src []byte, tt *grammar.TokenTable, classes []grammar
 		if t.Kind == lexer.Word && tx == "isa" && !isa {
 			v.Text = grammar.PlainIsa
 		}
+		if t.Kind == lexer.Number && pred.Kind == lexer.Operator && pred.Text == "*" && refGlobDigits.MatchString(tx) {
+			v.Prefix = grammar.GlobDigits
+		}
 		prev := pred
 		pred = refClassOf(v, prev)
 		if t.Kind == lexer.Operator && tx == "*" {
 			pred.Glob = !completes(prev)
 		}
+		pred.Repeat = t.Kind == lexer.Word && v.Text == "x" && completes(prev)
 		toks = append(toks, tok{v, pred})
 	}
 	nb := func(i int) grammar.Neighbour {

@@ -61,6 +61,7 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	// block's } restores them from scopes; each change is recorded for resolve (Stream.Features).
 	var on Features
 	scopes := make([]Features, 0, 16)
+	var st stashes
 	for i, t := range raw {
 		switch {
 		case lexer.IsTrivia(t.Kind):
@@ -81,6 +82,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
+		if st.typedClass(t, text, on) {
+			continue // toke.c consumes a typed my's class name (KEY_my's PL_in_my_stash) and emits no token for it
+		}
+		st.note(raw, i, text, on, pred)
 		plainIsa, was := false, on
 		switch n := t.End - t.Start; t.Kind {
 		case lexer.Operator:
@@ -127,6 +132,141 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	return s, first
 }
 
+// stashes are the packages a file has made so far, as far as its tokens show, and the significant word before the
+// current token: what a typed my's class name needs (typedClass).
+type stashes struct {
+	made map[string]bool
+	prev string // the last significant token's text if it was a Word, else ""
+	// brace is whether the last significant token was a `{` right after a sigil or a cast (`$`, `@`, `%`, `&` or a
+	// glob's `*`), which opens a name where a word and its `}` are all it holds (`@{Foo::x}`, `&{Foo::bar}`).
+	brace bool
+}
+
+// startStashes are the stashes the pinned perl (94e50866) starts with, measured by `my X $f;` under perl -c.
+var startStashes = map[string]bool{"main": true, "UNIVERSAL": true, "CORE": true, "CORE::GLOBAL": true,
+	"Internals": true, "utf8": true, "re": true, "version": true, "PerlIO": true, "PerlIO::Layer": true, "Regexp": true,
+	"DB": true, "DynaLoader": true, "Exporter": true, "constant": true, "IO": true, "IO::File": true,
+	"IO::Seekable": true, "IO::Handle": true, "Tie": true, "Tie::Hash": true, "Tie::Hash::NamedCapture": true,
+	"mro": true, "builtin": true}
+
+// typedClass is whether t is a typed my's class name: a word after my, our or state (its feature maybe on) other than
+// sub or method, naming a stash that exists. toke.c croaks "No such class" for any other, so that word is kept and,
+// with no reading the grammar takes there, refuses.
+// shortcut: a stash made other than by package, class, use, no, require or a symbol's qualified name in code before it
+// (a string eval, an interpolated "$Foo::x", an s///e replacement, a print's filehandle `print Foo::x "a"`, a module
+// that makes another package) is not seen, so that typed my is refused; upgrade when a corpus shows one.
+func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
+	if t.Kind != lexer.Word || st.prev != "my" && st.prev != "our" && (st.prev != "state" || (on.On|on.Maybe)&FeatureState == 0) {
+		return false
+	}
+	w := text[t.Start:t.End]
+	if strings.HasPrefix(w, "::") {
+		return false // perl reads `my ::Foo` as a syntax error
+	}
+	w = stashName(strings.TrimSuffix(w, "::")) // `my Foo::` is Foo, `my main::::` the stash named "" (main::::)
+	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
+}
+
+// versionEnds reports whether a v-string whose word ends at end is a version, as toke.c's S_force_version decides:
+// it walks digits, _ and . past the word (`v5_1. 1` is the version `v5_1.`), then wants an isSPACE_A byte, ;, {, }
+// or the end of the source. Any other byte (`require v5_1, 1`) leaves it a module name.
+func versionEnds(text string, end int) bool {
+	for end < len(text) && (text[end] >= '0' && text[end] <= '9' || text[end] == '_' || text[end] == '.') {
+		end++
+	}
+	return end >= len(text) || strings.IndexByte(" \t\n\v\f\r;{}", text[end]) >= 0
+}
+
+// stashName is the stash a qualified name n names, as perl reads it: ' is ::, and one leading :: and then any number
+// of main:: name nothing more (`::main::main::Foo'Bar` is Foo::Bar, `main::::Foo` is ::Foo, inside the stash named
+// "", and `Foo::` is a stash inside Foo).
+func stashName(n string) string {
+	n = strings.TrimPrefix(strings.ReplaceAll(n, "'", "::"), "::")
+	for strings.HasPrefix(n, "main::") {
+		n = n[6:]
+	}
+	return n
+}
+
+// add records stash n and each stash it is nested in.
+func (st *stashes) add(n string) {
+	if st.made == nil {
+		st.made = map[string]bool{}
+	}
+	for k := 0; k <= len(n); k++ {
+		if k == len(n) || strings.HasPrefix(n[k:], "::") {
+			st.made[n[:k]] = true // "" too: main:: is in no stash, so only main::::'s parts name it
+		}
+	}
+}
+
+// note records the stashes raw[i] makes, each with every stash it is nested in: the name after package, class (its
+// feature on), use, no or require, and each
+// package a qualified name passes through where perl makes a symbol of it -- a variable (`$Foo::x`, `$ Foo::x`), a
+// word after a sigil (`&Foo::bar`, a glob's `*Foo::x`), a word alone in the braces after a sigil or cast
+// (`@{Foo::x}`, `*{ Foo::x }`), a word called with ( (`Foo::bar()`), a word before -> that no method name follows
+// (`Foo::bar->[0]`, `Foo::bar->@*`), or a sub's or format's name (`sub Foo::bar`, `format Foo::x =`). A bareword, class or method name
+// (`Foo::bar;`, `Foo::Bar->x`, `Foo::bar->$m`, `$x->Foo::bar()`) makes none. Neighbours are significant tokens, so
+// whitespace, comments and POD between them do not count. pred is the class of the token before raw[i].
+func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred *grammar.Neighbour) {
+	t := raw[i]
+	tx := text[t.Start:t.End]
+	glob := pred.Kind == lexer.Operator && pred.Text == "*" && pred.Glob // the grammar's glob-sigil test
+	sigil := glob || pred.Kind == lexer.FuncSigil || pred.Kind == lexer.DerefSigil
+	prev, brace := st.prev, st.brace
+	st.prev, st.brace = "", sigil && t.Kind == lexer.Operator && tx == "{"
+	if t.Kind == lexer.Word {
+		st.prev = strings.TrimPrefix(tx, "CORE::") // toke.c reads CORE::kw as kw
+	}
+	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
+		return
+	}
+	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
+		prev == "class" && on.On&FeatureClass != 0) &&
+		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && tx[1] >= '0' && tx[1] <= '9' &&
+			strings.Trim(tx[1:], "0123456789_") == "" && versionEnds(text, t.End)) {
+		// a v-string after use, no or require is a version, not a module
+		st.add(stashName(tx))
+	}
+	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
+		return
+	}
+	if t.Kind == lexer.Word && !(sigil || prev == "sub" || prev == "format") {
+		n := significant(raw, i)
+		switch {
+		case pred.Kind == lexer.Operator && pred.Text == "->":
+			return // a method's name
+		case brace && tx[0] != ':' && is(raw, n, text, lexer.CloseBracket, "}"):
+			// scan_ident reads `{Foo::x}` as the name; `{::Foo::x}` is a block holding a string
+		case is(raw, n, text, lexer.Operator, "("):
+		case is(raw, n, text, lexer.Operator, "->"):
+			if m := significant(raw, n); m < len(raw) && (raw[m].Kind == lexer.Word ||
+				raw[m].Kind == lexer.Variable && text[raw[m].Start] == '$' && text[raw[m].End-1] != '*') {
+				return // a class name: a method (`->m`, `->$m`, `->${...}`) follows, where a deref (`->$*`) does not
+			}
+		default:
+			return // a bareword
+		}
+	}
+	// the symbol's stash is all of its name before the last ::
+	name := strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(tx, "$@%&*#{ \t\n"), "} \t\n"), "'", "::")
+	if k := strings.LastIndex(name, "::"); k > 0 { // `$::x` is main's
+		st.add(stashName(name[:k]))
+	}
+}
+
+// significant is the index of the first significant token after raw[i], len(raw) if none.
+func significant(raw []lexer.Token, i int) int {
+	for i++; i < len(raw) && (lexer.IsTrivia(raw[i].Kind) || raw[i].Kind == lexer.HeredocBody); i++ {
+	}
+	return i
+}
+
+// is is whether raw[n] exists and is a token of kind k spelling s.
+func is(raw []lexer.Token, n int, text string, k lexer.Kind, s string) bool {
+	return n < len(raw) && raw[n].Kind == k && text[raw[n].Start:raw[n].End] == s
+}
+
 // caches lends each Map call its own LookupCache, so concurrent calls never share one, and a cache keeps its
 // answers from one file to the next.
 var caches = sync.Pool{New: func() any { return new(grammar.LookupCache) }}
@@ -148,12 +288,18 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 	if plainIsa {
 		tx = grammar.PlainIsa
 	}
+	if t.LexSub && lexer.IsKeyword(tx) {
+		tx = grammar.PlainWord
+	}
 	var next byte // 0 at the end of the file, which ends a version as toke.c's NUL does
 	if t.Kind == lexer.Number && t.End < len(text) {
 		next = text[t.End]
 	}
 	// v is written field by field: a literal is built aside and copied with wide loads, which stall on its narrow stores.
 	p, g := prefix(t.Kind, tx, next), (lc || t.Kind == lexer.Variable) && global(t.Kind, tx)
+	if t.Kind == lexer.Number && pred.Kind == lexer.Operator && pred.Text == "*" && globDigits(tx) {
+		p = grammar.GlobDigits // a glob's name if the * is a glob's sigil, which the table decides
+	}
 	if p == grammar.CoreQualified {
 		tx = tx[6:] // toke.c's yyl_key_core reads CORE::kw as kw; decided before v is written, which reading v back would stall
 	}
@@ -433,6 +579,19 @@ func skipBlanks(raw []lexer.Token, j, step int, src string) int {
 		return -2
 	}
 	return j
+}
+
+// globDigits is whether tx is what scan_ident reads as a glob's name after `*`: decimal digits, no leading 0 but 0.
+func globDigits(tx string) bool {
+	if tx == "" || len(tx) > 1 && tx[0] == '0' {
+		return false
+	}
+	for i := 0; i < len(tx); i++ {
+		if tx[i] < '0' || tx[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // versionShape is a Number's version class for the key, which drops its text: grammar.VersionStrict

@@ -66,6 +66,10 @@ type Neighbour struct {
 	// SortParen is on a `(` right after sort (not a method named sort): toke.c's yyl_leftparen lets the word after it be
 	// sort's sub name (toke.c:8158), as the word right after sort is, so the ( says what it was, as Label does.
 	SortParen bool
+	// Repeat is on an x that is the repetition operator, one whose predecessor completes a term (KEY_x's XOPERATOR
+	// test): it expects a term, so a `*` after it is a glob's sigil (completes). Like Glob it needs the table
+	// (TokenTable.Intern), and no class key reads it, so x keeps one class either way.
+	Repeat bool
 	// Array is on a variable that opens with @ or $#, so a word's key can tell `foo @x`, which toke.c refuses,
 	// from `foo $x`, a method call. A class that names a Variable neighbour and means every sigil lists both.
 	Array bool
@@ -150,9 +154,17 @@ const PackageName = ':'
 // as kw (yyl_key_core, toke.c:9230-9257), but before its fat-comma check, so `CORE::eq =>` stays an operator.
 const CoreQualified = 'C'
 
+// GlobDigits is the Prefix of a Number after a `*` that is only decimal digits with no leading 0, which yyl_star's
+// scan_ident reads as a glob's name after a glob sigil (`*1`); chart/lex derives it from the number's text and the `*`.
+const GlobDigits = 'G'
+
 // PlainIsa is the text chart/lex gives the word isa where the isa feature is off: toke.c's keyword() returns 0 for it
 // there (keywords.c:353), so it is a word no class names. It opens with a letter, so it is not the NonIdentWord class.
 const PlainIsa = "isa\x00plain"
+
+// PlainWord is the text chart/lex gives a keyword internal/lexer marks LexSub: a lexical sub in scope overrides every
+// keyword where toke.c expects no operator (yyl_keylookup checks the pad first), so it is a word no class names.
+const PlainWord = "w\x00plain"
 
 // IdentQuote as a neighbour's Text marks a quote-like that opens with a letter (qw, q, qq, m, s, tr, y),
 // as toke.c's isIDFIRST reads it, so a class can tell it from a string, which a NotNextIdent must.
@@ -239,6 +251,9 @@ func (c TokenClass) CompletedBy() (Neighbour, bool) {
 func (tt *TokenTable) completes(pred *Neighbour) bool {
 	if pred.Name {
 		return true
+	}
+	if pred.Repeat {
+		return false
 	}
 	n := *pred
 	n.Glob, n.Brace, n.SortParen = false, 0, false
@@ -417,6 +432,7 @@ func (tt *TokenTable) Intern(t *TokenView, pred *Neighbour, it *Token) {
 	if t.Kind == lexer.Operator && t.Text == "*" {
 		it.N.Glob = !tt.completes(pred)
 	}
+	it.N.Repeat = t.Kind == lexer.Word && t.Text == "x" && tt.completes(pred)
 	text := tt.textID(t.Text)
 	ct := text
 	if it.N.Text == "" {
