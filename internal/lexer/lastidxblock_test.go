@@ -56,6 +56,10 @@ func TestLastIndexBlockLexesItsInterior(t *testing.T) {
 		{`$#{^[}`, `Variable:$#{^[}`},
 		{`${^?}`, `Variable:${^?}`},
 		{`${ ^^ }`, `Variable:${ ^^ }`},
+		// Word characters may follow the control byte: perl -MO=Deparse prints these back unchanged.
+		{`$#{^^x}`, `Variable:$#{^^x}`},
+		{`${^[x}`, `Variable:${^[x}`},
+		{`${^??}`, `DerefSigil:$ Operator:{ Operator:^ Operator:? Operator:? CloseBracket:}`},
 	} {
 		var got []string
 		for _, tk := range Tokenize([]byte(c.src)) {

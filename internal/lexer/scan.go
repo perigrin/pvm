@@ -282,13 +282,9 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 	caret := i < len(l.src) && l.src[i] == '^'
 	if caret {
 		i++
-		// `${^^}`, `$#{^[}`, `${^?}`: a caret and one control-name byte are the whole name.
+		// A caret, one of [ ] \ ^ ?, then word characters, as scan_ident: `${^^}`, `$#{^[}`, `${^^x}`.
 		if i < len(l.src) && strings.IndexByte("[]\\^?", l.src[i]) >= 0 {
 			i++
-			for i < len(l.src) && blank(l.src[i]) {
-				i++
-			}
-			return i < len(l.src) && l.src[i] == '}'
 		}
 	}
 
