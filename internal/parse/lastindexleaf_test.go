@@ -44,3 +44,21 @@ func refusedNode(n *Node) bool {
 	}
 	return false
 }
+
+// TestLastIndexBlockDeclared: a declarator takes `$#{ EXPR }` as its target,
+// the leaf then the initialiser, as it did while the lexer emitted one
+// Variable: declaration(term `$#{$x}`, term 1), never a declaration of `=`.
+func TestLastIndexBlockDeclared(t *testing.T) {
+	for _, src := range []string{`local $#{$x} = 1;`, `my $#{$x} = 1;`, `our $#{$x};`} {
+		root := Parse([]byte(src))
+		stmt := root.Children[0]
+		if len(stmt.Children) == 0 || stmt.Children[0].Kind != Declaration {
+			t.Errorf("%q: want a declaration, got %v", src, stmt.Children)
+			continue
+		}
+		d := stmt.Children[0]
+		if c := d.Children[0]; c.Kind != Term || c.Text != `$#{$x}` {
+			t.Errorf("%q: the declaration's first child is %v %q, want the term `$#{$x}`", src, c.Kind, c.Text)
+		}
+	}
+}

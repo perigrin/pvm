@@ -337,13 +337,8 @@ func (p *parser) parseTerm() *Node {
 		// because a new CST kind is a change every consumer must learn.
 		p.advanceTo(tok)
 
-		// `$#{ EXPR }` stays the one leaf it was while the lexer emitted it
-		// as one Variable: lower and Sites read it whole.
-		if open, ok := p.peekSignificant(); ok && text == "$#" && p.text(open) == "{" {
-			if close, ok := p.closingBrace(open); ok {
-				p.advanceTo(close)
-				return &Node{Kind: Term, Text: string(p.src[tok.Start:close.End]), Start: tok.Start, End: close.End}
-			}
+		if n, ok := p.lastIndexBlock(tok); ok {
+			return n
 		}
 
 		// The braces of `${EXPR}` GROUP; they do not construct. Letting
@@ -1229,4 +1224,23 @@ func markTrailing(n *Node, sep string) {
 		return
 	}
 	n.TrailingComma += " " + sep
+}
+
+// lastIndexBlock reads `$#{ EXPR }` from its `$#` DerefSigil as the one Term
+// leaf it was while the lexer emitted it as one Variable, so lower, Sites and
+// a declarator read it whole; ok is false for any other token.
+func (p *parser) lastIndexBlock(sigil lexer.Token) (*Node, bool) {
+	if sigil.Kind != lexer.DerefSigil || p.text(sigil) != "$#" {
+		return nil, false
+	}
+	open, ok := p.peekAfter(sigil)
+	if !ok || p.text(open) != "{" {
+		return nil, false
+	}
+	close, ok := p.closingBrace(open)
+	if !ok {
+		return nil, false
+	}
+	p.advanceTo(close)
+	return &Node{Kind: Term, Text: string(p.src[sigil.Start:close.End]), Start: sigil.Start, End: close.End}, true
 }

@@ -840,10 +840,12 @@ func (p *parser) parseVarDeclNoSemi(word lexer.Token) *Node {
 	// Attributes come between: `field $x :param = 1` and `my $x :shared = 1`
 	// both put them after the name, where an expression parser would read
 	// the `:` as a ternary's colon with nothing to match.
-	if v, ok := p.peekSignificant(); ok && v.Kind == lexer.Variable {
-		p.advanceTo(v)
-		target := &Node{
-			Kind: Term, Text: p.text(v), Start: v.Start, End: v.End,
+	v, ok := p.peekSignificant()
+	if lastIdx, block := p.lastIndexBlock(v); ok && (block || v.Kind == lexer.Variable) {
+		target := lastIdx
+		if !block {
+			p.advanceTo(v)
+			target = &Node{Kind: Term, Text: p.text(v), Start: v.Start, End: v.End}
 		}
 
 		// A subscript belongs to the TARGET, not to a statement of its own.
