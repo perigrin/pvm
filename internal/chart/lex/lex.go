@@ -228,6 +228,9 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 	}
 	// v is written field by field: a literal is built aside and copied with wide loads, which stall on its narrow stores.
 	p, g := prefix(t.Kind, tx, next), (lc || t.Kind == lexer.Variable) && global(t.Kind, tx)
+	if t.Kind == lexer.Number && pred.Kind == lexer.Operator && pred.Text == "*" && globDigits(tx) {
+		p = grammar.GlobDigits // a glob's name if the * is a glob's sigil, which the table decides
+	}
 	if p == grammar.CoreQualified {
 		tx = tx[6:] // toke.c's yyl_key_core reads CORE::kw as kw; decided before v is written, which reading v back would stall
 	}
@@ -507,6 +510,19 @@ func skipBlanks(raw []lexer.Token, j, step int, src string) int {
 		return -2
 	}
 	return j
+}
+
+// globDigits is whether tx is what scan_ident reads as a glob's name after `*`: decimal digits, no leading 0 but 0.
+func globDigits(tx string) bool {
+	if tx == "" || len(tx) > 1 && tx[0] == '0' {
+		return false
+	}
+	for i := 0; i < len(tx); i++ {
+		if tx[i] < '0' || tx[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // versionShape is a Number's version class for the key, which drops its text: grammar.VersionStrict

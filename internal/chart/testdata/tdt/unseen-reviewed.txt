@@ -2110,5 +2110,5 @@ PERLY_BRACE_OPEN Kind=Operator Text="{" OpensBlock=false Prev2={Kind:Word Text:y
 reason: the tokens this key matches are only in files perl does not capture whole (internal/chart/testdata/guacamole/parsent/Statements-Expressions-variable-011.pl, `$x->y[`): a refused or timed-out capture has no alignment, so toke.c's stream never reaches them
 BAREWORD Kind=Word Text="y" Prefix="\x00" NotPrev1=#2:18613df85d114 NotPrev2=#4:a5cff6c3658ab NotNext=#3:6275a73a49a44
 
-reason: a glob named by digits (`*1`, scan_ident's BAREWORD after a glob's *, yyl_star), which no T1 or in-tree file writes; the key compiled alone admits the corpora's `2 * 3`, but in the full table a Number completes a term, so that * multiplies and toke.c never reports this pair there
-BAREWORD Kind=Number Prev1={Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false}
+reason: a glob named by digits (`*1`, scan_ident's BAREWORD after a glob's *, yyl_star), which no T1 or in-tree file writes; the key compiled alone admits the corpora's `2*3`, but in the full table a Number completes a term, so that * multiplies and toke.c never reports this pair there
+BAREWORD Kind=Number Prefix="G" Prev1={Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false}

@@ -150,6 +150,10 @@ const PackageName = ':'
 // as kw (yyl_key_core, toke.c:9230-9257), but before its fat-comma check, so `CORE::eq =>` stays an operator.
 const CoreQualified = 'C'
 
+// GlobDigits is the Prefix of a Number after a `*` that is only decimal digits with no leading 0, which yyl_star's
+// scan_ident reads as a glob's name after a glob sigil (`*1`); chart/lex derives it from the number's text and the `*`.
+const GlobDigits = 'G'
+
 // PlainIsa is the text chart/lex gives the word isa where the isa feature is off: toke.c's keyword() returns 0 for it
 // there (keywords.c:353), so it is a word no class names. It opens with a letter, so it is not the NonIdentWord class.
 const PlainIsa = "isa\x00plain"

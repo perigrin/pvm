@@ -38061,9 +38061,13 @@ node 7918 part 1 otherwise 7917
 node 7919 part 6 otherwise 3
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 0
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 0
+  {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 18
+node 7920 part 6 otherwise 3
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 0
+  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 0
   {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 18
   {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 18
-node 7920 part 7 otherwise 18
+node 7921 part 7 otherwise 18
   {Kind:Operator Text:!= OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Operator Text:!~ OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Operator Text:%= OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
@@ -38107,24 +38111,16 @@ node 7920 part 7 otherwise 18
   {Kind:Word Text:lt OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Word Text:ne OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Word Text:x OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
-node 7921 part 6 otherwise 16
+node 7922 part 6 otherwise 16
   {Kind:Number Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 14
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 14
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 22
-  {Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7920
+  {Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7921
   {Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 11
   {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 22
-node 7922 part 6 otherwise 3
-  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 0
-  {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 0
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 18
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 19
-  {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 18
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 19
-node 7923 part 5 otherwise 7922
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7921
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7921
+node 7923 part 5 otherwise 24
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7922
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7922
 node 7924 leaf set 437
 node 7925 part 7 otherwise 18
 node 7926 part 6 otherwise 18
@@ -38134,19 +38130,19 @@ node 7926 part 6 otherwise 18
   {Kind:Quote Text: OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7925
   {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7925
-node 7927 part 5 otherwise 7922
+node 7927 part 5 otherwise 24
   {Kind:Word Text:class OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7926
-  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7921
+  {Kind:Word Text:no OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7922
   {Kind:Word Text:package OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7926
-  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7921
+  {Kind:Word Text:use OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 7922
 node 7928 part 6 otherwise 11
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 12
   {Kind:Operator Text:( OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:true Array:false} -> 12
-  {Kind:Operator Text:* OpensBlock:false TermFollows:false Brace:0 Glob:true Name:false Label:false SortParen:false Array:false} -> 15
   {Kind:Operator Text:=> OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 3
   {Kind:Word Text:require OpensBlock:false TermFollows:false Brace:0 Glob:false Name:false Label:false SortParen:false Array:false} -> 15
 node 7929 part 4 otherwise 7928
   0 -> 7919
+  71 -> 7920
   76 -> 7923
   83 -> 7927
 node 7930 leaf set 1796

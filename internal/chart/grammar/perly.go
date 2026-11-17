@@ -1144,9 +1144,9 @@ var perlyClasses = []ClassDecl{
 	// A glob's name: yyl_star runs scan_ident, then sets PL_expect to XOPERATOR (TERM(PERLY_STAR)), but
 	// only for a * that is a glob sigil, which the neighbour class of the * says (Neighbour.Glob).
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Operator, Text: "*", Glob: true}, Completes: true}},
-	// scan_ident takes digits as a glob's name too (`local *1 = sub {...}`, perl.git t/op/method.t), where
-	// internal/lexer emits a Number.
-	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prev1: &globStar, Completes: true}},
+	// scan_ident takes decimal digits as a glob's name too (`local *1 = sub {...}`, perl.git t/op/method.t), where
+	// internal/lexer emits a Number: only digits with no leading 0, which chart/lex marks GlobDigits.
+	{"BAREWORD", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(GlobDigits)), Prev1: &globStar, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.FuncSigil}, Completes: true}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "use"}}},
 	{"BAREWORD", TokenClass{Kind: ptr(lexer.Word), Prev1: &Neighbour{Kind: lexer.Word, Text: "format"}}},
@@ -1196,6 +1196,7 @@ var perlyClasses = []ClassDecl{
 	// A number that toke.c reads as a version (a delimited one, see lex.versionShape) after `use MODULE` is
 	// that version and no term, so it is not a THING there.
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(0)), Completes: true}},
+	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(GlobDigits)), Completes: true}}, // `2*3`'s 3
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionStrict)), NotPrev2: afterUse, Completes: true}},
 	{"THING", TokenClass{Kind: ptr(lexer.Number), Prefix: ptr(byte(VersionLax)), NotPrev2: afterUse, Completes: true}},
 	// After => toke.c expects a term, so a number there is one even two after a use or no that => quoted (yyl_fatcomma).

@@ -129,7 +129,8 @@ func TestTypedMyKnownLimit(t *testing.T) {
 
 // A glob's name may be digits: after a * that is a glob sigil yyl_star's scan_ident reads them as the name and
 // forces BAREWORD (perl -DT on `local *1 = sub { 1 };`: BAREWORD "1", PERLY_STAR), where internal/lexer emits a
-// Number. perl.git t/op/method.t's `local *1 = sub { 123 }` and its neighbours, each as perl -c (94e50866) gives it.
+// Number. perl.git t/op/method.t's `local *1 = sub { 123 }` and its neighbours, each as perl -c (94e50866) gives it:
+// only decimal digits with no leading 0 name a glob.
 func TestDigitGlob(t *testing.T) {
 	for _, src := range []string{"local *1 = sub { 1 };", "*12 = \\&f;", "my $x = *1;"} {
 		if got := terminalsAt(t, src, strings.Index(src, "*")+1); !slices.Contains(got, "BAREWORD") {
@@ -146,5 +147,13 @@ func TestDigitGlob(t *testing.T) {
 		"print *1{CODE};":       true,
 		"my $x = 2 *1;":         true,
 		"*1x = 1;":              false,
+		// scan_ident takes decimal digits only, and no second digit after a leading 0 ("Numeric variables with
+		// more than one digit may not start with '0'"); a glob's * before any other number is refused.
+		"*1_0 = 1;":     false,
+		"*1e3 = 1;":     false,
+		"*01 = 1;":      false,
+		"*00 = 1;":      false,
+		"(*1, 2);":      true,
+		"my $y = 2*01;": true,
 	})
 }
