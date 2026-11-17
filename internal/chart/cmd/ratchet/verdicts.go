@@ -32,10 +32,12 @@ type perlVerdict struct {
 // its mapped tokens (those whose terminal set is not empty) and the
 // terminals those sets hold, and over the nodes after the first that have an
 // Earley set (Positions): their items and how many sets were already interned.
+// An accepted file's forest has Statements, Collapsed of them (forest.Readings).
 type chartResult struct {
 	Accepted, Recognized   bool
 	Tokens, Terminals      int
 	Positions, Items, Hits int
+	Statements, Collapsed  int
 }
 
 // verdictInputs are the sides of a verdict, by corpus path. Perl returns nil
@@ -95,12 +97,19 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 	ratio("items-per-token", items, positions)
 	ratio("set-reuse", hits, positions)
 
-	var pop, recognized, perlRefused, rdPerlRefused int
+	var pop, popPerlGit, recognized, perlRefused, rdPerlRefused, beats, collapsed, over int
+	statements, collapses := map[string]int{}, map[string]int{} // by corpus
 	refused := map[string][]string{"rd-accepted-chart-refused": nil, "chart-accepted-both-refused": nil}
 	for i, f := range files {
 		v, accepted := verdicts[i], res[i].Accepted
+		statements[f.Corpus] += res[i].Statements
+		collapses[f.Corpus] += res[i].Collapsed
+		collapsed += res[i].Collapsed
 		if v.Refused && rd[i] {
 			rdPerlRefused++
+		}
+		if !v.Refused && accepted && !rd[i] { // 41b5: recursive descent resolves imports here
+			beats++
 		}
 		if v.Refused && accepted {
 			perlRefused++
@@ -110,6 +119,9 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 		}
 		if inPopulation(v, rd[i], in.Excluded[f.Path]) { // §9.1: less both lexer lists
 			pop++
+			if f.Corpus == "perlgit" {
+				popPerlGit++
+			}
 			if accepted {
 				recognized++
 			} else {
@@ -123,6 +135,15 @@ func measureVerdicts(files []File, in verdictInputs, measured map[string]string)
 	measured["chart-accepted-perl-refused"] = strconv.Itoa(perlRefused)
 	measured["superset-population"] = strconv.Itoa(pop)
 	measured["rd-accepted-perl-refused"] = strconv.Itoa(rdPerlRefused)
+	measured["superset-population-perlgit"] = strconv.Itoa(popPerlGit)
+	measured["chart-beats-rd"] = strconv.Itoa(beats)
+	for c, n := range collapses { // spec §10's stop: more than 1%, and at least 5, of a corpus's statements
+		if n >= 5 && n*100 > statements[c] {
+			over++
+		}
+	}
+	measured["readings-collapsed"] = strconv.Itoa(collapsed)
+	measured["collapse-over-limit"] = strconv.Itoa(over)
 	ratio("superset-recognized", recognized, pop)
 	return refused, nil
 }
@@ -267,11 +288,14 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 			r.Hits, r.Positions = c.Reuse()
 			r.Positions--
 			if r.Recognized {
-				_, ref := forest.Parse(tab, srcs[path], scope(path))
+				f, ref := forest.Parse(tab, srcs[path], scope(path))
 				if !pipelineReason[ref.Reason] {
 					return r, fmt.Errorf("the pipeline: %s", ref.Reason)
 				}
 				r.Accepted = ref.Reason == ""
+				if r.Accepted {
+					r.Statements, r.Collapsed = f.Readings.Statements, f.Readings.Collapsed
+				}
 			}
 			return r, nil
 		},

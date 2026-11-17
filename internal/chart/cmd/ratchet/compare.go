@@ -26,9 +26,10 @@ const (
 var mayNotRise = map[string]bool{
 	"tables-drift": true, "leo-disagree": true, "ledger-gaps": true,
 	"rd-accepted-chart-refused": true, "chart-accepted-both-refused": true, "lex-unmapped": true,
+	"oracle-wrong": true, "precedence-disagree": true, "precedence-uncovered-unlisted": true, "collapse-over-limit": true,
 }
 
-var mayNotFall = map[string]bool{"tdt-aligned": true}
+var mayNotFall = map[string]bool{"tdt-aligned": true, "precedence-covered": true}
 
 // From the port's completion (the same run's ledger-gaps is 0) these must be
 // 0, and these may not rise.

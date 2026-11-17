@@ -16,30 +16,36 @@ import (
 	"slices"
 	"strconv"
 
+	"tamarou.com/pvm/internal/chart"
 	"tamarou.com/pvm/internal/chart/grammar"
 )
 
 var (
-	testdata     = filepath.Join("internal", "chart", "testdata")
-	baselineFile = filepath.Join(testdata, "ratchet", "baseline.txt")
-	knownFile    = filepath.Join(testdata, "lex-unmapped-known.txt")
-	defectsFile  = filepath.Join(testdata, "lexer-defects.txt")
-	tablesDir    = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
+	testdata      = filepath.Join("internal", "chart", "testdata")
+	baselineFile  = filepath.Join(testdata, "ratchet", "baseline.txt")
+	knownFile     = filepath.Join(testdata, "lex-unmapped-known.txt")
+	defectsFile   = filepath.Join(testdata, "lexer-defects.txt")
+	tablesDir     = filepath.Join("internal", "chart", "grammar", "testdata", "tables")
+	precedenceDir = filepath.Join(testdata, "precedence")
 )
 
 // keys is spec §9.5's key set in its fixed print order. It was fixed at the
-// reset; added since are lex-overhead-aggregate (spec §9.3, fdb2ece2) and the
+// reset; added since are lex-overhead-aggregate (spec §9.3, fdb2ece2), the
 // speed-stage-*, alloc-per-token-{recognize,forest} and gc-cpu-share-* keys
-// (the Chart Parser Recovery Plan, perigrin's D2 and D5).
+// (the Chart Parser Recovery Plan, perigrin's D2 and D5), and waypoint 2's
+// ten from oracle-wrong on (perigrin, 2026-11-10, "Yes, in one issue");
+// speed-ratio-std5k-cold is retired (perigrin, 2026-11-14).
 var keys = []string{
 	"tables-drift", "leo-disagree", "ledger-gaps", "rd-accepted-chart-refused", "chart-accepted-both-refused",
 	"lex-unmapped", "tdt-aligned", "tdt-mismatch", "tdt-unseen", "terminals-per-token",
 	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate",
-	"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile",
+	"speed-ratio-std5k-longlived", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile",
 	"speed-stage-lex-aggregate-longlived", "speed-stage-recognize-aggregate-longlived", "speed-stage-forest-aggregate-longlived",
 	"alloc-per-token-chart", "alloc-per-token-rd", "alloc-per-token-recognize", "alloc-per-token-forest",
 	"gc-cpu-share-chart", "gc-cpu-share-rd", "items-per-token", "set-reuse", "ledger-excluded",
 	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",
+	"oracle-wrong", "oracle-exact-chart", "oracle-exact-rd", "precedence-disagree", "precedence-covered",
+	"precedence-uncovered-unlisted", "readings-collapsed", "collapse-over-limit", "superset-population-perlgit", "chart-beats-rd",
 }
 
 func main() {
@@ -48,7 +54,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
 		os.Exit(2)
 	}
-	if len(os.Args) == 2 && os.Args[1] == "oracle" { // the grading measure alone, until KEYS makes it keys
+	if len(os.Args) == 2 && os.Args[1] == "oracle" { // the grading measure alone, per corpus
 		os.Exit(printOracle(g, ref))
 	}
 	measured, tab, err := measure(g, ref, os.Stderr)
@@ -79,6 +85,12 @@ func main() {
 	var rises map[string][]string
 	if err == nil {
 		rises, err = measureVerdicts(files, in, measured)
+	}
+	if err == nil {
+		err = measureOracle(oracleCorpora(), defaultSubjects(tab), measured, os.Stderr)
+	}
+	if err == nil {
+		err = measurePrecedence(g, tab, precedenceDir, measured)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chart-ratchet: %v\n", err)
@@ -176,4 +188,23 @@ func measure(g *grammar.Grammar, ref []grammar.Entry, stderr io.Writer) (map[str
 	}
 	return map[string]string{"ledger-gaps": strconv.Itoa(gaps), "ledger-excluded": strconv.Itoa(excluded),
 		"tables-drift": strconv.Itoa(len(drift))}, tab, nil
+}
+
+// measurePrecedence adds the precedence referee's keys over the fixture in dir (spec §8), naming each disagreement
+// and each unlisted uncovered resolution on stderr. A fixture it cannot read is an error, never a 0.
+func measurePrecedence(g *grammar.Grammar, tab *grammar.Tables, dir string, measured map[string]string) error {
+	c, err := chart.CountPrecedence(g, tab, dir)
+	if err != nil {
+		return fmt.Errorf("the precedence fixture: %w", err)
+	}
+	for _, d := range c.Disagree {
+		fmt.Fprintf(os.Stderr, "%sprecedence-disagree: %s\n", linePrefix, d)
+	}
+	for _, u := range c.UncoveredUnlisted {
+		fmt.Fprintf(os.Stderr, "%sprecedence-uncovered-unlisted: %s\n", linePrefix, u)
+	}
+	measured["precedence-disagree"] = strconv.Itoa(len(c.Disagree))
+	measured["precedence-covered"] = strconv.Itoa(c.Covered)
+	measured["precedence-uncovered-unlisted"] = strconv.Itoa(len(c.UncoveredUnlisted))
+	return nil
 }

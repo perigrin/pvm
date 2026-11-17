@@ -1,5 +1,5 @@
 // ABOUTME: The oracle grading measure (spec §9.4): the chart and recursive descent graded per site against perl's committed facts.
-// ABOUTME: In-process, one recursive descent parse per file feeding both sides; not yet a ratchet key (KEYS makes it one).
+// ABOUTME: In-process, one recursive descent parse per file feeding both sides; summed into the oracle-* keys.
 
 package main
 
@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -148,6 +149,24 @@ func gradeOracle(corpora []oracleCorpus, subjects []oracleSubject, stderr io.Wri
 		}
 	}
 	return g, nil
+}
+
+// measureOracle adds the oracle keys: the chart's WRONG and EXACT sites and recursive descent's EXACT ones, summed
+// over every corpus. A facts file it cannot read is an error, never a 0.
+func measureOracle(corpora []oracleCorpus, subjects []oracleSubject, measured map[string]string, stderr io.Writer) error {
+	g, err := gradeOracle(corpora, subjects, stderr)
+	if err != nil {
+		return err
+	}
+	var wrong, chartExact, rdExact int
+	for _, c := range corpora {
+		wrong += g.Sites["chart"][c.name][parseoracle.BucketWrong]
+		chartExact += g.Sites["chart"][c.name][parseoracle.BucketExact]
+		rdExact += g.Sites["rd"][c.name][parseoracle.BucketExact]
+	}
+	measured["oracle-wrong"], measured["oracle-exact-chart"], measured["oracle-exact-rd"] =
+		strconv.Itoa(wrong), strconv.Itoa(chartExact), strconv.Itoa(rdExact)
+	return nil
 }
 
 // printOracle runs gradeOracle over oracleCorpora and prints, per subject and corpus, "oracle-grade: <subject>
