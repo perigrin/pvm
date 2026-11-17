@@ -24,6 +24,12 @@ import (
 // not say which use brought a name in; upgrade when it carries each import's position.
 type Scope struct {
 	Imports map[string]parse.Import
+	// LibraryOperators are the infix operators the file's use statements bring into scope, as
+	// parse.LibraryOperators gives them over the same tree: each from the end of its use, where BEGIN imports it.
+	// shortcut: file-wide past that end, as parse's scope is, so a block's } or a no does not end it, where perl's
+	// %^H is lexical (`{ use My::Ops; } 1 plus 2;` is accepted, `TestLibraryOperatorsLimits`); upgrade when
+	// parse.LibraryOperators carries where each stops applying.
+	LibraryOperators []parse.LibraryOperator
 }
 
 // scopeGrammar is the perly.y symbols resolve reads, by id, built once per
@@ -568,6 +574,79 @@ func (r *resolver) xterm(p int) {
 		}
 	}
 	r.named[p+1] = r.is(p, "*") // yyl_star's glob sigil: scan_ident takes the word after it as the glob's name
+}
+
+// pluginGrammar is the PLUGIN_* terminals by symbol id and by name, and by terminal set id whether a set holds one.
+type pluginGrammar struct {
+	is, sets []bool
+	id       map[string]int
+}
+
+func buildPluginGrammar(tab *grammar.Tables) *pluginGrammar {
+	g := &pluginGrammar{is: make([]bool, len(tab.Symbols)), sets: make([]bool, len(tab.TerminalSets)), id: map[string]int{}}
+	for x, sym := range tab.Symbols {
+		if sym.Terminal && strings.HasPrefix(sym.Name, "PLUGIN_") {
+			g.is[x], g.id[sym.Name] = true, x
+		}
+	}
+	for i, set := range tab.TerminalSets {
+		g.sets[i] = slices.ContainsFunc(set, func(x int) bool { return g.is[x] })
+	}
+	return g
+}
+
+// libraryOperators drops from f each PLUGIN_* reading but the one toke.c's tokentype_for_plugop gives the library
+// operator of the token's spelling whose use ends before it (the last such), then every alternative left without a
+// derivation. It returns what prune does.
+func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+	g := grammar.Derived(tab, buildPluginGrammar)
+	r := &resolver{tab: tab, s: s, src: src, n: len(s.Tokens), dead: map[[2]int]bool{}}
+	var from []int
+	for k, t := range s.Tokens {
+		if !g.sets[t.TerminalSet] {
+			continue
+		}
+		if from == nil {
+			for _, op := range scope.LibraryOperators {
+				from = append(from, r.statementEnd(op.From))
+			}
+		}
+		keep := -1
+		for i, op := range scope.LibraryOperators {
+			if from[i] <= s.Raw[t.Index].Start && op.Name == r.text(k) {
+				keep = g.id[grammar.LibraryTerminal(op)]
+			}
+		}
+		for _, x := range tab.TerminalSets[t.TerminalSet] {
+			if g.is[x] && x != keep {
+				r.dead[[2]int{k, x}] = true
+			}
+		}
+	}
+	if len(r.dead) == 0 {
+		return -1
+	}
+	return r.prune(f)
+}
+
+// statementEnd is the byte after the statement starting at byte at: its ; outside brackets, the } closing a BEGIN
+// block, or the } closing the block around it.
+func (r *resolver) statementEnd(at int) int {
+	k, _ := slices.BinarySearchFunc(r.s.Tokens, at, func(t lex.Token, at int) int { return r.s.Raw[t.Index].Start - at })
+	begin, depth := r.is(k, "BEGIN"), 0
+	for ; k < r.n; k++ {
+		switch t := r.s.Raw[r.s.Tokens[k].Index]; {
+		case t.Kind == lexer.Semicolon && depth == 0:
+			return t.End
+		case t.Kind == lexer.CloseBracket:
+			if depth--; depth < 0 || depth == 0 && begin {
+				return t.End
+			}
+		case r.is(k, "(") || r.is(k, "[") || r.is(k, "{"):
+			depth++
+		}
+	}
+	return len(r.src)
 }
 
 // prune unlinks every alternative a dropped reading leaves without a

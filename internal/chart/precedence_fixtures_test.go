@@ -305,6 +305,7 @@ func readNonRoundTrip(dir string) (map[string]string, error) {
 // renderTerms is the lexemes of terms, one word per terminal, and the preamble they need (each distinct preamble once,
 // in order); ok is false when a terminal has none.
 func renderTerms(lexemes map[string]lexeme, terms []string) (preamble string, words []string, missing string, ok bool) {
+	var preambles []string
 	for _, t := range terms {
 		if t == startSelector {
 			continue
@@ -314,11 +315,11 @@ func renderTerms(lexemes map[string]lexeme, terms []string) (preamble string, wo
 			return "", nil, t, false
 		}
 		words = append(words, x.text)
-		if x.preamble != "" && !strings.Contains(preamble, x.preamble) {
-			preamble += x.preamble + " "
+		if x.preamble != "" && !slices.Contains(preambles, x.preamble) {
+			preambles = append(preambles, x.preamble)
 		}
 	}
-	return strings.TrimSpace(preamble), words, "", true
+	return strings.Join(preambles, " "), words, "", true
 }
 
 // source is the rendering: the preamble, then the words joined by spaces.
@@ -374,9 +375,6 @@ func roundTrip(tab *grammar.Tables, preamble string, words, terms []string) stri
 func renderingCause(tab *grammar.Tables, lexemes map[string]lexeme, s precedenceSentence) string {
 	preamble, words, missing, ok := renderTerms(lexemes, s.terms)
 	if !ok {
-		if strings.HasPrefix(missing, "PLUGIN_") {
-			return "no rendering for " + missing + " until a library operator is in scope"
-		}
 		return "no single-lexeme rendering for " + missing
 	}
 	return roundTrip(tab, preamble, words, s.terms)
@@ -519,6 +517,11 @@ func TestPrecedenceRenderingRejectsNonRoundTrip(t *testing.T) {
 	}
 	if why := roundTrip(tab, "", isa, terms); !strings.Contains(why, "NCRELOP is not among") {
 		t.Errorf("an isa sentence without its preamble: got %q", why)
+	}
+	// Preambles are distinct by their whole text: one inside another is still written.
+	two := map[string]lexeme{"A": {"a", "use XY;"}, "B": {"b", "use X"}}
+	if pre, _, _, _ := renderTerms(two, []string{"A", "B", "A"}); pre != "use XY; use X" {
+		t.Errorf("preambles use XY; and use X render as %q", pre)
 	}
 }
 

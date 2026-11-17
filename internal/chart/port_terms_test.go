@@ -118,7 +118,7 @@ func TestPortTermsAttributeColon(t *testing.T) {
 		"use utf8; $y = $c ? my $x : é;", "my $x : Foo ::bar baz;", // perl: Invalid separator character
 		"$y = $c ? our $x : shared;", "$y = $c ? my @x : shared;", "$y = $c ? my %x : shared;",
 	} {
-		if v := recognizeSource(t, []byte(src)); v.accepted {
+		if v := parseSource(t, []byte(src)); v.accepted {
 			t.Errorf("%q is accepted; perl refuses it", src)
 		}
 	}

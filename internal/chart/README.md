@@ -102,11 +102,13 @@ Since the resumption, **the precedence constraint** is applied to `perly.y`
 and agrees with bison on every kept generated sentence
 (`forest/precedence.go`, below), and `forest.Parse` applies it, resolves
 scope and counts each statement's readings, collapsing a statement above
-2^10 ("The forest", Readings).
+2^10 ("The forest", Readings). Library-declared infix operators read as
+perl's `PLUGIN_*` terminals where a `use` brings them into scope, with a
+stated parity limit ("Library operators").
 
 Not done, among the issues still open on `chart-perly-w2` (resolve by
 declared and imported subs and by features is built: "Scope-decided
-words"): oracle grading, `PLUGIN_*`,
+words"): oracle grading,
 the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
 M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
 `t/` parity and speed checkpoint 3.
@@ -695,8 +697,8 @@ tables hold 349 rules over 112 nonterminals and 124 terminals.
 - **Token classes** are declared beside the rules by terminal name, one slot
   per lexed token `perly.y` declares (`%token`, `%left`, `%right`,
   `%nonassoc`), in the order it first declares it; the `GRAM*` selectors,
-  `PLUGEXPR`, `PLUGSTMT`, the `PLUGIN_*` terminals, `PREC_LOW` and `UMINUS`
-  have none. They are compiled into the token table
+  `PLUGEXPR`, `PLUGSTMT`, `PREC_LOW` and `UMINUS` have none, and the
+  `PLUGIN_*` terminals' classes are derived ("Library operators"). They are compiled into the token table
   (`grammar/tokens.go`, spec §7). toke.c is the authority for which terminal
   a token is, cited by line where a class is not plain. Where pvm's key cannot see what toke.c reads,
   perigrin has ruled extensions of §7, each named in the section that uses
@@ -1422,6 +1424,73 @@ above, and three recursive descent refuses too. `t/perf/opcount.t`, refused whil
 `use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the forests `forest.Parse` leaves of the forest's
 sample, constrained by precedence and resolved, to
 `forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
+
+### Library operators
+
+perigrin's ruling A (2026-11-10, "do what perl does"): an infix operator a
+library declares reads as the `PLUGIN_*` terminal toke.c's
+`tokentype_for_plugop` gives its level (toke.c:9264-9288, perl.h's
+`INFIX_PREC_*`). A word where `x` is the operator, unless it is a keyword or
+a class names it and it is no identifier (`x=`, which internal/lexer lexes as
+a word; `CORE`, which a class names, stays: `yyl_keylookup` asks the plugin
+about it), and an operator no class names anywhere, also admit the eleven `PLUGIN_*` terminals
+(perly.go's `init`; toke.c checks a plugin in `yyl_keylookup` and `yyl_try`).
+`forest.Scope.LibraryOperators` is `parse.LibraryOperators` over the tree the
+imports come from, and before the precedence constraint `forest.Parse` keeps a
+token's `PLUGIN_*` reading only where a library operator of its spelling is in
+scope, its `use` statement ending before the token (BEGIN imports it at the
+`;`, so `use My::Ops 1 plus 2;` is refused), and only the terminal
+`grammar.LibraryTerminal` gives it: its `:infix(CLASS)` where that is one of
+perl's eleven, otherwise the first level whose anchor (`or`, `and`, `=`, `||`,
+`&&`, `==`, `+`, `*`, `**`) recursive descent places at or above it, by
+`tokentype_for_plugop`'s `<=`, and `HIGH` above them all
+(`TestPlugopLevelBoundaries`). A span left with no derivation is refused for
+scope. The precedence constraint then reads the terminal as `perly.y` does,
+and the referee covers its resolutions ("The precedence constraint").
+`TestLibraryOperatorsAsPerl` holds an operator of each bucket in
+`testdata/libops/declarations/My/Ops.tpm` to perl's grouping against the core
+operators either side, and refuses one before its `use` or with none.
+
+**The parity limit.** An operator recursive descent places strictly between
+two of perl's levels (`:tighter(+) :looser(*)`), or at a level no plugin
+bucket names (`:equiv(&)`, `:equiv(..)`), groups here at the bucket above it,
+where recursive descent groups it between: `use My::Ops; 1 ⊕ 2 * 3;` is
+`((1 ⊕ 2) * 3)` at `PLUGIN_MUL_OP`, and `(1 ⊕ (2 * 3))` in recursive descent.
+Two of perl's own buckets place differently from recursive descent too: `LOW`
+(`:infix(LOW)`), where `$a lowop $b or $c` is `(($a lowop $b) or $c)` here and
+in perl and `($a lowop ($b or $c))` in recursive descent; and `==`'s level
+(`EQUALITY`, `ORDERING`, `:equiv(==)`), read as `PLUGIN_REL_OP`, where
+`$a < $b same $c` is `($a < ($b same $c))` here and in perl and
+`(($a < $b) same $c)` in recursive descent, and `$a same $b < $c`,
+`1 same 2 same 3` and `1 high 2 high 3`, which recursive descent accepts, are
+refused here and by perl (`%nonassoc`). All pinned in
+`TestLibraryOperatorsAsPerl`. shortcut: a class XS::Parse::Infix
+names and perl.h does not (`EQUALITY`, `RELATION`, `ISA`, `MATCHRE`, ...) is
+placed by its anchor's level the same way, which puts `RELATION`, `ISA` and
+`MATCHRE` above `REL` (pinned in `TestPlugopLevelBoundaries`).
+
+`TestLibraryOperatorsLimits` pins three shortcuts, each accepting what perl -c
+refuses under an XS module registering My::Ops's operators.
+shortcut: scope is file-wide past the `use`, as `parse.LibraryOperators` is,
+where perl's `%^H` is lexical: `{ use My::Ops; } 1 plus 2;`,
+`sub f { use My::Ops; } 1 plus 2;`, `if (1) { use My::Ops; } 1 plus 2;` and
+`use My::Ops; { no My::Ops; 1 plus 2; }` are accepted, as "File-wide for now"
+(perigrin, 2026-11-10) has imports; upgrade when the export carries where each
+operator stops applying. shortcut: a word reads as a library operator only
+where an operator is expected, where toke.c's `yyl_keylookup` asks the plugin
+about every word: `use My::Ops; my $x = plus;`, `foo(plus);` and `print plus;`
+are accepted (whether XS::Parse::Infix checks `PL_expect` is not known).
+shortcut: a library operator spelled as a keyword reads as the keyword, where
+toke.c asks the plugin first: with a plugin operator `print`,
+`use My::Ops; print 1 plus 2;` is accepted.
+
+Recognition reads every word after a term as a possible library operator,
+so the forms perl refuses as a word where an operator is expected are refused
+by resolve, not by recognition: `$x isa Foo;` with the feature off is
+refused for scope at `isa`, and `@x foo;` by the grammar at the `;` after
+`foo` (byte 6), not at `foo`. The new readings are tdt-unseen pairs, listed
+in `testdata/tdt/unseen-reviewed.txt` under one reason: no corpus file loads
+an infix plugin.
 
 ### Builtin classes against `parse.CoreShapes()`
 
@@ -2149,9 +2218,12 @@ grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
-  scope, and runs the constraint on each of the 708 kept generated sentences'
+  scope, and runs the constraint on each of the 1,296 kept generated sentences'
   renderings (`testdata/precedence/`, above) and requires bison's verdict and grouping
-  on every one; they cover 716 of bison's 1,347 resolutions. A token admits a
+  on every one; they cover 1,304 of bison's 1,347 resolutions, the `PLUGIN_*`
+  ones among them, each rendered as a word of `testdata/libops`'s `My::Ops`
+  under the preamble `use My::Ops;` (a sentence's distinct preambles are
+  written once each, told apart by their whole text). A token admits a
   set of terminals and bison read one, so the forest is first narrowed to
   the sentence's own terminals (`foo` is `UNIOPSUB` there, not a bareword),
   and a preamble's reductions are left out of the grouping, which counts
@@ -2168,7 +2240,7 @@ bison's report state for state; the follow set, used before gate pass 2,
 refused `Y W T Z` in the `follow` toy, where bison has no conflict). An
 alternative kept in one parser state is kept in all (the `shortcut:` on
 `Constrain`), which leaves the verdict exact and can only add a derivation to
-what a later reader enumerates; on the 708 sentences it adds none (each keeps
+what a later reader enumerates; on the 1,296 sentences it adds none (each keeps
 one grouping). The refused rules leave the tables' FIRST sets and
 nullability as they are (the `shortcut:` in `NewPrecedence`), exact because
 each of the four begins with its own left-hand side, which derives no
@@ -2193,7 +2265,7 @@ as they were and exits 1. The offences are a rule without a citation, or one
 outside the reference list (`testdata/perly/alternatives.txt`); a class literal
 the lexer does not lex to the class's kind and text, between two terms or from
 a statement's start through `lexer.Checkpoints` and `lexer.Resume`; a class
-naming a terminal no rule uses, or a nonterminal; a terminal no class admits, but `PLUGIN_*`, the seven `GRAM*` start selectors, `PLUGEXPR`
+naming a terminal no rule uses, or a nonterminal; a terminal no class admits, but the seven `GRAM*` start selectors, `PLUGEXPR`
 and `PLUGSTMT`; an unreachable or unproductive nonterminal; and a precedence
 token no rule and no `%prec` uses. `TestCommittedGrammarConsistent` holds the
 committed grammar to them. Token classes are declared in `grammar/perly.go` by

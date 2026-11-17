@@ -1,0 +1,24 @@
+# ABOUTME: A library declaring an infix operator in each of perl's eleven plugin buckets, and one between two, for library_operators_test.go.
+# ABOUTME: Read through parse.OverlayDeclarations; recursive descent places each, and the chart maps it to perl's PLUGIN_* terminal.
+package My::Ops;
+
+sub lowop :infix(LOW) :looser(or) (Num $x, Num $y) Num;
+sub orlow :infix(LOGICAL_OR_LOW) (Num $x, Num $y) Num;
+sub andlow :infix(LOGICAL_AND_LOW) (Num $x, Num $y) Num;
+sub assign :infix(ASSIGN) (Num $x, Num $y) Num;
+sub oror :infix(LOGICAL_OR) (Num $x, Num $y) Num;
+sub andand :infix(LOGICAL_AND) (Num $x, Num $y) Num;
+sub same :infix(EQUALITY) (Num $x, Num $y) Num;
+sub plus :infix(ADD) (Num $x, Num $y) Num;
+sub mul :infix(MUL) (Num $x, Num $y) Num;
+sub pow :infix(POW) (Num $x, Num $y) Num;
+sub high :infix(HIGH) :tighter(++) :looser(->) (Num $x, Num $y) Num;
+
+# Between two of perl's levels, which no plugin bucket names: the parity limit.
+sub ⊕ :infix :tighter(+) :looser(*) (Num $x, Num $y) Num;
+
+# Spelled as a keyword, which toke.c asks the plugin about before the keyword.
+sub print :infix(ADD) (Num $x, Num $y) Num;
+
+# A word some class names (PRIVATEREF's CORE), which toke.c still asks the plugin about.
+sub CORE :infix(ADD) (Num $x, Num $y) Num;

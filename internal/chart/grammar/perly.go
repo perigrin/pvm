@@ -5,6 +5,8 @@ package grammar
 
 import (
 	"slices"
+	"strings"
+	"unicode"
 
 	"tamarou.com/pvm/internal/lexer"
 )
@@ -921,7 +923,7 @@ var CastTerminals = map[string]string{
 // unmoved by a rule added or removed. One placeholder comment per token perly.y
 // declares (%token, %left, %right, %nonassoc) that is lexed, in the order it first
 // declares it (the GRAM* selectors, PLUGEXPR, PLUGSTMT,
-// the PLUGIN_* terminals and the precedence-only PREC_LOW and UMINUS need none). A
+// the PLUGIN_* terminals, whose classes init derives, and the precedence-only PREC_LOW and UMINUS need none). A
 // blank line separates neighbours, so two families' edits merge cleanly. A family
 // replaces its terminals' comments with `{"TERMINAL", TokenClass{...}},`: the same
 // terminal may be declared more than once, and the classes matching a token union.
@@ -1859,6 +1861,9 @@ var perlyClasses = []ClassDecl{
 	{"PERLY_PAREN_OPEN", TokenClass{Kind: ptr(lexer.Operator), Text: ptr("(")}},
 }
 
+// notIdent is whether r cannot be in a Perl identifier.
+func notIdent(r rune) bool { return r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
 // xrefListOperators are the list operators toke.c's lop() calls with XREF, the ones a block can follow.
 var xrefListOperators = []string{"print", "printf", "say", "sort", "map", "grep", "exec", "system"}
 
@@ -1879,6 +1884,17 @@ func init() {
 		prev2 bool
 	}
 	seen := map[repeat]bool{}
+	// The words a library operator's word class leaves out: the keywords, and a word a class names that is no
+	// identifier, so cannot be a word plugin (x=, an operator internal/lexer lexes as a word). An identifier a class
+	// names (CORE) keeps the reading: yyl_keylookup asks the plugin about it.
+	named := lexer.Keywords()
+	for _, d := range perlyClasses {
+		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Word && k.Text != nil && strings.ContainsFunc(*k.Text, notIdent) {
+			named = append(named, *k.Text)
+		}
+	}
+	slices.Sort(named)
+	named = slices.Compact(named)
 	for _, d := range perlyClasses {
 		c := d.Key
 		if !c.Completes {
@@ -1907,6 +1923,19 @@ func init() {
 			seen[key] = true
 		}
 		perlyClasses = append(perlyClasses, ClassDecl{"MULOP", x})
+		// Where x is the operator any word no class names may be a library's infix operator, which toke.c reads as
+		// the PLUGIN_* terminal of its level (yyl_keylookup, toke.c:9364-9386); resolve keeps the one in scope.
+		// shortcut: a library operator spelled as a keyword reads as the keyword, where toke.c asks the plugin first:
+		// with a plugin operator print, `print 1 plus 2;` is accepted here and refused by perl
+		// (TestLibraryOperatorsLimits); upgrade when a library ships one.
+		// shortcut: a word reads as a library operator only here, where an operator is expected, where toke.c asks
+		// the plugin about every word whatever PL_expect is: `my $x = plus;` is accepted here and refused by perl under
+		// a plugin that registers plus (TestLibraryOperatorsLimits); upgrade if XS::Parse::Infix is shown to do so.
+		w := x
+		w.Text, w.NotText, w.NotNext = nil, named, []Neighbour{fatComma}
+		for _, l := range plugopLevels {
+			perlyClasses = append(perlyClasses, ClassDecl{l.terminal, w})
+		}
 		// After a term toke.c's yyl_ampersand reads & as the bitwise and (PL_expect == XOPERATOR, BAop(OP_BIT_AND)),
 		// where internal/lexer emits the & after a word as a sub's sigil: after a word no class names, which scope
 		// may leave a term (`my $x = FOO & BAR;`), it is BITANDOP too, on x's neighbours.
@@ -1917,6 +1946,18 @@ func init() {
 			amp.Kind, amp.Text = ptr(lexer.FuncSigil), nil
 			perlyClasses = append(perlyClasses, ClassDecl{"BITANDOP", amp})
 		}
+	}
+	// An operator no class names may be a library's symbolic infix operator (yyl_try, toke.c:9467-9492), anywhere.
+	var core []string
+	for _, d := range perlyClasses {
+		if k := d.Key; k.Kind != nil && *k.Kind == lexer.Operator && k.Text != nil {
+			core = append(core, *k.Text)
+		}
+	}
+	slices.Sort(core)
+	core = slices.Compact(core)
+	for _, l := range plugopLevels {
+		perlyClasses = append(perlyClasses, ClassDecl{l.terminal, TokenClass{Kind: ptr(lexer.Operator), NotText: core}})
 	}
 	perlyClasses = addStatementX(perlyClasses) // after x's MULOP: these complete a term the word x's BAREWORD already completes
 	limitBlockBrace(perlyClasses)

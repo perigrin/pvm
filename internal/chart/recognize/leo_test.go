@@ -216,8 +216,10 @@ func TestLeoChainReadsAreCacheDeps(t *testing.T) {
 // corpus sample may leave under default options: the review prototype's
 // count, rounded up, recorded with the base tree's as chart-recovery's
 // "R3 bound" bullet, retaken when FEATWORDS gave the feature-gated keywords
-// a word's readings (0.0359 to 0.0382).
-const leoMemoEntriesBound = 0.039
+// a word's readings (0.0359 to 0.0382), and when PLUGIN gave a word after a
+// term a library operator's (0.0393), under perigrin's 2026-11-15 ruling
+// "Raise the two bounds".
+const leoMemoEntriesBound = 0.040
 
 // memoStore is the number of entries c's memo store holds, and how many of
 // them are memos rather than a stored "none".

@@ -127,6 +127,10 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 		return nil, s, Refusal{Byte: at, Reason: "grammar"}
 	}
 	f := Build(tab, c, l)
+	// Before the constraint, which then reads a library operator's reading as perly.y does.
+	if at := libraryOperators(tab, f, s, src, scope); at >= 0 {
+		return nil, s, Refusal{Byte: at, Reason: "scope"}
+	}
 	prec := grammar.Derived(tab, buildParsePrecedence)
 	if prec.err != nil {
 		return nil, s, Refusal{Reason: prec.err.Error()}
