@@ -167,6 +167,12 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
 }
 
+// versionEnds reports whether the byte at end lets a v-string before it be a version, as toke.c's S_force_version
+// decides: whitespace, ;, {, } or the end of the source. Any other byte (`require v5_1, 1`) leaves it a module name.
+func versionEnds(text string, end int) bool {
+	return end >= len(text) || strings.IndexByte(" \t\n\r\f;{}", text[end]) >= 0
+}
+
 // stashName is the stash a qualified name n names, as perl reads it: ' is ::, and one leading :: and then any number
 // of main:: name nothing more (`::main::main::Foo'Bar` is Foo::Bar, `main::::Foo` is ::Foo, inside the stash named
 // "", and `Foo::` is a stash inside Foo).
@@ -213,7 +219,8 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	}
 	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
 		prev == "class" && on.On&FeatureClass != 0) &&
-		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && tx[1] >= '0' && tx[1] <= '9' && strings.Trim(tx[1:], "0123456789_") == "") {
+		!(prev != "package" && prev != "class" && len(tx) > 1 && tx[0] == 'v' && tx[1] >= '0' && tx[1] <= '9' &&
+			strings.Trim(tx[1:], "0123456789_") == "" && versionEnds(text, t.End)) {
 		// a v-string after use, no or require is a version, not a module
 		st.add(stashName(tx))
 	}

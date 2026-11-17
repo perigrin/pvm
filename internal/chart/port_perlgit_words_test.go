@@ -220,6 +220,12 @@ func TestTypedMy(t *testing.T) {
 		"require v5_1 if 0; my v5_1 $f;":          false,
 		"require v1_0 if 0; my v1_0 $f;":          false,
 		"require v_1 if 0; my v_1 $f;":            true,
+		"require v5_1, 1 if 0; my v5_1 $f;":       true,
+		"(require v5) if 0; my v5 $f;":            true,
+		"require v5_1#c\n if 0; my v5_1 $f;":      true,
+		"require v5_1? 1 : 0; my v5_1 $f;":        true,
+		"require v5_1\n if 0; my v5_1 $f;":        false,
+		"require v5_1 ? 1 : 0; my v5_1 $f;":       false,
 		"package v5_1; package main; my v5_1 $f;": true,
 		"package v5; my v5 $f;":                   true,
 		// CORE::kw is read as kw
