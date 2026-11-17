@@ -173,6 +173,22 @@ func TestTypedMy(t *testing.T) {
 		"${Foo::x} = 1; my Foo $f;":       true,
 		`*{::Foo::x} = \1; my Foo $f;`:    false,
 		`@{Foo::x . ""} = (); my Foo $f;`: false,
+		// package, class, use, no and require make each parent stash too, their name read as perl reads it
+		"package Foo::Bar; package main; my Foo $f;":                                            true,
+		"use v5.38; use feature 'class'; no warnings; class Foo::Bar; package main; my Foo $f;": true,
+		"require Foo::Bar if 0; my Foo $f;":                                                     true,
+		"use File::Spec; my File $f;":                                                           true,
+		"package Foo'Bar; package main; my Foo::Bar $f;":                                        true,
+		"package Foo'Bar; package main; my Foo $f;":                                             true,
+		"package ::Foo; package main; my Foo $f;":                                               true,
+		"package main::Foo; package main; my Foo $f;":                                           true,
+		"format Foo::x =\n.\nmy Foo $f;":                                                        true,
+		// the class word is read as perl reads it: main:: names the same stash; a leading :: is a syntax error
+		"package Foo; package main; my main::Foo $f;":           true,
+		"package Foo::Bar; package main; my main::Foo::Bar $f;": true,
+		"my main::main $f;":                       true,
+		"my main::UNIVERSAL $f;":                  true,
+		"package Foo; package main; my ::Foo $f;": false,
 	})
 }
 

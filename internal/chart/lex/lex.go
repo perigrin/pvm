@@ -159,15 +159,49 @@ func (st *stashes) typedClass(t lexer.Token, text string, on Features) bool {
 	if t.Kind != lexer.Word || st.prev != "my" && st.prev != "our" && (st.prev != "state" || (on.On|on.Maybe)&FeatureState == 0) {
 		return false
 	}
-	w := strings.TrimSuffix(text[t.Start:t.End], "::")
+	w := text[t.Start:t.End]
+	if strings.HasPrefix(w, "::") {
+		return false // perl reads `my ::Foo` as a syntax error
+	}
+	w = stashName(w)
 	return w != "sub" && w != "method" && (w == "__PACKAGE__" || startStashes[w] || st.made[w])
 }
 
-// note records the stashes raw[i] makes: the name after package, class (its feature on), use, no or require, and each
+// stashName is the stash a package name n names, as perl reads it: ' is ::, and a leading :: or main:: and a
+// trailing :: name nothing more (`main::Foo'Bar::` is Foo::Bar).
+func stashName(n string) string {
+	n = strings.ReplaceAll(n, "'", "::")
+	for {
+		if m, ok := strings.CutPrefix(n, "::"); ok {
+			n = m
+		} else if m, ok := strings.CutPrefix(n, "main::"); ok {
+			n = m
+		} else {
+			return strings.TrimSuffix(n, "::")
+		}
+	}
+}
+
+// add records stash n and each stash it is nested in.
+func (st *stashes) add(n string) {
+	if st.made == nil {
+		st.made = map[string]bool{}
+	}
+	for k := 0; k <= len(n); k++ {
+		if k == len(n) || strings.HasPrefix(n[k:], "::") {
+			if k > 0 {
+				st.made[n[:k]] = true
+			}
+		}
+	}
+}
+
+// note records the stashes raw[i] makes, each with every stash it is nested in: the name after package, class (its
+// feature on), use, no or require, and each
 // package a qualified name passes through where perl makes a symbol of it -- a variable (`$Foo::x`, `$ Foo::x`), a
 // word after a sigil (`&Foo::bar`, a glob's `*Foo::x`), a word alone in the braces after a sigil or cast
 // (`@{Foo::x}`, `*{ Foo::x }`), a word called with ( (`Foo::bar()`), a word before -> that no method name follows
-// (`Foo::bar->[0]`, `Foo::bar->@*`), or a sub's name (`sub Foo::bar`). A bareword, class or method name
+// (`Foo::bar->[0]`, `Foo::bar->@*`), or a sub's or format's name (`sub Foo::bar`, `format Foo::x =`). A bareword, class or method name
 // (`Foo::bar;`, `Foo::Bar->x`, `Foo::bar->$m`, `$x->Foo::bar()`) makes none. Neighbours are significant tokens, so
 // whitespace, comments and POD between them do not count. pred is the class of the token before raw[i].
 func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred *grammar.Neighbour) {
@@ -183,26 +217,14 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
 		return
 	}
-	add := func(n string) {
-		if st.made == nil {
-			st.made = map[string]bool{}
-		}
-		st.made[n] = true
-	}
-	if t.Kind == lexer.Word {
-		switch prev {
-		case "package", "use", "no", "require":
-			add(strings.TrimSuffix(tx, "::"))
-		case "class":
-			if on.On&FeatureClass != 0 {
-				add(strings.TrimSuffix(tx, "::"))
-			}
-		}
+	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
+		prev == "class" && on.On&FeatureClass != 0) {
+		st.add(stashName(tx))
 	}
 	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
 		return
 	}
-	if t.Kind == lexer.Word && !(sigil || prev == "sub") {
+	if t.Kind == lexer.Word && !(sigil || prev == "sub" || prev == "format") {
 		n := significant(raw, i)
 		switch {
 		case pred.Kind == lexer.Operator && pred.Text == "->":
@@ -219,21 +241,10 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 			return // a bareword
 		}
 	}
+	// the symbol's stash is all of its name before the last ::
 	name := strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(tx, "$@%&*#{ \t\n"), "} \t\n"), "'", "::")
-	for {
-		if n, ok := strings.CutPrefix(name, "::"); ok {
-			name = n
-		} else if n, ok := strings.CutPrefix(name, "main::"); ok {
-			name = n
-		} else {
-			break
-		}
-	}
-	parts := strings.Split(name, "::")
-	for k := 1; k < len(parts); k++ {
-		if p := strings.Join(parts[:k], "::"); p != "" {
-			add(p)
-		}
+	if k := strings.LastIndex(name, "::"); k >= 0 {
+		st.add(stashName(name[:k]))
 	}
 }
 
