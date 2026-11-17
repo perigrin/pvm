@@ -4,6 +4,7 @@
 package lexer
 
 import (
+	"bytes"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -157,6 +158,9 @@ func scanVariable(l *lexer) bool {
 		}
 		if j < len(l.src) && !isSpace(l.src[j]) && l.src[j] < utf8.RuneSelf && !isWordByte(l.src[j]) && !byteIn(l.src[j], "{#") {
 			l.pos = j + 1
+			if l.src[j] == '^' && l.pos < len(l.src) && isControlVar(l.src[l.pos]) { // `$ ^R`
+				l.pos++
+			}
 			l.emit(Variable, start)
 			return true
 		}
@@ -285,6 +289,8 @@ func (l *lexer) bracedNameFollowsAt(brace int) bool {
 		// A caret, one of [ ] \ ^ ?, then word characters, as scan_ident: `${^^}`, `$#{^[}`, `${^^x}`.
 		if i < len(l.src) && strings.IndexByte("[]\\^?", l.src[i]) >= 0 {
 			i++
+		} else if i < len(l.src) && isWordByte(l.src[i]) && !isControlVar(l.src[i]) {
+			return false // perl -c refuses `${^r}` and `${^1}`
 		}
 	}
 
@@ -435,9 +441,10 @@ func (l *lexer) scanVarName() {
 //	$^0 .. $^9   Number found where operator expected
 //
 // So a LOWERCASE letter is not part of the name -- perl reads `$^` and then a
-// bareword. Digits behave the same. The rule is therefore the uppercase
-// range plus `_`, `^` and `[`, not "any identifier byte": widening it to the
-// identifier class would swallow the word after a bare `$^`.
+// bareword. Digits behave the same. The rule is therefore toke.c's
+// isCONTROLVAR, the uppercase range plus one of `[ \ ] ^ _ ?` (perl -c at
+// 94e50866 accepts `$^]`, `$^\` and `$^?` too), not "any identifier byte":
+// widening it to the identifier class would swallow the word after a bare `$^`.
 //
 // `$^` ALONE is real -- the format top-of-page name -- which is why the
 // character after the caret is required. This is the same shape as
@@ -446,11 +453,13 @@ func (l *lexer) caretNameFollows() bool {
 	if l.pos+1 >= len(l.src) {
 		return false
 	}
-	switch c := l.src[l.pos+1]; {
-	case c >= 'A' && c <= 'Z', c == '_', c == '^', c == '[':
-		return true
-	}
-	return false
+	return isControlVar(l.src[l.pos+1])
+}
+
+// isControlVar is toke.c's isCONTROLVAR: the byte after a caret that makes
+// one control character of the two, as in `$^R`, `$^?` and `*^]`.
+func isControlVar(c byte) bool {
+	return c >= 'A' && c <= 'Z' || byteIn(c, "[\\]^_?")
 }
 
 // leadingPackageSeparator reports whether `::` at the cursor introduces a
@@ -1343,18 +1352,25 @@ func scanBarePattern(l *lexer) bool {
 // -- while `$a *| $b` and `$a *, $b` are syntax errors, because there the
 // star multiplies and is no globStar.
 //
-// Three bytes begin a longer name instead, and are left to the scanners
+// Two bytes begin a longer name instead, and are left to the scanners
 // that read it: `$` before a name, a `$` or a `{` (`*$x`, `*$ᕘ`, `*$$x`, `*${x}`),
-// `:` before `:` (`*::`), and `^` before a word byte (`*^W`). `{` opens
-// `*{EXPR}`, except `*{^GLOBAL_PHASE}`, the glob of `${^GLOBAL_PHASE}`,
-// whose braced caret name is the glob's name as well.
+// and `:` before `:` (`*::`). `{` opens `*{EXPR}`, except
+// `*{^GLOBAL_PHASE}`, the glob of `${^GLOBAL_PHASE}`, whose braced caret
+// name is the glob's name as well.
+//
+// A caret control name is scan_ident's too: `^` and one isCONTROLVAR byte
+// are one name (`*^R`, `*^]`), and `*^r` is the glob `^` before a bareword.
+// It and the braced caret name are read across space and comments, as
+// scan_ident's skipspace reads them (`* ^R`); every other name here touches
+// the star.
 //
 // The name is emitted as the Word a glob's identifier name is, so nothing
 // reads `*(` or `*}` as a bracket, and it ends the term: an operator is
 // expected after it, and `*,{IO}` subscripts the glob.
 func scanGlobName(l *lexer) bool {
 	start := l.pos
-	if !l.globStar || l.toks[len(l.toks)-1].End != start {
+	star := l.significantBefore(len(l.toks))
+	if !l.globStar || star < 0 {
 		return false
 	}
 	c := l.src[start]
@@ -1366,15 +1382,19 @@ func scanGlobName(l *lexer) bool {
 		next = l.src[start+1]
 	}
 	end := start + 1
+	if c == '^' && isControlVar(next) {
+		end++
+	}
 	switch {
 	case c == '{':
-		end = caretBraceNameEnd(l.src, start)
+		end = l.caretBraceNameEnd(start)
 		if end < 0 {
 			return false
 		}
+	case end == start+1 && star != len(l.toks)-1:
+		return false
 	case c == '$' && (isWordByte(next) || next >= utf8.RuneSelf || next == '$' || next == '{' || next == ':'),
-		c == ':' && next == ':',
-		c == '^' && isWordByte(next):
+		c == ':' && next == ':':
 		return false
 	// After a word no keyword table settles, a sigil glued to a name is the
 	// star's operand: measured on 5.44.0, `A*%x`, `A*@x` and `A*&x` are
@@ -1385,12 +1405,12 @@ func scanGlobName(l *lexer) bool {
 	// sub's argument can be (`sub A {} A *-;`); the parser refuses it after
 	// a word not known to be declared (ruling R-b′).
 	case byteIn(c, "%@&$") && (isWordByte(next) || next >= utf8.RuneSelf || byteIn(next, "${:")) &&
-		l.afterUserWord(len(l.toks)-1, true):
+		l.afterUserWord(star, true):
 		return false
 	// After a closer, which the parser reads as ending a term, the star
 	// multiplies: FuzzParser's `{{}*$}` is `{} * $}` with its `}` missing.
 	// `#`, a quote, `;`, `}` and `*` keep the glob.
-	case !byteIn(c, "#\"'`;}*") && l.closerBefore(len(l.toks)-1):
+	case !byteIn(c, "#\"'`;}*") && l.closerBefore(star):
 		return false
 	}
 	l.pos = end
@@ -1406,7 +1426,8 @@ func scanGlobName(l *lexer) bool {
 // Measured on 5.44.0, `A*&!*&%` is `'A' * &! * &%`; with the `!` lexed as
 // an operator, the `*` after it read as a glob. `{` and `$` begin a longer
 // name, as `::` and `'` before a word do, and `#` a comment; a lone `:`
-// is a name, `&:;` compiling on 5.44.0 (FuzzParser's `&:*$%%(%A0`).
+// is a name, `&:;` compiling on 5.44.0 (FuzzParser's `&:*$%%(%A0`). A caret
+// control name is one name, as after a glob's star: `&^R`, `&{^R}`.
 func scanAmpName(l *lexer) bool {
 	start := l.pos
 	// An attribute's argument is not code: `:tighter(&)` names the operator.
@@ -1420,13 +1441,21 @@ func scanAmpName(l *lexer) bool {
 		return false
 	}
 	c := l.src[start]
-	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) || byteIn(c, "{$#") {
+	if c > '~' || c == '_' || !unicode.IsPunct(rune(c)) && !unicode.IsSymbol(rune(c)) || byteIn(c, "$#") {
 		return false
 	}
 	if next := start + 1; (c == ':' || c == '\'') && next < len(l.src) && (l.src[next] == ':' || isWordByte(l.src[next])) {
 		return false
 	}
 	l.pos++
+	if c == '{' {
+		if l.pos = l.caretBraceNameEnd(start); l.pos < 0 {
+			l.pos = start
+			return false
+		}
+	} else if c == '^' && l.pos < len(l.src) && isControlVar(l.src[l.pos]) {
+		l.pos++
+	}
 	l.emit(Word, start)
 	l.expect = XOperator
 	return true
@@ -1443,21 +1472,17 @@ func (l *lexer) afterFuncSigilAt(i int) bool {
 	return j >= 0 && l.toks[j].Kind == FuncSigil
 }
 
-// caretBraceNameEnd returns the end of the `{^NAME}` at src[start], or -1
-// where there is none.
-func caretBraceNameEnd(src []byte, start int) int {
+// caretBraceNameEnd returns the end of the braced caret name `{^NAME}` at
+// start, as bracedNameFollowsAt reads it, or -1 where there is none.
+func (l *lexer) caretBraceNameEnd(start int) int {
 	i := start + 1
-	if i >= len(src) || src[i] != '^' {
-		return -1
-	}
-	i++
-	for i < len(src) && isWordByte(src[i]) {
+	for i < len(l.src) && isSpace(l.src[i]) {
 		i++
 	}
-	if i == start+2 || i >= len(src) || src[i] != '}' {
+	if i >= len(l.src) || l.src[i] != '^' || !l.bracedNameFollowsAt(start) {
 		return -1
 	}
-	return i + 1
+	return i + bytes.IndexByte(l.src[i:], '}') + 1
 }
 
 // scanPostDerefStar lexes `&*` and `**` after `->` as the whole postfix

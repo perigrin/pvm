@@ -349,7 +349,7 @@ type lexer struct {
 	// bareSignatureSigil.
 	sigPending bool
 	sigDepth   int
-	// globStar is set when the token just emitted was a `*` where no
+	// globStar is set when the last significant token emitted was a `*` where no
 	// operator was expected -- a glob sigil, not multiplication. toke.c's
 	// yyl_star then reads the name with scan_ident, so a punctuation byte
 	// after it is the name: `*@` is the glob named `@`.
@@ -669,10 +669,13 @@ func (l *lexer) emit(k Kind, start int) {
 	// undeclared word, whose `*` multiplies: `A*A{0}` is `'A' * A {0}`. Nor
 	// after a closer, which may end a term the lexer cannot see: `{}*A{0}`
 	// is `{} * A {0}`, the braces an anonymous hash.
-	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start &&
+	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start && !IsTrivia(l.toks[len(l.toks)-2].Kind) &&
 		!l.afterUserWord(len(l.toks)-2, true) && !l.closerBefore(len(l.toks)-2)
-	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
-		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
+	// Space and comments keep it, for the caret name scan_ident reads past them (`* ^R`).
+	if k != Whitespace && k != Comment {
+		l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
+			l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
+	}
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,

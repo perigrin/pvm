@@ -122,7 +122,7 @@ func scanQuoteLike(l *lexer) bool {
 	}
 	// So is the word touching a glob's `*`: `*y` is the glob y. A `*` that
 	// multiplies is not a globStar, and `$b*s/a/b/` still substitutes.
-	if n := len(l.toks); n > 0 && l.globStar && l.toks[n-1].End == l.pos {
+	if n := len(l.toks); n > 0 && l.globStar && l.toks[n-1].End == l.pos && !IsTrivia(l.toks[n-1].Kind) {
 		return false
 	}
 
