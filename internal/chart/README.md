@@ -1255,13 +1255,18 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   Prefix `grammar.GlobDigits` after any `*`; that Number keeps its THING reading.
 - A glob's caret name (`*^R`, `*{^R}`, `* ^`) is one Word from internal/lexer, as scan_ident reads it. After a word
   that is not a keyword, internal/lexer reads it only where toke.c expects a term after that word: the word is a print's
-  filehandle, or it names a sub with no empty prototype that a `sub NAME` read earlier in the file declared. "Names" is
-  in gv_fetchpvn's sense. A qualified name's package is absolute (`'` is `::`, and a leading `::` or `main::` means
+  filehandle, or it names a sub that a `sub NAME` read earlier in the file declared, or a `my` or `state` sub in scope,
+  without an empty prototype. Empty means after perl strips the spaces, whether the prototype follows the name or is
+  `:prototype(...)` in the attribute list. "Names" is in gv_fetchpvn's sense. A qualified name's package is absolute (`'` is `::`, and a leading `::` or `main::` means
   main). A bare name is in the package that the last `package NAME` in an enclosing scope put in force (`class NAME` only
-  under the class feature), or in main for the names gv.c's `S_gv_is_in_main` forces there. Otherwise the star
+  under the class feature, which `use feature` turns on and `no feature` off), or in main for the names gv.c's
+  `S_gv_is_in_main` forces there. Otherwise the star
   multiplies, as in toke.c.
   shortcut: a sub declared any other way (an import, `use subs`, a glob assignment or an eval at BEGIN time) is
-  undeclared there, so `use POSIX qw(floor); floor *^R;` is refused where perl accepts it. Pinned in internal/lexer's
+  undeclared there, so `use POSIX qw(floor); floor *^R;` is refused where perl accepts it. shortcut: a prototype
+  spanning lines gets no Prototype token, so `sub A(` newline `) {1} A *^R;` is accepted where perl refuses it. shortcut:
+  the class feature is read for the whole file, not to the end of its block, so `{ use feature 'class'; } sub A; class
+  Foo; A *^R;` is refused where perl accepts it. Pinned in internal/lexer's
   `TestGlobCaretNameAfterWord` and `TestGlobCaretNameScope`.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,

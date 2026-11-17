@@ -362,6 +362,10 @@ type lexer struct {
 	// Elsewhere it is an ordinary name -- op/method.t calls a sub named
 	// method, `method Pack ("a")`.
 	classSyntax bool
+	// classFeature is whether the class feature is on, so that `class NAME`
+	// declares a package: `use feature 'class'` sets it and `no feature
+	// 'class'` clears it.
+	classFeature bool
 	// lexSubs are the lexical subs in scope, each with the bracket depth it
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.
@@ -464,6 +468,9 @@ type lexer struct {
 	constState int
 	constDepth int
 	constKey   string
+	// constLexical is set while the declaration read is a `my` or `state`
+	// sub's, which subs does not hold.
+	constLexical bool
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step

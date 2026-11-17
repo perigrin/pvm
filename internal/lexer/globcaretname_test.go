@@ -215,6 +215,38 @@ func TestGlobCaretNameScope(t *testing.T) {
 		{"sub A; class Foo; A *^R;", glob},
 		{"sub A; class Foo; A *{^R};", []string{"Operator(*)", "Word({^R})", "Semicolon(;)"}},
 		{"use feature 'class'; no warnings; sub A; class Foo; A *^R;", mul},
+		// The empty prototype is read as perl strips it, of spaces and
+		// through an attribute list: syntax error near "*^" on each.
+		{"sub A ( ) {1} A *^R;", mul},
+		{"sub A :prototype( ) {1} A *^R;", mul},
+		{"sub A :prototype() {1} A *^R;", mul},
+		{"sub A :lvalue :prototype() {1} A *^R;", mul},
+		// A prototype that is not empty takes the glob: syntax OK.
+		{"sub A ( $ ) {1} A *^R;", glob},
+		{"sub A :prototype($) {1} A *^R;", glob},
+		{"sub A :lvalue {1} A *^R;", glob},
+		// shortcut (scanPrototype): a prototype across lines gets no
+		// Prototype token, so its emptiness is not read. perl -c: syntax
+		// error near "*^", which the chart and RD accept.
+		{"sub A(\n) {1} A *^R;", glob},
+		// A lexical sub is declared only in its scope: syntax error near
+		// "*^" after the block, syntax OK inside it; an `our` sub is the
+		// package's (syntax OK).
+		{"{ my sub A {} } A *^R;", mul},
+		{`use feature "state"; { state sub A {} } A *^R;`, mul},
+		{"{ my sub A {} A *^R; }", []string{"Operator(*)", "Word(^R)", "Semicolon(;)", "CloseBracket(})"}},
+		{"my sub A {} A *^R;", glob},
+		{"my sub A() {1} A *^R;", mul},
+		{"{ our sub A {} } A *^R;", glob},
+		// A `class` without the class feature is a word, not a package:
+		// syntax OK. shortcut (enterPackage): the feature is read for the
+		// whole file, so it does not end with its block; `{ use feature
+		// 'class'; } sub A; class Foo; A *^R;` is syntax OK, which the chart
+		// and RD refuse.
+		{"sub A; class Foo; class Bar; A *^R;", glob},
+		{"sub A; class Foo; sub B; class Bar; A *^R;", glob},
+		{"use feature 'class'; no feature 'class'; sub A; class Foo; A *^R;", glob},
+		{"{ use feature 'class'; } sub A; class Foo; A *^R;", mul},
 		// The block after a package's name is found past a comment, so
 		// Foo::A is declared and main::A is not: syntax error near "*^", and
 		// Invalid version format on the version row and the POD row.

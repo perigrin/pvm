@@ -69,6 +69,9 @@ func scanPrototype(l *lexer) bool {
 			// Unterminated. perl croaks "Prototype not terminated"; an LSP
 			// cannot, so the cursor is put back and the parens lex as
 			// ordinary tokens. Round-trip holds either way.
+			// shortcut: perl's scan_str reads a prototype across lines, which
+			// this does not, so `sub A(` newline `) {1}` is not read as empty.
+			// Upgrade when an unterminated prototype can be told apart.
 			l.peekEnd = max(l.peekEnd, l.pos)
 			l.pos = start
 			l.expectPrototype = false
@@ -220,7 +223,9 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 			// `class` is a package's keyword only under the class feature.
 			if i := l.significantBefore(len(l.toks) - 1); i >= 0 &&
 				string(l.src[l.toks[i].Start:l.toks[i].End]) == "class" {
-				if l.classSyntax {
+				// shortcut: the class feature is read for the whole file, not
+				// to the end of its block. Upgrade when the lexer scopes features.
+				if l.classFeature {
 					l.enterPackage(word)
 				}
 				l.classSyntax = true
@@ -605,7 +610,9 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 			l.constSubs = map[string]bool{}
 		}
 		l.constSubs[name] = true
-		l.subs[l.qualify(name)] = true
+		if !l.constLexical {
+			l.subs[l.qualify(name)] = true
+		}
 	}
 	switch l.constState {
 	case constSawUse:
@@ -644,18 +651,32 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	case constSawSub:
 		if k == Word {
-			l.subs[l.qualify(text)] = false
+			// A `my` or `state` sub is lexSubs', in scope only in its block.
+			decl := ""
+			if d := l.significantBefore(l.significantBefore(len(l.toks) - 1)); d >= 0 {
+				decl = string(l.src[l.toks[d].Start:l.toks[d].End])
+			}
+			l.constLexical = decl == "my" || decl == "state"
+			if !l.constLexical {
+				l.subs[l.qualify(text)] = false
+			}
 			l.constState, l.constKey = constSawName, text
 			return
 		}
 	case constSawName:
-		if k == Prototype && text == "()" {
+		// The prototype, perl stripping its spaces (S_strip_spaces), is
+		// after the name or in the attribute list: `sub A :lvalue
+		// :prototype() {1}`.
+		switch {
+		case k == Prototype && strings.TrimSpace(text[1:len(text)-1]) == "":
 			declare(l.constKey)
+		case text == ":" || k == Word:
+			return
 		}
 	}
 	switch {
 	case k == Word && text == "use":
-		l.constState = constSawUse
+		l.constState, l.constLexical = constSawUse, false
 	case k == Word && text == "sub":
 		l.constState = constSawSub
 	default:

@@ -1540,7 +1540,8 @@ func (l *lexer) afterUserWord(i int, xIsWord bool) bool {
 
 // wordTakesTerm reports whether toke.c expects a term after the word before
 // toks[i]: a sub the file declared before it with no empty prototype, or a
-// print's filehandle (`print STDOUT *^R`).
+// print's filehandle (`print STDOUT *^R`). A lexical sub in scope is
+// declared by its bare name.
 // shortcut: a sub declared other than by a `sub NAME` the lexer has read (an
 // import, `use subs`, a glob assignment or eval at BEGIN time) is undeclared
 // here. Upgrade when the lexer reads what BEGIN time declares.
@@ -1548,6 +1549,9 @@ func (l *lexer) wordTakesTerm(i int) bool {
 	j := l.significantBefore(i)
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
 	niladic, declared := l.subs[l.qualify(w)]
+	if !strings.Contains(w, "::") && !strings.Contains(w, "'") && l.lexSubInScope(w) {
+		niladic, declared = l.constSubs[w], true
+	}
 	return declared && !niladic || l.inHandleSlot(j)
 }
 

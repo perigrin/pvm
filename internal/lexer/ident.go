@@ -429,6 +429,9 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if useSpelling && containsWord(text, "class") {
 			l.classSyntax = true
 		}
+		if containsWord(text, "class") {
+			l.classFeature = useSpelling
+		}
 		if containsWord(text, "apostrophe_as_package_separator") {
 			l.noApostropheSeparator = !useSpelling
 		}
