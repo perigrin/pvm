@@ -13,5 +13,4 @@ perlgit/op/goto.t 14715 01a1ad1d-bc96
 perlgit/op/override.t 506 01a1ad1d-bc96
 perlgit/op/protowarn.t 632 01a1ad1d-bc96
 perlgit/op/tie_fetch_count.t 6416 01a1cfc4-5141
-perlgit/re/pat.t 56909 01a1cfc4-5141
 perlgit/re/subst.t 23429 01a1cfc4-5141

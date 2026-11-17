@@ -1447,15 +1447,16 @@ func scanAmpName(l *lexer) bool {
 	if next := start + 1; (c == ':' || c == '\'') && next < len(l.src) && (l.src[next] == ':' || isWordByte(l.src[next])) {
 		return false
 	}
-	l.pos++
-	if c == '{' {
-		if l.pos = l.caretBraceNameEnd(start); l.pos < 0 {
-			l.pos = start
+	end := start + 1
+	switch {
+	case c == '{':
+		if end = l.caretBraceNameEnd(start); end < 0 {
 			return false
 		}
-	} else if c == '^' && l.pos < len(l.src) && isControlVar(l.src[l.pos]) {
-		l.pos++
+	case c == '^' && end < len(l.src) && isControlVar(l.src[end]):
+		end++
 	}
+	l.pos = end
 	l.emit(Word, start)
 	l.expect = XOperator
 	return true
