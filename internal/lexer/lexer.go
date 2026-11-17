@@ -320,6 +320,10 @@ type lexer struct {
 	// listOpEmptyHash rides with listOpParen: the word was one whose empty
 	// brace is a hash (emptyBraceIsHash), which the `(` passes to intuitCurly.
 	listOpEmptyHash bool
+	// xrefBlock is set when the token just emitted was an XREF word (or its
+	// `(`) whose `{` intuitCurly read as a block, so that `{` can apply
+	// toke.c's block_expectation. See blockExpectsTerm.
+	xrefBlock bool
 	// sawSubWord and expectPrototype track `sub NAME`, after which a `(`
 	// opens a prototype rather than a list.
 	sawSubWord      bool
@@ -613,12 +617,15 @@ func (l *lexer) emit(k Kind, start int) {
 		l.src[start] == '('
 	emptyIsHash := (k == Word && emptyBraceIsHash(string(l.src[start:l.pos]))) ||
 		(inListOpParen && l.listOpEmptyHash)
+	nextBraceIsBlock := (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash)
+	blockWantsTerm := l.openedBlock && l.xrefBlock && blockExpectsTerm(l.src, l.pos)
 	// Trivia does not clear the carry: `map ({...} @a)` has a space between
 	// the word and its paren, and the call is the same one.
 	if k != Whitespace && k != Comment {
 		l.listOpParen = k == Word && takesBlock(string(l.src[start:l.pos])) &&
 			l.peekIsOpenParen()
 		l.listOpEmptyHash = l.listOpParen && emptyIsHash
+		l.xrefBlock = emptyIsHash && nextBraceIsBlock
 	}
 
 	// A label's `:`, carried from the Word before it. Read BEFORE the carry
@@ -682,10 +689,11 @@ func (l *lexer) emit(k Kind, start int) {
 		// braceIsHash applies the lookahead there, for every statement-start
 		// brace at once. See the labelColon branch in
 		// expect.go.
-		nextBraceIsBlock: (k == Word || inListOpParen) && l.intuitCurly(emptyIsHash),
+		nextBraceIsBlock: nextBraceIsBlock,
 		listOpParen:      inListOpParen,
 		labelColon:       labelColon,
 		openedBlock:      l.openedBlock,
+		blockWantsTerm:   blockWantsTerm,
 		useArg:           useArg,
 	})
 	// A postfix `++` or `--`, after a term, ends the term: perl 5.44.0 reads
