@@ -1071,7 +1071,9 @@ where perl reads `HASHBRACK`.
 A `{` after `use` or `no` MODULE is `HASHBRACK`, as toke.c's `S_tokenize_use` leaves a term expected after
 the module name (`internal/lexer`'s `useArg`, issue `01a1c83a-0466`). One limit, pinned in the lexer's
 `TestUseModuleBraceVersionKnownLimit`: after the version the lexer still expects an operator where toke.c
-expects a term, so `use M 1.0 %h;` reads `%` as modulus. Taking it moves `**`, `//` and `<=>` after a version
+expects a term, so every term-or-operator character after a version (`% & * < / ?`) is read as an operator:
+`use M 1.0 %h;` reads `%` as modulus, `use M 1.0 <FH>;` is refused and `use M 1.0 / 3;` accepted, where perl
+-c accepts the first two and refuses the third. Taking it moves `**`, `//` and `<=>` after a version
 off `notAfterVersion` (they lex as a glob, a match and a readline), and the version/term shortcut in
 `grammar/versions.go` then lets recognition take `use lib 1.2 ** 3;`, which `forest.Parse` refuses by scope.
 
