@@ -28,6 +28,9 @@ func TestBlockExpectationBraceIsAnonHash(t *testing.T) {
 		`system { {1} } 1`,
 		`exec { {1} } 1`,
 		`CORE::say { {1} } 1`,
+		// A pending heredoc body is skipped, as toke.c's skipspace skips it.
+		"my @y = (<<E, map {\nbody\nE\n{ 1; } } @x);",
+		"my @y = (<<E, map {\nbody\nE\n{ 1 } } @x);",
 	} {
 		open, closer := lastBraceAndCloserOpenBlock(t, src)
 		if open || closer {
@@ -50,6 +53,16 @@ func TestBlockExpectationBraceOpensBlock(t *testing.T) {
 		`eval { { 1 } }`,
 		`if (1) { { 1 } }`,
 		`sub f { { 1 } }`,
+		// A sub or method NAME, or a word after `->` or `&`, is not the
+		// XREF builtin, so its block's brace is a statement-start one.
+		`sub print { { 1; } }`,
+		`sub map { { my $y = 2; } } 1;`,
+		`sub exec { {;} }`,
+		`sub print { {1} }`,
+		`use v5.38; use feature "class"; no warnings; class C { method print { { 1; } } }`,
+		`package Fmt; sub printf { { local $_ = shift; s/x/y/; } return 1; }`,
+		`my $o; $o->map { {1} };`,
+		`&map { {1} };`,
 	} {
 		open, closer := lastBraceAndCloserOpenBlock(t, src)
 		if !open || !closer {
@@ -70,10 +83,38 @@ func TestBlockExpectationBraceSubColon(t *testing.T) {
 		{`map { sub : lvalue { 1 } } @x`, true},
 		{`map { sub: lvalue { 1 } } @x`, true},
 		{`map {; sub : lvalue { 1 } } @x`, false},
+		{"map { sub \t: lvalue { 1 } } @x", true},
+		{`sub grep { sub : lvalue {1} }`, false},
 	} {
 		for _, tok := range Tokenize([]byte(c.src)) {
 			if c.src[tok.Start:tok.End] == "lvalue" && tok.AttrName != c.attr {
 				t.Errorf("%q: lvalue AttrName=%v; want %v", c.src, tok.AttrName, c.attr)
+			}
+		}
+	}
+}
+
+// TestBlockExpectationBraceKnownLimits pins two limits; each row fails once
+// its limit moves. perl -c refuses all three, and the lexer reads them as
+// perl -c accepts them.
+//
+// `say` without a feature tracker reads a block (see emptyBraceIsHash), so its
+// first brace stays a block where `use v5.10; say` reads HASHBRACK.
+//
+// toke.c's block_expectation skips a newline or comment between `sub` and `:`
+// but loses the `sub` with the line, so perl refuses; the lexer reads the
+// attribute.
+func TestBlockExpectationBraceKnownLimits(t *testing.T) {
+	if open, closer := lastBraceAndCloserOpenBlock(t, `use v5.10; say { {1;} } 1;`); !open || !closer {
+		t.Errorf("say { {1;} }: the block reading moved; the limit is gone")
+	}
+	for _, src := range []string{
+		"map { sub\n: lvalue { 1 } } @x",
+		"map { sub #c\n: lvalue { 1 } } @x",
+	} {
+		for _, tok := range Tokenize([]byte(src)) {
+			if src[tok.Start:tok.End] == "lvalue" && !tok.AttrName {
+				t.Errorf("%q: lvalue is no longer an attribute; the limit moved", src)
 			}
 		}
 	}
