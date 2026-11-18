@@ -2223,8 +2223,11 @@ prototype grades EXACT only with its module found
 then `oracle-grade: unreadable <n>` and `oracle-grade: seconds <s>`, and lists
 each WRONG site on stderr as `oracle-grade: <subject> WRONG <file>:<line> <marker>`.
 It takes about 15 s. The ratchet sums the same grading over the three corpora
-into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`, and WRONGZERO
-(`01a1c324-1fd7`) drives the chart's WRONG count to 0.
+into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`.
+`TestOracleWrongZero` holds spec §9.4's result over the same grading: no
+chart WRONG site and the chart's exact sites at or above recursive descent's
+on every corpus, listing each WRONG site when it fails. No WRONG site is left
+as a known limit; rerun the command above for the counts.
 
 ## The precedence constraint: `forest/precedence.go`
 
