@@ -404,7 +404,7 @@ func TestResolveFeatures(t *testing.T) {
 		{`use feature "defer"; no warnings; defer { 1 }`, true},
 		{`use feature "keyword_any"; no warnings; my @a; my $x = any { $_ } @a;`, true},
 		{`use v5.38; use experimental "class"; class C { field $x; method m { 1 } ADJUST { 1 } }`, true},
-		// a version's bundle: switch from 5.10 to 5.34, state from 5.10, try from 5.39
+		// a version's bundle: switch from 5.9.5 to 5.34, state from 5.9.5, try from 5.39
 		{"use v5.10; given (1) { when (1) { 1 } default { 1 } }", true},
 		{"use v5.36; given (1) { }", false},
 		{"use v5.36; state $x = 1;", true},
@@ -601,5 +601,16 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 	}
 	if !inMain("") || !inMain("1") || !inMain("^W") || inMain("Foo") {
 		t.Error("inMain: the empty name and names not opening as an identifier are main's, an identifier is not")
+	}
+}
+
+// TestResolveSayWithoutFeatureLimit pins a limit: `say` stays a keyword whatever the features (tdt/overrides.txt), so
+// the chart accepts `say 1;` and `say "x";` without the say feature, where perl -c refuses each ("syntax error").
+// Recursive descent accepts them too.
+func TestResolveSayWithoutFeatureLimit(t *testing.T) {
+	for _, src := range []string{`say 1;`, `say "x";`} {
+		if f, ref := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+			t.Errorf("%q is refused (%+v); the limit is gone, so move it to TestResolveFeatures and drop the README line", src, ref)
+		}
 	}
 }

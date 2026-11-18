@@ -72,7 +72,8 @@ reading below, taken on the same host, not with CI's advisory job.
 - **Grading pools a site at its top-level statement**, in both directions
   (chart-perly-w2-inputs `01a1ed19-0c33`): an interpolated-code hedge over a
   whole block grades a wrong reading inside it WIDER, not WRONG; and a decided
-  site anywhere in a top-level `sub`, `package` block or bare block accounts
+  site anywhere in a top-level statement holding others (a `sub`, `package`
+  block or bare block, and an `if`, `for`, `while` or `given`) accounts
   for perl's site of that marker anywhere else in it, so a miss grades EXACT
   where it would grade WRONG at its own statement ("Per-site grading").
 
@@ -1321,7 +1322,9 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   as yyl_just_a_word otherwise. Recognition cannot see a feature, so init's `addStatementWords` gives each, unqualified,
   every class of a word no class names, and a word's after `sort` or `do`, beside its keyword classes (`open(try, "/dev/null");`, `foo(catch, 1);`,
   `my $x = method;`), and resolve keeps one by feature ("Resolve" below). `CORE::try` stays the keyword. `isa` is
-  chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`).
+  chart/lex's, which reads `use` statements, and `say` stays a keyword (`tdt/overrides.txt`). That accepts what
+  perl refuses: `say 1;` and `say "x";` without the say feature are a syntax error to perl -c, and the chart and
+  recursive descent both accept them (`TestResolveSayWithoutFeatureLimit`).
 - A quote-like's name (`m`, `q`, `qq`, `qr`, `qw`, `qx`, `s`, `tr`, `y`) is a Word only where internal/lexer declines
   the quote: a name it forces (after `->`, `&`, `sub`), before `=>` or a subscript's `}`, and once a lexical sub of
   that name is declared, which toke.c reads before the quote-like (it checks the pad first). So `addStatementWords`
@@ -1441,8 +1444,10 @@ with reason `scope`, at the first dropped reading reached from the root.
   `bare_statement_sub_signature` node naming a sub, in scope from its node's end, where perl compiles it
   (`sub foo { foo 1; }` is refused, `sub foo; sub foo { foo 1; }` accepted). Its prototype is the last PROTOTYPE
   token before its body, the `:prototype` attribute's included. A package sub is keyed by its qualified name, in the
-  package of the `package` statement or block around it (`TestResolvePackageScopedSubs`); a `my` or `state` sub
-  lasts to its block's `}`.
+  package of the `package` statement or block around it (`TestResolvePackageScopedSubs`), except that the
+  always-main names (`ENV`, `INC`, `ARGV`, `ARGVOUT`, `SIG`, `STDIN`, `STDOUT`, `STDERR`, `_`) and a name not opening
+  as an identifier are keyed in main from every package, as gv.c's `S_gv_is_in_main` puts them
+  (`TestResolveAlwaysMainNames`); a `my` or `state` sub lasts to its block's `}`.
 - **Imported subs** are the caller's `forest.Scope`, `parse.Imports` over a tree from `parse.ParseFileFrom` or
   `parse.ParseWithLoader`, names and prototypes; the forest loads no module, and an empty `Scope` imports nothing
   (`TestResolveEmptyScope`). shortcut: imports are file-wide, so a call written before its `use` reads as imported
@@ -1457,12 +1462,12 @@ with reason `scope`, at the first dropped reading reached from the root.
 
 - **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment, the subs of a file a `BEGIN` requires
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
-  package, keyed by its qualified name. A declared sub before a word naming a package the file declares earlier is a
-  method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
+  package, keyed by its qualified name (an always-main name in main, as a declared sub's). A declared sub before a
+  word naming a package the file declares earlier is a method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
 - **Features** in force at a byte are chart/lex's (`Stream.FeaturesAt`), read as it reads `isa`'s: a `use feature`,
   `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,
   `:all`), a bare `no feature` turns them all off, and `use VERSION` replaces them with its version's bundle (state
-  from 5.10, switch from 5.10 to 5.34, current_sub, fc and evalbytes from 5.15, signatures from 5.35, try from 5.39);
+  from 5.9.5, switch from 5.9.5 to 5.34, current_sub, fc and evalbytes from 5.15, signatures from 5.35, try from 5.39);
   each holds to the end of its block (`TestResolveFeaturesLexicalScope`). As internal/parse reads them
   (`featuresMayBeOn`), a `use` of a module that is no quiet pragma, a feature list not all quoted names, or a `BEGIN`
   block (a `BEGIN` before `{`, not after `->`) may turn any feature on, so each feature known off is unknown after one
@@ -2281,8 +2286,9 @@ chart WRONG site and the chart's exact sites at or above recursive descent's
 on every corpus, listing each WRONG site when it fails. No WRONG site is left
 as a known limit; rerun the command above for the counts. Both subjects report
 each site spanning its top-level statement (`forest/facts.go`'s `walk`,
-`parse.Sites`), so the grading pools a whole `sub`, `package` block or bare
-block: a correct site elsewhere in it can account for a miss, which then grades
+`parse.Sites`), so the grading pools every top-level statement holding others, a
+`sub`, `package` block or bare block and an `if`, `for`, `while` or `given`
+alike: a correct site elsewhere in it can account for a miss, which then grades
 EXACT where at its own statement it would grade WRONG, and a hedge over it turns
 a wrong reading WIDER. Recursive descent is graded the same way, so the two
 compare like for like, but `oracle-wrong 0` is that much weaker evidence than it
