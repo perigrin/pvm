@@ -117,7 +117,6 @@ perlgit/op/ver.t 7022 01a0dc72-2609
 perlgit/op/ver.t 7029 01a0dc72-2609
 perlgit/op/ver.t 7112 01a0dc72-2609
 perlgit/op/ver.t 7433 01a0dc72-2609
-perlgit/re/pat.t 56909 01a1cfc4-5141
 perlgit/re/pat_rt_report.t 1746 01a0dc72-2609
 perlgit/re/subst.t 23429 01a1cfc4-5141
 perlgit/re/subst.t 23543 01a1cfc4-5141

@@ -349,7 +349,7 @@ type lexer struct {
 	// bareSignatureSigil.
 	sigPending bool
 	sigDepth   int
-	// globStar is set when the token just emitted was a `*` where no
+	// globStar is set when the last significant token emitted was a `*` where no
 	// operator was expected -- a glob sigil, not multiplication. toke.c's
 	// yyl_star then reads the name with scan_ident, so a punctuation byte
 	// after it is the name: `*@` is the glob named `@`.
@@ -362,6 +362,10 @@ type lexer struct {
 	// Elsewhere it is an ordinary name -- op/method.t calls a sub named
 	// method, `method Pack ("a")`.
 	classSyntax bool
+	// classFeature is whether the class feature is on, so that `class NAME`
+	// declares a package: `use feature 'class'` sets it and `no feature
+	// 'class'` clears it.
+	classFeature bool
 	// lexSubs are the lexical subs in scope, each with the bracket depth it
 	// was declared at: `my sub s { 42 }` makes `s(1)` a call until that
 	// block closes. See lexSubInScope.
@@ -453,10 +457,20 @@ type lexer struct {
 	// declaration being read; see noteConstSub.
 	//
 	// ponytail: one table for the file; perl scopes these to a package.
-	constSubs  map[string]bool
+	constSubs map[string]bool
+	// subs are the names `sub NAME` and `use constant` declare, in full (see
+	// qualify), each true where its prototype is empty; read by
+	// wordTakesTerm.
+	subs map[string]bool
+	// packages are the `package NAME` declarations in force, innermost
+	// last, each with the bracket depth its scope ends below.
+	packages   []lexSub
 	constState int
 	constDepth int
 	constKey   string
+	// constLexical is set while the declaration read is a `my` or `state`
+	// sub's, which subs does not hold.
+	constLexical bool
 }
 
 // step runs one scan and enforces spec §7.6.2 invariant 4: every step
@@ -669,10 +683,13 @@ func (l *lexer) emit(k Kind, start int) {
 	// undeclared word, whose `*` multiplies: `A*A{0}` is `'A' * A {0}`. Nor
 	// after a closer, which may end a term the lexer cannot see: `{}*A{0}`
 	// is `{} * A {0}`, the braces an anonymous hash.
-	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start &&
+	globName := k == Word && l.globStar && len(l.toks) > 1 && l.toks[len(l.toks)-2].End == start && !IsTrivia(l.toks[len(l.toks)-2].Kind) &&
 		!l.afterUserWord(len(l.toks)-2, true) && !l.closerBefore(len(l.toks)-2)
-	l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
-		l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
+	// Space and comments keep it, for the caret name scan_ident reads past them (`* ^R`).
+	if k != Whitespace && k != Comment {
+		l.globStar = k == Operator && l.pos-start == 1 && l.src[start] == '*' &&
+			l.expect != XOperator && l.expect != XPostDeref && l.attrArgDepth == 0
+	}
 	l.expect = l.expect.after(k, transition{
 		text:            l.src[start:l.pos],
 		closedBlock:     l.closedBlock,
@@ -684,6 +701,8 @@ func (l *lexer) emit(k Kind, start int) {
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
 		// A keyword stays the keyword unless a lexical sub shadows it here
 		// (LexSub): `our sub if() {42} $x = if if if` is `$x = if() if if()`.
+		// shortcut: constSubs is by bare name for the whole file, as in
+		// wordTakesTerm; upgrade both sites together.
 		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] && (l.toks[len(l.toks)-1].LexSub || !IsKeyword(string(l.src[start:l.pos]))) ||
 			l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking
@@ -738,6 +757,20 @@ var handleTakers = map[string]bool{
 	"sort": true,
 }
 
+// inHandleSlot reports whether toks[i] is the first thing after a
+// handleTakers word.
+func (l *lexer) inHandleSlot(i int) bool {
+	prev := l.significantBefore(i)
+	// The parenthesised call counts too: toke.c compares PL_last_lop with the
+	// token TWO back, and for `print($fh` that is still `print`. Measured,
+	// `print($f <<"EOT")` is a heredoc on 5.42.0 -- and it is canon's own
+	// spelling, so without this its emission did not re-parse.
+	if prev >= 0 && l.src[l.toks[prev].Start] == '(' && l.toks[prev].End-l.toks[prev].Start == 1 {
+		prev = l.significantBefore(prev)
+	}
+	return prev >= 0 && l.toks[prev].Kind == Word && handleTakers[string(l.src[l.toks[prev].Start:l.toks[prev].End])]
+}
+
 // handleSlotTakesTerm reports whether the scalar just emitted at start fills a
 // handleTakers slot, so a TERM follows it rather than an operator.
 //
@@ -750,16 +783,7 @@ func (l *lexer) handleSlotTakesTerm(start int) bool {
 	if l.src[start] != '$' || l.pos >= len(l.src) || !isSpace(l.src[l.pos]) {
 		return false
 	}
-	prev := l.significantBefore(len(l.toks) - 1)
-	// The parenthesised call counts too: toke.c compares PL_last_lop with the
-	// token TWO back, and for `print($fh` that is still `print`. Measured,
-	// `print($f <<"EOT")` is a heredoc on 5.42.0 -- and it is canon's own
-	// spelling, so without this its emission did not re-parse.
-	if prev >= 0 && l.src[l.toks[prev].Start] == '(' && l.toks[prev].End-l.toks[prev].Start == 1 {
-		prev = l.significantBefore(prev)
-	}
-	if prev < 0 || l.toks[prev].Kind != Word ||
-		!handleTakers[string(l.src[l.toks[prev].Start:l.toks[prev].End])] {
+	if !l.inHandleSlot(len(l.toks) - 1) {
 		return false
 	}
 	s := l.pos

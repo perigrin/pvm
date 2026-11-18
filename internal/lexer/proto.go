@@ -5,6 +5,7 @@ package lexer
 
 import (
 	"bytes"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -68,6 +69,9 @@ func scanPrototype(l *lexer) bool {
 			// Unterminated. perl croaks "Prototype not terminated"; an LSP
 			// cannot, so the cursor is put back and the parens lex as
 			// ordinary tokens. Round-trip holds either way.
+			// shortcut: perl's scan_str reads a prototype across lines, which
+			// this does not, so `sub A(` newline `) {1}` is not read as empty.
+			// Upgrade when an unterminated prototype can be told apart.
 			l.peekEnd = max(l.peekEnd, l.pos)
 			l.pos = start
 			l.expectPrototype = false
@@ -216,9 +220,17 @@ func (l *lexer) noteSubName(k Kind, start int) bool {
 		case l.sawPackageWord:
 			l.sawPackageWord = false
 			l.sawPackageName = true
+			// `class` is a package's keyword only under the class feature.
 			if i := l.significantBefore(len(l.toks) - 1); i >= 0 &&
 				string(l.src[l.toks[i].Start:l.toks[i].End]) == "class" {
+				// shortcut: the class feature is read for the whole file, not
+				// to the end of its block. Upgrade when the lexer scopes features.
+				if l.classFeature {
+					l.enterPackage(word)
+				}
 				l.classSyntax = true
+			} else {
+				l.enterPackage(word)
 			}
 			l.expectPrototype = false
 			// `class Point :isa(Shape) { }`. A class's attributes take the
@@ -483,6 +495,89 @@ func (l *lexer) closeLexSubScope() {
 	for len(l.lexSubs) > 0 && l.lexSubs[len(l.lexSubs)-1].depth > len(l.brackets) {
 		l.lexSubs = l.lexSubs[:len(l.lexSubs)-1]
 	}
+	for len(l.packages) > 0 && l.packages[len(l.packages)-1].depth > len(l.brackets) {
+		l.packages = l.packages[:len(l.packages)-1]
+	}
+}
+
+// prevWordIs reports whether the significant token before the one just
+// emitted is the word w.
+func (l *lexer) prevWordIs(w string) bool {
+	i := l.significantBefore(len(l.toks) - 1)
+	return i >= 0 && l.toks[i].Kind == Word && string(l.src[l.toks[i].Start:l.toks[i].End]) == w
+}
+
+// enterPackage puts name in force from `package NAME`: to the end of the
+// enclosing block, or through its own block in `package NAME VERSION {}`.
+func (l *lexer) enterPackage(name string) {
+	depth := len(l.brackets)
+	i := skipSpaceAndPodFrom(l.src, l.pos)
+	if i < len(l.src) && (isDigit(l.src[i]) || l.src[i] == 'v') {
+		for i < len(l.src) && (isWordByte(l.src[i]) || l.src[i] == '.') {
+			i++
+		}
+		i = skipSpaceAndPodFrom(l.src, i)
+	}
+	if i < len(l.src) && l.src[i] == '{' {
+		depth++
+	}
+	if n := len(l.packages); n > 0 && l.packages[n-1].depth == depth {
+		l.packages = l.packages[:n-1]
+	}
+	l.packages = append(l.packages, lexSub{name: absPackage(name), depth: depth})
+}
+
+// skipSpaceAndPodFrom is skipSpaceAndCommentsFrom that also skips a POD
+// block, from a line opening with `=` and a letter through its `=cut` line.
+func skipSpaceAndPodFrom(src []byte, i int) int {
+	for i = skipSpaceAndCommentsFrom(src, i); i+1 < len(src) && src[i] == '=' && isAsciiLetter(src[i+1]) && (i == 0 || src[i-1] == '\n'); i = skipSpaceAndCommentsFrom(src, i) {
+		for i < len(src) && !isPodCut(src[i:i+lineLen(src[i:])]) {
+			i += lineLen(src[i:])
+			if i < len(src) {
+				i++
+			}
+		}
+		i += lineLen(src[i:])
+	}
+	return i
+}
+
+// absPackage is a package's name in full: package names are absolute, `'`
+// is `::`, and a leading `::` or `main::` names the same package without it.
+func absPackage(name string) string {
+	name = strings.TrimPrefix(strings.ReplaceAll(name, "'", "::"), "::")
+	for strings.HasPrefix(name, "main::") {
+		name = name[len("main::"):]
+	}
+	if name == "" {
+		return "main"
+	}
+	return name
+}
+
+// qualify is a sub's name in full, as gv_fetchpvn reads it: a qualified
+// name's package is absolute, and a bare name is in the package in force
+// unless gv_is_in_main puts it in main.
+func (l *lexer) qualify(name string) string {
+	name = strings.ReplaceAll(name, "'", "::")
+	if i := strings.LastIndex(name, "::"); i >= 0 {
+		return absPackage(name[:i]) + "::" + name[i+2:]
+	}
+	pkg := "main"
+	if n := len(l.packages); n > 0 && !inMain(name) {
+		pkg = l.packages[n-1].name
+	}
+	return pkg + "::" + name
+}
+
+// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
+// package, and every name that does not open as an identifier.
+func inMain(name string) bool {
+	switch name {
+	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
+		return true
+	}
+	return name == "" || name[0] < utf8.RuneSelf && !isAsciiLetter(name[0]) && name[0] != '_'
 }
 
 // lexSubInScope reports whether a lexical sub of this name is in scope.
@@ -514,11 +609,17 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	}
 	text := string(l.src[start:l.pos])
+	if l.subs == nil {
+		l.subs = map[string]bool{}
+	}
 	declare := func(name string) {
 		if l.constSubs == nil {
 			l.constSubs = map[string]bool{}
 		}
 		l.constSubs[name] = true
+		if !l.constLexical {
+			l.subs[l.qualify(name)] = true
+		}
 	}
 	switch l.constState {
 	case constSawUse:
@@ -557,17 +658,43 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		return
 	case constSawSub:
 		if k == Word {
+			// A `my` or `state` sub is lexSubs', in scope only in its block.
+			decl := ""
+			if d := l.significantBefore(l.significantBefore(len(l.toks) - 1)); d >= 0 {
+				decl = string(l.src[l.toks[d].Start:l.toks[d].End])
+			}
+			l.constLexical = decl == "my" || decl == "state"
+			if !l.constLexical {
+				l.subs[l.qualify(text)] = false
+			}
 			l.constState, l.constKey = constSawName, text
 			return
 		}
 	case constSawName:
-		if k == Prototype && text == "()" {
+		// The prototype, perl stripping its spaces (S_strip_spaces), is
+		// after the name or in the attribute list: `sub A :lvalue
+		// :prototype() {1}`.
+		// shortcut: the first prototype is read, where perl takes a later
+		// `:prototype(...)` over the parens (`sub A($) :prototype() {1}`),
+		// and no other attribute is read, `:const` among them (`sub A :const
+		// {1} A *^R`, which perl refuses). Upgrade when a declaration's
+		// prototype and attributes are read whole.
+		switch {
+		case k == Prototype && strings.TrimSpace(text[1:len(text)-1]) == "":
 			declare(l.constKey)
+		// `:prototype(` across lines is no Prototype token but its parens.
+		case text == "(" && l.prevWordIs("prototype"):
+			if i := skipSpaceFrom(l.src, l.pos); i < len(l.src) && l.src[i] == ')' {
+				declare(l.constKey)
+			}
+			return
+		case text == ":" || text == ")" || k == Word:
+			return
 		}
 	}
 	switch {
 	case k == Word && text == "use":
-		l.constState = constSawUse
+		l.constState, l.constLexical = constSawUse, false
 	case k == Word && text == "sub":
 		l.constState = constSawSub
 	default:

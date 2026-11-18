@@ -630,8 +630,8 @@ Each non-blank line is one entry, `<path> <byte> <issue ref>`:
   resolved as `<name>.t` under `testdata/perlonjava/unit`, or under
   `$T1_CORPUS` when that is set. A perl.git file is `perlgit/<path under t/>`,
   a `.t` file of the pinned perl5 tree's `t/` (`$PERL5_CORPUS`, by default
-  `/opt/corpora/perl5`). `lexer-defects.txt` holds 12 such entries and
-  `tdt/lexer-rooted.txt` 98; `lex-unmapped-known.txt` holds none, since no
+  `/opt/corpora/perl5`). `lexer-defects.txt` holds 11 such entries and
+  `tdt/lexer-rooted.txt` 97; `lex-unmapped-known.txt` holds none, since no
   perl.git file has a token the table leaves unmapped.
 - **byte** is a decimal offset inside that file (below its size), with no
   sign or leading zero, since the ratchet matches `<path> <byte>` as text: for
@@ -1253,6 +1253,27 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   and forces BAREWORD, where internal/lexer emits a Number, so a Number after a glob's `*` gets BAREWORD too: only
   decimal digits with no leading 0 (`*1_0`, `*1e3` and `*01` are refused, as by perl), which chart/lex marks with the
   Prefix `grammar.GlobDigits` after any `*`; that Number keeps its THING reading.
+- A glob's caret name (`*^R`, `*{^R}`, `* ^`) is one Word from internal/lexer, as scan_ident reads it. After a word
+  that is not a keyword, internal/lexer reads it only where toke.c expects a term after that word: the word is a print's
+  filehandle, or it names a sub that a `sub NAME` read earlier in the file declared, or a `my` or `state` sub in scope,
+  without an empty prototype. Empty means after perl strips the spaces, whether the prototype follows the name or is
+  `:prototype(...)` in the attribute list. "Names" is in gv_fetchpvn's sense. A qualified name's package is absolute (`'` is `::`, and a leading `::` or `main::` means
+  main). A bare name is in the package that the last `package NAME` in an enclosing scope put in force (`class NAME` only
+  under the class feature, which a `use feature` list naming `class` turns on and a `no feature` list naming it turns
+  off), or in main for the names gv.c's `S_gv_is_in_main` forces there. Otherwise the star
+  multiplies, as in toke.c.
+  shortcut: a sub declared any other way (an import, `use subs`, a glob assignment or an eval at BEGIN time) is
+  undeclared there, so `use POSIX qw(floor); floor *^R;` is refused where perl accepts it. shortcut: a prototype
+  spanning lines gets no Prototype token, so `sub A(` newline `) {1} A *^R;` is accepted where perl refuses it. shortcut:
+  the class feature is read for the whole file, not to the end of its block, so `{ use feature 'class'; } sub A; class
+  Foo; A *^R;` is refused where perl accepts it. shortcut: `use feature ':all'` and a bare `no feature` leave the class
+  feature as it was. shortcut: the first prototype is read, where perl takes a later `:prototype(...)` over the parens,
+  so `sub A($) :prototype() {1} A *^R;` is accepted and `sub A() :prototype($) {1} A *^R;` refused, each against perl;
+  nor is any other attribute read, so `sub A :const {1} A *^R;` is accepted where perl refuses it.
+  shortcut: the empty-prototype flag (constSubs) is the file's, by bare name, read by both `wordTakesTerm` and
+  `declaredNiladic`, so a sub of either kind takes another's whatever its scope: `sub A() {1} { my sub A {} A *^R; }`
+  and `{ my sub A() {1} } sub A {} A *^R;` are refused where perl accepts them. Pinned in internal/lexer's
+  `TestGlobCaretNameAfterWord` and `TestGlobCaretNameScope`.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,
   `UNIVERSAL`, `IO::Handle`, ...), `__PACKAGE__`, or one the file made before it with `package`, `class` (its feature

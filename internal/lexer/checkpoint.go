@@ -112,6 +112,7 @@ func (s State) Clone() State {
 	c.barewordOps = cloneOrNil(c.barewordOps)
 	c.brackets = cloneOrNil(c.brackets)
 	c.lexSubs = cloneOrNil(c.lexSubs)
+	c.packages = cloneOrNil(c.packages)
 	c.lexSubBodies = cloneOrNil(c.lexSubBodies)
 	c.pending = cloneOrNil(c.pending)
 	for i := range c.pending {
@@ -121,6 +122,11 @@ func (s State) Clone() State {
 		c.constSubs = nil
 	} else {
 		c.constSubs = maps.Clone(c.constSubs)
+	}
+	if len(c.subs) == 0 {
+		c.subs = nil
+	} else {
+		c.subs = maps.Clone(c.subs)
 	}
 	return State{c}
 }

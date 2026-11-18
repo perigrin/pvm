@@ -429,6 +429,12 @@ func (l *lexer) noteSignatures(k Kind, start int) {
 		if useSpelling && containsWord(text, "class") {
 			l.classSyntax = true
 		}
+		// shortcut: only a list naming `class` sets or clears it, so
+		// `use feature ':all'` and a bare `no feature` leave it as it was.
+		// Upgrade when the lexer reads feature bundles whole.
+		if containsWord(text, "class") {
+			l.classFeature = useSpelling
+		}
 		if containsWord(text, "apostrophe_as_package_separator") {
 			l.noApostropheSeparator = !useSpelling
 		}
