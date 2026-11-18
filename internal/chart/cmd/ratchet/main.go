@@ -34,7 +34,7 @@ var (
 // speed-stage-*, alloc-per-token-{recognize,forest} and gc-cpu-share-* keys
 // (the Chart Parser Recovery Plan, perigrin's D2 and D5), and waypoint 2's
 // ten from oracle-wrong on (perigrin, 2026-11-10, "Yes, in one issue");
-// speed-ratio-std5k-cold is retired (perigrin, 2026-11-14).
+// std5k's cold speed ratio is retired (perigrin, 2026-11-14).
 var keys = []string{
 	"tables-drift", "leo-disagree", "ledger-gaps", "rd-accepted-chart-refused", "chart-accepted-both-refused",
 	"lex-unmapped", "tdt-aligned", "tdt-mismatch", "tdt-unseen", "terminals-per-token",
