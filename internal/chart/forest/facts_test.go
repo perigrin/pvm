@@ -19,21 +19,34 @@ import (
 func TestOracleSubject(t *testing.T) {
 	tab := committedTables(t)
 	samples := []struct{ file, want string }{
-		// a call, under a prototype or none; f's may take @a by reference, and g's prototype resolve cannot see, so
-		// each is Unresolved, not fitted (facts.go); only h, declared with no \, * or + slot, is decided
+		// a call, under a prototype or none: f's \@ slot takes @a by reference, fitted slot by slot (protoRefs); g's
+		// prototype resolve cannot see, so it is Unresolved; h, declared with a $ slot, takes none
 		{"call.pl", `{"ok":true,"prototypes":{"f":"\\@","h":"$"},"call_sites":[
-			{"line":3,"end_line":3,"name":"f","took_reference":false,"unresolved":true},
+			{"line":3,"end_line":3,"name":"f","took_reference":false},
+			{"kind":"reference","line":3,"end_line":3,"took_reference":true},
 			{"line":4,"end_line":4,"name":"g","took_reference":false,"unresolved":true},
 			{"line":6,"end_line":6,"name":"h","took_reference":false}]}`},
 		// a call to a word nothing declares, where a module resolve cannot see may give it a \ prototype: perl
 		// takes @array by reference here, so the call is Unresolved, not "took no reference"
 		{"undeclared.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":3,"end_line":3,"name":"is_shared","took_reference":false,"unresolved":true}]}`},
-		// a \ the source wrote, on its statement's first and last lines; code interpolated in a string is one token
-		// the forest does not read, so its \ reports nothing (README "The chart as a parseoracle subject")
+		// a \ the source wrote, on its statement's first and last lines; code interpolated in a string or a pattern
+		// is one token the forest does not read, so its statement hedges every marker (parse.InterpolatesCode),
+		// while the pattern's own match stays decided
 		{"reference.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
-			{"kind":"reference","line":3,"end_line":4,"took_reference":true}]}`},
+			{"kind":"reference","line":3,"end_line":4,"took_reference":true},
+			{"kind":"match","line":6,"end_line":6},
+			{"kind":"reference","line":5,"end_line":5,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":5,"end_line":5,"unresolved":true},
+			{"kind":"match","line":5,"end_line":5,"unresolved":true},
+			{"kind":"readline","line":5,"end_line":5,"unresolved":true},
+			{"kind":"anonhash","line":5,"end_line":5,"unresolved":true},
+			{"kind":"reference","line":6,"end_line":6,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":6,"end_line":6,"unresolved":true},
+			{"kind":"match","line":6,"end_line":6,"unresolved":true},
+			{"kind":"readline","line":6,"end_line":6,"unresolved":true},
+			{"kind":"anonhash","line":6,"end_line":6,"unresolved":true}]}`},
 		// a hash read: %h, $h{a}, $r->{b}, its {c}, %$r and @h{'a'}, one site each
 		{"hash.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"hash","line":1,"end_line":1},
@@ -56,8 +69,9 @@ func TestOracleSubject(t *testing.T) {
 			{"line":2,"end_line":2,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true},
 			{"kind":"reference","line":3,"end_line":3,"took_reference":true}]}`},
-		// six ambiguous statements make the block 4^6 readings, above 2^10, so it collapses: every site in it is
-		// Unresolved, its \@a included; the \@a after it is decided
+		// six ambiguous statements make the block 4^6 readings, above 2^10, so it collapses; a collapsed statement
+		// hedges only the sites its readings disagree on (perigrin, 2026-11-16, "Narrow it"): each Foo::bar and its
+		// { a => 1 } stay Unresolved, and the \@a every reading holds is decided, as is the one after the block
 		{"collapsed.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
@@ -71,7 +85,7 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
 			{"line":2,"end_line":6,"name":"Foo::bar","took_reference":false,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":6,"unresolved":true},
-			{"kind":"reference","line":2,"end_line":6,"took_reference":false,"unresolved":true},
+			{"kind":"reference","line":2,"end_line":6,"took_reference":true},
 			{"kind":"reference","line":7,"end_line":7,"took_reference":true}]}`},
 		// under use utf8 a handle's name is runes, not bytes: perl reads <FÉ> as readline, not a glob
 		{"utf8readline.pl", `{"ok":true,"prototypes":{},"call_sites":[{"kind":"readline","line":3,"end_line":3}]}`},
@@ -96,9 +110,29 @@ func TestOracleSubject(t *testing.T) {
 		// on the file's declaration; perl applies the import's \@, reports prototypes {"r":"\\@"} and a \ on line 4
 		{"own_then_import.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"line":4,"end_line":4,"name":"r","took_reference":false}]}`},
-		// known limit (facts.go), owned by WRONGZERO: code interpolated in a heredoc reports nothing, where perl
+		// code interpolated in a heredoc body hedges every marker over its statement and the body's lines: perl
 		// reports the \ on line 3
-		{"heredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[]}`},
+		{"heredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":4,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":4,"unresolved":true},
+			{"kind":"match","line":2,"end_line":4,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":4,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":4,"unresolved":true}]}`},
+		// known limit (facts.go, the interpolated-code shortcut): parse.InterpolatesCode is asked of every quote and
+		// body, so a single-quoted string or a <<'E' body holding code hedges every marker where perl -MO=Concise
+		// builds no refgen at all
+		{"singlequote.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":2,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":2,"unresolved":true},
+			{"kind":"match","line":2,"end_line":2,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":2,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true}]}`},
+		{"quotedheredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":4,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":4,"unresolved":true},
+			{"kind":"match","line":2,"end_line":4,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":4,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":4,"unresolved":true}]}`},
 		// #line renumbers what follows it, and a name other than the file's moves it out of the file's sites
 		{"line.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},

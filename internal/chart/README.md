@@ -2062,10 +2062,10 @@ does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
   `Foo::bar { a => 1 };` in a block are 4^5 readings and six collapse it).
   **Collapse is not a refusal**: the file is accepted and its other
   statements keep their counts (`TestReadingsCollapsedFileStillAccepted`).
-  Anything that needs a collapsed statement's reading treats it as undecided:
-  its oracle sites answer `Unresolved` (WIDER), which ORACLEGRADE
-  (`01a1c324-1f12`) builds in `forest/facts.go`; until then they are graded
-  like any other site (below). A node met again on its own path counts 0,
+  A collapsed statement's oracle sites are read from the packed forest, which
+  still holds every reading: only a site its readings disagree on answers
+  `Unresolved` (WIDER), as in any statement (perigrin, 2026-11-16, "Narrow
+  it"; `forest/facts.go`). A node met again on its own path counts 0,
   exact on perly.y's acyclic forests; shortcut: on a toy's cyclic forest a
   count memoized below a cycle omits that path wherever the node is reached
   again (the cyclic row of `TestReadingsCollapse`). The per-corpus rate is measured, not stored:
@@ -2129,7 +2129,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
 - **`call_sites`** are one per decision at an oracle marker, read from the
   forest's rules and leaves: a call to a sub (NOAMP, UNIOPSUB, FUNC0SUB,
   LSTOPSUB, or `f(...)`; a written `&f(...)` bypasses the prototype and
-  decides nothing); a `\` the source wrote (`term: REFGEN term`); a hash read
+  decides nothing); a `\` the source wrote (`term: REFGEN term`); the
+  reference op.c's `ref_array_or_hash` takes to an array or hash operand of
+  `~~`, or one that is `given`'s or `when`'s condition (`@a`, `%h`, `@{...}`,
+  `->@*`, `->%*`, through parentheses; not a slice or `[@a]`), unresolved
+  where some readings of the operand are one and others not
+  (`TestOracleGradingSmartmatch`); a hash read
   (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
@@ -2150,24 +2155,33 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   and others do not is `Unresolved`, which grades WIDER, never a guess
   (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
   a block in others). The facts come from whatever `forest.Parse` runs: the
-  precedence constraint, resolve and the readings count. Every site of a
-  statement with more than 2^10 readings, nested ones included, is
-  `Unresolved` (WIDER): its readings are not enumerated, so nothing in it is
-  decided (`collapsed.pl`).
+  precedence constraint, resolve and the readings count. A statement with
+  more than 2^10 readings is answered the same way: its readings are not
+  enumerated, but the packed forest holds them all, so a site every reading
+  holds is decided and only one they disagree on is `Unresolved`
+  (`collapsed.pl`).
+- **Prototype slots.** A call to a declared sub is fitted slot by slot, as
+  op.c's `ck_entersub_args_proto` does: a reference site at each argument a
+  `\` slot takes, `\[...]` included, at a `+` slot's array or hash, and at a
+  `*` slot's glob; none at `$`, `_`, `&` or `;`, nor from `@` or `%` on, nor
+  for `&f(...)` (`TestOracleGradingPrototypeSlots`, `protoslots.pl`). Where the
+  arguments are not one list of terms in every reading, the call's word is an
+  `Unresolved` reference site.
 - **Known limits**, each pinned in `TestOracleSubject`: a call whose prototype
-  has a `\`, `*` or `+` slot, or whose prototype resolve cannot see (a word
-  nothing declares included, since a module resolve cannot see may give it
-  one), is `Unresolved` rather than fitted slot by slot (`f(@a)` under `\@`,
-  `is_shared(@array)` under `use threads::shared`); only a call to a declared
-  sub with none of those slots is decided; a file's own sub is read before a
+  resolve cannot see (a word nothing declares included, since a module resolve
+  cannot see may give it one) is `Unresolved` (`is_shared(@array)` under
+  `use threads::shared`); a file's own sub is read before a
   later `use` that imports one of the same name, so a call to it is decided on
   the file's declaration where perl applies the import's prototype
   (`sub r {1} use R qw(r); r(@a);` under R's `\@` grades WRONG), since
   `parse.Imports` keeps one entry per name with no position; code
-  interpolated in a string or heredoc is one token the forest does not read,
-  so a marker inside it reports nothing (`"@{[ \@a ]}"`), where recursive
-  descent hedges every marker; hedging it needs
-  `parse.InterpolatesCode`, and WRONGZERO (`01a1c324-1fd7`) owns it; a `use utf8`
+  interpolated in a literal or heredoc body (`"@{[ \@a ]}"`, `/b${\ \@a}/`)
+  is one token the forest does not read, so its statement hedges every marker,
+  over the body's lines too, as recursive descent does; `parse.InterpolatesCode`
+  is asked of every quote and body, so a `'${\ x}'` or a `<<'E'` body holding
+  code hedges where perl compiles nothing, which costs nothing, since a hedge
+  explains only a deficit (pinned in `TestOracleSubject`'s `singlequote.pl` and
+  `quotedheredoc.pl`); a `use utf8`
   a `BEGIN` block, string eval or `use if` imports is not seen, so `<FÉ>` after
   `BEGIN { utf8->import }` or `use if 1, 'utf8';` reports nothing where perl
   reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls
@@ -2210,8 +2224,11 @@ prototype grades EXACT only with its module found
 then `oracle-grade: unreadable <n>` and `oracle-grade: seconds <s>`, and lists
 each WRONG site on stderr as `oracle-grade: <subject> WRONG <file>:<line> <marker>`.
 It takes about 15 s. The ratchet sums the same grading over the three corpora
-into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`, and WRONGZERO
-(`01a1c324-1fd7`) drives the chart's WRONG count to 0.
+into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`.
+`TestOracleWrongZero` holds spec §9.4's result over the same grading: no
+chart WRONG site and the chart's exact sites at or above recursive descent's
+on every corpus, listing each WRONG site when it fails. No WRONG site is left
+as a known limit; rerun the command above for the counts.
 
 ## The precedence constraint: `forest/precedence.go`
 

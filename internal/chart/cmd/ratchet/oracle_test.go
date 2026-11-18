@@ -19,10 +19,13 @@ var oracleSamples = filepath.Join("testdata", "oracle")
 
 // samplePerl is the pinned perl's facts for each sample, as oracle-facts.sh records them.
 var samplePerl = map[string]parseoracle.Facts{
-	"exact.pl":     {OK: true, Walked: true, OpCount: 8, Sites: map[parseoracle.Marker][]int{"srefgen": {2}}},
-	"wider.pl":     {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"f": `\@`}},
-	"collapsed.pl": {OK: true, Walked: true, OpCount: 51, Sites: map[parseoracle.Marker][]int{"srefgen": {5, 7}}},
-	"import.pl":    {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"r": `\@`}},
+	"exact.pl":      {OK: true, Walked: true, OpCount: 8, Sites: map[parseoracle.Marker][]int{"srefgen": {2}}},
+	"wider.pl":      {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"f": `\@`}},
+	"collapsed.pl":  {OK: true, Walked: true, OpCount: 51, Sites: map[parseoracle.Marker][]int{"srefgen": {5, 7}}},
+	"import.pl":     {OK: true, Walked: true, OpCount: 10, Sites: map[parseoracle.Marker][]int{"srefgen": {3}}, Prototypes: map[string]string{"r": `\@`}},
+	"smartmatch.pl": {OK: true, Walked: true, OpCount: 65, Sites: map[parseoracle.Marker][]int{"srefgen": {3, 4, 5, 5, 6, 8, 9}}},
+	"protoslots.pl": {OK: true, Walked: true, OpCount: 72, Sites: map[parseoracle.Marker][]int{"srefgen": {3, 4, 5, 5, 6, 7, 8, 8, 9, 10}},
+		Prototypes: map[string]string{"ar": `\@`, "hr": `\%`, "br": `\[@%]`, "pl": "+", "st": "*", "two": `\@\@`, "cb": `&\@`}},
 }
 
 // sampleCorpus writes a facts file holding the named samples' records and returns it as a corpus over testdata/oracle.
@@ -62,10 +65,10 @@ func totals(e, w, x, n int) parseoracle.Totals {
 	return t
 }
 
-// TestOracleGrading: per site, the chart grades an EXACT site, a WIDER one from a call whose reading hangs on a \
-// prototype slot it does not fit, and a collapsed statement's site WIDER beside the decided one after it; recursive
-// descent is graded the same way; a deliberately wrong fake subject grades WRONG, its site listed on stderr, and a
-// fake agreeing with perl everywhere grades no WRONG.
+// TestOracleGrading: per site, the chart grades an EXACT site, one a call's \ prototype slot takes EXACT, and a
+// collapsed statement's site every reading holds EXACT, as is the one after it; recursive descent is graded the same
+// way; a deliberately wrong fake subject grades WRONG, its site listed on
+// stderr, and a fake agreeing with perl everywhere grades no WRONG.
 func TestOracleGrading(t *testing.T) {
 	c := sampleCorpus(t, nil, "exact.pl", "wider.pl", "collapsed.pl")
 	ref := func(line int) parseoracle.SubjectCallSite {
@@ -91,8 +94,8 @@ func TestOracleGrading(t *testing.T) {
 		subject string
 		want    parseoracle.Totals
 	}{
-		{"chart", totals(2, 2, 0, 0)},
-		{"rd", totals(4, 0, 0, 0)}, // it fits f's \@ slot, and nothing collapses for it
+		{"chart", totals(4, 0, 0, 0)}, // a collapsed statement hedges only the sites its readings disagree on
+		{"rd", totals(4, 0, 0, 0)},    // it fits f's \@ slot, and nothing collapses for it
 		{"agree", totals(4, 0, 0, 0)},
 		{"wrong", totals(3, 0, 1, 0)},
 	} {
@@ -105,6 +108,32 @@ func TestOracleGrading(t *testing.T) {
 	}
 	if strings.Contains(stderr.String(), "oracle-grade: chart WRONG") {
 		t.Errorf("stderr lists a chart WRONG site:\n%s", stderr.String())
+	}
+}
+
+// TestOracleGradingSmartmatch: perl takes a reference to an array or hash operand of ~~ and to one that is given's
+// or when's condition (op.c's ref_array_or_hash), not to a slice or an anonymous array; the chart grades every
+// such site EXACT (perl.git op/smartmatch.t:168-171 and op/switch.t:1101 were WRONG).
+func TestOracleGradingSmartmatch(t *testing.T) {
+	got, err := gradeOracle([]oracleCorpus{sampleCorpus(t, nil, "smartmatch.pl")}, defaultSubjects(committedTables(t)), &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := got.Sites["chart"]["sample"]; g != totals(7, 0, 0, 0) {
+		t.Errorf("chart: %v (exact, wider, wrong, no-answer by Bucket), want all 7 exact", g)
+	}
+}
+
+// TestOracleGradingPrototypeSlots: perl takes a reference to the argument at each \ slot of a declared sub's
+// prototype, \[...] included, to an array or hash at a + slot and to a glob at a * slot (op.c's
+// ck_entersub_args_proto), and to none where & bypasses it; the chart grades all ten such sites EXACT.
+func TestOracleGradingPrototypeSlots(t *testing.T) {
+	got, err := gradeOracle([]oracleCorpus{sampleCorpus(t, nil, "protoslots.pl")}, defaultSubjects(committedTables(t)), &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := got.Sites["chart"]["sample"]; g != totals(10, 0, 0, 0) {
+		t.Errorf("chart: %v (exact, wider, wrong, no-answer by Bucket), want all 10 exact", g)
 	}
 }
 
@@ -180,6 +209,35 @@ func TestOracleGradingRDResolvesImports(t *testing.T) {
 		}
 		if g := got.Sites["rd"]["sample"]; g[parseoracle.BucketExact] != c.exact {
 			t.Errorf("roots %v: recursive descent %v, want %d exact", c.roots, g, c.exact)
+		}
+	}
+}
+
+// TestOracleWrongZero is spec §9.4's oracle result over every oracle-graded corpus with committed facts: the chart
+// grades no site WRONG, and its exact sites are at or above recursive descent's, each WRONG site listed on failure.
+func TestOracleWrongZero(t *testing.T) {
+	subjects := defaultSubjects(committedTables(t))
+	t.Chdir("../../../..")
+	var stderr bytes.Buffer
+	got, err := gradeOracle(oracleCorpora(), subjects, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range oracleCorpora() {
+		chartSites, rd := got.Sites["chart"][c.name], got.Sites["rd"][c.name]
+		t.Logf("%s: chart %v, rd %v (exact, wider, wrong, no-answer)", c.name, chartSites, rd)
+		if chartSites[parseoracle.BucketWrong] != 0 {
+			t.Errorf("%s: chart grades %d sites WRONG", c.name, chartSites[parseoracle.BucketWrong])
+		}
+		if chartSites[parseoracle.BucketExact] < rd[parseoracle.BucketExact] {
+			t.Errorf("%s: chart exact %d below recursive descent's %d", c.name, chartSites[parseoracle.BucketExact], rd[parseoracle.BucketExact])
+		}
+	}
+	if t.Failed() {
+		for _, l := range strings.Split(stderr.String(), "\n") {
+			if strings.HasPrefix(l, "oracle-grade: chart WRONG ") {
+				t.Log(l)
+			}
 		}
 	}
 }

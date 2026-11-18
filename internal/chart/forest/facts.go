@@ -40,6 +40,23 @@ type factsGrammar struct {
 	fullstmt int    // fullstmt's symbol id
 	pmfunc   int    // PMFUNC's
 	notCore  []bool // the terminals a word takes as a sub or method rather than a builtin
+	// refs is each rule's operands op.c's ref_array_or_hash takes a reference to where they are an array or a hash,
+	// each as how many symbols before the rule's last it stands: ~~'s two, and given's and when's condition.
+	refs       [][]int
+	smartmatch int    // the rule term NCEQOP term, whose operator may be <=> or cmp rather than ~~
+	paren      int    // the rule ( expr ), which leaves an array or hash inside it one
+	aggregate  []bool // the rules whose term is an array or a hash: @a, %h, @{...}, %$r, ->@* and ->%*
+	glob       []bool // the rules whose term is a glob: *FOO, *{...} and ->**
+	// calls is each call rule's shape: where its arguments stand, as refs counts; one where they are a single term,
+	// else a list; block where a block before them fills the prototype's first slot.
+	calls []callShape
+	// the rules a call's argument list is read through, down to its terms
+	listComma, listTrail, listOne, exprList, optList, optEmpty int
+}
+
+type callShape struct {
+	ok, one, block bool
+	back           int
 }
 
 func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
@@ -47,7 +64,10 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == name })
 	}
 	g := &factsGrammar{kind: make([]int, len(tab.Rules)), last: make([]bool, len(tab.Rules)), matchop: -1,
-		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols))}
+		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols)),
+		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules)),
+		glob: make([]bool, len(tab.Rules)), calls: make([]callShape, len(tab.Rules)),
+		listComma: -1, listTrail: -1, listOne: -1, exprList: -1, optList: -1, optEmpty: -1}
 	for _, w := range []string{"NOAMP", "FUNC0SUB", "UNIOPSUB", "LSTOPSUB", "METHCALL0", "METHCALL", "BAREWORD"} {
 		if x := id(w); x >= 0 {
 			g.notCore[x] = true
@@ -61,6 +81,41 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 			rhs[i] = name(x)
 		}
 		lhs, joined := name(rule.LHS), strings.Join(rhs, " ")
+		switch {
+		case lhs == "termeqop" && joined == "term NCEQOP term":
+			g.refs[r], g.smartmatch = []int{2, 0}, r
+		case joined == "KW_GIVEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock",
+			joined == "KW_WHEN PERLY_PAREN_OPEN remember mexpr PERLY_PAREN_CLOSE mblock":
+			g.refs[r] = []int{2}
+		case lhs == "sideff" && joined == "expr KW_WHEN condition":
+			g.refs[r] = []int{0}
+		case lhs == "term" && joined == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+			g.paren = r
+		case lhs == "term" && slices.Contains([]string{"ary", "hsh", "term ARROW CAST_SNAIL", "term ARROW CAST_PERCENT_SIGN"}, joined):
+			g.aggregate[r] = true
+		case lhs == "term" && (joined == "star" || joined == "term ARROW CAST_STAR"):
+			g.glob[r] = true
+		case lhs == "term" && joined == "NOAMP optlistexpr":
+			g.calls[r] = callShape{ok: true}
+		case lhs == "term" && joined == "UNIOPSUB term":
+			g.calls[r] = callShape{ok: true, one: true}
+		case lhs == "term" && joined == "amper PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+			g.calls[r] = callShape{ok: true, back: 1}
+		case lhs == "listop" && joined == "LSTOPSUB startanonsub block optlistexpr":
+			g.calls[r] = callShape{ok: true, block: true}
+		case lhs == "listexpr" && joined == "listexpr PERLY_COMMA term":
+			g.listComma = r
+		case lhs == "listexpr" && joined == "listexpr PERLY_COMMA":
+			g.listTrail = r
+		case lhs == "listexpr" && joined == "term":
+			g.listOne = r
+		case lhs == "expr" && joined == "listexpr":
+			g.exprList = r
+		case lhs == "optlistexpr" && joined == "listexpr":
+			g.optList = r
+		case lhs == "optlistexpr" && joined == "empty":
+			g.optEmpty = r
+		}
 		switch {
 		case len(rhs) > 0 && slices.Contains([]string{"NOAMP", "UNIOPSUB", "FUNC0SUB", "LSTOPSUB"}, rhs[0]),
 			lhs == "term" && len(rhs) > 0 && rhs[0] == "amper": // f(...), which toke.c lexes as &f(...); altSite drops a written &
@@ -97,17 +152,18 @@ type subjectFacts struct {
 	must, may map[int32][]int
 	busy      map[int32]bool
 	failed    map[int32]bool
-	uncertain map[int]bool // the sites some readings hold and others do not
-	all       map[int]bool // every site any reading holds
-	stmts     [][2]int     // the statements' token spans, top level only, sorted
-	collapsed [][2]int     // the token spans of the statements with more than CollapseAbove readings
+	proto     func(at int) (string, bool) // the prototype of the declared sub the word at token at calls, if it has one
+	uncertain map[int]bool                // the sites some readings hold and others do not
+	all       map[int]bool                // every site any reading holds
+	stmts     [][2]int                    // the statements' token spans, top level only, sorted
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
 // forest.Parse accepts it under scope, the prototypes resolve saw, and a site for each decision at an oracle
 // marker in the readings forest.Parse leaves, on its statement's lines as perl numbers them. A site some
-// readings hold and others do not is Unresolved, as is every site of a statement with more than CollapseAbove
-// readings. Neither list is ever nil.
+// readings hold and others do not is Unresolved, in a statement with more than CollapseAbove readings as in any
+// other: the packed forest holds every reading, so a collapsed one hedges only what its readings disagree on
+// (perigrin, 2026-11-16). Neither list is ever nil.
 func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) parseoracle.SubjectFacts {
 	facts := parseoracle.SubjectFacts{Prototypes: map[string]string{}, CallSites: []parseoracle.SubjectCallSite{}}
 	f, s, _ := parseStream(tab, recognize.New(tab, recognize.Options{}), src, scope)
@@ -133,6 +189,10 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
 		uncertain: map[int]bool{}, all: map[int]bool{}}
+	sf.proto = func(at int) (string, bool) {
+		d, st := r.lookup(r.text(at), at)
+		return d.proto, st == declared && d.proto != ""
+	}
 	sf.walk()
 
 	keys := make([]int, 0, len(sf.all))
@@ -142,26 +202,30 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	slices.Sort(keys)
 	line, own := parse.PerlLines(src, path)
 	starts := lineStarts(src)
+	// lines is the first and last lines of the statement holding token at, as perl numbers them, the last at least
+	// the source line end; ok false outside a statement or where a #line directive moved it into another file.
+	lines := func(at, end int) (int, int, bool) {
+		st, ok := sf.statement(at)
+		if !ok {
+			return 0, 0, false
+		}
+		first := lineAt(starts, s.Raw[s.Tokens[st[0]].Index].Start)
+		last := max(end, lineAt(starts, s.Raw[s.Tokens[st[1]-1].Index].End-1))
+		return line[first], line[last], own[first] && own[last]
+	}
 	for _, k := range keys {
 		kind, at := k%nkinds, k/nkinds
-		st, ok := sf.statement(at)
+		first, last, ok := lines(at, 0)
 		if !ok {
 			continue
 		}
-		first := lineAt(starts, s.Raw[s.Tokens[st[0]].Index].Start)
-		last := lineAt(starts, s.Raw[s.Tokens[st[1]-1].Index].End-1)
-		if !own[first] || !own[last] {
-			continue // a #line directive moved it into another file
-		}
-		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: line[first], EndLine: line[last],
-			Unresolved: sf.uncertain[k] || slices.ContainsFunc(sf.collapsed, func(c [2]int) bool { return c[0] <= at && at < c[1] })}
+		cs := parseoracle.SubjectCallSite{Kind: kindName[kind], Line: first, EndLine: last,
+			Unresolved: sf.uncertain[k]}
 		if kind == kindCall {
 			cs.Name = r.text(at)
-			if d, st := r.lookup(cs.Name, at); st != declared || strings.ContainsAny(d.proto, `\*+`) {
-				// a word nothing declares may still be a sub a module resolve cannot see gave a \ prototype.
-				// shortcut: a call whose prototype may take an argument by reference is Unresolved rather than
-				// fitted slot by slot, which grades WIDER where perl took one; upgrade when ORACLEGRADE shows the
-				// WIDER sites cost exact ones recursive descent has.
+			if _, st := r.lookup(cs.Name, at); st != declared {
+				// a word nothing declares may still be a sub a module resolve cannot see gave a \ prototype; a
+				// declared sub's prototype is fitted slot by slot (protoRefs)
 				cs.Unresolved = true
 			}
 			// shortcut: lookup reads the file's own sub before an import of its name, so a later use importing one
@@ -172,6 +236,28 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 		cs.TookReference = kind == kindReference && !cs.Unresolved
 		facts.CallSites = append(facts.CallSites, cs)
 	}
+	// Code interpolated in a literal or a heredoc body is one token the forest does not read, and perl compiles it
+	// into ordinary ops, so its statement hedges every marker, over the body's lines too.
+	// shortcut: parse.InterpolatesCode is asked of every quote and body, so '${\ x}' or a <<'E' body holding code
+	// hedges where perl compiles nothing (TestOracleSubject's singlequote.pl and quotedheredoc.pl); a hedge explains
+	// only a deficit, so it costs nothing there; upgrade if parse exports which literals interpolate.
+	hedge := func(at, end int) {
+		if first, last, ok := lines(at, end); ok {
+			for kind := kindReference; kind < nkinds; kind++ {
+				facts.CallSites = append(facts.CallSites, parseoracle.SubjectCallSite{Kind: kindName[kind], Line: first, EndLine: last, Unresolved: true})
+			}
+		}
+	}
+	for i, t := range s.Tokens {
+		if raw := s.Raw[t.Index]; raw.Kind == lexer.Quote && parse.InterpolatesCode(string(src[raw.Start:raw.End])) {
+			hedge(i, 0)
+		}
+	}
+	for _, b := range s.Bodies {
+		if parse.InterpolatesCode(string(src[b.Start:b.End])) {
+			hedge(b.Opener, lineAt(starts, b.End-1))
+		}
+	}
 	return facts
 }
 
@@ -180,18 +266,13 @@ func bareProto(p string) string {
 	return strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(p, "("), ")"), " ", "")
 }
 
-// walk visits every node a derivation of the root reaches: it records the statements, the collapsed ones among them,
-// every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
+// walk visits every node a derivation of the root reaches: it records the statements, every site in all, and, at each node with more than one alternative, the sites its alternatives disagree on in
 // uncertain.
-// shortcut: code interpolated in a string or heredoc is one token the forest does not read, so a marker inside it
-// reports nothing, which grades WRONG where perl built one; hedging it with parse.InterpolatesCode is
-// WRONGZERO's (01a1c324-1fd7).
 func (sf *subjectFacts) walk() {
 	f := sf.f
 	seen := make([]bool, len(f.Nodes))
 	seen[f.Root] = true
 	var spans [][2]int
-	count := f.counter()
 	stack := []int32{f.Root}
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
@@ -200,9 +281,6 @@ func (sf *subjectFacts) walk() {
 		if int(nd.Sym) == sf.g.fullstmt && nd.To > nd.From && int(nd.From) < len(sf.s.Tokens) {
 			sp := [2]int{int(nd.From), min(int(nd.To), len(sf.s.Tokens))}
 			spans = append(spans, sp)
-			if count(n) > CollapseAbove {
-				sf.collapsed = append(sf.collapsed, sp)
-			}
 		}
 		if k, ok := sf.leafSite(n); ok {
 			sf.all[k] = true
@@ -213,6 +291,11 @@ func (sf *subjectFacts) walk() {
 			a := f.Alts[x]
 			if k, ok := sf.altSite(n, a); ok {
 				sf.all[k] = true
+			}
+			ks, unsure := sf.refSites(n, a)
+			for _, k := range ks {
+				sf.all[k] = true
+				sf.uncertain[k] = sf.uncertain[k] || unsure
 			}
 			for _, c := range [2]int32{a.Left, a.Right} {
 				if c != 0 && !seen[c] {
@@ -281,6 +364,12 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 		if k, has := sf.altSite(n, a); has {
 			am, ay = union(am, []int{k}), union(ay, []int{k})
 		}
+		if ks, unsure := sf.refSites(n, a); len(ks) > 0 {
+			if !unsure {
+				am = union(am, ks)
+			}
+			ay = union(ay, ks)
+		}
 		if first {
 			must, may, first = am, ay, false
 			continue
@@ -316,6 +405,141 @@ func (sf *subjectFacts) altSite(n int32, a Alt) (int, bool) {
 		at = int(nd.To) - 1
 	}
 	return site(sf.g.kind[a.Rule], at), true
+}
+
+// refSites is the references alternative a of node n takes, sorted, each at its operand's first token, and unsure
+// where some readings of an operand take one and others do not: op.c's ref_array_or_hash takes one for each operand
+// of ~~, given's condition or when's that is an array or a hash (not a slice or an anonymous array), and
+// ck_entersub_args_proto one for each argument a declared sub's prototype wraps (protoRefs).
+func (sf *subjectFacts) refSites(n int32, a Alt) (sites []int, unsure bool) {
+	if sf.g.calls[a.Rule].ok {
+		return sf.protoRefs(n, a)
+	}
+	backs := sf.g.refs[a.Rule]
+	if backs == nil || int(a.Rule) == sf.g.smartmatch && sf.text(int(sf.f.Nodes[sf.child(a, 1)].From)) != "~~" {
+		return nil, false
+	}
+	for _, back := range backs {
+		o := sf.child(a, back)
+		if yes, no := sf.is(o, sf.g.aggregate); yes {
+			sites, unsure = append(sites, site(kindReference, int(sf.f.Nodes[o].From))), unsure || no
+		}
+	}
+	return sites, unsure
+}
+
+// protoRefs is the references ck_entersub_args_proto takes in call alternative a of node n, sorted: where the word
+// calls a declared sub with a prototype, one for each argument at a \ slot, \[...] included, at a + slot that is an
+// array or a hash, and at a * slot that is a glob; none at a $, _, & or ; slot, nor from a @ or % slot on. Where the
+// arguments are not a list of terms every reading divides the same way, the call's own token is an unsure site.
+func (sf *subjectFacts) protoRefs(n int32, a Alt) (sites []int, unsure bool) {
+	if sf.f.Nodes[n].Sym < 0 {
+		return nil, false // a rule position is no call; its rule's node is
+	}
+	at, shape := int(sf.f.Nodes[n].From), sf.g.calls[a.Rule]
+	proto, ok := sf.proto(at)
+	if !ok || sf.s.Raw[sf.s.Tokens[at].Index].Kind != lexer.Word || !strings.ContainsAny(proto, `\*+`) {
+		return nil, false // &f(...) bypasses the prototype
+	}
+	args, ok := []int32{sf.child(a, shape.back)}, true
+	if !shape.one {
+		args, ok = sf.terms(args[0])
+	}
+	if !ok {
+		return []int{site(kindReference, at)}, true
+	}
+	p := bareProto(proto)
+	if shape.block {
+		p = strings.TrimPrefix(strings.TrimLeft(p, ";"), "&")
+	}
+	for _, arg := range args {
+		if p = strings.TrimLeft(p, ";"); p == "" || p[0] == '@' || p[0] == '%' {
+			break
+		}
+		var yes, no bool
+		switch p[0] {
+		case '\\':
+			yes, p = true, p[1:]
+			if strings.HasPrefix(p, "[") {
+				p = p[max(strings.IndexByte(p, ']'), 0):]
+			}
+		case '+':
+			yes, no = sf.is(arg, sf.g.aggregate)
+		case '*':
+			yes, no = sf.is(arg, sf.g.glob)
+		}
+		if p != "" {
+			p = p[1:]
+		}
+		if yes {
+			sites, unsure = append(sites, site(kindReference, int(sf.f.Nodes[arg].From))), unsure || no
+		}
+	}
+	return sites, unsure
+}
+
+// terms is the terms of argument list n, an optlistexpr or an expr, in order, and ok false where n is no list of
+// terms, or one some node of divides more than one way.
+func (sf *subjectFacts) terms(n int32) (ts []int32, ok bool) {
+	f := sf.f
+	for {
+		nd := f.Nodes[n]
+		if nd.Alt == 0 || f.Alts[nd.Alt].Next != 0 {
+			return nil, false
+		}
+		switch a := f.Alts[nd.Alt]; int(a.Rule) {
+		case sf.g.optEmpty:
+			return ts, true
+		case sf.g.exprList, sf.g.optList:
+			n = a.Right
+		case sf.g.listOne:
+			return append([]int32{a.Right}, ts...), true
+		case sf.g.listComma:
+			ts, n = append([]int32{a.Right}, ts...), sf.child(a, 2)
+		case sf.g.listTrail:
+			n = sf.child(a, 1)
+		default:
+			return nil, false
+		}
+	}
+}
+
+// is is whether some readings of node n are a term of one of rules, through unit rules and parentheses, and whether
+// some are not.
+func (sf *subjectFacts) is(n int32, rules []bool) (yes, no bool) {
+	f := sf.f
+	if f.Nodes[n].Alt == 0 {
+		return false, true
+	}
+	for x := f.Nodes[n].Alt; x != 0; x = f.Alts[x].Next {
+		a := f.Alts[x]
+		var y, o bool
+		switch {
+		case rules[a.Rule]:
+			y = true
+		case int(a.Rule) == sf.g.paren:
+			y, o = sf.is(sf.child(a, 1), rules)
+		case a.Left == 0 && a.Right != 0:
+			y, o = sf.is(a.Right, rules)
+		default:
+			o = true
+		}
+		yes, no = yes || y, no || o
+	}
+	return yes, no
+}
+
+// child is the node of the symbol back places before the last of a's rule, through each rule position's first
+// alternative: a rule position's span ends where the next symbol's starts, and the rules refSites reads put a token
+// or a closed group there, so it divides one way.
+func (sf *subjectFacts) child(a Alt, back int) int32 {
+	for ; back > 0; back-- {
+		if sf.f.Nodes[a.Left].Sym >= 0 {
+			return a.Left // the rule's only symbol before its last
+		}
+		a = sf.f.Alts[sf.f.Nodes[a.Left].Alt]
+	}
+	return a.Right
 }
 
 // leafSite is the site leaf n stands for, if any: a pattern read as PMFUNC that matches, a <...> that reads a
