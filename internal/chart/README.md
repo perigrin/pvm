@@ -2180,7 +2180,8 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   over the body's lines too, as recursive descent does; `parse.InterpolatesCode`
   is asked of every quote and body, so a `'${\ x}'` or a `<<'E'` body holding
   code hedges where perl compiles nothing, which costs nothing, since a hedge
-  explains only a deficit; a `use utf8`
+  explains only a deficit (pinned in `TestOracleSubject`'s `singlequote.pl` and
+  `quotedheredoc.pl`); a `use utf8`
   a `BEGIN` block, string eval or `use if` imports is not seen, so `<FÉ>` after
   `BEGIN { utf8->import }` or `use if 1, 'utf8';` reports nothing where perl
   reads a readline. An empty list, `use utf8 ()` or `no utf8 qw()`, calls

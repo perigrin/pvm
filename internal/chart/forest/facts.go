@@ -239,8 +239,8 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	// Code interpolated in a literal or a heredoc body is one token the forest does not read, and perl compiles it
 	// into ordinary ops, so its statement hedges every marker, over the body's lines too.
 	// shortcut: parse.InterpolatesCode is asked of every quote and body, so '${\ x}' or a <<'E' body holding code
-	// hedges where perl compiles nothing; a hedge explains only a deficit, so it costs nothing there; upgrade if
-	// parse exports which literals interpolate.
+	// hedges where perl compiles nothing (TestOracleSubject's singlequote.pl and quotedheredoc.pl); a hedge explains
+	// only a deficit, so it costs nothing there; upgrade if parse exports which literals interpolate.
 	hedge := func(at, end int) {
 		if first, last, ok := lines(at, end); ok {
 			for kind := kindReference; kind < nkinds; kind++ {

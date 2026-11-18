@@ -118,6 +118,21 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"match","line":2,"end_line":4,"unresolved":true},
 			{"kind":"readline","line":2,"end_line":4,"unresolved":true},
 			{"kind":"anonhash","line":2,"end_line":4,"unresolved":true}]}`},
+		// known limit (facts.go, the interpolated-code shortcut): parse.InterpolatesCode is asked of every quote and
+		// body, so a single-quoted string or a <<'E' body holding code hedges every marker where perl -MO=Concise
+		// builds no refgen at all
+		{"singlequote.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":2,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":2,"unresolved":true},
+			{"kind":"match","line":2,"end_line":2,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":2,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":2,"unresolved":true}]}`},
+		{"quotedheredoc.pl", `{"ok":true,"prototypes":{},"call_sites":[
+			{"kind":"reference","line":2,"end_line":4,"took_reference":false,"unresolved":true},
+			{"kind":"hash","line":2,"end_line":4,"unresolved":true},
+			{"kind":"match","line":2,"end_line":4,"unresolved":true},
+			{"kind":"readline","line":2,"end_line":4,"unresolved":true},
+			{"kind":"anonhash","line":2,"end_line":4,"unresolved":true}]}`},
 		// #line renumbers what follows it, and a name other than the file's moves it out of the file's sites
 		{"line.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
