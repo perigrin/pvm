@@ -675,8 +675,10 @@ func (l *lexer) noteConstSub(k Kind, start int) {
 		// after the name or in the attribute list: `sub A :lvalue
 		// :prototype() {1}`.
 		// shortcut: the first prototype is read, where perl takes a later
-		// `:prototype(...)` over the parens (`sub A($) :prototype() {1}`).
-		// Upgrade when a declaration's prototype is read whole.
+		// `:prototype(...)` over the parens (`sub A($) :prototype() {1}`),
+		// and no other attribute is read, `:const` among them (`sub A :const
+		// {1} A *^R`, which perl refuses). Upgrade when a declaration's
+		// prototype and attributes are read whole.
 		switch {
 		case k == Prototype && strings.TrimSpace(text[1:len(text)-1]) == "":
 			declare(l.constKey)

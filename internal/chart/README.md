@@ -1268,7 +1268,8 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   the class feature is read for the whole file, not to the end of its block, so `{ use feature 'class'; } sub A; class
   Foo; A *^R;` is refused where perl accepts it. shortcut: `use feature ':all'` and a bare `no feature` leave the class
   feature as it was. shortcut: the first prototype is read, where perl takes a later `:prototype(...)` over the parens,
-  so `sub A($) :prototype() {1} A *^R;` is accepted and `sub A() :prototype($) {1} A *^R;` refused, each against perl.
+  so `sub A($) :prototype() {1} A *^R;` is accepted and `sub A() :prototype($) {1} A *^R;` refused, each against perl;
+  nor is any other attribute read, so `sub A :const {1} A *^R;` is accepted where perl refuses it.
   shortcut: the empty-prototype flag is the file's, by bare name, so a lexical sub shares a package sub's (`sub A() {1}
   { my sub A {} A *^R; }` is refused where perl accepts it). Pinned in internal/lexer's
   `TestGlobCaretNameAfterWord` and `TestGlobCaretNameScope`.

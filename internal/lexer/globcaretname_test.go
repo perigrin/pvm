@@ -240,6 +240,10 @@ func TestGlobCaretNameScope(t *testing.T) {
 		{"sub A($) :prototype() {1} A *^R;", glob},
 		{"sub A($) :prototype(); A *^R;", glob},
 		{"sub A() :prototype($) {1} A *^R;", mul},
+		// shortcut (noteConstSub): `:const` is not read either. perl -c:
+		// ":const is not permitted on named subroutines" and a syntax error
+		// near "*^", which the chart and RD accept.
+		{"sub A :const {1} A *^R;", glob},
 		// shortcut (wordTakesTerm): constSubs is the file's, by bare name, so
 		// a lexical sub shares a package sub's empty prototype. perl -c:
 		// syntax OK on each, which the chart refuses.
