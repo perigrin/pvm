@@ -60,10 +60,15 @@ reading below, taken on the same host, not with CI's advisory job.
   a call written before its `use` reads as imported, and a library operator
   applies past the block whose `use` brought it in ("Resolve", "Library
   operators").
-- **Other known limits** of resolve, the oracle subject and the token table
-  are pinned in `TestResolveKnownLimits`, `TestResolveImportsAreFileWide`,
-  `TestOracleSubject` and `TestPortScopeDecidedKnownLimits`, each named in its
-  section below.
+- **Other known limits** run both ways: some accept what perl refuses and some
+  refuse what perl accepts. Each section's Limits paragraph names its own pinned
+  tests. Among them are `TestResolveKnownLimits`, `TestResolveImportsAreFileWide`,
+  `TestResolveFeaturesOpaqueImportLimit` (perl.git's
+  `t/regression/10-set_and_dne.t`, refused where perl accepts it),
+  `TestLibraryOperatorsLimits` (a library operator is read only where an
+  operator is expected, and one spelled as a keyword reads as the keyword, each
+  accepting what perl refuses), `TestOracleSubject` and
+  `TestPortScopeDecidedKnownLimits`.
 - **Grading pools a site at its top-level statement**, so an
   interpolated-code hedge over a whole block grades a wrong reading inside it
   WIDER, not WRONG (chart-perly-w2-inputs `01a1ed19-0c33`).
@@ -334,8 +339,9 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
   population, which now uses resolving recursive descent: that adds 163
   files, and their timing baselines were retaken by VERDICT and KEYS.
 - **Budget.** One run is budgeted at 300 s on the development machine, and
-  is over it: runs at waypoint 2's exit took 543 to 705 s, which
-  chart-perly-w2-inputs `01a1ec3c-556c` covers. Corpus-wide sweeps and
+  is over it: 543 s on pu 7ac822090 before KEYS merged, and 613 to 683 s in
+  KEYS's and WRONGZERO's runs, which chart-perly-w2-inputs `01a1ec3c-556c`
+  covers. Corpus-wide sweeps and
   benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
   `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and
