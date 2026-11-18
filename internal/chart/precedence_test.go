@@ -142,6 +142,33 @@ func TestPrecedenceReferee(t *testing.T) {
 	t.Logf("%d kept sentences agree with bison; they cover %d of %d bison resolutions", kept, covered, total)
 }
 
+// TestCountPrecedenceCovered: CountPrecedence's Covered is the resolutions a kept sentence covers, which on the
+// committed fixture is fewer than bison's total, so a count of the total cannot pass.
+func TestCountPrecedenceCovered(t *testing.T) {
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := CountPrecedence(g, tab, precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	covered, total, err := checkPrecedenceFixtures(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if covered >= total {
+		t.Fatalf("the fixture covers %d of %d; want some uncovered, or this proves nothing", covered, total)
+	}
+	if c.Covered != covered {
+		t.Errorf("CountPrecedence covers %d, the fixture's coverage is %d of %d", c.Covered, covered, total)
+	}
+}
+
 // TestPrecedenceRefereeDetectsMismatch requires the comparison to report a sentence with its grouping swapped or its
 // verdict flipped, so TestPrecedenceReferee cannot pass by comparing nothing.
 func TestPrecedenceRefereeDetectsMismatch(t *testing.T) {

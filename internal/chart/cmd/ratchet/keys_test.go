@@ -70,24 +70,31 @@ func TestWaypoint2KeysPrinted(t *testing.T) {
 	}
 }
 
-// collapseCorpus is four corpora's files with their readings: big crosses the limit (6 of 100 statements, more
-// than 1% and at least 5), few does not (4 of 10, fewer than 5), thin does not (5 of 1000, not more than 1%), and
-// perlgit holds a population file, a file perl and the chart accept that recursive descent refuses, and a collapsed
-// file the chart refuses, whose readings count nowhere.
+// collapseCorpus is corpora's files with their readings: big crosses the limit (6 of 100 statements, more than 1%
+// and at least 5), and so does five at its edge (exactly 5 of 100); few does not (4 of 10, fewer than 5), thin does
+// not (5 of 1000, not more than 1%), and nor does onepct at its edge (exactly 10 of 1000, 1%). perlgit holds a
+// population file with a collapsed statement (1 of 5 there: not over), a file perl and the chart accept that
+// recursive descent refuses, and a collapsed file the chart refuses, whose readings count nowhere. other holds the
+// two files chart-beats-rd must not count: one perl refuses, and one the chart refuses as recursive descent does.
 func collapseCorpus() ([]File, verdictInputs) {
 	type f struct {
 		corpus        string
 		rd, chart     bool
 		stmts, collap int
+		perlRefuses   bool
 	}
 	m := map[string]f{
-		"big.pl":     {"big", true, true, 100, 6},
-		"few.pl":     {"few", true, true, 10, 4},
-		"thin.pl":    {"thin", true, true, 1000, 5},
-		"pop.t":      {"perlgit", true, true, 3, 0},
-		"beats.t":    {"perlgit", false, true, 2, 0},
-		"refused.t":  {"perlgit", true, false, 50, 40},
-		"beats-2.pl": {"few", false, true, 0, 0},
+		"big.pl":     {"big", true, true, 100, 6, false},
+		"few.pl":     {"few", true, true, 10, 4, false},
+		"thin.pl":    {"thin", true, true, 1000, 5, false},
+		"five.pl":    {"five", true, true, 100, 5, false},
+		"onepct.pl":  {"onepct", true, true, 1000, 10, false},
+		"pop.t":      {"perlgit", true, true, 3, 1, false},
+		"beats.t":    {"perlgit", false, true, 2, 0, false},
+		"refused.t":  {"perlgit", true, false, 50, 40, false},
+		"beats-2.pl": {"few", false, true, 0, 0, false},
+		"perlno.pl":  {"other", false, true, 0, 0, true},
+		"neither.pl": {"other", false, false, 0, 0, false},
 	}
 	var files []File
 	for _, p := range slices.Sorted(maps.Keys(m)) {
@@ -101,8 +108,13 @@ func collapseCorpus() ([]File, verdictInputs) {
 			}
 			return r, nil
 		},
-		RD:       func(p string) (bool, error) { return m[p].rd, nil },
-		Perl:     func(string) *perlVerdict { return accept() },
+		RD: func(p string) (bool, error) { return m[p].rd, nil },
+		Perl: func(p string) *perlVerdict {
+			if m[p].perlRefuses {
+				return refuse("grammar")
+			}
+			return accept()
+		},
 		Excluded: map[string]bool{},
 	}
 }
@@ -117,7 +129,8 @@ func TestWaypoint2VerdictKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, want := range map[string]string{
-		"readings-collapsed": "15", "collapse-over-limit": "1", "superset-population-perlgit": "2", "chart-beats-rd": "2",
+		// 6 + 4 + 5 + 5 + 10, and perl.git's 1
+		"readings-collapsed": "31", "collapse-over-limit": "2", "superset-population-perlgit": "2", "chart-beats-rd": "2",
 	} {
 		if measured[k] != want {
 			t.Errorf("%s = %q, want %s", k, measured[k], want)
@@ -171,37 +184,73 @@ func TestWaypoint2OracleKeys(t *testing.T) {
 }
 
 // TestWaypoint2PrecedenceKeys: over the committed fixture, the counts are the referee's. A kept refused sentence
-// marked accepted by bison is one disagreement.
+// marked accepted by bison is one disagreement and nothing else; a resolution dropped from the reviewed list is one
+// unlisted uncovered resolution and nothing else.
 func TestWaypoint2PrecedenceKeys(t *testing.T) {
 	measured := waypoint2Measured(t)
 	if measured["precedence-covered"] == "0" || measured["precedence-covered"] == "" {
 		t.Errorf("precedence-covered = %q, want the kept sentences' coverage", measured["precedence-covered"])
 	}
+	base := func(k string) int { n, _ := strconv.Atoi(measured[k]); return n }
+	for _, c := range []struct {
+		name, file         string
+		edit               func(*testing.T, []byte) []byte
+		disagree, unlisted int // added to the committed counts
+	}{
+		{"one bison verdict flipped", "sentences.txt", flipFirstKeptRefusal, 1, 0},
+		{"one reviewed resolution dropped", "uncovered-reviewed.txt", dropFirstReviewed, 0, 1},
+	} {
+		got := precedenceWith(t, c.file, c.edit)
+		for k, want := range map[string]int{
+			"precedence-disagree":           base("precedence-disagree") + c.disagree,
+			"precedence-uncovered-unlisted": base("precedence-uncovered-unlisted") + c.unlisted,
+			"precedence-covered":            base("precedence-covered"),
+		} {
+			if got[k] != strconv.Itoa(want) {
+				t.Errorf("%s: %s = %q, want %d", c.name, k, got[k], want)
+			}
+		}
+	}
+}
+
+// precedenceWith measures the precedence keys over a copy of the committed fixture with file edited.
+func precedenceWith(t *testing.T, file string, edit func(*testing.T, []byte) []byte) map[string]string {
+	t.Helper()
 	dir := t.TempDir()
 	for _, name := range []string{"bison-conflicts.txt", "resolutions.txt", "sentences.txt", "uncovered-reviewed.txt", "rendering.txt"} {
 		b, err := os.ReadFile(filepath.Join(precedenceFixture, name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if name == "sentences.txt" {
-			b = flipFirstKeptRefusal(t, b)
+		if name == file {
+			b = edit(t, b)
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	flipped := map[string]string{}
 	g, _, err := grammar.Committed()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := measurePrecedence(g, committedTables(t), dir, flipped); err != nil {
+	got := map[string]string{}
+	if err := measurePrecedence(g, committedTables(t), dir, got); err != nil {
 		t.Fatal(err)
 	}
-	want, _ := strconv.Atoi(measured["precedence-disagree"])
-	if flipped["precedence-disagree"] != strconv.Itoa(want+1) {
-		t.Errorf("one bison verdict flipped: precedence-disagree %q, want %d", flipped["precedence-disagree"], want+1)
+	return got
+}
+
+// dropFirstReviewed removes the first resolution listed in uncovered-reviewed.txt.
+func dropFirstReviewed(t *testing.T, b []byte) []byte {
+	t.Helper()
+	lines := bytes.Split(b, []byte("\n"))
+	for i, l := range lines {
+		if len(l) > 0 && l[0] != '#' && !bytes.HasPrefix(l, []byte("reason:")) {
+			return bytes.Join(slices.Delete(lines, i, i+1), []byte("\n"))
+		}
 	}
+	t.Fatal("no reviewed resolution")
+	return nil
 }
 
 // flipFirstKeptRefusal marks the first kept sentence bison refuses as accepted.
