@@ -352,13 +352,15 @@ var featureNames = map[string]Feature{"isa": FeatureIsa, "signatures": FeatureSi
 	"current_sub": FeatureCurrentSub, "fc": FeatureFc, "evalbytes": FeatureEvalbytes, "keyword_any": FeatureKeywordAny,
 	"keyword_all": FeatureKeywordAll, ":all": featureAll}
 
-// bundle is the features of feature.pm's bundle for minor version m (5.m), as use VERSION and :5.m name it.
-func bundle(m int) Feature {
+// bundle is the features of feature.pm's bundle for version v (minor*1000+patch, as version reads it), as use VERSION
+// and :5.m name it; the :5.10 bundle applies from 5.9.5, as feature.pm's `$feature_bundle{"5.9.5"}` does.
+func bundle(v int) Feature {
+	m := v / 1000
 	var f Feature
-	if m >= 10 {
+	if v >= 9005 {
 		f |= FeatureState
 	}
-	if m >= 10 && m < 35 {
+	if v >= 9005 && m < 35 {
 		f |= FeatureSwitch
 	}
 	if m >= 15 {
@@ -403,7 +405,7 @@ func featuresAfter(raw []lexer.Token, i int, text string, on Features) Features 
 				named = true
 				set := featureNames[f]
 				if strings.HasPrefix(f, ":5.") {
-					set = bundle(minor("v" + f[1:]))
+					set = bundle(version("v" + f[1:]))
 				}
 				if use {
 					on.On |= set
@@ -417,7 +419,7 @@ func featuresAfter(raw []lexer.Token, i int, text string, on Features) Features 
 			return Features{} // `no feature` returns to the default bundle
 		}
 	case use && (k == lexer.Number || k == lexer.Quote && (w[0] == 'v' || '0' <= w[0] && w[0] <= '9')):
-		on = Features{On: bundle(minor(w))}
+		on = Features{On: bundle(version(w))}
 	case use && k == lexer.Word && !quietPragmas[w]:
 		on = on.mayBeOn()
 	}
@@ -452,25 +454,28 @@ func notName(r rune) bool {
 	return r == ',' || r == ' ' || r == '\t' || r == '\n' || r == '(' || r == ')'
 }
 
-// minor is the minor version of a Perl 5 version (`v5.36`, `5.36.0`, `5.036`, `5.036_000`), or -1; a bundle's (`:5.36`) reads as `v5.36`.
-// A decimal version's minor is the first three digits after its point; a dotted one's, the second part.
-func minor(v string) int {
+// version is a Perl 5 version (`v5.36`, `5.36.0`, `5.036`, `5.036_000`) as minor*1000+patch, or -1; a bundle's (`:5.36`) reads as `v5.36`.
+// A decimal version's minor is the first three digits after its point and its patch the next three; a dotted one's, the
+// second and third parts.
+func version(v string) int {
 	dotted := strings.HasPrefix(v, "v") || strings.Count(v, ".") > 1
 	parts := strings.Split(strings.ReplaceAll(strings.TrimPrefix(v, "v"), "_", ""), ".")
 	if len(parts) < 2 || parts[0] != "5" {
 		return -1
 	}
-	m := parts[1]
-	if !dotted && len(m) < 3 {
-		m += strings.Repeat("0", 3-len(m))
+	m, p := parts[1], "0"
+	if dotted && len(parts) > 2 {
+		p = parts[2]
 	} else if !dotted {
-		m = m[:3]
+		m += "000000"
+		m, p = m[:3], m[3:6]
 	}
 	n, err := strconv.Atoi(m)
-	if err != nil {
+	q, perr := strconv.Atoi(p)
+	if err != nil || perr != nil {
 		return -1
 	}
-	return n
+	return n*1000 + q
 }
 
 // keywords are the words CORE:: may qualify, looked up only for a word that opens with CORE::.
