@@ -569,19 +569,29 @@ func TestResolveFeaturesKeepCorpusAccepted(t *testing.T) {
 }
 
 // TestResolveAlwaysMainNames: gv.c's S_gv_is_in_main puts ENV, INC, ARGV, ARGVOUT, SIG, STDIN, STDOUT, STDERR and _
-// in main from every package, so a sub of one of those names declared in Foo is main's (perl -c on each row). inMain is
-// internal/lexer's copied word for word, and agrees with it: the lexer reads `*^R` after a word as a glob only when
-// the word names a declared sub, so a sub declared in Foo is read from main exactly when the lexer's inMain holds.
+// in main from every package, so a sub of one of those names declared in Foo is main's. Each name's main-ness is what
+// perl -c gives on both cross-package rows. inMain is internal/lexer's copied word for word, and agrees with it: the
+// lexer reads `*^R` after a word as a glob only when the word names a declared sub, so a sub declared in Foo is read
+// from main exactly when the lexer's inMain holds.
 func TestResolveAlwaysMainNames(t *testing.T) {
-	names := []string{"ENV", "INC", "ARGV", "ARGVOUT", "SIG", "STDIN", "STDOUT", "STDERR", "_", "X", "ENVX", "env", "_x", "STDIN2"}
+	names := []struct {
+		n    string
+		main bool
+	}{
+		{"ENV", true}, {"INC", true}, {"ARGV", true}, {"ARGVOUT", true}, {"SIG", true}, {"STDIN", true},
+		{"STDOUT", true}, {"STDERR", true}, {"_", true},
+		{"X", false}, {"ENVX", false}, {"env", false}, {"_x", false}, {"STDIN2", false},
+	}
 	var rows []verdict
-	for _, n := range names {
-		rows = append(rows, verdict{"package Foo; sub " + n + " {1} package main; " + n + " 1;", inMain(n)},
-			verdict{"sub " + n + " {1} package Foo; " + n + " 1;", inMain(n)},
+	for _, c := range names {
+		n := c.n
+		rows = append(rows, verdict{"package Foo; sub " + n + " {1} package main; " + n + " 1;", c.main},
+			verdict{"sub " + n + " {1} package Foo; " + n + " 1;", c.main},
 			verdict{"package Foo; sub " + n + " {1} " + n + " 1;", true})
 	}
 	checkVerdicts(t, rows)
-	for _, n := range names {
+	for _, c := range names {
+		n := c.n
 		src := "package Foo; sub " + n + " {1} package main; " + n + " *^R;"
 		toks := lexer.Tokenize([]byte(src))
 		glob := slices.ContainsFunc(toks, func(tk lexer.Token) bool { return src[tk.Start:tk.End] == "^R" })
