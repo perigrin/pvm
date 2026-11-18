@@ -6,23 +6,80 @@
 An Earley chart recognizer for Perl, built as a research spike beside the
 recursive-descent parser in `internal/parse` and measured against it. The
 design is `docs/plans/2026-10-30-chart-parser-v2-design.md` (on the branch
-`docs/chart-parser-v2-design`). For the recovery after waypoint 2's stop, the
+`docs/chart-parser-v2-design`). For the recovery after the waypoint-2 speed stop, the
 Chart Parser Recovery Plan, `docs/plans/2026-11-13-chart-parser-recovery-plan.md`
 (on the branch `docs/chart-recovery-plan`), is the successor decision: it
 supersedes the design's §2 question, its §10 speed line and its §9.5 key rule,
 and the design binds everything else. Nothing outside the spike consumes this
 tree.
 
-## Status: chart-recovery's verdict reading
+## Status: waypoint 2
 
-Waypoint 2 (spec §9.4, milestone `chart-perly-w2`) was stopped on 2026-11-13
-by spec §10's long-lived speed kill: with the forest timed on the chart side,
-the aggregate long-lived chart/recursive-descent ratio read a median of 3.51
-in three quiet readings at 3487d258, against the limit of 3
-(`docs/postmortems/chart-perly-w2.md`). The milestone `chart-recovery` then
-brought the recognizer and forest in line with the literature under the
-recovery plan, with no speed limit (perigrin's D1: every key reported, none
-gated but `lex-overhead`'s 1.3), and ended with one verdict reading.
+Waypoint 2 (spec §9.4, milestone `chart-perly-w2`) parses Perl as recursive
+descent does. It was stopped on 2026-11-13 by spec §10's long-lived speed
+kill, resumed on 2026-11-15 after chart-recovery (below), and finished under
+perigrin's ruling that day that no speed ceiling stops it: every speed key is
+reported and none is gated but `lex-overhead`'s 1.3.
+
+Waypoint 2 builds:
+
+- **the forest** over a recognized chart, adding no facts to its items
+  (`forest`, below);
+- **the precedence constraint** over the forest, applying bison's resolutions
+  of `perly.y` and agreeing with bison on every kept generated sentence
+  (`forest/precedence.go`; "The precedence constraint");
+- **resolve**, keeping a word's readings by the subs the file declares and
+  imports and by the features in force ("Scope-decided words");
+- **the readings count**, each statement's readings after precedence and
+  scope, collapsing a statement above 2^10 ("The forest", Readings);
+- **the chart as an oracle subject** and **per-site grading** of the chart
+  and recursive descent against perl's committed facts (`forest/facts.go`,
+  `cmd/ratchet/oracle.go`): no WRONG site, and the chart's exact sites at or
+  above recursive descent's;
+- **perl.git `t/`** labelled with the pinned perl's verdicts
+  (`testdata/labels/perlgit.txt`) and in the superset population, the
+  refusal gates and the grading;
+- **library operators**, a library's infix operators read as perl's
+  `PLUGIN_*` terminals where a `use` brings them into scope ("Library
+  operators").
+
+Whether the exit holds is what the ratchet and the milestone's criteria say,
+read from a run. Speed checkpoint 3's two readings, the whole pipeline timed
+on the chart side, are the ratchet's own output in
+`testdata/ratchet/checkpoint3.txt`, each under its commit, load and core
+count ("The speed protocol"). Compare them with chart-recovery's verdict
+reading below, taken on the same host, not with CI's advisory job.
+
+**Parity limits**, each pinned where its section says:
+
+- **Library operators between perl's levels.** An operator recursive descent
+  places between two of perl's levels, or at a level no `PLUGIN_*` bucket
+  names, groups at the bucket above it ("Library operators", "The parity
+  limit").
+- **Imports are read file-wide** (perigrin, 2026-11-10, "File-wide for now"):
+  a call written before its `use` reads as imported, and a library operator
+  applies past the block whose `use` brought it in ("Resolve", "Library
+  operators").
+- **Other known limits** of resolve, the oracle subject and the token table
+  are pinned in `TestResolveKnownLimits`, `TestResolveImportsAreFileWide`,
+  `TestOracleSubject` and `TestPortScopeDecidedKnownLimits`, each named in its
+  section below.
+- **Grading pools a site at its top-level statement**, so an
+  interpolated-code hedge over a whole block grades a wrong reading inside it
+  WIDER, not WRONG (chart-perly-w2-inputs `01a1ed19-0c33`).
+
+**Not built** (spec §13): interleaved lexing beyond the `;` toke.c inserts
+where a scope ends, incremental reparse and convergence, and error recovery.
+
+### chart-recovery's verdict reading
+
+At the stop, the aggregate long-lived chart/recursive-descent ratio, with the
+forest timed on the chart side, read a median of 3.51 in three quiet readings at 3487d258,
+against the limit of 3 (`docs/postmortems/chart-perly-w2.md`). The milestone
+`chart-recovery` then brought the recognizer and forest in line with the
+literature under the recovery plan, with no speed limit (perigrin's D1: every
+key reported, none gated but `lex-overhead`'s 1.3), and ended with one
+verdict reading.
 
 **The verdict reading**, 2026-11-14 on pu cd855330 (every R and F issue
 merged; R4 dropped by R3's profile; F2's inserted-`;` reuse kept): three quiet
@@ -80,40 +137,6 @@ What chart-recovery changed, each in its own section below:
   once per tables value, and the slipper closures recognition built reused
   for built nodes ("First blocks", "Grammar-only data" and "The slipper's
   `;`").
-
-The sixteen held `chart-perly-w2` issues are re-refined next, outside
-chart-recovery.
-
-What waypoint 2 built before the stop:
-
-- **the forest** over a recognized chart, adding no facts to its items
-  (`forest`, below);
-- **perl's oracle facts** over the oracle-graded corpora
-  (`testdata/oracle/`), and **perl.git `t/` labelled** with the pinned perl's
-  verdicts (`testdata/labels/perlgit.txt`), its lexer-rooted findings on the
-  lexer lists (below) and its `-DT` captures made offline but not committed;
-- **the precedence referee's sentences**, generated from bison's resolutions
-  of perly.y and rendered to source where they round-trip through the lexer
-  (`testdata/precedence/`);
-- the recognizer's grammar-only tables built once per tables value, `x` at a
-  statement start read as a word, and the cache and Leo test gaps closed.
-
-Since the resumption, **the precedence constraint** is applied to `perly.y`
-and agrees with bison on every kept generated sentence
-(`forest/precedence.go`, below), and `forest.Parse` applies it, resolves
-scope and counts each statement's readings, collapsing a statement above
-2^10 ("The forest", Readings). Library-declared infix operators read as
-perl's `PLUGIN_*` terminals where a `use` brings them into scope, with a
-stated parity limit ("Library operators").
-
-Not done, among the issues still open on `chart-perly-w2` (resolve by
-declared and imported subs and by features is built: "Scope-decided
-words"): oracle grading,
-the whole-pipeline ratchet keys (per-stage keys exist since chart-recovery's
-M1; a whole-pipeline ratio key stays with the held VERDICT issue), perl.git
-`t/` parity and speed checkpoint 3.
-Where a section below calls a limit "waypoint 2's" work, that work was not
-done before the stop and is left to a successor.
 
 ### Waypoint 1
 
@@ -310,8 +333,10 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
   is `lexer.Tokenize`.) The speed keys' aggregate is drawn from the superset
   population, which now uses resolving recursive descent: that adds 163
   files, and their timing baselines were retaken by VERDICT and KEYS.
-- **Budget.** One run takes at most 300 s on the development machine.
-  Corpus-wide sweeps and benchmarks belong here, never in `make test`.
+- **Budget.** One run is budgeted at 300 s on the development machine, and
+  is over it: runs at waypoint 2's exit took 543 to 705 s, which
+  chart-perly-w2-inputs `01a1ec3c-556c` covers. Corpus-wide sweeps and
+  benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
   `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and
   `BenchmarkForest` in `forest/bench.go`; the ratchet runs the same bodies
@@ -584,6 +609,15 @@ clock and a collector, so it is tested on fake timings
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
   one ratio.
+- **Checkpoint 3** (spec §9.3, at waypoint 2's exit) is two ratchet runs on
+  as quiet a machine as could be had, each appended as the ratchet printed it
+  to `testdata/ratchet/checkpoint3.txt` under three header lines, its commit,
+  the 1-minute load and the core count:
+  `{ echo "# commit: $(git rev-parse HEAD)"; echo "# load: $(cut -d' ' -f1 /proc/loadavg)"; echo "# cores: $(nproc)"; env -u T1_CORPUS -u TDT_FIXTURES make -s chart-ratchet; } >> internal/chart/testdata/ratchet/checkpoint3.txt`.
+  The speed ratios there time the whole pipeline above. A reading records its
+  load rather than requiring a quiet one (perigrin, 2026-11-15), and no speed
+  key is gated, so the figures are a report, read from that file and not
+  restated here.
 - **Allocation per stage.** `alloc-per-token-recognize` and
   `alloc-per-token-forest` count `Mallocs` over one long-lived pass of the
   same stage side the `speed-stage-*` key times, its prepared inputs and its
