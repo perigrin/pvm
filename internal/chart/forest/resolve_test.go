@@ -404,7 +404,7 @@ func TestResolveFeatures(t *testing.T) {
 		{`use feature "defer"; no warnings; defer { 1 }`, true},
 		{`use feature "keyword_any"; no warnings; my @a; my $x = any { $_ } @a;`, true},
 		{`use v5.38; use experimental "class"; class C { field $x; method m { 1 } ADJUST { 1 } }`, true},
-		// a version's bundle: switch from 5.10 to 5.34, state from 5.10, try from 5.39
+		// a version's bundle: switch from 5.9.5 to 5.34, state from 5.9.5, try from 5.39
 		{"use v5.10; given (1) { when (1) { 1 } default { 1 } }", true},
 		{"use v5.36; given (1) { }", false},
 		{"use v5.36; state $x = 1;", true},
@@ -569,19 +569,29 @@ func TestResolveFeaturesKeepCorpusAccepted(t *testing.T) {
 }
 
 // TestResolveAlwaysMainNames: gv.c's S_gv_is_in_main puts ENV, INC, ARGV, ARGVOUT, SIG, STDIN, STDOUT, STDERR and _
-// in main from every package, so a sub of one of those names declared in Foo is main's (perl -c on each row). inMain is
-// internal/lexer's copied word for word, and agrees with it: the lexer reads `*^R` after a word as a glob only when
-// the word names a declared sub, so a sub declared in Foo is read from main exactly when the lexer's inMain holds.
+// in main from every package, so a sub of one of those names declared in Foo is main's. Each name's main-ness is what
+// perl -c gives on both cross-package rows. inMain is internal/lexer's copied word for word, and agrees with it: the
+// lexer reads `*^R` after a word as a glob only when the word names a declared sub, so a sub declared in Foo is read
+// from main exactly when the lexer's inMain holds.
 func TestResolveAlwaysMainNames(t *testing.T) {
-	names := []string{"ENV", "INC", "ARGV", "ARGVOUT", "SIG", "STDIN", "STDOUT", "STDERR", "_", "X", "ENVX", "env", "_x", "STDIN2"}
+	names := []struct {
+		n    string
+		main bool
+	}{
+		{"ENV", true}, {"INC", true}, {"ARGV", true}, {"ARGVOUT", true}, {"SIG", true}, {"STDIN", true},
+		{"STDOUT", true}, {"STDERR", true}, {"_", true},
+		{"X", false}, {"ENVX", false}, {"env", false}, {"_x", false}, {"STDIN2", false},
+	}
 	var rows []verdict
-	for _, n := range names {
-		rows = append(rows, verdict{"package Foo; sub " + n + " {1} package main; " + n + " 1;", inMain(n)},
-			verdict{"sub " + n + " {1} package Foo; " + n + " 1;", inMain(n)},
+	for _, c := range names {
+		n := c.n
+		rows = append(rows, verdict{"package Foo; sub " + n + " {1} package main; " + n + " 1;", c.main},
+			verdict{"sub " + n + " {1} package Foo; " + n + " 1;", c.main},
 			verdict{"package Foo; sub " + n + " {1} " + n + " 1;", true})
 	}
 	checkVerdicts(t, rows)
-	for _, n := range names {
+	for _, c := range names {
+		n := c.n
 		src := "package Foo; sub " + n + " {1} package main; " + n + " *^R;"
 		toks := lexer.Tokenize([]byte(src))
 		glob := slices.ContainsFunc(toks, func(tk lexer.Token) bool { return src[tk.Start:tk.End] == "^R" })
@@ -591,5 +601,30 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 	}
 	if !inMain("") || !inMain("1") || !inMain("^W") || inMain("Foo") {
 		t.Error("inMain: the empty name and names not opening as an identifier are main's, an identifier is not")
+	}
+}
+
+// TestResolveAlwaysMainImportLimit pins a limit: parse keys a bare import by the package around it, an always-main
+// name included, so the chart refuses these where perl -c says syntax OK (it puts *STDOUT and *_ in main).
+func TestResolveAlwaysMainImportLimit(t *testing.T) {
+	for _, src := range []string{
+		`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`,
+		`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`,
+	} {
+		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f != nil {
+			t.Errorf("%q is accepted; the limit is gone, so move it to TestResolveAlwaysMainNames and drop the README shortcut", src)
+		}
+	}
+}
+
+// TestResolveSayWithoutFeatureLimit pins a limit: `say` stays a keyword whatever the features (tdt/overrides.txt), so
+// the chart accepts `say 1;` and `say "x";` without the say feature, where perl -c refuses each ("syntax error").
+// Recursive descent accepts them too. The shortcut lives in internal/lexer and tdt/overrides.txt, outside the
+// chart's own code, so this row and the README line stand in for a shortcut: comment.
+func TestResolveSayWithoutFeatureLimit(t *testing.T) {
+	for _, src := range []string{`say 1;`, `say "x";`} {
+		if f, ref := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+			t.Errorf("%q is refused (%+v); the limit is gone, so move it to TestResolveFeatures and drop the README line", src, ref)
+		}
 	}
 }
