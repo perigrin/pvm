@@ -63,7 +63,7 @@ reading below, taken on the same host, not with CI's advisory job.
 - **Other known limits** run both ways: some accept what perl refuses and some
   refuse what perl accepts. Each section's Limits paragraph names its own pinned
   tests. Among them are `TestResolveKnownLimits`, `TestResolveImportsAreFileWide`,
-  `TestResolveFeaturesOpaqueImportLimit` (perl.git's
+  `TestResolveFeaturesOpaqueImportLimit` (perl.git's Test-Simple
   `t/regression/10-set_and_dne.t`, refused where perl accepts it),
   `TestLibraryOperatorsLimits` (a library operator is read only where an
   operator is expected, and one spelled as a keyword reads as the keyword, each
