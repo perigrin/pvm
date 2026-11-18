@@ -13,8 +13,8 @@ import (
 )
 
 // binaryOperatorsLines are the perly.y alternatives this family ports. The PLUGIN_* ones (1256, 1260,
-// 1413, 1417, 1421, 1428, 1432, 1448, 1452, 1458) are ported as grammar and have no snippet: their
-// terminals have no token class until waypoint 2 decides how a library operator reaches them.
+// 1413, 1417, 1421, 1428, 1432, 1448, 1452, 1458) are ported as grammar and have no snippet here: a
+// library operator reaches their terminals through grammar.LibraryTerminal (grammar/plugop_test.go).
 var binaryOperatorsLines = []int{1254, 1256, 1258, 1260, 1413, 1417, 1419, 1421, 1423, 1428, 1430,
 	1432, 1434, 1440, 1442, 1444, 1446, 1448, 1450, 1452, 1454, 1456, 1458}
 

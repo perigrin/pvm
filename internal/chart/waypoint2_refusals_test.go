@@ -1,4 +1,4 @@
-// ABOUTME: Waypoint 2's refusals through the whole pipeline (chart/lex, recognition, the forest, its constraints), each
+// ABOUTME: The refusals waypoint 2 builds, through the whole pipeline (chart/lex, recognition, the forest, its constraints), each
 // ABOUTME: beside a nearby form perl accepts: the precedence refusals and the scope refusals the ledger and spec §5.2 name.
 
 package chart
