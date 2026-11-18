@@ -212,3 +212,32 @@ func TestOracleGradingRDResolvesImports(t *testing.T) {
 		}
 	}
 }
+
+// TestOracleWrongZero is spec §9.4's oracle result over every oracle-graded corpus with committed facts: the chart
+// grades no site WRONG, and its exact sites are at or above recursive descent's, each WRONG site listed on failure.
+func TestOracleWrongZero(t *testing.T) {
+	subjects := defaultSubjects(committedTables(t))
+	t.Chdir("../../../..")
+	var stderr bytes.Buffer
+	got, err := gradeOracle(oracleCorpora(), subjects, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range oracleCorpora() {
+		chartSites, rd := got.Sites["chart"][c.name], got.Sites["rd"][c.name]
+		t.Logf("%s: chart %v, rd %v (exact, wider, wrong, no-answer)", c.name, chartSites, rd)
+		if chartSites[parseoracle.BucketWrong] != 0 {
+			t.Errorf("%s: chart grades %d sites WRONG", c.name, chartSites[parseoracle.BucketWrong])
+		}
+		if chartSites[parseoracle.BucketExact] < rd[parseoracle.BucketExact] {
+			t.Errorf("%s: chart exact %d below recursive descent's %d", c.name, chartSites[parseoracle.BucketExact], rd[parseoracle.BucketExact])
+		}
+	}
+	if t.Failed() {
+		for _, l := range strings.Split(stderr.String(), "\n") {
+			if strings.HasPrefix(l, "oracle-grade: chart WRONG ") {
+				t.Log(l)
+			}
+		}
+	}
+}
