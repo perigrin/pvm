@@ -6,6 +6,7 @@ package forest
 import (
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
@@ -284,11 +285,13 @@ func (r *resolver) declare(f *Forest, nd Node) {
 	r.subs[q] = append(r.subs[q], d)
 }
 
-// qualify is word's sub name in package pkg, as gv_fetchpvn reads it.
+// qualify is word's sub name in package pkg, as gv_fetchpvn reads it: a bare name inMain holds is main's.
 func qualify(pkg, word string) string {
 	switch {
 	case strings.HasPrefix(word, "::"):
 		word = "main" + word
+	case !strings.Contains(word, "::") && inMain(word):
+		word = "main::" + word
 	case !strings.Contains(word, "::"):
 		word = pkg + "::" + word
 	}
@@ -296,6 +299,21 @@ func qualify(pkg, word string) string {
 		word = word[len("main::"):]
 	}
 	return word
+}
+
+// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
+// package, and every name that does not open as an identifier.
+func inMain(name string) bool {
+	switch name {
+	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
+		return true
+	}
+	return name == "" || name[0] < utf8.RuneSelf && !isAsciiLetter(name[0]) && name[0] != '_'
+}
+
+// isAsciiLetter is internal/lexer's, which inMain reads.
+func isAsciiLetter(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
 // lookup is what word names at token k, and its sub where it is declared.
