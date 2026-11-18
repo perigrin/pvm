@@ -13,6 +13,7 @@ import (
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
+	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 )
 
@@ -383,6 +384,8 @@ func TestResolveFeatures(t *testing.T) {
 		{"when 1;", false}, {"default 1;", false}, {"break 1;", false}, {"state 1;", false}, {"__SUB__ 1;", false},
 		{"field 1;", false}, {"method 1;", false}, {"class 1;", false}, {"ADJUST 1;", false}, {"__CLASS__ 1;", false},
 		{"any 1;", false}, {"all 1;", false}, {"fc 1;", false}, {"evalbytes 1;", false},
+		{"state $x :Foo(1) = 2;", false}, {"$y = 1 when $x;", false}, {"given ($x) { 1 }", false},
+		{"given ($x) { default { 1 } }", false}, {"try { 1 } catch ($e) { 2 }", false},
 		// and declared, or where no term follows, the word perl accepts
 		{"sub try {} try 1;", true}, {"open(try, \"/dev/null\");", true}, {"foo(catch, 1);", true},
 		{"state $x = 1;", true}, {"field $x;", true}, {"my $c = method { 1 };", true},
@@ -406,6 +409,7 @@ func TestResolveFeatures(t *testing.T) {
 		{"use v5.36; given (1) { }", false},
 		{"use v5.36; state $x = 1;", true},
 		{"use 5.010; state $x = 1;", true},
+		{"use v5.9.5; my $x = state;", false}, {"use v5.9.4; my $x = state;", true}, {"use 5.009005; state $x = 1;", true},
 		{"use feature ':5.10'; state $x = 1;", true},
 		{"use v5.40; try { 1 } catch ($e) { 2 }", true},
 		{"use v5.36; try { 1 } catch ($e) { 2 }", false},
@@ -561,5 +565,31 @@ func TestResolveFeaturesKeepCorpusAccepted(t *testing.T) {
 	t.Logf("checked %d files", checked)
 	if checked < 700 {
 		t.Errorf("checked %d files; the labels name over 700 Guacamole cases and std5k.pl that perl and recognition accept", checked)
+	}
+}
+
+// TestResolveAlwaysMainNames: gv.c's S_gv_is_in_main puts ENV, INC, ARGV, ARGVOUT, SIG, STDIN, STDOUT, STDERR and _
+// in main from every package, so a sub of one of those names declared in Foo is main's (perl -c on each row). inMain is
+// internal/lexer's copied word for word, and agrees with it: the lexer reads `*^R` after a word as a glob only when
+// the word names a declared sub, so a sub declared in Foo is read from main exactly when the lexer's inMain holds.
+func TestResolveAlwaysMainNames(t *testing.T) {
+	names := []string{"ENV", "INC", "ARGV", "ARGVOUT", "SIG", "STDIN", "STDOUT", "STDERR", "_", "X", "ENVX", "env", "_x", "STDIN2"}
+	var rows []verdict
+	for _, n := range names {
+		rows = append(rows, verdict{"package Foo; sub " + n + " {1} package main; " + n + " 1;", inMain(n)},
+			verdict{"sub " + n + " {1} package Foo; " + n + " 1;", inMain(n)},
+			verdict{"package Foo; sub " + n + " {1} " + n + " 1;", true})
+	}
+	checkVerdicts(t, rows)
+	for _, n := range names {
+		src := "package Foo; sub " + n + " {1} package main; " + n + " *^R;"
+		toks := lexer.Tokenize([]byte(src))
+		glob := slices.ContainsFunc(toks, func(tk lexer.Token) bool { return src[tk.Start:tk.End] == "^R" })
+		if glob != inMain(n) {
+			t.Errorf("%s: the lexer reads it in main %v, the chart's inMain %v", n, glob, inMain(n))
+		}
+	}
+	if !inMain("") || !inMain("1") || !inMain("^W") || inMain("Foo") {
+		t.Error("inMain: the empty name and names not opening as an identifier are main's, an identifier is not")
 	}
 }

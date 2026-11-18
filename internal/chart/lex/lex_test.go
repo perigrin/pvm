@@ -259,3 +259,24 @@ func TestLexTailIsCapped(t *testing.T) {
 		t.Errorf("Tail() has len %d, cap %d: appending to it would write into the lexer's slice", len(tail), cap(tail))
 	}
 }
+
+// feature.pm's :5.10 bundle applies from 5.9.5 (`$feature_bundle{"5.9.5"}`), and use VERSION reads it from there, in
+// every version shape; perl -c refuses `use v5.9.5; my $x = state;` and accepts it at 5.9.4.
+func TestFeatureBundleFrom595(t *testing.T) {
+	tt := toyTable(t)
+	for _, c := range []struct {
+		use  string
+		want bool
+	}{
+		{"use v5.9.5;", true}, {"use 5.009005;", true}, {"use 5.009_005;", true}, {"use 5.9.5;", true},
+		{"use feature ':5.9.5';", true}, {"use v5.10;", true}, {"use 5.010;", true},
+		{"use v5.9.4;", false}, {"use 5.009004;", false}, {"use 5.009;", false}, {"use v5.8.9;", false},
+	} {
+		src := c.use + " $x;"
+		s, _ := Lex([]byte(src), tt)
+		f := s.FeaturesAt(len(s.Tokens) - 1).On
+		if got := f&FeatureState != 0 && f&FeatureSwitch != 0; got != c.want {
+			t.Errorf("%s: state and switch on %v, want %v", c.use, got, c.want)
+		}
+	}
+}

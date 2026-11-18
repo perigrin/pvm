@@ -80,8 +80,9 @@ func TestPortRelationalAndUnaryRefusals(t *testing.T) {
 	}
 }
 
-// Known limits of the isa feature bit chart/lex tracks, pinned so they are noticed when they end: a feature a BEGIN
-// block imports is not seen (a shortcut in lex.isaAfter), so the chart refuses what perl accepts; and use v5 leaves
+// Known limits of the isa feature bit chart/lex tracks, pinned so they are noticed when they end: the bit reads only
+// features known on, so isa a BEGIN block or a module may turn on stays the plain word (a shortcut at plainIsa in
+// lex.Map) and the chart refuses what perl and recursive descent accept; and use v5 leaves
 // the bit, so the chart accepts what perl refuses, a lexer defect rather than a shortcut (see the row).
 func TestPortRelationalAndUnaryIsaLimits(t *testing.T) {
 	for src, accepted := range map[string]bool{
