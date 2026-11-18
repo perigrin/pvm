@@ -604,9 +604,23 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 	}
 }
 
+// TestResolveAlwaysMainImportLimit pins a limit: parse keys a bare import by the package around it, an always-main
+// name included, so the chart refuses these where perl -c says syntax OK (it puts *STDOUT and *_ in main).
+func TestResolveAlwaysMainImportLimit(t *testing.T) {
+	for _, src := range []string{
+		`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`,
+		`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`,
+	} {
+		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f != nil {
+			t.Errorf("%q is accepted; the limit is gone, so move it to TestResolveAlwaysMainNames and drop the README shortcut", src)
+		}
+	}
+}
+
 // TestResolveSayWithoutFeatureLimit pins a limit: `say` stays a keyword whatever the features (tdt/overrides.txt), so
 // the chart accepts `say 1;` and `say "x";` without the say feature, where perl -c refuses each ("syntax error").
-// Recursive descent accepts them too.
+// Recursive descent accepts them too. The shortcut lives in internal/lexer and tdt/overrides.txt, outside the
+// chart's own code, so this row and the README line stand in for a shortcut: comment.
 func TestResolveSayWithoutFeatureLimit(t *testing.T) {
 	for _, src := range []string{`say 1;`, `say "x";`} {
 		if f, ref := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
