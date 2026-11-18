@@ -739,7 +739,7 @@ indirob: PRIVATEREF # perly.y:1895
 `
 
 // perlyPrecedence is perly.y's precedence declarations, loosest first, one per line: `%<assoc> TOKEN... # perly.y:N`.
-// Recognition ignores them and every rule's %prec at waypoint 1 (spec §8): they are waypoint 2's constraint's data.
+// Recognition ignores them and every rule's %prec (spec §8): the forest's precedence constraint reads them.
 const perlyPrecedence = `
 %nonassoc PREC_LOW # perly.y:150
 
@@ -1262,7 +1262,7 @@ var perlyClasses = []ClassDecl{
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__PACKAGE__"), Completes: true}},
 	{"FUNC0OP", TokenClass{Kind: ptr(lexer.Word), Text: ptr("__SUB__"), Completes: true}},
 
-	// A word no neighbour decides may be a declared sub, which scope decides (waypoint 2), so it is each reading
+	// A word no neighbour decides may be a declared sub, which resolve decides, so it is each reading
 	// yyl_subproto gives one (toke.c:6590-6636) beside BAREWORD and NOAMP: FUNC0SUB for an empty prototype, which
 	// completes a term (TERM), UNIOPSUB for a one-argument one, and LSTOPSUB for one opening with & before a {.
 	// shortcut: a declared sub named x carries these only after a statement-start token (addStatementX; stateStarts, which
