@@ -101,8 +101,10 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			case n == 3 && w == "use" || n == 2 && w == "no":
 				on = featuresAfter(raw, i, text, on)
 			case n == 5 && w == "BEGIN" && beginBlock(raw, i, text, s):
-				on = on.mayBeOn() // `BEGIN { require feature; feature->import('isa') }`
+				on = on.mayBeOn() // `BEGIN { require feature; feature->import('try') }`
 			default:
+				// shortcut: isa reads only On, so an isa a BEGIN block or a module may turn on (Maybe) is refused where
+				// perl accepts it; upgrade by giving isa both readings while Maybe holds it, as resolve does the others.
 				plainIsa = on.On&FeatureIsa == 0 && n == 3 && w == "isa"
 			}
 		}

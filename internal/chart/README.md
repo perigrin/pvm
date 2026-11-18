@@ -69,9 +69,12 @@ reading below, taken on the same host, not with CI's advisory job.
   operator is expected, and one spelled as a keyword reads as the keyword, each
   accepting what perl refuses), `TestOracleSubject` and
   `TestPortScopeDecidedKnownLimits`.
-- **Grading pools a site at its top-level statement**, so an
-  interpolated-code hedge over a whole block grades a wrong reading inside it
-  WIDER, not WRONG (chart-perly-w2-inputs `01a1ed19-0c33`).
+- **Grading pools a site at its top-level statement**, in both directions
+  (chart-perly-w2-inputs `01a1ed19-0c33`): an interpolated-code hedge over a
+  whole block grades a wrong reading inside it WIDER, not WRONG; and a decided
+  site anywhere in a top-level `sub`, `package` block or bare block accounts
+  for perl's site of that marker anywhere else in it, so a miss grades EXACT
+  where it would grade WRONG at its own statement ("Per-site grading").
 
 **Not built** (spec §13): interleaved lexing beyond the `;` toke.c inserts
 where a scope ends, incremental reparse and convergence, and error recovery.
@@ -360,10 +363,15 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
   (`continue-on-error: true`). It errors (exit 2) on every run, since CI has
   no tdt fixtures, so it observes nothing; T1 is in the tree.
 
-**Isolation (§11).** The chart reads `internal/lexer` and `internal/parse`
-and never changes them. A lexer defect found here is filed against the v0.1
-milestone and listed — on `lex-unmapped`'s known list, or on the lexer-defect
-list — never worked around.
+**Isolation (§11).** The chart reads `internal/lexer` and `internal/parse`,
+and a chart issue changes only `internal/chart/` unless perigrin rules another
+path in for it. chart-perly-w2's lexer and parse issues changed both under such
+rulings, recorded in its Records and its scope criterion (LIBOPSEXPORT's
+`internal/parse` exports, ORACLEFACTS' `internal/parseoracle/corpus.go`, and on
+2026-11-18 the `internal/lexer` and `internal/parse` files the w2 lexer and
+parse issues changed). A lexer defect found here without such a ruling is filed
+against the v0.1 milestone and listed — on `lex-unmapped`'s known list, or on
+the lexer-defect list — never worked around.
 
 To take a baseline after an intended change, run
 `go run ./internal/chart/cmd/ratchet > /tmp/baseline.txt`, move it over
@@ -629,7 +637,8 @@ clock and a collector, so it is tested on fake timings
   same stage side the `speed-stage-*` key times, its prepared inputs and its
   recognizer made before the count, over the same tokens as
   `alloc-per-token-chart` (`TestAllocPerStage`). `alloc-per-token-chart`
-  stays as it was: cold, lex plus recognition.
+  stays cold and counts the whole pipeline the speed ratios time, as the key
+  table says.
 - **Collector share.** `gc-cpu-share-chart` and `gc-cpu-share-rd` are
   `/cpu/classes/gc/total:cpu-seconds` over
   `/cpu/classes/total:cpu-seconds`, the difference of each across one
@@ -814,19 +823,15 @@ ATTRLIST holding every attribute and its argument as an opaque string
   not matched: `:use shared`, `:my shared` and `:no Foo` are refused where
   perl accepts them. `grammar.OtherWord` stands for a word no class names, so
   the set of such names grows as classes name words.
-- `state` maps to KW_MY with or without `use feature 'state'`, so
-  `state $x :Foo(1) = 2;` is accepted where perl refuses it without the
-  feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
-- `when` maps to KW_WHEN with or without `use feature 'switch'`, so
-  `$y = 1 when $x;` is accepted where perl refuses it without the feature
-  (`01a1a29c-cd50-79a8-b87a-e9615c52af65`).
-- `given` and `default` map to KW_GIVEN and KW_DEFAULT with or without
-  `use feature 'switch'`, so `given ($x) { 1 }` and `given ($x) { default { 1 } }`
-  are accepted where perl refuses them without the feature, as a bareword
-  call (`01a1a29c-cd50-79a8-b87a-e9615c52af65`). `when` and `default` outside
-  a topicalizer are accepted too, which is parity: under `use feature 'switch'`
-  the pinned perl gives syntax OK for `when (1) { 1 }` and `default { 1 }` and
-  fails only at run time, so there is no scope refusal to make.
+- `state`, `when`, `given` and `default` map to KW_MY, KW_WHEN, KW_GIVEN and
+  KW_DEFAULT with or without their feature, and resolve keeps those readings
+  only with the feature on ("Resolve"), so `state $x :Foo(1) = 2;`,
+  `$y = 1 when $x;`, `given ($x) { 1 }` and `given ($x) { default { 1 } }` are
+  refused without it, as perl refuses them (`TestResolveFeatures`). `when` and
+  `default` outside a topicalizer are accepted under the feature, which is
+  parity: under `use feature 'switch'` the pinned perl gives syntax OK for
+  `when (1) { 1 }` and `default { 1 }` and fails only at run time, so there is
+  no scope refusal to make.
 - `for our (…)` and `for state (…)` at a statement start are refused, as toke.c's
   `yyl_foreach` croaks "Missing $ on loop variable" there (only `my` may open a
   parenthesised list); `1 for our ($x);` stays accepted. The statement start is
@@ -873,11 +878,12 @@ refuses it without the feature. Known limit, until the lexer tracks the
 feature (`01a1a24e-f0aa-7a97-90d8-e4f86efa1e3b`).
 
 `try`, `catch`, `finally` and `defer` map to their keywords with or without
-`use feature 'try'` or `'defer'` (toke.c reads them as words without it), so
-`try { 1 } catch ($e) { 2 }` is accepted where perl refuses it without the
-feature (`01a1a29c-cd50-79a8-b87a-e9615c52af65`, which covers these words too).
-Where perl reads them as plain words they are words too (see "Scope-decided
-words"), so `sub try {} try 1;` and `catch(1)` are accepted.
+`use feature 'try'` or `'defer'` (toke.c reads them as words without it), and
+resolve keeps the keyword readings only with the feature on, so
+`try { 1 } catch ($e) { 2 }` is refused without it, as perl refuses it
+(`TestResolveFeatures`). Where perl reads them as plain words they are words
+too (see "Scope-decided words"), so `sub try {} try 1;` and `catch(1)` are
+accepted.
 
 A LABEL is a word with no package separator and a one-byte colon after it on
 its own line (blanks only between; the word's `LineColon`), where a statement may start: toke.c's label
@@ -1468,7 +1474,9 @@ with reason `scope`, at the first dropped reading reached from the root.
   parse.Imports cannot read, so `field`'s word reading is an undeclared word's (`TestResolveFeaturesOpaqueImportLimit`). A feature-gated keyword ("Scope-decided
   words") keeps its keyword readings only with its feature on, and a plain word's (BAREWORD, NOAMP, FUNC0SUB,
   UNIOPSUB, LSTOPSUB, METHCALL0, METHCALL and PRIVATEREF) only with it off, where it is then decided as any word is
-  (`try 1;` and `state 1;` are refused, `use feature "try"; foo(try, 1);` too). Where toke.c forces a name (after
+  (`try 1;` and `state 1;` are refused, `use feature "try"; foo(try, 1);` too, and without their feature
+  `state $x :Foo(1) = 2;`, `$y = 1 when $x;`, `given ($x) { 1 }`, `given ($x) { default { 1 } }` and
+  `try { 1 } catch ($e) { 2 }`, as perl refuses them). Where toke.c forces a name (after
   `->`, `sub`, `&` or `*`) it looks no keyword up, so both stand there (`$x->catch(1)`, `sub try {}`). `sub` keeps its
   signature readings only with the signatures feature on, its prototype's only with it off (`TestResolveFeatures`).
 - **Classes**: a `class` statement or block, with the class feature on, declares its package as a `package` one does,
@@ -1695,13 +1703,16 @@ whatever the file's length.
 - **The isa feature** is the one bit of scope `Map` tracks, by perigrin's ruling ("Track the isa feature"): toke.c
   reads `isa` as a keyword only where the feature is on (keywords.c:353), and elsewhere `Map` gives the word the
   text `grammar.PlainIsa`, which no class names, so `ok(isa Foo('x'))` is an indirect method call and `$x isa Foo`
-  is refused. A `use` or `no` statement sets the bit as feature.pm does (`isaAfter`): `feature` or `experimental`
+  is refused. A `use` or `no` statement sets the bit as feature.pm does (`featuresAfter`): `feature` or `experimental`
   naming `isa`, `:all` or a bundle from `:5.35`, a bare `no feature`, and `use VERSION` (on from 5.35, off
   below it, `use 5.008` and `use 5` included). Every `{` saves it and the matching `}` restores it, which is the block scope; a hash's or a
   subscript's braces save and restore it too, harmlessly, since no `use` stands inside one. The work is a kind
   and length test per token, and a scan of the statement at a `use` or `no`. INTERN's reference reads the same
-  statements with regular expressions (`refIsaAfter`). Not seen, each a `shortcut:` in `isaAfter`: a feature a
-  module or a `BEGIN` block imports, or one a string eval turns on. `use v5;` leaves the bit, where perl clears it,
+  statements with regular expressions (`refIsaAfter`). The isa bit reads only the features known on, never those
+  "maybe on" (a `shortcut:` at `plainIsa` in `Map`): a module's import or a `BEGIN` block marks every feature maybe
+  on, and resolve keeps both readings for every other feature's words, but `isa` stays the plain word, so the chart
+  refuses `BEGIN { require feature; feature->import("isa") } my $y = $x isa Foo;`, which perl and recursive descent
+  accept. A feature a string eval turns on is not seen at all (a `shortcut:` in `featuresAfter`). `use v5;` leaves the bit, where perl clears it,
   because internal/lexer emits a bare `v5` as a Word rather than a version (`corpus-covers-t2` `01a0dc72`); pinned in
   `TestPortRelationalAndUnaryIsaLimits`.
 
@@ -2268,7 +2279,14 @@ into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`.
 `TestOracleWrongZero` holds spec §9.4's result over the same grading: no
 chart WRONG site and the chart's exact sites at or above recursive descent's
 on every corpus, listing each WRONG site when it fails. No WRONG site is left
-as a known limit; rerun the command above for the counts.
+as a known limit; rerun the command above for the counts. Both subjects report
+each site spanning its top-level statement (`forest/facts.go`'s `walk`,
+`parse.Sites`), so the grading pools a whole `sub`, `package` block or bare
+block: a correct site elsewhere in it can account for a miss, which then grades
+EXACT where at its own statement it would grade WRONG, and a hedge over it turns
+a wrong reading WIDER. Recursive descent is graded the same way, so the two
+compare like for like, but `oracle-wrong 0` is that much weaker evidence than it
+reads (chart-perly-w2-inputs `01a1ed19-0c33`).
 
 ## The precedence constraint: `forest/precedence.go`
 

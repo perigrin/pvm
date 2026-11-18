@@ -384,6 +384,8 @@ func TestResolveFeatures(t *testing.T) {
 		{"when 1;", false}, {"default 1;", false}, {"break 1;", false}, {"state 1;", false}, {"__SUB__ 1;", false},
 		{"field 1;", false}, {"method 1;", false}, {"class 1;", false}, {"ADJUST 1;", false}, {"__CLASS__ 1;", false},
 		{"any 1;", false}, {"all 1;", false}, {"fc 1;", false}, {"evalbytes 1;", false},
+		{"state $x :Foo(1) = 2;", false}, {"$y = 1 when $x;", false}, {"given ($x) { 1 }", false},
+		{"given ($x) { default { 1 } }", false}, {"try { 1 } catch ($e) { 2 }", false},
 		// and declared, or where no term follows, the word perl accepts
 		{"sub try {} try 1;", true}, {"open(try, \"/dev/null\");", true}, {"foo(catch, 1);", true},
 		{"state $x = 1;", true}, {"field $x;", true}, {"my $c = method { 1 };", true},
