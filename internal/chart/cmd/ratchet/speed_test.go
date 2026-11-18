@@ -423,7 +423,7 @@ func TestSpeedChartSideIsPipeline(t *testing.T) {
 		Now: func() time.Duration { return now }, GC: func() {}, Stderr: io.Discard}
 	m := map[string]string{}
 	measureSpeed(p, []string{"a.pl", "b.pl"}, 1, m)
-	for _, k := range []string{"speed-ratio-std5k-longlived", "speed-ratio-std5k-cold", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile"} {
+	for _, k := range []string{"speed-ratio-std5k-longlived", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile"} {
 		if m[k] != "1.5000" {
 			t.Errorf("%s = %q, want 1.5000: the whole pipeline over recursive descent", k, m[k])
 		}

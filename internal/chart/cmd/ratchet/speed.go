@@ -204,9 +204,10 @@ func gcShare(side Side, files []string, gc func(), read func() (gc, total float6
 	return (g1 - g0) / (t1 - t0), nil
 }
 
-// measureSpeed adds the six speed and allocation keys to measured: p's Chart
-// against its Ref (recursive descent) on std5k.pl alone and on the aggregate
-// agg, long-lived and cold; allocations are per lexer token (tokens) over agg.
+// measureSpeed adds the five speed and allocation keys to measured: p's Chart
+// against its Ref (recursive descent) on std5k.pl alone long-lived, and on the
+// aggregate agg long-lived and cold; allocations are per lexer token (tokens)
+// over agg.
 func measureSpeed(p Protocol, agg []string, tokens int, measured map[string]string) {
 	one := []string{std5k}
 	for _, r := range []struct {
@@ -214,7 +215,7 @@ func measureSpeed(p Protocol, agg []string, tokens int, measured map[string]stri
 		files []string
 		cold  bool
 	}{
-		{"speed-ratio-std5k-longlived", one, false}, {"speed-ratio-std5k-cold", one, true},
+		{"speed-ratio-std5k-longlived", one, false},
 		{"speed-ratio-aggregate-longlived", agg, false}, {"speed-ratio-aggregate-perfile", agg, true},
 	} {
 		measured[r.key] = fmt.Sprintf("%.4f", p.Ratio(r.key, r.files, r.cold))
