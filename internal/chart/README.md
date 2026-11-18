@@ -339,9 +339,9 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
   population, which now uses resolving recursive descent: that adds 163
   files, and their timing baselines were retaken by VERDICT and KEYS.
 - **Budget.** One run is budgeted at 300 s on the development machine, and
-  is over it: 543 s on pu 7ac822090 before KEYS merged, and 613 to 683 s in
-  KEYS's and WRONGZERO's runs, which chart-perly-w2-inputs `01a1ec3c-556c`
-  covers. Corpus-wide sweeps and
+  is over it: 543 s on pu 7ac822090 before KEYS merged, and 664 and 683 s in
+  KEYS's verifying and baseline runs (its commit message), which
+  chart-perly-w2-inputs `01a1ec3c-556c` covers. Corpus-wide sweeps and
   benchmarks belong here, never in `make test`.
   `BenchmarkLex`, `BenchmarkRecognize` and `BenchmarkExpected` (on
   `std5k.pl`) keep their bodies in `bench.go`, outside a test file, and
