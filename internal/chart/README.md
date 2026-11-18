@@ -1270,8 +1270,9 @@ put it (perly.y:1046, 1330, 1646, 1678, 1680, 1691). The neighbours decide the r
   feature as it was. shortcut: the first prototype is read, where perl takes a later `:prototype(...)` over the parens,
   so `sub A($) :prototype() {1} A *^R;` is accepted and `sub A() :prototype($) {1} A *^R;` refused, each against perl;
   nor is any other attribute read, so `sub A :const {1} A *^R;` is accepted where perl refuses it.
-  shortcut: the empty-prototype flag is the file's, by bare name, so a lexical sub shares a package sub's (`sub A() {1}
-  { my sub A {} A *^R; }` is refused where perl accepts it). Pinned in internal/lexer's
+  shortcut: the empty-prototype flag (constSubs) is the file's, by bare name, read by both `wordTakesTerm` and
+  `declaredNiladic`, so a sub of either kind takes another's whatever its scope: `sub A() {1} { my sub A {} A *^R; }`
+  and `{ my sub A() {1} } sub A {} A *^R;` are refused where perl accepts them. Pinned in internal/lexer's
   `TestGlobCaretNameAfterWord` and `TestGlobCaretNameScope`.
 - A typed my's class name (`my Foo $f;`, perl.git `op/multideref.t`) gets no token: toke.c consumes it (KEY_my's
   `PL_in_my_stash`). chart/lex drops it where its stash exists: one the pinned perl starts with (`main`,

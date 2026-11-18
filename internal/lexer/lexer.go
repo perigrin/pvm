@@ -701,6 +701,8 @@ func (l *lexer) emit(k Kind, start int) {
 		// spells: perl 5.44.0 reads `&gt*&;` as `&gt * &;`.
 		// A keyword stays the keyword unless a lexical sub shadows it here
 		// (LexSub): `our sub if() {42} $x = if if if` is `$x = if() if if()`.
+		// shortcut: constSubs is by bare name for the whole file, as in
+		// wordTakesTerm; upgrade both sites together.
 		declaredNiladic: k == Word && (l.constSubs[string(l.src[start:l.pos])] && (l.toks[len(l.toks)-1].LexSub || !IsKeyword(string(l.src[start:l.pos]))) ||
 			l.afterFuncSigilAt(len(l.toks)-1) || globName),
 		// Only a WORD can need the lookahead, or the `(` of a block-taking

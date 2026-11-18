@@ -1549,9 +1549,11 @@ func (l *lexer) wordTakesTerm(i int) bool {
 	j := l.significantBefore(i)
 	w := string(l.src[l.toks[j].Start:l.toks[j].End])
 	niladic, declared := l.subs[l.qualify(w)]
-	// shortcut: constSubs is the file's, by bare name, so a lexical sub
-	// shares a package sub's empty prototype (`sub A() {1} { my sub A {}
-	// A *^R; }` is refused). Upgrade when lexSubs carries prototypes.
+	// shortcut: constSubs is the file's, by bare name, read here and by
+	// declaredNiladic, so a sub of either kind takes another's empty
+	// prototype whatever its scope (`sub A() {1} { my sub A {} A *^R; }` and
+	// `{ my sub A() {1} } sub A {} A *^R;` are refused). Upgrade both sites
+	// when constSubs is keyed by the declaration perl resolves the name to.
 	if !strings.Contains(w, "::") && !strings.Contains(w, "'") && l.lexSubInScope(w) {
 		niladic, declared = l.constSubs[w], true
 	}

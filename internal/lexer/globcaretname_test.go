@@ -227,7 +227,8 @@ func TestGlobCaretNameScope(t *testing.T) {
 		{"sub A :lvalue {1} A *^R;", glob},
 		// shortcut (scanPrototype): a prototype across lines gets no
 		// Prototype token, so its emptiness is not read. perl -c: syntax
-		// error near "*^", which the chart and RD accept for this paren form.
+		// error near "*^", which RD accepts; the chart lexes the glob and
+		// refuses the file at scope.
 		{"sub A(\n) {1} A *^R;", glob},
 		// `:prototype(...)` across lines is its parens, read as empty when
 		// only space is between them: syntax error near "*^".
@@ -244,12 +245,14 @@ func TestGlobCaretNameScope(t *testing.T) {
 		// ":const is not permitted on named subroutines" and a syntax error
 		// near "*^", which the chart and RD accept.
 		{"sub A :const {1} A *^R;", glob},
-		// shortcut (wordTakesTerm): constSubs is the file's, by bare name, so
-		// a lexical sub shares a package sub's empty prototype. perl -c:
-		// syntax OK on each, which the chart refuses.
+		// shortcut (wordTakesTerm, declaredNiladic): constSubs is the file's,
+		// by bare name, read at both sites, so a sub of either kind takes
+		// another's empty prototype whatever its scope. perl -c: syntax OK on
+		// each, which the chart refuses.
 		{"sub A() {1} { my sub A {} A *^R; }", []string{"Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)", "CloseBracket(})"}},
 		{"sub A() {1} my sub A($) {} A *^R;", mul},
 		{"{ my sub A() {1} } { my sub A {} A *^R; }", []string{"Operator(*)", "Operator(^)", "Word(R)", "Semicolon(;)", "CloseBracket(})"}},
+		{"{ my sub A() {1} } sub A {} A *^R;", mul},
 		// A lexical sub is declared only in its scope: syntax error near
 		// "*^" after the block, syntax OK inside it; an `our` sub is the
 		// package's (syntax OK).
