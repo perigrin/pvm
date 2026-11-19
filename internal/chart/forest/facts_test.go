@@ -216,10 +216,26 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
 		{`use feature "refaliasing"; no warnings; our %h; \%h = {}; (\%h) = ({}); for \%h ({}) {} \local %h = {};`, 1, 0},
 		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
-		{`our %h; my $r = \%h;`, 2, 0}, // srefgen over rv2hv
-		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0},
+		{`our %h; my $r = \%h;`, 2, 0},                      // srefgen over rv2hv
+		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0}, // multideref($h{$x}) and multideref($h{$$})
 		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
-		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1}, // multideref($h{$x}) and multideref($h{$$})
+		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
+		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:
+		// padhv, refassign), perl.git op/lvref.t:483
+		{`use feature qw(refaliasing declared_refs); no warnings; our @for; for \my %a({5,6},{7,8}) { push @for, %a; }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; for my \%a ({}) { my @k = keys %a }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; my \%a = {}; my @k = keys %a;`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our \%h = {}; \our %g = {};`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our \%h = {}; my @k = keys %h; my $r = \our %g;`, 2, 0}, // keys reads the package hash; \our %g is rv2hv
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; my $x; (\%h, $x) = ({}, 1); ($x, \%g) = (1, {});`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; (\%h, \%g) = ({}, {});`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; local \%h = {};`, 1, 0},
+		// S_simplify_sort drops these too: a trailing ;, parentheses, $::a in main; its neighbours keep their block
+		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 0},
+		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 0},
+		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 2, 0},
+		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 2, 0},
+		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
 		// shortcut row: a file calling export_lexically may have made %h lexical (Concise: padhv), so its reads hedge
 		{`BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0, 1},
 		{`(my %h = ()), my @k = keys %h;`, 1, 0}, // the my is introduced at the statement's end: keys reads the package's

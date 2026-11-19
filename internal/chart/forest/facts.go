@@ -211,6 +211,7 @@ type subjectFacts struct {
 	hashes    *hashScopes                 // what each hash name is at a token
 	levels    []int32                     // the element level nodes, by their first token
 	up        [][]upRef                   // where each node reachable from the root stands
+	pkg       []string                    // the package at each token
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -243,7 +244,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
-		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes()}
+		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes(), pkg: r.pkg}
 	for i, nd := range f.Nodes {
 		if nd.Alt != 0 && sf.g.level[f.Alts[nd.Alt].Rule].ok {
 			sf.levels = append(sf.levels, int32(i))
@@ -1191,8 +1192,8 @@ func (r *resolver) hashScopes() *hashScopes {
 		if !ok || !r.isWord(k) {
 			continue
 		}
-		vars := []int{k + 1}
-		if k+2 < r.n && r.isWord(k+1) && !r.is(k+2, "(") { // my Class %h
+		vars, refalias := []int{k + 1}, r.is(k+1, "\\")
+		if k+2 < r.n && (r.isWord(k+1) && !r.is(k+2, "(") || r.is(k+1, "\\")) { // my Class %h, my \%h
 			vars[0] = k + 2
 		}
 		if j := vars[0]; j < r.n && r.is(j, "(") {
@@ -1210,12 +1211,18 @@ func (r *resolver) hashScopes() *hashScopes {
 		}
 		from, to := r.statementEnd(r.s.Raw[r.s.Tokens[r.introAt(k)].Index].Start), r.scopeEnd(k)
 		at, _ := slices.BinarySearchFunc(r.s.Tokens, from, func(t lex.Token, b int) int { return r.s.Raw[t.Index].Start - b })
+		if loop := r.loopBody(k); loop > 0 { // for my \%a (...) {...} and for \my %a: the alias is the body's
+			at, to = k+1, loop
+		}
 		for _, j := range vars {
 			if j >= r.n {
 				continue
 			}
 			if t := r.text(j); strings.HasPrefix(t, "%") && hashName(t) != "" && !strings.Contains(hashName(t), "::") {
 				h.declared[j] = kind
+				if refalias {
+					h.declared[j] = hashLexical // a refalias builds no rv2hv, our's included (Concise: our \%h = {})
+				}
 				h.decls[hashName(t)] = append(h.decls[hashName(t)], hashDecl{at, to, kind})
 			}
 		}
@@ -1264,6 +1271,34 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 // sigHash is a signature's hash parameter.
 var sigHash = regexp.MustCompile(`%\s*(\w+)`)
 
+// loopBody is the token closing the body of the foreach whose iterator a declaration at token k declares, or 0.
+func (r *resolver) loopBody(k int) int {
+	before := k - 1
+	if before > 0 && r.is(before, "\\") {
+		before--
+	}
+	if before < 0 || !r.is(before, "for") && !r.is(before, "foreach") {
+		return 0
+	}
+	j := k
+	for j < r.n && !r.is(j, "(") {
+		j++
+	}
+	for depth := 0; j < r.n; j++ {
+		if r.is(j, "(") {
+			depth++
+		} else if r.is(j, ")") {
+			if depth--; depth == 0 {
+				break
+			}
+		}
+	}
+	if j+1 < r.n && r.is(j+1, "{") && r.match[j+1] >= 0 {
+		return r.match[j+1]
+	}
+	return 0
+}
+
 // introAt is the token whose statement's end introduces a declaration at token k: k itself where it stands in a
 // condition, whose ) introduces it, else the outermost parenthesis it stands in, so that `(my %h = ()), keys %h`
 // reads the package hash (perly.y's intro_my at the statement's end).
@@ -1271,12 +1306,12 @@ func (r *resolver) introAt(k int) int {
 	at, depth := k, 0
 	for i := k - 1; i >= 0; i-- {
 		switch {
-		case r.is(i, ")"):
+		case r.is(i, ")") || r.is(i, "]"):
 			depth++
-		case r.is(i, "(") && depth > 0:
+		case (r.is(i, "(") || r.is(i, "[")) && depth > 0:
 			depth--
-		case r.is(i, "("):
-			if i > 0 && slices.Contains([]string{"if", "unless", "elsif", "while", "until", "for", "foreach"}, r.text(i-1)) {
+		case r.is(i, "(") || r.is(i, "["):
+			if r.is(i, "(") && i > 0 && slices.Contains([]string{"if", "unless", "elsif", "while", "until", "for", "foreach"}, r.text(i-1)) {
 				return k
 			}
 			at = i
@@ -1535,14 +1570,45 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 	return ctxUnknown
 }
 
-// simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag: { $a <=> $b },
-// { $b <=> $a }, { $a cmp $b } or { $b cmp $a } (`sort { lc $a cmp lc $b }` keeps its block).
+// simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag: one statement
+// whose op is <=> or cmp over the package $a and $b, either way round. Parentheses and a trailing ; build no op, and
+// $::a and $main::a are $a where the package is main, since it checks GvSTASH(gv) == PL_curstash (Concise: each of
+// { $a <=> $b; }, { ($a <=> $b) } and { $::a <=> $::b } is dropped; `sort { lc $a cmp lc $b }` keeps its block).
+// shortcut: a lexical my $a in scope makes the block a padsv comparison perl keeps; upgrade if one is met.
 func (sf *subjectFacts) simpleSort(k int) bool {
-	if k+4 >= len(sf.s.Tokens) || sf.text(k) != "{" || sf.text(k+4) != "}" {
+	if k >= len(sf.s.Tokens) || sf.text(k) != "{" {
 		return false
 	}
-	x, op, y := sf.text(k+1), sf.text(k+2), sf.text(k+3)
-	return (op == "<=>" || op == "cmp") && (x == "$a" && y == "$b" || x == "$b" && y == "$a")
+	var ts []string
+	for j, depth := k+1, 1; j < len(sf.s.Tokens); j++ {
+		switch t := sf.text(j); t {
+		case "{":
+			depth++
+		case "}":
+			depth--
+		}
+		if depth == 0 {
+			break
+		}
+		ts = append(ts, sf.text(j))
+	}
+	for len(ts) > 0 && ts[len(ts)-1] == ";" {
+		ts = ts[:len(ts)-1]
+	}
+	for len(ts) > 2 && ts[0] == "(" && ts[len(ts)-1] == ")" {
+		ts = ts[1 : len(ts)-1]
+	}
+	if len(ts) != 3 || ts[1] != "<=>" && ts[1] != "cmp" {
+		return false
+	}
+	name := func(t string) string {
+		if sf.pkg[k] == "main" {
+			t = strings.Replace(strings.Replace(t, "$main::", "$", 1), "$::", "$", 1)
+		}
+		return t
+	}
+	x, y := name(ts[0]), name(ts[2])
+	return x == "$a" && y == "$b" || x == "$b" && y == "$a"
 }
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".
@@ -1573,7 +1639,7 @@ func (sf *subjectFacts) refaliased(n int32) bool {
 		case strings.HasPrefix(lhs, "bare_statement_for") && (strings.Contains(joined, "REFGEN") || strings.Contains(joined, "my_refgen")):
 			return true
 		case len(sf.g.rhs[u.rule]) == 1, joined == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE",
-			joined == "listexpr PERLY_COMMA term", joined == "KW_LOCAL term":
+			joined == "listexpr PERLY_COMMA term", joined == "KW_LOCAL term", lhs == "myattrterm":
 			if sf.refaliased(u.p) {
 				return true
 			}
@@ -1582,12 +1648,13 @@ func (sf *subjectFacts) refaliased(n int32) bool {
 	return false
 }
 
-// assigned is whether node n is an assignment's left side.
+// assigned is whether node n is an assignment's left side, or an item of one.
 func (sf *subjectFacts) assigned(n int32) bool {
 	for _, u := range sf.owners(n) {
 		switch rhs := sf.g.rhs[u.rule]; {
-		case len(rhs) == 1 || strings.Join(rhs, " ") == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
-			if sf.assigned(u.p) {
+		case len(rhs) == 1, slices.Contains([]string{"PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE", "listexpr PERLY_COMMA term",
+			"KW_LOCAL term"}, strings.Join(rhs, " ")):
+			if sf.assigned(u.p) { // through parentheses, a list's items and local: (\%h, $x) = ... and local \%h = ...
 				return true
 			}
 		case sf.g.lhs[u.rule] == "termbinop" && rhs[1] == "ASSIGNOP" && u.idx == 0:
