@@ -502,6 +502,9 @@ func (sf *subjectFacts) hashSite(n int32, a Alt) (unsure, ok bool) {
 	}
 	switch sf.g.hash[a.Rule] {
 	case hashNamed:
+		if sf.refaliased(n) {
+			return false, false
+		}
 		return sf.named(int(nd.From))
 	case hashSlice:
 		if base := sf.f.Nodes[sf.child(a, 3)]; base.To == base.From+1 && len(sf.text(int(base.From))) > 1 {
@@ -638,7 +641,7 @@ func (sf *subjectFacts) derefSites(n int32, a Alt) (decided, hedged []int) {
 		return nil, nil
 	}
 	tops, other := sf.chains(int(op.From), int(op.To))
-	if other || ctx == ctxUnknown {
+	if other || ctx == ctxUnknown && len(tops) > 0 {
 		return nil, []int{site(kindHash, at)}
 	}
 	for _, t := range tops {
@@ -776,6 +779,12 @@ const (
 func (sf *subjectFacts) key(n int32) int {
 	from, to := int(sf.f.Nodes[n].From), int(sf.f.Nodes[n].To)
 	kind := func(k int) lexer.Kind { return sf.s.Raw[sf.s.Tokens[k].Index].Kind }
+	if to > from+1 && sf.text(from) == "+" && kind(from+1) == lexer.Variable {
+		from++ // unary plus builds no op (Concise: $h{+$x} is multideref($h{$x})); +word is a call, not a string
+	}
+	if to == from+1 && sf.text(from) == "$$" {
+		return keySimple // a punctuation scalar is a gvsv (Concise: $h{$$} is multideref($h{$$}))
+	}
 	if to == from+1 {
 		switch t := sf.text(from); kind(from) {
 		case lexer.Number, lexer.Word:
@@ -1122,13 +1131,16 @@ const (
 type hashScopes struct {
 	decls    map[string][]hashDecl
 	declared map[int]int
+	exports  bool // the file names export_lexically
 }
 
 type hashDecl struct{ from, to, kind int }
 
 // at is what the hash a token's text names is at token k: the declaration its own token makes, else the innermost
 // in scope, else a package hash. A qualified name is always a package's.
-// shortcut: a lexical %h a module's import installs (builtin::export_lexically) is not seen, so its uses read as the
+// In a file that names export_lexically, a package hash is unsure: the call may have made it lexical (Concise: `BEGIN {
+// builtin::export_lexically("%h" => {}) } keys %h` is padhv).
+// shortcut: a lexical %h a module's import installs with export_lexically is not seen, so its uses read as the
 // package hash; upgrade if parse.Imports reports lexical exports.
 func (h *hashScopes) at(text string, k int) int {
 	if kind, ok := h.declared[k]; ok {
@@ -1140,6 +1152,9 @@ func (h *hashScopes) at(text string, k int) int {
 			kind, best = d.kind, d.from
 		}
 	}
+	if kind == hashPackage && h.exports && !strings.Contains(hashName(text), "::") {
+		return hashUnknown
+	}
 	return kind
 }
 
@@ -1147,7 +1162,7 @@ func (h *hashScopes) at(text string, k int) int {
 // (perly.y's intro_my) to their block's end, or to the end of the if, unless, while, until or for whose condition
 // declares them; our's, the package hash, over the same span; and a signature's, over its sub's body.
 func (r *resolver) hashScopes() *hashScopes {
-	h := &hashScopes{decls: map[string][]hashDecl{}, declared: map[int]int{}}
+	h := &hashScopes{decls: map[string][]hashDecl{}, declared: map[int]int{}, exports: strings.Contains(string(r.src), "export_lexically")}
 	feature := func(k int, f lex.Feature) (int, bool) {
 		switch fs := r.s.FeaturesAt(k); {
 		case fs.On&f != 0:
@@ -1193,7 +1208,7 @@ func (r *resolver) hashScopes() *hashScopes {
 				vars = append(vars, j)
 			}
 		}
-		from, to := r.statementEnd(r.s.Raw[r.s.Tokens[k].Index].Start), r.scopeEnd(k)
+		from, to := r.statementEnd(r.s.Raw[r.s.Tokens[r.introAt(k)].Index].Start), r.scopeEnd(k)
 		at, _ := slices.BinarySearchFunc(r.s.Tokens, from, func(t lex.Token, b int) int { return r.s.Raw[t.Index].Start - b })
 		for _, j := range vars {
 			if j >= r.n {
@@ -1248,6 +1263,29 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 
 // sigHash is a signature's hash parameter.
 var sigHash = regexp.MustCompile(`%\s*(\w+)`)
+
+// introAt is the token whose statement's end introduces a declaration at token k: k itself where it stands in a
+// condition, whose ) introduces it, else the outermost parenthesis it stands in, so that `(my %h = ()), keys %h`
+// reads the package hash (perly.y's intro_my at the statement's end).
+func (r *resolver) introAt(k int) int {
+	at, depth := k, 0
+	for i := k - 1; i >= 0; i-- {
+		switch {
+		case r.is(i, ")"):
+			depth++
+		case r.is(i, "(") && depth > 0:
+			depth--
+		case r.is(i, "("):
+			if i > 0 && slices.Contains([]string{"if", "unless", "elsif", "while", "until", "for", "foreach"}, r.text(i-1)) {
+				return k
+			}
+			at = i
+		case depth == 0 && (r.is(i, ";") || r.is(i, "{") || r.is(i, "}")):
+			return at
+		}
+	}
+	return at
+}
 
 // scopeEnd is the token after the scope a declaration at token k ends with: its block's, or, where it stands in the
 // condition of an if, unless, elsif, while, until, for or foreach, the end of that statement's last block.
@@ -1480,6 +1518,9 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 				return ctxAggregate
 			}
 		case "grep", "map", "sort":
+			if word == "sort" && block && sf.simpleSort(int(sf.f.Nodes[u.p].From)+1) {
+				return ctxRead // S_simplify_sort drops the block (Concise: sort { $a <=> $b } @{$r->{a}} is multideref)
+			}
 			if block || !first {
 				return ctxAggregate
 			}
@@ -1492,6 +1533,16 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 		}
 	}
 	return ctxUnknown
+}
+
+// simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag: { $a <=> $b },
+// { $b <=> $a }, { $a cmp $b } or { $b cmp $a } (`sort { lc $a cmp lc $b }` keeps its block).
+func (sf *subjectFacts) simpleSort(k int) bool {
+	if k+4 >= len(sf.s.Tokens) || sf.text(k) != "{" || sf.text(k+4) != "}" {
+		return false
+	}
+	x, op, y := sf.text(k+1), sf.text(k+2), sf.text(k+3)
+	return (op == "<=>" || op == "cmp") && (x == "$a" && y == "$b" || x == "$b" && y == "$a")
 }
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".
@@ -1507,6 +1558,28 @@ func (sf *subjectFacts) owner(n int32) string {
 		}
 	}
 	return ""
+}
+
+// refaliased is whether hash node n is what a refalias assigns, under a \ (through parentheses, lists and local) that
+// is an assignment's left side or foreach's alias: perl builds no rv2hv for it (Concise: `\%h = {}`, `(\%h) = ...`,
+// `\local %h = ...` and `for \%h (...)` are refassign or an iterator over gv(*h); perl.git op/lvref.t).
+func (sf *subjectFacts) refaliased(n int32) bool {
+	for _, u := range sf.owners(n) {
+		switch lhs, joined := sf.g.lhs[u.rule], strings.Join(sf.g.rhs[u.rule], " "); {
+		case joined == "REFGEN term":
+			if sf.assigned(u.p) {
+				return true
+			}
+		case strings.HasPrefix(lhs, "bare_statement_for") && (strings.Contains(joined, "REFGEN") || strings.Contains(joined, "my_refgen")):
+			return true
+		case len(sf.g.rhs[u.rule]) == 1, joined == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE",
+			joined == "listexpr PERLY_COMMA term", joined == "KW_LOCAL term":
+			if sf.refaliased(u.p) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assigned is whether node n is an assignment's left side.

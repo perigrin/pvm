@@ -210,6 +210,19 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
 		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
 		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
+		// S_simplify_sort drops a { $a <=> $b } block, so the list is read (Concise: multideref($r->{"a"})); lc keeps one
+		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 1, 0},
+		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 0},
+		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
+		{`use feature "refaliasing"; no warnings; our %h; \%h = {}; (\%h) = ({}); for \%h ({}) {} \local %h = {};`, 1, 0},
+		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
+		{`our %h; my $r = \%h;`, 2, 0}, // srefgen over rv2hv
+		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0},
+		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
+		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1}, // multideref($h{$x}) and multideref($h{$$})
+		// shortcut row: a file calling export_lexically may have made %h lexical (Concise: padhv), so its reads hedge
+		{`BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0, 1},
+		{`(my %h = ()), my @k = keys %h;`, 1, 0}, // the my is introduced at the statement's end: keys reads the package's
 	} {
 		got := SubjectFacts(tab, []byte(c.src), "h.pl", Scope{})
 		if !got.OK {
