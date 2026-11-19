@@ -796,30 +796,6 @@ func (p *parser) finish(root *Node) {
 		root.imports[name] = imp // lexical, so it shadows a package's import of the name
 	}
 	root.libraryOperators = p.libraryOperatorsIn(root)
-
-	// A local sub shadows an import, and its OWN prototype is the one
-	// that applies. Done after the whole file is parsed so that
-	// `Imports()` reports EVERY sub the file declares, wherever it sits
-	// -- a consumer asking "what does this file define" wants the one
-	// below the call as much as the one above it.
-	//
-	// This is NOT what a call site reads, and the distinction is perl's.
-	// A call sees only declarations already parsed, which is why
-	// parseSubDecl records each one as it is read (decl.go, declareSub):
-	// `f 1, 2; sub f { }` is a syntax error in perl and this pass, run
-	// after the fact, would wrongly make it a call. The two populations
-	// differ deliberately, and only this one is complete.
-	for name, proto := range readModule(root).protos {
-		if root.imports == nil {
-			root.imports = map[string]Import{}
-		}
-		root.imports[name] = Import{
-			Name:           name,
-			Prototype:      proto,
-			PrototypeKnown: true,
-			Local:          true,
-		}
-	}
 }
 
 // refuseUnclosedOpener refuses a file that ends with a `(`, `[` or `{` still

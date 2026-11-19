@@ -667,6 +667,28 @@ func TestResolveOurSubAlwaysMain(t *testing.T) {
 		{`package Foo; { our sub X ($) {1} } X 1, 2;`, true},
 		{`package Foo; our sub X ($) {1} package Bar; X 1, 2;`, true},
 		{`package Foo; { our sub X ($) {1} package Bar; X 1, 2; }`, true},
+		// a declared sub elsewhere does not hide an import of its name into main, by a BEGIN glob, a required file or
+		// a module: perl and recursive descent accept each
+		{`BEGIN { *ENV = \&CORE::length } { package Foo; our sub ENV {1} } ENV 1, 2;`, true},
+		{`BEGIN { *ENV = \&CORE::length } { package Foo; our sub ENV {1} } ENV 1;`, true},
+		{`BEGIN { require "./h.pl" } { package Foo; our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub {1} } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = sub {1} } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } { our sub STDOUT ($) {1} } package Bar; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } { our sub STDOUT ($) {1} } package main; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } { our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./h.pl" } { our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; { our sub ENV {1} } BEGIN { *ENV = sub ($) {1} } ENV 1, 2;`, true},
+		{`use E; { package Foo; our sub ENV {1} } ENV 1;`, true},
+		{`BEGIN { *X = \&CORE::length } { package Foo; sub X {1} } X 1;`, true},
+		{`use M qw(foo); { package Foo; sub foo {1} } foo 1;`, true},
+		// and an import into Foo, or Foo's own glob, is not main's: perl refuses both
+		{`package Foo; BEGIN { *X = \&CORE::length } { our sub X {1} } package main; X 1;`, false},
+		{`package Foo; use E; { our sub ENV {1} } ENV 1;`, false},
 	})
 }
 
