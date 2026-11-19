@@ -202,15 +202,17 @@ refuses the last four since 5.30, which removed `$#` and `$*`; the lexer emits
 them as ordinary variables (`$foo->$ *` as `Variable "$ *"`, `$foo->$#` as
 `Variable "$#"`), a root filed as v0.1 `01a1b717-ad05`.
 
-Three limits hold off the corpus, where the gates cannot see them:
+Two limits hold off the corpus, where the gates cannot see them:
 
 - **Refused where perl accepts.** `$y = x { 1 };` and `sub x {1} $y = x 1, 2;`
   are refused (`perl -c`: syntax OK). After a statement-start token (a file's
   start, `;`, a block's `{` or `}`, a label's colon) the table
   (`grammar/perly.go`, `addStatementX`) gives the word `x` every reading any
   plain word gets there, so `x {1};`, `sub x {} x {1};` and
-  `sub x {1} x 1, 2;` are accepted as perl accepts them
-  (`TestScopeDecidedParity`); elsewhere `x` where no operator is
+  `sub x {1} x 1, 2;` are recognized as perl accepts them
+  (`TestScopeDecidedParity`), and `forest.Parse` accepts all but
+  `sub x {} x {1};`, which it refuses as it refuses `sub foo {} foo {1};`
+  (see "Resolve": internal/lexer opens that `{` as a block); elsewhere `x` where no operator is
   expected is still `BAREWORD` only, plus `PRIVATEREF` before `(`. The ruling
   (01a18fa6-ec70) makes `x` a word wherever an operator is not expected; the
   rest of that is a shortcut, pinned in `TestPortScopeDecidedKnownLimits`.
@@ -369,9 +371,13 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
 and a chart issue changes only `internal/chart/` unless perigrin rules another
 path in for it. chart-perly-w2's lexer and parse issues changed both under such
 rulings, recorded in its Records and its scope criterion (LIBOPSEXPORT's
-`internal/parse` exports, ORACLEFACTS' `internal/parseoracle/corpus.go`, and on
+`internal/parse` exports, ORACLEFACTS' `internal/parseoracle/corpus.go`, on
 2026-11-18 the `internal/lexer` and `internal/parse` files the w2 lexer and
-parse issues changed). A lexer defect found here without such a ruling is filed
+parse issues changed, and on 2026-11-19 `internal/parse/use.go` for REVIEWFIX3
+("Rule parse in") and REVIEWFIX4 ("REVIEWFIX4, parse in"),
+`internal/parse/shape.go` ("Rule shape.go in") and `internal/parse/decl.go`
+("Rule decl.go in") for REVIEWFIX3, and `internal/parse/parse.go` and
+`exports.go` for REVIEWFIX4 ("Rule parse.go in")). A lexer defect found here without such a ruling is filed
 against the v0.1 milestone and listed — on `lex-unmapped`'s known list, or on
 the lexer-defect list — never worked around.
 
@@ -1553,14 +1559,18 @@ a block after a word and a bareword (an indirect object or a filehandle), empty 
 by `,` or `=>`, is refused where perl reads an anonymous hash (01a1e9a2): `method foo {}` with the class feature off,
 `new Foo {};`, `meth foo {};` and `new Foo { %h };` (perl's `Foo->new({...})`), and `print STDOUT {};`. internal/lexer
 marks that `{` a block, so the forest holds no method-call or print-list reading of it and resolve finds the word
-undeclared.
+undeclared. The same `{` after a declared sub with no prototype or a `$` one, where toke.c's XTERM reads an anonymous
+hash, is refused too: `sub x {} x {1};`, `sub foo; foo {};`, `sub foo; my $x = foo {1};`, `sub foo {} foo {1};` and
+`sub foo ($); foo {1};`, which perl and recursive descent accept (shortcut in `called`, pinned in
+`TestResolveKnownLimits`); `sub foo; foo { a => 1 };` is accepted.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
-scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,557 files); and resolve refuses no Guacamole case (each under
-`use feature ':5.36'`) or `std5k.pl` that perl and recognition accept (`TestResolveFeaturesKeepCorpusAccepted`). Over the 2,068 labelled files perl and
-recognition accept, perl.git `t/` included, resolve refuses four: `t/uni/parser.t` (`*{` after a call),
-above, and three recursive descent refuses too. `t/perf/opcount.t`, refused while parse.Imports did not report
-`use builtin`'s imports, is accepted. `TestResolvedForestDigestGolden` holds the forests `forest.Parse` leaves of the forest's
+scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,654 files at 1f700a15f); and resolve refuses no Guacamole case (each under
+`use feature ':5.36'`) or `std5k.pl` that perl and recognition accept (`TestResolveFeaturesKeepCorpusAccepted`). Over the ratchet's labelled population (in-tree, T1 and perl.git `t/`), 2,231 files the pinned
+perl and recognition accept, `forest.Parse` refuses three, each of which recursive descent refuses too:
+`T1/hash_util_fieldhash_identity.t`, `T1/interpreter_chained_method_invocant_lifetime.t` and perl.git
+`op/hash-clear-placeholders.t` (measured on 2026-11-19 with resolve as at 1f700a15f, through the ratchet's `corpus`,
+`perlGit` and `realInputs`). `TestResolvedForestDigestGolden` holds the forests `forest.Parse` leaves of the forest's
 sample, constrained by precedence and resolved, to
 `forest/testdata/resolved-forest-digest.golden` (only `-forest.update-resolved-digest` rewrites it).
 
@@ -2224,14 +2234,18 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   checked against `perl -MO=Concise`): a named hash, `%h`, `@h{...}` or
   `%h{...}`, only where it is a package hash, since toke.c's `S_pending_ident`
   makes a name it finds in the pad padhv (a `my`, `state`, `field` or
-  signature hash, in scope from the end of its statement, the whole statement
+  signature hash, a `%name` directly after the signature's own `(` or `,` and
+  not one in a default, in scope from the end of its statement, the whole statement
   where it stands in parentheses, to its block's end,
   or to the end of the `if`, `while` or `for` whose condition declares it; an
   `our` is the package's); a dereference (`%$r`, `%{...}`, `->%*`, `->%{`,
   `@$r{...}`, `->@{`), never `%h[...]` or `->%[`, which slice an array; and an
   element level `{...}` as peep.c's `S_maybe_multideref` folds it: none while
   its key is a constant or a plain scalar, one for a computed key (a variable
-  read, an interpolating string, a `,` or a `qw` of two words) unless a folded
+  read, a string that interpolates as toke.c's `scan_const` reads it (a `$`
+  before anything, an `@` before a name or one of `:'{$+-`), any quote that is
+  no string (`qr`, `m`, `s`, `tr`, a backtick), a `,` or a `qw` of two words;
+  a `qw` interpolates nothing) unless a folded
   run comes before it, unsure for a key that may fold (a call). Where a chain
   that reads through a reference or a package hash is dereferenced
   (`@{$r->{a}}`, `->@*`), the context op.c's `op_lvalue` and `doref` give the
@@ -2373,9 +2387,11 @@ totals are not one measure. Both read what is done with a dereferenced chain;
 recursive descent hedges a package hash read after any module import or
 `BEGIN` block, where the chart decides it. Before HASHFACTS the chart reported
 a hash site at every hash-shaped token, which perl's grading cannot penalise,
-so its rv2hv lead was not a parse result. The split per marker, from
-`go run ./internal/chart/cmd/ratchet oracle` on HASHFACTS's tree (exact /
-wider / WRONG / no-answer):
+so its rv2hv lead was not a parse result. The split per marker (exact /
+wider / WRONG / no-answer), measured at 1f700a15f and unchanged by REVIEWFIX5's
+hash-fact fixes, is a reading, not a contract: re-run
+`T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit go run ./internal/chart/cmd/ratchet oracle`
+from the repository root for the current counts.
 
 | corpus | marker | chart | recursive descent |
 |---|---|---|---|
