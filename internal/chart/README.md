@@ -2243,12 +2243,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   level, and a read (`my @x = @{...}`, `print`, `join`, a condition) none; a
   postfix slice `->@{...}` over a level with a constant key folds its own
   rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level;
-  a `sort` block that op.c's `S_simplify_sort` may drop (one `<=>` or `cmp`
-  over `$a` and `$b` spellings, either way round, through parentheses, a `;`
-  or a unary `+`) always hedges: the chart never decides it dropped, since a
-  lexical `$a` or `$b` in scope, however declared, makes it a padsv
-  comparison perl keeps. The one decided case is `$::a`/`$main::a` outside
-  main, which perl always keeps (`GvSTASH(gv) != PL_curstash`).
+  a `sort` block whose body is a single top-level `<=>` or `cmp` with an
+  operand on each side (through enclosing parentheses or a `;` at either end)
+  always hedges, whatever its operands, since op.c's `S_simplify_sort` drops
+  that shape when they are the current stash's `$a` and `$b`, which neither
+  their spelling nor lexical declarations let the chart settle; any other
+  block is kept, as perl keeps it.
   A refalias of a package hash (`\%h = ...`, `(\%h, $x) = ...`, `local \%h`,
   `\local %h`, `our \%h`, `our (\%h, ...)`, `\our %h = ...`, `for \%h
   (...)`) builds no rv2hv, and one that declares a lexical (`my \%a`, `\my

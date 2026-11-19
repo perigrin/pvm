@@ -210,8 +210,9 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
 		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
 		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
-		// a sort block S_simplify_sort may drop hedges, since a lexical $a or $b would make perl keep it; lc keeps one
-		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 1, 1},
+		// a sort block of S_simplify_sort's shape, one top-level <=> or cmp, hedges whatever its operands: perl drops
+		// { $a <=> $b } and keeps { lc $a cmp lc $b } (Concise), and the chart does not read operands
+		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 0, 2},
 		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 1},
 		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
 		{`use feature "refaliasing"; no warnings; our %h; \%h = {}; (\%h) = ({}); for \%h ({}) {} \local %h = {};`, 1, 0},
@@ -230,24 +231,30 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; my $x; (\%h, $x) = ({}, 1); ($x, \%g) = (1, {});`, 2, 0},
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; (\%h, \%g) = ({}, {});`, 2, 0},
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; local \%h = {};`, 1, 0},
-		// a trailing ;, parentheses, $::a in main and $Foo::a in Foo hedge too; the neighbours are no such block
+		// a trailing ;, parentheses, $::a in main and $Foo::a in Foo hedge too
 		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 2},
 		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 2},
-		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 2, 0},
-		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 2, 0},
+		// any other block is kept, as perl keeps it: or leaves the comparison below the block's last op
+		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 1, 1},
+		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 0, 2},
 		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
-		// other spellings of one comparison of $a and $b hedge too (Concise: each builds 0); $::a outside main is not
-		// $a there, so perl keeps the block (GvSTASH(gv) != PL_curstash) and the chart decides it
+		// other spellings of one comparison of $a and $b hedge too (Concise: each builds 0), as does $::a outside main,
+		// which perl keeps (GvSTASH(gv) != PL_curstash)
 		{`my $r = {}; my @s = sort { ($a) <=> ($b) } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { ;$a <=> $b } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { ${a} <=> ${b} } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { +$a <=> $b } @{$r->{a}};`, 0, 1},
 		{`package Foo; my $r = {}; my @s = sort { $Foo::a <=> $Foo::b } @{$r->{a}};`, 0, 1},
-		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0}, // perl always keeps it (Concise)
+		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1}, // perl keeps it, the chart hedges
 		// a lexical $a or $b perl reads as a padsv comparison, which it keeps (Concise: 1 rv2hv each): the hedge covers it
 		{`my ($x, ($a)); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
 		{`CORE::my $a; my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
-		{`package Foo; my $a; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0}, // kept, decided
+		{`package Foo; my $a; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1},
+		// operands perl drops though their spelling hides it: a newline or comment after the sigil, and $::a in a
+		// package whose stash is main's (Concise: 0 rv2hv each)
+		{"my $r = {}; my @s = sort { $\na <=> $b } @{$r->{a}};", 0, 1},
+		{"my $r = {}; my @s = sort { $ # c\na <=> $b } @{$r->{a}};", 0, 1},
+		{`package main::main; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1},
 		// any other spelling of $a hedges, ' and a doubled main:: included (Concise: each is dropped, 0 rv2hv)
 		{`my $r = {}; my @s = sort { $main'a <=> $main'b } @{$r->{a}};`, 0, 1},
 		{`package Foo; my $r = {}; my @s = sort { $Foo'a <=> $Foo'b } @{$r->{a}};`, 0, 1},

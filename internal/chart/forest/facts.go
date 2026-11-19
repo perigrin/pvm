@@ -1579,19 +1579,20 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 	return ctxUnknown
 }
 
-// sortHedge is whether the sort block opening at token k is one op.c's S_simplify_sort may replace by a flag, so the
-// chart hedges it: one statement whose op is <=> or cmp over $a and $b spellings, either way round, through
-// parentheses, a ; or a unary + (Concise: { $a <=> $b }, { ($a <=> $b) }, { $::a <=> $::b } are dropped). The chart
-// never decides such a block dropped, since a lexical $a or $b anywhere in scope makes it a padsv comparison perl keeps
-// (`my ($x, ($a))`, `CORE::my $a`), and no token scan finds every one. The one exception is $::a or $main::a outside
-// main, which perl always keeps (GvSTASH(gv) != PL_curstash), so that block is decided.
+// sortHedge is whether the sort block opening at token k has the one shape op.c's S_simplify_sort can drop, so the
+// chart hedges it: a body (an OP_SCOPE, one statement; a ; at either end adds none) whose last op is <=> or cmp, i.e.
+// one top-level <=> or cmp with an operand on each side, through enclosing parentheses. It drops that shape only
+// when both operands are the package $a and $b of the current stash, which spelling (`$<newline>a`, `$::a` in a
+// package whose stash is main's) and lexicals (`CORE::my $a`) can hide, so the chart never reads the operands: such a
+// block always hedges, and any other block is kept, as perl keeps it (Concise: sort { $a <=> $b } @{$r->{a}} is
+// multideref($r->{"a"}), sort { $a <=> $b or 0 } keeps an rv2hv).
 func (sf *subjectFacts) sortHedge(k int) bool {
 	if k >= len(sf.s.Tokens) || sf.text(k) != "{" {
 		return false
 	}
 	var ts []string
 	for j, depth := k+1, 1; j < len(sf.s.Tokens); j++ {
-		switch t := sf.text(j); t {
+		switch sf.text(j) {
 		case "{":
 			depth++
 		case "}":
@@ -1600,31 +1601,61 @@ func (sf *subjectFacts) sortHedge(k int) bool {
 		if depth == 0 {
 			break
 		}
-		if t := sf.text(j); t != ";" && t != "(" && t != ")" && t != "+" {
-			ts = append(ts, t)
+		ts = append(ts, sf.text(j))
+	}
+	for len(ts) > 0 && ts[0] == ";" {
+		ts = ts[1:]
+	}
+	for len(ts) > 0 && ts[len(ts)-1] == ";" {
+		ts = ts[:len(ts)-1]
+	}
+	// closes is the index of the bracket closing the one ts opens at i
+	closes := func(i int) int {
+		for j, depth := i, 0; j < len(ts); j++ {
+			switch ts[j] {
+			case "(", "[", "{":
+				depth++
+			case ")", "]", "}":
+				if depth--; depth == 0 {
+					return j
+				}
+			}
+		}
+		return -1
+	}
+	for len(ts) > 2 && ts[0] == "(" && closes(0) == len(ts)-1 {
+		ts = ts[1 : len(ts)-1]
+	}
+	at, depth := -1, 0
+	for i, t := range ts {
+		switch t {
+		case "(", "[", "{":
+			depth++
+		case ")", "]", "}":
+			depth--
+		case "<=>", "cmp":
+			if depth == 0 {
+				if at >= 0 {
+					return false
+				}
+				at = i
+			}
+		default:
+			// an operator binding looser than <=> leaves the comparison below the block's last op
+			if depth == 0 && looser[t] {
+				return false
+			}
 		}
 	}
-	if len(ts) != 3 || ts[1] != "<=>" && ts[1] != "cmp" {
-		return false
-	}
-	x, y := abName(ts[0]), abName(ts[2])
-	kept := func(t string) bool {
-		return sf.pkg[k] != "main" && (t == "$::a" || t == "$::b" || t == "$main::a" || t == "$main::b")
-	}
-	return (x == "a" && y == "b" || x == "b" && y == "a") && !kept(ts[0]) && !kept(ts[2])
+	return at > 0 && at < len(ts)-1
 }
 
-// abName is the last part of the name a scalar's text spells, with ' read as ::: a for $a, ${ a }, $main'a or $::Foo::a.
-func abName(t string) string {
-	if !strings.HasPrefix(t, "$") {
-		return ""
-	}
-	n := strings.ReplaceAll(strings.Trim(t[1:], "{} \t"), "'", "::")
-	if i := strings.LastIndex(n, "::"); i >= 0 {
-		return n[i+2:]
-	}
-	return n
-}
+// looser are the operators binding looser than <=> and cmp, and ;, which ends the one statement.
+var looser = map[string]bool{";": true, ",": true, "=>": true, "?": true, ":": true, "or": true, "and": true, "xor": true,
+	"not": true, "||": true, "&&": true, "//": true, "..": true, "...": true, "&": true, "|": true, "^": true, "=": true,
+	"+=": true, "-=": true, "*=": true, "/=": true, ".=": true, "x=": true, "**=": true, "%=": true, "||=": true,
+	"&&=": true, "//=": true, "|=": true, "&=": true, "^=": true, "<<=": true, ">>=": true, "==": true, "!=": true,
+	"eq": true, "ne": true, "~~": true}
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".
 func (sf *subjectFacts) owner(n int32) string {
