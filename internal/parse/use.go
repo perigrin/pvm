@@ -949,8 +949,9 @@ func (p *parser) resolveRequiredFile(list *Node) {
 
 	// Rule 3. Every declared sub, with its prototype, because a `.pl` helper
 	// declares into the CALLER'S package, an always-main name into main's
-	// (gvKey), and has no export list to narrow this. Not Local: the name came from another file, and `Local` marks a
-	// sub this file declares itself.
+	// (gvKey), and has no export list to narrow this. Not Local: the name
+	// came from another file, and `Local` marks a sub this file declares
+	// itself.
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
@@ -963,8 +964,9 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 	// A glob it assigns is a sub too, with no prototype this parser reads.
 	for _, name := range facts.globs {
-		if _, ok := p.imports[p.gvKey(name)]; !ok {
-			p.imports[p.gvKey(name)] = Import{Name: name}
+		key := p.gvKey(name)
+		if _, ok := p.imports[key]; !ok {
+			p.imports[key] = Import{Name: name}
 		}
 	}
 }
