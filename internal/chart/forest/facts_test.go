@@ -210,9 +210,9 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
 		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
 		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
-		// S_simplify_sort drops a { $a <=> $b } block, so the list is read (Concise: multideref($r->{"a"})); lc keeps one
-		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 1, 0},
-		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 0},
+		// a sort block S_simplify_sort may drop hedges, since a lexical $a or $b would make perl keep it; lc keeps one
+		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 1, 1},
+		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 1},
 		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
 		{`use feature "refaliasing"; no warnings; our %h; \%h = {}; (\%h) = ({}); for \%h ({}) {} \local %h = {};`, 1, 0},
 		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
@@ -230,34 +230,29 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; my $x; (\%h, $x) = ({}, 1); ($x, \%g) = (1, {});`, 2, 0},
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; (\%h, \%g) = ({}, {});`, 2, 0},
 		{`use feature qw(refaliasing declared_refs); no warnings; our %h; local \%h = {};`, 1, 0},
-		// S_simplify_sort drops these too: a trailing ;, parentheses, $::a in main; its neighbours keep their block
-		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 0},
-		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 0},
+		// a trailing ;, parentheses, $::a in main and $Foo::a in Foo hedge too; the neighbours are no such block
+		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 2},
+		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 2},
 		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 2, 0},
 		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 2, 0},
 		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
-		// a single comparison of other $a/$b spellings may be dropped too, so it hedges (Concise: each builds 0); $::a
-		// outside main is not $a there, so perl keeps the block (GvSTASH(gv) != PL_curstash), and $Foo::a in Foo is
+		// other spellings of one comparison of $a and $b hedge too (Concise: each builds 0); $::a outside main is not
+		// $a there, so perl keeps the block (GvSTASH(gv) != PL_curstash) and the chart decides it
 		{`my $r = {}; my @s = sort { ($a) <=> ($b) } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { ;$a <=> $b } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { ${a} <=> ${b} } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { +$a <=> $b } @{$r->{a}};`, 0, 1},
-		{`package Foo; my $r = {}; my @s = sort { $Foo::a <=> $Foo::b } @{$r->{a}};`, 0, 0},
-		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0},
-		// shortcut row: a lexical $a or $b anywhere in the file makes every sort block a hedge (Concise: padsv, kept)
-		{`my ($a, $b); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $Foo::a <=> $Foo::b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0}, // perl always keeps it (Concise)
+		// a lexical $a or $b perl reads as a padsv comparison, which it keeps (Concise: 1 rv2hv each): the hedge covers it
+		{`my ($x, ($a)); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`CORE::my $a; my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $a; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0}, // kept, decided
 		// any other spelling of $a hedges, ' and a doubled main:: included (Concise: each is dropped, 0 rv2hv)
 		{`my $r = {}; my @s = sort { $main'a <=> $main'b } @{$r->{a}};`, 0, 1},
 		{`package Foo; my $r = {}; my @s = sort { $Foo'a <=> $Foo'b } @{$r->{a}};`, 0, 1},
 		{`package Foo; my $r = {}; my @s = sort { $::Foo::a <=> $::Foo::b } @{$r->{a}};`, 0, 1},
 		{`my $r = {}; my @s = sort { $::main::a <=> $b } @{$r->{a}};`, 0, 1},
-		// a file that may declare a lexical $a or $b hedges every sort block (Concise: padsv, kept, 1 rv2hv each)
-		{`use feature qw(refaliasing declared_refs); no warnings; my \$a = \1; my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
-		{`use feature 'signatures'; sub f ($r, $a) { my @s = sort { $a <=> $b } @{$r->{a}}; }`, 0, 1},
-		{`use feature 'signatures'; my $f = sub ($r, $b) { my @s = sort { $a <=> $b } @{$r->{a}}; };`, 0, 1},
-		{`use feature 'signatures'; sub g :prototype($$) ($r, $a) { my @s = sort { $a <=> $b } @{$r->{a}}; }`, 0, 1},
-		{`use feature 'class'; no warnings; class Foo { field $a; method m ($r) { my @s = sort { $a <=> $b } @{$r->{a}}; } }`, 0, 1},
-		{`BEGIN { builtin::export_lexically('$a' => \1) } my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
 		// \ items of an our (...) list are refaliases; the alias of a foreach is in scope over its body and continue
 		// block, not over its own list
 		{`use feature qw(refaliasing declared_refs); no warnings; our (\%h) = {}; my @k = keys %h; our (\%g, \%f) = ({}, {});`, 1, 0},

@@ -2243,20 +2243,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   level, and a read (`my @x = @{...}`, `print`, `join`, a condition) none; a
   postfix slice `->@{...}` over a level with a constant key folds its own
   rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level;
-  a `sort` whose block op.c's `S_simplify_sort` drops reads its list. The
-  chart decides "dropped" only for one `<=>` or `cmp`, either way round,
-  through parentheses round it or a trailing `;`, whose operands are each
-  spelled exactly `$a`/`$b`, `$::a`/`$main::a` in main, or `$Foo::a` in Foo
-  as its package statement spells it, since perl checks `GvSTASH(gv) ==
-  PL_curstash`; and "kept" only for `$::a`/`$main::a` outside main. Every
-  other spelling whose name is `a` or `b` (`$main'a`, `$::Foo::a`, `${a}`,
-  `$Bar::a`, `($a) <=> ($b)`, `+$a`, a leading `;`) hedges. shortcut: every
-  sort block in a file hedges where an `$a` or `$b`, however spelled, follows
-  `\`, `my`, `our`, `state`, `field` or `local` (or a class name after `my`),
-  stands in a parenthesised list after one of those or in a sub's or method's
-  signature or prototype, or is assigned to, or where the file names
-  `export_lexically`, since a lexical `$a` makes a padsv comparison perl keeps;
-  upgrade if the chart reads scalar scopes.
+  a `sort` block that op.c's `S_simplify_sort` may drop (one `<=>` or `cmp`
+  over `$a` and `$b` spellings, either way round, through parentheses, a `;`
+  or a unary `+`) always hedges: the chart never decides it dropped, since a
+  lexical `$a` or `$b` in scope, however declared, makes it a padsv
+  comparison perl keeps. The one decided case is `$::a`/`$main::a` outside
+  main, which perl always keeps (`GvSTASH(gv) != PL_curstash`).
   A refalias of a package hash (`\%h = ...`, `(\%h, $x) = ...`, `local \%h`,
   `\local %h`, `our \%h`, `our (\%h, ...)`, `\our %h = ...`, `for \%h
   (...)`) builds no rv2hv, and one that declares a lexical (`my \%a`, `\my
