@@ -23,6 +23,9 @@ var testModules = map[string]string{
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
 	// E's subs are qualified, since a bare sub ENV in package E is main's.
 	"E": "package E;\nuse Exporter 'import';\nour @EXPORT = qw(ENV STDOUT);\nsub E::ENV {1}\nsub E::STDOUT {1}\n1;\n",
+	// h.pl and hg.pl are required helpers, which declare into the requiring package.
+	"./h.pl":  "sub STDOUT {1}\n1;\n",
+	"./hg.pl": "*STDOUT = sub {1};\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -162,6 +165,7 @@ func TestResolveKnownLimits(t *testing.T) {
 		// refuses both.
 		{"Foo::bar 1;", true},
 		{"package A; sub foo {} package main; A::bar 1;", true},
+		{"package Foo; { our sub ENV () {1} } package main; main::ENV 1;", true},
 		// shortcut (word): a package created outside the file's package statements, here by naming Foo::bar, makes
 		// new a method to perl, which refuses it.
 		{"sub new {} Foo::bar(); new Foo x 3;", true},
@@ -193,6 +197,18 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
 		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
 		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
+		// and a BEGIN glob alias of the sub's name after it does not replace it; perl and recursive descent take the
+		// alias and accept both.
+		{`sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, false},
+		{`sub foo () {1} BEGIN { *foo = \&CORE::length } foo 1, 2;`, false},
+		// shortcut (noteBeginEffects): only local *X = V is read as localized, so a glob localized by its own
+		// statement and assigned after it is recorded; perl restores it when BEGIN ends and refuses the call.
+		{`BEGIN { local *X; *X = sub {1} } X 1;`, true},
+		// a BEGIN block or a use of a module that is no quiet pragma leaves every feature maybe-on, so the keyword
+		// readings stand where perl, with the feature off, refuses each; recursive descent accepts them too.
+		{`BEGIN { 1 } try { 1 } catch ($e) { 2 }`, true},
+		{`use POSIX (); try { 1 } catch ($e) { 2 }`, true},
+		{`use Data::Dumper; class Foo { field $x; }`, true},
 		// shortcut (classOnly): __CLASS__ is refused only outside a method or a field's initializer, which resolve
 		// does not read; perl refuses it ("Cannot use __CLASS__ outside of a method or field initializer expression").
 		{"use feature 'class'; no warnings; my $x = __CLASS__;", true},
@@ -626,11 +642,71 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 		{`BEGIN { local *X = sub {1} } X 1;`, false},
 		{`BEGIN { local $x = 1; *X = sub {1} } X 1;`, true},
 	})
-	// G2 (01a1f051): perl refuses it ("Number found where operator expected"); the chart accepts it.
-	src := `BEGIN { *X = sub {1} } package Foo; X 1;`
-	if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
-		t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+	// G2 (01a1f051): perl refuses each ("Number found where operator expected"); the chart accepts each, the second
+	// through a glob assigned in a local value.
+	for _, src := range []string{`BEGIN { *X = sub {1} } package Foo; X 1;`, `BEGIN { local $x = *Y = sub ($) {1} } package Foo; Y 1, 2;`} {
+		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+			t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+		}
 	}
+}
+
+// TestResolveOurSubAlwaysMain: an our sub is its package's sub, an always-main name included (&Foo::ENV), with a
+// lexical alias to the end of its block, which reaches across a package statement. Outside the block a bare
+// always-main name reads main's, which has none, so perl -c refuses those rows ("Number found where operator
+// expected"). Each verdict is the pinned perl -c's.
+func TestResolveOurSubAlwaysMain(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`{ package Foo; our sub ENV {1} } ENV 1;`, false},
+		{`{ package Foo; our sub STDOUT {1} } STDOUT 1;`, false},
+		{`package Foo; { our sub ENV {1} } package main; ENV 1;`, false},
+		{`package Foo; { our sub STDOUT ($) {1} } package Bar; STDOUT 1, 2;`, false},
+		{`package Foo; { our sub ENV ($) {1} } ENV 1, 2;`, false},
+		{`package Foo; { our sub ENV ($) {1} ENV 1, 2; }`, true},
+		{`package Foo; { our sub ENV ($) {1} } Foo::ENV 1, 2;`, true},
+		{`package Foo; { our sub X ($) {1} } X 1, 2;`, true},
+		{`package Foo; our sub X ($) {1} package Bar; X 1, 2;`, true},
+		{`package Foo; { our sub X ($) {1} package Bar; X 1, 2; }`, true},
+		// a declared sub elsewhere does not hide an import of its name into main, by a BEGIN glob, a required file or
+		// a module: perl and recursive descent accept each
+		{`BEGIN { *ENV = \&CORE::length } { package Foo; our sub ENV {1} } ENV 1, 2;`, true},
+		{`BEGIN { *ENV = \&CORE::length } { package Foo; our sub ENV {1} } ENV 1;`, true},
+		{`BEGIN { require "./h.pl" } { package Foo; our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub {1} } { our sub ENV {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *ENV = sub {1} } { our sub ENV {1} } ENV 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } { our sub STDOUT ($) {1} } package Bar; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } { our sub STDOUT ($) {1} } package main; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } { our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./h.pl" } { our sub STDOUT {1} } STDOUT 1;`, true},
+		{`package Foo; { our sub ENV {1} } BEGIN { *ENV = sub ($) {1} } ENV 1, 2;`, true},
+		{`use E; { package Foo; our sub ENV {1} } ENV 1;`, true},
+		{`BEGIN { *X = \&CORE::length } { package Foo; sub X {1} } X 1;`, true},
+		{`use M qw(foo); { package Foo; sub foo {1} } foo 1;`, true},
+		// and an import into Foo, or Foo's own glob, is not main's: perl refuses both
+		{`package Foo; BEGIN { *X = \&CORE::length } { our sub X {1} } package main; X 1;`, false},
+		{`package Foo; use E; { our sub ENV {1} } ENV 1;`, false},
+	})
+}
+
+// TestResolveAlwaysMainRequiredAndLocal: a required file's sub of an always-main name is main's whichever package
+// requires it, and a glob assignment nested in the value of a local $x = ... is not localized, so perl -c accepts
+// both; a local glob's own assignment is restored when the BEGIN block ends ("Number found where operator
+// expected"). h.pl and hg.pl are in testModules. Each verdict is the pinned perl -c's.
+func TestResolveAlwaysMainRequiredAndLocal(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; BEGIN { require "./h.pl" } STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./h.pl" } package Bar; STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./hg.pl" } STDOUT 1;`, true},
+		{`BEGIN { local $x = *ENVX = sub ($) {1} } ENVX 1, 2;`, true},
+		{`BEGIN { local $x = (*ENVX = sub ($) {1}) } ENVX 1, 2;`, true},
+		{`BEGIN { local *X = *Y = sub {1} } Y 1;`, true},
+		{`BEGIN { local *X = sub {1} } X 1;`, false},
+		{`BEGIN { local *X = *Y = sub {1} } X 1;`, false},
+	})
 }
 
 // TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, keys an always-main

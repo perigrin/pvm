@@ -209,7 +209,7 @@ func (r *resolver) blockEnd(k int) int {
 // declarations reads the packages and subs the file declares from its
 // forest's statements: a package from its statement's end to its block's, or
 // over its own block; a sub from where its declaration completes, to the
-// file's end, or its block's for a my or state sub.
+// file's end, or its block's for a my or state sub and an our sub's alias.
 func (r *resolver) declarations(f *Forest) {
 	type region struct {
 		from, to int
@@ -261,8 +261,8 @@ func (r *resolver) declarations(f *Forest) {
 // PROTOTYPE token before its body, as written or as a :prototype attribute's.
 func (r *resolver) declare(f *Forest, nd Node) {
 	k := int(nd.From)
-	lexical := r.is(k, "my") || r.is(k, "state")
-	if lexical || r.is(k, "our") {
+	lexical, our := r.is(k, "my") || r.is(k, "state"), r.is(k, "our")
+	if lexical || our {
 		k++
 	}
 	if !r.is(k, "sub") || !r.isWord(k+1) {
@@ -276,12 +276,18 @@ func (r *resolver) declare(f *Forest, nd Node) {
 			d.proto = r.text(j)
 		}
 	}
+	if lexical || our {
+		l := d
+		l.to = r.blockEnd(int(nd.From))
+		r.lexical[name] = append(r.lexical[name], l)
+	}
 	if lexical {
-		d.to = r.blockEnd(int(nd.From))
-		r.lexical[name] = append(r.lexical[name], d)
 		return
 	}
 	q := qualify(r.pkg[nd.From], name)
+	if our { // perl's our sub is its package's, an always-main name included (&Foo::ENV)
+		q = r.pkg[nd.From] + "::" + name
+	}
 	r.subs[q] = append(r.subs[q], d)
 }
 
@@ -321,9 +327,9 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 	if d, ok := latest(r.lexical[word], k); ok && !strings.Contains(word, "::") {
 		return d, declared
 	}
-	// shortcut: a sub the file declares is read before an import, so an import of its name, by use builtin or by a
-	// module, does not shadow it, where perl takes whichever came last; upgrade when parse.Imports says where each
-	// import was made.
+	// shortcut: a sub the file declares is read before an import, so an import of its name, by use builtin, by a
+	// module or by a BEGIN glob alias, does not shadow it, where perl takes whichever came last; upgrade when
+	// parse.Imports says where each import was made.
 	if d, ok := latest(r.subs[qualify(r.pkg[k], word)], k); ok {
 		return d, declared
 	}
