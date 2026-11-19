@@ -2219,8 +2219,28 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   `~~`, or one that is `given`'s or `when`'s condition (`@a`, `%h`, `@{...}`,
   `->@*`, `->%*`, through parentheses; not a slice or `[@a]`), unresolved
   where some readings of the operand are one and others not
-  (`TestOracleGradingSmartmatch`); a hash read
-  (`hsh`, a brace subscript, a hash slice, `->%*`, `->%{`); a match (an `m//`
+  (`TestOracleGradingSmartmatch`); a hash read where perl builds an rv2hv,
+  not at every hash-shaped token (`TestOracleSubjectHashSites`, each row
+  checked against `perl -MO=Concise`): a named hash, `%h`, `@h{...}` or
+  `%h{...}`, only where it is a package hash, since toke.c's `S_pending_ident`
+  makes a name it finds in the pad padhv (a `my`, `state`, `field` or
+  signature hash, in scope from the end of its statement to its block's end,
+  or to the end of the `if`, `while` or `for` whose condition declares it; an
+  `our` is the package's); a dereference (`%$r`, `%{...}`, `->%*`, `->%{`,
+  `@$r{...}`, `->@{`), never `%h[...]` or `->%[`, which slice an array; and an
+  element level `{...}` as peep.c's `S_maybe_multideref` folds it: none while
+  its key is a constant or a plain scalar, one for a computed key (a variable
+  read, an interpolating string, a `,` or a `qw` of two words) unless a folded
+  run comes before it, unsure for a key that may fold (a call). Where a chain
+  that reads through a reference or a package hash is dereferenced
+  (`@{$r->{a}}`, `->@*`), under `local` or under `\`, whether perl keeps its
+  last level's rv2hv turns on what is done with it, which the chart does not
+  read, so the dereference is a hedge. A hash a feature that may be off
+  declares (`state`, `field`, a signature) is unsure. shortcut: a lexical %h
+  a module installs (`builtin::export_lexically`) reads as the package hash;
+  and after a range whose constant fold perl abandons (`"*x".."az"`), perl
+  folds no later statement of the main program into multideref, so perl.git
+  `op/range.t:301` and `:446` grade WRONG; a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
   `readline`; a handle's name may open with a digit (`<1>`, `<$1>`) and is
@@ -2306,23 +2326,60 @@ prototype grades EXACT only with its module found
 `env -u T1_CORPUS -u TDT_FIXTURES`; perl.git from `$PERL5_CORPUS`, default
 `/opt/corpora/perl5`) prints one line per subject and corpus,
 `oracle-grade: <chart|rd> <in-tree|T1|perl.git> exact <n> wider <n> wrong <n> no-answer <n>`,
+each followed by the same per marker,
+`oracle-grade: <subject> <corpus> <srefgen|rv2hv|match|readline|anonhash> exact ...`,
 then `oracle-grade: unreadable <n>` and `oracle-grade: seconds <s>`, and lists
 each WRONG site on stderr as `oracle-grade: <subject> WRONG <file>:<line> <marker>`.
 It takes about 15 s. The ratchet sums the same grading over the three corpora
 into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`.
 `TestOracleWrongZero` holds spec §9.4's result over the same grading: no
 chart WRONG site and the chart's exact sites at or above recursive descent's
-on every corpus, listing each WRONG site when it fails. No WRONG site is left
-as a known limit; rerun the command above for the counts. Both subjects report
+on every corpus, listing each WRONG site when it fails. It fails today (below). Both subjects report
 each site spanning its top-level statement (`forest/facts.go`'s `walk`,
 `parse.Sites`), so the grading pools every top-level statement holding others,
 for example a `sub`, `package` block, bare block, `if`, `for`, `while`, `given`,
 `unless`, `until`, `BEGIN`, `class`, `try`, `eval {}`, `do {}` or
 `my $f = sub {...};` alike: a correct site elsewhere in it can account for a miss, which then grades
 EXACT where at its own statement it would grade WRONG, and a hedge over it turns
-a wrong reading WIDER. Recursive descent is graded the same way, so the two
-compare like for like, but `oracle-wrong 0` is that much weaker evidence than it
-reads (chart-perly-w2-inputs `01a1ed19-0c33`).
+a wrong reading WIDER. Recursive descent is graded the same way, and a
+surplus is never graded, so `oracle-wrong 0` is that much weaker evidence than
+it reads (chart-perly-w2-inputs `01a1ed19-0c33`).
+
+The two subjects answer the rv2hv question differently, so their totals are
+not one measure. Recursive descent reads what is done with a dereferenced
+chain (`push @{...}`, `keys %{...}`, `foreach`) and decides it; the chart
+hedges it. Recursive descent hedges a package hash read after any module
+import or `BEGIN` block; the chart decides it. Before HASHFACTS the chart
+reported a hash site at every hash-shaped token, which perl's grading cannot
+penalise, so its rv2hv lead was not a parse result. The split per marker, from
+`go run ./internal/chart/cmd/ratchet oracle` on HASHFACTS's tree (exact /
+wider / WRONG / no-answer):
+
+| corpus | marker | chart | recursive descent |
+|---|---|---|---|
+| in-tree | srefgen | 2/0/0/0 | 2/0/0/0 |
+| in-tree | rv2hv | 507/1/0/0 | 504/3/0/1 |
+| in-tree | match | 153/0/0/0 | 153/0/0/0 |
+| in-tree | readline | 15/0/0/0 | 12/0/0/3 |
+| in-tree | anonhash | 138/0/0/0 | 138/0/0/0 |
+| in-tree | total | 815/1/0/0 | 809/3/0/4 |
+| T1 | srefgen | 800/4/0/9 | 803/5/0/5 |
+| T1 | rv2hv | 179/62/0/0 | 217/21/3/0 |
+| T1 | match | 397/0/0/0 | 397/0/0/0 |
+| T1 | readline | 158/0/0/2 | 157/0/0/3 |
+| T1 | anonhash | 564/0/0/2 | 565/0/0/1 |
+| T1 | total | 2098/66/0/13 | 2139/26/3/9 |
+| perl.git | srefgen | 1755/29/0/7 | 1779/11/1/0 |
+| perl.git | rv2hv | 520/48/2/0 | 376/194/0/0 |
+| perl.git | match | 1869/0/0/4 | 1869/0/0/4 |
+| perl.git | readline | 311/0/0/5 | 312/0/0/4 |
+| perl.git | anonhash | 1061/0/0/0 | 1061/0/0/0 |
+| perl.git | total | 5516/77/2/16 | 5397/205/1/8 |
+
+In total the chart has 8429 exact sites and recursive descent 8345, but on T1
+the chart is 41 below (2098 against 2139), and perl.git's two chart WRONG
+sites are the range limit above, so `TestOracleWrongZero` fails: a §10 stop,
+reported to perigrin, not tuned toward.
 
 ## The precedence constraint: `forest/precedence.go`
 
