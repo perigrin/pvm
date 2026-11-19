@@ -14,7 +14,7 @@ our Str $VERSION :export_ok;
 # reads an answer from STDIN, blocking when none is piped in. Each is
 # held to its prototype and exports only (oracleExempt). prompt is in
 # @EXPORT, not @EXPORT_OK (measured): a bare `use` installs it.
-sub WriteMakefile :export (List @args) Object;
+sub WriteMakefile :export (List @args) BlessedRef;
 sub prompt :export :prototype($;$) (Str $message, Str $default = undef) Str;
 
 # os_unsupported, mkbootstrap and mksymlists are each withdrawn:

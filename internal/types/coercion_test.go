@@ -27,7 +27,7 @@ func TestCoercionIsNotSubtyping(t *testing.T) {
 	// Everything stringifies, including references — but they are not Strs.
 	for _, from := range []types.Type{
 		types.Undef, types.Boolean, types.Int, types.Num,
-		types.HashRef, types.ArrayRef, types.CodeRef, types.Object,
+		types.HashRef, types.ArrayRef, types.CodeRef, types.BlessedRef,
 	} {
 		assert.True(t, types.IsCoercible(from, types.Str),
 			"%s coerces to Str — Perl stringifies everything", from)
@@ -59,8 +59,8 @@ func TestSubtypingImpliesCoercibility(t *testing.T) {
 		{types.Num, types.Str},
 		{types.Int, types.Str},
 		{types.Str, types.Scalar},
-		{types.Regex, types.Object},
-		{types.Object, types.Ref},
+		{types.Regex, types.BlessedRef},
+		{types.BlessedRef, types.Ref},
 		{types.Array, types.List},
 		{types.Scalar, types.List},
 	}
@@ -103,7 +103,7 @@ func TestCoercionExcludesAggregates(t *testing.T) {
 func TestCoercionIntoRefsIsRejected(t *testing.T) {
 	for _, to := range []types.Type{
 		types.HashRef, types.ArrayRef, types.CodeRef, types.ScalarRef,
-		types.GlobRef, types.Object, types.Regex,
+		types.GlobRef, types.BlessedRef, types.Regex,
 	} {
 		assert.False(t, types.IsCoercible(types.Str, to),
 			"Str does not coerce to %s — Perl will not fabricate a reference", to)
@@ -171,7 +171,7 @@ func TestCoercionMismatch(t *testing.T) {
 func TestStrictUnknownSatisfiesNothing(t *testing.T) {
 	for _, required := range []types.Type{
 		types.Int, types.Num, types.Str, types.Boolean, types.Scalar,
-		types.HashRef, types.ArrayRef, types.Object, types.List,
+		types.HashRef, types.ArrayRef, types.BlessedRef, types.List,
 	} {
 		assert.False(t, types.TypeSatisfiesStrict(types.Unknown, required),
 			"strict: Unknown must NOT satisfy %s — narrow it first", required)
@@ -199,7 +199,7 @@ func TestStrictDiffersOnlyOnUnknown(t *testing.T) {
 		types.Undef, types.Boolean, types.Int, types.Num, types.Str,
 		types.NaN, types.Inf, types.DualVar, types.Regex,
 		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
-		types.GlobRef, types.Object, types.Ref, types.Scalar,
+		types.GlobRef, types.BlessedRef, types.Ref, types.Scalar,
 		types.Array, types.Hash, types.List, types.Code, types.Glob,
 	}
 	for _, a := range known {

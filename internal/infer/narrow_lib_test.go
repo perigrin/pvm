@@ -43,7 +43,7 @@ func wantReportedResolved(t *testing.T, src string, code string) {
 // arity (Scalar/Util.tpm, List/Util.tpm) and the guard shapes below narrow.
 func TestNarrowGuardedLibSites(t *testing.T) {
 	for name, src := range map[string]string{
-		// JSON/PP.pm:398,411 -- blessed($obj) proves $obj an Object, a Ref
+		// JSON/PP.pm:398,411 -- blessed($obj) proves $obj a BlessedRef, a Ref
 		// subtype, so refaddr($obj) is an Int, and ref($result) proves
 		// $result a Ref the same way.
 		"blessed_then_refaddr": `
@@ -199,7 +199,7 @@ func TestNarrowGuardedLibSitesResolveSansUndef(t *testing.T) {
 	for _, c := range []struct {
 		name, src, call string
 	}{
-		// blessed_then_refaddr: blessed($obj) proves $obj an Object, so
+		// blessed_then_refaddr: blessed($obj) proves $obj a BlessedRef, so
 		// refaddr($obj) selects `(Ref $ref) Int`, not the Any candidate's
 		// Int|Undef.
 		{"blessed_then_refaddr", `

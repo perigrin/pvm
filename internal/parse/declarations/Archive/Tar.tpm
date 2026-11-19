@@ -13,60 +13,60 @@ sub COMPRESS_XZ :export () Str;
 
 # new calls read() when given arguments, and returns undef if that
 # read fails (source: `$obj->read(@_) or ... return;`).
-sub new (Str $class: Optional[Str|GlobRef] $file, Optional[Int] $compressed) Object|Undef;
+sub new (Str $class: Optional[Str|GlobRef] $file, Optional[Int] $compressed) BlessedRef|Undef;
 # read replaces the in-memory archive from a file or handle: list
 # context gives every Archive::Tar::File read, scalar context their
 # count (source: `return wantarray ? @$data : scalar @$data;`); undef
 # (or an empty list) on failure to open or parse.
-multi sub read (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) List[Object];
-multi sub read (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) Int|Undef;
+multi sub read (BlessedRef $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) List[BlessedRef];
+multi sub read (BlessedRef $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[HashRef] $opts) Int|Undef;
 # contains_file does an exact `eq` lookup: 1 if found, undef (bare
 # `return;`) otherwise -- a plain Int, not a marked Boolean (measured).
-sub contains_file (Object $self: Str $filename) Int|Undef;
+sub contains_file (BlessedRef $self: Str $filename) Int|Undef;
 # extract mirrors read's list/count split (`return @files;`, with
 # `return;`/`return $self->_error(...)` -- always undef -- on failure).
-multi sub extract (Object $self: List[Str|Object] @filenames) List[Object];
-multi sub extract (Object $self: List[Str|Object] @filenames) Int|Undef;
+multi sub extract (BlessedRef $self: List[Str|BlessedRef] @filenames) List[BlessedRef];
+multi sub extract (BlessedRef $self: List[Str|BlessedRef] @filenames) Int|Undef;
 # extract_file returns a plain Int flag (measured 1), undef on failure.
-sub extract_file (Object $self: Str|Object $file, Optional[Str] $extract_path) Int|Undef;
+sub extract_file (BlessedRef $self: Str|BlessedRef $file, Optional[Str] $extract_path) Int|Undef;
 # list_files, with no properties array (or just ['name']), gives
 # filenames; with other properties, hashrefs -- in scalar context,
 # map's own count (an Int), or undef if no data could be read
 # (measured both forms).
-multi sub list_files (Object $self: Optional[ArrayRef] $properties) List[Str|HashRef];
-multi sub list_files (Object $self: Optional[ArrayRef] $properties) Int|Undef;
+multi sub list_files (BlessedRef $self: Optional[ArrayRef] $properties) List[Str|HashRef];
+multi sub list_files (BlessedRef $self: Optional[ArrayRef] $properties) Int|Undef;
 # get_files, like list_files, counts in scalar context (measured); it
 # has no documented failure path of its own.
-multi sub get_files (Object $self: List[Str|Object] @filenames) List[Object];
-multi sub get_files (Object $self: List[Str|Object] @filenames) Int;
-sub get_content (Object $self: Str $file) Str|Undef;
+multi sub get_files (BlessedRef $self: List[Str|BlessedRef] @filenames) List[BlessedRef];
+multi sub get_files (BlessedRef $self: List[Str|BlessedRef] @filenames) Int;
+sub get_content (BlessedRef $self: Str $file) Str|Undef;
 # replace_content returns its entry's own status flag, a plain Int
 # (measured 1), not the content itself.
-sub replace_content (Object $self: Str $file, Str $content) Int|Undef;
-sub rename (Object $self: Str $file, Str $new_name) Int|Undef;
-sub chmod (Object $self: Str $file, Str $mode) Int|Undef;
-sub chown (Object $self: Str $file, Str $uname, Optional[Str] $gname) Int|Undef;
+sub replace_content (BlessedRef $self: Str $file, Str $content) Int|Undef;
+sub rename (BlessedRef $self: Str $file, Str $new_name) Int|Undef;
+sub chmod (BlessedRef $self: Str $file, Str $mode) Int|Undef;
+sub chown (BlessedRef $self: Str $file, Str $uname, Optional[Str] $gname) Int|Undef;
 # remove returns the survivors, counted in scalar context (measured).
-multi sub remove (Object $self: List[Str] @filenamelist) List[Object];
-multi sub remove (Object $self: List[Str] @filenamelist) Int;
+multi sub remove (BlessedRef $self: List[Str] @filenamelist) List[BlessedRef];
+multi sub remove (BlessedRef $self: List[Str] @filenamelist) Int;
 # clear always returns a bare 1 (measured; source: `return 1;`).
-sub clear (Object $self:) Int;
+sub clear (BlessedRef $self:) Int;
 # write with no arguments returns the archive as a Str; given a file
 # (or handle) it returns a plain Int success flag instead, undef on
 # failure (both measured).
-multi sub write (Object $self:) Str|Undef;
-multi sub write (Object $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[Str] $prefix) Int|Undef;
+multi sub write (BlessedRef $self:) Str|Undef;
+multi sub write (BlessedRef $self: Str|GlobRef $file, Optional[Int] $compressed, Optional[Str] $prefix) Int|Undef;
 # add_files, like get_files, counts in scalar context (measured).
-multi sub add_files (Object $self: List[Str|Object] @filenamelist) List[Object];
-multi sub add_files (Object $self: List[Str|Object] @filenamelist) Int;
-sub add_data (Object $self: Str $filename, Str $data, Optional[HashRef] $opt) Object|Undef;
+multi sub add_files (BlessedRef $self: List[Str|BlessedRef] @filenamelist) List[BlessedRef];
+multi sub add_files (BlessedRef $self: List[Str|BlessedRef] @filenamelist) Int;
+sub add_data (BlessedRef $self: Str $filename, Str $data, Optional[HashRef] $opt) BlessedRef|Undef;
 # error returns the stored message or (with a true argument) its
 # Carp::longmess stacktrace, always a defined Str (measured; starts '').
-sub error (Object $self: Optional[Boolean] $longmess) Str;
+sub error (BlessedRef $self: Optional[Boolean] $longmess) Str;
 # setcwd's own body is a bare assignment, `$self->{cwd} = $cwd;`,
 # whose value is whatever $cwd was -- the Str passed, or Undef to
 # restore the default (both measured).
-sub setcwd (Object $self: Optional[Str] $cwd) Str|Undef;
+sub setcwd (BlessedRef $self: Optional[Str] $cwd) Str|Undef;
 
 # Class methods (POD "Class Methods"), measured the same way.
 
@@ -86,7 +86,7 @@ multi sub list_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed
 # extract_archive delegates to a fresh instance's read, but with
 # extract => 1: read's own POD says no Archive::Tar::File objects are
 # created that way, and measured, the list it gives back holds the
-# plain filenames instead (unlike read's own List[Object]).
+# plain filenames instead (unlike read's own List[BlessedRef]).
 multi sub extract_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed) List[Str];
 multi sub extract_archive (Str $class: Str|GlobRef $file, Optional[Int] $compressed) Int|Undef;
 sub has_io_string (Str $class:) Int;

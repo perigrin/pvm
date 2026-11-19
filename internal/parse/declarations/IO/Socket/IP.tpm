@@ -378,12 +378,12 @@ sub unpack_sockaddr_un :export(all) :listop (Str $sun) Str;
 # connect's own override never returns $self (IP.pm:702-781): it is
 # core connect's own Boolean, a bare 1 (non-blocking, in progress), 0,
 # undef, or ->setup's own 1/0/undef, measured across those cases.
-sub new (Str $class: List @args) Object|Undef;
-sub connect (Object $self: Optional[Str] $peer) Boolean|Int|Undef;
-sub sockhost (Object $self:) Str|Undef;
-sub sockport (Object $self:) Int|Undef;
-sub peerhost (Object $self:) Str|Undef;
-sub peerport (Object $self:) Int|Undef;
+sub new (Str $class: List @args) BlessedRef|Undef;
+sub connect (BlessedRef $self: Optional[Str] $peer) Boolean|Int|Undef;
+sub sockhost (BlessedRef $self:) Str|Undef;
+sub sockport (BlessedRef $self:) Int|Undef;
+sub peerhost (BlessedRef $self:) Str|Undef;
+sub peerport (BlessedRef $self:) Int|Undef;
 
 # Methods documented at IO/Socket/IP.pm:830-1192 (and the overrides
 # accept, connected and socket) that a prior pass of this .tpm left
@@ -393,36 +393,36 @@ sub peerport (Object $self:) Int|Undef;
 # LocalPort => 0)), which never touches the network -- socket(2) and a
 # local bind(2), no connect -- so none of the rest needs the network
 # exemption connect/sockhost/sockport/peerhost/peerport above do.
-sub sockhost_service (Object $self: Optional[Int] $numeric) List[Int|Str|Undef];
-sub sockhostname (Object $self:) Str|Undef;
-sub sockservice (Object $self:) Int|Str|Undef;
-sub sockaddr (Object $self:) Str;
+sub sockhost_service (BlessedRef $self: Optional[Int] $numeric) List[Int|Str|Undef];
+sub sockhostname (BlessedRef $self:) Str|Undef;
+sub sockservice (BlessedRef $self:) Int|Str|Undef;
+sub sockaddr (BlessedRef $self:) Str;
 # peerhost_service and its four wrappers are measured safe even though
 # peername is undef on this unconnected socket: _get_host_service
 # returns the empty list (resp. undef) rather than dying when its
 # address argument is undef.
-sub peerhost_service (Object $self: Optional[Int] $numeric) List[Int|Str|Undef];
-sub peerhostname (Object $self:) Str|Undef;
-sub peerservice (Object $self:) Int|Str|Undef;
+sub peerhost_service (BlessedRef $self: Optional[Int] $numeric) List[Int|Str|Undef];
+sub peerhostname (BlessedRef $self:) Str|Undef;
+sub peerservice (BlessedRef $self:) Int|Str|Undef;
 # peeraddr is exempt: it unpacks peername's address directly, dying
 # "Bad arg length" when peername is undef (measured, unconnected), the
 # same way accept, connected and the rest above need a real connection.
-sub peeraddr (Object $self:) Str;
+sub peeraddr (BlessedRef $self:) Str;
 # accept's own override dispatches on wantarray the same way the base
 # class's multi does (IP.pm:965-975: `wantarray ? ($new,$peer) : $new`),
 # and blocks like IO::Socket's own (see oracleExempt).
-multi sub accept (Object $self: Optional[Str] $class) List[Object|Str];
-multi sub accept (Object $self: Optional[Str] $class) Object|Undef;
+multi sub accept (BlessedRef $self: Optional[Str] $class) List[BlessedRef|Str];
+multi sub accept (BlessedRef $self: Optional[Str] $class) BlessedRef|Undef;
 # connected checks local state only (fileno and a non-blocking
 # getpeername), measured safe unconnected, returning a core Boolean.
-sub connected (Object $self:) Boolean;
+sub connected (BlessedRef $self:) Boolean;
 # socket, called on an invocant that already has a fileno (measured,
 # our instance always does once built), dup2's a freshly opened
 # descriptor onto it and returns dup2's own Int/Undef, never the
 # object SUPER::socket would (IP.pm's own comment calls this "the
 # second unbelievably dodgy hack").
-sub socket (Object $self: Int $domain, Int $type, Int $protocol) Object|Int|Undef;
+sub socket (BlessedRef $self: Int $domain, Int $type, Int $protocol) BlessedRef|Int|Undef;
 # as_inet dies on a non-PF_INET socket (POD); our instance is AF_INET.
-sub as_inet (Object $self:) Object;
+sub as_inet (BlessedRef $self:) BlessedRef;
 sub split_addr (Str $class: Str $addr) List[Str|Undef];
 sub join_addr (Str $class: Str $host, Int|Str|Undef $port) Str;
