@@ -246,6 +246,18 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0},
 		// shortcut row: a lexical $a or $b anywhere in the file makes every sort block a hedge (Concise: padsv, kept)
 		{`my ($a, $b); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		// any other spelling of $a hedges, ' and a doubled main:: included (Concise: each is dropped, 0 rv2hv)
+		{`my $r = {}; my @s = sort { $main'a <=> $main'b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $Foo'a <=> $Foo'b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $::Foo::a <=> $::Foo::b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $::main::a <=> $b } @{$r->{a}};`, 0, 1},
+		// a file that may declare a lexical $a or $b hedges every sort block (Concise: padsv, kept, 1 rv2hv each)
+		{`use feature qw(refaliasing declared_refs); no warnings; my \$a = \1; my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`use feature 'signatures'; sub f ($r, $a) { my @s = sort { $a <=> $b } @{$r->{a}}; }`, 0, 1},
+		{`use feature 'signatures'; my $f = sub ($r, $b) { my @s = sort { $a <=> $b } @{$r->{a}}; };`, 0, 1},
+		{`use feature 'signatures'; sub g :prototype($$) ($r, $a) { my @s = sort { $a <=> $b } @{$r->{a}}; }`, 0, 1},
+		{`use feature 'class'; no warnings; class Foo { field $a; method m ($r) { my @s = sort { $a <=> $b } @{$r->{a}}; } }`, 0, 1},
+		{`BEGIN { builtin::export_lexically('$a' => \1) } my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
 		// \ items of an our (...) list are refaliases; the alias of a foreach is in scope over its body and continue
 		// block, not over its own list
 		{`use feature qw(refaliasing declared_refs); no warnings; our (\%h) = {}; my @k = keys %h; our (\%g, \%f) = ({}, {});`, 1, 0},

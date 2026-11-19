@@ -4,7 +4,6 @@
 package forest
 
 import (
-	"cmp"
 	"regexp"
 	"slices"
 	"strings"
@@ -213,7 +212,7 @@ type subjectFacts struct {
 	levels    []int32                     // the element level nodes, by their first token
 	up        [][]upRef                   // where each node reachable from the root stands
 	pkg       []string                    // the package at each token
-	lexicalAB bool                        // the file declares a lexical $a or $b
+	lexicalAB bool                        // the file may declare a lexical $a or $b (abWritten)
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -247,7 +246,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
 		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes(), pkg: r.pkg,
-		lexicalAB: lexicalAB.Match(src)}
+	}
 	for i, nd := range f.Nodes {
 		if nd.Alt != 0 && sf.g.level[f.Alts[nd.Alt].Rule].ok {
 			sf.levels = append(sf.levels, int32(i))
@@ -255,6 +254,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 	}
 	slices.SortFunc(sf.levels, func(x, y int32) int { return int(f.Nodes[x].From - f.Nodes[y].From) })
 	sf.index()
+	sf.lexicalAB = sf.abWritten()
 	sf.proto = func(at int) (string, bool) {
 		d, st := r.lookup(r.text(at), at)
 		return d.proto, st == declared && d.proto != ""
@@ -1271,9 +1271,6 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	}
 }
 
-// lexicalAB is a my or state declaring $a or $b.
-var lexicalAB = regexp.MustCompile(`\b(?:my|state)\s*(?:\([^)]*)?\$[ab]\b`)
-
 // sigHash is a signature's hash parameter.
 var sigHash = regexp.MustCompile(`%\s*(\w+)`)
 
@@ -1588,12 +1585,13 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 }
 
 // simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag, and maybe
-// where it may be: the flag needs one statement whose op is <=> or cmp over the package $a and $b, either way round,
-// with GvSTASH(gv) == PL_curstash. Parentheses round the comparison and a trailing ; build no op, and $a may be spelled
-// $::a or $main::a in main, $Foo::a in Foo (Concise: { $a <=> $b; }, { ($a <=> $b) } and { $::a <=> $::b } are
-// dropped). Any other single comparison of $a and $b spellings ({ ($a) <=> ($b) }, { ;$a <=> $b }, { ${a} <=> $b },
-// { +$a <=> $b }), or one where the file declares a lexical $a or $b, which makes it a padsv comparison perl keeps,
-// is maybe: the chart hedges rather than chase spellings. Another package's $X::a is not simplified.
+// where it may be. The flag needs one statement whose op is <=> or cmp over the package $a and $b, either way round,
+// with GvSTASH(gv) == PL_curstash; parentheses round the comparison and a trailing ; build no op (Concise: { $a <=>
+// $b; }, { ($a <=> $b) } and { $::a <=> $::b } are dropped). The chart decides "dropped" only where each operand is
+// spelled $a or $b, $::a or $main::a in main, or $Foo::a in Foo spelled as its package statement spells it, and
+// "kept" only for $::a or $main::a outside main; every other spelling whose name is a or b ($main'a, $::Foo::a,
+// ${a}, a leading ;, ($a) <=> ($b), +$a), and every block where the file may have a lexical $a or $b (abWritten), is
+// maybe, which hedges.
 func (sf *subjectFacts) simpleSort(k int) (simple, maybe bool) {
 	if k >= len(sf.s.Tokens) || sf.text(k) != "{" {
 		return false, false
@@ -1611,39 +1609,53 @@ func (sf *subjectFacts) simpleSort(k int) (simple, maybe bool) {
 		}
 		ts = append(ts, sf.text(j))
 	}
-	// ab is the name a $a or $b spelling names, plain where it is $a, $::a in main or $Foo::a in Foo, and ok false
-	// for anything else, another package's included
-	ab := func(t string) (name string, plain, ok bool) {
-		n, found := strings.CutPrefix(t, "$")
-		if !found {
-			return "", false, false
+	const (
+		none = iota
+		exact
+		kept
+		other
+	)
+	// spelling is the name an $a or $b spelling names and how the chart reads it
+	spelling := func(t string) (string, int) {
+		name := abName(t)
+		if name != "a" && name != "b" {
+			return "", none
 		}
-		plain = !strings.HasPrefix(n, "{")
-		n = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(n, "{"), "}"))
-		if i := strings.LastIndex(n, "::"); i >= 0 {
-			if pkg := cmp.Or(strings.TrimPrefix(n[:i], "main::"), "main"); pkg != sf.pkg[k] {
-				return "", false, false
+		switch t[1:] {
+		case name:
+			return name, exact
+		case "::" + name, "main::" + name:
+			if sf.pkg[k] == "main" {
+				return name, exact
 			}
-			n = n[i+2:]
+			return name, kept
+		case sf.pkg[k] + "::" + name:
+			return name, exact
 		}
-		return n, plain, n == "a" || n == "b"
+		return name, other
 	}
-	pair := func(ts []string) (yes, plain bool) {
+	pair := func(ts []string) (x, y string, cx, cy int, ok bool) {
 		if len(ts) != 3 || ts[1] != "<=>" && ts[1] != "cmp" {
-			return false, false
+			return "", "", none, none, false
 		}
-		x, px, ox := ab(ts[0])
-		y, py, oy := ab(ts[2])
-		return ox && oy && x != y, px && py
+		x, cx = spelling(ts[0])
+		y, cy = spelling(ts[2])
+		return x, y, cx, cy, cx != none && cy != none && x != y
 	}
-	exact := ts
-	for len(exact) > 0 && exact[len(exact)-1] == ";" {
-		exact = exact[:len(exact)-1]
+	plain := ts
+	for len(plain) > 0 && plain[len(plain)-1] == ";" {
+		plain = plain[:len(plain)-1]
 	}
-	for len(exact) > 2 && exact[0] == "(" && exact[len(exact)-1] == ")" {
-		exact = exact[1 : len(exact)-1]
+	for len(plain) > 2 && plain[0] == "(" && plain[len(plain)-1] == ")" {
+		plain = plain[1 : len(plain)-1]
 	}
-	if yes, plain := pair(exact); yes && plain && !sf.lexicalAB {
+	if _, _, cx, cy, ok := pair(plain); ok && cx != other && cy != other {
+		switch {
+		case cx == kept || cy == kept:
+			return false, false
+		case sf.lexicalAB:
+			return false, true
+		}
 		return true, false
 	}
 	var rest []string
@@ -1652,9 +1664,94 @@ func (sf *subjectFacts) simpleSort(k int) (simple, maybe bool) {
 			rest = append(rest, t)
 		}
 	}
-	yes, _ := pair(rest)
-	return false, yes
+	_, _, _, _, ok := pair(rest)
+	return false, ok
 }
+
+// abName is the last part of the name a scalar's text spells, with ' read as ::: a for $a, ${ a }, $main'a or $::Foo::a.
+func abName(t string) string {
+	if !strings.HasPrefix(t, "$") {
+		return ""
+	}
+	n := strings.ReplaceAll(strings.Trim(t[1:], "{} \t"), "'", "::")
+	if i := strings.LastIndex(n, "::"); i >= 0 {
+		return n[i+2:]
+	}
+	return n
+}
+
+// abWritten is whether the file may declare a lexical $a or $b, crudely and soundly: an $a or $b, however spelled,
+// after \, my, our, state, field or local (a class name between included), in a parenthesised list after one of
+// those, in a sub's or method's signature or prototype, after its attributes too, or assigned to; or a file that
+// names export_lexically.
+func (sf *subjectFacts) abWritten() bool {
+	n := len(sf.s.Tokens)
+	is := func(k int, ts ...string) bool { return k >= 0 && k < n && slices.Contains(ts, sf.text(k)) }
+	assign := func(k int) bool {
+		t := ""
+		if k < n {
+			t = sf.text(k)
+		}
+		return strings.HasSuffix(t, "=") && !slices.Contains([]string{"==", "!=", "<=", ">="}, t)
+	}
+	if strings.Contains(string(sf.src), "export_lexically") {
+		return true // BEGIN { builtin::export_lexically('$a' => \1) } makes a padsv $a (Concise)
+	}
+	decl := []string{"\\", "my", "our", "state", "field", "local"}
+	for k := range n {
+		t := sf.text(k)
+		if sf.s.Raw[sf.s.Tokens[k].Index].Kind == lexer.Prototype && abParam.MatchString(t) {
+			return true
+		}
+		if name := abName(t); name != "a" && name != "b" || sf.s.Raw[sf.s.Tokens[k].Index].Kind != lexer.Variable {
+			continue
+		}
+		if is(k-1, decl...) || is(k-2, "my", "our", "state") && sf.s.Raw[sf.s.Tokens[k-1].Index].Kind == lexer.Word || assign(k+1) {
+			return true // my $a, my Class $a, $a = ...
+		}
+		open, depth := -1, 0 // the parenthesis it stands in
+		for j := k - 1; j >= 0 && open < 0; j-- {
+			switch {
+			case is(j, ")"):
+				depth++
+			case is(j, "(") && depth > 0:
+				depth--
+			case is(j, "("):
+				open = j
+			case depth == 0 && is(j, ";", "{", "}"):
+				j = -1
+			}
+		}
+		if open < 0 {
+			continue
+		}
+		if is(open-1, decl...) {
+			return true
+		}
+		for j := open - 1; j >= 0 && !is(j, ";", "{", "}", "(", ",", "=", "=>"); j-- {
+			if is(j, "sub", "method") {
+				return true // a signature, after the sub's name and attributes: sub f :prototype($$) ($r, $a)
+			}
+		}
+		close := open
+		for depth = 0; close < n; close++ {
+			if is(close, "(") {
+				depth++
+			} else if is(close, ")") {
+				if depth--; depth == 0 {
+					break
+				}
+			}
+		}
+		if assign(close + 1) {
+			return true
+		}
+	}
+	return false
+}
+
+// abParam is an $a or $b in a prototype token, which is a signature where the feature is on.
+var abParam = regexp.MustCompile(`[$]\s*\{?\s*(?:\w*(?:::|'))*[ab]\b`)
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".
 func (sf *subjectFacts) owner(n int32) string {
