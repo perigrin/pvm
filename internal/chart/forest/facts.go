@@ -4,6 +4,7 @@
 package forest
 
 import (
+	"cmp"
 	"regexp"
 	"slices"
 	"strings"
@@ -212,6 +213,7 @@ type subjectFacts struct {
 	levels    []int32                     // the element level nodes, by their first token
 	up        [][]upRef                   // where each node reachable from the root stands
 	pkg       []string                    // the package at each token
+	lexicalAB bool                        // the file declares a lexical $a or $b
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -244,7 +246,8 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
-		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes(), pkg: r.pkg}
+		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes(), pkg: r.pkg,
+		lexicalAB: lexicalAB.Match(src)}
 	for i, nd := range f.Nodes {
 		if nd.Alt != 0 && sf.g.level[f.Alts[nd.Alt].Rule].ok {
 			sf.levels = append(sf.levels, int32(i))
@@ -1211,8 +1214,8 @@ func (r *resolver) hashScopes() *hashScopes {
 		}
 		from, to := r.statementEnd(r.s.Raw[r.s.Tokens[r.introAt(k)].Index].Start), r.scopeEnd(k)
 		at, _ := slices.BinarySearchFunc(r.s.Tokens, from, func(t lex.Token, b int) int { return r.s.Raw[t.Index].Start - b })
-		if loop := r.loopBody(k); loop > 0 { // for my \%a (...) {...} and for \my %a: the alias is the body's
-			at, to = k+1, loop
+		if open, end := r.loopBody(k); end > 0 { // for my \%a (...) {...} and for \my %a: the alias is the body's
+			at, to = open, end
 		}
 		for _, j := range vars {
 			if j >= r.n {
@@ -1220,7 +1223,7 @@ func (r *resolver) hashScopes() *hashScopes {
 			}
 			if t := r.text(j); strings.HasPrefix(t, "%") && hashName(t) != "" && !strings.Contains(hashName(t), "::") {
 				h.declared[j] = kind
-				if refalias {
+				if refalias || r.is(j-1, "\\") { // our \%h, our (\%h, \%g)
 					h.declared[j] = hashLexical // a refalias builds no rv2hv, our's included (Concise: our \%h = {})
 				}
 				h.decls[hashName(t)] = append(h.decls[hashName(t)], hashDecl{at, to, kind})
@@ -1268,17 +1271,22 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	}
 }
 
+// lexicalAB is a my or state declaring $a or $b.
+var lexicalAB = regexp.MustCompile(`\b(?:my|state)\s*(?:\([^)]*)?\$[ab]\b`)
+
 // sigHash is a signature's hash parameter.
 var sigHash = regexp.MustCompile(`%\s*(\w+)`)
 
-// loopBody is the token closing the body of the foreach whose iterator a declaration at token k declares, or 0.
-func (r *resolver) loopBody(k int) int {
+// loopBody is the tokens opening the body of the foreach whose iterator a declaration at token k declares and closing
+// its last block, a continue's included, or 0, 0: the alias is not in scope over the loop's own list (Concise: `our
+// %a; for my \%a (\%a) {}` reads the package %a) and is over a continue block.
+func (r *resolver) loopBody(k int) (open, end int) {
 	before := k - 1
 	if before > 0 && r.is(before, "\\") {
 		before--
 	}
 	if before < 0 || !r.is(before, "for") && !r.is(before, "foreach") {
-		return 0
+		return 0, 0
 	}
 	j := k
 	for j < r.n && !r.is(j, "(") {
@@ -1293,10 +1301,14 @@ func (r *resolver) loopBody(k int) int {
 			}
 		}
 	}
-	if j+1 < r.n && r.is(j+1, "{") && r.match[j+1] >= 0 {
-		return r.match[j+1]
+	if j+1 >= r.n || !r.is(j+1, "{") || r.match[j+1] < 0 {
+		return 0, 0
 	}
-	return 0
+	open, end = j+1, r.match[j+1]
+	if end+2 < r.n && r.is(end+1, "continue") && r.is(end+2, "{") && r.match[end+2] >= 0 {
+		end = r.match[end+2]
+	}
+	return open, end
 }
 
 // introAt is the token whose statement's end introduces a declaration at token k: k itself where it stands in a
@@ -1553,8 +1565,13 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 				return ctxAggregate
 			}
 		case "grep", "map", "sort":
-			if word == "sort" && block && sf.simpleSort(int(sf.f.Nodes[u.p].From)+1) {
-				return ctxRead // S_simplify_sort drops the block (Concise: sort { $a <=> $b } @{$r->{a}} is multideref)
+			if word == "sort" && block {
+				switch simple, maybe := sf.simpleSort(int(sf.f.Nodes[u.p].From) + 1); {
+				case simple:
+					return ctxRead // S_simplify_sort drops the block (Concise: sort { $a <=> $b } @{$r->{a}} is multideref)
+				case maybe:
+					return ctxUnknown
+				}
 			}
 			if block || !first {
 				return ctxAggregate
@@ -1570,14 +1587,16 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 	return ctxUnknown
 }
 
-// simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag: one statement
-// whose op is <=> or cmp over the package $a and $b, either way round. Parentheses and a trailing ; build no op, and
-// $::a and $main::a are $a where the package is main, since it checks GvSTASH(gv) == PL_curstash (Concise: each of
-// { $a <=> $b; }, { ($a <=> $b) } and { $::a <=> $::b } is dropped; `sort { lc $a cmp lc $b }` keeps its block).
-// shortcut: a lexical my $a in scope makes the block a padsv comparison perl keeps; upgrade if one is met.
-func (sf *subjectFacts) simpleSort(k int) bool {
+// simpleSort is whether the block opening at token k is one op.c's S_simplify_sort replaces by a flag, and maybe
+// where it may be: the flag needs one statement whose op is <=> or cmp over the package $a and $b, either way round,
+// with GvSTASH(gv) == PL_curstash. Parentheses round the comparison and a trailing ; build no op, and $a may be spelled
+// $::a or $main::a in main, $Foo::a in Foo (Concise: { $a <=> $b; }, { ($a <=> $b) } and { $::a <=> $::b } are
+// dropped). Any other single comparison of $a and $b spellings ({ ($a) <=> ($b) }, { ;$a <=> $b }, { ${a} <=> $b },
+// { +$a <=> $b }), or one where the file declares a lexical $a or $b, which makes it a padsv comparison perl keeps,
+// is maybe: the chart hedges rather than chase spellings. Another package's $X::a is not simplified.
+func (sf *subjectFacts) simpleSort(k int) (simple, maybe bool) {
 	if k >= len(sf.s.Tokens) || sf.text(k) != "{" {
-		return false
+		return false, false
 	}
 	var ts []string
 	for j, depth := k+1, 1; j < len(sf.s.Tokens); j++ {
@@ -1592,23 +1611,49 @@ func (sf *subjectFacts) simpleSort(k int) bool {
 		}
 		ts = append(ts, sf.text(j))
 	}
-	for len(ts) > 0 && ts[len(ts)-1] == ";" {
-		ts = ts[:len(ts)-1]
-	}
-	for len(ts) > 2 && ts[0] == "(" && ts[len(ts)-1] == ")" {
-		ts = ts[1 : len(ts)-1]
-	}
-	if len(ts) != 3 || ts[1] != "<=>" && ts[1] != "cmp" {
-		return false
-	}
-	name := func(t string) string {
-		if sf.pkg[k] == "main" {
-			t = strings.Replace(strings.Replace(t, "$main::", "$", 1), "$::", "$", 1)
+	// ab is the name a $a or $b spelling names, plain where it is $a, $::a in main or $Foo::a in Foo, and ok false
+	// for anything else, another package's included
+	ab := func(t string) (name string, plain, ok bool) {
+		n, found := strings.CutPrefix(t, "$")
+		if !found {
+			return "", false, false
 		}
-		return t
+		plain = !strings.HasPrefix(n, "{")
+		n = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(n, "{"), "}"))
+		if i := strings.LastIndex(n, "::"); i >= 0 {
+			if pkg := cmp.Or(strings.TrimPrefix(n[:i], "main::"), "main"); pkg != sf.pkg[k] {
+				return "", false, false
+			}
+			n = n[i+2:]
+		}
+		return n, plain, n == "a" || n == "b"
 	}
-	x, y := name(ts[0]), name(ts[2])
-	return x == "$a" && y == "$b" || x == "$b" && y == "$a"
+	pair := func(ts []string) (yes, plain bool) {
+		if len(ts) != 3 || ts[1] != "<=>" && ts[1] != "cmp" {
+			return false, false
+		}
+		x, px, ox := ab(ts[0])
+		y, py, oy := ab(ts[2])
+		return ox && oy && x != y, px && py
+	}
+	exact := ts
+	for len(exact) > 0 && exact[len(exact)-1] == ";" {
+		exact = exact[:len(exact)-1]
+	}
+	for len(exact) > 2 && exact[0] == "(" && exact[len(exact)-1] == ")" {
+		exact = exact[1 : len(exact)-1]
+	}
+	if yes, plain := pair(exact); yes && plain && !sf.lexicalAB {
+		return true, false
+	}
+	var rest []string
+	for _, t := range ts {
+		if t != ";" && t != "(" && t != ")" && t != "+" {
+			rest = append(rest, t)
+		}
+	}
+	yes, _ := pair(rest)
+	return false, yes
 }
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".

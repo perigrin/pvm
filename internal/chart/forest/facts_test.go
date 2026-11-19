@@ -236,6 +236,22 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 2, 0},
 		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 2, 0},
 		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
+		// a single comparison of other $a/$b spellings may be dropped too, so it hedges (Concise: each builds 0); $::a
+		// outside main is not $a there, so perl keeps the block (GvSTASH(gv) != PL_curstash), and $Foo::a in Foo is
+		{`my $r = {}; my @s = sort { ($a) <=> ($b) } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { ;$a <=> $b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { ${a} <=> ${b} } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { +$a <=> $b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $Foo::a <=> $Foo::b } @{$r->{a}};`, 0, 0},
+		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 1, 0},
+		// shortcut row: a lexical $a or $b anywhere in the file makes every sort block a hedge (Concise: padsv, kept)
+		{`my ($a, $b); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		// \ items of an our (...) list are refaliases; the alias of a foreach is in scope over its body and continue
+		// block, not over its own list
+		{`use feature qw(refaliasing declared_refs); no warnings; our (\%h) = {}; my @k = keys %h; our (\%g, \%f) = ({}, {});`, 1, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; for my \%a ({}) { 1 } continue { my @k = keys %a }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %a; for my \%a (\%a) { 1 }`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %a; for \my %a ({%a}) { 1 }`, 2, 0},
 		// shortcut row: a file calling export_lexically may have made %h lexical (Concise: padhv), so its reads hedge
 		{`BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0, 1},
 		{`(my %h = ()), my @k = keys %h;`, 1, 0}, // the my is introduced at the statement's end: keys reads the package's

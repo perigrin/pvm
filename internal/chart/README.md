@@ -2243,13 +2243,19 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   level, and a read (`my @x = @{...}`, `print`, `join`, a condition) none; a
   postfix slice `->@{...}` over a level with a constant key folds its own
   rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level;
-  a `sort` whose block op.c's `S_simplify_sort` drops (one `<=>` or `cmp` of
-  the package `$a` and `$b`, either way round, through parentheses or a
-  trailing `;`, `$::a` in main) reads its list. A refalias of a package hash
-  (`\%h = ...`, `(\%h, $x) = ...`, `local \%h`, `\local %h`, `our \%h`,
-  `\our %h = ...`, `for \%h (...)`) builds no rv2hv, and one that declares a
-  lexical (`my \%a`, `\my %a`, `for my \%a (...)`) is in scope over its
-  statement's rest or the loop's body. A key of
+  a `sort` whose block op.c's `S_simplify_sort` drops reads its list: the
+  chart decides only the plain form, one `<=>` or `cmp` of the package `$a`
+  and `$b` either way round, through parentheses round it or a trailing `;`,
+  spelled `$a`, or `$Foo::a` where the package is Foo (`$::a` in main), since
+  it checks `GvSTASH(gv) == PL_curstash`; any other single comparison of `$a`
+  and `$b` spellings (`($a) <=> ($b)`, `${a}`, `+$a`, a leading `;`) hedges.
+  shortcut: a file declaring a lexical `$a` or `$b` anywhere hedges every sort
+  block, since perl keeps a padsv comparison; upgrade if scalar scopes are read.
+  A refalias of a package hash (`\%h = ...`, `(\%h, $x) = ...`, `local \%h`,
+  `\local %h`, `our \%h`, `our (\%h, ...)`, `\our %h = ...`, `for \%h
+  (...)`) builds no rv2hv, and one that declares a lexical (`my \%a`, `\my
+  %a`, `for my \%a (...)`) is in scope over its statement's rest, or over the
+  loop's body and `continue` block but not its list. A key of
   `+$x` or `$$` is a plain scalar; `+word` calls a constant, which hedges. In
   a file that names `export_lexically`, a package hash's read hedges.
   A context perl was not measured in, `$#{...}`, a `?:` whose condition may be
