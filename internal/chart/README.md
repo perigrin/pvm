@@ -2233,14 +2233,24 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   read, an interpolating string, a `,` or a `qw` of two words) unless a folded
   run comes before it, unsure for a key that may fold (a call). Where a chain
   that reads through a reference or a package hash is dereferenced
-  (`@{$r->{a}}`, `->@*`), under `local` or under `\`, whether perl keeps its
-  last level's rv2hv turns on what is done with it, which the chart does not
-  read, so the dereference is a hedge. A hash a feature that may be off
+  (`@{$r->{a}}`, `->@*`), the context op.c's `op_lvalue` and `doref` give the
+  dereference decides it, read up the forest's rules to the operator that
+  takes it (`context`): a modified, sliced or aggregate-taking `@{...}` or
+  `%{...}` (OPpDEREF_AV or _HV: `push`, `keys`, `each`, `foreach`, an
+  assignment's left side, a sub's arguments, `scalar` under any of them) keeps
+  every level of its last run, a modified `${...}` (OPpDEREF_SV) a lone last
+  level, and a read (`my @x = @{...}`, `print`, `join`, a condition) none; a
+  postfix slice `->@{...}` over a level with a constant key folds its own
+  rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level.
+  A context perl was not measured in, `$#{...}`, a `?:` whose condition may be
+  constant, and a refassign's `\$h{a} = ...` hedge. A hash a feature that may be off
   declares (`state`, `field`, a signature) is unsure. shortcut: a lexical %h
   a module installs (`builtin::export_lexically`) reads as the package hash;
   and after a range whose constant fold perl abandons (`"*x".."az"`), perl
   folds no later statement of the main program into multideref, so perl.git
-  `op/range.t:301` and `:446` grade WRONG; a match (an `m//`
+  `op/range.t:301` and `:446` hold an rv2hv the chart does not report; they
+  grade no-answer, not WRONG, only because the chart reports no hash site
+  anywhere else in that file; a match (an `m//`
   or `//` pattern, or `=~`/`!~` against anything but a pattern token, which
   reports itself); a readline (`<FH>`, `<$fh>`, `<>`, `<<>>`, the builtin
   `readline`; a handle's name may open with a digit (`<1>`, `<$1>`) and is
@@ -2334,7 +2344,7 @@ It takes about 15 s. The ratchet sums the same grading over the three corpora
 into `oracle-wrong`, `oracle-exact-chart` and `oracle-exact-rd`.
 `TestOracleWrongZero` holds spec §9.4's result over the same grading: no
 chart WRONG site and the chart's exact sites at or above recursive descent's
-on every corpus, listing each WRONG site when it fails. It fails today (below). Both subjects report
+on every corpus, listing each WRONG site when it fails. Both subjects report
 each site spanning its top-level statement (`forest/facts.go`'s `walk`,
 `parse.Sites`), so the grading pools every top-level statement holding others,
 for example a `sub`, `package` block, bare block, `if`, `for`, `while`, `given`,
@@ -2345,13 +2355,12 @@ a wrong reading WIDER. Recursive descent is graded the same way, and a
 surplus is never graded, so `oracle-wrong 0` is that much weaker evidence than
 it reads (chart-perly-w2-inputs `01a1ed19-0c33`).
 
-The two subjects answer the rv2hv question differently, so their totals are
-not one measure. Recursive descent reads what is done with a dereferenced
-chain (`push @{...}`, `keys %{...}`, `foreach`) and decides it; the chart
-hedges it. Recursive descent hedges a package hash read after any module
-import or `BEGIN` block; the chart decides it. Before HASHFACTS the chart
-reported a hash site at every hash-shaped token, which perl's grading cannot
-penalise, so its rv2hv lead was not a parse result. The split per marker, from
+The two subjects answer the rv2hv question by different routes, so their
+totals are not one measure. Both read what is done with a dereferenced chain;
+recursive descent hedges a package hash read after any module import or
+`BEGIN` block, where the chart decides it. Before HASHFACTS the chart reported
+a hash site at every hash-shaped token, which perl's grading cannot penalise,
+so its rv2hv lead was not a parse result. The split per marker, from
 `go run ./internal/chart/cmd/ratchet oracle` on HASHFACTS's tree (exact /
 wider / WRONG / no-answer):
 
@@ -2364,22 +2373,23 @@ wider / WRONG / no-answer):
 | in-tree | anonhash | 138/0/0/0 | 138/0/0/0 |
 | in-tree | total | 815/1/0/0 | 809/3/0/4 |
 | T1 | srefgen | 800/4/0/9 | 803/5/0/5 |
-| T1 | rv2hv | 179/62/0/0 | 217/21/3/0 |
+| T1 | rv2hv | 235/6/0/0 | 217/21/3/0 |
 | T1 | match | 397/0/0/0 | 397/0/0/0 |
 | T1 | readline | 158/0/0/2 | 157/0/0/3 |
 | T1 | anonhash | 564/0/0/2 | 565/0/0/1 |
-| T1 | total | 2098/66/0/13 | 2139/26/3/9 |
+| T1 | total | 2154/10/0/13 | 2139/26/3/9 |
 | perl.git | srefgen | 1755/29/0/7 | 1779/11/1/0 |
-| perl.git | rv2hv | 520/48/2/0 | 376/194/0/0 |
+| perl.git | rv2hv | 560/8/0/2 | 376/194/0/0 |
 | perl.git | match | 1869/0/0/4 | 1869/0/0/4 |
 | perl.git | readline | 311/0/0/5 | 312/0/0/4 |
 | perl.git | anonhash | 1061/0/0/0 | 1061/0/0/0 |
-| perl.git | total | 5516/77/2/16 | 5397/205/1/8 |
+| perl.git | total | 5556/37/0/18 | 5397/205/1/8 |
 
-In total the chart has 8429 exact sites and recursive descent 8345, but on T1
-the chart is 41 below (2098 against 2139), and perl.git's two chart WRONG
-sites are the range limit above, so `TestOracleWrongZero` fails: a §10 stop,
-reported to perigrin, not tuned toward.
+The chart has 8525 exact sites and recursive descent 8345, at or above it on
+every corpus. perl.git's two rv2hv no-answer sites are the range limit above:
+a site the chart misses, graded no-answer rather than WRONG because the chart
+reports no other hash site in `op/range.t`, so `oracle-wrong 0` does not show
+them.
 
 ## The precedence constraint: `forest/precedence.go`
 
