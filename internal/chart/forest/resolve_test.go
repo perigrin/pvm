@@ -171,8 +171,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub foo ($) {} foo ? 1 : 2;", true},
 		{"sub foo {} foo/a/b/e;", true},
 		{"my sub s { 1 } s/a/b/e;", true},
-		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where internal/lexer emits the
-		// 2 a Number, which no glob's name is; perl accepts all three.
+		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where the token table reads a *
+		// after a word as a multiplication, so the 2 after it has no glob name's reading (only *{ has one), and
+		// resolve, which makes the word a call or a filehandle, leaves the * no reading; perl accepts all three.
 		{"new Foo * 2;", false},
 		{"sub foo {} foo * 2;", false},
 		{"print STDOUT * 2;", false},

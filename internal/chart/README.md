@@ -1522,8 +1522,10 @@ was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form wi
 glob sigils and `?` and `/` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and
 `my sub s { 1 } s/a/b/e;` are accepted; `*` before a Number wherever toke.c
-expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
-glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside a method or a field's initializer is
+expects a term is refused after a word (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`),
+where perl reads `*2` as a glob, since the token table reads a `*` after a word as a
+multiplication and so gives the Number after it no glob name's reading (it gives one only to the `{` of `*{`), and
+resolve, which makes the word a call or a filehandle, is left no reading. shortcut: `__CLASS__` outside a method or a field's initializer is
 accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
 scope and not a method's. The `indirect` feature is not read, so a word before a variable stays a method where it is
 off: `use v5.36; no feature "state"; state $x = 1;` is accepted, where perl refuses it. `use feature 'class'; class Foo
