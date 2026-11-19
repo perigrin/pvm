@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
@@ -1066,12 +1067,16 @@ func (p *parser) noteBeginEffects(n *Node) {
 			if p.imports == nil {
 				p.imports = map[string]Import{}
 			}
+			key := p.subKey(name)
+			if !strings.Contains(name, "::") && inMain(name) {
+				key = subKey(name) // `package Foo; BEGIN { *STDOUT = sub {1} }` is main::STDOUT's
+			}
 			// An alias takes its target's prototype: `*my_push =
 			// \&CORE::push` is `\@@`, measured on 5.42.0.
 			if imp, ok := p.aliasTarget(n.Children[1]); ok {
-				p.imports[p.subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
-			} else if _, ok := p.imports[p.subKey(name)]; !ok {
-				p.imports[p.subKey(name)] = Import{Name: name}
+				p.imports[key] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
+			} else if _, ok := p.imports[key]; !ok {
+				p.imports[key] = Import{Name: name}
 			}
 		} else {
 			p.symbolsOpen = true
@@ -1260,4 +1265,15 @@ func (p *parser) peekAfter(tok lexer.Token) (lexer.Token, bool) {
 	next, ok := p.peekSignificant()
 	p.pos = save
 	return next, ok
+}
+
+// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
+// package, and every name that does not open as an identifier.
+func inMain(name string) bool {
+	switch name {
+	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
+		return true
+	}
+	c := name[0]
+	return c < utf8.RuneSelf && !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_')
 }

@@ -1463,9 +1463,10 @@ with reason `scope`, at the first dropped reading reached from the root.
 
 - **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment, the subs of a file a `BEGIN` requires
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
-  package, keyed by its qualified name. shortcut: parse keys every bare import by the package around it, an always-main
-  name included, so `package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;` is refused where perl -c accepts it
-  (`TestResolveAlwaysMainImportLimit`); upgrade when parse keys an always-main name in main. A declared sub before a
+  package, keyed by its qualified name. A bare glob assignment of an always-main name is keyed in main, as perl puts
+  it there (`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;` is accepted), and an always-main name
+  Exporter imports into Foo stays Foo's, which a bare call there does not read (`package Foo; use E; ENV 1;` is
+  refused, as perl refuses it; `TestResolveAlwaysMainGlobImport`, `TestResolveAlwaysMainExporterImport`). A declared sub before a
   word naming a package the file declares earlier is a method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
 - **Features** in force at a byte are chart/lex's (`Stream.FeaturesAt`), read as it reads `isa`'s: a `use feature`,
   `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,

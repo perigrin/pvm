@@ -329,9 +329,6 @@ func (r *resolver) lookup(word string, k int) (sub, int) {
 	}
 	// parse keys an import into another package by its qualified name, and marks Local the subs the file and the
 	// files it requires declare; the file's own are read above, where they are declared.
-	// shortcut: parse keys a bare import by the package around it even for an always-main name, so a BEGIN-time
-	// `*STDOUT = sub {...}` in package Foo is keyed Foo::STDOUT and missed here, where perl puts it in main
-	// (TestResolveAlwaysMainImportLimit); upgrade when parse keys an always-main name in main.
 	im, ok := r.scope.Imports[word]
 	if !ok {
 		im, ok = r.scope.Imports[qualify(r.pkg[k], word)]

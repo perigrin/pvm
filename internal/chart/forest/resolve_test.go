@@ -17,10 +17,12 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// testModules are the modules a row's use loads. perl's verdicts for the rows that use M or R were taken with this M.pm or R.pm on @INC.
+// testModules are the modules a row's use loads. perl's verdicts for the rows that use M, R or E were taken with this M.pm or R.pm on @INC.
 var testModules = map[string]string{
 	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true false);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\nsub false () { 0 }\n1;\n",
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
+	// E's subs are qualified, since a bare sub ENV in package E is main's.
+	"E": "package E;\nuse Exporter 'import';\nour @EXPORT = qw(ENV STDOUT);\nsub E::ENV {1}\nsub E::STDOUT {1}\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -605,17 +607,37 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 	}
 }
 
-// TestResolveAlwaysMainImportLimit pins a limit: parse keys a bare import by the package around it, an always-main
-// name included, so the chart refuses these where perl -c says syntax OK (it puts *STDOUT and *_ in main).
-func TestResolveAlwaysMainImportLimit(t *testing.T) {
-	for _, src := range []string{
-		`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`,
-		`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`,
-	} {
-		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f != nil {
-			t.Errorf("%q is accepted; the limit is gone, so move it to TestResolveAlwaysMainNames and drop the README shortcut", src)
-		}
+// TestResolveAlwaysMainGlobImport: a BEGIN-time glob assignment of an always-main name puts the sub in main from
+// every package (gv.c's S_gv_is_in_main), so the call is accepted wherever it is made; perl -c says syntax OK to each.
+// A name that is not always-main stays in the package that made it: G2's row (input 01a1f051) is accepted where perl
+// refuses it, pinned here so this test sees it move, and a qualified name stays where it names.
+func TestResolveAlwaysMainGlobImport(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { *_ = sub {1} } _ 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } package Bar; STDOUT 1;`, true},
+		{`package Foo; BEGIN { *X = sub {1} } package main; X 1;`, false},
+		{`package Foo; BEGIN { *Foo::STDOUT = sub {1} } STDOUT 1;`, false},
+	})
+	// G2 (01a1f051): perl refuses it ("Number found where operator expected"); the chart accepts it.
+	src := `BEGIN { *X = sub {1} } package Foo; X 1;`
+	if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+		t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
 	}
+}
+
+// TestResolveAlwaysMainExporterImport: Exporter assigns a qualified glob (*{"Foo::ENV"}), so an always-main name it
+// exports into Foo stays Foo's, and a bare call there reads main's, which has none: perl -c refuses both
+// ("Number found where operator expected"). E is in testModules.
+func TestResolveAlwaysMainExporterImport(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; use E; ENV 1;`, false},
+		{`package Foo; use E; STDOUT 1;`, false},
+		{`use E; ENV 1;`, true},
+		{`package Foo; use E; Foo::ENV 1;`, true},
+	})
 }
 
 // TestResolveSayWithoutFeatureLimit pins a limit: `say` stays a keyword whatever the features (tdt/overrides.txt), so
