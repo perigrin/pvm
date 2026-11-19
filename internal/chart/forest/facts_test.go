@@ -191,6 +191,19 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`if ((my %h = ())) { my @k = keys %h } my @j = keys %h;`, 1, 0}, // the my ends with the if
 		{`my %h; my $c = sub { keys %h };`, 0, 0},                        // a closure's padhv
 		{`use feature 'signatures'; sub f ($x, %h) { return keys %h } my @k = keys %h;`, 1, 0},
+		// a %name is a parameter only after ( or , at the signature's own depth; in a default it is the package hash,
+		// and so is the body's (Concise: rv2hv in the default and under keys)
+		{`use feature "signatures"; no warnings; our %h; my $f = sub ($x = \%h) { my @k = keys %h; };`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = \%h) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = scalar(%h)) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = {%h}) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %w; our $n = 1; sub f ($x = $n % w) { my @k = keys %w; }`, 2, 0}, // modulus
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = (1, %h)) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = "a,%h") { my @k = keys %h; }`, 2, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = sub (%h) {1}) { my @k = keys %h; }`, 2, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = 1, % h) { my @k = keys %h; }`, 1, 0}, // padhv
+		{`use feature "signatures"; no warnings; our %h; sub f ($, %h) { my @k = keys %h; }`, 1, 0},       // a placeholder $
+		{`use feature "signatures"; no warnings; our %h; sub f ($x, $, %h) { my @k = keys %h; }`, 1, 0},
 		{`our %h; my @v = @h{qw(a b)}; my %w = %h{qw(a b)};`, 3, 0},
 		{`our %h; my @x = %h[0];`, 1, 0},                         // %h[...] slices the array @h
 		{`our %h; $h{'a', 'b'} = 1; my $x = $h{qw(a b)};`, 3, 0}, // join($;, ...): rv2hv over gv, gvsv(*;)

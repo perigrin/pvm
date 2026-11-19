@@ -4,7 +4,6 @@
 package forest
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -1240,7 +1239,7 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	if !ok || j >= r.n {
 		return
 	}
-	text := r.text(j)
+	start := r.s.Raw[r.s.Tokens[j].Index].Start
 	if r.is(j, "(") {
 		for d := 0; j < r.n; j++ {
 			if r.is(j, "(") {
@@ -1250,11 +1249,14 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 					break
 				}
 			}
-			text += " " + r.text(j)
 		}
 	} else if r.s.Raw[r.s.Tokens[j].Index].Kind != lexer.Prototype {
 		return
 	}
+	if j >= r.n {
+		return
+	}
+	text := r.src[start:r.s.Raw[r.s.Tokens[j].Index].End]
 	body := j
 	for body < r.n && !r.is(body, "{") {
 		body++
@@ -1262,13 +1264,34 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	if body >= r.n || r.match[body] < 0 {
 		return
 	}
-	for _, m := range sigHash.FindAllStringSubmatch(text, -1) {
-		h.decls[m[1]] = append(h.decls[m[1]], hashDecl{j, r.match[body], kind})
+	// a parameter is a %name directly after ( or , at the signature's own depth; one in a default is an expression
+	// (Concise: our %h; sub f ($x = \%h) {} reads rv2hv), and a % after a term is a modulus, which the lexer tells apart
+	depth, prev, sigil := 0, "", false
+	for _, t := range lexer.Tokenize(text) {
+		s := string(text[t.Start:t.End])
+		if t.Kind == lexer.Variable && len(s) == 2 && !isWordByte(s[1]) {
+			s = s[1:] // a bare sigil before punctuation, which the lexer reads as $, or $): a placeholder (toke.c)
+		}
+		name := ""
+		switch {
+		case t.Kind == lexer.Whitespace || t.Kind == lexer.Comment:
+			continue
+		case s == ")" || s == "]" || s == "}":
+			depth--
+		case s == "(" || s == "[" || s == "{":
+			depth++
+		case t.Kind == lexer.Variable && depth == 1 && (prev == "(" || prev == ",") && s[0] == '%':
+			name = hashName(s)
+		case sigil && t.Kind == lexer.Word:
+			name = s // ($, %h): after the placeholder $, the lexer reads % h as a modulus
+		}
+		if name != "" {
+			h.decls[name] = append(h.decls[name], hashDecl{j, r.match[body], kind})
+		}
+		sigil = depth == 1 && s == "%" && (prev == "(" || prev == ",")
+		prev = s
 	}
 }
-
-// sigHash is a signature's hash parameter.
-var sigHash = regexp.MustCompile(`%\s*(\w+)`)
 
 // loopBody is the tokens opening the body of the foreach whose iterator a declaration at token k declares and closing
 // its last block, a continue's included, or 0, 0: the alias is not in scope over the loop's own list (Concise: `our
