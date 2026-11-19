@@ -635,8 +635,9 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 
 // TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, keys an always-main
 // glob alias and an always-main sub declared in any package in main, as perl does, so whichever came last holds the
-// prototype. Each verdict is the pinned perl -c's; the last two rows are refused ("Array found where operator
-// expected", "Number found where operator expected") because the sub declared after the alias replaces it.
+// prototype, but an our sub in the package that declares it. Each verdict is the pinned perl -c's: the glob-then-sub
+// rows are refused ("Array found where operator expected", "Number found where operator expected") because the sub
+// declared after the alias replaces it, and the our sub called from Bar because Bar's STDOUT is main's.
 func TestRDAlwaysMainGlobImport(t *testing.T) {
 	for _, r := range []verdict{
 		{`package Foo; BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`, true},
@@ -646,6 +647,9 @@ func TestRDAlwaysMainGlobImport(t *testing.T) {
 		{`package Foo; sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, true},
 		{`package Foo; BEGIN { *STDOUT = \&CORE::push } sub STDOUT () {1} my @a; STDOUT @a, 1;`, false},
 		{`package Foo; BEGIN { *ENV = \&CORE::length } sub ENV () {1} ENV 1, 2;`, false},
+		// an our sub is qualified explicitly, so an always-main name stays the package's
+		{`package Foo; our sub ENV ($) {1} Foo::ENV 1, 2;`, true},
+		{`package Foo; { our sub STDOUT ($) {1} } package Bar; STDOUT 1, 2;`, false},
 	} {
 		if refused := refusedAnywhere(parse.Parse([]byte(r.src))); refused == r.accepted {
 			t.Errorf("recursive descent refuses %q: %v; perl accepts it: %v", r.src, refused, r.accepted)

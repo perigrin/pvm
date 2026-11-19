@@ -646,7 +646,19 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 		imp.Lvalue = true
 		p.declareLexical(imp)
 	}
-	if p.text(word) != "our" {
+	// `our sub` names its sub explicitly, so an always-main name is the package's (perl: &Foo::ENV), and the main
+	// key gets back what it held
+	pk := p.subKey(p.text(nameTok))
+	moved := p.text(word) == "our" && pk != key
+	if moved {
+		if imp, ok := p.imports[key]; ok {
+			p.imports[pk] = imp
+		}
+		if p.bodied != nil {
+			p.bodied[pk] = p.bodied[key]
+		}
+	}
+	if p.text(word) != "our" || moved {
 		if hadImp {
 			p.imports[key] = prevImp
 		} else {
