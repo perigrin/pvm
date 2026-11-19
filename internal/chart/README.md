@@ -2224,7 +2224,8 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   checked against `perl -MO=Concise`): a named hash, `%h`, `@h{...}` or
   `%h{...}`, only where it is a package hash, since toke.c's `S_pending_ident`
   makes a name it finds in the pad padhv (a `my`, `state`, `field` or
-  signature hash, in scope from the end of its statement to its block's end,
+  signature hash, in scope from the end of its statement, the whole statement
+  where it stands in parentheses, to its block's end,
   or to the end of the `if`, `while` or `for` whose condition declares it; an
   `our` is the package's); a dereference (`%$r`, `%{...}`, `->%*`, `->%{`,
   `@$r{...}`, `->@{`), never `%h[...]` or `->%[`, which slice an array; and an
@@ -2241,7 +2242,12 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   every level of its last run, a modified `${...}` (OPpDEREF_SV) a lone last
   level, and a read (`my @x = @{...}`, `print`, `join`, a condition) none; a
   postfix slice `->@{...}` over a level with a constant key folds its own
-  rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level.
+  rv2hv too (`multideref($r->{"a"}->)`); `delete local` keeps the last level;
+  a `sort` whose block op.c's `S_simplify_sort` drops (`{ $a <=> $b }`,
+  `{ $b cmp $a }`) reads its list. A refalias of a package hash (`\%h = ...`,
+  `(\%h) = ...`, `\local %h`, `for \%h (...)`) builds no rv2hv. A key of
+  `+$x` or `$$` is a plain scalar; `+word` calls a constant, which hedges. In
+  a file that names `export_lexically`, a package hash's read hedges.
   A context perl was not measured in, `$#{...}`, a `?:` whose condition may be
   constant, and a refassign's `\$h{a} = ...` hedge. A hash a feature that may be off
   declares (`state`, `field`, a signature) is unsure. shortcut: a lexical %h
@@ -2373,11 +2379,11 @@ wider / WRONG / no-answer):
 | in-tree | anonhash | 138/0/0/0 | 138/0/0/0 |
 | in-tree | total | 815/1/0/0 | 809/3/0/4 |
 | T1 | srefgen | 800/4/0/9 | 803/5/0/5 |
-| T1 | rv2hv | 235/6/0/0 | 217/21/3/0 |
+| T1 | rv2hv | 234/7/0/0 | 217/21/3/0 |
 | T1 | match | 397/0/0/0 | 397/0/0/0 |
 | T1 | readline | 158/0/0/2 | 157/0/0/3 |
 | T1 | anonhash | 564/0/0/2 | 565/0/0/1 |
-| T1 | total | 2154/10/0/13 | 2139/26/3/9 |
+| T1 | total | 2153/11/0/13 | 2139/26/3/9 |
 | perl.git | srefgen | 1755/29/0/7 | 1779/11/1/0 |
 | perl.git | rv2hv | 560/8/0/2 | 376/194/0/0 |
 | perl.git | match | 1869/0/0/4 | 1869/0/0/4 |
@@ -2385,7 +2391,7 @@ wider / WRONG / no-answer):
 | perl.git | anonhash | 1061/0/0/0 | 1061/0/0/0 |
 | perl.git | total | 5556/37/0/18 | 5397/205/1/8 |
 
-The chart has 8525 exact sites and recursive descent 8345, at or above it on
+The chart has 8524 exact sites and recursive descent 8345, at or above it on
 every corpus. perl.git's two rv2hv no-answer sites are the range limit above:
 a site the chart misses, graded no-answer rather than WRONG because the chart
 reports no other hash site in `op/range.t`, so `oracle-wrong 0` does not show
