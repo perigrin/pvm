@@ -633,6 +633,25 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 	}
 }
 
+// TestResolveOurSubAlwaysMain: an our sub is its package's sub, an always-main name included (&Foo::ENV), with a
+// lexical alias to the end of its block, which reaches across a package statement. Outside the block a bare
+// always-main name reads main's, which has none, so perl -c refuses those rows ("Number found where operator
+// expected"). Each verdict is the pinned perl -c's.
+func TestResolveOurSubAlwaysMain(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`{ package Foo; our sub ENV {1} } ENV 1;`, false},
+		{`{ package Foo; our sub STDOUT {1} } STDOUT 1;`, false},
+		{`package Foo; { our sub ENV {1} } package main; ENV 1;`, false},
+		{`package Foo; { our sub STDOUT ($) {1} } package Bar; STDOUT 1, 2;`, false},
+		{`package Foo; { our sub ENV ($) {1} } ENV 1, 2;`, false},
+		{`package Foo; { our sub ENV ($) {1} ENV 1, 2; }`, true},
+		{`package Foo; { our sub ENV ($) {1} } Foo::ENV 1, 2;`, true},
+		{`package Foo; { our sub X ($) {1} } X 1, 2;`, true},
+		{`package Foo; our sub X ($) {1} package Bar; X 1, 2;`, true},
+		{`package Foo; { our sub X ($) {1} package Bar; X 1, 2; }`, true},
+	})
+}
+
 // TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, keys an always-main
 // glob alias and an always-main sub declared in any package in main, as perl does, so whichever came last holds the
 // prototype, but an our sub in the package that declares it. Each verdict is the pinned perl -c's: the glob-then-sub
