@@ -72,8 +72,9 @@ reading below, taken on the same host, not with CI's advisory job.
 - **Grading pools a site at its top-level statement**, in both directions
   (chart-perly-w2-inputs `01a1ed19-0c33`): an interpolated-code hedge over a
   whole block grades a wrong reading inside it WIDER, not WRONG; and a decided
-  site anywhere in a top-level statement holding others (a `sub`, `package`
-  block or bare block, and an `if`, `for`, `while` or `given`) accounts
+  site anywhere in every top-level statement holding others (for example a
+  `sub`, `package` block, bare block, `if`, `for`, `while`, `given`, `unless`,
+  `BEGIN`, `class`, `try`, `eval {}`, `do {}` or `my $f = sub {...};`) accounts
   for perl's site of that marker anywhere else in it, so a miss grades EXACT
   where it would grade WRONG at its own statement ("Per-site grading").
 
@@ -1603,6 +1604,12 @@ are accepted (whether XS::Parse::Infix checks `PL_expect` is not known).
 shortcut: a library operator spelled as a keyword reads as the keyword, where
 toke.c asks the plugin first: with a plugin operator `print`,
 `use My::Ops; print 1 plus 2;` is accepted.
+And one limit refuses what perl accepts: a library operator spelled with core
+operators' characters (`===`, `=:=`, `<~>`; CPAN's Syntax::Operator::Equ
+declares `===`) is refused, since internal/lexer lexes `1 === 2` as `==` then
+`=` and `parse.LibraryOperators` drops such a declaration, where toke.c's
+`yyl_try` offers the whole run of such characters to the plugin before any
+core operator.
 
 Recognition reads every word after a term as a possible library operator,
 so the forms perl refuses as a word where an operator is expected are refused
@@ -2290,9 +2297,10 @@ chart WRONG site and the chart's exact sites at or above recursive descent's
 on every corpus, listing each WRONG site when it fails. No WRONG site is left
 as a known limit; rerun the command above for the counts. Both subjects report
 each site spanning its top-level statement (`forest/facts.go`'s `walk`,
-`parse.Sites`), so the grading pools every top-level statement holding others, a
-`sub`, `package` block or bare block and an `if`, `for`, `while` or `given`
-alike: a correct site elsewhere in it can account for a miss, which then grades
+`parse.Sites`), so the grading pools every top-level statement holding others,
+for example a `sub`, `package` block, bare block, `if`, `for`, `while`, `given`,
+`unless`, `until`, `BEGIN`, `class`, `try`, `eval {}`, `do {}` or
+`my $f = sub {...};` alike: a correct site elsewhere in it can account for a miss, which then grades
 EXACT where at its own statement it would grade WRONG, and a hedge over it turns
 a wrong reading WIDER. Recursive descent is graded the same way, so the two
 compare like for like, but `oracle-wrong 0` is that much weaker evidence than it
