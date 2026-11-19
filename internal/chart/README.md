@@ -1448,7 +1448,10 @@ with reason `scope`, at the first dropped reading reached from the root.
   package of the `package` statement or block around it (`TestResolvePackageScopedSubs`), except that the
   always-main names (`ENV`, `INC`, `ARGV`, `ARGVOUT`, `SIG`, `STDIN`, `STDOUT`, `STDERR`, `_`) and a name not opening
   as an identifier are keyed in main from every package, as gv.c's `S_gv_is_in_main` puts them
-  (`TestResolveAlwaysMainNames`); a `my` or `state` sub lasts to its block's `}`.
+  (`TestResolveAlwaysMainNames`); a `my` or `state` sub lasts to its block's `}`. An `our` sub is keyed in its own
+  package, an always-main name included (perl's `&Foo::ENV`), and its alias lasts to its block's `}`, across a
+  `package` statement, as a `my` sub does (`{ package Foo; our sub ENV {1} } ENV 1;` is refused,
+  `package Foo; our sub X ($) {1} package Bar; X 1, 2;` accepted; `TestResolveOurSubAlwaysMain`).
 - **Imported subs** are the caller's `forest.Scope`, `parse.Imports` over a tree from `parse.ParseFileFrom` or
   `parse.ParseWithLoader`, names and prototypes; the forest loads no module, and an empty `Scope` imports nothing
   (`TestResolveEmptyScope`). shortcut: imports are file-wide, so a call written before its `use` reads as imported
@@ -1461,14 +1464,20 @@ with reason `scope`, at the first dropped reading reached from the root.
   FUNC0SUB, a one-argument one UNIOPSUB, `&` before a `{` LSTOPSUB, any other or none NOAMP, each but the first
   with XTERM after it.
 
-- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment (not a `local` one, which perl restores
-  when the block ends: `BEGIN { local *X = sub {1} } X 1;` is refused), the subs of a file a `BEGIN` requires
-  (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
+- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment (not a `local` declaration's own, which
+  perl restores when the block ends: `BEGIN { local *X = sub {1} } X 1;` is refused, while a glob assigned in the value
+  of `local $x = ...` is kept: `BEGIN { local $x = *ENVX = sub ($) {1} } ENVX 1, 2;` is accepted), the subs of a file
+  a `BEGIN` requires (which parse marks `Local`; the file's own declarations are still read by position; an
+  always-main name is main's, so `package Foo; BEGIN { require "./h.pl" } STDOUT 1;` is accepted with `sub STDOUT {1}`
+  in h.pl; `TestResolveAlwaysMainRequiredAndLocal`), and an import into another
   package, keyed by its qualified name. A bare glob assignment of an always-main name is keyed in main, as perl puts
   it there (`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;` is accepted), and an always-main name
   Exporter imports into Foo stays Foo's, which a bare call there does not read (`package Foo; use E; ENV 1;` is
   refused, as perl refuses it; `TestResolveAlwaysMainGlobImport`, `TestResolveAlwaysMainExporterImport`). A declared sub before a
   word naming a package the file declares earlier is a method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
+  shortcut: only `local *X = V` is read as localized, so a glob localized by its own statement and assigned after it
+  is still recorded, and the chart accepts `BEGIN { local *X; *X = sub {1} } X 1;` where perl refuses it
+  (`TestResolveKnownLimits`).
 - **Features** in force at a byte are chart/lex's (`Stream.FeaturesAt`), read as it reads `isa`'s: a `use feature`,
   `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,
   `:all`), a bare `no feature` turns them all off, and `use VERSION` replaces them with its version's bundle (state
@@ -1476,7 +1485,9 @@ with reason `scope`, at the first dropped reading reached from the root.
   each holds to the end of its block (`TestResolveFeaturesLexicalScope`). As internal/parse reads them
   (`featuresMayBeOn`), a `use` of a module that is no quiet pragma, a feature list not all quoted names, or a `BEGIN`
   block (a `BEGIN` before `{`, not after `->`) may turn any feature on, so each feature known off is unknown after one
-  (`use if 1, feature => 'try'`, `use Mojo::Base -signatures`). Where its feature is unknown a feature-gated keyword
+  (`use if 1, feature => 'try'`, `use Mojo::Base -signatures`). That maybe-on accepts what perl refuses where the
+  block or module turns nothing on: `BEGIN { 1 } try { 1 } catch ($e) { 2 }`, `use POSIX (); try { 1 } catch ($e) { 2 }`
+  and `use Data::Dumper; class Foo { field $x; }` are accepted, by recursive descent too (`TestResolveKnownLimits`). Where its feature is unknown a feature-gated keyword
   keeps what either state gives it: its keyword readings, and a plain word's as any word's are decided, at its own
   token only (`use Carp; try 1;` is refused, `use Carp; sub try {} try 1;` accepted); and `sub` keeps both its
   readings (`TestResolveFeaturesMayBeOn`). perl.git's Test-Simple `t/regression/10-set_and_dne.t` is refused where perl
@@ -1520,7 +1531,8 @@ prototype if there is one, since parse.Imports, which is file-wide, reports neit
 shortcut: a sub the file declares is read before an import, so an import of its name, by `use builtin` or by a module,
 does not shadow it, where perl takes whichever came last, since parse.Imports keeps one entry per name and not where it
 was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form with the `use` in a block and
-`sub nil {} use M qw(nil); my @x = (nil 1);` are accepted);
+`sub nil {} use M qw(nil); my @x = (nil 1);` are accepted), and neither does a `BEGIN` glob alias of its name after it
+(`sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;` is refused, where perl and recursive descent accept it);
 `print x x 3;` is accepted (above, "Indirect objects"); after a call toke.c's XTERM reads `<` as a `<>`, `**` as two
 glob sigils and `?` and `/` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and

@@ -195,6 +195,18 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub true {1} use builtin qw(true); my @x = (true 1, 2);", true},
 		{"sub true {1} { use builtin qw(true); my @x = (true 1, 2); }", true},
 		{"sub nil {} use M qw(nil); my @x = (nil 1);", true},
+		// and a BEGIN glob alias of the sub's name after it does not replace it; perl and recursive descent take the
+		// alias and accept both.
+		{`sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, false},
+		{`sub foo () {1} BEGIN { *foo = \&CORE::length } foo 1, 2;`, false},
+		// shortcut (noteBeginEffects): only local *X = V is read as localized, so a glob localized by its own
+		// statement and assigned after it is recorded; perl restores it when BEGIN ends and refuses the call.
+		{`BEGIN { local *X; *X = sub {1} } X 1;`, true},
+		// a BEGIN block or a use of a module that is no quiet pragma leaves every feature maybe-on, so the keyword
+		// readings stand where perl, with the feature off, refuses each; recursive descent accepts them too.
+		{`BEGIN { 1 } try { 1 } catch ($e) { 2 }`, true},
+		{`use POSIX (); try { 1 } catch ($e) { 2 }`, true},
+		{`use Data::Dumper; class Foo { field $x; }`, true},
 		// shortcut (classOnly): __CLASS__ is refused only outside a method or a field's initializer, which resolve
 		// does not read; perl refuses it ("Cannot use __CLASS__ outside of a method or field initializer expression").
 		{"use feature 'class'; no warnings; my $x = __CLASS__;", true},

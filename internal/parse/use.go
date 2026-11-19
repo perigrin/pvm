@@ -1061,7 +1061,9 @@ func (p *parser) noteBeginEffects(n *Node) {
 	}
 	if n.Kind == Declaration && n.Text == "local" {
 		// perl restores a local glob when the BEGIN block ends, so its own assignment (local *X = V, the first
-		// child) defines nothing after it; a glob assigned in the value of local $x = V is not localized
+		// child) defines nothing after it; a glob assigned in the value of local $x = V is not localized.
+		// shortcut: `local *X; *X = V` is still recorded, which perl restores too; upgrade when a BEGIN's statements
+		// are read in order.
 		for i, c := range n.Children {
 			if i == 0 && c.Kind == Binary && c.Text == "=" && len(c.Children) == 2 {
 				c = c.Children[1]
