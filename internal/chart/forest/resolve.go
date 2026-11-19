@@ -539,6 +539,9 @@ func (r *resolver) declaredPackage(name string, k int) bool {
 func (r *resolver) called(k int, proto string) []int {
 	g := r.g
 	if proto == "" {
+		// shortcut: toke.c's XTERM reads a { after the call as an anonymous hash, which internal/lexer opens as a block
+		// unless its first item is followed by , or => (01a1e9a2), so the forest has no reading of sub foo; foo {1};
+		// and it is refused; upgrade when the lexer reads that { as perl does (TestResolveKnownLimits).
 		r.xterm(k + 1)
 		return []int{g.noamp}
 	}
