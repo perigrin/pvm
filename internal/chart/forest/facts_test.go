@@ -202,10 +202,14 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`our %h; my $k; my $x = $h{a}{"x$k"};`, 1, 0},          // multideref($h{"a"}->) takes the next rv2hv
 		{`my $r = {}; my $i; my $x = $r->[$i+1]{"x$i"};`, 1, 0}, // the computed index ends the run
 		{`my $r = {}; foo($r->{a}); $r->{a}++;`, 0, 0},
-		{`my $r = {}; my $x = \$r->{b};`, 0, 1},             // multideref, but a refassign's \$r->{b} = \1 keeps an rv2hv
-		{`my $r = {}; foreach my $x (@{$r->{a}}) {}`, 0, 1}, // rv2hv under helem sKM/DREFAV
-		{`my $r = {}; my @x = @{$r->{a}};`, 0, 1},           // multideref($r->{"a"}): the context decides
-		{`my $r = {}; delete local $r->{a};`, 0, 1},
+		{`my $r = {}; my $x = \$r->{b};`, 0, 0},                                                  // multideref($r->{"b"}) under srefgen; a refassign is unmeasured, a hedge
+		{`my $r = {}; foreach my $x (@{$r->{a}}) {}`, 1, 0},                                      // rv2hv under helem sKM/DREFAV
+		{`my $r = {}; my @x = @{$r->{a}};`, 0, 0},                                                // multideref($r->{"a"})
+		{`my $r = {}; delete local $r->{a};`, 1, 0},                                              // delete local leaves the helem out of multideref
+		{`my $r = {}; push @{$r->{a}}, 1; my @k = keys %{$r->{b}};`, 3, 0},                       // helem sKM/DREFAV; %{} and helem sKM/DREFHV
+		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
+		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
+		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
 	} {
 		got := SubjectFacts(tab, []byte(c.src), "h.pl", Scope{})
 		if !got.OK {

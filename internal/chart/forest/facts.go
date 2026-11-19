@@ -38,11 +38,14 @@ type factsGrammar struct {
 	kind     []int
 	hash     []uint8
 	level    []levelShape // the element levels of a subscript chain, {...} and [...]
-	deref    []uint8      // where a dereference's operand stands, for derefHedge
-	matchop  int          // the rule term MATCHOP term, whose site is at the operator
-	fullstmt int          // fullstmt's symbol id
-	pmfunc   int          // PMFUNC's
-	notCore  []bool       // the terminals a word takes as a sub or method rather than a builtin
+	deref    []uint8      // where a dereference's operand stands, for derefSites
+	sigil    []byte       // a dereference's sigil: @, %, $, # for $#, * for a glob, A for ->@{...}, ? for ->%{...}
+	lhs      []string     // each rule's left-hand side and right-hand side, for context
+	rhs      [][]string
+	matchop  int    // the rule term MATCHOP term, whose site is at the operator
+	fullstmt int    // fullstmt's symbol id
+	pmfunc   int    // PMFUNC's
+	notCore  []bool // the terminals a word takes as a sub or method rather than a builtin
 	// refs is each rule's operands op.c's ref_array_or_hash takes a reference to where they are an array or a hash,
 	// each as how many symbols before the rule's last it stands: ~~'s two, and given's and when's condition.
 	refs       [][]int
@@ -70,7 +73,7 @@ const (
 	hashLevel            // a {...} element level
 )
 
-// The operands derefHedge reads: a cast's indirob, the term before a postfix ->, and local's or \'s.
+// The operands derefSites reads: a cast's indirob, the term before a postfix ->, and local's or \'s.
 const (
 	derefCast = 1 + iota
 	derefPost
@@ -89,7 +92,8 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == name })
 	}
 	g := &factsGrammar{kind: make([]int, len(tab.Rules)), hash: make([]uint8, len(tab.Rules)),
-		level: make([]levelShape, len(tab.Rules)), deref: make([]uint8, len(tab.Rules)), matchop: -1,
+		level: make([]levelShape, len(tab.Rules)), deref: make([]uint8, len(tab.Rules)), sigil: make([]byte, len(tab.Rules)),
+		lhs: make([]string, len(tab.Rules)), rhs: make([][]string, len(tab.Rules)), matchop: -1,
 		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols)),
 		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules)),
 		glob: make([]bool, len(tab.Rules)), calls: make([]callShape, len(tab.Rules)),
@@ -107,6 +111,7 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 			rhs[i] = name(x)
 		}
 		lhs, joined := name(rule.LHS), strings.Join(rhs, " ")
+		g.lhs[r], g.rhs[r] = lhs, rhs
 		switch {
 		case lhs == "termeqop" && joined == "term NCEQOP term":
 			g.refs[r], g.smartmatch = []int{2, 0}, r
@@ -172,9 +177,12 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 		switch {
 		case len(rhs) == 2 && strings.HasPrefix(rhs[0], "CAST_") && rhs[1] == "indirob":
 			g.deref[r] = derefCast // %{...}, @{...}, ${...} and $#{...}; *{...} and &{...} fold as a read does
+			g.sigil[r] = map[string]byte{"hsh": '%', "ary": '@', "scalar": '$', "arylen": '#'}[lhs]
 		case len(rhs) == 3 && rhs[0] == "term" && rhs[1] == "ARROW" &&
 			slices.Contains([]string{"CAST_PERCENT_SIGN", "CAST_SNAIL", "CAST_STAR", "DOLSHARP", "PERLY_SNAIL", "PERLY_PERCENT_SIGN"}, rhs[2]):
 			g.deref[r] = derefPost // ->%*, ->@*, ->$* (and ->**, one rule with it), ->$#*, ->@{...} and ->%{...}
+			g.sigil[r] = map[string]byte{"CAST_PERCENT_SIGN": '%', "CAST_SNAIL": '@', "CAST_STAR": '$', "DOLSHARP": '#',
+				"PERLY_SNAIL": 'A', "PERLY_PERCENT_SIGN": '?'}[rhs[2]]
 		case lhs == "term" && (joined == "KW_LOCAL term" || joined == "REFGEN term"):
 			g.deref[r] = derefLocal // local, and \ (whose refassign keeps an rv2hv: op/lvref.t's \$h{a} = ...)
 		}
@@ -202,6 +210,7 @@ type subjectFacts struct {
 	stmts     [][2]int                    // the statements' token spans, top level only, sorted
 	hashes    *hashScopes                 // what each hash name is at a token
 	levels    []int32                     // the element level nodes, by their first token
+	up        [][]upRef                   // where each node reachable from the root stands
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -241,6 +250,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 		}
 	}
 	slices.SortFunc(sf.levels, func(x, y int32) int { return int(f.Nodes[x].From - f.Nodes[y].From) })
+	sf.index()
 	sf.proto = func(at int) (string, bool) {
 		d, st := r.lookup(r.text(at), at)
 		return d.proto, st == declared && d.proto != ""
@@ -345,7 +355,11 @@ func (sf *subjectFacts) walk() {
 				sf.all[k] = true
 				sf.uncertain[k] = sf.uncertain[k] || unsure
 			}
-			if k, ok := sf.derefHedge(n, a); ok {
+			decided, hedged := sf.derefSites(n, a)
+			for _, k := range decided {
+				sf.all[k] = true
+			}
+			for _, k := range hedged {
 				sf.all[k], sf.uncertain[k] = true, true
 			}
 			ks, unsure := sf.refSites(n, a)
@@ -423,8 +437,9 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 			}
 			ay = union(ay, []int{k})
 		}
-		if k, has := sf.derefHedge(n, a); has {
-			ay = union(ay, []int{k})
+		if decided, hedged := sf.derefSites(n, a); len(decided)+len(hedged) > 0 {
+			slices.Sort(decided)
+			am, ay = union(am, decided), union(union(ay, decided), hedged)
 		}
 		if ks, unsure := sf.refSites(n, a); len(ks) > 0 {
 			if !unsure {
@@ -482,12 +497,17 @@ func (sf *subjectFacts) hashSite(n int32, a Alt) (unsure, ok bool) {
 	if h := sf.g.hash[a.Rule]; (h == hashNamed || h == hashRef) && int(nd.To) < len(sf.s.Tokens) && sf.text(int(nd.To)) == "[" {
 		return false, false // toke.c's yyl_percent reads %name[ as the array's key/value slice
 	}
+	if sf.g.hash[a.Rule] == hashRef && sf.g.deref[a.Rule] == derefPost && sf.g.sigil[a.Rule] == '?' && sf.absorbs(sf.child(a, 2)) {
+		return false, false
+	}
 	switch sf.g.hash[a.Rule] {
 	case hashNamed:
 		return sf.named(int(nd.From))
 	case hashSlice:
 		if base := sf.f.Nodes[sf.child(a, 3)]; base.To == base.From+1 && len(sf.text(int(base.From))) > 1 {
 			return sf.named(int(base.From)) // @h{...}; @$r{...} and ->@{...} read through a reference
+		} else if b := sf.f.Alts[base.Alt]; base.Alt != 0 && sf.g.deref[b.Rule] == derefPost && sf.absorbs(sf.child(b, 2)) {
+			return false, false
 		}
 	case hashLevel:
 		return sf.elementSite(a)
@@ -512,10 +532,11 @@ func (sf *subjectFacts) named(k int) (unsure, ok bool) {
 // `$r->{a}{b}{c}` is multideref($r->{"a"}{"b"}{"c"})) while its key is a constant or a plain scalar; a computed key
 // ends the run and keeps its level's rv2hv unless the run before it folded, which then takes the rv2hv as its last
 // action (`$r->{"x$k"}{a}` keeps one, `our %h; $h{a}{"x$k"}` none: multideref($h{"a"}->)). A key that may fold to a
-// constant, a call to a constant sub say, is unsure. derefHedge covers a chain read as an aggregate.
+// constant, a call to a constant sub say, is unsure. derefSites adds what a dereference's context keeps.
 // shortcut: after a range whose constant fold perl abandons (`"*x".."az"`, not `"*x"..3`), perl folds nothing more of
 // the main program's statements into multideref, so a read there keeps its rv2hv where the chart reports none; perl.git
-// op/range.t:301 and :446 grade WRONG (TestOracleSubjectHashSites); upgrade when the cause in peep.c is known.
+// op/range.t:301 and :446 are missed, graded no-answer only because nothing else in the file is a hash site
+// (TestOracleSubjectHashSites); upgrade when the cause in peep.c is known.
 func (sf *subjectFacts) elementSite(a Alt) (unsure, ok bool) {
 	through, maybe := sf.through(a)
 	if !through && !maybe {
@@ -552,34 +573,159 @@ func (sf *subjectFacts) through(a Alt) (yes, maybe bool) {
 	return true, false
 }
 
-// derefHedge is a hedge at a dereference (its sigil, its ->, local or \) whose operand holds an element chain that
-// reads a hash through a reference or a package hash, the chain itself or one a ?: passes on (op/ref.t:928):
-// S_maybe_multideref leaves the last level out where op_lvalue marked it OPpDEREF_AV or _HV, which turns on what is
-// done with the dereference (Concise: `foreach (@{$r->{a}})` keeps an rv2hv under helem sKM/DREFAV, `my @x =
-// @{$r->{a}}` is multideref($r->{"a"})), and on local and refassign (`delete local $r->{a}` and op/lvref.t's
-// `\$h{a} = ...` keep one); the chart does not read that context.
-func (sf *subjectFacts) derefHedge(n int32, a Alt) (int, bool) {
+// What op_lvalue and the ops taking an aggregate (op.c's Perl_doref, called by ck_fun for an OA_AVREF or OA_HVREF
+// operand and by op_lvalue for a modified rv2av or rv2hv) leave on the element a dereference reads: nothing, where
+// it is read; OPpDEREF_SV, under a modified ${...}; OPpDEREF_AV or _HV, under a modified, sliced or aggregate-taking
+// @{...} or %{...}; or a context the chart does not read.
+const (
+	ctxRead = iota
+	ctxScalar
+	ctxAggregate
+	ctxUnknown
+)
+
+// derefSites is the sites the element chains a dereference, local or \ reads carry beyond elementSite's: decided
+// ones for the levels peep.c's S_maybe_multideref leaves out of multideref under the context perl gives it, and a
+// hedge at the dereference (its sigil, its ->, local or \) where that context is not read. Under OPpDEREF_AV or _HV
+// the run holding the last level does not fold, so each of its levels through a reference or a package hash keeps
+// its rv2hv (Concise: `foreach (@{$r->{a}})` keeps one under helem sKM/DREFAV, `my @x = @{$r->{a}}` is
+// multideref($r->{"a"})); under OPpDEREF_SV the last level keeps it only where it starts its run (`${$r->{a}} = 1`
+// keeps one, `${$r->{a}{b}} = 1` none). `delete local` keeps the last level as OPpDEREF_SV does, and a refassign's
+// `\$h{a} = ...` (op/lvref.t:148) is a context the chart does not read.
+func (sf *subjectFacts) derefSites(n int32, a Alt) (decided, hedged []int) {
 	nd := sf.f.Nodes[n]
 	if nd.Sym < 0 || sf.g.deref[a.Rule] == 0 {
-		return 0, false
+		return nil, nil
 	}
-	at, op := int(nd.From), sf.f.Nodes[a.Right]
-	switch sf.g.deref[a.Rule] {
-	case derefCast:
-		if sf.text(int(op.From)) == "{" && op.To > op.From+1 {
+	at, op, ctx := int(nd.From), sf.f.Nodes[a.Right], ctxUnknown
+	mod := func(sigil byte) int {
+		if sigil == '$' {
+			return ctxScalar
+		}
+		return ctxAggregate
+	}
+	switch sigil := sf.g.sigil[a.Rule]; sf.g.deref[a.Rule] {
+	case derefCast, derefPost:
+		if sf.g.deref[a.Rule] == derefPost {
+			op = sf.f.Nodes[sf.child(a, 2)]
+			at = int(op.To)
+			if sigil == '$' && sf.text(at+1) == "**" {
+				sigil = '*'
+			}
+		} else if sf.text(int(op.From)) == "{" && op.To > op.From+1 {
 			op.From, op.To = op.From+1, op.To-1
 		}
-	case derefPost:
-		op = sf.f.Nodes[sf.child(a, 2)]
-		at = int(op.To)
-	}
-	i, _ := slices.BinarySearchFunc(sf.levels, op.From, func(l int32, from int32) int { return int(sf.f.Nodes[l].From - from) })
-	for ; i < len(sf.levels) && sf.f.Nodes[sf.levels[i]].From < op.To; i++ {
-		if sf.f.Nodes[sf.levels[i]].To <= op.To && sf.reads(sf.levels[i]) {
-			return site(kindHash, at), true
+		switch sigil {
+		case '*':
+			return nil, nil // *{...} and ->** fold as a read does
+		case 'A', '?':
+			return nil, nil // ->@{...}, ->@[...], ->%{...} and ->%[...] fold the chain: multideref($r->{"a"}->)
+		case '@', '%', '$':
+			if ctx = sf.context(n, sigil); ctx == ctxAggregate || ctx == ctxScalar {
+				ctx = mod(sigil)
+			}
+		}
+	case derefLocal:
+		ctx = ctxRead // local $r->{a} = 1 and \$r->{a} fold
+		switch w := sf.text(at); {
+		case w == "local" && sf.owner(n) == "delete":
+			ctx = ctxScalar
+		case w != "local" && sf.assigned(n):
+			ctx = ctxUnknown
 		}
 	}
-	return 0, false
+	if ctx == ctxRead {
+		return nil, nil
+	}
+	tops, other := sf.chains(int(op.From), int(op.To))
+	if other || ctx == ctxUnknown {
+		return nil, []int{site(kindHash, at)}
+	}
+	for _, t := range tops {
+		d, unsure := sf.kept(t, ctx)
+		decided = append(decided, d...)
+		if unsure {
+			hedged = []int{site(kindHash, at)}
+		}
+	}
+	return decided, hedged
+}
+
+// chains is the element chains reading through a reference or a package hash that tokens from to to are, through ?:
+// branches, and other where they hold such a chain otherwise, or under a ?: whose condition may be constant, which
+// perl folds to one branch.
+func (sf *subjectFacts) chains(from, to int) (tops []int32, other bool) {
+	i, _ := slices.BinarySearchFunc(sf.levels, int32(from), func(l, from int32) int { return int(sf.f.Nodes[l].From - from) })
+	for j := i; j < len(sf.levels) && int(sf.f.Nodes[sf.levels[j]].From) == from; j++ {
+		if int(sf.f.Nodes[sf.levels[j]].To) == to {
+			if sf.reads(sf.levels[j]) {
+				return []int32{sf.levels[j]}, false
+			}
+			return nil, false
+		}
+	}
+	q, c, depth, constant := -1, -1, 0, true
+	for k := from; k < to; k++ {
+		switch t := sf.text(k); {
+		case t == "(" || t == "[" || t == "{":
+			depth++
+		case t == ")" || t == "]" || t == "}":
+			depth--
+		case depth == 0 && t == "?" && q < 0:
+			q = k
+		case depth == 0 && t == ":" && q >= 0 && c < 0:
+			c = k
+		}
+		if kind := sf.s.Raw[sf.s.Tokens[k].Index].Kind; q < 0 && (kind == lexer.Variable || kind == lexer.DerefSigil) {
+			constant = false
+		}
+	}
+	if q > from && c > q && !constant {
+		t1, o1 := sf.chains(q+1, c)
+		t2, o2 := sf.chains(c+1, to)
+		return append(t1, t2...), o1 || o2
+	}
+	for ; i < len(sf.levels) && int(sf.f.Nodes[sf.levels[i]].From) < to; i++ {
+		if int(sf.f.Nodes[sf.levels[i]].To) <= to && sf.reads(sf.levels[i]) {
+			return nil, true
+		}
+	}
+	return nil, false
+}
+
+// kept is the rv2hv sites chain top keeps under ctx beyond elementSite's, and unsure where a level's answer is not in
+// the text: none where its last key is computed (elementSite counts that level); under ctxScalar the last level where
+// it starts its run; under ctxAggregate each level of the run of constant or plain-scalar keys ending at the last.
+func (sf *subjectFacts) kept(top int32, ctx int) (sites []int, unsure bool) {
+	for l := top; ; {
+		_, a, ok := sf.levelOf(l)
+		if !ok || sf.key(sf.child(a, 1)) != keySimple {
+			return sites, unsure || ok && sf.key(sf.child(a, 1)) == keyUnknown
+		}
+		base := sf.child(a, sf.g.level[a.Rule].base)
+		if _, b, ok := sf.levelOf(base); ctx == ctxScalar && ok && sf.key(sf.child(b, 1)) == keySimple {
+			return nil, false // the run below folds and takes the last level
+		}
+		switch yes, maybe := sf.through(a); {
+		case maybe:
+			unsure = true
+		case yes:
+			sites = append(sites, site(kindHash, int(sf.f.Nodes[l].To)-1))
+		}
+		if ctx == ctxScalar {
+			return sites, unsure
+		}
+		l = base
+	}
+}
+
+// absorbs is whether node n, the term a postfix slice ->@{...} or ->%{...} subscripts, is an element level whose key
+// S_maybe_multideref holds, which then takes the slice's rv2hv as its last action (Concise: `$r->{a}->@{qw(x y)}` and
+// `my %h; $h{a}->@{qw(x y)}` are multideref($r->{"a"}->) and multideref($h{"a"}->); `$r->{"x$k"}->@{qw(x y)}` keeps
+// both rv2hv).
+func (sf *subjectFacts) absorbs(n int32) bool {
+	_, a, ok := sf.levelOf(n)
+	return ok && sf.key(sf.child(a, 1)) == keySimple
 }
 
 // reads is whether some level of the chain node n tops reads a hash through a reference or a package hash.
@@ -1161,4 +1307,219 @@ func hashName(t string) string {
 		return ""
 	}
 	return name
+}
+
+// upRef is one place a node stands: in an alternative of rule of node p, as its symbol idx, or as the rule position
+// to the left of p's last symbol (idx -1).
+type upRef struct {
+	p, rule int32
+	idx     int
+}
+
+// index records where each node reachable from the root stands, for context.
+func (sf *subjectFacts) index() {
+	f := sf.f
+	sf.up = make([][]upRef, len(f.Nodes))
+	seen := make([]bool, len(f.Nodes))
+	seen[f.Root] = true
+	for stack := []int32{f.Root}; len(stack) > 0; {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		nd := f.Nodes[n]
+		for x := nd.Alt; x != 0; x = f.Alts[x].Next {
+			a := f.Alts[x]
+			if a.Right != 0 {
+				idx := int(nd.Dot) - 1
+				if nd.Sym >= 0 {
+					idx = len(sf.g.rhs[a.Rule]) - 1
+				}
+				sf.up[a.Right] = append(sf.up[a.Right], upRef{n, a.Rule, idx})
+			}
+			if a.Left != 0 {
+				idx := 0
+				if f.Nodes[a.Left].Sym < 0 {
+					idx = -1
+				}
+				sf.up[a.Left] = append(sf.up[a.Left], upRef{n, a.Rule, idx})
+			}
+			for _, c := range [2]int32{a.Left, a.Right} {
+				if c != 0 && !seen[c] {
+					seen[c] = true
+					stack = append(stack, c)
+				}
+			}
+		}
+	}
+}
+
+// owners is the rule nodes node n is a symbol of, through rule positions, with its index there.
+func (sf *subjectFacts) owners(n int32) []upRef {
+	var out []upRef
+	var climb func(p int32, rule int32, idx int)
+	climb = func(p, rule int32, idx int) {
+		if sf.f.Nodes[p].Sym >= 0 {
+			out = append(out, upRef{p, rule, idx})
+			return
+		}
+		for _, u := range sf.up[p] {
+			if u.idx == -1 {
+				climb(u.p, u.rule, idx)
+			}
+		}
+	}
+	for _, u := range sf.up[n] {
+		if u.idx >= 0 {
+			climb(u.p, u.rule, u.idx)
+		}
+	}
+	return out
+}
+
+// context is what op.c makes of the dereference node n of sigil, read through the lists, parentheses, ?: branches
+// and unit rules around it to the operator that takes it, ctxUnknown where readings disagree or perl was not measured:
+//   - a subscript after it (@{...}[...], ${...}{...}) or \, ++ and --, local, an assignment's left side, a sub's or a
+//     method's arguments (entersub's op_lvalue), foreach's list, keys, values, each, chomp and chop, and push, unshift,
+//     splice, pop and shift's first argument, grep's, map's and sort's list, and sprintf's after its format: modified
+//     (Concise: push @{$r->{a}}, 1 keeps an rv2hv under helem sKM/DREFAV);
+//   - !, an assignment's right side, + - * / ** . x, a comparison, || && //, an if, unless, elsif or while condition,
+//     return, print, join and reverse: read (my @x = @{$r->{a}} is multideref($r->{"a"}));
+//   - scalar and a ?: branch: whatever their own context is.
+func (sf *subjectFacts) context(n int32, sigil byte) int {
+	ctx := -1
+	merge := func(c int) {
+		if ctx != -1 && ctx != c {
+			c = ctxUnknown
+		}
+		ctx = c
+	}
+	var visit func(n int32, first bool)
+	visit = func(n int32, first bool) {
+		us := sf.owners(n)
+		if len(us) == 0 {
+			merge(ctxUnknown)
+		}
+		for _, u := range us {
+			lhs, rhs, i := sf.g.lhs[u.rule], sf.g.rhs[u.rule], u.idx
+			joined := strings.Join(rhs, " ")
+			switch {
+			case i == 0 && len(rhs) > 1 && (lhs == "subscripted" || lhs == "term") &&
+				(rhs[1] == "PERLY_BRACE_OPEN" || rhs[1] == "PERLY_BRACKET_OPEN"):
+				if sigil == '%' {
+					merge(ctxUnknown) // %{...}{...} and %{...}[...], unmeasured
+				} else {
+					merge(ctxAggregate)
+				}
+			case len(rhs) == 1 && slices.Contains([]string{"term", "listexpr", "expr", "optlistexpr", "optexpr", "mexpr",
+				"texpr", "condition", "sliceme", "kvslice", "termbinop", "termunop", "listop"}, lhs):
+				visit(u.p, first)
+			case joined == "listexpr PERLY_COMMA term":
+				visit(u.p, first && i == 0)
+			case joined == "listexpr PERLY_COMMA", joined == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+				visit(u.p, first)
+			case joined == "term PERLY_QUESTION_MARK term PERLY_COLON term" && i > 0:
+				visit(u.p, first)
+			case sf.text(int(sf.f.Nodes[u.p].From)) == "scalar" && slices.Contains([]string{"UNIOP", "FUNC1"}, rhs[0]):
+				// op_lvalue passes its context into ?:'s branches and, as entersub's, into scalar's operand (op.c's
+				// Perl_op_lvalue_flags, case OP_SCALAR; Concise: is(scalar(@{$c->{a}}), 1) keeps an rv2hv,
+				// my $n = scalar(@{$c->{a}}) is multideref($c->{"a"}))
+				visit(u.p, true)
+			default:
+				merge(sf.ownerContext(u, n, first))
+			}
+		}
+	}
+	visit(n, true)
+	if ctx == -1 {
+		return ctxUnknown
+	}
+	return ctx
+}
+
+// ownerContext is what the rule u that takes node n makes of it, as context reads it; first is whether n is the
+// first item of the list u takes.
+func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
+	lhs, rhs, i := sf.g.lhs[u.rule], sf.g.rhs[u.rule], u.idx
+	word := sf.text(int(sf.f.Nodes[u.p].From))
+	sym := func(j int) string {
+		if j < len(rhs) {
+			return rhs[j]
+		}
+		return ""
+	}
+	switch {
+	case lhs == "termbinop" && sym(1) == "ASSIGNOP":
+		if i == 0 {
+			return ctxAggregate
+		}
+		if op := sf.text(int(sf.f.Nodes[n].From) - 1); op == "=" || op == "+=" {
+			return ctxRead
+		}
+	case lhs == "termbinop" && slices.Contains([]string{"ADDOP", "MULOP", "POWOP", "OROR", "ANDAND", "DORDOR"}, sym(1)),
+		lhs == "termeqop", lhs == "termrelop", lhs == "termunop" && sym(0) == "PERLY_EXCLAMATION_MARK":
+		return ctxRead
+	case lhs == "termunop" && sym(0) != "PERLY_MINUS" && sym(0) != "PERLY_PLUS" && sym(0) != "PERLY_TILDE",
+		lhs == "term" && (sym(0) == "REFGEN" || sym(0) == "KW_LOCAL"):
+		return ctxAggregate // ++, --, \ and local
+	case slices.Contains([]string{"NOAMP", "UNIOPSUB", "LSTOPSUB", "amper", "METHCALL", "METHCALL0"}, sym(0)),
+		len(rhs) > 2 && sym(1) == "ARROW" && sym(2) == "methodname":
+		return ctxAggregate // a sub's arguments: entersub's op_lvalue
+	case strings.HasPrefix(lhs, "bare_statement_for") && !slices.Contains(rhs, "PERLY_SEMICOLON"),
+		lhs == "sideff" && sym(1) == "KW_FOR" && i == 2:
+		return ctxAggregate // foreach aliases its list
+	case lhs == "bare_statement_if", lhs == "bare_statement_unless", lhs == "bare_statement_while",
+		lhs == "else" && sym(0) == "KW_ELSIF",
+		lhs == "sideff" && i == 2 && slices.Contains([]string{"KW_IF", "KW_UNLESS", "KW_WHILE"}, sym(1)):
+		return ctxRead
+	case slices.Contains([]string{"LSTOP", "FUNC", "UNIOP", "FUNC1", "BLKLSTOP", "LOOPEX"}, sym(0)):
+		block := len(rhs) > 1 && (sym(1) == "indirob" || sym(1) == "block")
+		switch word {
+		case "keys", "values", "each", "chomp", "chop":
+			return ctxAggregate
+		case "push", "unshift", "splice", "pop", "shift":
+			if first {
+				return ctxAggregate
+			}
+		case "grep", "map", "sort":
+			if block || !first {
+				return ctxAggregate
+			}
+		case "sprintf":
+			if !first {
+				return ctxAggregate
+			}
+		case "print", "join", "reverse", "return":
+			return ctxRead
+		}
+	}
+	return ctxUnknown
+}
+
+// owner is the word of the operator that takes node n, through lists and parentheses, or "".
+func (sf *subjectFacts) owner(n int32) string {
+	for _, u := range sf.owners(n) {
+		switch rhs := sf.g.rhs[u.rule]; {
+		case len(rhs) == 1, strings.Join(rhs, " ") == "listexpr PERLY_COMMA term":
+			if w := sf.owner(u.p); w != "" {
+				return w
+			}
+		case slices.Contains([]string{"LSTOP", "FUNC", "UNIOP", "FUNC1"}, rhs[0]):
+			return sf.text(int(sf.f.Nodes[u.p].From))
+		}
+	}
+	return ""
+}
+
+// assigned is whether node n is an assignment's left side.
+func (sf *subjectFacts) assigned(n int32) bool {
+	for _, u := range sf.owners(n) {
+		switch rhs := sf.g.rhs[u.rule]; {
+		case len(rhs) == 1 || strings.Join(rhs, " ") == "PERLY_PAREN_OPEN expr PERLY_PAREN_CLOSE":
+			if sf.assigned(u.p) {
+				return true
+			}
+		case sf.g.lhs[u.rule] == "termbinop" && rhs[1] == "ASSIGNOP" && u.idx == 0:
+			return true
+		}
+	}
+	return false
 }
