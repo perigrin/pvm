@@ -210,8 +210,8 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
 		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
 		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
-		// a sort block of S_simplify_sort's shape, one top-level <=> or cmp, hedges whatever its operands: perl drops
-		// { $a <=> $b } and keeps { lc $a cmp lc $b } (Concise), and the chart does not read operands
+		// a sort block holding <=> or cmp hedges whatever its operands: perl drops { $a <=> $b } and keeps
+		// { lc $a cmp lc $b } (Concise), and the chart does not read operands
 		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 0, 2},
 		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 1},
 		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
@@ -234,8 +234,13 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		// a trailing ;, parentheses, $::a in main and $Foo::a in Foo hedge too
 		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 2},
 		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 2},
-		// any other block is kept, as perl keeps it: or leaves the comparison below the block's last op
-		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 1, 1},
+		// any block holding <=> or cmp hedges, since constant folding can leave it the one op perl drops
+		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 0, 2},
+		{`my $r = {}; my @s = sort { +($a <=> $b) } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { 1 ? $a <=> $b : 0 } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { 0 || $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $a <=> $b, } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $a - $b } @{$r->{a}};`, 1, 0}, // no comparison: perl keeps the block (Concise)
 		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 0, 2},
 		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
 		// other spellings of one comparison of $a and $b hedge too (Concise: each builds 0), as does $::a outside main,

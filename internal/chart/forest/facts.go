@@ -211,7 +211,6 @@ type subjectFacts struct {
 	hashes    *hashScopes                 // what each hash name is at a token
 	levels    []int32                     // the element level nodes, by their first token
 	up        [][]upRef                   // where each node reachable from the root stands
-	pkg       []string                    // the package at each token
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -244,8 +243,7 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
-		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes(), pkg: r.pkg,
-	}
+		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes()}
 	for i, nd := range f.Nodes {
 		if nd.Alt != 0 && sf.g.level[f.Alts[nd.Alt].Rule].ok {
 			sf.levels = append(sf.levels, int32(i))
@@ -1579,83 +1577,27 @@ func (sf *subjectFacts) ownerContext(u upRef, n int32, first bool) int {
 	return ctxUnknown
 }
 
-// sortHedge is whether the sort block opening at token k has the one shape op.c's S_simplify_sort can drop, so the
-// chart hedges it: a body (an OP_SCOPE, one statement; a ; at either end adds none) whose last op is <=> or cmp, i.e.
-// one top-level <=> or cmp with an operand on each side, through enclosing parentheses. It drops that shape only
-// when both operands are the package $a and $b of the current stash, which spelling (`$<newline>a`, `$::a` in a
-// package whose stash is main's) and lexicals (`CORE::my $a`) can hide, so the chart never reads the operands: such a
-// block always hedges, and any other block is kept, as perl keeps it (Concise: sort { $a <=> $b } @{$r->{a}} is
-// multideref($r->{"a"}), sort { $a <=> $b or 0 } keeps an rv2hv).
+// sortHedge is whether the sort block opening at token k holds a <=> or cmp, at any depth, so the chart hedges it:
+// op.c's S_simplify_sort drops a block whose one op, after constant folding, is <=> or cmp over the current stash's
+// $a and $b (Concise: sort { $a <=> $b }, { +($a <=> $b) } and { 1 ? $a <=> $b : 0 } over @{$r->{a}} are each
+// multideref($r->{"a"})), which neither spelling nor folding nor lexicals let the chart settle; a block holding no
+// comparison is kept, as perl keeps it.
 func (sf *subjectFacts) sortHedge(k int) bool {
 	if k >= len(sf.s.Tokens) || sf.text(k) != "{" {
 		return false
 	}
-	var ts []string
-	for j, depth := k+1, 1; j < len(sf.s.Tokens); j++ {
+	for j, depth := k+1, 1; j < len(sf.s.Tokens) && depth > 0; j++ {
 		switch sf.text(j) {
 		case "{":
 			depth++
 		case "}":
 			depth--
-		}
-		if depth == 0 {
-			break
-		}
-		ts = append(ts, sf.text(j))
-	}
-	for len(ts) > 0 && ts[0] == ";" {
-		ts = ts[1:]
-	}
-	for len(ts) > 0 && ts[len(ts)-1] == ";" {
-		ts = ts[:len(ts)-1]
-	}
-	// closes is the index of the bracket closing the one ts opens at i
-	closes := func(i int) int {
-		for j, depth := i, 0; j < len(ts); j++ {
-			switch ts[j] {
-			case "(", "[", "{":
-				depth++
-			case ")", "]", "}":
-				if depth--; depth == 0 {
-					return j
-				}
-			}
-		}
-		return -1
-	}
-	for len(ts) > 2 && ts[0] == "(" && closes(0) == len(ts)-1 {
-		ts = ts[1 : len(ts)-1]
-	}
-	at, depth := -1, 0
-	for i, t := range ts {
-		switch t {
-		case "(", "[", "{":
-			depth++
-		case ")", "]", "}":
-			depth--
 		case "<=>", "cmp":
-			if depth == 0 {
-				if at >= 0 {
-					return false
-				}
-				at = i
-			}
-		default:
-			// an operator binding looser than <=> leaves the comparison below the block's last op
-			if depth == 0 && looser[t] {
-				return false
-			}
+			return true
 		}
 	}
-	return at > 0 && at < len(ts)-1
+	return false
 }
-
-// looser are the operators binding looser than <=> and cmp, and ;, which ends the one statement.
-var looser = map[string]bool{";": true, ",": true, "=>": true, "?": true, ":": true, "or": true, "and": true, "xor": true,
-	"not": true, "||": true, "&&": true, "//": true, "..": true, "...": true, "&": true, "|": true, "^": true, "=": true,
-	"+=": true, "-=": true, "*=": true, "/=": true, ".=": true, "x=": true, "**=": true, "%=": true, "||=": true,
-	"&&=": true, "//=": true, "|=": true, "&=": true, "^=": true, "<<=": true, ">>=": true, "==": true, "!=": true,
-	"eq": true, "ne": true, "~~": true}
 
 // owner is the word of the operator that takes node n, through lists and parentheses, or "".
 func (sf *subjectFacts) owner(n int32) string {
