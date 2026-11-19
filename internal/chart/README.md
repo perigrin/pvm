@@ -72,8 +72,9 @@ reading below, taken on the same host, not with CI's advisory job.
 - **Grading pools a site at its top-level statement**, in both directions
   (chart-perly-w2-inputs `01a1ed19-0c33`): an interpolated-code hedge over a
   whole block grades a wrong reading inside it WIDER, not WRONG; and a decided
-  site anywhere in a top-level statement holding others (a `sub`, `package`
-  block or bare block, and an `if`, `for`, `while` or `given`) accounts
+  site anywhere in every top-level statement holding others (for example a
+  `sub`, `package` block, bare block, `if`, `for`, `while`, `given`, `unless`,
+  `BEGIN`, `class`, `try`, `eval {}`, `do {}` or `my $f = sub {...};`) accounts
   for perl's site of that marker anywhere else in it, so a miss grades EXACT
   where it would grade WRONG at its own statement ("Per-site grading").
 
@@ -1460,11 +1461,13 @@ with reason `scope`, at the first dropped reading reached from the root.
   FUNC0SUB, a one-argument one UNIOPSUB, `&` before a `{` LSTOPSUB, any other or none NOAMP, each but the first
   with XTERM after it.
 
-- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment, the subs of a file a `BEGIN` requires
+- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment (not a `local` one, which perl restores
+  when the block ends: `BEGIN { local *X = sub {1} } X 1;` is refused), the subs of a file a `BEGIN` requires
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
-  package, keyed by its qualified name. shortcut: parse keys every bare import by the package around it, an always-main
-  name included, so `package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;` is refused where perl -c accepts it
-  (`TestResolveAlwaysMainImportLimit`); upgrade when parse keys an always-main name in main. A declared sub before a
+  package, keyed by its qualified name. A bare glob assignment of an always-main name is keyed in main, as perl puts
+  it there (`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;` is accepted), and an always-main name
+  Exporter imports into Foo stays Foo's, which a bare call there does not read (`package Foo; use E; ENV 1;` is
+  refused, as perl refuses it; `TestResolveAlwaysMainGlobImport`, `TestResolveAlwaysMainExporterImport`). A declared sub before a
   word naming a package the file declares earlier is a method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
 - **Features** in force at a byte are chart/lex's (`Stream.FeaturesAt`), read as it reads `isa`'s: a `use feature`,
   `no feature`, `use experimental` or `no experimental` statement turns its features on or off, a bundle's too (`:5.10`,
@@ -1522,8 +1525,10 @@ was made (`sub true {1} use builtin qw(true); my @x = (true 1, 2);`, its form wi
 glob sigils and `?` and `/` as a pattern, which the token table gives no reading after a word, so `sub foo {} foo < 3;`,
 `sub foo {} my $x = foo ** 2;`, `sub foo ($) {} foo ? 1 : 2;`, `sub foo {} foo/a/b/e;` and
 `my sub s { 1 } s/a/b/e;` are accepted; `*` before a Number wherever toke.c
-expects a term is refused (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`), where perl reads `*2` as a
-glob, since internal/lexer emits the `2` a Number. shortcut: `__CLASS__` outside a method or a field's initializer is
+expects a term is refused after a word (`new Foo * 2;`, `sub foo {} foo * 2;`, `print STDOUT * 2;`),
+where perl reads `*2` as a glob, since the token table reads a `*` after a word as a
+multiplication and so gives the Number after it no glob name's reading (it gives one only to the `{` of `*{`), and
+resolve, which makes the word a call or a filehandle, is left no reading. shortcut: `__CLASS__` outside a method or a field's initializer is
 accepted (`use feature 'class'; no warnings; my $x = __CLASS__;`), where perl refuses it, since resolve reads a class's
 scope and not a method's. The `indirect` feature is not read, so a word before a variable stays a method where it is
 off: `use v5.36; no feature "state"; state $x = 1;` is accepted, where perl refuses it. `use feature 'class'; class Foo
@@ -1601,6 +1606,12 @@ are accepted (whether XS::Parse::Infix checks `PL_expect` is not known).
 shortcut: a library operator spelled as a keyword reads as the keyword, where
 toke.c asks the plugin first: with a plugin operator `print`,
 `use My::Ops; print 1 plus 2;` is accepted.
+And one limit refuses what perl accepts: a library operator spelled with core
+operators' characters (`===`, `=:=`, `<~>`; CPAN's Syntax::Operator::Equ
+declares `===`) is refused, since internal/lexer lexes `1 === 2` as `==` then
+`=` and `parse.LibraryOperators` drops such a declaration, where toke.c's
+`yyl_try` offers the whole run of such characters to the plugin before any
+core operator.
 
 Recognition reads every word after a term as a possible library operator,
 so the forms perl refuses as a word where an operator is expected are refused
@@ -2288,9 +2299,10 @@ chart WRONG site and the chart's exact sites at or above recursive descent's
 on every corpus, listing each WRONG site when it fails. No WRONG site is left
 as a known limit; rerun the command above for the counts. Both subjects report
 each site spanning its top-level statement (`forest/facts.go`'s `walk`,
-`parse.Sites`), so the grading pools every top-level statement holding others, a
-`sub`, `package` block or bare block and an `if`, `for`, `while` or `given`
-alike: a correct site elsewhere in it can account for a miss, which then grades
+`parse.Sites`), so the grading pools every top-level statement holding others,
+for example a `sub`, `package` block, bare block, `if`, `for`, `while`, `given`,
+`unless`, `until`, `BEGIN`, `class`, `try`, `eval {}`, `do {}` or
+`my $f = sub {...};` alike: a correct site elsewhere in it can account for a miss, which then grades
 EXACT where at its own statement it would grade WRONG, and a hedge over it turns
 a wrong reading WIDER. Recursive descent is graded the same way, so the two
 compare like for like, but `oracle-wrong 0` is that much weaker evidence than it

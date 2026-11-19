@@ -1059,6 +1059,16 @@ func (p *parser) noteBeginEffects(n *Node) {
 		p.resolveImports(module, list)
 		return
 	}
+	if n.Kind == Declaration && n.Text == "local" {
+		// perl restores a local glob when the BEGIN block ends, so its assignment defines nothing after it
+		for _, c := range n.Children {
+			if c.Kind == Binary && c.Text == "=" && len(c.Children) == 2 {
+				c = c.Children[1]
+			}
+			p.noteBeginEffects(c)
+		}
+		return
+	}
 	switch {
 	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
 		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
@@ -1066,12 +1076,13 @@ func (p *parser) noteBeginEffects(n *Node) {
 			if p.imports == nil {
 				p.imports = map[string]Import{}
 			}
+			key := p.gvKey(name)
 			// An alias takes its target's prototype: `*my_push =
 			// \&CORE::push` is `\@@`, measured on 5.42.0.
 			if imp, ok := p.aliasTarget(n.Children[1]); ok {
-				p.imports[p.subKey(name)] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
-			} else if _, ok := p.imports[p.subKey(name)]; !ok {
-				p.imports[p.subKey(name)] = Import{Name: name}
+				p.imports[key] = Import{Name: name, Prototype: imp.Prototype, PrototypeKnown: true}
+			} else if _, ok := p.imports[key]; !ok {
+				p.imports[key] = Import{Name: name}
 			}
 		} else {
 			p.symbolsOpen = true

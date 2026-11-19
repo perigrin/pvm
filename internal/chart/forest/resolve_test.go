@@ -17,10 +17,12 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// testModules are the modules a row's use loads. perl's verdicts for the rows that use M or R were taken with this M.pm or R.pm on @INC.
+// testModules are the modules a row's use loads. perl's verdicts for the rows that use M, R or E were taken with this M.pm, R.pm or E.pm on @INC.
 var testModules = map[string]string{
 	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true false);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\nsub false () { 0 }\n1;\n",
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
+	// E's subs are qualified, since a bare sub ENV in package E is main's.
+	"E": "package E;\nuse Exporter 'import';\nour @EXPORT = qw(ENV STDOUT);\nsub E::ENV {1}\nsub E::STDOUT {1}\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -171,8 +173,9 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"sub foo ($) {} foo ? 1 : 2;", true},
 		{"sub foo {} foo/a/b/e;", true},
 		{"my sub s { 1 } s/a/b/e;", true},
-		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where internal/lexer emits the
-		// 2 a Number, which no glob's name is; perl accepts all three.
+		// toke.c reads * before a Number as a glob wherever it expects a term (*2), where the token table reads a *
+		// after a word as a multiplication, so the 2 after it has no glob name's reading (only *{ has one), and
+		// resolve, which makes the word a call or a filehandle, leaves the * no reading; perl accepts all three.
 		{"new Foo * 2;", false},
 		{"sub foo {} foo * 2;", false},
 		{"print STDOUT * 2;", false},
@@ -604,17 +607,66 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 	}
 }
 
-// TestResolveAlwaysMainImportLimit pins a limit: parse keys a bare import by the package around it, an always-main
-// name included, so the chart refuses these where perl -c says syntax OK (it puts *STDOUT and *_ in main).
-func TestResolveAlwaysMainImportLimit(t *testing.T) {
-	for _, src := range []string{
-		`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`,
-		`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`,
+// TestResolveAlwaysMainGlobImport: a BEGIN-time glob assignment of an always-main name puts the sub in main from
+// every package (gv.c's S_gv_is_in_main), so the call is accepted wherever it is made. A name that is not always-main
+// stays in the package that made it, a qualified name stays where it names, and a local glob is restored when the
+// BEGIN block ends, so perl refuses those rows ("Number found where operator expected"). G2's row (input 01a1f051)
+// is accepted where perl refuses it, pinned here so this test sees it move. Each verdict is the pinned perl -c's.
+func TestResolveAlwaysMainGlobImport(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`, true},
+		{`package Foo; BEGIN { *_ = sub {1} } _ 1;`, true},
+		{`package Foo; BEGIN { *ENV = sub ($) {1} } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;`, true},
+		{`package Foo; BEGIN { *STDOUT = sub {1} } package Bar; STDOUT 1;`, true},
+		{`package Foo; BEGIN { *X = sub {1} } package main; X 1;`, false},
+		{`package Foo; BEGIN { *Foo::STDOUT = sub {1} } STDOUT 1;`, false},
+		{`package Foo; BEGIN { local *STDOUT = sub {1} } STDOUT 1;`, false},
+		{`package Foo; BEGIN { local *ENV = sub {1} } package main; ENV 1;`, false},
+		{`BEGIN { local *X = sub {1} } X 1;`, false},
+		{`BEGIN { local $x = 1; *X = sub {1} } X 1;`, true},
+	})
+	// G2 (01a1f051): perl refuses it ("Number found where operator expected"); the chart accepts it.
+	src := `BEGIN { *X = sub {1} } package Foo; X 1;`
+	if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+		t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+	}
+}
+
+// TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, keys an always-main
+// glob alias and an always-main sub declared in any package in main, as perl does, so whichever came last holds the
+// prototype, but an our sub in the package that declares it. Each verdict is the pinned perl -c's: the glob-then-sub
+// rows are refused ("Array found where operator expected", "Number found where operator expected") because the sub
+// declared after the alias replaces it, and the our sub called from Bar because Bar's STDOUT is main's.
+func TestRDAlwaysMainGlobImport(t *testing.T) {
+	for _, r := range []verdict{
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } package main; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; sub STDOUT () {1} BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`, true},
+		{`package Foo; sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } sub STDOUT () {1} my @a; STDOUT @a, 1;`, false},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } sub ENV () {1} ENV 1, 2;`, false},
+		// an our sub is qualified explicitly, so an always-main name stays the package's
+		{`package Foo; our sub ENV ($) {1} Foo::ENV 1, 2;`, true},
+		{`package Foo; { our sub STDOUT ($) {1} } package Bar; STDOUT 1, 2;`, false},
 	} {
-		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f != nil {
-			t.Errorf("%q is accepted; the limit is gone, so move it to TestResolveAlwaysMainNames and drop the README shortcut", src)
+		if refused := refusedAnywhere(parse.Parse([]byte(r.src))); refused == r.accepted {
+			t.Errorf("recursive descent refuses %q: %v; perl accepts it: %v", r.src, refused, r.accepted)
 		}
 	}
+}
+
+// TestResolveAlwaysMainExporterImport: Exporter assigns a qualified glob (*{"Foo::ENV"}), so an always-main name it
+// exports into Foo stays Foo's, and a bare call there reads main's, which has none: perl -c refuses both
+// ("Number found where operator expected"). E is in testModules.
+func TestResolveAlwaysMainExporterImport(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; use E; ENV 1;`, false},
+		{`package Foo; use E; STDOUT 1;`, false},
+		{`use E; ENV 1;`, true},
+		{`package Foo; use E; Foo::ENV 1;`, true},
+	})
 }
 
 // TestResolveSayWithoutFeatureLimit pins a limit: `say` stays a keyword whatever the features (tdt/overrides.txt), so

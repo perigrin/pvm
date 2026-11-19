@@ -633,7 +633,7 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	// u{1} { my sub u($){2} } (u 1,2)` is `u(1, 2)`. `our sub` aliases the
 	// package sub, which perl keeps.
 	nameTok, _ := p.peekAfter(sub)
-	key := p.subKey(p.text(nameTok))
+	key := p.gvKey(p.text(nameTok))
 	prevImp, hadImp := p.imports[key]
 	prevBodied := p.bodied[key]
 	inner := p.parseSubDecl(sub)
@@ -642,11 +642,23 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	// does not hold its result to a `\$` slot: `sub sref (\$) {} my sub g {}
 	// sref(g())` compiles.
 	if name, _ := declaredSub(inner); name != "" {
-		imp := p.imports[p.subKey(name)]
+		imp := p.imports[p.gvKey(name)]
 		imp.Lvalue = true
 		p.declareLexical(imp)
 	}
-	if p.text(word) != "our" {
+	// `our sub` names its sub explicitly, so an always-main name is the package's (perl: &Foo::ENV), and the main
+	// key gets back what it held
+	pk := p.subKey(p.text(nameTok))
+	moved := p.text(word) == "our" && pk != key
+	if moved {
+		if imp, ok := p.imports[key]; ok {
+			p.imports[pk] = imp
+		}
+		if p.bodied != nil {
+			p.bodied[pk] = p.bodied[key]
+		}
+	}
+	if p.text(word) != "our" || moved {
 		if hadImp {
 			p.imports[key] = prevImp
 		} else {
@@ -1263,7 +1275,7 @@ func (p *parser) declareSub(n *Node) {
 	// as `(($r = g($x)), $y)`. A body, or a forward declaration before any
 	// body, sets it. declareSub runs before the body is read, so the `{`
 	// after the head is what says one follows.
-	key := p.subKey(name)
+	key := p.gvKey(name)
 	next, ok := p.peekSignificant()
 	body := ok && p.src[next.Start] == '{'
 	if p.bodied[key] && !body {
