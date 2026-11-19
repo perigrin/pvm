@@ -176,14 +176,7 @@ func (p *parser) lookupSub(name string) (Import, bool) {
 	if imp, ok := p.lexical[name]; ok {
 		return imp, true
 	}
-	// shortcut: a sub declared in Foo with an always-main name and an Exporter import of one into Foo are both keyed
-	// Foo::NAME, so it is read there first, which perl does for the first and not the second; upgrade when declareSub
-	// keys the first in main.
-	if imp, ok := p.imports[p.subKey(name)]; ok {
-		return imp, true
-	}
-	// a bare always-main glob is keyed in main (noteBeginEffects)
-	if imp, ok := p.imports[subKey(name)]; ok && !strings.Contains(name, "::") && inMain(name) {
+	if imp, ok := p.imports[p.gvKey(name)]; ok {
 		return imp, true
 	}
 	if imp, ok := p.moduleSubs[p.subKey(name)]; ok {
@@ -274,6 +267,18 @@ func (p *parser) subKey(name string) string {
 		return subKey(name)
 	}
 	return p.pkg + "::" + name
+}
+
+// gvKey is the key of a sub the file itself defines, by `sub NAME` or a glob
+// assignment, as gv_fetchpvn reads it: subKey's, but main's for a bare name
+// gv.c's S_gv_is_in_main puts there (`package Foo; sub STDOUT {}` is
+// main::STDOUT). An Exporter import keeps subKey's, since Exporter assigns a
+// qualified glob (*{"Foo::ENV"}).
+func (p *parser) gvKey(name string) string {
+	if !strings.Contains(name, "::") && inMain(name) {
+		return subKey(name)
+	}
+	return p.subKey(name)
 }
 
 // subKey is the sub table's key for a name as spelled: a leading `::` and

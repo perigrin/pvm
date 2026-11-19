@@ -1076,10 +1076,7 @@ func (p *parser) noteBeginEffects(n *Node) {
 			if p.imports == nil {
 				p.imports = map[string]Import{}
 			}
-			key := p.subKey(name)
-			if !strings.Contains(name, "::") && inMain(name) {
-				key = subKey(name) // `package Foo; BEGIN { *STDOUT = sub {1} }` is main::STDOUT's
-			}
+			key := p.gvKey(name)
 			// An alias takes its target's prototype: `*my_push =
 			// \&CORE::push` is `\@@`, measured on 5.42.0.
 			if imp, ok := p.aliasTarget(n.Children[1]); ok {

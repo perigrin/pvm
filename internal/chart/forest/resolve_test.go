@@ -633,16 +633,22 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 	}
 }
 
-// TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, finds an always-main
-// glob alias in main from every package, so it reads the alias's prototype there; perl -c says syntax OK to each.
+// TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, keys an always-main
+// glob alias and an always-main sub declared in any package in main, as perl does, so whichever came last holds the
+// prototype. Each verdict is the pinned perl -c's; the last two rows are refused ("Array found where operator
+// expected", "Number found where operator expected") because the sub declared after the alias replaces it.
 func TestRDAlwaysMainGlobImport(t *testing.T) {
-	for _, src := range []string{
-		`package Foo; BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`,
-		`package Foo; BEGIN { *ENV = \&CORE::length } ENV 1, 2;`,
-		`package Foo; BEGIN { *STDOUT = \&CORE::push } package main; my @a; STDOUT @a, 1;`,
+	for _, r := range []verdict{
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`, true},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } package main; my @a; STDOUT @a, 1;`, true},
+		{`package Foo; sub STDOUT () {1} BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`, true},
+		{`package Foo; sub ENV () {1} BEGIN { *ENV = \&CORE::length } ENV 1, 2;`, true},
+		{`package Foo; BEGIN { *STDOUT = \&CORE::push } sub STDOUT () {1} my @a; STDOUT @a, 1;`, false},
+		{`package Foo; BEGIN { *ENV = \&CORE::length } sub ENV () {1} ENV 1, 2;`, false},
 	} {
-		if refusedAnywhere(parse.Parse([]byte(src))) {
-			t.Errorf("recursive descent refuses %q; perl accepts it", src)
+		if refused := refusedAnywhere(parse.Parse([]byte(r.src))); refused == r.accepted {
+			t.Errorf("recursive descent refuses %q: %v; perl accepts it: %v", r.src, refused, r.accepted)
 		}
 	}
 }

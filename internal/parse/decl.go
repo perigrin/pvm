@@ -633,7 +633,7 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	// u{1} { my sub u($){2} } (u 1,2)` is `u(1, 2)`. `our sub` aliases the
 	// package sub, which perl keeps.
 	nameTok, _ := p.peekAfter(sub)
-	key := p.subKey(p.text(nameTok))
+	key := p.gvKey(p.text(nameTok))
 	prevImp, hadImp := p.imports[key]
 	prevBodied := p.bodied[key]
 	inner := p.parseSubDecl(sub)
@@ -642,7 +642,7 @@ func (p *parser) parseLexicalSub(word lexer.Token) *Node {
 	// does not hold its result to a `\$` slot: `sub sref (\$) {} my sub g {}
 	// sref(g())` compiles.
 	if name, _ := declaredSub(inner); name != "" {
-		imp := p.imports[p.subKey(name)]
+		imp := p.imports[p.gvKey(name)]
 		imp.Lvalue = true
 		p.declareLexical(imp)
 	}
@@ -1263,7 +1263,7 @@ func (p *parser) declareSub(n *Node) {
 	// as `(($r = g($x)), $y)`. A body, or a forward declaration before any
 	// body, sets it. declareSub runs before the body is read, so the `{`
 	// after the head is what says one follows.
-	key := p.subKey(name)
+	key := p.gvKey(name)
 	next, ok := p.peekSignificant()
 	body := ok && p.src[next.Start] == '{'
 	if p.bodied[key] && !body {
