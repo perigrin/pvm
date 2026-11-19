@@ -23,8 +23,9 @@ var testModules = map[string]string{
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
 	// E's subs are qualified, since a bare sub ENV in package E is main's.
 	"E": "package E;\nuse Exporter 'import';\nour @EXPORT = qw(ENV STDOUT);\nsub E::ENV {1}\nsub E::STDOUT {1}\n1;\n",
-	// h.pl is a required helper, which declares into the requiring package.
-	"./h.pl": "sub STDOUT {1}\n1;\n",
+	// h.pl and hg.pl are required helpers, which declare into the requiring package.
+	"./h.pl":  "sub STDOUT {1}\n1;\n",
+	"./hg.pl": "*STDOUT = sub {1};\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -164,6 +165,7 @@ func TestResolveKnownLimits(t *testing.T) {
 		// refuses both.
 		{"Foo::bar 1;", true},
 		{"package A; sub foo {} package main; A::bar 1;", true},
+		{"package Foo; { our sub ENV () {1} } package main; main::ENV 1;", true},
 		// shortcut (word): a package created outside the file's package statements, here by naming Foo::bar, makes
 		// new a method to perl, which refuses it.
 		{"sub new {} Foo::bar(); new Foo x 3;", true},
@@ -640,10 +642,12 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 		{`BEGIN { local *X = sub {1} } X 1;`, false},
 		{`BEGIN { local $x = 1; *X = sub {1} } X 1;`, true},
 	})
-	// G2 (01a1f051): perl refuses it ("Number found where operator expected"); the chart accepts it.
-	src := `BEGIN { *X = sub {1} } package Foo; X 1;`
-	if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
-		t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+	// G2 (01a1f051): perl refuses each ("Number found where operator expected"); the chart accepts each, the second
+	// through a glob assigned in a local value.
+	for _, src := range []string{`BEGIN { *X = sub {1} } package Foo; X 1;`, `BEGIN { local $x = *Y = sub ($) {1} } package Foo; Y 1, 2;`} {
+		if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
+			t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+		}
 	}
 }
 
@@ -669,11 +673,12 @@ func TestResolveOurSubAlwaysMain(t *testing.T) {
 // TestResolveAlwaysMainRequiredAndLocal: a required file's sub of an always-main name is main's whichever package
 // requires it, and a glob assignment nested in the value of a local $x = ... is not localized, so perl -c accepts
 // both; a local glob's own assignment is restored when the BEGIN block ends ("Number found where operator
-// expected"). h.pl is in testModules. Each verdict is the pinned perl -c's.
+// expected"). h.pl and hg.pl are in testModules. Each verdict is the pinned perl -c's.
 func TestResolveAlwaysMainRequiredAndLocal(t *testing.T) {
 	checkVerdicts(t, []verdict{
 		{`package Foo; BEGIN { require "./h.pl" } STDOUT 1;`, true},
 		{`package Foo; BEGIN { require "./h.pl" } package Bar; STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./hg.pl" } STDOUT 1;`, true},
 		{`BEGIN { local $x = *ENVX = sub ($) {1} } ENVX 1, 2;`, true},
 		{`BEGIN { local $x = (*ENVX = sub ($) {1}) } ENVX 1, 2;`, true},
 		{`BEGIN { local *X = *Y = sub {1} } Y 1;`, true},

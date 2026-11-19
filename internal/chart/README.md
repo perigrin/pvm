@@ -1475,6 +1475,9 @@ with reason `scope`, at the first dropped reading reached from the root.
   Exporter imports into Foo stays Foo's, which a bare call there does not read (`package Foo; use E; ENV 1;` is
   refused, as perl refuses it; `TestResolveAlwaysMainGlobImport`, `TestResolveAlwaysMainExporterImport`). A declared sub before a
   word naming a package the file declares earlier is a method, as `intuit_method`'s `gv_stashpvn` finds it (`sub new {} package Foo; package main; new Foo x 3;` is refused).
+  A glob parse keys in main is read from every package, an ordinary name's too (G2, input 01a1f051), so
+  `BEGIN { *X = sub {1} } package Foo; X 1;` and `BEGIN { local $x = *Y = sub ($) {1} } package Foo; Y 1, 2;` are
+  accepted where perl refuses them (`TestResolveAlwaysMainGlobImport`).
   shortcut: only `local *X = V` is read as localized, so a glob localized by its own statement and assigned after it
   is still recorded, and the chart accepts `BEGIN { local *X; *X = sub {1} } X 1;` where perl refuses it
   (`TestResolveKnownLimits`).
@@ -1519,7 +1522,8 @@ with reason `scope`, at the first dropped reading reached from the root.
 Limits, each pinned in `TestResolveKnownLimits` or `TestResolveImportsAreFileWide`, each beside perl's verdict:
 shortcut: a qualified name neither the file nor its imports declare keeps every reading (`Foo::bar 1;` and
 `package A; sub foo {} package main; A::bar 1;` are accepted), since a module's subs are seen only through what it
-imports; shortcut: a declared sub before a word that is no keyword and no declared sub keeps its method readings where
+imports, and an `our sub` of an always-main name keyed in its package leaves `main::ENV` such a name
+(`package Foo; { our sub ENV () {1} } package main; main::ENV 1;` is accepted); shortcut: a declared sub before a word that is no keyword and no declared sub keeps its method readings where
 the file declares no such package, since a package or filehandle created elsewhere (a module it loads, naming
 `Foo::bar`) cannot be seen (`sub new {} Foo::bar(); new Foo x 3;` is accepted); shortcut: after a filehandle a declared
 `x` keeps its operator reading, since the token table gives `x` after a word no call reading (`addStatementX`), so
