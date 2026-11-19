@@ -47,12 +47,12 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"match","line":6,"end_line":6,"unresolved":true},
 			{"kind":"readline","line":6,"end_line":6,"unresolved":true},
 			{"kind":"anonhash","line":6,"end_line":6,"unresolved":true}]}`},
-		// a hash read: %h, $h{a}, $r->{b}, its {c}, %$r and @h{'a'}, one site each
+		// a hash read as perl -MO=Concise builds it: our %h and \%h are rv2hv; $h{a} and $r->{b}{c} fold into
+		// multideref; %$r and @h{'a'} are rv2hv (TestOracleSubjectHashSites)
 		{"hash.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"hash","line":1,"end_line":1},
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
 			{"kind":"hash","line":2,"end_line":2},
-			{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3},
 			{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3}]}`},
 		// a match: =~ against a pattern or an expression, and a bare pattern; not s///, not division
 		{"match.pl", `{"ok":true,"prototypes":{},"call_sites":[
@@ -165,6 +165,65 @@ func TestOracleSubject(t *testing.T) {
 		want.KnowsCallSites, want.KnowsPrototypes = true, true
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: facts\n%s\nwant\n%s", s.file, out, s.want)
+		}
+	}
+}
+
+// TestOracleSubjectHashSites holds the chart's hash sites to the rv2hv ops perl -MO=Concise shows on the pinned perl:
+// decided where perl builds one, none where it builds padhv or folds the element into multideref, and a hedge where
+// the count turns on a context the chart does not read.
+func TestOracleSubjectHashSites(t *testing.T) {
+	tab := committedTables(t)
+	for _, c := range []struct {
+		src             string
+		decided, hedged int
+	}{
+		{`my %h; my $x = $h{a};`, 0, 0},                     // padhv; multideref($h{"a"})
+		{`our %h; my $x = $h{a};`, 1, 0},                    // rv2hv vK/OURINTR; multideref($h{"a"})
+		{`my %foo; delete @foo{4,5};`, 0, 0},                // padhv twice, under ex-hslice
+		{`my $r = {}; my $x = $r->{a}{b}{c};`, 0, 0},        // multideref($r->{"a"}{"b"}{"c"})
+		{`my $x = $Foo::h{a}; my @k = keys %Foo::h;`, 1, 0}, // multideref($Foo::h{"a"}); rv2hv over gv(*Foo::h)
+		{`%Foo::h = ();`, 1, 0},
+		{`use feature 'state'; state %h; my @k = keys %h;`, 0, 0},
+		{`my %h; { { my @k = keys %h; } }`, 0, 0},
+		{`{ my %h; } my @k = keys %h;`, 1, 0},                            // the my ends with its block
+		{`my %h; { our %h; my @k = keys %h; }`, 2, 0},                    // our's alias is the package hash
+		{`if ((my %h = ())) { my @k = keys %h } my @j = keys %h;`, 1, 0}, // the my ends with the if
+		{`my %h; my $c = sub { keys %h };`, 0, 0},                        // a closure's padhv
+		{`use feature 'signatures'; sub f ($x, %h) { return keys %h } my @k = keys %h;`, 1, 0},
+		{`our %h; my @v = @h{qw(a b)}; my %w = %h{qw(a b)};`, 3, 0},
+		{`our %h; my @x = %h[0];`, 1, 0},                         // %h[...] slices the array @h
+		{`our %h; $h{'a', 'b'} = 1; my $x = $h{qw(a b)};`, 3, 0}, // join($;, ...): rv2hv over gv, gvsv(*;)
+		// known limit (facts.go elementSite): perl stops folding the rest of the main program into multideref after a
+		// range whose constant fold it abandons, so $h{a} keeps an rv2hv (op/range.t:301); the chart reports none
+		{`my @x = ("*x".."az"); our %h; my $y = $h{a};`, 1, 0},
+		{`my $r = {}; my @v = @$r{qw(a b)}; my %w = %$r; my @k = keys $r->%*;`, 3, 0},
+		{`my $r = {}; my $k; my $x = $r->{"x$k"}{a};`, 1, 0},    // rv2hv under helem sKM/DREFHV
+		{`our %h; my $k; my $x = $h{a}{"x$k"};`, 1, 0},          // multideref($h{"a"}->) takes the next rv2hv
+		{`my $r = {}; my $i; my $x = $r->[$i+1]{"x$i"};`, 1, 0}, // the computed index ends the run
+		{`my $r = {}; foo($r->{a}); $r->{a}++;`, 0, 0},
+		{`my $r = {}; my $x = \$r->{b};`, 0, 1},             // multideref, but a refassign's \$r->{b} = \1 keeps an rv2hv
+		{`my $r = {}; foreach my $x (@{$r->{a}}) {}`, 0, 1}, // rv2hv under helem sKM/DREFAV
+		{`my $r = {}; my @x = @{$r->{a}};`, 0, 1},           // multideref($r->{"a"}): the context decides
+		{`my $r = {}; delete local $r->{a};`, 0, 1},
+	} {
+		got := SubjectFacts(tab, []byte(c.src), "h.pl", Scope{})
+		if !got.OK {
+			t.Errorf("%s: refused", c.src)
+			continue
+		}
+		var decided, hedged int
+		for _, s := range got.CallSites {
+			switch {
+			case s.Kind != parseoracle.SiteKindHash:
+			case s.Unresolved:
+				hedged++
+			default:
+				decided++
+			}
+		}
+		if decided != c.decided || hedged != c.hedged {
+			t.Errorf("%s: %d decided and %d hedged hash sites, want %d and %d", c.src, decided, hedged, c.decided, c.hedged)
 		}
 	}
 }

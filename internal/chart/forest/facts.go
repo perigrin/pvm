@@ -4,6 +4,7 @@
 package forest
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -32,14 +33,16 @@ var kindName = [nkinds]string{"", parseoracle.SiteKindReference, parseoracle.Sit
 
 // factsGrammar is what SubjectFacts reads from the tables, built once per tables value.
 type factsGrammar struct {
-	// kind is each rule's site kind, -1 for none; last is whether its site is at the node's last token
-	// (a subscript's }, a cast) rather than its first, so nested subscripts sharing a start stay apart.
+	// kind is each rule's site kind, -1 for none; a hash site is at the node's last token (a subscript's }, a cast),
+	// so nested subscripts sharing a start stay apart. hash is which hash read a kindHash rule is (hashSite).
 	kind     []int
-	last     []bool
-	matchop  int    // the rule term MATCHOP term, whose site is at the operator
-	fullstmt int    // fullstmt's symbol id
-	pmfunc   int    // PMFUNC's
-	notCore  []bool // the terminals a word takes as a sub or method rather than a builtin
+	hash     []uint8
+	level    []levelShape // the element levels of a subscript chain, {...} and [...]
+	deref    []uint8      // where a dereference's operand stands, for derefHedge
+	matchop  int          // the rule term MATCHOP term, whose site is at the operator
+	fullstmt int          // fullstmt's symbol id
+	pmfunc   int          // PMFUNC's
+	notCore  []bool       // the terminals a word takes as a sub or method rather than a builtin
 	// refs is each rule's operands op.c's ref_array_or_hash takes a reference to where they are an array or a hash,
 	// each as how many symbols before the rule's last it stands: ~~'s two, and given's and when's condition.
 	refs       [][]int
@@ -59,11 +62,34 @@ type callShape struct {
 	back           int
 }
 
+// The hash reads, as perl builds them (hashSite).
+const (
+	hashNamed = 1 + iota // %h
+	hashRef              // %$r or %{...}, ->%* and ->%{...}
+	hashSlice            // @h{...}, @$r{...} and ->@{...}
+	hashLevel            // a {...} element level
+)
+
+// The operands derefHedge reads: a cast's indirob, the term before a postfix ->, and local's or \'s.
+const (
+	derefCast = 1 + iota
+	derefPost
+	derefLocal
+)
+
+// levelShape is an element level's rule: its base as a child count (child), whether it subscripts a hash, and
+// whether it reads through a reference, by an arrow written or implied between two subscripts.
+type levelShape struct {
+	ok, brace, arrow bool
+	base             int
+}
+
 func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 	id := func(name string) int {
 		return slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == name })
 	}
-	g := &factsGrammar{kind: make([]int, len(tab.Rules)), last: make([]bool, len(tab.Rules)), matchop: -1,
+	g := &factsGrammar{kind: make([]int, len(tab.Rules)), hash: make([]uint8, len(tab.Rules)),
+		level: make([]levelShape, len(tab.Rules)), deref: make([]uint8, len(tab.Rules)), matchop: -1,
 		fullstmt: id("fullstmt"), pmfunc: id("PMFUNC"), notCore: make([]bool, len(tab.Symbols)),
 		refs: make([][]int, len(tab.Rules)), smartmatch: -1, paren: -1, aggregate: make([]bool, len(tab.Rules)),
 		glob: make([]bool, len(tab.Rules)), calls: make([]callShape, len(tab.Rules)),
@@ -126,13 +152,31 @@ func buildFactsGrammar(tab *grammar.Tables) *factsGrammar {
 			g.kind[r] = kindAnonhash
 		case lhs == "termbinop" && joined == "term MATCHOP term":
 			g.kind[r], g.matchop = kindMatch, r
+		case lhs == "hsh" && joined == "PERLY_PERCENT_SIGN":
+			g.kind[r], g.hash[r] = kindHash, hashNamed
 		case lhs == "hsh", joined == "term ARROW CAST_PERCENT_SIGN", lhs == "kvslice" && joined == "term ARROW PERLY_PERCENT_SIGN":
-			g.kind[r], g.last[r] = kindHash, true
-		case lhs == "subscripted" || lhs == "term":
-			// a brace subscript reads a hash: an element, an arrow's, a chained one, or a slice of one
-			if i := slices.Index(rhs, "PERLY_BRACE_OPEN"); i > 0 && slices.Contains([]string{"scalar", "ARROW", "subscripted", "sliceme"}, rhs[i-1]) {
-				g.kind[r], g.last[r] = kindHash, true
+			g.kind[r], g.hash[r] = kindHash, hashRef
+		case lhs == "term" && joined == "sliceme PERLY_BRACE_OPEN expr PERLY_BRACE_CLOSE":
+			g.kind[r], g.hash[r] = kindHash, hashSlice
+		case lhs == "subscripted" && len(rhs) >= 4 && slices.Contains([]string{"scalar", "ARROW", "subscripted"}, rhs[len(rhs)-4]) &&
+			(rhs[len(rhs)-3] == "PERLY_BRACE_OPEN" || rhs[len(rhs)-3] == "PERLY_BRACKET_OPEN"):
+			sh := levelShape{ok: true, brace: rhs[len(rhs)-3] == "PERLY_BRACE_OPEN", arrow: rhs[0] != "scalar", base: 3}
+			if rhs[1] == "ARROW" {
+				sh.base = 4
 			}
+			g.level[r] = sh
+			if sh.brace {
+				g.kind[r], g.hash[r] = kindHash, hashLevel
+			}
+		}
+		switch {
+		case len(rhs) == 2 && strings.HasPrefix(rhs[0], "CAST_") && rhs[1] == "indirob":
+			g.deref[r] = derefCast // %{...}, @{...}, ${...} and $#{...}; *{...} and &{...} fold as a read does
+		case len(rhs) == 3 && rhs[0] == "term" && rhs[1] == "ARROW" &&
+			slices.Contains([]string{"CAST_PERCENT_SIGN", "CAST_SNAIL", "CAST_STAR", "DOLSHARP", "PERLY_SNAIL", "PERLY_PERCENT_SIGN"}, rhs[2]):
+			g.deref[r] = derefPost // ->%*, ->@*, ->$* (and ->**, one rule with it), ->$#*, ->@{...} and ->%{...}
+		case lhs == "term" && (joined == "KW_LOCAL term" || joined == "REFGEN term"):
+			g.deref[r] = derefLocal // local, and \ (whose refassign keeps an rv2hv: op/lvref.t's \$h{a} = ...)
 		}
 	}
 	return g
@@ -156,6 +200,8 @@ type subjectFacts struct {
 	uncertain map[int]bool                // the sites some readings hold and others do not
 	all       map[int]bool                // every site any reading holds
 	stmts     [][2]int                    // the statements' token spans, top level only, sorted
+	hashes    *hashScopes                 // what each hash name is at a token
+	levels    []int32                     // the element level nodes, by their first token
 }
 
 // SubjectFacts is the chart's answer to parseoracle's subject contract for src, a file at path: whether
@@ -188,7 +234,13 @@ func SubjectFacts(tab *grammar.Tables, src []byte, path string, scope Scope) par
 
 	sf := &subjectFacts{f: f, g: grammar.Derived(tab, buildFactsGrammar), s: s, src: src,
 		must: map[int32][]int{}, may: map[int32][]int{}, busy: map[int32]bool{}, failed: map[int32]bool{},
-		uncertain: map[int]bool{}, all: map[int]bool{}}
+		uncertain: map[int]bool{}, all: map[int]bool{}, hashes: r.hashScopes()}
+	for i, nd := range f.Nodes {
+		if nd.Alt != 0 && sf.g.level[f.Alts[nd.Alt].Rule].ok {
+			sf.levels = append(sf.levels, int32(i))
+		}
+	}
+	slices.SortFunc(sf.levels, func(x, y int32) int { return int(f.Nodes[x].From - f.Nodes[y].From) })
 	sf.proto = func(at int) (string, bool) {
 		d, st := r.lookup(r.text(at), at)
 		return d.proto, st == declared && d.proto != ""
@@ -289,8 +341,12 @@ func (sf *subjectFacts) walk() {
 		for x := nd.Alt; x != 0; x = f.Alts[x].Next {
 			alts++
 			a := f.Alts[x]
-			if k, ok := sf.altSite(n, a); ok {
+			if k, unsure, ok := sf.altSite(n, a); ok {
 				sf.all[k] = true
+				sf.uncertain[k] = sf.uncertain[k] || unsure
+			}
+			if k, ok := sf.derefHedge(n, a); ok {
+				sf.all[k], sf.uncertain[k] = true, true
 			}
 			ks, unsure := sf.refSites(n, a)
 			for _, k := range ks {
@@ -361,8 +417,14 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 		if !live {
 			continue
 		}
-		if k, has := sf.altSite(n, a); has {
-			am, ay = union(am, []int{k}), union(ay, []int{k})
+		if k, unsure, has := sf.altSite(n, a); has {
+			if !unsure {
+				am = union(am, []int{k})
+			}
+			ay = union(ay, []int{k})
+		}
+		if k, has := sf.derefHedge(n, a); has {
+			ay = union(ay, []int{k})
 		}
 		if ks, unsure := sf.refSites(n, a); len(ks) > 0 {
 			if !unsure {
@@ -385,26 +447,239 @@ func (sf *subjectFacts) sets(n int32) (must, may []int, ok bool) {
 	return must, may, true
 }
 
-// altSite is the site alternative a of node n stands for, if any: its rule's, at the token the rule anchors it to.
-func (sf *subjectFacts) altSite(n int32, a Alt) (int, bool) {
+// altSite is the site alternative a of node n stands for, if any: its rule's, at the token the rule anchors it to,
+// and unsure where a hash read's count is not in the text.
+func (sf *subjectFacts) altSite(n int32, a Alt) (k int, unsure, ok bool) {
 	nd := sf.f.Nodes[n]
 	if nd.Sym < 0 || sf.g.kind[a.Rule] < 0 {
-		return 0, false // a rule position is no site; its rule's node is
+		return 0, false, false // a rule position is no site; its rule's node is
 	}
 	at := int(nd.From)
 	switch {
 	case sf.g.kind[a.Rule] == kindCall && sf.s.Raw[sf.s.Tokens[at].Index].Kind != lexer.Word:
-		return 0, false // &f(...) bypasses the prototype, so it decides nothing
+		return 0, false, false // &f(...) bypasses the prototype, so it decides nothing
 	case int(a.Rule) == sf.g.matchop:
 		right := sf.f.Nodes[a.Right]
 		if right.To == right.From+1 && quoteOp(sf.text(int(right.From))) != "" {
-			return 0, false // a pattern operand is its own site, or none for s/// and tr///
+			return 0, false, false // a pattern operand is its own site, or none for s/// and tr///
 		}
 		at = int(right.From) - 1
-	case sf.g.last[a.Rule]:
+	case sf.g.kind[a.Rule] == kindHash:
+		if unsure, ok = sf.hashSite(n, a); !ok {
+			return 0, false, false
+		}
 		at = int(nd.To) - 1
 	}
-	return site(sf.g.kind[a.Rule], at), true
+	return site(sf.g.kind[a.Rule], at), unsure, true
+}
+
+// hashSite is whether hash read a of node n builds an rv2hv, and unsure where that is not in the text. A name toke.c's
+// S_pending_ident finds in the pad is a PADANY that op.c's Perl_newHVREF makes padhv; any other is rv2hv over a gv
+// (perl -MO=Concise: `my %h; keys %h` is padhv, `our %h; keys %h` rv2hv). A dereference is rv2hv, `%h[...]` and
+// `->%[...]` slice an array, and an element level is peep.c's S_maybe_multideref's (elementSite).
+func (sf *subjectFacts) hashSite(n int32, a Alt) (unsure, ok bool) {
+	nd := sf.f.Nodes[n]
+	if h := sf.g.hash[a.Rule]; (h == hashNamed || h == hashRef) && int(nd.To) < len(sf.s.Tokens) && sf.text(int(nd.To)) == "[" {
+		return false, false // toke.c's yyl_percent reads %name[ as the array's key/value slice
+	}
+	switch sf.g.hash[a.Rule] {
+	case hashNamed:
+		return sf.named(int(nd.From))
+	case hashSlice:
+		if base := sf.f.Nodes[sf.child(a, 3)]; base.To == base.From+1 && len(sf.text(int(base.From))) > 1 {
+			return sf.named(int(base.From)) // @h{...}; @$r{...} and ->@{...} read through a reference
+		}
+	case hashLevel:
+		return sf.elementSite(a)
+	}
+	return false, true
+}
+
+// named is whether the named hash at token k builds an rv2hv: none for a lexical, one for a package hash (our's
+// alias included, whose declaration is rv2hv vK/OURINTR), unsure where a feature that may be off declares it.
+func (sf *subjectFacts) named(k int) (unsure, ok bool) {
+	switch sf.hashes.at(sf.text(k), k) {
+	case hashLexical:
+		return false, false
+	case hashUnknown:
+		return true, true
+	}
+	return false, true
+}
+
+// elementSite is whether element level a keeps its rv2hv where the chain it tops is read, after peep.c's
+// S_maybe_multideref: a level through a reference or a package hash folds into multideref (Concise:
+// `$r->{a}{b}{c}` is multideref($r->{"a"}{"b"}{"c"})) while its key is a constant or a plain scalar; a computed key
+// ends the run and keeps its level's rv2hv unless the run before it folded, which then takes the rv2hv as its last
+// action (`$r->{"x$k"}{a}` keeps one, `our %h; $h{a}{"x$k"}` none: multideref($h{"a"}->)). A key that may fold to a
+// constant, a call to a constant sub say, is unsure. derefHedge covers a chain read as an aggregate.
+// shortcut: after a range whose constant fold perl abandons (`"*x".."az"`, not `"*x"..3`), perl folds nothing more of
+// the main program's statements into multideref, so a read there keeps its rv2hv where the chart reports none; perl.git
+// op/range.t:301 and :446 grade WRONG (TestOracleSubjectHashSites); upgrade when the cause in peep.c is known.
+func (sf *subjectFacts) elementSite(a Alt) (unsure, ok bool) {
+	through, maybe := sf.through(a)
+	if !through && !maybe {
+		return false, false // a lexical's element: padhv, folded or not
+	}
+	switch sf.key(sf.child(a, 1)) {
+	case keySimple:
+		return false, false
+	case keyUnknown:
+		return true, true
+	}
+	if _, b, ok := sf.levelOf(sf.child(a, sf.g.level[a.Rule].base)); ok {
+		switch sf.key(sf.child(b, 1)) {
+		case keySimple:
+			return false, false // the run below folded and takes this rv2hv
+		case keyUnknown:
+			return true, true
+		}
+	}
+	return maybe, true
+}
+
+// through is whether element level a reads a hash through a reference or a package hash, and maybe where a feature
+// that may be off declares its name.
+func (sf *subjectFacts) through(a Alt) (yes, maybe bool) {
+	sh := sf.g.level[a.Rule]
+	if !sh.brace {
+		return false, false
+	}
+	if base := sf.f.Nodes[sf.child(a, sh.base)]; !sh.arrow && base.To == base.From+1 {
+		maybe, yes = sf.named(int(base.From)) // $h{...}; ${...}{...} and $$r{...} read through a reference
+		return yes && !maybe, maybe
+	}
+	return true, false
+}
+
+// derefHedge is a hedge at a dereference (its sigil, its ->, local or \) whose operand holds an element chain that
+// reads a hash through a reference or a package hash, the chain itself or one a ?: passes on (op/ref.t:928):
+// S_maybe_multideref leaves the last level out where op_lvalue marked it OPpDEREF_AV or _HV, which turns on what is
+// done with the dereference (Concise: `foreach (@{$r->{a}})` keeps an rv2hv under helem sKM/DREFAV, `my @x =
+// @{$r->{a}}` is multideref($r->{"a"})), and on local and refassign (`delete local $r->{a}` and op/lvref.t's
+// `\$h{a} = ...` keep one); the chart does not read that context.
+func (sf *subjectFacts) derefHedge(n int32, a Alt) (int, bool) {
+	nd := sf.f.Nodes[n]
+	if nd.Sym < 0 || sf.g.deref[a.Rule] == 0 {
+		return 0, false
+	}
+	at, op := int(nd.From), sf.f.Nodes[a.Right]
+	switch sf.g.deref[a.Rule] {
+	case derefCast:
+		if sf.text(int(op.From)) == "{" && op.To > op.From+1 {
+			op.From, op.To = op.From+1, op.To-1
+		}
+	case derefPost:
+		op = sf.f.Nodes[sf.child(a, 2)]
+		at = int(op.To)
+	}
+	i, _ := slices.BinarySearchFunc(sf.levels, op.From, func(l int32, from int32) int { return int(sf.f.Nodes[l].From - from) })
+	for ; i < len(sf.levels) && sf.f.Nodes[sf.levels[i]].From < op.To; i++ {
+		if sf.f.Nodes[sf.levels[i]].To <= op.To && sf.reads(sf.levels[i]) {
+			return site(kindHash, at), true
+		}
+	}
+	return 0, false
+}
+
+// reads is whether some level of the chain node n tops reads a hash through a reference or a package hash.
+func (sf *subjectFacts) reads(n int32) bool {
+	for {
+		_, a, ok := sf.levelOf(n)
+		if !ok {
+			return false
+		}
+		if yes, maybe := sf.through(a); yes || maybe {
+			return true
+		}
+		n = sf.child(a, sf.g.level[a.Rule].base)
+	}
+}
+
+// levelOf is the element level node n is, through unit rules, and its first such alternative.
+func (sf *subjectFacts) levelOf(n int32) (int32, Alt, bool) {
+	for {
+		nd := sf.f.Nodes[n]
+		if nd.Alt == 0 {
+			return 0, Alt{}, false
+		}
+		a := sf.f.Alts[nd.Alt]
+		switch {
+		case sf.g.level[a.Rule].ok:
+			return n, a, true
+		case a.Left == 0 && a.Right != 0:
+			n = a.Right
+		default:
+			return 0, Alt{}, false
+		}
+	}
+}
+
+// What S_maybe_multideref makes of a subscript's key: a constant (after folding) or a plain scalar, which it holds;
+// a computed value, which it cannot; or one that may fold to a constant, which the text does not settle.
+const (
+	keySimple = iota
+	keyComputed
+	keyUnknown
+)
+
+// key is what subscript key n is: one number, word, uninterpolated string or plain $name; a -word or -number; else
+// computed where a variable is read, constant where only literals and operators are, and unknown otherwise (a word
+// beside others may be a call to a constant sub). Concise: `$r->{-a}`, `$r->{1+1}`, `$r->{$_}` and `$r->{'a$b'}`
+// are multideref, `$r->{@a}` and `$r->{"x$k"}` keep their rv2hv.
+func (sf *subjectFacts) key(n int32) int {
+	from, to := int(sf.f.Nodes[n].From), int(sf.f.Nodes[n].To)
+	kind := func(k int) lexer.Kind { return sf.s.Raw[sf.s.Tokens[k].Index].Kind }
+	if to == from+1 {
+		switch t := sf.text(from); kind(from) {
+		case lexer.Number, lexer.Word:
+			return keySimple
+		case lexer.Variable:
+			if t[0] == '$' && !strings.HasPrefix(t, "$#") && hashName(t) != "" {
+				return keySimple
+			}
+		}
+	}
+	if to == from+2 && sf.text(from) == "-" && (kind(from+1) == lexer.Word || kind(from+1) == lexer.Number) {
+		return keySimple
+	}
+	class := keySimple
+	for k := from; k < to; k++ {
+		switch kind(k) {
+		case lexer.Variable, lexer.DerefSigil:
+			return keyComputed
+		case lexer.Quote:
+			if t := sf.text(k); interpolatesVariable(t) || strings.HasPrefix(t, "qw") && len(strings.Fields(t[3:len(t)-1])) > 1 {
+				return keyComputed // qw/a b/ is a list, joined with $; as a , is
+			}
+		case lexer.Operator:
+			if t := sf.text(k); t == "," || t == "=>" {
+				return keyComputed // $h{'a', 'b'} is join($;, ...), reading $; (Concise: op/magic.t:237)
+			}
+		case lexer.Number, lexer.CloseBracket:
+		default:
+			class = keyUnknown
+		}
+	}
+	return class
+}
+
+// interpolatesVariable is whether quote t interpolates a variable: an unescaped $ or @ before a name, a { or a :.
+func interpolatesVariable(t string) bool {
+	if strings.HasPrefix(t, "'") || len(t) > 1 && t[0] == 'q' && !strings.ContainsRune("qwrx", rune(t[1])) {
+		return false
+	}
+	for i := 0; i+1 < len(t); i++ {
+		switch t[i] {
+		case '\\':
+			i++
+		case '$', '@':
+			if c := t[i+1]; isWordByte(c) || c == '{' || c == ':' {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // refSites is the references alternative a of node n takes, sorted, each at its operand's first token, and unsure
@@ -687,4 +962,203 @@ func intersect(x, y []int) []int {
 		}
 	}
 	return out
+}
+
+// What a hash name is at a token: a package hash (the default, and our's alias of one), a lexical, or one a feature
+// that may be off declares.
+const (
+	hashPackage = iota
+	hashLexical
+	hashUnknown
+)
+
+// hashScopes is the hash declarations a file makes: each declared name's scopes, and what each declaring token is.
+type hashScopes struct {
+	decls    map[string][]hashDecl
+	declared map[int]int
+}
+
+type hashDecl struct{ from, to, kind int }
+
+// at is what the hash a token's text names is at token k: the declaration its own token makes, else the innermost
+// in scope, else a package hash. A qualified name is always a package's.
+// shortcut: a lexical %h a module's import installs (builtin::export_lexically) is not seen, so its uses read as the
+// package hash; upgrade if parse.Imports reports lexical exports.
+func (h *hashScopes) at(text string, k int) int {
+	if kind, ok := h.declared[k]; ok {
+		return kind
+	}
+	kind, best := hashPackage, -1
+	for _, d := range h.decls[hashName(text)] {
+		if d.from <= k && k < d.to && d.from > best {
+			kind, best = d.kind, d.from
+		}
+	}
+	return kind
+}
+
+// hashScopes reads the file's hash declarations: my, state and field hashes, lexical from the end of their statement
+// (perly.y's intro_my) to their block's end, or to the end of the if, unless, while, until or for whose condition
+// declares them; our's, the package hash, over the same span; and a signature's, over its sub's body.
+func (r *resolver) hashScopes() *hashScopes {
+	h := &hashScopes{decls: map[string][]hashDecl{}, declared: map[int]int{}}
+	feature := func(k int, f lex.Feature) (int, bool) {
+		switch fs := r.s.FeaturesAt(k); {
+		case fs.On&f != 0:
+			return hashLexical, true
+		case fs.Maybe&f != 0:
+			return hashUnknown, true
+		}
+		return 0, false
+	}
+	for k := range r.n {
+		var kind int
+		var ok bool
+		switch w := r.text(k); {
+		case w == "my":
+			kind, ok = hashLexical, true
+		case w == "our":
+			kind, ok = hashPackage, true
+		case w == "state":
+			kind, ok = feature(k, lex.FeatureState)
+		case w == "field":
+			kind, ok = feature(k, lex.FeatureClass)
+		case (w == "sub" || w == "method") && r.isWord(k):
+			r.signature(h, k, feature)
+			continue
+		}
+		if !ok || !r.isWord(k) {
+			continue
+		}
+		vars := []int{k + 1}
+		if k+2 < r.n && r.isWord(k+1) && !r.is(k+2, "(") { // my Class %h
+			vars[0] = k + 2
+		}
+		if j := vars[0]; j < r.n && r.is(j, "(") {
+			vars = nil
+			for d := 0; j < r.n; j++ {
+				if r.is(j, "(") {
+					d++
+				} else if r.is(j, ")") {
+					if d--; d == 0 {
+						break
+					}
+				}
+				vars = append(vars, j)
+			}
+		}
+		from, to := r.statementEnd(r.s.Raw[r.s.Tokens[k].Index].Start), r.scopeEnd(k)
+		at, _ := slices.BinarySearchFunc(r.s.Tokens, from, func(t lex.Token, b int) int { return r.s.Raw[t.Index].Start - b })
+		for _, j := range vars {
+			if j >= r.n {
+				continue
+			}
+			if t := r.text(j); strings.HasPrefix(t, "%") && hashName(t) != "" && !strings.Contains(hashName(t), "::") {
+				h.declared[j] = kind
+				h.decls[hashName(t)] = append(h.decls[hashName(t)], hashDecl{at, to, kind})
+			}
+		}
+	}
+	return h
+}
+
+// signature records the hash parameters of the signature after sub or method at token k, as one PROTOTYPE token or
+// as code, over the sub's body: toke.c reads a signature where the feature is on, a prototype where it is off.
+func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature) (int, bool)) {
+	j := k + 1
+	if j < r.n && r.isWord(j) {
+		j++
+	}
+	kind, ok := feature(k, lex.FeatureSignatures)
+	if !ok || j >= r.n {
+		return
+	}
+	text := r.text(j)
+	if r.is(j, "(") {
+		for d := 0; j < r.n; j++ {
+			if r.is(j, "(") {
+				d++
+			} else if r.is(j, ")") {
+				if d--; d == 0 {
+					break
+				}
+			}
+			text += " " + r.text(j)
+		}
+	} else if r.s.Raw[r.s.Tokens[j].Index].Kind != lexer.Prototype {
+		return
+	}
+	body := j
+	for body < r.n && !r.is(body, "{") {
+		body++
+	}
+	if body >= r.n || r.match[body] < 0 {
+		return
+	}
+	for _, m := range sigHash.FindAllStringSubmatch(text, -1) {
+		h.decls[m[1]] = append(h.decls[m[1]], hashDecl{j, r.match[body], kind})
+	}
+}
+
+// sigHash is a signature's hash parameter.
+var sigHash = regexp.MustCompile(`%\s*(\w+)`)
+
+// scopeEnd is the token after the scope a declaration at token k ends with: its block's, or, where it stands in the
+// condition of an if, unless, elsif, while, until, for or foreach, the end of that statement's last block.
+func (r *resolver) scopeEnd(k int) int {
+	open, depth := -1, 0
+	for i := k - 1; i > 0 && open < 0; i-- {
+		switch {
+		case r.is(i, ")"):
+			depth++
+		case r.is(i, "(") && depth > 0:
+			depth--
+		case r.is(i, "("):
+			if slices.Contains([]string{"if", "unless", "elsif", "while", "until", "for", "foreach"}, r.text(i-1)) {
+				open = i
+			}
+		case depth == 0 && (r.is(i, ";") || r.is(i, "{") || r.is(i, "}")):
+			return r.blockEnd(k)
+		}
+	}
+	end := open
+	for open >= 0 {
+		for depth = 0; end < r.n; end++ { // the condition's )
+			if r.is(end, "(") {
+				depth++
+			} else if r.is(end, ")") {
+				if depth--; depth == 0 {
+					break
+				}
+			}
+		}
+		if end+1 >= r.n || !r.is(end+1, "{") || r.match[end+1] < 0 {
+			return r.blockEnd(k)
+		}
+		end = r.match[end+1]
+		switch {
+		case end+2 < r.n && (r.is(end+1, "else") || r.is(end+1, "continue")) && r.is(end+2, "{") && r.match[end+2] >= 0:
+			return r.match[end+2] + 1
+		case end+2 < r.n && r.is(end+1, "elsif") && r.is(end+2, "("):
+			end += 2
+			continue
+		}
+		return end + 1
+	}
+	return r.blockEnd(k)
+}
+
+// hashName is the name a sigilled variable's text names, `h` for %h, % h, %{h}, $h or @h, and "" for a dereference.
+func hashName(t string) string {
+	if len(t) < 2 {
+		return ""
+	}
+	name := strings.TrimSpace(t[1:])
+	if inner, ok := strings.CutPrefix(name, "{"); ok {
+		name = strings.TrimSpace(strings.TrimSuffix(inner, "}"))
+	}
+	if name == "" || name[0] == '$' || name[0] == '{' {
+		return ""
+	}
+	return name
 }
