@@ -36,9 +36,11 @@ type oracleSubject struct {
 	facts func(path string, src []byte, rd *parse.Node) parseoracle.SubjectFacts
 }
 
-// oracleGrading is each subject's sites per corpus, by bucket, and the records whose file could not be read.
+// oracleGrading is each subject's sites per corpus, by bucket, the same split by marker, and the records whose file
+// could not be read.
 type oracleGrading struct {
 	Sites      map[string]map[string]parseoracle.Totals
+	Markers    map[string]map[string]map[parseoracle.Marker]parseoracle.Totals
 	Unreadable int
 }
 
@@ -98,9 +100,12 @@ func gradeOracle(corpora []oracleCorpus, subjects []oracleSubject, stderr io.Wri
 	if len(corpora) == 0 {
 		return oracleGrading{}, errors.New("oracle grading: no corpus")
 	}
-	g := oracleGrading{Sites: map[string]map[string]parseoracle.Totals{}}
+	g := oracleGrading{Sites: map[string]map[string]parseoracle.Totals{}, Markers: map[string]map[string]map[parseoracle.Marker]parseoracle.Totals{}}
 	for _, s := range subjects {
-		g.Sites[s.name] = map[string]parseoracle.Totals{}
+		g.Sites[s.name], g.Markers[s.name] = map[string]parseoracle.Totals{}, map[string]map[parseoracle.Marker]parseoracle.Totals{}
+		for _, c := range corpora {
+			g.Markers[s.name][c.name] = map[parseoracle.Marker]parseoracle.Totals{}
+		}
 	}
 	session := parse.NewSession()
 	for _, c := range corpora {
@@ -134,10 +139,13 @@ func gradeOracle(corpora []oracleCorpus, subjects []oracleSubject, stderr io.Wri
 					return oracleGrading{}, err
 				}
 				t := g.Sites[s.name][c.name]
-				for _, b := range buckets {
+				for m, b := range buckets {
+					mt := g.Markers[s.name][c.name][m]
 					for i, n := range b {
 						t[i] += n
+						mt[i] += n
 					}
+					g.Markers[s.name][c.name][m] = mt
 				}
 				g.Sites[s.name][c.name] = t
 				for _, f := range v.Findings {
@@ -170,7 +178,8 @@ func measureOracle(corpora []oracleCorpus, subjects []oracleSubject, measured ma
 }
 
 // printOracle runs gradeOracle over oracleCorpora and prints, per subject and corpus, "oracle-grade: <subject>
-// <corpus> exact <n> wider <n> wrong <n> no-answer <n>", then the unreadable records and the run time; 2 on an error.
+// <corpus> exact <n> wider <n> wrong <n> no-answer <n>", the same per marker as "oracle-grade: <subject> <corpus>
+// <marker> exact ...", then the unreadable records and the run time; 2 on an error.
 func printOracle(g *grammar.Grammar, ref []grammar.Entry) int {
 	start, corpora := time.Now(), oracleCorpora()
 	tab, err := grammar.Generate(g, ref)
@@ -187,6 +196,11 @@ func printOracle(g *grammar.Grammar, ref []grammar.Entry) int {
 			t := got.Sites[s][c.name]
 			fmt.Printf("oracle-grade: %s %s exact %d wider %d wrong %d no-answer %d\n", s, c.name, t[parseoracle.BucketExact],
 				t[parseoracle.BucketWider], t[parseoracle.BucketWrong], t[parseoracle.BucketNoAnswer])
+			for _, m := range parseoracle.Markers {
+				t := got.Markers[s][c.name][m]
+				fmt.Printf("oracle-grade: %s %s %s exact %d wider %d wrong %d no-answer %d\n", s, c.name, m, t[parseoracle.BucketExact],
+					t[parseoracle.BucketWider], t[parseoracle.BucketWrong], t[parseoracle.BucketNoAnswer])
+			}
 		}
 	}
 	fmt.Printf("oracle-grade: unreadable %d\noracle-grade: seconds %.1f\n", got.Unreadable, time.Since(start).Seconds())

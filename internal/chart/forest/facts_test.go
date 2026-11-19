@@ -47,12 +47,12 @@ func TestOracleSubject(t *testing.T) {
 			{"kind":"match","line":6,"end_line":6,"unresolved":true},
 			{"kind":"readline","line":6,"end_line":6,"unresolved":true},
 			{"kind":"anonhash","line":6,"end_line":6,"unresolved":true}]}`},
-		// a hash read: %h, $h{a}, $r->{b}, its {c}, %$r and @h{'a'}, one site each
+		// a hash read as perl -MO=Concise builds it: our %h and \%h are rv2hv; $h{a} and $r->{b}{c} fold into
+		// multideref; %$r and @h{'a'} are rv2hv (TestOracleSubjectHashSites)
 		{"hash.pl", `{"ok":true,"prototypes":{},"call_sites":[
 			{"kind":"hash","line":1,"end_line":1},
 			{"kind":"reference","line":2,"end_line":2,"took_reference":true},
 			{"kind":"hash","line":2,"end_line":2},
-			{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3},
 			{"kind":"hash","line":3,"end_line":3},{"kind":"hash","line":3,"end_line":3}]}`},
 		// a match: =~ against a pattern or an expression, and a bare pattern; not s///, not division
 		{"match.pl", `{"ok":true,"prototypes":{},"call_sites":[
@@ -165,6 +165,133 @@ func TestOracleSubject(t *testing.T) {
 		want.KnowsCallSites, want.KnowsPrototypes = true, true
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: facts\n%s\nwant\n%s", s.file, out, s.want)
+		}
+	}
+}
+
+// TestOracleSubjectHashSites holds the chart's hash sites to the rv2hv ops perl -MO=Concise shows on the pinned perl:
+// decided where perl builds one, none where it builds padhv or folds the element into multideref, and a hedge where
+// the count turns on a context the chart does not read.
+func TestOracleSubjectHashSites(t *testing.T) {
+	tab := committedTables(t)
+	for _, c := range []struct {
+		src             string
+		decided, hedged int
+	}{
+		{`my %h; my $x = $h{a};`, 0, 0},                     // padhv; multideref($h{"a"})
+		{`our %h; my $x = $h{a};`, 1, 0},                    // rv2hv vK/OURINTR; multideref($h{"a"})
+		{`my %foo; delete @foo{4,5};`, 0, 0},                // padhv twice, under ex-hslice
+		{`my $r = {}; my $x = $r->{a}{b}{c};`, 0, 0},        // multideref($r->{"a"}{"b"}{"c"})
+		{`my $x = $Foo::h{a}; my @k = keys %Foo::h;`, 1, 0}, // multideref($Foo::h{"a"}); rv2hv over gv(*Foo::h)
+		{`%Foo::h = ();`, 1, 0},
+		{`use feature 'state'; state %h; my @k = keys %h;`, 0, 0},
+		{`my %h; { { my @k = keys %h; } }`, 0, 0},
+		{`{ my %h; } my @k = keys %h;`, 1, 0},                            // the my ends with its block
+		{`my %h; { our %h; my @k = keys %h; }`, 2, 0},                    // our's alias is the package hash
+		{`if ((my %h = ())) { my @k = keys %h } my @j = keys %h;`, 1, 0}, // the my ends with the if
+		{`my %h; my $c = sub { keys %h };`, 0, 0},                        // a closure's padhv
+		{`use feature 'signatures'; sub f ($x, %h) { return keys %h } my @k = keys %h;`, 1, 0},
+		{`our %h; my @v = @h{qw(a b)}; my %w = %h{qw(a b)};`, 3, 0},
+		{`our %h; my @x = %h[0];`, 1, 0},                         // %h[...] slices the array @h
+		{`our %h; $h{'a', 'b'} = 1; my $x = $h{qw(a b)};`, 3, 0}, // join($;, ...): rv2hv over gv, gvsv(*;)
+		// known limit (facts.go elementSite): perl stops folding the rest of the main program into multideref after a
+		// range whose constant fold it abandons, so $h{a} keeps an rv2hv (op/range.t:301); the chart reports none
+		{`my @x = ("*x".."az"); our %h; my $y = $h{a};`, 1, 0},
+		{`my $r = {}; my @v = @$r{qw(a b)}; my %w = %$r; my @k = keys $r->%*;`, 3, 0},
+		{`my $r = {}; my $k; my $x = $r->{"x$k"}{a};`, 1, 0},    // rv2hv under helem sKM/DREFHV
+		{`our %h; my $k; my $x = $h{a}{"x$k"};`, 1, 0},          // multideref($h{"a"}->) takes the next rv2hv
+		{`my $r = {}; my $i; my $x = $r->[$i+1]{"x$i"};`, 1, 0}, // the computed index ends the run
+		{`my $r = {}; foo($r->{a}); $r->{a}++;`, 0, 0},
+		{`my $r = {}; my $x = \$r->{b};`, 0, 0},                                                  // multideref($r->{"b"}) under srefgen; a refassign is unmeasured, a hedge
+		{`my $r = {}; foreach my $x (@{$r->{a}}) {}`, 1, 0},                                      // rv2hv under helem sKM/DREFAV
+		{`my $r = {}; my @x = @{$r->{a}};`, 0, 0},                                                // multideref($r->{"a"})
+		{`my $r = {}; delete local $r->{a};`, 1, 0},                                              // delete local leaves the helem out of multideref
+		{`my $r = {}; push @{$r->{a}}, 1; my @k = keys %{$r->{b}};`, 3, 0},                       // helem sKM/DREFAV; %{} and helem sKM/DREFHV
+		{`my $r = {}; my $c = {}; is(scalar(@{$c->{a}}), 1); my $n = scalar(@{$r->{a}});`, 1, 0}, // op_lvalue OP_SCALAR
+		{`my $r = {}; my @x = $r->{a}->@{qw(x y)}; my @y = @{$r->{b}}[0, 1];`, 1, 0},             // multideref($r->{"a"}->)
+		{`my $r = {}; ${$r->{a}} = 1; ${$r->{a}{b}} = 1;`, 1, 0},                                 // OPpDEREF_SV keeps a lone level
+		// a sort block holding <=> or cmp hedges whatever its operands: perl drops { $a <=> $b } and keeps
+		// { lc $a cmp lc $b } (Concise), and the chart does not read operands
+		{`my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}}; my @t = sort { lc $a cmp lc $b } @{$r->{b}};`, 0, 2},
+		{`my $r = {}; my @s = sort { $b cmp $a } @{$r->{a}};`, 0, 1},
+		// a refalias of a package hash builds no rv2hv (Concise: refassign over gv(*h), no rv2hv); our's own is one
+		{`use feature "refaliasing"; no warnings; our %h; \%h = {}; (\%h) = ({}); for \%h ({}) {} \local %h = {};`, 1, 0},
+		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
+		{`our %h; my $r = \%h;`, 2, 0},                      // srefgen over rv2hv
+		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0}, // multideref($h{$x}) and multideref($h{$$})
+		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
+		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
+		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:
+		// padhv, refassign), perl.git op/lvref.t:483
+		{`use feature qw(refaliasing declared_refs); no warnings; our @for; for \my %a({5,6},{7,8}) { push @for, %a; }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; for my \%a ({}) { my @k = keys %a }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; my \%a = {}; my @k = keys %a;`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our \%h = {}; \our %g = {};`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our \%h = {}; my @k = keys %h; my $r = \our %g;`, 2, 0}, // keys reads the package hash; \our %g is rv2hv
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; my $x; (\%h, $x) = ({}, 1); ($x, \%g) = (1, {});`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; our %g; (\%h, \%g) = ({}, {});`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %h; local \%h = {};`, 1, 0},
+		// a trailing ;, parentheses, $::a in main and $Foo::a in Foo hedge too
+		{`my $r = {}; my @s = sort { $a <=> $b; } @{$r->{a}}; my @t = sort { ($a <=> $b) } @{$r->{b}};`, 0, 2},
+		{`my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}}; my @t = sort { $main::b cmp $main::a } @{$r->{b}};`, 0, 2},
+		// any block holding <=> or cmp hedges, since constant folding can leave it the one op perl drops
+		{`my $r = {}; my $c; my @s = sort { $a <=> $b or $c } @{$r->{a}}; my @t = sort { $a <=> $a } @{$r->{b}};`, 0, 2},
+		{`my $r = {}; my @s = sort { +($a <=> $b) } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { 1 ? $a <=> $b : 0 } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { 0 || $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $a <=> $b, } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $a - $b } @{$r->{a}};`, 1, 0}, // no comparison: perl keeps the block (Concise)
+		{`my $r = {}; my @s = sort { $b->{x} <=> $a->{x} } @{$r->{a}}; my @t = sort { -$a <=> $b } @{$r->{b}};`, 0, 2},
+		{`my $y = [ (my %h = ()) ], my @k = keys %h;`, 1, 0}, // introduced at the statement end, past the brackets
+		// other spellings of one comparison of $a and $b hedge too (Concise: each builds 0), as does $::a outside main,
+		// which perl keeps (GvSTASH(gv) != PL_curstash)
+		{`my $r = {}; my @s = sort { ($a) <=> ($b) } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { ;$a <=> $b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { ${a} <=> ${b} } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { +$a <=> $b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $Foo::a <=> $Foo::b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1}, // perl keeps it, the chart hedges
+		// a lexical $a or $b perl reads as a padsv comparison, which it keeps (Concise: 1 rv2hv each): the hedge covers it
+		{`my ($x, ($a)); my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`CORE::my $a; my $r = {}; my @s = sort { $a <=> $b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $a; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1},
+		// operands perl drops though their spelling hides it: a newline or comment after the sigil, and $::a in a
+		// package whose stash is main's (Concise: 0 rv2hv each)
+		{"my $r = {}; my @s = sort { $\na <=> $b } @{$r->{a}};", 0, 1},
+		{"my $r = {}; my @s = sort { $ # c\na <=> $b } @{$r->{a}};", 0, 1},
+		{`package main::main; my $r = {}; my @s = sort { $::a <=> $::b } @{$r->{a}};`, 0, 1},
+		// any other spelling of $a hedges, ' and a doubled main:: included (Concise: each is dropped, 0 rv2hv)
+		{`my $r = {}; my @s = sort { $main'a <=> $main'b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $Foo'a <=> $Foo'b } @{$r->{a}};`, 0, 1},
+		{`package Foo; my $r = {}; my @s = sort { $::Foo::a <=> $::Foo::b } @{$r->{a}};`, 0, 1},
+		{`my $r = {}; my @s = sort { $::main::a <=> $b } @{$r->{a}};`, 0, 1},
+		// \ items of an our (...) list are refaliases; the alias of a foreach is in scope over its body and continue
+		// block, not over its own list
+		{`use feature qw(refaliasing declared_refs); no warnings; our (\%h) = {}; my @k = keys %h; our (\%g, \%f) = ({}, {});`, 1, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; for my \%a ({}) { 1 } continue { my @k = keys %a }`, 0, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %a; for my \%a (\%a) { 1 }`, 2, 0},
+		{`use feature qw(refaliasing declared_refs); no warnings; our %a; for \my %a ({%a}) { 1 }`, 2, 0},
+		// shortcut row: a file calling export_lexically may have made %h lexical (Concise: padhv), so its reads hedge
+		{`BEGIN { builtin::export_lexically("%h" => {}) } my @k = keys %h;`, 0, 1},
+		{`(my %h = ()), my @k = keys %h;`, 1, 0}, // the my is introduced at the statement's end: keys reads the package's
+	} {
+		got := SubjectFacts(tab, []byte(c.src), "h.pl", Scope{})
+		if !got.OK {
+			t.Errorf("%s: refused", c.src)
+			continue
+		}
+		var decided, hedged int
+		for _, s := range got.CallSites {
+			switch {
+			case s.Kind != parseoracle.SiteKindHash:
+			case s.Unresolved:
+				hedged++
+			default:
+				decided++
+			}
+		}
+		if decided != c.decided || hedged != c.hedged {
+			t.Errorf("%s: %d decided and %d hedged hash sites, want %d and %d", c.src, decided, hedged, c.decided, c.hedged)
 		}
 	}
 }
