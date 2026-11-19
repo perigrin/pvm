@@ -1461,7 +1461,8 @@ with reason `scope`, at the first dropped reading reached from the root.
   FUNC0SUB, a one-argument one UNIOPSUB, `&` before a `{` LSTOPSUB, any other or none NOAMP, each but the first
   with XTERM after it.
 
-- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment, the subs of a file a `BEGIN` requires
+- **Imports parse reports beyond `use`**: a `BEGIN` block's glob assignment (not a `local` one, which perl restores
+  when the block ends: `BEGIN { local *X = sub {1} } X 1;` is refused), the subs of a file a `BEGIN` requires
   (which parse marks `Local`; the file's own declarations are still read by position), and an import into another
   package, keyed by its qualified name. A bare glob assignment of an always-main name is keyed in main, as perl puts
   it there (`package Foo; BEGIN { *STDOUT = sub {1} } package main; STDOUT 1;` is accepted), and an always-main name

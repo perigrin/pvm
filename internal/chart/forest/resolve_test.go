@@ -17,7 +17,7 @@ import (
 	"tamarou.com/pvm/internal/parse"
 )
 
-// testModules are the modules a row's use loads. perl's verdicts for the rows that use M, R or E were taken with this M.pm or R.pm on @INC.
+// testModules are the modules a row's use loads. perl's verdicts for the rows that use M, R or E were taken with this M.pm, R.pm or E.pm on @INC.
 var testModules = map[string]string{
 	"M": "package M;\nuse Exporter 'import';\nour @EXPORT_OK = qw(foo one nil first true false);\nsub foo {}\nsub one ($) {}\nsub nil () { 1 }\nsub first (&@) {}\nsub true {1}\nsub false () { 0 }\n1;\n",
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
@@ -608,9 +608,10 @@ func TestResolveAlwaysMainNames(t *testing.T) {
 }
 
 // TestResolveAlwaysMainGlobImport: a BEGIN-time glob assignment of an always-main name puts the sub in main from
-// every package (gv.c's S_gv_is_in_main), so the call is accepted wherever it is made; perl -c says syntax OK to each.
-// A name that is not always-main stays in the package that made it: G2's row (input 01a1f051) is accepted where perl
-// refuses it, pinned here so this test sees it move, and a qualified name stays where it names.
+// every package (gv.c's S_gv_is_in_main), so the call is accepted wherever it is made. A name that is not always-main
+// stays in the package that made it, a qualified name stays where it names, and a local glob is restored when the
+// BEGIN block ends, so perl refuses those rows ("Number found where operator expected"). G2's row (input 01a1f051)
+// is accepted where perl refuses it, pinned here so this test sees it move. Each verdict is the pinned perl -c's.
 func TestResolveAlwaysMainGlobImport(t *testing.T) {
 	checkVerdicts(t, []verdict{
 		{`package Foo; BEGIN { *STDOUT = sub {1} } STDOUT 1;`, true},
@@ -620,11 +621,29 @@ func TestResolveAlwaysMainGlobImport(t *testing.T) {
 		{`package Foo; BEGIN { *STDOUT = sub {1} } package Bar; STDOUT 1;`, true},
 		{`package Foo; BEGIN { *X = sub {1} } package main; X 1;`, false},
 		{`package Foo; BEGIN { *Foo::STDOUT = sub {1} } STDOUT 1;`, false},
+		{`package Foo; BEGIN { local *STDOUT = sub {1} } STDOUT 1;`, false},
+		{`package Foo; BEGIN { local *ENV = sub {1} } package main; ENV 1;`, false},
+		{`BEGIN { local *X = sub {1} } X 1;`, false},
+		{`BEGIN { local $x = 1; *X = sub {1} } X 1;`, true},
 	})
 	// G2 (01a1f051): perl refuses it ("Number found where operator expected"); the chart accepts it.
 	src := `BEGIN { *X = sub {1} } package Foo; X 1;`
 	if f, _ := Parse(committedTables(t), []byte(src), scopeOf(src)); f == nil {
 		t.Errorf("%q is refused; G2 is fixed, so move it to the rows above as refused", src)
+	}
+}
+
+// TestRDAlwaysMainGlobImport: recursive descent, which reads parse.Imports as the chart does, finds an always-main
+// glob alias in main from every package, so it reads the alias's prototype there; perl -c says syntax OK to each.
+func TestRDAlwaysMainGlobImport(t *testing.T) {
+	for _, src := range []string{
+		`package Foo; BEGIN { *STDOUT = \&CORE::push } my @a; STDOUT @a, 1;`,
+		`package Foo; BEGIN { *ENV = \&CORE::length } ENV 1, 2;`,
+		`package Foo; BEGIN { *STDOUT = \&CORE::push } package main; my @a; STDOUT @a, 1;`,
+	} {
+		if refusedAnywhere(parse.Parse([]byte(src))) {
+			t.Errorf("recursive descent refuses %q; perl accepts it", src)
+		}
 	}
 }
 

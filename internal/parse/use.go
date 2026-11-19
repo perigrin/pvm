@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/types"
@@ -1060,6 +1059,16 @@ func (p *parser) noteBeginEffects(n *Node) {
 		p.resolveImports(module, list)
 		return
 	}
+	if n.Kind == Declaration && n.Text == "local" {
+		// perl restores a local glob when the BEGIN block ends, so its assignment defines nothing after it
+		for _, c := range n.Children {
+			if c.Kind == Binary && c.Text == "=" && len(c.Children) == 2 {
+				c = c.Children[1]
+			}
+			p.noteBeginEffects(c)
+		}
+		return
+	}
 	switch {
 	case n.Kind == Binary && n.Text == "=" && len(n.Children) == 2 &&
 		n.Children[0].Kind == Term && strings.HasPrefix(n.Children[0].Text, "*"):
@@ -1265,15 +1274,4 @@ func (p *parser) peekAfter(tok lexer.Token) (lexer.Token, bool) {
 	next, ok := p.peekSignificant()
 	p.pos = save
 	return next, ok
-}
-
-// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
-// package, and every name that does not open as an identifier.
-func inMain(name string) bool {
-	switch name {
-	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
-		return true
-	}
-	c := name[0]
-	return c < utf8.RuneSelf && !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_')
 }

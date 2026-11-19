@@ -3,7 +3,10 @@
 
 package parse
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // Shape is how a call to a sub parses: what it may take, and in what form.
 //
@@ -173,7 +176,14 @@ func (p *parser) lookupSub(name string) (Import, bool) {
 	if imp, ok := p.lexical[name]; ok {
 		return imp, true
 	}
+	// shortcut: a sub declared in Foo with an always-main name and an Exporter import of one into Foo are both keyed
+	// Foo::NAME, so it is read there first, which perl does for the first and not the second; upgrade when declareSub
+	// keys the first in main.
 	if imp, ok := p.imports[p.subKey(name)]; ok {
+		return imp, true
+	}
+	// a bare always-main glob is keyed in main (noteBeginEffects)
+	if imp, ok := p.imports[subKey(name)]; ok && !strings.Contains(name, "::") && inMain(name) {
 		return imp, true
 	}
 	if imp, ok := p.moduleSubs[p.subKey(name)]; ok {
@@ -368,4 +378,19 @@ func (p *parser) parseBlockArgument() *Node {
 		return nil
 	}
 	return p.parseBlockOrDecline()
+}
+
+// inMain is gv.c's S_gv_is_in_main: the names that are main's in every
+// package, and every name that does not open as an identifier.
+func inMain(name string) bool {
+	switch name {
+	case "_", "INC", "ENV", "SIG", "ARGV", "STDIN", "STDOUT", "STDERR", "ARGVOUT":
+		return true
+	}
+	return name == "" || name[0] < utf8.RuneSelf && !isAsciiLetter(name[0]) && name[0] != '_'
+}
+
+// isAsciiLetter is internal/lexer's, which inMain reads.
+func isAsciiLetter(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
