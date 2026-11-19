@@ -232,6 +232,18 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
 		{`our %h; my $r = \%h;`, 2, 0},                      // srefgen over rv2hv
 		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0}, // multideref($h{$x}) and multideref($h{$$})
+		// a string key is computed where it interpolates: a $ before anything, an @ before a name or one of :'{$+-, and
+		// \c takes the next character (toke.c scan_const; Concise: helem over rv2hv); any other quote is an op
+		{`our %h; my $x = $h{"$$"};`, 2, 0},
+		{`our %h; my $x = $h{"@-"};`, 2, 0},
+		{`our %h; my $x = $h{"$&"};`, 2, 0},
+		{`our %h; my $x = $h{"$-[0]"}; my $y = $h{"\x{100}$$"}; my $z = $h{qq'$$'};`, 4, 0},
+		{`our %h; my $x = $h{"$ a"}; my $y = $h{"$#a"}; my $z = $h{"@'a"}; my $w = $h{"\\c$$"};`, 5, 0},
+		{`our %h; my $x = $h{"@!"}; my $y = $h{"@ x"}; my $z = $h{"\c$x"}; my $w = $h{"\$x"};`, 1, 0}, // multideref each
+		{"our %h; my @x = ($h{`a`}, $h{qr/a/}, $h{m/a/}, $h{s/a/b/r}, $h{tr/a/b/});", 6, 0},
+		{`my $r = {}; my $x = $r->{"$$"}; my $y = $r->{"@-"}; my $z = $r->{"\x{100}$$"};`, 3, 0},
+		{`my $r = {}; my $x = $r->{qw($x)};`, 0, 0}, // qw interpolates nothing: multideref($r->{"$x"})
+		{`our %h; my $x = $h{qw(@a)};`, 1, 0},       // multideref($h{"@a"})
 		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
 		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
 		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:

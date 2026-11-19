@@ -803,8 +803,11 @@ func (sf *subjectFacts) key(n int32) int {
 		case lexer.Variable, lexer.DerefSigil:
 			return keyComputed
 		case lexer.Quote:
-			if t := sf.text(k); interpolatesVariable(t) || strings.HasPrefix(t, "qw") && len(strings.Fields(t[3:len(t)-1])) > 1 {
-				return keyComputed // qw/a b/ is a list, joined with $; as a , is
+			switch quoteKey(sf.text(k)) {
+			case keyComputed:
+				return keyComputed
+			case keyUnknown:
+				class = keyUnknown
 			}
 		case lexer.Operator:
 			if t := sf.text(k); t == "," || t == "=>" {
@@ -818,22 +821,47 @@ func (sf *subjectFacts) key(n int32) int {
 	return class
 }
 
-// interpolatesVariable is whether quote t interpolates a variable: an unescaped $ or @ before a name, a { or a :.
-func interpolatesVariable(t string) bool {
-	if strings.HasPrefix(t, "'") || len(t) > 1 && t[0] == 'q' && !strings.ContainsRune("qwrx", rune(t[1])) {
-		return false
+// quoteKey is quote t's key class. A string is a constant unless it interpolates (toke.c scan_const): a $ before
+// anything, an @ before a name or one of :'{$+-, unsure before a non-ASCII byte, which use utf8 may make a name; \c
+// takes the next character. qw/a b/ is a list, joined with $; as a , is. Any other quote is an op, never a constant.
+func quoteKey(t string) int {
+	var body string
+	switch {
+	case t[0] == '\'' || t[0] == 'q' && !strings.ContainsRune("qwxr", rune(t[1])):
+		return keySimple
+	case strings.HasPrefix(t, "qw"):
+		if len(strings.Fields(t[3:len(t)-1])) > 1 {
+			return keyComputed
+		}
+		return keySimple
+	case t[0] == '"':
+		body = t[1 : len(t)-1]
+	case strings.HasPrefix(t, "qq"):
+		body = strings.TrimLeft(t[2:], " \t\r\n")
+		body = body[1 : len(body)-1]
+	default:
+		return keyComputed
 	}
-	for i := 0; i+1 < len(t); i++ {
-		switch t[i] {
+	class := keySimple
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
 		case '\\':
+			if i+1 < len(body) && body[i+1] == 'c' {
+				i++
+			}
 			i++
-		case '$', '@':
-			if c := t[i+1]; isWordByte(c) || c == '{' || c == ':' {
-				return true
+		case '$':
+			return keyComputed
+		case '@':
+			if i+1 < len(body) && (isWordByte(body[i+1]) || strings.IndexByte(":'{$+-", body[i+1]) >= 0) {
+				return keyComputed
+			}
+			if i+1 < len(body) && body[i+1] >= 0x80 {
+				class = keyUnknown
 			}
 		}
 	}
-	return false
+	return class
 }
 
 // refSites is the references alternative a of node n takes, sorted, each at its operand's first token, and unsure
