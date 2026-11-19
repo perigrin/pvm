@@ -23,6 +23,8 @@ var testModules = map[string]string{
 	"R": "package R;\nuse Exporter 'import';\nour @EXPORT_OK = qw(r);\nsub r (\\@) { 1 }\n1;\n",
 	// E's subs are qualified, since a bare sub ENV in package E is main's.
 	"E": "package E;\nuse Exporter 'import';\nour @EXPORT = qw(ENV STDOUT);\nsub E::ENV {1}\nsub E::STDOUT {1}\n1;\n",
+	// h.pl is a required helper, which declares into the requiring package.
+	"./h.pl": "sub STDOUT {1}\n1;\n",
 }
 
 // scopeOf is src's Scope as a caller builds it: parse.Imports over a tree from parse.ParseWithLoader.
@@ -649,6 +651,22 @@ func TestResolveOurSubAlwaysMain(t *testing.T) {
 		{`package Foo; { our sub X ($) {1} } X 1, 2;`, true},
 		{`package Foo; our sub X ($) {1} package Bar; X 1, 2;`, true},
 		{`package Foo; { our sub X ($) {1} package Bar; X 1, 2; }`, true},
+	})
+}
+
+// TestResolveAlwaysMainRequiredAndLocal: a required file's sub of an always-main name is main's whichever package
+// requires it, and a glob assignment nested in the value of a local $x = ... is not localized, so perl -c accepts
+// both; a local glob's own assignment is restored when the BEGIN block ends ("Number found where operator
+// expected"). h.pl is in testModules. Each verdict is the pinned perl -c's.
+func TestResolveAlwaysMainRequiredAndLocal(t *testing.T) {
+	checkVerdicts(t, []verdict{
+		{`package Foo; BEGIN { require "./h.pl" } STDOUT 1;`, true},
+		{`package Foo; BEGIN { require "./h.pl" } package Bar; STDOUT 1;`, true},
+		{`BEGIN { local $x = *ENVX = sub ($) {1} } ENVX 1, 2;`, true},
+		{`BEGIN { local $x = (*ENVX = sub ($) {1}) } ENVX 1, 2;`, true},
+		{`BEGIN { local *X = *Y = sub {1} } Y 1;`, true},
+		{`BEGIN { local *X = sub {1} } X 1;`, false},
+		{`BEGIN { local *X = *Y = sub {1} } X 1;`, false},
 	})
 }
 

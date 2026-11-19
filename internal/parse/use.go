@@ -948,14 +948,14 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 
 	// Rule 3. Every declared sub, with its prototype, because a `.pl` helper
-	// declares into the CALLER'S package and has no export list to narrow
-	// this. Not Local: the name came from another file, and `Local` marks a
+	// declares into the CALLER'S package, an always-main name into main's
+	// (gvKey), and has no export list to narrow this. Not Local: the name came from another file, and `Local` marks a
 	// sub this file declares itself.
 	if p.imports == nil {
 		p.imports = map[string]Import{}
 	}
 	for name, proto := range facts.protos {
-		p.imports[p.subKey(name)] = Import{
+		p.imports[p.gvKey(name)] = Import{
 			Name:           name,
 			Prototype:      proto,
 			PrototypeKnown: true,
@@ -963,8 +963,8 @@ func (p *parser) resolveRequiredFile(list *Node) {
 	}
 	// A glob it assigns is a sub too, with no prototype this parser reads.
 	for _, name := range facts.globs {
-		if _, ok := p.imports[p.subKey(name)]; !ok {
-			p.imports[p.subKey(name)] = Import{Name: name}
+		if _, ok := p.imports[p.gvKey(name)]; !ok {
+			p.imports[p.gvKey(name)] = Import{Name: name}
 		}
 	}
 }
@@ -1060,9 +1060,10 @@ func (p *parser) noteBeginEffects(n *Node) {
 		return
 	}
 	if n.Kind == Declaration && n.Text == "local" {
-		// perl restores a local glob when the BEGIN block ends, so its assignment defines nothing after it
-		for _, c := range n.Children {
-			if c.Kind == Binary && c.Text == "=" && len(c.Children) == 2 {
+		// perl restores a local glob when the BEGIN block ends, so its own assignment (local *X = V, the first
+		// child) defines nothing after it; a glob assigned in the value of local $x = V is not localized
+		for i, c := range n.Children {
+			if i == 0 && c.Kind == Binary && c.Text == "=" && len(c.Children) == 2 {
 				c = c.Children[1]
 			}
 			p.noteBeginEffects(c)
