@@ -536,12 +536,14 @@ func (r *resolver) declaredPackage(name string, k int) bool {
 // called is the reading a declared sub's name at token k takes by its
 // prototype, as yyl_constant_op and yyl_subproto give it, marking the token
 // after it when that reading leaves PL_expect at XTERM.
+//
+// shortcut: wherever a branch below leaves a term expected (no prototype, or $, ;$, _, +, *, @, %, $$ and the like),
+// toke.c's XTERM reads a { after the call as an anonymous hash, which internal/lexer opens as a block unless its first
+// item is followed by , or => (01a1e9a2), so the forest has no reading of sub foo; foo {1}; and it is refused; upgrade
+// when the lexer reads that { as perl does (TestResolveKnownLimits).
 func (r *resolver) called(k int, proto string) []int {
 	g := r.g
 	if proto == "" {
-		// shortcut: toke.c's XTERM reads a { after the call as an anonymous hash, which internal/lexer opens as a block
-		// unless its first item is followed by , or => (01a1e9a2), so the forest has no reading of sub foo; foo {1};
-		// and it is refused; upgrade when the lexer reads that { as perl does (TestResolveKnownLimits).
 		r.xterm(k + 1)
 		return []int{g.noamp}
 	}

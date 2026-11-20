@@ -1559,10 +1559,12 @@ a block after a word and a bareword (an indirect object or a filehandle), empty 
 by `,` or `=>`, is refused where perl reads an anonymous hash (01a1e9a2): `method foo {}` with the class feature off,
 `new Foo {};`, `meth foo {};` and `new Foo { %h };` (perl's `Foo->new({...})`), and `print STDOUT {};`. internal/lexer
 marks that `{` a block, so the forest holds no method-call or print-list reading of it and resolve finds the word
-undeclared. The same `{` after a declared sub with no prototype or a `$` one, where toke.c's XTERM reads an anonymous
-hash, is refused too: `sub x {} x {1};`, `sub foo; foo {};`, `sub foo; my $x = foo {1};`, `sub foo {} foo {1};` and
-`sub foo ($); foo {1};`, which perl and recursive descent accept (shortcut in `called`, pinned in
-`TestResolveKnownLimits`); `sub foo; foo { a => 1 };` is accepted.
+undeclared. The same `{` after a declared sub whose prototype leaves a term expected (none, or `$`, `;$`, `_`, `+`,
+`*`, `@`, `%`, `$$` and the like), where toke.c's XTERM reads an anonymous hash, is refused too: `sub x {} x {1};`,
+`sub foo; foo {};`, `sub foo; my $x = foo {1};`, `sub foo {} foo {1};`, `sub foo; foo {1}, 2;`, `sub foo; foo { %h };`,
+`sub foo ($); foo {1};`, `sub foo (;$); foo {1};` and `sub foo (@); foo {}, 1;`, which perl and recursive descent
+accept (shortcut in `called`, pinned in `TestResolveKnownLimits`); `sub foo; foo { a => 1 };` and a `&` prototype's
+block are accepted.
 The corpus guard: resolve refuses no file the pinned perl, recursive descent following its `use` statements and
 recognition all accept, over the in-tree labels (the Guacamole cases, `std5k.pl`, `edit5k.pl`) and T1, each with the
 scope parse gives it (`TestResolveKeepsCorpusAccepted`, 1,654 files at 1f700a15f); and resolve refuses no Guacamole case (each under
@@ -2243,10 +2245,11 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   element level `{...}` as peep.c's `S_maybe_multideref` folds it: none while
   its key is a constant or a plain scalar, one for a computed key (a variable
   read, a string that interpolates as toke.c's `scan_const` reads it (a `$`
-  before anything, an `@` before a name or one of `:'{$+-`), any quote that is
-  no string (`qr`, `m`, `s`, `tr`, a backtick), a `,` or a `qw` of two words;
-  a `qw` interpolates nothing) unless a folded
-  run comes before it, unsure for a key that may fold (a call). Where a chain
+  before anything, an `@` before a name or one of `:'{$+-`), an op-quote
+  (`qr`, `m`, `s`, `tr`, `y`, a backtick or `qx`), a `,`, or a `qw` of two words
+  or none; a `qw` of one word and a v-string are constants) unless a folded
+  run comes before it, unsure for a key that may fold (a call, a `qq` whose
+  delimiter is `$` or `@`, which `scan_str` unescapes, or any other quote). Where a chain
   that reads through a reference or a package hash is dereferenced
   (`@{$r->{a}}`, `->@*`), the context op.c's `op_lvalue` and `doref` give the
   dereference decides it, read up the forest's rules to the operator that

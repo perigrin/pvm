@@ -225,15 +225,20 @@ func TestResolveKnownLimits(t *testing.T) {
 		{"meth foo {};", false},
 		{"new Foo { %h };", false},
 		{"print STDOUT {};", false},
-		// shortcut (called): the same root after a declared sub with no prototype or a $ one, where toke.c's XTERM
-		// reads the { as an anonymous hash: internal/lexer opens a block there, so the token table gives the { only
-		// PERLY_BRACE_OPEN and resolve, which keeps the call's reading, leaves no derivation. perl and recursive
-		// descent accept all five; a first item followed by , or => is an anonymous hash to the lexer and is accepted.
+		// shortcut (called): the same root after a declared sub whose prototype leaves a term expected (none, $, ;$, _,
+		// +, *, @, %), where toke.c's XTERM reads the { as an anonymous hash: internal/lexer opens a block there, so the
+		// token table gives the { only PERLY_BRACE_OPEN and resolve, which keeps the call's reading, leaves no
+		// derivation. perl and recursive descent accept every row; a first item followed by , or => is an anonymous
+		// hash to the lexer and is accepted.
 		{"sub x {} x {1};", false},
 		{"sub foo; foo {};", false},
 		{"sub foo; my $x = foo {1};", false},
 		{"sub foo {} foo {1};", false},
 		{"sub foo ($); foo {1};", false},
+		{"sub foo (;$); foo {1};", false},
+		{"sub foo (@); foo {}, 1;", false},
+		{"sub foo; foo {1}, 2;", false},
+		{"sub foo; foo { %h };", false},
 		// the indirect feature is not read, so a word before a variable stays a method with it off (v5.36's bundle);
 		// perl refuses it ("Scalar found where operator expected").
 		{`use v5.36; no feature "state"; state $x = 1;`, true},
