@@ -253,6 +253,10 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`our %h; my $x = $h{qw()};`, 2, 0}, // an empty qw: helem over rv2hv
 		// scan_str drops the \ before a $ or @ delimiter, so qq@a\@b@ interpolates @b: such a qq hedges
 		{`our %h; my $x = $h{qq@a\@b@}; my $y = $h{qq$a\$b$};`, 1, 2},
+		// after whitespace a # starts a comment, not a delimiter, so the quote's body is after it: such a qw or qq hedges
+		{"our %h; my $x = $h{qw #c d\n(a)};", 1, 1},
+		{"our %h; my $x = $h{qq #$c\n(a)};", 1, 1},
+		{"our %h; my $x = $h{qw#a#}; my $y = $h{qq#a#};", 1, 0}, // no whitespace: # is the delimiter
 		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
 		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
 		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:

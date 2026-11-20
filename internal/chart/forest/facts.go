@@ -823,7 +823,8 @@ func (sf *subjectFacts) key(n int32) int {
 
 // quoteKey is quote t's key class. A string is a constant unless it interpolates (toke.c scan_const): a $ before
 // anything, an @ before a name or one of :'{$+-, unsure before a non-ASCII byte, which use utf8 may make a name; \c
-// takes the next character. A qq delimited by $ or @ is unsure: scan_str drops the \ before such a delimiter, so an
+// takes the next character. A qw or qq whose delimiter follows whitespace and is # is unsure, since that # starts a
+// comment. A qq delimited by $ or @ is unsure: scan_str drops the \ before such a delimiter, so an
 // escaped one interpolates. qw/a b/ is a list, joined with $; as a , is, and an empty qw is computed too (Concise:
 // rv2hv). A v-string is a constant; qr, m, s, tr, y, a match's / and a backtick or qx are ops. Anything else is unsure.
 func quoteKey(t string) int {
@@ -831,6 +832,8 @@ func quoteKey(t string) int {
 	switch {
 	case t[0] == '\'' || t[0] == 'q' && !strings.ContainsRune("qwxr", rune(t[1])):
 		return keySimple
+	case (strings.HasPrefix(t, "qw") || strings.HasPrefix(t, "qq")) && t[2] != '#' && strings.TrimLeft(t[2:], " \t\r\n")[0] == '#':
+		return keyUnknown // after whitespace a # starts a comment (toke.c), so the body is past it
 	case strings.HasPrefix(t, "qw"):
 		if w := strings.TrimLeft(t[2:], " \t\r\n"); len(strings.Fields(w[1:len(w)-1])) != 1 {
 			return keyComputed
