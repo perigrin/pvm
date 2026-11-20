@@ -821,6 +821,10 @@ func (sf *subjectFacts) key(n int32) int {
 	return class
 }
 
+// perlSpace is the bytes perl's isSPACE takes (handy.h isSPACE_A): toke.c skips them before a quote's delimiter and
+// qw splits on them.
+const perlSpace = " \t\n\r\v\f"
+
 // quoteKey is quote t's key class. A string is a constant unless it interpolates (toke.c scan_const): a $ before
 // anything, an @ before a name or one of :'{$+-, unsure before a non-ASCII byte, which use utf8 may make a name; \c
 // takes the next character. A qw or qq whose delimiter follows whitespace and is # is unsure, since that # starts a
@@ -832,17 +836,17 @@ func quoteKey(t string) int {
 	switch {
 	case t[0] == '\'' || t[0] == 'q' && !strings.ContainsRune("qwxr", rune(t[1])):
 		return keySimple
-	case (strings.HasPrefix(t, "qw") || strings.HasPrefix(t, "qq")) && t[2] != '#' && strings.TrimLeft(t[2:], " \t\r\n")[0] == '#':
+	case (strings.HasPrefix(t, "qw") || strings.HasPrefix(t, "qq")) && t[2] != '#' && strings.TrimLeft(t[2:], perlSpace)[0] == '#':
 		return keyUnknown // after whitespace a # starts a comment (toke.c), so the body is past it
 	case strings.HasPrefix(t, "qw"):
-		if w := strings.TrimLeft(t[2:], " \t\r\n"); len(strings.Fields(w[1:len(w)-1])) != 1 {
+		if w := strings.TrimLeft(t[2:], perlSpace); len(strings.FieldsFunc(w[1:len(w)-1], func(r rune) bool { return strings.ContainsRune(perlSpace, r) })) != 1 {
 			return keyComputed
 		}
 		return keySimple
 	case t[0] == '"':
 		body = t[1 : len(t)-1]
 	case strings.HasPrefix(t, "qq"):
-		body = strings.TrimLeft(t[2:], " \t\r\n")
+		body = strings.TrimLeft(t[2:], perlSpace)
 		if body[0] == '$' || body[0] == '@' {
 			return keyUnknown
 		}
