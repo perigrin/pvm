@@ -204,6 +204,10 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`use feature "signatures"; no warnings; our %h; sub f ($x = 1, % h) { my @k = keys %h; }`, 1, 0}, // padhv
 		{`use feature "signatures"; no warnings; our %h; sub f ($, %h) { my @k = keys %h; }`, 1, 0},       // a placeholder $
 		{`use feature "signatures"; no warnings; our %h; sub f ($x, $, %h) { my @k = keys %h; }`, 1, 0},
+		// a placeholder is a bare sigil at a parameter's position only; elsewhere $) and $, are variables (Concise)
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = $), %h) { my @k = keys %h; }`, 1, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($ , %h) { my @k = keys %h; }`, 1, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = $, % h) { my @k = keys %h; }`, 2, 0}, // modulus
 		{`our %h; my @v = @h{qw(a b)}; my %w = %h{qw(a b)};`, 3, 0},
 		{`our %h; my @x = %h[0];`, 1, 0},                         // %h[...] slices the array @h
 		{`our %h; $h{'a', 'b'} = 1; my $x = $h{qw(a b)};`, 3, 0}, // join($;, ...): rv2hv over gv, gvsv(*;)
@@ -242,8 +246,13 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`our %h; my $x = $h{"@!"}; my $y = $h{"@ x"}; my $z = $h{"\c$x"}; my $w = $h{"\$x"};`, 1, 0}, // multideref each
 		{"our %h; my @x = ($h{`a`}, $h{qr/a/}, $h{m/a/}, $h{s/a/b/r}, $h{tr/a/b/});", 6, 0},
 		{`my $r = {}; my $x = $r->{"$$"}; my $y = $r->{"@-"}; my $z = $r->{"\x{100}$$"};`, 3, 0},
-		{`my $r = {}; my $x = $r->{qw($x)};`, 0, 0}, // qw interpolates nothing: multideref($r->{"$x"})
-		{`our %h; my $x = $h{qw(@a)};`, 1, 0},       // multideref($h{"@a"})
+		{`my $r = {}; my $x = $r->{qw($x)};`, 0, 0},            // qw interpolates nothing: multideref($r->{"$x"})
+		{`our %h; my $x = $h{qw(@a)};`, 1, 0},                  // multideref($h{"@a"})
+		{`our %h; my $x = $h{v1.2}; my $y = $h{1.2.3};`, 1, 0}, // a v-string is a constant: multideref
+		{`my $r = {}; my $x = $r->{v1.2};`, 0, 0},
+		{`our %h; my $x = $h{qw()};`, 2, 0}, // an empty qw: helem over rv2hv
+		// scan_str drops the \ before a $ or @ delimiter, so qq@a\@b@ interpolates @b: such a qq hedges
+		{`our %h; my $x = $h{qq@a\@b@}; my $y = $h{qq$a\$b$};`, 1, 2},
 		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
 		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
 		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:

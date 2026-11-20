@@ -823,14 +823,16 @@ func (sf *subjectFacts) key(n int32) int {
 
 // quoteKey is quote t's key class. A string is a constant unless it interpolates (toke.c scan_const): a $ before
 // anything, an @ before a name or one of :'{$+-, unsure before a non-ASCII byte, which use utf8 may make a name; \c
-// takes the next character. qw/a b/ is a list, joined with $; as a , is. Any other quote is an op, never a constant.
+// takes the next character. A qq delimited by $ or @ is unsure: scan_str drops the \ before such a delimiter, so an
+// escaped one interpolates. qw/a b/ is a list, joined with $; as a , is, and an empty qw is computed too (Concise:
+// rv2hv). A v-string is a constant; qr, m, s, tr, y, a match's / and a backtick or qx are ops. Anything else is unsure.
 func quoteKey(t string) int {
 	var body string
 	switch {
 	case t[0] == '\'' || t[0] == 'q' && !strings.ContainsRune("qwxr", rune(t[1])):
 		return keySimple
 	case strings.HasPrefix(t, "qw"):
-		if len(strings.Fields(t[3:len(t)-1])) > 1 {
+		if w := strings.TrimLeft(t[2:], " \t\r\n"); len(strings.Fields(w[1:len(w)-1])) != 1 {
 			return keyComputed
 		}
 		return keySimple
@@ -838,9 +840,18 @@ func quoteKey(t string) int {
 		body = t[1 : len(t)-1]
 	case strings.HasPrefix(t, "qq"):
 		body = strings.TrimLeft(t[2:], " \t\r\n")
+		if body[0] == '$' || body[0] == '@' {
+			return keyUnknown
+		}
 		body = body[1 : len(body)-1]
-	default:
+	case t[0] == 'v' || t[0] >= '0' && t[0] <= '9':
+		return keySimple // a v-string, v1.2 or 1.2.3
+	case t[0] == '`' || t[0] == '/' || slices.ContainsFunc([]string{"qr", "qx", "m", "s", "tr", "y"}, func(op string) bool {
+		return strings.HasPrefix(t, op) && len(t) > len(op) && !isWordByte(t[len(op)])
+	}):
 		return keyComputed
+	default:
+		return keyUnknown
 	}
 	class := keySimple
 	for i := 0; i < len(body); i++ {
@@ -1297,8 +1308,9 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	depth, prev, sigil := 0, "", false
 	for _, t := range lexer.Tokenize(text) {
 		s := string(text[t.Start:t.End])
-		if t.Kind == lexer.Variable && len(s) == 2 && !isWordByte(s[1]) {
-			s = s[1:] // a bare sigil before punctuation, which the lexer reads as $, or $): a placeholder (toke.c)
+		param := depth == 1 && (prev == "(" || prev == ",")
+		if p := strings.TrimSpace(s[1:]); param && t.Kind == lexer.Variable && (p == "," || p == "=" || p == ")") {
+			s = p // a placeholder: a bare sigil at a parameter's position, which the lexer reads as $, or $ = or @)
 		}
 		name := ""
 		switch {
@@ -1308,7 +1320,7 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 			depth--
 		case s == "(" || s == "[" || s == "{":
 			depth++
-		case t.Kind == lexer.Variable && depth == 1 && (prev == "(" || prev == ",") && s[0] == '%':
+		case t.Kind == lexer.Variable && param && s[0] == '%':
 			name = hashName(s)
 		case sigil && t.Kind == lexer.Word:
 			name = s // ($, %h): after the placeholder $, the lexer reads % h as a modulus
@@ -1316,7 +1328,7 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 		if name != "" {
 			h.decls[name] = append(h.decls[name], hashDecl{j, r.match[body], kind})
 		}
-		sigil = depth == 1 && s == "%" && (prev == "(" || prev == ",")
+		sigil = param && s == "%"
 		prev = s
 	}
 }
