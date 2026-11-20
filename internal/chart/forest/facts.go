@@ -4,7 +4,6 @@
 package forest
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -804,8 +803,11 @@ func (sf *subjectFacts) key(n int32) int {
 		case lexer.Variable, lexer.DerefSigil:
 			return keyComputed
 		case lexer.Quote:
-			if t := sf.text(k); interpolatesVariable(t) || strings.HasPrefix(t, "qw") && len(strings.Fields(t[3:len(t)-1])) > 1 {
-				return keyComputed // qw/a b/ is a list, joined with $; as a , is
+			switch quoteKey(sf.text(k)) {
+			case keyComputed:
+				return keyComputed
+			case keyUnknown:
+				class = keyUnknown
 			}
 		case lexer.Operator:
 			if t := sf.text(k); t == "," || t == "=>" {
@@ -819,22 +821,65 @@ func (sf *subjectFacts) key(n int32) int {
 	return class
 }
 
-// interpolatesVariable is whether quote t interpolates a variable: an unescaped $ or @ before a name, a { or a :.
-func interpolatesVariable(t string) bool {
-	if strings.HasPrefix(t, "'") || len(t) > 1 && t[0] == 'q' && !strings.ContainsRune("qwrx", rune(t[1])) {
-		return false
+// perlSpace is the bytes perl's isSPACE takes (handy.h isSPACE_A): toke.c skips them before a quote's delimiter and
+// qw splits on them.
+const perlSpace = " \t\n\r\v\f"
+
+// quoteKey is quote t's key class. A string is a constant unless it interpolates (toke.c scan_const): a $ before
+// anything, an @ before a name or one of :'{$+-, unsure before a non-ASCII byte, which use utf8 may make a name; \c
+// takes the next character. A qw or qq whose delimiter follows whitespace and is # is unsure, since that # starts a
+// comment. A qq delimited by $ or @ is unsure: scan_str drops the \ before such a delimiter, so an
+// escaped one interpolates. qw/a b/ is a list, joined with $; as a , is, and an empty qw is computed too (Concise:
+// rv2hv). A v-string is a constant; qr, m, s, tr, y, a match's / and a backtick or qx are ops. Anything else is unsure.
+func quoteKey(t string) int {
+	var body string
+	switch {
+	case t[0] == '\'' || t[0] == 'q' && !strings.ContainsRune("qwxr", rune(t[1])):
+		return keySimple
+	case (strings.HasPrefix(t, "qw") || strings.HasPrefix(t, "qq")) && t[2] != '#' && strings.TrimLeft(t[2:], perlSpace)[0] == '#':
+		return keyUnknown // after whitespace a # starts a comment (toke.c), so the body is past it
+	case strings.HasPrefix(t, "qw"):
+		if w := strings.TrimLeft(t[2:], perlSpace); len(strings.FieldsFunc(w[1:len(w)-1], func(r rune) bool { return strings.ContainsRune(perlSpace, r) })) != 1 {
+			return keyComputed
+		}
+		return keySimple
+	case t[0] == '"':
+		body = t[1 : len(t)-1]
+	case strings.HasPrefix(t, "qq"):
+		body = strings.TrimLeft(t[2:], perlSpace)
+		if body[0] == '$' || body[0] == '@' {
+			return keyUnknown
+		}
+		body = body[1 : len(body)-1]
+	case t[0] == 'v' || t[0] >= '0' && t[0] <= '9':
+		return keySimple // a v-string, v1.2 or 1.2.3
+	case t[0] == '`' || t[0] == '/' || slices.ContainsFunc([]string{"qr", "qx", "m", "s", "tr", "y"}, func(op string) bool {
+		return strings.HasPrefix(t, op) && len(t) > len(op) && !isWordByte(t[len(op)])
+	}):
+		return keyComputed
+	default:
+		return keyUnknown
 	}
-	for i := 0; i+1 < len(t); i++ {
-		switch t[i] {
+	class := keySimple
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
 		case '\\':
+			if i+1 < len(body) && body[i+1] == 'c' {
+				i++
+			}
 			i++
-		case '$', '@':
-			if c := t[i+1]; isWordByte(c) || c == '{' || c == ':' {
-				return true
+		case '$':
+			return keyComputed
+		case '@':
+			if i+1 < len(body) && (isWordByte(body[i+1]) || strings.IndexByte(":'{$+-", body[i+1]) >= 0) {
+				return keyComputed
+			}
+			if i+1 < len(body) && body[i+1] >= 0x80 {
+				class = keyUnknown
 			}
 		}
 	}
-	return false
+	return class
 }
 
 // refSites is the references alternative a of node n takes, sorted, each at its operand's first token, and unsure
@@ -1240,7 +1285,7 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	if !ok || j >= r.n {
 		return
 	}
-	text := r.text(j)
+	start := r.s.Raw[r.s.Tokens[j].Index].Start
 	if r.is(j, "(") {
 		for d := 0; j < r.n; j++ {
 			if r.is(j, "(") {
@@ -1250,11 +1295,14 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 					break
 				}
 			}
-			text += " " + r.text(j)
 		}
 	} else if r.s.Raw[r.s.Tokens[j].Index].Kind != lexer.Prototype {
 		return
 	}
+	if j >= r.n {
+		return
+	}
+	text := r.src[start:r.s.Raw[r.s.Tokens[j].Index].End]
 	body := j
 	for body < r.n && !r.is(body, "{") {
 		body++
@@ -1262,13 +1310,35 @@ func (r *resolver) signature(h *hashScopes, k int, feature func(int, lex.Feature
 	if body >= r.n || r.match[body] < 0 {
 		return
 	}
-	for _, m := range sigHash.FindAllStringSubmatch(text, -1) {
-		h.decls[m[1]] = append(h.decls[m[1]], hashDecl{j, r.match[body], kind})
+	// a parameter is a %name directly after ( or , at the signature's own depth; one in a default is an expression
+	// (Concise: our %h; sub f ($x = \%h) {} reads rv2hv), and a % after a term is a modulus, which the lexer tells apart
+	depth, prev, sigil := 0, "", false
+	for _, t := range lexer.Tokenize(text) {
+		s := string(text[t.Start:t.End])
+		param := depth == 1 && (prev == "(" || prev == ",")
+		if p := strings.TrimSpace(s[1:]); param && t.Kind == lexer.Variable && (p == "," || p == "=" || p == ")") {
+			s = p // a placeholder: a bare sigil at a parameter's position, which the lexer reads as $, or $ = or @)
+		}
+		name := ""
+		switch {
+		case t.Kind == lexer.Whitespace || t.Kind == lexer.Comment:
+			continue
+		case s == ")" || s == "]" || s == "}":
+			depth--
+		case s == "(" || s == "[" || s == "{":
+			depth++
+		case t.Kind == lexer.Variable && param && s[0] == '%':
+			name = hashName(s)
+		case sigil && t.Kind == lexer.Word:
+			name = s // ($, %h): after the placeholder $, the lexer reads % h as a modulus
+		}
+		if name != "" {
+			h.decls[name] = append(h.decls[name], hashDecl{j, r.match[body], kind})
+		}
+		sigil = param && s == "%"
+		prev = s
 	}
 }
-
-// sigHash is a signature's hash parameter.
-var sigHash = regexp.MustCompile(`%\s*(\w+)`)
 
 // loopBody is the tokens opening the body of the foreach whose iterator a declaration at token k declares and closing
 // its last block, a continue's included, or 0, 0: the alias is not in scope over the loop's own list (Concise: `our

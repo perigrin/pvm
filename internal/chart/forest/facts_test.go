@@ -191,6 +191,23 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`if ((my %h = ())) { my @k = keys %h } my @j = keys %h;`, 1, 0}, // the my ends with the if
 		{`my %h; my $c = sub { keys %h };`, 0, 0},                        // a closure's padhv
 		{`use feature 'signatures'; sub f ($x, %h) { return keys %h } my @k = keys %h;`, 1, 0},
+		// a %name is a parameter only after ( or , at the signature's own depth; in a default it is the package hash,
+		// and so is the body's (Concise: rv2hv in the default and under keys)
+		{`use feature "signatures"; no warnings; our %h; my $f = sub ($x = \%h) { my @k = keys %h; };`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = \%h) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = scalar(%h)) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = {%h}) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %w; our $n = 1; sub f ($x = $n % w) { my @k = keys %w; }`, 2, 0}, // modulus
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = (1, %h)) { my @k = keys %h; }`, 3, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = "a,%h") { my @k = keys %h; }`, 2, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = sub (%h) {1}) { my @k = keys %h; }`, 2, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = 1, % h) { my @k = keys %h; }`, 1, 0}, // padhv
+		{`use feature "signatures"; no warnings; our %h; sub f ($, %h) { my @k = keys %h; }`, 1, 0},       // a placeholder $
+		{`use feature "signatures"; no warnings; our %h; sub f ($x, $, %h) { my @k = keys %h; }`, 1, 0},
+		// a placeholder is a bare sigil at a parameter's position only; elsewhere $) and $, are variables (Concise)
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = $), %h) { my @k = keys %h; }`, 1, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($ , %h) { my @k = keys %h; }`, 1, 0},
+		{`use feature "signatures"; no warnings; our %h; sub f ($x = $, % h) { my @k = keys %h; }`, 2, 0}, // modulus
 		{`our %h; my @v = @h{qw(a b)}; my %w = %h{qw(a b)};`, 3, 0},
 		{`our %h; my @x = %h[0];`, 1, 0},                         // %h[...] slices the array @h
 		{`our %h; $h{'a', 'b'} = 1; my $x = $h{qw(a b)};`, 3, 0}, // join($;, ...): rv2hv over gv, gvsv(*;)
@@ -219,6 +236,29 @@ func TestOracleSubjectHashSites(t *testing.T) {
 		{`use feature "refaliasing"; no warnings; our %h; \(my $x, %h) = (\1, {});`, 1, 0},
 		{`our %h; my $r = \%h;`, 2, 0},                      // srefgen over rv2hv
 		{`our %h; my $x; my @y = ($h{+$x}, $h{$$});`, 1, 0}, // multideref($h{$x}) and multideref($h{$$})
+		// a string key is computed where it interpolates: a $ before anything, an @ before a name or one of :'{$+-, and
+		// \c takes the next character (toke.c scan_const; Concise: helem over rv2hv); any other quote is an op
+		{`our %h; my $x = $h{"$$"};`, 2, 0},
+		{`our %h; my $x = $h{"@-"};`, 2, 0},
+		{`our %h; my $x = $h{"$&"};`, 2, 0},
+		{`our %h; my $x = $h{"$-[0]"}; my $y = $h{"\x{100}$$"}; my $z = $h{qq'$$'};`, 4, 0},
+		{`our %h; my $x = $h{"$ a"}; my $y = $h{"$#a"}; my $z = $h{"@'a"}; my $w = $h{"\\c$$"};`, 5, 0},
+		{`our %h; my $x = $h{"@!"}; my $y = $h{"@ x"}; my $z = $h{"\c$x"}; my $w = $h{"\$x"};`, 1, 0}, // multideref each
+		{"our %h; my @x = ($h{`a`}, $h{qr/a/}, $h{m/a/}, $h{s/a/b/r}, $h{tr/a/b/});", 6, 0},
+		{`my $r = {}; my $x = $r->{"$$"}; my $y = $r->{"@-"}; my $z = $r->{"\x{100}$$"};`, 3, 0},
+		{`my $r = {}; my $x = $r->{qw($x)};`, 0, 0},            // qw interpolates nothing: multideref($r->{"$x"})
+		{`our %h; my $x = $h{qw(@a)};`, 1, 0},                  // multideref($h{"@a"})
+		{`our %h; my $x = $h{v1.2}; my $y = $h{1.2.3};`, 1, 0}, // a v-string is a constant: multideref
+		{`my $r = {}; my $x = $r->{v1.2};`, 0, 0},
+		{`our %h; my $x = $h{qw()};`, 2, 0}, // an empty qw: helem over rv2hv
+		// scan_str drops the \ before a $ or @ delimiter, so qq@a\@b@ interpolates @b: such a qq hedges
+		{`our %h; my $x = $h{qq@a\@b@}; my $y = $h{qq$a\$b$};`, 1, 2},
+		// after whitespace a # starts a comment, not a delimiter, so the quote's body is after it: such a qw or qq hedges
+		{"our %h; my $x = $h{qw #c d\n(a)};", 1, 1},
+		{"our %h; my $x = $h{qq #$c\n(a)};", 1, 1},
+		{"our %h; my $x = $h{qw\f#c d\n(a)};", 1, 1}, // a form feed and a vertical tab are isSPACE too (handy.h)
+		{"our %h; my $x = $h{qq\v#$c\n(a)};", 1, 1},
+		{"our %h; my $x = $h{qw#a#}; my $y = $h{qq#a#};", 1, 0}, // no whitespace: # is the delimiter
 		// +word calls the constant, whose undef peep.c's OP_CONST case will not hold (perl.git perf/opcount.t:218)
 		{`use constant u => undef; my $r = {}; my $x = $r->{+u};`, 0, 1},
 		// a hash a refalias declares is lexical, and a refalias in a list or under local builds no rv2hv (Concise:
