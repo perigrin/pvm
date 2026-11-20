@@ -179,6 +179,42 @@ func TestPositionMapSpan(t *testing.T) {
 	}
 }
 
+// The map is held per top-level statement, so it must still give every
+// lowered node the span of the CST node AssignIDs gave its id -- inside
+// nested and package-block subs, a heredoc, a same-named sub -- and none
+// to an id of no lowered node.
+func TestPositionMapSpanIsItsCSTNode(t *testing.T) {
+	src := "package P;\nmy $top = <<EOT;\nbody\nEOT\nsub a { my $x = 1; return $x }\n" +
+		"{ sub b { sub inner { 2 } return inner() } }\npackage Q { sub a { 'q' } my $q; }\n" +
+		"my $f = sub { sub c { 3 } };\nsub d;\n# trailing\n1;\n"
+	root, f, p := positions(src)
+	cst := map[lower.ID]*parse.Node{}
+	for n, id := range lower.AssignIDs(root) {
+		cst[id] = n
+	}
+	var walk func(n lower.Node)
+	walk = func(n lower.Node) {
+		id := n.Meta().ID
+		c := cst[lower.ID{Anchor: id.Anchor, Local: id.Local}]
+		want := [2]int{c.Start, c.End}
+		if id == f.Meta().ID {
+			want = [2]int{0, strings.LastIndex(src, "1;") + 2}
+		}
+		if s, e, ok := p.Span(id); !ok || [2]int{s, e} != want {
+			t.Errorf("%T %v spans [%d,%d) ok=%v, want %v", n, id, s, e, ok, want)
+		}
+		for _, k := range lower.Children(n) {
+			walk(k)
+		}
+	}
+	walk(f)
+	for _, id := range []lower.ID{{Anchor: "sub a#2"}, {Local: 1 << 20}, {Anchor: "sub a#0", Local: 1 << 20}} {
+		if _, _, ok := p.Span(id); ok {
+			t.Errorf("%v, no node's id, has a span", id)
+		}
+	}
+}
+
 // A Match keeps its pattern inside its one quote token (§4.14.2, PARSER),
 // and the map hands that token back by the Match's id, bound or not, so $1
 // can read the groups of the match before it. Anything but a Match has no

@@ -1200,7 +1200,13 @@ for an edit that stays inside subs. `analyzeEdit`
 and new trees (`damageFromTreeDiff`, §6.10.5 item 4), or, when `Repair`
 built the new tree, off the region it re-parsed (`damageFromRepair`): a
 set of damaged top-level subs, or full. On a set, `lower.Relower` lowers only those subs and
-shares the rest of the old lowered tree, and `infer.Reanalyze` walks only
+shares the rest of the old lowered tree. It makes the edit's position map
+from the old one too: the map is held per top-level statement, each in the
+offsets of the tree it was numbered in, so only the statements holding a
+damaged sub or the edit are numbered and indexed again, and every other
+keeps its chunk, read where its statement has moved to. psc keeps its
+syntax errors per top-level statement the same way, and re-reads only
+those statements (`TestIncrementalEditWorkIsLocal`). `infer.Reanalyze` walks only
 those subs and the code outside every sub, which threads state into them;
 each other sub is replayed from what its last walk recorded -- its scopes,
 diagnostics and writes to the scopes around it -- and its `lower.ID`-keyed
