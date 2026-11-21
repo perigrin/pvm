@@ -1,11 +1,12 @@
 //go:build absencereference
 
-// ABOUTME: The absence claims' candidate judgement held to lex.Map over every T1 file for every key, once per key.
-// ABOUTME: It maps everything, so it runs only under the build tag absencereference.
+// ABOUTME: The absence claims' references, which map the whole corpus once per claim: make chart-absence-reference runs them.
+// ABOUTME: falseAbsences against a table per claim, and its candidate judgement against Map over every T1 file for every key.
 
 package main
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -70,4 +71,58 @@ func TestAbsenceCandidatesMatchFullMap(t *testing.T) {
 		t.Fatalf("%d keys over %d files, %d admissions: the check proves nothing", len(seen), len(files), admitted)
 	}
 	t.Logf("%d keys over %d files (T1 and the toy), %d admissions, %d mismatches; %d keys' tables change Map's state on some file", len(seen), len(files), admitted, bad, len(whole))
+}
+
+// TestTDTAbsentReasonsMatchPerClaimScan: falseAbsences reports exactly the admissions a table compiled from each claim
+// alone reports, over the real corpus, for the keys a shared table once masked (an OtherWord or IdentQuote neighbour,
+// which another claim's named word or quote changes the meaning of) and every 8th key besides.
+func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
+	t.Chdir("../../../..")
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab := committedTables(t)
+	_, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := symbolNames(tab)
+	var b strings.Builder
+	b.WriteString("reason: x " + absentPhrase + "\n")
+	for i, d := range g.Classes {
+		k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key))
+		masked := strings.Contains(k, grammar.OtherWord) || strings.Contains(k, grammar.IdentQuote)
+		if masked && (strings.HasPrefix(k, "METHCALL") || strings.HasPrefix(k, "MULOP")) || i%8 == 0 {
+			b.WriteString(k + "\n")
+		}
+	}
+	want := refAbsences(t, g.Classes, names, b.String(), srcs)
+	got, n := falseAbsences(t, g.Classes, b.String(), srcs)
+	if n < 20 || len(want) == 0 {
+		t.Fatalf("checked %d claims, the reference found %d admissions: the sample proves nothing", n, len(want))
+	}
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("falseAbsences reports %d admissions, a table per claim reports %d; first difference:\n%s", len(got), len(want), firstDiff(got, want))
+	}
+}
+
+func firstDiff(a, b []string) string {
+	for i := range min(len(a), len(b)) {
+		if a[i] != b[i] {
+			return a[i] + "\nvs\n" + b[i]
+		}
+	}
+	return fmt.Sprintf("one is a prefix of the other, %d vs %d", len(a), len(b))
+}
+
+// symbolNames is the grammar's symbol names, which a class's Terminals index.
+func symbolNames(tab *grammar.Tables) []string {
+	names := make([]string, len(tab.Symbols))
+	for i, s := range tab.Symbols {
+		names[i] = s.Name
+	}
+	return names
 }

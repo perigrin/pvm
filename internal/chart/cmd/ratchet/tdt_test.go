@@ -498,51 +498,6 @@ func refAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, review
 	return out
 }
 
-// TestTDTAbsentReasonsMatchPerClaimScan: falseAbsences reports exactly the admissions a table compiled from each claim
-// alone reports, over the real corpus, for the keys a shared table once masked (an OtherWord or IdentQuote neighbour,
-// which another claim's named word or quote changes the meaning of) and every 8th key besides.
-func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
-	t.Chdir("../../../..")
-	g, _, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab := committedTables(t)
-	_, srcs, err := corpus()
-	if err != nil {
-		t.Fatal(err)
-	}
-	names := symbolNames(tab)
-	var b strings.Builder
-	b.WriteString("reason: x " + absentPhrase + "\n")
-	for i, d := range g.Classes {
-		k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key))
-		masked := strings.Contains(k, grammar.OtherWord) || strings.Contains(k, grammar.IdentQuote)
-		if masked && (strings.HasPrefix(k, "METHCALL") || strings.HasPrefix(k, "MULOP")) || i%8 == 0 {
-			b.WriteString(k + "\n")
-		}
-	}
-	want := refAbsences(t, g.Classes, names, b.String(), srcs)
-	got, n := falseAbsences(t, g.Classes, b.String(), srcs)
-	if n < 20 || len(want) == 0 {
-		t.Fatalf("checked %d claims, the reference found %d admissions: the sample proves nothing", n, len(want))
-	}
-	slices.Sort(want)
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("falseAbsences reports %d admissions, a table per claim reports %d; first difference:\n%s", len(got), len(want), firstDiff(got, want))
-	}
-}
-
-func firstDiff(a, b []string) string {
-	for i := range min(len(a), len(b)) {
-		if a[i] != b[i] {
-			return a[i] + "\nvs\n" + b[i]
-		}
-	}
-	return fmt.Sprintf("one is a prefix of the other, %d vs %d", len(a), len(b))
-}
-
 // TestTDTAbsentReasonsClaimsAreIndependent: of two claims over one file, the false one is named and the true one is not,
 // though the true one names a word ("a") that the false one's OtherWord neighbour stands for.
 func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
@@ -558,13 +513,4 @@ func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
 	if n != 2 || len(want) != 1 || !slices.Equal(got, want) || !strings.HasPrefix(got[0], lk+" admits toy.pl ") {
 		t.Errorf("got %q from %d claims, want %q (the false claim only)", got, n, want)
 	}
-}
-
-// symbolNames is the grammar's symbol names, which a class's Terminals index.
-func symbolNames(tab *grammar.Tables) []string {
-	names := make([]string, len(tab.Symbols))
-	for i, s := range tab.Symbols {
-		names[i] = s.Name
-	}
-	return names
 }
