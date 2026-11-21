@@ -442,9 +442,11 @@ To take a baseline after an intended change, run
   the tokens of its key's own kind and text, with their neighbours interned
   under the claim's table. A one-class table leaves `Map`'s running state as
   the trace's unless its class is Completes: only a Completes neighbour
-  changes `Intern`'s Glob on a `*` or Repeat on an `x`, and through them the
-  names, stashes and typed my's after it. Where it does (`Trace.Holds`), the
-  file is mapped whole under the claim's table.
+  changes `Intern`'s Glob on a `*`, and through it the names, stashes and
+  typed my's after it (Repeat on an `x` feeds only the next `*` or `x`;
+  `Trace.Holds` checks it too, conservatively). Where the state changes
+  (`Trace.Holds`), the file is mapped whole under the claim's table
+  (`TestAbsenceAdmitsMapsWhereStateChanges`).
   **The per-claim reference runs in `make chart-absence-reference`, not in
   `go test ./...`**, and `make test` runs it after the suite: it maps the
   corpus once per claim, which is the cost the candidates remove, so it sits
@@ -452,6 +454,8 @@ To take a baseline after an intended change, run
   `TestTDTAbsentReasonsMatchPerClaimScan` holds `falseAbsences` to a table per
   claim over every corpus file, and `TestAbsenceCandidatesMatchFullMap` holds
   the candidate judgement to `lex.Map` for every key over every T1 file.
+  CI runs `go test ./...`, not `make test`, so the reference runs only under
+  `make test` locally; CI sees `TestAbsenceAdmitsMapsWhereStateChanges`.
 - **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
   file is accepted when `forest.Parse` accepts it, under its scope facts, so a
   precedence or scope refusal is the chart's refusal

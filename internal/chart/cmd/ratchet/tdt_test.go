@@ -514,3 +514,19 @@ func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
 		t.Errorf("got %q from %d claims, want %q (the false claim only)", got, n, want)
 	}
 }
+
+// TestAbsenceAdmitsMapsWhereStateChanges: where a claim's table changes Map's state (lex.Trace.Holds fails), admits
+// maps the file whole. Under the toy Completes key a `*` after a word completes a term, so the bar after it names
+// nothing and baz's Prev2 holds, which the candidates alone, read off the stateless trace, would miss.
+func TestAbsenceAdmitsMapsWhereStateChanges(t *testing.T) {
+	f := newCorpusFile([]byte("foo * bar; baz;"))
+	c := grammar.TokenClass{Terminals: []int{0}, Kind: ptr(lexer.Word), Completes: true, Prev2: &grammar.Neighbour{Kind: lexer.Word, Text: grammar.OtherWord}}
+	tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, want := f.admits(c, tt), mapAdmits(f.src, f.raw, tt)
+	if len(want) != 2 || !slices.Equal(got, want) {
+		t.Errorf("admits %v, Map admits %v; want both [6 11]", got, want)
+	}
+}

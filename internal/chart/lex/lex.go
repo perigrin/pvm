@@ -37,7 +37,8 @@ type Trace struct {
 	classes []grammar.Neighbour
 	opened  map[int]bool
 	// starred are the tokens whose class reads the table: a `*` (Glob) and a word x (Repeat), which Intern decides by
-	// whether the table marks the class before them Completes.
+	// whether the table marks the class before them Completes. Repeat is read only by the next `*` or x's completes,
+	// which is starred itself, so starring x is conservative, not needed for soundness.
 	starred []int
 }
 
@@ -62,7 +63,8 @@ func (tr *Trace) pred(k int) *grammar.Neighbour {
 // Holds is whether Map maps the file under tt as it did under the trace's table. Every input to Map's state (the
 // features, scopes, stashes, the typed my's it drops) and to each view is the raw tokens and the classes before them,
 // and Intern decides a class from its view and the class before it alone, except Glob and Repeat; so if tt decides
-// those on every starred token as the trace's table did, every class, view and token follows by induction.
+// Glob on every `*` as the trace's table did, every class, view and token follows by induction. Repeat feeds only the
+// next `*` or x's completes; checking it too, on x, is a conservative choice.
 func (tr *Trace) Holds(tt *grammar.TokenTable) bool {
 	var it grammar.Token
 	for _, k := range tr.starred {
