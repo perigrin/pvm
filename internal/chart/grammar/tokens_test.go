@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+	"sync"
 	"testing"
 
 	"tamarou.com/pvm/internal/lexer"
@@ -598,14 +599,19 @@ func TestShortKeyInjective(t *testing.T) {
 	}
 }
 
+// committedTables are the committed grammar's tables, generated once for the package's tests.
+var committedTables = sync.OnceValues(func() (*Tables, error) {
+	g, ref, err := Committed()
+	if err != nil {
+		return nil, err
+	}
+	return Generate(g, ref)
+})
+
 // The committed dictionary's texts, and each one NUL off them, and its classes look up as in the maps the integer
 // tables replaced (two sentinel-text classes share a key, the later id winning, as they did in the map).
 func TestCommittedDictionaryLookups(t *testing.T) {
-	g, ref, err := Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := Generate(g, ref)
+	tab, err := committedTables()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -637,11 +643,7 @@ func TestCommittedDictionaryLookups(t *testing.T) {
 // Blanks parts decide a set only beside neighbours this sweep never pairs, so chart/lex's
 // TestLookupCacheAgreesOnRealKeys checks them.
 func TestLookupCacheAgrees(t *testing.T) {
-	g, ref, err := Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab, err := Generate(g, ref)
+	tab, err := committedTables()
 	if err != nil {
 		t.Fatal(err)
 	}

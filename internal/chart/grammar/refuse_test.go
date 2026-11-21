@@ -211,14 +211,14 @@ func TestGeneratorNullableIsProductive(t *testing.T) {
 }
 
 func TestCommittedGrammarConsistent(t *testing.T) {
-	g, ref, err := Committed()
+	g, _, err := Committed()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(g.Prec) == 0 {
 		t.Error("the committed grammar declares no precedence, so its unused-precedence refusal checks nothing")
 	}
-	if _, err := Generate(g, ref); err != nil {
+	if _, err := committedTables(); err != nil {
 		t.Errorf("the committed grammar is refused:\n%v", err)
 	}
 }
