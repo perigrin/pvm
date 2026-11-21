@@ -27,6 +27,73 @@ func Lex(src []byte, tt *grammar.TokenTable) (*Stream, int) {
 // admits, or -1. Trivia attaches to the next significant token, and each
 // heredoc body to the waiting opener whose tag its terminator line spells.
 func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
+	return mapTokens(src, raw, tt, nil)
+}
+
+// Trace is what Map read and decided of each significant token of a file under one table: the view it interned, the
+// class it gave the token, and whether the token is a heredoc opener whose body never came.
+type Trace struct {
+	views   []grammar.TokenView
+	classes []grammar.Neighbour
+	opened  map[int]bool
+	// starred are the tokens whose class reads the table: a `*` (Glob) and a word x (Repeat), which Intern decides by
+	// whether the table marks the class before them Completes.
+	starred []int
+}
+
+// NewTrace is Map over raw, src's tokens, under tt, and its trace, whose tokens are the stream's.
+func NewTrace(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, *Trace) {
+	tr := &Trace{opened: map[int]bool{}}
+	s, _ := mapTokens(src, raw, tt, tr)
+	return s, tr
+}
+
+// View is the view Map interned for significant token k.
+func (tr *Trace) View(k int) *grammar.TokenView { return &tr.views[k] }
+
+// pred is the class of the token before significant token k.
+func (tr *Trace) pred(k int) *grammar.Neighbour {
+	if k == 0 {
+		return &grammar.Boundary
+	}
+	return &tr.classes[k-1]
+}
+
+// Holds is whether Map maps the file under tt as it did under the trace's table. Every input to Map's state (the
+// features, scopes, stashes, the typed my's it drops) and to each view is the raw tokens and the classes before them,
+// and Intern decides a class from its view and the class before it alone, except Glob and Repeat; so if tt decides
+// those on every starred token as the trace's table did, every class, view and token follows by induction.
+func (tr *Trace) Holds(tt *grammar.TokenTable) bool {
+	var it grammar.Token
+	for _, k := range tr.starred {
+		if tt.Intern(&tr.views[k], tr.pred(k), &it); it.N != tr.classes[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// Set is the terminal set Map gives significant token k under tt, where tr.Holds(tt): k and its neighbours interned
+// under tt, then looked up.
+func (tr *Trace) Set(tt *grammar.TokenTable, k int) int {
+	if tr.opened[k] {
+		return 0
+	}
+	var its [4]grammar.Token
+	class := func(j int) int {
+		if j < 0 || j >= len(tr.views) {
+			return tt.Edge
+		}
+		tt.Intern(&tr.views[j], tr.pred(j), &its[j-k+2])
+		return its[j-k+2].Class
+	}
+	p2, p1, next := class(k-2), class(k-1), class(k+1)
+	class(k)
+	return tt.Lookup(&its[2], p2, p1, next)
+}
+
+// mapTokens is Map, recording into tr when it is not nil.
+func mapTokens(src []byte, raw []lexer.Token, tt *grammar.TokenTable, tr *Trace) (*Stream, int) {
 	// text views src without copying it; nothing Map returns holds a string, so
 	// the view lives only as long as this call, during which src is not written.
 	text := unsafe.String(unsafe.SliceData(src), len(src))
@@ -119,7 +186,14 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		if word {
 			lc, bl = lineColon(raw, i, text), blanks(raw, i, text)
 		}
-		intern(tt, text, t, lc, bl, plainIsa, pred, it)
+		var v grammar.TokenView
+		intern(tt, text, t, lc, bl, plainIsa, pred, &v, it)
+		if tr != nil {
+			if t.Kind == lexer.Operator && v.Text == "*" || word && v.Text == "x" {
+				tr.starred = append(tr.starred, len(s.Tokens))
+			}
+			tr.views, tr.classes = append(tr.views, v), append(tr.classes, it.N)
+		}
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -136,6 +210,9 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 	// there and internal/lexer does not (v0.1 01a1af7c-3b8b), so its files are on lex-unmapped-known.txt.
 	for _, o := range opens {
 		s.Tokens[o].TerminalSet = 0
+		if tr != nil {
+			tr.opened[o] = true
+		}
 		if b := raw[s.Tokens[o].Index].Start; first < 0 || b < first {
 			first = b
 		}
@@ -304,8 +381,8 @@ func terminator(body string) string {
 	return strings.TrimLeft(body[strings.LastIndexByte(body, '\n')+1:], " \t")
 }
 
-// intern interns t's key in tt into it, given its predecessor's class; plainIsa says t is isa with its feature off.
-func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa bool, pred *grammar.Neighbour, it *grammar.Token) {
+// intern interns t's key in tt into it, given its predecessor's class, writing the view it reads into v; plainIsa says t is isa with its feature off.
+func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa bool, pred *grammar.Neighbour, v *grammar.TokenView, it *grammar.Token) {
 	tx := text[t.Start:t.End]
 	if plainIsa {
 		tx = grammar.PlainIsa
@@ -325,10 +402,9 @@ func intern(tt *grammar.TokenTable, text string, t lexer.Token, lc, bl, plainIsa
 	if p == grammar.CoreQualified {
 		tx = tx[6:] // toke.c's yyl_key_core reads CORE::kw as kw; decided before v is written, which reading v back would stall
 	}
-	var v grammar.TokenView
 	v.Kind, v.Text, v.OpensBlock, v.TermFollows, v.Prefix = t.Kind, tx, t.OpensBlock, t.TermFollows, p
 	v.Global, v.LineColon, v.Blanks = g, lc, bl
-	tt.Intern(&v, pred, it)
+	tt.Intern(v, pred, it)
 }
 
 // Feature is a set of the features feature.pm names that the chart reads, one bit each.

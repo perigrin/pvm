@@ -121,7 +121,7 @@ func TestLexLookupAllocationFree(t *testing.T) {
 				continue
 			}
 			it := &slots[i&1]
-			intern(tt, text, r, false, false, false, pred, it)
+			intern(tt, text, r, false, false, false, pred, new(grammar.TokenView), it)
 			tt.Lookup(it, p2, p1, tt.Edge)
 			pred, p2, p1 = &it.N, p1, it.Class
 		}
@@ -278,5 +278,44 @@ func TestFeatureBundleFrom595(t *testing.T) {
 		if got := f&FeatureState != 0 && f&FeatureSwitch != 0; got != c.want {
 			t.Errorf("%s: state and switch on %v, want %v", c.use, got, c.want)
 		}
+	}
+}
+
+// TestTraceSet: a trace under a table that marks nothing Completes looks every token up as Map does under another
+// such table, and Holds says so; under a table whose word completes a term, the `*` after foo is no glob's, so Holds
+// fails, as it must, since bar after it then names nothing and baz's Prev2 class changes with it.
+func TestTraceSet(t *testing.T) {
+	src := []byte("foo * bar; baz; <<EOF;\n")
+	raw := lexer.Tokenize(src)
+	base, err := grammar.CompileTokens(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tr := NewTrace(src, raw, base)
+	other := grammar.Neighbour{Kind: lexer.Word, Text: grammar.OtherWord}
+	for _, c := range []grammar.TokenClass{
+		{Terminals: []int{1}, Kind: ptr(lexer.Word), Prev2: &other},
+		{Terminals: []int{1}, Kind: ptr(lexer.HeredocOpen)}, // its body never comes
+	} {
+		tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, _ := Map(src, raw, tt)
+		if !tr.Holds(tt) {
+			t.Errorf("%+v: Holds is false for a table that marks nothing Completes", c)
+		}
+		for k, tk := range s.Tokens {
+			if got := tr.Set(tt, k); got != tk.TerminalSet {
+				t.Errorf("%+v: token %d: Set gives %d, Map %d", c, k, got, tk.TerminalSet)
+			}
+		}
+	}
+	tt, err := grammar.CompileTokens([]grammar.TokenClass{{Terminals: []int{1}, Kind: ptr(lexer.Word), Completes: true, Prev2: &other}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.Holds(tt) {
+		t.Error("Holds is true for a table under which foo completes a term")
 	}
 }

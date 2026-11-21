@@ -555,7 +555,7 @@ func BenchmarkIntern(b *testing.B) {
 		var slots [2]grammar.Token
 		pred := &grammar.Boundary
 		for i, t := range sig {
-			intern(tt, text, t, false, false, false, pred, &slots[i&1])
+			intern(tt, text, t, false, false, false, pred, new(grammar.TokenView), &slots[i&1])
 			pred = &slots[i&1].N
 		}
 	}
@@ -650,7 +650,7 @@ func TestLookupCacheAgreesOnRealKeys(t *testing.T) {
 		toks := make([]grammar.Token, len(at))
 		pred := &grammar.Boundary
 		for j, i := range at {
-			intern(tt, text, raw[i], lineColon(raw, i, text), blanks(raw, i, text), false, pred, &toks[j])
+			intern(tt, text, raw[i], lineColon(raw, i, text), blanks(raw, i, text), false, pred, new(grammar.TokenView), &toks[j])
 			pred = &toks[j].N
 		}
 		p2, p1 := tt.Edge, tt.Edge
