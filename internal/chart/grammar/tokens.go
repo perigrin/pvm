@@ -5,6 +5,7 @@ package grammar
 
 import (
 	"cmp"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"maps"
@@ -647,6 +648,8 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 		}
 		return n
 	}
+	out := make([]int, len(pats)) // v+1 on the classes that rule value v out, while v's classes are gathered
+	var kb []byte                 // the memo key being built: part, then each of in as four bytes
 	var build func(in []int, part int) *node
 	build = func(in []int, part int) *node {
 		for ; part < nParts; part++ {
@@ -654,10 +657,14 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 				break
 			}
 		}
-		memoKey := intsKey(part, in)
-		if n, ok := memo[memoKey]; ok {
+		kb = append(kb[:0], byte(part))
+		for _, c := range in {
+			kb = binary.LittleEndian.AppendUint32(kb, uint32(c))
+		}
+		if n, ok := memo[string(kb)]; ok {
 			return n
 		}
+		memoKey := string(kb)
 		var n *node
 		if part == nParts {
 			var set []int
@@ -668,30 +675,61 @@ func CompileTokens(classes []TokenClass) (*TokenTable, error) {
 			set = slices.Compact(set)
 			n = intern("leaf"+intsKey(0, set), &node{set: set})
 		} else {
-			var wild, values []int
+			var wild []int
+			top := 0 // the largest value a class asks for or rules out
 			for _, c := range in {
 				if v := pats[c][part]; v == free {
 					wild = append(wild, c)
 				} else {
-					values = append(values, v)
+					top = max(top, v)
 				}
-				values = append(values, nots[c][part]...)
+				for _, x := range nots[c][part] {
+					top = max(top, x)
+				}
 			}
-			slices.Sort(values)
-			values = slices.Compact(values)
-			cand := &node{part: part, def: build(wild, part+1), kids: make([]*node, values[len(values)-1]+1)}
-			sig := []string{intsKey(part, []int{cand.def.uid})}
-			for i := range cand.kids {
-				cand.kids[i] = cand.def
+			// fixed holds, per value, the classes asking for it and ruled those ruling it out: a value's classes are its
+			// fixed ones and the wild ones, merged in in's ascending order, less the ruled ones.
+			fixed, ruled := make([][]int, top+1), make([][]int, top+1)
+			for _, c := range in {
+				if q := pats[c][part]; q != free {
+					fixed[q] = append(fixed[q], c)
+				}
+				for _, x := range nots[c][part] {
+					ruled[x] = append(ruled[x], c)
+				}
 			}
-			for _, v := range values {
-				same := slices.DeleteFunc(slices.Clone(in), func(o int) bool { q := pats[o][part]; return q != free && q != v || slices.Contains(nots[o][part], v) })
+			cand := &node{part: part, def: build(wild, part+1), kids: make([]*node, top+1)}
+			for v := range cand.kids {
+				if len(fixed[v]) == 0 && len(ruled[v]) == 0 {
+					cand.kids[v] = cand.def
+					continue
+				}
+				for _, c := range ruled[v] {
+					out[c] = v + 1
+				}
+				same, w, f := make([]int, 0, len(wild)+len(fixed[v])), wild, fixed[v]
+				for len(w) > 0 || len(f) > 0 {
+					var o int
+					if len(f) == 0 || len(w) > 0 && w[0] < f[0] {
+						o, w = w[0], w[1:]
+					} else {
+						o, f = f[0], f[1:]
+					}
+					if out[o] != v+1 {
+						same = append(same, o)
+					}
+				}
+				for _, c := range ruled[v] {
+					out[c] = 0
+				}
 				cand.kids[v] = build(same, part+1)
 			}
+			// The node's key: part, its default's uid and each kid's, four bytes each (a leaf's key starts "leaf").
+			sig := binary.LittleEndian.AppendUint32([]byte{byte(part)}, uint32(cand.def.uid))
 			for _, k := range cand.kids {
-				sig = append(sig, strconv.Itoa(k.uid))
+				sig = binary.LittleEndian.AppendUint32(sig, uint32(k.uid))
 			}
-			n = intern(strings.Join(sig, ";"), cand)
+			n = intern(string(sig), cand)
 		}
 		memo[memoKey] = n
 		return n
