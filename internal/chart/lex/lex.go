@@ -82,10 +82,15 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 			s.Bodies = append(s.Bodies, Body{o, t})
 			continue
 		}
-		if st.typedClass(t, text, on) {
+		word := t.Kind == lexer.Word
+		if word && st.prev != "" && st.typedClass(t, text, on) {
 			continue // toke.c consumes a typed my's class name (KEY_my's PL_in_my_stash) and emits no token for it
 		}
-		st.note(raw, i, text, on, pred)
+		if word || t.Kind == lexer.Variable {
+			st.note(raw, i, text, on, pred)
+		} else {
+			st.prev, st.brace = "", t.Kind == lexer.Operator && t.End-t.Start == 1 && text[t.Start] == '{' && sigilled(pred)
+		}
 		plainIsa, was := false, on
 		switch n := t.End - t.Start; t.Kind {
 		case lexer.Operator:
@@ -110,7 +115,11 @@ func Map(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (*Stream, int) {
 		}
 		s.change(was, on)
 		it := &slots[len(s.Tokens)&1]
-		intern(tt, text, t, lineColon(raw, i, text), blanks(raw, i, text), plainIsa, pred, it)
+		lc, bl := false, false // both are a word's
+		if word {
+			lc, bl = lineColon(raw, i, text), blanks(raw, i, text)
+		}
+		intern(tt, text, t, lc, bl, plainIsa, pred, it)
 		if len(s.Tokens) > 0 {
 			done(it.Class)
 		}
@@ -202,8 +211,14 @@ func (st *stashes) add(n string) {
 	}
 }
 
-// note records the stashes raw[i] makes, each with every stash it is nested in: the name after package, class (its
-// feature on), use, no or require, and each
+// sigilled is whether pred, a token's predecessor, is a sigil or a cast: `$`, `@`, `%`, `&` or a glob's `*`.
+func sigilled(pred *grammar.Neighbour) bool {
+	return pred.Kind == lexer.FuncSigil || pred.Kind == lexer.DerefSigil ||
+		pred.Kind == lexer.Operator && pred.Text == "*" && pred.Glob // the grammar's glob-sigil test
+}
+
+// note records the stashes raw[i], a word or a variable, makes, each with every stash it is nested in: the name after
+// package, class (its feature on), use, no or require, and each
 // package a qualified name passes through where perl makes a symbol of it -- a variable (`$Foo::x`, `$ Foo::x`), a
 // word after a sigil (`&Foo::bar`, a glob's `*Foo::x`), a word alone in the braces after a sigil or cast
 // (`@{Foo::x}`, `*{ Foo::x }`), a word called with ( (`Foo::bar()`), a word before -> that no method name follows
@@ -213,15 +228,10 @@ func (st *stashes) add(n string) {
 func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred *grammar.Neighbour) {
 	t := raw[i]
 	tx := text[t.Start:t.End]
-	glob := pred.Kind == lexer.Operator && pred.Text == "*" && pred.Glob // the grammar's glob-sigil test
-	sigil := glob || pred.Kind == lexer.FuncSigil || pred.Kind == lexer.DerefSigil
 	prev, brace := st.prev, st.brace
-	st.prev, st.brace = "", sigil && t.Kind == lexer.Operator && tx == "{"
+	st.prev, st.brace = "", false
 	if t.Kind == lexer.Word {
 		st.prev = strings.TrimPrefix(tx, "CORE::") // toke.c reads CORE::kw as kw
-	}
-	if t.Kind != lexer.Word && t.Kind != lexer.Variable {
-		return
 	}
 	if t.Kind == lexer.Word && (prev == "package" || prev == "use" || prev == "no" || prev == "require" ||
 		prev == "class" && on.On&FeatureClass != 0) &&
@@ -230,10 +240,10 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 		// a v-string after use, no or require is a version, not a module
 		st.add(stashName(tx))
 	}
-	if !strings.Contains(tx, "::") && !strings.Contains(tx, "'") {
+	if !qualified(tx) {
 		return
 	}
-	if t.Kind == lexer.Word && !(sigil || prev == "sub" || prev == "format") {
+	if t.Kind == lexer.Word && !(sigilled(pred) || prev == "sub" || prev == "format") {
 		n := significant(raw, i)
 		switch {
 		case pred.Kind == lexer.Operator && pred.Text == "->":
@@ -255,6 +265,16 @@ func (st *stashes) note(raw []lexer.Token, i int, text string, on Features, pred
 	if k := strings.LastIndex(name, "::"); k > 0 { // `$::x` is main's
 		st.add(stashName(name[:k]))
 	}
+}
+
+// qualified is whether s holds :: or ', a package separator; a byte loop, as the words it reads are short.
+func qualified(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\'' || s[i] == ':' && i+1 < len(s) && s[i+1] == ':' {
+			return true
+		}
+	}
+	return false
 }
 
 // significant is the index of the first significant token after raw[i], len(raw) if none.
