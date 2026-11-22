@@ -454,8 +454,7 @@ To take a baseline after an intended change, run
   `TestTDTAbsentReasonsMatchPerClaimScan` holds `falseAbsences` to a table per
   claim over every corpus file, and `TestAbsenceCandidatesMatchFullMap` holds
   the candidate judgement to `lex.Map` for every key over every T1 file.
-  CI runs `go test ./...`, not `make test`, so the reference runs only under
-  `make test` locally; CI sees `TestAbsenceAdmitsMapsWhereStateChanges`.
+  It runs under `make test` and in CI's corpus-backed Ratchets job.
 - **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
   file is accepted when `forest.Parse` accepts it, under its scope facts, so a
   precedence or scope refusal is the chart's refusal

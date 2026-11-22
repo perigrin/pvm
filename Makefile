@@ -29,8 +29,7 @@ test:
 # the corpus once per claim, which is most of the cost the fast path in the
 # default suite removes; `test` runs it after the suite so the fast path stays
 # checked in full. The tests sit behind the build tag absencereference.
-# CI runs `go test ./...`, not `make test`, so this runs only locally; CI sees
-# the default suite's TestAbsenceAdmitsMapsWhereStateChanges.
+# CI runs it in the corpus-backed Ratchets job, since its go test ./... does not.
 chart-absence-reference:
 	go test -tags absencereference ./internal/chart/cmd/ratchet/ -run '^(TestTDTAbsentReasonsMatchPerClaimScan|TestAbsenceCandidatesMatchFullMap)$$' -count=1 -v
 
