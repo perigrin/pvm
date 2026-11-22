@@ -437,9 +437,24 @@ To take a baseline after an intended change, run
   token starts is an error, and so is a reviewed tdt-unseen entry for a pair
   that is seen, whose reason no longer holds. A reason saying "no corpus
   token matches the key" is held to a scan of every corpus file with the key
-  compiled alone, each file tokenized once and mapped only for the claims it
-  could hold a token of (`TestTDTAbsentReasonsHold`, about 5 s;
-  `TestTDTAbsentReasonsMatchPerClaimScan` holds it to the unfiltered scan).
+  compiled alone (`TestTDTAbsentReasonsHold`). Each file is tokenized and
+  traced once (`lex.Trace`), and a claim is looked up only at its candidates,
+  the tokens of its key's own kind and text, with their neighbours interned
+  under the claim's table. A one-class table leaves `Map`'s running state as
+  the trace's unless its class is Completes: only a Completes neighbour
+  changes `Intern`'s Glob on a `*`, and through it the names, stashes and
+  typed my's after it (Repeat on an `x` feeds only the next `*` or `x`;
+  `Trace.Holds` checks it too, conservatively). Where the state changes
+  (`Trace.Holds`), the file is mapped whole under the claim's table
+  (`TestAbsenceAdmitsMapsWhereStateChanges`).
+  **The per-claim reference runs in `make chart-absence-reference`, not in
+  `go test ./...`**, and `make test` runs it after the suite: it maps the
+  corpus once per claim, which is the cost the candidates remove, so it sits
+  behind the build tag `absencereference`.
+  `TestTDTAbsentReasonsMatchPerClaimScan` holds `falseAbsences` to a table per
+  claim over every corpus file, and `TestAbsenceCandidatesMatchFullMap` holds
+  the candidate judgement to `lex.Map` for every key over every T1 file.
+  It runs under `make test` and in CI's corpus-backed Ratchets job.
 - **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
   file is accepted when `forest.Parse` accepts it, under its scope facts, so a
   precedence or scope refusal is the chart's refusal

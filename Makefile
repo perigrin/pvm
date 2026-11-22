@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental fuzz-chart-recognize chart-ratchet chart-tables
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental fuzz-chart-recognize chart-ratchet chart-tables chart-absence-reference
 
 BINARIES = pvm pvx pm psc
 
@@ -20,6 +20,18 @@ psc:
 
 test:
 	go test ./... -count=1
+	$(MAKE) chart-absence-reference
+
+# The chart ratchet's absence-claim references (internal/chart/README.md):
+# each reviewed "no corpus token matches the key" claim judged with a table of
+# its own over every corpus file, and every key's candidate judgement held to
+# lex.Map over every T1 file. Separate from `go test ./...` because both map
+# the corpus once per claim, which is most of the cost the fast path in the
+# default suite removes; `test` runs it after the suite so the fast path stays
+# checked in full. The tests sit behind the build tag absencereference.
+# CI runs it in the corpus-backed Ratchets job, since its go test ./... does not.
+chart-absence-reference:
+	go test -tags absencereference ./internal/chart/cmd/ratchet/ -run '^(TestTDTAbsentReasonsMatchPerClaimScan|TestAbsenceCandidatesMatchFullMap)$$' -count=1 -v
 
 # The lexer fuzz target. Separate from `test` because -fuzz takes ONE package
 # and runs until its budget is spent; it cannot live inside `go test ./...`.

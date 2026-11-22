@@ -268,32 +268,78 @@ func TestKeyTextRendersNegatedParts(t *testing.T) {
 // absentPhrase marks a reviewed tdt-unseen reason that claims the construct is absent from the corpora.
 const absentPhrase = "no corpus token matches the key"
 
-// corpusFile is a corpus file tokenized once, with what a claim's own token must have in it.
+// corpusFile is a corpus file tokenized and traced once (lex.Trace), its significant tokens indexed by their views'
+// kind and text.
 type corpusFile struct {
 	src   []byte
 	raw   []lexer.Token
-	kinds map[lexer.Kind]bool
-	texts map[string]bool // of the words, operators and closing brackets, which are the tokens a key's Text names
+	s     *lex.Stream
+	tr    *lex.Trace
+	kinds map[lexer.Kind][]int
+	texts map[string][]int
 }
 
-// mayAdmit is false only where a table compiled from c alone admits no token of the file: the token's own Kind is the
-// key's, and, for a word, operator or closing bracket, its Text is the raw text, or CORE:: and the raw text (chart/lex reads CORE::kw as kw), or isa for
-// grammar.PlainIsa. It may be true for a file that admits nothing; it is never false for one that does.
-func (f corpusFile) mayAdmit(c grammar.TokenClass) bool {
-	if c.Kind != nil && !f.kinds[*c.Kind] {
-		return false
+// stateless is the table files are traced under. It marks no neighbour Completes, as no one-class table does but a
+// Completes class's, so it decides Glob and Repeat as theirs do (lex.Trace.Holds).
+var stateless = func() *grammar.TokenTable {
+	tt, err := grammar.CompileTokens(nil)
+	if err != nil {
+		panic(err)
 	}
-	if c.Kind == nil || *c.Kind != lexer.Word && *c.Kind != lexer.Operator && *c.Kind != lexer.CloseBracket ||
-		c.Text == nil || *c.Text == "" || strings.Contains(*c.Text, "\x00") && *c.Text != grammar.PlainIsa {
-		return true
+	return tt
+}()
+
+func newCorpusFile(src []byte) corpusFile {
+	f := corpusFile{src: src, raw: lexer.Tokenize(src), kinds: map[lexer.Kind][]int{}, texts: map[string][]int{}}
+	f.s, f.tr = lex.NewTrace(src, f.raw, stateless)
+	for k := range f.s.Tokens {
+		v := f.tr.View(k)
+		f.kinds[v.Kind] = append(f.kinds[v.Kind], k)
+		f.texts[v.Text] = append(f.texts[v.Text], k)
 	}
-	return f.texts[*c.Text] || f.texts["CORE::"+*c.Text] || *c.Text == grammar.PlainIsa && f.texts["isa"]
+	return f
+}
+
+// candidates are the significant tokens of f whose view has c's Kind and Text, c's Kind set: the only ones a table
+// compiled from c alone can admit, since its Lookup tests both before any neighbour.
+func (f corpusFile) candidates(c grammar.TokenClass) []int {
+	if c.Text == nil {
+		return f.kinds[*c.Kind]
+	}
+	return slices.DeleteFunc(slices.Clone(f.texts[*c.Text]), func(k int) bool { return f.tr.View(k).Kind != *c.Kind })
+}
+
+// admits is the start bytes of the tokens of f that tt, compiled from c alone, admits. Where tt maps f as its trace
+// does (lex.Trace.Holds), only the candidates are looked up; f is mapped whole where it does not, which only a
+// Completes class's table can, and for a class with no Kind, which has every token for a candidate.
+func (f corpusFile) admits(c grammar.TokenClass, tt *grammar.TokenTable) (out []int) {
+	// Holds alone decides; only a Completes class can fail it, so the rest skip its walk (about a fifth of this scan).
+	if _, ok := c.CompletedBy(); c.Kind == nil || ok && !f.tr.Holds(tt) {
+		return mapAdmits(f.src, f.raw, tt)
+	}
+	for _, k := range f.candidates(c) {
+		if f.tr.Set(tt, k) != 0 {
+			out = append(out, f.raw[f.s.Tokens[k].Index].Start)
+		}
+	}
+	return out
+}
+
+// mapAdmits is the start bytes of the tokens of src that Map under tt admits.
+func mapAdmits(src []byte, raw []lexer.Token, tt *grammar.TokenTable) (out []int) {
+	s, _ := lex.Map(src, raw, tt)
+	for _, tk := range s.Tokens {
+		if tk.TerminalSet != 0 {
+			out = append(out, raw[tk.Index].Start)
+		}
+	}
+	return out
 }
 
 // falseAbsences returns, for each reviewed entry whose reason claims absentPhrase, the corpus tokens its key admits
 // compiled by itself (as tdtKeys reads a key for seen): a claim with any is false. A table shared between claims would
 // change what each matches (a named word is no longer an OtherWord), so each claim has its own; the cost is held down by
-// tokenizing each file once and mapping it only for the claims it could hold a token of (corpusFile.mayAdmit). srcs is
+// tokenizing and tracing each file once and looking a claim up only at its candidates (corpusFile.admits). srcs is
 // every corpus file's source, whole capture or not. checked is how many absence claims it read, lines trimmed as listLines trims them for the
 // ratchet, so a run that checks none can be told from one that found nothing false.
 func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, srcs map[string][]byte) (out []string, checked int) {
@@ -317,16 +363,9 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, src
 			continue
 		}
 		checked++
-		if checked == 1 { // tokenized once, and only when a claim is to be checked
+		if checked == 1 { // traced once, and only when a claim is to be checked
 			for p, src := range srcs {
-				f := corpusFile{src, lexer.Tokenize(src), map[lexer.Kind]bool{}, map[string]bool{}}
-				for _, tk := range f.raw {
-					f.kinds[tk.Kind] = true
-					if tk.Kind == lexer.Word || tk.Kind == lexer.Operator || tk.Kind == lexer.CloseBracket {
-						f.texts[string(src[tk.Start:tk.End])] = true
-					}
-				}
-				files[p] = f
+				files[p] = newCorpusFile(src)
 			}
 		}
 		c := d.Key
@@ -336,14 +375,8 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, src
 			t.Fatal(err)
 		}
 		for p, f := range files {
-			if !f.mayAdmit(c) {
-				continue
-			}
-			s, _ := lex.Map(f.src, f.raw, tt)
-			for _, tk := range s.Tokens {
-				if tk.TerminalSet != 0 {
-					out = append(out, fmt.Sprintf("%s admits %s %d", l, p, f.raw[tk.Index].Start))
-				}
+			for _, b := range f.admits(c, tt) {
+				out = append(out, fmt.Sprintf("%s admits %s %d", l, p, b))
 			}
 		}
 	}
@@ -351,7 +384,7 @@ func falseAbsences(t *testing.T, decls []grammar.ClassDecl, reviewed string, src
 }
 
 // TestTDTAbsentReasonsHold: a reviewed tdt-unseen entry whose reason says no corpus token matches its key really has
-// none, over every corpus file (T1 included); about 5 s. A synthetic false claim is caught.
+// none, over every corpus file (T1 included); about 2 s. A synthetic false claim is caught.
 func TestTDTAbsentReasonsHold(t *testing.T) {
 	src := map[string][]byte{"toy.pl": []byte("foo 42;")}
 	if got, n := falseAbsences(t, toyDecls, "reason: x "+absentPhrase+"\n"+numWordKey+"\n", src); len(got) != 1 || n != 1 {
@@ -465,51 +498,6 @@ func refAbsences(t *testing.T, decls []grammar.ClassDecl, names []string, review
 	return out
 }
 
-// TestTDTAbsentReasonsMatchPerClaimScan: falseAbsences reports exactly the admissions a table compiled from each claim
-// alone reports, over the real corpus, for the keys a shared table once masked (an OtherWord or IdentQuote neighbour,
-// which another claim's named word or quote changes the meaning of) and every 8th key besides.
-func TestTDTAbsentReasonsMatchPerClaimScan(t *testing.T) {
-	t.Chdir("../../../..")
-	g, _, err := grammar.Committed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tab := committedTables(t)
-	_, srcs, err := corpus()
-	if err != nil {
-		t.Fatal(err)
-	}
-	names := symbolNames(tab)
-	var b strings.Builder
-	b.WriteString("reason: x " + absentPhrase + "\n")
-	for i, d := range g.Classes {
-		k := strings.TrimSpace(d.Terminal + " " + keyText(d.Key))
-		masked := strings.Contains(k, grammar.OtherWord) || strings.Contains(k, grammar.IdentQuote)
-		if masked && (strings.HasPrefix(k, "METHCALL") || strings.HasPrefix(k, "MULOP")) || i%8 == 0 {
-			b.WriteString(k + "\n")
-		}
-	}
-	want := refAbsences(t, g.Classes, names, b.String(), srcs)
-	got, n := falseAbsences(t, g.Classes, b.String(), srcs)
-	if n < 20 || len(want) == 0 {
-		t.Fatalf("checked %d claims, the reference found %d admissions: the sample proves nothing", n, len(want))
-	}
-	slices.Sort(want)
-	slices.Sort(got)
-	if !slices.Equal(got, want) {
-		t.Errorf("falseAbsences reports %d admissions, a table per claim reports %d; first difference:\n%s", len(got), len(want), firstDiff(got, want))
-	}
-}
-
-func firstDiff(a, b []string) string {
-	for i := range min(len(a), len(b)) {
-		if a[i] != b[i] {
-			return a[i] + "\nvs\n" + b[i]
-		}
-	}
-	return fmt.Sprintf("one is a prefix of the other, %d vs %d", len(a), len(b))
-}
-
 // TestTDTAbsentReasonsClaimsAreIndependent: of two claims over one file, the false one is named and the true one is not,
 // though the true one names a word ("a") that the false one's OtherWord neighbour stands for.
 func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
@@ -527,11 +515,18 @@ func TestTDTAbsentReasonsClaimsAreIndependent(t *testing.T) {
 	}
 }
 
-// symbolNames is the grammar's symbol names, which a class's Terminals index.
-func symbolNames(tab *grammar.Tables) []string {
-	names := make([]string, len(tab.Symbols))
-	for i, s := range tab.Symbols {
-		names[i] = s.Name
+// TestAbsenceAdmitsMapsWhereStateChanges: where a claim's table changes Map's state (lex.Trace.Holds fails), admits
+// maps the file whole. Under the toy Completes key a `*` after a word completes a term, so the bar after it names
+// nothing and baz's Prev2 holds, which the candidates alone, read off the stateless trace, would miss.
+func TestAbsenceAdmitsMapsWhereStateChanges(t *testing.T) {
+	f := newCorpusFile([]byte("foo * bar; baz;"))
+	c := grammar.TokenClass{Terminals: []int{0}, Kind: ptr(lexer.Word), Completes: true, Prev2: &grammar.Neighbour{Kind: lexer.Word, Text: grammar.OtherWord}}
+	tt, err := grammar.CompileTokens([]grammar.TokenClass{c})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return names
+	got, want := f.admits(c, tt), mapAdmits(f.src, f.raw, tt)
+	if len(want) != 2 || !slices.Equal(got, want) {
+		t.Errorf("admits %v, Map admits %v; want both [6 11]", got, want)
+	}
 }

@@ -167,6 +167,23 @@ jobs:
         set -eu
         go test ./internal/parse/ ./internal/lexer/ ./internal/chart/ -count=1 -v 2>&1 | tee ratchets.log
 
+    # The absence claims' per-claim reference sits behind a build tag, out of
+    # go test ./... for speed, so no other job runs it; this keeps pu gated on
+    # it. Its corpus is in the tree (T1's in-tree default), so it needs no env.
+    - name: Run the absence-claim reference
+      run: |
+        set -eu
+        set -o pipefail
+        make chart-absence-reference 2>&1 | tee absence-reference.log
+        status=0
+        for t in TestTDTAbsentReasonsMatchPerClaimScan TestAbsenceCandidatesMatchFullMap; do
+          if ! grep -q -- "--- PASS: $t " absence-reference.log; then
+            echo "::error::$t did not pass in make chart-absence-reference."
+            status=1
+          fi
+        done
+        exit $status
+
     # A skipped ratchet is a guard that cannot fail, which is the defect this
     # job fixes -- so a skip here is a build failure, not a quiet pass. Named
     # explicitly rather than grepping for any SKIP: other tests in these
