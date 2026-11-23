@@ -1,9 +1,9 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart parser's precedence design, now precedence without parser state. -->
-<!-- ABOUTME: Covers rounds 1 to 6 and revisions 1 to 6 (renamed at 4): the ledger, cross-references, declarations, rulings, outcomes, measurements and experiments. -->
+<!-- ABOUTME: Covers rounds 1 to 7 and revisions 1 to 7 (renamed at 4): the ledger, cross-references, declarations, rulings, outcomes, measurements and experiments. -->
 
 ## Assessment: Chart parser: precedence without parser state
 
-Recommendation: pending (round 1: three modify; round 2: four modify; round 3: four modify; round 4: four modify; round 5: accept with edits from assess-architecture, modify from the other three; round 6: accept with edits from assess-architecture, modify from the other three; revision 7 owed)
+Recommendation: pending (round 1: three modify; round 2: four modify; round 3: four modify; round 4: four modify; round 5: accept with edits from assess-architecture, modify from the other three; round 6: accept with edits from assess-architecture, modify from the other three; round 7: accept from assess-architecture and assess-codebase, assess-pushback holding nothing, modify from assess-fresh7; revision 8 owed, for round 8, the last within the bound of eight)
 
 - **Subject:** `docs/plans/2026-11-23-chart-stateless-precedence.md`. Revisions 1 to 3 were `docs/plans/2026-11-23-chart-precedence-in-recognizer.md`, and this minute was `docs/assessments/chart-precedence-in-recognizer.md` until revision 4 renamed both. Earlier rows cite the old path as written.
 - **Revisions:**
@@ -16,6 +16,7 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
   | 4 | 6dc1d9558 | 123012c1 | `docs/plans/2026-11-23-chart-stateless-precedence.md` (renamed) | Chart parser: precedence without parser state |
   | 5 | 2782fd181 | d97415a1 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
   | 6 | 788778ed0 | 60327eb7 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
+  | 7 | 9afff6c63 | ce616721 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
 
 - **Revision assessed in round 1:** design commit 7b264fa9c, blob 52c82af16a738eca6e03cdb050e9c167903212c7. Each participant read that blob, untracked in worktree `cr-close`, and checked it with `git hash-object`. It is byte-identical to the blob at 7b264fa9c.
 - **Revision assessed in round 2:** commit c270bbfa3, blob 68371487a68e3f8c1661a80ea830356228a3a163 (revision 2, retitled "bison's reduce-side precedence in the recognizer").
@@ -23,6 +24,7 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
 - **Revision assessed in round 4:** commit 6dc1d9558, blob 123012c1a5765883ded36de157c8d0e8ac764f0a (revision 4, renamed to `docs/plans/2026-11-23-chart-stateless-precedence.md`).
 - **Revision assessed in round 5:** commit 2782fd181, blob d97415a147b923df589b27bed3cad0317f6bbfe2 (revision 5: the forest-side judgement only, "V1 now"). The minute was at 157b0f820.
 - **Revision assessed in round 6:** commit 788778ed0, blob 60327eb7d7e379443281e0623b5d5f586a382f9c (revision 6). The minute was at 0d2b31610.
+- **Revision assessed in round 7:** commit 9afff6c63, blob ce616721c9ed717dc119cf4c5f3329daf802f4cd (revision 7). The minute was at 1ff6e3f6a.
 - **Decision-maker:** perigrin.
 - **Drafter:** assess-pushback, from round 2 on. The drafter records and holds no view. In round 1 it was the pushback participant and raised P1 to P12. From round 2 on it does not count as an independent participant.
   - In round 2, at the coordinator's direction, it also acted as raiser of P1 to P12. As raiser it released, held or carried them, and it raised P13 to P15.
@@ -31,13 +33,15 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
   - In round 4 it acted as raiser of P16 and of P1, P2, P3 and P10, and raised P17.
   - In round 5 it acted as raiser of P17 and raised P18.
   - In round 6 it acted as raiser of P18 and raised P19.
+  - In round 7 it acted as raiser of P19 and raised P20.
   - The independent participants are:
-    - assess-codebase and assess-architecture, rounds 1 to 6;
+    - assess-codebase and assess-architecture, rounds 1 to 7;
     - assess-fresh, round 2 only;
     - assess-fresh3, round 3 only;
     - assess-fresh4, round 4 only;
     - assess-fresh5, round 5 only;
-    - assess-fresh6, round 6.
+    - assess-fresh6, round 6 only;
+    - assess-fresh7, round 7.
 
 Each row's section reference is to the revision named in its revision column. IDs keep each participant's own prefix:
 
@@ -48,7 +52,8 @@ Each row's section reference is to the revision named in its revision column. ID
 - G: assess-fresh3, a fresh participant in round 3. Of this minute it read only "Measurement after round 2". It was not resumed in round 4, so its rows are marked raiser absent.
 - H: assess-fresh4, a fresh participant in round 4. Of this minute it read only "Experiments after round 3". It was not resumed in round 5, so its rows are marked raiser absent.
 - J: assess-fresh5, a fresh participant in round 5. It read neither this minute nor the evidence directory's `reports/`. It was not resumed in round 6, so its rows are marked raiser absent. assess-architecture lists A32 as "not used", so there is no row A32.
-- K: assess-fresh6, a fresh participant in round 6. It read neither this minute nor `reports/`. Its K1 mentions "the remapping in K10"; the remapping is described in its K9, and there is no K10.
+- K: assess-fresh6, a fresh participant in round 6. It read neither this minute nor `reports/`. Its K1 mentions "the remapping in K10"; the remapping is described in its K9, and there is no K10. It was not resumed in round 7, so its rows are marked raiser absent.
+- L: assess-fresh7, a fresh participant in round 7. It read neither this minute nor `reports/` before writing.
 
 "C1" in a ledger row is assess-codebase's finding. The chart-recovery spike is always written "the C1 spike".
 
@@ -73,13 +78,14 @@ The full reports and evidence are in the committed evidence directory, `docs/ass
 - `reports/round5-codebase.md` (was `assess-w3/round5-codebase.md`)
 - `reports/round5-pushback.md` (was `assess-w3/round5-pushback.md`)
 - `reports/round5-fresh.md` (was `assess-w3/round5-fresh.md`), with its reproduction under `harness/fresh5/` (was `assess-w3/fresh5/out/`)
-- Round 6's reports are not yet in the directory. They are at `assess-w3/round6-architecture.md`, `assess-w3/round6-codebase.md`, `assess-w3/round6-pushback.md` and `assess-w3/round6-fresh.md` in the session scratchpad.
+- `reports/round6-architecture.md`, `reports/round6-codebase.md`, `reports/round6-pushback.md` and `reports/round6-fresh.md` (were `assess-w3/round6-*.md`)
+- Round 7's reports are not yet in the directory. They are at `assess-w3/round7-architecture.md`, `assess-w3/round7-codebase.md`, `assess-w3/round7-pushback.md` and `assess-w3/round7-fresh.md` in the session scratchpad.
 
 The prototypes behind "Experiments after round 3" are `prototypes/stateless.diff.gz` (was `stateless/stateless.diff`) and `prototypes/combined.diff.gz` (was `combined/combined.diff`). Their measurements are under `measurement/` (was `measure/`, `stateless/` and `combined/`). The C1 spike's report is `c1/c1-report.md` (was `chart-recovery/c1-report.md`).
 
 ## Ledger
 
-Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, rows from round 3 against `3e4d0c43b (a8960d05)`, rows from round 4 against `6dc1d9558 (123012c1)`, rows from round 5 against `2782fd181 (d97415a1)`, and rows from round 6 against `788778ed0 (60327eb7)`.
+Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, rows from round 3 against `3e4d0c43b (a8960d05)`, rows from round 4 against `6dc1d9558 (123012c1)`, rows from round 5 against `2782fd181 (d97415a1)`, rows from round 6 against `788778ed0 (60327eb7)`, and rows from round 7 against `9afff6c63 (ce616721)`.
 
 Statuses as each raiser declared them:
 
@@ -90,7 +96,7 @@ Statuses as each raiser declared them:
 - **open**: no disposition yet.
 - **raiser absent**: the raiser was not resumed, so no one can release the row. Where a retargeting may bear on such a row, the drafter says what the row's subject is and where it stands in the latest revision. That note is not a disposition.
 
-A **carried to refinement** status is the raiser's own words for a row it calls issue-level. Statuses marked r2 to r6 give the round of the latest disposition.
+A **carried to refinement** status is the raiser's own words for a row it calls issue-level. An **editorial, for refinement** status is the raiser's own words for a row it says refinement can make without another round. Statuses marked r2 to r7 give the round of the latest disposition.
 
 | id | raiser | round | section | consequence if it ships | evidence | status | revision |
 |---|---|---|---|---|---|---|---|
@@ -201,7 +207,7 @@ A **carried to refinement** status is the raiser's own words for a row it calls 
 | C30 | assess-codebase | 5 | §3.4 | The new evaluator's refused path is checked on about 30 inputs. | `testdata/port/refused-where.txt` has 336 refused cases (282 `grammar`, 54 `table`) and none `precedence`. The aggregate has no precedence refusals. What remains is 22 referee refuse sentences, the toy referees and 10 `waypoint2Refusals` rows. The 185 and 989 precedence-refused sentences were generated in scratch and are not committed. | released (r6, against §3.4's inputs: the port's refused cases dropped, the seeded generator added) | 2782fd181 (d97415a1) |
 | C31 | assess-codebase | 5 | §3.4, §3.5 | "Test-only oracle" and "differential over the aggregate" cannot both be true as written. | A `forest` `_test.go` file is invisible to `chart` tests and `cmd/ratchet`. The aggregate is built in `cmd/ratchet` (`aggregateFiles`, package `main`), and the perly referee runs in `chart`. The oracle needs `Precedence`'s unexported automaton. Both prototypes used non-test `zz_*.go` files. Options: (a) an exported reference function; (b) everything inside `forest`'s tests, reading testdata paths. | released (r6, against §3.4: `forest.ConstrainReference`, documented as used only by tests) | 2782fd181 (d97415a1) |
 | C32 | assess-codebase | 5 | §3.1 | The referee and the toys could end up on different tables from production, with a lock or map lookup on every `Constrain` call. Low, issue-level. | The tables belong inside `NewPrecedence`, stored on `Precedence`. stateless used a global `map[*Precedence]` under a mutex; combined used `grammar.Derived` keyed by tables. | released (r6, against §3.1 "stored on the `Precedence` value" and §3.3) | 2782fd181 (d97415a1) |
-| C33 | assess-codebase | 5 | §3.1, §3.3 | Evaluator details that are easy to break silently change root or memo judgements. Low, issue-level. | Root spine tops `item(r, 0)` and `buildShift`'s dot-0 rule; canonicalisation of `pend` and `pi`; `pi = -1` allowed on mixed pairs (`reduces`: `pi < 0 ||`), safe on perly only by grammar shape; the empty-right-child exemption; cached slices shared by `seq`; about 72 MB of memo heads on 3-million-node forests. | carried to refinement (r6, raiser: issue-level; none belongs in the decision) | 2782fd181 (d97415a1) |
+| C33 | assess-codebase | 5 | §3.1, §3.3 | Evaluator details that are easy to break silently change root or memo judgements. Low, issue-level. | Root spine tops `item(r, 0)` and `buildShift`'s dot-0 rule; canonicalisation of `pend` and `pi`; `pi = -1` allowed on mixed pairs (`reduces`: `pi < 0 ||`), safe on perly only by grammar shape; the empty-right-child exemption; cached slices shared by `seq`; about 72 MB of memo heads on 3-million-node forests. | carried to refinement (r6 and r7, raiser: issue-level) | 2782fd181 (d97415a1) |
 | P18 | assess-pushback | 5 | §1, §5 | Refinement reads 3.92 as this work's target, reached on the prototype machine only by the out-of-scope V2, or the result reads as a miss. | §1 records "Let's get ourselves to 3.92 first then look". Combined prototype: ParseWith V0 5.62, V1 4.16, V2 3.92. §5's exit is the relative exit and ≤ 5, with no mention of 3.92. | released (r6, against §1 "3.92 is where this decision and the later V2 decision should land together. It is not this decision's exit …" and §5) | 2782fd181 (d97415a1) |
 | J1 | assess-fresh5 | 5 | §2, header | perigrin cannot audit the number the ≤ 5 projection rests on, and the refusal-path evidence exists only in agent reports. The raiser calls this "a record defect, not a wrong number". | `combined-compare.txt` has no RESULT lines; timing needs `CB_TIME`, and its output was not kept. `constrain-measurement.md` reads 5.49, not 5.62. No harness or output for the 11,574, 20,083 and 15,000 populations. The raw files listed in `constrain-measurement.md` are absent. "alts built 2566149" against 2565144 elsewhere. | open; raiser absent (assess-fresh5 not resumed in round 6). Drafter's note, not a disposition: revision 6's header lists raw timing runs and harnesses in the evidence directory, and `INDEX.md` addresses the 5.49 against 5.62 and the 2,566,149 against 2,565,144 counts | 2782fd181 (d97415a1) |
 | J2 | assess-fresh5 | 5 | §1 | The milestone Records carry contradictory rulings, and an executor may treat 3.92 as the target or V2 as in scope. | "Do just B first" refers to the V2 filter this decision defers. "V2: both (Recommended)" is superseded by "V1 now, V2 measured after", and nothing marks it so. "3.92" is used nowhere in §5. | open; raiser absent (assess-fresh5 not resumed in round 6). Drafter's note, not a disposition: revision 6 §1 is "Rulings in force" and names what "V1 now, V2 measured after" supersedes; it states that 3.92 is not this decision's exit | 2782fd181 (d97415a1) |
@@ -213,24 +219,24 @@ A **carried to refinement** status is the raiser's own words for a row it calls 
 | J8 | assess-fresh5 | 5 | §3.4 | "The port's refused cases" names no fixture. | `port_relational_unary_test.go` defers the four chains to "the issue that completes the port". | open; raiser absent (assess-fresh5 not resumed in round 6). Drafter's note, not a disposition: revision 6 §3.4's inputs no longer name the port's refused cases | 2782fd181 (d97415a1) |
 | J9 | assess-fresh5 | 5 | §3.4 | The 185 and 989 precedence-refused sentences that §2 cites are one-shot evidence. | `stateless-compare.txt`: "oracle refuses 0" on the aggregate. Refusal coverage rests on the referee, the toys and `waypoint2Refusals`. | open; raiser absent (assess-fresh5 not resumed in round 6). Drafter's note, not a disposition: revision 6 §3.4 adds a generator "committed with a fixed seed" for the refused sentences | 2782fd181 (d97415a1) |
 | J10 | assess-fresh5 | 5 | §3 | Raised in support: the decision fits v2. | Rule 12 untouched. v2 §8's operator context at both edges still holds. Rule 11 is kept by §3.5. The six parent-item pairs match the README's history (T1/array.t; the twostates and indirobsort toys). Ablations: mixed-forbid flips 50 files, noshift 625, noreduce 1,099. | open; raiser absent (assess-fresh5 not resumed in round 6). Drafter's note, not a disposition: raised in support; revision 6 keeps §3.1's keys and §3.5 | 2782fd181 (d97415a1) |
-| A36 | assess-architecture | 6 | §1, §5 | The V2 decision inherits a target it cannot check without restating it, or claims success or failure against the wrong instrument. Raised for perigrin, or a sentence. | 3.92 is the combined harness's V2 ParseWith ratio (`combined-runs/result-run3.txt`: `RESULT V2-parsewith ratio 3.9205`; three runs 3.85–4.02), with V0 at 5.62. The ratchet's key reads 4.79 on pu for the same code. On the ratchet, 0.69–0.70 of V0 would read about 3.3–3.4. | open; perigrin ruled after the round (see Round 6) | 788778ed0 (60327eb7) |
-| A37 | assess-architecture | 6 | §1, §2 | The direction "toward 3.92" looks settled by measurement, while the only reproduction found V2 adding almost nothing. The V2 decision starts from an overstated expectation. | `reports/round5-fresh.md`: "V2's ParseWith came out at 0.723 of V0's, not 0.69". Combined runs: V2 3.85–4.02 (median 3.92); V1 4.03–4.17 (median 4.16); fresh5 V1 4.12. §2 cites fresh5 for V1 only. | open; perigrin ruled on 3.92 after the round (see Round 6) | 788778ed0 (60327eb7) |
-| A38 | assess-architecture | 6 | §3.4 | The `make test` gate gains a machine-specific corpus dependency that CLAUDE.md's 100% rule cannot accommodate. Raised as a question before refinement. | §3.4: the aggregate "needs the T1 and perl.git corpora"; `make test` runs the target; "it never skips". Makefile `test:` lines 21–23 run `chart-absence-reference`, whose perl.git use the raiser did not check. | open; perigrin ruled after the round (see Round 6) | 788778ed0 (60327eb7) |
-| A39 | assess-architecture | 6 | §2, `INDEX.md` | Small figure drifts in the section the index exists to back. Low. | Per process, V1 over V0 precedence is 0.423, 0.406 and 0.392, against §2's "0.40–0.41". `harness/fresh4/list.txt.gz` has 11,588 lines against §2's 11,574 files, unexplained in the index. | open | 788778ed0 (60327eb7) |
-| C34 | assess-codebase | 6 | §3.4 | A contributor or agent without `/opt/corpora/perl5` can no longer commit; `make test` absorbs a full population pass; the CI step lacks `PERL5_CORPUS`. | ci.yml: "Its corpus is in the tree (T1's in-tree default), so it needs no env." `perlGit` refuses a root that is missing, dirty or not at 94e50866 (`perlgit.go`). `aggregateFiles` calls `supersetPopulation`. The Ratchets job sets `PERL5_CORPUS` only on its own `go test` step. Options: (a) keep it out of `make test`; (b) split it. | open; perigrin ruled after the round (see Round 6) | 788778ed0 (60327eb7) |
-| C35 | assess-codebase | 6 | §3.4 | Comparing readings from `cmd/ratchet` needs an export or a production test switch. Low. | `countReadings` is unexported, and `ParseWith` calls it after resolve (readings.go l.32). The prototype used a production global, `ConstrainVariant`. Equal kept sets imply equal readings. | open | 788778ed0 (60327eb7) |
-| C36 | assess-codebase | 6 | §3.4 | Asserting 185 and 989 makes the test a change detector that a legitimate table or lexer change breaks. Low. | The counts belong to today's grammar and lexer. Seeds 4 and 44 in `harness/fresh4/` (`rand.NewSource`) reproduce the sentences. Runtime of 35,083 parses in the ordinary suite is unmeasured. | open | 788778ed0 (60327eb7) |
-| C37 | assess-codebase | 6 | §3.1 | The generation cost adds to every cold start and every test that builds a `Precedence`. Low, not a stop. | `NewStateless` takes about 90 ms per build on the committed grammar. Today's `buildParsePrecedence` takes about 310 ms, including grammar loading (`TestZZAssess6GenTime`, overlay). | open | 788778ed0 (60327eb7) |
-| P19 | assess-pushback | 6 | §3.4 | `make test` fails on every machine without the perl.git corpus, blocking commits under pvm's CLAUDE.md, or the target is softened to a skip mid-issue. | §3.4: "When its corpora are missing, the target fails; it never skips." The Makefile's `test` runs `chart-absence-reference`, whose corpus is in the tree (ci.yml). perl.git comes from `PERL5_CORPUS` or `/opt/corpora/perl5` (`oracle.go`, `perlgit.go`). ci.yml: corpus-backed ratchets skip when the corpus is absent, "correct for a contributor". CI's matrix runs `go test ./...`. | open; perigrin ruled after the round (see Round 6) | 788778ed0 (60327eb7) |
-| K1 | assess-fresh6 | 6 | §3.4 | Contributors and agents without the corpus get a red `make test`, with pressure toward exactly the skip the decision forbids. | ci.yml on the absence reference: "Its corpus is in the tree … so it needs no env". The aggregate's 562 perlgit files need the pinned, clean perl5 tree. T1 is in the tree (`testdata/perlonjava/unit`, 986 files), so only perl.git is external. Proposed: the `PVM_REQUIRE_PERL542` pattern (skip locally, fail in CI). | open; perigrin ruled after the round (see Round 6) | 788778ed0 (60327eb7) |
-| K2 | assess-fresh6 | 6 | §3.4 | A correctness test does a timing pass, and its membership is load-dependent in principle. | `Protocol.Aggregate` (speed.go:93) times recursive descent on every population file and drops std5k, edit5k and any file over 10% of the total (code_too_large.t at 15.2%). The superset population (2,214) contains the aggregate and needs no timing. | open | 788778ed0 (60327eb7) |
-| K3 | assess-fresh6 | 6 | §2 | Two figures do not reproduce as stated. Cosmetic. | Per-run V1/V0 precedence 0.392, 0.406, 0.423 (ratio of medians 0.401; fresh5 0.397), against "0.40–0.41". "2.2–2.4, about 43%" splices `combined-runs` (2.18–2.23, 39% of 5.62) with `constrain-measurement.md` (2.33–2.45, 43.4%). | open | 788778ed0 (60327eb7) |
-| K4 | assess-fresh6 | 6 | §1 | "What the result decides" anchors the V2 decision on a single three-run median. | V1 run medians 4.16, 4.03, 4.17, fresh5 4.12. V2 4.02, 3.85, 3.92, fresh5 4.10. The only reproduction shows V2's increment at about 0.02. | open; perigrin ruled on 3.92 after the round (see Round 6) | 788778ed0 (60327eb7) |
-| K5 | assess-fresh6 | 6 | §4, §5 | Outcomes that fall between the stated cases have no instruction. | Nothing says what happens between day 7 and day 14 of the budget, or when no quiet session can be had (the README's 2026-11-15 convention records load). The before-state commit is not named. The stage keys' cost has no threshold; `chart-ratchet.yml` has `timeout-minutes: 20`. | open | 788778ed0 (60327eb7) |
-| K6 | assess-fresh6 | 6 | §3.4, §3.5 | The name reads as a package function, and the callers that switch silently are not listed. | `Constrain` is a method, `(*Forest).Constrain` (precedence.go:322). Callers: forest.go:138; chart/precedence.go:327; chart/precedence_test.go:95 and :242; forest/precedence_test.go:88. "The reference's own agreement with bison stays tested" names no test. | open | 788778ed0 (60327eb7) |
-| K7 | assess-fresh6 | 6 | §3.4 | Asserted as exact counts, any grammar change breaks the test, and the counts were measured on V0. | Verified exact: seed 4 gives 185 refused of the 20,000 random sentences, and the 83 handcrafted add 2 more; seed 44 gives 989 of 15,000 chains. | open | 788778ed0 (60327eb7) |
-| K8 | assess-fresh6 | 6 | §4 | The stage keys need API the decision does not name. | `resolve`, `countReadings` and `libraryOperators` are unexported, and the ratchet is package `main`. No `Forest` clone exists outside the scratch harnesses. The precedence stage's input is the forest after `libraryOperators`. §6's `internal/chart` scope allows the new work. | open | 788778ed0 (60327eb7) |
-| K9 | assess-fresh6 | 6 | evidence directory (`INDEX.md`) | The 11,574-file run cannot be re-run from the record as written. | 3,627 of 11,588 paths in `harness/fresh4/list.txt.gz` point at fresh4's deleted scratch worktree. Remapped to an 8c3317079 checkout, they give 11,574 sources and 0 differences. | open | 788778ed0 (60327eb7) |
+| A36 | assess-architecture | 6 | §1, §5 | The V2 decision inherits a target it cannot check without restating it, or claims success or failure against the wrong instrument. Raised for perigrin, or a sentence. | 3.92 is the combined harness's V2 ParseWith ratio (`combined-runs/result-run3.txt`: `RESULT V2-parsewith ratio 3.9205`; three runs 3.85–4.02), with V0 at 5.62. The ratchet's key reads 4.79 on pu for the same code. On the ratchet, 0.69–0.70 of V0 would read about 3.3–3.4. | moot (r7, raiser: by ruling, §1 "Drop the number … This supersedes the 3.92 target") | 788778ed0 (60327eb7) |
+| A37 | assess-architecture | 6 | §1, §2 | The direction "toward 3.92" looks settled by measurement, while the only reproduction found V2 adding almost nothing. The V2 decision starts from an overstated expectation. | `reports/round5-fresh.md`: "V2's ParseWith came out at 0.723 of V0's, not 0.69". Combined runs: V2 3.85–4.02 (median 3.92); V1 4.03–4.17 (median 4.16); fresh5 V1 4.12. §2 cites fresh5 for V1 only. | released (r7, against §2's V2 paragraph: "Its gain over V1 did not reproduce", and V1's figures given per source) | 788778ed0 (60327eb7) |
+| A38 | assess-architecture | 6 | §3.4 | The `make test` gate gains a machine-specific corpus dependency that CLAUDE.md's 100% rule cannot accommodate. Raised as a question before refinement. | §3.4: the aggregate "needs the T1 and perl.git corpora"; `make test` runs the target; "it never skips". Makefile `test:` lines 21–23 run `chart-absence-reference`, whose perl.git use the raiser did not check. | released (r7, raiser: by ruling "Split it" and §3.4's table, "Corpus needed: none" for every `make test` row) | 788778ed0 (60327eb7) |
+| A39 | assess-architecture | 6 | §2, `INDEX.md` | Small figure drifts in the section the index exists to back. Low. | Per process, V1 over V0 precedence is 0.423, 0.406 and 0.392, against §2's "0.40–0.41". `harness/fresh4/list.txt.gz` has 11,588 lines against §2's 11,574 files, unexplained in the index. | released (r7, against §2 "0.39–0.42 of today's, per run" and `INDEX.md`'s account of the 11,588 lines) | 788778ed0 (60327eb7) |
+| C34 | assess-codebase | 6 | §3.4 | A contributor or agent without `/opt/corpora/perl5` can no longer commit; `make test` absorbs a full population pass; the CI step lacks `PERL5_CORPUS`. | ci.yml: "Its corpus is in the tree (T1's in-tree default), so it needs no env." `perlGit` refuses a root that is missing, dirty or not at 94e50866 (`perlgit.go`). `aggregateFiles` calls `supersetPopulation`. The Ratchets job sets `PERL5_CORPUS` only on its own `go test` step. Options: (a) keep it out of `make test`; (b) split it. | released (r7, against §3.4's split table and "A developer without perl.git runs `make test`") | 788778ed0 (60327eb7) |
+| C35 | assess-codebase | 6 | §3.4 | Comparing readings from `cmd/ratchet` needs an export or a production test switch. Low. | `countReadings` is unexported, and `ParseWith` calls it after resolve (readings.go l.32). The prototype used a production global, `ConstrainVariant`. Equal kept sets imply equal readings. | released (r7, against §3.4: "Equal kept sets give equal readings") | 788778ed0 (60327eb7) |
+| C36 | assess-codebase | 6 | §3.4 | Asserting 185 and 989 makes the test a change detector that a legitimate table or lexer change breaks. Low. | The counts belong to today's grammar and lexer. Seeds 4 and 44 in `harness/fresh4/` (`rand.NewSource`) reproduce the sentences. Runtime of 35,083 parses in the ordinary suite is unmeasured. | released (r7, against §3.4: it "does not assert the 185 and 989 of today's grammar", and "If it proves slow") | 788778ed0 (60327eb7) |
+| C37 | assess-codebase | 6 | §3.1 | The generation cost adds to every cold start and every test that builds a `Precedence`. Low, not a stop. | `NewStateless` takes about 90 ms per build on the committed grammar. Today's `buildParsePrecedence` takes about 310 ms, including grammar loading (`TestZZAssess6GenTime`, overlay). | released (r7, against §2: "Building the tables costs about 90 ms, once per process") | 788778ed0 (60327eb7) |
+| P19 | assess-pushback | 6 | §3.4 | `make test` fails on every machine without the perl.git corpus, blocking commits under pvm's CLAUDE.md, or the target is softened to a skip mid-issue. | §3.4: "When its corpora are missing, the target fails; it never skips." The Makefile's `test` runs `chart-absence-reference`, whose corpus is in the tree (ci.yml). perl.git comes from `PERL5_CORPUS` or `/opt/corpora/perl5` (`oracle.go`, `perlgit.go`). ci.yml: corpus-backed ratchets skip when the corpus is absent, "correct for a contributor". CI's matrix runs `go test ./...`. | released (r7, against §3.4's "inputs, and where each runs" table and "The perl.git target is not run by `make test` … A developer without perl.git runs `make test`") | 788778ed0 (60327eb7) |
+| K1 | assess-fresh6 | 6 | §3.4 | Contributors and agents without the corpus get a red `make test`, with pressure toward exactly the skip the decision forbids. | ci.yml on the absence reference: "Its corpus is in the tree … so it needs no env". The aggregate's 562 perlgit files need the pinned, clean perl5 tree. T1 is in the tree (`testdata/perlonjava/unit`, 986 files), so only perl.git is external. Proposed: the `PVM_REQUIRE_PERL542` pattern (skip locally, fail in CI). | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §3.4's table runs only corpus-free inputs in `make test` and puts the perl.git files in their own target; it no longer says "the T1 and perl.git corpora" | 788778ed0 (60327eb7) |
+| K2 | assess-fresh6 | 6 | §3.4 | A correctness test does a timing pass, and its membership is load-dependent in principle. | `Protocol.Aggregate` (speed.go:93) times recursive descent on every population file and drops std5k, edit5k and any file over 10% of the total (code_too_large.t at 15.2%). The superset population (2,214) contains the aggregate and needs no timing. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §3.4: "Population is the superset population, which is deterministic, not the timing-chosen aggregate" | 788778ed0 (60327eb7) |
+| K3 | assess-fresh6 | 6 | §2 | Two figures do not reproduce as stated. Cosmetic. | Per-run V1/V0 precedence 0.392, 0.406, 0.423 (ratio of medians 0.401; fresh5 0.397), against "0.40–0.41". "2.2–2.4, about 43%" splices `combined-runs` (2.18–2.23, 39% of 5.62) with `constrain-measurement.md` (2.33–2.45, 43.4%). | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §2 gives 2.33–2.45 (43%) and 2.18–2.23 (39%) per source, and "0.39–0.42 of today's, per run" | 788778ed0 (60327eb7) |
+| K4 | assess-fresh6 | 6 | §1 | "What the result decides" anchors the V2 decision on a single three-run median. | V1 run medians 4.16, 4.03, 4.17, fresh5 4.12. V2 4.02, 3.85, 3.92, fresh5 4.10. The only reproduction shows V2's increment at about 0.02. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §2 records V2 at 4.10 against V1's 4.12 in round 5 ("Its gain over V1 did not reproduce"), and §1 records "Drop the number" | 788778ed0 (60327eb7) |
+| K5 | assess-fresh6 | 6 | §4, §5 | Outcomes that fall between the stated cases have no instruction. | Nothing says what happens between day 7 and day 14 of the budget, or when no quiet session can be had (the README's 2026-11-15 convention records load). The before-state commit is not named. The stage keys' cost has no threshold; `chart-ratchet.yml` has `timeout-minutes: 20`. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §4 says "That commit is the before-state"; §5 adds stops for no quiet session and for the CI timeout, and a status report at the budget itself | 788778ed0 (60327eb7) |
+| K6 | assess-fresh6 | 6 | §3.4, §3.5 | The name reads as a package function, and the callers that switch silently are not listed. | `Constrain` is a method, `(*Forest).Constrain` (precedence.go:322). Callers: forest.go:138; chart/precedence.go:327; chart/precedence_test.go:95 and :242; forest/precedence_test.go:88. "The reference's own agreement with bison stays tested" names no test. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §3.4 names `(*Forest).ConstrainReference`, lists the switching callers, and says "A new test holds the reference's own agreement with bison" | 788778ed0 (60327eb7) |
+| K7 | assess-fresh6 | 6 | §3.4 | Asserted as exact counts, any grammar change breaks the test, and the counts were measured on V0. | Verified exact: seed 4 gives 185 refused of the 20,000 random sentences, and the 83 handcrafted add 2 more; seed 44 gives 989 of 15,000 chains. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §3.4: the test "does not assert the 185 and 989 of today's grammar" | 788778ed0 (60327eb7) |
+| K8 | assess-fresh6 | 6 | §4 | The stage keys need API the decision does not name. | `resolve`, `countReadings` and `libraryOperators` are unexported, and the ratchet is package `main`. No `Forest` clone exists outside the scratch harnesses. The precedence stage's input is the forest after `libraryOperators`. §6's `internal/chart` scope allows the new work. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §4 lists new work: an exported forest copy and exported access to `libraryOperators`, resolve and the readings count | 788778ed0 (60327eb7) |
+| K9 | assess-fresh6 | 6 | evidence directory (`INDEX.md`) | The 11,574-file run cannot be re-run from the record as written. | 3,627 of 11,588 paths in `harness/fresh4/list.txt.gz` point at fresh4's deleted scratch worktree. Remapped to an 8c3317079 checkout, they give 11,574 sources and 0 differences. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: the subject is the evidence index; assess-architecture quotes `INDEX.md` as now mapping the 11,588 lines onto the 11,574 files | 788778ed0 (60327eb7) |
 
 ### Cross-references
 
@@ -1134,3 +1140,111 @@ The drafter does not say which rows these rulings answer. Each row's raiser disp
   - K1–K9.
 - C33 is carried to refinement by its raiser.
 - Raiser absent: F1–F10, G1–G8, H1–H6 and J1–J10.
+
+## Round 7
+
+**Revision:** 9afff6c63, blob ce616721c9ed717dc119cf4c5f3329daf802f4cd. Revision 7 answers round 6. It:
+
+- records "Drop the number" and "Split it" in §1;
+- tabulates §2's figures by source;
+- gives §3.4 a table of inputs and where each runs;
+- names §4's before-state and new work;
+- adds stops for a session that cannot be quiet, for the CI timeout and for the budget itself.
+
+**Dispatched:** assess-architecture, assess-codebase, assess-pushback (as raiser of P19 only) and assess-fresh7, a new fresh participant. All four reported. assess-fresh6 was not resumed.
+
+How each confirmed the revision:
+
+- assess-architecture and assess-codebase used `git hash-object`.
+- assess-pushback used `git rev-parse` at the commit.
+- assess-fresh7 names the blob and says it is the same at 1ff6e3f6a.
+
+assess-fresh7 read neither this minute nor `reports/` before writing.
+
+Round 7 is the seventh of at most eight rounds.
+
+**What the participants checked or ran (recorded from their reports; the drafter has run none of it):**
+
+- **assess-architecture** recomputed every §2 figure from the evidence files and confirmed `reports/round6-architecture.md` byte for byte. It also traced in `main.go` that the stage keys run inside CI's 20-minute timeout.
+- **assess-codebase** traced `corpus()`, `supersetPopulation`, the committed labels and every caller of `.Constrain(`. It found the in-tree part buildable without perl.git, and the caller list "complete and correct".
+- **assess-fresh7** applied combined.diff and timed `NewStateless` five times: 105–137 ms. It also confirmed the six mixed pairs by a run.
+
+### Recommendations, as declared
+
+- **assess-architecture: accept.** "Nothing of mine remains held. Four new findings are low or textual, and none blocks."
+  - "A42 is one clause and worth making before refinement."
+  - "A40, A41 and A43 are wording."
+  - "None of the four changes what the decision builds, measures or stops on."
+- **assess-codebase: accept.** "C38 is an editorial fix that refinement can carry. C33 goes to the issues. From the codebase lens the assessment has reached its fixed point." It says it "raised nothing new that needs another assessment round".
+- **assess-pushback (as raiser):** "holding nothing". It released P19 and raised P20, which it rates low and does not hold acceptance on. Its report states no accept or modify, and the drafter infers none.
+- **assess-fresh7: modify.** "The direction is sound and the figures hold. L1–L3 are internal contradictions or under-specifications that would surface mid-milestone as stops. L2 is the one that would."
+
+### Blocks and stand-asides, as declared
+
+| participant | declared |
+|---|---|
+| assess-architecture | "Held: none." "None blocks." No stand-aside declared. |
+| assess-codebase | "Nothing remains held." No stand-aside declared. |
+| assess-pushback | Holding nothing. P20 is not held against acceptance. |
+| assess-fresh7 | No block or stand-aside declared in those terms. Its verdict is modify. |
+
+The drafter converts none of these into a block or a release.
+
+### Dispositions of earlier findings, by their raisers
+
+| raiser | released | moot | carried to refinement |
+|---|---|---|---|
+| assess-architecture | A37, A38 (by ruling and text), A39 | A36 (by ruling) | none |
+| assess-codebase | C34, C35, C36, C37 | none | C33 |
+| assess-pushback | P19 | none | none |
+
+### Raiser absent
+
+assess-fresh6 was not resumed, so K1–K9 stay open with no one to release them.
+
+- For each, the ledger's status says where revision 7's text stands. On the drafter's reading, revision 7's text speaks to the subject of every K row.
+- K9's subject is the evidence index, and the note quotes assess-architecture's reading of it.
+
+The drafter decides none of them. F1–F10, G1–G8, H1–H6 and J1–J10 remain raiser absent as recorded earlier.
+
+### What each participant says remains
+
+- **assess-architecture:** A42 ("should fix"); A40, A41 and A43 (wording); none held.
+- **assess-codebase:** C38 (editorial, for refinement) and C33 (carried to refinement); none held.
+- **assess-pushback:** P20 (low; not held against acceptance).
+- **assess-fresh7:** L1–L9, with L1–L3 named as the ones that "would surface mid-milestone as stops".
+
+### Rulings after the round's reports
+
+Recorded verbatim, as rulings and not as findings. The gloss after each is the coordinator's statement of its meaning.
+
+1. **On L3**, the paths §6 defers:
+
+   > "Rule them in (Recommended)"
+
+   That is: `Makefile` (the `chart-precedence-reference` target) and `.github/workflows/ci.yml` (the Ratchets job step) are ruled in for the issue that adds that target.
+
+2. **On A43**, when allocation and the other stages may start:
+
+   > "V2's verdict reading (Recommended)"
+
+   That is: allocation and the other stages wait until V2 is built and measured.
+
+The drafter does not say which rows these rulings answer. Each row's raiser disposes of it.
+
+### Outcome
+
+**Not a fixed point.** Round 7 raised new findings. Revision 8 is owed, for round 8, the last within the bound of eight.
+
+- Open:
+  - A40–A43;
+  - P20;
+  - L1–L9.
+- Editorial, for refinement: C38.
+- Carried to refinement: C33.
+- Raiser absent: F1–F10, G1–G8, H1–H6, J1–J10 and K1–K9.
+- No participant holds a finding against acceptance:
+  - assess-architecture says "Held: none";
+  - assess-codebase says "Nothing remains held";
+  - assess-pushback says it holds nothing.
+  - assess-fresh7 declares modify and names L1–L3. It declares no block.
