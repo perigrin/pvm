@@ -43,7 +43,7 @@ Two figures differ between files:
 
 - **Whole-pipeline ratio for today's code.** It reads 5.49 in
   `constrain-measurement.md` and 5.62 in `combined-runs/`. They are different
-  sessions and different harnesses. The decision quotes 5.62 because its V1
+  sessions and different harnesses. Revisions 4 to 6 quoted 5.62 because their V1
   and V2 ratios come from that same run.
 - **Packed alternatives built.** `stateless-compare.txt` reports 2,566,149;
   every other file reports 2,565,144. The difference is not explained here,
