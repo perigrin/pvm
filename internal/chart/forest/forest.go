@@ -646,3 +646,11 @@ func (e *enum) seqs(a Alt, limit int) [][]*Tree {
 	}
 	return out
 }
+
+// Copy is a copy of f that shares nothing a stage after the forest changes: its nodes and alternatives are its own, so
+// LibraryOperators, Constrain and Resolve on it leave f as it was. The ratchet's stage keys time each pass on a copy.
+func (f *Forest) Copy() *Forest {
+	c := *f
+	c.Nodes, c.Alts = slices.Clone(f.Nodes), slices.Clone(f.Alts)
+	return &c
+}
