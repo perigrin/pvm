@@ -532,3 +532,74 @@ This is recorded as pending, not as a ruling. Neither question is answered yet.
   - G1–G8;
   - F1–F10 (raiser absent).
 - P1, P2, P3 and P10 stand as carried in round 2 and are not re-disposed.
+
+## Experiments after round 3 (recorded, not findings)
+
+Both experiments were run by agents in scratch worktrees on `pu` 8c3317079, under perigrin's "Measure first, then decide", and are recorded here by the coordinator from their reports. Their sources are in the session scratchpad: `stateless/stateless.diff` and `combined/combined.diff`.
+
+**State-free filter (stateless-proto).** It gave identical output to `Constrain` on:
+
+- the 1,296 referee sentences;
+- 30,588 toy forests;
+- 4,395 toy sentences checked against bison;
+- all 2,211 aggregate files.
+
+What it needs:
+
+- *Reduce side:* the rule and the terminal after the span decide everywhere, except 6 pairs (`indirob` and `myterm` before `[` and `{`). The parent item settles those, leaving 0 of 257,293 keys that differ between states.
+- *Shift side:* 32 keys of the form `X: term . OP term` differ between states. The spine-top item settles them, leaving 0 of 460,291 keys that differ.
+
+The simpler "parent is the resolved rule" form agrees on perly and the aggregate. It fails on 4 toys (21 sentences, 252 forests), in each case accepting where bison refuses.
+
+Each piece of context is needed. Without it:
+
+| Removed | Effect |
+|---|---|
+| Parent item | 25 aggregate files flip to refused (e.g. T1/array.t) |
+| Conflict check | 1,520 verdicts flip |
+| Shift check | 625 files differ |
+| Reduce check | 1,099 files differ |
+
+With its memo still a Go map, it took 0.77 of `Constrain`'s time.
+
+**Combined prototype (combined-proto).** Three variants against today's code (V0):
+
+- V1: the state-free filter, with its memo in per-node lists, dense tables and no map on the evaluation path;
+- V2: V1 plus the reduce-side filter at completion in recognition and in `Build`.
+
+One disagreement was found and fixed while building, before any figure below: filtering empty-span facts in `Build` emptied a node on the toy "empty". Empty spans are now exempt.
+
+Differences from V0:
+
+| Check | V1 | V2 |
+|---|---|---|
+| Referee: verdict, grouping, kept set | 0 | 0 |
+| 25,490 toy forests | 0 | 0 |
+| 4,395 toy sentences vs bison | 0 | 0 |
+| Aggregate: verdict, kept set, refusal reason, readings | 0 | 0 |
+
+Recognition, V2 against V0:
+
+- acceptance is identical on all 2,211 aggregate files;
+- items per token fall from 4.70 to 4.47;
+- packed alternatives fall by 5.65%.
+
+Timing, as a ratio over recursive descent (550 ms). The run was quiet (load 1.5–2.5 against nproc 4), long-lived, interleaved with a rotating order, 3 processes:
+
+| Stage | V0 | V1 | V2 |
+|---|---|---|---|
+| ParseWith | 5.62 | 4.16 | 3.92 |
+| Precedence | 2.21 | 0.88 | 0.87 |
+| Recognize | 0.99 | 0.96 | 0.92 |
+| Build | 0.75 | 0.72 | 0.69 |
+
+The same per process, against V0:
+
+| Stage | V1 | V2 |
+|---|---|---|
+| ParseWith | 0.73 (0.72–0.74) | 0.69 (0.69–0.72) |
+| Precedence | 0.41 | 0.40 |
+
+V1's memo holds at most 10 eval contexts per node, and at most 24 across eval and mark.
+
+**perigrin's ruling on it:** "V2: both (Recommended)". The files were renamed to `chart-stateless-precedence` at revision 4.
