@@ -50,7 +50,7 @@ sub SEEK_SET :export () Int;
 # glob; it is declared and held to its prototype and exports only (see
 # oracleExempt). open() also runs on an unblessed handle, as IO::Handle's
 # instance methods do (IO/Handle.tpm): perl accepts a GLOB/bareword
-# invocant there too, so Object alone excludes a real, documented call.
-sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Object|Undef;
-sub new_tmpfile (Str $class:) Object|Undef;
-sub open (Object|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;
+# invocant there too, so BlessedRef alone excludes a real, documented call.
+sub new (Str $class: Optional[Str] $filename, Optional[Str|Int] $mode, Optional[Int] $perms) BlessedRef|Undef;
+sub new_tmpfile (Str $class:) BlessedRef|Undef;
+sub open (BlessedRef|FileHandle $self: Str $filename, Optional[Str|Int] $mode, Optional[Int] $perms) Boolean;

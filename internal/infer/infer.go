@@ -744,7 +744,7 @@ type Options struct {
 	// WarnPossibleUndef forgives for a declared call's Undef, extended
 	// to a declared call's non-Undef union return. Symbol::qualify's
 	// Ref candidate returns the reference it was given, unchanged
-	// (ScalarRef, ArrayRef, HashRef, CodeRef or Object alongside
+	// (ScalarRef, ArrayRef, HashRef, CodeRef or BlessedRef alongside
 	// GlobRef), so IO/Handle.pm:516's `tell qualify($_[0], caller) if
 	// ref($_[0])` sees a Ref where tell's Glob-only parameter wants a
 	// GlobRef -- psc knows only that the value is some reference, never
@@ -856,7 +856,7 @@ func operandMismatch(opts Options, actual, expected types.Type, op, side string)
 	// Comparison operators stay a warning regardless, since they execute via
 	// coercion in every case.
 	severity := Error
-	valueLike := types.Boolean | types.Str | types.DualVar | types.Object
+	valueLike := types.Boolean | types.Str | types.DualVar | types.BlessedRef
 	if types.IsCoercible(actual, expected) &&
 		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
 		severity = Warning
@@ -913,7 +913,7 @@ func argDirectedReturn(name string, nargs int, argType types.Type) (types.Type, 
 // PSC cannot see whether a given class declares one without resolving it
 // across files. Reporting an error asserts the conversion is impossible.
 func argumentSeverity(actual, expected types.Type) Severity {
-	valueLike := types.Boolean | types.Str | types.DualVar | types.Object
+	valueLike := types.Boolean | types.Str | types.DualVar | types.BlessedRef
 	if types.IsCoercible(actual, expected) &&
 		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
 		return Warning

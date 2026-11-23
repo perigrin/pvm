@@ -352,10 +352,10 @@ func TestSliceArgumentFlattens(t *testing.T) {
 }
 
 // TestSumResultInArithmeticIsSilent: I8, List::Util::sum's declared
-// return, Num|Inf|NaN|Object joined with the empty candidate's Undef,
+// return, Num|Inf|NaN|BlessedRef joined with the empty candidate's Undef,
 // must not report in ordinary arithmetic: an addend overloading `+` or
 // `*` comes back unchanged (List/Util.tpm's own comment), so the
-// Object bit is as legitimate a number there as a plain Num, and the
+// BlessedRef bit is as legitimate a number there as a plain Num, and the
 // Undef is the same possible-undef a declared call's own catch-all
 // candidate always carries. perl 5.42 -w runs every one of these
 // silently.

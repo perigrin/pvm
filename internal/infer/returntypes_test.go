@@ -2417,7 +2417,7 @@ func TestOOModulesReturnTypes(t *testing.T) {
 // an array reference", not only FileHandle (audit-C.md finding 12).
 // Measured: new($io_handle_obj) gives count 1, add(0) returns 1,
 // add([\*STDERR,"data"]) returns 1, and handles/can_write return
-// 0, IO::Handle, ARRAY -- each of Object, Int and ArrayRef must be
+// 0, IO::Handle, ARRAY -- each of BlessedRef, Int and ArrayRef must be
 // admitted, which FileHandle (Glob|GlobRef|IO) alone excludes.
 func TestIOSelectTakesDocumentedHandles(t *testing.T) {
 	tpm, err := os.ReadFile(filepath.Join("..", "parse", "declarations", "IO", "Select.tpm"))
@@ -2429,7 +2429,7 @@ func TestIOSelectTakesDocumentedHandles(t *testing.T) {
 	// plain Int fd and an ArrayRef, beside whatever FileHandle it
 	// already held.
 	wantsDocumentedHandles := func(name string, typ types.Type) {
-		assert.True(t, types.IsSubtype(types.Object, typ), "IO::Select::%s excludes Object", name)
+		assert.True(t, types.IsSubtype(types.BlessedRef, typ), "IO::Select::%s excludes BlessedRef", name)
 		assert.True(t, types.IsSubtype(types.Int, typ), "IO::Select::%s excludes Int", name)
 		assert.True(t, types.IsSubtype(types.ArrayRef, typ), "IO::Select::%s excludes ArrayRef", name)
 	}
@@ -2518,7 +2518,7 @@ say "CLEAR\t<", (defined $r ? $r : 'undef'), ">\tremaining=", scalar(keys %P::st
 // succeed when reached through a subclass supplying the method they
 // depend on, rather than only croaking as Tie::Hash.tpm's comment once
 // claimed (audit-C.md finding 34, the negative scenario). Declared
-// Object (new, TIEHASH) and Any (CLEAR), not None.
+// BlessedRef (new, TIEHASH) and Any (CLEAR), not None.
 func TestTieHashInheritedMethodsReturn(t *testing.T) {
 	p := perltest.Perl542(t)
 	out, err := p.Command("-e", tieHashInheritedScript).Output()
@@ -2538,7 +2538,7 @@ func TestTieHashInheritedMethodsReturn(t *testing.T) {
 		require.Equal(t, name, label)
 		assert.NotEmpty(t, ref, "Tie::Hash::%s via subclass dispatch did not return a blessed ref", name)
 		require.Len(t, sigs[name], 1, "Tie::Hash::%s", name)
-		assert.Equal(t, types.Object, sigs[name][0].Returns, "Tie::Hash::%s is not declared Object", name)
+		assert.Equal(t, types.BlessedRef, sigs[name][0].Returns, "Tie::Hash::%s is not declared BlessedRef", name)
 	}
 
 	label, rest, ok := strings.Cut(lines[2], "\t")
@@ -2837,7 +2837,7 @@ func TestDynaLoaderLowLevelSubsExempt(t *testing.T) {
 // TestFileStatMissingFileReturnIsDeclared: File::stat::stat on a path
 // that does not exist returns the empty list in list context and undef
 // in scalar (measured on 5.42.0), both of which File::stat.tpm's
-// declared Object|Undef admits. oracle/File-stat.pl includes this case
+// declared BlessedRef|Undef admits. oracle/File-stat.pl includes this case
 // among stat's and lstat's own.
 func TestFileStatMissingFileReturnIsDeclared(t *testing.T) {
 	assert.Empty(t, moduleFailures(t, "File::stat"))
@@ -2861,7 +2861,7 @@ func ioHandleSignatures(t *testing.T) map[string][]types.Signature {
 // `IO::Handle->output_field_separator(...)`, and the source carps "not
 // supported on a per-handle basis" when called on an object. Each is
 // declared Str $class exactly, which a bare class-name Str satisfies
-// and an Object invocant, the pre-fix declaration, does not.
+// and a BlessedRef invocant, the pre-fix declaration, does not.
 func TestIOHandleSeparatorsAreClassMethods(t *testing.T) {
 	sigs := ioHandleSignatures(t)
 	for _, name := range []string{
@@ -2881,8 +2881,8 @@ func TestIOHandleSeparatorsAreClassMethods(t *testing.T) {
 // methods run on unblessed handles too (audit-C.md finding 1) --
 // `open my $fh,'>',...; $fh->autoflush(1)` works and ref($fh) is GLOB,
 // and so does `STDOUT->autoflush(0)`, measured on 5.42.0. Each is
-// declared Object|FileHandle, which both a Glob and a GlobRef satisfy;
-// Object alone, the pre-fix declaration, excludes both (types.go:117).
+// declared BlessedRef|FileHandle, which both a Glob and a GlobRef satisfy;
+// BlessedRef alone, the pre-fix declaration, excludes both (types.go:117).
 func TestIOHandleMethodsTakeUnblessedHandles(t *testing.T) {
 	sigs := ioHandleSignatures(t)
 	for _, name := range []string{
@@ -2983,7 +2983,7 @@ func TestIOSocketMethodsReturnSocketOrUndef(t *testing.T) {
 		}
 		require.Len(t, cands, 1)
 		s := cands[0]
-		assert.True(t, types.IsSubtype(types.Object, s.Returns), "IO::Socket::%s should admit Object: perl returns the invocant itself on success (measured)", name)
+		assert.True(t, types.IsSubtype(types.BlessedRef, s.Returns), "IO::Socket::%s should admit BlessedRef: perl returns the invocant itself on success (measured)", name)
 		assert.True(t, types.IsSubtype(types.Undef, s.Returns), "IO::Socket::%s should admit Undef: perl returns undef on failure (measured)", name)
 	}
 }
@@ -3029,9 +3029,9 @@ func TestSocketListContextUnpackers(t *testing.T) {
 
 // TestIOFileNewMissingFileReturnIsDeclared: IO::File->new on a file
 // that does not exist returns undef rather than dying, measured on
-// 5.42.0, which IO::File.tpm's declared Object|Undef admits.
+// 5.42.0, which IO::File.tpm's declared BlessedRef|Undef admits.
 // oracle/IO-File.pl's own `new` case (no filename) already exercises
-// new's Object branch; this is the Undef one, checked directly rather
+// new's BlessedRef branch; this is the Undef one, checked directly rather
 // than added to the module-wide oracle (new's declared signature takes
 // an optional filename, and giving one here would otherwise need a
 // second call form the oracle driver has no way to select between).

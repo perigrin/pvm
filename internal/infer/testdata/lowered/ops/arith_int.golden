@@ -1,2 +1,2 @@
 sym $x Int
-sym $y Int|Num|Inf
+sym $y Num|Inf

@@ -44,7 +44,7 @@ sub tempdir :export_ok (List @args) Str;
 # it works on a bareword Glob or a blessed File::Temp object too, not
 # only the GlobRef `open my $fh` gives (measured: unlink0($file_temp_obj,
 # $obj->filename) returns 1; audit-C.md finding 17).
-sub unlink0 :export_ok :listop (FileHandle|Object $fh, Str $path) Int;
+sub unlink0 :export_ok :listop (FileHandle|BlessedRef $fh, Str $path) Int;
 # cleanup removes every temp file and directory File::Temp has
 # registered; its return value is undocumented and not meant to be
 # read, measured on 5.42.0 to be an internal bookkeeping value.
@@ -69,12 +69,12 @@ sub unlink1 :listop (FileHandle $fh, Str $path) Int;
 # form is called. newdir's POD return, File::Temp::Dir, has no
 # declaration of its own (one package per file; File::Temp::Dir is not
 # in the ranked top-50 modules this project's declarations cover), so
-# it is left the generic Object every other constructor here answers.
-sub new (Str $class: List @args) Object;
-sub newdir (Str $class: List @args) Object;
-sub filename (Object $self:) Str;
+# it is left the generic BlessedRef every other constructor here answers.
+sub new (Str $class: List @args) BlessedRef;
+sub newdir (Str $class: List @args) BlessedRef;
+sub filename (BlessedRef $self:) Str;
 # unlink_on_destroy both gets and sets a plain Int flag (measured 1/0;
 # is_bool false of it, unlike a marked Boolean).
-sub unlink_on_destroy (Object $self: Optional[Boolean] $on) Int;
+sub unlink_on_destroy (BlessedRef $self: Optional[Boolean] $on) Int;
 sub safe_level (Str $class: Optional[Int] $level) Int;
 sub top_system_uid (Str $class: Optional[Int] $uid) Int;

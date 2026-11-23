@@ -5,6 +5,8 @@ package types
 
 import (
 	"fmt"
+	"math/bits"
+	"sort"
 	"strings"
 )
 
@@ -35,7 +37,7 @@ const (
 	HashRef    Type = 1 << 9  // Reference to a hash
 	CodeRef    Type = 1 << 10 // Reference to code (subroutine)
 	GlobRef    Type = 1 << 11 // Reference to a glob
-	objectLeaf Type = 1 << 12 // Blessed-reference leaf (blessed, but not a Regexp)
+	objectLeaf Type = 1 << 12 // Blessed-reference leaf (blessed, but neither a Regexp nor a class instance)
 
 	Array Type = 1 << 13 // Array
 	Hash  Type = 1 << 14 // Hash
@@ -45,8 +47,8 @@ const (
 	// IO is what a glob's IO slot holds: the slot type, placed by the paper
 	// at the top of the lattice beside Code and Glob. Like Code it is never
 	// a value -- `*STDOUT{IO}` is a REFERENCE to it, blessed into IO::File,
-	// and so measures as an Object, as a Regex does (testdata/
-	// lattice_oracle.pl witnesses it on the Object <: Ref edge).
+	// and so measures as a BlessedRef, as a Regex does (testdata/
+	// lattice_oracle.pl witnesses it on the BlessedRef <: Ref edge).
 	IO Type = 1 << 19
 
 	// Void is the type of a computation that returns and yields nothing,
@@ -54,6 +56,10 @@ const (
 	// list. A bare `return` is Void. It is not None, which does not
 	// return at all. In scalar context it coerces to Undef.
 	Void Type = 1 << 20
+
+	// Object is the class feature's instance: blessed, with reftype OBJECT --
+	// an opaque referent, where `bless {}` is HASH and qr// is REGEXP.
+	Object Type = 1 << 21
 )
 
 // Sentinel types.
@@ -90,13 +96,13 @@ const (
 	// Contract_- (Inf - Inf = NaN).
 	Str Type = strLeaf | Num | NaN | Inf
 
-	// Object is the blessed-reference family mask. Regex is a subtype of
-	// Object: a compiled pattern is blessed into Regexp and participates in
-	// method dispatch.
-	Object Type = objectLeaf | Regex
+	// BlessedRef is the blessed-reference family mask: any blessed reference.
+	// Object (a class-feature instance) and Regex (a compiled pattern, blessed
+	// into Regexp) are subtypes; both participate in method dispatch.
+	BlessedRef Type = objectLeaf | Object | Regex
 
 	// Ref is the reference family mask.
-	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
+	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | BlessedRef
 
 	// Scalar is the scalar family mask — all types that fit in a scalar variable.
 	Scalar Type = Undef | Boolean | Str | DualVar | Ref
@@ -112,8 +118,8 @@ const (
 	// FileHandle is what a handle may be (RFC 0001, "Type names"): a
 	// bareword handle is a Glob, `open my $fh` gives a GlobRef, and the IO
 	// slot holds an IO. A string naming a handle is not one -- under `use
-	// strict` `print {"STDOUT"} ...` dies -- and a blessed IO::File is an
-	// Object until the paper says how blessing and reftype combine.
+	// strict` `print {"STDOUT"} ...` dies -- and a blessed IO::File is a
+	// BlessedRef until the paper says how blessing and reftype combine.
 	FileHandle Type = Glob | GlobRef | IO
 
 	// Any is the top type — all concrete type bits.
@@ -123,29 +129,30 @@ const (
 // typeNames maps known Type masks/values to their canonical string names.
 // String() checks this table first; arbitrary unions fall back to "A|B" format.
 var typeNames = map[Type]string{
-	Unknown:   "Unknown",
-	Undef:     "Undef",
-	Boolean:   "Boolean",
-	Int:       "Int",
-	Num:       "Num",
-	Str:       "Str",
-	DualVar:   "DualVar",
-	NaN:       "NaN",
-	Inf:       "Inf",
-	Regex:     "Regex",
-	ScalarRef: "ScalarRef",
-	ArrayRef:  "ArrayRef",
-	HashRef:   "HashRef",
-	CodeRef:   "CodeRef",
-	GlobRef:   "GlobRef",
-	Object:    "Object",
-	Array:     "Array",
-	Hash:      "Hash",
-	Code:      "Code",
-	Glob:      "Glob",
-	IO:        "IO",
-	Void:      "Void",
-	None:      "None",
+	Unknown:    "Unknown",
+	Undef:      "Undef",
+	Boolean:    "Boolean",
+	Int:        "Int",
+	Num:        "Num",
+	Str:        "Str",
+	DualVar:    "DualVar",
+	NaN:        "NaN",
+	Inf:        "Inf",
+	Regex:      "Regex",
+	ScalarRef:  "ScalarRef",
+	ArrayRef:   "ArrayRef",
+	HashRef:    "HashRef",
+	CodeRef:    "CodeRef",
+	GlobRef:    "GlobRef",
+	BlessedRef: "BlessedRef",
+	Object:     "Object",
+	Array:      "Array",
+	Hash:       "Hash",
+	Code:       "Code",
+	Glob:       "Glob",
+	IO:         "IO",
+	Void:       "Void",
+	None:       "None",
 	// Parent masks
 	Ref:    "Ref",
 	Scalar: "Scalar",
@@ -155,8 +162,9 @@ var typeNames = map[Type]string{
 	FileHandle: "FileHandle",
 }
 
-// allLeafBits lists all leaf type bits (both exported and internal) in ascending
-// bit-position order, used for deterministic "A|B" display of arbitrary union types.
+// allLeafBits lists all leaf type bits (both exported and internal) in display
+// order -- ascending bit position, but for Object, beside its family -- used
+// for deterministic "A|B" display of arbitrary union types.
 var allLeafBits = []struct {
 	bit  Type
 	name string
@@ -173,7 +181,8 @@ var allLeafBits = []struct {
 	{HashRef, "HashRef"},
 	{CodeRef, "CodeRef"},
 	{GlobRef, "GlobRef"},
-	{objectLeaf, "Object"},
+	{objectLeaf, "BlessedRef"},
+	{Object, "Object"}, // beside BlessedRef, its family, though its bit is 21
 	{Array, "Array"},
 	{Hash, "Hash"},
 	{Code, "Code"},
@@ -185,8 +194,10 @@ var allLeafBits = []struct {
 }
 
 // String returns the human-readable name for the type. Known masks return
-// their canonical name (e.g. "Scalar", "Ref", "Num"). Unknown arbitrary
-// unions return a deterministic "A|B|C" representation in bit-position order.
+// their canonical name (e.g. "Scalar", "Ref", "Num"). Any other union prints
+// the largest named families it holds whole, then the leaves left over --
+// `Undef|Num`, not `Undef|Int|Num` -- so a family it holds reads back as
+// itself through FromName. Parts appear in display order (allLeafBits).
 func (t Type) String() string {
 	// Fast path: exact match in named mask table.
 	if name, ok := typeNames[t]; ok {
@@ -199,25 +210,83 @@ func (t Type) String() string {
 		return "None"
 	}
 
-	// Decompose into leaf bit names for arbitrary unions.
-	var parts []string
+	type part struct {
+		name string
+		pos  int
+	}
+	var parts []part
 	remaining := t
-	for _, leaf := range allLeafBits {
+	for _, f := range families {
+		if f.mask&^remaining == 0 {
+			parts = append(parts, part{f.name, f.pos})
+			remaining &^= f.mask
+		}
+	}
+	for i, leaf := range allLeafBits {
 		if remaining&leaf.bit != 0 {
-			parts = append(parts, leaf.name)
+			parts = append(parts, part{leaf.name, i})
 			remaining &^= leaf.bit
 		}
 	}
+	sort.SliceStable(parts, func(i, j int) bool { return parts[i].pos < parts[j].pos })
+
+	names := make([]string, 0, len(parts)+1)
+	for _, p := range parts {
+		names = append(names, p.name)
+	}
 	if remaining != 0 {
 		// Unrecognized bits.
-		parts = append(parts, fmt.Sprintf("0x%x", uint32(remaining)))
+		names = append(names, fmt.Sprintf("0x%x", uint32(remaining)))
 	}
 
-	if len(parts) == 0 {
+	if len(names) == 0 {
 		return "Unknown"
 	}
-	return strings.Join(parts, "|")
+	return strings.Join(names, "|")
 }
+
+// families lists the named multi-bit masks, largest first (ties by name), for
+// String to take whole. pos is where the family prints: at its own leaf if it
+// has one by its name (Num, Str, BlessedRef), else at its first leaf.
+var families = func() []struct {
+	mask Type
+	name string
+	pos  int
+} {
+	var fs []struct {
+		mask Type
+		name string
+		pos  int
+	}
+	for mask, name := range typeNames {
+		if mask == Unknown || mask == None || bits.OnesCount32(uint32(mask)) < 2 {
+			continue
+		}
+		pos := -1
+		for i, leaf := range allLeafBits {
+			if leaf.name == name {
+				pos = i
+				break
+			}
+			if pos < 0 && mask&leaf.bit != 0 {
+				pos = i
+			}
+		}
+		fs = append(fs, struct {
+			mask Type
+			name string
+			pos  int
+		}{mask, name, pos})
+	}
+	sort.Slice(fs, func(i, j int) bool {
+		ci, cj := bits.OnesCount32(uint32(fs[i].mask)), bits.OnesCount32(uint32(fs[j].mask))
+		if ci != cj {
+			return ci > cj
+		}
+		return fs[i].name < fs[j].name
+	})
+	return fs
+}()
 
 // IsSubtype reports whether child is a subtype of parent in the type lattice.
 //
@@ -379,7 +448,7 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 
 	// (2) The value might be of the required type at runtime.
 	//
-	// A union is an EITHER, never a both. Object|HashRef is the value that
+	// A union is an EITHER, never a both. BlessedRef|HashRef is the value that
 	// came out of a merge whose arms were an object and a plain hashref, and
 	// perl keeps those apart: `ref` reports the class for a blessed reference
 	// and HASH for a plain one, measured on 5.42, so no value is both. The

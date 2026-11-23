@@ -21,8 +21,8 @@ sub lock_nstore :export_ok :listop (Ref $ref, Str $file) Boolean|Undef;
 # IO::File, which the source dereferences the same way a bareword or
 # lexical one is (measured, `store_fd({a=>1}, IO::File->new(...))` is
 # a builtin true).
-sub store_fd :export_ok :listop (Ref $ref, FileHandle|Object $fh) Boolean|Undef;
-sub nstore_fd :export_ok :listop (Ref $ref, FileHandle|Object $fh) Boolean|Undef;
+sub store_fd :export_ok :listop (Ref $ref, FileHandle|BlessedRef $fh) Boolean|Undef;
+sub nstore_fd :export_ok :listop (Ref $ref, FileHandle|BlessedRef $fh) Boolean|Undef;
 
 # retrieve, lock_retrieve, retrieve_fd and fd_retrieve read back
 # whatever was stored, so each is polymorphic in what it returns.
@@ -32,8 +32,8 @@ sub nstore_fd :export_ok :listop (Ref $ref, FileHandle|Object $fh) Boolean|Undef
 # to 0"; FileHandle alone rejects a blessed handle, as store_fd above.
 sub retrieve :export :listop (Str $file, Optional[Int] $flags) Any;
 sub lock_retrieve :export_ok :listop (Str $file, Optional[Int] $flags) Any;
-sub retrieve_fd :export_ok :listop (FileHandle|Object $fh, Optional[Int] $flags) Any;
-sub fd_retrieve :export_ok :listop (FileHandle|Object $fh, Optional[Int] $flags) Any;
+sub retrieve_fd :export_ok :listop (FileHandle|BlessedRef $fh, Optional[Int] $flags) Any;
+sub fd_retrieve :export_ok :listop (FileHandle|BlessedRef $fh, Optional[Int] $flags) Any;
 
 # freeze and nfreeze serialize to a string rather than a file; thaw
 # and dclone reverse that -- thaw from the string, dclone from the
