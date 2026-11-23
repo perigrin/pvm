@@ -1,20 +1,35 @@
-<!-- ABOUTME: Minute of the crochet:assess session on the design for applying precedence inside the chart recognizer. -->
-<!-- ABOUTME: Covers rounds 1 to 3: the finding ledger, cross-references, recommendations and declarations, rulings and pending questions, outcomes, the measurement and the author's statement. -->
+<!-- ABOUTME: Minute of the crochet:assess session on the chart parser's precedence design, now precedence without parser state. -->
+<!-- ABOUTME: Covers rounds 1 to 4 and revisions 1 to 4 (renamed at 4): the ledger, cross-references, declarations, rulings, outcomes, measurements and experiments. -->
 
-## Assessment: Chart parser: precedence in the recognizer
+## Assessment: Chart parser: precedence without parser state
 
-Recommendation: pending (round 1: three modify; round 2: four modify; round 3: four modify; revision 4 owed after perigrin's answers)
+Recommendation: pending (round 1: three modify; round 2: four modify; round 3: four modify; round 4: four modify; revision 5 owed)
 
-- **Subject:** `docs/plans/2026-11-23-chart-precedence-in-recognizer.md`.
+- **Subject:** `docs/plans/2026-11-23-chart-stateless-precedence.md`. Revisions 1 to 3 were `docs/plans/2026-11-23-chart-precedence-in-recognizer.md`, and this minute was `docs/assessments/chart-precedence-in-recognizer.md` until revision 4 renamed both. Earlier rows cite the old path as written.
+- **Revisions:**
+
+  | revision | commit | blob | path | title |
+  |---|---|---|---|---|
+  | 1 | 7b264fa9c | 52c82af1 | `docs/plans/2026-11-23-chart-precedence-in-recognizer.md` | Chart parser: precedence in the recognizer |
+  | 2 | c270bbfa3 | 68371487 | `docs/plans/2026-11-23-chart-precedence-in-recognizer.md` | Chart parser: bison's reduce-side precedence in the recognizer |
+  | 3 | 3e4d0c43b | a8960d05 | `docs/plans/2026-11-23-chart-precedence-in-recognizer.md` | Chart parser: the precedence constraint without maps |
+  | 4 | 6dc1d9558 | 123012c1 | `docs/plans/2026-11-23-chart-stateless-precedence.md` (renamed) | Chart parser: precedence without parser state |
+
 - **Revision assessed in round 1:** design commit 7b264fa9c, blob 52c82af16a738eca6e03cdb050e9c167903212c7. Each participant read that blob, untracked in worktree `cr-close`, and checked it with `git hash-object`. It is byte-identical to the blob at 7b264fa9c.
 - **Revision assessed in round 2:** commit c270bbfa3, blob 68371487a68e3f8c1661a80ea830356228a3a163 (revision 2, retitled "bison's reduce-side precedence in the recognizer").
 - **Revision assessed in round 3:** commit 3e4d0c43b, blob a8960d05a84284fb0f9fcec803d101949fd9c405 (revision 3, retitled "the precedence constraint without maps"). The file keeps its name (see A20).
+- **Revision assessed in round 4:** commit 6dc1d9558, blob 123012c1a5765883ded36de157c8d0e8ac764f0a (revision 4, renamed to `docs/plans/2026-11-23-chart-stateless-precedence.md`).
 - **Decision-maker:** perigrin.
 - **Drafter:** assess-pushback, from round 2 on. The drafter records and holds no view. In round 1 it was the pushback participant and raised P1 to P12. From round 2 on it does not count as an independent participant.
   - In round 2, at the coordinator's direction, it also acted as raiser of P1 to P12. As raiser it released, held or carried them, and it raised P13 to P15.
   - Those round-2 P rows are the raiser's, not the drafter's.
   - In round 3 it acted as raiser of P13 to P15 only, and raised P16.
-  - The independent participants are assess-codebase and assess-architecture (rounds 1 to 3), assess-fresh (round 2 only; not resumed in round 3) and assess-fresh3 (round 3).
+  - In round 4 it acted as raiser of P16 and of P1, P2, P3 and P10, and raised P17.
+  - The independent participants are:
+    - assess-codebase and assess-architecture, rounds 1 to 4;
+    - assess-fresh, round 2 only;
+    - assess-fresh3, round 3 only;
+    - assess-fresh4, round 4.
 
 Each row's section reference is to the revision named in its revision column. IDs keep each participant's own prefix:
 
@@ -22,7 +37,8 @@ Each row's section reference is to the revision named in its revision column. ID
 - C: assess-codebase, the codebase lens;
 - P: assess-pushback, the spec-quality lens;
 - F: assess-fresh, a fresh participant in round 2. It read the subject without the prior findings, and it wrote its report before reading this minute. It was not resumed in round 3, so its rows are marked raiser absent.
-- G: assess-fresh3, a fresh participant in round 3. Of this minute it read only "Measurement after round 2".
+- G: assess-fresh3, a fresh participant in round 3. Of this minute it read only "Measurement after round 2". It was not resumed in round 4, so its rows are marked raiser absent.
+- H: assess-fresh4, a fresh participant in round 4. Of this minute it read only "Experiments after round 3".
 
 "C1" in a ledger row is assess-codebase's finding. The chart-recovery spike is always written "the C1 spike".
 
@@ -39,10 +55,16 @@ The full reports are at the paths below, in the session scratchpad (`/tmp/claude
 - `assess-w3/round3-codebase.md`
 - `assess-w3/round3-pushback.md`
 - `assess-w3/round3-fresh.md`, with its prototype at `assess-w3/fresh3/prototype.diff` and harness at `assess-w3/fresh3/exp_test.go.txt`
+- `assess-w3/round4-architecture.md`
+- `assess-w3/round4-codebase.md`, with its probe files under `assess-w3/codebase/ov4/`
+- `assess-w3/round4-pushback.md`
+- `assess-w3/round4-fresh.md`
+
+The prototypes behind "Experiments after round 3" are at `stateless/stateless.diff` and `combined/combined.diff` in the same scratchpad (see A30).
 
 ## Ledger
 
-Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, and rows from round 3 against `3e4d0c43b (a8960d05)`.
+Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, rows from round 3 against `3e4d0c43b (a8960d05)`, and rows from round 4 against `6dc1d9558 (123012c1)`.
 
 Statuses as each raiser declared them:
 
@@ -51,9 +73,9 @@ Statuses as each raiser declared them:
 - **carried**: carried, by revision 2's §6, to the later design of the value on items. The raiser agrees in each case.
 - **moot**: the raiser declares that the row's subject was retired by a later revision.
 - **open**: no disposition yet.
-- **raiser absent**: the raiser was not resumed, so no one can release the row. Where a retargeting may bear on such a row, the drafter says what the row's subject is and where it stands in revision 3. That note is not a disposition.
+- **raiser absent**: the raiser was not resumed, so no one can release the row. Where a retargeting may bear on such a row, the drafter says what the row's subject is and where it stands in the latest revision. That note is not a disposition.
 
-Statuses marked r2 or r3 give the round of the latest disposition.
+Statuses marked r2, r3 or r4 give the round of the latest disposition.
 
 | id | raiser | round | section | consequence if it ships | evidence | status | revision |
 |---|---|---|---|---|---|---|---|
@@ -79,16 +101,16 @@ Statuses marked r2 or r3 give the round of the latest disposition.
 | C9 | assess-codebase | 1 | §4.2 | `$a + $b < $c` and `$a and $b and $c` group wrongly if `%prec` unit rules set PREC_LOW. | `termbinop: termrelop %prec PREC_LOW`, `termbinop: termeqop %prec PREC_LOW`, `termrelop: relopchain %prec PREC_LOW`, `listexpr: term %prec PREC_LOW` and `expr: listexpr %prec PREC_LOW`. bison uses their precedence only in reduce-side pairs (rule 236 against CHRELOP, state 68). | moot (r3, raiser: the value on items is retired, revision 3 §5); stays in the minute for any later design | 7b264fa9c (52c82af1) |
 | C10 | assess-codebase | 1 | §5.5, §4.3 | There is no equivalence proof, and the residue that gates `Constrain`'s removal has no key. | `precedence-covered` 1,304 of 1,347. 43 resolutions are uncovered (reviewed), and C1's case is absent. `precedence-disagree` reads only the generated fixture. The 13 toy referees run against `Constrain` only. | moot as framed (r3, raiser); its core recurs against revision 3 §3.1 as C17 | 7b264fa9c (52c82af1) |
 | C11 | assess-codebase | 1 | §4.2, §4.1 | Raised as support: checking the top operator alone is sound only alongside the reduce side. Any reduce-side residue (C2, C3) also opens a shift-side hole. | `pred.pl`: in 43 of 46 (R, state-before-operand) pairs, R alone predicts the operand. The other 3 cannot begin a left-operand rule. The reduce side forces inner spine levels. | released (r2, moot: §2, §7) | 7b264fa9c (52c82af1) |
-| P1 | assess-pushback | 1 | §4.2 | The implementer chooses between one value per item, which is wrong where a state holds several dotted rules, and one value per dotted rule, which is a different design with a different cost to set identity. | 51 of 772 states complete more than one rule (`states.txt`). The recovery plan (branch `docs/chart-recovery-plan`, §C, C1): "A single value per item could not kill one rule inside a state". | carried (r2); not re-disposed by the raiser in round 3. Revision 3 §5 puts the value on items out of scope | 7b264fa9c (52c82af1) |
-| P2 | assess-pushback | 1 | §4.2 | A derivation the table admits is lost after its item has already completed, and shows as false refusals (`rd-accepted-chart-refused` above 0). | `builder.add` (recognize.go:376) deduplicates with `isNew` and never revisits. Recovery plan C1: "An item whose value grows must complete again". | carried (r2); not re-disposed by the raiser in round 3. Revision 3 §5 puts the value on items out of scope | 7b264fa9c (52c82af1) |
-| P3 | assess-pushback | 1 | §4.2 | Under one reading, `$a << ($b < $c)` survives recognition. | `%prec` unit rules (perly.go:354, 360, 440, 442, 464) are both "unit" and "operator" rules. SHIFTOP/CHRELOP resolves as reduce (26 CHRELOP reduce pairs, bison run). §3 counts (rule, token) pairs, not level expressibility. | carried (r2); not re-disposed by the raiser in round 3. Revision 3 §5 puts the value on items out of scope | 7b264fa9c (52c82af1) |
+| P1 | assess-pushback | 1 | §4.2 | The implementer chooses between one value per item, which is wrong where a state holds several dotted rules, and one value per dotted rule, which is a different design with a different cost to set identity. | 51 of 772 states complete more than one rule (`states.txt`). The recovery plan (branch `docs/chart-recovery-plan`, §C, C1): "A single value per item could not kill one rule inside a state". | moot (r4, raiser: §6 puts the value on items out of scope) | 7b264fa9c (52c82af1) |
+| P2 | assess-pushback | 1 | §4.2 | A derivation the table admits is lost after its item has already completed, and shows as false refusals (`rd-accepted-chart-refused` above 0). | `builder.add` (recognize.go:376) deduplicates with `isNew` and never revisits. Recovery plan C1: "An item whose value grows must complete again". | moot (r4, raiser: §6 puts the value on items out of scope) | 7b264fa9c (52c82af1) |
+| P3 | assess-pushback | 1 | §4.2 | Under one reading, `$a << ($b < $c)` survives recognition. | `%prec` unit rules (perly.go:354, 360, 440, 442, 464) are both "unit" and "operator" rules. SHIFTOP/CHRELOP resolves as reduce (26 CHRELOP reduce pairs, bison run). §3 counts (rule, token) pairs, not level expressibility. | moot (r4, raiser: §6 puts the value on items out of scope; its analogue, whether the spine-top key sees through `%prec` unit rules, is left to the differential oracle and the first stop) | 7b264fa9c (52c82af1) |
 | P4 | assess-pushback | 1 | §4.2, §5.4, §5.5 | A resolution the generator cannot map is dropped or mis-mapped silently. 43 resolutions' entries are unrefereed. | bison 373 rules against the chart's 350. One reduce resolution names POSTJOIN, which perly.go:796 omits. Referee coverage 1,304 of 1,347. No stated refuse, review-list or drift-check path. | released (r2, against §4.4, §2) | 7b264fa9c (52c82af1) |
 | P5 | assess-pushback | 1 | §6, §8.4 | The waypoint cannot finish, or the exit is lowered partway through. | 4.79 = 0.655 + 0.790 + 0.662 + about 2.68. Lex is untouched, and resolve and readings are out of scope (§7). Reaching 2.5 needs the post-forest share at or below about 1.1, mostly from removing `Constrain`, which no key times. The 115 ms probe is std5k only. | released (r2, against §1 goal, §6); see P13 | 7b264fa9c (52c82af1) |
 | P6 | assess-pushback | 1 | §4.3, §6 (stop 4) | Stop 4 is a false alarm or is never checked. | `Constrain` runs until the last issue, so no fall below 4.79 is expected "once both tables are in". No reading protocol, against quiet repeats of 5.18 and 5.11, 8.56 and 8.39. Stop 3's causal clause cannot be measured. | released (r2, against §5 ¶2, §6 third stop) | 7b264fa9c (52c82af1) |
 | P7 | assess-pushback | 1 | §4.3, §8.3 | The last issue has no runnable criterion, or it removes `Constrain` on evidence from generated sentences alone. | `precedence-disagree` is defined over the generated sentences (README key table). `Constrain` has no report-only mode (precedence.go:322 returns a bool and unlinks). "The waypoint's last issue" names no milestone. | released (r2, dissolved by §7) | 7b264fa9c (52c82af1) |
 | P8 | assess-pushback | 1 | §1, §5.1 | The merged code contradicts the live README and the binding design, and no superseding record says so. | README: "No fact is added to an Earley item (spec §3 rule 12, §10)". The recovery plan says a successor design must amend rule 12 and §10, with C1's numbers as evidence. The design does not cite C1. "Option B/C" appear in no committed document. "Follows" cites v1. | released (r2, against header, §1, §2) | 7b264fa9c (52c82af1) |
 | P9 | assess-pushback | 1 | §5.2, §8.2 | With Leo on, the reduce-side filter is skipped for intermediate links, and `leo-disagree` (acceptance only) does not notice. | `complete` calls `leo()` before `awaiting`. The lookahead case relies on "FOLLOW only shrinks up a chain" (leo.go), and no precedence analogue is stated. Recovery plan C1: the memo stores no value, plus a guard on values. | released (r2, against §4.5) | 7b264fa9c (52c82af1) |
-| P10 | assess-pushback | 1 | §4.2, §8.1 | The "no operator" bit collides with a level, or the type changes partway through implementation. | perly.go:744-806 declares 32 levels, PLUGIN_* among them. Adding the reserved bit makes 33. | carried (r2); not re-disposed by the raiser in round 3. Revision 3 §5 puts the value on items out of scope | 7b264fa9c (52c82af1) |
+| P10 | assess-pushback | 1 | §4.2, §8.1 | The "no operator" bit collides with a level, or the type changes partway through implementation. | perly.go:744-806 declares 32 levels, PLUGIN_* among them. Adding the reserved bit makes 33. | moot (r4, raiser: §6 puts the value on items out of scope) | 7b264fa9c (52c82af1) |
 | P11 | assess-pushback | 1 | §5.3 | Two designs are left open. If neither is built, a derivation through a blocked terminal reaches the forest. | §5.3: "either a check at the next scan or a residue for the forest's tables". | released (r2, against §4.5, §2) | 7b264fa9c (52c82af1) |
 | P12 | assess-pushback | 1 | §3 | §3's figures cannot be reproduced from pu. | `internal/chart/offline/precedence/` is untracked and has no expected-output file. The figures reproduce with `count.sh /opt/corpora/perl5`. | released (r2, against commit 7b264fa9c tracking the scripts, and §3); expected-output file noted as a nit | 7b264fa9c (52c82af1) |
 | A12 | assess-architecture | 2 | §4.1, §6 (stop 1) | The first issue either trips a stop by design, or regenerates a golden the test forbids regenerating. | `forest-digest.golden` hashes "the forest Build makes" (`forestDigest` → `built`), before the constraint. §4: "The forest build refuses the same completions". `TestForestDigestGolden`: "Never regenerate it to make a change pass". | moot (r3, raiser: approach retired); raiser says revision 3 §3.1 is correct | c270bbfa3 (68371487) |
@@ -105,39 +127,59 @@ Statuses marked r2 or r3 give the round of the latest disposition.
 | P13 | assess-pushback | 2 | §6 | "Exit met" can be recorded with zero gain, alongside a fired no-gain stop. | Baseline 4.7915 ≤ 5. Checkpoint 3 read 5.18 and 5.11. A stop is "reported", not a failure of the exit. | released (r3, against §1 "Relative and ≤ 5" and §4's exit) | c270bbfa3 (68371487) |
 | P14 | assess-pushback | 2 | §4.1, §6 (stop 1) | The first stop fires on the intended change, or a "never regenerate" golden is regenerated without a ruling. | `TestForestDigestGolden` (forestdigest_test.go:101) hashes Build's forest before `Constrain`. `TestSetDigestGolden` (setdigest_test.go:110) also moves under default options. Only `TestResolvedForestDigestGolden` (line 120) is expected to stay fixed. | moot (r3, raiser: approach retired, §5) | c270bbfa3 (68371487) |
 | P15 | assess-pushback | 2 | §4.2 | A fuzz oracle written to "exactly" reports disagreements, and is weakened in an unplanned way or the issue stalls. | `1 .. 2 .. 3`: the reduce side blocks `1 .. 2` before `..`; `1 .. (2 .. 3)` is refused only on the shift side (§7 out of scope). Containment holds; equality does not. | moot (r3, raiser: approach retired, §5) | c270bbfa3 (68371487) |
-| F1 | assess-fresh | 2 | §6 | The exit can pass with B doing nothing, or fail because of drift. | Baseline 4.7915. `testdata/ratchet/checkpoint3.txt` 5.1765 and 5.1051 (c4eb1e46). Records: recognize about 0.77 and about 0.90 on a5498fa4; stage sum 3.638 to 3.13 after a host move. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (the exit) persists in revision 3 §4, under the ruling "Relative and ≤ 5" | c270bbfa3 (68371487) |
-| F2 | assess-fresh | 2 | §3, §6 | Seven days buys a few percent, and §6's question about C is answered only through noise. | Probe on 1,676 files (not the aggregate; load 0.7–1.1; single runs): B refuses 7.0% of packed alternatives with dependents, and `Constrain` drops 10.5%. `Constrain` on the B-pruned forest takes ×0.87–0.97 of its time; on its own output, ×0.94–1.00. `Constrain` is about 46% of `ParseWith` time. Estimate: 4.79 to about 4.6. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (the speed premise of B) belongs to revisions 1–2; revision 3 §5 retires B, citing the measurement after round 2 | c270bbfa3 (68371487) |
-| F3 | assess-fresh | 2 | §4.2 | An implementer writes the equality test, it goes red on the first nonassoc chain, and the contract is rewritten during execution. | `$a <=> $b <=> $c;` (`TestParseAppliesPrecedence`) and `1 .. 2 + 3 .. 4;`: the root stays live after B. Fuzz toy grammars declare no precedence. `recognize` cannot import `forest`. v2 §3 rule 11. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (the reference contract) belongs to revisions 1–2, which revision 3 §5 retires | c270bbfa3 (68371487) |
-| F4 | assess-fresh | 2 | §4.1, §4.3, §5 | §6's "a held key moves" stop becomes ambiguous, and goldens are regenerated ad hoc. | Sets change. Tests holding sets or acceptance: `TestReferenceRecognizer` (acceptance, `Inserted`, `Expected` under every Options combination), `TestReferenceAgreesOnTruncatedFiles`, `TestSetDigestGolden`, `FuzzRecognize`. `Expected` re-closes via `b.complete(nil)` over pruned origin sets. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (tests whose contracts move with a recognizer filter) belongs to revisions 1–2, which revision 3 §5 retires | c270bbfa3 (68371487) |
-| F5 | assess-fresh | 2 | §4.1 | Raised as support: exactness holds only while the table is computed on `NewPrecedence`'s automaton, not copied from bison's report. | Probe: 0 B-refused alternatives that `Constrain` keeps, and 0 verdict flips over 1,558,495 alternatives. Inserted-`;` contexts not modelled. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (exactness of the reduce-side filter) belongs to revisions 1–2, which revision 3 §5 retires | c270bbfa3 (68371487) |
-| F6 | assess-fresh | 2 | §3, §4.4 | The figures are bison's, but the table will be the chart's. Minor. | Chart automaton: 629 shift and 8 error pairs, against bison's 670 and 10; the difference is about the 44 POSTJOIN lines in `bison-conflicts.txt`. §3 omits the 10 error resolutions. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (the filter's table counts) belongs to revisions 1–2, which revision 3 §5 retires | c270bbfa3 (68371487) |
-| F7 | assess-fresh | 2 | §6 (stops) | The recognize-stage stop is likely to trip for reasons unrelated to B. | C1 spike: items barely move, and B adds a lookup per completion. Records: recognize drifts about 15% between sessions on one commit. Same-session before and after is not stated. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (the recognize-stage stop) is not in revision 3 §4 | c270bbfa3 (68371487) |
-| F8 | assess-fresh | 2 | §4.5 | Granularity left to the implementer. Issue-level. | `complete` works per (state, LHS) (`g.lhs[state]`); the forest drops facts per rule. Leo memos are keyed by (node, symbol), independent of `la`. At a slipper node `la` holds the inserted `;`. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (§4.5's filter granularity) belongs to revisions 1–2, which revision 3 §5 retires | c270bbfa3 (68371487) |
-| F9 | assess-fresh | 2 | §5 | The precedence and resolve stage keys would time mutated forests. Issue-level. | `Constrain` and resolve mutate the forest in place, so forests must be cloned outside the timed span, as `measureStages` does for lattices and charts. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (fresh inputs for the precedence and resolve stage keys) persists in revision 3 §3.4 | c270bbfa3 (68371487) |
-| F10 | assess-fresh | 2 | §2 | Rule 6 is amended without being listed. Minor. | v2 §3 rule 6 places the constraint "after the chart". The 2026-11-14 ruling on the spec's standing (chart-perly-w2-inputs Records) permits the amendment. | open; raiser absent (assess-fresh not resumed in round 3). Drafter's note, not a disposition: the subject (amending v2 rule 6) belongs to revision 2's §2; revision 3 amends nothing in v2 | c270bbfa3 (68371487) |
-| C17 | assess-codebase | 3 | §3.1 | A changed kept set on a file outside the sample passes every listed check. | `forest-digest.golden` hashes `Build`'s forest before the constraint, so this change cannot move it. `resolved-forest-digest.golden` covers 438 sample files against a 2,211-file aggregate, and resolve's `prune` can hide an over-kept alternative. The referees compare a verdict and one grouping. Proposed: keep today's `Constrain` as a test-only oracle and compare verdict and `kept` per file. Shared memo slices (`seq` returns `right`) are the realistic corruption path. | open | 3e4d0c43b (a8960d05) |
-| C18 | assess-codebase | 3 | §3.2, §3.3 | §3.2 forbids every design that meets §3.3, and the overflow path a wrong answer could hide in goes untested. | Contexts per node are unknown before the pass (theoretical bound 687 × 238). Any per-node storage with overflow grows. Proposed: allow amortized growth of a pooled array but not hash-map growth, and add a test hook forcing inline capacity 1, patterned on the interner's `hashMask` (sets.go). Measured maxima, 12 eval and 32 mark contexts, mean the overflow never runs on the corpora. | open | 3e4d0c43b (a8960d05) |
-| C19 | assess-codebase | 3 | §3.4, §4 | Every timed pass after the first times an already-constrained or already-pruned forest, and both §4 stops read the precedence key. | `Constrain` unlinks in place, and resolve's `prune` prunes in place. The README's stage protocol prepares inputs "once outside the span" (l.638-641). `Forest` has no copy method. §2 measured an already-constrained forest at about 0.88 of the cost. | open | 3e4d0c43b (a8960d05) |
-| C20 | assess-codebase | 3 | §3.2 | A literal reading forbids `NewPrecedence`'s construction-time maps. Low. | Construction uses maps (`sym`, `level`, `in`, `id`, `kernels`). Only `lrState.next` is read per derivation (`walk`): a dense goto table of 687 × 237 entries. `tab.EOF` = 237, so terminal-indexed tables need 238 columns. | open | 3e4d0c43b (a8960d05) |
-| C21 | assess-codebase | 3 | §4 | "Its first property holding" can be read as not requiring §3.2, the decision's own subject. Low. | §4: "§3 built, its first property holding". | open | 3e4d0c43b (a8960d05) |
-| C22 | assess-codebase | 3 | §3.2 | Reusable buffers hung on `Precedence` would race under concurrent `Parse`. Low, issue-level. | `Precedence` is shared via `grammar.Derived(tab, buildParsePrecedence)` (readings.go). | open | 3e4d0c43b (a8960d05) |
-| A18 | assess-architecture | 3 | §2 | Refinement or review misreads the stage figures as a regression, or anchors the ≤ 5 half of the exit to the wrong number. | §2 omits the minute's caveat ("Compare these stages with each other, not with the ratchet's keys") and the whole-pipeline 5.49 (5.48–5.64). Baseline `speed-stage-recognize` 0.7903 and `-forest` 0.6620, against §2's 0.94 and 0.73. | open | 3e4d0c43b (a8960d05) |
-| A19 | assess-architecture | 3 | §5 | A later reader treats "about 5%" as a permanent ceiling and never revisits precedence in recognition after the map work changes the cost shape. | (1 − 0.877) × 2.38 / 5.49 ≈ 5.3% is `Constrain`'s share alone. It omits build, resolve and readings on a forest up to 16.17% smaller, and was measured on the map-based implementation. | open | 3e4d0c43b (a8960d05) |
-| A20 | assess-architecture | 3 | header | A search by file name finds the wrong answer: the file records a decision not to put precedence in the recognizer. Low. | The plan and the minute keep the name `chart-precedence-in-recognizer`. Line 6 explains this. Assessments are named name-for-name (`chart-waypoint.md`). Proposed: `git mv` at merge, or perigrin rules the name stays. | open; question put to perigrin (see Pending) | 3e4d0c43b (a8960d05) |
-| A21 | assess-architecture | 3 | §3.4 | Every close gate that runs the ratchet gets slower, against a budget already overrun. | Arithmetic, not a run: about 33 × 0.546 × (1 + 2.38) ≈ 61 s for the precedence key, plus about 21–22 s each for resolve and readings, so roughly +100 s. README "Budget": 300 s budgeted, 543 s on pu, 664 and 683 s in KEYS's runs (input 01a1ec3c). Verify's 1,800 s per-criterion timeout. | open | 3e4d0c43b (a8960d05) |
-| A22 | assess-architecture | 3 | §3.4, §4 | Refinement writes an exit criterion that cannot run, or that compares one ratchet run with `baseline.txt`, which the README forbids. The live README goes stale. | README key table, rules, the `speed-stage sum` stderr line, and "There is no per-stage collector key". Recovery plan §6: the verdict reading is "recorded in the milestone's Records", not a resolution command. | open | 3e4d0c43b (a8960d05) |
-| A23 | assess-architecture | 3 | §4, §5 | The next decision starts from no recorded intent. | Revision 2's §6 "what the result decides" sentence is dropped in revision 3. Candidates after the map work: recognize 0.94, build 0.73, the rest of `Constrain`, or nothing. | open | 3e4d0c43b (a8960d05) |
-| A24 | assess-architecture | 3 | §3.2 | The literal reading may exclude a bounded fallback that meets §3.3. Raised for perigrin. | Recovery plan R2: "find duplicates by scanning, switch to a map at 24 items". §3.2 forbids any map, and §3.3 asks that a slow node stay correct. | open; question put to perigrin (see Pending) | 3e4d0c43b (a8960d05) |
-| A25 | assess-architecture | 3 | §4 | An issue whose precedence stage key does not move merges unreported. Optional. | §4 reads before and after "at the end". Recovery plan M: "reported before it merges". The w2 postmortem: "stopped the waypoint at FOREST's gate rather than after its merge". | open | 3e4d0c43b (a8960d05) |
-| P16 | assess-pushback | 3 | §3.2 | Whoever implements first decides whether §3.2 is met: a hand-rolled hash table and a dense indexed table would both be defensible readings. Low. | §3.2: "No hash map is read or written". It does not say whether that means Go's `map` or any hashed lookup. | open; question put to perigrin (see Pending) | 3e4d0c43b (a8960d05) |
-| G1 | assess-fresh3 | 3 | §1, §4 | The exit cannot tell perigrin whether the work paid for itself. | `baseline.txt` (retaken at 83fdd50f4) reads 4.7915 with `Constrain` already in `ParseWith`. The measurement reads 5.49 on another host and is "not comparable". The README records the key moving across a host change. | open | 3e4d0c43b (a8960d05) |
-| G2 | assess-fresh3 | 3 | §4 | If §3 is built with identical output and a faster stage but the ratio stays above 5, nothing stops the work before twice the budget. | §4's exit and stops have no case for "built, identical, stage key improved, exit not met". | open | 3e4d0c43b (a8960d05) |
-| G3 | assess-fresh3 | 3 | §2 | A reader expects a size hint to recover much of the cost. In fresh3's experiment it does nothing measurable. | Experiment on 859 forests: maps with a size hint 111/91/104 ms against 111/97/107 ms; dense goto 0–7%; the no-map variant 40/36/35 ms. Recursion is 810 calls deep against a 64-frame CPU profile limit (`maxCPUProfStack`), so profile shares are approximate. | open | 3e4d0c43b (a8960d05) |
-| G4 | assess-fresh3 | 3 | §3.1 | A change in which alternatives survive on an aggregate file outside the sample passes every named instrument. | The goldens cover about 440 sample files. The count keys and referee keys count verdicts and disagreements. Proposed (issue-level): a differential check against today's `Constrain` over the 2,211 files, comparing node heads and `Alt.Next`. | open | 3e4d0c43b (a8960d05) |
-| G5 | assess-fresh3 | 3 | §3.2 | "Allocated once per call, not grown entry by entry" forbids the design that measured fastest, and pushes toward an arena where appending to a returned sub-slice overwrites its neighbour. | The prototype grows per-node slices by append for the 14% of nodes with more than one context. `eval` returns memoized slices directly, and `seq` returns `right` unchanged. Proposed: "no hash map; no table indexed by node, context or state grows during the call". | open | 3e4d0c43b (a8960d05) |
-| G6 | assess-fresh3 | 3 | §3 | The issue author has to rediscover the memo semantics. Not a defect in the decision. | mark records before recursing; mark's key includes `first` (-1 means any); eval memoizes after computing, with no in-progress sentinel (safe because the forest is acyclic); memoized slices are shared; `kept []bool` is by alternative. The prototype kept all of these. | open | 3e4d0c43b (a8960d05) |
-| G7 | assess-fresh3 | 3 | §3.4 | The issues have to land in a fixed order. Issue-level. | The three stage keys do not exist on pu: `measureStages` has lex, recognize and forest (`Build` alone). They need their own commit before any change to `Constrain`, and the interleaved before must be taken on it. This touches `main.go`, `main_test.go`, the README key table and the baseline. | open | 3e4d0c43b (a8960d05) |
-| G8 | assess-fresh3 | 3 | §4 (direction) | The exit's thresholds will not separate outcomes, and perigrin lacks the table of where the time goes next. | If the guacamole speedup holds, `Constrain` falls from 2.38 to about 0.8–0.9 and the pipeline from about 5.5 to about 4.0. Proposed: the exit report gives the seven-stage table, before and after, in one session. | open | 3e4d0c43b (a8960d05) |
+| F1 | assess-fresh | 2 | §6 | The exit can pass with B doing nothing, or fail because of drift. | Baseline 4.7915. `testdata/ratchet/checkpoint3.txt` 5.1765 and 5.1051 (c4eb1e46). Records: recognize about 0.77 and about 0.90 on a5498fa4; stage sum 3.638 to 3.13 after a host move. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (the exit) persists in revision 4 §5, under the ruling "Relative and ≤ 5" | c270bbfa3 (68371487) |
+| F2 | assess-fresh | 2 | §3, §6 | Seven days buys a few percent, and §6's question about C is answered only through noise. | Probe on 1,676 files (not the aggregate; load 0.7–1.1; single runs): B refuses 7.0% of packed alternatives with dependents, and `Constrain` drops 10.5%. `Constrain` on the B-pruned forest takes ×0.87–0.97 of its time; on its own output, ×0.94–1.00. `Constrain` is about 46% of `ParseWith` time. Estimate: 4.79 to about 4.6. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (the speed premise of B) returns in revision 4, which reinstates B as §3.3 and measures it (V2 against V1, 0.69 against 0.73) | c270bbfa3 (68371487) |
+| F3 | assess-fresh | 2 | §4.2 | An implementer writes the equality test, it goes red on the first nonassoc chain, and the contract is rewritten during execution. | `$a <=> $b <=> $c;` (`TestParseAppliesPrecedence`) and `1 .. 2 + 3 .. 4;`: the root stays live after B. Fuzz toy grammars declare no precedence. `recognize` cannot import `forest`. v2 §3 rule 11. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (the reference contract) returns in revision 4 §3 ("Recognition's contract"), stated as containment | c270bbfa3 (68371487) |
+| F4 | assess-fresh | 2 | §4.1, §4.3, §5 | §6's "a held key moves" stop becomes ambiguous, and goldens are regenerated ad hoc. | Sets change. Tests holding sets or acceptance: `TestReferenceRecognizer` (acceptance, `Inserted`, `Expected` under every Options combination), `TestReferenceAgreesOnTruncatedFiles`, `TestSetDigestGolden`, `FuzzRecognize`. `Expected` re-closes via `b.complete(nil)` over pruned origin sets. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (tests whose contracts move with a recognizer filter) returns with revision 4 §3.3; see C23, C27 and H2 | c270bbfa3 (68371487) |
+| F5 | assess-fresh | 2 | §4.1 | Raised as support: exactness holds only while the table is computed on `NewPrecedence`'s automaton, not copied from bison's report. | Probe: 0 B-refused alternatives that `Constrain` keeps, and 0 verdict flips over 1,558,495 alternatives. Inserted-`;` contexts not modelled. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (exactness of the reduce-side filter) returns with revision 4 §3.3, under its differential test | c270bbfa3 (68371487) |
+| F6 | assess-fresh | 2 | §3, §4.4 | The figures are bison's, but the table will be the chart's. Minor. | Chart automaton: 629 shift and 8 error pairs, against bison's 670 and 10; the difference is about the 44 POSTJOIN lines in `bison-conflicts.txt`. §3 omits the 10 error resolutions. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (bison's counts against the chart's table) returns with revision 4 §3.1 and §3.3 | c270bbfa3 (68371487) |
+| F7 | assess-fresh | 2 | §6 (stops) | The recognize-stage stop is likely to trip for reasons unrelated to B. | C1 spike: items barely move, and B adds a lookup per completion. Records: recognize drifts about 15% between sessions on one commit. Same-session before and after is not stated. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (a recognize-stage stop) is not among revision 4 §5's stops | c270bbfa3 (68371487) |
+| F8 | assess-fresh | 2 | §4.5 | Granularity left to the implementer. Issue-level. | `complete` works per (state, LHS) (`g.lhs[state]`); the forest drops facts per rule. Leo memos are keyed by (node, symbol), independent of `la`. At a slipper node `la` holds the inserted `;`. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (the filter's granularity, Leo, slipper) returns with revision 4 §3.3; see C28, C29 and H5 | c270bbfa3 (68371487) |
+| F9 | assess-fresh | 2 | §5 | The precedence and resolve stage keys would time mutated forests. Issue-level. | `Constrain` and resolve mutate the forest in place, so forests must be cloned outside the timed span, as `measureStages` does for lattices and charts. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (fresh inputs for the stage keys) is addressed in revision 4 §4's text: "a fresh copy of the forest made outside the span" | c270bbfa3 (68371487) |
+| F10 | assess-fresh | 2 | §2 | Rule 6 is amended without being listed. Minor. | v2 §3 rule 6 places the constraint "after the chart". The 2026-11-14 ruling on the spec's standing (chart-perly-w2-inputs Records) permits the amendment. | open; raiser absent (assess-fresh not resumed after round 2). Drafter's note, not a disposition: the subject (amending v2 rule 6) returns with revision 4 §3.3, which has no amendment section; see A26, C24 and H3 | c270bbfa3 (68371487) |
+| C17 | assess-codebase | 3 | §3.1 | A changed kept set on a file outside the sample passes every listed check. | `forest-digest.golden` hashes `Build`'s forest before the constraint, so this change cannot move it. `resolved-forest-digest.golden` covers 438 sample files against a 2,211-file aggregate, and resolve's `prune` can hide an over-kept alternative. The referees compare a verdict and one grouping. Proposed: keep today's `Constrain` as a test-only oracle and compare verdict and `kept` per file. Shared memo slices (`seq` returns `right`) are the realistic corruption path. | released (r4, against §3: "Today's `Constrain` is kept as a test-only oracle. A differential test compares verdict and exact kept set per file over the aggregate, the referee and the toy referees.") | 3e4d0c43b (a8960d05) |
+| C18 | assess-codebase | 3 | §3.2, §3.3 | §3.2 forbids every design that meets §3.3, and the overflow path a wrong answer could hide in goes untested. | Contexts per node are unknown before the pass (theoretical bound 687 × 238). Any per-node storage with overflow grows. Proposed: allow amortized growth of a pooled array but not hash-map growth, and add a test hook forcing inline capacity 1, patterned on the interner's `hashMask` (sets.go). Measured maxima, 12 eval and 32 mark contexts, mean the overflow never runs on the corpora. | released (r4, against §3.2: "Per-node lists may grow. A test forces several entries onto one node") | 3e4d0c43b (a8960d05) |
+| C19 | assess-codebase | 3 | §3.4, §4 | Every timed pass after the first times an already-constrained or already-pruned forest, and both §4 stops read the precedence key. | `Constrain` unlinks in place, and resolve's `prune` prunes in place. The README's stage protocol prepares inputs "once outside the span" (l.638-641). `Forest` has no copy method. §2 measured an already-constrained forest at about 0.88 of the cost. | released (r4, against §4: "Each timed pass works on a fresh copy of the forest made outside the span") | 3e4d0c43b (a8960d05) |
+| C20 | assess-codebase | 3 | §3.2 | A literal reading forbids `NewPrecedence`'s construction-time maps. Low. | Construction uses maps (`sym`, `level`, `in`, `id`, `kernels`). Only `lrState.next` is read per derivation (`walk`): a dense goto table of 687 × 237 entries. `tab.EOF` = 237, so terminal-indexed tables need 238 columns. | released (r4, against §3.2: "The maps `NewPrecedence` builds once per grammar stay.") | 3e4d0c43b (a8960d05) |
+| C21 | assess-codebase | 3 | §4 | "Its first property holding" can be read as not requiring §3.2, the decision's own subject. Low. | §4: "§3 built, its first property holding". | released (r4, against §5's exit, which lists all parts) | 3e4d0c43b (a8960d05) |
+| C22 | assess-codebase | 3 | §3.2 | Reusable buffers hung on `Precedence` would race under concurrent `Parse`. Low, issue-level. | `Precedence` is shared via `grammar.Derived(tab, buildParsePrecedence)` (readings.go). | released (r4, against §3.2: "Per-call state lives on the call, never on the shared, cached tables.") | 3e4d0c43b (a8960d05) |
+| A18 | assess-architecture | 3 | §2 | Refinement or review misreads the stage figures as a regression, or anchors the ≤ 5 half of the exit to the wrong number. | §2 omits the minute's caveat ("Compare these stages with each other, not with the ratchet's keys") and the whole-pipeline 5.49 (5.48–5.64). Baseline `speed-stage-recognize` 0.7903 and `-forest` 0.6620, against §2's 0.94 and 0.73. | released (r4, against §2's caveat: "compare them with each other, not with `baseline.txt`") | 3e4d0c43b (a8960d05) |
+| A19 | assess-architecture | 3 | §5 | A later reader treats "about 5%" as a permanent ceiling and never revisits precedence in recognition after the map work changes the cost shape. | (1 − 0.877) × 2.38 / 5.49 ≈ 5.3% is `Constrain`'s share alone. It omits build, resolve and readings on a forest up to 16.17% smaller, and was measured on the map-based implementation. | moot (r4, raiser: the "about 5%" claim is removed) | 3e4d0c43b (a8960d05) |
+| A20 | assess-architecture | 3 | header | A search by file name finds the wrong answer: the file records a decision not to put precedence in the recognizer. Low. | The plan and the minute keep the name `chart-precedence-in-recognizer`. Line 6 explains this. Assessments are named name-for-name (`chart-waypoint.md`). Proposed: `git mv` at merge, or perigrin rules the name stays. | released (r4, against the rename and the design's header); the minute's residue raised as A29 | 3e4d0c43b (a8960d05) |
+| A21 | assess-architecture | 3 | §3.4 | Every close gate that runs the ratchet gets slower, against a budget already overrun. | Arithmetic, not a run: about 33 × 0.546 × (1 + 2.38) ≈ 61 s for the precedence key, plus about 21–22 s each for resolve and readings, so roughly +100 s. README "Budget": 300 s budgeted, 543 s on pu, 664 and 683 s in KEYS's runs (input 01a1ec3c). Verify's 1,800 s per-criterion timeout. | released (r4, against §4: "Their cost to a ratchet run is reported with the commit that adds them.") | 3e4d0c43b (a8960d05) |
+| A22 | assess-architecture | 3 | §3.4, §4 | Refinement writes an exit criterion that cannot run, or that compares one ratchet run with `baseline.txt`, which the README forbids. The live README goes stale. | README key table, rules, the `speed-stage sum` stderr line, and "There is no per-stage collector key". Recovery plan §6: the verdict reading is "recorded in the milestone's Records", not a resolution command. | released (r4, against §3's live-documents list and §4's reading recorded in Records) | 3e4d0c43b (a8960d05) |
+| A23 | assess-architecture | 3 | §4, §5 | The next decision starts from no recorded intent. | Revision 2's §6 "what the result decides" sentence is dropped in revision 3. Candidates after the map work: recognize 0.94, build 0.73, the rest of `Constrain`, or nothing. | released (r4, against §5's "What the result decides") | 3e4d0c43b (a8960d05) |
+| A24 | assess-architecture | 3 | §3.2 | The literal reading may exclude a bounded fallback that meets §3.3. Raised for perigrin. | Recovery plan R2: "find duplicates by scanning, switch to a map at 24 items". §3.2 forbids any map, and §3.3 asks that a slow node stay correct. | released (r4, raiser: answered by ruling and measurement, §3.2) | 3e4d0c43b (a8960d05) |
+| A25 | assess-architecture | 3 | §4 | An issue whose precedence stage key does not move merges unreported. Optional. | §4 reads before and after "at the end". Recovery plan M: "reported before it merges". The w2 postmortem: "stopped the waypoint at FOREST's gate rather than after its merge". | released (r4, raiser: optional and not adopted) | 3e4d0c43b (a8960d05) |
+| P16 | assess-pushback | 3 | §3.2 | Whoever implements first decides whether §3.2 is met: a hand-rolled hash table and a dense indexed table would both be defensible readings. Low. | §3.2: "No hash map is read or written". It does not say whether that means Go's `map` or any hashed lookup. | released (r4, against §3.2: "No hash table, built-in or hand-written, is read or written per derivation. Per-node lists may grow. … The maps `NewPrecedence` builds once per grammar stay.") | 3e4d0c43b (a8960d05) |
+| G1 | assess-fresh3 | 3 | §1, §4 | The exit cannot tell perigrin whether the work paid for itself. | `baseline.txt` (retaken at 83fdd50f4) reads 4.7915 with `Constrain` already in `ParseWith`. The measurement reads 5.49 on another host and is "not comparable". The README records the key moving across a host change. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (on which host the ≤ 5 half is read) persists; revision 4 §2 says its ratios are "measured on one machine … compare them with each other, not with `baseline.txt`", and §4 reads speed in one session | 3e4d0c43b (a8960d05) |
+| G2 | assess-fresh3 | 3 | §4 | If §3 is built with identical output and a faster stage but the ratio stays above 5, nothing stops the work before twice the budget. | §4's exit and stops have no case for "built, identical, stage key improved, exit not met". | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (no stop for the middle outcome) is addressed in revision 4 §5's text by the stop "the precedence stage is faster but `speed-ratio-aggregate-longlived` stays above 5" | 3e4d0c43b (a8960d05) |
+| G3 | assess-fresh3 | 3 | §2 | A reader expects a size hint to recover much of the cost. In fresh3's experiment it does nothing measurable. | Experiment on 859 forests: maps with a size hint 111/91/104 ms against 111/97/107 ms; dense goto 0–7%; the no-map variant 40/36/35 ms. Recursion is 810 calls deep against a 64-frame CPU profile limit (`maxCPUProfStack`), so profile shares are approximate. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (profile shares against wall-clock evidence) persists; revision 4 §2 cites the prototypes' wall-clock ratios and no profile shares | 3e4d0c43b (a8960d05) |
+| G4 | assess-fresh3 | 3 | §3.1 | A change in which alternatives survive on an aggregate file outside the sample passes every named instrument. | The goldens cover about 440 sample files. The count keys and referee keys count verdicts and disagreements. Proposed (issue-level): a differential check against today's `Constrain` over the 2,211 files, comparing node heads and `Alt.Next`. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (a differential check over the aggregate) is addressed in revision 4 §3's text by the named differential test | 3e4d0c43b (a8960d05) |
+| G5 | assess-fresh3 | 3 | §3.2 | "Allocated once per call, not grown entry by entry" forbids the design that measured fastest, and pushes toward an arena where appending to a returned sub-slice overwrites its neighbour. | The prototype grows per-node slices by append for the 14% of nodes with more than one context. `eval` returns memoized slices directly, and `seq` returns `right` unchanged. Proposed: "no hash map; no table indexed by node, context or state grows during the call". | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (§3.2 as a property) is addressed in revision 4 §3.2's text: "Per-node lists may grow" | 3e4d0c43b (a8960d05) |
+| G6 | assess-fresh3 | 3 | §3 | The issue author has to rediscover the memo semantics. Not a defect in the decision. | mark records before recursing; mark's key includes `first` (-1 means any); eval memoizes after computing, with no in-progress sentinel (safe because the forest is acyclic); memoized slices are shared; `kept []bool` is by alternative. The prototype kept all of these. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (memo semantics a rewrite must keep) is not stated in revision 4; the raiser called it issue-level | 3e4d0c43b (a8960d05) |
+| G7 | assess-fresh3 | 3 | §3.4 | The issues have to land in a fixed order. Issue-level. | The three stage keys do not exist on pu: `measureStages` has lex, recognize and forest (`Build` alone). They need their own commit before any change to `Constrain`, and the interleaved before must be taken on it. This touches `main.go`, `main_test.go`, the README key table and the baseline. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (the stage keys' commit order) is addressed in revision 4 §4's text: "in a commit of their own on `pu`, before any change to precedence" | 3e4d0c43b (a8960d05) |
+| G8 | assess-fresh3 | 3 | §4 (direction) | The exit's thresholds will not separate outcomes, and perigrin lacks the table of where the time goes next. | If the guacamole speedup holds, `Constrain` falls from 2.38 to about 0.8–0.9 and the pipeline from about 5.5 to about 4.0. Proposed: the exit report gives the seven-stage table, before and after, in one session. | open; raiser absent (assess-fresh3 not resumed in round 4). Drafter's note, not a disposition: the subject (the seven-stage table at the exit) is addressed in revision 4 §4 ("every stage key's median, minimum and maximum, before and after") and §5 ("The before-and-after stage table goes to perigrin") | 3e4d0c43b (a8960d05) |
+| C23 | assess-codebase | 4 | §3 ("Identical output") | Declared "Blocking". The promised identical refusal reason is false for inputs whose every derivation dies on the reduce side. | Patched-prototype probe `TestZZAssess4`: `"print $fh [];"` recognizes under V0 but not V2, and the pipeline reason moves from "precedence" to "grammar". Ten other probes unchanged. With the filter on in `recognizeSource`, `TestPrecedenceIgnoredByRecognition` fails ("refused at byte 11"). No aggregate file has this shape. | open | 6dc1d9558 (123012c1) |
+| C24 | assess-codebase | 4 | §3.3 (no amendment section) | Refinement meets the conflict mid-issue: §5's "amendment of a started issue" stop. | Revision 2's "What this decision amends" (v2 §8, v2 §2) is dropped; `grep -i amend` finds only the recovery-plan citation. `TestPrecedenceIgnoredByRecognition` encodes v2 §8. | open | 6dc1d9558 (123012c1) |
+| C25 | assess-codebase | 4 | §3.1 | §3.1's key list is incomplete, and the guard's failure path is not the one named. Low, issue-level. | The shift side also keys on the item at the rule position, `item(r, m-1)`, and on the shifted terminal f, the first terminal of the right sibling. The prototype panics in `grammar.Derived`, where §3.1 promises "refused when the tables are built". The existing `prec.err` path is available. | open | 6dc1d9558 (123012c1) |
+| C26 | assess-codebase | 4 | §3.3 | "The forest build refuses the same completions" overstates what was built. Low. | `build` filters with `c.Refuses(r, next)`, which is `Never` only. It exempts every fact with origin j, including slipper kernel items that recognition filters. The raiser judges this sound, because the forest filter judges what Build keeps. | open | 6dc1d9558 (123012c1) |
+| C27 | assess-codebase | 4 | §3 ("Recognition's contract"), §6 | The contract has no named oracle, and the §6 test extension checks nothing precedence-related. | `TestOracleCatchesSkewUnderOneOption` asserts 3 `Options` fields on `toyStmt`, which has no precedence. `oracleDisagreement` requires equality with `refRun`. It is undecided whether the filter is an `Options` field (zero value off, as in the prototype) or always on. | open | 6dc1d9558 (123012c1) |
+| C28 | assess-codebase | 4 | §3.3 (Leo) | The parent-dependent `indirob` completion could be made through Leo. Low, issue-level. | The check must skip the top link, and must refuse on a parent-tabled link, not only on `Never`. `indirob ::= scalar` is a Leo item. | open | 6dc1d9558 (123012c1) |
+| C29 | assess-codebase | 4 | §3.3 (parent table) | An implementer keying by a single item, or by bison's state, gets the parent table wrong. Low, issue-level. | The key is the chart parent state, and refusal requires every item there awaiting the LHS to be forbidden. The path scans `src.Items()` with `goTo`, bypassing `awaiting()`. | open | 6dc1d9558 (123012c1) |
+| A26 | assess-architecture | 4 | §3.3 | Marked "must fix". The same silent reversal of an accepted ruling that A1 raised. Refinement and review read v2 §8 as the only statement of precedence and find §3.3 outside it. | v2 §8: "So precedence leaves recognition (perigrin, 2026-10-30)"; "This section is the only statement of how precedence works". Also v2 §2, rule 6 ("after the chart") and rule 12 ("as precedence does"). Revision 2's §2 named the first two; revision 4 has no amendment section. v2 is on an unmerged branch. | open | 6dc1d9558 (123012c1) |
+| A27 | assess-architecture | 4 | §3 ("Recognition's contract") | An over-refusing filter on input outside the aggregate goes unseen by any recognizer-level test, and "`Expected` is unchanged" rests on an unfixed detail. | No holder of the lower bound is named, and the fuzz oracle sits in `recognize`. `Expected` re-closes with `complete(nil)` while lookahead is on (`expected.go`). §6's note on `TestOracleCatchesSkewUnderOneOption` implies an unnamed new option. | open | 6dc1d9558 (123012c1) |
+| A28 | assess-architecture | 4 | §5, §6 | §6 contradicts §3, and "faster" in §5's new stop is undefined. Low. | §6: "The forest build applies the shift side". §3.3 has Build apply the reduce side, and §3.1 the shift side. Proposed: define "faster" as stop 3's complement. | open | 6dc1d9558 (123012c1) |
+| A29 | assess-architecture | 4 | the minute | A reader arriving from the design's "Assessment:" link finds a subject path that is gone, under a title naming the retired approach. | At 6dc1d9558 the minute's ABOUTME, title and Subject line named the retired approach and the old path, and no line recorded the rename or revision 4. The drafter edited these in round 4 at the coordinator's direction (see Round 4). | open | 6dc1d9558 (123012c1) |
+| A30 | assess-architecture | 4 | §2 | Once the scratchpad is cleared, the decision's measured basis cannot be reproduced or audited, and the minute's links die. | `stateless/stateless.diff`, `combined/combined.diff` and every round's report exist only in the session scratchpad. w1 postmortem: "Keep evidence in the Records, not the scratchpad." The C1 spike kept its commit on a local branch. | open | 6dc1d9558 (123012c1) |
+| A31 | assess-architecture | 4 | §3 | If `judge` keeps calling the oracle, the referee keys stay at 0 while measuring nothing about production. | `chart.CountPrecedence`'s `referee.judge` calls `f.Constrain` (`internal/chart/precedence.go`), and `TestPrecedenceToyReferees` runs against `Constrain`. §3 does not say which path these keys judge afterwards. | open | 6dc1d9558 (123012c1) |
+| P17 | assess-pushback | 4 | §3 ("Identical output", "Recognition's contract") | A refusal reason can change with every named check green, or the first stop fires on output the recognition contract allows. | "Identical output" promises verdict, refusal reason, kept set and readings count; the differential test "compares verdict and exact kept set". When recognition refuses first, `parseStream` gives "grammar" with a byte instead of "precedence" at Byte 0. `print $fh []` is a candidate shape. | open | 6dc1d9558 (123012c1) |
+| H1 | assess-fresh4 | 4 | §3 ("Identical output"), §3.3 | The differential test as specified does not compare the reason, so the stop never fires and the change ships silently. This breaks the decision's promise, the README's refusal classes and `TestPrecedenceIgnoredByRecognition`. | `print $fh [];`: V0 `{Byte:0 Reason:precedence}`, V2 `{Byte:11 Reason:grammar}`. Also `sort $f [];`, `{ print $fh [] }`, `print $fh [] if 1;` and `my @x = (print $fh []);`, and 57 of 15,000 chain sentences. `combined/toys.txt` reports "recognition acceptance differs 30". 11,574 files gave zero V0 precedence refusals. | open | 6dc1d9558 (123012c1) |
+| H2 | assess-fresh4 | 4 | §3 ("`Expected` … is unchanged") | Error text and refusal bytes change, and refused-where and port fixtures may move. | `print $fh [ ) ;`, `sort $f [ ) ;` and `{ print $fh [ } ;`: V2's `Expected` lacks `PERLY_BRACKET_CLOSE`. `print $fh [ ] ) ;` and `print $fh [] ]`: V2 dies at node 4 against 5. `expected.go`: "a pruned completion is never needed by a later set" holds for follow-set lookahead, not for a precedence refusal. | open | 6dc1d9558 (123012c1) |
+| H3 | assess-fresh4 | 4 | §3.3 | The record does not say that §3.3 amends v2 §8. | v2 §8: "precedence leaves recognition … recognition uses perly.y's rules as written, is Boolean" (perigrin, 2026-10-30). README: "Recognition ignores both (spec §8)". | open | 6dc1d9558 (123012c1) |
+| H4 | assess-fresh4 | 4 | §3.1 | "Refused when the tables are built, never mis-parsed" overclaims. The oracle is the real guard, and the generation failure is untested. | The guard checks only that keys agree across bison's LR(0) states. Evaluator logic (`canon`, m==1 pass-through, the empty-right-child shift exemption, `rootTop`) is covered only by the oracle. No test trips generation failure. `ReduceSideOf` does not fail on mixed keys. The slipper is safe only because `;`, `}` and EOF are in no Never set (0, 0, 0), and nothing guards that. | open | 6dc1d9558 (123012c1) |
+| H5 | assess-fresh4 | 4 | §3.3 (Leo) | The Leo branch is dead or unreached code with a promise attached. | `RefusedLinks` was 0 on the aggregate and 0 on 15,000 chains. Proposed: a forcing test, as §3.2 has for multi-entry memos, or drop the branch. | open | 6dc1d9558 (123012c1) |
+| H6 | assess-fresh4 | 4 | §5 | perigrin cannot weigh about 4% against a contract change, and the first stop is only as wide as the differential test. | V1 to V2 is 0.73 to 0.69, and every output change found comes from §3.3. Proposed: report V1 beside V2, or §3.3 as its own commit and reading; widen the test to `waypoint2Refusals`, the referee's refused sentences and the port refused fixtures, comparing reason, byte and `Expected`. | open | 6dc1d9558 (123012c1) |
 
 ### Cross-references
 
@@ -187,6 +229,21 @@ The drafter lists overlaps and does not merge them. Each row keeps its own statu
 | the retirement bound | A19 | "about 5%" as `Constrain`'s share on the map-based implementation |
 | the file name | A20 | the retained name `chart-precedence-in-recognizer` |
 
+**From round 4:**
+
+| cluster | rows | shared subject |
+|---|---|---|
+| refusal reason under the recognizer filter | C23, P17, H1 (and H2 on `Expected` and the byte; round 2's C16, declared moot in round 3) | `print $fh []` shapes refused by recognition with "grammar" and a byte, where today it is "precedence" at Byte 0 |
+| amendment of v2 §8 | C24, A26, H3 (and round 1's A1 and round 2's A14 and F10) | §3.3 puts the reduce side in recognition with no amendment section |
+| recognition contract and its oracle | C27, A27 (and round 2's A13, C13, P15 and F3, declared moot in round 3 or raiser absent) | containment's lower bound has no named holder; the `Options` question |
+| width of the differential test | H6, P17 (and C23) | the test compares verdict and kept set only; widen to reason, byte, `Expected`, refused fixtures |
+| the generation-time guard | C25, H4 | keys §3.1 omits; panic against refusal; what the guard does not cover |
+| Leo under the filter | C28, H5 (and round 2's P9 and C5) | refusing a parent-tabled link; the untested branch |
+| evidence location | A30 | prototypes and reports only in the scratchpad |
+| the minute's leftovers | A29 (and A20) | title, ABOUTME and Subject after the rename |
+| what the referee keys judge | A31 | production path against the oracle |
+| §3.3's forest-side claim and §6's wording | C26, A28 | what Build actually refuses; reduce side against shift side |
+
 ### Distribution by section
 
 Counted by the first section each row names. A row naming several sections counts once. Each round's rows use that round's revision's numbering, and the numberings differ.
@@ -235,6 +292,17 @@ Counted by the first section each row names. A row naming several sections count
 | §3.4 | C19, A21, A22, G7 |
 | §4 | C21, A23, A25, G2, G8 |
 | §5 | A19 |
+
+**Round 4 (revision 4):**
+
+| section | rows |
+|---|---|
+| the minute | A29 |
+| §2 | A30 |
+| §3 | C23, C27, A27, A31, P17, H1, H2 |
+| §3.1 | C25, H4 |
+| §3.3 | C24, C26, C28, C29, A26, H3, H5 |
+| §5 | A28, H6 |
 
 ## Round 1
 
@@ -603,3 +671,122 @@ The same per process, against V0:
 V1's memo holds at most 10 eval contexts per node, and at most 24 across eval and mark.
 
 **perigrin's ruling on it:** "V2: both (Recommended)". The files were renamed to `chart-stateless-precedence` at revision 4.
+
+
+## Round 4
+
+**Revision:** 6dc1d9558, blob 123012c1a5765883ded36de157c8d0e8ac764f0a. It follows the experiments after round 3 and perigrin's ruling on them, "V2: both (Recommended)".
+
+Revision 4:
+
+- renames the design to `docs/plans/2026-11-23-chart-stateless-precedence.md` and this minute to `docs/assessments/chart-stateless-precedence.md`;
+- decides precedence without parser state (§3.1), with no hashing on the evaluation path (§3.2);
+- applies bison's reduce side before the forest (§3.3).
+
+**Dispatched:** assess-codebase, assess-architecture, assess-pushback (as raiser of P16, P1, P2, P3 and P10 only) and assess-fresh4, a new fresh participant. All four reported. assess-fresh3 was not resumed.
+
+How each confirmed the revision:
+
+- assess-codebase and assess-architecture used `git hash-object`.
+- assess-pushback used `git rev-parse` at the commit.
+- assess-fresh4 names the blob.
+
+Of this minute:
+
+- assess-fresh4 read only "Experiments after round 3".
+- assess-architecture read its header and "Experiments after round 3".
+- assess-codebase read "Experiments after round 3".
+
+**What the participants ran (recorded from their reports; the drafter has run none of it):**
+
+- **assess-codebase** applied `combined.diff` through `go test -overlay` and probed V0 against V2 on eleven inputs. It also ran the chart package's Port, Precedence, Waypoint and Refusal tests with the filter switched on.
+- **assess-fresh4** ran the prototype's `PrepareCombined` harness, which compares V1 and V2 with V0, over three input sets:
+  - 11,574 files under `/opt/corpora` and the repo;
+  - 20,083 operator sentences;
+  - 15,000 Leo-chain and nullable-context sentences.
+
+  It reports that V1 never disagreed with `Constrain`, and that V2 changed the refusal reason, the byte and `Expected` on `print $fh [ … ]` shapes (H1, H2).
+
+### Recommendations, as declared
+
+- **assess-codebase: modify.** "The design matches the prototypes, and the prototypes are exact on everything measured. Two things must change in the text":
+  - C23 (declared "Blocking");
+  - C24 (classed "Missing").
+
+  "Also in the text": C27. Issue-level: C25, C26, C28, C29.
+- **assess-architecture: modify.** "The direction is sound, and the evidence is the strongest this assessment has had. The blocking issue is that revision 4 puts precedence back into recognition without the amendment text revision 2 had (A26)."
+  - It marks A26 "must fix".
+  - It marks A27, A29, A30 and A31 "should fix", and A28 "low".
+- **assess-pushback (as raiser): modify on P17.** P16 is released; P1, P2, P3 and P10 are moot.
+- **assess-fresh4: modify.** Its list, in its own words:
+  1. "perigrin rules on one of two paths": allow precedence refusals to become grammar refusals, or "§3.3 does not ship. V1 alone gives most of the gain, at 0.73."
+  2. "Record the amendment of design §8."
+  3. "Widen the differential test as H6 describes."
+  4. "State H4's limits, and add a toy that trips the generation failure and a test that forces a Leo refusal."
+  5. "Report V1 and V2 separately in the final reading."
+
+### Blocks and stand-asides, as declared
+
+| participant | declared |
+|---|---|
+| assess-codebase | C23, "Blocking", in its own words. No stand-aside declared. |
+| assess-architecture | It calls A26 "the blocking issue" and marks it "must fix". No stand-aside declared. |
+| assess-pushback | None declared. |
+| assess-fresh4 | No block or stand-aside declared in those terms. Its list is quoted above. |
+
+The drafter converts none of these into a block or a release.
+
+### Dispositions of earlier findings, by their raisers
+
+| raiser | released | moot |
+|---|---|---|
+| assess-codebase | C17, C18, C19, C20, C21, C22 | none |
+| assess-architecture | A18, A20 (residue A29), A21, A22, A23, A24 (by ruling and measurement), A25 (optional, not adopted) | A19 (claim removed) |
+| assess-pushback | P16 | P1, P2, P3, P10 (§6) |
+
+### Raiser absent
+
+- **assess-fresh3 was not resumed**, so G1–G8 stay open with no one to release them.
+  - For each, the ledger's status says where its subject stands in revision 4's text. On the drafter's reading, revision 4's text speaks to the subjects of G2, G4, G5, G7 and G8.
+  - G1 and G3 persist in part. G6 is not stated in revision 4, and its raiser called it issue-level.
+  - The drafter decides none of them.
+- **F1–F10 remain raiser absent.** Their notes are updated to revision 4. Revision 4 reinstates the reduce-side filter, so the subjects of F2, F3, F4, F5, F6, F8 and F10 are in scope again.
+
+### The drafter's edit for A29
+
+At the coordinator's direction, the drafter changed the minute's header in round 4. It changed:
+
+- the title, to "Assessment: Chart parser: precedence without parser state";
+- both ABOUTME lines;
+- the Subject line, to the renamed path;
+- and it added the revision table, which gives old and new paths.
+
+This is housekeeping on the record, not a disposition of A29. A29 stays open for its raiser.
+
+### What each participant says remains
+
+- **assess-codebase:** C23 and C24, and C27, in the text; C25, C26, C28 and C29 issue-level.
+- **assess-architecture:** A26 (must fix); A27, A29, A30 and A31 (should fix); A28 (low).
+- **assess-pushback:** P17.
+- **assess-fresh4:** H1–H6, through the five steps quoted above.
+
+### Ruling after the round's reports
+
+Recorded verbatim, as a ruling and not a finding. Asked whether revision 5 decides V1 or V2, given H1 and H2, perigrin chose:
+
+> "V1 now, V2 measured after (Recommended)"
+
+The coordinator's statement of its meaning: ship the exact state-free filter first. The recognizer filter becomes a follow-up decision with its own measurement, once its `Expected` and refusal-reason effects are designed for.
+
+The drafter does not say which rows this ruling answers. Each row's raiser disposes of it.
+
+### Outcome
+
+**Not a fixed point.** Revision 5 is owed.
+
+- Open:
+  - C23–C29;
+  - A26–A31;
+  - P17;
+  - H1–H6.
+- Raiser absent: F1–F10 and G1–G8.
