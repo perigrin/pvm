@@ -311,3 +311,49 @@ After round 1, the author reported the following. It is the author's statement, 
 > chart-recovery's C1 spike already measured precedence values on items. Its report is at scratchpad `chart-recovery/c1-report.md`. Records 2026-11-13, and perigrin's 2026-11-14 D7 ruling: "I think the successor design is something we can revisit after §8 as written." The design does not cite it.
 
 Revision 2's header (lines 11-12) cites "the chart-recovery spike C1 (`chart-recovery` Records, 2026-11-13)", and its §1 quotes D7. The drafter records that as a fact about the text, not as a disposition of anything.
+
+## Measurement after round 2 (recorded, not a finding)
+
+Taken under perigrin's "Measure first, then decide", by the measure-constrain agent on `pu` 8c3317079. This section is recorded by the coordinator from the agent's report.
+
+**Population and protocol**
+
+- The population is the ratchet's own aggregate: `aggregateFiles` with `productionProtocol` gives 2,211 files (T1 827, guacamole 822, perlgit 562), the same list in every run.
+- Machine: 4 cores, kernel 6.18.44-fc-v726, go1.24.4. The 1-minute load was 0.27–1.39.
+- Three processes, each with 2 warm-up rounds and 9 timed rounds, long-lived, with every stage and variant interleaved within each round. Figures are the median of the three run medians, with the minimum and maximum in brackets.
+
+**Stage time, as a ratio over recursive descent's time (546 ms)**
+
+| Stage | Ratio |
+|---|---|
+| ParseWith, the whole pipeline | 5.49 (5.48–5.64) |
+| lex | 0.66 |
+| recognize | 0.94 |
+| build | 0.73 |
+| library operators | 0.09 |
+| Constrain | 2.38 (2.33–2.45) |
+| resolve | 0.20 |
+| readings | 0.15 |
+
+Constrain is 43.4% of ParseWith. The whole-pipeline ratio differs from the baseline's 4.79: the machine is different and the harness holds every forest in memory. Compare these stages with each other, not with the ratchet's keys.
+
+**Constrain on three forests**
+
+| Forest | Time, as a fraction of the as-built forest's | Packed alternatives |
+|---|---|---|
+| As built | 1 | 2,565,144 |
+| Reduce-side pruned | 0.891 (0.861–0.917) | 2,421,356 (−5.61%) |
+| Everything Constrain drops already removed | 0.877 (0.847–0.921) | 2,150,267 (−16.17%) |
+
+**Exactness of the reduce-side filter:** 0 alternatives it removes are kept by Constrain, and 0 verdicts flip.
+
+**Profile:** about 57% of Constrain's own CPU is map operations keyed by edge context. `mapassign` takes 30% (7.4 s of its 12.4 s is growth of maps made with no size hint), eval's lookups 18%, and `Precedence.walk`'s goto map 9%.
+
+**Context counts:** one Constrain pass over the same aggregate, by the coordinator, on an instrumented scratch copy.
+
+- 3,069,300 nodes.
+- 2,594,592 eval contexts over 2,221,013 nodes: 1,900,091 of those nodes have exactly one context, and none has more than 12.
+- 2,740,656 mark contexts: none more than 32 per node.
+- bison's automaton: 687 states, 237 symbols.
+
+**perigrin's ruling on it:** "We need to eliminate the map".

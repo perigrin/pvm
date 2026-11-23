@@ -1,141 +1,128 @@
-# Chart parser: bison's reduce-side precedence in the recognizer
+# Chart parser: the precedence constraint without maps
 
-Status: proposed, for crochet:assess (revision 2). Date: 2026-11-23.
+Status: proposed, for crochet:assess (revision 3). Date: 2026-11-23.
 Assessment: `docs/assessments/chart-precedence-in-recognizer.md`.
 
-The governing design is the accepted v2 design,
+This file keeps its name from revisions 1 and 2, which proposed applying
+precedence in the recognizer. Measurement retired that approach (§2), and
+perigrin retargeted the work. The governing design is the accepted v2 design,
 `docs/plans/2026-10-30-chart-parser-v2-design.md` (branch
 `docs/chart-parser-v2-design`), as amended by the Chart Parser Recovery Plan
-(perigrin's D2, 2026-11-13). This decision follows waypoint 2
-(`chart-perly-w2`, completed 2026-11-23; postmortem
-`docs/postmortems/chart-perly-w2.md`) and the chart-recovery spike C1
-(`chart-recovery` Records, 2026-11-13).
+(`docs/plans/2026-11-13-chart-parser-recovery-plan.md`, branch
+`docs/chart-recovery-plan`; perigrin's D2, 2026-11-13).
 
-## 1. Rulings this decision rests on
+## 1. Rulings
 
-All perigrin's, recorded here and, at refinement, in the milestone's Records.
+All perigrin's, of 2026-11-23, recorded here and at refinement in the
+milestone's Records.
 
-- 2026-11-14, D7: "I think the successor design is something we can revisit
-  after §8 as written". §8 as written (precedence as a constraint on the
-  forest) is now built.
-- 2026-11-14, on the v2 spec's standing: "The spec isn't in-volatile … it was
-  designed with a less perfect understanding of the problem".
-- 2026-11-23, after round 1 of this assessment: "Do just B first and let's
-  re-measure". B is §4 below; the value on items (C) is not in this decision.
-- 2026-11-23: the three stage keys of §5 are ruled in ("Rule them in").
-- 2026-11-23, the goal: exit `speed-ratio-aggregate-longlived` at or below
-  5; budget 7 days.
-- 2026-11-23: Chalk is a reference for the mechanism only ("it's
-  implemented in pure Perl and its grammar isn't as comprehensive as ours").
+- After round 1: "Do just B first and let's re-measure".
+- After round 1: "Rule them in", for the three stage keys of §5.
+- The goal: exit `speed-ratio-aggregate-longlived` at or below 5; budget 7
+  days.
+- After round 2: "Relative and ≤ 5": the exit is met when the after-reading's
+  median is below the before-reading's minimum, taken interleaved in one
+  session, and at or below 5.
+- After round 2: "Measure first, then decide".
+- On the measurement (§2): "We need to eliminate the map".
 
-## 2. What this decision amends
+## 2. The measurement
 
-v2 §8 says precedence leaves recognition (perigrin, 2026-10-30) and v2 §2
-says conflicts are kept as ambiguity and resolved in the forest. This
-decision amends both for one thing only: recognition and the forest build
-refuse a completion that bison's precedence would never make (§4). The
-forest's precedence constraint stays the authority, and is unchanged. v2 §3
-rule 12 is untouched: items stay (state, distance) and carry nothing new.
+Taken on `pu` 8c3317079 over the ratchet's own aggregate population: 2,211
+files, three quiet runs, long-lived. The full report is in the assessment
+minute.
 
-## 3. Problem and evidence
+Stage time, as a ratio over recursive descent's time on the same files:
 
-From `internal/chart/testdata/ratchet/baseline.txt` on `pu`, chart time over
-recursive descent's: `speed-ratio-aggregate-longlived` 4.7915 and
-`speed-ratio-std5k-longlived` 7.2212, one run each; the timed stages lex
-0.6551, recognize 0.7903 and forest 0.6620. Precedence, resolve and the
-readings count are untimed. The postmortem's probe put about 115 ms of
-`std5k` in the precedence constraint against about 25 ms for lex plus
-recognize.
+| Stage | Ratio |
+|---|---|
+| lex | 0.66 |
+| recognize | 0.94 |
+| build | 0.73 |
+| library operators | 0.09 |
+| the precedence constraint (`forest.Constrain`) | 2.38 |
+| resolve | 0.20 |
+| readings | 0.15 |
 
-The chart recognizes perly.y with its precedence stripped, so the forest
-holds every grouping of an operator chain and the constraint removes all but
-bison's. C1 measured what a value on items would buy: items per token 4.302
-to 4.242, while operator groupings were 47.9% of the forest's packed
-alternatives. The cost of ambiguity is in the forest, not in the items.
+The constraint is 43% of the pipeline, and costs more than lex, recognize and
+build together.
 
-`internal/chart/offline/precedence/count.sh` classifies bison 3.8.2's 1,347
-precedence resolutions of the pinned perly.y. 670 resolve as shift: bison
-never completes the rule before the token. 669 hold in every state where the
-rule completes; the one exception is rule 370, `indirob: scalar`, before
-`[`, which bison refuses after `print` and allows after `@`.
+Its cost does not follow the forest's size:
 
-## 4. The decision
+- With every alternative it drops removed beforehand, it still takes 0.88 of
+  its time.
+- With bison's reduce-side precedence applied first (revisions 1 and 2), it
+  takes 0.89.
 
-**The reduce side of bison's precedence is applied where a completion is
-made.** A completion of a rule is refused when every terminal that can
-follow it there is one before which bison's precedence never reduces that
-rule. The forest build refuses the same completions, so it never packs a
-derivation through one.
+So no earlier filter can remove much of it.
+
+The CPU profile attributes about 57% of the constraint's own time to Go map
+operations:
+
+- the `firsts` and `marked` maps keyed by node and edge context: 48%,
+  including the cost of growing maps made with no size hint;
+- the goto map in `Precedence.walk`: 9%.
+
+The keys are small and few:
+
+- Over the aggregate, 86% of the nodes the constraint evaluates are evaluated
+  in exactly one edge context. No node is evaluated in more than 12 contexts
+  or marked in more than 32.
+- bison's automaton has 687 states over 237 symbols.
+
+## 3. The decision
+
+**The precedence constraint keeps no hash map on its evaluation path.** It
+computes exactly what it computes today; only the data structures it uses
+change.
 
 What must become true:
 
-1. **Exactness.** The pipeline's verdict and its resolved forest are
-   unchanged on every corpus: what the filter removes is a subset of what
-   the precedence constraint removed. The forest digests (`forest/testdata`)
-   are unchanged.
-2. **Independence of the reference.** The plain-Earley reference recognizer
-   stays without precedence. Its contract becomes: the recognizer accepts
-   exactly what the reference accepts and the precedence constraint leaves a
-   derivation for. The fuzz oracle holds that.
-3. **Lookahead.** The filter needs the next token. With lookahead off
-   (`Options.NoLookahead`, and interleaved lexing later) it does not run, and
-   acceptance with lookahead off is unchanged: the constraint still refuses.
-   The documented promise becomes "lookahead changes recognition's
-   acceptance only by bison's reduce-side precedence".
-4. **Every resolution is accounted for.** The table is generated from the
-   grammar, by the same reading of levels and `%prec` that
-   `forest.NewPrecedence` makes. A resolution the chart's grammar cannot map
-   (for example one naming `POSTJOIN`, which the chart omits) is either on a
-   reviewed list or fails generation. The table is committed and
-   drift-checked, as the grammar tables are.
-5. **Leo and ambiguous tokens.** A Leo memo never completes a link the filter
-   refuses. A token admitting several terminals is refused only when every
-   terminal it admits, among those that can follow the rule, refuses it.
+1. **Identical output.** For every file, the constraint keeps and drops the
+   same alternatives and gives the same verdict as before.
+   `resolved-forest-digest.golden` and `forest-digest.golden` are unchanged,
+   and so are every ratchet count key and the referee's `precedence-disagree`
+   and `precedence-covered`.
+2. **No map on the evaluation path.** No hash map is read or written in
+   `Constrain` or in the `Precedence` lookups it calls per derivation.
+   Structures sized by the forest are allocated once per call, not grown
+   entry by entry.
+3. **A slow node stays correct.** The design is chosen for the measured
+   shape, few contexts per node, and must stay correct when a node has many.
+   A file that makes it slow is a speed finding, never a wrong answer.
+4. **The constraint is timed.** The three stage keys ruled in are taken on
+   `pu` before the change: `speed-stage-precedence-aggregate-longlived`,
+   `speed-stage-resolve-aggregate-longlived` and
+   `speed-stage-readings-aggregate-longlived`. They are reported timing keys,
+   like every `speed-` key: never gated and never compared with the baseline.
 
-## 5. Measurement
+## 4. Exit and stops
 
-The three stage keys are taken on `pu` first, before any recognizer change:
-`speed-stage-precedence-aggregate-longlived`,
-`speed-stage-resolve-aggregate-longlived` and
-`speed-stage-readings-aggregate-longlived`. They are reported timing keys,
-like every `speed-` key: never gated and never compared with the baseline.
+Speed is read as chart-recovery's verdict was. Take three quiet measurements
+of the before-state and the after-state, interleaved in one session at the
+end, with the commit, load, core count and kernel recorded for each. Report
+each key's median, minimum and maximum. "Quiet" means a 1-minute load at or
+below the core count.
 
-Speed is read as chart-recovery's verdict was: three quiet measurements in
-one session, each key's median, minimum and maximum, before (on `pu` with the
-stage keys) and after (with this decision built), recorded in Records.
+**Exit:** §3 built, its first property holding, and perigrin's relative exit
+met by `speed-ratio-aggregate-longlived`.
 
-Held at their baseline throughout: `oracle-wrong`,
-`rd-accepted-chart-refused`, `chart-accepted-both-refused`,
-`precedence-disagree`, `precedence-uncovered-unlisted`, `leo-disagree`,
-`tables-drift`, `ledger-gaps` and `collapse-over-limit` at 0;
-`lex-unmapped` not above 9; `oracle-exact-chart` reported. `items-per-token`
-and `set-reuse` are counted over the files recognition accepts, so a change
-in them partly reflects which files are counted, and is reported with that
-caveat.
+**Stops,** reported to perigrin and never tuned toward:
 
-## 6. Exit, stops and what the result decides
+- any output in §3.1 changes;
+- the after-reading's median `speed-stage-precedence-aggregate-longlived` is
+  not below the before-reading's minimum;
+- anything that would need a criterion change or an amendment of a started
+  issue;
+- twice the budget.
 
-Exit: decision §4 built, every held key above unchanged, and the
-after-reading's median `speed-ratio-aggregate-longlived` at or below 5.
+## 5. Out of scope
 
-Stops, reported to perigrin and never tuned toward:
+- Precedence in the recognizer, and a value on items: revisions 1 and 2. The
+  measurement bounds their gain at about 5% of the pipeline. Round 1's and
+  round 2's findings on them stay in the minute.
+- Changing what the constraint decides, including its kept-in-one-context
+  shortcut.
+- Speed work on any other stage.
 
-- a held key moves, or a forest digest changes;
-- a reduce-side resolution the filter cannot apply without the parser state,
-  beyond `indirob` before `[`;
-- the after-reading's median `speed-stage-recognize-aggregate-longlived`
-  above the before-reading's maximum, or its median
-  `speed-ratio-aggregate-longlived` not below the before-reading's minimum.
-
-The result decides one thing: perigrin's ruling on whether the shift side,
-the value on items (C), is designed next. Round 1's findings that concern
-only the value (C1, C4, C5, C8, C9, P1, P2, P3, P10 of the minute) carry to
-that design.
-
-## 7. Out of scope
-
-The value on items; removing or changing the forest's precedence
-constraint; grammar rewriting, which grows the grammar, Earley's cost
-(perigrin, 2026-11-23); speed work on resolve and the readings count;
-interleaved lexing and M2. Only `internal/chart` changes, plus this
-document and its assessment.
+Only `internal/chart` changes, plus this document and its assessment.
