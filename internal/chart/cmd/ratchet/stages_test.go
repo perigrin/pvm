@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -146,13 +147,7 @@ func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := slices.Sorted(func(yield func(string) bool) {
-		for p := range stageSrcs {
-			if !yield(p) {
-				return
-			}
-		}
-	})
+	files := slices.Sorted(maps.Keys(stageSrcs))
 	afterConstraint := map[string]string{}
 	for _, p := range []string{"resolve.pl", "ok.pl"} {
 		afterConstraint[p] = forestDigest(libopForest(t, tab, stageSrcs[p], forest.Scope{}, prec))
@@ -168,23 +163,16 @@ func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 		}
 	})
 	var now time.Duration
-	visits := 0
-	p := fakeStageProtocol(&now, nil)
-	p.Ref = func() Runner { return func(string) { visits++; now += 10 } }
 	var stderr strings.Builder
-	p.Stderr = &stderr
+	visits := 0
+	p := fakeStageProtocol(&now, &stderr)
+	p.Ref = func() Runner { return func(string) { visits++; now += 10 } }
 	m := map[string]string{}
 	if err := measurePipelineStages(p, tab, files, stageSrcs, noScope, m); err != nil {
 		t.Fatal(err)
 	}
 	for i, want := range [][]string{{"ok.pl", "prec.pl", "resolve.pl"}, {"ok.pl", "resolve.pl"}, {"ok.pl"}} {
-		if got := slices.Sorted(func(yield func(string) bool) {
-			for p := range seen[i] {
-				if !yield(p) {
-					return
-				}
-			}
-		}); !slices.Equal(got, want) {
+		if got := slices.Sorted(maps.Keys(seen[i])); !slices.Equal(got, want) {
 			t.Errorf("%s ran on %q, want %q", stageKeys[i], got, want)
 		}
 		line := fmt.Sprintf("chart-ratchet: %s: %d of 5 files refused before the stage", stageKeys[i], 5-len(want))
