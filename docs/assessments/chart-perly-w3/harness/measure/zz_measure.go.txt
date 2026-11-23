@@ -1,0 +1,353 @@
+package forest
+
+// Scratch measurement harness, not for the repository: ParseWith split into its stages, each stage's input
+// prepared outside the timed span, and Constrain on three forests (as built, reduce-side pruned, its own output).
+// The reduce-side filter is the one in assess-w3's zz_reduceside_test.go probe, copied unchanged in logic.
+
+import (
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+// Stages, in ParseWith's order. LibOps (libraryOperators) sits between Build and Constrain in ParseWith.
+const (
+	StLex = iota
+	StRecognize
+	StBuild
+	StLibOps
+	StConstrain
+	StResolve
+	StReadings
+	StConstrainPruned // Constrain on the reduce-side pruned forest
+	StConstrainIdeal  // Constrain on Constrain's own output
+	NStages
+)
+
+var StageNames = [NStages]string{"lex", "recognize", "build", "libops", "constrain", "resolve", "readings", "constrain-reducepruned", "constrain-ownoutput"}
+
+type mfile struct {
+	src   []byte
+	scope Scope
+	s     *lex.Stream
+	l     *lex.Lattice[lex.None]
+	c     *recognize.Chart
+	reach int              // stages this file runs in ParseWith (StLex..StReadings), as ParseWith stops early
+	in    [NStages]*Forest // the forest a forest stage starts from; nil where the file does not run it
+}
+
+// Stats are counts over the files that reach Constrain.
+type Stats struct {
+	Files, ReachConstrain, ConstrainAccepted                   int
+	AltsBuilt, AltsPruned, AltsIdeal                           int
+	ReduceDirect, ReduceCascade, ConstrainDropped              int
+	Violations, VerdictFlips, RootDeadReduce, ConstrainRefused int
+	AltsBuiltRefused                                           int
+	Reach                                                      [StReadings + 1]int
+}
+
+type Measure struct {
+	tab   *grammar.Tables
+	prec  *Precedence
+	stmt  int
+	files []*mfile
+	Stats Stats
+}
+
+func cloneF(f *Forest) *Forest {
+	g := *f
+	g.Nodes = append([]Node(nil), f.Nodes...)
+	g.Alts = append([]Alt(nil), f.Alts...)
+	return &g
+}
+
+func countAlts(f *Forest) int {
+	n := 0
+	for _, nd := range f.Nodes {
+		for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+			n++
+		}
+	}
+	return n
+}
+
+func binHas(s []int32, x int32) bool {
+	lo, hi := 0, len(s)
+	for lo < hi {
+		m := (lo + hi) / 2
+		if s[m] < x {
+			lo = m + 1
+		} else {
+			hi = m
+		}
+	}
+	return lo < len(s) && s[lo] == x
+}
+
+// never is the probe's global never-reduce relation: rule r is reduced before terminal x in some state's
+// lookahead, every such (state, r, x) is a shift/reduce conflict that precedence resolves shift or refuse.
+func neverReduce(p *Precedence, tab *grammar.Tables) (never, inLA [][]bool) {
+	nr, nt := len(p.rule), tab.EOF+1
+	cand, bad := make([][]bool, nr), make([][]bool, nr)
+	inLA, never = make([][]bool, nr), make([][]bool, nr)
+	for r := range nr {
+		cand[r], bad[r], inLA[r], never[r] = make([]bool, nt), make([]bool, nt), make([]bool, nt), make([]bool, nt)
+	}
+	for _, st := range p.states {
+		for i, r := range st.reduce {
+			for _, x := range st.la[i] {
+				inLA[r][x] = true
+				res := p.resolve(int(r), int(x))
+				if binHas(st.shift, x) && (res == shift || res == refuse) {
+					cand[r][x] = true
+				} else {
+					bad[r][x] = true
+				}
+			}
+		}
+	}
+	for r := range nr {
+		for x := range nt {
+			never[r][x] = cand[r][x] && !bad[r][x]
+		}
+	}
+	return never, inLA
+}
+
+// Prepare runs the pipeline once per file outside any span, keeping each stage's input, and counts alternatives.
+func Prepare(tab *grammar.Tables, srcs [][]byte, scopes []Scope) *Measure {
+	pp := grammar.Derived(tab, buildParsePrecedence)
+	if pp.err != nil {
+		panic(pp.err)
+	}
+	m := &Measure{tab: tab, prec: pp.p, stmt: grammar.Derived(tab, buildFactsGrammar).fullstmt}
+	never, inLA := neverReduce(m.prec, tab)
+	rec := recognize.New(tab, recognize.Options{})
+	st := &m.Stats
+	for i, src := range srcs {
+		mf := &mfile{src: src, scope: scopes[i]}
+		m.files = append(m.files, mf)
+		st.Files++
+		mf.s, _ = lex.Lex(src, tab.Tokens)
+		mf.l = lex.Linear(mf.s)
+		mf.reach = StRecognize
+		c, err := recognize.Recognize(rec, mf.l)
+		if err != nil || !c.Accepted() {
+			continue
+		}
+		mf.c = c
+		mf.reach = StBuild
+		f := Build(tab, c, mf.l)
+		mf.reach = StLibOps
+		mf.in[StLibOps] = cloneF(f)
+		if libraryOperators(tab, f, mf.s, src, mf.scope) >= 0 {
+			continue
+		}
+		mf.reach = StConstrain
+		st.ReachConstrain++
+		mf.in[StConstrain] = cloneF(f)
+
+		// reduce-side pruning (probe logic): a symbol node's alternative of rule r is dead when every terminal
+		// that can follow its span and is in r's lookahead somewhere is one r never reduces before; then cascade.
+		termsAt := func(j int) []int {
+			if j < len(mf.l.Edges) {
+				return tab.TerminalSets[mf.l.Edges[j].Token.TerminalSet]
+			}
+			return []int{tab.EOF}
+		}
+		altDead, nodeDead := make([]bool, len(f.Alts)), make([]bool, len(f.Nodes))
+		for _, nd := range f.Nodes {
+			if nd.Sym < 0 || nd.Alt == 0 {
+				continue
+			}
+			ts := termsAt(int(nd.To))
+			for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+				rule := int(f.Alts[a].Rule)
+				some, all := false, true
+				for _, x := range ts {
+					if !inLA[rule][x] {
+						continue
+					}
+					some = true
+					if !never[rule][x] {
+						all = false
+					}
+				}
+				if some && all {
+					altDead[a] = true
+					st.ReduceDirect++
+				}
+			}
+		}
+		for changed := true; changed; {
+			changed = false
+			for n, nd := range f.Nodes {
+				if nd.Alt == 0 || nodeDead[n] {
+					continue
+				}
+				live := false
+				for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+					al := f.Alts[a]
+					if !altDead[a] && ((al.Left != 0 && nodeDead[al.Left]) || (al.Right != 0 && nodeDead[al.Right])) {
+						altDead[a] = true
+						changed = true
+					}
+					if !altDead[a] {
+						live = true
+					}
+				}
+				if !live {
+					nodeDead[n] = true
+					changed = true
+				}
+			}
+		}
+		pruned := cloneF(f)
+		dead := 0
+		for n := range pruned.Nodes {
+			pa := &pruned.Nodes[n].Alt
+			for *pa != 0 {
+				if altDead[*pa] {
+					dead++
+					*pa = pruned.Alts[*pa].Next
+				} else {
+					pa = &pruned.Alts[*pa].Next
+				}
+			}
+		}
+		st.ReduceCascade += dead
+		built := countAlts(f)
+		st.AltsBuilt += built
+
+		g := cloneF(f)
+		ok := g.Constrain(m.prec)
+		kept := make([]bool, len(f.Alts))
+		if ok {
+			for _, nd := range g.Nodes {
+				for a := nd.Alt; a != 0; a = g.Alts[a].Next {
+					kept[a] = true
+				}
+			}
+		}
+		for _, nd := range f.Nodes {
+			for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+				if altDead[a] && kept[a] {
+					st.Violations++
+				}
+			}
+		}
+		rootDead := nodeDead[f.Root]
+		if rootDead {
+			st.RootDeadReduce++
+		} else {
+			mf.in[StConstrainPruned] = pruned
+			st.AltsPruned += countAlts(pruned)
+			if okP := cloneF(pruned).Constrain(m.prec); okP != ok {
+				st.VerdictFlips++
+			}
+		}
+		if rootDead && ok {
+			st.VerdictFlips++
+		}
+		if !ok {
+			st.ConstrainRefused++
+			st.AltsBuiltRefused += built // the file is refused: kept out of the dropped count
+			continue
+		}
+		st.ConstrainAccepted++
+		ideal := countAlts(g)
+		st.ConstrainDropped += built - ideal
+		st.AltsIdeal += ideal
+		mf.in[StConstrainIdeal] = cloneF(g)
+		mf.reach = StResolve
+		mf.in[StResolve] = cloneF(g)
+		if resolve(tab, g, mf.s, src, mf.scope) >= 0 {
+			continue
+		}
+		mf.reach = StReadings
+		mf.in[StReadings] = g
+	}
+	for _, mf := range m.files {
+		for s := StLex; s <= mf.reach && s <= StReadings; s++ {
+			st.Reach[s]++
+		}
+	}
+	return m
+}
+
+// Inputs is a fresh copy of every file's input forest for a mutating stage, made outside the span.
+func (m *Measure) Inputs(stage int) []*Forest {
+	out := make([]*Forest, len(m.files))
+	for i, mf := range m.files {
+		if f := mf.in[stage]; f != nil {
+			if stage == StReadings {
+				out[i] = f // countReadings writes nothing to the forest it counts
+			} else {
+				out[i] = cloneF(f)
+			}
+		}
+	}
+	return out
+}
+
+// Pass runs stage over every file that reaches it. in is Inputs(stage) for forest stages.
+func (m *Measure) Pass(stage int, in []*Forest) {
+	tab := m.tab
+	switch stage {
+	case StLex:
+		for _, mf := range m.files {
+			s, _ := lex.Lex(mf.src, tab.Tokens)
+			lex.Linear(s)
+		}
+	case StRecognize:
+		r := recognize.New(tab, recognize.Options{}) // long-lived: one per pass, inside the span as the ratchet's
+		for _, mf := range m.files {
+			recognize.Recognize(r, mf.l)
+		}
+	case StBuild:
+		for _, mf := range m.files {
+			if mf.c != nil {
+				Build(tab, mf.c, mf.l)
+			}
+		}
+	case StLibOps:
+		for i, mf := range m.files {
+			if in[i] != nil {
+				libraryOperators(tab, in[i], mf.s, mf.src, mf.scope)
+			}
+		}
+	case StConstrain, StConstrainPruned, StConstrainIdeal:
+		for _, f := range in {
+			if f != nil {
+				f.Constrain(m.prec)
+			}
+		}
+	case StResolve:
+		for i, mf := range m.files {
+			if in[i] != nil {
+				resolve(tab, in[i], mf.s, mf.src, mf.scope)
+			}
+		}
+	case StReadings:
+		for _, f := range in {
+			if f != nil {
+				f.countReadings(m.stmt)
+			}
+		}
+	}
+}
+
+// Full is one long-lived ParseWith pass, as the ratchet's pipelineSide.
+func (m *Measure) Full() {
+	r := recognize.New(m.tab, recognize.Options{})
+	for _, mf := range m.files {
+		ParseWith(m.tab, r, mf.src, mf.scope)
+	}
+}
+
+// ConstrainOnly runs Constrain on fresh copies of the as-built forests n times (for the profile).
+func (m *Measure) ConstrainOnly(n int) {
+	for range n {
+		m.Pass(StConstrain, m.Inputs(StConstrain))
+	}
+}

@@ -1,0 +1,33 @@
+=== RUN   TestZZMeasure
+chart-ratchet: aggregate excludes internal/chart/testdata/std5k.pl (2.2% of RD's population time)
+chart-ratchet: aggregate excludes internal/psc/testdata/latency/edit5k.pl (2.3% of RD's population time)
+chart-ratchet: aggregate excludes T1/code_too_large.t (14.2% of RD's population time)
+chart-ratchet: aggregate share T1 33.5%
+chart-ratchet: aggregate share guacamole 5.3%
+chart-ratchet: aggregate share perlgit 61.2%
+    zz_measure_test.go:68: corpus files 2501 (with perlgit 620); population 2214; aggregate 2211 files, 4851485 bytes, sha256 639a1a6bff14b764306a01ff5171027ebdcf53c977677022bc8b232c71ab5ffb
+    zz_measure_test.go:68: stats {Files:2211 ReachConstrain:2211 ConstrainAccepted:2211 AltsBuilt:2565144 AltsPruned:2421356 AltsIdeal:2150267 ReduceDirect:32364 ReduceCascade:143788 ConstrainDropped:414877 Violations:0 VerdictFlips:0 RootDeadReduce:0 ConstrainRefused:0 AltsBuiltRefused:0 Reach:[2211 2211 2211 2211 2211 2211 2211]}
+    zz_measure_test.go:68: round 0: [571.808287ms 3.043913093s 333.039406ms 521.238898ms 416.637982ms 50.275074ms 1.310382769s 109.211067ms 79.752001ms 1.210426356s 1.167713889s]
+    zz_measure_test.go:68: round 1: [529.355879ms 2.997469233s 346.20895ms 491.55297ms 380.240962ms 48.594941ms 1.260723688s 101.727206ms 82.706477ms 1.135469442s 1.12647722s]
+    zz_measure_test.go:68: round 2: [566.516354ms 3.105702276s 339.323001ms 473.029565ms 381.613355ms 49.347094ms 1.246548615s 106.905492ms 84.149498ms 1.243989816s 1.26655747s]
+    zz_measure_test.go:68: round 3: [552.694445ms 3.118957291s 352.417069ms 503.821563ms 408.686943ms 54.164571ms 1.316276941s 100.630162ms 79.55093ms 1.108978394s 1.247172975s]
+    zz_measure_test.go:68: round 4: [547.523489ms 3.047257588s 341.459933ms 464.014144ms 370.666982ms 50.199703ms 1.274925479s 103.015382ms 73.347829ms 1.233464879s 1.108791951s]
+    zz_measure_test.go:68: round 5: [537.676936ms 3.059416324s 372.638219ms 512.697854ms 393.111455ms 53.298272ms 1.33018714s 109.457358ms 87.424246ms 1.248967037s 1.224393462s]
+    zz_measure_test.go:68: round 6: [555.565027ms 3.02106618s 358.167195ms 522.832119ms 406.581021ms 49.503889ms 1.255839981s 109.055808ms 72.675164ms 1.114183304s 1.165846733s]
+    zz_measure_test.go:68: round 7: [537.840964ms 2.891611749s 350.830798ms 553.895312ms 439.071455ms 56.595688ms 1.23821175s 104.717506ms 72.70576ms 1.135837916s 1.095085849s]
+    zz_measure_test.go:68: round 8: [530.423185ms 2.922206945s 347.173625ms 482.054793ms 383.932395ms 48.81613ms 1.240857079s 105.324527ms 86.083939ms 1.122392877s 1.16024404s]
+    zz_measure_test.go:68: round 9: [533.374838ms 2.859820739s 438.91745ms 508.472563ms 379.227054ms 62.97909ms 1.342516295s 107.989507ms 78.059664ms 1.131281265s 1.156747568s]
+    zz_measure_test.go:68: round 10: [551.972585ms 2.943756839s 355.37715ms 492.233457ms 409.595642ms 49.05517ms 1.28454445s 114.895399ms 80.673698ms 1.308920894s 1.173066472s]
+    zz_measure_test.go:68: RESULT parsewith ratio 5.4821 (round min 5.3332 max 5.6901) ms 3021.1 overConstrain 2.3550
+    zz_measure_test.go:68: RESULT lex ratio 0.6447 (round min 0.5990 max 0.8229) ms 352.4 overConstrain 0.2798
+    zz_measure_test.go:68: RESULT recognize ratio 0.9116 (round min 0.8350 max 1.0298) ms 503.8 overConstrain 0.3832
+    zz_measure_test.go:68: RESULT build ratio 0.7311 (round min 0.6736 max 0.8164) ms 393.1 overConstrain 0.3094
+    zz_measure_test.go:68: RESULT libops ratio 0.0920 (round min 0.0871 max 0.1181) ms 50.2 overConstrain 0.0396
+    zz_measure_test.go:68: RESULT constrain ratio 2.3285 (round min 2.2004 max 2.5170) ms 1274.9 overConstrain 1.0000
+    zz_measure_test.go:68: RESULT resolve ratio 0.1963 (round min 0.1821 max 0.2082) ms 106.9 overConstrain 0.0846
+    zz_measure_test.go:68: RESULT readings ratio 0.1462 (round min 0.1308 max 0.1626) ms 79.6 overConstrain 0.0604
+    zz_measure_test.go:68: RESULT constrain-reducepruned ratio 2.1210 (round min 2.0055 max 2.3714) ms 1135.8 overConstrain 0.9173
+    zz_measure_test.go:68: RESULT constrain-ownoutput ratio 2.1687 (round min 2.0251 max 2.2772) ms 1165.8 overConstrain 0.9205
+    zz_measure_test.go:68: RESULT rd ms 547.5
+--- PASS: TestZZMeasure (143.43s)
+PASS

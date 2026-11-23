@@ -1,0 +1,241 @@
+package forest
+
+// Scratch (round-4 assessor): V1/V2 against V0 on crafted sources and on files outside the aggregate.
+
+import (
+	"bufio"
+	"fmt"
+	"math/rand"
+	"os"
+	"strings"
+	"testing"
+)
+
+func fresh4Run(t *testing.T, label string, srcs [][]byte, names []string) {
+	tab := committedTables(t)
+	const chunk = 200
+	tot := map[string]int{}
+	var diffs []string
+	for lo := 0; lo < len(srcs); lo += chunk {
+		hi := min(lo+chunk, len(srcs))
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// retry one by one to isolate the panic
+					for i := lo; i < hi; i++ {
+						func() {
+							defer func() {
+								if r := recover(); r != nil {
+									tot["panic"]++
+									diffs = append(diffs, fmt.Sprintf("PANIC %s: %v", names[i], r))
+								}
+							}()
+							m := PrepareCombined(tab, srcs[i:i+1], make([]Scope, 1), names[i:i+1])
+							fresh4Acc(tot, &diffs, &m.Stats)
+						}()
+					}
+				}
+			}()
+			m := PrepareCombined(tab, srcs[lo:hi], make([]Scope, hi-lo), names[lo:hi])
+			fresh4Acc(tot, &diffs, &m.Stats)
+		}()
+	}
+	reasons := map[string]int{}
+	for i, s := range srcs {
+		func() {
+			defer func() { recover() }()
+			_, r := Parse(tab, s, Scope{})
+			reasons[r.Reason]++
+			if r.Reason == "precedence" && len(precEx) < 15 {
+				precEx = append(precEx, names[i])
+			}
+		}()
+	}
+	t.Logf("%s: V0 reasons %v; precedence examples %v", label, reasons, precEx)
+	precEx = nil
+	t.Logf("%s: %d sources; %v", label, len(srcs), tot)
+	for i, d := range diffs {
+		if i < 60 {
+			t.Logf("  %s", d)
+		}
+	}
+}
+
+var precEx []string
+
+func fresh4Acc(tot map[string]int, diffs *[]string, st *CStats) {
+	tot["files"] += st.Files
+	tot["pipeV1"] += st.PipelineDiff[1]
+	tot["pipeV2"] += st.PipelineDiff[2]
+	tot["readV1"] += st.ReadingsDiff[1]
+	tot["readV2"] += st.ReadingsDiff[2]
+	tot["verdV1"] += st.VerdictDiff[1]
+	tot["verdV2"] += st.VerdictDiff[2]
+	tot["keptV1"] += st.KeptDiff[1]
+	tot["keptV2"] += st.KeptDiff[2]
+	tot["accept"] += st.AcceptDiff
+	tot["acceptPipeAccepts"] += st.AcceptDiffPipelineAccepts
+	tot["empty"] += st.EmptyNodesV2
+	tot["reachV0"] += st.ReachConstrain[0]
+	n := 0
+	for _, r := range st.Rec {
+		if r[0] {
+			n++
+		}
+	}
+	tot["recognizedV0"] += n
+	*diffs = append(*diffs, st.Diffs...)
+}
+
+func TestZZFresh4Files(t *testing.T) {
+	list := os.Getenv("F4_LIST")
+	if list == "" {
+		t.Skip()
+	}
+	fh, err := os.Open(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var srcs [][]byte
+	var names []string
+	sc := bufio.NewScanner(fh)
+	for sc.Scan() {
+		b, err := os.ReadFile(sc.Text())
+		if err != nil || len(b) > 300000 {
+			continue
+		}
+		srcs, names = append(srcs, b), append(names, sc.Text())
+	}
+	fresh4Run(t, list, srcs, names)
+}
+
+func TestZZFresh4Crafted(t *testing.T) {
+	lines := []string{
+		"1 == 2 == 3;",
+		"1 < 2 < 3;",
+		"1 .. 2 .. 3;",
+		"-e -f $x;",
+		"my $x [0];",
+		"my $x {1};",
+		"my ($x) [0];",
+		"print $fh [1,2];",
+		"print {$fh} [1];",
+		"print $fh {1};",
+		"print STDOUT [1];",
+		"sort $f [1];",
+		"sort $f {1};",
+		"local $x [0];",
+		"our @a [0];",
+		"my %h {1};",
+		"$x = my $y [0];",
+		"f(my $x [0]);",
+		"{ my $x }",
+		"{ my $x [0] }",
+		"{ print $fh [1] }",
+		"{ $a ** $b }",
+		"{ $a ** $b ** $c }",
+		"{ 1 == 2 }",
+		"{ 1 == 2 == 3 }",
+		"{ -$x ** 2 }",
+		"{ !$x }",
+		"{ $x = $y ? $z : $w }",
+		"{ not $x }",
+		"{ defined $x }",
+		"{ ref $x }",
+		"{ $x++ }",
+		"{ my $x {1} }",
+		"$x = { my $y };",
+		"$x = sub { $a <=> $b };",
+		"sort { $a <=> $b } @x",
+		"$x ? $y : $z ? $w : $v;",
+		"$x = $y = $z;",
+		"$x->[0]{1}[2];",
+		"$x->${\\ 'y'};",
+		"defined $x ? 1 : 0;",
+		"ref $x eq 'HASH';",
+		"-$x ** 2;",
+		"!$x == 1;",
+		"\\$x->[0];",
+		"$x x 3 x 4;",
+		"$x =~ s/a/b/r =~ tr/a/b/r;",
+		"print { $fh } $x, $y;",
+		"print $fh $x, $y;",
+		"return my $x [0];",
+		"my $x = 1 if $y;",
+		"do { 1 } while $x;",
+		"$x = do { 1 } + 2;",
+		"$x = (1) [0];",
+		"$x = (1,2) [0];",
+		"$x = (my $y) [0];",
+		"@x = (sort $f) [0];",
+		"$x = { 1 => 2 } -> {1};",
+		"$x lt $y lt $z;",
+		"$x <=> $y <=> $z;",
+		"$x =~ $y =~ $z;",
+		"-f -d $x;",
+		"stat _ -f;",
+		"$x->@*;",
+		"my $x; my $y",
+		"my $x\n}",
+		"exit 1 }",
+		"$x **",
+		"",
+		";",
+		";;;",
+		"{}",
+		"{;}",
+		"sub f { }",
+		"sub f { my $x }",
+		"sub f { $a ** $b }",
+		"sub f { return $a ** $b }",
+		"if ($x) { $a == $b }",
+		"if ($x) { $a == $b == $c }",
+		"$x = [ my $y [0] ];",
+		"$x = { my $y {0} };",
+		"@x = map { my $y [0] } @z;",
+		"@x = grep { $_ == 1 == 2 } @z;",
+	}
+	var srcs [][]byte
+	var names []string
+	for _, l := range lines {
+		srcs, names = append(srcs, []byte(l)), append(names, fmt.Sprintf("%q", l))
+	}
+	fresh4Run(t, "handcrafted", srcs, names)
+
+	// random operator soup
+	terms := []string{"$x", "$y", "1", "@a", "%h", "f()", "(1)", "[1]", "{1}", "\"s\"", "$h{1}", "$a[0]", "$r->[0]", "my $m", "my ($p)", "local $l", "our $o", "_", "STDOUT", "$fh", "{$fh}"}
+	pre := []string{"-", "!", "\\", "~", "+", "not ", "defined ", "ref ", "-e ", "-f ", "++", "--", "scalar ", "print ", "print $fh ", "print {$fh} ", "sort ", "sort $s ", "return ", "my ", "lc ", "exists ", "delete ", "rand ", "-M "}
+	bin := []string{"+", "-", "*", "/", "**", "==", "!=", "<=>", "<", ">", "lt", "eq", "cmp", "&&", "||", "//", "and", "or", "xor", "=", "+=", "**=", "..", "...", "=~", "!~", "x", ".", ",", "=>", "?", ":", "->", "&", "|", "^", "<<", ">>", "isa"}
+	post := []string{"++", "--", "[0]", "{1}", "->[0]", "->{1}", "->()", "(1)", " [0]", " {1}"}
+	rng := rand.New(rand.NewSource(4))
+	var gen func(d int) string
+	gen = func(d int) string {
+		var b strings.Builder
+		for i := rng.Intn(2); i > 0; i-- {
+			b.WriteString(pre[rng.Intn(len(pre))])
+		}
+		if d > 0 && rng.Intn(4) == 0 {
+			b.WriteString("(" + gen(d-1) + ")")
+		} else {
+			b.WriteString(terms[rng.Intn(len(terms))])
+		}
+		if rng.Intn(3) == 0 {
+			b.WriteString(post[rng.Intn(len(post))])
+		}
+		if d > 0 && rng.Intn(3) > 0 {
+			b.WriteString(" " + bin[rng.Intn(len(bin))] + " " + gen(d-1))
+		}
+		return b.String()
+	}
+	n := 20000
+	if s := os.Getenv("F4_N"); s != "" {
+		fmt.Sscan(s, &n)
+	}
+	srcs, names = nil, nil
+	wraps := []string{"%s;", "{ %s }", "$z = %s;", "f(%s);", "if (%s) { 1 }", "sub { %s }", "[ %s ]", "%s"}
+	for i := 0; i < n; i++ {
+		s := fmt.Sprintf(wraps[rng.Intn(len(wraps))], gen(3))
+		srcs, names = append(srcs, []byte(s)), append(names, fmt.Sprintf("%q", s))
+	}
+	fresh4Run(t, "random", srcs, names)
+}

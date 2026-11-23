@@ -1,0 +1,118 @@
+package forest
+
+// Scratch (combined experiment): V1 and V2 against V0 on every toy sentence, under every option set and
+// alternative order, and against bison's verdict and grouping.
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func toyGrouping(f *Forest) string {
+	trees, _ := f.Derivations(f.Root, 2)
+	if len(trees) != 1 {
+		return fmt.Sprintf("ambiguous (%d derivations)", len(trees))
+	}
+	var g []string
+	var walk func(*Tree)
+	walk = func(tr *Tree) {
+		for _, k := range tr.Kids {
+			walk(k)
+		}
+		if tr.Rule >= 0 {
+			g = append(g, fmt.Sprintf("%d:%d-%d", tr.Rule, tr.From, tr.To))
+		}
+	}
+	walk(trees[0])
+	return strings.Join(g, ",")
+}
+
+func TestZZVariantToys(t *testing.T) {
+	total, d1, d2, acc, ref1, ref2, accDiff, empty := 0, 0, 0, 0, 0, 0, 0, 0
+	for _, name := range toyNames {
+		ty := loadToy(t, name)
+		sl := NewStateless(ty.prec)
+		rs := ReduceSideOf(ty.prec)
+		nNever, nPar := 0, 0
+		for r := range rs.Never {
+			if rs.Never[r] != nil {
+				nNever++
+			}
+			if rs.Parent[r] != nil {
+				nPar++
+			}
+		}
+		t.Logf("toy %s: rules with Never %d, with Parent %d", name, nNever, nPar)
+		for _, s := range ty.sentences {
+			for _, opts := range optionSets {
+				o2 := opts
+				o2.Reduce = rs
+				f0, c0, _ := toyForest(t, ty.tab, s.words, opts)
+				f2, c2, _ := toyForest(t, ty.tab, s.words, o2)
+				if c0.Accepted() != c2.Accepted() {
+					accDiff++
+					if f0 != nil && CloneF(f0).Constrain(ty.prec) {
+						t.Errorf("ACCEPT-WRONG: V2 recognition refuses what V0's pipeline accepts")
+					}
+					t.Logf("ACCEPT %s %q opts %+v: V0 %v V2 %v", name, strings.Join(s.words, " "), opts, c0.Accepted(), c2.Accepted())
+				}
+				if f0 == nil {
+					continue
+				}
+				for _, rev := range []bool{false, true} {
+					a, b := CloneF(f0), CloneF(f0)
+					var c *Forest
+					if f2 != nil {
+						c = CloneF(f2)
+						empty += EmptySymbolNodes(c, ty.tab)
+					}
+					if rev {
+						reverseAlts(a)
+						reverseAlts(b)
+						if c != nil {
+							reverseAlts(c)
+						}
+					}
+					ok0, ok1 := a.Constrain(ty.prec), b.ConstrainV1(sl)
+					ok2 := false
+					if c != nil {
+						ok2 = c.ConstrainV1(sl)
+					}
+					k0 := KeptKey(a, ok0)
+					total++
+					if ok0 != ok1 || !slices.Equal(k0, KeptKey(b, ok1)) {
+						d1++
+						t.Errorf("V1 %s %q opts %+v rev %v: V0 %v V1 %v", name, strings.Join(s.words, " "), opts, rev, ok0, ok1)
+					}
+					if ok0 != ok2 || !slices.Equal(k0, KeptKey(c, ok2)) {
+						d2++
+						t.Errorf("V2 %s %q opts %+v rev %v: V0 %v V2 %v", name, strings.Join(s.words, " "), opts, rev, ok0, ok2)
+					}
+				}
+			}
+			// referee: bison's verdict and grouping, default options
+			acc++
+			for i, opts := range []recognize.Options{{}, {Reduce: rs}} {
+				f, _, _ := toyForest(t, ty.tab, s.words, opts)
+				v, g := "refuse", "-"
+				if f != nil && f.ConstrainV1(sl) {
+					v, g = "accept", toyGrouping(f)
+				}
+				if v != s.verdict || g != s.grouping {
+					if i == 0 {
+						ref1++
+					} else {
+						ref2++
+					}
+					t.Errorf("TOYREF V%d %s %s: %s %s, bison %s %s", i+1, name, strings.Join(s.words, " "), v, g, s.verdict, s.grouping)
+				}
+			}
+		}
+	}
+	t.Logf("TOYS forests compared %d (sentences x option sets x orders); V1 kept/verdict differs %d; V2 %d; recognition acceptance differs %d; V2 empty symbol nodes %d", total, d1, d2, accDiff, empty)
+	t.Logf("TOYREF %d sentences; V1 differs from bison %d; V2 %d", acc, ref1, ref2)
+}

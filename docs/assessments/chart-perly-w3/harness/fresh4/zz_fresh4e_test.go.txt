@@ -1,0 +1,39 @@
+package forest
+
+import (
+	"slices"
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func TestZZFresh4Expected(t *testing.T) {
+	tab := committedTables(t)
+	rs := ReduceSideFor(tab)
+	death := func(o recognize.Options, s string) (int, []string) {
+		st, _ := lex.Lex([]byte(s), tab.Tokens)
+		c, _ := recognize.Recognize(recognize.New(tab, o), lex.Linear(st))
+		d := slices.Index(c.Sets, nil)
+		if d < 0 {
+			return -1, nil
+		}
+		e, _ := c.Expected(d - 1)
+		return d, e
+	}
+	for _, s := range []string{"print $fh [];", "print $fh [ ) ;", "print $fh [ 1 ) ;", "sort $f [ ) ;", "print $fh [ ] ) ;", "print $fh [] ]", "print $fh [ 1 ] ) ;", "{ print $fh [ } ;"} {
+		d0, e0 := death(recognize.Options{}, s)
+		d2, e2 := death(recognize.Options{Reduce: rs}, s)
+		dn, en := death(recognize.Options{NoLookahead: true}, s)
+		t.Logf("%-22q death V0 %d V2 %d noLA %d; expected V0==noLA %v, V2==noLA %v", s, d0, d2, dn, slices.Equal(e0, en), slices.Equal(e2, en))
+		if !slices.Equal(e2, en) && d2 == dn {
+			var miss []string
+			for _, x := range en {
+				if !slices.Contains(e2, x) {
+					miss = append(miss, x)
+				}
+			}
+			t.Logf("   V2 expected lacks %v", miss)
+		}
+	}
+}

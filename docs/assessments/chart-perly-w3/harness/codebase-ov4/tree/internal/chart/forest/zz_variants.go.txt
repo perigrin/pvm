@@ -1,0 +1,548 @@
+// ABOUTME: Scratch (combined experiment): the state-free precedence filter with dense tables and per-node memos,
+// ABOUTME: and the reduce-side tables recognition and Build read. Not for the repository.
+
+package forest
+
+import (
+	"slices"
+
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+// ConstrainVariant picks ParseWith's precedence step: 0 Constrain, otherwise ConstrainV1.
+var ConstrainVariant int
+
+// Stateless is the state-free filter's tables (stateless.diff's "general" variant), all dense.
+//
+// Reduce side: reduce[r*nt+t] 0 allow, 1 forbid, 2 mixed; a mixed (r,t) is decided by its parent item:
+// parentForbid[mixIdx[r*nt+t]*nItems+pi]. Shift side: shifting f after item it under spine top top is forbidden
+// when shiftAt[topIdx[top]*nItems+it] >= 0 and that bitset holds f.
+type Stateless struct {
+	p            *Precedence
+	nt, nItems   int
+	reduce       []uint8
+	mixIdx       []int32
+	parentForbid []bool
+	needParent   []bool // by symbol
+	topIdx       []int32
+	shiftAt      []int32
+	shiftBits    [][]uint64
+	nMixed       int
+}
+
+type v1Tables struct{ sl *Stateless }
+
+func buildV1(tab *grammar.Tables) v1Tables {
+	pp := grammar.Derived(tab, buildParsePrecedence)
+	if pp.err != nil {
+		panic(pp.err)
+	}
+	return v1Tables{NewStateless(pp.p)}
+}
+
+// StatelessOf is tab's committed-grammar filter, built once.
+func StatelessOf(tab *grammar.Tables) *Stateless { return grammar.Derived(tab, buildV1).sl }
+
+// NewStateless derives the filter's tables from p (maps only here, at build time).
+func NewStateless(p *Precedence) *Stateless {
+	nr, nt := len(p.allRules), p.tab.EOF+1
+	sl := &Stateless{p: p, nt: nt, nItems: len(p.allItems), reduce: make([]uint8, nr*nt), mixIdx: make([]int32, nr*nt),
+		needParent: make([]bool, len(p.tab.Symbols))}
+	seen := make([]uint8, nr*nt) // bit 1 allowed somewhere, bit 2 forbidden somewhere
+	for _, st := range p.states {
+		for _, r := range st.reduce {
+			for t := range nt {
+				_, c := slices.BinarySearch(st.shift, int32(t))
+				res := p.resolve(int(r), t)
+				if !c || res == unresolved || res == reduce {
+					seen[int(r)*nt+t] |= 1
+				} else {
+					seen[int(r)*nt+t] |= 2
+				}
+			}
+		}
+	}
+	var mixed [][2]int32
+	for k, v := range seen {
+		sl.mixIdx[k] = -1
+		switch v {
+		case 2:
+			sl.reduce[k] = 1
+		case 3:
+			sl.reduce[k] = 2
+			sl.mixIdx[k] = int32(len(mixed))
+			mixed = append(mixed, [2]int32{int32(k / nt), int32(k % nt)})
+			sl.needParent[p.allRules[k/nt].LHS] = true
+		}
+	}
+	sl.nMixed = len(mixed)
+	sl.parentForbid = make([]bool, len(mixed)*sl.nItems)
+	type pv struct{ a, f bool }
+	acc := map[[2]int32]pv{} // (mixed index, parent item)
+	for q := range p.states {
+		for _, pi := range p.stItems[q] {
+			it := p.allItems[pi]
+			rhs := p.allRules[it.Rule].RHS
+			if it.Dot >= len(rhs) {
+				continue
+			}
+			for m, mt := range mixed {
+				r, t := mt[0], mt[1]
+				if p.allRules[r].LHS != rhs[it.Dot] {
+					continue
+				}
+				s := p.walk(int32(q), p.allRules[r].RHS)
+				_, c := slices.BinarySearch(p.states[s].shift, t)
+				res := p.resolve(int(r), int(t))
+				k := [2]int32{int32(m), int32(pi)}
+				v := acc[k]
+				if !c || res == unresolved || res == reduce {
+					v.a = true
+				} else {
+					v.f = true
+				}
+				acc[k] = v
+			}
+		}
+	}
+	for k, v := range acc {
+		if v.a && v.f {
+			panic("stateless: a mixed reduction is still mixed by its parent item")
+		}
+		sl.parentForbid[int(k[0])*sl.nItems+int(k[1])] = v.f
+	}
+	sl.buildShift()
+	return sl
+}
+
+// buildShift is stateless.diff's buildShift, then packed dense.
+func (sl *Stateless) buildShift() {
+	p := sl.p
+	byLHS := make([][]int, len(p.tab.Symbols))
+	for r, rule := range p.allRules {
+		byLHS[rule.LHS] = append(byLHS[rule.LHS], r)
+	}
+	seen := map[[3]int32]uint8{}
+	for q := range p.states {
+		for _, top := range p.stItems[q] {
+			if p.allItems[top].Dot == 0 && !(q == 0 && p.allRules[p.allItems[top].Rule].LHS == p.tab.Start) {
+				continue
+			}
+			in := map[int]bool{}
+			work := []int{p.allItems[top].Rule}
+			if p.allItems[top].Dot > 0 {
+				work = nil
+				it := p.allItems[top]
+				if rhs := p.allRules[it.Rule].RHS; it.Dot < len(rhs) {
+					work = append(work, byLHS[rhs[it.Dot]]...)
+				}
+			}
+			for len(work) > 0 {
+				r := work[len(work)-1]
+				work = work[:len(work)-1]
+				if in[r] {
+					continue
+				}
+				in[r] = true
+				if rhs := p.allRules[r].RHS; len(rhs) > 0 {
+					work = append(work, byLHS[rhs[0]]...)
+				}
+			}
+			for r := range in {
+				rhs := p.allRules[r].RHS
+				s := int32(q)
+				for j := 1; j < len(rhs); j++ {
+					s = p.states[s].next[int32(rhs[j-1])]
+					for _, f := range p.states[s].shift {
+						if int(f) != rhs[j] && !slices.Contains(p.tab.First[rhs[j]], int(f)) {
+							continue
+						}
+						k := [3]int32{int32(top), sl.item(r, j), f}
+						if p.shifts(s, int(f)) {
+							seen[k] |= 1
+						} else {
+							seen[k] |= 2
+						}
+					}
+				}
+			}
+		}
+	}
+	sl.topIdx = make([]int32, sl.nItems)
+	for i := range sl.topIdx {
+		sl.topIdx[i] = -1
+	}
+	var tops []int32
+	for k, v := range seen {
+		switch v {
+		case 3:
+			panic("stateless: a shift is mixed by its spine-top item")
+		case 2:
+			if sl.topIdx[k[0]] < 0 {
+				sl.topIdx[k[0]] = int32(len(tops))
+				tops = append(tops, k[0])
+			}
+		}
+	}
+	sl.shiftAt = make([]int32, len(tops)*sl.nItems)
+	for i := range sl.shiftAt {
+		sl.shiftAt[i] = -1
+	}
+	words := (sl.nt + 63) / 64
+	for k, v := range seen {
+		if v != 2 {
+			continue
+		}
+		x := int(sl.topIdx[k[0]])*sl.nItems + int(k[1])
+		if sl.shiftAt[x] < 0 {
+			sl.shiftAt[x] = int32(len(sl.shiftBits))
+			sl.shiftBits = append(sl.shiftBits, make([]uint64, words))
+		}
+		sl.shiftBits[sl.shiftAt[x]][k[2]/64] |= 1 << (k[2] % 64)
+	}
+}
+
+// Sizes is the dense tables' dimensions, for the report.
+func (sl *Stateless) Sizes() (mixed, tops, items, shiftCells, shiftSets int) {
+	n := 0
+	for _, t := range sl.topIdx {
+		if t >= 0 {
+			n++
+		}
+	}
+	return sl.nMixed, n, sl.nItems, len(sl.shiftAt), len(sl.shiftBits)
+}
+
+func (sl *Stateless) item(r, dot int) int32 { return int32(sl.p.allBase[r] + dot) }
+
+func (sl *Stateless) reduces(r, t int, pi int32) bool {
+	switch sl.reduce[r*sl.nt+t] {
+	case 0:
+		return true
+	case 1:
+		return false
+	}
+	return pi < 0 || !sl.parentForbid[int(sl.mixIdx[r*sl.nt+t])*sl.nItems+int(pi)]
+}
+
+func (sl *Stateless) shiftForbid(pend, it, f int32) bool {
+	x := sl.shiftAt[int(sl.topIdx[pend])*sl.nItems+int(it)]
+	return x >= 0 && sl.shiftBits[x][f/64]&(1<<(f%64)) != 0
+}
+
+// rootTop is the root's spine top: the start rule's first item, chosen per alternative.
+const rootTop = -2
+
+type v1Ent struct {
+	t, pend, pi int32
+	out         []int32
+}
+
+type v1Mk struct{ t, pend, pi, first int32 }
+
+type v1C struct {
+	f    *Forest
+	sl   *Stateless
+	ev   [][]v1Ent
+	mk   [][]v1Mk
+	kept []bool
+}
+
+// V1Hist, when non-nil, receives each ConstrainV1's per-node context counts (eval, mark), outside any timed use.
+var V1Hist func(ev, mk []int)
+
+// ConstrainV1 is Constrain's verdict and pruning with the state-free judgments, its memo per node.
+func (f *Forest) ConstrainV1(sl *Stateless) bool {
+	c := &v1C{f: f, sl: sl, ev: make([][]v1Ent, len(f.Nodes)), mk: make([][]v1Mk, len(f.Nodes)), kept: make([]bool, len(f.Alts))}
+	ok := len(c.eval(f.Root, sl.p.tab.EOF, rootTop, -1)) > 0
+	if ok {
+		c.mark(f.Root, sl.p.tab.EOF, rootTop, -1, -1)
+		for n := range f.Nodes {
+			a := &f.Nodes[n].Alt
+			for *a != 0 {
+				if c.kept[*a] {
+					a = &f.Alts[*a].Next
+				} else {
+					*a = f.Alts[*a].Next
+				}
+			}
+		}
+	}
+	if V1Hist != nil {
+		ev, mk := make([]int, len(f.Nodes)), make([]int, len(f.Nodes))
+		for n := range f.Nodes {
+			ev[n], mk[n] = len(c.ev[n]), len(c.mk[n])
+		}
+		V1Hist(ev, mk)
+	}
+	return ok
+}
+
+func (c *v1C) canon(n int32, pend, pi int32) (int32, int32) {
+	sym := c.f.Nodes[n].Sym
+	if pend >= 0 && c.sl.topIdx[pend] < 0 || pend == rootTop && sym < 0 {
+		pend = -1
+	}
+	if sym < 0 || !c.sl.needParent[sym] {
+		pi = -1
+	}
+	return pend, pi
+}
+
+func (c *v1C) rule(n, a int32) (r, m int) {
+	r = int(c.f.Alts[a].Rule)
+	if nd := c.f.Nodes[n]; nd.Sym < 0 {
+		return r, int(nd.Dot)
+	}
+	return r, len(c.sl.p.tab.Rules[r].RHS)
+}
+
+func (c *v1C) eval(n int32, t int, pend, pi int32) []int32 {
+	nd := c.f.Nodes[n]
+	if nd.Alt == 0 {
+		return []int32{nd.Sym}
+	}
+	pend, pi = c.canon(n, pend, pi)
+	for _, e := range c.ev[n] {
+		if e.t == int32(t) && e.pend == pend && e.pi == pi {
+			return e.out
+		}
+	}
+	var out []int32
+	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
+		r, m := c.rule(n, a)
+		if nd.Sym >= 0 && !c.sl.reduces(r, t, pi) {
+			continue
+		}
+		top := pend
+		if top == rootTop {
+			top = c.sl.item(r, 0)
+		}
+		out = append(out, c.seq(a, r, m, t, top, nil)...)
+	}
+	slices.Sort(out)
+	out = slices.Compact(out)
+	c.ev[n] = append(c.ev[n], v1Ent{int32(t), pend, pi, out})
+	return out
+}
+
+func (c *v1C) seq(a int32, r, m int, t int, pend int32, keep func(first int32) bool) []int32 {
+	if m == 0 {
+		return []int32{int32(t)}
+	}
+	alt := c.f.Alts[a]
+	rpi := c.sl.item(r, m-1)
+	rpend := pend
+	if m > 1 {
+		rpend = rpi
+	}
+	right := c.eval(alt.Right, t, rpend, rpi)
+	if m == 1 {
+		for _, f := range right {
+			if keep != nil && keep(f) {
+				c.mark(alt.Right, t, rpend, rpi, f)
+			}
+		}
+		return right
+	}
+	lpi := int32(-1)
+	if m == 2 {
+		lpi = c.sl.item(r, 0)
+	}
+	var out []int32
+	empty := c.f.Nodes[alt.Right].From == c.f.Nodes[alt.Right].To && c.f.Nodes[alt.Right].Alt != 0
+	block := !empty && pend >= 0 && c.sl.topIdx[pend] >= 0
+	for _, f := range right {
+		if block && c.sl.shiftForbid(pend, rpi, f) {
+			continue
+		}
+		left := c.eval(alt.Left, int(f), pend, lpi)
+		out = append(out, left...)
+		if keep == nil {
+			continue
+		}
+		for _, l := range left {
+			if keep(l) {
+				c.mark(alt.Right, t, rpend, rpi, f)
+				c.mark(alt.Left, int(f), pend, lpi, l)
+			}
+		}
+	}
+	return out
+}
+
+func (c *v1C) mark(n int32, t int, pend, pi int32, first int32) {
+	nd := c.f.Nodes[n]
+	if nd.Alt == 0 {
+		return
+	}
+	pend, pi = c.canon(n, pend, pi)
+	k := v1Mk{int32(t), pend, pi, first}
+	if slices.Contains(c.mk[n], k) {
+		return
+	}
+	c.mk[n] = append(c.mk[n], k)
+	keep := func(f int32) bool { return first < 0 || f == first }
+	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
+		r, m := c.rule(n, a)
+		if nd.Sym >= 0 && !c.sl.reduces(r, t, pi) {
+			continue
+		}
+		top := pend
+		if top == rootTop {
+			top = c.sl.item(r, 0)
+		}
+		if slices.ContainsFunc(c.seq(a, r, m, t, top, keep), keep) {
+			c.kept[a] = true
+		}
+	}
+}
+
+// ReduceSideOf is recognition's reduce-side tables from p: Never, rule r before x where every bison state reducing
+// r with x in its LALR(1) lookahead has a shift/reduce conflict resolved shift or error; Parent, for the pairs that
+// differ by state, the terminals refused per chart state, where every parent item it holds before r's LHS is
+// refused (Constrain's per-state verdict, uniform across the states holding that item).
+func ReduceSideOf(p *Precedence) *recognize.ReduceSide {
+	tab := p.tab
+	nr, nt := len(tab.Rules), tab.EOF+1
+	words := (nt + 63) / 64
+	cand, bad := make([]bool, len(p.allRules)*nt), make([]bool, len(p.allRules)*nt)
+	for _, st := range p.states {
+		for i, r := range st.reduce {
+			for _, x := range st.la[i] {
+				k := int(r)*nt + int(x)
+				res := p.resolve(int(r), int(x))
+				if _, c := slices.BinarySearch(st.shift, x); c && (res == shift || res == refuse) {
+					cand[k] = true
+				} else {
+					bad[k] = true
+				}
+			}
+		}
+	}
+	rs := &recognize.ReduceSide{Never: make([][]uint64, nr), Parent: make([][][]uint64, nr)}
+	type pv struct{ a, f bool }
+	for r := range nr {
+		for x := range nt {
+			k := r*nt + x
+			switch {
+			case cand[k] && !bad[k]:
+				if rs.Never[r] == nil {
+					rs.Never[r] = make([]uint64, words)
+				}
+				rs.Never[r][x/64] |= 1 << (x % 64)
+			case cand[k] && bad[k]:
+				// per parent item, Constrain's verdict in every bison state holding it before r's LHS
+				lhs := tab.Rules[r].LHS
+				acc := map[int]pv{}
+				for q := range p.states {
+					for _, pi := range p.stItems[q] {
+						it := p.allItems[pi]
+						if rhs := p.allRules[it.Rule].RHS; it.Dot >= len(rhs) || rhs[it.Dot] != lhs {
+							continue
+						}
+						v := acc[pi]
+						if p.reduces(r, int32(q), x) {
+							v.a = true
+						} else {
+							v.f = true
+						}
+						acc[pi] = v
+					}
+				}
+				for ps, st := range tab.States {
+					some, all := false, true
+					for _, i := range st.Items {
+						it := tab.Items[i]
+						if rhs := tab.Rules[it.Rule].RHS; it.Dot >= len(rhs) || rhs[it.Dot] != lhs {
+							continue
+						}
+						some = true
+						if v := acc[i]; !(v.f && !v.a) {
+							all = false
+						}
+					}
+					if some && all {
+						if rs.Parent[r] == nil {
+							rs.Parent[r] = make([][]uint64, len(tab.States))
+							for s := range rs.Parent[r] {
+								rs.Parent[r][s] = make([]uint64, words)
+							}
+						}
+						rs.Parent[r][ps][x/64] |= 1 << (x % 64)
+					}
+				}
+			}
+		}
+	}
+	return rs
+}
+
+type v2Tables struct{ rs *recognize.ReduceSide }
+
+func buildV2(tab *grammar.Tables) v2Tables {
+	pp := grammar.Derived(tab, buildParsePrecedence)
+	if pp.err != nil {
+		panic(pp.err)
+	}
+	return v2Tables{ReduceSideOf(pp.p)}
+}
+
+// ReduceSideFor is tab's committed-grammar reduce-side tables, built once.
+func ReduceSideFor(tab *grammar.Tables) *recognize.ReduceSide {
+	return grammar.Derived(tab, buildV2).rs
+}
+
+// PrecedenceFor is tab's committed-grammar Precedence.
+func PrecedenceFor(tab *grammar.Tables) *Precedence {
+	return grammar.Derived(tab, buildParsePrecedence).p
+}
+
+// KeptKey is f's remaining alternatives, canonical across forests built differently: each as its node's
+// (sym, rule, dot, from, to), its rule, and its children's node keys; sorted. nil where refused.
+func KeptKey(f *Forest, ok bool) [][16]int32 {
+	if !ok {
+		return nil
+	}
+	nk := func(n int32) [5]int32 {
+		if n == 0 {
+			return [5]int32{-9, -9, -9, -9, -9}
+		}
+		d := f.Nodes[n]
+		return [5]int32{d.Sym, d.Rule, d.Dot, d.From, d.To}
+	}
+	out := [][16]int32{}
+	for n := range f.Nodes {
+		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
+			var k [16]int32
+			x, l, r := nk(int32(n)), nk(f.Alts[a].Left), nk(f.Alts[a].Right)
+			copy(k[0:5], x[:])
+			k[5] = f.Alts[a].Rule
+			copy(k[6:11], l[:])
+			copy(k[11:16], r[:])
+			out = append(out, k)
+		}
+	}
+	slices.SortFunc(out, func(a, b [16]int32) int { return slices.Compare(a[:], b[:]) })
+	return out
+}
+
+// EmptySymbolNodes counts nonterminal nodes with no alternative (Build should make none).
+func EmptySymbolNodes(f *Forest, tab *grammar.Tables) int {
+	n := 0
+	for _, nd := range f.Nodes[1:] {
+		if nd.Alt == 0 && (nd.Sym < 0 || !tab.Symbols[nd.Sym].Terminal) {
+			n++
+		}
+	}
+	return n
+}
+
+// CloneF is a copy of f a mutating stage may write.
+func CloneF(f *Forest) *Forest {
+	g := *f
+	g.Nodes = append([]Node(nil), f.Nodes...)
+	g.Alts = append([]Alt(nil), f.Alts...)
+	return &g
+}

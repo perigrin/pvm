@@ -1,0 +1,37 @@
+package forest
+
+import (
+	"fmt"
+	"math/rand"
+	"strings"
+	"testing"
+)
+
+func TestZZFresh4Chains(t *testing.T) {
+	links := []string{"$a = ", "$a ||= ", "$a **= ", "not ", "!", "-", "\\", "~", "defined ", "ref ", "print ", "return ", "$a ? $b : ", "$a ** ", "$a .. ", "$a x ", "$a // ", "$a || ", "$a or ", "$a && ", "$a and ", "$a <=> ", "$a == ", "$a . ", "$a + ", "my $m = ", "local $l = ", "sort ", "lc ", "-e ", "f ", "$a, ", "$a => ", "($a) x ", "scalar "}
+	tails := []string{"$z", "$z ** $y", "$z + $y * $w", "$z ? $y : $w", "$z = $y", "$z->[0]", "$z++", "--$z", "@z", "()", "[]", "{}", "f()", "$z <=> $y", "$z .. $y", "$z [0]", "$fh [1]", "$fh []", "{$fh} []", "$z or $y", "1"}
+	nulls := []string{"for (;;) { %s }", "%s for ();", "sub f :lvalue { %s }", "my $x = () = (%s);", "@x = (%s,);", "do {} until %s;", "{ ; %s ; }", "return;", "print;", "%s"}
+	rng := rand.New(rand.NewSource(44))
+	var srcs [][]byte
+	var names []string
+	for i := 0; i < 15000; i++ {
+		var b strings.Builder
+		n := 1 + rng.Intn(25)
+		for k := 0; k < n; k++ {
+			b.WriteString(links[rng.Intn(len(links))])
+		}
+		b.WriteString(tails[rng.Intn(len(tails))])
+		s := b.String()
+		w := nulls[rng.Intn(len(nulls))]
+		if strings.Contains(w, "%s") {
+			s = fmt.Sprintf(w, s)
+		}
+		if rng.Intn(2) == 0 {
+			s += ";"
+		}
+		srcs, names = append(srcs, []byte(s)), append(names, fmt.Sprintf("%q", s))
+	}
+	RefusedLinks.Store(0)
+	fresh4Run(t, "chains", srcs, names)
+	t.Logf("refused Leo links in Build: %d", RefusedLinks.Load())
+}

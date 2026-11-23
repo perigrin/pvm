@@ -1,0 +1,49 @@
+=== RUN   TestZZVariantToys
+    zz_variants_toys_test.go:49: toy empty: rules with Never 1, with Parent 0
+    zz_variants_toys_test.go:49: toy emptyred: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:49: toy follow: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:49: toy indirob: rules with Never 0, with Parent 1
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LB LSTOP VAR LB RB RB" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LB LSTOP VAR LB RB RB" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LB LSTOP VAR LB RB RB" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA NUM" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA NUM" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA NUM" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA VAR" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA VAR" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirob "LSTOP VAR LB RB COMMA VAR" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:49: toy indirobsort: rules with Never 0, with Parent 1
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LB LSTOP VAR LB RB RB" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LB LSTOP VAR LB RB RB" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LB LSTOP VAR LB RB RB" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA NUM" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA NUM" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA NUM" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA VAR" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA VAR" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT indirobsort "LSTOP VAR LB RB COMMA VAR" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:49: toy ladder: rules with Never 5, with Parent 0
+    zz_variants_toys_test.go:49: toy lalr: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:49: toy mixed: rules with Never 5, with Parent 1
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB POSTINC" opts {NoCache:false NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB POSTINC" opts {NoCache:false NoLookahead:false NoLeo:true Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:61: ACCEPT mixed "LSTOP VAR LB RB POSTINC" opts {NoCache:true NoLookahead:false NoLeo:false Reduce:<nil>}: V0 true V2 false
+    zz_variants_toys_test.go:49: toy nonassoc: rules with Never 3, with Parent 0
+    zz_variants_toys_test.go:49: toy nullpred: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:49: toy nullsuf: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:49: toy prefix: rules with Never 4, with Parent 0
+    zz_variants_toys_test.go:49: toy twostates: rules with Never 0, with Parent 0
+    zz_variants_toys_test.go:116: TOYS forests compared 25490 (sentences x option sets x orders); V1 kept/verdict differs 0; V2 0; recognition acceptance differs 30; V2 empty symbol nodes 0
+    zz_variants_toys_test.go:117: TOYREF 4395 sentences; V1 differs from bison 0; V2 0
+--- PASS: TestZZVariantToys (0.74s)
+PASS
+ok  	tamarou.com/pvm/internal/chart/forest	0.747s

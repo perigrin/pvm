@@ -1,0 +1,20 @@
+   focus=forest.\(\*constrainer\)|forest.\(\*Forest\).Constrain$
+Showing nodes accounting for 14.93s, 12.32% of 121.14s total
+Dropped 125 nodes (cum <= 0.61s)
+Showing top 16 nodes out of 73
+      flat  flat%   sum%        cum   cum%
+     1.96s  1.62%  1.62%     40.37s 33.33%  tamarou.com/pvm/internal/chart/forest.(*constrainer).seq
+     2.77s  2.29%  3.90%     25.70s 21.22%  tamarou.com/pvm/internal/chart/forest.(*constrainer).eval
+     1.09s   0.9%  4.80%     20.53s 16.95%  tamarou.com/pvm/internal/chart/forest.(*constrainer).mark
+     0.50s  0.41%  5.22%     13.99s 11.55%  tamarou.com/pvm/internal/chart/forest.(*Forest).Constrain
+         0     0%  5.22%     13.02s 10.75%  tamarou.com/pvm/internal/chart/cmd/ratchet.TestZZMeasure
+         0     0%  5.22%     12.72s 10.50%  testing.tRunner
+         0     0%  5.22%     12.40s 10.24%  tamarou.com/pvm/internal/chart/forest.(*Measure).Pass
+     1.36s  1.12%  6.34%     12.36s 10.20%  runtime.mapassign
+         0     0%  6.34%     12.13s 10.01%  tamarou.com/pvm/internal/chart/forest.(*Measure).ConstrainOnly
+     0.95s  0.78%  7.12%      7.40s  6.11%  runtime.mapaccess2
+         0     0%  7.12%      7.36s  6.08%  internal/runtime/maps.(*table).rehash
+     0.31s  0.26%  7.38%      5.59s  4.61%  internal/runtime/maps.(*table).split
+     0.42s  0.35%  7.73%      5.45s  4.50%  runtime.mallocgc
+     0.27s  0.22%  7.95%      5.03s  4.15%  runtime.memhash128
+     0.80s  0.66%  8.61%      4.66s  3.85%  tamarou.com/pvm/internal/chart/forest.(*Precedence).reduces

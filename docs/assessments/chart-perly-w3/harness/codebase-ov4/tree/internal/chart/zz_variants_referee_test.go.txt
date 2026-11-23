@@ -1,0 +1,132 @@
+package chart
+
+// Scratch (combined experiment): V0, V1 and V2 on the referee's sentences: verdict, grouping and kept set.
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func (r *referee) judgeV(s precedenceSentence, opts recognize.Options, constrain func(*forest.Forest) bool) (verdict, grouping string, kept [][16]int32, recognized bool) {
+	preamble, _, _, _ := renderTerms(r.lexemes, s.terms)
+	skip := 0
+	if preamble != "" {
+		pre, _ := lex.Lex([]byte(preamble), r.tab.Tokens)
+		skip = len(pre.Tokens)
+	}
+	var want []int32
+	for _, name := range s.terms[1:] {
+		want = append(want, r.terminal[name])
+	}
+	sx, _ := lex.Lex([]byte(s.rendering), r.tab.Tokens)
+	l := lex.Linear(sx)
+	c, err := recognize.Recognize(recognize.New(r.tab, opts), l)
+	var f *forest.Forest
+	if err == nil {
+		f = forest.Build(r.tab, c, l)
+		recognized = c.Accepted()
+	}
+	if f == nil || !narrow(f, want, skip) || !constrain(f) {
+		return "refuse", "-", nil, recognized
+	}
+	kept = forest.KeptKey(f, true)
+	trees, cut := f.Derivations(f.Root, 16)
+	if cut {
+		return "accept", "more than 16 derivations left, not all compared", kept, recognized
+	}
+	groupings := map[string]bool{}
+	for _, tr := range trees {
+		var g []string
+		var walk func(*forest.Tree)
+		walk = func(tr *forest.Tree) {
+			for _, k := range tr.Kids {
+				walk(k)
+			}
+			if tr.Rule >= 0 && r.carries[tr.Rule] && int(tr.From) >= skip {
+				g = append(g, fmt.Sprintf("%d:%d-%d", r.line[tr.Rule], tr.From-skip+1, tr.To-skip+1))
+			}
+		}
+		walk(tr)
+		if len(g) == 0 {
+			g = []string{"-"}
+		}
+		groupings[strings.Join(g, ",")] = true
+	}
+	if len(groupings) != 1 {
+		return "accept", fmt.Sprintf("ambiguous (%d groupings) %v", len(groupings), groupings), kept, recognized
+	}
+	for g := range groupings {
+		grouping = g
+	}
+	return "accept", grouping, kept, recognized
+}
+
+func TestZZVariantReferee(t *testing.T) {
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := newReferee(g, tab, precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sl := forest.NewStateless(r.p)
+	rs := forest.ReduceSideOf(r.p)
+	v0 := func(f *forest.Forest) bool { return f.Constrain(r.p) }
+	v1 := func(f *forest.Forest) bool { return f.ConstrainV1(sl) }
+	n, bis := 0, [3]int{}
+	var vg, kd [3]int
+	recDiff, recDiffBad := 0, 0
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		n++
+		res := [3][3]any{}
+		vo, gro, ko, ro := r.judgeV(s, recognize.Options{}, v0)
+		res[0] = [3]any{vo, gro, ko}
+		v, gr, k, _ := r.judgeV(s, recognize.Options{}, v1)
+		res[1] = [3]any{v, gr, k}
+		v2, gr2, k2, r2 := r.judgeV(s, recognize.Options{Reduce: rs}, v1)
+		res[2] = [3]any{v2, gr2, k2}
+		if ro != r2 {
+			recDiff++
+			if vo == "accept" {
+				recDiffBad++
+			}
+		}
+		for i := range 3 {
+			vv, gg, kk := res[i][0].(string), res[i][1].(string), res[i][2].([][16]int32)
+			if vv == "refuse" && s.verdict == "accept" || vv == "accept" && (s.verdict != "accept" || gg != s.grouping) {
+				bis[i]++
+			}
+			if i == 0 {
+				continue
+			}
+			if vv != vo || gg != gro {
+				vg[i]++
+				t.Logf("REFDIFF V%d %s %q: V0 %s %s, V%d %s %s, bison %s %s", i, s.id, s.rendering, vo, gro, i, vv, gg, s.verdict, s.grouping)
+			} else if !slices.Equal(kk, ko) {
+				kd[i]++
+				t.Logf("REFKEPT V%d %s %q", i, s.id, s.rendering)
+			}
+		}
+	}
+	t.Logf("REFEREE %d sentences; vs V0 verdict/grouping differs: V1 %d V2 %d; kept-set only: V1 %d V2 %d; vs bison: V0 %d V1 %d V2 %d; V2 recognition acceptance differs from V0 on %d (of them V0's pipeline accepts %d)",
+		n, vg[1], vg[2], kd[1], kd[2], bis[0], bis[1], bis[2], recDiff, recDiffBad)
+}

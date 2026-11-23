@@ -1,0 +1,26 @@
+   focus=forest.\(\*constrainer\)|forest.\(\*Forest\).Constrain$
+Showing nodes accounting for 30.55s, 25.22% of 121.14s total
+Dropped 125 nodes (cum <= 0.61s)
+Showing top 22 nodes out of 73
+      flat  flat%   sum%        cum   cum%
+     4.50s  3.71%  3.71%      4.50s  3.71%  aeshashbody
+     3.82s  3.15%  6.87%      3.82s  3.15%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
+     2.77s  2.29%  9.15%     25.70s 21.22%  tamarou.com/pvm/internal/chart/forest.(*constrainer).eval
+     1.96s  1.62% 10.77%     40.37s 33.33%  tamarou.com/pvm/internal/chart/forest.(*constrainer).seq
+     1.88s  1.55% 12.32%      1.88s  1.55%  runtime.memclrNoHeapPointers
+     1.36s  1.12% 13.45%     12.36s 10.20%  runtime.mapassign
+     1.19s  0.98% 14.43%      1.19s  0.98%  runtime.memequal128
+     1.15s  0.95% 15.38%      1.15s  0.95%  tamarou.com/pvm/internal/chart/forest.(*constrainer).rule (inline)
+     1.09s   0.9% 16.28%      3.60s  2.97%  runtime.mapaccess2_fast32
+     1.09s   0.9% 17.18%     20.53s 16.95%  tamarou.com/pvm/internal/chart/forest.(*constrainer).mark
+     1.03s  0.85% 18.03%      1.03s  0.85%  runtime.memmove
+     0.98s  0.81% 18.84%      1.03s  0.85%  slices.BinarySearch[go.shape.[]int32,go.shape.int32]
+     0.95s  0.78% 19.62%      7.40s  6.11%  runtime.mapaccess2
+     0.94s  0.78% 20.40%      0.94s  0.78%  internal/runtime/maps.(*groupReference).key (inline)
+     0.93s  0.77% 21.17%      1.92s  1.58%  runtime.mallocgcTiny
+     0.87s  0.72% 21.88%      2.85s  2.35%  internal/runtime/maps.(*table).uncheckedPutSlot
+     0.80s  0.66% 22.54%      4.66s  3.85%  tamarou.com/pvm/internal/chart/forest.(*Precedence).reduces
+     0.79s  0.65% 23.20%      2.90s  2.39%  runtime.growslice
+     0.66s  0.54% 23.74%      0.66s  0.54%  internal/runtime/maps.h2 (inline)
+     0.63s  0.52% 24.26%      1.37s  1.13%  runtime.typedmemmove
+     0.58s  0.48% 24.74%      0.58s  0.48%  internal/runtime/maps.(*Map).directoryAt (inline)

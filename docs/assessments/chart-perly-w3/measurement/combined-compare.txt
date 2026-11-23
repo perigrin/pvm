@@ -1,0 +1,15 @@
+corpus files 2501 (with perlgit 620); population 2214; aggregate 2211 files, 4851485 bytes, sha256 639a1a6bff14b764306a01ff5171027ebdcf53c977677022bc8b232c71ab5ffb
+prepared in 17.016870229s; V1 tables: mixed reduce pairs 6, relevant spine tops 46, items 1224, shift cells 56304, shift bitsets 674; reduce side: rules with Never 54, with Parent 1; refused Leo links 0
+CORRECT reach constraint V0 2211 V1 2211 V2 2211; alts built V0 2565144 V1 2565144 V2 2420235; V2 empty symbol nodes 0
+CORRECT V1 vs V0: constraint verdict differs 0, kept set differs 0, pipeline refusal reason differs 0, readings differ 0
+CORRECT V2 vs V0: constraint verdict differs 0, kept set differs 0, pipeline refusal reason differs 0, readings differ 0
+RECOG all: recognized V0 2211 V2 2211; items-per-token over own recognized V0 4.7035 V2 4.4707; over files both recognize V0 4.7035 V2 4.4707
+RECOG T1: recognized V0 827 V2 827; items-per-token over own recognized V0 4.5179 V2 4.3160; over files both recognize V0 4.5179 V2 4.3160
+RECOG guacamole: recognized V0 822 V2 822; items-per-token over own recognized V0 4.0573 V2 3.9773; over files both recognize V0 4.0573 V2 3.9773
+RECOG perlgit: recognized V0 1124 V2 1124; items-per-token over own recognized V0 4.7936 V2 4.5452; over files both recognize V0 4.7936 V2 4.5452
+RECOG ratchet(T1+guacamole): recognized V0 1649 V2 1649; items-per-token over own recognized V0 4.5043 V2 4.3059; over files both recognize V0 4.5043 V2 4.3059
+RECOG acceptance differs on 0 files; of them V0's pipeline accepts 0
+HIST V1 nodes visited 2221013
+HIST V1 eval contexts per visited node (count:nodes): 1:2103733 2:97811 3:11228 4:8133 5:39 6:3 8:65 10:1; max 10
+HIST V1 mark contexts per visited node (count:nodes): 0:136783 1:1813737 2:195455 3:23482 4:45707 5:123 6:2087 8:1397 9:1521 10:2 12:312 16:407; max 16
+HIST V1 eval+mark contexts per visited node (count:nodes): 1:128657 2:1819693 3:125137 4:87546 5:24454 6:22910 8:7763 9:1166 10:1086 12:1849 15:165 16:180 20:406 24:1; max 24

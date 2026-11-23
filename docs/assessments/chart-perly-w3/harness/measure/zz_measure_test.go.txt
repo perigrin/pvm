@@ -1,0 +1,134 @@
+package main
+
+// Scratch measurement, not for the repository: the ratchet's own aggregate (corpus, perlGit, realInputs,
+// aggregateFiles with productionProtocol), then ParseWith's stages and three Constrain variants interleaved
+// per round against recursive descent (speedParse), long-lived, GC before each span.
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/grammar"
+)
+
+func TestZZMeasure(t *testing.T) {
+	out := os.Getenv("MEASURE_OUT")
+	if out == "" {
+		t.Skip("MEASURE_OUT unset")
+	}
+	tag := os.Getenv("MEASURE_TAG")
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pg, err := perlGit(perl5Root(), srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, pg...)
+	in, err := realInputs(tab, srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pop, err := supersetPopulation(files, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := productionProtocol(nil, nil)
+	rd := rdRunner(srcs)
+	agg, err := aggregateFiles(p, rd, files, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := strings.Join(agg, "\n") + "\n"
+	os.WriteFile(filepath.Join(out, "aggregate-"+tag+".txt"), []byte(list), 0o644)
+	var bytes int
+	for _, f := range agg {
+		bytes += len(srcs[f])
+	}
+	res, _ := os.Create(filepath.Join(out, "result-"+tag+".txt"))
+	defer res.Close()
+	logf := func(format string, a ...any) { fmt.Fprintf(res, format+"\n", a...); t.Logf(format, a...) }
+	logf("corpus files %d (with perlgit %d); population %d; aggregate %d files, %d bytes, sha256 %x",
+		len(files), len(pg), len(pop), len(agg), bytes, sha256.Sum256([]byte(list)))
+
+	ss, sc := make([][]byte, len(agg)), make([]forest.Scope, len(agg))
+	for i, f := range agg {
+		ss[i], sc[i] = srcs[f], in.Scope(f)
+	}
+	m := forest.Prepare(tab, ss, sc)
+	logf("stats %+v", m.Stats)
+
+	if os.Getenv("MEASURE_PROFILE") != "" {
+		m.ConstrainOnly(30)
+		return
+	}
+
+	timeIt := func(f func()) time.Duration {
+		runtime.GC()
+		s := time.Now()
+		f()
+		return time.Since(s)
+	}
+	const warm, timed = 2, 9
+	cols := []string{"rd", "parsewith"}
+	for s := range forest.NStages {
+		cols = append(cols, forest.StageNames[s])
+	}
+	order := []int{forest.StLex, forest.StRecognize, forest.StBuild, forest.StLibOps,
+		forest.StConstrain, forest.StConstrainPruned, forest.StConstrainIdeal, forest.StResolve, forest.StReadings}
+	rows := [][]time.Duration{}
+	for i := range warm + timed {
+		row := make([]time.Duration, len(cols))
+		row[0] = timeIt(func() { for _, f := range agg { speedParse(srcs[f]) } })
+		row[1] = timeIt(m.Full)
+		for _, s := range order {
+			var inp []*forest.Forest
+			if s >= forest.StBuild+1 {
+				inp = m.Inputs(s)
+			}
+			row[2+s] = timeIt(func() { m.Pass(s, inp) })
+			inp = nil
+		}
+		if i >= warm {
+			rows = append(rows, row)
+		}
+		logf("round %d: %v", i, row)
+	}
+	// per column: median over timed rounds of (col / rd), and median absolute ms
+	for c := 1; c < len(cols); c++ {
+		var r, ms, frac []float64
+		for _, row := range rows {
+			r = append(r, float64(row[c])/float64(row[0]))
+			ms = append(ms, float64(row[c])/1e6)
+			frac = append(frac, float64(row[c])/float64(row[2+forest.StConstrain]))
+		}
+		slices.Sort(r)
+		slices.Sort(ms)
+		slices.Sort(frac)
+		logf("RESULT %s ratio %.4f (round min %.4f max %.4f) ms %.1f overConstrain %.4f", cols[c], r[timed/2], r[0], r[timed-1], ms[timed/2], frac[timed/2])
+	}
+	var rdms []float64
+	for _, row := range rows {
+		rdms = append(rdms, float64(row[0])/1e6)
+	}
+	slices.Sort(rdms)
+	logf("RESULT rd ms %.1f", rdms[timed/2])
+}

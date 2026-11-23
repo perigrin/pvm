@@ -1,0 +1,202 @@
+package main
+
+// Scratch (combined experiment), not for the repository: the ratchet's aggregate; V1 and V2 against V0 per file;
+// then ParseWith and its stages per variant, interleaved per round against recursive descent, long-lived.
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/grammar"
+)
+
+func TestZZCombined(t *testing.T) {
+	out := os.Getenv("CB_OUT")
+	if out == "" {
+		t.Skip("CB_OUT unset")
+	}
+	tag := os.Getenv("CB_TAG")
+	t.Chdir("../../../..")
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pg, err := perlGit(perl5Root(), srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, pg...)
+	in, err := realInputs(tab, srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pop, err := supersetPopulation(files, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agg, err := aggregateFiles(productionProtocol(nil, nil), rdRunner(srcs), files, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := strings.Join(agg, "\n") + "\n"
+	var bytes int
+	for _, f := range agg {
+		bytes += len(srcs[f])
+	}
+	res, _ := os.Create(filepath.Join(out, "result-"+tag+".txt"))
+	defer res.Close()
+	logf := func(format string, a ...any) { fmt.Fprintf(res, format+"\n", a...); t.Logf(format, a...) }
+	logf("corpus files %d (with perlgit %d); population %d; aggregate %d files, %d bytes, sha256 %x",
+		len(files), len(pg), len(pop), len(agg), bytes, sha256.Sum256([]byte(list)))
+	corp := map[string]string{}
+	for _, f := range files {
+		corp[f.Path] = f.Corpus
+	}
+
+	ss, sc := make([][]byte, len(agg)), make([]forest.Scope, len(agg))
+	for i, f := range agg {
+		ss[i], sc[i] = srcs[f], in.Scope(f)
+	}
+	t0 := time.Now()
+	m := forest.PrepareCombined(tab, ss, sc, agg)
+	st := &m.Stats
+	logf("prepared in %v; V1 tables: %s; reduce side: rules with Never %d, with Parent %d; refused Leo links %d",
+		time.Since(t0), m.TableSizes(), st.RulesNever, st.RulesParent, forest.RefusedLinks.Load())
+	logf("CORRECT reach constraint V0 %d V1 %d V2 %d; alts built V0 %d V1 %d V2 %d; V2 empty symbol nodes %d",
+		st.ReachConstrain[0], st.ReachConstrain[1], st.ReachConstrain[2], st.AltsBuilt[0], st.AltsBuilt[1], st.AltsBuilt[2], st.EmptyNodesV2)
+	for v := 1; v <= 2; v++ {
+		logf("CORRECT V%d vs V0: constraint verdict differs %d, kept set differs %d, pipeline refusal reason differs %d, readings differ %d",
+			v, st.VerdictDiff[v], st.KeptDiff[v], st.PipelineDiff[v], st.ReadingsDiff[v])
+	}
+	// recognition, V2 vs V0
+	type acc struct{ rec0, rec2, items0, pos0, items2, pos2, bothItems0, bothPos0, bothItems2, bothPos2 int }
+	by := map[string]*acc{}
+	for i, f := range agg {
+		for _, k := range []string{"all", corp[f], map[bool]string{true: "ratchet(T1+guacamole)", false: "perlgit"}[corp[f] != "perlgit"]} {
+			a := by[k]
+			if a == nil {
+				a = &acc{}
+				by[k] = a
+			}
+			r, it, ps := st.Rec[i], st.Items[i], st.Positions[i]
+			if r[0] {
+				a.rec0++
+				a.items0, a.pos0 = a.items0+it[0], a.pos0+ps[0]
+			}
+			if r[1] {
+				a.rec2++
+				a.items2, a.pos2 = a.items2+it[1], a.pos2+ps[1]
+			}
+			if r[0] && r[1] {
+				a.bothItems0, a.bothPos0, a.bothItems2, a.bothPos2 = a.bothItems0+it[0], a.bothPos0+ps[0], a.bothItems2+it[1], a.bothPos2+ps[1]
+			}
+		}
+	}
+	keys := []string{"all", "T1", "guacamole", "perlgit", "ratchet(T1+guacamole)"}
+	for _, k := range keys {
+		a := by[k]
+		if a == nil {
+			continue
+		}
+		logf("RECOG %s: recognized V0 %d V2 %d; items-per-token over own recognized V0 %.4f V2 %.4f; over files both recognize V0 %.4f V2 %.4f",
+			k, a.rec0, a.rec2, float64(a.items0)/float64(a.pos0), float64(a.items2)/float64(a.pos2),
+			float64(a.bothItems0)/float64(a.bothPos0), float64(a.bothItems2)/float64(a.bothPos2))
+	}
+	logf("RECOG acceptance differs on %d files; of them V0's pipeline accepts %d", st.AcceptDiff, st.AcceptDiffPipelineAccepts)
+	for _, d := range st.Diffs {
+		logf("  DIFF %s", d)
+	}
+	hist := func(name string, h map[int]int, mx int) {
+		var ks []int
+		for k := range h {
+			ks = append(ks, k)
+		}
+		slices.Sort(ks)
+		var b strings.Builder
+		for _, k := range ks {
+			fmt.Fprintf(&b, " %d:%d", k, h[k])
+		}
+		logf("HIST V1 %s contexts per visited node (count:nodes):%s; max %d", name, b.String(), mx)
+	}
+	logf("HIST V1 nodes visited %d", st.NodesVisited)
+	hist("eval", st.EvHist, st.EvMax)
+	hist("mark", st.MkHist, st.MkMax)
+	hist("eval+mark", st.AllHist, st.AllMax)
+
+	if os.Getenv("CB_TIME") == "" {
+		return
+	}
+	timeIt := func(f func()) time.Duration {
+		runtime.GC()
+		s := time.Now()
+		f()
+		return time.Since(s)
+	}
+	const warm, timed = 2, 9
+	cols := []string{"rd"}
+	for v := range 3 {
+		cols = append(cols, fmt.Sprintf("V%d-parsewith", v))
+		for s := range forest.NC {
+			cols = append(cols, fmt.Sprintf("V%d-%s", v, forest.CStageNames[s]))
+		}
+	}
+	per := 1 + forest.NC
+	var rows [][]time.Duration
+	for i := range warm + timed {
+		row := make([]time.Duration, len(cols))
+		row[0] = timeIt(func() {
+			for _, f := range agg {
+				speedParse(srcs[f])
+			}
+		})
+		for j := range 3 {
+			v := (i + j) % 3 // the variants' order rotates per round
+			base := 1 + v*per
+			row[base] = timeIt(func() { m.Full(v) })
+			for s := range forest.NC {
+				var inp []*forest.Forest
+				if s >= forest.CLibOps {
+					inp = m.Inputs(v, s)
+				}
+				row[base+1+s] = timeIt(func() { m.Pass(v, s, inp) })
+				inp = nil
+			}
+		}
+		if i >= warm {
+			rows = append(rows, row)
+		}
+		logf("round %d: %v", i, row)
+	}
+	for c := 1; c < len(cols); c++ {
+		var r, ms []float64
+		for _, row := range rows {
+			r = append(r, float64(row[c])/float64(row[0]))
+			ms = append(ms, float64(row[c])/1e6)
+		}
+		slices.Sort(r)
+		slices.Sort(ms)
+		logf("RESULT %s ratio %.4f (round min %.4f max %.4f) ms %.1f", cols[c], r[timed/2], r[0], r[timed-1], ms[timed/2])
+	}
+	var rdms []float64
+	for _, row := range rows {
+		rdms = append(rdms, float64(row[0])/1e6)
+	}
+	slices.Sort(rdms)
+	logf("RESULT rd ms %.1f", rdms[timed/2])
+}

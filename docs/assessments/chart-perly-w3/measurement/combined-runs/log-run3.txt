@@ -1,0 +1,60 @@
+=== RUN   TestZZCombined
+chart-ratchet: aggregate excludes internal/chart/testdata/std5k.pl (2.2% of RD's population time)
+chart-ratchet: aggregate excludes internal/psc/testdata/latency/edit5k.pl (1.5% of RD's population time)
+chart-ratchet: aggregate excludes T1/code_too_large.t (11.3% of RD's population time)
+chart-ratchet: aggregate share T1 33.8%
+chart-ratchet: aggregate share guacamole 4.6%
+chart-ratchet: aggregate share perlgit 61.6%
+    zz_combined_test.go:64: corpus files 2501 (with perlgit 620); population 2214; aggregate 2211 files, 4851485 bytes, sha256 639a1a6bff14b764306a01ff5171027ebdcf53c977677022bc8b232c71ab5ffb
+    zz_combined_test.go:64: prepared in 18.126377751s; V1 tables: mixed reduce pairs 6, relevant spine tops 46, items 1224, shift cells 56304, shift bitsets 674; reduce side: rules with Never 54, with Parent 1; refused Leo links 0
+    zz_combined_test.go:64: CORRECT reach constraint V0 2211 V1 2211 V2 2211; alts built V0 2565144 V1 2565144 V2 2420235; V2 empty symbol nodes 0
+    zz_combined_test.go:64: CORRECT V1 vs V0: constraint verdict differs 0, kept set differs 0, pipeline refusal reason differs 0, readings differ 0
+    zz_combined_test.go:64: CORRECT V2 vs V0: constraint verdict differs 0, kept set differs 0, pipeline refusal reason differs 0, readings differ 0
+    zz_combined_test.go:64: RECOG all: recognized V0 2211 V2 2211; items-per-token over own recognized V0 4.7035 V2 4.4707; over files both recognize V0 4.7035 V2 4.4707
+    zz_combined_test.go:64: RECOG T1: recognized V0 827 V2 827; items-per-token over own recognized V0 4.5179 V2 4.3160; over files both recognize V0 4.5179 V2 4.3160
+    zz_combined_test.go:64: RECOG guacamole: recognized V0 822 V2 822; items-per-token over own recognized V0 4.0573 V2 3.9773; over files both recognize V0 4.0573 V2 3.9773
+    zz_combined_test.go:64: RECOG perlgit: recognized V0 1124 V2 1124; items-per-token over own recognized V0 4.7936 V2 4.5452; over files both recognize V0 4.7936 V2 4.5452
+    zz_combined_test.go:64: RECOG ratchet(T1+guacamole): recognized V0 1649 V2 1649; items-per-token over own recognized V0 4.5043 V2 4.3059; over files both recognize V0 4.5043 V2 4.3059
+    zz_combined_test.go:64: RECOG acceptance differs on 0 files; of them V0's pipeline accepts 0
+    zz_combined_test.go:64: HIST V1 nodes visited 2221013
+    zz_combined_test.go:64: HIST V1 eval contexts per visited node (count:nodes): 1:2103733 2:97811 3:11228 4:8133 5:39 6:3 8:65 10:1; max 10
+    zz_combined_test.go:64: HIST V1 mark contexts per visited node (count:nodes): 0:136783 1:1813737 2:195455 3:23482 4:45707 5:123 6:2087 8:1397 9:1521 10:2 12:312 16:407; max 16
+    zz_combined_test.go:64: HIST V1 eval+mark contexts per visited node (count:nodes): 1:128657 2:1819693 3:125137 4:87546 5:24454 6:22910 8:7763 9:1166 10:1086 12:1849 15:165 16:180 20:406 24:1; max 24
+    zz_combined_test.go:64: round 0: [513.036967ms 2.920593344s 344.396661ms 574.743115ms 390.845369ms 48.745329ms 1.224905486s 108.520374ms 76.701122ms 2.207190586s 348.891024ms 535.347467ms 396.704481ms 50.923719ms 492.265786ms 110.6124ms 74.842967ms 2.192579491s 355.235253ms 525.014926ms 377.214043ms 53.627849ms 493.050636ms 121.296254ms 73.831599ms]
+    zz_combined_test.go:64: round 1: [562.390731ms 3.123333046s 348.115214ms 523.26975ms 407.809986ms 50.843013ms 1.210495246s 108.065222ms 97.641892ms 2.285730703s 344.569824ms 508.096458ms 393.059735ms 61.416147ms 480.873967ms 131.595811ms 74.229065ms 2.137473425s 368.497851ms 542.320627ms 373.937642ms 48.96286ms 477.67491ms 110.191807ms 72.501328ms]
+    zz_combined_test.go:64: round 2: [532.638948ms 3.182148173s 366.859242ms 501.266638ms 396.639841ms 49.674075ms 1.179996508s 104.232052ms 76.372864ms 2.157590966s 349.405358ms 514.46221ms 392.398745ms 49.138032ms 493.884936ms 107.641673ms 75.271534ms 2.088224373s 348.950592ms 446.654722ms 367.313134ms 47.176486ms 501.203338ms 104.115985ms 74.592807ms]
+    zz_combined_test.go:64: round 3: [550.008874ms 3.008460968s 346.188601ms 482.340259ms 398.704213ms 48.537133ms 1.150648346s 102.447657ms 74.371695ms 2.109995995s 345.42566ms 484.623782ms 385.448623ms 49.028638ms 480.66197ms 104.998048ms 71.600269ms 2.176407651s 406.272555ms 526.245214ms 393.512393ms 61.598348ms 526.082924ms 125.790907ms 72.145755ms]
+    zz_combined_test.go:64: round 4: [552.497416ms 2.982364842s 350.258518ms 547.10517ms 400.964416ms 56.059656ms 1.220898975s 111.606812ms 81.189486ms 2.428979387s 371.202452ms 612.389197ms 491.377595ms 50.277133ms 471.424877ms 112.027654ms 75.066597ms 2.054001225s 345.809238ms 510.978236ms 363.536305ms 47.160386ms 508.677455ms 121.009744ms 72.714826ms]
+    zz_combined_test.go:64: round 5: [527.838441ms 3.128332944s 342.592999ms 505.497772ms 397.962303ms 49.041007ms 1.190901375s 106.5672ms 73.920191ms 2.232208881s 345.292387ms 537.32342ms 393.211823ms 51.282651ms 488.354552ms 107.621332ms 76.929935ms 2.146228616s 359.594456ms 518.012461ms 393.744812ms 50.470431ms 472.577466ms 104.461917ms 71.80944ms]
+    zz_combined_test.go:64: round 6: [524.370905ms 2.97741945s 350.786368ms 526.170842ms 391.799876ms 49.765682ms 1.168041343s 105.09661ms 74.626614ms 2.18763196s 349.317798ms 569.200328ms 423.743298ms 50.588366ms 496.405812ms 105.579196ms 74.386739ms 2.119682196s 351.747509ms 515.079981ms 432.511679ms 48.2119ms 512.546103ms 115.922747ms 73.997854ms]
+    zz_combined_test.go:64: round 7: [550.863971ms 3.133480813s 359.300262ms 571.892636ms 405.248339ms 53.21065ms 1.302276877s 101.695921ms 83.59379ms 2.241911027s 344.279534ms 490.76698ms 394.780425ms 49.612695ms 467.397128ms 110.73476ms 75.021389ms 2.096160473s 333.843435ms 478.353439ms 385.026447ms 50.538837ms 476.231776ms 113.433229ms 77.863081ms]
+    zz_combined_test.go:64: round 8: [545.717892ms 2.967212448s 351.868199ms 513.984235ms 433.13078ms 50.157383ms 1.176724092s 110.416337ms 78.839556ms 2.230657374s 344.815683ms 557.890198ms 386.902837ms 48.998925ms 498.568676ms 107.508558ms 73.38708ms 2.185431904s 343.041739ms 470.967131ms 365.29007ms 54.215862ms 490.140317ms 108.10371ms 74.168276ms]
+    zz_combined_test.go:64: round 9: [552.435094ms 3.429464493s 365.979669ms 610.76156ms 481.622339ms 54.144864ms 1.274533624s 109.700259ms 78.678513ms 2.363818804s 352.556393ms 512.456188ms 410.076727ms 47.951443ms 479.533556ms 105.811933ms 77.737083ms 2.040739237s 371.989651ms 450.232297ms 363.100213ms 48.093397ms 471.869167ms 102.227625ms 81.299618ms]
+    zz_combined_test.go:64: round 10: [564.348533ms 3.091576427s 376.083131ms 639.345308ms 435.372762ms 49.428996ms 1.337551654s 120.191144ms 80.655978ms 2.350567023s 337.228838ms 495.025788ms 391.53109ms 48.895231ms 492.966192ms 105.438012ms 74.521493ms 2.137374172s 344.518836ms 463.061557ms 374.066038ms 48.355302ms 482.962719ms 106.652579ms 74.470314ms]
+    zz_combined_test.go:64: RESULT V0-parsewith ratio 5.6781 (round min 5.3980 max 6.2079) ms 3091.6
+    zz_combined_test.go:64: RESULT V0-lex ratio 0.6522 (round min 0.6294 max 0.6888) ms 351.9
+    zz_combined_test.go:64: RESULT V0-recognize ratio 0.9902 (round min 0.8770 max 1.1329) ms 526.2
+    zz_combined_test.go:64: RESULT V0-build ratio 0.7472 (round min 0.7249 max 0.8718) ms 401.0
+    zz_combined_test.go:64: RESULT V0-libops ratio 0.0933 (round min 0.0876 max 0.1015) ms 49.8
+    zz_combined_test.go:64: RESULT V0-precedence ratio 2.2275 (round min 2.0921 max 2.3701) ms 1190.9
+    zz_combined_test.go:64: RESULT V0-resolve ratio 0.2004 (round min 0.1846 max 0.2130) ms 106.6
+    zz_combined_test.go:64: RESULT V0-readings ratio 0.1429 (round min 0.1352 max 0.1518) ms 78.7
+    zz_combined_test.go:64: RESULT V1-parsewith ratio 4.1651 (round min 3.8363 max 4.3964) ms 2232.2
+    zz_combined_test.go:64: RESULT V1-lex ratio 0.6382 (round min 0.5976 max 0.6719) ms 345.4
+    zz_combined_test.go:64: RESULT V1-recognize ratio 0.9659 (round min 0.8772 max 1.1084) ms 514.5
+    zz_combined_test.go:64: RESULT V1-build ratio 0.7367 (round min 0.6938 max 0.8894) ms 393.2
+    zz_combined_test.go:64: RESULT V1-libops ratio 0.0901 (round min 0.0866 max 0.0972) ms 49.1
+    zz_combined_test.go:64: RESULT V1-precedence ratio 0.8739 (round min 0.8485 max 0.9467) ms 488.4
+    zz_combined_test.go:64: RESULT V1-resolve ratio 0.2010 (round min 0.1868 max 0.2039) ms 107.5
+    zz_combined_test.go:64: RESULT V1-readings ratio 0.1362 (round min 0.1302 max 0.1457) ms 75.0
+    zz_combined_test.go:64: RESULT V2-parsewith ratio 3.9205 (round min 3.6941 max 4.0661) ms 2119.7
+    zz_combined_test.go:64: RESULT V2-lex ratio 0.6551 (round min 0.6060 max 0.7387) ms 349.0
+    zz_combined_test.go:64: RESULT V2-recognize ratio 0.8684 (round min 0.8150 max 0.9823) ms 478.4
+    zz_combined_test.go:64: RESULT V2-build ratio 0.6896 (round min 0.6573 max 0.8248) ms 374.1
+    zz_combined_test.go:64: RESULT V2-libops ratio 0.0917 (round min 0.0854 max 0.1120) ms 48.4
+    zz_combined_test.go:64: RESULT V2-precedence ratio 0.8982 (round min 0.8542 max 0.9774) ms 490.1
+    zz_combined_test.go:64: RESULT V2-resolve ratio 0.1981 (round min 0.1850 max 0.2287) ms 108.1
+    zz_combined_test.go:64: RESULT V2-readings ratio 0.1360 (round min 0.1312 max 0.1472) ms 74.2
+    zz_combined_test.go:64: RESULT rd ms 550.0
+--- PASS: TestZZCombined (265.90s)
+PASS
