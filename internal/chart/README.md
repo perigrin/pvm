@@ -385,7 +385,9 @@ parse issues changed, and on 2026-11-19 `internal/parse/use.go` for REVIEWFIX3
 ("Rule parse in") and REVIEWFIX4 ("REVIEWFIX4, parse in"),
 `internal/parse/shape.go` ("Rule shape.go in") and `internal/parse/decl.go`
 ("Rule decl.go in") for REVIEWFIX3, and `internal/parse/parse.go` and
-`exports.go` for REVIEWFIX4 ("Rule parse.go in")). A lexer defect found here without such a ruling is filed
+`exports.go` for REVIEWFIX4 ("Rule parse.go in")). chart-perly-w3 admits the `Makefile` target
+`chart-precedence-reference` and the `ci.yml` Ratchets step that runs it, for
+PERLGITREF, ruled in on 2026-11-23 ("Rule them in (Recommended)"). A lexer defect found here without such a ruling is filed
 against the v0.1 milestone and listed — on `lex-unmapped`'s known list, or on
 the lexer-defect list — never worked around.
 
@@ -463,6 +465,17 @@ To take a baseline after an intended change, run
   claim over every corpus file, and `TestAbsenceCandidatesMatchFullMap` holds
   the candidate judgement to `lex.Map` for every key over every T1 file.
   It runs under `make test` and in CI's corpus-backed Ratchets job.
+- **The perl.git precedence reference runs in
+  `make chart-precedence-reference`, not in `make test`** (PERLGITREF): every
+  recognized perl.git `t/` file, loaded as the ratchet loads it, is compared
+  as `TestPrecedenceCorpusMatchesReference` compares the in-tree corpora,
+  production `Constrain` against `ConstrainReference`. The test,
+  `TestPrecedencePerlGitMatchesReference`, sits behind the build tag
+  `precedencereference` because `go test ./...` runs on machines without
+  perl.git. A missing or empty perl.git fails it, never skips it. CI's
+  corpus-backed Ratchets job runs it with `PERL5_CORPUS` set. No in-tree
+  precedence test sits behind `precedencecorpus`, so `make test` wires no
+  second tag for it.
 - **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
   file is accepted when `forest.Parse` accepts it, under its scope facts, so a
   precedence or scope refusal is the chart's refusal
