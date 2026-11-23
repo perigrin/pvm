@@ -2560,6 +2560,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `sentences=N compared=C refused=R pruned=P` and requires a sentence refused
   and one pruned; `TestPrecedenceDiffDetectsDifference` shows their shared
   comparison report a dropped alternative and a flipped verdict.
+  In `chart`, `TestPrecedenceRefereeMatchesReference` and
+  `TestWaypoint2RefusalsMatchReference` compare the two, on a copy of one
+  forest each, for the same verdict and the same kept alternatives on every
+  node: the first on every referee sentence, the ones bison refuses included,
+  on `Build`'s forest narrowed to the sentence's terminals as the referee
+  narrows it; the second on every row of `waypoint2Refusals` and
+  `waypoint2ScopeRefusals`, on the forest after `LibraryOperators` under
+  `forest.Scope{}`, as `pipelineSource` passes it to the constraint. Each logs
+  its counts and fails on a sentence or row it could not compare.
 
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
