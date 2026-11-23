@@ -2539,6 +2539,14 @@ grammar's tables and its precedence: no Earley item gains a fact.
   every one of the 4,395 sentences; `TestPrecedenceConstraintOrderInvariant`
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
+- **The reference.** `(*Forest).ConstrainReference` is today's judgement,
+  `Constrain`'s body under another name, kept for tests only (decision §3.4):
+  it is the fixed point the differential checks compare production
+  `Constrain` against, verdict and kept set, so production can move without
+  moving what it is judged by. `TestPrecedenceReferenceAgreesWithBison` holds
+  it to bison's verdict and grouping on every toy sentence, as
+  `TestPrecedenceToyReferees` holds `Constrain`. Nothing outside a test calls
+  it, and `Constrain` does not call it.
 
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
