@@ -313,17 +313,38 @@ func guardToy(t *testing.T, settled bool) (*grammar.Tables, []grammar.Level, []s
 	return tab, levels, []string{"", "", "", "", "", "LOW"}
 }
 
-// TestPrecedenceGenerationGuard requires generation to refuse the guard toy with an error naming its key, and
-// perly.y to generate without one.
+// shiftGuardToy is a toy grammar with a state-dependent shift key: F after y: A . e under the spine-top item
+// k: C . m shifts after C alone, and meets w: A %prec HIGH in a conflict the reduction wins after D C.
+func shiftGuardToy(t *testing.T) (*grammar.Tables, []grammar.Level, []string) {
+	tab := toyTables(t, "s ::= k", "s ::= D k", "s ::= D C w F", "k ::= C m", "m ::= y", "y ::= A e", "e ::= F G", "w ::= A")
+	levels := []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}}
+	return tab, levels, []string{"", "", "", "", "", "", "", "HIGH"}
+}
+
+// TestPrecedenceGenerationGuard requires generation to refuse each guard toy, reduce side and shift side, with an
+// error naming its key, and perly.y to generate without one.
 func TestPrecedenceGenerationGuard(t *testing.T) {
-	tab, levels, rulePrec := guardToy(t, false)
-	_, err := NewPrecedence(tab, levels, rulePrec, nil)
-	if err == nil {
-		t.Fatal("the guard toy generated tables; want an error naming its state-dependent key")
-	}
-	for _, part := range []string{"a: X .", "before T", "e: . a"} {
-		if !strings.Contains(err.Error(), part) {
-			t.Errorf("error %q does not name %q", err, part)
+	reduceTab, reduceLevels, reducePrec := guardToy(t, false)
+	shiftTab, shiftLevels, shiftPrec := shiftGuardToy(t)
+	for _, c := range []struct {
+		name     string
+		tab      *grammar.Tables
+		levels   []grammar.Level
+		rulePrec []string
+		parts    []string
+	}{
+		{"reduce", reduceTab, reduceLevels, reducePrec, []string{"a: X .", "before T", "e: . a"}},
+		{"shift", shiftTab, shiftLevels, shiftPrec, []string{"shifting F after", "y: A . e", "k: C . m"}},
+	} {
+		_, err := NewPrecedence(c.tab, c.levels, c.rulePrec, nil)
+		if err == nil {
+			t.Errorf("%s: the guard toy generated tables; want an error naming its state-dependent key", c.name)
+			continue
+		}
+		for _, part := range c.parts {
+			if !strings.Contains(err.Error(), part) {
+				t.Errorf("%s: error %q does not name %q", c.name, err, part)
+			}
 		}
 	}
 	if _, err := ParsePrecedence(committedTables(t)); err != nil {
