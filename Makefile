@@ -1,4 +1,4 @@
-.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental fuzz-chart-recognize chart-ratchet chart-tables chart-absence-reference
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile fuzz-lexer fuzz-parser fuzz-incremental fuzz-chart-recognize chart-ratchet chart-tables chart-absence-reference chart-precedence-reference
 
 BINARIES = pvm pvx pm psc
 
@@ -32,6 +32,15 @@ test:
 # CI runs it in the corpus-backed Ratchets job, since its go test ./... does not.
 chart-absence-reference:
 	go test -tags absencereference ./internal/chart/cmd/ratchet/ -run '^(TestTDTAbsentReasonsMatchPerClaimScan|TestAbsenceCandidatesMatchFullMap)$$' -count=1 -v
+
+# The precedence reference over perl.git (internal/chart/README.md): every
+# recognized perl.git t/ file judged by production Constrain and by
+# ConstrainReference, which must agree. Not in `test`, because a developer
+# without perl.git runs `make test`; the test sits behind the build tag
+# precedencereference and fails, never skips, without PERL5_CORPUS's perl.git.
+# CI runs it in the corpus-backed Ratchets job.
+chart-precedence-reference:
+	go test -tags precedencereference ./internal/chart/cmd/ratchet/ -run '^TestPrecedencePerlGitMatchesReference$$' -count=1 -v
 
 # The lexer fuzz target. Separate from `test` because -fuzz takes ONE package
 # and runs until its budget is spent; it cannot live inside `go test ./...`.
