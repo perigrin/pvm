@@ -76,7 +76,8 @@ func loadToy(t *testing.T, name string) toy {
 // constrained is the chart's verdict on words under opts with the precedence constraint, and its grouping:
 // each rule's reduction as rule:from-to in bison's order (children first, left to right), - where refused,
 // and "ambiguous" where more than one derivation is left. reverse reverses every node's alternatives first.
-func (ty toy) constrained(t *testing.T, words []string, opts recognize.Options, reverse bool) (verdict, grouping string) {
+// constrain is the judgement applied: (*Forest).Constrain or (*Forest).ConstrainReference.
+func (ty toy) constrained(t *testing.T, constrain func(*Forest, *Precedence) bool, words []string, opts recognize.Options, reverse bool) (verdict, grouping string) {
 	t.Helper()
 	f, _, _ := toyForest(t, ty.tab, words, opts)
 	if f == nil {
@@ -85,7 +86,7 @@ func (ty toy) constrained(t *testing.T, words []string, opts recognize.Options, 
 	if reverse {
 		reverseAlts(f)
 	}
-	if !f.Constrain(ty.prec) {
+	if !constrain(f, ty.prec) {
 		return "refuse", "-"
 	}
 	trees, _ := f.Derivations(f.Root, 2)
@@ -123,12 +124,23 @@ func reverseAlts(f *Forest) {
 
 // TestPrecedenceToyReferees runs the constraint on every toy sentence and requires bison's verdict and grouping.
 func TestPrecedenceToyReferees(t *testing.T) {
+	toyReferees(t, (*Forest).Constrain)
+}
+
+// TestPrecedenceReferenceAgreesWithBison holds the reference, the fixed point the differential checks compare
+// production against, to bison's verdict and grouping on every toy sentence.
+func TestPrecedenceReferenceAgreesWithBison(t *testing.T) {
+	toyReferees(t, (*Forest).ConstrainReference)
+}
+
+// toyReferees requires constrain to give bison's verdict and grouping on every toy sentence, one subtest a toy.
+func toyReferees(t *testing.T, constrain func(*Forest, *Precedence) bool) {
 	for _, name := range toyNames {
 		t.Run(name, func(t *testing.T) {
 			ty := loadToy(t, name)
 			bad := 0
 			for _, s := range ty.sentences {
-				v, g := ty.constrained(t, s.words, recognize.Options{}, false)
+				v, g := ty.constrained(t, constrain, s.words, recognize.Options{}, false)
 				if v != s.verdict || g != s.grouping {
 					if bad++; bad <= 10 {
 						t.Errorf("%s: got %s %s, bison %s %s", strings.Join(s.words, " "), v, g, s.verdict, s.grouping)
@@ -195,7 +207,7 @@ func TestPrecedenceToyPrefixAfterPrefixAccepted(t *testing.T) {
 			continue
 		}
 		n++
-		if v, g := ty.constrained(t, s.words, recognize.Options{}, false); v != "accept" || g != s.grouping {
+		if v, g := ty.constrained(t, (*Forest).Constrain, s.words, recognize.Options{}, false); v != "accept" || g != s.grouping {
 			t.Errorf("%s: got %s %s, bison accepts %s", strings.Join(s.words, " "), v, g, s.grouping)
 		}
 	}
@@ -231,10 +243,10 @@ func TestPrecedenceForbiddenInnerSpanRefusesFile(t *testing.T) {
 	if without == 0 || without == len(trees) {
 		t.Fatalf("%d of %d derivations hold no node over 1 .. 2 .. 3; want some, not all", without, len(trees))
 	}
-	if inner, _ := ty.constrained(t, words[:5], recognize.Options{}, false); inner != "refuse" {
+	if inner, _ := ty.constrained(t, (*Forest).Constrain, words[:5], recognize.Options{}, false); inner != "refuse" {
 		t.Fatalf("1 .. 2 .. 3 alone: %s, want refuse", inner)
 	}
-	if v, _ := ty.constrained(t, words, recognize.Options{}, false); v != "refuse" {
+	if v, _ := ty.constrained(t, (*Forest).Constrain, words, recognize.Options{}, false); v != "refuse" {
 		t.Errorf("got %s, want refuse", v)
 	}
 }
@@ -245,10 +257,10 @@ func TestPrecedenceConstraintOrderInvariant(t *testing.T) {
 	for _, name := range toyNames {
 		ty := loadToy(t, name)
 		for _, s := range ty.sentences {
-			v0, g0 := ty.constrained(t, s.words, recognize.Options{}, false)
+			v0, g0 := ty.constrained(t, (*Forest).Constrain, s.words, recognize.Options{}, false)
 			for _, opts := range optionSets {
 				for _, rev := range []bool{false, true} {
-					if v, g := ty.constrained(t, s.words, opts, rev); v != v0 || g != g0 {
+					if v, g := ty.constrained(t, (*Forest).Constrain, s.words, opts, rev); v != v0 || g != g0 {
 						t.Errorf("%s %s under %+v, reversed %v: %s %s, want %s %s", name, strings.Join(s.words, " "), opts, rev, v, g, v0, g0)
 					}
 				}
@@ -271,7 +283,7 @@ func TestPrecedenceToyResolutionNeedsConflict(t *testing.T) {
 		if s.verdict != c.verdict {
 			t.Fatalf("%s: bison %s, want %s", c.words, s.verdict, c.verdict)
 		}
-		if v, g := ty.constrained(t, s.words, recognize.Options{}, false); v != s.verdict || g != s.grouping {
+		if v, g := ty.constrained(t, (*Forest).Constrain, s.words, recognize.Options{}, false); v != s.verdict || g != s.grouping {
 			t.Errorf("%s: got %s %s, bison %s %s", c.words, v, g, s.verdict, s.grouping)
 		}
 	}

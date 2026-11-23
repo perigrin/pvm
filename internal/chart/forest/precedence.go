@@ -338,6 +338,30 @@ func (f *Forest) Constrain(p *Precedence) bool {
 	return true
 }
 
+// ConstrainReference is used only by tests. It is the constrainer judgement Constrain makes today, kept under
+// its own name as the fixed point the differential checks compare production Constrain against, so production
+// can change without changing what it is judged by; TestPrecedenceReferenceAgreesWithBison holds its agreement
+// with bison. It applies p to f in place exactly as Constrain's doc comment describes, shortcut included, and
+// must not call Constrain, nor Constrain it.
+func (f *Forest) ConstrainReference(p *Precedence) bool {
+	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
+	if len(c.eval(f.Root, 0, p.tab.EOF)) == 0 {
+		return false
+	}
+	c.mark(f.Root, 0, p.tab.EOF, -1)
+	for n := range f.Nodes {
+		a := &f.Nodes[n].Alt
+		for *a != 0 {
+			if c.kept[*a] {
+				a = &f.Alts[*a].Next
+			} else {
+				*a = f.Alts[*a].Next
+			}
+		}
+	}
+	return true
+}
+
 // constrainer is one application of a Precedence to a forest.
 type constrainer struct {
 	f      *Forest
