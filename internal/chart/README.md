@@ -2547,6 +2547,19 @@ grammar's tables and its precedence: no Earley item gains a fact.
   it to bison's verdict and grouping on every toy sentence, as
   `TestPrecedenceToyReferees` holds `Constrain`. Nothing outside a test calls
   it, and `Constrain` does not call it.
+  In `forest`, three tests compare the two on two copies of one forest, made
+  before either judges, requiring the same verdict and the same kept
+  alternatives on every node: `TestPrecedenceToyForestsMatchReference` on
+  every toy fixture sentence's forest, and the seeded generators of decision
+  §2, rewritten from the assessment's harnesses, on each sentence's forest
+  after `LibraryOperators`, as `ParseWith` passes it:
+  `TestPrecedenceOperatorSentencesMatchReference` (seed 4: 83 handcrafted
+  sentences and 20,000 random operator sentences) and
+  `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain and
+  nullable-wrapped sentences). Each generator logs
+  `sentences=N compared=C refused=R pruned=P` and requires a sentence refused
+  and one pruned; `TestPrecedenceDiffDetectsDifference` shows their shared
+  comparison report a dropped alternative and a flipped verdict.
 
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
