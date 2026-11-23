@@ -248,3 +248,58 @@ func TestPrecedenceKeepsCorpusAccepted(t *testing.T) {
 	}
 	t.Logf("the constraint keeps all %d files perl and recognition accept", n)
 }
+
+// keptAlts is every node's alternative chain, in order, each node's chain closed by -1.
+func keptAlts(f *forest.Forest) []int32 {
+	var out []int32
+	for n := range f.Nodes {
+		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
+			out = append(out, a)
+		}
+		out = append(out, -1)
+	}
+	return out
+}
+
+// constrainAgrees runs Constrain on one copy of f and ConstrainReference on another, and reports whether both give
+// the verdict and the kept alternatives on every node, the verdict, and whether the constraint pruned anything.
+func constrainAgrees(f *forest.Forest, p *forest.Precedence) (agree, verdict, pruned bool) {
+	before := keptAlts(f)
+	prod, ref := f.Copy(), f.Copy()
+	v, vr := prod.Constrain(p), ref.ConstrainReference(p)
+	return v == vr && slices.Equal(keptAlts(prod), keptAlts(ref)), v, !slices.Equal(keptAlts(prod), before)
+}
+
+// TestPrecedenceRefereeMatchesReference requires production Constrain and ConstrainReference to agree on verdict and
+// kept alternatives on every referee sentence, refused ones included, over the forest the referee judges.
+func TestPrecedenceRefereeMatchesReference(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, compared, refused, pruned := 0, 0, 0, 0
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		n++
+		f, _ := r.narrowed(s)
+		if f == nil {
+			t.Errorf("%s %q: no forest to compare", s.id, s.rendering)
+			continue
+		}
+		compared++
+		agree, verdict, prunedHere := constrainAgrees(f, r.p)
+		if !agree {
+			t.Errorf("%s %q: Constrain and ConstrainReference differ", s.id, s.rendering)
+		}
+		if !verdict {
+			refused++
+		}
+		if prunedHere {
+			pruned++
+		}
+	}
+	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", n, compared, refused, pruned)
+}

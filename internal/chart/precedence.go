@@ -307,12 +307,10 @@ func newReferee(g *grammar.Grammar, tab *grammar.Tables, dir string) (*referee, 
 	return r, nil
 }
 
-// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: Build's forest before resolve,
-// since bison's token choice stands in for scope, its derivations
-// narrowed to s's own terminals (a token admits a set of terminals, and bison read one of them), then the constraint.
-// The grouping is the referee's: each reduction of a rule carrying a precedence, line:from-to over terminal indexes
-// (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
-func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
+// narrowed is s's rendering's Build forest before resolve, narrowed to s's own terminals (a token admits a set of
+// terminals, and bison read one of them); nil where recognition or the narrowing leaves no derivation. skip is the
+// token count of s's preamble.
+func (r *referee) narrowed(s precedenceSentence) (*forest.Forest, int) {
 	preamble, _, _, _ := renderTerms(r.lexemes, s.terms)
 	skip := 0
 	if preamble != "" {
@@ -324,7 +322,20 @@ func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
 		want = append(want, r.terminal[name])
 	}
 	f := builtForest(r.tab, []byte(s.rendering))
-	if f == nil || !narrow(f, want, skip) || !f.Constrain(r.p) {
+	if f == nil || !narrow(f, want, skip) {
+		return nil, skip
+	}
+	return f, skip
+}
+
+// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: Build's forest before resolve,
+// since bison's token choice stands in for scope, its derivations
+// narrowed to s's own terminals (a token admits a set of terminals, and bison read one of them), then the constraint.
+// The grouping is the referee's: each reduction of a rule carrying a precedence, line:from-to over terminal indexes
+// (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
+func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
+	f, skip := r.narrowed(s)
+	if f == nil || !f.Constrain(r.p) {
 		return "refuse", "-"
 	}
 	trees, cut := f.Derivations(f.Root, 16)
