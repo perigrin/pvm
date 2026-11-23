@@ -772,3 +772,13 @@ func (r *resolver) is(k int, s string) bool {
 func (r *resolver) isWord(k int) bool {
 	return k >= 0 && k < r.n && r.s.Raw[r.s.Tokens[k].Index].Kind == lexer.Word
 }
+
+// LibraryOperators is ParseWith's library-operator stage (libraryOperators), exported for the ratchet's stage keys.
+func LibraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+	return libraryOperators(tab, f, s, src, scope)
+}
+
+// Resolve is ParseWith's resolve stage (resolve), exported for the ratchet's stage keys.
+func Resolve(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+	return resolve(tab, f, s, src, scope)
+}

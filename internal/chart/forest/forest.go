@@ -131,11 +131,11 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 	if at := libraryOperators(tab, f, s, src, scope); at >= 0 {
 		return nil, s, Refusal{Byte: at, Reason: "scope"}
 	}
-	prec := grammar.Derived(tab, buildParsePrecedence)
-	if prec.err != nil {
-		return nil, s, Refusal{Reason: prec.err.Error()}
+	prec, err := ParsePrecedence(tab)
+	if err != nil {
+		return nil, s, Refusal{Reason: err.Error()}
 	}
-	if !f.Constrain(prec.p) {
+	if !f.Constrain(prec) {
 		// shortcut: Constrain reports only the root's verdict, so a precedence refusal names no byte (Byte 0);
 		// locate it at the first span left with no derivation when a gate compares refusal bytes.
 		return nil, s, Refusal{Reason: "precedence"}
@@ -143,7 +143,7 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 	if at := resolve(tab, f, s, src, scope); at >= 0 {
 		return nil, s, Refusal{Byte: at, Reason: "scope"}
 	}
-	f.Readings = f.countReadings(grammar.Derived(tab, buildFactsGrammar).fullstmt)
+	f.Readings = f.CountReadings(tab)
 	return f, s, Refusal{}
 }
 
@@ -645,4 +645,12 @@ func (e *enum) seqs(a Alt, limit int) [][]*Tree {
 		}
 	}
 	return out
+}
+
+// Copy is a copy of f that shares nothing a stage after the forest changes: its nodes and alternatives are its own, so
+// LibraryOperators, Constrain and Resolve on it leave f as it was. The ratchet's stage keys time each pass on a copy.
+func (f *Forest) Copy() *Forest {
+	c := *f
+	c.Nodes, c.Alts = slices.Clone(f.Nodes), slices.Clone(f.Alts)
+	return &c
 }

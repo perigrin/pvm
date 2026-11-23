@@ -131,3 +131,15 @@ func buildParsePrecedence(tab *grammar.Tables) parsePrecedence {
 	p, err := NewPrecedence(tab, g.Levels, rulePrec, g.Refused)
 	return parsePrecedence{p, err}
 }
+
+// CountReadings is f's Readings over tab's statement symbol, as ParseWith counts them (countReadings).
+func (f *Forest) CountReadings(tab *grammar.Tables) Readings {
+	return f.countReadings(grammar.Derived(tab, buildFactsGrammar).fullstmt)
+}
+
+// ParsePrecedence is the committed grammar's Precedence over tab as ParseWith derives it, once per tables value; an
+// error where tab is not the committed grammar's tables.
+func ParsePrecedence(tab *grammar.Tables) (*Precedence, error) {
+	p := grammar.Derived(tab, buildParsePrecedence)
+	return p.p, p.err
+}

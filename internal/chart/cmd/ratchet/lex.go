@@ -207,5 +207,5 @@ func measureLex(tab *grammar.Tables, files []File, in verdictInputs, srcs map[st
 		tokens += len(lexer.Tokenize(srcs[f]))
 	}
 	measureSpeed(p, agg, tokens, measured)
-	return unmapped, chartStages(p, tab, agg, tokens, srcs, measured)
+	return unmapped, chartStages(p, tab, agg, tokens, srcs, in.Scope, measured)
 }

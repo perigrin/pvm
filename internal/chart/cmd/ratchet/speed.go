@@ -35,8 +35,11 @@ type File struct{ Path, Corpus string }
 // lex-overhead). Now and GC are injected so tests can run it on a fake clock.
 // lex-overhead is measured only when the 1-minute load read from LoadPath is
 // at most LoadLimit (lexOverheadKeys); tests point LoadPath at a file.
+// Prepare, where set, is the chart side's per-pass preparation hook: it runs
+// before each chart pass, after its GC and before its clock starts.
 type Protocol struct {
 	Chart, Ref Side
+	Prepare    func()
 	Now        func() time.Duration
 	GC         func()
 	Stderr     io.Writer
@@ -50,9 +53,12 @@ const (
 	measurements = 3
 )
 
-// pass times one side over every file once, after a GC outside the span.
-func (p Protocol) pass(side Side, files []string, cold bool) time.Duration {
+// pass times one side over every file once, after a GC and prepare (nil for none) outside the span.
+func (p Protocol) pass(side Side, prepare func(), files []string, cold bool) time.Duration {
 	p.GC()
+	if prepare != nil {
+		prepare()
+	}
 	start := p.Now()
 	var run Runner
 	for _, f := range files {
@@ -70,8 +76,8 @@ func (p Protocol) Ratio(name string, files []string, cold bool) float64 {
 	for m := range ms {
 		ratios := make([]float64, 0, timedPairs)
 		for i := range warmupPairs + timedPairs {
-			c := p.pass(p.Chart, files, cold)
-			r := p.pass(p.Ref, files, cold)
+			c := p.pass(p.Chart, p.Prepare, files, cold)
+			r := p.pass(p.Ref, nil, files, cold)
 			if i >= warmupPairs {
 				ratios = append(ratios, float64(c)/float64(r))
 			}
@@ -95,7 +101,7 @@ func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string
 	corpus := make(map[string]string, len(population))
 	var total time.Duration
 	for _, f := range population {
-		rdTime[f.Path] = p.pass(rd, []string{f.Path}, true)
+		rdTime[f.Path] = p.pass(rd, nil, []string{f.Path}, true)
 		total += rdTime[f.Path]
 		corpus[f.Path] = f.Corpus
 	}
@@ -263,13 +269,15 @@ func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(pa
 	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4f\n", sum)
 }
 
-// chartStages times the chart's stages (measureStages) over tab, and adds
+// chartStages times the chart's stages (measureStages, then
+// measurePipelineStages under scope) over tab, and adds
 // gc-cpu-share-chart (lex, recognize and forest) and gc-cpu-share-rd (p's
 // Ref), each over one pass of agg, taken before measureStages prepares its
 // lattices and charts so they are not live. Like pipelineSide, a recognizer
 // error panics; a refused file has no forest, so forest.Build returns at once
 // and its forest stage does almost nothing.
-func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, measured map[string]string) error {
+func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, scope func(string) forest.Scope,
+	measured map[string]string) error {
 	lexOf := func(path string) *lex.Lattice[lex.None] {
 		s, _ := lex.Lex(srcs[path], tab.Tokens)
 		return lex.Linear(s)
@@ -301,7 +309,126 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs
 		measured[g.key] = fmt.Sprintf("%.4f", share)
 	}
 	measureStages(p, agg, tokens, lexOf, recognizer, forestOf, measured)
+	return measurePipelineStages(p, tab, agg, srcs, scope, measured)
+}
+
+// stageInput is one file's input to a stage after the forest: f, nil where the chart or an earlier stage refused the
+// file, and what LibraryOperators and Resolve read.
+type stageInput struct {
+	path  string
+	f     *forest.Forest
+	s     *lex.Stream
+	src   []byte
+	scope forest.Scope
+}
+
+// pipelineStage is one of forest.ParseWith's stages after LibraryOperators: its key, and run, false where it refuses
+// the file.
+type pipelineStage struct {
+	key string
+	run func(*grammar.Tables, *forest.Precedence, stageInput) bool
+}
+
+// pipelineStages are ParseWith's stages after LibraryOperators, in its order; tests wrap them to see their inputs.
+var pipelineStages = []pipelineStage{
+	{"speed-stage-precedence-aggregate-longlived", func(_ *grammar.Tables, p *forest.Precedence, in stageInput) bool {
+		return in.f.Constrain(p)
+	}},
+	{"speed-stage-resolve-aggregate-longlived", func(tab *grammar.Tables, _ *forest.Precedence, in stageInput) bool {
+		return forest.Resolve(tab, in.f, in.s, in.src, in.scope) < 0
+	}},
+	{"speed-stage-readings-aggregate-longlived", func(tab *grammar.Tables, _ *forest.Precedence, in stageInput) bool {
+		in.f.CountReadings(tab)
+		return true
+	}},
+}
+
+// measurePipelineStages adds the three stage keys after the forest: the precedence constraint, resolve and the
+// readings count each timed alone against p's Ref (recursive descent) on agg, long-lived. Each stage's input is
+// prepared outside every span: the forest after LibraryOperators under scope(path), the scope the speed ratios'
+// pipeline runs under, then after each stage in turn; each pass times a fresh copy (stageSide). A file the chart,
+// LibraryOperators or an earlier stage refused stays in the timed population and the stage does nothing for it; each
+// stage prints how many such files it had. Library operators have no key, so the stage keys do not sum to the pipeline.
+func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, scope func(string) forest.Scope,
+	measured map[string]string) error {
+	prec, err := forest.ParsePrecedence(tab)
+	if err != nil {
+		return err
+	}
+	ins, err := stageInputs(tab, agg, srcs, scope)
+	if err != nil {
+		return err
+	}
+	for _, st := range pipelineStages {
+		refused := 0
+		for _, in := range ins {
+			if in.f == nil {
+				refused++
+			}
+		}
+		fmt.Fprintf(p.Stderr, "%s%s: %d of %d files refused before the stage\n", linePrefix, st.key, refused, len(agg))
+		p.Prepare, p.Chart = stageSide(tab, prec, st, ins)
+		measured[st.key] = fmt.Sprintf("%.4f", p.Ratio(st.key, agg, false))
+		advance(tab, prec, st, ins)
+	}
 	return nil
+}
+
+// stageInputs is each file's input to the precedence stage: forest.Build's forest after LibraryOperators under
+// scope(path), nil where either refuses the file.
+func stageInputs(tab *grammar.Tables, files []string, srcs map[string][]byte, scope func(string) forest.Scope) (map[string]stageInput, error) {
+	r := recognize.New(tab, recognize.Options{})
+	ins := make(map[string]stageInput, len(files))
+	for _, path := range files {
+		s, _ := lex.Lex(srcs[path], tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(r, l)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		in := stageInput{path: path, f: forest.Build(tab, c, l), s: s, src: srcs[path], scope: scope(path)}
+		if in.f != nil && forest.LibraryOperators(tab, in.f, s, in.src, in.scope) >= 0 {
+			in.f = nil
+		}
+		ins[path] = in
+	}
+	return ins, nil
+}
+
+// stageSide is st over ins as a Protocol's chart side: prepare, its per-pass hook, copies every input forest, and the
+// runner runs st on its file's copy and drops it, so one pass's copies are held at a time and the next GC collects
+// them. A file with no input costs a map lookup.
+func stageSide(tab *grammar.Tables, prec *forest.Precedence, st pipelineStage, ins map[string]stageInput) (prepare func(), side Side) {
+	copies := make(map[string]*forest.Forest, len(ins))
+	prepare = func() {
+		for path, in := range ins {
+			if in.f != nil {
+				copies[path] = in.f.Copy()
+			}
+		}
+	}
+	side = func() Runner {
+		return func(path string) {
+			if f := copies[path]; f != nil {
+				delete(copies, path)
+				in := ins[path]
+				in.f = f
+				st.run(tab, prec, in)
+			}
+		}
+	}
+	return prepare, side
+}
+
+// advance runs st once on each input in place, outside every span, leaving the next stage's input: nil where st
+// refuses the file.
+func advance(tab *grammar.Tables, prec *forest.Precedence, st pipelineStage, ins map[string]stageInput) {
+	for path, in := range ins {
+		if in.f != nil && !st.run(tab, prec, in) {
+			in.f = nil
+			ins[path] = in
+		}
+	}
 }
 
 // measureBench runs chart's BenchLex, BenchRecognize and BenchExpected, and forest's Bench as BenchForest, on std5k.pl
