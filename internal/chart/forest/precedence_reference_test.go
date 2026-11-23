@@ -1,5 +1,5 @@
 // ABOUTME: Compares production Constrain against ConstrainReference, verdict and kept set, on two copies of one forest.
-// ABOUTME: Covers the toy fixture forests and decision §2's seeded generators (seed 4 operators).
+// ABOUTME: Covers the toy fixture forests and decision §2's seeded generators (seed 4 operators, seed 44 chains).
 
 package forest
 
@@ -26,8 +26,10 @@ func keptAlts(f *Forest, n int) []int32 {
 // altCount is how many alternatives f's nodes hold.
 func altCount(f *Forest) int {
 	k := 0
-	for n := range f.Nodes {
-		k += len(keptAlts(f, n))
+	for _, nd := range f.Nodes {
+		for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+			k++
+		}
 	}
 	return k
 }
@@ -215,6 +217,32 @@ func TestPrecedenceOperatorSentencesMatchReference(t *testing.T) {
 	srcs := slices.Clone(operatorCrafted)
 	for range 20000 {
 		srcs = append(srcs, fmt.Sprintf(wraps[rng.Intn(len(wraps))], gen(3)))
+	}
+	sentencesMatchReference(t, srcs)
+}
+
+// TestPrecedenceChainSentencesMatchReference is decision §2's seed-44 generator: 15,000 Leo chains of 1 to 25 links,
+// some wrapped in a nullable context, production against the reference on each.
+func TestPrecedenceChainSentencesMatchReference(t *testing.T) {
+	links := []string{"$a = ", "$a ||= ", "$a **= ", "not ", "!", "-", "\\", "~", "defined ", "ref ", "print ", "return ", "$a ? $b : ", "$a ** ", "$a .. ", "$a x ", "$a // ", "$a || ", "$a or ", "$a && ", "$a and ", "$a <=> ", "$a == ", "$a . ", "$a + ", "my $m = ", "local $l = ", "sort ", "lc ", "-e ", "f ", "$a, ", "$a => ", "($a) x ", "scalar "}
+	tails := []string{"$z", "$z ** $y", "$z + $y * $w", "$z ? $y : $w", "$z = $y", "$z->[0]", "$z++", "--$z", "@z", "()", "[]", "{}", "f()", "$z <=> $y", "$z .. $y", "$z [0]", "$fh [1]", "$fh []", "{$fh} []", "$z or $y", "1"}
+	nulls := []string{"for (;;) { %s }", "%s for ();", "sub f :lvalue { %s }", "my $x = () = (%s);", "@x = (%s,);", "do {} until %s;", "{ ; %s ; }", "return;", "print;", "%s"}
+	rng := rand.New(rand.NewSource(44))
+	var srcs []string
+	for range 15000 {
+		var b strings.Builder
+		for k := 1 + rng.Intn(25); k > 0; k-- {
+			b.WriteString(links[rng.Intn(len(links))])
+		}
+		b.WriteString(tails[rng.Intn(len(tails))])
+		s := b.String()
+		if w := nulls[rng.Intn(len(nulls))]; strings.Contains(w, "%s") {
+			s = fmt.Sprintf(w, s)
+		}
+		if rng.Intn(2) == 0 {
+			s += ";"
+		}
+		srcs = append(srcs, s)
 	}
 	sentencesMatchReference(t, srcs)
 }
