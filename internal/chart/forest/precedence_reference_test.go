@@ -1,14 +1,16 @@
 // ABOUTME: Compares production Constrain against ConstrainReference, verdict and kept set, on two copies of one forest.
-// ABOUTME: Covers the toy fixture forests.
+// ABOUTME: Covers the toy fixture forests and decision §2's seeded generators (seed 4 operators).
 
 package forest
 
 import (
 	"fmt"
+	"math/rand"
 	"slices"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -114,4 +116,105 @@ func TestPrecedenceToyForestsMatchReference(t *testing.T) {
 			}
 		}
 	}
+}
+
+// sentencesMatchReference runs each source as ParseWith does up to the constraint (lex, recognition, Build,
+// LibraryOperators under the empty scope) and compares production and the reference on that forest. It logs the
+// counts and requires a sentence compared, one refused and one pruned, so a generator cannot agree vacuously.
+func sentencesMatchReference(t *testing.T, srcs []string) {
+	tab := committedTables(t)
+	prec, err := ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := recognize.New(tab, recognize.Options{})
+	compared, refused, pruned, bad := 0, 0, 0, 0
+	for _, src := range srcs {
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(r, l)
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if !c.Accepted() {
+			continue
+		}
+		f := Build(tab, c, l)
+		if LibraryOperators(tab, f, s, []byte(src), Scope{}) >= 0 {
+			continue
+		}
+		compared++
+		diff, ok, p := judgeBoth(f, prec)
+		if diff != "" {
+			if bad++; bad <= 10 {
+				t.Errorf("%q: %s", src, diff)
+			}
+		}
+		if !ok {
+			refused++
+		}
+		if p {
+			pruned++
+		}
+	}
+	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", len(srcs), compared, refused, pruned)
+	if bad > 0 {
+		t.Errorf("%d of %d compared sentences differ from the reference", bad, compared)
+	}
+	if compared == 0 || refused == 0 || pruned == 0 {
+		t.Errorf("compared %d, refused %d, pruned %d; want each above 0", compared, refused, pruned)
+	}
+}
+
+// operatorCrafted are the 83 handcrafted sentences of the seed-4 harness (the assessment's harness/fresh4).
+var operatorCrafted = []string{
+	"1 == 2 == 3;", "1 < 2 < 3;", "1 .. 2 .. 3;", "-e -f $x;", "my $x [0];", "my $x {1};", "my ($x) [0];",
+	"print $fh [1,2];", "print {$fh} [1];", "print $fh {1};", "print STDOUT [1];", "sort $f [1];", "sort $f {1};",
+	"local $x [0];", "our @a [0];", "my %h {1};", "$x = my $y [0];", "f(my $x [0]);", "{ my $x }", "{ my $x [0] }",
+	"{ print $fh [1] }", "{ $a ** $b }", "{ $a ** $b ** $c }", "{ 1 == 2 }", "{ 1 == 2 == 3 }", "{ -$x ** 2 }",
+	"{ !$x }", "{ $x = $y ? $z : $w }", "{ not $x }", "{ defined $x }", "{ ref $x }", "{ $x++ }", "{ my $x {1} }",
+	"$x = { my $y };", "$x = sub { $a <=> $b };", "sort { $a <=> $b } @x", "$x ? $y : $z ? $w : $v;", "$x = $y = $z;",
+	"$x->[0]{1}[2];", "$x->${\\ 'y'};", "defined $x ? 1 : 0;", "ref $x eq 'HASH';", "-$x ** 2;", "!$x == 1;",
+	"\\$x->[0];", "$x x 3 x 4;", "$x =~ s/a/b/r =~ tr/a/b/r;", "print { $fh } $x, $y;", "print $fh $x, $y;",
+	"return my $x [0];", "my $x = 1 if $y;", "do { 1 } while $x;", "$x = do { 1 } + 2;", "$x = (1) [0];",
+	"$x = (1,2) [0];", "$x = (my $y) [0];", "@x = (sort $f) [0];", "$x = { 1 => 2 } -> {1};", "$x lt $y lt $z;",
+	"$x <=> $y <=> $z;", "$x =~ $y =~ $z;", "-f -d $x;", "stat _ -f;", "$x->@*;", "my $x; my $y", "my $x\n}",
+	"exit 1 }", "$x **", "", ";", ";;;", "{}", "{;}", "sub f { }", "sub f { my $x }", "sub f { $a ** $b }",
+	"sub f { return $a ** $b }", "if ($x) { $a == $b }", "if ($x) { $a == $b == $c }", "$x = [ my $y [0] ];",
+	"$x = { my $y {0} };", "@x = map { my $y [0] } @z;", "@x = grep { $_ == 1 == 2 } @z;",
+}
+
+// TestPrecedenceOperatorSentencesMatchReference is decision §2's seed-4 generator: the 83 handcrafted sentences and
+// 20,000 random operator sentences, production against the reference on each.
+func TestPrecedenceOperatorSentencesMatchReference(t *testing.T) {
+	terms := []string{"$x", "$y", "1", "@a", "%h", "f()", "(1)", "[1]", "{1}", "\"s\"", "$h{1}", "$a[0]", "$r->[0]", "my $m", "my ($p)", "local $l", "our $o", "_", "STDOUT", "$fh", "{$fh}"}
+	pre := []string{"-", "!", "\\", "~", "+", "not ", "defined ", "ref ", "-e ", "-f ", "++", "--", "scalar ", "print ", "print $fh ", "print {$fh} ", "sort ", "sort $s ", "return ", "my ", "lc ", "exists ", "delete ", "rand ", "-M "}
+	bin := []string{"+", "-", "*", "/", "**", "==", "!=", "<=>", "<", ">", "lt", "eq", "cmp", "&&", "||", "//", "and", "or", "xor", "=", "+=", "**=", "..", "...", "=~", "!~", "x", ".", ",", "=>", "?", ":", "->", "&", "|", "^", "<<", ">>", "isa"}
+	post := []string{"++", "--", "[0]", "{1}", "->[0]", "->{1}", "->()", "(1)", " [0]", " {1}"}
+	wraps := []string{"%s;", "{ %s }", "$z = %s;", "f(%s);", "if (%s) { 1 }", "sub { %s }", "[ %s ]", "%s"}
+	rng := rand.New(rand.NewSource(4))
+	var gen func(d int) string
+	gen = func(d int) string {
+		var b strings.Builder
+		for i := rng.Intn(2); i > 0; i-- {
+			b.WriteString(pre[rng.Intn(len(pre))])
+		}
+		if d > 0 && rng.Intn(4) == 0 {
+			b.WriteString("(" + gen(d-1) + ")")
+		} else {
+			b.WriteString(terms[rng.Intn(len(terms))])
+		}
+		if rng.Intn(3) == 0 {
+			b.WriteString(post[rng.Intn(len(post))])
+		}
+		if d > 0 && rng.Intn(3) > 0 {
+			b.WriteString(" " + bin[rng.Intn(len(bin))] + " " + gen(d-1))
+		}
+		return b.String()
+	}
+	srcs := slices.Clone(operatorCrafted)
+	for range 20000 {
+		srcs = append(srcs, fmt.Sprintf(wraps[rng.Intn(len(wraps))], gen(3)))
+	}
+	sentencesMatchReference(t, srcs)
 }
