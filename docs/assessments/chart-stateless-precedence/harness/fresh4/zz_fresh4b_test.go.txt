@@ -1,0 +1,21 @@
+package forest
+
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func TestZZFresh4Reasons(t *testing.T) {
+	tab := committedTables(t)
+	rs := ReduceSideFor(tab)
+	for _, s := range []string{"print $fh [];", "print $fh [1];", "print {$fh} [];", "sort $f [];", "1 == 2 == 3;", "1 < 2 < 3;", "1 .. 2 .. 3;", "$x <=> $y <=> $z;", "-e -f $x;", "my $x [0];", "print $fh [1,2];", "$x ** $y ** $z;", "$x lt $y lt $z;", "{ 1 == 2 == 3 }", "1 == 2 == 3"} {
+		_, r0 := Parse(tab, []byte(s), Scope{})
+		st, _ := lex.Lex([]byte(s), tab.Tokens)
+		l := lex.Linear(st)
+		c0, _ := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+		c2, _ := recognize.Recognize(recognize.New(tab, recognize.Options{Reduce: rs}), l)
+		t.Logf("%-22q V0 pipeline %+v; recog V0 %v V2 %v", s, r0, c0.Accepted(), c2.Accepted())
+	}
+}

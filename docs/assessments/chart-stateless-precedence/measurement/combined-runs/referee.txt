@@ -1,0 +1,5 @@
+=== RUN   TestZZVariantReferee
+    zz_variants_referee_test.go:130: REFEREE 1296 sentences; vs V0 verdict/grouping differs: V1 0 V2 0; kept-set only: V1 0 V2 0; vs bison: V0 0 V1 0 V2 0; V2 recognition acceptance differs from V0 on 0 (of them V0's pipeline accepts 0)
+--- PASS: TestZZVariantReferee (4.22s)
+PASS
+ok  	tamarou.com/pvm/internal/chart	4.241s

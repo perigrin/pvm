@@ -1,0 +1,74 @@
+package forest
+
+import (
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+	"time"
+
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+type snap struct{ f *Forest; nodes []Node; alts []Alt }
+
+func TestExpConstrain(t *testing.T) {
+	tab := committedTables(t)
+	files, _ := filepath.Glob("../testdata/guacamole/*/*.p[lm]")
+	more, _ := filepath.Glob("../testdata/guacamole/*.p[lm]")
+	files = append(append(files, more...), "../testdata/std5k.pl")
+	if os.Getenv("EXPBIG") != "" {
+		slices.SortFunc(files, func(a, b string) int { x, _ := os.Stat(a); y, _ := os.Stat(b); return int(y.Size() - x.Size()) })
+		files = files[:40]
+	}
+	r := recognize.New(tab, recognize.Options{})
+	prec := grammar.Derived(tab, buildParsePrecedence)
+	var snaps []snap
+	nodes := 0
+	for _, fn := range files {
+		src, _ := os.ReadFile(fn)
+		s, _ := lex.Lex(src, tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(r, l)
+		if err != nil || !c.Accepted() { continue }
+		f := Build(tab, c, l)
+		if libraryOperators(tab, f, s, src, Scope{}) >= 0 { continue }
+		snaps = append(snaps, snap{f, slices.Clone(f.Nodes), slices.Clone(f.Alts)})
+		nodes += len(f.Nodes)
+	}
+	t.Logf("files %d forests %d nodes %d", len(files), len(snaps), nodes)
+	run := func() (time.Duration, [][]Alt) {
+		var outs [][]Alt
+		var d time.Duration
+		for _, sn := range snaps {
+			copy(sn.f.Nodes, sn.nodes); copy(sn.f.Alts, sn.alts)
+			t0 := time.Now(); sn.f.Constrain(prec.p); d += time.Since(t0)
+			heads := make([]Alt, len(sn.f.Nodes))
+			for i, nd := range sn.f.Nodes { heads[i].Next = nd.Alt }
+			outs = append(outs, slices.Clone(sn.f.Alts), heads)
+			_ = sn.f.Nodes
+		}
+		return d, outs
+	}
+	type v struct{ name string; hint, dense, nomap bool }
+	vs := []v{{"base", false, false, false}, {"hint", true, false, false}, {"dense", false, true, false}, {"nomap+dense", false, true, true}}
+	times := map[string][]time.Duration{}
+	var ref [][]Alt
+	expMaxDepth = 0
+	for round := 0; round < 13; round++ {
+		for _, x := range vs {
+			expHint, expDense, expNoMap = x.hint, x.dense, x.nomap
+			d, outs := run()
+			if ref == nil { ref = outs } else {
+				for i := range outs { if !slices.Equal(outs[i], ref[i]) { t.Fatalf("%s differs", x.name) } }
+			}
+			if round >= 2 { times[x.name] = append(times[x.name], d) }
+		}
+	}
+	for _, x := range vs { ts := times[x.name]; slices.Sort(ts); t.Logf("%-11s median %v min %v max %v", x.name, ts[len(ts)/2], ts[0], ts[len(ts)-1]) }
+	t.Logf("max eval recursion depth %d", expMaxDepth)
+}
+
+func init() { if os.Getenv("EXPNOMAP") != "" { expNoMap, expDense = true, true } }

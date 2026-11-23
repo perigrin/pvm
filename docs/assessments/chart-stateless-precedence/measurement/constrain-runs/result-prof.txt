@@ -1,0 +1,2 @@
+corpus files 2501 (with perlgit 620); population 2214; aggregate 2211 files, 4851485 bytes, sha256 639a1a6bff14b764306a01ff5171027ebdcf53c977677022bc8b232c71ab5ffb
+stats {Files:2211 ReachConstrain:2211 ConstrainAccepted:2211 AltsBuilt:2565144 AltsPruned:2421356 AltsIdeal:2150267 ReduceDirect:32364 ReduceCascade:143788 ConstrainDropped:414877 Violations:0 VerdictFlips:0 RootDeadReduce:0 ConstrainRefused:0 AltsBuiltRefused:0 Reach:[2211 2211 2211 2211 2211 2211 2211]}

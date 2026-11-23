@@ -1,0 +1,21 @@
+package forest
+
+import "testing"
+
+func TestZZFresh4Semi(t *testing.T) {
+	tab := committedTables(t)
+	rs := ReduceSideFor(tab)
+	semi, brace := -1, -1
+	for i, s := range tab.Symbols {
+		if s.Name == "PERLY_SEMICOLON" { semi = i }
+		if s.Name == "PERLY_BRACE_CLOSE" { brace = i }
+	}
+	ns, nb, ne := 0, 0, 0
+	for r := range rs.Never {
+		if rs.Never[r] == nil { continue }
+		if rs.Never[r][semi/64]&(1<<(semi%64)) != 0 { ns++ }
+		if rs.Never[r][brace/64]&(1<<(brace%64)) != 0 { nb++ }
+		if rs.Never[r][tab.EOF/64]&(1<<(tab.EOF%64)) != 0 { ne++ }
+	}
+	t.Logf("rules with ; in Never %d, } %d, EOF %d", ns, nb, ne)
+}

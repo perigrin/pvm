@@ -1,0 +1,303 @@
+package forest
+
+// Scratch (combined experiment), not for the repository: ParseWith's stages per variant, each stage's input
+// prepared outside the timed span; correctness of V1 and V2 against V0 per file.
+//  V0 today; V1 ConstrainV1 for Constrain; V2 V1 plus the reduce-side filter in recognition and Build.
+
+import (
+	"fmt"
+	"slices"
+
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+const (
+	CLex = iota
+	CRecognize
+	CBuild
+	CLibOps
+	CPrecedence
+	CResolve
+	CReadings
+	NC
+)
+
+var CStageNames = [NC]string{"lex", "recognize", "build", "libops", "precedence", "resolve", "readings"}
+
+type cfile struct {
+	src   []byte
+	scope Scope
+	s     *lex.Stream
+	l     *lex.Lattice[lex.None]
+	c     [3]*recognize.Chart
+	in    [3][NC]*Forest
+}
+
+// CStats are the correctness counts, V1 and V2 each against V0.
+type CStats struct {
+	Files                                 int
+	ReachConstrain                        [3]int
+	VerdictDiff, KeptDiff                 [3]int // constraint verdict; kept set where both accept
+	PipelineDiff, ReadingsDiff            [3]int // ParseWith's refusal reason; readings count
+	AcceptDiff, AcceptDiffPipelineAccepts int
+	// per file, V0 and V2: recognized, items in sets 1.., positions (nodes with a set, less node 0)
+	Rec                                [][2]bool
+	Items, Positions                   [][2]int
+	AltsBuilt                          [3]int
+	EmptyNodesV2                       int
+	Diffs                              []string
+	EvHist, MkHist, AllHist            map[int]int
+	EvMax, MkMax, AllMax, NodesVisited int
+	RulesNever, RulesParent            int
+}
+
+type Combined struct {
+	tab   *grammar.Tables
+	prec  *Precedence
+	sl    *Stateless
+	rs    *recognize.ReduceSide
+	stmt  int
+	files []*cfile
+	Stats CStats
+}
+
+// Opts is variant v's recognizer options.
+func (m *Combined) Opts(v int) recognize.Options {
+	if v == 2 {
+		return recognize.Options{Reduce: m.rs}
+	}
+	return recognize.Options{}
+}
+
+func (m *Combined) constrain(v int, f *Forest) bool {
+	if v == 0 {
+		return f.Constrain(m.prec)
+	}
+	return f.ConstrainV1(m.sl)
+}
+
+func countAltsC(f *Forest) int {
+	n := 0
+	for _, nd := range f.Nodes {
+		for a := nd.Alt; a != 0; a = f.Alts[a].Next {
+			n++
+		}
+	}
+	return n
+}
+
+// PrepareCombined runs each variant's pipeline once per file outside any span, keeping each stage's input, and
+// compares V1 and V2 with V0.
+func PrepareCombined(tab *grammar.Tables, srcs [][]byte, scopes []Scope, names []string) *Combined {
+	m := &Combined{tab: tab, prec: PrecedenceFor(tab), sl: StatelessOf(tab), rs: ReduceSideFor(tab),
+		stmt: grammar.Derived(tab, buildFactsGrammar).fullstmt}
+	st := &m.Stats
+	st.EvHist, st.MkHist, st.AllHist = map[int]int{}, map[int]int{}, map[int]int{}
+	for r := range m.rs.Never {
+		if m.rs.Never[r] != nil {
+			st.RulesNever++
+		}
+		if m.rs.Parent[r] != nil {
+			st.RulesParent++
+		}
+	}
+	var recs [3]*recognize.Recognizer
+	for v := range 3 {
+		recs[v] = recognize.New(tab, m.Opts(v))
+	}
+	var pr [3]*recognize.Recognizer
+	for v := range 3 {
+		pr[v] = recognize.New(tab, m.Opts(v))
+	}
+	diff := func(format string, a ...any) {
+		if len(st.Diffs) < 200 {
+			st.Diffs = append(st.Diffs, fmt.Sprintf(format, a...))
+		}
+	}
+	st.Rec, st.Items, st.Positions = make([][2]bool, len(srcs)), make([][2]int, len(srcs)), make([][2]int, len(srcs))
+	for i, src := range srcs {
+		mf := &cfile{src: src, scope: scopes[i]}
+		m.files = append(m.files, mf)
+		st.Files++
+		mf.s, _ = lex.Lex(src, tab.Tokens)
+		mf.l = lex.Linear(mf.s)
+		var kept0 [][16]int32
+		var ok0 bool
+		var ref0 Refusal
+		var rd0 Readings
+		for v := range 3 {
+			// the whole pipeline's outcome
+			ConstrainVariant = min(v, 1)
+			pf, ref := ParseWith(tab, pr[v], src, mf.scope)
+			ConstrainVariant = 0
+			var rd Readings
+			if pf != nil {
+				rd = pf.Readings
+			}
+			if v == 0 {
+				ref0, rd0 = ref, rd
+			} else {
+				if ref.Reason != ref0.Reason {
+					st.PipelineDiff[v]++
+					diff("PIPELINE V%d %s: V0 %q V%d %q", v, names[i], ref0.Reason, v, ref.Reason)
+				}
+				if rd != rd0 {
+					st.ReadingsDiff[v]++
+					diff("READINGS V%d %s: V0 %+v V%d %+v", v, names[i], rd0, v, rd)
+				}
+			}
+
+			c, err := recognize.Recognize(recs[v], mf.l)
+			if err != nil {
+				panic(err)
+			}
+			items, pos := 0, 0
+			for _, set := range c.Sets[1:] {
+				items += len(set.Items())
+			}
+			_, pos = c.Reuse()
+			pos--
+			acc := c.Accepted()
+			if v != 1 {
+				st.Rec[i][v/2], st.Items[i][v/2], st.Positions[i][v/2] = acc, items, pos
+			}
+			if v == 2 && acc != st.Rec[i][0] {
+				st.AcceptDiff++
+				if ref0.Reason == "" {
+					st.AcceptDiffPipelineAccepts++
+				}
+				diff("ACCEPT %s: V0 %v V2 %v (V0 pipeline %q)", names[i], st.Rec[i][0], acc, ref0.Reason)
+			}
+			if !acc {
+				continue
+			}
+			mf.c[v] = c
+			f := Build(tab, c, mf.l)
+			if v == 2 {
+				st.EmptyNodesV2 += EmptySymbolNodes(f, tab)
+			}
+			mf.in[v][CLibOps] = CloneF(f)
+			if libraryOperators(tab, f, mf.s, src, mf.scope) >= 0 {
+				continue
+			}
+			st.ReachConstrain[v]++
+			st.AltsBuilt[v] += countAltsC(f)
+			mf.in[v][CPrecedence] = CloneF(f)
+			if v == 1 {
+				V1Hist = func(ev, mk []int) {
+					for n := range ev {
+						if ev[n]+mk[n] == 0 {
+							continue
+						}
+						st.NodesVisited++
+						st.EvHist[ev[n]]++
+						st.MkHist[mk[n]]++
+						st.AllHist[ev[n]+mk[n]]++
+						st.EvMax, st.MkMax, st.AllMax = max(st.EvMax, ev[n]), max(st.MkMax, mk[n]), max(st.AllMax, ev[n]+mk[n])
+					}
+				}
+			}
+			ok := m.constrain(v, f)
+			V1Hist = nil
+			k := KeptKey(f, ok)
+			if v == 0 {
+				kept0, ok0 = k, ok
+			} else if ok != ok0 {
+				st.VerdictDiff[v]++
+				diff("VERDICT V%d %s: V0 %v V%d %v", v, names[i], ok0, v, ok)
+			} else if !slices.Equal(k, kept0) {
+				st.KeptDiff[v]++
+				diff("KEPT V%d %s: V0 %d alts V%d %d", v, names[i], len(kept0), v, len(k))
+			}
+			if !ok {
+				continue
+			}
+			mf.in[v][CResolve] = CloneF(f)
+			if resolve(tab, f, mf.s, src, mf.scope) >= 0 {
+				continue
+			}
+			mf.in[v][CReadings] = f
+		}
+	}
+	return m
+}
+
+// Inputs is a fresh copy of every file's input forest for variant v's mutating stage, made outside the span.
+func (m *Combined) Inputs(v, stage int) []*Forest {
+	out := make([]*Forest, len(m.files))
+	for i, mf := range m.files {
+		if f := mf.in[v][stage]; f != nil {
+			if stage == CReadings {
+				out[i] = f
+			} else {
+				out[i] = CloneF(f)
+			}
+		}
+	}
+	return out
+}
+
+// Pass runs variant v's stage over every file that reaches it.
+func (m *Combined) Pass(v, stage int, in []*Forest) {
+	tab := m.tab
+	switch stage {
+	case CLex:
+		for _, mf := range m.files {
+			s, _ := lex.Lex(mf.src, tab.Tokens)
+			lex.Linear(s)
+		}
+	case CRecognize:
+		r := recognize.New(tab, m.Opts(v))
+		for _, mf := range m.files {
+			recognize.Recognize(r, mf.l)
+		}
+	case CBuild:
+		for _, mf := range m.files {
+			if c := mf.c[v]; c != nil && c.Accepted() {
+				Build(tab, c, mf.l)
+			}
+		}
+	case CLibOps:
+		for i, mf := range m.files {
+			if in[i] != nil {
+				libraryOperators(tab, in[i], mf.s, mf.src, mf.scope)
+			}
+		}
+	case CPrecedence:
+		for _, f := range in {
+			if f != nil {
+				m.constrain(v, f)
+			}
+		}
+	case CResolve:
+		for i, mf := range m.files {
+			if in[i] != nil {
+				resolve(tab, in[i], mf.s, mf.src, mf.scope)
+			}
+		}
+	case CReadings:
+		for _, f := range in {
+			if f != nil {
+				f.countReadings(m.stmt)
+			}
+		}
+	}
+}
+
+// Full is one long-lived ParseWith pass under variant v.
+func (m *Combined) Full(v int) {
+	r := recognize.New(m.tab, m.Opts(v))
+	ConstrainVariant = min(v, 1)
+	for _, mf := range m.files {
+		ParseWith(m.tab, r, mf.src, mf.scope)
+	}
+	ConstrainVariant = 0
+}
+
+// TableSizes is the V1 tables' dimensions.
+func (m *Combined) TableSizes() string {
+	a, b, c, d, e := m.sl.Sizes()
+	return fmt.Sprintf("mixed reduce pairs %d, relevant spine tops %d, items %d, shift cells %d, shift bitsets %d", a, b, c, d, e)
+}

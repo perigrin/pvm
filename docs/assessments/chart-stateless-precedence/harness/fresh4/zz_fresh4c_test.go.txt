@@ -1,0 +1,19 @@
+package forest
+
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func TestZZFresh4V2Reason(t *testing.T) {
+	tab := committedTables(t)
+	r2 := recognize.New(tab, recognize.Options{Reduce: ReduceSideFor(tab)})
+	for _, s := range []string{"print $fh [];", "sort $f [];", "print STDERR $fh [];", "{ print $fh [] }", "print $fh [] if 1;", "my @x = (print $fh []);", "$a <=> $b <=> $c;", "1 .. 2 .. 3;"} {
+		_, r0 := Parse(tab, []byte(s), Scope{})
+		ConstrainVariant = 1
+		_, rv2 := ParseWith(tab, r2, []byte(s), Scope{})
+		ConstrainVariant = 0
+		t.Logf("%-26q V0 %+v  V2 %+v", s, r0, rv2)
+	}
+}

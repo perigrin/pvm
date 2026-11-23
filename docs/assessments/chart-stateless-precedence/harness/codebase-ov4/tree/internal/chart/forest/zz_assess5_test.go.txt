@@ -1,0 +1,26 @@
+package forest
+
+import "testing"
+
+func TestZZAssess5Mixed(t *testing.T) {
+	tab := committedTables(t)
+	sl := StatelessOf(tab)
+	p := sl.p
+	for k, v := range sl.reduce {
+		if v == 2 {
+			r, x := k/sl.nt, k%sl.nt
+			name := "EOF"
+			if x < len(tab.Symbols) {
+				name = tab.Symbols[x].Name
+			}
+			rule := p.allRules[r]
+			s := tab.Symbols[rule.LHS].Name + " ::="
+			for _, y := range rule.RHS {
+				s += " " + tab.Symbols[y].Name
+			}
+			t.Logf("mixed: r%d [%s] before %s", r, s, name)
+		}
+	}
+	mc, tops, items, cells, sets := sl.Sizes()
+	t.Logf("mixed %d tops %d items %d shiftcells %d shiftsets %d", mc, tops, items, cells, sets)
+}

@@ -1,0 +1,38 @@
+package chart
+
+import (
+	"testing"
+
+	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
+)
+
+func TestZZAssess4(t *testing.T) {
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := forest.ReduceSideFor(tab)
+	for _, src := range []string{"print $fh [];", "print $fh [1];", "print $$fh[0];", "$a <=> $b <=> $c;", "1 .. 2 .. 3;", "$a + $b * $c;", "my @s = @$array[1..3];", "print {$fh} [1];", "print STDOUT [1];", "++$x++;", "$a = $b = $c;"} {
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		var acc [2]bool
+		var reason [2]string
+		for v, opts := range []recognize.Options{{}, {Reduce: rs}} {
+			c, err := recognize.Recognize(recognize.New(tab, opts), l)
+			if err != nil {
+				t.Fatal(err)
+			}
+			acc[v] = c.Accepted()
+			forest.ConstrainVariant = v
+			f, ref := forest.ParseWith(tab, recognize.New(tab, opts), []byte(src), forest.Scope{})
+			forest.ConstrainVariant = 0
+			reason[v] = ref.Reason
+			if f != nil {
+				reason[v] = "accept"
+			}
+		}
+		t.Logf("%-28q recognize V0 %v V2 %v | pipeline V0 %q V2 %q", src, acc[0], acc[1], reason[0], reason[1])
+	}
+}
