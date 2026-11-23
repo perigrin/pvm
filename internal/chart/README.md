@@ -2569,6 +2569,28 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `waypoint2ScopeRefusals`, on the forest after `LibraryOperators` under
   `forest.Scope{}`, as `pipelineSource` passes it to the constraint. Each logs
   its counts and fails on a sentence or row it could not compare.
+- **The state-free tables** (decision §3.1, §3.2). `NewPrecedence` also
+  generates, once per grammar, the tables a judgement with no parser state
+  reads, and stores them on `Precedence`. The reduce side is keyed by the rule
+  and the terminal after its span: bison's resolution of that pair in every
+  state that reduces the rule. Where the states disagree the pair also takes
+  the parent item, the item whose dot stands before the reduced symbol; on
+  `perly.y` that is six pairs, `indirob` and `myterm` before `[` and `{`, and
+  generation derives them rather than listing them
+  (`TestPrecedenceParentItemPairsDerived`). The shift side is keyed by the
+  spine-top item (the item the node's left spine hangs from, or the start
+  item at the root), the rule-position item before the shift and the terminal
+  shifted: bison's verdict on that shift in every state holding the spine-top
+  item. The tables are dense slices indexed by rule, terminal and item, read
+  with no map access; the maps that build them live only in `NewPrecedence`.
+- **The generation guard.** A key whose decision is state-dependent even with
+  its whole key, a parent item or spine-top item that bison's states still
+  disagree on, makes `NewPrecedence` return an error naming the key, so the
+  tables never hold a guess. `forest.Parse` turns that error into a refusal of
+  every file, as it does any error deriving the precedence.
+  `TestPrecedenceGenerationGuard` holds a toy grammar that fails generation
+  and `perly.y`, which generates; `TestPrecedenceGenerationErrorRefusesEveryFile`
+  that the error reaches every file the parse path is given.
 
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
