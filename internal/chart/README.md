@@ -284,6 +284,14 @@ that took their baselines, under perigrin's ruling of 2026-11-10:
 "Yes, in one issue".
 KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-14:
 "Retire speed-ratio-std5k-cold".
+The state-free precedence decision
+(`docs/plans/2026-11-23-chart-stateless-precedence.md` §4, milestone
+chart-perly-w3) adds `speed-stage-precedence-aggregate-longlived`,
+`speed-stage-resolve-aggregate-longlived` and
+`speed-stage-readings-aggregate-longlived` (STAGEKEYS, 01a20950-3f3c), under
+perigrin's ruling of 2026-11-23: "Rule them in". They depart from §9.5's rule
+by that ruling, as D5's keys did, and like every `speed-` key they are
+printed, listed in the baseline and never gated.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
@@ -323,8 +331,8 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
   for the tables, `chart/lex` to time it and to count `lex-unmapped`,
   `recognize` for `leo-disagree`, the verdict keys' recognition counts and
   the speed ratios' recognizer, `forest` for the chart's verdict and the
-  speed ratios' chart side (`forest.Parse`, `forest.ParseWith`), the forest
-  stage key and `BenchForest`,
+  speed ratios' chart side (`forest.Parse`, `forest.ParseWith`), the forest,
+  precedence, resolve and readings stage keys and `BenchForest`,
   `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
   reference side and the tdt keys, and `internal/parse` for recursive
   descent's verdicts and times.
@@ -517,6 +525,9 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
+| `speed-stage-precedence-aggregate-longlived` | the precedence constraint alone (`(*forest.Forest).Constrain`), on a fresh copy per pass of each file's forest after `forest.LibraryOperators` under the file's own scope, the same way | timing |
+| `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest after the constraint, the same way | timing |
+| `speed-stage-readings-aggregate-longlived` | the readings count alone (`(*forest.Forest).CountReadings`), on a fresh copy per pass of each file's forest after resolve, the same way | timing |
 | `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition, the forest, the precedence constraint, resolve and the readings count) | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
@@ -646,6 +657,31 @@ clock and a collector, so it is tested on fake timings
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
   one ratio.
+- **The stages after the forest.** `speed-stage-precedence-aggregate-longlived`,
+  `speed-stage-resolve-aggregate-longlived` and
+  `speed-stage-readings-aggregate-longlived` time `forest.ParseWith`'s later
+  stages each alone, the same way. Each stage's input is prepared once,
+  outside every span: the forest `forest.Build` makes, after
+  `forest.LibraryOperators` under the file's own scope (`rd(path).scope`,
+  the scope the speed ratios' pipeline runs under; an empty `Scope` would
+  not prune what the pipeline prunes) for the precedence constraint; that
+  forest after the constraint for resolve; and after resolve for the
+  readings count. The constraint and resolve change the forest they are
+  handed, so the protocol has a **per-pass preparation hook**
+  (`Protocol.Prepare`): run before each chart pass, after its GC and before
+  its clock starts, it makes a fresh copy (`(*forest.Forest).Copy`) of every
+  file's prepared forest, and the pass drops each copy once timed, so one
+  pass's copies are held at a time and the reference pass's GC collects
+  them. A side with no hook times exactly as before
+  (`TestProtocolPrepareOutsideSpan`). **A refused file** stays in the one
+  timed population every stage uses: a file the chart refuses has no forest,
+  and one `forest.LibraryOperators`, the constraint or resolve refuses has
+  no input for the stages after, which then do nothing for it; each stage
+  prints how many such files it had on stderr,
+  `chart-ratchet: <key>: <n> of <m> files refused before the stage`
+  (`TestPipelineStageKeysRefusedFiles`). Library operators have no key, so
+  the stage keys do not sum to the pipeline, and the stderr sum stays lex +
+  recognize + forest.
 - **Checkpoint 3** (spec §9.3, at waypoint 2's exit) is two ratchet runs on
   as quiet a machine as could be had, each appended as the ratchet printed it
   to `testdata/ratchet/checkpoint3.txt` under three header lines, its commit,
