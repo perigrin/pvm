@@ -2569,6 +2569,18 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `waypoint2ScopeRefusals`, on the forest after `LibraryOperators` under
   `forest.Scope{}`, as `pipelineSource` passes it to the constraint. Each logs
   its counts and fails on a sentence or row it could not compare.
+  In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` compares the two,
+  on a copy of one forest each, for the same verdict and the same kept
+  alternatives on every node, on every file of the ratchet's in-tree corpora
+  (T1, Guacamole's `parses` and `parsent`, `std5k.pl`, `edit5k.pl`;
+  `T1_CORPUS` overrides T1 as it does for the ratchet) that the chart
+  recognizes, perl-refused files included, on the forest after
+  `LibraryOperators` under the pipeline's own scope (`chartInputs`'s, which
+  follows `use` as the pipeline does), one file at a time; a file
+  `LibraryOperators` refuses is counted, not compared. It logs per corpus
+  `corpus=NAME compared=C prelib-refused=L precedence-refused=R pruned=P
+  perl-refused-compared=Q`, fails on a corpus that contributes no compared
+  file, and runs in `go test ./...`.
 - **The state-free tables** (decision §3.1, §3.2). `NewPrecedence` also
   generates, once per grammar, the tables a judgement with no parser state
   reads, and stores them on `Precedence`. The reduce side is keyed by the rule
