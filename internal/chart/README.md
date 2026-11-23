@@ -2501,12 +2501,33 @@ with reason `precedence`. shortcut: `Constrain` reports only the root's verdict,
 locate it at the first span left with no derivation when a gate compares refusal bytes. It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
 
-- **The edge-context value.** `Constrain` judges each derivation in its edge
-  context: the parser state the derivation holding it has reached at its
-  span's start (the start state at the root) and the terminal after it. What
-  it carries up the forest is the first terminals of the derivations that
-  survive in that context, so the parent can judge the boundary between two
-  children.
+- **The state-free evaluator** (decision §3.3). `Constrain` judges each
+  derivation with no parser state, by the keys of the state-free tables below:
+  the rule and the terminal after its span (and, for a pair that needs it, the
+  parent item), and for each shift the spine-top item, the rule-position item
+  before it and the terminal shifted. What it carries up the forest is the
+  first terminals of the derivations that survive in that context, so the
+  parent can judge the boundary between two children. The root's spine top is
+  the start item of each root alternative's own rule. A child's context is
+  canonicalised before it keys the memo: a spine top that forbids no shift and
+  a parent item its symbol does not need are dropped, so two encodings of one
+  context share one entry. A pair that needs a parent item and reaches the
+  evaluator without one panics, naming the pair, rather than being allowed.
+  The memo uses no hashing: each node holds an `int32` head of its own lists
+  of entries, eval's and mark's, in arenas indexed by position, so no hash
+  table, built-in or hand-written, is read or written per derivation; a list
+  may grow to any length (`TestPrecedenceMemoManyEntriesOneNode` puts more
+  than 24 on one node). All of it lives on the call, never on the shared
+  `Precedence`, so one `Precedence` judges many files at once
+  (`TestPrecedenceConcurrentCallsShareNothing`,
+  `TestPrecedenceConstrainCallsIndependent`). Cached first-terminal lists are
+  shared between parents and never appended into. `TestPrecedenceStateFreeTraps`
+  pins each of these on a toy forest, with the empty-right-child exemption
+  below. `ConstrainReference` is the reference it is compared against.
+- **The reference's edge-context value.** `ConstrainReference` judges each
+  derivation in its edge context: the parser state the derivation holding it
+  has reached at its span's start (the start state at the root) and the
+  terminal after it, memoised in maps keyed by that context.
 - **The parser states are bison's**, built from the grammar's tables alone
   (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
   LALR(1) tables share, never the chart's split states. A child's state is
@@ -2518,11 +2539,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
   alone refused) nor after `sort print`, whose state after LSTOP is another
   (the `indirobsort` toy). An earlier form keyed the state on the one symbol
   before the span, which over-refused where two states share it (the
-  `twostates` and `indirobsort` toys, found at the gate).
+  `twostates` and `indirobsort` toys, found at the gate). The state-free
+  tables are generated from these states, so `Constrain` resolves as they do
+  without carrying one.
 - **Keep.** A reduction with a terminal next that the state could also shift
   survives only where bison's resolution is reduce; a shift survives only
   where every reduction the state before it holds, with that terminal in its
-  LALR(1) lookahead there, resolves to shift. So of two derivations of one span the one
+  LALR(1) lookahead there, resolves to shift; where the right child is empty
+  it reduces before the terminal is read, so that shift is not checked (the
+  empty-right-child exemption). So of two derivations of one span the one
   bison builds is kept, and the other is dropped even where the one bison
   builds does not exist (`print $fh []`).
 - **Forbid.** A `%nonassoc` resolution is an error action and fails both
@@ -2640,8 +2665,9 @@ lookaheads, which are bison's (each reduction's LALR(1) lookahead is
 propagated over the LR(0) automaton to a fixed point, and on every toy equals
 bison's report state for state; the follow set, used before gate pass 2,
 refused `Y W T Z` in the `follow` toy, where bison has no conflict). An
-alternative kept in one parser state is kept in all (the `shortcut:` on
-`Constrain`), which leaves the verdict exact and can only add a derivation to
+alternative kept in one context is kept in all (the `shortcut:` on
+`Constrain`, unchanged by the state-free evaluator, whose contexts are its
+keys as the reference's are parser states), which leaves the verdict exact and can only add a derivation to
 what a later reader enumerates; on the 1,296 sentences it adds none (each keeps
 one grouping). The refused rules leave the tables' FIRST sets and
 nullability as they are (the `shortcut:` in `NewPrecedence`), exact because
