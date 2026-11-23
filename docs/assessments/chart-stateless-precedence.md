@@ -47,31 +47,30 @@ Each row's section reference is to the revision named in its revision column. ID
 
 "C1" in a ledger row is assess-codebase's finding. The chart-recovery spike is always written "the C1 spike".
 
-The full reports are at the paths below, in the session scratchpad (`/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/`):
+The full reports and evidence are in the committed evidence directory, `docs/assessments/chart-stateless-precedence/`. Its `INDEX.md` maps every file to its original path. The original scratchpad paths, relative to the session scratchpad `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/`, are given in parentheses.
 
-- `assess-w3/round1-architecture.md`
-- `assess-w3/round1-codebase.md`
-- `assess-w3/round1-pushback.md`
-- `assess-w3/round2-architecture.md`
-- `assess-w3/round2-codebase.md`
-- `assess-w3/round2-pushback.md`
-- `assess-w3/round2-fresh.md`
-- `assess-w3/round3-architecture.md`
-- `assess-w3/round3-codebase.md`
-- `assess-w3/round3-pushback.md`
-- `assess-w3/round3-fresh.md`, with its prototype at `assess-w3/fresh3/prototype.diff` and harness at `assess-w3/fresh3/exp_test.go.txt`
-- `assess-w3/round4-architecture.md`
-- `assess-w3/round4-codebase.md`, with its probe files under `assess-w3/codebase/ov4/`
-- `assess-w3/round4-pushback.md`
-- `assess-w3/round4-fresh.md`
-- `assess-w3/round5-architecture.md`
-- `assess-w3/round5-codebase.md`
-- `assess-w3/round5-pushback.md`
-- `assess-w3/round5-fresh.md`
+- `reports/round1-architecture.md` (was `assess-w3/round1-architecture.md`)
+- `reports/round1-codebase.md` (was `assess-w3/round1-codebase.md`)
+- `reports/round1-pushback.md` (was `assess-w3/round1-pushback.md`)
+- `reports/round2-architecture.md` (was `assess-w3/round2-architecture.md`)
+- `reports/round2-codebase.md` (was `assess-w3/round2-codebase.md`)
+- `reports/round2-pushback.md` (was `assess-w3/round2-pushback.md`)
+- `reports/round2-fresh.md` (was `assess-w3/round2-fresh.md`)
+- `reports/round3-architecture.md` (was `assess-w3/round3-architecture.md`)
+- `reports/round3-codebase.md` (was `assess-w3/round3-codebase.md`)
+- `reports/round3-pushback.md` (was `assess-w3/round3-pushback.md`)
+- `reports/round3-fresh.md` (was `assess-w3/round3-fresh.md`), with its prototype at `prototypes/no-map.diff.gz` (was `assess-w3/fresh3/prototype.diff`) and harness under `harness/fresh3/` (was `assess-w3/fresh3/exp_test.go.txt`)
+- `reports/round4-architecture.md` (was `assess-w3/round4-architecture.md`)
+- `reports/round4-codebase.md` (was `assess-w3/round4-codebase.md`), with its probe files under `harness/codebase-ov4/` (was `assess-w3/codebase/ov4/`)
+- `reports/round4-pushback.md` (was `assess-w3/round4-pushback.md`)
+- `reports/round4-fresh.md` (was `assess-w3/round4-fresh.md`), with its tests and generators under `harness/fresh4/` (was `assess-w3/fresh4/`)
+- `reports/round5-architecture.md` (was `assess-w3/round5-architecture.md`)
+- `reports/round5-codebase.md` (was `assess-w3/round5-codebase.md`)
+- `reports/round5-pushback.md` (was `assess-w3/round5-pushback.md`)
+- `reports/round5-fresh.md` (was `assess-w3/round5-fresh.md`), with its reproduction under `harness/fresh5/` (was `assess-w3/fresh5/out/`)
+- Round 6's reports are not yet in the directory. They are at `assess-w3/round6-architecture.md`, `assess-w3/round6-codebase.md`, `assess-w3/round6-pushback.md` and `assess-w3/round6-fresh.md` in the session scratchpad.
 
-Revision 5's header names an evidence directory, `docs/assessments/chart-stateless-precedence/`, with `prototypes/`, `reports/` and `measurement/`. The pointers in this paragraph and the next are A34's subject. The drafter has left them as they were.
-
-The prototypes behind "Experiments after round 3" are at `stateless/stateless.diff` and `combined/combined.diff` in the same scratchpad (see A30).
+The prototypes behind "Experiments after round 3" are `prototypes/stateless.diff.gz` (was `stateless/stateless.diff`) and `prototypes/combined.diff.gz` (was `combined/combined.diff`). Their measurements are under `measurement/` (was `measure/`, `stateless/` and `combined/`). The C1 spike's report is `c1/c1-report.md` (was `chart-recovery/c1-report.md`).
 
 ## Ledger
 
@@ -497,11 +496,13 @@ After round 1, the author reported the following. It is the author's statement, 
 
 > chart-recovery's C1 spike already measured precedence values on items. Its report is at scratchpad `chart-recovery/c1-report.md`. Records 2026-11-13, and perigrin's 2026-11-14 D7 ruling: "I think the successor design is something we can revisit after §8 as written." The design does not cite it.
 
+That report is now `c1/c1-report.md` in the evidence directory (was `chart-recovery/c1-report.md` in the session scratchpad).
+
 Revision 2's header (lines 11-12) cites "the chart-recovery spike C1 (`chart-recovery` Records, 2026-11-13)", and its §1 quotes D7. The drafter records that as a fact about the text, not as a disposition of anything.
 
 ## Measurement after round 2 (recorded, not a finding)
 
-Taken under perigrin's "Measure first, then decide", by the measure-constrain agent on `pu` 8c3317079. This section is recorded by the coordinator from the agent's report.
+Taken under perigrin's "Measure first, then decide", by the measure-constrain agent on `pu` 8c3317079. This section is recorded by the coordinator from the agent's report. That report is now `measurement/constrain-measurement.md` in the evidence directory (was `measure/report.md` in the session scratchpad), with its raw runs under `measurement/constrain-runs/`.
 
 **Population and protocol**
 
@@ -566,7 +567,7 @@ How each confirmed the revision:
 
 assess-fresh3 read only "Measurement after round 2" of this minute.
 
-**assess-fresh3's prototype (recorded from its report).** In a scratch worktree at pu 8c3317079, since removed, it built a variant of `Constrain` with no map. It kept the diff at `assess-w3/fresh3/prototype.diff`. The variant uses:
+**assess-fresh3's prototype (recorded from its report).** In a scratch worktree at pu 8c3317079, since removed, it built a variant of `Constrain` with no map. It kept the diff, now `prototypes/no-map.diff.gz` in the evidence directory (was `assess-w3/fresh3/prototype.diff` in the session scratchpad). The variant uses:
 
 - per-node `[]{s,t,out}` for eval and per-node `[][3]int32` for mark, by linear scan;
 - a dense goto table.
@@ -661,7 +662,7 @@ This is recorded as pending, not as a ruling. Neither question is answered yet.
 
 ## Experiments after round 3 (recorded, not findings)
 
-Both experiments were run by agents in scratch worktrees on `pu` 8c3317079, under perigrin's "Measure first, then decide", and are recorded here by the coordinator from their reports. Their sources are in the session scratchpad: `stateless/stateless.diff` and `combined/combined.diff`.
+Both experiments were run by agents in scratch worktrees on `pu` 8c3317079, under perigrin's "Measure first, then decide", and are recorded here by the coordinator from their reports. Their sources are in the evidence directory: `prototypes/stateless.diff.gz` (was `stateless/stateless.diff` in the session scratchpad) and `prototypes/combined.diff.gz` (was `combined/combined.diff`), with their outputs under `measurement/`.
 
 **State-free filter (stateless-proto).** It gave identical output to `Constrain` on:
 
