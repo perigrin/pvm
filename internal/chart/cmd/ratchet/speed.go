@@ -35,8 +35,11 @@ type File struct{ Path, Corpus string }
 // lex-overhead). Now and GC are injected so tests can run it on a fake clock.
 // lex-overhead is measured only when the 1-minute load read from LoadPath is
 // at most LoadLimit (lexOverheadKeys); tests point LoadPath at a file.
+// Prepare, where set, is the chart side's per-pass preparation hook: it runs
+// before each chart pass, after its GC and before its clock starts.
 type Protocol struct {
 	Chart, Ref Side
+	Prepare    func()
 	Now        func() time.Duration
 	GC         func()
 	Stderr     io.Writer
@@ -50,9 +53,12 @@ const (
 	measurements = 3
 )
 
-// pass times one side over every file once, after a GC outside the span.
-func (p Protocol) pass(side Side, files []string, cold bool) time.Duration {
+// pass times one side over every file once, after a GC and prepare (nil for none) outside the span.
+func (p Protocol) pass(side Side, prepare func(), files []string, cold bool) time.Duration {
 	p.GC()
+	if prepare != nil {
+		prepare()
+	}
 	start := p.Now()
 	var run Runner
 	for _, f := range files {
@@ -70,8 +76,8 @@ func (p Protocol) Ratio(name string, files []string, cold bool) float64 {
 	for m := range ms {
 		ratios := make([]float64, 0, timedPairs)
 		for i := range warmupPairs + timedPairs {
-			c := p.pass(p.Chart, files, cold)
-			r := p.pass(p.Ref, files, cold)
+			c := p.pass(p.Chart, p.Prepare, files, cold)
+			r := p.pass(p.Ref, nil, files, cold)
 			if i >= warmupPairs {
 				ratios = append(ratios, float64(c)/float64(r))
 			}
@@ -95,7 +101,7 @@ func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string
 	corpus := make(map[string]string, len(population))
 	var total time.Duration
 	for _, f := range population {
-		rdTime[f.Path] = p.pass(rd, []string{f.Path}, true)
+		rdTime[f.Path] = p.pass(rd, nil, []string{f.Path}, true)
 		total += rdTime[f.Path]
 		corpus[f.Path] = f.Corpus
 	}

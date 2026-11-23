@@ -158,6 +158,52 @@ func TestSpeedProtocol(t *testing.T) {
 	}
 }
 
+// TestProtocolPrepareOutsideSpan: the chart side's hook runs once per chart pass, after its GC and before its clock
+// starts, never on the reference side; preparing costs 1000 on the fake clock, yet the ratio reads the chart's 2 over
+// recursive descent's 1; and each pass sees only the copies made for it.
+func TestProtocolPrepareOutsideSpan(t *testing.T) {
+	files := []string{"a.pl", "b.pl"}
+	w := &fakeWorld{cost: map[string]time.Duration{"a.pl": 1, "b.pl": 1}, chartMult: func(int) float64 { return 2 }}
+	p := w.protocol()
+	prepared, copies := 0, map[string]int{}
+	p.Prepare = func() {
+		w.log = append(w.log, "prepare")
+		w.t += 1000
+		prepared++
+		if len(copies) != 0 {
+			t.Errorf("pass %d's hook found %v left from an earlier pass", prepared, copies)
+		}
+		for _, f := range files {
+			copies[f] = prepared
+		}
+	}
+	chart := p.Chart
+	p.Chart = func() Runner {
+		run := chart()
+		return func(path string) {
+			if copies[path] != prepared {
+				t.Errorf("a pass ran %s on pass %d's copy, want pass %d's", path, copies[path], prepared)
+			}
+			delete(copies, path)
+			run(path)
+		}
+	}
+	if r := p.Ratio("test", files, false); r != 2 {
+		t.Errorf("ratio %v, want 2: the hook outside the span", r)
+	}
+	if want := 3 * (warmupPairs + timedPairs); prepared != want {
+		t.Errorf("the hook ran %d times, want once per chart pass (%d)", prepared, want)
+	}
+	var want []string
+	for range 3 * (warmupPairs + timedPairs) {
+		want = append(want, "gc", "prepare", "now", "new chart", "chart a.pl", "chart b.pl", "now",
+			"gc", "now", "new rd", "rd a.pl", "rd b.pl", "now")
+	}
+	if !slices.Equal(w.log, want) {
+		t.Errorf("event log\n%q\nwant\n%q", w.log, want)
+	}
+}
+
 func TestSpeedProtocolExclusionBoundary(t *testing.T) {
 	// Population total 1000: "edge" at exactly 10% stays, "over" just above is out.
 	for _, tc := range []struct {
