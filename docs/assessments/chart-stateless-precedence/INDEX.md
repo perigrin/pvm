@@ -55,7 +55,7 @@ Two figures differ between files:
 |---|---|---|
 | `measure/` | `measure/harness`, `measure/run.sh` | The stage-timing harness over the ratchet aggregate |
 | `fresh3/` | `assess-w3/fresh3/exp_test.go.txt` | Round 3's fresh assessor's map experiment |
-| `fresh4/` | `assess-w3/fresh4/` | Round 4's fresh assessor's tests and file list. Its runs covered 11,574 corpus files, 20,083 operator sentences and 15,000 Leo-chain and nullable sentences. They are summarised in `reports/round4-fresh.md`, and their generators are in these files. |
+| `fresh4/` | `assess-w3/fresh4/` | Round 4's fresh assessor's tests and file list. Its runs covered 11,574 corpus files, 20,083 operator sentences (seed 4: 83 handcrafted plus 20,000 random) and 15,000 Leo-chain and nullable sentences (seed 44). They are summarised in `reports/round4-fresh.md`, and their generators are in these files. `list.txt.gz` holds 11,588 lines: 3,627 of them are repository paths under fresh4's since-deleted scratch worktree. Mapped onto an 8c3317079 checkout, the list resolves to the 11,574 files (round 6 confirmed this). |
 | `fresh5/` | `assess-w3/fresh5/out/` | Round 5's fresh assessor's reproduction of the V1 timing |
 | `codebase-ov4/` | `assess-w3/codebase/ov4/` | Round 4's codebase assessor's `go test -overlay` probes |
 
