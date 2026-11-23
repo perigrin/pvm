@@ -2,8 +2,8 @@
 
 Status: accepted by perigrin (revision 9), 2026-11-23, after crochet:assess
 reached its bound of eight rounds. Date: 2026-11-23.
-Assessment: `docs/assessments/chart-stateless-precedence.md`. The evidence is
-in `docs/assessments/chart-stateless-precedence/`, and its `INDEX.md` maps
+Assessment: `docs/assessments/chart-perly-w3.md`. The evidence is
+in `docs/assessments/chart-perly-w3/`, and its `INDEX.md` maps
 every file to where it was produced. Revisions 1 to 3 were
 `docs/plans/2026-11-23-chart-precedence-in-recognizer.md`.
 

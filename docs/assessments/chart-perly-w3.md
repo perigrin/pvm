@@ -62,7 +62,7 @@ Each row's section reference is to the revision named in its revision column. ID
 
 "C1" in a ledger row is assess-codebase's finding. The chart-recovery spike is always written "the C1 spike".
 
-The full reports and evidence are in the committed evidence directory, `docs/assessments/chart-stateless-precedence/`. Its `INDEX.md` maps every file to its original path. The original scratchpad paths, relative to the session scratchpad `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/`, are given in parentheses.
+The full reports and evidence are in the committed evidence directory, `docs/assessments/chart-perly-w3/`. Its `INDEX.md` maps every file to its original path. The original scratchpad paths, relative to the session scratchpad `/tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/`, are given in parentheses.
 
 - `reports/round1-architecture.md` (was `assess-w3/round1-architecture.md`)
 - `reports/round1-codebase.md` (was `assess-w3/round1-codebase.md`)
@@ -877,7 +877,7 @@ V1's memo holds at most 10 eval contexts per node, and at most 24 across eval an
 
 Revision 4:
 
-- renames the design to `docs/plans/2026-11-23-chart-stateless-precedence.md` and this minute to `docs/assessments/chart-stateless-precedence.md`;
+- renames the design to `docs/plans/2026-11-23-chart-stateless-precedence.md` and this minute to `docs/assessments/chart-perly-w3.md`;
 - decides precedence without parser state (§3.1), with no hashing on the evaluation path (§3.2);
 - applies bison's reduce side before the forest (§3.3).
 
@@ -997,7 +997,7 @@ The drafter does not say which rows this ruling answers. Each row's raiser dispo
 - decides only the forest-side judgement, with no parser state and no hashing;
 - leaves recognition and the built forest unchanged;
 - defers the recognizer's reduce-side filter (V2) by ruling (§6);
-- names an evidence directory, `docs/assessments/chart-stateless-precedence/`.
+- names an evidence directory, `docs/assessments/chart-perly-w3/`.
 
 **Dispatched:** assess-architecture, assess-codebase, assess-pushback (as raiser of P17 only) and assess-fresh5, a new fresh participant. All four reported. assess-fresh4 was not resumed.
 
@@ -1129,7 +1129,7 @@ assess-fresh6 read neither this minute nor `reports/`.
 
 ### Drafter housekeeping for A34's residue
 
-At the coordinator's direction, the drafter repointed the minute's paths for reports, prototypes, harnesses, measurements and the C1 spike report to `docs/assessments/chart-stateless-precedence/`. Each original scratchpad path is kept in parentheses. This was committed at 2c70194e6.
+At the coordinator's direction, the drafter repointed the minute's paths for reports, prototypes, harnesses, measurements and the C1 spike report to `docs/assessments/chart-perly-w3/`. Each original scratchpad path is kept in parentheses. This was committed at 2c70194e6.
 
 - Ledger rows still cite the paths their raisers used.
 - The author's quoted statement stays verbatim, with the new location given after it.

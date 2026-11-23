@@ -1,7 +1,7 @@
 # Evidence for the stateless precedence decision
 
 This is the record behind `docs/plans/2026-11-23-chart-stateless-precedence.md`
-and its minute, `docs/assessments/chart-stateless-precedence.md`. Everything
+and its minute, `docs/assessments/chart-perly-w3.md`. Everything
 here was copied from the session scratchpad. Each file's original path is given
 relative to that scratchpad.
 
