@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math/bits"
 	"slices"
+	"strings"
 
 	"tamarou.com/pvm/internal/chart/grammar"
 )
@@ -21,6 +22,18 @@ type Precedence struct {
 	rule   []int     // by rule, the tables' then the refused ones: its level, 0 for none
 	assoc  []string  // by level: left, right or nonassoc
 	states []lrState // state 0 is the file's start
+
+	// The state-free tables (decision §3.1), generated with the automaton and read by index, never through a map.
+	// Rules and items are the automaton's: the tables', then the refused ones'.
+	nt           int        // terminals, EOF included
+	base         []int32    // by rule: its item at dot 0
+	reduceAt     []uint8    // [r*nt+t]: 0 every state reducing r reduces it with t next, 1 none does, 2 the parent item decides
+	mixAt        []int32    // [r*nt+t]: a 2's row of parentForbid, -1 otherwise
+	parentForbid []bool     // [row*items+parent item]: the reduction is forbidden under that parent item
+	needParent   []bool     // by symbol: some rule of it has a 2
+	topAt        []int32    // by item: its row of shiftAt as a spine-top item, -1 where it forbids no shift
+	shiftAt      []int32    // [row*items+rule-position item]: its set in shiftForbid, -1 for none
+	shiftForbid  [][]uint64 // terminal bitsets: the shifts forbidden after that item under that spine top
 }
 
 // lrState is an LR(0) state: the terminals it shifts, sorted, the rules it reduces with each one's LALR(1)
@@ -155,7 +168,158 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		p.states = append(p.states, st)
 	}
 	p.lookaheads(states, rules, items, base, byLHS)
+	if err := p.stateFree(states, rules, items, base, byLHS); err != nil {
+		return nil, err
+	}
 	return p, nil
+}
+
+// stateFree generates the state-free tables (decision §3.1) from bison's resolution of each key in every state of
+// the automaton that holds it, and is an error naming each key whose decision still differs between those states
+// (§3.2). On the reduce side the key is the rule and the terminal after it, and for a pair the states disagree on,
+// the parent item too; on the shift side it is the spine-top item, the rule-position item before the shift and the
+// terminal shifted.
+func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []grammar.CoreItem, base []int, byLHS [][]int) error {
+	nt, ni := p.tab.EOF+1, len(items)
+	p.nt = nt
+	p.base = make([]int32, len(rules))
+	for r := range rules {
+		p.base[r] = int32(base[r])
+	}
+	text := func(i int) string { // item i as "lhs: x . y"
+		it := items[i]
+		w := []string{p.tab.Symbols[rules[it.Rule].LHS].Name + ":"}
+		for d, s := range rules[it.Rule].RHS {
+			if d == it.Dot {
+				w = append(w, ".")
+			}
+			w = append(w, p.tab.Symbols[s].Name)
+		}
+		if it.Dot == len(rules[it.Rule].RHS) {
+			w = append(w, ".")
+		}
+		return strings.Join(w, " ")
+	}
+	verdict := func(ok bool) uint8 { // bit 1 allowed in some state, bit 2 forbidden in some state
+		if ok {
+			return 1
+		}
+		return 2
+	}
+	var errs []string
+
+	seen := make([]uint8, len(rules)*nt)
+	for _, st := range p.states {
+		for _, r := range st.reduce {
+			for t := range nt {
+				seen[int(r)*nt+t] |= verdict(p.reducesIn(&st, int(r), t))
+			}
+		}
+	}
+	p.reduceAt, p.mixAt, p.needParent = make([]uint8, len(seen)), make([]int32, len(seen)), make([]bool, len(p.tab.Symbols))
+	var mixed []int // the [r*nt+t] the states disagree on
+	for k, v := range seen {
+		p.mixAt[k] = -1
+		switch v {
+		case 2:
+			p.reduceAt[k] = 1
+		case 3:
+			p.reduceAt[k], p.mixAt[k] = 2, int32(len(mixed))
+			mixed = append(mixed, k)
+			p.needParent[rules[k/nt].LHS] = true
+		}
+	}
+	parent := make([]uint8, len(mixed)*ni)
+	for q, set := range states {
+		for _, pi := range set {
+			it := items[pi]
+			if rhs := rules[it.Rule].RHS; it.Dot < len(rhs) {
+				for m, k := range mixed {
+					if r := k / nt; rules[r].LHS == rhs[it.Dot] {
+						parent[m*ni+pi] |= verdict(p.reducesIn(&p.states[p.walk(int32(q), rules[r].RHS)], r, k%nt))
+					}
+				}
+			}
+		}
+	}
+	p.parentForbid = make([]bool, len(parent))
+	for x, v := range parent {
+		p.parentForbid[x] = v == 2
+		if v == 3 {
+			k, pi := mixed[x/ni], x%ni
+			errs = append(errs, fmt.Sprintf("reducing %s before %s under the parent item %s", text(base[k/nt]+len(rules[k/nt].RHS)), p.tab.Symbols[k%nt].Name, text(pi)))
+		}
+	}
+
+	shiftSeen := map[[3]int32]uint8{} // (spine-top item, rule-position item, terminal)
+	for q, set := range states {
+		for _, top := range set {
+			it := items[top]
+			if it.Dot == 0 && (q != 0 || rules[it.Rule].LHS != p.tab.Start) {
+				continue // a spine hangs from a kernel item, or from a start item at the root
+			}
+			// The rules a spine from top can begin with: the start item's own at the root, else those its dot
+			// predicts, closed over their first symbols.
+			work := []int{it.Rule}
+			if it.Dot > 0 {
+				work = nil
+				if rhs := rules[it.Rule].RHS; it.Dot < len(rhs) {
+					work = slices.Clone(byLHS[rhs[it.Dot]])
+				}
+			}
+			in := map[int]bool{}
+			for len(work) > 0 {
+				r := work[len(work)-1]
+				work = work[:len(work)-1]
+				if in[r] {
+					continue
+				}
+				in[r] = true
+				if rhs := rules[r].RHS; len(rhs) > 0 {
+					work = append(work, byLHS[rhs[0]]...)
+				}
+			}
+			for r := range in {
+				rhs, s := rules[r].RHS, int32(q)
+				for j := 1; j < len(rhs); j++ {
+					s = p.states[s].next[int32(rhs[j-1])]
+					for _, f := range p.states[s].shift {
+						if int(f) == rhs[j] || slices.Contains(p.tab.First[rhs[j]], int(f)) {
+							shiftSeen[[3]int32{int32(top), int32(base[r] + j), f}] |= verdict(p.shifts(s, int(f)))
+						}
+					}
+				}
+			}
+		}
+	}
+	p.topAt = slices.Repeat([]int32{-1}, ni)
+	keys := slices.SortedFunc(maps.Keys(shiftSeen), func(a, b [3]int32) int { return slices.Compare(a[:], b[:]) })
+	var rows int32
+	for _, k := range keys {
+		switch v := shiftSeen[k]; {
+		case v == 3:
+			errs = append(errs, fmt.Sprintf("shifting %s after %s under the spine-top item %s", p.tab.Symbols[k[2]].Name, text(int(k[1])), text(int(k[0]))))
+		case v == 2 && p.topAt[k[0]] < 0:
+			p.topAt[k[0]] = rows
+			rows++
+		}
+	}
+	p.shiftAt = slices.Repeat([]int32{-1}, int(rows)*ni)
+	for _, k := range keys {
+		if shiftSeen[k] != 2 {
+			continue
+		}
+		x := int(p.topAt[k[0]])*ni + int(k[1])
+		if p.shiftAt[x] < 0 {
+			p.shiftAt[x] = int32(len(p.shiftForbid))
+			p.shiftForbid = append(p.shiftForbid, make([]uint64, (nt+63)/64))
+		}
+		p.shiftForbid[p.shiftAt[x]][k[2]/64] |= 1 << (k[2] % 64)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("forest: a precedence key is state-dependent, decided differently in bison's states: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // lookaheads sets each state's LALR(1) lookaheads by propagation to a fixed point over every item of every
@@ -288,8 +452,12 @@ func (p *Precedence) resolve(r, t int) resolution {
 // reduces reports whether bison's resolution lets rule r, begun in state s, reduce with t next: where the
 // state after its symbols can also shift t, the resolution must be reduce.
 func (p *Precedence) reduces(r int, s int32, t int) bool {
-	s = p.walk(s, p.tab.Rules[r].RHS)
-	if _, conflict := slices.BinarySearch(p.states[s].shift, int32(t)); !conflict {
+	return p.reducesIn(&p.states[p.walk(s, p.tab.Rules[r].RHS)], r, t)
+}
+
+// reducesIn is reduces in st, the state after rule r's symbols.
+func (p *Precedence) reducesIn(st *lrState, r, t int) bool {
+	if _, conflict := slices.BinarySearch(st.shift, int32(t)); !conflict {
 		return true
 	}
 	res := p.resolve(r, t)

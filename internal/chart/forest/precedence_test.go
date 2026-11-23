@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -296,5 +297,135 @@ func TestPrecedenceRefusedRuleUnknownSymbol(t *testing.T) {
 	bad := grammar.Rule{LHS: ty.tab.Symbols[ty.tab.Start].Name, RHS: []grammar.Symbol{{Kind: grammar.Name, Text: "NOSUCHSYMBOL"}}}
 	if _, err := NewPrecedence(ty.tab, nil, make([]string, len(ty.tab.Rules)), []grammar.Rule{bad}); err == nil || !strings.Contains(err.Error(), "NOSUCHSYMBOL") {
 		t.Fatalf("got %v, want an error naming NOSUCHSYMBOL", err)
+	}
+}
+
+// guardToy is a toy grammar with a state-dependent key: a: X %prec LOW meets T in a conflict the shift wins after
+// ONE (s: ONE X T) and in no conflict after TWO, and both states hold the parent item e: . a, so not even the
+// parent item settles it. With settled, TWO is followed by f, whose parent item f: . a settles it.
+func guardToy(t *testing.T, settled bool) (*grammar.Tables, []grammar.Level, []string) {
+	after := "e"
+	if settled {
+		after = "f"
+	}
+	tab := toyTables(t, "s ::= ONE e T", "s ::= ONE X T", "s ::= TWO "+after, "e ::= a", "f ::= a", "a ::= X")
+	levels := []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"LOW"}}, {N: 2, Assoc: "left", Tokens: []string{"T"}}}
+	return tab, levels, []string{"", "", "", "", "", "LOW"}
+}
+
+// TestPrecedenceGenerationGuard requires generation to refuse the guard toy with an error naming its key, and
+// perly.y to generate without one.
+func TestPrecedenceGenerationGuard(t *testing.T) {
+	tab, levels, rulePrec := guardToy(t, false)
+	_, err := NewPrecedence(tab, levels, rulePrec, nil)
+	if err == nil {
+		t.Fatal("the guard toy generated tables; want an error naming its state-dependent key")
+	}
+	for _, part := range []string{"a: X .", "before T", "e: . a"} {
+		if !strings.Contains(err.Error(), part) {
+			t.Errorf("error %q does not name %q", err, part)
+		}
+	}
+	if _, err := ParsePrecedence(committedTables(t)); err != nil {
+		t.Errorf("perly.y: %v", err)
+	}
+}
+
+// TestPrecedenceGenerationErrorRefusesEveryFile requires the guard toy's generation error, standing as the
+// tables' precedence, to refuse every file the parse path is given, each of which it accepts without it.
+func TestPrecedenceGenerationErrorRefusesEveryFile(t *testing.T) {
+	toyTab, levels, rulePrec := guardToy(t, false)
+	_, genErr := NewPrecedence(toyTab, levels, rulePrec, nil)
+	if genErr == nil {
+		t.Fatal("the guard toy generated tables")
+	}
+	g, ref, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := grammar.Generate(g, ref) // its own value, whose precedence the toy's error stands as
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar.Derived(tab, func(*grammar.Tables) parsePrecedence { return parsePrecedence{err: genErr} })
+	for _, src := range []string{"my $x = 1;\n", "print $x + 2 * 3;\n", "foo(1, 2) if $y;\n", "{ 1 }"} {
+		if f, _ := Parse(committedTables(t), []byte(src), Scope{}); f == nil {
+			t.Fatalf("%q: refused without the error", src)
+		}
+		if f, r := Parse(tab, []byte(src), Scope{}); f != nil || r != (Refusal{Reason: genErr.Error()}) {
+			t.Errorf("%q: forest %v, refusal %+v; want none and the generation error", src, f != nil, r)
+		}
+	}
+}
+
+// parentPairs is p's (rule, terminal) pairs whose reduction its parent item decides, as "rule before terminal".
+func parentPairs(p *Precedence) []string {
+	var out []string
+	for k, v := range p.reduceAt {
+		if v != 2 {
+			continue
+		}
+		r, x := k/p.nt, k%p.nt
+		rhs := p.tab.Rules[r].RHS
+		words := []string{p.tab.Symbols[p.tab.Rules[r].LHS].Name + ":"}
+		for _, s := range rhs {
+			words = append(words, p.tab.Symbols[s].Name)
+		}
+		out = append(out, strings.Join(words, " ")+" before "+p.tab.Symbols[x].Name)
+	}
+	return out
+}
+
+// TestPrecedenceParentItemPairsDerived requires generation to find the pairs that need the parent item: on perly.y
+// six, every rule of them indirob's or myterm's and every terminal [ or {, both of each; on the settled guard toy
+// its own pair. A list written for perly.y passes on nothing else.
+func TestPrecedenceParentItemPairsDerived(t *testing.T) {
+	p, err := ParsePrecedence(committedTables(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := parentPairs(p)
+	if len(got) != 6 {
+		t.Errorf("perly.y: %d pairs %q, want 6", len(got), got)
+	}
+	seen := map[string]bool{}
+	for _, pair := range got {
+		lhs, _, _ := strings.Cut(pair, ":")
+		_, x, _ := strings.Cut(pair, " before ")
+		if !slices.Contains([]string{"indirob", "myterm"}, lhs) || !slices.Contains([]string{"PERLY_BRACKET_OPEN", "PERLY_BRACE_OPEN"}, x) {
+			t.Errorf("perly.y: %s is not indirob or myterm before [ or {", pair)
+		}
+		seen[lhs+" "+x] = true
+	}
+	if len(seen) != 4 {
+		t.Errorf("perly.y: %d of indirob and myterm before [ and {, want all 4", len(seen))
+	}
+	tab, levels, rulePrec := guardToy(t, true)
+	toy, err := NewPrecedence(tab, levels, rulePrec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := parentPairs(toy), []string{"a: X before T"}; !slices.Equal(got, want) {
+		t.Errorf("settled toy: %q, want %q", got, want)
+	}
+}
+
+// TestPrecedenceTablesDense requires every state-free table on Precedence to be a slice, read by index: a map
+// there would put a hash lookup on the evaluation path.
+func TestPrecedenceTablesDense(t *testing.T) {
+	ty := reflect.TypeFor[Precedence]()
+	for _, name := range []string{"base", "reduceAt", "mixAt", "parentForbid", "needParent", "topAt", "shiftAt", "shiftForbid"} {
+		f, ok := ty.FieldByName(name)
+		if !ok {
+			t.Errorf("Precedence has no %s", name)
+			continue
+		}
+		elem := f.Type
+		for elem.Kind() == reflect.Slice {
+			elem = elem.Elem()
+		}
+		if f.Type.Kind() != reflect.Slice || elem.Kind() == reflect.Map {
+			t.Errorf("%s is %s; want a slice holding no map", name, f.Type)
+		}
 	}
 }
