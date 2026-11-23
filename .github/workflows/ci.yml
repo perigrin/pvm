@@ -184,6 +184,21 @@ jobs:
         done
         exit $status
 
+    # The perl.git precedence reference sits behind a build tag, out of go test
+    # ./..., because the other jobs have no perl.git. A missing perl.git fails
+    # the test rather than skipping it, and pipefail keeps tee from hiding that.
+    - name: Run the precedence reference over perl.git
+      env:
+        PERL5_CORPUS: ${{ runner.temp }}/perl5
+      run: |
+        set -eu
+        set -o pipefail
+        make chart-precedence-reference 2>&1 | tee precedence-reference.log
+        grep -q -- "--- PASS: TestPrecedencePerlGitMatchesReference" precedence-reference.log || {
+          echo "::error::TestPrecedencePerlGitMatchesReference did not pass in make chart-precedence-reference."
+          exit 1
+        }
+
     # A skipped ratchet is a guard that cannot fail, which is the defect this
     # job fixes -- so a skip here is a build failure, not a quiet pass. Named
     # explicitly rather than grepping for any SKIP: other tests in these
