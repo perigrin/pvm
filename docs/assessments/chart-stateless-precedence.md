@@ -1,9 +1,9 @@
 <!-- ABOUTME: Minute of the crochet:assess session on the chart parser's precedence design, now precedence without parser state. -->
-<!-- ABOUTME: Covers rounds 1 to 7 and revisions 1 to 7 (renamed at 4): the ledger, cross-references, declarations, rulings, outcomes, measurements and experiments. -->
+<!-- ABOUTME: Covers rounds 1 to 8 and revisions 1 to 8 (renamed at 4), ending in non-convergence at the bound: the ledger, cross-references, declarations, rulings, outcomes, measurements and experiments. -->
 
 ## Assessment: Chart parser: precedence without parser state
 
-Recommendation: pending (round 1: three modify; round 2: four modify; round 3: four modify; round 4: four modify; round 5: accept with edits from assess-architecture, modify from the other three; round 6: accept with edits from assess-architecture, modify from the other three; round 7: accept from assess-architecture and assess-codebase, assess-pushback holding nothing, modify from assess-fresh7; revision 8 owed, for round 8, the last within the bound of eight)
+Recommendation: accept, by perigrin's ruling at the bound (round 1: three modify; round 2: four modify; round 3: four modify; round 4: four modify; round 5: accept with edits from assess-architecture, modify from the other three; round 6: accept with edits from assess-architecture, modify from the other three; round 7: accept from assess-architecture and assess-codebase, assess-pushback holding nothing, modify from assess-fresh7; round 8: accept from assess-architecture, assess-codebase and assess-pushback, modify from assess-fresh8; no fixed point within the bound of eight; perigrin ruled "Apply fixes, accept (Recommended)", and revision 9 applies M1–M5)
 
 - **Subject:** `docs/plans/2026-11-23-chart-stateless-precedence.md`. Revisions 1 to 3 were `docs/plans/2026-11-23-chart-precedence-in-recognizer.md`, and this minute was `docs/assessments/chart-precedence-in-recognizer.md` until revision 4 renamed both. Earlier rows cite the old path as written.
 - **Revisions:**
@@ -17,6 +17,7 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
   | 5 | 2782fd181 | d97415a1 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
   | 6 | 788778ed0 | 60327eb7 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
   | 7 | 9afff6c63 | ce616721 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
+  | 8 | 336067853 | ed91e462 | `docs/plans/2026-11-23-chart-stateless-precedence.md` | Chart parser: precedence without parser state |
 
 - **Revision assessed in round 1:** design commit 7b264fa9c, blob 52c82af16a738eca6e03cdb050e9c167903212c7. Each participant read that blob, untracked in worktree `cr-close`, and checked it with `git hash-object`. It is byte-identical to the blob at 7b264fa9c.
 - **Revision assessed in round 2:** commit c270bbfa3, blob 68371487a68e3f8c1661a80ea830356228a3a163 (revision 2, retitled "bison's reduce-side precedence in the recognizer").
@@ -25,6 +26,7 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
 - **Revision assessed in round 5:** commit 2782fd181, blob d97415a147b923df589b27bed3cad0317f6bbfe2 (revision 5: the forest-side judgement only, "V1 now"). The minute was at 157b0f820.
 - **Revision assessed in round 6:** commit 788778ed0, blob 60327eb7d7e379443281e0623b5d5f586a382f9c (revision 6). The minute was at 0d2b31610.
 - **Revision assessed in round 7:** commit 9afff6c63, blob ce616721c9ed717dc119cf4c5f3329daf802f4cd (revision 7). The minute was at 1ff6e3f6a.
+- **Revision assessed in round 8:** commit 336067853, blob ed91e46239b29283ad5c82cd390411621b52a2cd (revision 8). The minute was at 146411199.
 - **Decision-maker:** perigrin.
 - **Drafter:** assess-pushback, from round 2 on. The drafter records and holds no view. In round 1 it was the pushback participant and raised P1 to P12. From round 2 on it does not count as an independent participant.
   - In round 2, at the coordinator's direction, it also acted as raiser of P1 to P12. As raiser it released, held or carried them, and it raised P13 to P15.
@@ -34,14 +36,16 @@ Recommendation: pending (round 1: three modify; round 2: four modify; round 3: f
   - In round 5 it acted as raiser of P17 and raised P18.
   - In round 6 it acted as raiser of P18 and raised P19.
   - In round 7 it acted as raiser of P19 and raised P20.
+  - In round 8 it acted as raiser of P20 and raised nothing.
   - The independent participants are:
-    - assess-codebase and assess-architecture, rounds 1 to 7;
+    - assess-codebase and assess-architecture, rounds 1 to 8;
     - assess-fresh, round 2 only;
     - assess-fresh3, round 3 only;
     - assess-fresh4, round 4 only;
     - assess-fresh5, round 5 only;
     - assess-fresh6, round 6 only;
-    - assess-fresh7, round 7.
+    - assess-fresh7, round 7 only;
+    - assess-fresh8, round 8.
 
 Each row's section reference is to the revision named in its revision column. IDs keep each participant's own prefix:
 
@@ -53,7 +57,8 @@ Each row's section reference is to the revision named in its revision column. ID
 - H: assess-fresh4, a fresh participant in round 4. Of this minute it read only "Experiments after round 3". It was not resumed in round 5, so its rows are marked raiser absent.
 - J: assess-fresh5, a fresh participant in round 5. It read neither this minute nor the evidence directory's `reports/`. It was not resumed in round 6, so its rows are marked raiser absent. assess-architecture lists A32 as "not used", so there is no row A32.
 - K: assess-fresh6, a fresh participant in round 6. It read neither this minute nor `reports/`. Its K1 mentions "the remapping in K10"; the remapping is described in its K9, and there is no K10. It was not resumed in round 7, so its rows are marked raiser absent.
-- L: assess-fresh7, a fresh participant in round 7. It read neither this minute nor `reports/` before writing.
+- L: assess-fresh7, a fresh participant in round 7. It read neither this minute nor `reports/` before writing. It was not resumed in round 8, so its rows are marked raiser absent.
+- M: assess-fresh8, a fresh participant in round 8. It read the minute and `reports/` only after writing.
 
 "C1" in a ledger row is assess-codebase's finding. The chart-recovery spike is always written "the C1 spike".
 
@@ -79,13 +84,14 @@ The full reports and evidence are in the committed evidence directory, `docs/ass
 - `reports/round5-pushback.md` (was `assess-w3/round5-pushback.md`)
 - `reports/round5-fresh.md` (was `assess-w3/round5-fresh.md`), with its reproduction under `harness/fresh5/` (was `assess-w3/fresh5/out/`)
 - `reports/round6-architecture.md`, `reports/round6-codebase.md`, `reports/round6-pushback.md` and `reports/round6-fresh.md` (were `assess-w3/round6-*.md`)
-- Round 7's reports are not yet in the directory. They are at `assess-w3/round7-architecture.md`, `assess-w3/round7-codebase.md`, `assess-w3/round7-pushback.md` and `assess-w3/round7-fresh.md` in the session scratchpad.
+- `reports/round7-architecture.md`, `reports/round7-codebase.md`, `reports/round7-pushback.md` and `reports/round7-fresh.md` (were `assess-w3/round7-*.md`)
+- Round 8's reports are not yet in the directory. They are at `assess-w3/round8-architecture.md`, `assess-w3/round8-codebase.md`, `assess-w3/round8-pushback.md` and `assess-w3/round8-fresh.md` in the session scratchpad.
 
 The prototypes behind "Experiments after round 3" are `prototypes/stateless.diff.gz` (was `stateless/stateless.diff`) and `prototypes/combined.diff.gz` (was `combined/combined.diff`). Their measurements are under `measurement/` (was `measure/`, `stateless/` and `combined/`). The C1 spike's report is `c1/c1-report.md` (was `chart-recovery/c1-report.md`).
 
 ## Ledger
 
-Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, rows from round 3 against `3e4d0c43b (a8960d05)`, rows from round 4 against `6dc1d9558 (123012c1)`, rows from round 5 against `2782fd181 (d97415a1)`, rows from round 6 against `788778ed0 (60327eb7)`, and rows from round 7 against `9afff6c63 (ce616721)`.
+Rows from round 1 were raised against `7b264fa9c (52c82af1)`, rows from round 2 against `c270bbfa3 (68371487)`, rows from round 3 against `3e4d0c43b (a8960d05)`, rows from round 4 against `6dc1d9558 (123012c1)`, rows from round 5 against `2782fd181 (d97415a1)`, rows from round 6 against `788778ed0 (60327eb7)`, rows from round 7 against `9afff6c63 (ce616721)`, and rows from round 8 against `336067853 (ed91e462)`.
 
 Statuses as each raiser declared them:
 
@@ -96,7 +102,7 @@ Statuses as each raiser declared them:
 - **open**: no disposition yet.
 - **raiser absent**: the raiser was not resumed, so no one can release the row. Where a retargeting may bear on such a row, the drafter says what the row's subject is and where it stands in the latest revision. That note is not a disposition.
 
-A **carried to refinement** status is the raiser's own words for a row it calls issue-level. An **editorial, for refinement** status is the raiser's own words for a row it says refinement can make without another round. Statuses marked r2 to r7 give the round of the latest disposition.
+A **carried to refinement** status is the raiser's own words for a row it calls issue-level. An **editorial, for refinement** status is the raiser's own words for a row it says refinement can make without another round. An **optional, for refinement** status is the raiser's own words for a row it says is not a condition of acceptance. A **view, no change** status is the raiser's own label for a row it says needs no change. Statuses marked r2 to r8 give the round of the latest disposition.
 
 | id | raiser | round | section | consequence if it ships | evidence | status | revision |
 |---|---|---|---|---|---|---|---|
@@ -237,6 +243,32 @@ A **carried to refinement** status is the raiser's own words for a row it calls 
 | K7 | assess-fresh6 | 6 | §3.4 | Asserted as exact counts, any grammar change breaks the test, and the counts were measured on V0. | Verified exact: seed 4 gives 185 refused of the 20,000 random sentences, and the 83 handcrafted add 2 more; seed 44 gives 989 of 15,000 chains. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §3.4: the test "does not assert the 185 and 989 of today's grammar" | 788778ed0 (60327eb7) |
 | K8 | assess-fresh6 | 6 | §4 | The stage keys need API the decision does not name. | `resolve`, `countReadings` and `libraryOperators` are unexported, and the ratchet is package `main`. No `Forest` clone exists outside the scratch harnesses. The precedence stage's input is the forest after `libraryOperators`. §6's `internal/chart` scope allows the new work. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: revision 7 §4 lists new work: an exported forest copy and exported access to `libraryOperators`, resolve and the readings count | 788778ed0 (60327eb7) |
 | K9 | assess-fresh6 | 6 | evidence directory (`INDEX.md`) | The 11,574-file run cannot be re-run from the record as written. | 3,627 of 11,588 paths in `harness/fresh4/list.txt.gz` point at fresh4's deleted scratch worktree. Remapped to an 8c3317079 checkout, they give 11,574 sources and 0 differences. | open; raiser absent (assess-fresh6 not resumed in round 7). Drafter's note, not a disposition: the subject is the evidence index; assess-architecture quotes `INDEX.md` as now mapping the 11,588 lines onto the 11,574 files | 788778ed0 (60327eb7) |
+| A40 | assess-architecture | 7 | §2 | A reader takes "most" to mean a majority and overestimates what this decision can save. Low. | §2: "`Constrain` takes most of the pipeline's time". Its own table gives 39% and 43%. | released (r8, against §2: "`Constrain` takes the pipeline's largest share.") | 9afff6c63 (ce616721) |
+| A41 | assess-architecture | 7 | §3.4 | The population is mis-stated, or `make test` grows with no stated recourse. Low. | The in-tree row reads "(T1, Guacamole, std5k)". The README's in-tree corpora are guacamole, std5k, edit5k and T1. The generators have a slow-path fallback; the in-tree part (about 1,650 files judged twice) has none. ABSENTFAST held the chart suite to 50 s, and the prototype prepared 2,211 forests in 17–19 s. | released (r8, against §3.4's in-tree row naming edit5k and parsent, and the fallback covering every `make test` row) | 9afff6c63 (ce616721) |
+| A42 | assess-architecture | 7 | §5 | A moved digest or count key has no stop to report it, so regenerating is left to a worker's judgement, against the golden's own comment. Marked "should fix". | §3.4: "What stays unchanged: both forest digests and every ratchet count key." The first stop is only "a §3.4 check differs from the reference". Revision 3's first stop was "any output in §3.1 changes". | released (r8, against §5's first stop: "or a forest digest or ratchet count key moves") | 9afff6c63 (ce616721) |
+| A43 | assess-architecture | 7 | §1 | Whether allocation work may start while V2 is in execution is left to interpretation. Low; raised for perigrin, or a word. | §1: "wait until the V2 decision is made"; §5: "wait". "Made" can mean decided or delivered. | released (r8, raiser: answered by ruling, §1 "V2's verdict reading (Recommended)" and §5) | 9afff6c63 (ce616721) |
+| C38 | assess-codebase | 7 | §3.4 | An implementer building the in-tree part from the row, not from `corpus()`, silently drops files from the differential. Low, editorial. | `corpus()` (lex.go l.40-70) also yields `internal/psc/testdata/latency/edit5k.pl` (labelled `accept`, `in-tree.txt` l.908) and Guacamole's `parsent/` files (124 labelled). | released (r8, against §3.4's in-tree row: "T1, Guacamole parses and parsent, std5k, edit5k") | 9afff6c63 (ce616721) |
+| P20 | assess-pushback | 7 | §2 | A reader takes `Constrain` to be more than half the pipeline, overstating what V1 can buy. Low; the raiser does not hold acceptance on it. | §2: "takes most of the pipeline's time"; the table beneath gives 43% and 39%. | released (r8, against §2: "`Constrain` takes the pipeline's largest share.") | 9afff6c63 (ce616721) |
+| L1 | assess-fresh7 | 7 | §4, §5 | The exit and the precedence-stage stop each have two defensible bars, so the verdict can be disputed after the fact. | §5's exit is judged on `speed-ratio-aggregate-longlived`, which is not a stage key, and §4 records only stage keys. `Protocol.Ratio` (speed.go:68) already returns the median of 3 measurements of 2+9 pairs (v2 §9.3's sense). In `combined-runs`, today's run medians are 5.59–5.68 and its round minimum 4.99. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §4 defines "One measurement is one ratchet run's printed value of a key" and records `speed-ratio-aggregate-longlived` with the stage keys | 9afff6c63 (ce616721) |
+| L2 | assess-fresh7 | 7 | §4 | The before-state commit either times the copying or changes the protocol mid-issue, which is a §5 stop. | `Protocol.pass` (speed.go:54–65) starts the clock and then calls `side()`; no per-pass setup runs outside the span. The alternative, pre-built copies for 3×11 passes per mutating key, inflates the heap, which `constrain-measurement.md` blames for 5.49 against 4.79. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §4 lists as new work "A per-pass preparation hook in the ratchet's timing protocol … holding one pass's copies at a time" | 9afff6c63 (ce616721) |
+| L3 | assess-fresh7 | 7 | §1, §6 | If the ruling at refinement is no, §3.4's sixth row has nowhere to run. | §1 lists "Split it" as in force; §6 defers the `Makefile` and CI paths "for perigrin to rule in at refinement". v2 §11: "Only internal/chart changes". The "does not amend" paragraph omits §11. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §1 records "Rule them in (Recommended)" for the `Makefile` target and the CI step, and §3 lists the v2 §11 departure | 9afff6c63 (ce616721) |
+| L4 | assess-fresh7 | 7 | §2 | The table-build figure comes from a different prototype. Small: the cost is once per process. | "About 90 ms" is from stateless.diff (105, 122 and 85 ms; 86), whose tables are maps. The raiser timed combined.diff's `NewStateless` five times at load 0.16: 105–137 ms; `NewPrecedence` a further 297–343 ms. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §2 gives "105–137 ms once per process (round 7)" for V1's dense tables | 9afff6c63 (ce616721) |
+| L5 | assess-fresh7 | 7 | §3.4 | An implementer adds `libraryOperators` to the referee comparison and changes what it compares. | The referee judges `builtForest` (Build only), narrowed to the sentence's terminals, with no `libraryOperators` (chart/precedence.go `judge`). "After `libraryOperators`" holds only for the population and generator rows. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §3.4 compares "the forest its caller passes to the constraint today", and for the referee "`Build`'s forest narrowed to the sentence's terminals" | 9afff6c63 (ce616721) |
+| L6 | assess-fresh7 | 7 | §3.4, §4 | The in-tree differential depends on §4's exports without saying so, and the in-tree list is incomplete. | The superset population is computed in `cmd/ratchet` (package `main`), so the in-tree differential is a `cmd/ratchet` test needing §4's forest copy and exported `libraryOperators`. §4 justifies those by the stage keys alone. `corpus()` includes edit5k.pl. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §3.4's in-tree row names edit5k and parsent and says "new test in `cmd/ratchet`, using §4's new API" | 9afff6c63 (ce616721) |
+| L7 | assess-fresh7 | 7 | §3.4 | New work is not marked as new. | "The seeded generators of §2 (committed)" exist only as evidence in `harness/fresh4/*.go.txt`, which call the prototype's `fresh4Run` and `CStats`. Turning them into tests, `make chart-precedence-reference` and its build tag are new work; §3.2 and §4 mark new work explicitly. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §3.4's table marks the generators' tests, the in-tree and perl.git tests and the target as new | 9afff6c63 (ce616721) |
+| L8 | assess-fresh7 | 7 | §3.4 | The standing checks drop the corpus refusals that §2's evidence covered. | The superset population excludes every file perl refuses, where real-code precedence refusals live. §2's 11,574-file run included such files. Proposed: compare on every recognized corpus file. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §3.4's corpus rows cover "every recognized file … perl-refused files included" | 9afff6c63 (ce616721) |
+| L9 | assess-fresh7 | 7 | §2, `INDEX.md` | Two claims are not backed by the committed evidence. | "Round 6 re-ran both generators and the 11,574 files": no output of that re-run is committed under `measurement/` or `harness/`. `INDEX.md` says "the decision quotes 5.62", but revision 7 no longer does. | open; raiser absent (assess-fresh7 not resumed in round 8). Drafter's note, not a disposition: revision 8 §2 says of round 6's re-run "the outputs themselves were not kept"; `INDEX.md` now says "Revisions 4 to 6 quoted 5.62" | 9afff6c63 (ce616721) |
+| C39 | assess-codebase | 8 | §3.4 | Only the pipeline's own scope reproduces the pipeline's input to the constraint. Low, editorial. | `libraryOperators` (resolve.go l.630-656) calls `r.prune(f)` when `scope.LibraryOperators` marks a plugin terminal dead. In the ratchet the scope is `rd(path).scope` from `chartInputs` (verdicts.go). The raiser also corrects its own round-3 and round-6 claim that `libraryOperators` "only reads the forest". | editorial, for refinement (r8, raiser: "Refinement can carry this; it is not a round finding") | 336067853 (ed91e462) |
+| A44 | assess-architecture | 8 | §4 | If one run's aggregate differed, a before-against-after comparison could reflect a different file set rather than the change. Low. | README: "The share moves with load, and so does which files the rule excludes … Re-read it rather than trust it." The ratchet prints each excluded file on stderr. Proposed: add "and each run's excluded files" to "What it records". | optional, for refinement (r8, raiser: not a condition of acceptance) | 336067853 (ed91e462) |
+| A45 | assess-architecture | 8 | §3 ("What this does not amend") | The live record of path rulings falls behind; at worst a reader concludes the `Makefile` target was never ruled in. Low. | The README's isolation paragraph (lines 370–382) records every ruling admitting a path outside `internal/chart` (e.g. MAPDISPATCH's `Makefile` and `ci.yml`). The decision's live-documents list names only the precedence-constraint section and the key table. | optional, for refinement (r8, raiser: not a condition of acceptance) | 336067853 (ed91e462) |
+| M1 | assess-fresh8 | 8 | §5 | The last issue can close on the exit with a stop live, or halt despite the exit, at the implementer's choice. | The whole-ratio exit can be met while the precedence stage's median is not below its before-minimum; the stage keys are timed in separate passes, so noise can do this. Nothing orders exit and stops. Proposed: "a stop overrides the exit". Raiser: decision-level. | open | 336067853 (ed91e462) |
+| M2 | assess-fresh8 | 8 | §5 | An outcome that is neither exit nor stop, whose natural repair is the tuning the stops forbid: reseeding, dropping a sentence, loosening an assertion. | The exit requires "the checks of §3.4 pass"; stop 1 covers only "differs from the reference". Checks that can fail without differing: the reference-against-bison test, "at least one sentence is refused", the failing toy grammar, the perl.git target timing out or skipping. Proposed: "a §3.4 check fails, or …". Raiser: decision-level. | open | 336067853 (ed91e462) |
+| M3 | assess-fresh8 | 8 | §3.4 | If the corpus bulk moves behind `chart-precedence-reference`'s tag, the in-tree agreement check runs only in CI, undoing "Split it" for in-tree corpora. | "Its bulk moves behind the build tag" names no tag. `make test` already runs the tagged `chart-absence-reference` (Makefile:23); `chart-precedence-reference` is explicitly not run by `make test`. "Slow" has no threshold. Raiser: mostly the implementing issue, one clause in the decision. | open | 336067853 (ed91e462) |
+| M4 | assess-fresh8 | 8 | §3 ("What this does not amend") | A reader checking v2 §9.5 finds an unrecorded departure. Low. | v2 §9.5: keys "may be added or retired when the reset lands, and never afterwards". The decision adds three keys under "Rule them in" (as Recovery Plan D5 ruled its own), but the list names only §11. Raiser: decision-level. | open | 336067853 (ed91e462) |
+| M5 | assess-fresh8 | 8 | §2 | Some figures cannot be reproduced from the kept outputs. The raiser says nothing rests on them. Low. | 105–137 ms (round 7); 20,083 with 185 refused and 15,000 with 989 refused; round 6's re-run. `INDEX.md` has no round-7 harness or output entry. Proposed: label them "reported, not kept", as §2 does for round 6, or index round 7's output. | open | 336067853 (ed91e462) |
+| M6 | assess-fresh8 | 8 | §1, §5 | None: raised as a view. "≤ 5" is near-vacuous on the baseline machine, so the relative half carries the exit. | Baseline 4.79; the harness read 5.5–5.6; at ×0.73 either is under 5. Raiser: "consistent with 'Relative and ≤ 5', and no change is needed." | view, no change (r8, raiser) | 336067853 (ed91e462) |
+| M7 | assess-fresh8 | 8 | §4 | The stage keys' handling of refused files is undefined. Raiser: issue-level. | A file `libraryOperators` or the constraint refuses has no forest for the next stage. `chartStages` documents its equivalent for `Build`. Resolve's copies must be taken after the constraint. | open | 336067853 (ed91e462) |
+| M8 | assess-fresh8 | 8 | §3.4 | About 1,650 files, judged twice with a forest copy each, run inside `go test ./...` on three OSes. Raiser: issue-level. | The CI matrix runs `go test ./...` on every OS; the "proves slow" escape is subject to M3. | open | 336067853 (ed91e462) |
 
 ### Cross-references
 
@@ -332,6 +364,36 @@ The drafter lists overlaps and does not merge them. Each row keeps its own statu
 | INDEX paths | K9 (and A34, J1, earlier) | fresh4's file list points at a deleted worktree |
 | generation cost | C37 | about 90 ms per `Precedence` build |
 
+**From round 7:**
+
+| cluster | rows | shared subject |
+|---|---|---|
+| "most" against 39–43% | P20, A40 | one word in §2 against its own table |
+| edit5k, the fallback, and the in-tree part's dependence on §4's API | A41, C38, L6 | the in-tree row omits edit5k (and, per C38, Guacamole `parsent/`); no slow-path fallback; the in-tree differential needs §4's exports |
+| digest and count-key stop | A42 | the first stop names only the reference comparison |
+| "wait until" | A43 | "made" as decided or delivered |
+| exit key and "measurement" | L1 | the reading omits the exit's key; three senses of median and minimum |
+| out-of-span copies | L2 (and K8, earlier) | no `Protocol` hook for per-pass setup |
+| paths deferred against "Split it" | L3 | §6 defers the `Makefile` and CI paths that §1's ruling needs |
+| table-build cost | L4 (and C37, earlier) | 90 ms from the map-based prototype; V1's dense tables untimed |
+| referee boundary | L5 | the referee has no `libraryOperators` |
+| new work unmarked | L7 | the generators, the target and its build tag |
+| corpus refusals | L8 (and K2, earlier) | the superset population drops perl-refused files |
+| evidence claims | L9 (and K9, J1, earlier) | the round-6 re-run's output; `INDEX.md`'s stale 5.62 line |
+
+**From round 8:**
+
+| cluster | rows | shared subject |
+|---|---|---|
+| exit and stops | M1, M2 (and J5, A42, earlier) | how the exit and the stops order, and a failing check that differs from no reference |
+| where the bulk moves if slow | M3, M8 (and A41, C36, earlier) | which build tag; whether `make test` keeps the in-tree check; cost on three OSes |
+| departures from v2 | M4, A45 (and A1, A14, A26, C24, H3, L3, earlier) | v2 §9.5's key rule and the README isolation paragraph |
+| figures without kept outputs | M5 (and L9, K9, J1, earlier) | round 6's and round 7's figures, recorded only in reports |
+| the verdict reading's record | A44 (and L1, earlier) | each run's excluded files |
+| the constraint's input scope | C39 (and L5, earlier) | which scope the corpus checks pass to `libraryOperators` |
+| "≤ 5" | M6 (and P13, A17, C14, F1, G1, earlier) | the absolute half of the exit |
+| stage keys and refused files | M7 (and C19, K8, L2, earlier) | what the next stage times when a file is refused |
+
 ### Distribution by section
 
 Counted by the first section each row names. A row naming several sections counts once. Each round's rows use that round's revision's numbering, and the numberings differ.
@@ -416,6 +478,27 @@ Counted by the first section each row names. A row naming several sections count
 | §3.4 | A38, C34, C35, C36, P19, K1, K2, K6, K7 |
 | §4 | K5, K8 |
 | evidence directory | K9 |
+
+**Round 7 (revision 7):**
+
+| section | rows |
+|---|---|
+| §1 | A43, L3 |
+| §2 | A40, P20, L4, L9 |
+| §3.4 | A41, C38, L5, L6, L7, L8 |
+| §4 | L1, L2 |
+| §5 | A42 |
+
+**Round 8 (revision 8):**
+
+| section | rows |
+|---|---|
+| §1 | M6 |
+| §2 | M5 |
+| §3 | A45, M4 |
+| §3.4 | C39, M3, M8 |
+| §4 | A44, M7 |
+| §5 | M1, M2 |
 
 ## Round 1
 
@@ -1248,3 +1331,141 @@ The drafter does not say which rows these rulings answer. Each row's raiser disp
   - assess-codebase says "Nothing remains held";
   - assess-pushback says it holds nothing.
   - assess-fresh7 declares modify and names L1–L3. It declares no block.
+
+## Round 8
+
+**Revision:** 336067853, blob ed91e46239b29283ad5c82cd390411621b52a2cd. Revision 8 answers round 7. It:
+
+- adds the rulings "V2's verdict reading" and "Rule them in (Recommended)" to §1;
+- restates §2 by section;
+- gives §3.4 the boundary each caller uses, the in-tree row with edit5k and parsent, and "new" on each new test;
+- defines §4's measurement and adds the per-pass preparation hook;
+- adds the moved digest or count key to §5's first stop;
+- lists the v2 §11 departure.
+
+**Dispatched:** assess-architecture, assess-codebase, assess-pushback (as raiser of P20 only) and assess-fresh8, a new fresh participant. All four reported. assess-fresh7 was not resumed.
+
+How each confirmed the revision:
+
+- assess-architecture and assess-codebase used `git hash-object`.
+- assess-pushback used `git rev-parse` at the commit.
+- assess-fresh8 names the blob and says it is the same at 146411199.
+
+assess-fresh8 read the minute and `reports/` only after writing. Round 8 is the last round within the bound of eight.
+
+**What the participants checked or ran (recorded from their reports; the drafter has run none of it):**
+
+- **assess-codebase** traced `Protocol.pass`, `Ratio`, `measureStages`, `judge` and `narrow`, and `libraryOperators` against revision 8's text. It found each statement accurate. It corrected its own earlier claim that `libraryOperators` only reads the forest.
+- **assess-architecture** traced the new 105–137 ms figure to `reports/round7-fresh.md`. It checked the verdict reading against the README and chart-recovery.
+- **assess-fresh8** recomputed every §2 figure from the indexed outputs and found them matching. It checked that every named symbol exists or is marked new.
+
+### Drafter housekeeping: round 7's rows restored
+
+The round-7 minute as committed at 146411199 had lost three things:
+
+- the round-7 ledger rows (A40–A43, C38, P20, L1–L9);
+- the round-7 cross-reference table;
+- the round-7 distribution table.
+
+The round-7 section and the round-7 status updates were present. The drafter restored the 15 rows and both tables from its round-7 draft, with their text unchanged. Their statuses now carry round 8's dispositions. This is housekeeping on the record, not a disposition.
+
+### Recommendations, as declared
+
+- **assess-architecture: accept.** "I hold nothing. From my lens this revision is a fixed point. A44 and A45 are new and low. Refinement can carry them, and neither is a block." It says: "Fixed point: confirmed from the architecture lens."
+- **assess-codebase: accept.** "I hold nothing." "I **confirm a fixed point** from the codebase lens." C39 is "an editorial note for refinement", which "is not a round finding".
+- **assess-pushback (as raiser): accept.** "I hold nothing and raise nothing new." P20 is released.
+- **assess-fresh8: modify.** "M1 and M2 are one-sentence edits that close the exit/stop gap. M3 and M4 are one clause each. The rest belongs in issues or needs no change."
+  - M1–M4 are marked for the decision.
+  - M5 is marked for the decision, low.
+  - M6 is a view with no change.
+  - M7 and M8 are marked for the implementing issue.
+
+### Blocks and stand-asides, as declared
+
+| participant | declared |
+|---|---|
+| assess-architecture | "Held: none." A44 and A45 are "not conditions of acceptance". No stand-aside declared. |
+| assess-codebase | "I hold nothing." No stand-aside declared. |
+| assess-pushback | Holds nothing. |
+| assess-fresh8 | No block or stand-aside declared in those terms. Its verdict is modify, with M1–M4 for the decision. |
+
+The drafter converts none of these into a block or a release.
+
+### Dispositions of earlier findings, by their raisers
+
+| raiser | released |
+|---|---|
+| assess-architecture | A40, A41, A42, A43 (by ruling) |
+| assess-codebase | C38 |
+| assess-pushback | P20 |
+
+C33 stays carried to refinement, as its raiser declared in rounds 6 and 7.
+
+### Raiser absent
+
+assess-fresh7 was not resumed, so L1–L9 stay open with no one to release them.
+
+- For each, the ledger's status says where revision 8's text stands.
+- On the drafter's reading, revision 8's text speaks to the subject of every L row.
+
+The drafter decides none of them. F1–F10, G1–G8, H1–H6, J1–J10 and K1–K9 remain raiser absent as recorded earlier.
+
+### What each participant says remains
+
+- **assess-architecture:** A44 and A45, optional, for refinement. None held.
+- **assess-codebase:** C39, editorial, for refinement, and C33, carried to refinement. None held.
+- **assess-pushback:** nothing.
+- **assess-fresh8:** M1–M4 for the decision; M5 for the decision, low; M6, no change; M7 and M8 for the implementing issue.
+
+## Outcome of the session
+
+**No fixed point within the bound of eight.** Round 8 was the last round the bound allows.
+
+- **Three participants confirm a fixed point from their lenses:**
+  - assess-architecture: "Fixed point: confirmed from the architecture lens";
+  - assess-codebase: "I **confirm a fixed point** from the codebase lens";
+  - assess-pushback holds nothing and raises nothing new.
+- **One participant does not.** assess-fresh8 recommends modify and raised new findings it places in the decision. A fixed point needs every participant to report nothing held and nothing new, so the session did not converge.
+
+This non-convergence is itself a finding for perigrin. The minute records it rather than resolving it.
+
+**What remains open at the bound:**
+
+| kind | rows | as its raiser places it |
+|---|---|---|
+| decision-level | M1, M2, M3, M4 | M1 and M2 "one-sentence edits"; M3 and M4 "one clause each" (M3 "mostly the implementing issue") |
+| decision text, low | M5 | label figures "reported, not kept", or index round 7's output |
+| issue-level | M7, M8 | the implementing issue |
+| for refinement | C39 (editorial), A44 and A45 (optional), C33 (carried) | not conditions of acceptance, in their raisers' words |
+| view, no change | M6 | "no change is needed" |
+| raiser absent | F1–F10, G1–G8, H1–H6, J1–J10, K1–K9, L1–L9 | no participant can release them; the drafter's notes say where the latest revision's text stands on each |
+
+**Who decides the close.** It is perigrin's decision. The coordinator has put it to him. The minute records no ruling on it yet, and the drafter neither proposes nor judges one.
+
+## perigrin's ruling on the close
+
+The question was put to perigrin after round 8's outcome. Three participants accepted and held nothing. Round 8's fresh participant raised M1–M4, which it described as one-sentence decision fixes, and the M5 label.
+
+perigrin's answer, verbatim:
+
+> "Apply fixes, accept (Recommended)"
+
+The coordinator states what this means; the drafter judges nothing. Revision 9 applies the fixes as follows:
+
+| Finding | What revision 9 does |
+|---|---|
+| M1 | "A stop overrides the exit: if both hold, the milestone stops." |
+| M2 | The first stop now fires when any §3.4 check fails, including the reference disagreeing with bison, a failed assertion, or the perl.git target failing or timing out in CI. |
+| M3 | A slow check's bulk moves behind a build tag that `make test` still runs, never to the perl.git target. |
+| M4 | "What this does not amend" adds v2 §9.5's no-new-keys rule, departed from for the three stage keys by ruling. |
+| M5 | The generator counts and the table-build cost are labelled "reported, not kept". |
+
+perigrin accepted the decision at revision 9.
+
+Still open, for refinement and the implementing issues:
+
+- the issue-level findings M7, M8 and C33;
+- C39, editorial;
+- A44 and A45, optional.
+
+The raiser-absent rows stay as recorded.

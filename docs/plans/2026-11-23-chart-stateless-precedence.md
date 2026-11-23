@@ -1,6 +1,7 @@
 # Chart parser: precedence without parser state
 
-Status: proposed, for crochet:assess (revision 8). Date: 2026-11-23.
+Status: accepted by perigrin (revision 9), 2026-11-23, after crochet:assess
+reached its bound of eight rounds. Date: 2026-11-23.
 Assessment: `docs/assessments/chart-stateless-precedence.md`. The evidence is
 in `docs/assessments/chart-stateless-precedence/`, and its `INDEX.md` maps
 every file to where it was produced. Revisions 1 to 3 were
@@ -17,6 +18,11 @@ The governing design is the accepted v2 design,
 All are perigrin's, of 2026-11-23. The minute records every ruling, including
 superseded ones, and refinement records these in the milestone's Records.
 
+- **"Apply fixes, accept (Recommended)".** The assessment reached its bound
+  of eight rounds without a fixed point. Three participants accepted. Round
+  8's fresh participant raised four one-sentence decision fixes (M1–M4) and a
+  labelling fix (M5). perigrin ruled that revision 9 applies them and accepted
+  it.
 - **"V1 now, V2 measured after (Recommended)".** Ship the exact state-free
   filter first. The recognizer's reduce-side filter (V2) becomes a follow-up
   decision with its own measurement, once its effect on `Expected` and on
@@ -69,8 +75,9 @@ and readings count everywhere it was run:
 | Operator sentences (seed 4), 185 refused by precedence | 20,083 |
 | Leo-chain and nullable-wrapped sentences (seed 44), 989 refused | 15,000 |
 
-Round 6 re-ran both generators and the 11,574 files. Its record is
-`reports/round6-fresh.md`; the outputs themselves were not kept.
+The last three rows are reported, not kept. Their generators and harnesses
+are in the evidence, but their outputs are not. Rounds 4 and 6 ran them; the
+records are `reports/round4-fresh.md` and `reports/round6-fresh.md`.
 
 ### V1's speed
 
@@ -83,8 +90,9 @@ V1 holds its memo in per-node lists and dense tables, with no hash map.
 
 - The precedence stage takes 0.39–0.42 of today's time, per run.
 - No node holds more than 24 memo entries.
-- Building V1's dense tables took 105–137 ms once per process (round 7),
-  on top of `NewPrecedence`'s own build.
+- Building V1's dense tables took 105–137 ms once per process, on top of
+  `NewPrecedence`'s own build. This is reported in `reports/round7-fresh.md`,
+  not kept.
 
 ### V2, for its later decision
 
@@ -168,8 +176,9 @@ so recognition, the refusal byte and `Expected` cannot differ.
 - **The seeded generators' test** asserts agreement on every sentence and
   that at least one sentence is refused. It does not assert today's 185 and
   989.
-- **If a `make test` check proves slow,** its bulk moves behind the build
-  tag. `make test` keeps the refused sentences and a sample.
+- **If a `make test` check proves slow,** its bulk moves behind a build tag
+  of its own that `make test` still runs, as it runs `chart-absence-reference`.
+  It never moves to the perl.git target, which `make test` does not run.
 - **The perl.git target** is not run by `make test`. CI's corpus-backed
   Ratchets job runs it with `PERL5_CORPUS` set, and it fails unless it
   passes. A developer without perl.git runs `make test`.
@@ -193,6 +202,9 @@ ships.
   states.
 - v2 §11's "only `internal/chart` changes" is departed from only by the
   `Makefile` and CI paths perigrin ruled in.
+- v2 §9.5 says no key is added after the reset. It is departed from only by
+  the three stage keys of §4, which perigrin ruled in. The Recovery Plan's D5
+  did the same for its keys.
 
 The live documents change first, in the same pull request: the chart README's
 precedence-constraint section, and the ratchet key table.
@@ -248,10 +260,12 @@ precedence change. That commit is the before-state.
 - perigrin's relative exit is met by `speed-ratio-aggregate-longlived` in the
   verdict reading.
 
-**Stops,** reported to perigrin and never tuned toward:
+**Stops,** reported to perigrin and never tuned toward. A stop overrides the
+exit: if both hold, the milestone stops.
 
-- a §3.4 check differs from the reference, or a forest digest or ratchet count
-  key moves;
+- any §3.4 check fails, whether it differs from the reference, the reference
+  disagrees with bison, an assertion fails, or the perl.git target fails or
+  times out in CI. A forest digest or ratchet count key moving is also a stop;
 - table generation finds a state-dependent key that §3.1's context does not
   settle;
 - the after-reading's median `speed-stage-precedence-aggregate-longlived` is
