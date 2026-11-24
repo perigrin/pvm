@@ -670,7 +670,7 @@ type markEntry struct{ t, top, pi, first, next int32 }
 
 func newJudgement(f *Forest, p *Precedence) *judgement {
 	return &judgement{f: f, p: p, evalAt: make([]int32, len(f.Nodes)), markAt: make([]int32, len(f.Nodes)),
-		evals: make([]evalEntry, 1), marks: make([]markEntry, 1), kept: make([]bool, len(f.Alts))}
+		evals: make([]evalEntry, 1, len(f.Nodes)), marks: make([]markEntry, 1, len(f.Nodes)), kept: make([]bool, len(f.Alts))}
 }
 
 // canon drops the context node n cannot use, so two encodings of one context share a memo entry: a spine top
