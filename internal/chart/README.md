@@ -2644,10 +2644,12 @@ grammar's tables and its precedence: no Earley item gains a fact.
 - **The differential checks.** Each compares `Constrain` with
   `ConstrainReference` on two copies of one forest, made before either
   judges, and requires the same verdict and the same kept alternatives on
-  every node. Each fails on an input it could not compare, and counts a
-  pruned input only where the reference dropped an alternative of a node
-  reachable from the root before the constraint (both judgements drop every
-  alternative of an unreachable node). `TestPrecedenceHarnessesDoNotAlias`
+  every node. `forest`'s `judgeBoth` and `cmd/ratchet`'s `comparePrecedence`
+  count an input pruned only where the reference dropped an alternative of
+  a node reachable from the root before the constraint (both judgements drop
+  every alternative of an unreachable node); `chart`'s `constrainAgrees`
+  counts one pruned where production's kept alternatives differ from the
+  forest's on any node. `TestPrecedenceHarnessesDoNotAlias`
   shows the `forest` and `cmd/ratchet` comparisons report an over-pruning
   judgement through the harness itself, so neither can compare a copy with
   itself. The inputs, by package:
@@ -2658,7 +2660,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
     `TestPrecedenceOperatorSentencesMatchReference` (seed 4: 83 handcrafted
     sentences and 20,000 random operator sentences) and
     `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain
-    and nullable-wrapped sentences). Each generator logs
+    and nullable-wrapped sentences). Each skips a sentence or toy sentence
+    the chart refuses, and a generated one `LibraryOperators` refuses,
+    rather than failing on it. Each generator logs
     `sentences=N compared=C refused=R pruned=P` and requires a sentence
     refused and one pruned; `TestPrecedenceDiffDetectsDifference` shows
     their shared comparison report a dropped alternative and a flipped
@@ -2669,7 +2673,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
     `TestWaypoint2RefusalsMatchReference` on every row of
     `waypoint2Refusals` and `waypoint2ScopeRefusals`, on the forest after
     `LibraryOperators` under `forest.Scope{}`, as `pipelineSource` passes it
-    to the constraint. Each logs its counts.
+    to the constraint. Each logs its counts and fails on a sentence or row
+    it could not compare: one with no forest or, for the second, one
+    `LibraryOperators` refuses.
   - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
     of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
     `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
@@ -2678,7 +2684,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
     (`chartInputs`'s, which carries imports only, so `LibraryOperators`
     prunes there as under an empty `Scope`; `TestComparePrecedenceUsesScope`
     holds that a scope with library operators is honoured), one file at a
-    time; a file `LibraryOperators` refuses is counted, not compared. It
+    time; a file the chart does not recognize is skipped, and one
+    `LibraryOperators` refuses is counted, not compared. It
     logs per corpus `corpus=NAME compared=C prelib-refused=L
     precedence-refused=R pruned=P perl-refused-compared=Q`, fails on a
     corpus that contributes no compared file, and runs in `go test ./...`.
