@@ -480,19 +480,25 @@ func (p *Precedence) shifts(s int32, t int) bool {
 
 // Constrain applies p to f in place: it keeps each alternative some derivation of the file bison's
 // resolutions would build passes through and drops the rest, true; or refuses the file, false, where the root
-// keeps no derivation. A derivation is judged in its edge context: the parser state the derivation holding it
-// reaches at its span's start (state 0 at the file's start), and the terminal after it. Each reduction is
-// checked against the terminal after it, each shift against the reductions the state before it holds; a span
-// left with no derivation in its context fails every derivation holding it there.
-// shortcut: an alternative kept in one context is kept in all, so a node reached in two parser states that keep
+// keeps no derivation. It judges with no parser state (decision §3.3), by the keys of p's state-free tables: a
+// reduction by its rule and the terminal after it, and the parent item for a pair that needs one; a shift by
+// the spine-top item, the rule-position item before it and the terminal shifted. A span left with no
+// derivation in its context fails every derivation holding it there. ConstrainReference is what it is
+// compared against.
+// shortcut: an alternative kept in one context is kept in all, so a node reached in two contexts that keep
 // different alternatives keeps both; the verdict is exact, and only the derivations a later reader enumerates
-// can include one bison builds in neither state. Revisit if READINGS counts one.
+// can include one bison builds in neither. Revisit if READINGS counts one.
 func (f *Forest) Constrain(p *Precedence) bool {
-	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
-	if len(c.eval(f.Root, 0, p.tab.EOF)) == 0 {
+	return newJudgement(f, p).constrain()
+}
+
+// constrain is Constrain on the judgement's forest, its memo as it stands.
+func (c *judgement) constrain() bool {
+	f := c.f
+	if len(c.eval(f.Root, c.p.tab.EOF, rootTop, -1)) == 0 {
 		return false
 	}
-	c.mark(f.Root, 0, p.tab.EOF, -1)
+	c.mark(f.Root, c.p.tab.EOF, rootTop, -1, -1)
 	for n := range f.Nodes {
 		a := &f.Nodes[n].Alt
 		for *a != 0 {
@@ -633,6 +639,190 @@ func (c *constrainer) mark(n, s int32, t int, first int32) {
 			continue
 		}
 		if slices.ContainsFunc(c.seq(a, r, m, s, t, keep), keep) {
+			c.kept[a] = true
+		}
+	}
+}
+
+// rootTop stands for the root's spine top: the start item of each root alternative's own rule.
+const rootTop = -2
+
+// judgement is one state-free application of a Precedence to a forest. Everything it writes lives here, on the
+// call, never on the shared Precedence. Its memo is per node and uses no hashing: evalAt[n] and markAt[n] head
+// node n's lists in evals and marks (0 none, so entry 0 is unused), linked by next.
+type judgement struct {
+	f              *Forest
+	p              *Precedence
+	evalAt, markAt []int32
+	evals          []evalEntry
+	marks          []markEntry
+	kept           []bool // by alternative
+}
+
+// evalEntry is eval's result in one context: the terminal after the node, its spine top and its parent item.
+type evalEntry struct {
+	t, top, pi, next int32
+	out              []int32 // shared with every parent that reads it; never appended into
+}
+
+// markEntry is one mark visit: eval's context and the terminal its derivations must begin with (-1 any).
+type markEntry struct{ t, top, pi, first, next int32 }
+
+func newJudgement(f *Forest, p *Precedence) *judgement {
+	return &judgement{f: f, p: p, evalAt: make([]int32, len(f.Nodes)), markAt: make([]int32, len(f.Nodes)),
+		evals: make([]evalEntry, 1, len(f.Nodes)), marks: make([]markEntry, 1, len(f.Nodes)), kept: make([]bool, len(f.Alts))}
+}
+
+// canon drops the context node n cannot use, so two encodings of one context share a memo entry: a spine top
+// that forbids no shift, and a parent item where n's symbol has no pair that needs one.
+func (c *judgement) canon(n, top, pi int32) (int32, int32) {
+	if top >= 0 && c.p.topAt[top] < 0 {
+		top = -1
+	}
+	if sym := c.f.Nodes[n].Sym; sym < 0 || !c.p.needParent[sym] {
+		pi = -1
+	}
+	return top, pi
+}
+
+// reducesFree is the state-free verdict on reducing rule r with t next, whose node is its parent's child at
+// item pi. A pair that needs its parent item and has none is a judgement bug, never an allowance.
+func (p *Precedence) reducesFree(r, t int, pi int32) bool {
+	k := r*p.nt + t
+	switch p.reduceAt[k] {
+	case 0:
+		return true
+	case 1:
+		return false
+	}
+	if pi < 0 {
+		panic(fmt.Sprintf("forest: reducing rule %d (%s) before %s needs its parent item, and none was given", r, p.tab.Symbols[p.tab.Rules[r].LHS].Name, p.tab.Symbols[t].Name))
+	}
+	return !p.parentForbid[int(p.mixAt[k])*len(p.topAt)+int(pi)]
+}
+
+// shiftForbidden reports whether shifting t after the rule-position item at, under the spine top top, is forbidden.
+func (p *Precedence) shiftForbidden(top, at int32, t int32) bool {
+	if top < 0 || p.topAt[top] < 0 {
+		return false
+	}
+	x := p.shiftAt[int(p.topAt[top])*len(p.topAt)+int(at)]
+	return x >= 0 && p.shiftForbid[x][t/64]&(1<<(t%64)) != 0
+}
+
+// alt is the rule of node n's alternative a, how many of its symbols a covers, and the spine top its own
+// symbols hang from: top, or at the root the start item of a's rule.
+func (c *judgement) alt(n, a, top int32) (r, m int, at int32) {
+	r = int(c.f.Alts[a].Rule)
+	m = len(c.p.tab.Rules[r].RHS)
+	if nd := c.f.Nodes[n]; nd.Sym < 0 {
+		m = int(nd.Dot)
+	}
+	if top == rootTop {
+		top = c.p.base[r]
+	}
+	return r, m, top
+}
+
+// eval is the first terminals of n's derivations that bison's resolutions pass with t next, under the spine top
+// top and the parent item pi, sorted; none where every one is forbidden. A span with no tokens begins with t.
+func (c *judgement) eval(n int32, t int, top, pi int32) []int32 {
+	nd := c.f.Nodes[n]
+	if nd.Alt == 0 {
+		return []int32{nd.Sym} // a leaf
+	}
+	top, pi = c.canon(n, top, pi)
+	for e := c.evalAt[n]; e != 0; e = c.evals[e].next {
+		if x := &c.evals[e]; x.t == int32(t) && x.top == top && x.pi == pi {
+			return x.out
+		}
+	}
+	var out []int32
+	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
+		r, m, at := c.alt(n, a, top)
+		if nd.Sym >= 0 && !c.p.reducesFree(r, t, pi) {
+			continue
+		}
+		out = append(out, c.seq(a, r, m, t, at, nil)...)
+	}
+	slices.Sort(out)
+	out = slices.Compact(out)
+	c.evals = append(c.evals, evalEntry{int32(t), top, pi, c.evalAt[n], out})
+	c.evalAt[n] = int32(len(c.evals) - 1)
+	return out
+}
+
+// seq is the first terminals of alternative a's derivations, rule r's first m symbols under the spine top top
+// with t next, that bison's resolutions pass. The right child hangs from the rule-position item before it,
+// unless it is r's first symbol and inherits top; the left inherits top. With keep it also marks, through keep,
+// the children of each derivation whose first terminal it accepts.
+func (c *judgement) seq(a int32, r, m int, t int, top int32, keep func(first int32) bool) []int32 {
+	if m == 0 {
+		return []int32{int32(t)}
+	}
+	alt := c.f.Alts[a]
+	at := c.p.base[r] + int32(m-1) // the rule-position item before the right child
+	rtop := top
+	if m > 1 {
+		rtop = at
+	}
+	right := c.eval(alt.Right, t, rtop, at)
+	if m == 1 {
+		for _, f := range right {
+			if keep != nil && keep(f) {
+				c.mark(alt.Right, t, rtop, at, f)
+			}
+		}
+		return right
+	}
+	lpi := int32(-1) // the left child's parent item, where it is r's first symbol
+	if m == 2 {
+		lpi = c.p.base[r]
+	}
+	var out []int32
+	empty := c.f.Nodes[alt.Right].From == c.f.Nodes[alt.Right].To && c.f.Nodes[alt.Right].Alt != 0
+	for _, f := range right {
+		// A shift of f where the right child begins, unless the right child is empty and reduces before f is read.
+		if !empty && c.p.shiftForbidden(top, at, f) {
+			continue
+		}
+		left := c.eval(alt.Left, int(f), top, lpi)
+		out = append(out, left...)
+		if keep == nil {
+			continue
+		}
+		for _, l := range left {
+			if keep(l) {
+				c.mark(alt.Right, t, rtop, at, f)
+				c.mark(alt.Left, int(f), top, lpi, l)
+			}
+		}
+	}
+	return out
+}
+
+// mark keeps the alternatives of n's derivations that bison's resolutions pass in eval's context and that begin
+// with first (-1 any), and those of their children.
+func (c *judgement) mark(n int32, t int, top, pi, first int32) {
+	if c.f.Nodes[n].Alt == 0 {
+		return
+	}
+	top, pi = c.canon(n, top, pi)
+	for e := c.markAt[n]; e != 0; e = c.marks[e].next {
+		if x := c.marks[e]; x.t == int32(t) && x.top == top && x.pi == pi && x.first == first {
+			return
+		}
+	}
+	c.marks = append(c.marks, markEntry{int32(t), top, pi, first, c.markAt[n]})
+	c.markAt[n] = int32(len(c.marks) - 1)
+	keep := func(f int32) bool { return first < 0 || f == first }
+	nd := c.f.Nodes[n]
+	for a := nd.Alt; a != 0; a = c.f.Alts[a].Next {
+		r, m, at := c.alt(n, a, top)
+		if nd.Sym >= 0 && !c.p.reducesFree(r, t, pi) {
+			continue
+		}
+		if slices.ContainsFunc(c.seq(a, r, m, t, at, keep), keep) {
 			c.kept[a] = true
 		}
 	}
