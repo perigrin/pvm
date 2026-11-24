@@ -140,12 +140,15 @@ func TestPrecedenceHarnessesDoNotAlias(t *testing.T) {
 	}
 }
 
+// fBelowHigh is the nullable-shift toys' levels: %left F below %left HIGH.
+var fBelowHigh = []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}}
+
 // nullableShiftToy is REVIEWFIX3's toy (perigrin's ruling on REVIEWFIX2's gate G1): after TA TC X the state shifts
 // F through K2: TC X . F TH and reduces E: %prec HIGH with F next, and the reduction wins, so the shift key
 // (V: TC . P, P: X . Y, F) is recorded as forbidden; but under P: X . Y, F is reached only after E derives the
 // empty string, and bison shifts it later, from the state after E.
 func nullableShiftToy(t *testing.T) (*grammar.Tables, *Precedence) {
-	return pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+	return pinnedToy(t, fBelowHigh,
 		[]string{"", "", "", "", "", "", "HIGH", ""},
 		"S ::= TA V | TA K2", "V ::= TC P", "K2 ::= TC X F TH", "P ::= X Y", "Y ::= E F", "E ::= ", "X ::= TX")
 }
@@ -249,7 +252,7 @@ func TestPrecedenceNullableShiftLimitAbsent(t *testing.T) {
 		t.Errorf("toy: %q; want F after P: X . Y under V: TC . P among them", got)
 	}
 	// A chain: F is reached under P: X . Z through Z: Y, Y: E F and E: E1 E2, two empty rules deep.
-	chainTab, chain := pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+	chainTab, chain := pinnedToy(t, fBelowHigh,
 		[]string{"", "", "", "", "", "", "", "", "HIGH", "", ""},
 		"S ::= TA V | TA K2", "V ::= TC P", "K2 ::= TC X F TH", "P ::= X Z", "Z ::= Y", "Y ::= E F", "E ::= E1 E2", "E1 ::= ", "E2 ::= ", "X ::= TX")
 	if got := nullableShiftKeys(chain, chainTab.Rules); !slices.Contains(got, "F after P: X . Z under V: TC . P") {
