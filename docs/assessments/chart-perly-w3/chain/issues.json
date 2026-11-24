@@ -1,0 +1,410 @@
+[
+  {
+    "id": "01a20f09-ec32-7342-b743-746cb05a1223",
+    "title": "Add the precedence, resolve and readings stage keys (title cut in the surviving record)",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.258916569Z",
+    "updated": "2026-11-24T19:31:09.499768134Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.43943613Z",
+        "ended_at": "2026-11-24T19:31:09.499768134Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.43943613Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.499768134Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `STAGEKEYS`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3f3c-7901-ad2b-a1c41416b833`, which every delivered commit carries as `Implements: 01a20950-3f3c-7901-ad2b-a1c41416b833`. Delivered as perigrin/pvm#629, merge commit 789949d00, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3f3c-7901-ad2b-a1c41416b833' 349b81bf4..pu`."
+  },
+  {
+    "id": "01a20f09-ec43-7c37-b74c-b3f2c8e7de9d",
+    "title": "Keep today's judgement as (*Forest).ConstrainReference",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.275755053Z",
+    "updated": "2026-11-24T19:31:09.547582475Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.52265283Z",
+        "ended_at": "2026-11-24T19:31:09.547582475Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.52265283Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.547582475Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `REFERENCE`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3f56-7387-8aab-c367a7dc702a`, which every delivered commit carries as `Implements: 01a20950-3f56-7387-8aab-c367a7dc702a`. Delivered as perigrin/pvm#630, merge commit ebe099922, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3f56-7387-8aab-c367a7dc702a' 349b81bf4..pu`."
+  },
+  {
+    "id": "01a20f09-ec52-77e2-88b2-784470a560c7",
+    "title": "Generate the state-free precedence tables in NewPrecedence",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.29051736Z",
+    "updated": "2026-11-24T19:31:09.594079782Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.570260134Z",
+        "ended_at": "2026-11-24T19:31:09.594079782Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.570260134Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.594079782Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `STATEFREE-GEN`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20982-c739-774c-bd75-a001998c6ac7`, which every delivered commit carries as `Implements: 01a20982-c739-774c-bd75-a001998c6ac7`. Delivered as perigrin/pvm#632, merge commit 50a70d8cf, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20982-c739-774c-bd75-a001998c6ac7' 349b81bf4..pu`.\n\n### Review Findings\n\nGate pass 1 (Opus, tier 2) on a4b659d2b, citing Haiku runner adbc235d014fdb41c:\n\n- F1 (in scope; fix before merge): the shift-side half of the state-dependent guard (`case v == 3` in stateFree's shift loop) has no test. Mutation M1 dropped its error and every TestPrecedence* test and both digest tests stayed green. Add a shift-side toy as a second case of TestPrecedenceGenerationGuard, asserting that the error names the item, the terminal and the spine-top item. The reviewer's toy: grammar `s ::= k | D k | D C w F`, `k ::= C m`, `m ::= y`, `y ::= A e`, `e ::= F G`, `w ::= A %prec HIGH`; levels F low, HIGH high. At head it fails with \"shifting F after y: A . e under the spine-top item k: C . m\". Show the new case red with M1 applied, then revert M1.\n- F2 (optional): TestPrecedenceGenerationErrorRefusesEveryFile cannot catch a break in buildParsePrecedence's passthrough (M4 survived). The criterion's wording forces the seam; fix it only if a cheap committed-grammar variant exists.\n- F2 skipped (recorded after gate pass 2, on 40f94b501, runner a922fba0ea2ae27df): buildParsePrecedence loads the committed grammar itself through grammar.Committed(), and that grammar generates without error. So no committed-grammar variant can make NewPrecedence fail through that passthrough. A test for it would need a non-committed perly.y or a new injection seam in production code, which goes beyond the \"cheap committed-grammar variant\" F2 asked for. F1 is fixed in 40f94b501: TestPrecedenceGenerationGuard has a shift case, and dropping the shift-side error turns it red. Gate pass 2: GATE pass."
+  },
+  {
+    "id": "01a20f09-ec62-7699-93af-0962ad64b9a1",
+    "title": "Judge precedence without parser state or hashing",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.30682514Z",
+    "updated": "2026-11-24T19:31:09.653553698Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.616816998Z",
+        "ended_at": "2026-11-24T19:31:09.653553698Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.616816998Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.653553698Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `STATEFREE-EVAL`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3f6c-701f-8471-5af5b602b3c3`, which every delivered commit carries as `Implements: 01a20950-3f6c-701f-8471-5af5b602b3c3`. Delivered as perigrin/pvm#636, merge commit 6250f160f, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3f6c-701f-8471-5af5b602b3c3' 349b81bf4..pu`.\n\n### Review Findings\n\nGate pass 1 (Opus, tier 2) on ca0a71c22, citing Haiku runners a6150427f70ae5ce6 (criteria 1–5) and a888d44b834475525 (6–20 and make test). Verdict: GATE findings. No correctness defect and no Stop found.\n\n- F1 (in scope, blocks): the parent-item part of the eval memo key is untested. Mutation M4 deleted `&& x.pi == pi` from (*judgement).eval's lookup and survived every forest, chart and cmd/ratchet test, the corpus differential included, because no toy or crafted forest puts two parent items on one (node, terminal, spine top). Add a subtest beside `canonicalisation` in TestPrecedenceStateFreeTraps. On the indirob toy, call eval directly on the indirob node with the same terminal and spine top but two parent items that parentForbid decides differently. Require the two results to differ, each to equal a fresh judgement's result, and the node to hold two eval entries. Show it red under M4, then revert.\n- F2 (in scope, should fix): the `|| !c.p.needParent[sym]` clause in (*judgement).canon is unpinned. Mutation M3 deleting it survived, because the `canonicalisation` subtest uses only a rule-position node. Extend that subtest with a symbol node whose symbol has no mixed pair, judged under two parent items, and require one eval entry and one mark entry. Show it red under M3, then revert.\n- F3 (advisory, recorded here): \"a refused (empty) forest\" in the edge-forest criterion is read as a forest the constraint refuses, because a nil or zero-node forest panics both judges and Build always allocates node 0. The gate judged this reading reasonable."
+  },
+  {
+    "id": "01a20f09-ec71-762e-85cf-4deb52dc37b4",
+    "title": "Compare production against the reference on the toy forests and generated sentences",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.321402282Z",
+    "updated": "2026-11-24T19:31:09.714478038Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.675211316Z",
+        "ended_at": "2026-11-24T19:31:09.714478038Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.675211316Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.714478038Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `PRECDIFF-FOREST`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3f86-7f29-8511-f0d76a9b1a4b`, which every delivered commit carries as `Implements: 01a20950-3f86-7f29-8511-f0d76a9b1a4b`. Delivered as perigrin/pvm#634, merge commit 9cb0967da, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3f86-7f29-8511-f0d76a9b1a4b' 349b81bf4..pu`."
+  },
+  {
+    "id": "01a20f09-ec80-7744-b315-515d3d13762d",
+    "title": "Compare production against the reference on the referee's sentences and waypoint2Refusals",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.336007452Z",
+    "updated": "2026-11-24T19:31:09.763906959Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.738816867Z",
+        "ended_at": "2026-11-24T19:31:09.763906959Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.738816867Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.763906959Z"
+      }
+    ],
+    "labels": [
+      "model:sonnet"
+    ],
+    "body": "**Handle:** `PRECDIFF-CHART`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3f9d-7d0d-bf06-f6c9195fba1c`, which every delivered commit carries as `Implements: 01a20950-3f9d-7d0d-bf06-f6c9195fba1c`. Delivered as perigrin/pvm#631, merge commit 63ea05ed1, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3f9d-7d0d-bf06-f6c9195fba1c' 349b81bf4..pu`."
+  },
+  {
+    "id": "01a20f09-ec91-7707-a0ce-6c0fd01707de",
+    "title": "Compare production against the reference on every recognized in-tree corpus file in cmd/ratchet",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.353824028Z",
+    "updated": "2026-11-24T19:31:09.808196908Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.785006716Z",
+        "ended_at": "2026-11-24T19:31:09.808196908Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.785006716Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.808196908Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Handle:** `PRECDIFF-CORPUS`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3fb8-755b-b9c9-df78ff3a85dc`, which every delivered commit carries as `Implements: 01a20950-3fb8-755b-b9c9-df78ff3a85dc`. Delivered as perigrin/pvm#633, merge commit 9e51d4e35, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3fb8-755b-b9c9-df78ff3a85dc' 349b81bf4..pu`."
+  },
+  {
+    "id": "01a20f09-eca1-739e-8d97-ea813da2477c",
+    "title": "Add make chart-precedence-reference over perl.git t/ and run it in CI's Ratchets job",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.369359951Z",
+    "updated": "2026-11-24T19:31:09.853092829Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.828865018Z",
+        "ended_at": "2026-11-24T19:31:09.853092829Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.828865018Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.853092829Z"
+      }
+    ],
+    "labels": [
+      "model:sonnet"
+    ],
+    "body": "**Handle:** `PERLGITREF`. **Reconstructed; original body and acceptance criteria lost** with the chain (see the milestone's reconstruction note). Original id `01a20950-3fd3-7438-892f-95dc63c18e2c`, which every delivered commit carries as `Implements: 01a20950-3fd3-7438-892f-95dc63c18e2c`. Delivered as perigrin/pvm#635, merge commit acc8faf50, gated and merged as recorded in the milestone's Records. Find its commits with `git log --format=%h --grep='Implements: 01a20950-3fd3-7438-892f-95dc63c18e2c' 349b81bf4..pu`.\n\n### Review Findings\n\nGate pass 1 (Opus, tier 2) on c6fe99b74, citing Haiku runner a5497abad982025d8. Verdict GATE: findings.\n\n- F1 (in scope, blocks: a review-judged line is unmet): the PR body must give the new step's CI time. From CI run 45292642220: the step \"Run the precedence reference over perl.git\" took 16 s (23:57:41–23:57:57), with the test at 15.22 s; the Ratchets job took 4 m 21 s and passed.\n- F2 (in scope): the README step says the Isolation paragraph names `chart-precedence-reference`, its build tag `precedencereference`, and that it runs outside `make test`. The paragraph at internal/chart/README.md:388-390 names only the target and the ruling. Add the tag and \"outside make test\" to it.\n- F3 (optional nit): in ci.yml's new step, the PASS grep has no trailing space; the absence step's grep has one."
+  },
+  {
+    "id": "01a20f09-ecb1-7836-b922-ae3ce90dc61e",
+    "title": "Take the verdict reading: three quiet runs before and after (title cut in the surviving record)",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.385436379Z",
+    "updated": "2026-11-24T19:31:09.905937627Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:09.879446136Z",
+        "ended_at": "2026-11-24T19:31:09.905937627Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.879446136Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:09.905937627Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Reconstructed** from the session transcript; original id `01a20950-3fed-77af-ad71-41aad23354b2`, delivered as perigrin/pvm#637 (merge 2a29efd2e). The surviving copy was printed cut at 60 lines, so it holds 3 of the original 5 criteria.\n\n**Handle:** `VERDICT`. Sibling issues in this milestone refer to this one by that handle, together with its ref.\n\nDecision §4 and §5: the verdict reading, the milestone's last issue. Three quiet ratchet runs of the before-state and three of the after-state, interleaved in one session, recorded in the milestone's Records. It measures; it changes no code. The exit is perigrin's relative one (\"Relative and ≤ 5 (Recommended)\"): the after-reading's median `speed-ratio-aggregate-longlived` below the before-reading's minimum, and at or below 5.\n\n## Prerequisites\n\n- STAGEKEYS (01a20950-3f3c): its merge commit on `pu` is the before-state.\n- STATEFREE-EVAL (01a20950-3f6c), PRECDIFF-FOREST (01a20950-3f86), PRECDIFF-CHART (01a20950-3f9d), PERLGITREF (01a20950-3fd3): the after-state is `pu` with §3 built and every §3.4 check in place and passing.\n\n## Context\n\n- paths: `docs/assessments/chart-perly-w3/verdict/` (new: each run's stdout and stderr; optional, docs-only)\n- commands: `env -u T1_CORPUS -u TDT_FIXTURES make -s chart-ratchet` in two worktrees, `cat /proc/loadavg`, `nproc`, `uname -r`, `git zhi milestone edit chart-perly-w3 --body -`\n- entrypoints: decision §4 \"The verdict reading\"; the README's \"chart-recovery's verdict reading\" (a recorded reading's shape); the milestone's Stops\n\n**The two states.** Before: STAGEKEYS's merge commit on `pu`. After: `pu` once every other issue of this milestone has merged. Check out each in its own worktree (never in the shared checkout), built once before the session.\n\n**The session.** Six runs, interleaved B A B A B A, in one session on one machine. Quiet is a 1-minute load at or below the core count: read `/proc/loadavg` and `nproc` before each run and wait for quiet. If a quiet session cannot be had, take the reading anyway, record the load, and report to perigrin: that is a Stop for him to rule on.\n\n**One measurement** is one ratchet run's printed value of a key, which is the protocol's own median of three. Do not re-median or discard runs.\n\n**What it records.** For `speed-ratio-aggregate-longlived` and the three stage keys (`speed-stage-precedence-aggregate-longlived`, `speed-stage-resolve-aggregate-longlived`, `speed-stage-readings-aggregate-longlived`), before and after: median, min and max over the three runs. For each run: commit, 1-minute load, core count, kernel, and the files the 10% rule excluded (A44: the ratchet prints each excluded file on stderr; a before-against-after difference could otherwise reflect a different file set). Other `speed-stage-*` keys may be added.\n\n**Where.** One Records bullet in the milestone body, one line, beginning `- <date> verdict reading:`, naming each key with its before and after median, min and max, the two states as `before-commit <sha>` and `after-commit <sha>` (these exact tokens), each run's load, cores and kernel, their excluded files (or \"excluded: none\"), and ending with `exit: met` or `exit: not met` and with `precedence-stage stop: fired` or `precedence-stage stop: not fired` (these exact lower-case tokens; it fires when the after median of `speed-stage-precedence-aggregate-longlived` is not below the before minimum). Edit the body with `git zhi milestone edit chart-perly-w3 --body -`, changing nothing but the new bullet, and confirm it with `git zhi milestone show chart-perly-w3 --format json`. Then send the before-and-after table to perigrin.\n\n## Steps\n\n- [ ] Optional (AL4: the decision does not ask for it), docs, before the runs: `internal/chart/README.md` \"The speed protocol\" gains the verdict-reading definition (one measurement is one ratchet run's printed key value, quiet means 1-minute load at or below the core count, runs interleaved B A B A B A, median/min/max per key, the exit rule and the precedence-stage Stop), placed beside \"chart-recovery's verdict reading\" as the definition that section instantiates. Docs-only commit as `docs(chart): …`; it skips `make test`. No criterion checks this step: review judges it, if it is taken\n- [ ] Build both worktrees; confirm the before-state is STAGEKEYS's merge commit and the after-state is `pu` with every other issue of this milestone done\n- [ ] Take the six runs interleaved, recording load, cores, kernel, stdout and stderr per run\n- [ ] Optionally commit the raw runs under `docs/assessments/chart-perly-w3/verdict/` (docs-only, skips `make test`)\n- [ ] Compute median, min and max per key and state; write the Records bullet; confirm it is stored\n- [ ] Report the table, the exit and any Stop to perigrin\n\n## Rules\n\nThese come from the milestone's Process rules, which bind every issue, worker, runner and reviewer:\n- Its own branch off `pu` and its own pull request. Rebase onto `pu`, never merge `pu` in. Merge with a merge commit, never squash. Never push to `pu`, `main` or `master`.\n- Every commit carries `Implements: <this issue's full uuid>` in its final trailer block. Commit headers are conventional (`feat(chart): …`, `test(chart): …`, `docs(chart): …`), never `chart:`.\n- Only `internal/chart/` changes, plus `docs/plans/` and `docs/assessments/` for the design. `Makefile` and `.github/workflows/ci.yml` are ruled in for PERLGITREF only.\n- `make test` at 100% before every code commit, run as `T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit make test`, then `git checkout -- test/e2e/.perl-version`. Check `df` first. Docs-only commits skip it. CI green, the advisory chart ratchet excepted.\n- Never `--no-verify`, `SKIP=` or `core.hooksPath`. Never write git config. Never touch `refs/zhi` (git-zhi only through its CLI). Never `pkill`, `killall`, a pattern kill or a bare `git stash`. Stop processes only by the PID you started.\n- Never hand-merge `internal/chart/testdata/ratchet/baseline.txt` or the grammar tables. An issue that retakes the baseline rebases onto the latest `pu` first and retakes it from one fresh ratchet run.\n- The precedence tables are generated through `forest.NewPrecedence`, never hand-written.\n- Ponytail: the smallest complete change. No workarounds.\n- A milestone Stop (a §3.4 check failing, a forest digest or count key moving, a state-dependent key §3.1 does not settle, the ratchet past `chart-ratchet.yml`'s timeout, anything needing a criterion change or an amendment of a started issue) is reported to perigrin, never tuned toward. A rule break is recorded in the milestone's Records when it happens.\n- Close with `--timeout 1800`.\n- The decision is `docs/plans/2026-11-23-chart-stateless-precedence.md` and its minute `docs/assessments/chart-perly-w3.md`, both on `pu`; the evidence is under `docs/assessments/chart-perly-w3/` (mapped by its `INDEX.md`).\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the verdict reading is recorded in Records as a dated bullet beginning \"verdict reading:\" that gives before and after median, min and max for speed-ratio-aggregate-longlived and the three stage keys, each run's load, kernel and excluded files, and whether the exit is met (`sh -c 'b=$(git zhi milestone show chart-perly-w3 --format json | jq -r .body) || exit 1; l=$(printf \"%s\\n\" \"$b\" | awk \"/^## Records/ { r = 1; next } /^## / { r = 0 } r\" | grep -E \"^- [0-9]{4}-[0-9]{2}-[0-9]{2} verdict reading:\") || { echo \"Records holds no verdict reading\"; exit 1; }; for w in speed-ratio-aggregate-longlived speed-stage-precedence-aggregate-longlived speed-stage-resolve-aggregate-longlived speed-stage-readings-aggregate-longlived before after median min max load kernel excluded; do printf \"%s\\n\" \"$l\" | grep -q -- \"$w\" || { echo \"the verdict reading does not give $w\"; exit 1; }; done; printf \"%s\\n\" \"$l\" | grep -qE \"exit: (met|not met)\" || { echo \"the verdict reading does not say whether the exit is met\"; exit 1; }'`)\n\n### Negative Scenarios\n\nThe reading can be taken on the wrong commits, clobber the Records it is written into, or state an exit its numbers do not support. `guard:` lines hold on this issue's base, when STAGEKEYS and PRECDIFF-CORPUS have written their Records bullets.\n\n- [ ] the reading names its two states, and they are the right ones: the bullet carries \"before-commit SHA\" and \"after-commit SHA\"; before is an ancestor of after; before's baseline.txt lists the precedence stage key and before's forest package has no ConstrainReference (it is STAGEKEYS's merge, not a later commit); after's has it (`sh -c 'l=$(git zhi milestone show chart-perly-w3 --format json | jq -r .body | awk \"/^## Records/ { r = 1; next } /^## / { r = 0 } r\" | grep -E \"^- [0-9]{4}-[0-9]{2}-[0-9]{2} verdict reading:\") || { echo \"Records holds no verdict reading\"; exit 1; }; b=$(printf \"%s\\n\" \"$l\" | sed -n \"s/.*before-commit \\([0-9a-f]\\{7,40\\}\\).*/\\1/p\"); a=$(printf \"%s\\n\" \"$l\" | sed -n \"s/.*after-commit \\([0-9a-f]\\{7,40\\}\\).*/\\1/p\"); [ -n \"$b\" ] && [ -n \"$a\" ] || { echo \"the reading names no before-commit and after-commit\"; exit 1; }; git merge-base --is-ancestor \"$b\" \"$a\" || { echo \"before is not an ancestor of after\"; exit 1; }; git show \"$b:internal/chart/testdata/ratchet/baseline.txt\" | grep -q \"^chart-ratchet: speed-stage-precedence-aggregate-longlived \" || { echo \"the before-state has no stage keys\"; exit 1; }; if git grep -q ConstrainReference \"$b\" -- internal/chart/forest; then echo \"the before-state already has the reference: it is not the keys-first commit\"; exit 1; fi; git grep -q ConstrainReference \"$a\" -- internal/chart/forest || { echo \"the after-state has no reference: precedence change not in it\"; exit 1; }'`)\n- [ ] the reading says whether the precedence-stage Stop fired, in so many words (`sh -c 'git zhi milestone show chart-perly-w3 --format json | jq -r .body | awk \"/^## Records/ { r = 1; next } /^## / { r = 0 } r\" | grep -E \"^- [0-9]{4}-[0-9]{2}-[0-9]{2} verdict reading:\" | grep -qE \"precedence-stage stop: (fired|not fired)\" || { echo \"the verdict reading does not say whether the precedence-stage stop fired\"; exit 1; }'`)"
+  },
+  {
+    "id": "01a20f09-ecc2-7e5a-86ff-04a9853473c8",
+    "title": "Fix the review's stale documents and pin the untested branches of the state-free judgement",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.402285695Z",
+    "updated": "2026-11-24T19:31:10.988444326Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:31:10.96008553Z",
+        "ended_at": "2026-11-24T19:31:10.988444326Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:10.96008553Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:31:10.988444326Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Reconstructed** from the session transcript, text exact; original id `01a20bcf-2a1f-72cc-a604-21a156487f77`, delivered as perigrin/pvm#638 (merge 423da4dd7).\n\n**Handle:** `REVIEWFIX`. crochet:review round 1 found no defect in the delivered production code. This issue fixes what it did find: the live documents the delivery left stale (C1–C3, C5), and test gaps where a change to production or to a harness survives every test (Q1–Q5, Q7–Q9). It is scoped by perigrin's ruling \"Docs + test gaps (Recommended)\". C4 and Q6 are handled in Records by the orchestrator. The test deduplication P1–P3 is out of scope.\n\nThe findings are in full in the review's round-1 reports: /tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/review-w3/r1-coverage.md and r1-quality.md. Read both.\n\n## Context\n\n- **paths:** `internal/chart/` only.\n- **production** is `(*Forest).Constrain`, the state-free evaluator from STATEFREE-EVAL. **The referee** is `ConstrainReference`, the old state-based judgement. It is frozen: never edit its body.\n- **Q1 ruling (perigrin, \"Pin and document (Recommended)\"):** on the toy `S: NUM A; A: E PLUS NUM; E: %empty %prec HIGH; Z: HIGH;` with `%left PLUS` below `%left HIGH`, the input `NUM PLUS NUM` is refused by the referee and accepted by production. bison 3.8.2 accepts it: its state 1 has no shift on PLUS and reduces E by default. The referee's `shifts` forbids a terminal the state does not shift. No perly.y forest reaches this case. Keep the referee unchanged, pin the divergence in a test with bison's answer, and record the referee's defect in the README.\n\n## Steps\n\n- [ ] Docs first (`docs(chart): …`, docs-only, skips make test):\n  - C1: correct every place that still describes `ConstrainReference` as `Constrain`'s body, or production `Constrain` as using parser state. That covers the README's precedence-constraint section, `ConstrainReference`'s doc comment, the ABOUTME of `precedence.go`, and `NewPrecedence`'s doc.\n  - C2: correct the README claim that an empty `Scope` would prune differently on the ratchet. chartInputs's scope carries imports only.\n  - C3: make the speed-protocol sentence about every `speed-stage-*` key name all of them.\n  - C5: merge the precedence section's stacked paragraphs into one coherent text, without dropping a fact.\n  - Q1: state the referee's known defect.\n- [ ] Q1: `TestPrecedenceReferenceKnownDivergence` in `internal/chart/forest/`. On the toy above, it asserts that production accepts, the referee refuses, and bison's recorded answer is accept (cite the bison version and state). It must go red if `ConstrainReference` calls `Constrain`, which also closes Q8.\n- [ ] Q2: `TestPrecedenceMarkFirstFilter`: a forest where one span's derivations begin with different terminals and precedence keeps only one. Production must equal the referee. Show it red under mutations M17 and M18 (the `first` argument of either `mark` call in `seq` replaced by -1).\n- [ ] Q3: `TestPrecedenceLeftParentItemDotZero`: a toy whose mixed pair is forbidden under a dot-0 parent item, judged against the referee. Show it red under M5 (`lpi = c.p.base[r] + 1`).\n- [ ] Q4: `TestPrecedenceShiftForbiddenPastDotTwo`: a toy with a forbidden shift at rule position ≥ 2. Its generated shift tables must differ when the walk at `s = p.states[s].next[int32(rhs[j-1])]` is mutated to `rhs[0]` (M42), and the toy's judgement must equal the referee's.\n- [ ] Q5: in `comparePrecedence` (cmd/ratchet) and `judgeBoth` (forest), count \"pruned\" only over nodes reachable from the root before the constraint. Keep every log field name and format that existing criteria grep for. If the summed P of an existing criterion falls to 0, stop and report.\n- [ ] Q7: `TestPipelineStagePrecedenceTimesConstrain`: pin that the precedence stage key runs production `Constrain`, not the referee. Show it red when the stage calls `ConstrainReference` (M22).\n- [ ] Q9: `TestPrecedenceHarnessesDoNotAlias`: through `comparePrecedence` and `judgeBoth` themselves, a deliberately over-pruning judgement must be reported. Show it red under M34 and M35 (aliasing).\n- [ ] make test, then PR.\n\n## Rules\n\nThe milestone's Process rules all apply. In addition:\n- Never edit `ConstrainReference`'s body, `constrainer`, or production's behaviour.\n- Never change a criterion of another issue.\n- Each mutation is shown red, then reverted, and recorded in its commit message.\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the referee's known divergence is pinned against bison's answer (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^TestPrecedenceReferenceKnownDivergence\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPrecedenceReferenceKnownDivergence \"'`)\n- [ ] the four new forest tests pass (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^(TestPrecedenceMarkFirstFilter|TestPrecedenceLeftParentItemDotZero|TestPrecedenceShiftForbiddenPastDotTwo|TestPrecedenceHarnessesDoNotAlias)\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; for t in TestPrecedenceMarkFirstFilter TestPrecedenceLeftParentItemDotZero TestPrecedenceShiftForbiddenPastDotTwo TestPrecedenceHarnessesDoNotAlias; do printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: $t \" || { echo \"$t did not pass\"; exit 1; }; done'`)\n- [ ] the precedence stage key is pinned to production (`sh -c 'out=$(go test ./internal/chart/cmd/ratchet/ -run \"^TestPipelineStagePrecedenceTimesConstrain\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPipelineStagePrecedenceTimesConstrain \"'`)\n- [ ] the README states the referee's known divergence and no longer calls it Constrain's body (`sh -c 'f=internal/chart/README.md; s=$(awk \"/^## The precedence constraint/ { s = 1; next } s && /^## / { s = 0 } s\" \"$f\"); printf \"%s\\n\" \"$s\" | grep -q \"TestPrecedenceReferenceKnownDivergence\" || { echo \"the README does not name the pinned divergence\"; exit 1; }; if printf \"%s\\n\" \"$s\" | grep -qiE \"same code as .?Constrain|Constrain.s (own )?body\"; then echo \"the README still calls the referee Constrain body\"; exit 1; fi'`)\n- [ ] guard: `make test` (`sh -c 'T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit make test; s=$?; git checkout -q -- test/e2e/.perl-version; exit $s'`)\n\n### Negative Scenarios\n- [ ] the referee's body is unchanged since the delivery (`sh -c 'f(){ git show \"$1:internal/chart/forest/precedence.go\" | awk \"/^func \\\\(f \\\\*Forest\\\\) ConstrainReference\\\\(/ { p = 1 } p { print } p && /^}/ { exit }\"; }; a=$(f 2a29efd2e); test -n \"$a\" || exit 1; [ \"$a\" = \"$(f HEAD)\" ] || { echo \"ConstrainReference body changed\"; exit 1; }'`)\n- [ ] guard: both forest digests unchanged from 8c3317079 and their tests pass (`sh -c 'git diff --quiet 8c3317079 -- internal/chart/forest/testdata/forest-digest.golden internal/chart/forest/testdata/resolved-forest-digest.golden || { echo \"a forest digest golden moved\"; exit 1; }; out=$(go test ./internal/chart/forest/ -run \"^(TestForestDigestGolden|TestResolvedForestDigestGolden)\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; for t in TestForestDigestGolden TestResolvedForestDigestGolden; do printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: $t \" || { echo \"$t did not pass\"; exit 1; }; done'`)\n- [ ] guard: the in-tree corpus differential still passes and still exercises pruning (`sh -c 'out=$(T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit go test -tags precedencecorpus ./internal/chart/cmd/ratchet/ -run \"^TestPrecedenceCorpusMatchesReference\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | awk \"/corpus=[A-Za-z0-9]+ compared=/ { for (i = 1; i <= NF; i++) { split(\\$i, kv, \\\"=\\\"); if (kv[1] == \\\"pruned\\\") p += kv[2] } } END { exit !(p >= 1) }\" || { echo \"no reachable pruning counted\"; exit 1; }'`)\n\n### Review Findings\n\nGate pass 1 (Opus, tier 1) on fc3a1e9ae, citing Haiku runner a558b8567b12dc509. 8 of 8 criteria and make test exited 0. Verdict: GATE findings. The reviewer re-applied M25, M17, M18, M5, M42, M22, M34 and M35, and each went red for the intended reason. It re-ran bison on the Q1–Q4 toys and confirmed the referee is frozen and productionConstrain is test-only.\n\n- F1 (in scope, C5; blocks): the merged README sentence at internal/chart/README.md around lines 2647–2650 overgeneralises: \"Each fails on an input it could not compare, and counts a pruned input only where the reference dropped an alternative of a node reachable from the root\".\n  - (a) The forest seed generators and the cmd/ratchet corpus test skip inputs they cannot compare (`continue` after !Accepted and after a LibraryOperators refusal). Only the chart checks fail on such an input.\n  - (b) chart's constrainAgrees (internal/chart/precedence_test.go) counts pruned over all nodes, using production's kept set. Only forest's judgeBoth and cmd/ratchet's comparePrecedence count reachable pruning against the reference.\n  - Fix: scope both clauses to the packages they are true of. This is a docs-only fix, and it changes no code.\n- A1 (out of scope, a follow-up): chart's constrainAgrees still counts pruning over all nodes (1277 of 1296). Q5 named only comparePrecedence and judgeBoth.\n- A2 (out of scope): the PR #638 footer is the proxy's known rewrite."
+  },
+  {
+    "id": "01a20f09-ecd2-7fed-bf73-9d2b1e42f33b",
+    "title": "Close the generation guard's non-shifting-state gap and correct the precedence README",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.418503792Z",
+    "updated": "2026-11-24T19:37:39.14899801Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:37:39.114869309Z",
+        "ended_at": "2026-11-24T19:37:39.14899801Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:37:39.114869309Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:37:39.14899801Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Reconstructed** from the session transcript, text exact; original id `01a20e1e-ca39-733d-823f-418c3f0fc3b7`, delivered as perigrin/pvm#639 (merge 4c5a153b4).\n\n**Handle:** `REVIEWFIX2`. crochet:review round 2, under perigrin's ruling \"Fix it now (Recommended)\" on F1. It fixes a latent gap in the §3.2 generation guard and corrects the README where round 2 found it false or overstated. perly.y's tables and the verdict reading do not change.\n\nThe findings in full are in the round-2 reports under /tmp/claude-0/-home-user/f57559af-f6d7-50b1-b4d1-2c3218e70a25/scratchpad/review-w3/: r2-fresh.md (F1–F3), r2-coverage.md (C6–C9), r2-quality.md (Q10) and r2-ponytail.md (P9). Read all four.\n\n## Context\n\n- paths: `internal/chart/` only\n- **F1 (the code fix).** In `(*Precedence).stateFree`, the shift-side loop records a key's verdict (spine top, rule-position item, terminal) only from states that shift that terminal. A state that holds the same key but does not shift the terminal, because it is reached through a nullable prefix, has no conflict in bison: there the shift is allowed. The guard never sees that \"allowed\", so the tables keep the other state's \"forbidden\" as a guess and `NewPrecedence` raises no error.\n  - **The toy:** `S ::= TA V | TB V | TA K F | TA K2; V ::= TC P; K ::= TC X %prec HIGH; K2 ::= TC X F TH; P ::= X Y; Y ::= E F; E ::= ; X ::= TX`, with `%left F` below `%left HIGH`.\n  - **What goes wrong on it:** `Constrain` refuses `TB TC TX F`, while bison 3.8.2 and `ConstrainReference` accept it.\n  - **The fix:** iterate over the terminals of FIRST(rhs[j]) (and rhs[j] itself), and record \"allowed\" where the state does not shift the terminal. After the fix, the guard errors on the toy instead of guessing.\n  - **Reach today:** perly.y has 0 such keys, so its tables are unchanged.\n- **Production and the referee.** Production is `(*Forest).Constrain`. The referee, `ConstrainReference`, is frozen: never edit its body.\n\n## Steps\n\n- [ ] **Docs first** (`docs(chart): …`, docs-only):\n  - **F2:** state precisely what the guard proves, including that a state holding the key without shifting the terminal counts as allowed.\n  - **F3 and C6:** reword the \"Keep\" bullet and \"The parser states are bison's\" bullet so they describe production's rule (the shift is checked only where the state shifts the terminal) and not the referee's defect.\n  - **C7:** the sentence classing any future differential failure \"of that shape\" as the reference's defect goes past the Q1 ruling. Say instead that the pinned toy is the one divergence ruled the referee's, and that any other failing §3.4 check is a Stop reported to perigrin (decision §5).\n  - **C8 and Q10:** scope \"No perly.y forest reaches it\", in both the README and `ConstrainReference`'s doc comment, to the evidence. Round 2 instrumented generation and found 0 defect sites on perly.y's grammar, and found no in-tree or perl.git file that diverges; name that observation and the revision it was made on (423da4dd7).\n  - **C9:** the differential bullet's \"two copies of one forest\" is wrong for `comparePrecedence`, which copies once and runs the reference on the original. Say what each harness does.\n- [ ] **F1:** apply the fix in `stateFree`. Add the toy as a case of `TestPrecedenceGenerationGuard`, named so its subtest is `TestPrecedenceGenerationGuard/nullable_prefix`. The case asserts that generation fails with an error naming the item, the terminal and the spine-top item.\n  - Show the case red on the unfixed loop.\n  - Show perly.y still generating: the existing perly case.\n- [ ] **P9:** the cmd/ratchet stage-pin test's comment says its hand-built toy is the known-divergence toy, but the copy differs: it has no `Z ::= HIGH`. Make the comment say what the copy is.\n- [ ] Run make test, then open the PR.\n\n## Rules\n\nThe milestone's Process rules apply. In addition:\n- Never edit `ConstrainReference`'s body or `constrainer`.\n- Never change another issue's criterion.\n- If the fix changes perly.y's tables, a forest digest, or any count key, stop and report.\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] the generation guard refuses the nullable-prefix toy (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^TestPrecedenceGenerationGuard\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^    --- PASS: TestPrecedenceGenerationGuard/nullable_prefix \" || { echo \"no nullable_prefix case passed\"; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPrecedenceGenerationGuard \"'`)\n- [ ] the pinned referee divergence and the review-1 tests still pass (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^(TestPrecedenceReferenceKnownDivergence|TestPrecedenceMarkFirstFilter|TestPrecedenceLeftParentItemDotZero|TestPrecedenceShiftForbiddenPastDotTwo|TestPrecedenceHarnessesDoNotAlias)\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; for t in TestPrecedenceReferenceKnownDivergence TestPrecedenceMarkFirstFilter TestPrecedenceLeftParentItemDotZero TestPrecedenceShiftForbiddenPastDotTwo TestPrecedenceHarnessesDoNotAlias; do printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: $t \" || { echo \"$t did not pass\"; exit 1; }; done'`)\n- [ ] the README no longer classes future divergences as the referee's (`sh -c 's=$(awk \"/^## The precedence constraint/ { s = 1; next } s && /^## / { s = 0 } s\" internal/chart/README.md); if printf \"%s\\n\" \"$s\" | grep -qi \"of that shape is the reference\"; then echo \"the README still pre-classifies a divergence as the reference defect\"; exit 1; fi; printf \"%s\\n\" \"$s\" | grep -q \"423da4dd7\" || { echo \"the README does not date its perly.y observation\"; exit 1; }'`)\n- [ ] guard: `make test` (`sh -c 'T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit make test; s=$?; git checkout -q -- test/e2e/.perl-version; exit $s'`)\n\n### Negative Scenarios\n- [ ] the referee's body is unchanged since the delivery (`sh -c 'f(){ git show \"$1:internal/chart/forest/precedence.go\" | awk \"/^func \\\\(f \\\\*Forest\\\\) ConstrainReference\\\\(/ { p = 1 } p { print } p && /^}/ { exit }\"; }; a=$(f 2a29efd2e); test -n \"$a\" || exit 1; [ \"$a\" = \"$(f HEAD)\" ] || { echo \"ConstrainReference body changed\"; exit 1; }'`)\n- [ ] guard: both forest digests unchanged from 8c3317079 and their tests pass (`sh -c 'git diff --quiet 8c3317079 -- internal/chart/forest/testdata/forest-digest.golden internal/chart/forest/testdata/resolved-forest-digest.golden || { echo \"a forest digest golden moved\"; exit 1; }; out=$(go test ./internal/chart/forest/ -run \"^(TestForestDigestGolden|TestResolvedForestDigestGolden)\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; for t in TestForestDigestGolden TestResolvedForestDigestGolden; do printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: $t \" || { echo \"$t did not pass\"; exit 1; }; done'`)\n- [ ] guard: the in-tree corpus differential still passes on perly.y with the fixed guard (`sh -c 'out=$(T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit go test -tags precedencecorpus ./internal/chart/cmd/ratchet/ -run \"^TestPrecedenceCorpusMatchesReference\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPrecedenceCorpusMatchesReference \"'`)"
+  },
+  {
+    "id": "01a20f09-ece1-7743-9e7c-31b0b37077f2",
+    "title": "Check perly.y for the nullable-shift precedence limit and pin it",
+    "state": "done",
+    "urgency": "normal",
+    "milestone": "chart-perly-w3",
+    "created": "2026-11-24T19:30:38.43310353Z",
+    "updated": "2026-11-24T19:43:26.895440742Z",
+    "sessions": [
+      {
+        "start_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "end_sha": "5eb63c1ea54346a0d66abc17325ec3dc806aaa3e",
+        "commits": 0,
+        "started_at": "2026-11-24T19:43:26.86994935Z",
+        "ended_at": "2026-11-24T19:43:26.895440742Z"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "in-progress",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:43:26.86994935Z"
+      },
+      {
+        "state": "done",
+        "actor": "human:git-zhi",
+        "timestamp": "2026-11-24T19:43:26.895440742Z"
+      }
+    ],
+    "labels": [
+      "model:opus"
+    ],
+    "body": "**Reconstructed** from the session transcript, text exact; original id `01a20e50-2026-75e5-b880-1943691b4f05`, delivered as perigrin/pvm#640 (merge fd43942c0).\n\n**Handle:** `REVIEWFIX3`. This issue comes from REVIEWFIX2's gate finding G1. It is scoped by perigrin's ruling \"Check perly.y, then pin (Recommended)\", recorded in Records.\n\n**The limit.** Both judgements refuse a sentence that bison accepts: production `(*Forest).Constrain` and the referee `ConstrainReference`. Because they agree, the differentials cannot see it.\n\nThe toy:\n\n```\nS ::= TA V | TA K2\nV ::= TC P\nK2 ::= TC X F TH\nP ::= X Y\nY ::= E F\nE ::= %prec HIGH\nX ::= TX\n```\n\n`%left F` is below `%left HIGH`. bison 3.8.2 accepts `TA TC TX F` by reducing E.\n\nWhy the judgements refuse it: the state shifts F through K2, and E's own reduction beats that shift. So the key (`V: TC . P`, `P: X . Y`, F) is recorded as forbidden, even though bison builds the derivation through E. The limit also falsifies the README's \"the one bison builds is kept\" for this shape.\n\nDecision §6 puts changing what precedence decides out of V1's scope. So the fix is a follow-up, and this issue only checks and pins.\n\n## Context\n\n- paths: `internal/chart/` only\n- Never edit `ConstrainReference`'s body. Production's behaviour must not change.\n\n## Steps\n\n- [ ] **Check perly.y first.** Write a test, `TestPrecedenceNullableShiftLimitAbsent`, that walks perly.y's automaton at generation time and counts the keys of this shape.\n  - The shape is a shift key (spine top, rule-position item, terminal f) recorded as forbidden where the state shifts f, while a nullable symbol at the item's dot can derive ε and then reach f. That includes nullable chains of any length, not only a single empty rule.\n  - The test asserts the count is 0 on perly.y. It also asserts the count is at least 1 on the toy above, so the counter is shown to see the shape.\n  - Construct both the passing and the failing case. A counter that never fires proves nothing.\n  - **If perly.y's count is not 0, stop and report it. That is a milestone Stop for perigrin.**\n- [ ] **Pin the limit.**\n  - Add `TestPrecedenceNullableShiftKnownLimit`. On the toy, it asserts that `Constrain` and `ConstrainReference` both refuse `TA TC TX F`, and that bison's recorded answer is accept. Cite the bison version and the state.\n  - At the shift-side loop in `stateFree`, add a comment in the form `shortcut: <the limit>, <when to upgrade>`.\n  - Add a README line to \"The precedence constraint\" stating the limit. Correct \"the one bison builds is kept\" to scope it.\n  - Docs first.\n- [ ] Run make test, then open the PR.\n\n## Acceptance Criteria\n\n### Positive Scenarios\n- [ ] perly.y has no key of the limit's shape, and the counter sees the toy's (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^TestPrecedenceNullableShiftLimitAbsent\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPrecedenceNullableShiftLimitAbsent \"'`)\n- [ ] the known limit is pinned against bison's answer (`sh -c 'out=$(go test ./internal/chart/forest/ -run \"^TestPrecedenceNullableShiftKnownLimit\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: TestPrecedenceNullableShiftKnownLimit \"'`)\n- [ ] the limit is stated where it lives: a shortcut comment in precedence.go and the README's precedence section name it (`sh -c 'grep -q \"shortcut:\" internal/chart/forest/precedence.go || { echo \"no shortcut comment\"; exit 1; }; awk \"/^## The precedence constraint/ { s = 1; next } s && /^## / { s = 0 } s\" internal/chart/README.md | grep -q \"TestPrecedenceNullableShiftKnownLimit\" || { echo \"the README does not name the known limit\"; exit 1; }'`)\n- [ ] guard: `make test` (`sh -c 'T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit make test; s=$?; git checkout -q -- test/e2e/.perl-version; exit $s'`)\n\n### Negative Scenarios\n- [ ] the referee's body is unchanged since the delivery (`sh -c 'f(){ git show \"$1:internal/chart/forest/precedence.go\" | awk \"/^func \\\\(f \\\\*Forest\\\\) ConstrainReference\\\\(/ { p = 1 } p { print } p && /^}/ { exit }\"; }; a=$(f 2a29efd2e); test -n \"$a\" || exit 1; [ \"$a\" = \"$(f HEAD)\" ] || { echo \"ConstrainReference body changed\"; exit 1; }'`)\n- [ ] guard: both forest digests unchanged from 8c3317079 and their tests pass (`sh -c 'git diff --quiet 8c3317079 -- internal/chart/forest/testdata/forest-digest.golden internal/chart/forest/testdata/resolved-forest-digest.golden || { echo \"a forest digest golden moved\"; exit 1; }; out=$(go test ./internal/chart/forest/ -run \"^(TestForestDigestGolden|TestResolvedForestDigestGolden)\\$\" -count=1 -v 2>&1) || { printf \"%s\\n\" \"$out\" | tail -20; exit 1; }; for t in TestForestDigestGolden TestResolvedForestDigestGolden; do printf \"%s\\n\" \"$out\" | grep -q \"^--- PASS: $t \" || { echo \"$t did not pass\"; exit 1; }; done'`)"
+  }
+]
