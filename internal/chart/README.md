@@ -660,7 +660,8 @@ clock and a collector, so it is tested on fake timings
   them), so each chart pass starts with the pool empty. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
-  `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`). Each `speed-stage-*` key
+  `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`). Each of
+  `speed-stage-lex-*`, `speed-stage-recognize-*` and `speed-stage-forest-*`
   times only its own stage against recursive descent, long-lived, its inputs
   prepared once outside the span (lattices for recognize, charts for the
   forest; a file the chart refuses has no forest, so `forest.Build` returns
@@ -677,8 +678,10 @@ clock and a collector, so it is tested on fake timings
   stages each alone, the same way. Each stage's input is prepared once,
   outside every span: the forest `forest.Build` makes, after
   `forest.LibraryOperators` under the file's own scope (`rd(path).scope`,
-  the scope the speed ratios' pipeline runs under; an empty `Scope` would
-  not prune what the pipeline prunes) for the precedence constraint; that
+  the scope the speed ratios' pipeline runs under; it carries imports only,
+  so here `LibraryOperators` prunes as under an empty `Scope`, and
+  `TestPipelineStageKeys` holds that a scope with library operators is
+  honoured) for the precedence constraint; that
   forest after the constraint for resolve; and after resolve for the
   readings count. The constraint and resolve change the forest they are
   handed, so the protocol has a **per-pass preparation hook**
@@ -2501,8 +2504,42 @@ with reason `precedence`. shortcut: `Constrain` reports only the root's verdict,
 locate it at the first span left with no derivation when a gate compares refusal bytes. It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
 
+- **The parser states are bison's**, built from the grammar's tables alone
+  (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
+  LALR(1) tables share, never the chart's split states. A conflict is found
+  exactly where bison's state has one, and bison resolves a conflict only in
+  a state where it arises: `indirob: scalar %prec PREC_LOW` meets `[` in a
+  conflict after `print` (LSTOP), where `scalar [` can follow, and never after
+  `@` (T1/array.t's `@$array[1..3]`, which keying on the rule and the token
+  alone refused) nor after `sort print`, whose state after LSTOP is another
+  (the `indirobsort` toy). An earlier form keyed the state on the one symbol
+  before the span, which over-refused where two states share it (the
+  `twostates` and `indirobsort` toys, found at the gate).
+- **The state-free tables** (decision §3.1, §3.2). From those states
+  `NewPrecedence` generates, once per grammar, the tables a judgement with no
+  parser state reads, and stores them on `Precedence`. The reduce side is
+  keyed by the rule and the terminal after its span: bison's resolution of
+  that pair in every state that reduces the rule. Where the states disagree
+  the pair also takes the parent item, the item whose dot stands before the
+  reduced symbol; on `perly.y` that is six pairs, `indirob` and `myterm`
+  before `[` and `{`, and generation derives them rather than listing them
+  (`TestPrecedenceParentItemPairsDerived`). The shift side is keyed by the
+  spine-top item (the item the node's left spine hangs from, or the start
+  item at the root), the rule-position item before the shift and the
+  terminal shifted: bison's verdict on that shift in every state holding the
+  spine-top item. The tables are dense slices indexed by rule, terminal and
+  item, read with no map access; the maps that build them live only in
+  `NewPrecedence`.
+- **The generation guard.** A key whose decision is state-dependent even with
+  its whole key, a parent item or spine-top item that bison's states still
+  disagree on, makes `NewPrecedence` return an error naming the key, so the
+  tables never hold a guess. `forest.Parse` turns that error into a refusal of
+  every file, as it does any error deriving the precedence.
+  `TestPrecedenceGenerationGuard` holds a toy grammar that fails generation
+  and `perly.y`, which generates; `TestPrecedenceGenerationErrorRefusesEveryFile`
+  that the error reaches every file the parse path is given.
 - **The state-free evaluator** (decision §3.3). `Constrain` judges each
-  derivation with no parser state, by the keys of the state-free tables below:
+  derivation with no parser state, by the keys of the state-free tables:
   the rule and the terminal after its span (and, for a pair that needs it, the
   parent item), and for each shift the spine-top item, the rule-position item
   before it and the terminal shifted. What it carries up the forest is the
@@ -2523,25 +2560,35 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `TestPrecedenceConstrainCallsIndependent`). Cached first-terminal lists are
   shared between parents and never appended into. `TestPrecedenceStateFreeTraps`
   pins each of these on a toy forest, with the empty-right-child exemption
-  below. `ConstrainReference` is the reference it is compared against.
-- **The reference's edge-context value.** `ConstrainReference` judges each
-  derivation in its edge context: the parser state the derivation holding it
-  has reached at its span's start (the start state at the root) and the
-  terminal after it, memoised in maps keyed by that context.
-- **The parser states are bison's**, built from the grammar's tables alone
-  (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
-  LALR(1) tables share, never the chart's split states. A child's state is
-  its parent's advanced over the symbols before it, so a conflict is found
-  exactly where bison's state has one. Bison resolves a conflict only in a
-  state where it arises: `indirob: scalar %prec PREC_LOW` meets `[` in a
-  conflict after `print` (LSTOP), where `scalar [` can follow, and never after
-  `@` (T1/array.t's `@$array[1..3]`, which keying on the rule and the token
-  alone refused) nor after `sort print`, whose state after LSTOP is another
-  (the `indirobsort` toy). An earlier form keyed the state on the one symbol
-  before the span, which over-refused where two states share it (the
-  `twostates` and `indirobsort` toys, found at the gate). The state-free
-  tables are generated from these states, so `Constrain` resolves as they do
-  without carrying one.
+  below. Toy forests pin the branches no other input reaches: a token
+  admitting two terminals, of which precedence keeps one
+  (`TestPrecedenceMarkFirstFilter`), a pair decided under a parent item at
+  dot 0 (`TestPrecedenceLeftParentItemDotZero`), and a forbidden shift at
+  rule position 2 (`TestPrecedenceShiftForbiddenPastDotTwo`).
+- **The reference.** `(*Forest).ConstrainReference` is the judgement
+  `Constrain` made before the state-free evaluator, kept for tests only
+  (decision §3.4): it is the fixed point the differential checks compare
+  production `Constrain` against, verdict and kept set, so production can
+  move without moving what it is judged by. It judges each derivation in its
+  edge context: the parser state the derivation holding it has reached at its
+  span's start (the start state at the root), a child's state being its
+  parent's advanced over the symbols before it, and the terminal after it,
+  memoised in maps keyed by that context. `TestPrecedenceReferenceAgreesWithBison`
+  holds it to bison's verdict and grouping on every toy sentence, as
+  `TestPrecedenceToyReferees` holds `Constrain`. Nothing outside a test calls
+  it, and `Constrain` does not call it. **Its known defect:** its `shifts`
+  forbids a terminal wherever a reduction the state holds, with that terminal
+  in its lookahead, resolves to reduce, even where the state does not shift
+  the terminal, so there is no conflict and bison simply reduces. On the toy
+  `S: NUM A; A: E PLUS NUM; E: %empty %prec HIGH` (`%left PLUS` below
+  `%left HIGH`), `NUM PLUS NUM` is refused by the reference and accepted by
+  `Constrain` and by bison 3.8.2, whose state 1 has no shift on `PLUS` and
+  reduces `E` by default. `TestPrecedenceReferenceKnownDivergence` pins that
+  divergence with bison's answer, and goes red if the reference calls
+  `Constrain`. No `perly.y` forest reaches it (the in-tree and perl.git
+  differentials agree on every file), so the reference stays unchanged
+  (ruled 2026-11-24); a differential failure of that shape is the
+  reference's defect, not production's.
 - **Keep.** A reduction with a terminal next that the state could also shift
   survives only where bison's resolution is reduce; a shift survives only
   where every reduction the state before it holds, with that terminal in its
@@ -2578,71 +2625,6 @@ grammar's tables and its precedence: no Earley item gains a fact.
   every one of the 4,395 sentences; `TestPrecedenceConstraintOrderInvariant`
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
-- **The reference.** `(*Forest).ConstrainReference` is today's judgement,
-  `Constrain`'s body under another name, kept for tests only (decision §3.4):
-  it is the fixed point the differential checks compare production
-  `Constrain` against, verdict and kept set, so production can move without
-  moving what it is judged by. `TestPrecedenceReferenceAgreesWithBison` holds
-  it to bison's verdict and grouping on every toy sentence, as
-  `TestPrecedenceToyReferees` holds `Constrain`. Nothing outside a test calls
-  it, and `Constrain` does not call it.
-  In `forest`, three tests compare the two on two copies of one forest, made
-  before either judges, requiring the same verdict and the same kept
-  alternatives on every node: `TestPrecedenceToyForestsMatchReference` on
-  every toy fixture sentence's forest, and the seeded generators of decision
-  §2, rewritten from the assessment's harnesses, on each sentence's forest
-  after `LibraryOperators`, as `ParseWith` passes it:
-  `TestPrecedenceOperatorSentencesMatchReference` (seed 4: 83 handcrafted
-  sentences and 20,000 random operator sentences) and
-  `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain and
-  nullable-wrapped sentences). Each generator logs
-  `sentences=N compared=C refused=R pruned=P` and requires a sentence refused
-  and one pruned; `TestPrecedenceDiffDetectsDifference` shows their shared
-  comparison report a dropped alternative and a flipped verdict.
-  In `chart`, `TestPrecedenceRefereeMatchesReference` and
-  `TestWaypoint2RefusalsMatchReference` compare the two, on a copy of one
-  forest each, for the same verdict and the same kept alternatives on every
-  node: the first on every referee sentence, the ones bison refuses included,
-  on `Build`'s forest narrowed to the sentence's terminals as the referee
-  narrows it; the second on every row of `waypoint2Refusals` and
-  `waypoint2ScopeRefusals`, on the forest after `LibraryOperators` under
-  `forest.Scope{}`, as `pipelineSource` passes it to the constraint. Each logs
-  its counts and fails on a sentence or row it could not compare.
-  In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` compares the two,
-  on a copy of one forest each, for the same verdict and the same kept
-  alternatives on every node, on every file of the ratchet's in-tree corpora
-  (T1, Guacamole's `parses` and `parsent`, `std5k.pl`, `edit5k.pl`;
-  `T1_CORPUS` overrides T1 as it does for the ratchet) that the chart
-  recognizes, perl-refused files included, on the forest after
-  `LibraryOperators` under the pipeline's own scope (`chartInputs`'s, which
-  follows `use` as the pipeline does), one file at a time; a file
-  `LibraryOperators` refuses is counted, not compared. It logs per corpus
-  `corpus=NAME compared=C prelib-refused=L precedence-refused=R pruned=P
-  perl-refused-compared=Q`, fails on a corpus that contributes no compared
-  file, and runs in `go test ./...`.
-- **The state-free tables** (decision §3.1, §3.2). `NewPrecedence` also
-  generates, once per grammar, the tables a judgement with no parser state
-  reads, and stores them on `Precedence`. The reduce side is keyed by the rule
-  and the terminal after its span: bison's resolution of that pair in every
-  state that reduces the rule. Where the states disagree the pair also takes
-  the parent item, the item whose dot stands before the reduced symbol; on
-  `perly.y` that is six pairs, `indirob` and `myterm` before `[` and `{`, and
-  generation derives them rather than listing them
-  (`TestPrecedenceParentItemPairsDerived`). The shift side is keyed by the
-  spine-top item (the item the node's left spine hangs from, or the start
-  item at the root), the rule-position item before the shift and the terminal
-  shifted: bison's verdict on that shift in every state holding the spine-top
-  item. The tables are dense slices indexed by rule, terminal and item, read
-  with no map access; the maps that build them live only in `NewPrecedence`.
-- **The generation guard.** A key whose decision is state-dependent even with
-  its whole key, a parent item or spine-top item that bison's states still
-  disagree on, makes `NewPrecedence` return an error naming the key, so the
-  tables never hold a guess. `forest.Parse` turns that error into a refusal of
-  every file, as it does any error deriving the precedence.
-  `TestPrecedenceGenerationGuard` holds a toy grammar that fails generation
-  and `perly.y`, which generates; `TestPrecedenceGenerationErrorRefusesEveryFile`
-  that the error reaches every file the parse path is given.
-
 - **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
   `forest.Build`, before resolve, since bison's token choice stands in for
   scope, and runs the constraint on each of the 1,296 kept generated sentences'
@@ -2659,6 +2641,50 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `TestPrecedenceKeepsCorpusAccepted` that no in-tree file perl and
   recognition accept (the Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824)
   is refused.
+- **The differential checks.** Each compares `Constrain` with
+  `ConstrainReference` on two copies of one forest, made before either
+  judges, and requires the same verdict and the same kept alternatives on
+  every node. Each fails on an input it could not compare, and counts a
+  pruned input only where the reference dropped an alternative of a node
+  reachable from the root before the constraint (both judgements drop every
+  alternative of an unreachable node). `TestPrecedenceHarnessesDoNotAlias`
+  shows the `forest` and `cmd/ratchet` comparisons report an over-pruning
+  judgement through the harness itself, so neither can compare a copy with
+  itself. The inputs, by package:
+  - In `forest`, `TestPrecedenceToyForestsMatchReference` on every toy
+    fixture sentence's forest, and the seeded generators of decision §2,
+    rewritten from the assessment's harnesses, on each sentence's forest
+    after `LibraryOperators`, as `ParseWith` passes it:
+    `TestPrecedenceOperatorSentencesMatchReference` (seed 4: 83 handcrafted
+    sentences and 20,000 random operator sentences) and
+    `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain
+    and nullable-wrapped sentences). Each generator logs
+    `sentences=N compared=C refused=R pruned=P` and requires a sentence
+    refused and one pruned; `TestPrecedenceDiffDetectsDifference` shows
+    their shared comparison report a dropped alternative and a flipped
+    verdict.
+  - In `chart`, `TestPrecedenceRefereeMatchesReference` on every referee
+    sentence, the ones bison refuses included, on `Build`'s forest narrowed
+    to the sentence's terminals as the referee narrows it, and
+    `TestWaypoint2RefusalsMatchReference` on every row of
+    `waypoint2Refusals` and `waypoint2ScopeRefusals`, on the forest after
+    `LibraryOperators` under `forest.Scope{}`, as `pipelineSource` passes it
+    to the constraint. Each logs its counts.
+  - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
+    of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
+    `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
+    for the ratchet) that the chart recognizes, perl-refused files included,
+    on the forest after `LibraryOperators` under the pipeline's own scope
+    (`chartInputs`'s, which carries imports only, so `LibraryOperators`
+    prunes there as under an empty `Scope`; `TestComparePrecedenceUsesScope`
+    holds that a scope with library operators is honoured), one file at a
+    time; a file `LibraryOperators` refuses is counted, not compared. It
+    logs per corpus `corpus=NAME compared=C prelib-refused=L
+    precedence-refused=R pruned=P perl-refused-compared=Q`, fails on a
+    corpus that contributes no compared file, and runs in `go test ./...`.
+    `TestPipelineStagePrecedenceTimesConstrain` holds that the precedence
+    stage key times `Constrain`, not the reference, on the known-divergence
+    toy.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is

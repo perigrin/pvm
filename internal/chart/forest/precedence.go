@@ -1,5 +1,5 @@
 // ABOUTME: The precedence constraint (spec §8): bison's resolutions applied to a built forest, after recognition.
-// ABOUTME: Each derivation is judged by its edge context, the parser state before it and the terminal after it; items are untouched.
+// ABOUTME: Constrain judges by state-free keys generated from bison's states; the test-only reference by parser state. Items are untouched.
 
 package forest
 
@@ -50,10 +50,12 @@ type lrState struct {
 // hold their items, so they are in the automaton (perly.y's termeqop: termeqop NCEQOP shifts the second <=>).
 //
 // The states are bison's: the canonical LR(0) automaton of the grammar, closure and goto, which bison's LALR(1)
-// tables share. The constraint carries the one a derivation reaches, from the file's start along the symbols
-// before it, so a conflict is found exactly where bison's state has one. Each reduction's lookahead there is
+// tables share, so a conflict is found exactly where bison's state has one. Each reduction's lookahead there is
 // bison's LALR(1) set, not the follow set. Both are built from the tables alone, never read from the chart,
-// whose split states are not bison's. A refused rule naming a symbol tab lacks is an error.
+// whose split states are not bison's. From them it generates the state-free tables Constrain reads; only
+// ConstrainReference carries a state, the one a derivation reaches from the file's start along the symbols before
+// it. A refused rule naming a symbol tab lacks is an error, and so is a key whose decision bison's states still
+// disagree on with its whole key (decision §3.2).
 func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []string, refused []grammar.Rule) (*Precedence, error) {
 	p := &Precedence{tab: tab, term: make([]int, len(tab.Symbols)), assoc: []string{""}}
 	sym := map[string]int{}
@@ -512,11 +514,16 @@ func (c *judgement) constrain() bool {
 	return true
 }
 
-// ConstrainReference is used only by tests. It is the constrainer judgement Constrain makes today, kept under
-// its own name as the fixed point the differential checks compare production Constrain against, so production
-// can change without changing what it is judged by; TestPrecedenceReferenceAgreesWithBison holds its agreement
-// with bison. It applies p to f in place exactly as Constrain's doc comment describes, shortcut included, and
-// must not call Constrain, nor Constrain it.
+// ConstrainReference is used only by tests. It is the judgement Constrain made before the state-free evaluator,
+// kept under its own name as the fixed point the differential checks compare production Constrain against, so
+// production can change without changing what it is judged by; TestPrecedenceReferenceAgreesWithBison holds its
+// agreement with bison. It applies p to f in place as Constrain does, verdict, unlinking and shortcut alike, but
+// judges a derivation in its edge context: the parser state the derivation holding it reaches at its span's start
+// (state 0 at the file's start), and the terminal after it. Each reduction is checked against the terminal after
+// it, each shift against the reductions the state before it holds. It must not call Constrain, nor Constrain it.
+// Its known defect: shifts forbids a terminal the state does not shift wherever a reduction there with it in its
+// lookahead resolves to reduce, where bison has no conflict and reduces. No perly.y forest reaches it;
+// TestPrecedenceReferenceKnownDivergence pins the toy where Constrain and bison accept what it refuses.
 func (f *Forest) ConstrainReference(p *Precedence) bool {
 	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
 	if len(c.eval(f.Root, 0, p.tab.EOF)) == 0 {
