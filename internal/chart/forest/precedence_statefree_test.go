@@ -86,29 +86,92 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 		}
 	})
 
-	// A rule-position node takes no parent item, and a spine top that forbids no shift is no context: two
-	// encodings of each hit one entry, eval's and mark's.
+	// A rule-position node, and a symbol node whose symbol has no pair that needs a parent item, take no parent
+	// item, and a spine top that forbids no shift is no context: two encodings of each hit one entry, eval's and
+	// mark's.
 	t.Run("canonicalisation", func(t *testing.T) {
 		ty := loadToy(t, "ladder")
 		f := toyForestOf(t, ty, "NUM PLUS NUM STAR NUM")
-		n := int32(slices.IndexFunc(f.Nodes, func(nd Node) bool { return nd.Sym < 0 && nd.Alt != 0 }))
 		var idle []int32 // items that forbid no shift as spine tops
 		for i, row := range ty.prec.topAt {
 			if row < 0 {
 				idle = append(idle, int32(i))
 			}
 		}
-		if n <= 0 || len(idle) < 2 {
-			t.Fatalf("rule-position node %d, %d idle spine tops; want a node and two", n, len(idle))
+		if len(idle) < 2 {
+			t.Fatalf("%d idle spine tops; want two", len(idle))
 		}
-		c := newJudgement(f, ty.prec)
-		eof := ty.tab.EOF
-		a := c.eval(n, eof, idle[0], ty.prec.base[1])
-		b := c.eval(n, eof, idle[1], ty.prec.base[2])
-		c.mark(n, eof, idle[0], ty.prec.base[1], -1)
-		c.mark(n, eof, idle[1], ty.prec.base[2], -1)
-		if ev, mk := c.entries(n); ev != 1 || mk != 1 || !slices.Equal(a, b) {
-			t.Errorf("two encodings of one context: %d eval and %d mark entries, results %v and %v; want one each, equal", ev, mk, a, b)
+		for _, c := range []struct {
+			name string
+			is   func(Node) bool
+		}{
+			{"rule-position node", func(nd Node) bool { return nd.Sym < 0 && nd.Alt != 0 }},
+			{"symbol node needing no parent item", func(nd Node) bool { return nd.Sym >= 0 && nd.Alt != 0 && !ty.prec.needParent[nd.Sym] }},
+		} {
+			n := int32(slices.IndexFunc(f.Nodes, c.is))
+			if n <= 0 {
+				t.Fatalf("no %s", c.name)
+			}
+			j := newJudgement(f, ty.prec)
+			eof := ty.tab.EOF
+			a := j.eval(n, eof, idle[0], ty.prec.base[1])
+			b := j.eval(n, eof, idle[1], ty.prec.base[2])
+			j.mark(n, eof, idle[0], ty.prec.base[1], -1)
+			j.mark(n, eof, idle[1], ty.prec.base[2], -1)
+			if ev, mk := j.entries(n); ev != 1 || mk != 1 || !slices.Equal(a, b) {
+				t.Errorf("%s %d, two encodings of one context: %d eval and %d mark entries, results %v and %v; want one each, equal", c.name, n, ev, mk, a, b)
+			}
+		}
+	})
+
+	// indirob before LB is decided by its parent item, so the memo keys it: one indirob node, one terminal and one
+	// spine top under a parent item that forbids the reduction and one that allows it are two entries, each what a
+	// fresh judgement computes.
+	t.Run("parent_item_key", func(t *testing.T) {
+		ty := loadToy(t, "indirob")
+		p := ty.prec
+		k := slices.Index(p.reduceAt, 2)
+		if k < 0 {
+			t.Fatal("no pair of the indirob toy needs its parent item")
+		}
+		r, x := k/p.nt, k%p.nt
+		lhs := ty.tab.Rules[r].LHS
+		forbid, allow := int32(-1), int32(-1) // parent items, dot before lhs, the table decides each way
+		for pr, rule := range ty.tab.Rules {
+			for d, s := range rule.RHS {
+				if s != lhs {
+					continue
+				}
+				if pi := p.base[pr] + int32(d); p.parentForbid[int(p.mixAt[k])*len(p.topAt)+int(pi)] {
+					forbid = pi
+				} else {
+					allow = pi
+				}
+			}
+		}
+		if forbid < 0 || allow < 0 {
+			t.Fatalf("parent items forbidding %d, allowing %d; want one of each", forbid, allow)
+		}
+		f := toyForestOf(t, ty, "LSTOP VAR LB NUM RB")
+		n := int32(slices.IndexFunc(f.Nodes, func(nd Node) bool { return nd.Sym == int32(lhs) && nd.Alt != 0 }))
+		if n <= 0 {
+			t.Fatalf("no %s node", ty.tab.Symbols[lhs].Name)
+		}
+		j := newJudgement(f, p)
+		a, b := j.eval(n, x, -1, forbid), j.eval(n, x, -1, allow)
+		if slices.Equal(a, b) {
+			t.Errorf("under a forbidding and an allowing parent item: %v and %v; want them to differ", a, b)
+		}
+		for _, c := range []struct {
+			pi  int32
+			got []int32
+		}{{forbid, a}, {allow, b}} {
+			if want := newJudgement(f, p).eval(n, x, -1, c.pi); !slices.Equal(c.got, want) {
+				t.Errorf("parent item %d: %v, a fresh judgement %v", c.pi, c.got, want)
+			}
+		}
+		if ev, _ := j.entries(n); ev != 2 {
+			t.Errorf("%s node %d holds %d eval entries, want 2", ty.tab.Symbols[lhs].Name, n, ev)
 		}
 	})
 
