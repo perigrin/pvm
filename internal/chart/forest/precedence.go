@@ -285,10 +285,11 @@ func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []
 				rhs, s := rules[r].RHS, int32(q)
 				for j := 1; j < len(rhs); j++ {
 					s = p.states[s].next[int32(rhs[j-1])]
-					for _, f := range p.states[s].shift {
-						if int(f) == rhs[j] || slices.Contains(p.tab.First[rhs[j]], int(f)) {
-							shiftSeen[[3]int32{int32(top), int32(base[r] + j), f}] |= verdict(p.shifts(s, int(f)))
-						}
+					// A terminal's FIRST is itself. A state that does not shift f (rhs[j] begins with a nullable
+					// prefix there) has no conflict on f, so the shift is allowed in it.
+					for _, f := range p.tab.First[rhs[j]] {
+						_, sh := slices.BinarySearch(p.states[s].shift, int32(f))
+						shiftSeen[[3]int32{int32(top), int32(base[r] + j), int32(f)}] |= verdict(!sh || p.shifts(s, f))
 					}
 				}
 			}

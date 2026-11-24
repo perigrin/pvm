@@ -321,11 +321,22 @@ func shiftGuardToy(t *testing.T) (*grammar.Tables, []grammar.Level, []string) {
 	return tab, levels, []string{"", "", "", "", "", "", "", "HIGH"}
 }
 
-// TestPrecedenceGenerationGuard requires generation to refuse each guard toy, reduce side and shift side, with an
-// error naming its key, and perly.y to generate without one.
+// nullablePrefixToy is a toy grammar with a shift key one state decides and another holds without shifting:
+// F after P: X . Y under V: TC . P meets K: TC X %prec HIGH in a conflict the reduction wins after TA TC X,
+// and after TB TC X the state does not shift F (Y begins with the empty E), so bison has no conflict there.
+func nullablePrefixToy(t *testing.T) (*grammar.Tables, []grammar.Level, []string) {
+	tab := toyTables(t, "S ::= TA V | TB V | TA K F | TA K2", "V ::= TC P", "K ::= TC X", "K2 ::= TC X F TH", "P ::= X Y",
+		"Y ::= E F", "E ::= ", "X ::= TX")
+	levels := []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}}
+	return tab, levels, []string{"", "", "", "", "", "HIGH", "", "", "", "", ""}
+}
+
+// TestPrecedenceGenerationGuard requires generation to refuse each guard toy, reduce side, shift side and a shift
+// key one state holds without shifting, with an error naming its key, and perly.y to generate without one.
 func TestPrecedenceGenerationGuard(t *testing.T) {
 	reduceTab, reduceLevels, reducePrec := guardToy(t, false)
 	shiftTab, shiftLevels, shiftPrec := shiftGuardToy(t)
+	nullTab, nullLevels, nullPrec := nullablePrefixToy(t)
 	for _, c := range []struct {
 		name     string
 		tab      *grammar.Tables
@@ -335,17 +346,19 @@ func TestPrecedenceGenerationGuard(t *testing.T) {
 	}{
 		{"reduce", reduceTab, reduceLevels, reducePrec, []string{"a: X .", "before T", "e: . a"}},
 		{"shift", shiftTab, shiftLevels, shiftPrec, []string{"shifting F after", "y: A . e", "k: C . m"}},
+		{"nullable_prefix", nullTab, nullLevels, nullPrec, []string{"shifting F after", "P: X . Y", "V: TC . P"}},
 	} {
-		_, err := NewPrecedence(c.tab, c.levels, c.rulePrec, nil)
-		if err == nil {
-			t.Errorf("%s: the guard toy generated tables; want an error naming its state-dependent key", c.name)
-			continue
-		}
-		for _, part := range c.parts {
-			if !strings.Contains(err.Error(), part) {
-				t.Errorf("%s: error %q does not name %q", c.name, err, part)
+		t.Run(c.name, func(t *testing.T) {
+			_, err := NewPrecedence(c.tab, c.levels, c.rulePrec, nil)
+			if err == nil {
+				t.Fatal("the guard toy generated tables; want an error naming its state-dependent key")
 			}
-		}
+			for _, part := range c.parts {
+				if !strings.Contains(err.Error(), part) {
+					t.Errorf("error %q does not name %q", err, part)
+				}
+			}
+		})
 	}
 	if _, err := ParsePrecedence(committedTables(t)); err != nil {
 		t.Errorf("perly.y: %v", err)
