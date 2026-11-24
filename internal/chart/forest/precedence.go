@@ -522,7 +522,8 @@ func (c *judgement) constrain() bool {
 // (state 0 at the file's start), and the terminal after it. Each reduction is checked against the terminal after
 // it, each shift against the reductions the state before it holds. It must not call Constrain, nor Constrain it.
 // Its known defect: shifts forbids a terminal the state does not shift wherever a reduction there with it in its
-// lookahead resolves to reduce, where bison has no conflict and reduces. No perly.y forest reaches it;
+// lookahead resolves to reduce, where bison has no conflict and reduces. Observed on 423da4dd7: perly.y's
+// generation finds 0 shift keys where it applies, and no in-tree or perl.git file diverges;
 // TestPrecedenceReferenceKnownDivergence pins the toy where Constrain and bison accept what it refuses.
 func (f *Forest) ConstrainReference(p *Precedence) bool {
 	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
