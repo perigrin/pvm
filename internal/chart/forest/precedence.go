@@ -281,6 +281,11 @@ func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []
 					work = append(work, byLHS[rhs[0]]...)
 				}
 			}
+			// shortcut: f in FIRST(rhs[j]) only after a nullable symbol derives ε is judged in s, where bison reduces
+			// the empty rule first and shifts f later, so a key forbidden by another item's shift of f refuses what
+			// bison accepts (TestPrecedenceNullableShiftKnownLimit; none on perly.y,
+			// TestPrecedenceNullableShiftLimitAbsent); judge such an f in the state after the empty reductions when
+			// a grammar has the shape, a follow-up decision (§6).
 			for r := range in {
 				rhs, s := rules[r].RHS, int32(q)
 				for j := 1; j < len(rhs); j++ {

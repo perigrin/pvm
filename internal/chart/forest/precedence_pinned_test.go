@@ -1,10 +1,11 @@
-// ABOUTME: Pins branches of the state-free judgement no corpus reaches, and the reference's one known divergence.
+// ABOUTME: Pins branches of the state-free judgement no corpus reaches, the reference's one known divergence and the nullable-shift limit.
 // ABOUTME: Each toy is judged by Constrain and ConstrainReference; the comparison harness is checked for aliasing.
 
 package forest
 
 import (
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -136,5 +137,143 @@ func TestPrecedenceHarnessesDoNotAlias(t *testing.T) {
 	}
 	if d, _, _ := judgeBoth(f, ty.prec); d == "" {
 		t.Error("judgeBoth reports no difference for a judgement that over-prunes the root")
+	}
+}
+
+// nullableShiftToy is REVIEWFIX3's toy (perigrin's ruling on REVIEWFIX2's gate G1): after TA TC X the state shifts
+// F through K2: TC X . F TH and reduces E: %prec HIGH with F next, and the reduction wins, so the shift key
+// (V: TC . P, P: X . Y, F) is recorded as forbidden; but under P: X . Y, F is reached only after E derives the
+// empty string, and bison shifts it later, from the state after E.
+func nullableShiftToy(t *testing.T) (*grammar.Tables, *Precedence) {
+	return pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+		[]string{"", "", "", "", "", "", "HIGH", ""},
+		"S ::= TA V | TA K2", "V ::= TC P", "K2 ::= TC X F TH", "P ::= X Y", "Y ::= E F", "E ::= ", "X ::= TX")
+}
+
+// nullableShiftKeys is p's shift keys of the known limit's shape, as "f after item under top". The shape, in the
+// generated automaton: a shift key (spine-top item, rule-position item A: α . Bβ, terminal f) whose bit is set in
+// shiftForbid, so every state holding the key shifts f and forbids it there (a state that does not shift f counts
+// as allowed), where f is in FIRST(B) only after a nullable symbol: some derivation B ⇒* N γ, through first
+// symbols of any number of rules, has every symbol of N derive ε, N not empty, and f in FIRST(γ). That f is shifted
+// in a later state, after the empty reductions, not in the one the key was judged in. A terminal at the dot has no
+// such f. rules are the automaton's, the tables' then the refused ones'; FIRST and nullability are the tables', as
+// generation's are.
+func nullableShiftKeys(p *Precedence, rules []grammar.BNFRule) []string {
+	tab := p.tab
+	after := make([][]bool, len(tab.Symbols)) // after[x][f]: f begins some derivation of x after a nullable prefix
+	for x := range after {
+		after[x] = make([]bool, p.nt)
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, r := range tab.Rules {
+			for i, y := range r.RHS {
+				for f := range p.nt {
+					// past position 0 every symbol before y derived ε; at 0, whatever y itself reaches that way
+					if !after[r.LHS][f] && (i > 0 && slices.Contains(tab.First[y], f) || i == 0 && after[y][f]) {
+						after[r.LHS][f], changed = true, true
+					}
+				}
+				if !tab.Symbols[y].Nullable {
+					break
+				}
+			}
+		}
+	}
+	text := func(r, dot int) string {
+		w := []string{tab.Symbols[rules[r].LHS].Name + ":"}
+		for d, s := range rules[r].RHS {
+			if d == dot {
+				w = append(w, ".")
+			}
+			w = append(w, tab.Symbols[s].Name)
+		}
+		return strings.Join(w, " ")
+	}
+	at := func(i int) (r, dot int) { // item i's rule and dot: base is ascending, a rule's items consecutive
+		r = sort.Search(len(p.base), func(r int) bool { return int(p.base[r]) > i }) - 1
+		return r, i - int(p.base[r])
+	}
+	ni := len(p.topAt)
+	var out []string
+	for top := range ni {
+		if p.topAt[top] < 0 {
+			continue
+		}
+		for i := range ni {
+			set := p.shiftAt[int(p.topAt[top])*ni+i]
+			if set < 0 {
+				continue
+			}
+			r, j := at(i)
+			for f := range p.nt {
+				if p.shiftForbid[set][f/64]&(1<<(f%64)) != 0 && after[rules[r].RHS[j]][f] {
+					tr, tj := at(top)
+					out = append(out, tab.Symbols[f].Name+" after "+text(r, j)+" under "+text(tr, tj))
+				}
+			}
+		}
+	}
+	return out
+}
+
+// TestPrecedenceNullableShiftLimitAbsent counts the known limit's keys (nullableShiftKeys): none on perly.y, whose
+// automaton holds its four refused rules, and at least one on its toy, so the count is shown to see the shape.
+func TestPrecedenceNullableShiftLimitAbsent(t *testing.T) {
+	tab := committedTables(t)
+	p, err := ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := slices.Clone(tab.Rules)
+	for _, r := range g.Refused {
+		rule := grammar.BNFRule{LHS: symbol(tab, r.LHS)}
+		for _, s := range r.RHS {
+			rule.RHS = append(rule.RHS, symbol(tab, s.Text))
+		}
+		rules = append(rules, rule)
+	}
+	if len(rules) != len(p.base) {
+		t.Fatalf("%d rules for the automaton's %d", len(rules), len(p.base))
+	}
+	if got := nullableShiftKeys(p, rules); len(got) != 0 {
+		t.Errorf("perly.y: %d keys of the limit's shape, want 0: %q", len(got), got)
+	}
+	toyTab, toy := nullableShiftToy(t)
+	got := nullableShiftKeys(toy, toyTab.Rules)
+	if !slices.Contains(got, "F after P: X . Y under V: TC . P") {
+		t.Errorf("toy: %q; want F after P: X . Y under V: TC . P among them", got)
+	}
+	// A chain: F is reached under P: X . Z through Z: Y, Y: E F and E: E1 E2, two empty rules deep.
+	chainTab, chain := pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"F"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+		[]string{"", "", "", "", "", "", "", "", "HIGH", "", ""},
+		"S ::= TA V | TA K2", "V ::= TC P", "K2 ::= TC X F TH", "P ::= X Z", "Z ::= Y", "Y ::= E F", "E ::= E1 E2", "E1 ::= ", "E2 ::= ", "X ::= TX")
+	if got := nullableShiftKeys(chain, chainTab.Rules); !slices.Contains(got, "F after P: X . Z under V: TC . P") {
+		t.Errorf("chain toy: %q; want F after P: X . Z under V: TC . P among them", got)
+	}
+	t.Logf("perly.y keys=0 toy keys=%d", len(got))
+}
+
+// TestPrecedenceNullableShiftKnownLimit pins the known limit (perigrin's ruling, 2026-11-24, "Check perly.y, then
+// pin"): on nullableShiftToy, bison 3.8.2 accepts TA TC TX F. Its state 9 (K2: TC X . F TH, P: X . Y, Y: . E F,
+// E: %empty . [F]) resolves the conflict between E and F as reduce (F < HIGH), then shifts F from state 11
+// (Y: E . F). Constrain and ConstrainReference both refuse it, because the shift key (V: TC . P, P: X . Y, F) is
+// forbidden. perly.y holds no key of the shape (TestPrecedenceNullableShiftLimitAbsent). A fix that accepts it
+// turns this red: update the README and this test.
+func TestPrecedenceNullableShiftKnownLimit(t *testing.T) {
+	const bison = true // bison 3.8.2 on the toy: ACCEPT
+	tab, p := nullableShiftToy(t)
+	f, _, _ := toyForest(t, tab, strings.Fields("TA TC TX F"), recognize.Options{})
+	if f == nil {
+		t.Fatal("the chart refuses TA TC TX F")
+	}
+	for name, judge := range map[string]func(*Forest, *Precedence) bool{"Constrain": (*Forest).Constrain, "ConstrainReference": (*Forest).ConstrainReference} {
+		if got := judge(f.Copy(), p); got == bison {
+			t.Errorf("%s accepts TA TC TX F, as bison does; the known limit is fixed or bypassed: update the README and this test", name)
+		}
 	}
 }
