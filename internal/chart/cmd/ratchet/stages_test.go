@@ -317,9 +317,9 @@ func TestStageKeysNeverGated(t *testing.T) {
 }
 
 // TestPipelineStagePrecedenceTimesConstrain: the precedence stage key times production Constrain, not the reference.
-// On the reference's known-divergence toy (forest's TestPrecedenceReferenceKnownDivergence: S: NUM A;
-// A: E PLUS NUM; E: %empty %prec HIGH, PLUS below HIGH) Constrain accepts NUM PLUS NUM, as bison 3.8.2 does, and
-// ConstrainReference refuses it, so the stage's verdict says which one ran.
+// On a variant of the reference's known-divergence toy (forest's TestPrecedenceReferenceKnownDivergence, without
+// its Z ::= HIGH rule: S: NUM A; A: E PLUS NUM; E: %empty %prec HIGH, PLUS below HIGH) Constrain accepts
+// NUM PLUS NUM, as bison 3.8.2 does, and ConstrainReference refuses it, so the stage's verdict says which one ran.
 func TestPipelineStagePrecedenceTimesConstrain(t *testing.T) {
 	g := &grammar.Grammar{}
 	for _, r := range [][]string{{"S", "NUM", "A"}, {"A", "E", "PLUS", "NUM"}, {"E"}} {
