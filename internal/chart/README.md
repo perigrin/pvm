@@ -2506,8 +2506,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The parser states are bison's**, built from the grammar's tables alone
   (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
-  LALR(1) tables share, never the chart's split states. A conflict is found
-  exactly where bison's state has one, and bison resolves a conflict only in
+  LALR(1) tables share, never the chart's split states. The state-free
+  tables find a conflict exactly where bison's state has one, and bison resolves a conflict only in
   a state where it arises: `indirob: scalar %prec PREC_LOW` meets `[` in a
   conflict after `print` (LSTOP), where `scalar [` can follow, and never after
   `@` (T1/array.t's `@$array[1..3]`, which keying on the rule and the token
@@ -2527,7 +2527,12 @@ grammar's tables and its precedence: no Earley item gains a fact.
   spine-top item (the item the node's left spine hangs from, or the start
   item at the root), the rule-position item before the shift and the
   terminal shifted: bison's verdict on that shift in every state holding the
-  spine-top item. The tables are dense slices indexed by rule, terminal and
+  spine-top item and the rule-position item. A state that shifts the terminal
+  allows it where every reduction it holds with that terminal in its LALR(1)
+  lookahead resolves to shift; a state that holds the key without shifting
+  the terminal, reached through a nullable prefix, counts as allowed, as
+  bison has no shift/reduce conflict there (precedence does not decide a
+  reduce/reduce conflict, which bison resolves by rule order). The tables are dense slices indexed by rule, terminal and
   item, read with no map access; the maps that build them live only in
   `NewPrecedence`.
 - **The generation guard.** A key whose decision is state-dependent even with
@@ -2535,8 +2540,10 @@ grammar's tables and its precedence: no Earley item gains a fact.
   disagree on, makes `NewPrecedence` return an error naming the key, so the
   tables never hold a guess. `forest.Parse` turns that error into a refusal of
   every file, as it does any error deriving the precedence.
-  `TestPrecedenceGenerationGuard` holds a toy grammar that fails generation
-  and `perly.y`, which generates; `TestPrecedenceGenerationErrorRefusesEveryFile`
+  `TestPrecedenceGenerationGuard` holds three toy grammars that fail
+  generation, one per side and one (`nullable_prefix`) whose shift key one
+  state forbids while another holds it without shifting the terminal, and
+  `perly.y`, which generates; `TestPrecedenceGenerationErrorRefusesEveryFile`
   that the error reaches every file the parse path is given.
 - **The state-free evaluator** (decision §3.3). `Constrain` judges each
   derivation with no parser state, by the keys of the state-free tables:
@@ -2574,7 +2581,7 @@ grammar's tables and its precedence: no Earley item gains a fact.
   span's start (the start state at the root), a child's state being its
   parent's advanced over the symbols before it, and the terminal after it,
   memoised in maps keyed by that context. `TestPrecedenceReferenceAgreesWithBison`
-  holds it to bison's verdict and grouping on every toy sentence, as
+  holds it to bison's verdict and grouping on every committed toy sentence, as
   `TestPrecedenceToyReferees` holds `Constrain`. Nothing outside a test calls
   it, and `Constrain` does not call it. **Its known defect:** its `shifts`
   forbids a terminal wherever a reduction the state holds, with that terminal
@@ -2585,14 +2592,18 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `Constrain` and by bison 3.8.2, whose state 1 has no shift on `PLUS` and
   reduces `E` by default. `TestPrecedenceReferenceKnownDivergence` pins that
   divergence with bison's answer, and goes red if the reference calls
-  `Constrain`. No `perly.y` forest reaches it (the in-tree and perl.git
-  differentials agree on every file), so the reference stays unchanged
-  (ruled 2026-11-24); a differential failure of that shape is the
-  reference's defect, not production's.
+  `Constrain`. Observed on 423da4dd7: generation over `perly.y`'s grammar,
+  instrumented, finds 0 shift keys where the defect applies, and no in-tree or
+  perl.git file diverges; so the reference stays unchanged (ruled
+  2026-11-24). The pinned toy is the one divergence ruled the reference's;
+  any other failing differential check is a Stop reported to perigrin
+  (decision §5), with this defect as the first diagnosis to check.
 - **Keep.** A reduction with a terminal next that the state could also shift
   survives only where bison's resolution is reduce; a shift survives only
-  where every reduction the state before it holds, with that terminal in its
-  LALR(1) lookahead there, resolves to shift; where the right child is empty
+  where, if the state before it shifts that terminal, every reduction it
+  holds with that terminal in its LALR(1) lookahead resolves to shift; where
+  it does not shift it, bison reduces and the shift is judged where it
+  happens (the reference checks it there too: its known defect, above); where the right child is empty
   it reduces before the terminal is read, so that shift is not checked (the
   empty-right-child exemption). So of two derivations of one span the one
   bison builds is kept, and the other is dropped even where the one bison
@@ -2642,8 +2653,10 @@ grammar's tables and its precedence: no Earley item gains a fact.
   recognition accept (the Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824)
   is refused.
 - **The differential checks.** Each compares `Constrain` with
-  `ConstrainReference` on two copies of one forest, made before either
-  judges, and requires the same verdict and the same kept alternatives on
+  `ConstrainReference` on independent forests made from one before either
+  judges: `forest`'s `judgeBoth` and `chart`'s `constrainAgrees` judge two
+  copies, and `cmd/ratchet`'s `comparePrecedence` judges one copy with
+  `Constrain` and the original with the reference. Each requires the same verdict and the same kept alternatives on
   every node. `forest`'s `judgeBoth` and `cmd/ratchet`'s `comparePrecedence`
   count an input pruned only where the reference dropped an alternative of
   a node reachable from the root before the constraint (both judgements drop

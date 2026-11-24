@@ -285,10 +285,12 @@ func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []
 				rhs, s := rules[r].RHS, int32(q)
 				for j := 1; j < len(rhs); j++ {
 					s = p.states[s].next[int32(rhs[j-1])]
-					for _, f := range p.states[s].shift {
-						if int(f) == rhs[j] || slices.Contains(p.tab.First[rhs[j]], int(f)) {
-							shiftSeen[[3]int32{int32(top), int32(base[r] + j), f}] |= verdict(p.shifts(s, int(f)))
-						}
+					// A terminal's FIRST is itself. A state that does not shift f (rhs[j] begins with a nullable
+					// prefix there) has no shift/reduce conflict on f, so the shift is allowed in it; precedence
+					// does not decide a reduce/reduce conflict, which bison resolves by rule order.
+					for _, f := range p.tab.First[rhs[j]] {
+						_, sh := slices.BinarySearch(p.states[s].shift, int32(f))
+						shiftSeen[[3]int32{int32(top), int32(base[r] + j), int32(f)}] |= verdict(!sh || p.shifts(s, f))
 					}
 				}
 			}
@@ -522,7 +524,8 @@ func (c *judgement) constrain() bool {
 // (state 0 at the file's start), and the terminal after it. Each reduction is checked against the terminal after
 // it, each shift against the reductions the state before it holds. It must not call Constrain, nor Constrain it.
 // Its known defect: shifts forbids a terminal the state does not shift wherever a reduction there with it in its
-// lookahead resolves to reduce, where bison has no conflict and reduces. No perly.y forest reaches it;
+// lookahead resolves to reduce, where bison has no conflict and reduces. Observed on 423da4dd7: perly.y's
+// generation finds 0 shift keys where it applies, and no in-tree or perl.git file diverges;
 // TestPrecedenceReferenceKnownDivergence pins the toy where Constrain and bison accept what it refuses.
 func (f *Forest) ConstrainReference(p *Precedence) bool {
 	c := &constrainer{f: f, p: p, firsts: map[ctx][]int32{}, marked: map[ctx]bool{}, kept: make([]bool, len(f.Alts))}
