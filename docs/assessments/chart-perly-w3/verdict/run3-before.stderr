@@ -1,0 +1,54 @@
+chart-ratchet: aggregate excludes internal/chart/testdata/std5k.pl (2.9% of RD's population time)
+chart-ratchet: aggregate excludes internal/psc/testdata/latency/edit5k.pl (1.9% of RD's population time)
+chart-ratchet: aggregate excludes T1/code_too_large.t (18.5% of RD's population time)
+chart-ratchet: aggregate share T1 31.5%
+chart-ratchet: aggregate share guacamole 7.7%
+chart-ratchet: aggregate share perlgit 60.8%
+chart-ratchet: lex-overhead-std5k measurement 1: median 1.176 min 1.114 max 1.288
+chart-ratchet: lex-overhead-std5k measurement 2: median 1.146 min 1.026 max 1.278
+chart-ratchet: lex-overhead-std5k measurement 3: median 1.196 min 1.101 max 1.322
+chart-ratchet: lex-overhead-edit5k measurement 1: median 1.093 min 0.9643 max 1.234
+chart-ratchet: lex-overhead-edit5k measurement 2: median 1.191 min 0.9257 max 1.3
+chart-ratchet: lex-overhead-edit5k measurement 3: median 1.203 min 1.132 max 1.288
+chart-ratchet: lex-overhead-aggregate measurement 1: median 1.243 min 1.148 max 1.323
+chart-ratchet: lex-overhead-aggregate measurement 2: median 1.238 min 1.108 max 1.321
+chart-ratchet: lex-overhead-aggregate measurement 3: median 1.214 min 1.156 max 1.294
+chart-ratchet: speed-ratio-std5k-longlived measurement 1: median 8.192 min 4.221 max 9.233
+chart-ratchet: speed-ratio-std5k-longlived measurement 2: median 7.464 min 6.106 max 9.327
+chart-ratchet: speed-ratio-std5k-longlived measurement 3: median 7.989 min 6.331 max 9.104
+chart-ratchet: speed-ratio-aggregate-longlived measurement 1: median 5.125 min 4.47 max 5.505
+chart-ratchet: speed-ratio-aggregate-longlived measurement 2: median 4.959 min 4.72 max 5.306
+chart-ratchet: speed-ratio-aggregate-longlived measurement 3: median 5.15 min 4.658 max 5.484
+chart-ratchet: speed-ratio-aggregate-perfile measurement 1: median 5.173 min 4.951 max 5.285
+chart-ratchet: speed-ratio-aggregate-perfile measurement 2: median 5.244 min 4.727 max 5.797
+chart-ratchet: speed-ratio-aggregate-perfile measurement 3: median 5.257 min 4.883 max 5.518
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 1: median 0.6222 min 0.5699 max 0.6577
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 2: median 0.6375 min 0.5896 max 0.6697
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 3: median 0.63 min 0.5857 max 0.6643
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 1: median 0.9028 min 0.8284 max 0.9875
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 2: median 0.9398 min 0.7979 max 1.028
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 3: median 0.9043 min 0.8087 max 1.042
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 1: median 0.7061 min 0.6818 max 0.8516
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 2: median 0.7077 min 0.66 max 0.7407
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 3: median 0.7222 min 0.6328 max 0.7597
+chart-ratchet: speed-stage sum lex+recognize+forest 2.2421
+chart-ratchet: speed-stage-precedence-aggregate-longlived: 0 of 2211 files refused before the stage
+chart-ratchet: speed-stage-precedence-aggregate-longlived measurement 1: median 2.317 min 1.968 max 2.419
+chart-ratchet: speed-stage-precedence-aggregate-longlived measurement 2: median 2.371 min 2.172 max 2.535
+chart-ratchet: speed-stage-precedence-aggregate-longlived measurement 3: median 2.313 min 2.209 max 2.497
+chart-ratchet: speed-stage-resolve-aggregate-longlived: 0 of 2211 files refused before the stage
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 1: median 0.1973 min 0.1859 max 0.207
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 2: median 0.1882 min 0.1796 max 0.2078
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 3: median 0.193 min 0.1706 max 0.2046
+chart-ratchet: speed-stage-readings-aggregate-longlived: 0 of 2211 files refused before the stage
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 1: median 0.1392 min 0.1322 max 0.1435
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 2: median 0.1351 min 0.1197 max 0.1651
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 3: median 0.1502 min 0.1418 max 0.164
+oracle-grade: rd WRONG testdata/perlonjava/unit/storable.t:334 rv2hv
+oracle-grade: rd WRONG testdata/perlonjava/unit/storable.t:335 rv2hv
+oracle-grade: rd WRONG testdata/perlonjava/unit/storable.t:335 rv2hv
+oracle-grade: rd WRONG /opt/corpora/perl5/t/op/hash-clear-placeholders.t:16 srefgen
+chart-ratchet: BenchLex 12537716 ns/op 18260 allocs/op
+chart-ratchet: BenchRecognize 5174581 ns/op 11506 allocs/op
+chart-ratchet: BenchExpected 15150884 ns/op 50905 allocs/op
+chart-ratchet: BenchForest 13707138 ns/op 96 allocs/op
