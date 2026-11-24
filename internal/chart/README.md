@@ -2531,7 +2531,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
   allows it where every reduction it holds with that terminal in its LALR(1)
   lookahead resolves to shift; a state that holds the key without shifting
   the terminal, reached through a nullable prefix, counts as allowed, as
-  bison has no conflict there. The tables are dense slices indexed by rule, terminal and
+  bison has no shift/reduce conflict there (precedence does not decide a
+  reduce/reduce conflict, which bison resolves by rule order). The tables are dense slices indexed by rule, terminal and
   item, read with no map access; the maps that build them live only in
   `NewPrecedence`.
 - **The generation guard.** A key whose decision is state-dependent even with
