@@ -43,9 +43,9 @@ func comparePrecedence(tab *grammar.Tables, r *recognize.Recognizer, prec *fores
 	if o.prelibRefused = forest.LibraryOperators(tab, f, s, src, scope) >= 0; o.prelibRefused {
 		return o, nil
 	}
-	before := keptAlts(f)
+	before, live := keptAlts(f), reachable(f)
 	prod, ref := f.Copy(), f
-	gotV, wantV := prod.Constrain(prec), ref.ConstrainReference(prec)
+	gotV, wantV := productionConstrain(prod, prec), ref.ConstrainReference(prec)
 	o.accepted = wantV
 	if gotV != wantV {
 		o.diff = fmt.Sprintf("Constrain says %t, ConstrainReference %t", gotV, wantV)
@@ -57,9 +57,36 @@ func comparePrecedence(tab *grammar.Tables, r *recognize.Recognizer, prec *fores
 			o.diff = fmt.Sprintf("node %d %+v: Constrain keeps alternatives %v, ConstrainReference %v", n, ref.Nodes[n], got[n], want[n])
 			return o, nil
 		}
-		o.pruned = o.pruned || len(want[n]) < len(before[n])
+		o.pruned = o.pruned || live[n] && len(want[n]) < len(before[n])
 	}
 	return o, nil
+}
+
+// productionConstrain is the judgement comparePrecedence compares with the reference;
+// TestPrecedenceHarnessesDoNotAlias swaps it for one that over-prunes.
+var productionConstrain = (*forest.Forest).Constrain
+
+// reachable is which of f's nodes its root reaches: both judgements drop every alternative of an unreachable node,
+// so pruning counts only reachable ones.
+func reachable(f *forest.Forest) []bool {
+	seen := make([]bool, len(f.Nodes))
+	work := []int32{f.Root}
+	for len(work) > 0 {
+		n := work[len(work)-1]
+		work = work[:len(work)-1]
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
+			for _, c := range []int32{f.Alts[a].Left, f.Alts[a].Right} {
+				if c != 0 {
+					work = append(work, c)
+				}
+			}
+		}
+	}
+	return seen
 }
 
 // keptAlts is every node's alternatives, in order.
@@ -157,5 +184,29 @@ func TestComparePrecedenceUsesScope(t *testing.T) {
 		if err != nil || !o.recognized || o.prelibRefused != c.prelib || o.diff != "" {
 			t.Errorf("scope %+v: %+v, %v; want recognized, refused before the constraint %t, no diff", c.scope, o, err, c.prelib)
 		}
+	}
+}
+
+// TestPrecedenceHarnessesDoNotAlias: comparePrecedence reports a production judgement that drops one alternative
+// more than Constrain, which it could not if production judged the forest the reference judges.
+func TestPrecedenceHarnessesDoNotAlias(t *testing.T) {
+	tab := committedTables(t)
+	prec, err := forest.ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := productionConstrain
+	t.Cleanup(func() { productionConstrain = old })
+	productionConstrain = func(f *forest.Forest, p *forest.Precedence) bool {
+		ok := f.Constrain(p)
+		f.Nodes[f.Root].Alt = f.Alts[f.Nodes[f.Root].Alt].Next
+		return ok
+	}
+	o, err := comparePrecedence(tab, recognize.New(tab, recognize.Options{}), prec, []byte("my $x = 1 + 2 * 3;\n"), forest.Scope{})
+	if err != nil || !o.recognized || o.prelibRefused {
+		t.Fatalf("%+v, %v; want a compared file", o, err)
+	}
+	if o.diff == "" {
+		t.Error("comparePrecedence reports no difference for a judgement that over-prunes the root")
 	}
 }
