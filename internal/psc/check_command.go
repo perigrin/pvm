@@ -169,13 +169,16 @@ func analyze(ctx context.Context, root *parse.Node, opts infer.Options) (*infer.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return gate(infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts), root), nil
+	return gate(infer.AnalyzeLowered(f, lower.NewPositions(root, f), nil, opts), root, syntaxErrors(root)), nil
 }
 
-// gate puts root's syntax errors among fa's diagnostics and drops the type
-// diagnostics they gate, under §6.8.4 (diagfilter.go), and returns fa.
-func gate(fa *infer.FileAnalysis, root *parse.Node) *infer.FileAnalysis {
-	errs, gates := parseErrors(root)
+// gate puts syn, root's syntax errors (syntaxErrors), among fa's
+// diagnostics and drops the type diagnostics they gate, under §6.8.4
+// (diagfilter.go), and returns fa, keeping syn as its Syntax for the next
+// edit's analysis to reuse (analyzeEdit).
+func gate(fa *infer.FileAnalysis, root *parse.Node, syn []stmtErrors) *infer.FileAnalysis {
+	errs, gates := flatten(syn, root)
+	fa.Syntax = syn
 	fa.Diagnostics = append(filterParse(errs), gateTypes(fa.Diagnostics, gates)...)
 	slices.SortStableFunc(fa.Diagnostics, func(a, b infer.Diagnostic) int {
 		return int(a.StartByte) - int(b.StartByte)
