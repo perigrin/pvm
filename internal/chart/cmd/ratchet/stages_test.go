@@ -315,3 +315,49 @@ func TestStageKeysNeverGated(t *testing.T) {
 		}
 	}
 }
+
+// TestPipelineStagePrecedenceTimesConstrain: the precedence stage key times production Constrain, not the reference.
+// On the reference's known-divergence toy (forest's TestPrecedenceReferenceKnownDivergence: S: NUM A;
+// A: E PLUS NUM; E: %empty %prec HIGH, PLUS below HIGH) Constrain accepts NUM PLUS NUM, as bison 3.8.2 does, and
+// ConstrainReference refuses it, so the stage's verdict says which one ran.
+func TestPipelineStagePrecedenceTimesConstrain(t *testing.T) {
+	g := &grammar.Grammar{}
+	for _, r := range [][]string{{"S", "NUM", "A"}, {"A", "E", "PLUS", "NUM"}, {"E"}} {
+		rule := grammar.Rule{LHS: r[0]}
+		for _, w := range r[1:] {
+			rule.RHS = append(rule.RHS, grammar.Symbol{Kind: grammar.Name, Text: w})
+		}
+		g.G1 = append(g.G1, rule)
+	}
+	g.G0 = []grammar.Rule{{LHS: "NUM"}, {LHS: "PLUS"}}
+	tab, err := grammar.BuildTables(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab.TerminalSets = [][]int{{}}
+	l := &lex.Lattice[lex.None]{Nodes: make([]lex.Node[lex.None], 4)}
+	for i, w := range []string{"NUM", "PLUS", "NUM"} {
+		tab.TerminalSets = append(tab.TerminalSets, []int{slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == w })})
+		l.Edges = append(l.Edges, lex.Edge{From: i, To: i + 1, Token: lex.Token{TerminalSet: len(tab.TerminalSets) - 1}})
+	}
+	prec, err := forest.NewPrecedence(tab, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"PLUS"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+		[]string{"", "", "HIGH"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	if err != nil || !c.Accepted() {
+		t.Fatalf("the chart refuses NUM PLUS NUM: %v", err)
+	}
+	f := forest.Build(tab, c, l)
+	if f.Copy().ConstrainReference(prec) || !f.Copy().Constrain(prec) {
+		t.Fatal("Constrain and ConstrainReference no longer diverge on the toy, so it cannot tell them apart")
+	}
+	st := pipelineStages[0]
+	if st.key != "speed-stage-precedence-aggregate-longlived" {
+		t.Fatalf("pipelineStages[0] is %s", st.key)
+	}
+	if !st.run(tab, prec, stageInput{f: f.Copy()}) {
+		t.Error("the precedence stage refuses NUM PLUS NUM, as ConstrainReference does; want Constrain's accept")
+	}
+}
