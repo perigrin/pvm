@@ -2607,7 +2607,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   it reduces before the terminal is read, so that shift is not checked (the
   empty-right-child exemption). So of two derivations of one span the one
   bison builds is kept, and the other is dropped even where the one bison
-  builds does not exist (`print $fh []`).
+  builds does not exist (`print $fh []`), except where a forbidden shift
+  key's terminal is reached only after a nullable symbol derives the empty
+  string (the known limit below), where both are dropped.
 - **Forbid.** A `%nonassoc` resolution is an error action and fails both
   sides, adjacent (`1 .. 2 .. 3`) or split by a tighter operator
   (`1 .. 2 + 3 .. 4`). Prefix after prefix is no conflict and is kept
@@ -2723,6 +2725,23 @@ empty string (`TestPrecedenceRefusedRulesLeftRecursive`; a nullable `A` in
 PREC_LOW` (perly.y:1787), the one nullable rule with a precedence, is in the
 automaton as written: no bison resolution names it (ruled 2026-11-14, no
 guard added).
+
+A shift key is judged in the state before the rule-position item's symbol,
+so a terminal reached there only after a nullable symbol derives the empty
+string is judged as shifted in that state, where bison reduces the empty
+rule first and shifts it in a later one. Where that state also shifts the
+terminal through another item and a reduction beats the shift, the key is
+recorded as forbidden and both `Constrain` and `ConstrainReference` refuse
+what bison accepts: on the toy `S: TA V | TA K2; V: TC P; K2: TC X F TH;
+P: X Y; Y: E F; E: %empty %prec HIGH; X: TX` (`%left F` below `%left HIGH`),
+`TA TC TX F`, which bison 3.8.2 accepts by reducing `E` in its state 9.
+Because the two judgements agree, no differential check can see it.
+`TestPrecedenceNullableShiftKnownLimit` pins it against bison's answer, and
+`TestPrecedenceNullableShiftLimitAbsent` counts the keys of its shape,
+nullable chains of any length included: 0 on `perly.y`, and at least one on
+the toy. Fixing it changes what precedence decides, which decision §6 puts
+outside V1, so it is a follow-up (the `shortcut:` at the shift-side loop in
+`stateFree`; ruled 2026-11-24).
 
 ## The generated tables: `make chart-tables`
 
