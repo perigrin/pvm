@@ -57,9 +57,39 @@ func precedenceDiff(prodOK bool, prod *Forest, refOK bool, ref *Forest) string {
 // dropped.
 func judgeBoth(f *Forest, p *Precedence) (diff string, ok, pruned bool) {
 	prod, ref := f.Copy(), f.Copy()
-	prodOK := prod.Constrain(p)
+	prodOK := productionConstrain(prod, p)
 	refOK := ref.ConstrainReference(p)
-	return precedenceDiff(prodOK, prod, refOK, ref), refOK, refOK && altCount(ref) < altCount(f)
+	return precedenceDiff(prodOK, prod, refOK, ref), refOK, refOK && prunedReachable(f, ref)
+}
+
+// productionConstrain is the judgement judgeBoth compares with the reference; TestPrecedenceHarnessesDoNotAlias
+// swaps it for one that over-prunes.
+var productionConstrain = (*Forest).Constrain
+
+// prunedReachable reports whether judged, a judged copy of f, holds fewer alternatives than f on a node reachable
+// from f's root: both judgements drop every alternative of an unreachable node, which proves nothing.
+func prunedReachable(f, judged *Forest) bool {
+	seen := make([]bool, len(f.Nodes))
+	work := []int32{f.Root}
+	for len(work) > 0 {
+		n := work[len(work)-1]
+		work = work[:len(work)-1]
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		if len(keptAlts(judged, int(n))) < len(keptAlts(f, int(n))) {
+			return true
+		}
+		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
+			for _, c := range []int32{f.Alts[a].Left, f.Alts[a].Right} {
+				if c != 0 {
+					work = append(work, c)
+				}
+			}
+		}
+	}
+	return false
 }
 
 // TestPrecedenceDiffDetectsDifference: the comparison reports a node that lost one alternative on one side, a verdict
