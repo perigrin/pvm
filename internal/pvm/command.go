@@ -3903,70 +3903,6 @@ func setupStyledHelp(cmd *cobra.Command, componentName string) {
 	})
 }
 
-// newUpdateCommand creates the update command for PVM self-updater
-func newUpdateCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "update",
-		Short: "Update PVM to the latest version",
-		Long:  "Update PVM to the latest version from GitHub releases",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeUpdateCommand(cmd, args)
-		},
-	}
-
-	// Add flags
-	cmd.Flags().String("version", "", "Update to a specific version")
-	cmd.Flags().Bool("check", false, "Check for updates without installing")
-	cmd.Flags().Bool("force", false, "Force update even if already up to date")
-	cmd.Flags().Bool("dry-run", false, "Show what would be updated without making changes")
-	cmd.Flags().Bool("no-backup", false, "Skip creating backup before update")
-	cmd.Flags().Bool("no-rollback", false, "Disable automatic rollback on failure")
-	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
-	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
-	cmd.Flags().Bool("ignore-install-method", false, "Force self-update regardless of installation method")
-
-	return cmd
-}
-
-// newAutoUpdateCommand creates the auto-update command
-func newAutoUpdateCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "auto-update [enable|disable|config|check|status] [args...]",
-		Short: "Manage automatic update checking",
-		Long: `Configure and manage automatic update checking for PVM.
-
-Subcommands:
-  enable                 Enable automatic update checking
-  disable                Disable automatic update checking
-  config <key> <value>   Configure auto-update settings
-  check                  Check for updates now
-  status                 Show current auto-update status
-
-Configuration keys:
-  channel                Update channel (stable, beta, alpha, nightly, developer)
-  interval               Check interval (e.g., 24h, 12h, 1h30m)
-  quiet                  Quiet mode (true/false)
-  auto-install           Auto-install updates (true/false)
-  repository             GitHub repository (owner/repo)
-  install-schedule       Installation schedule (days hour minute)
-
-Examples:
-  pvm auto-update enable
-  pvm auto-update config channel beta
-  pvm auto-update config interval 12h
-  pvm auto-update config install-schedule "sun,wed" 2 30
-  pvm auto-update check`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeAutoUpdateCommand(cmd, args)
-		},
-	}
-
-	// Add flags
-	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
-
-	return cmd
-}
-
 // Shim management functions
 
 // installShimIntegration installs shell integration for shims
@@ -5288,28 +5224,24 @@ func customHelpFunc(cmd *cobra.Command, args []string) {
 	cmd.Help()
 }
 
-// newSelfCommand creates the self-management command that groups update, doctor, changelog, etc.
+// newSelfCommand creates the self-management command that groups doctor, changelog, release notes and symlinks.
 func newSelfCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "self",
 		Short: "Self-management commands for PVM",
-		Long: `Commands for managing PVM itself, including updates, diagnostics, and information.
+		Long: `Commands for managing PVM itself, including diagnostics and information.
 
 This command groups all self-management functionality:
-  update        - Update PVM to the latest version
-  auto-update   - Configure automatic update checking
   doctor        - Diagnose PVM installation and configuration issues
   changelog     - View PVM changelog
   release-notes - View release notes for specific versions
   symlinks      - Manage entry point symlinks
 
-These commands help you keep PVM up-to-date and troubleshoot any issues.`,
+These commands help you troubleshoot PVM and learn about its releases.`,
 	}
 
 	// Add self-management subcommands
 	cmd.AddCommand(
-		newUpdateCommand(),
-		newAutoUpdateCommand(),
 		newDoctorCommand(),
 		newReleaseNotesCommand(),
 		newChangelogCommand(),

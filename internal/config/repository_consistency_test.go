@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"tamarou.com/pvm/internal/updater"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -41,15 +40,6 @@ func TestRepositoryConsistency_DefaultConfig(t *testing.T) {
 	})
 }
 
-func TestRepositoryConsistency_UpdaterDefaults(t *testing.T) {
-	t.Run("Updater Default Options", func(t *testing.T) {
-		opts := updater.DefaultUpdateOptions()
-		assert.NotNil(t, opts, "Default update options should not be nil")
-		assert.Equal(t, expectedRepository, opts.Repository,
-			"Updater default repository should be %s, not pvm-dev", expectedRepository)
-	})
-}
-
 func TestRepositoryConsistency_VersionDefaults(t *testing.T) {
 	t.Run("Version Check Default Options", func(t *testing.T) {
 		opts := version.DefaultCheckOptions()
@@ -77,12 +67,6 @@ func TestRepositoryConsistency_NoDevReferences(t *testing.T) {
 		}
 	})
 
-	t.Run("Updater Should Not Reference pvm-dev", func(t *testing.T) {
-		opts := updater.DefaultUpdateOptions()
-		assert.NotContains(t, opts.Repository, "pvm-dev",
-			"Updater repository should not reference pvm-dev")
-	})
-
 	t.Run("Version Check Should Not Reference pvm-dev", func(t *testing.T) {
 		opts := version.DefaultCheckOptions()
 		assert.NotContains(t, opts.Repository, "pvm-dev",
@@ -93,7 +77,6 @@ func TestRepositoryConsistency_NoDevReferences(t *testing.T) {
 func TestRepositoryConsistency_AllPointToSameRepo(t *testing.T) {
 	t.Run("All Components Use Same Repository", func(t *testing.T) {
 		cfg := NewDefaultConfig()
-		updaterOpts := updater.DefaultUpdateOptions()
 		versionOpts := version.DefaultCheckOptions()
 
 		repositories := []string{}
@@ -102,7 +85,6 @@ func TestRepositoryConsistency_AllPointToSameRepo(t *testing.T) {
 			repositories = append(repositories, cfg.PVM.Update.Repository)
 		}
 
-		repositories = append(repositories, updaterOpts.Repository)
 		repositories = append(repositories, versionOpts.Repository)
 
 		// All repositories should be the same
@@ -157,12 +139,10 @@ func TestRepositoryConsistency_BreakageDetection(t *testing.T) {
 func TestRepositoryConsistency_ValidGitHubFormat(t *testing.T) {
 	t.Run("Repository Format Validation", func(t *testing.T) {
 		cfg := NewDefaultConfig()
-		updaterOpts := updater.DefaultUpdateOptions()
 		versionOpts := version.DefaultCheckOptions()
 
 		repositories := []string{
 			cfg.PVM.Update.Repository,
-			updaterOpts.Repository,
 			versionOpts.Repository,
 		}
 

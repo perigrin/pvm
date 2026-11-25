@@ -98,10 +98,9 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: '0'
-        GITHUB_TOKEN: ${{ secrets.PVM_RELEASE_TOKEN }}
       run: |
         mkdir -p build/release
-        LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}' -X 'tamarou.com/pvm/internal/version.GitHubToken=${GITHUB_TOKEN}'"
+        LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}'"
         go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }}${{ matrix.ext }} ./cmd/pvm
 
     - name: Test binary
