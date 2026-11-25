@@ -37,7 +37,6 @@ type VersionCheckResult struct {
 type CheckOptions struct {
 	IncludePrerelease bool
 	Repository        string // Format: "owner/repo"
-	GitHubToken       string // Optional for higher rate limits
 	Timeout           time.Duration
 	Client            GitHubClientInterface // Optional: for testing with mock clients
 }

@@ -224,9 +224,6 @@ type PVMUpdateConfig struct {
 	// Channel specifies the update channel (stable, beta, alpha, nightly, developer)
 	Channel string `toml:"channel" json:"channel"`
 
-	// GitHubToken specifies the GitHub token for higher API rate limits
-	GitHubToken string `toml:"github_token" json:"github_token"`
-
 	// BackupEnabled specifies whether to create backups before updating
 	BackupEnabled bool `toml:"backup_enabled" json:"backup_enabled"`
 
@@ -680,10 +677,6 @@ type DocsConfig struct {
 	// Branch specifies the Git branch or tag to fetch documentation from
 	Branch string `toml:"branch" json:"branch"`
 
-	// GitHubToken specifies the GitHub token for API access and rate limiting
-	// Can be set via environment variable GITHUB_TOKEN
-	GitHubToken string `toml:"github_token" json:"github_token"`
-
 	// CacheDir specifies the directory for caching external documentation
 	CacheDir string `toml:"cache_dir" json:"cache_dir"`
 
@@ -761,7 +754,6 @@ func NewDefaultConfig() *Config {
 				AutoUpdateInterval:   "24h",
 				Repository:           "perigrin/pvm",
 				Channel:              "stable",
-				GitHubToken:          "",
 				BackupEnabled:        true,
 				AutoRollbackEnabled:  true,
 				CheckPrerelease:      false,
@@ -902,7 +894,6 @@ func NewDefaultConfig() *Config {
 		Docs: &DocsConfig{
 			Repository:      "perigrin/pvm",
 			Branch:          "pu",
-			GitHubToken:     "",
 			CacheDir:        "$XDG_CACHE_HOME/pvm/docs",
 			CacheTTL:        24, // 24 hours
 			AutoUpdate:      true,

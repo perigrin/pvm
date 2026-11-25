@@ -115,7 +115,7 @@ func TestReleaseNotesCommand_Flags(t *testing.T) {
 	cmd := newReleaseNotesCommand()
 
 	// Test that required flags exist
-	expectedFlags := []string{"latest", "prerelease", "token"}
+	expectedFlags := []string{"latest", "prerelease"}
 
 	for _, flagName := range expectedFlags {
 		flag := cmd.Flags().Lookup(flagName)
@@ -135,9 +135,9 @@ func TestReleaseNotesCommand_Flags(t *testing.T) {
 		t.Error("prerelease flag should be bool type")
 	}
 
-	tokenFlag := cmd.Flags().Lookup("token")
-	if tokenFlag.Value.Type() != "string" {
-		t.Error("token flag should be string type")
+	// Public GitHub reads are anonymous: there is no token flag.
+	if cmd.Flags().Lookup("token") != nil {
+		t.Error("token flag should not exist")
 	}
 }
 
@@ -169,7 +169,7 @@ func TestChangelogCommand_Flags(t *testing.T) {
 	cmd := newChangelogCommand()
 
 	// Test that required flags exist
-	expectedFlags := []string{"limit", "prerelease", "token"}
+	expectedFlags := []string{"limit", "prerelease"}
 
 	for _, flagName := range expectedFlags {
 		flag := cmd.Flags().Lookup(flagName)
@@ -192,27 +192,25 @@ func TestChangelogCommand_Flags(t *testing.T) {
 		t.Error("prerelease flag should be bool type")
 	}
 
-	tokenFlag := cmd.Flags().Lookup("token")
-	if tokenFlag.Value.Type() != "string" {
-		t.Error("token flag should be string type")
+	// Public GitHub reads are anonymous: there is no token flag.
+	if cmd.Flags().Lookup("token") != nil {
+		t.Error("token flag should not exist")
 	}
 }
 
 func TestReleaseNotesCommand_ErrorHandling(t *testing.T) {
 	cmd := newReleaseNotesCommand()
 
-	// Test with invalid token (should handle gracefully)
+	// Test error handling without network access (should handle gracefully)
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	// Set invalid token
-	cmd.Flags().Set("token", "invalid-token")
 	cmd.Flags().Set("latest", "true")
 
 	err := cmd.RunE(cmd, []string{})
 
-	// Should handle error gracefully (network error is expected with invalid token)
+	// Should handle error gracefully (a network error is expected in tests)
 	if err == nil {
 		t.Log("Command succeeded (likely using fallback mechanism)")
 	} else if !strings.Contains(err.Error(), "failed to") {
@@ -224,18 +222,16 @@ func TestReleaseNotesCommand_ErrorHandling(t *testing.T) {
 func TestChangelogCommand_ErrorHandling(t *testing.T) {
 	cmd := newChangelogCommand()
 
-	// Test with invalid token (should handle gracefully)
+	// Test error handling without network access (should handle gracefully)
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	// Set invalid token
-	cmd.Flags().Set("token", "invalid-token")
 	cmd.Flags().Set("limit", "5")
 
 	err := cmd.RunE(cmd, []string{})
 
-	// Should handle error gracefully (network error is expected with invalid token)
+	// Should handle error gracefully (a network error is expected in tests)
 	if err == nil {
 		t.Log("Command succeeded (likely using fallback mechanism)")
 	} else if !strings.Contains(err.Error(), "failed to") {
@@ -301,7 +297,6 @@ func TestReleaseNotesCommand_FlagCombinations(t *testing.T) {
 			// Reset flags
 			cmd.Flags().Set("latest", "false")
 			cmd.Flags().Set("prerelease", "false")
-			cmd.Flags().Set("token", "")
 
 			// Set test flags
 			for flag, value := range tc.flags {
@@ -378,7 +373,6 @@ func TestChangelogCommand_FlagCombinations(t *testing.T) {
 			// Reset flags
 			cmd.Flags().Set("limit", "10")
 			cmd.Flags().Set("prerelease", "false")
-			cmd.Flags().Set("token", "")
 
 			// Set test flags
 			for flag, value := range tc.flags {
@@ -418,7 +412,6 @@ func TestReleaseNotesCommand_UIIntegration(t *testing.T) {
 	}
 
 	// Test with invalid setup to ensure error handling works
-	cmd.Flags().Set("token", "test-token")
 	cmd.Flags().Set("latest", "true")
 
 	err := cmd.RunE(cmd, []string{})
@@ -451,7 +444,6 @@ func TestChangelogCommand_UIIntegration(t *testing.T) {
 	}
 
 	// Test with invalid setup to ensure error handling works
-	cmd.Flags().Set("token", "test-token")
 	cmd.Flags().Set("limit", "5")
 
 	err := cmd.RunE(cmd, []string{})
