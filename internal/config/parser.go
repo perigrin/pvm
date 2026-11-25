@@ -285,10 +285,6 @@ func mergePVMUpdateConfig(target, source *PVMUpdateConfig) {
 		target.Channel = source.Channel
 	}
 
-	if source.GitHubToken != "" {
-		target.GitHubToken = source.GitHubToken
-	}
-
 	if source.Timeout != "" {
 		target.Timeout = source.Timeout
 	}

@@ -44,13 +44,6 @@ const (
 	ChecksumBufferSize        = 64 * 1024 // 64KB buffer for streaming checksum
 )
 
-// setGitHubAuthIfAvailable sets GitHub authentication header if GH_TOKEN is available
-func setGitHubAuthIfAvailable(req *http.Request) {
-	if token := os.Getenv("GH_TOKEN"); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-}
-
 // BinaryDownloadOptions contains options for downloading Perl binaries
 type BinaryDownloadOptions struct {
 	// Version to download
@@ -248,7 +241,6 @@ func cachedBinaryIsFresh(url string, localSize int64) bool {
 	// rate-limited or private release returns non-200, and the check below
 	// would then wrongly trust a stale cache. Go strips the header on the
 	// cross-host github.com->S3 redirect, so it's safe to always set it.
-	setGitHubAuthIfAvailable(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return true // offline / server error; trust the cache
@@ -530,7 +522,6 @@ func getRemoteFileInfo(url string, ctx context.Context) (contentLength int64, su
 	if err != nil {
 		return 0, false, err
 	}
-	setGitHubAuthIfAvailable(req)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -557,7 +548,6 @@ func downloadSingle(url, destPath string, options *BinaryDownloadOptions) (*enha
 	if err != nil {
 		return nil, err
 	}
-	setGitHubAuthIfAvailable(req)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -654,7 +644,6 @@ func resumeDownload(url, destPath string, existingSize, contentLength int64, opt
 	if err != nil {
 		return nil, err
 	}
-	setGitHubAuthIfAvailable(req)
 
 	// Set Range header for resuming
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
@@ -837,7 +826,6 @@ func downloadChunk(url, chunkPath string, start, end int64, tracker *downloadPro
 	if err != nil {
 		return err
 	}
-	setGitHubAuthIfAvailable(req)
 
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 
@@ -995,7 +983,6 @@ func CheckBinaryAvailabilityWithRepo(repoURL, version, platformTriple string) (b
 	}
 
 	// Add GitHub authentication if available
-	setGitHubAuthIfAvailable(req)
 
 	// Make the request
 	resp, err := client.Do(req)

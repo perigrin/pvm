@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -81,16 +80,6 @@ func FindStrawberryRelease(perlVersion string) (string, error) {
 		return "", fmt.Errorf("strawberry: create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-
-	// Support GitHub auth tokens for higher rate limits (e.g. in CI).
-	// Check GH_TOKEN first (matches binary.go convention), then GITHUB_TOKEN.
-	token := os.Getenv("GH_TOKEN")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
 
 	resp, err := client.Do(req)
 	if err != nil {

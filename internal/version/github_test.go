@@ -46,7 +46,7 @@ func TestNewGitHubClient(t *testing.T) {
 	}
 }
 
-func TestNewGitHubClient_WithEnvironmentToken(t *testing.T) {
+func TestNewGitHubClient_IgnoresEnvironmentToken(t *testing.T) {
 	// Save original environment
 	originalToken := os.Getenv("GITHUB_TOKEN")
 	defer func() {
@@ -67,8 +67,9 @@ func TestNewGitHubClient_WithEnvironmentToken(t *testing.T) {
 		t.Fatal("expected client to be created")
 	}
 
-	if client.token != testToken {
-		t.Errorf("expected token to be %s, got %s", testToken, client.token)
+	// Public reads are anonymous: GITHUB_TOKEN in the environment is not picked up.
+	if client.token != "" {
+		t.Errorf("expected token to be empty with GITHUB_TOKEN=%s set, got %s", testToken, client.token)
 	}
 }
 

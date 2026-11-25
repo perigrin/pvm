@@ -51,18 +51,13 @@ type GitHubClient struct {
 	token      string // Optional for higher rate limits
 }
 
-// NewGitHubClient creates a new GitHub API client with automatic token detection
+// NewGitHubClient creates an anonymous GitHub API client; public repositories need no token
 func NewGitHubClient() *GitHubClient {
 	client := &GitHubClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		baseURL: "https://api.github.com",
-	}
-
-	// Automatically use GITHUB_TOKEN environment variable if available
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		client.token = token
 	}
 
 	return client

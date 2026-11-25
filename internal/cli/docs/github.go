@@ -10,7 +10,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -24,7 +23,6 @@ import (
 type GitHubDocsClient struct {
 	httpClient  *http.Client
 	baseURL     string
-	token       string
 	rateLimiter *rateLimiter
 	maxRetries  int
 	timeout     time.Duration
@@ -73,17 +71,6 @@ func NewGitHubDocsClient(docsConfig *config.DocsConfig) *GitHubDocsClient {
 		},
 		maxRetries: docsConfig.MaxRetries,
 		timeout:    timeout,
-	}
-
-	// Auto-detect GitHub token
-	token := docsConfig.GitHubToken
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
-	if token != "" {
-		client.token = token
-		client.rateLimiter.limit = 5000 // Authenticated rate limit
-		client.rateLimiter.remaining = 5000
 	}
 
 	return client
@@ -166,11 +153,6 @@ func (g *GitHubDocsClient) GetRawContent(ctx context.Context, owner, repo, branc
 		return nil, nil, errors.NewDocumentationError("001", "Failed to create raw content request", err)
 	}
 
-	// Add GitHub token if available (for private repos)
-	if g.token != "" {
-		req.Header.Set("Authorization", "token "+g.token)
-	}
-
 	req.Header.Set("User-Agent", "PVM-Docs/1.0")
 
 	resp, err := g.httpClient.Do(req)
@@ -202,11 +184,6 @@ func (g *GitHubDocsClient) GetRawContentWithCache(ctx context.Context, owner, re
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, nil, false, errors.NewDocumentationError("001", "Failed to create raw content request", err)
-	}
-
-	// Add GitHub token if available
-	if g.token != "" {
-		req.Header.Set("Authorization", "token "+g.token)
 	}
 
 	// Add cache headers for conditional request
@@ -306,11 +283,6 @@ func (g *GitHubDocsClient) doRequestWithRetry(req *http.Request) (*http.Response
 		// Check rate limit before making request
 		if err := g.checkRateLimit(); err != nil {
 			return nil, err
-		}
-
-		// Add authentication header
-		if g.token != "" {
-			req.Header.Set("Authorization", "token "+g.token)
 		}
 
 		req.Header.Set("User-Agent", "PVM-Docs/1.0")

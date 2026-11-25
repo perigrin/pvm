@@ -88,8 +88,6 @@ func CheckForUpdates(opts *CheckOptions) (*VersionCheckResult, error) {
 	switch {
 	case opts.Client != nil:
 		client = opts.Client
-	case opts.GitHubToken != "":
-		client = NewGitHubClientWithToken(opts.GitHubToken)
 	default:
 		client = NewGitHubClient()
 	}
@@ -190,8 +188,6 @@ func GetUpdateInfo(opts *CheckOptions) (*UpdateInfo, error) {
 	switch {
 	case opts.Client != nil:
 		client = opts.Client
-	case opts.GitHubToken != "":
-		client = NewGitHubClientWithToken(opts.GitHubToken)
 	default:
 		client = NewGitHubClient()
 	}

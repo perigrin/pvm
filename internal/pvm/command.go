@@ -4530,7 +4530,6 @@ func newReleaseNotesCommand() *cobra.Command {
 
 	cmd.Flags().Bool("latest", false, "Show latest release notes")
 	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
-	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
 
 	return cmd
 }
@@ -4548,25 +4547,11 @@ func executeReleaseNotesCommandWithOptions(cmd *cobra.Command, args []string, te
 	// Get flags
 	latest, _ := cmd.Flags().GetBool("latest")
 	prerelease, _ := cmd.Flags().GetBool("prerelease")
-	token, _ := cmd.Flags().GetString("token")
-
-	// Load configuration for GitHub token
-	cfg, err := config.LoadEffectiveConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Determine effective GitHub token
-	effectiveToken := token
-	if effectiveToken == "" && cfg.PVM.Update != nil {
-		effectiveToken = cfg.PVM.Update.GitHubToken
-	}
 
 	// Create check options with optional test client
 	checkOpts := &version.CheckOptions{
 		IncludePrerelease: prerelease,
 		Repository:        "perigrin/pvm",
-		GitHubToken:       effectiveToken,
 		Client:            testClient,
 	}
 
@@ -4588,8 +4573,6 @@ func executeReleaseNotesCommandWithOptions(cmd *cobra.Command, args []string, te
 	switch {
 	case testClient != nil:
 		client = testClient
-	case effectiveToken != "":
-		client = version.NewGitHubClientWithToken(effectiveToken)
 	default:
 		client = version.NewGitHubClient()
 	}
@@ -4625,7 +4608,6 @@ func newChangelogCommand() *cobra.Command {
 
 	cmd.Flags().Int("limit", 10, "Number of recent releases to show")
 	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
-	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
 
 	return cmd
 }
@@ -4643,27 +4625,12 @@ func executeChangelogCommandWithOptions(cmd *cobra.Command, args []string, testC
 	// Get flags
 	limit, _ := cmd.Flags().GetInt("limit")
 	prerelease, _ := cmd.Flags().GetBool("prerelease")
-	token, _ := cmd.Flags().GetString("token")
-
-	// Load configuration for GitHub token
-	cfg, err := config.LoadEffectiveConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Determine effective GitHub token
-	effectiveToken := token
-	if effectiveToken == "" && cfg.PVM.Update != nil {
-		effectiveToken = cfg.PVM.Update.GitHubToken
-	}
 
 	// Create GitHub client
 	var client version.GitHubClientInterface
 	switch {
 	case testClient != nil:
 		client = testClient
-	case effectiveToken != "":
-		client = version.NewGitHubClientWithToken(effectiveToken)
 	default:
 		client = version.NewGitHubClient()
 	}

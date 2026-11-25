@@ -350,7 +350,6 @@ skip_checksums = true
 		{"AutoUpdateInterval", "12h", updateCfg.AutoUpdateInterval},
 		{"Repository", "custom/repo", updateCfg.Repository},
 		{"Channel", "beta", updateCfg.Channel},
-		{"GitHubToken", "test-token", updateCfg.GitHubToken},
 		{"BackupEnabled", false, updateCfg.BackupEnabled},
 		{"AutoRollbackEnabled", false, updateCfg.AutoRollbackEnabled},
 		{"CheckPrerelease", true, updateCfg.CheckPrerelease},
