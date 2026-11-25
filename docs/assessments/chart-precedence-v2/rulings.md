@@ -85,3 +85,10 @@ The question came from round-2 findings A20, C16 and P14 (see the minute).
   - Revision 8 answers all three.
   - Round 7 runs within the bound of eight, to confirm consensus.
   - The acceptance of revision 7 is held until round 7 is done.
+
+## 2026-11-25, close of assessment
+
+There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends because the assessment reached a fixed point at round 8, on revision 9:
+
+- all ten participants recommended accept;
+- no blocking finding was held or raised.

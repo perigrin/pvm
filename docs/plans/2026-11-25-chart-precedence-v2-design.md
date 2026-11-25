@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 9, 2026-11-25. perigrin accepted revision 7 during round 6. Round 6's last report then raised three blocking findings, and perigrin ruled "Revise to rev 8, run round 7". The acceptance is held until the assessment closes.
+**Status:** accepted, 2026-11-25. Revision 9. crochet:assess reached a fixed point at round 8: all ten participants recommended accept, and no blocking finding was held or raised. perigrin's earlier acceptance of revision 7 was held after round 6's late findings, and is superseded by this outcome.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
