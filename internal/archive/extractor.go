@@ -223,11 +223,9 @@ func (e *BinaryExtractor) extractZipFile(file *zip.File, targetPath string) erro
 
 // applyExecutablePermissions sets the mode on an extracted file, masking
 // POSIX file-type bits (S_IFREG 0100000) out of tar header modes and ZIP
-// FileInfo().Mode() before passing to os.Chmod. The target binary's
-// executable bit is guaranteed separately by the updater's call to
-// platform.MakeExecutable in internal/updater/updater.go — doing it here
-// too would over-chmod every archive entry (man pages, completions) and
-// silently mark them executable.
+// FileInfo().Mode() before passing to os.Chmod. It never adds an
+// executable bit the archive did not record: doing so would over-chmod every
+// entry (man pages, completions) and silently mark them executable.
 func applyExecutablePermissions(targetPath string, raw os.FileMode) error {
 	perm := raw & os.ModePerm
 	if err := os.Chmod(targetPath, perm); err != nil {

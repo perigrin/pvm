@@ -108,7 +108,7 @@ LSP server — all in pure Go with zero external dependencies.
 
 | Capability | uv | PVM | Notes |
 |---|---|---|---|
-| Self-update | `uv self update` | `pvm self update` | |
+| Self-update | `uv self update` | — | Removed; install a new release to upgrade |
 | Version info | `uv version` | `pvm version` | |
 | Health check | — | `pvm self doctor` | |
 | Changelog | — | `pvm self changelog` | |

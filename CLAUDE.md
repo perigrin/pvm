@@ -64,8 +64,6 @@ with standard `GOOS`/`GOARCH` environment variables.
 
 ### Files Protected
 - `internal/config/types.go` - Default update repository and binary mirrors
-- `internal/updater/updater.go` - Updater default options
-- `internal/updater/auto_update.go` - Auto-update defaults
 - `internal/version/types.go` - Version check defaults
 - `internal/pvm/config.go` - PVM config defaults
 
