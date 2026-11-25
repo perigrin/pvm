@@ -68,3 +68,13 @@ The question came from round-2 findings A20, C16 and P14 (see the minute).
 
 - **"Only a `precedence` refusal's byte moves."** Finding A26 shows this is false for a `scope` refusal from narrowing. Measured: `foo plus 2 plus 3;` V1 byte 4, rerun byte 11. The earlier ruling "Narrow before recognition" already says that byte may move, and the subject follows that ruling.
 - **"Used only to classify refusals."** The referees also use the mode, in tests. The subject now says so, and the raisers judge whether that fits.
+
+## 2026-11-25, during assess round 6
+
+- **Acceptance:** "I think if 7 of 8 participants agree and there are no blockers we could move forward yeah".
+  - perigrin said this while round 6's last report, from the new fresh reader assess-fresh6, was still out.
+  - At that point:
+    - seven participants recommended accept: assess-codebase, assess-architecture, assess-pushback, assess-fresh2, assess-fresh3, assess-fresh4 and assess-fresh5;
+    - no blocking finding was held.
+  - Revision 7 is accepted.
+  - assess-fresh6's report is recorded in the minute when it arrives. If it raises a blocking finding, the finding goes to perigrin and is not answered silently.

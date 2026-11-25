@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 7, 2026-11-25.
+**Status:** accepted, 2026-11-25, by perigrin's ruling during assess round 6. Revision 7. Seven of eight participants recommended accept, and no blocking finding was held.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
