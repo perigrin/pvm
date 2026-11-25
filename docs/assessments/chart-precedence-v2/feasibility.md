@@ -6,12 +6,16 @@ Measured 2026-11-25 on pu c383f861 (a scratch worktree, since removed). Answers 
 
 **Corpus.** In-tree corpora, with `T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit`: 1,881 files. 1,842 got a forest, 3 were refused by `LibraryOperators`, and 1,839 were judged. That is the same population as design §3. perl.git `t/` was not measured.
 
-**Code.** The scratch code is kept for reproduction in `feasibility-code/` beside this file, with a `.txt` suffix so the module build ignores it. Drop the suffix when copying:
+**Code.** The scratch code is not in the tree. Design §5 replaces it with the six counters as real tests under `internal/chart`, and once those exist they are the reproduction. Until then, the scratch files are in git history at commit `488e1c7e`, under `docs/assessments/chart-precedence-v2/feasibility-code/`, with a `.txt` suffix. To recover a file, copy it with `git show` and drop the suffix:
 
-- `zz_feas.go` and `zz_feas_test.go` go in `internal/chart/forest/`.
-- `zz_feas_ratchet_test.go` goes in `internal/chart/cmd/ratchet/` as `zz_feas_test.go`.
+- `zz_feas.go.txt` and `zz_feas_test.go.txt` go in `internal/chart/forest/`.
+- `zz_feas_ratchet_test.go.txt` goes in `internal/chart/cmd/ratchet/` as `zz_feas_test.go`.
 
-To run them: `go test ./internal/chart/forest -run '^TestZZ' -v`, then `go test ./internal/chart/cmd/ratchet -run '^TestZZFeasCorpus$' -v` with T1_CORPUS set as above.
+For example: `git show 488e1c7e:docs/assessments/chart-precedence-v2/feasibility-code/zz_feas.go.txt > internal/chart/forest/zz_feas.go`.
+
+To run them, use `go test ./internal/chart/forest -run '^TestZZ' -v`. Then run `go test ./internal/chart/cmd/ratchet -run '^TestZZFeasCorpus$' -v` with T1_CORPUS set as above.
+
+The assessment minute's evidence column cites these paths as they stood when each round ran.
 
 ## 1. Per-rule reduce conflict inside a state (Q1, third bullet)
 
