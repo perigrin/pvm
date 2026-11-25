@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -73,9 +74,8 @@ func NewGitHubClientWithToken(token string) *GitHubClient {
 // doRequestWithRetry executes an HTTP request with exponential backoff for rate limiting
 func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
 	// In test environments, reduce retry behavior to prevent timeouts
-	isTestEnvironment := strings.HasSuffix(os.Args[0], ".test") ||
-		strings.Contains(os.Args[0], "_test") ||
-		os.Getenv("GO_TEST") == "1"
+	// testing.Testing also holds on Windows, where the binary is "x.test.exe".
+	isTestEnvironment := testing.Testing() || os.Getenv("GO_TEST") == "1"
 
 	if isTestEnvironment {
 		maxRetries = 1 // Only one retry in tests
