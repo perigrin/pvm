@@ -78,3 +78,10 @@ The question came from round-2 findings A20, C16 and P14 (see the minute).
     - no blocking finding was held.
   - Revision 7 is accepted.
   - assess-fresh6's report is recorded in the minute when it arrives. If it raises a blocking finding, the finding goes to perigrin and is not answered silently.
+
+## 2026-11-25, after assess round 6
+
+- **The late findings:** "Revise to rev 8, run round 7 (Recommended)". assess-fresh6's report arrived after the acceptance ruling. It recommended modify and raised three blocking findings: F6-C1, F6-C2 and F6-C3. F6-C3 is a defect for perly.y itself.
+  - Revision 8 answers all three.
+  - Round 7 runs within the bound of eight, to confirm consensus.
+  - The acceptance of revision 7 is held until round 7 is done.

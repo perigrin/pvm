@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** accepted, 2026-11-25, by perigrin's ruling during assess round 6. Revision 7. Seven of eight participants recommended accept, and no blocking finding was held.
+**Status:** proposed, for crochet:assess. Revision 8, 2026-11-25. perigrin accepted revision 7 during round 6. Round 6's last report then raised three blocking findings, and perigrin ruled "Revise to rev 8, run round 7". The acceptance is held until round 7 is done.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -132,7 +132,7 @@ Both verdicts come from V1's generated tables, read as they are. V2 adds no prec
 
 The recognizer judges precedence only for a grammar that passes §3's checks. Generating its tables refuses any other grammar, as `stateFree` already refuses a state-dependent key. perly.y passes. A bison toy that fails any of the checks is judged as §5 says. Examples:
 - `emptyred` and `nullableShift` fail because their forbidden shifts are scanned by an item that does not hold `at`.
-- `empty` fails because an empty rule has a non-allow reduce verdict. The recognizer has no completion event for an empty rule: the nullable closure completes it inside the state.
+- `empty` fails because an empty rule has a non-allow reduce verdict. The recognizer has no completion event for a rule whose right-hand side is all nullable, when it spans no tokens: the nullable closure completes it inside the state.
 
 ### 4.2 The context an item carries
 
@@ -149,7 +149,9 @@ The context is the only fact an item gains. This is the bounded supersession nam
 
 ### 4.3 Collapsing contexts
 
-An item carries `none` wherever its context cannot change a verdict reachable from it. That keeps equal sets interning equal and keeps the transition cache hitting. §3 measures how often a context actually matters: 0.01% of nodes.
+The context also ties a completion to the predictor it was predicted under. A completion advances only the parent items whose context predicted it. Example: in `foo -$x * $y;`, `$x * $y` completes under binary minus and not under unary minus.
+
+An item carries `none` only where its context neither changes a verdict reachable from it nor selects among the parents it can complete into. That keeps equal sets interning equal and keeps the transition cache hitting. §3 measures how often a context actually matters: 0.01% of nodes.
 
 ### 4.4 What else changes
 
@@ -208,12 +210,13 @@ The guards are written before the recognizer changes.
   - each node's kept alternatives, in order.
 - **The perl.git reference.** `make chart-precedence-reference` grows the same comparison over perl.git `t/`.
 - **Feasibility as tests.** §3's counters become tests over the tables, so V2's assumptions are checked mechanically rather than remembered:
-  - five counters must be 0:
+  - six counters must be 0:
     - per-rule reduce conflicts;
     - parent conflicts;
     - context conflicts;
     - forbidden shifts scanned by an item that does not hold `at`, meaning shifts whose terminal is not `at`'s own next symbol;
-    - empty rules with a non-allow reduce verdict before any terminal;
+    - rules whose right-hand side is all nullable, with a non-allow reduce verdict before any terminal;
+    - core items of one state, under one context, that scan one terminal with different shift verdicts;
   - the post-narrowing terminal-set counter must list exactly set 1626.
 
   A grammar change that moves any of them fails a test.
