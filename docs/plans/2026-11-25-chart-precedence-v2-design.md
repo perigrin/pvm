@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 3, 2026-11-25.
+**Status:** proposed, for crochet:assess. Revision 4, 2026-11-25.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -59,7 +59,7 @@ V2 fails, however fast it is, if any of these happens:
   - the tdt keys, the superset keys and `readings-collapsed`.
 
   `items-per-token` and `set-reuse` describe the chart's shape and are reported, not gated. Both are taken over the files recognition accepts, a population V2 changes.
-- **A file's verdict changes.** perigrin ruled "Accept/refuse only". A verdict is accepted or refused. A refused file's reason and byte may differ from V1's (§4.4).
+- **A file's verdict changes.** perigrin ruled "Accept/refuse only". A verdict is accepted or refused. A `precedence` refusal's byte differs from V1's (§4.4).
 - **A differential finds a forest that differs from V1's.**
 
 `speed-stage-precedence-aggregate-longlived` is retired by perigrin's ruling.
@@ -120,14 +120,17 @@ The result also holds only for perly.y's current shape. §5 turns the static cou
 
 ### 4.1 Where each side is judged
 
-- **Reduce side (B), at completion.** An item completes a rule before a lookahead terminal set. The completion is refused if V1's reduce verdict forbids the rule before *every* terminal in the set. If the verdict forbids it before some terminals and not others, the completion is kept.
+- **Reduce side (B), at completion.** An item completes a rule before a lookahead terminal set. The completion is refused if V1's reduce verdict forbids the rule before every terminal in the set that can follow the rule's LHS. Terminals that cannot follow the LHS do not continue this completion. If the verdict forbids the rule before some of those terminals and not others, the completion is kept.
   - With narrowed input, the only set where this can happen is set 1626 (§3). Reaching it is a stop (§7).
-  - Where there is no lookahead, the completion is not judged on the reduce side. That covers `Options.NoLookahead`, and a recognizer given an un-narrowed lattice. Production narrows and has lookahead, so forest equality is judged there.
+  - The lookahead set always exists. `Options.NoLookahead` withholds it only from the FOLLOW filter, so the reduce side is judged under every option, and the options still do not change acceptance.
+  - A recognizer given an un-narrowed lattice applies the same rule. At the 117 tokens of §3 it keeps completions V1 drops. Forest equality is claimed for narrowed input, which is what production gives it.
   - For the six pairs whose verdict depends on the parent item (indirob and myterm before `[` and `{`), the parent item is part of the verdict.
   - Per §3, the verdict is uniform within a (state, LHS) and within a parent state. So it can be decided per completion, without splitting states.
 - **Shift side (C), at the scan.** When an item scans terminal `t`, the scan is refused if V1's shift verdict for (spine-top item, rule-position item, `t`) forbids it. Per §3, the scanning item holds the rule-position item.
 
 Both verdicts come from V1's generated tables, read as they are. V2 adds no precedence logic and does not change the tables. V1's no-map rule carries over to the hot path in recognition.
+
+The recognizer judges precedence only for a grammar that passes §3's checks. Generating its tables refuses any other grammar, as `stateFree` already refuses a state-dependent key. perly.y passes. Two bison toys fail: `emptyred` and `nullableShift`, whose forbidden shifts are scanned by an item that does not hold `at`.
 
 ### 4.2 The context an item carries
 
@@ -155,14 +158,15 @@ An item carries `none` wherever its context cannot change a verdict reachable fr
   - Recognition records which parent each completion was allowed for.
   - Build reads that record and never pairs a completion with a parent the recognizer refused.
   - The lift covers these records only.
-- **Refusal reasons are positional.** perigrin ruled "Keep 'precedence'" and "Accept/refuse only".
-  - A refused file is refused at the first set that dies. The reason is `precedence` if a precedence refusal removed an item while that set was built. Otherwise the reason is `grammar`, or `scope` when narrowing left a token with no terminal.
-  - A file V1 refused as `grammar` may now be refused as `precedence` at an earlier byte.
-  - `refused-where.txt`, `TestParseRefusalMatchesRecognition` and `pipelineReason` follow this rule, and `refused-where.txt` is regenerated.
+- **Refusal reasons are diagnosed by rerun.** perigrin ruled "Keep 'precedence'", "Accept/refuse only" and "Diagnose by rerun".
+  - When the chart refuses a file, recognition is rerun on that file in the no-precedence mode. The rerun runs first without narrowing, then with it. This reproduces V1's order: `grammar` at the first run's byte, then `scope`, then `precedence`.
+  - `lex-unmapped`, and `scope` from resolve, are decided as today.
+  - A `precedence` refusal reports the byte where the chart died, not byte 0. Every other reason and byte matches V1's.
+  - `refused-where.txt`, `TestParseRefusalMatchesRecognition` and `pipelineReason` follow this rule.
 - **Set interning and the transition cache** (`sets.go`, `cache.go`). Their keys include the context, and their values include the refusal records.
 - **Leo** (`leo.go`, `leo_memo.go`). A Leo chain must not skip a completion that precedence refuses, and its memo carries the context. `leo-disagree` stays at 0. §3 does not cover Leo, so this needs its own test (§5).
 - **`Expected`** (`expected.go`). An error reports the continuations that precedence allows. A derivation precedence forbids is not a valid continuation: each candidate terminal is judged as the lookahead.
-- **The guards.** perigrin ruled "Regenerate everything" and "Hold golden". There is no precedence off-switch, and every guard runs with precedence on:
+- **The guards.** perigrin ruled "Regenerate everything" and "Hold golden". No caller can parse with precedence off, since the no-precedence mode only classifies refusals. Every guard runs with precedence on:
   - the textbook reference recognizer and `FuzzRecognize` gain precedence;
   - the set digest, the forest digest (`forest-digest.golden`) and the brute-force outside reference are regenerated. Each regeneration is its own reviewed commit, so the old golden and the new one can be compared;
   - `resolved-forest-digest.golden` digests `Parse`'s final forest and is held byte-identical. It checks the goal for free.
@@ -171,7 +175,7 @@ An item carries `none` wherever its context cannot change a verdict reachable fr
 
 `ParseWith` stops calling `(*Forest).Constrain`. `Constrain` (V1's evaluator) and `ConstrainReference` (the old judgement) stay as test-only code beside the differentials.
 
-The forest-equality differentials need V1's output to compare against, which comes from the old pipeline: the unpruned recognizer, then Build, then `Constrain`. Under "Regenerate everything" production has no off-switch. So the old recognizer survives as a test-only copy, the way `ConstrainReference` did in V1.
+The forest-equality differentials need V1's output to compare against, which comes from the old pipeline: the unpruned recognizer, then Build, then `Constrain`. The no-precedence mode that classifies refusals is that unpruned recognizer, so the referees use it and no separate copy is kept.
 
 ## 5. Correctness
 
@@ -194,7 +198,7 @@ The guards are written before the recognizer changes.
 
   A grammar change that moves any of them fails a test.
 - **Leo.** A test where a Leo chain would cross a completion that precedence refuses. It must agree with plain Earley.
-- **The existing differentials stay.** These are production against `ConstrainReference` in forest, chart and cmd/ratchet, plus the bison toys. "Production" now means the recognizer's forest.
+- **The existing differentials stay.** These are production against `ConstrainReference` in forest, chart and cmd/ratchet, plus the bison toys. "Production" now means the recognizer's forest. The exception is the two toys that fail §3's checks (§4.1): they stay judged by `Constrain` over the no-precedence mode.
 - **The known-limit pins stay green.** V2 does not change their answers.
 - **Keys.** The 27 answer keys equal the retaken baseline's (§8).
 
@@ -203,7 +207,7 @@ The guards are written before the recognizer changes.
 - How the context and the refusal records are laid out in a set, and how the cache keys on them.
 - How the Leo memo carries the context.
 - Where the checks sit in `builder.complete` and `builder.scan`, and how they read V1's dense tables without maps.
-- How the test-only copy of the old recognizer is kept.
+- How the no-precedence mode is selected internally, so that no caller of `Parse` can turn precedence off.
 
 ## 7. Exit and Stops
 

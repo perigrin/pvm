@@ -46,3 +46,14 @@ The questions came from round-1 findings A1, A3, A9, A10, C1, P1, C9 and P6 (see
 - **Guards and keys:** "Hold golden, retire key (Recommended)".
   - `resolved-forest-digest.golden` stays byte-identical, as a V2 guard. This narrows "Regenerate everything".
   - `speed-stage-precedence-aggregate-longlived` is retired.
+
+## 2026-11-25, after assess round 2
+
+The question came from round-2 findings A20, C16 and P14 (see the minute).
+
+- **The refusal reason:** "Diagnose by rerun (Recommended)".
+  - When a file is refused, and only then, recognition is rerun without precedence, then rerun with narrowing. This reproduces V1's order exactly: grammar, then scope, then precedence.
+  - `lex-unmapped` and resolve's `scope` are unchanged.
+  - Reasons match V1's. Only a `precedence` refusal's byte moves, to where the chart died.
+  - The cost falls on refused files only.
+  - Production keeps a no-precedence mode, used only to classify refusals. This narrows "Regenerate everything"'s "no precedence off-switch". The mode classifies refusals and is not a way to parse.
