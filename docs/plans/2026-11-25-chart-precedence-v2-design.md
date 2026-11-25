@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 6, 2026-11-25.
+**Status:** proposed, for crochet:assess. Revision 7, 2026-11-25.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -130,7 +130,9 @@ The result also holds only for perly.y's current shape. §5 turns the static cou
 
 Both verdicts come from V1's generated tables, read as they are. V2 adds no precedence logic and does not change the tables. V1's no-map rule carries over to the hot path in recognition.
 
-The recognizer judges precedence only for a grammar that passes §3's checks. Generating its tables refuses any other grammar, as `stateFree` already refuses a state-dependent key. perly.y passes. Two bison toys fail: `emptyred` and `nullableShift`, whose forbidden shifts are scanned by an item that does not hold `at`.
+The recognizer judges precedence only for a grammar that passes §3's checks. Generating its tables refuses any other grammar, as `stateFree` already refuses a state-dependent key. perly.y passes. A bison toy that fails any of the checks is judged as §5 says. Examples:
+- `emptyred` and `nullableShift` fail because their forbidden shifts are scanned by an item that does not hold `at`.
+- `empty` fails because an empty rule has a non-allow reduce verdict. The recognizer has no completion event for an empty rule: the nullable closure completes it inside the state.
 
 ### 4.2 The context an item carries
 
@@ -206,16 +208,17 @@ The guards are written before the recognizer changes.
   - each node's kept alternatives, in order.
 - **The perl.git reference.** `make chart-precedence-reference` grows the same comparison over perl.git `t/`.
 - **Feasibility as tests.** §3's counters become tests over the tables, so V2's assumptions are checked mechanically rather than remembered:
-  - four counters must be 0:
+  - five counters must be 0:
     - per-rule reduce conflicts;
     - parent conflicts;
     - context conflicts;
     - forbidden shifts scanned by an item that does not hold `at`, meaning shifts whose terminal is not `at`'s own next symbol;
+    - empty rules with a non-allow reduce verdict before any terminal;
   - the post-narrowing terminal-set counter must list exactly set 1626.
 
   A grammar change that moves any of them fails a test.
 - **Leo.** A test where a Leo chain would cross a completion that precedence refuses. It must agree with plain Earley.
-- **The existing differentials stay.** These are production against `ConstrainReference` in forest, chart and cmd/ratchet, plus the bison toys. "Production" now means the recognizer's forest. The exception is the two toys that fail §3's checks (§4.1): they stay judged by `Constrain` over the no-precedence mode.
+- **The existing differentials stay.** These are production against `ConstrainReference` in forest, chart and cmd/ratchet, plus the bison toys. "Production" now means the recognizer's forest. The exception is every toy that fails §3's checks (§4.1). It stays judged by `Constrain` over the no-precedence mode.
 - **The known-limit pins stay green.** V2 does not change their answers.
 - **Keys.** The 27 answer keys equal the retaken baseline's (§8).
 
