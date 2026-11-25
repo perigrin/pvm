@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 8, 2026-11-25. perigrin accepted revision 7 during round 6. Round 6's last report then raised three blocking findings, and perigrin ruled "Revise to rev 8, run round 7". The acceptance is held until round 7 is done.
+**Status:** proposed, for crochet:assess. Revision 9, 2026-11-25. perigrin accepted revision 7 during round 6. Round 6's last report then raised three blocking findings, and perigrin ruled "Revise to rev 8, run round 7". The acceptance is held until the assessment closes.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -149,7 +149,7 @@ The context is the only fact an item gains. This is the bounded supersession nam
 
 ### 4.3 Collapsing contexts
 
-The context also ties a completion to the predictor it was predicted under. A completion advances only the parent items whose context predicted it. Example: in `foo -$x * $y;`, `$x * $y` completes under binary minus and not under unary minus.
+The context also ties a completion to the predictor it was predicted under. A completion advances only the parent items that predicted it. Example: in `foo -$x * $y;`, `$x * $y` completes under binary minus and not under unary minus.
 
 An item carries `none` only where its context neither changes a verdict reachable from it nor selects among the parents it can complete into. That keeps equal sets interning equal and keeps the transition cache hitting. §3 measures how often a context actually matters: 0.01% of nodes.
 

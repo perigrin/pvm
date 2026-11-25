@@ -1,11 +1,11 @@
 <!-- ABOUTME: Minute of the crochet:assess session on chart precedence V2, judging precedence in the recognizer. -->
-<!-- ABOUTME: Covers rounds 1 to 6 and revisions 2 to 7, ending in acceptance by perigrin's ruling during round 6: the ledger, cross-references, growth checks, per-participant records, rulings and outcomes. -->
+<!-- ABOUTME: Covers rounds 1 to 6 and revisions 2 to 7, with acceptance by perigrin's ruling during round 6 held pending round 7: the ledger, cross-references, growth checks, per-participant records, rulings and outcomes. -->
 
 ## Assessment: Chart precedence V2: judge precedence in the recognizer
 
-Recommendation: accept, by perigrin's ruling during round 6 (seven of eight accept; no blocking finding held; assess-fresh6 outstanding)
+Recommendation: acceptance held pending round 7. perigrin ruled accept during round 6 (seven of eight accept; no blocking finding held; assess-fresh6 outstanding). assess-fresh6's report then arrived with a modify and three blocking findings, and perigrin ruled "Revise to rev 8, run round 7 (Recommended)".
 
-By round: round 1, three modify; round 2, four modify; round 3, accept from assess-fresh3 and modify from the other four; round 4, modify from assess-fresh4 and accept from the other five; round 5, modify from assess-fresh5 and accept from the other six; round 6, accept from all seven reporting participants, with assess-fresh6's report outstanding when perigrin ruled.
+By round: round 1, three modify; round 2, four modify; round 3, accept from assess-fresh3 and modify from the other four; round 4, modify from assess-fresh4 and accept from the other five; round 5, modify from assess-fresh5 and accept from the other six; round 6, accept from all seven reporting participants, with assess-fresh6's report outstanding when perigrin ruled, and modify from assess-fresh6 when it arrived.
 
 - **Subject:** `docs/plans/2026-11-25-chart-precedence-v2-design.md`. Beside it, in `docs/assessments/chart-precedence-v2/`: `rulings.md`, `context-split.md`, `feasibility.md` and `feasibility-code/`. PR perigrin/pvm#646.
 - **Revisions:**
@@ -18,6 +18,7 @@ By round: round 1, three modify; round 2, four modify; round 3, accept from asse
   | 5 | de604896 | 3a89343d | `docs/plans/2026-11-25-chart-precedence-v2-design.md` | Chart precedence V2: judge precedence in the recognizer |
   | 6 | bcd26304 | a9c54728 | `docs/plans/2026-11-25-chart-precedence-v2-design.md` | Chart precedence V2: judge precedence in the recognizer |
   | 7 | 28da56fa | 5cb3ab81 | `docs/plans/2026-11-25-chart-precedence-v2-design.md` | Chart precedence V2: judge precedence in the recognizer |
+  | 8 | 2d9611db | d893c1f0 | `docs/plans/2026-11-25-chart-precedence-v2-design.md` | Chart precedence V2: judge precedence in the recognizer |
 
   Revision 1 was not assessed. The subject's status line calls itself revision 2.
 - **Revision assessed in round 1:** commit 488e1c7e, blob 487d7c51b7503e9db4fe621b330f2281ad391782. Each participant names that blob in its report and says it checked it with `git hash-object`.
@@ -34,7 +35,7 @@ By round: round 1, three modify; round 2, four modify; round 3, accept from asse
   - In round 5 it acted as raiser of the P rows still held, and raised nothing.
   - In round 6 it acted as raiser of the P rows still held, and raised P19.
   - From round 2 on it does not count as an independent participant. The independent participants are assess-architecture and assess-codebase (rounds 1 to 3), assess-fresh2 (rounds 2 to 5), assess-fresh3 (rounds 3 to 5), assess-fresh4 (rounds 4 to 6), assess-fresh5 (rounds 5 and 6) and assess-fresh6 (round 6; its report was outstanding when perigrin ruled).
-- **Sources:** round 1: `r1-architecture.md`, `r1-codebase.md` and `r1-pushback.md`. Round 2: `r2-architecture.md`, `r2-codebase.md`, `r2-pushback.md` and `r2-fresh2.md`; the author's `response-r1.md`; the rulings recorded in `rulings.md` under "after assess round 1". Round 3: `r3-architecture.md`, `r3-codebase.md`, `r3-pushback.md`, `r3-fresh2.md` and `r3-fresh3.md`; the author's `response-r2.md`; the ruling recorded under "after assess round 2". Round 4: `r4-architecture.md`, `r4-codebase.md`, `r4-pushback.md`, `r4-fresh2.md`, `r4-fresh3.md` and `r4-fresh4.md`; the author's `response-r3.md`; the entry in `rulings.md` under "during assess round 3". Round 5: `r5-architecture.md`, `r5-codebase.md`, `r5-pushback.md`, `r5-fresh2.md`, `r5-fresh3.md`, `r5-fresh4.md` and `r5-fresh5.md`; the author's `response-r4.md`. Round 6: `r6-architecture.md`, `r6-codebase.md`, `r6-pushback.md`, `r6-fresh2.md`, `r6-fresh3.md`, `r6-fresh4.md` and `r6-fresh5.md`; the author's `response-r5.md`; the entry in `rulings.md` under "during assess round 6". All reports are in the session scratchpad.
+- **Sources:** round 1: `r1-architecture.md`, `r1-codebase.md` and `r1-pushback.md`. Round 2: `r2-architecture.md`, `r2-codebase.md`, `r2-pushback.md` and `r2-fresh2.md`; the author's `response-r1.md`; the rulings recorded in `rulings.md` under "after assess round 1". Round 3: `r3-architecture.md`, `r3-codebase.md`, `r3-pushback.md`, `r3-fresh2.md` and `r3-fresh3.md`; the author's `response-r2.md`; the ruling recorded under "after assess round 2". Round 4: `r4-architecture.md`, `r4-codebase.md`, `r4-pushback.md`, `r4-fresh2.md`, `r4-fresh3.md` and `r4-fresh4.md`; the author's `response-r3.md`; the entry in `rulings.md` under "during assess round 3". Round 5: `r5-architecture.md`, `r5-codebase.md`, `r5-pushback.md`, `r5-fresh2.md`, `r5-fresh3.md`, `r5-fresh4.md` and `r5-fresh5.md`; the author's `response-r4.md`. Round 6: `r6-architecture.md`, `r6-codebase.md`, `r6-pushback.md`, `r6-fresh2.md`, `r6-fresh3.md`, `r6-fresh4.md` and `r6-fresh5.md`; the author's `response-r5.md`; the entry in `rulings.md` under "during assess round 6"; then `r6-fresh6.md` and the entry under "after assess round 6". All reports are in the session scratchpad.
 
 IDs keep each participant's own prefix:
 
@@ -45,7 +46,7 @@ IDs keep each participant's own prefix:
 - F3: assess-fresh3, a fresh participant in round 3. It says it read the design, `rulings.md`, `feasibility.md`, V1's decision and the code, and opened neither the minute, nor any `r1-*`, `r2-*`, `r3-*` or `response-*` file, nor `brief-r2.md` or `brief-r3.md`. It was resumed in round 4, and read the minute then;
 - F4: assess-fresh4, a fresh participant in round 4. It says it read the design, `rulings.md`, `feasibility.md`, `context-split.md`, the feasibility code and the code, and opened neither the minute, nor any `r1-` to `r4-` or `response-` file, nor `f2-scratch` or `fresh3-code`. It was resumed in round 5, and read the minute then;
 - F5: assess-fresh5, a fresh participant in round 5. It says it did not open the minute, the prior reports and responses, `f2-scratch`, `fresh3-code`, `fresh4-code` or briefs r2 to r5. It discloses that a repository-wide `git grep` for the governing design's filename printed four rows of the minute (A3, A23, F2-4, F3-8), and says it raises nothing on that point. It was resumed in round 6;
-- assess-fresh6, a fresh participant in round 6. No report from it was in hand when this minute was drafted, so it has no rows here.
+- F6: assess-fresh6, a fresh participant in round 6. Its ids carry a letter: F6-C for the rows it declares blocking and F6-R for its residual rows. Its report arrived after perigrin's round-6 ruling. It says it did not open the minute, any `r1-*` to `r6-*` or `response-*` file, or `f2-scratch`, `fresh3-code`, `fresh4-code` or `fresh5-code`.
 
 Each row keeps its raiser's classification as declared. After round 1 every status was `held`: that round aired views and nothing had been answered. Status changes in rounds 2 to 6 carry the round number, and only a row's raiser changed its status. A status cell keeps its history, oldest first. A row with no entry for a round was held unchanged in that round. Each row's section reference is to the revision named in its revision column.
 
@@ -159,6 +160,11 @@ Each row keeps its raiser's classification as declared. After round 1 every stat
 | F3-11 | assess-fresh3 | 6 | residual | §4.1 "passes §3's checks"; §5 "§3's counters become tests" | The fifth counter is called one of §3's, but §3 has no row for it and `feasibility.md` does not measure it. Its figure for perly.y, 0 over 13 empty rules, appears only in the author's response file. A reader cannot find the evidence for a check the design now gates on. The figure itself is right. | `grep -n -i "empty rule"` over the design matches only §4.1 and §5. Its round-3 `TestZZF3Empty` printed `empty rules=13 forbidden-or-mixed (rule,t in FOLLOW)=0`. | held | 7 (28da56fa, 5cb3ab81) |
 | F4-6 | assess-fresh4 | 6 | residual | §5 "Feasibility as tests", fifth counter; §4.1 "The recognizer has no completion event for an empty rule" | The counter pins rules with an empty right-hand side only. The nullable closure also completes, with no completion event, any longer rule whose symbols are all nullable when it spans no tokens. perly.y has 16 such rules, all allow-only today. A grammar change that gave one a non-allow verdict would keep a derivation V1 drops with all five counters still at 0. For refinement, or for F5-1's raiser to weigh. | Scratch worktree at `28da56fa`, `TestZZF6Empty`: `perly.y empty rules=13 non-allow=0; non-empty all-nullable rules=16 non-allow=0`; the failing case, `empty empty rules=2 non-allow=1; non-empty all-nullable rules=0 non-allow=0`. Code: `fresh4-code/zz_f6_test.go.txt`. It rests on the tables and `builder.complete`, not on an input. | held | 7 (28da56fa, 5cb3ab81) |
 | F5-6 | assess-fresh5 | 6 | residual | §3 table, §5 "Feasibility as tests" | §3's table and `feasibility.md` carry no row for the fifth counter; its perly.y value and its bracket exist only in this session's scratch code. The counter is also narrower than the class with no completion event: it leaves out all-nullable non-empty rules. "A sharper sentence and one table row; for refinement." | `forest_zz_f6_test.go.txt`: `perly.y: 13 empty rules; non-allow before any terminal 0 ...; all-nullable non-empty rules 16, their non-allow pairs 0`; `toy empty: non-allow before any terminal 1`. `forest_zz_f6b_test.go.txt`: a unit-empty toy (`opt ::= e %prec LOW`, `e ::=`) passes all counters, reads 0 on both wordings, and V1 keeps 2 derivations with or without the unit rule's verdict. | held | 7 (28da56fa, 5cb3ab81) |
+| F6-C1 | assess-fresh6 | 6 | blocking | §4.1 last paragraph; §5 "Feasibility as tests", fifth counter | "The recognizer has no completion event for an empty rule" holds for every rule whose right-hand side is all nullable, and the counter does not count those. A grammar passes all five counters and the recognizer accepts what V1 refuses. On perly.y the counter is "close to vacuous": its 13 empty rules carry no level, and the one leveled rule that derives the empty string, r310 `optlistexpr ::= empty %prec PREC_LOW`, is in the class the counter skips. So §4.1's "the recognizer judges precedence only for a grammar that passes §3's checks" does not hold as the checks are worded. | Toy `s: X a T Z \| X b; a: n %prec LOW; b: n T R; n: ε \| Q`, levels `nonassoc LOW`, `left T`. `NewPrecedence` accepts it. Counters: M1=0, M2=0, empty-RHS non-allow=0, forbidden shifts=0; yet `reduceAt[a ::= n, T]` = 1. `X T Z`: the unconstrained chart accepts, `Constrain` and `ConstrainReference` refuse. `a: n .` sits only in predicted state 2, which `complete` skips. Bracket: `X T R` accepted by all; perly.y wide count 0 of 16; toy `empty` trips the narrow counter. `fresh6-code/zz_f6d_test.go.txt`, `zz_f6e_test.go.txt`, `zz_f6_test.go.txt`. Argued from `complete` and the automaton's states; no V2 recognizer exists; the toy was not checked against bison. | held | 7 (28da56fa, 5cb3ab81) |
+| F6-C2 | assess-fresh6 | 6 | blocking | §4.1 "Shift side"; §5 counters 3 and 4 | An item is a state, and one transition carries every core item of the state that has the terminal next, including dot-0 items V1 never checks. No counter pins that they all get the same verdict. A grammar passes all five counters (and the committed M3 static check) while one scan must be both refused and allowed: refusing loses a sentence V1 accepts, allowing keeps one V1 refuses. On perly.y the count is 0, "so this is the guard, not today's behaviour". | Toy `s: P c \| P a \| P d X W; c: X Q; a: n X R; d: n %prec HIGH; n: ε \| M`, levels `left X`, `left HIGH`. Generation accepts. Counters: M1=0, M2=0, empty=0, forbidden shifts 1, all "terminal is `at`'s next symbol"; `ZZM3Static`: needCopiesCross=0, overKeep=0. Predicted state 2 under top `{s: P . a}` scans X for `[c: . X Q]` (not forbidden) and `[a: n . X R]` (forbidden). V1: `P X Q` accept, `P X R` refuse. Bracket: perly.y and all 13 toys count 0, and perly.y has 0 forbidden scans by an item of a predicted state. `fresh6-code/zz_f6g_test.go.txt`, `zz_f6f_test.go.txt`. | held | 7 (28da56fa, 5cb3ab81) |
+| F6-C3 | assess-fresh6 | 6 | blocking | §4.3 first sentence; §4.1 "Where each side is judged"; §4.4 refusal records | §4.3's collapse rule, followed literally, discards the context a completion needs to find the parent it was predicted under: no verdict "reachable from" the item uses it at that point, so the rule drops it, and §4.1 names two judgement sites, neither of which says a completion advances only the parents of its own context. The first corpus file with this shape differs from V1's forest, which is a §7 Stop; `context-split.md` counts 145 such nodes. The raiser says the rule is implementation detail and the answer is to move it to §6, or to say the context is kept from prediction to completion. | `foo -$x * $y;` on the committed tables. Token 1 is `{ADDOP, PERLY_MINUS}`, so two predictors meet at set 2. V1 on node `termbinop` tokens 2-5 before `;`: under `{termbinop: term ADDOP . term}` it passes r203 `term MULOP term`; under `{termunop: PERLY_MINUS . term}` it passes nothing. The only context-dependent verdict is the scan of MULOP at token 3. With `none` after it, the item completes into both parents waiting at set 2, including unary minus. Bracket: `foo -$x ** $y;` and `foo -$x;` have no node whose tops differ. `fresh6-code/zz_f6h_test.go.txt`. | held | 7 (28da56fa, 5cb3ab81) |
+| F6-R1 | assess-fresh6 | 6 | residual | §4.4 "Library operators, before recognition"; §5 forest equality inputs | When a library operator is kept, the narrowed set is not in the tables. Production must mint sets at parse time, which only tests do today, or the tables grow. No corpus token keeps a `PLUGIN_*` reading after narrowing, so no corpus differential exercises that path. | `fresh6-code/zz_f6c_test.go.txt`: "sets=1880; holding a PLUGIN_*=62; narrowed to no PLUGIN_*: empty=1, absent=0; narrowed to one: 682, absent=682". `grep "TerminalSets = append"` finds test files only. | held | 7 (28da56fa, 5cb3ab81) |
+| F6-R2 | assess-fresh6 | 6 | residual | §4.4 "Leo"; §5 "Leo" | "A Leo chain must not skip a completion that precedence refuses" is not an edge case: 51 of the 65 Leo-eligible rules have a non-allow reduce verdict before some FOLLOW terminal, so a memo's top depends on the lookahead at each use. A cost risk for the §7 exit, already covered by its stop. The promised test is easy to build on perly.y (`$a = $b + $c`). | `fresh6-code/zz_f6b_test.go.txt`: "Leo-eligible rules=65; with a non-allow reduce verdict before a FOLLOW terminal=51". | held | 7 (28da56fa, 5cb3ab81) |
 
 After round 1: 44 rows (A1–A19, C1–C13, P1–P12); by the raisers' own declarations, 17 blocking (A1–A10, C1–C4, P1–P3) and 27 residual, all held.
 
@@ -171,6 +177,8 @@ After round 4: 93 rows. Round 4 added 7 (A30, F3-10, F4-1 to F4-5): 1 declared b
 After round 5: 99 rows. Round 5 added 6 (C20, F5-1 to F5-5): 1 declared blocking (F5-1) and 5 residual. The round-5 tally is under "Round 5".
 
 After round 6, with seven of eight participants reporting: 106 rows. Round 6 added 7 (A31, C21, P19, F2-12, F3-11, F4-6, F5-6), all residual. The round-6 tally is under "Round 6".
+
+After assess-fresh6's report, which arrived after the ruling: 111 rows. It added 5 (F6-C1, F6-C2, F6-C3, F6-R1, F6-R2): 3 declared blocking and 2 residual. See "Round 6, continued".
 
 ## Round 1
 
@@ -690,3 +698,46 @@ No reporting participant recommended reject or modify. One row, F5-5, was stood 
 - No blocking finding is held. Every row ever declared or promoted blocking is released by its raiser: 32 rows across rounds 1 to 5 (17, 8, 4 and one promotion, 1, 1).
 - 60 residual rows are held, for refinement and chain-review. Seven of them, raised in round 6, are on the accepted revision's fifth counter.
 - This is not recorded as a fixed point. One participant, assess-fresh6, had not reported. The acceptance rests on perigrin's ruling, quoted above.
+
+## Round 6, continued: assess-fresh6's report and the ruling after it
+
+Everything under "Round 6" above was drafted with seven reports in hand and stands as the record of that moment. This section records what arrived afterwards.
+
+### assess-fresh6's report
+
+**assess-fresh6.** Recommendation: **modify**. It read revision 7 (28da56fa), blob 5cb3ab812cfe20097c3255f47060a79b3f42ec97, checked with `git hash-object`. A fresh read. It raised F6-C1, F6-C2 and F6-C3 (blocking) and F6-R1 and F6-R2 (residual).
+
+- It says: "On perly.y the direction holds. Every static assumption I could test against the committed tables comes out 0, including two the subject does not pin." And of its three blocking rows: "None is about direction, and each has a one-sentence fix."
+- Its axes: the codebase claims "reproduce" (it re-ran the committed static feasibility tests and reports §3's figures); architecture, "no conflict between a ruling and the subject"; direction, "Sound for perly.y".
+- For F6-C1 and F6-C2 it proposes two more counters, both 0 on perly.y today: rules with an all-nullable right-hand side, and core items of one state that scan one terminal with different verdicts. For F6-C3 it proposes moving §4.3's rule to §6, or saying the context is kept from prediction to completion.
+- It says no V2 recognizer exists, so each "the recognizer cannot" is argued from `complete`, `scan` and the automaton's states, not run, and that it did not check either toy against bison.
+- Its scratch tests are in `fresh6-code/` in the session scratchpad. It declared blocks, not stand-asides.
+
+### perigrin's ruling after round 6
+
+Recorded in `rulings.md` under "2026-11-25, after assess round 6", under the heading "The late findings". perigrin's words, verbatim: "Revise to rev 8, run round 7 (Recommended)".
+
+`rulings.md` records with it:
+
+- assess-fresh6's report arrived after the acceptance ruling, recommended modify and raised three blocking findings; "F6-C3 is a defect for perly.y itself";
+- "Revision 8 answers all three.";
+- "Round 7 runs within the bound of eight, to confirm consensus.";
+- "The acceptance of revision 7 is held until round 7 is done."
+
+Revision 8 is commit 2d9611db, blob d893c1f0.
+
+### Cross-references
+
+Rows that name the same defect. Cross-referencing does not merge rows; each raiser keeps its own.
+
+- **F6-C1 / A31, C21, P19, F2-12, F4-6, F5-6, and assess-fresh3's F3-5 entry:** the fifth counter covers empty rules and not every rule whose right-hand side is all nullable. Seven raisers classed it residual in round 6; assess-fresh6 declares it blocking. Classifications differ and are recorded without resolving them. F6-C1 adds what the others did not have: a toy grammar that passes all five counters while V1 refuses a sentence the unconstrained chart accepts. P19's row says no such toy was built; F5-6's unit-empty toy read 0 on both wordings.
+- **F6-C2 / F3-5's second property:** no state scans one terminal for two core items with different verdicts. F3-5 (residual, held) measured it as 0 over 76 states on perly.y and says it is not among the counters; F6-C2 (blocking) gives a toy that passes every counter and needs two answers for one scan.
+- **F6-C3 / F3-1 / P12 / C6, F3-2 / A15:** §4.3's collapse rule. F3-1 (residual, held) says the rule "looks forward only" and that a completion must return only to parents that predicted its context; it was reasoned, not measured, and its raiser said it belongs in §6. F6-C3 (blocking) gives a perly.y input, `foo -$x * $y;`. P12 is on the two collapse rules; C6 and F3-2 on Build walking by context; A15 on mechanism in the decision.
+- **F6-R1 / P4 / F4-3:** the narrowed terminal sets for a kept operator; the same figure, 682 of 682 absent, in P4 and F6-R1.
+- **F6-R2 / C13:** Leo under precedence.
+
+### Tally and state
+
+**After assess-fresh6's report: 111 rows; 45 released; 1 stood aside (F5-5); 3 held rows are blocking (F6-C1, F6-C2, F6-C3);** 62 held rows are residual (3 of them held in part).
+
+Round 6 ends with seven accept and one modify. The acceptance perigrin ruled during round 6 is held, by perigrin's later ruling, until round 7 is done. Round 7 assesses revision 8, within the bound of eight.
