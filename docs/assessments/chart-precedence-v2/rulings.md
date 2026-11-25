@@ -57,3 +57,14 @@ The question came from round-2 findings A20, C16 and P14 (see the minute).
   - Reasons match V1's. Only a `precedence` refusal's byte moves, to where the chart died.
   - The cost falls on refused files only.
   - Production keeps a no-precedence mode, used only to classify refusals. This narrows "Regenerate everything"'s "no precedence off-switch". The mode classifies refusals and is not a way to parse.
+
+## 2026-11-25, during assess round 3
+
+- **Process:** "The goal is alignment and consensus". perigrin said this while round 3's reports were arriving, after the orchestrator suggested that a contradiction three participants had raised (C18, P17 and A27) might need perigrin's call.
+  - A finding the subject can answer goes back to its raisers to settle.
+  - Only views that do not reconcile go to perigrin.
+
+**Note on the round-2 entry.** Two clauses in the round-2 entry quote the option perigrin chose; perigrin did not say them. Round 3 measured both:
+
+- **"Only a `precedence` refusal's byte moves."** Finding A26 shows this is false for a `scope` refusal from narrowing. Measured: `foo plus 2 plus 3;` V1 byte 4, rerun byte 11. The earlier ruling "Narrow before recognition" already says that byte may move, and the subject follows that ruling.
+- **"Used only to classify refusals."** The referees also use the mode, in tests. The subject now says so, and the raisers judge whether that fits.

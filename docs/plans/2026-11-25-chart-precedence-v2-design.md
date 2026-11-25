@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 4, 2026-11-25.
+**Status:** proposed, for crochet:assess. Revision 5, 2026-11-25.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -161,12 +161,19 @@ An item carries `none` wherever its context cannot change a verdict reachable fr
 - **Refusal reasons are diagnosed by rerun.** perigrin ruled "Keep 'precedence'", "Accept/refuse only" and "Diagnose by rerun".
   - When the chart refuses a file, recognition is rerun on that file in the no-precedence mode. The rerun runs first without narrowing, then with it. This reproduces V1's order: `grammar` at the first run's byte, then `scope`, then `precedence`.
   - `lex-unmapped`, and `scope` from resolve, are decided as today.
-  - A `precedence` refusal reports the byte where the chart died, not byte 0. Every other reason and byte matches V1's.
+  - Every reason matches V1's.
+  - A `precedence` refusal reports the byte where the chart died, not byte 0.
+  - A `scope` refusal from narrowing reports where the rerun's chart died, which may differ from V1's byte. perigrin's ruling "Narrow before recognition" says that byte may move.
+  - Every other byte matches V1's.
   - `refused-where.txt`, `TestParseRefusalMatchesRecognition` and `pipelineReason` follow this rule.
 - **Set interning and the transition cache** (`sets.go`, `cache.go`). Their keys include the context, and their values include the refusal records.
 - **Leo** (`leo.go`, `leo_memo.go`). A Leo chain must not skip a completion that precedence refuses, and its memo carries the context. `leo-disagree` stays at 0. §3 does not cover Leo, so this needs its own test (§5).
 - **`Expected`** (`expected.go`). An error reports the continuations that precedence allows. A derivation precedence forbids is not a valid continuation: each candidate terminal is judged as the lookahead.
-- **The guards.** perigrin ruled "Regenerate everything" and "Hold golden". No caller can parse with precedence off, since the no-precedence mode only classifies refusals. Every guard runs with precedence on:
+- **The guards.** perigrin ruled "Regenerate everything" and "Hold golden". No caller of `Parse` can turn precedence off. The no-precedence mode has two uses:
+  - in production, it classifies refusals;
+  - in tests, it builds V1's forest for the referees (§4.5).
+
+  Every guard over perly.y runs with precedence on:
   - the textbook reference recognizer and `FuzzRecognize` gain precedence;
   - the set digest, the forest digest (`forest-digest.golden`) and the brute-force outside reference are regenerated. Each regeneration is its own reviewed commit, so the old golden and the new one can be compared;
   - `resolved-forest-digest.golden` digests `Parse`'s final forest and is held byte-identical. It checks the goal for free.
@@ -193,7 +200,11 @@ The guards are written before the recognizer changes.
   - each node's kept alternatives, in order.
 - **The perl.git reference.** `make chart-precedence-reference` grows the same comparison over perl.git `t/`.
 - **Feasibility as tests.** §3's counters become tests over the tables, so V2's assumptions are checked mechanically rather than remembered:
-  - three counters must be 0: per-rule reduce conflicts, parent conflicts and context conflicts;
+  - four counters must be 0:
+    - per-rule reduce conflicts;
+    - parent conflicts;
+    - context conflicts;
+    - forbidden shifts scanned by an item that does not hold `at`, meaning shifts whose terminal is not `at`'s own next symbol;
   - the post-narrowing terminal-set counter must list exactly set 1626.
 
   A grammar change that moves any of them fails a test.
