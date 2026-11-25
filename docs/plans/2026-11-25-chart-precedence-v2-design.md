@@ -1,6 +1,6 @@
 # Chart precedence V2: judge precedence in the recognizer
 
-**Status:** proposed, for crochet:assess. Revision 5, 2026-11-25.
+**Status:** proposed, for crochet:assess. Revision 6, 2026-11-25.
 
 **Follows:** `2026-11-23-chart-stateless-precedence.md` (V1). V1 was accepted at revision 9 and delivered as milestone chart-perly-w3. It deferred "the recognizer's reduce-side filter (V2)" to this decision.
 
@@ -183,6 +183,12 @@ An item carries `none` wherever its context cannot change a verdict reachable fr
 `ParseWith` stops calling `(*Forest).Constrain`. `Constrain` (V1's evaluator) and `ConstrainReference` (the old judgement) stay as test-only code beside the differentials.
 
 The forest-equality differentials need V1's output to compare against, which comes from the old pipeline: the unpruned recognizer, then Build, then `Constrain`. The no-precedence mode that classifies refusals is that unpruned recognizer, so the referees use it and no separate copy is kept.
+
+The bison referee (`referee.judge`, behind `precedence-disagree`) judges what production runs.
+- Today it narrows the forest to the sentence's own terminals after Build, then calls `Constrain`.
+- Under V2 it narrows the lattice to those terminals before recognition, the same way production narrows library operators. It then judges the recognizer's forest.
+
+So `precedence-disagree` checks the recognizer, and `Constrain` stays test-only.
 
 ## 5. Correctness
 
