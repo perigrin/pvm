@@ -6,7 +6,7 @@ Measured 2026-11-25 on pu c383f861 (a scratch worktree, since removed). Answers 
 
 **Corpus.** In-tree corpora, with `T1_CORPUS=/opt/corpora/PerlOnJava/src/test/resources/unit`: 1,881 files. 1,842 got a forest, 3 were refused by `LibraryOperators`, and 1,839 were judged. That is the same population as design §3. perl.git `t/` was not measured.
 
-**Code.** The scratch code is kept for reproduction in `feasibility-code/` beside this file:
+**Code.** The scratch code is kept for reproduction in `feasibility-code/` beside this file, with a `.txt` suffix so the module build ignores it. Drop the suffix when copying:
 
 - `zz_feas.go` and `zz_feas_test.go` go in `internal/chart/forest/`.
 - `zz_feas_ratchet_test.go` goes in `internal/chart/cmd/ratchet/` as `zz_feas_test.go`.
