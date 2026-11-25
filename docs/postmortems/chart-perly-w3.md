@@ -126,3 +126,18 @@ Data sources:
 - the full verify at 2a29efd2e (84 passed, plus one make test timeout under the default limit);
 - docs health (0 docs observed, 41 coverage gaps: it watches no live document here);
 - the review reports from rounds r1 to r3.
+
+## Addendum (2026-11-25): the chain was lost
+
+After this postmortem merged, the container running the session was replaced, and the git-zhi chain for this milestone went with it. It had never been synced to origin: `refs/zhi` pushes are refused by the session's git proxy (HTTP 403), and origin's chain already stopped at issue `01a17591`, so the earlier chart milestones' chains are absent from origin too.
+
+- **What survived:** everything that went through a pull request. The code, the decision and minute, the verdict runs, this postmortem.
+- **What was lost:** the milestone body's original sections, 5 of its 10 criteria, and the bodies and 78 criteria of 8 issues. The refinement and chain-review Records survive only cut at 140 characters. The review reports cited in Records are gone.
+- **Recovery:** perigrin ruled "Partial rebuild, honest" and then "Accept + export JSON". The chain was rebuilt from the session transcript, completed on 24 recovered criteria plus the resolution, and exported to `docs/assessments/chart-perly-w3/chain/`. The TDT fixtures the resolution needs were rebuilt from the committed `offline/` scripts and pinned inputs.
+- **Audit:** an independent read-only audit of pu `a95d15989` on 2026-11-24 found the code sound, with a loaded ratchet run at 3.49 and all 29 count keys unchanged. It found the record defects that the 2026-11-25 Records correction fixes.
+
+### What will we change
+
+- **Treat the chain as scratch in sessions that cannot push it.** Export it to the repository at each gate (after refinement, after chain-review, at close) in a small docs PR, and record perigrin's rulings in a committed file the day they are made.
+- **Automate the restore.** A restore script that recreates the milestone and issues from the last export through the git-zhi CLI would make this recovery one command instead of a reconstruction.
+- **Key milestone criteria on something that survives a rebuild.** This milestone's path-scope criterion keys on issue ids, which a rebuild changes. Keying it on the commit range or the PR set would survive.
