@@ -1747,7 +1747,7 @@ constraint refuses all three (`TestWaypoint2Refusals`). The generated tables (`m
 precedence: `grammar.Committed` carries it on the grammar, as `Grammar.Levels` (the declarations), each
 `Rule.Prec` (rule *r* of the grammar is rule *r* of its tables, since perly.y's port has no sequence rule) and
 `Grammar.Refused` (the four comparison chains the ledger marks refused-by-precedence, which the tables leave out),
-and `forest.NewPrecedence` reads them with the tables. The generator's unused-precedence refusal reads them too. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
+and `prectab.NewPrecedence` reads them with the tables. The generator's unused-precedence refusal reads them too. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
 since its one rule (1512) is excluded interpolation-only and the refusal would refuse it.
 
 `TestLevelDifferences` (`grammar/levels.go`) compares each level, by number, with chapter 4's level table
@@ -2499,7 +2499,14 @@ them.
 
 Spec §8, built and refereed on toy grammars (PRECTOY) and applied to `perly.y`
 (PRECPERLY). The constraint runs on a built forest,
-`f.Constrain(forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`.
+`f.Constrain(prectab.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`.
+The tables are package `prectab`'s (`prectab/prectab.go`): `Precedence`,
+`NewPrecedence`, `ParsePrecedence`, `Feasible` and the item mapping, importing
+only `grammar`, so `recognize` can import them. `Constrain`,
+`ConstrainReference` and the judgement stay in `forest` and read the tables
+through `prectab`. `Precedence.Item` maps each of the recognizer's 1,212 core
+items to its automaton item by rule and dot; the automaton's other 12 items are
+the four refused rules' (`TestPrectabItemMapping`).
 `TestWaypoint2Refusals`, the referee and the other precedence tests apply it
 to `forest.Build`'s forest, before resolve (`builtForest`), since a
 sentence's token choice, as bison read it, stands in for scope there;
@@ -2711,7 +2718,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
     `TestPipelineStagePrecedenceTimesConstrain` holds that the precedence
     stage key times `Constrain`, not the reference, on the known-divergence
     toy.
-- **The feasibility counters** (`forest/feasibility_test.go`). The V2
+- **The feasibility counters** (`forest/feasibility_test.go`, counting
+  through `prectab.Feasible`). The V2
   design's §5 pins its §3 counters as tests over the committed tables, so a
   grammar change that breaks a V2 assumption fails a test. Each reads 0 on
   `perly.y`, logs its count over its denominator, and counts every synthetic
@@ -2731,6 +2739,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `TestFeasibilityClosingTerminalsHaveNoLevel` pins that `;`, `}` and EOF
   carry no precedence level, which is why the recognizer's closing sets,
   which add `;`, agree with V1's slipper judgement.
+  `prectab.Feasible` is the six counters as one refusal over a grammar's
+  tables; `NewPrecedence` does not call it, so the toys that fail it still
+  load and `Constrain` still judges them (`TestFeasibleRefusesFailingToys`).
   `TestFeasibilityNarrowedMixedSets` lists the terminal sets, `;` added
   beside `}`, holding two terminals of some rule's FOLLOW(LHS) with different
   reduce verdicts: 63 of the 1,880 un-narrowed, and narrowed to at most one
