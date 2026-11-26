@@ -313,16 +313,20 @@ func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
 func TestFeasibilityCoreItemsShiftAgree(t *testing.T) {
 	tab, p := feasibilityTables(t)
 	groups, conflicts, dot0 := scanDisagreements(tab, p)
-	t.Logf("perly.y: %d of %d groups (%d with a dot-0 item)", conflicts, groups, dot0)
-	if conflicts != 0 || groups == 0 {
-		t.Errorf("(state, context, terminal) groups whose core items disagree: %d of %d", conflicts, groups)
+	t.Logf("perly.y: %d of %d groups (%d with a dot-0 item)", len(conflicts), groups, dot0)
+	if len(conflicts) != 0 || groups == 0 {
+		t.Errorf("(state, context, terminal) groups whose core items disagree: %d of %d", len(conflicts), groups)
 	}
 
+	// Its one collision is under the spine top s: P . a, where a: n . X R is forbidden X and the dot-0 c: . X Q is
+	// allowed. Under none, a dot-0 item judged forbidden would collide instead, so the context pins F6-R3.
 	t.Run("scancollide", func(t *testing.T) {
-		groups, conflicts, dot0 := scanDisagreements(scancollideToy(t))
-		t.Logf("scancollide: %d of %d groups, %d with a dot-0 item", conflicts, groups, dot0)
-		if conflicts == 0 || dot0 == 0 {
-			t.Errorf("toy scancollide: %d of %d groups counted, %d with a dot-0 item; want its dot-0 collision counted", conflicts, groups, dot0)
+		tab, p := scancollideToy(t)
+		groups, conflicts, dot0 := scanDisagreements(tab, p)
+		top := p.base[1] + 1 // s: P . a
+		t.Logf("scancollide: %d of %d groups, %d with a dot-0 item, under contexts %v (spine top s: P . a is %d)", len(conflicts), groups, dot0, conflicts, top)
+		if !slices.Equal(conflicts, []int32{top}) || dot0 != 1 {
+			t.Errorf("toy scancollide: conflicts under contexts %v, %d with a dot-0 item; want one dot-0 collision under the spine top %d, none under none (-1)", conflicts, dot0, top)
 		}
 	})
 }
@@ -708,8 +712,9 @@ func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, 
 
 // scanDisagreements groups the core items of each state by the terminal after their dot, and judges each group of
 // two or more under every context an item can carry: none and each canonical spine top. A group conflicts where its
-// items' shift verdicts differ; a dot-0 item is allowed, never skipped. dot0 counts the conflicts with a dot-0 item.
-func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups, conflicts, dot0 int) {
+// items' shift verdicts differ; a dot-0 item is allowed, never skipped. conflicts is each conflicting group's
+// context, -1 for none; dot0 counts the conflicts with a dot-0 item.
+func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups int, conflicts []int32, dot0 int) {
 	contexts := []int32{-1}
 	for i, row := range p.topAt {
 		if row >= 0 {
@@ -737,7 +742,7 @@ func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups, conflicts, d
 					zero = zero || dot == 0
 				}
 				if len(verdicts) > 1 {
-					conflicts++
+					conflicts = append(conflicts, c)
 					if zero {
 						dot0++
 					}
