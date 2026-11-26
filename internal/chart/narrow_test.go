@@ -171,3 +171,42 @@ func TestNarrowKeptLibraryOperator(t *testing.T) {
 		t.Errorf("%q: production's forest differs from V1's: %s", src, d)
 	}
 }
+
+// TestNarrowedSetIdsStableAcrossFiles: two files keep different operators of one library, so each narrows a token to
+// a different set the committed tables lack. Parsed through one long-lived recognizer, in both orders, each gives
+// exactly the forest and refusal a fresh recognizer gives: an id is never reassigned to another set, so neither the
+// intern table nor the transition cache serves one file's transition to the other. Numbering per file would give
+// both sets one id.
+func TestNarrowedSetIdsStableAcrossFiles(t *testing.T) {
+	tab := narrowTables(t)
+	a, b := "use My::Ops; 1 plus 2 * 3;", "use My::Ops; 1 mul 2 * 3;"
+	scopes := map[string]forest.Scope{a: libopsScope(t, a), b: libopsScope(t, b)}
+	ids := map[int]bool{}
+	for _, src := range []string{a, b} {
+		l, _ := narrowedTerminals(t, tab, src, scopes[src])
+		for _, e := range l.Edges {
+			if e.Token.TerminalSet >= len(tab.TerminalSets) {
+				ids[e.Token.TerminalSet] = true
+			}
+		}
+	}
+	t.Logf("distinct narrowed sets outside the committed tables: %d", len(ids))
+	if len(ids) != 2 {
+		t.Errorf("%d narrowed sets outside the committed tables, want 2, one per file", len(ids))
+	}
+	for name, order := range map[string][]string{"a-then-b": {a, b}, "b-then-a": {b, a}} {
+		t.Run(name, func(t *testing.T) {
+			r := recognize.New(tab, recognize.Options{})
+			for _, src := range order {
+				got, gref := forest.ParseWith(tab, r, []byte(src), scopes[src])
+				want, wref := forest.Parse(tab, []byte(src), scopes[src])
+				if want == nil || gref != wref {
+					t.Errorf("%q: refusal %+v through the long-lived recognizer, %+v through a fresh one; want both accepted", src, gref, wref)
+				}
+				if d := forest.ForestDiff(got, want); d != "" {
+					t.Errorf("%q: the long-lived recognizer's forest differs from a fresh one's: %s", src, d)
+				}
+			}
+		})
+	}
+}
