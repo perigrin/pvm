@@ -2751,7 +2751,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   refuse, the set of nodes reachable from the root, and each reachable
   node's kept alternatives in order. Nodes are matched by what they derive
   (symbol, rule position and span), never by index, so a renumbered forest
-  compares equal and a node unreachable from the root is not compared. The
+  compares equal and a node unreachable from the root is not compared. Two
+  distinct reachable nodes sharing a key are a difference
+  (`TestForestDiffDuplicateKey`), never one overwriting the other. The
   V1 side (`V1Forest`, `V1ToyForest`) is the old pipeline: the recognizer
   `V1Recognizer` builds, which is only ever the unjudged one, then `Build`,
   `LibraryOperators` (for a source) and `Constrain`. The candidate
