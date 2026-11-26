@@ -39,9 +39,11 @@ type Recognizer struct {
 	tab  *grammar.Tables
 	opts Options
 	// g is the grammar-only tables, shared with every recognizer over tab;
-	// cls is the classes as this recognizer last read them from g.
+	// cls is the classes as this recognizer last read them from g, and ncls
+	// the narrowed sets' (narrow.go).
 	g     *grammarTables
 	cls   *classes
+	ncls  *classes
 	sets  interner
 	cache map[cacheKey]*cacheNode // each key's trie root
 	trie  map[cacheEdge]*cacheNode
@@ -74,7 +76,9 @@ type Recognizer struct {
 // the tables is covered by extend, under mu, which publishes new classes and
 // never writes ones already published; a set id once covered is never
 // rebuilt, so TerminalSets may be appended to but its existing sets never
-// changed. A tables value with other contents is a copy with its own part.
+// changed. narrowed is the other part written after: SetID publishes it the
+// same way, under its own lock (narrow.go). A tables value with other contents
+// is a copy with its own part.
 type grammarTables struct {
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
@@ -90,6 +94,8 @@ type grammarTables struct {
 	eofBits bitset
 	mu      sync.Mutex
 	cls     atomic.Pointer[classes]
+	// narrowed is the sets SetID named that the tables lack (narrow.go).
+	narrowed narrowedSets
 }
 
 // classes is the lookahead classes of the terminal sets with ids below
@@ -134,6 +140,7 @@ func buildGrammar(tab *grammar.Tables) *grammarTables {
 		g.follow = append(g.follow, g.bitsOf(ids))
 	}
 	g.cls.Store(&classes{})
+	g.narrowed.cls.Store(&classes{})
 	g.extend(tab)
 	return g
 }
@@ -150,18 +157,23 @@ func (g *grammarTables) extend(tab *grammar.Tables) *classes {
 	// Clipped, so append copies rather than write past what old's readers see.
 	c := &classes{terms: slices.Clip(old.terms), bits: slices.Clip(old.bits), closes: slices.Clip(old.closes)}
 	for _, ids := range tab.TerminalSets[len(old.terms):] {
-		closes := g.brace >= 0 && slices.Contains(ids, g.brace)
-		b := g.bitsOf(ids)
-		// Where a ; may be inserted, completion must also see it may follow.
-		if closes && g.semi >= 0 {
-			b.set(g.semi)
-		}
-		c.terms = append(c.terms, ids)
-		c.bits = append(c.bits, b)
-		c.closes = append(c.closes, closes)
+		g.add(c, ids)
 	}
 	g.cls.Store(c)
 	return c
+}
+
+// add appends set ids's class to c.
+func (g *grammarTables) add(c *classes, ids []int) {
+	closes := g.brace >= 0 && slices.Contains(ids, g.brace)
+	b := g.bitsOf(ids)
+	// Where a ; may be inserted, completion must also see it may follow.
+	if closes && g.semi >= 0 {
+		b.set(g.semi)
+	}
+	c.terms = append(c.terms, ids)
+	c.bits = append(c.bits, b)
+	c.closes = append(c.closes, closes)
 }
 
 // New is a recognizer over tab. The grammar-only tables are tab's shared
@@ -170,7 +182,7 @@ func (g *grammarTables) extend(tab *grammar.Tables) *classes {
 // `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
 	g := grammar.Derived(tab, buildGrammar)
-	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
+	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), ncls: g.narrowed.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where
@@ -209,19 +221,22 @@ type Chart struct {
 func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error) {
 	n := len(l.Nodes)
 	for _, e := range l.Edges {
-		if e.Token.TerminalSet >= len(r.cls.terms) {
+		switch id := e.Token.TerminalSet; {
+		case id >= NarrowedBase && id-NarrowedBase >= len(r.ncls.terms):
+			r.ncls = r.g.narrowed.cls.Load() // a set SetID named after the last refresh
+		case id < NarrowedBase && id >= len(r.cls.terms):
 			r.cls = r.g.extend(r.tab) // a set added to the tables after New
-			break
 		}
 	}
 	for i, e := range l.Edges {
+		cls, id := r.class(e.Token.TerminalSet)
 		switch {
 		case e.From < 0 || e.To >= n:
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, has a node outside the lattice's %d", i, e.From, e.To, n)
 		case e.From >= e.To:
 			return nil, fmt.Errorf("recognize: edge %d, %d to %d, does not run forward", i, e.From, e.To)
-		case e.Token.TerminalSet < 0 || e.Token.TerminalSet >= len(r.cls.terms):
-			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d", i, e.Token.TerminalSet, len(r.cls.terms))
+		case id < 0 || id >= len(cls.terms):
+			return nil, fmt.Errorf("recognize: edge %d's terminal set %d is outside the table's %d and SetID's", i, e.Token.TerminalSet, len(r.cls.terms))
 		}
 	}
 	c := &Chart{r: r, Sets: make([]*Set, n), Interned: make([]bool, n), Cached: make([]bool, n)}
@@ -269,7 +284,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		b := builder{r: r, c: c, pos: pos, interned: cacheable, items: r.itemsBuf[:0], deps: r.depsBuf[:0]}
 		for _, e := range in[pos] {
 			b.scan(e)
-			if r.cls.closes[e.Token.TerminalSet] {
+			if cls, id := r.class(e.Token.TerminalSet); cls.closes[id] {
 				b.slip(e)
 			}
 		}
@@ -391,8 +406,9 @@ func (b *builder) scan(e lex.Edge) {
 		return
 	}
 	b.read(e.From, src)
+	cls, id := b.r.class(e.Token.TerminalSet)
 	if src.core != nil {
-		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
+		for _, t := range cls.terms[id] {
 			for _, en := range b.r.awaiting(src, t) {
 				b.add(int(en.target), e.From-src.items[en.idx].Dist)
 			}
@@ -402,7 +418,7 @@ func (b *builder) scan(e lex.Edge) {
 	// shortcut: a branch set has no core, so it searches every item; give
 	// branch sets a postdot index when interleaved mode makes them common.
 	for _, it := range src.items {
-		for _, t := range b.r.cls.terms[e.Token.TerminalSet] {
+		for _, t := range cls.terms[id] {
 			if k, ok := b.r.goTo(it.State, t); ok {
 				b.add(k, e.From-it.Dist)
 			}
@@ -516,14 +532,16 @@ func (r *Recognizer) lookahead(out []int) (int, bitset) {
 		if s != out[0] {
 			u := newBitset(r.g.eof + 1)
 			for _, s := range out {
-				for i, w := range r.cls.bits[s] {
+				cls, id := r.class(s)
+				for i, w := range cls.bits[id] {
 					u[i] |= w
 				}
 			}
 			return -1, u
 		}
 	}
-	return out[0], r.cls.bits[out[0]]
+	cls, id := r.class(out[0])
+	return out[0], cls.bits[id]
 }
 
 // bitset is a fixed-size set of small integers.

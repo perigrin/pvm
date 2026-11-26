@@ -240,7 +240,8 @@ func ownDir(path string) []string { return []string{filepath.Dir(path)} }
 
 // chartInputs are the real sides over srcs. The chart's verdict is the whole
 // pipeline, forest.Parse under the file's scope facts; its counts are
-// recognition's, chart/lex then a fresh recognizer. Recursive descent follows
+// recognition's, chart/lex, forest.Narrow under the file's scope, then a fresh
+// recognizer. Recursive descent follows
 // `use` as psc does, and its tree gives the scope facts (parse.Imports), each
 // file parsed once; perl is the committed labels. The speed side's recursive
 // descent stays bare (speedParse).
@@ -276,7 +277,9 @@ func chartInputs(tab *grammar.Tables, srcs map[string][]byte, excluded map[strin
 					r.Terminals += len(tab.TerminalSets[t.TerminalSet])
 				}
 			}
-			c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
+			// Terminals above stays the un-narrowed tokens' committed sets; recognition is production's, on the lattice
+			// narrowed under the file's scope, whose narrowed ids never index tab.TerminalSets.
+			c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), forest.Narrow(tab, s, srcs[path], scope(path)))
 			if err != nil {
 				return r, err
 			}

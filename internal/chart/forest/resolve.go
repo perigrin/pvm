@@ -10,6 +10,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/lexer"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -626,8 +627,18 @@ func buildPluginGrammar(tab *grammar.Tables) *pluginGrammar {
 
 // libraryOperators drops from f each PLUGIN_* reading but the one toke.c's tokentype_for_plugop gives the library
 // operator of the token's spelling whose use ends before it (the last such), then every alternative left without a
-// derivation. It returns what prune does.
+// derivation. It returns what prune does. It is V1's pass: production narrows the lattice instead (narrow).
 func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+	r := deadPlugins(tab, s, src, scope)
+	if len(r.dead) == 0 {
+		return -1
+	}
+	return r.prune(f)
+}
+
+// deadPlugins is a resolver of s whose dead are libraryOperators' (token, terminal) pairs, read from the token stream
+// and the scope alone.
+func deadPlugins(tab *grammar.Tables, s *lex.Stream, src []byte, scope Scope) *resolver {
 	g := grammar.Derived(tab, buildPluginGrammar)
 	r := &resolver{tab: tab, s: s, src: src, n: len(s.Tokens), dead: map[[2]int]bool{}}
 	var from []int
@@ -652,10 +663,32 @@ func libraryOperators(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte,
 			}
 		}
 	}
+	return r
+}
+
+// narrow is s's lattice with libraryOperators' dead readings left out of each token's set, before recognition, and
+// whether any was: a narrowed set the tables lack takes recognize.SetID's id, and the stream keeps its own sets.
+func narrow(tab *grammar.Tables, s *lex.Stream, src []byte, scope Scope) (*lex.Lattice[lex.None], bool) {
+	l := lex.Linear(s)
+	r := deadPlugins(tab, s, src, scope)
 	if len(r.dead) == 0 {
-		return -1
+		return l, false
 	}
-	return r.prune(f)
+	plugins := grammar.Derived(tab, buildPluginGrammar).sets
+	for k, t := range s.Tokens {
+		if plugins[t.TerminalSet] {
+			set := slices.DeleteFunc(slices.Clone(tab.TerminalSets[t.TerminalSet]), func(x int) bool { return r.dead[[2]int{k, x}] })
+			l.Edges[k].Token.TerminalSet = recognize.SetID(tab, set)
+		}
+	}
+	return l, true
+}
+
+// Narrow is s's lattice narrowed to the library operators scope brings in, as Parse recognizes it (narrow), for the
+// ratchet's direct recognize.Recognize callers.
+func Narrow(tab *grammar.Tables, s *lex.Stream, src []byte, scope Scope) *lex.Lattice[lex.None] {
+	l, _ := narrow(tab, s, src, scope)
+	return l
 }
 
 // statementEnd is the byte after the statement starting at byte at: its ; outside brackets, the } closing a BEGIN

@@ -30,8 +30,8 @@ var stageKeys = []string{
 	"speed-stage-readings-aggregate-longlived",
 }
 
-// One file each that the chart, LibraryOperators (under an empty Scope), the constraint and resolve refuse, and one
-// none does.
+// One file each that the chart, narrowing (under an empty Scope), the constraint and resolve refuse, and one none
+// does.
 var stageSrcs = map[string][]byte{
 	"chart.pl": []byte("my $x = ;\n"), "libop.pl": []byte("1 plus 2;\n"), "prec.pl": []byte("1 <=> 2 <=> 3;\n"),
 	"resolve.pl": []byte("print FH x 3;\n"), "ok.pl": []byte("my $x = 1 + 2 * 3;\n"),
@@ -47,18 +47,18 @@ func forestDigest(f *forest.Forest) string {
 	return fmt.Sprintf("%x", sha256.Sum256(fmt.Append(nil, f.Root, f.Nodes, f.Alts)))
 }
 
-// libopForest is src's forest after LibraryOperators under scope, nil where the chart or LibraryOperators refuses it;
-// with prec, also after the constraint, nil where it refuses.
-func libopForest(t *testing.T, tab *grammar.Tables, src []byte, scope forest.Scope, prec *prectab.Precedence) *forest.Forest {
+// narrowedForest is src's forest of its lattice narrowed under scope (forest.Narrow), as ParseWith recognizes it, nil
+// where the chart refuses it; with prec, also after the constraint, nil where it refuses.
+func narrowedForest(t *testing.T, tab *grammar.Tables, src []byte, scope forest.Scope, prec *prectab.Precedence) *forest.Forest {
 	t.Helper()
 	s, _ := lex.Lex(src, tab.Tokens)
-	l := lex.Linear(s)
+	l := forest.Narrow(tab, s, src, scope)
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f := forest.Build(tab, c, l)
-	if f == nil || forest.LibraryOperators(tab, f, s, src, scope) >= 0 || prec != nil && !f.Constrain(prec) {
+	if f == nil || prec != nil && !f.Constrain(prec) {
 		return nil
 	}
 	return f
@@ -87,8 +87,8 @@ func fakeStageProtocol(now *time.Duration, stderr io.Writer) Protocol {
 
 // TestPipelineStageKeys: the three keys follow the forest's stage key in the print order; on the fake clock the
 // constraint costs 1, resolve 2 and the readings count 4 per file against recursive descent's 10, so each key reads
-// its own stage alone (0.1, 0.2, 0.4), printed as a number; and the precedence stage is handed the forest after
-// LibraryOperators under the file's own scope, which here differs from an empty Scope's.
+// its own stage alone (0.1, 0.2, 0.4), printed as a number; and the precedence stage is handed the forest of the
+// lattice narrowed under the file's own scope, which here differs from an empty Scope's.
 func TestPipelineStageKeys(t *testing.T) {
 	i := slices.Index(keys, "speed-stage-forest-aggregate-longlived")
 	if i < 0 || len(keys) < i+4 || !slices.Equal(keys[i+1:i+4], stageKeys) {
@@ -105,19 +105,19 @@ func TestPipelineStageKeys(t *testing.T) {
 		}
 		return forest.Scope{}
 	}
-	if libopForest(t, tab, srcs["ops.pl"], forest.Scope{}, nil) != nil {
-		t.Fatal("ops.pl survives LibraryOperators under an empty Scope, so the test cannot tell the scopes apart")
+	if narrowedForest(t, tab, srcs["ops.pl"], forest.Scope{}, nil) != nil {
+		t.Fatal("ops.pl survives narrowing under an empty Scope, so the test cannot tell the scopes apart")
 	}
 	want := map[string]string{}
 	for p, src := range srcs {
-		if want[p] = forestDigest(libopForest(t, tab, src, scope(p), nil)); want[p] == "nil" {
+		if want[p] = forestDigest(narrowedForest(t, tab, src, scope(p), nil)); want[p] == "nil" {
 			t.Fatalf("%s is refused before the constraint under its own scope", p)
 		}
 	}
 	var now time.Duration
 	wrapStages(t, func(i int, in stageInput) {
 		if i == 0 && forestDigest(in.f) != want[in.path] {
-			t.Errorf("the precedence stage ran %s on a forest other than the one after LibraryOperators under its scope", in.path)
+			t.Errorf("the precedence stage ran %s on a forest other than the one of its lattice narrowed under its scope", in.path)
 		}
 		now += 1 << i
 	})
@@ -151,7 +151,7 @@ func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 	files := slices.Sorted(maps.Keys(stageSrcs))
 	afterConstraint := map[string]string{}
 	for _, p := range []string{"resolve.pl", "ok.pl"} {
-		afterConstraint[p] = forestDigest(libopForest(t, tab, stageSrcs[p], forest.Scope{}, prec))
+		afterConstraint[p] = forestDigest(narrowedForest(t, tab, stageSrcs[p], forest.Scope{}, prec))
 	}
 	seen := make([]map[string]bool, len(stageKeys))
 	for i := range seen {
@@ -220,8 +220,8 @@ func TestPipelineStagesSeeFreshInputEachPass(t *testing.T) {
 	}
 }
 
-// TestPipelineStagesReproduceParseWith: over every file of the in-tree T1 corpus, LibraryOperators under the file's
-// own scope, then the constraint, resolve and the readings count, run as the stage keys run them, refuse where
+// TestPipelineStagesReproduceParseWith: over every file of the in-tree T1 corpus, the forest of the lattice narrowed
+// under the file's own scope, then the constraint, resolve and the readings count, run as the stage keys run them, refuse where
 // forest.ParseWith refuses, for the same reason, and count the same readings where it accepts.
 func TestPipelineStagesReproduceParseWith(t *testing.T) {
 	tab := committedTables(t)

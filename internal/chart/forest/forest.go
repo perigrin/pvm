@@ -89,15 +89,18 @@ type Refusal struct {
 	Reason string
 }
 
-// Parse recognizes src over tab's grammar, the committed perly.y's, and, where
+// Parse recognizes src over tab's grammar, the committed perly.y's, on its
+// lattice narrowed to the library operators in scope (Narrow), and, where
 // the chart accepts it, builds its forest, applies the precedence constraint
 // (precedence.go), resolves it under scope (resolve.go) and counts its
 // statements' readings (readings.go). A refused file
 // has a refusal and no forest: at the token whose set died, or the end of
 // the file, lex-unmapped where that is the first token no terminal admits,
-// else grammar (recognition's rule, testdata/port/refused-where.txt);
-// precedence, where the constraint leaves the root no derivation; or scope,
-// where resolve leaves the forest none.
+// else grammar (recognition's rule, testdata/port/refused-where.txt), each
+// read from the un-narrowed rerun where narrowing changed the lattice; scope,
+// at the narrowed chart's byte, where only narrowing refused it, or where
+// resolve leaves the forest no derivation; or precedence, where the
+// constraint leaves the root none.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	return ParseWith(tab, recognize.New(tab, recognize.Options{}), src, scope)
 }
@@ -122,29 +125,19 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 	return f, s, Refusal{}
 }
 
-// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is.
+// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is. The
+// lattice is narrowed before recognition (Narrow), so a library operator's dead reading never reaches the chart.
 func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
-	l := lex.Linear(s)
+	l, narrowed := narrow(tab, s, src, scope)
 	c, err := recognize.Recognize(r, l)
 	if err != nil {
 		return nil, s, Refusal{Reason: err.Error()}
 	}
 	if !c.Accepted() {
-		at := len(src) // every set survived: the file ends too soon
-		if d := slices.Index(c.Sets, nil); d > 0 {
-			at = s.Raw[s.Tokens[d-1].Index].Start
-		}
-		if at == unmapped { // its empty set is where recognition died
-			return nil, s, Refusal{Byte: at, Reason: "lex-unmapped"}
-		}
-		return nil, s, Refusal{Byte: at, Reason: "grammar"}
+		return nil, s, refusal(tab, c, s, len(src), unmapped, narrowed)
 	}
 	f := Build(tab, c, l)
-	// Before the constraint, which then reads a library operator's reading as perly.y does.
-	if at := libraryOperators(tab, f, s, src, scope); at >= 0 {
-		return nil, s, Refusal{Byte: at, Reason: "scope"}
-	}
 	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		return nil, s, Refusal{Reason: err.Error()}
@@ -155,6 +148,41 @@ func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte,
 		return nil, s, Refusal{Reason: "precedence"}
 	}
 	return f, s, Refusal{}
+}
+
+// refusal is why c, the refused chart of s's lattice, refuses a file of size bytes whose first unmapped token is at
+// byte unmapped. Where the lattice was narrowed and c died elsewhere, recognition is rerun on the un-narrowed lattice
+// with a recognizer of its own, so the caller's serves one mode only: if the rerun dies, wherever it dies, its byte
+// and V1's rule decide the reason; if it accepts, narrowing refused the file, scope at c's byte.
+func refusal(tab *grammar.Tables, c *recognize.Chart, s *lex.Stream, size, unmapped int, narrowed bool) Refusal {
+	at := diedAt(c, s, size)
+	if narrowed && at != unmapped { // at the first unmapped token the un-narrowed run dies too
+		reruns.Add(1)
+		rc, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
+		if err != nil {
+			return Refusal{Reason: err.Error()}
+		}
+		if rc.Accepted() {
+			return Refusal{Byte: at, Reason: "scope"}
+		}
+		at = diedAt(rc, s, size)
+	}
+	if at == unmapped { // its empty set is where recognition died
+		return Refusal{Byte: at, Reason: "lex-unmapped"}
+	}
+	return Refusal{Byte: at, Reason: "grammar"}
+}
+
+// reruns counts refusal's reruns, for the test that a lex-unmapped refusal makes none.
+var reruns atomic.Int64
+
+// diedAt is the byte where c, a refused chart of s, died: the token whose set is empty, or size, the end of the file,
+// where every set survived and the file ends too soon.
+func diedAt(c *recognize.Chart, s *lex.Stream, size int) int {
+	if d := slices.Index(c.Sets, nil); d > 0 {
+		return s.Raw[s.Tokens[d-1].Index].Start
+	}
+	return size
 }
 
 // builder holds what the chart proved, and the forest built from it.
@@ -332,7 +360,7 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], to
 	b.steps += len(b.facts)
 	b.node = make([]int32, len(b.facts))
 	for k, e := range l.Edges {
-		b.leafAt[k+1] = b.leafAt[k] + len(tab.TerminalSets[e.Token.TerminalSet])
+		b.leafAt[k+1] = b.leafAt[k] + len(c.Terminals(e.Token.TerminalSet))
 	}
 	b.leaf = make([]int32, b.leafAt[len(l.Edges)])
 	b.Root = b.child(tab.Start, 0, n-1)
@@ -456,7 +484,7 @@ func (b *builder) child(sym, from, to int) int32 {
 	if to != from+1 {
 		return 0
 	}
-	i, ok := slices.BinarySearch(b.tab.TerminalSets[b.l.Edges[from].Token.TerminalSet], sym)
+	i, ok := slices.BinarySearch(b.c.Terminals(b.l.Edges[from].Token.TerminalSet), sym)
 	if !ok {
 		return 0
 	}

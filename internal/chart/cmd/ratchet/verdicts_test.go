@@ -13,7 +13,10 @@ import (
 	"sync"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
 
 // vfile is one stubbed file: what each side says about it.
@@ -386,4 +389,62 @@ func TestLabelVerdicts(t *testing.T) {
 			t.Errorf("%s: %+v, want %+v", path, got, want)
 		}
 	}
+}
+
+// TestTerminalsPerTokenCountsUnnarrowedTokens: chartInputs sums terminals-per-token's terminals over the un-narrowed
+// tokens' committed sets, whatever lattice it recognizes. On a file whose `plus` has PLUGIN_* readings no scope keeps,
+// that sum is above the narrowed lattice's, which counting after narrowing would give and which would lower the answer
+// key (a design §7 stop); over the in-tree corpus it equals the sum computed from lex.Lex alone.
+func TestTerminalsPerTokenCountsUnnarrowedTokens(t *testing.T) {
+	tab := committedTables(t)
+	// sums is src's terminals over its mapped tokens, un-narrowed and narrowed under an empty scope.
+	sums := func(t *testing.T, src []byte) (un, narrowed int) {
+		t.Helper()
+		s, _ := lex.Lex(src, tab.Tokens)
+		l := forest.Narrow(tab, s, src, forest.Scope{})
+		c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k, tk := range s.Tokens {
+			if tk.TerminalSet != 0 {
+				un += len(tab.TerminalSets[tk.TerminalSet])
+				narrowed += len(c.Terminals(l.Edges[k].Token.TerminalSet))
+			}
+		}
+		return un, narrowed
+	}
+	t.Run("dead-plugin-reading", func(t *testing.T) {
+		srcs := map[string][]byte{"plus.pl": []byte("foo plus 2;\n")}
+		r, err := chartInputs(tab, srcs, nil, nil, ownDir).Chart("plus.pl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		un, narrowed := sums(t, srcs["plus.pl"])
+		t.Logf("chartInputs %d terminals; un-narrowed %d, narrowed %d", r.Terminals, un, narrowed)
+		if r.Terminals != un || un <= narrowed {
+			t.Errorf("chartInputs counts %d terminals; want the un-narrowed %d, above the narrowed %d", r.Terminals, un, narrowed)
+		}
+	})
+	t.Run("corpus", func(t *testing.T) {
+		t.Chdir("../../../..")
+		files, srcs, err := corpus()
+		if err != nil {
+			t.Fatal(err)
+		}
+		in := chartInputs(tab, srcs, nil, nil, realDirs)
+		got, want := 0, 0
+		for _, f := range files {
+			r, err := in.Chart(f.Path)
+			if err != nil {
+				t.Fatalf("%s: %v", f.Path, err)
+			}
+			un, _ := sums(t, srcs[f.Path])
+			got, want = got+r.Terminals, want+un
+		}
+		t.Logf("%d files: chartInputs %d terminals, lex.Lex %d", len(files), got, want)
+		if len(files) < minCorpusFiles || got != want {
+			t.Errorf("%d files: chartInputs counts %d terminals, lex.Lex's un-narrowed sets %d; want equal over at least %d files", len(files), got, want, minCorpusFiles)
+		}
+	})
 }

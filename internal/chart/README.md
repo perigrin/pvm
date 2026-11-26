@@ -487,6 +487,10 @@ To take a baseline after an intended change, run
   (`TestRatchetVerdictIsPipeline`, `TestRatchetCountsPipelineOverRefusal`).
   `leo-disagree`, `items-per-token`, `set-reuse`, `terminals-per-token` and
   `lex-unmapped` stay recognition's (`TestRecognitionKeysUnchangedByPipeline`).
+  `items-per-token` and `set-reuse` are read from recognizing the lattice
+  `forest.Narrow` narrows under the file's scope, the run production makes;
+  `terminals-per-token` stays the un-narrowed tokens' committed sets
+  (`TestTerminalsPerTokenCountsUnnarrowedTokens`).
 - **The oracle keys** sum `gradeOracle`'s sites (below, "Per-site
   grading") over `in-tree.txt`, `t1.txt` and `perlgit.txt`: `oracle-wrong`
   is the chart's WRONG sites, `oracle-exact-chart` its EXACT ones and
@@ -531,7 +535,7 @@ To take a baseline after an intended change, run
 | `tdt-aligned` | tokens aligned with perl's `-DT` | may not fall |
 | `tdt-mismatch` | aligned tokens whose terminal set misses perl's | 0 from completion |
 | `tdt-unseen` | table pairs perl's `-DT` never showed | may not rise from completion |
-| `terminals-per-token` | the table's width: terminals per mapped token (a token the table cannot map holds none and is not counted) | may not rise from completion |
+| `terminals-per-token` | the table's width: terminals per mapped token, over the un-narrowed tokens' committed sets (a token the table cannot map holds none and is not counted) | may not rise from completion |
 | `tdt-unseen-unlisted` | `tdt-unseen` pairs not on the reviewed list | 0 from completion |
 | `tdt-unaligned-unlisted` | unaligned tokens outside a reviewed fitting family | 0 from completion |
 | `lex-overhead` | chart/lex time over `lexer.Tokenize` time, long-lived, on the two psc latency buffers: the larger of the `std5k.pl` and `edit5k.pl` figures, each the median of three, each pass lexing its buffer 25 times | timing; ≤ 1.3 absolutely |
@@ -540,10 +544,10 @@ To take a baseline after an intended change, run
 | `speed-ratio-std5k-longlived` | chart over recursive descent on `std5k.pl`, long-lived (§9.3) | timing |
 | `speed-ratio-aggregate-longlived` | the same over the aggregate, long-lived | timing |
 | `speed-ratio-aggregate-perfile` | the same over the aggregate, a fresh recognizer per file over tables already derived; renamed from `speed-ratio-aggregate-cold` (review Q1) because since CTORONCE (01a1b913-414b) a later `recognize.New` no longer derives tables, so the old key fell from 4.99 to 2.72 by redefinition, not by recognition getting faster; not comparable with cold figures from before CTORONCE | timing |
-| `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, `lex.Linear`) over recursive descent, over the aggregate, long-lived | timing |
+| `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, then `forest.Narrow` under the file's own scope, as `forest.Parse` narrows) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `speed-stage-precedence-aggregate-longlived` | the precedence constraint alone (`(*forest.Forest).Constrain`), on a fresh copy per pass of each file's forest after `forest.LibraryOperators` under the file's own scope, the same way | timing |
+| `speed-stage-precedence-aggregate-longlived` | the precedence constraint alone (`(*forest.Forest).Constrain`), on a fresh copy per pass of each file's forest of its lattice narrowed (`forest.Narrow`) under the file's own scope, the same way | timing |
 | `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest after the constraint, the same way | timing |
 | `speed-stage-readings-aggregate-longlived` | the readings count alone (`(*forest.Forest).CountReadings`), on a fresh copy per pass of each file's forest after resolve, the same way | timing |
 | `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition, the forest, the precedence constraint, resolve and the readings count) | timing |
@@ -667,7 +671,7 @@ clock and a collector, so it is tested on fake timings
   `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`). Each of
   `speed-stage-lex-*`, `speed-stage-recognize-*` and `speed-stage-forest-*`
   times only its own stage against recursive descent, long-lived, its inputs
-  prepared once outside the span (lattices for recognize, charts for the
+  prepared once outside the span (narrowed lattices for recognize, charts for the
   forest; a file the chart refuses has no forest, so `forest.Build` returns
   nil at once), so the forest key times the build after
   recognition as `forest.Bench` does, not `forest.Parse`, which runs all
@@ -680,10 +684,10 @@ clock and a collector, so it is tested on fake timings
   `speed-stage-resolve-aggregate-longlived` and
   `speed-stage-readings-aggregate-longlived` time `forest.ParseWith`'s later
   stages each alone, the same way. Each stage's input is prepared once,
-  outside every span: the forest `forest.Build` makes, after
-  `forest.LibraryOperators` under the file's own scope (`rd(path).scope`,
+  outside every span: the forest `forest.Build` makes of the lattice
+  `forest.Narrow` narrows under the file's own scope (`rd(path).scope`,
   the scope the speed ratios' pipeline runs under; it carries imports only,
-  so here `LibraryOperators` prunes as under an empty `Scope`, and
+  so here narrowing drops every `PLUGIN_*` reading, as under an empty `Scope`, and
   `TestPipelineStageKeys` holds that a scope with library operators is
   honoured) for the precedence constraint; that
   forest after the constraint for resolve; and after resolve for the
@@ -696,7 +700,7 @@ clock and a collector, so it is tested on fake timings
   them. A side with no hook times exactly as before
   (`TestProtocolPrepareOutsideSpan`). **A refused file** stays in the one
   timed population every stage uses: a file the chart refuses has no forest,
-  and one `forest.LibraryOperators`, the constraint or resolve refuses has
+  and one the constraint or resolve refuses has
   no input for the stages after, which then do nothing for it; each stage
   prints how many such files it had on stderr,
   `chart-ratchet: <key>: <n> of <m> files refused before the stage`
@@ -1659,16 +1663,24 @@ a word; `CORE`, which a class names, stays: `yyl_keylookup` asks the plugin
 about it), and an operator no class names anywhere, also admit the eleven `PLUGIN_*` terminals
 (perly.go's `init`; toke.c checks a plugin in `yyl_keylookup` and `yyl_try`).
 `forest.Scope.LibraryOperators` is `parse.LibraryOperators` over the tree the
-imports come from, and before the precedence constraint `forest.Parse` keeps a
-token's `PLUGIN_*` reading only where a library operator of its spelling is in
+imports come from, and before recognition `forest.Parse` narrows the lattice
+(`forest.Narrow`), so a token keeps its `PLUGIN_*` reading only where a library operator of its spelling is in
 scope, its `use` statement ending before the token (BEGIN imports it at the
 `;`, so `use My::Ops 1 plus 2;` is refused), and only the terminal
 `grammar.LibraryTerminal` gives it: its `:infix(CLASS)` where that is one of
 perl's eleven, otherwise the first level whose anchor (`or`, `and`, `=`, `||`,
 `&&`, `==`, `+`, `*`, `**`) recursive descent places at or above it, by
 `tokentype_for_plugop`'s `<=`, and `HIGH` above them all
-(`TestPlugopLevelBoundaries`). A span left with no derivation is refused for
-scope. The precedence constraint then reads the terminal as `perly.y` does,
+(`TestPlugopLevelBoundaries`); a reading it drops never reaches the
+recognizer (`TestNarrowBeforeRecognition`). A kept operator's narrowed set
+is one the committed tables lack, so it takes an id from
+`recognize.NarrowedBase` (`recognize.SetID`), kept beside the tables value,
+never reassigned and never written into `TerminalSets`
+(`TestNarrowKeptLibraryOperator`, `TestNarrowedSetIdsStableAcrossFiles`,
+`TestNarrowLeavesCommittedTerminalSetsUnmutated`). A file the narrowed chart
+refuses is refused for scope at that chart's byte where the un-narrowed
+rerun accepts it, a byte that may differ from where V1's pruning located it
+(`foo plus 2 plus 3;`: 11, V1 4). The precedence constraint then reads the terminal as `perly.y` does,
 and the referee covers its resolutions ("The precedence constraint").
 `TestLibraryOperatorsAsPerl` holds an operator of each bucket in
 `testdata/libops/declarations/My/Ops.tpm` to perl's grouping against the core
@@ -1849,7 +1861,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   lists of terminal symbol ids; a token is read as every terminal in its
   set, so a token whose set holds several is scanned as each of them. **Id 0
   is the empty set**, so a token never given an id refuses rather than
-  scanning. `BuildTables` leaves `TerminalSets` empty; `grammar.Generate`
+  scanning. An id from `NarrowedBase` up names a set `SetID` gave a
+  narrowed lattice that the tables lack ("Library operators"); `Chart.Terminals`
+  reads either kind. `BuildTables` leaves `TerminalSets` empty; `grammar.Generate`
   fills it from the grammar's compiled token classes, and tests on toy
   grammars fill it themselves (the empty set, then one singleton set per
   terminal). Sets may be appended after `New`, and a recognizer built
@@ -2081,7 +2095,8 @@ P2 is a stop reported to perigrin.
 
 ## The forest: `forest`
 
-`forest.Parse(tab, src, scope)` lexes and recognizes `src`, then builds its shared
+`forest.Parse(tab, src, scope)` lexes `src`, narrows its lattice to the library
+operators in scope ("Library operators") and recognizes it, then builds its shared
 packed forest after recognition (spec §9.4), applies the precedence
 constraint, refusing with reason `precedence` a file whose root it leaves no
 derivation ("The precedence constraint"), resolves its scope-decided
@@ -2096,7 +2111,15 @@ port's refusal list does: the refusal is at the token whose set died, or at
 the end of the file, and is `lex-unmapped` only when that byte is the first
 token no terminal admits, else `grammar` (`TestParseRefusalMatchesRecognition`
 over `testdata/port/refused-where.txt`; an unmapped token past the dead set
-does not move it, `TestParseRefusalUnmappedAfterDeadSet`).
+does not move it, `TestParseRefusalUnmappedAfterDeadSet`). Where narrowing
+changed the lattice and the chart died anywhere but the first unmapped token,
+recognition is rerun on the un-narrowed lattice with a recognizer of its own
+(`TestRefusalRerunLeavesCallerRecognizerUntouched`): a rerun that dies gives
+the reason by the rule above at its own byte, and one that accepts makes it
+`scope` at the narrowed chart's byte (`TestRefusalRerunScopeVersusGrammar`,
+`TestRefusalRerunTieIsGrammar`, `TestRefusalRerunLaterGrammarFaultIsGrammar`,
+`TestRefusalRerunScopeThenUnmappedIsLexUnmapped`, `TestRefusalLexUnmappedNotRerun`,
+`TestRefusalEverySetAliveAtEnd`).
 
 - **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
   (state, distance), recognition stays Boolean, and nothing recognition
@@ -2771,8 +2794,10 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `V1Recognizer` builds, which is only ever the unjudged one, then `Build`,
   `LibraryOperators` (for a source) and `Constrain`. The candidate
   (`CandidateForest`, `CandidateToyForest`) is production's forest before
-  resolve, and later issues may swap it. Until the recognizer judges
-  precedence the two sides agree by construction, so
+  resolve, and later issues may swap it. The candidate narrows the lattice
+  before recognition where V1 prunes the built forest, and the two agree on
+  every input the differentials load; until the recognizer judges
+  precedence they agree by construction otherwise, so
   `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
   reordered alternatives, an added and a removed reachable node, a flipped
   verdict and a changed rule position each reported, and a renumbered forest,
