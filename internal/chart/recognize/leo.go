@@ -19,10 +19,8 @@ type memo struct {
 	// item is the state of the item awaiting B, adv its target, which
 	// completes lhs, A: what the judged recognizer reads (leoCrosses).
 	item, adv, lhs int
-	// crosses is leoCrosses' verdict on the chain from here before the
-	// lookahead crossLA, nil until one is judged.
-	crossLA bitset
-	crosses bool
+	// crosses is leoCrosses' verdict on the chain from here, per lookahead.
+	crosses map[crossKey]bool
 }
 
 // leoItems is, per (state, symbol), the LHS of the state's Leo item for that

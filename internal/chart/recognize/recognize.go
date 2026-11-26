@@ -308,7 +308,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			follows = laBits
 		}
 		if r.judge != nil {
-			b.la = laBits // the reduce side is judged under every option
+			b.la, b.laKey = laBits, lookaheadKey(la, laBits) // the reduce side is judged under every option
 		}
 		b.complete(follows)
 		var recs []refusal
@@ -383,8 +383,10 @@ type builder struct {
 	interned bool   // the node is cacheable and every set read is interned
 	slipKept []Item // the closure slip kept, for the cache
 	// la is the lookahead the reduce side judges completion before, nil
-	// where nothing is judged; refused is the refusals made (judge.go).
+	// where nothing is judged, and laKey it as Leo's crossing verdicts are
+	// keyed; refused is the refusals made (judge.go).
 	la      bitset
+	laKey   crossKey
 	refused []refusal
 }
 
