@@ -138,6 +138,7 @@ func TestNarrowWithoutLibraryOperatorsIsIdentity(t *testing.T) {
 		t.Errorf("%q: the narrowed chart's sets differ from the un-narrowed one's, or it refuses", src)
 	}
 }
+
 // TestNarrowKeptLibraryOperator: with My::Ops in scope, `plus` keeps its one PLUGIN_* reading, PLUGIN_ADD_OP, through
 // a set id the committed tables lack (C12: the corpus keeps none), and the file parses as V1 parses it.
 func TestNarrowKeptLibraryOperator(t *testing.T) {
@@ -170,4 +171,3 @@ func TestNarrowKeptLibraryOperator(t *testing.T) {
 		t.Errorf("%q: production's forest differs from V1's: %s", src, d)
 	}
 }
-

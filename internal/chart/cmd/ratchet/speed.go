@@ -279,9 +279,13 @@ func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(pa
 // and its forest stage does almost nothing.
 func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs map[string][]byte, scope func(string) forest.Scope,
 	measured map[string]string) error {
-	lexOf := func(path string) *lex.Lattice[lex.None] {
+	scopes := make(map[string]forest.Scope, len(agg)) // read outside every span, as pipelineSide reads them
+	for _, path := range agg {
+		scopes[path] = scope(path)
+	}
+	lexOf := func(path string) *lex.Lattice[lex.None] { // narrowed as forest.Parse narrows it
 		s, _ := lex.Lex(srcs[path], tab.Tokens)
-		return lex.Linear(s)
+		return forest.Narrow(tab, s, srcs[path], scopes[path])
 	}
 	recognizer := func() func(*lex.Lattice[lex.None]) *recognize.Chart {
 		r := recognize.New(tab, recognize.Options{})
@@ -314,7 +318,7 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs
 }
 
 // stageInput is one file's input to a stage after the forest: f, nil where the chart or an earlier stage refused the
-// file, and what LibraryOperators and Resolve read.
+// file, and what Resolve reads.
 type stageInput struct {
 	path  string
 	f     *forest.Forest
@@ -323,14 +327,14 @@ type stageInput struct {
 	scope forest.Scope
 }
 
-// pipelineStage is one of forest.ParseWith's stages after LibraryOperators: its key, and run, false where it refuses
-// the file.
+// pipelineStage is one of forest.ParseWith's stages after the forest: its key, and run, false where it refuses the
+// file.
 type pipelineStage struct {
 	key string
 	run func(*grammar.Tables, *prectab.Precedence, stageInput) bool
 }
 
-// pipelineStages are ParseWith's stages after LibraryOperators, in its order; tests wrap them to see their inputs.
+// pipelineStages are ParseWith's stages after the forest, in its order; tests wrap them to see their inputs.
 var pipelineStages = []pipelineStage{
 	{"speed-stage-precedence-aggregate-longlived", func(_ *grammar.Tables, p *prectab.Precedence, in stageInput) bool {
 		return in.f.Constrain(p)
@@ -346,9 +350,9 @@ var pipelineStages = []pipelineStage{
 
 // measurePipelineStages adds the three stage keys after the forest: the precedence constraint, resolve and the
 // readings count each timed alone against p's Ref (recursive descent) on agg, long-lived. Each stage's input is
-// prepared outside every span: the forest after LibraryOperators under scope(path), the scope the speed ratios'
-// pipeline runs under, then after each stage in turn; each pass times a fresh copy (stageSide). A file the chart,
-// LibraryOperators or an earlier stage refused stays in the timed population and the stage does nothing for it; each
+// prepared outside every span: the forest of the lattice narrowed under scope(path), the scope the speed ratios'
+// pipeline runs under, then after each stage in turn; each pass times a fresh copy (stageSide). A file the chart
+// or an earlier stage refused stays in the timed population and the stage does nothing for it; each
 // stage prints how many such files it had. Library operators have no key, so the stage keys do not sum to the pipeline.
 func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, scope func(string) forest.Scope,
 	measured map[string]string) error {
@@ -375,22 +379,20 @@ func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs m
 	return nil
 }
 
-// stageInputs is each file's input to the precedence stage: forest.Build's forest after LibraryOperators under
-// scope(path), nil where either refuses the file.
+// stageInputs is each file's input to the precedence stage: forest.Build's forest of the lattice forest.Narrow
+// narrows under scope(path), as ParseWith recognizes it, nil where the chart refuses the file.
 func stageInputs(tab *grammar.Tables, files []string, srcs map[string][]byte, scope func(string) forest.Scope) (map[string]stageInput, error) {
 	r := recognize.New(tab, recognize.Options{})
 	ins := make(map[string]stageInput, len(files))
 	for _, path := range files {
 		s, _ := lex.Lex(srcs[path], tab.Tokens)
-		l := lex.Linear(s)
+		in := stageInput{path: path, s: s, src: srcs[path], scope: scope(path)}
+		l := forest.Narrow(tab, s, in.src, in.scope)
 		c, err := recognize.Recognize(r, l)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		in := stageInput{path: path, f: forest.Build(tab, c, l), s: s, src: srcs[path], scope: scope(path)}
-		if in.f != nil && forest.LibraryOperators(tab, in.f, s, in.src, in.scope) >= 0 {
-			in.f = nil
-		}
+		in.f = forest.Build(tab, c, l)
 		ins[path] = in
 	}
 	return ins, nil
