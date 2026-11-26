@@ -18,10 +18,12 @@ import (
 // the grammar alone.
 type Precedence struct {
 	Tab       *grammar.Tables
-	TermLevel []int    // by symbol: a terminal's level, 0 for none
-	RuleLevel []int    // by automaton rule: its level, 0 for none
-	Assoc     []string // by level: left, right or nonassoc
-	States    []State  // state 0 is the file's start
+	TermLevel []int              // by symbol: a terminal's level, 0 for none
+	RuleLevel []int              // by automaton rule: its level, 0 for none
+	Assoc     []string           // by level: left, right or nonassoc
+	States    []State            // state 0 is the file's start
+	Rules     []grammar.BNFRule  // the automaton's rules: the tables', then the refused ones'
+	Items     []grammar.CoreItem // the automaton's items, numbered as Rules are: Base[r]+dot
 
 	// The state-free tables (decision §3.1), generated with the automaton and read by index, never through a map.
 	// Rules and items are the automaton's: the tables', then the refused ones'.
@@ -172,11 +174,19 @@ func NewPrecedence(tab *grammar.Tables, levels []grammar.Level, rulePrec []strin
 		}
 		p.States = append(p.States, st)
 	}
+	p.Rules, p.Items = rules, items
 	p.lookaheads(states, rules, items, base, byLHS)
 	if err := p.stateFree(states, rules, items, base, byLHS); err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// Item is the automaton item of the tables' core item core: the item of its rule with its dot. The tables' rules
+// keep their ids in the automaton, whose items add only the refused rules'; TestPrectabItemMapping holds the rest.
+func (p *Precedence) Item(core int) int32 {
+	it := p.Tab.Items[core]
+	return p.Base[it.Rule] + int32(it.Dot)
 }
 
 // stateFree generates the state-free tables (decision §3.1) from bison's resolution of each key in every state of
