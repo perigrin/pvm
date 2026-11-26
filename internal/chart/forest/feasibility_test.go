@@ -254,6 +254,38 @@ find:
 	})
 }
 
+// Counter 4 (design §5): every forbidden (top, at, f) shift has f equal to at's own next terminal, so the item
+// that scans f holds at.
+func TestFeasibilityShiftsOwnNextTerminal(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	forbidden, off := offAtShifts(tab, p)
+	t.Logf("perly.y: %d of %d", off, forbidden)
+	if off != 0 || forbidden != 674 {
+		t.Errorf("forbidden shifts whose terminal is not at's own next terminal: %d of %d, want 0 of 674", off, forbidden)
+	}
+
+	// The toys whose forbidden shifts are scanned by an item that does not hold at (design §4.1).
+	for _, c := range []struct {
+		name string
+		load func(*testing.T) (*grammar.Tables, *Precedence)
+	}{
+		{"emptyred", func(t *testing.T) (*grammar.Tables, *Precedence) {
+			ty := loadToy(t, "emptyred")
+			return ty.tab, ty.prec
+		}},
+		{"nullableShift", nullableShiftToy},
+		{"MarkFirstFilter", markFirstFilterToy},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			forbidden, off := offAtShifts(c.load(t))
+			t.Logf("%s: %d of %d", c.name, off, forbidden)
+			if off == 0 {
+				t.Errorf("%s: no forbidden shift counted off at's next terminal (of %d)", c.name, forbidden)
+			}
+		})
+	}
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -555,4 +587,32 @@ func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]b
 		}
 	}
 	return hit, two
+}
+
+// offAtShifts counts p's forbidden (top, at, f) shifts over every automaton item at, and of them those whose f is
+// not at's own next terminal: at is complete, a nonterminal or another terminal follows its dot, or at is a
+// refused rule's item, which no item of the tables holds.
+func offAtShifts(tab *grammar.Tables, p *Precedence) (forbidden, off int) {
+	for top, row := range p.topAt {
+		if row < 0 {
+			continue
+		}
+		for at := range p.topAt {
+			for f := range p.nt {
+				if !p.shiftForbidden(int32(top), int32(at), int32(f)) {
+					continue
+				}
+				forbidden++
+				if at >= len(tab.Items) {
+					off++
+					continue
+				}
+				it := tab.Items[at]
+				if rhs := tab.Rules[it.Rule].RHS; it.Dot >= len(rhs) || rhs[it.Dot] != f {
+					off++
+				}
+			}
+		}
+	}
+	return forbidden, off
 }

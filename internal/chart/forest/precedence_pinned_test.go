@@ -49,9 +49,7 @@ func TestPrecedenceReferenceKnownDivergence(t *testing.T) {
 // reduction wins on A there), so of P's two alternatives only P: B survives. mark's first-terminal filter is what
 // drops P: A, through the unit rule X: W (seq's m == 1 call) and through W: P Q's left child.
 func TestPrecedenceMarkFirstFilter(t *testing.T) {
-	tab, p := pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"A"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
-		[]string{"", "", "", "", "", "", "", "HIGH", "", ""},
-		"G ::= Y X", "Y ::= C", "X ::= W", "X ::= E A K", "W ::= P Q", "P ::= A", "P ::= B", "E ::= ", "Q ::= Q1", "K ::= K1")
+	tab, p := markFirstFilterToy(t)
 	l := toyLattice(tab, []string{"C", "A", "Q1"})
 	tab.TerminalSets = append(tab.TerminalSets, []int{symbol(tab, "A"), symbol(tab, "B")})
 	l.Edges[1].Token.TerminalSet = len(tab.TerminalSets) - 1
@@ -73,6 +71,13 @@ func TestPrecedenceMarkFirstFilter(t *testing.T) {
 	if kept := keptAlts(prod, pn); len(kept) != 1 || f.Nodes[f.Alts[kept[0]].Right].Sym != int32(symbol(tab, "B")) {
 		t.Errorf("P keeps %v; want only P: B", kept)
 	}
+}
+
+// markFirstFilterToy is TestPrecedenceMarkFirstFilter's toy.
+func markFirstFilterToy(t *testing.T) (*grammar.Tables, *Precedence) {
+	return pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"A"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+		[]string{"", "", "", "", "", "", "", "HIGH", "", ""},
+		"G ::= Y X", "Y ::= C", "X ::= W", "X ::= E A K", "W ::= P Q", "P ::= A", "P ::= B", "E ::= ", "Q ::= Q1", "K ::= K1")
 }
 
 // TestPrecedenceLeftParentItemDotZero: a: X %prec LOW before T is reduced after TWO and forbidden after ONE, where
