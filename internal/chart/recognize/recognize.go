@@ -76,7 +76,9 @@ type Recognizer struct {
 // the tables is covered by extend, under mu, which publishes new classes and
 // never writes ones already published; a set id once covered is never
 // rebuilt, so TerminalSets may be appended to but its existing sets never
-// changed. A tables value with other contents is a copy with its own part.
+// changed. narrowed is the other part written after: SetID publishes it the
+// same way, under its own lock (narrow.go). A tables value with other contents
+// is a copy with its own part.
 type grammarTables struct {
 	// lhs is, per state, the distinct LHS symbols of its reduce rules.
 	lhs [][]int
