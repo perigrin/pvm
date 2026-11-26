@@ -307,20 +307,24 @@ func newReferee(g *grammar.Grammar, tab *grammar.Tables, dir string) (*referee, 
 	return r, nil
 }
 
-// narrowed is s's rendering's Build forest before resolve, narrowed to s's own terminals (a token admits a set of
-// terminals, and bison read one of them); nil where recognition or the narrowing leaves no derivation. skip is the
-// token count of s's preamble.
-func (r *referee) narrowed(s precedenceSentence) (*forest.Forest, int) {
+// target is s's own terminals, which bison read, and the token count of s's preamble.
+func (r *referee) target(s precedenceSentence) (want []int32, skip int) {
 	preamble, _, _, _ := renderTerms(r.lexemes, s.terms)
-	skip := 0
 	if preamble != "" {
 		pre, _ := lex.Lex([]byte(preamble), r.tab.Tokens)
 		skip = len(pre.Tokens)
 	}
-	var want []int32
 	for _, name := range s.terms[1:] { // after GRAMPROG
 		want = append(want, r.terminal[name])
 	}
+	return want, skip
+}
+
+// narrowed is s's rendering's Build forest before resolve, narrowed to s's own terminals (a token admits a set of
+// terminals, and bison read one of them); nil where recognition or the narrowing leaves no derivation. skip is the
+// token count of s's preamble.
+func (r *referee) narrowed(s precedenceSentence) (*forest.Forest, int) {
+	want, skip := r.target(s)
 	f := builtForest(r.tab, []byte(s.rendering))
 	if f == nil || !narrow(f, want, skip) {
 		return nil, skip

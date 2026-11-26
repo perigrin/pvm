@@ -2753,7 +2753,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   refuse, the set of nodes reachable from the root, and each reachable
   node's kept alternatives in order. Nodes are matched by what they derive
   (symbol, rule position and span), never by index, so a renumbered forest
-  compares equal and a node unreachable from the root is not compared. The
+  compares equal and a node unreachable from the root is not compared. Two
+  distinct reachable nodes sharing a key are a difference
+  (`TestForestDiffDuplicateKey`), never one overwriting the other. The
   V1 side (`V1Forest`, `V1ToyForest`) is the old pipeline: the recognizer
   `V1Recognizer` builds, which is only ever the unjudged one, then `Build`,
   `LibraryOperators` (for a source) and `Constrain`. The candidate
@@ -2774,9 +2776,17 @@ grammar's tables and its precedence: no Earley item gains a fact.
   seed-44 generated sentences (`TestForestEqualityGeneratedSentences`) and a
   constructed input on which V1 keeps one node's alternatives under two
   contexts with two different non-empty sets, the union `Constrain`'s
-  `shortcut:` takes (`TestForestEqualityUnionShortcut`). The toy and
-  generated-sentence differentials each log how many inputs they compared of
-  how many they loaded. The ratchet's in-tree corpora get the same
+  `shortcut:` takes (`TestForestEqualityUnionShortcut`). It also runs over
+  every waypoint2 row (`TestForestEqualityWaypoint2`, V1's §5 pipeline, in
+  package `chart`) and every referee sentence
+  (`TestForestEqualityRefereeSentences`), where V1's path is the referee's
+  own: V1's recognizer, `Build`, `narrow`, `Constrain`, with no
+  `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`).
+  The referee comparison drops zero-width slipper `;` leaves from both sides
+  and nothing else (`TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves`).
+  The toy, generated-sentence, waypoint2 and referee differentials each log
+  how many inputs they compared of how many they loaded.
+  The ratchet's in-tree corpora get the same
   comparison, `TestForestEqualityCorpus` in `cmd/ratchet`: each file's
   candidate forest against V1's under the file's own scope
   (`TestForestEqualityCorpusUsesFileScope` for the loop's handing of it to both

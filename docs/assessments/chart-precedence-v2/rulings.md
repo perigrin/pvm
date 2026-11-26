@@ -117,3 +117,13 @@ There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends bec
   The ruling:
   - criterion 3's test name is corrected;
   - the EOF step is removed from the issue.
+
+## 2026-11-26, execute: issue `01a21447-d10d`
+
+- **d10d's invalid criterion:** "Drop 2nd alternative (Recommended)". The orchestrator wrote this defect into the issue at refinement, and chain-review did not catch it.
+  - The negative criterion's pattern was `compared ([1-9][0-9]*) of \1( |$)|compared ([1-9][0-9]*) of \1 files`.
+  - In the second alternative, `\1` refers to a group in the first. GNU grep 3.11 rejects the whole pattern with "Invalid back reference", so the criterion can never exit 0.
+  - The worker stopped, without editing the criterion. The test logs `compared 1881 of 1881 files`.
+  - The other 25 `grep -E` patterns in the chain were validated mechanically, and all are valid.
+
+  The ruling: drop the second alternative and keep `compared ([1-9][0-9]*) of \1( |$)`. That still matches the logged line, and still fails when fewer files are compared than loaded.

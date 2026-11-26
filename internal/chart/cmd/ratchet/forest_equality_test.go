@@ -121,7 +121,8 @@ func TestForestEqualityCorpusUsesFileScope(t *testing.T) {
 // (chartInputs's), shared with TestPrecedencePerlGitMatchesReference: a file's imports, as parse.Imports reads them
 // with the ratchet's own search directories. An empty scope for a file that imports is not that scope.
 // shortcut: chartInputs's scope carries Imports only, which resolve reads after the stage the differential compares,
-// so no file's forest differs with it removed; upgrade when the differential's forests are taken after resolve.
+// so no file's forest differs with it removed; upgrade when the differential's forests are taken after resolve, or
+// chartInputs's scope carries LibraryOperators.
 func TestForestEqualityFileScopeIsThePipelines(t *testing.T) {
 	t.Chdir("../../../..")
 	tab := committedTables(t)
