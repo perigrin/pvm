@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"cmp"
 	"math/bits"
 	"slices"
 
@@ -158,6 +159,11 @@ func (j *judgement) completes(state, li int, follow, la bitset, lhs, parent int)
 // parent state there.
 type refusal struct{ sym, dist, parent int32 }
 
+// cmpRefusal orders refusals by symbol, distance and parent state.
+func cmpRefusal(a, b refusal) int {
+	return cmp.Or(cmp.Compare(a.sym, b.sym), cmp.Compare(a.dist, b.dist), cmp.Compare(a.parent, b.parent))
+}
+
 // refuse records that completing lhs from origin into the state parent there was refused.
 func (b *builder) refuse(lhs, origin, parent int) {
 	b.refused = append(b.refused, refusal{int32(lhs), int32(b.pos - origin), int32(parent)})
@@ -196,15 +202,7 @@ func (b *builder) settled() []refusal {
 			out = append(out, x)
 		}
 	}
-	slices.SortFunc(out, func(a, c refusal) int {
-		if a.sym != c.sym {
-			return int(a.sym - c.sym)
-		}
-		if a.dist != c.dist {
-			return int(a.dist - c.dist)
-		}
-		return int(a.parent - c.parent)
-	})
+	slices.SortFunc(out, cmpRefusal)
 	return slices.Clone(slices.Compact(out))
 }
 
@@ -230,15 +228,7 @@ func (c *Chart) Refused(to, sym, origin, parent int) bool {
 	if c.refused == nil || to < 0 || to >= len(c.refused) {
 		return false
 	}
-	_, ok := slices.BinarySearchFunc(c.refused[to], refusal{int32(sym), int32(to - origin), int32(parent)}, func(a, x refusal) int {
-		if a.sym != x.sym {
-			return int(a.sym - x.sym)
-		}
-		if a.dist != x.dist {
-			return int(a.dist - x.dist)
-		}
-		return int(a.parent - x.parent)
-	})
+	_, ok := slices.BinarySearchFunc(c.refused[to], refusal{int32(sym), int32(to - origin), int32(parent)}, cmpRefusal)
 	return ok
 }
 

@@ -65,7 +65,7 @@ func (b *builder) leo(origin, sym int, la bitset) ([2]int, bool) {
 	}
 	// A chain never skips a refused completion: one that crosses one is not
 	// taken, and completion goes link by link, refusing it there.
-	if b.la != nil && b.r.judge != nil {
+	if b.la != nil { // set only on a judged recognizer
 		if b.leoCrosses(m) {
 			b.r.leoRefused++
 			return [2]int{}, false
