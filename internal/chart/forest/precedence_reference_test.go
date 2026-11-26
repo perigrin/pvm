@@ -216,9 +216,15 @@ var operatorCrafted = []string{
 	"$x = { my $y {0} };", "@x = map { my $y [0] } @z;", "@x = grep { $_ == 1 == 2 } @z;",
 }
 
-// TestPrecedenceOperatorSentencesMatchReference is decision §2's seed-4 generator: the 83 handcrafted sentences and
-// 20,000 random operator sentences, production against the reference on each.
+// TestPrecedenceOperatorSentencesMatchReference is decision §2's seed-4 generator, production against the reference
+// on each sentence.
 func TestPrecedenceOperatorSentencesMatchReference(t *testing.T) {
+	sentencesMatchReference(t, operatorSentences())
+}
+
+// operatorSentences is decision §2's seed-4 generator: the 83 handcrafted sentences and 20,000 random operator
+// sentences.
+func operatorSentences() []string {
 	terms := []string{"$x", "$y", "1", "@a", "%h", "f()", "(1)", "[1]", "{1}", "\"s\"", "$h{1}", "$a[0]", "$r->[0]", "my $m", "my ($p)", "local $l", "our $o", "_", "STDOUT", "$fh", "{$fh}"}
 	pre := []string{"-", "!", "\\", "~", "+", "not ", "defined ", "ref ", "-e ", "-f ", "++", "--", "scalar ", "print ", "print $fh ", "print {$fh} ", "sort ", "sort $s ", "return ", "my ", "lc ", "exists ", "delete ", "rand ", "-M "}
 	bin := []string{"+", "-", "*", "/", "**", "==", "!=", "<=>", "<", ">", "lt", "eq", "cmp", "&&", "||", "//", "and", "or", "xor", "=", "+=", "**=", "..", "...", "=~", "!~", "x", ".", ",", "=>", "?", ":", "->", "&", "|", "^", "<<", ">>", "isa"}
@@ -248,12 +254,18 @@ func TestPrecedenceOperatorSentencesMatchReference(t *testing.T) {
 	for range 20000 {
 		srcs = append(srcs, fmt.Sprintf(wraps[rng.Intn(len(wraps))], gen(3)))
 	}
-	sentencesMatchReference(t, srcs)
+	return srcs
 }
 
-// TestPrecedenceChainSentencesMatchReference is decision §2's seed-44 generator: 15,000 Leo chains of 1 to 25 links,
-// some wrapped in a nullable context, production against the reference on each.
+// TestPrecedenceChainSentencesMatchReference is decision §2's seed-44 generator, production against the reference on
+// each sentence.
 func TestPrecedenceChainSentencesMatchReference(t *testing.T) {
+	sentencesMatchReference(t, chainSentences())
+}
+
+// chainSentences is decision §2's seed-44 generator: 15,000 Leo chains of 1 to 25 links, some wrapped in a nullable
+// context.
+func chainSentences() []string {
 	links := []string{"$a = ", "$a ||= ", "$a **= ", "not ", "!", "-", "\\", "~", "defined ", "ref ", "print ", "return ", "$a ? $b : ", "$a ** ", "$a .. ", "$a x ", "$a // ", "$a || ", "$a or ", "$a && ", "$a and ", "$a <=> ", "$a == ", "$a . ", "$a + ", "my $m = ", "local $l = ", "sort ", "lc ", "-e ", "f ", "$a, ", "$a => ", "($a) x ", "scalar "}
 	tails := []string{"$z", "$z ** $y", "$z + $y * $w", "$z ? $y : $w", "$z = $y", "$z->[0]", "$z++", "--$z", "@z", "()", "[]", "{}", "f()", "$z <=> $y", "$z .. $y", "$z [0]", "$fh [1]", "$fh []", "{$fh} []", "$z or $y", "1"}
 	nulls := []string{"for (;;) { %s }", "%s for ();", "sub f :lvalue { %s }", "my $x = () = (%s);", "@x = (%s,);", "do {} until %s;", "{ ; %s ; }", "return;", "print;", "%s"}
@@ -274,5 +286,5 @@ func TestPrecedenceChainSentencesMatchReference(t *testing.T) {
 		}
 		srcs = append(srcs, s)
 	}
-	sentencesMatchReference(t, srcs)
+	return srcs
 }

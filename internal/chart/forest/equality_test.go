@@ -4,6 +4,7 @@
 package forest
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -210,6 +211,32 @@ func TestForestEqualityDetectsPerturbation(t *testing.T) {
 		}
 		quiet(t, g, base)
 	})
+
+	tab := committedTables(t)
+	sides := func(t *testing.T, src string) (cand, v1 *Forest) {
+		t.Helper()
+		cand, _ = CandidateForest(tab, []byte(src), Scope{})
+		v1, _ = V1Forest(tab, []byte(src), Scope{})
+		return cand, v1
+	}
+
+	t.Run("empty-input", func(t *testing.T) {
+		cand, v1 := sides(t, "")
+		if v1 == nil {
+			t.Fatal("V1 refuses the empty input")
+		}
+		quiet(t, cand, v1)
+	})
+
+	t.Run("both-refuse", func(t *testing.T) {
+		for _, src := range []string{"1 +;", "1 .. 2 .. 3;"} { // refused by the chart, and by Constrain
+			cand, v1 := sides(t, src)
+			if cand != nil || v1 != nil {
+				t.Fatalf("%q: candidate forest %v, V1 forest %v; want both refused", src, cand != nil, v1 != nil)
+			}
+			quiet(t, cand, v1)
+		}
+	})
 }
 
 // precedenceRefusals are three inputs V1 refuses only by precedence: recognition accepts each and Parse refuses it
@@ -293,5 +320,117 @@ func TestForestEqualityV1SideRunsOldPipeline(t *testing.T) {
 	}
 	if want == 0 || cons != want {
 		t.Errorf("V1ToyForest entered Constrain %d times over %d ladder sentences the chart accepts; want one each", cons, want)
+	}
+}
+
+// toyDiffs compares the candidate's forest of each of ty's sentences with V1's under ty's precedence: how many it
+// compared, how many V1 accepts, and each difference.
+func toyDiffs(t *testing.T, ty toy) (compared, accepted int, diffs []string) {
+	t.Helper()
+	for _, s := range ty.sentences {
+		l := toyLattice(ty.tab, s.words)
+		cand, err := CandidateToyForest(ty.tab, l, ty.prec)
+		if err != nil {
+			t.Fatalf("%v: candidate: %v", s.words, err)
+		}
+		v1, err := V1ToyForest(ty.tab, l, ty.prec)
+		if err != nil {
+			t.Fatalf("%v: V1: %v", s.words, err)
+		}
+		compared++
+		if v1 != nil {
+			accepted++
+		}
+		if d := ForestDiff(cand, v1); d != "" {
+			diffs = append(diffs, strings.Join(s.words, " ")+": "+d)
+		}
+	}
+	return compared, accepted, diffs
+}
+
+// sentenceDiffs compares the candidate's forest of each source with V1's under the empty scope: how many it
+// compared, how many V1 accepts, and each difference.
+func sentenceDiffs(tab *grammar.Tables, srcs []string) (compared, accepted int, diffs []string) {
+	for _, src := range srcs {
+		cand, _ := CandidateForest(tab, []byte(src), Scope{})
+		v1, _ := V1Forest(tab, []byte(src), Scope{})
+		compared++
+		if v1 != nil {
+			accepted++
+		}
+		if d := ForestDiff(cand, v1); d != "" {
+			diffs = append(diffs, fmt.Sprintf("%q: %s", src, d))
+		}
+	}
+	return compared, accepted, diffs
+}
+
+// reportDiffs fails t with the first ten of diffs and their count over compared.
+func reportDiffs(t *testing.T, what string, compared int, diffs []string) {
+	t.Helper()
+	for _, d := range diffs[:min(10, len(diffs))] {
+		t.Errorf("%s %s", what, d)
+	}
+	if len(diffs) > 0 {
+		t.Errorf("%s: %d of %d forests differ from V1's", what, len(diffs), compared)
+	}
+}
+
+// TestForestEqualityToys: on every toy fixture sentence, the candidate's toy forest under the toy's own precedence
+// equals V1's. It logs how many it compared of how many it loaded, and requires each toy to have sentences V1
+// accepts and sentences it refuses, so the comparison is not of refusals alone.
+func TestForestEqualityToys(t *testing.T) {
+	loaded, compared := 0, 0
+	for _, name := range toyNames {
+		ty := loadToy(t, name)
+		n, accepted, diffs := toyDiffs(t, ty)
+		loaded += len(ty.sentences)
+		compared += n
+		if accepted == 0 || accepted == n {
+			t.Errorf("%s: V1 accepts %d of %d sentences; want some of each verdict", name, accepted, n)
+		}
+		reportDiffs(t, name, n, diffs)
+	}
+	t.Logf("toys: compared %d of %d sentences", compared, loaded)
+	if compared == 0 || compared != loaded {
+		t.Errorf("compared %d of %d toy sentences; want every one, and some", compared, loaded)
+	}
+}
+
+// TestForestEqualityGeneratedSentences: decision §2's seed-4 and seed-44 generated sentences, the candidate's
+// forest against V1's on each. Each seed logs how many it compared of how many it generated, and requires
+// sentences V1 accepts and sentences it refuses.
+func TestForestEqualityGeneratedSentences(t *testing.T) {
+	tab := committedTables(t)
+	for _, seed := range []struct {
+		name string
+		srcs []string
+	}{{"4", operatorSentences()}, {"44", chainSentences()}} {
+		t.Logf("seed %s: %d sentences", seed.name, len(seed.srcs))
+		compared, accepted, diffs := sentenceDiffs(tab, seed.srcs)
+		t.Logf("seed %s: compared %d of %d sentences, V1 accepts %d", seed.name, compared, len(seed.srcs), accepted)
+		if compared == 0 || compared != len(seed.srcs) {
+			t.Errorf("seed %s: compared %d of %d; want every one, and some", seed.name, compared, len(seed.srcs))
+		}
+		if accepted == 0 || accepted == compared {
+			t.Errorf("seed %s: V1 accepts %d of %d; want some of each verdict", seed.name, accepted, compared)
+		}
+		reportDiffs(t, "seed "+seed.name, compared, diffs)
+	}
+}
+
+// TestForestEqualityHarnessesUseCandidate: with the candidate swapped for one that refuses everything, the toy and
+// sentence loops report every input V1 accepts, so neither compares V1 with itself.
+func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
+	src0, toy0 := CandidateForest, CandidateToyForest
+	t.Cleanup(func() { CandidateForest, CandidateToyForest = src0, toy0 })
+	CandidateForest = func(*grammar.Tables, []byte, Scope) (*Forest, Refusal) { return nil, Refusal{Reason: "test"} }
+	CandidateToyForest = func(*grammar.Tables, *lex.Lattice[lex.None], *Precedence) (*Forest, error) { return nil, nil }
+
+	if _, accepted, diffs := sentenceDiffs(committedTables(t), []string{"1;", "$x = 1 + 2;", "1 +;"}); accepted != 2 || len(diffs) != accepted {
+		t.Errorf("sentences: V1 accepts %d, %d reported; want 2 accepted and each reported", accepted, len(diffs))
+	}
+	if _, accepted, diffs := toyDiffs(t, loadToy(t, "ladder")); accepted == 0 || len(diffs) != accepted {
+		t.Errorf("toys: V1 accepts %d, %d reported; want each accepted sentence reported", accepted, len(diffs))
 	}
 }

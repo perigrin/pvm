@@ -149,3 +149,24 @@ func V1ToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *Precedence) (
 	}
 	return f, nil
 }
+
+// CandidateForest is the forest the differential compares with V1Forest's: production's, before resolve. A later
+// issue may point it at another recognizer.
+var CandidateForest = func(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
+	f, _, ref := constrainedStream(tab, recognize.New(tab, recognize.Options{}), src, scope)
+	return f, ref
+}
+
+// CandidateToyForest is the toy forest the differential compares with V1ToyForest's: production's recognizer,
+// Build, then Constrain under p; nil where it refuses. A later issue may point it at another recognizer.
+var CandidateToyForest = func(tab *grammar.Tables, l *lex.Lattice[lex.None], p *Precedence) (*Forest, error) {
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	if err != nil || !c.Accepted() {
+		return nil, err
+	}
+	f := Build(tab, c, l)
+	if !f.Constrain(p) {
+		return nil, nil
+	}
+	return f, nil
+}
