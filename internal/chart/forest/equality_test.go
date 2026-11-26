@@ -5,6 +5,7 @@ package forest
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -432,5 +433,192 @@ func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
 	}
 	if _, accepted, diffs := toyDiffs(t, loadToy(t, "ladder")); accepted == 0 || len(diffs) != accepted {
 		t.Errorf("toys: V1 accepts %d, %d reported; want each accepted sentence reported", accepted, len(diffs))
+	}
+}
+
+// contextAltSets is, for each node of f, the alternatives each of its contexts keeps on its own under V1's
+// judgement by p, in the order of the node's list: a context is eval's (the terminal after the node, its spine top,
+// its parent item), and what it keeps is mark's choice over every first terminal it was marked with. Constrain
+// keeps the union of a node's sets (its shortcut:); this reads them apart. f is not changed.
+func contextAltSets(f *Forest, p *Precedence) map[int32][][]int32 {
+	j := newJudgement(f, p)
+	if len(j.eval(f.Root, p.tab.EOF, rootTop, -1)) == 0 {
+		return nil
+	}
+	j.mark(f.Root, p.tab.EOF, rootTop, -1, -1)
+	out := map[int32][][]int32{}
+	for n := range f.Nodes {
+		type ctx struct{ t, top, pi int32 }
+		var order []ctx
+		sets := map[ctx][]int32{}
+		for e := j.markAt[n]; e != 0; e = j.marks[e].next {
+			m := j.marks[e]
+			k := ctx{m.t, m.top, m.pi}
+			if _, ok := sets[k]; !ok {
+				order = append(order, k)
+				sets[k] = []int32{}
+			}
+			keep := func(x int32) bool { return m.first < 0 || x == m.first }
+			for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next { // mark's loop, without marking
+				r, mm, at := j.alt(int32(n), a, m.top)
+				if f.Nodes[n].Sym >= 0 && !p.reducesFree(r, int(m.t), m.pi) {
+					continue
+				}
+				if !slices.Contains(sets[k], a) && slices.ContainsFunc(j.seq(a, r, mm, int(m.t), at, nil), keep) {
+					sets[k] = append(sets[k], a)
+				}
+			}
+		}
+		for _, k := range order {
+			out[int32(n)] = append(out[int32(n)], sets[k])
+		}
+	}
+	return out
+}
+
+// shortcutNode is the first node of f at which two contexts keep two different non-empty sets of alternatives
+// under p, with every context's set there and how many distinct non-empty sets they hold; -1 where there is none.
+func shortcutNode(f *Forest, p *Precedence) (n int32, sets [][]int32, distinct int) {
+	all := contextAltSets(f, p)
+	for _, n := range slices.Sorted(maps.Keys(all)) {
+		var seen [][]int32
+		for _, s := range all[n] {
+			if len(s) > 0 && !slices.ContainsFunc(seen, func(d []int32) bool { return sameAlts(d, s) }) {
+				seen = append(seen, s)
+			}
+		}
+		if len(seen) >= 2 {
+			return n, all[n], len(seen)
+		}
+	}
+	return -1, nil, 0
+}
+
+// unionDiff is where judged, Constrain's judgement of a copy of built, keeps on some node other than the union of
+// that node's contexts' sets in built under p, in the node's order; "" where it keeps the union on every node.
+func unionDiff(built, judged *Forest, p *Precedence) string {
+	all := contextAltSets(built, p)
+	for n := range built.Nodes {
+		var union []int32
+		for _, a := range keptAlts(built, n) {
+			if slices.ContainsFunc(all[int32(n)], func(s []int32) bool { return slices.Contains(s, a) }) {
+				union = append(union, a)
+			}
+		}
+		if !slices.Equal(keptAlts(judged, n), union) {
+			return fmt.Sprintf("node %d: Constrain keeps %v, the union of its contexts' sets is %v", n, keptAlts(judged, n), union)
+		}
+	}
+	return ""
+}
+
+// sameAlts is whether a and b hold the same alternatives, in any order.
+func sameAlts(a, b []int32) bool {
+	return len(a) == len(b) && !slices.ContainsFunc(a, func(x int32) bool { return !slices.Contains(b, x) })
+}
+
+// unionShortcutInput is a constructed input on which V1 keeps a node's alternatives under two contexts with two
+// different non-empty sets, the union Constrain's shortcut: takes (C5): the term over `isa my $m | 1` keeps one
+// alternative in one context and two in the other. No corpus file exercises it.
+const unionShortcutInput = "STDOUT isa my $m | 1;"
+
+// TestForestEqualityUnionShortcut: on unionShortcutInput, V1's judgement keeps one node's alternatives under two
+// contexts with two different non-empty sets, which it logs; V1Forest keeps on every node the union of its
+// contexts' sets, so the measurement reads Constrain's own choice; and the candidate's forest equals V1's.
+func TestForestEqualityUnionShortcut(t *testing.T) {
+	tab := committedTables(t)
+	prec, err := ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := []byte(unionShortcutInput)
+	s, _ := lex.Lex(src, tab.Tokens)
+	l := lex.Linear(s)
+	c, err := recognize.Recognize(V1Recognizer(tab), l)
+	if err != nil || !c.Accepted() {
+		t.Fatalf("%q: the V1 chart refuses it (%v)", src, err)
+	}
+	built := Build(tab, c, l)
+	if LibraryOperators(tab, built, s, src, Scope{}) >= 0 {
+		t.Fatalf("%q: LibraryOperators refuses it", src)
+	}
+	n, sets, distinct := shortcutNode(built, prec)
+	if n < 0 {
+		t.Fatalf("%q: no node keeps different non-empty alternative sets under two contexts", src)
+	}
+	nd := built.Nodes[n]
+	name := "a rule position"
+	if nd.Sym >= 0 {
+		name = tab.Symbols[nd.Sym].Name
+	}
+	t.Logf("%q: node %d (%s, %d-%d), alternatives %v: contexts: %d, distinct non-empty alternative sets: %d, sets %v",
+		src, n, name, nd.From, nd.To, keptAlts(built, int(n)), len(sets), distinct, sets)
+	if len(sets) != 2 || distinct != 2 {
+		t.Errorf("contexts %d, distinct non-empty alternative sets %d; want 2 and 2", len(sets), distinct)
+	}
+
+	v1, ref := V1Forest(tab, src, Scope{})
+	if v1 == nil {
+		t.Fatalf("%q: V1 refuses it: %+v", src, ref)
+	}
+	if g := v1.Nodes[n]; g.Sym != nd.Sym || g.Rule != nd.Rule || g.Dot != nd.Dot || g.From != nd.From || g.To != nd.To {
+		t.Fatalf("V1Forest's node %d is %+v, the built forest's %+v", n, g, nd)
+	}
+	if d := unionDiff(built, v1, prec); d != "" {
+		t.Errorf("%q: %s", src, d)
+	}
+
+	// The measurement is held to Constrain beyond this input: every toy sentence and the 83 handcrafted operator
+	// sentences V1 accepts, `_ - $h{1} - $fh;`, where its reduce check decides, and TestPrecedenceMarkFirstFilter's
+	// toy, where mark's first-terminal filter does.
+	checked := 0
+	ftab, fp := markFirstFilterToy(t)
+	fl := toyLattice(ftab, []string{"C", "A", "Q1"})
+	ftab.TerminalSets = append(ftab.TerminalSets, []int{symbol(ftab, "A"), symbol(ftab, "B")})
+	fl.Edges[1].Token.TerminalSet = len(ftab.TerminalSets) - 1
+	fv1, err := V1ToyForest(ftab, fl, fp)
+	fc, cerr := recognize.Recognize(V1Recognizer(ftab), fl)
+	if err != nil || cerr != nil || fv1 == nil {
+		t.Fatalf("the mark-first-filter toy: V1 refuses C {A B} Q1 (%v, %v)", err, cerr)
+	}
+	if d := unionDiff(Build(ftab, fc, fl), fv1, fp); d != "" {
+		t.Errorf("the mark-first-filter toy: %s", d)
+	}
+	checked++
+	for _, name := range toyNames {
+		ty := loadToy(t, name)
+		for _, s := range ty.sentences {
+			l := toyLattice(ty.tab, s.words)
+			v1, err := V1ToyForest(ty.tab, l, ty.prec)
+			if err != nil || v1 == nil {
+				continue
+			}
+			b, _, _ := toyForest(t, ty.tab, s.words, recognize.Options{})
+			if d := unionDiff(b, v1, ty.prec); d != "" {
+				t.Errorf("%s %s: %s", name, strings.Join(s.words, " "), d)
+			}
+			checked++
+		}
+	}
+	for _, src := range append(slices.Clone(operatorCrafted), "_ - $h{1} - $fh;") {
+		v1, _ := V1Forest(tab, []byte(src), Scope{})
+		if v1 == nil {
+			continue
+		}
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		c, _ := recognize.Recognize(V1Recognizer(tab), l)
+		b := Build(tab, c, l)
+		LibraryOperators(tab, b, s, []byte(src), Scope{})
+		if d := unionDiff(b, v1, prec); d != "" {
+			t.Errorf("%q: %s", src, d)
+		}
+		checked++
+	}
+	t.Logf("the per-context measurement matches Constrain's kept set on every node of %d accepted inputs", checked)
+
+	cand, _ := CandidateForest(tab, src, Scope{})
+	if d := ForestDiff(cand, v1); d != "" {
+		t.Errorf("%q: %s", src, d)
 	}
 }
