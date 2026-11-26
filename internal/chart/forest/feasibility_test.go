@@ -286,6 +286,28 @@ func TestFeasibilityShiftsOwnNextTerminal(t *testing.T) {
 	}
 }
 
+// Counter 5 (design §5): no rule whose right-hand side is all nullable, empty or not, has a non-allow reduce verdict
+// before any terminal. The recognizer completes such a rule over an empty span inside the nullable closure, with no
+// completion event to judge (design §4.1).
+func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	empty, nonEmpty, bad := nullableNonAllow(tab, p)
+	t.Logf("perly.y: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
+	if len(bad) != 0 || empty != 13 || nonEmpty != 16 {
+		t.Errorf("all-nullable rules with a non-allow verdict: rules %v of %d empty and %d non-empty, want none of 13 and 16", bad, empty, nonEmpty)
+	}
+
+	// Toy empty's opt ::= (empty) %prec LOW is forbidden before LB.
+	t.Run("empty", func(t *testing.T) {
+		ty := loadToy(t, "empty")
+		empty, nonEmpty, bad := nullableNonAllow(ty.tab, ty.prec)
+		t.Logf("empty: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
+		if len(bad) == 0 {
+			t.Errorf("toy empty: no all-nullable rule with a non-allow verdict counted (of %d)", empty+nonEmpty)
+		}
+	})
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -615,4 +637,22 @@ func offAtShifts(tab *grammar.Tables, p *Precedence) (forbidden, off int) {
 		}
 	}
 	return forbidden, off
+}
+
+// nullableNonAllow counts tab's rules whose right-hand side is all nullable, empty and non-empty, and lists those
+// with a non-allow reduce verdict (forbidden, or decided by the parent item) before some terminal, EOF included.
+func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, bad []int) {
+	for r, rule := range tab.Rules {
+		if !slices.ContainsFunc(rule.RHS, func(s int) bool { return !tab.Symbols[s].Nullable }) {
+			if len(rule.RHS) == 0 {
+				empty++
+			} else {
+				nonEmpty++
+			}
+			if slices.ContainsFunc(p.reduceAt[r*p.nt:(r+1)*p.nt], func(v uint8) bool { return v != 0 }) {
+				bad = append(bad, r)
+			}
+		}
+	}
+	return empty, nonEmpty, bad
 }
