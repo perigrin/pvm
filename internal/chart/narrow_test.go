@@ -138,3 +138,36 @@ func TestNarrowWithoutLibraryOperatorsIsIdentity(t *testing.T) {
 		t.Errorf("%q: the narrowed chart's sets differ from the un-narrowed one's, or it refuses", src)
 	}
 }
+// TestNarrowKeptLibraryOperator: with My::Ops in scope, `plus` keeps its one PLUGIN_* reading, PLUGIN_ADD_OP, through
+// a set id the committed tables lack (C12: the corpus keeps none), and the file parses as V1 parses it.
+func TestNarrowKeptLibraryOperator(t *testing.T) {
+	tab := narrowTables(t)
+	const src = "use My::Ops; 1 plus 2;"
+	scope := libopsScope(t, src)
+	l, terms := narrowedTerminals(t, tab, src, scope)
+	k := 4 // use My::Ops ; 1 plus
+	id, set := l.Edges[k].Token.TerminalSet, terms[k]
+	var plugins []string
+	for _, x := range set {
+		if isPlugin(tab, x) {
+			plugins = append(plugins, tab.Symbols[x].Name)
+		}
+	}
+	t.Logf("plus: set id %d, PLUGIN_* readings %v", id, plugins)
+	if !slices.Equal(plugins, []string{"PLUGIN_ADD_OP"}) {
+		t.Errorf("plus keeps %v, want [PLUGIN_ADD_OP]", plugins)
+	}
+	if id < len(tab.TerminalSets) || slices.ContainsFunc(tab.TerminalSets, func(c []int) bool { return slices.Equal(c, set) }) {
+		t.Errorf("plus's set id %d, %v: want an id past the committed %d, for a set they lack", id, set, len(tab.TerminalSets))
+	}
+	f, ref := forest.Parse(tab, []byte(src), scope)
+	if f == nil {
+		t.Fatalf("%q refused: %+v", src, ref)
+	}
+	cand, _ := forest.CandidateForest(tab, []byte(src), scope)
+	v1, _ := forest.V1Forest(tab, []byte(src), scope)
+	if d := forest.ForestDiff(cand, v1); d != "" {
+		t.Errorf("%q: production's forest differs from V1's: %s", src, d)
+	}
+}
+
