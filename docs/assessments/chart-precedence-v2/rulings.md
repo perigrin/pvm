@@ -127,3 +127,16 @@ There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends bec
   - The other 25 `grep -E` patterns in the chain were validated mechanically, and all are valid.
 
   The ruling: drop the second alternative and keep `compared ([1-9][0-9]*) of \1( |$)`. That still matches the logged line, and still fails when fewer files are compared than loaded.
+
+## 2026-11-26, execute: the repository's git hooks
+
+The d166 gate found an intermediate commit that was not gofmt-clean. Its cause: none of the repository's pre-commit hooks were installed in this container, because `pre-commit` was not on PATH and `.git/hooks/pre-commit` was absent.
+
+- **Install the hooks:** "Yes". The orchestrator installed:
+  - `pre-commit`;
+  - the hook tools, at the last releases that build on Go 1.24: goimports, gocritic, staticcheck and govulncheck.
+
+  It then installed the pre-commit stage. With the stage installed, `pre-commit run --all-files` on pu fails only on a pre-existing trailing-whitespace line in a testdata file, which a normal commit does not touch.
+- **The commit-msg stage:** "Add chart, then install (Recommended)". `commitlint.config.js`'s type list had no `chart`, although 20 of pu's last 40 commits used it. `chart` is added by a `ci:` PR, and the commit-msg hook is installed after that PR merges.
+- **The pre-push stage:** "Leave pre-push off (Recommended)". With `vuln.go.dev` allowed, govulncheck reports 42 reachable vulnerabilities on pu, in the Go 1.24.4 standard library and golang.org/x/net v0.33.0. Those predate this milestone. A toolchain and dependency upgrade is separate work, outside V2.
+- **Persistence:** "Add to setup script (Recommended)". The install commands go into the environment's setup script.
