@@ -327,6 +327,36 @@ func TestFeasibilityCoreItemsShiftAgree(t *testing.T) {
 	})
 }
 
+// The closing terminals carry no precedence level (F7-C3). The recognizer adds ; to a set where } or the end of input
+// can come next, and V1 judges such a derivation through the slipper before ;; the two agree because none of the three
+// has a level, so no resolution names any of them.
+func TestFeasibilityClosingTerminalsHaveNoLevel(t *testing.T) {
+	_, p := feasibilityTables(t)
+	for _, name := range []string{"PERLY_SEMICOLON", "PERLY_BRACE_CLOSE", "EOF"} {
+		level, err := terminalLevel(p, name)
+		t.Logf("%s: level %d", name, level)
+		if err != nil || level != 0 {
+			t.Errorf("%s: level %d, %v; want no level", name, level, err)
+		}
+	}
+}
+
+// TestFeasibilityTerminalLevelLookupControl: terminalLevel cannot read no level for a terminal it failed to find. A
+// name that is no terminal is an error, and ADDOP, which perly.y declares, reads its level.
+func TestFeasibilityTerminalLevelLookupControl(t *testing.T) {
+	_, p := feasibilityTables(t)
+	for _, name := range []string{"NO_SUCH_TERMINAL", "term"} {
+		if level, err := terminalLevel(p, name); err == nil {
+			t.Errorf("%s: level %d, no error; want an error", name, level)
+		}
+	}
+	level, err := terminalLevel(p, "ADDOP")
+	t.Logf("ADDOP: level %d", level)
+	if err != nil || level == 0 {
+		t.Errorf("ADDOP: level %d, %v; want its declared level", level, err)
+	}
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -716,4 +746,21 @@ func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups, conflicts, d
 		}
 	}
 	return groups, conflicts, dot0
+}
+
+// terminalLevel is the precedence level of the terminal named name, EOF the end of input, read as resolve reads it:
+// 0 is no level, and EOF, past the symbols, has none. A name that is no terminal is an error, never level 0.
+func terminalLevel(p *Precedence, name string) (int, error) {
+	tab := p.tab
+	id := tab.EOF
+	if name != "EOF" {
+		id = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
+		if id < 0 {
+			return 0, fmt.Errorf("no terminal %s", name)
+		}
+	}
+	if id < len(p.term) {
+		return p.term[id], nil
+	}
+	return 0, nil
 }
