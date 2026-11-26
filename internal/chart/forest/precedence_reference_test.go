@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -55,7 +56,7 @@ func precedenceDiff(prodOK bool, prod *Forest, refOK bool, ref *Forest) string {
 // judgeBoth makes two copies of f before either is judged, runs Constrain on one and ConstrainReference on the
 // other, and is where they differ ("" none), the reference's verdict, and whether it accepted with an alternative
 // dropped.
-func judgeBoth(f *Forest, p *Precedence) (diff string, ok, pruned bool) {
+func judgeBoth(f *Forest, p *prectab.Precedence) (diff string, ok, pruned bool) {
 	prod, ref := f.Copy(), f.Copy()
 	prodOK := productionConstrain(prod, p)
 	refOK := ref.ConstrainReference(p)
@@ -155,7 +156,7 @@ func TestPrecedenceToyForestsMatchReference(t *testing.T) {
 // counts and requires a sentence compared, one refused and one pruned, so a generator cannot agree vacuously.
 func sentencesMatchReference(t *testing.T, srcs []string) {
 	tab := committedTables(t)
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -283,7 +284,7 @@ func TestForestEqualityV1SideRunsOldPipeline(t *testing.T) {
 		libs++
 		return lib0(tab, f, s, src, scope)
 	}
-	v1Constrain = func(f *Forest, p *Precedence) bool {
+	v1Constrain = func(f *Forest, p *prectab.Precedence) bool {
 		cons++
 		return con0(f, p)
 	}
@@ -429,7 +430,7 @@ func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
 			entries++
 			return lib0(tab, f, s, src, scope)
 		}
-		v1Constrain = func(f *Forest, p *Precedence) bool {
+		v1Constrain = func(f *Forest, p *prectab.Precedence) bool {
 			entries++
 			return con0(f, p)
 		}
@@ -462,7 +463,7 @@ func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
 		src0, toy0 := CandidateForest, CandidateToyForest
 		t.Cleanup(func() { CandidateForest, CandidateToyForest = src0, toy0 })
 		CandidateForest = func(*grammar.Tables, []byte, Scope) (*Forest, Refusal) { return nil, Refusal{Reason: "test"} }
-		CandidateToyForest = func(*grammar.Tables, *lex.Lattice[lex.None], *Precedence) (*Forest, error) { return nil, nil }
+		CandidateToyForest = func(*grammar.Tables, *lex.Lattice[lex.None], *prectab.Precedence) (*Forest, error) { return nil, nil }
 
 		if _, accepted, diffs := sentenceDiffs(committedTables(t), []string{"1;", "$x = 1 + 2;", "1 +;"}); accepted != 2 || len(diffs) != accepted {
 			t.Errorf("sentences: V1 accepts %d, %d reported; want 2 accepted and each reported", accepted, len(diffs))
@@ -477,12 +478,12 @@ func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
 // judgement by p, in the order of the node's list: a context is eval's (the terminal after the node, its spine top,
 // its parent item), and what it keeps is mark's choice over every first terminal it was marked with. Constrain
 // keeps the union of a node's sets (its shortcut:); this reads them apart. f is not changed.
-func contextAltSets(f *Forest, p *Precedence) map[int32][][]int32 {
+func contextAltSets(f *Forest, p *prectab.Precedence) map[int32][][]int32 {
 	j := newJudgement(f, p)
-	if len(j.eval(f.Root, p.tab.EOF, rootTop, -1)) == 0 {
+	if len(j.eval(f.Root, p.Tab.EOF, rootTop, -1)) == 0 {
 		return nil
 	}
-	j.mark(f.Root, p.tab.EOF, rootTop, -1, -1)
+	j.mark(f.Root, p.Tab.EOF, rootTop, -1, -1)
 	out := map[int32][][]int32{}
 	for n := range f.Nodes {
 		type ctx struct{ t, top, pi int32 }
@@ -498,7 +499,7 @@ func contextAltSets(f *Forest, p *Precedence) map[int32][][]int32 {
 			keep := func(x int32) bool { return m.first < 0 || x == m.first }
 			for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next { // mark's loop, without marking
 				r, mm, at := j.alt(int32(n), a, m.top)
-				if f.Nodes[n].Sym >= 0 && !p.reducesFree(r, int(m.t), m.pi) {
+				if f.Nodes[n].Sym >= 0 && !p.ReducesFree(r, int(m.t), m.pi) {
 					continue
 				}
 				if !slices.Contains(sets[k], a) && slices.ContainsFunc(j.seq(a, r, mm, int(m.t), at, nil), keep) {
@@ -515,7 +516,7 @@ func contextAltSets(f *Forest, p *Precedence) map[int32][][]int32 {
 
 // shortcutNode is the first node of f at which two contexts keep two different non-empty sets of alternatives
 // under p, with every context's set there and how many distinct non-empty sets they hold; -1 where there is none.
-func shortcutNode(f *Forest, p *Precedence) (n int32, sets [][]int32, distinct int) {
+func shortcutNode(f *Forest, p *prectab.Precedence) (n int32, sets [][]int32, distinct int) {
 	all := contextAltSets(f, p)
 	for _, n := range slices.Sorted(maps.Keys(all)) {
 		var seen [][]int32
@@ -533,7 +534,7 @@ func shortcutNode(f *Forest, p *Precedence) (n int32, sets [][]int32, distinct i
 
 // unionDiff is where judged, Constrain's judgement of a copy of built, keeps on some node other than the union of
 // that node's contexts' sets in built under p, in the node's order; "" where it keeps the union on every node.
-func unionDiff(built, judged *Forest, p *Precedence) string {
+func unionDiff(built, judged *Forest, p *prectab.Precedence) string {
 	all := contextAltSets(built, p)
 	for n := range built.Nodes {
 		var union []int32
@@ -564,7 +565,7 @@ const unionShortcutInput = "STDOUT isa my $m | 1;"
 // contexts' sets, so the measurement reads Constrain's own choice; and the candidate's forest equals V1's.
 func TestForestEqualityUnionShortcut(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

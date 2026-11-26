@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -31,7 +32,7 @@ type toySentence struct {
 // toy is a fixture's grammar, its precedence and its sentences.
 type toy struct {
 	tab       *grammar.Tables
-	prec      *Precedence
+	prec      *prectab.Precedence
 	sentences []toySentence
 }
 
@@ -66,7 +67,7 @@ func loadToy(t *testing.T, name string) toy {
 		}
 	}
 	out.tab = toyTables(t, statements...)
-	prec, err := NewPrecedence(out.tab, levels, rulePrec, nil)
+	prec, err := prectab.NewPrecedence(out.tab, levels, rulePrec, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func loadToy(t *testing.T, name string) toy {
 // each rule's reduction as rule:from-to in bison's order (children first, left to right), - where refused,
 // and "ambiguous" where more than one derivation is left. reverse reverses every node's alternatives first.
 // constrain is the judgement applied: (*Forest).Constrain or (*Forest).ConstrainReference.
-func (ty toy) constrained(t *testing.T, constrain func(*Forest, *Precedence) bool, words []string, opts recognize.Options, reverse bool) (verdict, grouping string) {
+func (ty toy) constrained(t *testing.T, constrain func(*Forest, *prectab.Precedence) bool, words []string, opts recognize.Options, reverse bool) (verdict, grouping string) {
 	t.Helper()
 	f, _, _ := toyForest(t, ty.tab, words, opts)
 	if f == nil {
@@ -135,7 +136,7 @@ func TestPrecedenceReferenceAgreesWithBison(t *testing.T) {
 }
 
 // toyReferees requires constrain to give bison's verdict and grouping on every toy sentence, one subtest a toy.
-func toyReferees(t *testing.T, constrain func(*Forest, *Precedence) bool) {
+func toyReferees(t *testing.T, constrain func(*Forest, *prectab.Precedence) bool) {
 	for _, name := range toyNames {
 		t.Run(name, func(t *testing.T) {
 			ty := loadToy(t, name)
@@ -295,7 +296,7 @@ func TestPrecedenceToyResolutionNeedsConflict(t *testing.T) {
 func TestPrecedenceRefusedRuleUnknownSymbol(t *testing.T) {
 	ty := loadToy(t, "nonassoc")
 	bad := grammar.Rule{LHS: ty.tab.Symbols[ty.tab.Start].Name, RHS: []grammar.Symbol{{Kind: grammar.Name, Text: "NOSUCHSYMBOL"}}}
-	if _, err := NewPrecedence(ty.tab, nil, make([]string, len(ty.tab.Rules)), []grammar.Rule{bad}); err == nil || !strings.Contains(err.Error(), "NOSUCHSYMBOL") {
+	if _, err := prectab.NewPrecedence(ty.tab, nil, make([]string, len(ty.tab.Rules)), []grammar.Rule{bad}); err == nil || !strings.Contains(err.Error(), "NOSUCHSYMBOL") {
 		t.Fatalf("got %v, want an error naming NOSUCHSYMBOL", err)
 	}
 }
@@ -349,7 +350,7 @@ func TestPrecedenceGenerationGuard(t *testing.T) {
 		{"nullable_prefix", nullTab, nullLevels, nullPrec, []string{"shifting F after", "P: X . Y", "V: TC . P"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := NewPrecedence(c.tab, c.levels, c.rulePrec, nil)
+			_, err := prectab.NewPrecedence(c.tab, c.levels, c.rulePrec, nil)
 			if err == nil {
 				t.Fatal("the guard toy generated tables; want an error naming its state-dependent key")
 			}
@@ -360,7 +361,7 @@ func TestPrecedenceGenerationGuard(t *testing.T) {
 			}
 		})
 	}
-	if _, err := ParsePrecedence(committedTables(t)); err != nil {
+	if _, err := prectab.ParsePrecedence(committedTables(t)); err != nil {
 		t.Errorf("perly.y: %v", err)
 	}
 }
@@ -369,7 +370,7 @@ func TestPrecedenceGenerationGuard(t *testing.T) {
 // tables' precedence, to refuse every file the parse path is given, each of which it accepts without it.
 func TestPrecedenceGenerationErrorRefusesEveryFile(t *testing.T) {
 	toyTab, levels, rulePrec := guardToy(t, false)
-	_, genErr := NewPrecedence(toyTab, levels, rulePrec, nil)
+	_, genErr := prectab.NewPrecedence(toyTab, levels, rulePrec, nil)
 	if genErr == nil {
 		t.Fatal("the guard toy generated tables")
 	}
@@ -381,7 +382,7 @@ func TestPrecedenceGenerationErrorRefusesEveryFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grammar.Derived(tab, func(*grammar.Tables) parsePrecedence { return parsePrecedence{err: genErr} })
+	grammar.Derived(tab, func(*grammar.Tables) prectab.Parsed { return prectab.Parsed{Err: genErr} })
 	for _, src := range []string{"my $x = 1;\n", "print $x + 2 * 3;\n", "foo(1, 2) if $y;\n", "{ 1 }"} {
 		if f, _ := Parse(committedTables(t), []byte(src), Scope{}); f == nil {
 			t.Fatalf("%q: refused without the error", src)
@@ -393,19 +394,19 @@ func TestPrecedenceGenerationErrorRefusesEveryFile(t *testing.T) {
 }
 
 // parentPairs is p's (rule, terminal) pairs whose reduction its parent item decides, as "rule before terminal".
-func parentPairs(p *Precedence) []string {
+func parentPairs(p *prectab.Precedence) []string {
 	var out []string
-	for k, v := range p.reduceAt {
+	for k, v := range p.ReduceAt {
 		if v != 2 {
 			continue
 		}
-		r, x := k/p.nt, k%p.nt
-		rhs := p.tab.Rules[r].RHS
-		words := []string{p.tab.Symbols[p.tab.Rules[r].LHS].Name + ":"}
+		r, x := k/p.NT, k%p.NT
+		rhs := p.Tab.Rules[r].RHS
+		words := []string{p.Tab.Symbols[p.Tab.Rules[r].LHS].Name + ":"}
 		for _, s := range rhs {
-			words = append(words, p.tab.Symbols[s].Name)
+			words = append(words, p.Tab.Symbols[s].Name)
 		}
-		out = append(out, strings.Join(words, " ")+" before "+p.tab.Symbols[x].Name)
+		out = append(out, strings.Join(words, " ")+" before "+p.Tab.Symbols[x].Name)
 	}
 	return out
 }
@@ -414,7 +415,7 @@ func parentPairs(p *Precedence) []string {
 // six, every rule of them indirob's or myterm's and every terminal [ or {, both of each; on the settled guard toy
 // its own pair. A list written for perly.y passes on nothing else.
 func TestPrecedenceParentItemPairsDerived(t *testing.T) {
-	p, err := ParsePrecedence(committedTables(t))
+	p, err := prectab.ParsePrecedence(committedTables(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +436,7 @@ func TestPrecedenceParentItemPairsDerived(t *testing.T) {
 		t.Errorf("perly.y: %d of indirob and myterm before [ and {, want all 4", len(seen))
 	}
 	tab, levels, rulePrec := guardToy(t, true)
-	toy, err := NewPrecedence(tab, levels, rulePrec, nil)
+	toy, err := prectab.NewPrecedence(tab, levels, rulePrec, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,8 +448,8 @@ func TestPrecedenceParentItemPairsDerived(t *testing.T) {
 // TestPrecedenceTablesDense requires every state-free table on Precedence to be a slice, read by index: a map
 // there would put a hash lookup on the evaluation path.
 func TestPrecedenceTablesDense(t *testing.T) {
-	ty := reflect.TypeFor[Precedence]()
-	for _, name := range []string{"base", "reduceAt", "mixAt", "parentForbid", "needParent", "topAt", "shiftAt", "shiftForbid"} {
+	ty := reflect.TypeFor[prectab.Precedence]()
+	for _, name := range []string{"Base", "ReduceAt", "MixAt", "ParentForbid", "NeedParent", "TopAt", "ShiftAt", "ShiftForbid"} {
 		f, ok := ty.FieldByName(name)
 		if !ok {
 			t.Errorf("Precedence has no %s", name)

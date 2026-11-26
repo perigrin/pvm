@@ -4,7 +4,6 @@
 package forest
 
 import (
-	"fmt"
 	"math"
 	"math/bits"
 
@@ -106,40 +105,7 @@ func mulSat(a, b uint64) uint64 {
 	return math.MaxUint64
 }
 
-// parsePrecedence is the committed grammar's precedence over a tables value, built once per value; err where the
-// tables are not the committed grammar's, whose rule ids the %prec list is indexed by.
-type parsePrecedence struct {
-	p   *Precedence
-	err error
-}
-
-func buildParsePrecedence(tab *grammar.Tables) parsePrecedence {
-	g, _, err := grammar.Committed()
-	if err != nil {
-		return parsePrecedence{err: err}
-	}
-	if len(tab.Rules) != len(g.G1) {
-		return parsePrecedence{err: fmt.Errorf("forest: %d table rules for perly.y's %d: not the committed grammar's tables", len(tab.Rules), len(g.G1))}
-	}
-	rulePrec := make([]string, len(g.G1))
-	for r, rule := range g.G1 {
-		if tab.Symbols[tab.Rules[r].LHS].Name != rule.LHS {
-			return parsePrecedence{err: fmt.Errorf("forest: table rule %d is %s's, perly.y's is %s's", r, tab.Symbols[tab.Rules[r].LHS].Name, rule.LHS)}
-		}
-		rulePrec[r] = rule.Prec
-	}
-	p, err := NewPrecedence(tab, g.Levels, rulePrec, g.Refused)
-	return parsePrecedence{p, err}
-}
-
 // CountReadings is f's Readings over tab's statement symbol, as ParseWith counts them (countReadings).
 func (f *Forest) CountReadings(tab *grammar.Tables) Readings {
 	return f.countReadings(grammar.Derived(tab, buildFactsGrammar).fullstmt)
-}
-
-// ParsePrecedence is the committed grammar's Precedence over tab as ParseWith derives it, once per tables value; an
-// error where tab is not the committed grammar's tables.
-func ParsePrecedence(tab *grammar.Tables) (*Precedence, error) {
-	p := grammar.Derived(tab, buildParsePrecedence)
-	return p.p, p.err
 }

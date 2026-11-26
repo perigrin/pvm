@@ -16,6 +16,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -251,7 +252,7 @@ func builtForest(tab *grammar.Tables, src []byte) *forest.Forest {
 
 // newPrecedence is g's precedence over tab: its levels, each rule's %prec, and the rules refused by precedence, which
 // the tables leave out.
-func newPrecedence(g *grammar.Grammar, tab *grammar.Tables) (*forest.Precedence, error) {
+func newPrecedence(g *grammar.Grammar, tab *grammar.Tables) (*prectab.Precedence, error) {
 	if len(tab.Rules) != len(g.G1) {
 		return nil, fmt.Errorf("%d table rules for %d grammar rules: a sequence rule moved the rule ids", len(tab.Rules), len(g.G1))
 	}
@@ -259,13 +260,13 @@ func newPrecedence(g *grammar.Grammar, tab *grammar.Tables) (*forest.Precedence,
 	for r, rule := range g.G1 {
 		rulePrec[r] = rule.Prec
 	}
-	return forest.NewPrecedence(tab, g.Levels, rulePrec, g.Refused)
+	return prectab.NewPrecedence(tab, g.Levels, rulePrec, g.Refused)
 }
 
 // referee compares the chart with bison's committed verdict and grouping on the generated sentences.
 type referee struct {
 	tab      *grammar.Tables
-	p        *forest.Precedence
+	p        *prectab.Precedence
 	lexemes  map[string]lexeme
 	terminal map[string]int32
 	line     []int  // by rule: the perly.y alternative it cites

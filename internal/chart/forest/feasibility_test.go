@@ -12,12 +12,13 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
-func feasibilityTables(t *testing.T) (*grammar.Tables, *Precedence) {
+func feasibilityTables(t *testing.T) (*grammar.Tables, *prectab.Precedence) {
 	t.Helper()
 	tab := committedTables(t)
-	p, err := ParsePrecedence(tab)
+	p, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,13 +124,13 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 	// perly.y's first forbidden shift: f after rule-position item at, under spine top top. The synthetic cases use it.
 	var at, top, f int32 = -1, -1, -1
 find:
-	for i := range p.topAt {
-		if p.topAt[i] < 0 {
+	for i := range p.TopAt {
+		if p.TopAt[i] < 0 {
 			continue
 		}
 		for x := range tab.Items {
-			for y := range p.nt {
-				if p.shiftForbidden(int32(i), int32(x), int32(y)) {
+			for y := range p.NT {
+				if p.ShiftForbidden(int32(i), int32(x), int32(y)) {
 					top, at, f = int32(i), int32(x), int32(y)
 					break find
 				}
@@ -212,7 +213,7 @@ find:
 
 		// A predictor beginning one rule under top and another under a second non-none top.
 		second := -1
-		for i, row := range p.topAt {
+		for i, row := range p.TopAt {
 			if row >= 0 && int32(i) != top {
 				second = i
 				break
@@ -286,9 +287,9 @@ func TestFeasibilityShiftsOwnNextTerminal(t *testing.T) {
 	// The toys whose forbidden shifts are scanned by an item that does not hold at (design §4.1).
 	for _, c := range []struct {
 		name string
-		load func(*testing.T) (*grammar.Tables, *Precedence)
+		load func(*testing.T) (*grammar.Tables, *prectab.Precedence)
 	}{
-		{"emptyred", func(t *testing.T) (*grammar.Tables, *Precedence) {
+		{"emptyred", func(t *testing.T) (*grammar.Tables, *prectab.Precedence) {
 			ty := loadToy(t, "emptyred")
 			return ty.tab, ty.prec
 		}},
@@ -333,7 +334,7 @@ func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
 			[]string{"", "", "", "", "", "LOW"}, "s ::= ONE e", "s ::= ONE T", "s ::= TWO f", "e ::= a T", "f ::= a T", "a ::= ")
 		empty, nonEmpty, bad := nullableNonAllow(tab, p)
 		t.Logf("verdict-2 toy: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
-		row := p.reduceAt[5*p.nt : 6*p.nt]
+		row := p.ReduceAt[5*p.NT : 6*p.NT]
 		if !slices.Equal(bad, []int{5}) || !slices.Contains(row, 2) || slices.Contains(row, 1) {
 			t.Errorf("toy verdict2: counted rules %v, a's verdicts %v; want rule 5, a ::= (empty), with a 2 and no 1", bad, row)
 		}
@@ -355,7 +356,7 @@ func TestFeasibilityCoreItemsShiftAgree(t *testing.T) {
 	t.Run("scancollide", func(t *testing.T) {
 		tab, p := scancollideToy(t)
 		groups, conflicts, dot0 := scanDisagreements(tab, p)
-		top := p.base[1] + 1 // s: P . a
+		top := p.Base[1] + 1 // s: P . a
 		t.Logf("scancollide: %d of %d groups, %d with a dot-0 item, under contexts %v (spine top s: P . a is %d)", len(conflicts), groups, dot0, conflicts, top)
 		if !slices.Equal(conflicts, []int32{top}) || dot0 != 1 {
 			t.Errorf("toy scancollide: conflicts under contexts %v, %d with a dot-0 item; want one dot-0 collision under the spine top %d, none under none (-1)", conflicts, dot0, top)
@@ -395,22 +396,22 @@ func TestFeasibilityTerminalLevelLookupControl(t *testing.T) {
 
 // reduceDiffers reports whether V1's reduce verdicts for rule r1 before t1 and rule r2 before t2 differ; where both
 // depend on the parent item (2), their whole parentForbid rows are compared.
-func reduceDiffers(p *Precedence, r1, t1, r2, t2 int) bool {
-	v1, v2 := p.reduceAt[r1*p.nt+t1], p.reduceAt[r2*p.nt+t2]
+func reduceDiffers(p *prectab.Precedence, r1, t1, r2, t2 int) bool {
+	v1, v2 := p.ReduceAt[r1*p.NT+t1], p.ReduceAt[r2*p.NT+t2]
 	if v1 != v2 {
 		return true
 	}
 	if v1 != 2 {
 		return false
 	}
-	ni := len(p.topAt)
-	a, b := int(p.mixAt[r1*p.nt+t1])*ni, int(p.mixAt[r2*p.nt+t2])*ni
-	return !slices.Equal(p.parentForbid[a:a+ni], p.parentForbid[b:b+ni])
+	ni := len(p.TopAt)
+	a, b := int(p.MixAt[r1*p.NT+t1])*ni, int(p.MixAt[r2*p.NT+t2])*ni
+	return !slices.Equal(p.ParentForbid[a:a+ni], p.ParentForbid[b:b+ni])
 }
 
 // ruleReduceConflicts counts the states reducing two rules of one LHS whose verdicts differ before some terminal
 // of FOLLOW(LHS), EOF included, and lists the states where every such pair agrees.
-func ruleReduceConflicts(tab *grammar.Tables, p *Precedence, states []grammar.State) (conflicts int, agree []int) {
+func ruleReduceConflicts(tab *grammar.Tables, p *prectab.Precedence, states []grammar.State) (conflicts int, agree []int) {
 	for s, st := range states {
 		by := map[int][]int{}
 		for _, r := range st.Reduces {
@@ -441,18 +442,18 @@ func ruleReduceConflicts(tab *grammar.Tables, p *Precedence, states []grammar.St
 
 // parentDiffers reports whether some parent-dependent pair (r, t) with LHS(r) = b is forbidden under one of the
 // parent items p1 and p2 and not the other.
-func parentDiffers(tab *grammar.Tables, p *Precedence, b, p1, p2 int) bool {
-	ni := len(p.topAt)
+func parentDiffers(tab *grammar.Tables, p *prectab.Precedence, b, p1, p2 int) bool {
+	ni := len(p.TopAt)
 	for r, rule := range tab.Rules {
 		if rule.LHS != b {
 			continue
 		}
-		for t := range p.nt {
-			k := r*p.nt + t
-			if p.reduceAt[k] != 2 {
+		for t := range p.NT {
+			k := r*p.NT + t
+			if p.ReduceAt[k] != 2 {
 				continue
 			}
-			if row := int(p.mixAt[k]) * ni; p.parentForbid[row+p1] != p.parentForbid[row+p2] {
+			if row := int(p.MixAt[k]) * ni; p.ParentForbid[row+p1] != p.ParentForbid[row+p2] {
 				return true
 			}
 		}
@@ -461,11 +462,11 @@ func parentDiffers(tab *grammar.Tables, p *Precedence, b, p1, p2 int) bool {
 }
 
 // awaiting groups items by the parent-dependent symbol after their dot.
-func awaiting(tab *grammar.Tables, p *Precedence, items []int) map[int][]int {
+func awaiting(tab *grammar.Tables, p *prectab.Precedence, items []int) map[int][]int {
 	by := map[int][]int{}
 	for _, i := range items {
 		it := tab.Items[i]
-		if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) && p.needParent[rhs[it.Dot]] {
+		if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) && p.NeedParent[rhs[it.Dot]] {
 			by[rhs[it.Dot]] = append(by[rhs[it.Dot]], i)
 		}
 	}
@@ -474,7 +475,7 @@ func awaiting(tab *grammar.Tables, p *Precedence, items []int) map[int][]int {
 
 // parentConflicts counts the states holding two core items with the dot before one parent-dependent symbol whose
 // parentForbid verdicts differ.
-func parentConflicts(tab *grammar.Tables, p *Precedence, states []grammar.State) (conflicts int) {
+func parentConflicts(tab *grammar.Tables, p *prectab.Precedence, states []grammar.State) (conflicts int) {
 	for _, st := range states {
 	state:
 		for b, is := range awaiting(tab, p, st.Items) {
@@ -506,8 +507,8 @@ func predictors(tab *grammar.Tables) []predictor {
 }
 
 // canonTop is item i as a canonical spine top: itself where it forbids some shift, -1 (none) otherwise.
-func canonTop(p *Precedence, i int) int32 {
-	if i >= 0 && p.topAt[i] < 0 {
+func canonTop(p *prectab.Precedence, i int) int32 {
+	if i >= 0 && p.TopAt[i] < 0 {
 		return -1
 	}
 	return int32(i)
@@ -515,7 +516,7 @@ func canonTop(p *Precedence, i int) int32 {
 
 // ruleTops is, by rule, the canonical spine tops of the rules k begins: each hangs from a kernel item of k, or
 // from an item of k's predicted state advanced over a nullable, and a left-corner prediction inherits its tops.
-func ruleTops(tab *grammar.Tables, p *Precedence, k predictor) map[int]map[int32]bool {
+func ruleTops(tab *grammar.Tables, p *prectab.Precedence, k predictor) map[int]map[int32]bool {
 	byLHS := make([][]int, len(tab.Symbols))
 	for r, rule := range tab.Rules {
 		byLHS[rule.LHS] = append(byLHS[rule.LHS], r)
@@ -532,7 +533,7 @@ func ruleTops(tab *grammar.Tables, p *Precedence, k predictor) map[int]map[int32
 	}
 	if k.epsilon == 0 {
 		for _, r := range byLHS[tab.Start] {
-			add(r, canonTop(p, int(p.base[r])))
+			add(r, canonTop(p, int(p.Base[r])))
 		}
 	}
 	predict := func(i int, t int32) {
@@ -624,7 +625,7 @@ type shiftVerdict struct{ multi, same, cross, copies, overKeep bool }
 // contextConflict is check (a)'s conflict: core items with different tops whose verdicts differ.
 func (v shiftVerdict) contextConflict() bool { return v.cross && (v.copies || v.overKeep) }
 
-func judgeShifts(p *Precedence, xs []shiftRec) (v shiftVerdict) {
+func judgeShifts(p *prectab.Precedence, xs []shiftRec) (v shiftVerdict) {
 	real := map[int32]map[int32]bool{} // at -> its tops
 	all := map[int32]bool{}
 	for _, x := range xs {
@@ -645,7 +646,7 @@ func judgeShifts(p *Precedence, xs []shiftRec) (v shiftVerdict) {
 	for top := range all {
 		var b strings.Builder
 		for _, x := range xs {
-			fmt.Fprint(&b, p.shiftForbidden(top, x.at, x.f))
+			fmt.Fprint(&b, p.ShiftForbidden(top, x.at, x.f))
 		}
 		vectors[b.String()] = true
 	}
@@ -653,10 +654,10 @@ func judgeShifts(p *Precedence, xs []shiftRec) (v shiftVerdict) {
 	for _, x := range xs {
 		forbidden := true
 		for tp := range real[x.at] {
-			forbidden = forbidden && p.shiftForbidden(tp, x.at, x.f)
+			forbidden = forbidden && p.ShiftForbidden(tp, x.at, x.f)
 		}
 		for c := range all {
-			v.overKeep = v.overKeep || forbidden && !real[x.at][c] && !p.shiftForbidden(c, x.at, x.f)
+			v.overKeep = v.overKeep || forbidden && !real[x.at][c] && !p.ShiftForbidden(c, x.at, x.f)
 		}
 	}
 	return v
@@ -676,7 +677,7 @@ func predictorTopsConflict(rt map[int]map[int32]bool) (conflict, withNone bool) 
 
 // ruleTopsDisagree is check (c) on one predictor: hit where a rule it begins under two or more tops gets different
 // verdicts from them on one of shifts, its (rule-position item, terminal) pairs; two where any rule has two tops.
-func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]bool, shifts [][2]int) (hit, two bool) {
+func ruleTopsDisagree(tab *grammar.Tables, p *prectab.Precedence, rt map[int]map[int32]bool, shifts [][2]int) (hit, two bool) {
 	for r, ts := range rt {
 		if len(ts) < 2 {
 			continue
@@ -688,7 +689,7 @@ func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]b
 			}
 			seen := map[bool]bool{}
 			for c := range ts {
-				seen[p.shiftForbidden(c, int32(sh[0]), int32(sh[1]))] = true
+				seen[p.ShiftForbidden(c, int32(sh[0]), int32(sh[1]))] = true
 			}
 			hit = hit || len(seen) > 1
 		}
@@ -699,14 +700,14 @@ func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]b
 // offAtShifts counts p's forbidden (top, at, f) shifts over every automaton item at, and of them those whose f is
 // not at's own next terminal: at is complete, a nonterminal or another terminal follows its dot, or at is a
 // refused rule's item, which no item of the tables holds.
-func offAtShifts(tab *grammar.Tables, p *Precedence) (forbidden, off int) {
-	for top, row := range p.topAt {
+func offAtShifts(tab *grammar.Tables, p *prectab.Precedence) (forbidden, off int) {
+	for top, row := range p.TopAt {
 		if row < 0 {
 			continue
 		}
-		for at := range p.topAt {
-			for f := range p.nt {
-				if !p.shiftForbidden(int32(top), int32(at), int32(f)) {
+		for at := range p.TopAt {
+			for f := range p.NT {
+				if !p.ShiftForbidden(int32(top), int32(at), int32(f)) {
 					continue
 				}
 				forbidden++
@@ -726,7 +727,7 @@ func offAtShifts(tab *grammar.Tables, p *Precedence) (forbidden, off int) {
 
 // nullableNonAllow counts tab's rules whose right-hand side is all nullable, empty and non-empty, and lists those
 // with a non-allow reduce verdict (forbidden, or decided by the parent item) before some terminal, EOF included.
-func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, bad []int) {
+func nullableNonAllow(tab *grammar.Tables, p *prectab.Precedence) (empty, nonEmpty int, bad []int) {
 	for r, rule := range tab.Rules {
 		if !slices.ContainsFunc(rule.RHS, func(s int) bool { return !tab.Symbols[s].Nullable }) {
 			if len(rule.RHS) == 0 {
@@ -734,7 +735,7 @@ func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, 
 			} else {
 				nonEmpty++
 			}
-			if slices.ContainsFunc(p.reduceAt[r*p.nt:(r+1)*p.nt], func(v uint8) bool { return v != 0 }) {
+			if slices.ContainsFunc(p.ReduceAt[r*p.NT:(r+1)*p.NT], func(v uint8) bool { return v != 0 }) {
 				bad = append(bad, r)
 			}
 		}
@@ -746,9 +747,9 @@ func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, 
 // two or more under every context an item can carry: none and each canonical spine top. A group conflicts where its
 // items' shift verdicts differ; a dot-0 item is allowed, never skipped. conflicts is each conflicting group's
 // context, -1 for none; dot0 counts the conflicts with a dot-0 item.
-func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups int, conflicts []int32, dot0 int) {
+func scanDisagreements(tab *grammar.Tables, p *prectab.Precedence) (groups int, conflicts []int32, dot0 int) {
 	contexts := []int32{-1}
-	for i, row := range p.topAt {
+	for i, row := range p.TopAt {
 		if row >= 0 {
 			contexts = append(contexts, int32(i))
 		}
@@ -770,7 +771,7 @@ func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups int, conflict
 				verdicts, zero := map[bool]bool{}, false
 				for _, i := range is {
 					dot := tab.Items[i].Dot
-					verdicts[dot > 0 && p.shiftForbidden(c, int32(i), int32(f))] = true
+					verdicts[dot > 0 && p.ShiftForbidden(c, int32(i), int32(f))] = true
 					zero = zero || dot == 0
 				}
 				if len(verdicts) > 1 {
@@ -787,8 +788,8 @@ func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups int, conflict
 
 // terminalLevel is the precedence level of the terminal named name, EOF the end of input, read as resolve reads it:
 // 0 is no level, and EOF, past the symbols, has none. A name that is no terminal is an error, never level 0.
-func terminalLevel(p *Precedence, name string) (int, error) {
-	tab := p.tab
+func terminalLevel(p *prectab.Precedence, name string) (int, error) {
+	tab := p.Tab
 	id := tab.EOF
 	if name != "EOF" {
 		id = symbol(tab, name)
@@ -796,8 +797,8 @@ func terminalLevel(p *Precedence, name string) (int, error) {
 			return 0, fmt.Errorf("no terminal %s", name)
 		}
 	}
-	if id < len(p.term) {
-		return p.term[id], nil
+	if id < len(p.TermLevel) {
+		return p.TermLevel[id], nil
 	}
 	return 0, nil
 }
@@ -868,7 +869,7 @@ type mixedSet struct{ set, rule int }
 
 // mixedSets lists the sets that are mixed whole (un) and those mixed under some narrowing to at most one PLUGIN_*
 // reading (narrowed).
-func mixedSets(tab *grammar.Tables, p *Precedence, sets [][]int) (un, narrowed []mixedSet) {
+func mixedSets(tab *grammar.Tables, p *prectab.Precedence, sets [][]int) (un, narrowed []mixedSet) {
 	semi, brace := symbol(tab, "PERLY_SEMICOLON"), symbol(tab, "PERLY_BRACE_CLOSE")
 	plugin := grammar.Derived(tab, buildPluginGrammar).is
 	mixed := func(la []int) int {
