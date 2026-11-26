@@ -202,6 +202,10 @@ jobs:
           echo "::error::TestSet1626NeverReachedPerlGit did not pass in make chart-precedence-reference."
           exit 1
         }
+        grep -q -- "--- PASS: TestForestEqualityPerlGit " precedence-reference.log || {
+          echo "::error::TestForestEqualityPerlGit did not pass in make chart-precedence-reference."
+          exit 1
+        }
 
     # A skipped ratchet is a guard that cannot fail, which is the defect this
     # job fixes -- so a skip here is a build failure, not a quiet pass. Named
