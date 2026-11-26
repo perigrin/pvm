@@ -475,3 +475,48 @@ func TestJudgedRefusesFailedDerivationOnPerlyTables(t *testing.T) {
 		t.Error("the no-precedence recognizer accepts no file of the sample over the forced value")
 	}
 }
+
+// depLeoToy is S ::= a B t, B ::= c B | c Z | b, Z ::= b t, b below t: after c the set holds one item awaiting B,
+// B ::= c . B, a Leo item, beside Z ::= . b t, so the state after b there shifts t and B ::= b is refused before t
+// under that parent, while after a, under S ::= a . B t, it is kept: a parent-dependent completion whose Leo
+// item's parent state refuses it.
+func depLeoToy(tb testing.TB) (*grammar.Tables, *prectab.Precedence) {
+	return precToy(tb, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"b"}}, {N: 2, Assoc: "left", Tokens: []string{"t"}}},
+		nil, nil, "S ::= a B t", "B ::= c B | c Z | b", "Z ::= b t")
+}
+
+// TestLeoTakesNoParentDependentCompletion: on depLeoToy's a c b t, completing B ::= b from node 2 before t is
+// parent-dependent, node 2 holds a Leo memo for B, and its one item is the parent that refuses it. The judged
+// recognizer with Leo and without agree on acceptance (refused), Expected and records at every node, with lookahead
+// and without: Leo is never taken over a completion whose verdict needs the parent.
+func TestLeoTakesNoParentDependentCompletion(t *testing.T) {
+	tab, p := depLeoToy(t)
+	B := symbolID(tab, "B")
+	r := slices.IndexFunc(tab.Rules, func(r grammar.BNFRule) bool { return r.LHS == B && len(r.RHS) == 1 }) // B ::= b
+	if p.ReduceAt[r*p.NT+symbolID(tab, "t")] != 2 {
+		t.Fatal("B ::= b before t is not parent-dependent")
+	}
+	l := tokens(tab, "a", "c", "b", "t")
+	for _, noLA := range []bool{false, true} {
+		on := mustJudged(t, tab, p, Options{NoLookahead: noLA})
+		off := mustJudged(t, tab, p, Options{NoLookahead: noLA, NoLeo: true})
+		a, b := mustRecognize(t, on, l), mustRecognize(t, off, l)
+		if a.memoAt(2, B) == nil {
+			t.Fatalf("lookahead off %v: node 2 holds no Leo memo for B, so the case is not Leo's", noLA)
+		}
+		if !b.RefusedAt(3) {
+			t.Fatalf("lookahead off %v: without Leo nothing is refused at node 3, so B ::= b is not refused under the Leo item", noLA)
+		}
+		if a.Accepted() || b.Accepted() {
+			t.Errorf("lookahead off %v: accepted %v with Leo, %v without; want both refused", noLA, a.Accepted(), b.Accepted())
+		}
+		for pos := range a.Sets {
+			x, _ := a.Expected(pos)
+			y, _ := b.Expected(pos)
+			if !slices.Equal(x, y) || !slices.Equal(recordsAt(a, pos), recordsAt(b, pos)) || !slices.Equal(a.Sets[pos].Items(), b.Sets[pos].Items()) {
+				t.Errorf("lookahead off %v, node %d: items %v, Expected %v, records %v with Leo; %v, %v, %v without", noLA, pos,
+					a.Sets[pos].Items(), x, recordsAt(a, pos), b.Sets[pos].Items(), y, recordsAt(b, pos))
+			}
+		}
+	}
+}

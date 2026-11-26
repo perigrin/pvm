@@ -1935,7 +1935,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   (`TestRefusalRecordsOutsideSetIdentity`), and a cache hit serves the
   records it stored (`TestRefusalRecordsServedByCache`). A Leo chain crossing a refused completion is not taken,
   so completion goes link by link and refuses there, as without Leo
-  (`TestLeoCrossesRefusedCompletion`). The slipper's closure and `Expected`
+  (`TestLeoCrossesRefusedCompletion`), and nor is one whose first completion
+  needs its parent state (`TestLeoTakesNoParentDependentCompletion`). The slipper's closure and `Expected`
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
   over the toys, seeds 4 and 44 and the in-tree corpus
   (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
