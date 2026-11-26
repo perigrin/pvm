@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/forest"
@@ -79,30 +80,60 @@ func TestForestEqualityCorpus(t *testing.T) {
 }
 
 // TestForestEqualityCorpusUsesFileScope: a file whose plugin operator only its own scope declares has a V1 forest
-// under that scope and a refusal under an empty one, and the differential compares it under its own: with the
-// candidate swapped for one that judges an empty scope, it reports the file, so the scope is passed to both sides.
+// under that scope and a refusal under an empty one. The file goes through compareForests, the loop the corpus
+// differentials share, with a scope func keyed by its path, and is compared equal; with the candidate swapped for
+// one that judges an empty scope it is reported, so compareForests hands the file's scope to both sides and may not
+// substitute another. (fileScope's own derivation is TestForestEqualityFileScopeIsThePipelines's.)
 func TestForestEqualityCorpusUsesFileScope(t *testing.T) {
 	tab := committedTables(t)
 	t.Cleanup(parse.OverlayDeclarations(os.DirFS(filepath.Join("..", "..", "testdata", "libops"))))
+	const path = "scope/plus.pl"
 	src := []byte("use My::Ops; 1 plus 2 + 3;\n")
 	root := parse.ParseWithLoader(src, func(string) ([]byte, bool) { return nil, false })
 	own := forest.Scope{Imports: parse.Imports(root), LibraryOperators: parse.LibraryOperators(root)}
+	scope := func(p string) forest.Scope {
+		if p != path {
+			t.Errorf("scope asked for %q, want %q", p, path)
+		}
+		return own
+	}
+	srcs, files := map[string][]byte{path: src}, []File{{path, "x"}}
 	if v1, _ := forest.V1Forest(tab, src, own); v1 == nil {
 		t.Fatal("V1 refuses the file under its own scope")
 	}
 	if v1, _ := forest.V1Forest(tab, src, forest.Scope{}); v1 != nil {
 		t.Fatal("V1 accepts the file under an empty scope, so the scope proves nothing")
 	}
-	if d := forestDiffer(tab, src, own); d != "" {
-		t.Errorf("the candidate differs from V1 under the file's own scope: %s", d)
+	if n, diffs := compareForests(tab, files, srcs, scope); n != 1 || len(diffs) != 0 {
+		t.Errorf("under the file's own scope: compared %d, diffs %v; want 1, none", n, diffs)
 	}
 	cand0 := forest.CandidateForest
 	t.Cleanup(func() { forest.CandidateForest = cand0 })
 	forest.CandidateForest = func(tab *grammar.Tables, src []byte, _ forest.Scope) (*forest.Forest, forest.Refusal) {
 		return cand0(tab, src, forest.Scope{})
 	}
-	if forestDiffer(tab, src, own) == "" {
-		t.Error("a candidate judging an empty scope is not reported, so the file's scope is not what is compared")
+	if _, diffs := compareForests(tab, files, srcs, scope); len(diffs) != 1 {
+		t.Errorf("a candidate judging an empty scope: diffs %v; want the file reported", diffs)
+	}
+}
+
+// TestForestEqualityFileScopeIsThePipelines: fileScope is the scope the pipeline judges each file under
+// (chartInputs's), shared with TestPrecedencePerlGitMatchesReference: a file's imports, as parse.Imports reads them
+// with the ratchet's own search directories. An empty scope for a file that imports is not that scope.
+// shortcut: chartInputs's scope carries Imports only, which resolve reads after the stage the differential compares,
+// so no file's forest differs with it removed; upgrade when the differential's forests are taken after resolve.
+func TestForestEqualityFileScopeIsThePipelines(t *testing.T) {
+	t.Chdir("../../../..")
+	tab := committedTables(t)
+	const path = "scope/carp.pl"
+	src := []byte("use Carp; croak 1, 2;\n")
+	got := fileScope(t, tab, map[string][]byte{path: src})(path)
+	want := parse.Imports(parse.ParseWithLoader(src, parse.DirLoader(realDirs(path)...)))
+	if _, ok := want["croak"]; !ok {
+		t.Fatalf("parse.Imports reads no croak for %q: %v", src, want)
+	}
+	if !reflect.DeepEqual(got.Imports, want) {
+		t.Errorf("fileScope's imports %v, want parse.Imports' %v", got.Imports, want)
 	}
 }
 
