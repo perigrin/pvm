@@ -473,7 +473,9 @@ To take a baseline after an intended change, run
   production `Constrain` against `ConstrainReference`. The test,
   `TestPrecedencePerlGitMatchesReference`, sits behind the build tag
   `precedencereference` because `go test ./...` runs on machines without
-  perl.git. A missing or empty perl.git fails it, never skips it. CI's
+  perl.git. A missing or empty perl.git fails it, never skips it. The target
+  also runs `TestSet1626NeverReachedPerlGit`, the set-1626 observer below
+  over every perl.git `t/` file, behind the same tag and failing the same way. CI's
   corpus-backed Ratchets job runs it with `PERL5_CORPUS` set. No in-tree
   precedence test sits behind `precedencecorpus`, so `make test` wires no
   second tag for it.
@@ -2727,6 +2729,23 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `TestFeasibilityClosingTerminalsHaveNoLevel` pins that `;`, `}` and EOF
   carry no precedence level, which is why the recognizer's closing sets,
   which add `;`, agree with V1's slipper judgement.
+  `TestFeasibilityNarrowedMixedSets` lists the terminal sets, `;` added
+  beside `}`, holding two terminals of some rule's FOLLOW(LHS) with different
+  reduce verdicts: 63 of the 1,880 un-narrowed, and narrowed to at most one
+  `PLUGIN_*` reading, exactly set 1626, `{HASHBRACK, PERLY_BRACE_OPEN}`, for
+  `indirob ::= scalar`. A table cannot say whether an input reaches it, so
+  `TestSet1626NeverReachedCorpus` (`cmd/ratchet`, in `make test`) counts the
+  tokens carrying set 1626 where the chart holds `indirob ::= scalar`
+  completed, over every in-tree corpus file and the constructed inputs in
+  `cmd/ratchet/testdata/set1626-inputs.txt`, and requires 0;
+  `TestSet1626ObserverCountsAnOccurringPair` shows the same count non-zero
+  for a pair the corpus does reach. Reaching set 1626 is a design §7 stop.
+  The lexer cannot reach it: a scalar ends in a Variable or a cast block's
+  `}` (`internal/lexer` emits a DerefSigil only before `{` or `$`), and
+  HASHBRACK's class excludes both as the token before its `{`, so the `{`
+  after a scalar is `{PERLY_BRACE_OPEN}` alone. Each constructed input
+  therefore carries set 1626 one or two tokens after a completion (a word, or
+  a glob's `*` and name, between), which the test requires and logs per input.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is

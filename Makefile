@@ -35,12 +35,13 @@ chart-absence-reference:
 
 # The precedence reference over perl.git (internal/chart/README.md): every
 # recognized perl.git t/ file judged by production Constrain and by
-# ConstrainReference, which must agree. Not in `test`, because a developer
-# without perl.git runs `make test`; the test sits behind the build tag
+# ConstrainReference, which must agree, and the set-1626 observer over the
+# same files, which must count 0. Not in `test`, because a developer
+# without perl.git runs `make test`; the tests sit behind the build tag
 # precedencereference and fails, never skips, without PERL5_CORPUS's perl.git.
 # CI runs it in the corpus-backed Ratchets job.
 chart-precedence-reference:
-	go test -tags precedencereference ./internal/chart/cmd/ratchet/ -run '^TestPrecedencePerlGitMatchesReference$$' -count=1 -v
+	go test -tags precedencereference ./internal/chart/cmd/ratchet/ -run '^(TestPrecedencePerlGitMatchesReference|TestSet1626NeverReachedPerlGit)$$' -count=1 -v
 
 # The lexer fuzz target. Separate from `test` because -fuzz takes ONE package
 # and runs until its budget is spent; it cannot live inside `go test ./...`.

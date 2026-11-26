@@ -1,0 +1,60 @@
+# Constructed inputs for the set-1626 observer (TestSet1626NeverReachedCorpus, design §3's constructed inputs). Set
+# 1626, {HASHBRACK PERLY_BRACE_OPEN}, is the one terminal set whose terminals get different reduce verdicts after
+# indirob ::= scalar (design §4.1). Each input completes indirob ::= scalar and carries set 1626 as close after that
+# completion as internal/lexer allows, and the test fails on an input that does either alone.
+#
+# The lexer cannot put set 1626 on the token right after a completed indirob ::= scalar:
+# - a scalar's last token is a Variable ($x, and -> $'s cast) or the } closing a cast's block (${ ... }): internal/lexer
+#   emits a DerefSigil only before { or $ (startsDerefExpression), so CAST_DOLLAR BAREWORD never forms;
+# - HASHBRACK's class (grammar/perly.go) has NotPrev1 notHashBrace, which lists every Variable and every }, so the {
+#   after either never admits HASHBRACK: `print $fh {`, `$$r{`, `${$r} {` and `$o->$$m {` lex it as {PERLY_BRACE_OPEN}
+#   alone (TestSet1626ObserverCountsAnOccurringPair counts two of them).
+# In the corpus every set-1626 token follows a word (`*STDOUT{IO}`, `use constant {`, `Pkg::FOO{`). So each input puts a
+# word, or a glob's * and name, between the scalar and the {: set 1626 one token after the completion, or two, which the
+# test requires and logs per input.
+#
+# Each input starts at a line "### <name>" and runs to the next; everything before the first is this comment.
+### print to a scalar handle, a word, then braces
+print $fh FOO { a => 1 };
+### print to a scalar handle, STDOUT, then braces
+print $fh STDOUT { a => 1 };
+### print to a scalar handle, a package name, then braces
+print $fh Foo::Bar { a => 1 };
+### print to a scalar handle, a call-like word, then braces
+print $fh collect { a => 1 };
+### printf to a scalar handle, a word, then braces
+printf $fh FOO { a => 1 };
+### say to a scalar handle, a word, then braces
+use feature 'say'; say $fh FOO { a => 1 };
+### exec with a scalar program, a word, then braces
+exec $prog FOO { a => 1 } if 0;
+### system with a scalar program, a word, then braces
+system $prog FOO { a => 1 } if 0;
+### sort with a scalar comparator, a word, then braces
+my @s = sort $by FOO { a => 1 };
+### indirect new on a scalar class, a word, then braces
+my $o = new $class FOO { a => 1 };
+### print to a cast scalar handle, a word, then braces
+print $$r FOO { a => 1 };
+### print to a cast block's handle, a word, then braces
+print ${$r} FOO { a => 1 };
+### print to a package scalar handle, a word, then braces
+print $Foo::fh FOO { a => 1 };
+### print to a scalar handle, then a glob slot
+print $fh *STDOUT{IO};
+### print to a scalar handle, then a glob slot in a condition
+print $fh *FOO{CODE} ? 1 : 0;
+### print to a package scalar handle, then a glob slot
+print $fh::x *STDOUT{IO};
+### say to a scalar handle, then a glob slot
+use feature 'say'; say $fh *STDERR{IO};
+### printf to a scalar handle, then a qualified glob slot
+printf $fh *Foo::BAR{HASH};
+### print to a deeply qualified scalar handle, STDERR, then braces
+print $Foo::Bar::fh STDERR { a => 1 };
+### print to a cast scalar handle, a package name, then braces
+print $$r Foo::Bar { a => 1 };
+### a return value through a scalar handle, then a glob slot
+sub io { my $g = shift; print $g *STDOUT{IO} } io(\*STDOUT);
+### print to a scalar handle, a word, then a longer hash
+print $fh BAR { b => 2, c => 3 };

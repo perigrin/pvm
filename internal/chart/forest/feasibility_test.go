@@ -50,7 +50,7 @@ func TestFeasibilityRuleReduceConflicts(t *testing.T) {
 		for i := range rs {
 			for j := i + 1; j < len(rs); j++ {
 				for _, x := range tab.Follow[lhs] {
-					if reduceDiffers(p, rs[i], rs[j], x) {
+					if reduceDiffers(p, rs[i], x, rs[j], x) {
 						synth = append(synth, grammar.State{Reduces: []int{rs[i], rs[j]}})
 						break
 					}
@@ -361,10 +361,10 @@ func TestFeasibilityTerminalLevelLookupControl(t *testing.T) {
 	}
 }
 
-// reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
-// parent item (2), their whole parentForbid rows are compared.
-func reduceDiffers(p *Precedence, r1, r2, t int) bool {
-	v1, v2 := p.reduceAt[r1*p.nt+t], p.reduceAt[r2*p.nt+t]
+// reduceDiffers reports whether V1's reduce verdicts for rule r1 before t1 and rule r2 before t2 differ; where both
+// depend on the parent item (2), their whole parentForbid rows are compared.
+func reduceDiffers(p *Precedence, r1, t1, r2, t2 int) bool {
+	v1, v2 := p.reduceAt[r1*p.nt+t1], p.reduceAt[r2*p.nt+t2]
 	if v1 != v2 {
 		return true
 	}
@@ -372,7 +372,7 @@ func reduceDiffers(p *Precedence, r1, r2, t int) bool {
 		return false
 	}
 	ni := len(p.topAt)
-	a, b := int(p.mixAt[r1*p.nt+t])*ni, int(p.mixAt[r2*p.nt+t])*ni
+	a, b := int(p.mixAt[r1*p.nt+t1])*ni, int(p.mixAt[r2*p.nt+t2])*ni
 	return !slices.Equal(p.parentForbid[a:a+ni], p.parentForbid[b:b+ni])
 }
 
@@ -390,7 +390,7 @@ func ruleReduceConflicts(tab *grammar.Tables, p *Precedence, states []grammar.St
 				for j := i + 1; j < len(rs); j++ {
 					paired = true
 					for _, x := range tab.Follow[lhs] {
-						if reduceDiffers(p, rs[i], rs[j], x) {
+						if reduceDiffers(p, rs[i], x, rs[j], x) {
 							hit = true
 						}
 					}
@@ -768,4 +768,133 @@ func terminalLevel(p *Precedence, name string) (int, error) {
 		return p.term[id], nil
 	}
 	return 0, nil
+}
+
+// The post-narrowing terminal-set counter (design §5, feasibility.md's static check): a terminal set, with ; added
+// beside }, is mixed where some rule gets different reduce verdicts before two of its terminals that are both in
+// FOLLOW(LHS). Un-narrowed, 63 of perly.y's 1,880 sets are mixed, all through PLUGIN_* readings; narrowed to at most
+// one PLUGIN_* reading, whichever is kept, exactly one is: set 1626, {HASHBRACK, PERLY_BRACE_OPEN}, for
+// indirob ::= scalar, which the recognizer cannot judge by one verdict (design §4.1). The set is named by its members
+// and rule, so a renumbered table cannot pass by coincidence.
+func TestFeasibilityNarrowedMixedSets(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	un, narrowed := mixedSets(tab, p, tab.TerminalSets)
+	t.Logf("sets: %d un-narrowed: %d narrowed: %d", len(tab.TerminalSets), len(un), len(narrowed))
+	for _, m := range narrowed {
+		t.Logf("narrowed mixed: set %d %s after %s", m.set, setText(tab, tab.TerminalSets[m.set]), ruleText(tab, m.rule))
+	}
+	if len(tab.TerminalSets) != 1880 || len(un) != 63 {
+		t.Errorf("%d sets, %d mixed un-narrowed; want 1880 and 63", len(tab.TerminalSets), len(un))
+	}
+	if len(narrowed) != 1 || setText(tab, tab.TerminalSets[narrowed[0].set]) != "HASHBRACK PERLY_BRACE_OPEN" ||
+		ruleText(tab, narrowed[0].rule) != "indirob ::= scalar" {
+		t.Errorf("narrowed mixed sets %v; want exactly {HASHBRACK PERLY_BRACE_OPEN} for indirob ::= scalar", narrowed)
+	}
+
+	// Synthetic sets: two non-PLUGIN_* terminals of one FOLLOW(LHS) whose verdicts differ are mixed narrowed or not; a
+	// non-PLUGIN_* and a PLUGIN_* terminal stay mixed when narrowing keeps that one reading, which dropping every
+	// PLUGIN_* would hide; two PLUGIN_* terminals are mixed only un-narrowed.
+	plugin := grammar.Derived(tab, buildPluginGrammar).is
+	var base, kept, plugins [][]int
+	for r, rule := range tab.Rules {
+		fl := tab.Follow[rule.LHS]
+		for i, a := range fl {
+			for _, b := range fl[i+1:] {
+				if a >= len(plugin) || b >= len(plugin) || !reduceDiffers(p, r, a, r, b) {
+					continue
+				}
+				switch {
+				case !plugin[a] && !plugin[b] && len(base) < 20:
+					base = append(base, []int{a, b})
+				case plugin[a] != plugin[b] && len(kept) < 20:
+					kept = append(kept, []int{a, b})
+				case plugin[a] && plugin[b] && len(plugins) < 20:
+					plugins = append(plugins, []int{a, b})
+				}
+			}
+		}
+	}
+	for _, c := range []struct {
+		name     string
+		sets     [][]int
+		narrowed bool // whether narrowing keeps every set mixed; un-narrowed, every set is
+	}{{"base", base, true}, {"kept", kept, true}, {"plugins", plugins, false}} {
+		su, sn := mixedSets(tab, p, c.sets)
+		t.Logf("synthetic %s: %d sets, un-narrowed %d, narrowed %d", c.name, len(c.sets), len(su), len(sn))
+		want := 0
+		if c.narrowed {
+			want = len(c.sets)
+		}
+		if len(c.sets) == 0 || len(su) != len(c.sets) || len(sn) != want {
+			t.Errorf("synthetic %s: %d sets, un-narrowed %d, narrowed %d", c.name, len(c.sets), len(su), len(sn))
+		}
+	}
+}
+
+// mixedSet is a terminal set (by index) and the first rule found mixed before it.
+type mixedSet struct{ set, rule int }
+
+// mixedSets lists the sets that are mixed whole (un) and those mixed under some narrowing to at most one PLUGIN_*
+// reading (narrowed).
+func mixedSets(tab *grammar.Tables, p *Precedence, sets [][]int) (un, narrowed []mixedSet) {
+	semi, brace := symbol(tab, "PERLY_SEMICOLON"), symbol(tab, "PERLY_BRACE_CLOSE")
+	plugin := grammar.Derived(tab, buildPluginGrammar).is
+	mixed := func(la []int) int {
+		if slices.Contains(la, brace) && !slices.Contains(la, semi) {
+			la = append(slices.Clone(la), semi)
+		}
+		for r, rule := range tab.Rules {
+			fl := tab.Follow[rule.LHS]
+			for i, a := range la {
+				for _, b := range la[i+1:] {
+					if slices.Contains(fl, a) && slices.Contains(fl, b) && reduceDiffers(p, r, a, r, b) {
+						return r
+					}
+				}
+			}
+		}
+		return -1
+	}
+	for id, set := range sets {
+		if r := mixed(set); r >= 0 {
+			un = append(un, mixedSet{id, r})
+		}
+		var base, plugs []int
+		for _, x := range set {
+			if plugin[x] {
+				plugs = append(plugs, x)
+			} else {
+				base = append(base, x)
+			}
+		}
+		readings := [][]int{base}
+		for _, x := range plugs {
+			readings = append(readings, append(slices.Clone(base), x))
+		}
+		for _, la := range readings {
+			if r := mixed(la); r >= 0 {
+				narrowed = append(narrowed, mixedSet{id, r})
+				break
+			}
+		}
+	}
+	return un, narrowed
+}
+
+// setText is a terminal set's member names, in id order.
+func setText(tab *grammar.Tables, set []int) string {
+	names := make([]string, len(set))
+	for i, x := range set {
+		names[i] = tab.Symbols[x].Name
+	}
+	return strings.Join(names, " ")
+}
+
+// ruleText is rule r as "LHS ::= RHS".
+func ruleText(tab *grammar.Tables, r int) string {
+	parts := []string{tab.Symbols[tab.Rules[r].LHS].Name, "::="}
+	for _, x := range tab.Rules[r].RHS {
+		parts = append(parts, tab.Symbols[x].Name)
+	}
+	return strings.Join(parts, " ")
 }
