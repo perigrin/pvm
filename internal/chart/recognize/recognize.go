@@ -70,8 +70,9 @@ type Recognizer struct {
 	err   error
 	// leoSteps counts the Leo chains the judged recognizer took, and
 	// leoRefused those it did not because they cross a refused completion,
-	// for the test that Leo crosses one (leo_test.go).
-	leoSteps, leoRefused int
+	// for the test that Leo crosses one (leo_test.go); leoLinks counts the
+	// memo links leoCrosses walks, for the test that the walk is linear.
+	leoSteps, leoRefused, leoLinks int
 }
 
 // grammarTables is what New derives from the tables alone. It is built once

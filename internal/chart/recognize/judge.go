@@ -238,6 +238,7 @@ func (c *Chart) Refused(to, sym, origin, parent int) bool {
 func (b *builder) leoCrosses(m *memo) bool {
 	j := b.r.judge
 	for l := m; l.next != nil; l = l.next {
+		b.r.leoLinks++
 		li := slices.Index(b.r.g.lhs[l.adv], l.lhs)
 		if !j.completes(l.adv, li, b.r.g.follow[l.lhs], b.la, l.lhs, l.next.item) {
 			return true

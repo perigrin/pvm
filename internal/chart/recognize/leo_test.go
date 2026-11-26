@@ -245,7 +245,20 @@ func storedMemo(c *Chart, at, sym int) (*memo, bool) {
 // computation.
 func TestLeoMemoEntriesBounded(t *testing.T) {
 	tab, files := corpusSample(t)
-	r := New(tab, Options{})
+	checkLeoMemoEntries(t, New(tab, Options{}), files)
+}
+
+// TestLeoMemoEntriesBoundedJudged: the derived judged recognizer holds the
+// same bound.
+func TestLeoMemoEntriesBoundedJudged(t *testing.T) {
+	tab, files := corpusSample(t)
+	checkLeoMemoEntries(t, mustJudged(t, tab, nil, Options{}), files)
+}
+
+// checkLeoMemoEntries holds r's stored memo entries per node over
+// files within leoMemoEntriesBound.
+func checkLeoMemoEntries(t *testing.T, r *Recognizer, files []sampleFile) {
+	t.Helper()
 	nodes, entries := 0, 0
 	for _, f := range files {
 		c := mustRecognize(t, r, f.l)
@@ -256,6 +269,27 @@ func TestLeoMemoEntriesBounded(t *testing.T) {
 	t.Logf("%d stored Leo memo entries over %d nodes: %.4f per node", entries, nodes, per)
 	if per > leoMemoEntriesBound {
 		t.Errorf("%.4f stored Leo memo entries per node, above the bound %v", per, leoMemoEntriesBound)
+	}
+}
+
+// TestJudgedLeoWalkLinear: on powToy's right recursion NUM POW ... NUM, n
+// and 2n deep, the memo links the judged recognizer's leoCrosses walks at
+// most double, give or take: a walk that restarted at the chain's head on
+// every link would grow fourfold.
+func TestJudgedLeoWalkLinear(t *testing.T) {
+	tab, p := powToy(t)
+	walk := func(n int) int {
+		r := mustJudged(t, tab, p, Options{})
+		if c := mustRecognize(t, r, tokens(tab, append(slices.Repeat([]string{"NUM", "POW"}, n), "NUM")...)); !c.Accepted() {
+			t.Fatalf("input %d deep refused", n)
+		}
+		return r.leoLinks
+	}
+	const n = 200
+	w1, w2 := walk(n), walk(2*n)
+	t.Logf("leo walk: %d at %d, %d at %d", w1, n, w2, 2*n)
+	if w1 == 0 || float64(w2) > 2.5*float64(w1) {
+		t.Errorf("leo walk: %d at %d, %d at %d; want the first non-zero and the second at most 2.5 times it", w1, n, w2, 2*n)
 	}
 }
 
