@@ -81,11 +81,11 @@ func TestForestEqualityReduceSide(t *testing.T) {
 		if feasErr == nil {
 			t.Fatal("emptyred's judged recognizer has no error to mark it")
 		}
-		calls := 0
+		var got []*prectab.Precedence // the precedence each call was handed
 		rec0 := reduceSideRecognizer
 		t.Cleanup(func() { reduceSideRecognizer = rec0 })
-		reduceSideRecognizer = func(*grammar.Tables, *prectab.Precedence) (*recognize.Recognizer, error) {
-			calls++
+		reduceSideRecognizer = func(_ *grammar.Tables, p *prectab.Precedence) (*recognize.Recognizer, error) {
+			got = append(got, p)
 			return marker, nil
 		}
 		tab := committedTables(t)
@@ -96,8 +96,23 @@ func TestForestEqualityReduceSide(t *testing.T) {
 		if f, err := ReduceSideToyForest(ty.tab, toyLattice(ty.tab, strings.Fields("VAR")), ty.prec); f != nil || err != feasErr {
 			t.Errorf("ReduceSideToyForest with the marker: forest %v, error %v; want none, the marker's: it recognizes with another recognizer", f != nil, err)
 		}
-		if calls != 2 {
-			t.Errorf("the reduce-side candidates took %d recognizers from reduceSideRecognizer; want one each, 2", calls)
+		// ReduceSideForest derives perly.y's precedence (nil); ReduceSideToyForest judges with the toy's own, which
+		// the derived form would never find, since a toy's tables are not perly.y's.
+		if len(got) != 2 || got[0] != nil || got[1] != ty.prec {
+			t.Errorf("the reduce-side candidates handed reduceSideRecognizer %v; want nil, then the toy's precedence %p", got, ty.prec)
+		}
+		// The default judges a toy with its precedence: on indirob's LSTOP VAR LB NUM RB it refuses indirob before
+		// LB at node 2, where the no-precedence recognizer's set keeps the completion.
+		tl := toyLattice(ty.tab, strings.Fields("LSTOP VAR LB NUM RB"))
+		tr, err := rec0(ty.tab, ty.prec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tj, _ := recognize.Recognize(tr, tl)
+		tp, _ := recognize.Recognize(recognize.NewNoPrecedence(ty.tab, recognize.Options{}), tl)
+		if !tj.RefusedAt(2) || reflect.DeepEqual(chartSets(tj), chartSets(tp)) {
+			t.Errorf("reduceSideRecognizer over indirob, LSTOP VAR LB NUM RB: refused at node 2 %v, sets equal the no-precedence recognizer's %v; want refused, different",
+				tj.RefusedAt(2), reflect.DeepEqual(chartSets(tj), chartSets(tp)))
 		}
 		s, _ := lex.Lex([]byte("1 + 2 * 3;"), tab.Tokens)
 		l := lex.Linear(s)
