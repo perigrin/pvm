@@ -227,7 +227,7 @@ func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []
 	for _, st := range p.States {
 		for _, r := range st.Reduce {
 			for t := range nt {
-				seen[int(r)*nt+t] |= verdict(p.ReducesIn(&st, int(r), t))
+				seen[int(r)*nt+t] |= verdict(p.reducesIn(&st, int(r), t))
 			}
 		}
 	}
@@ -251,7 +251,7 @@ func (p *Precedence) stateFree(states [][]int, rules []grammar.BNFRule, items []
 			if rhs := rules[it.Rule].RHS; it.Dot < len(rhs) {
 				for m, k := range mixed {
 					if r := k / nt; rules[r].LHS == rhs[it.Dot] {
-						parent[m*ni+pi] |= verdict(p.ReducesIn(&p.States[p.Walk(int32(q), rules[r].RHS)], r, k%nt))
+						parent[m*ni+pi] |= verdict(p.reducesIn(&p.States[p.Walk(int32(q), rules[r].RHS)], r, k%nt))
 					}
 				}
 			}
@@ -425,7 +425,7 @@ func (p *Precedence) lookaheads(states [][]int, rules []grammar.BNFRule, items [
 	}
 }
 
-// walk is the state reached from state s over syms. Every state a derivation begins a rule in holds the
+// Walk is the state reached from state s over syms. Every state a derivation begins a rule in holds the
 // rule's first item, so the goto exists; a missing one is a constrainer bug.
 func (p *Precedence) Walk(s int32, syms []int) int32 {
 	for _, x := range syms {
@@ -471,14 +471,14 @@ func (p *Precedence) resolve(r, t int) resolution {
 	return refuse
 }
 
-// reduces reports whether bison's resolution lets rule r, begun in state s, reduce with t next: where the
+// Reduces reports whether bison's resolution lets rule r, begun in state s, reduce with t next: where the
 // state after its symbols can also shift t, the resolution must be reduce.
 func (p *Precedence) Reduces(r int, s int32, t int) bool {
-	return p.ReducesIn(&p.States[p.Walk(s, p.Tab.Rules[r].RHS)], r, t)
+	return p.reducesIn(&p.States[p.Walk(s, p.Tab.Rules[r].RHS)], r, t)
 }
 
-// reducesIn is reduces in st, the state after rule r's symbols.
-func (p *Precedence) ReducesIn(st *State, r, t int) bool {
+// Reduces in st, the state after rule r's symbols; unexported because nothing outside prectab calls it.
+func (p *Precedence) reducesIn(st *State, r, t int) bool {
 	if _, conflict := slices.BinarySearch(st.Shift, int32(t)); !conflict {
 		return true
 	}
@@ -486,7 +486,7 @@ func (p *Precedence) ReducesIn(st *State, r, t int) bool {
 	return res == unresolved || res == reduce
 }
 
-// shifts reports whether bison's resolution lets t shift in state s: every rule s reduces on t, by its LALR(1)
+// Shifts reports whether bison's resolution lets t shift in state s: every rule s reduces on t, by its LALR(1)
 // lookahead there, must lose to the shift.
 func (p *Precedence) Shifts(s int32, t int) bool {
 	for i, r := range p.States[s].Reduce {
@@ -500,7 +500,7 @@ func (p *Precedence) Shifts(s int32, t int) bool {
 	return true
 }
 
-// reducesFree is the state-free verdict on reducing rule r with t next, whose node is its parent's child at
+// ReducesFree is the state-free verdict on reducing rule r with t next, whose node is its parent's child at
 // item pi. A pair that needs its parent item and has none is a judgement bug, never an allowance.
 func (p *Precedence) ReducesFree(r, t int, pi int32) bool {
 	k := r*p.NT + t
@@ -516,7 +516,7 @@ func (p *Precedence) ReducesFree(r, t int, pi int32) bool {
 	return !p.ParentForbid[int(p.MixAt[k])*len(p.TopAt)+int(pi)]
 }
 
-// shiftForbidden reports whether shifting t after the rule-position item at, under the spine top top, is forbidden.
+// ShiftForbidden reports whether shifting t after the rule-position item at, under the spine top top, is forbidden.
 func (p *Precedence) ShiftForbidden(top, at int32, t int32) bool {
 	if top < 0 || p.TopAt[top] < 0 {
 		return false
