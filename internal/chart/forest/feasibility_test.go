@@ -754,8 +754,8 @@ func terminalLevel(p *Precedence, name string) (int, error) {
 	tab := p.tab
 	id := tab.EOF
 	if name != "EOF" {
-		id = slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Terminal && s.Name == name })
-		if id < 0 {
+		id = symbol(tab, name)
+		if id < 0 || !tab.Symbols[id].Terminal {
 			return 0, fmt.Errorf("no terminal %s", name)
 		}
 	}
