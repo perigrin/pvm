@@ -86,3 +86,17 @@ func TestSet1626NeverReachedPerlGit(t *testing.T) {
 		t.Errorf("set 1626 reached %d times after indirob ::= scalar: a design §7 stop", o.reaching)
 	}
 }
+
+// TestForestEqualityPerlGit: TestForestEqualityCorpus's differential over every perl.git t/ file, loaded as the ratchet
+// loads it. A missing perl.git fails, and so does one that compares no file.
+func TestForestEqualityPerlGit(t *testing.T) {
+	t.Chdir("../../../..")
+	srcs := map[string][]byte{}
+	files, err := perlGit(perl5Root(), srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab := committedTables(t)
+	compared, diffs := compareForests(tab, files, srcs, fileScope(t, tab, srcs))
+	reportForests(t, "perl.git", len(files), compared, diffs)
+}
