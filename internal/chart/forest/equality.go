@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
 
 // NodeKey is what a node derives, by which ForestDiff matches nodes across forests: its symbol (-1 for a rule
@@ -91,4 +95,57 @@ func reachableAlts(f *Forest) map[NodeKey][]altKey {
 
 func cmpNodeKey(x, y NodeKey) int {
 	return cmp.Or(cmp.Compare(x.From, y.From), cmp.Compare(x.To, y.To), cmp.Compare(x.Sym, y.Sym), cmp.Compare(x.Rule, y.Rule), cmp.Compare(x.Dot, y.Dot))
+}
+
+// V1Recognizer is the V1 side's recognizer over tab, and the only place the V1 side gets one: always the
+// recognizer that judges no precedence, never production's. Today that is recognize.New's.
+func V1Recognizer(tab *grammar.Tables) *recognize.Recognizer {
+	return recognize.New(tab, recognize.Options{})
+}
+
+// v1LibraryOperators and v1Constrain are the V1 side's own stages, variables so a test can count its entries.
+var (
+	v1LibraryOperators = libraryOperators
+	v1Constrain        = (*Forest).Constrain
+)
+
+// V1Forest is V1's forest of src: V1Recognizer's chart, Build, LibraryOperators under scope, then Constrain under
+// perly.y's precedence (the V2 design's §5). Where it refuses, the forest is nil and the Refusal names the stage
+// that refused (grammar, scope or precedence) with Byte 0: the differential compares verdicts, not bytes.
+func V1Forest(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
+	s, _ := lex.Lex(src, tab.Tokens)
+	l := lex.Linear(s)
+	c, err := recognize.Recognize(V1Recognizer(tab), l)
+	if err != nil {
+		return nil, Refusal{Reason: err.Error()}
+	}
+	if !c.Accepted() {
+		return nil, Refusal{Reason: "grammar"}
+	}
+	f := Build(tab, c, l)
+	if v1LibraryOperators(tab, f, s, src, scope) >= 0 {
+		return nil, Refusal{Reason: "scope"}
+	}
+	prec, err := ParsePrecedence(tab)
+	if err != nil {
+		return nil, Refusal{Reason: err.Error()}
+	}
+	if !v1Constrain(f, prec) {
+		return nil, Refusal{Reason: "precedence"}
+	}
+	return f, Refusal{}
+}
+
+// V1ToyForest is V1's forest of a toy grammar's lattice l under the toy's precedence p: V1Recognizer's chart,
+// Build, then Constrain; nil where it refuses. A toy has no source, so it has no library operators.
+func V1ToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *Precedence) (*Forest, error) {
+	c, err := recognize.Recognize(V1Recognizer(tab), l)
+	if err != nil || !c.Accepted() {
+		return nil, err
+	}
+	f := Build(tab, c, l)
+	if !v1Constrain(f, p) {
+		return nil, nil
+	}
+	return f, nil
 }

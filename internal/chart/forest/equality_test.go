@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -208,4 +210,88 @@ func TestForestEqualityDetectsPerturbation(t *testing.T) {
 		}
 		quiet(t, g, base)
 	})
+}
+
+// precedenceRefusals are three inputs V1 refuses only by precedence: recognition accepts each and Parse refuses it
+// as precedence (measured at e3432c0f).
+var precedenceRefusals = []struct{ name, src string }{
+	{"indirob", "print $fh [];"},
+	{"nceqop-chain", "$a <=> $b <=> $c;"},
+	{"dotdot-chain", "1 .. 2 .. 3;"},
+}
+
+// TestForestEqualityV1SideRecognizesPrecedenceRefusals: the V1 side's chart accepts each input V1 refuses only by
+// precedence, and its own Constrain refuses it, so a V1 side whose recognizer judged precedence would refuse at
+// the chart, as grammar, and fail here.
+func TestForestEqualityV1SideRecognizesPrecedenceRefusals(t *testing.T) {
+	tab := committedTables(t)
+	for _, in := range precedenceRefusals {
+		t.Run(in.name, func(t *testing.T) {
+			c, err := recognize.Recognize(V1Recognizer(tab), lex.Linear(lexOnly(tab, in.src)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !c.Accepted() {
+				t.Errorf("%q: the V1 recognizer's chart refuses it", in.src)
+			}
+			if f, ref := V1Forest(tab, []byte(in.src), Scope{}); f != nil || ref.Reason != "precedence" {
+				t.Errorf("%q: V1Forest = (forest %v, %+v), want no forest and a precedence refusal", in.src, f != nil, ref)
+			}
+		})
+	}
+}
+
+// lexOnly is src's token stream over tab.
+func lexOnly(tab *grammar.Tables, src string) *lex.Stream {
+	s, _ := lex.Lex([]byte(src), tab.Tokens)
+	return s
+}
+
+// TestForestEqualityV1SideRunsOldPipeline: V1Forest enters its own LibraryOperators and Constrain once per input the
+// chart accepts, and V1ToyForest its own Constrain once per toy sentence the chart accepts, counted through the V1
+// side's stage hooks, so a V1 side wired to production's output, which never passes those hooks, fails.
+func TestForestEqualityV1SideRunsOldPipeline(t *testing.T) {
+	libs, cons := 0, 0
+	lib0, con0 := v1LibraryOperators, v1Constrain
+	t.Cleanup(func() { v1LibraryOperators, v1Constrain = lib0, con0 })
+	v1LibraryOperators = func(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+		libs++
+		return lib0(tab, f, s, src, scope)
+	}
+	v1Constrain = func(f *Forest, p *Precedence) bool {
+		cons++
+		return con0(f, p)
+	}
+
+	tab := committedTables(t)
+	srcs := []string{"1;", "$x = 1 + 2 * 3;", "f(1, 2);", "print $fh [];", "1 .. 2 .. 3;"}
+	accepted := 0
+	for _, src := range srcs {
+		if f, _ := V1Forest(tab, []byte(src), Scope{}); f != nil {
+			accepted++
+		}
+	}
+	if libs != len(srcs) || cons != len(srcs) {
+		t.Errorf("over %d inputs the chart accepts: LibraryOperators entered %d times, Constrain %d; want %d each", len(srcs), libs, cons, len(srcs))
+	}
+	if accepted == 0 || accepted == len(srcs) {
+		t.Errorf("V1Forest accepted %d of %d; want some accepted and some refused by Constrain", accepted, len(srcs))
+	}
+
+	ty := loadToy(t, "ladder")
+	cons = 0
+	for _, s := range ty.sentences[:20] {
+		if _, err := V1ToyForest(ty.tab, toyLattice(ty.tab, s.words), ty.prec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := 0
+	for _, s := range ty.sentences[:20] {
+		if f, _, _ := toyForest(t, ty.tab, s.words, recognize.Options{}); f != nil {
+			want++
+		}
+	}
+	if want == 0 || cons != want {
+		t.Errorf("V1ToyForest entered Constrain %d times over %d ladder sentences the chart accepts; want one each", cons, want)
+	}
 }
