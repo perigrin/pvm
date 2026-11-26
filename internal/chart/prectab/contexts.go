@@ -3,15 +3,14 @@
 
 package prectab
 
+import "slices"
+
 // Contexts is the context each predictor gives the item it predicts: the canonical spine top, or -1 for none. Every
 // item reached from a predicted item at its origin inherits that item's context, so this table is every context an
 // item can carry.
 type Contexts struct {
 	Start  int32   // the start state's item at node 0
 	Kernel []int32 // by state: the context of the predicted item a kernel state with an Epsilon adds; -1 for the rest
-	// Raw is, beside each, the context before §4.3's collapse: the predictor's one non-none canonical top (§4.2), or
-	// -1; Start is Raw[len(Kernel)].
-	Raw []int32
 }
 
 // PredictionContexts is p's Contexts. A predictor's rules all take its one non-none canonical top (§4.2: `do`,
@@ -22,30 +21,33 @@ type Contexts struct {
 // the derivations under it are exactly those under none, so it selects no parent a none could not.
 func PredictionContexts(p *Precedence) Contexts {
 	tab := p.Tab
-	c := Contexts{Kernel: make([]int32, len(tab.States)), Raw: make([]int32, len(tab.States)+1)}
-	for s := range c.Kernel {
-		c.Kernel[s], c.Raw[s] = -1, -1
-	}
+	c := Contexts{Kernel: slices.Repeat([]int32{-1}, len(tab.States))}
 	for _, k := range predictors(tab) {
-		raw := int32(-1)
-		for _, ts := range ruleTops(p, k) {
-			for t := range ts {
-				if t >= 0 && (raw < 0 || t < raw) {
-					raw = t
-				}
-			}
-		}
-		ctx := int32(-1)
-		if raw >= 0 && forbidsAt(p, raw, k.epsilon) {
-			ctx = raw
+		ctx := rawTop(p, k)
+		if ctx >= 0 && !forbidsAt(p, ctx, k.epsilon) {
+			ctx = -1
 		}
 		if k.kernel < 0 {
-			c.Start, c.Raw[len(tab.States)] = ctx, raw
-			continue
+			c.Start = ctx
+		} else {
+			c.Kernel[k.kernel] = ctx
 		}
-		c.Kernel[k.kernel], c.Raw[k.kernel] = ctx, raw
 	}
 	return c
+}
+
+// rawTop is k's context before §4.3's collapse: its rules' one non-none canonical top (§4.2), the least where there
+// are more, or -1.
+func rawTop(p *Precedence, k predictor) int32 {
+	raw := int32(-1)
+	for _, ts := range ruleTops(p, k) {
+		for t := range ts {
+			if t >= 0 && (raw < 0 || t < raw) {
+				raw = t
+			}
+		}
+	}
+	return raw
 }
 
 // forbidsAt reports whether top forbids a shift some core item makes in a state reachable from predicted state e at

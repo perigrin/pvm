@@ -61,8 +61,8 @@ func witness(p *Precedence, top int32, e int) string {
 func TestContextCollapseTable(t *testing.T) {
 	_, tab, p := committed(t)
 	c := PredictionContexts(p)
-	if len(c.Kernel) != len(tab.States) || len(c.Raw) != len(tab.States)+1 {
-		t.Fatalf("%d kernel and %d raw entries for %d states", len(c.Kernel), len(c.Raw), len(tab.States))
+	if len(c.Kernel) != len(tab.States) {
+		t.Fatalf("%d kernel entries for %d states", len(c.Kernel), len(tab.States))
 	}
 	canonical := func(x int32) bool { return x == -1 || x >= 0 && int(x) < len(p.TopAt) && p.TopAt[x] >= 0 }
 	var kept, collapsed43, collapsed42, predictors int
@@ -89,15 +89,15 @@ func TestContextCollapseTable(t *testing.T) {
 			}
 		}
 	}
-	check("the start", c.Start, c.Raw[len(tab.States)], 0)
+	check("the start", c.Start, rawTop(p, predictor{-1, 0}), 0)
 	for s, st := range tab.States {
 		if st.Predicted || st.Epsilon < 0 {
-			if c.Kernel[s] != -1 || c.Raw[s] != -1 {
-				t.Errorf("state %d predicts nothing but has context %d, raw %d", s, c.Kernel[s], c.Raw[s])
+			if c.Kernel[s] != -1 {
+				t.Errorf("state %d predicts nothing but has context %d", s, c.Kernel[s])
 			}
 			continue
 		}
-		check(coreText(tab, st.Items[0]), c.Kernel[s], c.Raw[s], st.Epsilon)
+		check(coreText(tab, st.Items[0]), c.Kernel[s], rawTop(p, predictor{s, st.Epsilon}), st.Epsilon)
 	}
 	t.Logf("predictors %d: kept %d, collapsed by §4.3 %d, by §4.2 %d", predictors, kept, collapsed43, collapsed42)
 	if kept == 0 || collapsed42 == 0 {

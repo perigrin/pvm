@@ -1944,7 +1944,7 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   item's origin, and a context: the canonical spine top, or `none` (the V2
   design's §4.2), which only the judged recognizer sets
   (`TestItemIsStateDistanceContext`). A predicted item takes its predicting
-  kernel state's context from `prectab.Contexts`, `none` where that top
+  kernel state's context from `prectab.PredictionContexts`, `none` where that top
   forbids no shift in any state its rules reach at that origin (§4.3,
   `TestContextCollapseTable`); every other item inherits the context of the
   item it advances. A set is its items, sorted, so two positions with equal
