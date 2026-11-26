@@ -73,7 +73,7 @@ func TestSet1626NeverReachedPerlGit(t *testing.T) {
 	}
 	o := newPairObserver(t, committedTables(t), "indirob ::= scalar", "HASHBRACK", "PERLY_BRACE_OPEN")
 	for _, f := range files {
-		if _, _, err := o.observe(srcs[f.Path]); err != nil {
+		if _, err := o.observe(srcs[f.Path]); err != nil {
 			t.Fatalf("%s: %v", f.Path, err)
 		}
 	}

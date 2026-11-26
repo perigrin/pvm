@@ -2740,6 +2740,12 @@ grammar's tables and its precedence: no Earley item gains a fact.
   `cmd/ratchet/testdata/set1626-inputs.txt`, and requires 0;
   `TestSet1626ObserverCountsAnOccurringPair` shows the same count non-zero
   for a pair the corpus does reach. Reaching set 1626 is a design §7 stop.
+  The lexer cannot reach it: a scalar ends in a Variable or a cast block's
+  `}` (`internal/lexer` emits a DerefSigil only before `{` or `$`), and
+  HASHBRACK's class excludes both as the token before its `{`, so the `{`
+  after a scalar is `{PERLY_BRACE_OPEN}` alone. Each constructed input
+  therefore carries set 1626 one or two tokens after a completion (a word, or
+  a glob's `*` and name, between), which the test requires and logs per input.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is

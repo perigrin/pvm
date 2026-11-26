@@ -18,13 +18,18 @@ import (
 // set1626Inputs is the committed constructed inputs, each from a "### <name>" line to the next.
 var set1626Inputs = filepath.Join("internal", "chart", "cmd", "ratchet", "testdata", "set1626-inputs.txt")
 
-// pairObserver counts, over the inputs it observes, the tokens carrying terminal set set, the token positions whose
-// chart set holds rule completed, and of those the ones whose token carries set: a completion before that set.
+// pairCount is what a pairObserver saw: the tokens carrying its terminal set, the token positions whose chart set
+// holds its rule completed, and of those the ones whose token carries the set, a completion right before it. gap is the
+// fewest tokens from a completion to a later token carrying the set, -1 where none follows one.
+type pairCount struct{ carrying, completions, reaching, gap int }
+
+// pairObserver adds up, over the inputs it observes, the pairCount of rule and terminal set set.
 type pairObserver struct {
-	tab                                     *grammar.Tables
-	r                                       *recognize.Recognizer
-	rule, set                               int
-	inputs, carrying, completions, reaching int
+	tab       *grammar.Tables
+	r         *recognize.Recognizer
+	rule, set int
+	inputs    int
+	pairCount
 }
 
 // newPairObserver names the rule by its text ("LHS ::= RHS") and the terminal set by its members, so a renumbered
@@ -48,29 +53,37 @@ func newPairObserver(t *testing.T, tab *grammar.Tables, rule string, set ...stri
 	return o
 }
 
-// observe recognizes src and adds what it holds.
-func (o *pairObserver) observe(src []byte) (completions, reaching int, err error) {
+// observe recognizes src, adds what it holds and returns it.
+func (o *pairObserver) observe(src []byte) (pairCount, error) {
+	n := pairCount{gap: -1}
 	s, _ := lex.Lex(src, o.tab.Tokens)
 	c, err := recognize.Recognize(o.r, lex.Linear(s))
 	if err != nil {
-		return 0, 0, err
+		return n, err
 	}
 	o.inputs++
 	completed := func(it recognize.Item) bool { return slices.Contains(o.tab.States[it.State].Reduces, o.rule) }
+	last := -1 // the latest position holding a completion
 	for k, tk := range s.Tokens {
-		if tk.TerminalSet == o.set {
-			o.carrying++
-		}
 		if k < len(c.Sets) && slices.ContainsFunc(c.Sets[k].Items(), completed) {
-			completions++
-			if tk.TerminalSet == o.set {
-				reaching++
-			}
+			n.completions++
+			last = k
+		}
+		if tk.TerminalSet != o.set {
+			continue
+		}
+		n.carrying++
+		if last == k {
+			n.reaching++
+		}
+		if last >= 0 && (n.gap < 0 || k-last < n.gap) {
+			n.gap = k - last
 		}
 	}
-	o.completions += completions
-	o.reaching += reaching
-	return completions, reaching, nil
+	o.carrying += n.carrying
+	o.completions += n.completions
+	o.reaching += n.reaching
+	return n, nil
 }
 
 // TestSet1626NeverReachedCorpus: over every in-tree corpus file and every committed constructed input, no token
@@ -83,19 +96,24 @@ func TestSet1626NeverReachedCorpus(t *testing.T) {
 	}
 	o := newPairObserver(t, committedTables(t), "indirob ::= scalar", "HASHBRACK", "PERLY_BRACE_OPEN")
 	for _, f := range files {
-		if _, _, err := o.observe(srcs[f.Path]); err != nil {
+		if _, err := o.observe(srcs[f.Path]); err != nil {
 			t.Fatalf("%s: %v", f.Path, err)
 		}
 	}
 	nfiles := o.inputs
 	inputs := constructedInputs(t)
 	for _, in := range inputs {
-		c, _, err := o.observe(in.src)
+		n, err := o.observe(in.src)
 		if err != nil {
 			t.Fatalf("%s: %v", in.name, err)
 		}
-		if c == 0 { // an input that never completes the rule observes nothing
-			t.Errorf("constructed input %q: indirob ::= scalar never completes", in.name)
+		t.Logf("constructed input %q: set-1626 tokens: %d completions: %d nearest set-1626 token after a completion: %d",
+			in.name, n.carrying, n.completions, n.gap)
+		// An input probes set 1626 where it carries the set right after a completion of the rule, or as near as the
+		// lexer allows: one or two tokens on (the fixture's header says why).
+		if n.gap < 0 || n.gap > 2 {
+			t.Errorf("constructed input %q: %d completions of indirob ::= scalar, %d set-1626 tokens, nearest %d after one; want 0 to 2",
+				in.name, n.completions, n.carrying, n.gap)
 		}
 	}
 	t.Logf("files: %d constructed inputs: %d tokens carrying set 1626: %d indirob ::= scalar completions: %d reaching set 1626: %d",
@@ -120,7 +138,7 @@ func TestSet1626ObserverCountsAnOccurringPair(t *testing.T) {
 	}
 	o := newPairObserver(t, committedTables(t), "indirob ::= scalar", "PERLY_BRACE_OPEN")
 	for _, f := range files {
-		if _, _, err := o.observe(srcs[f.Path]); err != nil {
+		if _, err := o.observe(srcs[f.Path]); err != nil {
 			t.Fatalf("%s: %v", f.Path, err)
 		}
 	}
@@ -132,10 +150,10 @@ func TestSet1626ObserverCountsAnOccurringPair(t *testing.T) {
 		src  string
 		want bool
 	}{{"my $r = {}; my $v = $$r{key};", true}, {"my $g = \\*STDOUT; my $io = *$g{IO};", true}, {"my $r = {}; my $v = $$r;", false}} {
-		_, n, err := o.observe([]byte(c.src))
-		t.Logf("%q: reaching {PERLY_BRACE_OPEN}: %d", c.src, n)
-		if err != nil || (n > 0) != c.want {
-			t.Errorf("%q: reaching %d, %v; want reached %t", c.src, n, err, c.want)
+		n, err := o.observe([]byte(c.src))
+		t.Logf("%q: reaching {PERLY_BRACE_OPEN}: %d", c.src, n.reaching)
+		if err != nil || (n.reaching > 0) != c.want {
+			t.Errorf("%q: reaching %d, %v; want reached %t", c.src, n.reaching, err, c.want)
 		}
 	}
 }

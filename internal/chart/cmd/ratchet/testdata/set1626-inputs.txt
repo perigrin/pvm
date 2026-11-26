@@ -1,48 +1,60 @@
-# Constructed inputs for the set-1626 observer (TestSet1626NeverReachedCorpus): each puts a scalar where indirob can
-# complete as indirob ::= scalar, right before a { that might read as HASHBRACK or as a block's PERLY_BRACE_OPEN, the
-# one terminal set (1626) whose two terminals get different reduce verdicts after that rule (design §3, §4.1). Each
-# input starts at a line "### <name>" and runs to the next; everything before the first is this comment.
-### hash element through a scalar
-my $r = { a => 1 }; print $$r{a};
-### hash slice through a scalar
-my $r = { a => 1, b => 2 }; my @v = @$r{qw(a b)};
-### key/value slice through a scalar
-my $r = { a => 1 }; my %h = %$r{a};
-### glob slot through a scalar
-my $g = \*STDOUT; my $io = *$g{IO};
-### glob slot through a block, then through a scalar
-my $g = \*STDOUT; my $io = *{$g}{IO} // *$g{IO};
-### code call through a scalar before an anonymous hash
-my $c = sub { $_[0] }; &$c({ a => 1 });
-### print to a scalar handle, then an anonymous hash
-open my $fh, '>', \my $buf; print $fh { a => 1 }->{a};
-### print to a scalar handle, then a block
-open my $fh, '>', \my $buf; print $fh {; 'x' };
-### printf to a scalar handle, then a hash
-open my $fh, '>', \my $buf; my %h = (a => '%s'); printf $fh $h{a}, 1;
-### say to a scalar handle before braces
-use feature 'say'; open my $fh, '>', \my $buf; say $fh {}->{a} // 'x';
-### indirect method call on a scalar class with a hash
-package Foo; sub new { bless $_[1], $_[0] } package main; my $class = 'Foo'; my $o = new $class { a => 1 };
-### indirect method call on a scalar invocant with an empty hash
-package Foo; sub new { bless $_[1], $_[0] } package main; my $class = 'Foo'; my $o = new $class {};
-### exec through a scalar program name
-my $prog = 'true'; exec $prog { 'true' } if 0;
-### system through a scalar program name and a block
-my $prog = 'true'; system $prog { 'true' } 'true' if 0;
-### sort with a scalar comparator before a list in braces
-my $by = sub { $a <=> $b }; my @s = sort $by @{[3, 1, 2]};
-### element of a deref'd hash, empty braces after the sigil
-my $r = {}; my @x = (exists $$r{''});
-### array through a scalar, then an anonymous hash
-my $r = [1, 2]; my @a = (@$r, { a => 1 });
-### array element through a scalar before a hash constructor
-my $r = [{ a => 1 }]; my $v = $$r[0]{a};
-### print to STDOUT then a scalar then braces
-my $x = 1; print STDOUT $x, { a => 1 }->{a};
-### return of a glob slot through a scalar
-sub io { my $g = shift; return *$g{IO} } io(\*STDOUT);
-### glob slot by name after a print to a scalar handle
-open my $fh, '>', \my $buf; print $fh *STDOUT{IO} ? 1 : 0;
-### constant list after a scalar
-my $x = 1; use constant { A => 1 }; print $x, A;
+# Constructed inputs for the set-1626 observer (TestSet1626NeverReachedCorpus, design §3's constructed inputs). Set
+# 1626, {HASHBRACK PERLY_BRACE_OPEN}, is the one terminal set whose terminals get different reduce verdicts after
+# indirob ::= scalar (design §4.1). Each input completes indirob ::= scalar and carries set 1626 as close after that
+# completion as internal/lexer allows, and the test fails on an input that does either alone.
+#
+# The lexer cannot put set 1626 on the token right after a completed indirob ::= scalar:
+# - a scalar's last token is a Variable ($x, and -> $'s cast) or the } closing a cast's block (${ ... }): internal/lexer
+#   emits a DerefSigil only before { or $ (startsDerefExpression), so CAST_DOLLAR BAREWORD never forms;
+# - HASHBRACK's class (grammar/perly.go) has NotPrev1 notHashBrace, which lists every Variable and every }, so the {
+#   after either never admits HASHBRACK: `print $fh {`, `$$r{`, `${$r} {` and `$o->$$m {` lex it as {PERLY_BRACE_OPEN}
+#   alone (TestSet1626ObserverCountsAnOccurringPair counts two of them).
+# In the corpus every set-1626 token follows a word (`*STDOUT{IO}`, `use constant {`, `Pkg::FOO{`). So each input puts a
+# word, or a glob's * and name, between the scalar and the {: set 1626 one token after the completion, or two, which the
+# test requires and logs per input.
+#
+# Each input starts at a line "### <name>" and runs to the next; everything before the first is this comment.
+### print to a scalar handle, a word, then braces
+print $fh FOO { a => 1 };
+### print to a scalar handle, STDOUT, then braces
+print $fh STDOUT { a => 1 };
+### print to a scalar handle, a package name, then braces
+print $fh Foo::Bar { a => 1 };
+### print to a scalar handle, a call-like word, then braces
+print $fh collect { a => 1 };
+### printf to a scalar handle, a word, then braces
+printf $fh FOO { a => 1 };
+### say to a scalar handle, a word, then braces
+use feature 'say'; say $fh FOO { a => 1 };
+### exec with a scalar program, a word, then braces
+exec $prog FOO { a => 1 } if 0;
+### system with a scalar program, a word, then braces
+system $prog FOO { a => 1 } if 0;
+### sort with a scalar comparator, a word, then braces
+my @s = sort $by FOO { a => 1 };
+### indirect new on a scalar class, a word, then braces
+my $o = new $class FOO { a => 1 };
+### print to a cast scalar handle, a word, then braces
+print $$r FOO { a => 1 };
+### print to a cast block's handle, a word, then braces
+print ${$r} FOO { a => 1 };
+### print to a package scalar handle, a word, then braces
+print $Foo::fh FOO { a => 1 };
+### print to a scalar handle, then a glob slot
+print $fh *STDOUT{IO};
+### print to a scalar handle, then a glob slot in a condition
+print $fh *FOO{CODE} ? 1 : 0;
+### print to a package scalar handle, then a glob slot
+print $fh::x *STDOUT{IO};
+### say to a scalar handle, then a glob slot
+use feature 'say'; say $fh *STDERR{IO};
+### printf to a scalar handle, then a qualified glob slot
+printf $fh *Foo::BAR{HASH};
+### print to a deeply qualified scalar handle, STDERR, then braces
+print $Foo::Bar::fh STDERR { a => 1 };
+### print to a cast scalar handle, a package name, then braces
+print $$r Foo::Bar { a => 1 };
+### a return value through a scalar handle, then a glob slot
+sub io { my $g = shift; print $g *STDOUT{IO} } io(\*STDOUT);
+### print to a scalar handle, a word, then a longer hash
+print $fh BAR { b => 2, c => 3 };
