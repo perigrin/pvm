@@ -1936,7 +1936,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   records it stored (`TestRefusalRecordsServedByCache`). A Leo chain crossing a refused completion is not taken,
   so completion goes link by link and refuses there, as without Leo
   (`TestLeoCrossesRefusedCompletion`), and nor is one whose first completion
-  needs its parent state (`TestLeoTakesNoParentDependentCompletion`). The slipper's closure and `Expected`
+  needs its parent state (`TestLeoTakesNoParentDependentCompletion`). The
+  cost bounds hold for the derived judged recognizer at the default's
+  constants (`TestCompletionProbesBoundedJudged`,
+  `TestLeoMemoEntriesBoundedJudged`), and the memo links its Leo step walks
+  to find a crossing grow linearly with a right recursion's depth
+  (`TestJudgedLeoWalkLinear`). The slipper's closure and `Expected`
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
   over the toys, seeds 4 and 44 and the in-tree corpus
   (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
