@@ -2715,7 +2715,18 @@ grammar's tables and its precedence: no Earley item gains a fact.
   (`TestFeasibilityRuleReduceConflicts`), parent conflicts
   (`TestFeasibilityParentConflicts`) and context conflicts
   (`TestFeasibilityContextConflicts`, three checks as subtests `a`, `b` and
-  `c`).
+  `c`), forbidden shifts whose terminal is not the rule-position item's own
+  next terminal (`TestFeasibilityShiftsOwnNextTerminal`, 674 forbidden
+  triples; the toys `emptyred`, `nullableShift` and
+  `TestPrecedenceMarkFirstFilter`'s each count), all-nullable rules with a
+  non-allow reduce verdict (`TestFeasibilityAllNullableRulesAllow`, 13 empty
+  and 16 non-empty rules; toy `empty` counts) and core items of one state,
+  under one context, scanning one terminal with different shift verdicts,
+  where a dot-0 item V1 never checks counts as allowed
+  (`TestFeasibilityCoreItemsShiftAgree`; toy `scancollide` counts).
+  `TestFeasibilityClosingTerminalsHaveNoLevel` pins that `;`, `}` and EOF
+  carry no precedence level, which is why the recognizer's closing sets,
+  which add `;`, agree with V1's slipper judgement.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is
