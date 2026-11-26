@@ -2746,6 +2746,35 @@ grammar's tables and its precedence: no Earley item gains a fact.
   after a scalar is `{PERLY_BRACE_OPEN}` alone. Each constructed input
   therefore carries set 1626 one or two tokens after a completion (a word, or
   a glob's `*` and name, between), which the test requires and logs per input.
+- **The forest-equality differential** (`forest/equality.go`, the V2 design's
+  §5). `ForestDiff` compares a candidate's forest with V1's: accept or
+  refuse, the set of nodes reachable from the root, and each reachable
+  node's kept alternatives in order. Nodes are matched by what they derive
+  (symbol, rule position and span), never by index, so a renumbered forest
+  compares equal and a node unreachable from the root is not compared. The
+  V1 side (`V1Forest`, `V1ToyForest`) is the old pipeline: the recognizer
+  `V1Recognizer` builds, which is only ever the unjudged one, then `Build`,
+  `LibraryOperators` (for a source) and `Constrain`. The candidate
+  (`CandidateForest`, `CandidateToyForest`) is production's forest before
+  resolve, and later issues may swap it. Until the recognizer judges
+  precedence the two sides agree by construction, so
+  `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
+  reordered alternatives, an added and a removed reachable node, a flipped
+  verdict and a changed rule position each reported, and a renumbered forest,
+  a change to an unreachable node and two refusals not reported;
+  `TestForestEqualityV1SideRecognizesPrecedenceRefusals` that the V1 side's
+  chart accepts `print $fh [];`, `$a <=> $b <=> $c;` and `1 .. 2 .. 3;` and
+  its `Constrain` refuses each; and `TestForestEqualityV1SideRunsOldPipeline`
+  that the V1 side enters its own `Constrain` and `LibraryOperators` once per
+  input; `TestForestEqualityHarnessesUseCandidate` that the candidates never
+  enter the V1 side's stages, and that the loops report a swapped-in candidate
+  that refuses everything, so none compares V1 with itself. It runs over the toys (`TestForestEqualityToys`), the seed-4 and
+  seed-44 generated sentences (`TestForestEqualityGeneratedSentences`) and a
+  constructed input on which V1 keeps one node's alternatives under two
+  contexts with two different non-empty sets, the union `Constrain`'s
+  `shortcut:` takes (`TestForestEqualityUnionShortcut`). The toy and
+  generated-sentence differentials each log how many inputs they compared of
+  how many they loaded.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is

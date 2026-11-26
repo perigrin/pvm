@@ -110,6 +110,19 @@ func ParseWith(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope S
 
 // parseStream is ParseWith, with the token stream the forest is over.
 func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
+	f, s, ref := constrainedStream(tab, r, src, scope)
+	if f == nil {
+		return nil, s, ref
+	}
+	if at := resolve(tab, f, s, src, scope); at >= 0 {
+		return nil, s, Refusal{Byte: at, Reason: "scope"}
+	}
+	f.Readings = f.CountReadings(tab)
+	return f, s, Refusal{}
+}
+
+// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is.
+func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(r, l)
@@ -140,10 +153,6 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 		// locate it at the first span left with no derivation when a gate compares refusal bytes.
 		return nil, s, Refusal{Reason: "precedence"}
 	}
-	if at := resolve(tab, f, s, src, scope); at >= 0 {
-		return nil, s, Refusal{Byte: at, Reason: "scope"}
-	}
-	f.Readings = f.CountReadings(tab)
 	return f, s, Refusal{}
 }
 
