@@ -31,9 +31,12 @@ type cacheNode struct {
 	result *Set // the transition ending here
 	// slip is the slipper's closure the storing node kept, nil where it
 	// kept none; a hit keeps it for the served node (R6).
-	slip  []Item
-	names []string // or the Expected ending here (expected.go)
-	dists []int    // the distances of the next dependencies
+	slip []Item
+	// refused is the refusal records the storing node kept (judge.go); a hit
+	// keeps them for the served node.
+	refused []refusal
+	names   []string // or the Expected ending here (expected.go)
+	dists   []int    // the distances of the next dependencies
 	// first is the first edge stored from here, and where it leads, checked
 	// before the trie map: most nodes have one edge, and a map access costs
 	// more than the scan it replaces on a short list (std5k.pl).

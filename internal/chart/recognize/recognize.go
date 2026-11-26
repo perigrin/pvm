@@ -64,6 +64,14 @@ type Recognizer struct {
 	itemsBuf [][2]int
 	depsBuf  []dep
 	relBuf   []Item
+	// judge is the reduce side (judge.go), nil for a recognizer that judges
+	// no precedence; err is NewJudged's error, which Recognize returns.
+	judge *judgement
+	err   error
+	// leoSteps counts the Leo chains the judged recognizer took, and
+	// leoRefused those it did not because they cross a refused completion,
+	// for the test that Leo crosses one (leo_test.go).
+	leoSteps, leoRefused int
 }
 
 // grammarTables is what New derives from the tables alone. It is built once
@@ -176,13 +184,12 @@ func (g *grammarTables) add(c *classes, ids []int) {
 	c.closes = append(c.closes, closes)
 }
 
-// New is a recognizer over tab. The grammar-only tables are tab's shared
-// ones; the intern table, cache and counters are the recognizer's own.
-// The first `New` over a tables value writes beside it, so do not copy
-// `*tab` while that `New` runs.
+// New is a recognizer over tab, today NewNoPrecedence's. The grammar-only
+// tables are tab's shared ones; the intern table, cache and counters are the
+// recognizer's own. The first `New` over a tables value writes beside it, so
+// do not copy `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	g := grammar.Derived(tab, buildGrammar)
-	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), ncls: g.narrowed.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
+	return NewNoPrecedence(tab, opts)
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where
@@ -211,6 +218,9 @@ type Chart struct {
 	slips map[[2]int][]Item
 	// slipAccepted is whether the ; inserted at end of input completes the start.
 	slipAccepted bool
+	// refused is the judged recognizer's refusal records by node, beside the
+	// sets and never in them (judge.go); nil until one is kept.
+	refused [][]refusal
 }
 
 // Recognize recognizes l, whose nodes are numbered so that every edge runs
@@ -219,6 +229,9 @@ type Chart struct {
 // not interned and the cache is not used there (spec §5, "sets intern
 // outside branches only").
 func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	n := len(l.Nodes)
 	for _, e := range l.Edges {
 		switch id := e.Token.TerminalSet; {
@@ -278,6 +291,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 				if h.slip != nil { // the closure follows from the key and dependencies the hit checked
 					c.keepSlip(e.From, e.Token.TerminalSet, h.slip)
 				}
+				c.keepRefused(pos, h.refused)
 				continue
 			}
 		}
@@ -292,7 +306,15 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		if !r.opts.NoLookahead {
 			follows = laBits
 		}
+		if r.judge != nil {
+			b.la = laBits // the reduce side is judged under every option
+		}
 		b.complete(follows)
+		var recs []refusal
+		if len(b.refused) > 0 {
+			recs = b.settled()
+			c.keepRefused(pos, recs)
+		}
 		r.itemsBuf, r.depsBuf = b.items, b.deps
 		if len(b.items) == 0 {
 			continue
@@ -305,7 +327,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 		c.Sets[pos], c.Interned[pos] = r.intern(items)
 		if cacheable && b.interned {
 			if n := r.slot(key, b.deps); n != nil {
-				n.result, n.slip = c.Sets[pos], b.slipKept
+				n.result, n.slip, n.refused = c.Sets[pos], b.slipKept, recs
 			}
 		}
 	}
@@ -359,6 +381,10 @@ type builder struct {
 	depSeen  map[dep]bool
 	interned bool   // the node is cacheable and every set read is interned
 	slipKept []Item // the closure slip kept, for the cache
+	// la is the lookahead the reduce side judges completion before, nil
+	// where nothing is judged; refused is the refusals made (judge.go).
+	la      bitset
+	refused []refusal
 }
 
 // smallSet is the size up to which a builder finds duplicates by scanning.
@@ -431,25 +457,52 @@ func (b *builder) scan(e lex.Edge) {
 // made them; a kernel item from this node is one the slipper's zero-width ;
 // advanced, and completes into the set before the ;. With la, a rule
 // completes only if something la holds can follow its LHS; a nil la completes every rule. Where a Leo
-// memo applies, the top of the recursion is added in one step.
+// memo applies, the top of the recursion is added in one step. With b.la, the
+// reduce side refuses a completion its precedence forbids, and records each
+// parent state it refused (judge.go).
 func (b *builder) complete(la bitset) {
+	j := b.r.judge
+	if b.la == nil {
+		j = nil
+	}
 	for i := 0; i < len(b.items); i++ {
 		state, origin := b.items[i][0], b.items[i][1]
 		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
-		for _, lhs := range b.r.g.lhs[state] {
-			if la != nil && !b.r.g.follow[lhs].intersects(la) {
+		for li, lhs := range b.r.g.lhs[state] {
+			follow := b.r.g.follow[lhs]
+			if la != nil && !follow.intersects(la) {
 				continue
 			}
 			src := b.c.Sets[origin]
+			dep := false
+			if j != nil {
+				var refused bool
+				refused, dep = j.verdict(int(j.rule[state][li]), follow, b.la, -1)
+				if refused {
+					// A set no terminal of which can follow lhs refuses it at every origin, so no parent
+					// advances over it here and Build has nothing to pair: it needs no record.
+					if follow.intersects(b.la) {
+						b.read(origin, src)
+						b.refuseAll(lhs, origin, src)
+					}
+					continue
+				}
+			}
 			b.read(origin, src)
-			if top, ok := b.leo(origin, lhs, la); ok {
-				b.add(top[0], top[1])
-				continue
+			if !dep {
+				if top, ok := b.leo(origin, lhs, la); ok {
+					b.add(top[0], top[1])
+					continue
+				}
 			}
 			if src.core != nil {
 				for _, en := range b.r.awaiting(src, lhs) {
+					if dep && !j.completes(state, li, follow, b.la, lhs, src.items[en.idx].State) {
+						b.refuse(lhs, origin, src.items[en.idx].State)
+						continue
+					}
 					b.add(int(en.target), origin-src.items[en.idx].Dist)
 				}
 				continue
@@ -457,6 +510,10 @@ func (b *builder) complete(la bitset) {
 			// shortcut: as in scan, a branch set searches every item.
 			for _, it := range src.items {
 				if k, ok := b.r.goTo(it.State, lhs); ok {
+					if dep && !j.completes(state, li, follow, b.la, lhs, it.State) {
+						b.refuse(lhs, origin, it.State)
+						continue
+					}
 					b.add(k, origin-it.Dist)
 				}
 			}

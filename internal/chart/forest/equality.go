@@ -112,10 +112,13 @@ func cmpNodeKey(x, y NodeKey) int {
 }
 
 // V1Recognizer is the V1 side's recognizer over tab, and the only place the V1 side gets one: always the
-// recognizer that judges no precedence, never production's. Today that is recognize.New's.
+// recognizer that judges no precedence, from v1NewRecognizer, never production's recognize.New.
 func V1Recognizer(tab *grammar.Tables) *recognize.Recognizer {
-	return recognize.New(tab, recognize.Options{})
+	return v1NewRecognizer(tab, recognize.Options{})
 }
+
+// v1NewRecognizer is the constructor V1Recognizer calls, a variable so a test can name it.
+var v1NewRecognizer = recognize.NewNoPrecedence
 
 // v1LibraryOperators and v1Constrain are the V1 side's own stages, variables so a test can count its entries.
 var (
@@ -169,6 +172,41 @@ func V1ToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *prectab.Prece
 var CandidateForest = func(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	f, _, ref := constrainedStream(tab, recognize.New(tab, recognize.Options{}), src, scope)
 	return f, ref
+}
+
+// reduceSideRecognizer is the reduce side's recognizer over tab, judged with p (nil: derived), a variable so a test
+// can see the reduce-side candidates take theirs from it and that it judges.
+var reduceSideRecognizer = func(tab *grammar.Tables, p *prectab.Precedence) (*recognize.Recognizer, error) {
+	return recognize.NewJudged(tab, p, recognize.Options{})
+}
+
+// ReduceSideForest is the reduce side's forest of src: production's stages before resolve (constrainedStream) with
+// the judged recognizer, perly.y's precedence derived, then Build and Constrain.
+func ReduceSideForest(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
+	r, err := reduceSideRecognizer(tab, nil)
+	if err != nil {
+		return nil, Refusal{Reason: err.Error()}
+	}
+	f, _, ref := constrainedStream(tab, r, src, scope)
+	return f, ref
+}
+
+// ReduceSideToyForest is the reduce side's toy forest: the judged recognizer under the toy's own precedence p, Build,
+// then Constrain under p; nil where it refuses.
+func ReduceSideToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *prectab.Precedence) (*Forest, error) {
+	r, err := reduceSideRecognizer(tab, p)
+	if err != nil {
+		return nil, err
+	}
+	c, err := recognize.Recognize(r, l)
+	if err != nil || !c.Accepted() {
+		return nil, err
+	}
+	f := Build(tab, c, l)
+	if !f.Constrain(p) {
+		return nil, nil
+	}
+	return f, nil
 }
 
 // CandidateToyForest is the toy forest the differential compares with V1ToyForest's: production's recognizer,

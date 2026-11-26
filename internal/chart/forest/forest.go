@@ -578,13 +578,20 @@ func (b *builder) split(n int32, r, m int) {
 // alt adds to n the Alt of rule r whose m-th symbol is right, from k, where
 // the chart proves right (non-zero) and the first m-1 symbols from n's start to
 // k, as a symbol it completed or as an item standing at k. An Alt whose
-// child is n itself is dropped: no derivation can use it.
+// child is n itself is dropped: no derivation can use it, and so is one
+// pairing right with a parent the recognizer refused it for (its refusal
+// records, recognize.Chart.Refused).
 func (b *builder) alt(n int32, r, m, k int, right int32) {
 	b.steps++
 	if right == 0 || right == n {
 		return
 	}
 	from := int(b.Nodes[n].From)
+	if to := int(b.Nodes[n].To); b.c.RefusedAt(to) {
+		if x := b.item(r, m-1, from, k); x >= 0 && b.c.Refused(to, int(b.Nodes[right].Sym), k, int(b.items[x].state)) {
+			return
+		}
+	}
 	var left int32
 	switch {
 	case m == 1:

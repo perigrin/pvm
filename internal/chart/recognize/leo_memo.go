@@ -39,7 +39,7 @@ func (c *Chart) memoAt(at, sym int) *memo {
 	if m := c.leo[key]; m != nil {
 		return m
 	}
-	m := &memo{at: at, origin: origin, top: [2]int{k, origin}}
+	m := &memo{at: at, origin: origin, top: [2]int{k, origin}, item: state, adv: k, lhs: lhs}
 	// A predicted item's origin is this node; its chain stops here. So
 	// does one at a start-rule item from node 0, which acceptance reads.
 	// The origin != 0 test is the one position-dependent step here: it is
