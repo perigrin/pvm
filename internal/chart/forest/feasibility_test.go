@@ -106,6 +106,25 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 	for n, k := range preds {
 		rts[n] = ruleTops(tab, p, k)
 	}
+	// perly.y's first forbidden shift: f after rule-position item at, under spine top top. The synthetic cases use it.
+	var at, top, f int32 = -1, -1, -1
+find:
+	for i := range p.topAt {
+		if p.topAt[i] < 0 {
+			continue
+		}
+		for x := range tab.Items {
+			for y := range p.nt {
+				if p.shiftForbidden(int32(i), int32(x), int32(y)) {
+					top, at, f = int32(i), int32(x), int32(y)
+					break find
+				}
+			}
+		}
+	}
+	if at < 0 {
+		t.Fatal("perly.y's tables forbid no shift")
+	}
 
 	// (a) No state holds core items with different canonical tops that give different shift verdicts.
 	t.Run("a", func(t *testing.T) {
@@ -135,38 +154,25 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 			t.Errorf("context conflicts in %d of %d states (core tops meet in %d)", n, len(tab.States), len(meet))
 		}
 
-		// TestZZM3NonVacuous's cases, on perly.y's first forbidden shift (at, f) under top.
-		var at, top, f int32 = -1, -1, -1
-	find:
-		for i := range p.topAt {
-			if p.topAt[i] < 0 {
-				continue
-			}
-			for x := range tab.Items {
-				for y := range p.nt {
-					if p.shiftForbidden(int32(i), int32(x), int32(y)) {
-						top, at, f = int32(i), int32(x), int32(y)
-						break find
-					}
-				}
-			}
-		}
+		// TestZZM3NonVacuous's cases, on perly.y's first forbidden shift.
 		other := (at + 7) % int32(len(tab.Items))
 		cases := []struct {
-			name string
-			xs   []shiftRec
-			want shiftVerdict
+			name     string
+			xs       []shiftRec
+			want     shiftVerdict
+			conflict bool
 		}{
-			{"cross-core", []shiftRec{{at, top, f}, {other, -1, f}}, shiftVerdict{multi: true, cross: true, copies: true, overKeep: true}},
-			{"same-core", []shiftRec{{at, top, f}, {at, -1, f}}, shiftVerdict{multi: true, same: true, copies: true}},
-			{"one shared top", []shiftRec{{at, top, f}, {other, top, f}}, shiftVerdict{}},
+			{"cross-core", []shiftRec{{at, top, f}, {other, -1, f}}, shiftVerdict{multi: true, cross: true, copies: true, overKeep: true}, true},
+			{"same-core", []shiftRec{{at, top, f}, {at, -1, f}}, shiftVerdict{multi: true, same: true, copies: true}, false},
+			{"one shared top", []shiftRec{{at, top, f}, {other, top, f}}, shiftVerdict{}, false},
 		}
 		counted := 0
 		for _, c := range cases {
-			if got := judgeShifts(p, c.xs); got == c.want {
+			got := judgeShifts(p, c.xs)
+			if got == c.want && got.contextConflict() == c.conflict {
 				counted++
 			} else {
-				t.Errorf("synthetic %s: got %+v, want %+v", c.name, got, c.want)
+				t.Errorf("synthetic %s: got %+v (conflict %v), want %+v (conflict %v)", c.name, got, got.contextConflict(), c.want, c.conflict)
 			}
 		}
 		t.Logf("synthetic: %d of %d", counted, len(cases))
@@ -177,15 +183,10 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 		n := 0
 		var mixed []int
 		for j, k := range preds {
-			real := map[int32]bool{}
-			for _, ts := range rts[j] {
-				maps.Copy(real, ts)
-			}
-			none := real[-1]
-			delete(real, -1)
-			if len(real) >= 2 {
+			conflict, withNone := predictorTopsConflict(rts[j])
+			if conflict {
 				n++
-			} else if len(real) == 1 && none {
+			} else if withNone {
 				mixed = append(mixed, k.kernel)
 			}
 		}
@@ -193,6 +194,24 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 		t.Logf("perly.y: %d of %d predictors", n, len(preds))
 		if n != 0 || len(mixed) == 0 {
 			t.Errorf("predictors beginning rules under two tops: %d of %d (mixing with none: %d)", n, len(preds), len(mixed))
+		}
+
+		// A predictor beginning one rule under top and another under a second non-none top.
+		second := -1
+		for i, row := range p.topAt {
+			if row >= 0 && int32(i) != top {
+				second = i
+				break
+			}
+		}
+		synth := map[int]map[int32]bool{0: {top: true}, 1: {int32(second): true}}
+		sn := 0
+		if conflict, _ := predictorTopsConflict(synth); conflict {
+			sn++
+		}
+		t.Logf("synthetic: %d of 1", sn)
+		if sn != 1 {
+			t.Errorf("synthetic predictor under tops %d and %d not counted", top, second)
 		}
 	})
 
@@ -208,23 +227,7 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 					}
 				}
 			}
-			hit, two := false, false
-			for r, ts := range rts[j] {
-				if len(ts) < 2 {
-					continue
-				}
-				two = true
-				for _, sh := range shifts {
-					if tab.Items[sh[0]].Rule != r {
-						continue
-					}
-					seen := map[bool]bool{}
-					for c := range ts {
-						seen[p.shiftForbidden(c, int32(sh[0]), int32(sh[1]))] = true
-					}
-					hit = hit || len(seen) > 1
-				}
-			}
+			hit, two := ruleTopsDisagree(tab, p, rts[j], shifts)
 			if two {
 				multi++
 			}
@@ -236,6 +239,17 @@ func TestFeasibilityContextConflicts(t *testing.T) {
 		t.Logf("perly.y: %d of %d predictors", n, len(preds))
 		if n != 0 || multi == 0 {
 			t.Errorf("predictors with a rule whose tops disagree: %d of %d (with a rule under two tops: %d)", n, len(preds), multi)
+		}
+
+		// at's rule begun under top, which forbids shifting f after at, and under none, which allows it.
+		synth := map[int]map[int32]bool{tab.Items[at].Rule: {top: true, -1: true}}
+		sn := 0
+		if hit, _ := ruleTopsDisagree(tab, p, synth, [][2]int{{int(at), int(f)}}); hit {
+			sn++
+		}
+		t.Logf("synthetic: %d of 1", sn)
+		if sn != 1 {
+			t.Error("synthetic rule under two disagreeing tops not counted")
 		}
 	})
 }
@@ -507,4 +521,38 @@ func judgeShifts(p *Precedence, xs []shiftRec) (v shiftVerdict) {
 		}
 	}
 	return v
+}
+
+// predictorTopsConflict is check (b) on one predictor's rule tops: conflict where they hold two different non-none
+// tops; withNone where they hold one non-none top beside none.
+func predictorTopsConflict(rt map[int]map[int32]bool) (conflict, withNone bool) {
+	real := map[int32]bool{}
+	for _, ts := range rt {
+		maps.Copy(real, ts)
+	}
+	none := real[-1]
+	delete(real, -1)
+	return len(real) >= 2, len(real) == 1 && none
+}
+
+// ruleTopsDisagree is check (c) on one predictor: hit where a rule it begins under two or more tops gets different
+// verdicts from them on one of shifts, its (rule-position item, terminal) pairs; two where any rule has two tops.
+func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]bool, shifts [][2]int) (hit, two bool) {
+	for r, ts := range rt {
+		if len(ts) < 2 {
+			continue
+		}
+		two = true
+		for _, sh := range shifts {
+			if tab.Items[sh[0]].Rule != r {
+				continue
+			}
+			seen := map[bool]bool{}
+			for c := range ts {
+				seen[p.shiftForbidden(c, int32(sh[0]), int32(sh[1]))] = true
+			}
+			hit = hit || len(seen) > 1
+		}
+	}
+	return hit, two
 }
