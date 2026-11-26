@@ -815,19 +815,17 @@ func TestFeasibilityNarrowedMixedSets(t *testing.T) {
 		}
 	}
 	for _, c := range []struct {
-		name                 string
-		sets                 [][]int
-		wantUn, wantNarrowed bool
-	}{{"base", base, true, true}, {"kept", kept, true, true}, {"plugins", plugins, true, false}} {
+		name     string
+		sets     [][]int
+		narrowed bool // whether narrowing keeps every set mixed; un-narrowed, every set is
+	}{{"base", base, true}, {"kept", kept, true}, {"plugins", plugins, false}} {
 		su, sn := mixedSets(tab, p, c.sets)
 		t.Logf("synthetic %s: %d sets, un-narrowed %d, narrowed %d", c.name, len(c.sets), len(su), len(sn))
-		want := func(on bool) int {
-			if on {
-				return len(c.sets)
-			}
-			return 0
+		want := 0
+		if c.narrowed {
+			want = len(c.sets)
 		}
-		if len(c.sets) == 0 || len(su) != want(c.wantUn) || len(sn) != want(c.wantNarrowed) {
+		if len(c.sets) == 0 || len(su) != len(c.sets) || len(sn) != want {
 			t.Errorf("synthetic %s: %d sets, un-narrowed %d, narrowed %d", c.name, len(c.sets), len(su), len(sn))
 		}
 	}
