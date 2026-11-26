@@ -28,16 +28,18 @@ func semicolon(t *testing.T, p *Precedence) int {
 func TestSlipperSemicolonReduceNeverForbidden(t *testing.T) {
 	_, tab, p := committed(t)
 	semi := semicolon(t, p)
-	forbidden, considered := 0, len(tab.Rules)
+	forbidden, considered := 0, 0
 	for r := range tab.Rules {
+		considered++ // counted as judged, so a narrowed loop is seen rather than reported as the whole
 		if p.ReduceAt[r*p.NT+semi] != 0 {
 			forbidden++
 			t.Errorf("reducing rule %d (%s) before PERLY_SEMICOLON has verdict %d, not allow", r, tab.Symbols[tab.Rules[r].LHS].Name, p.ReduceAt[r*p.NT+semi])
 		}
 	}
 	t.Logf("semicolon reduces forbidden: %d of %d", forbidden, considered)
-	if considered == 0 {
-		t.Error("no rule was considered")
+	// Pinned exactly, as TestPrectabItemMapping pins its populations: a narrowed population is seen, not passed.
+	if considered != 350 {
+		t.Errorf("%d rules considered; want perly.y's 350", considered)
 	}
 }
 
@@ -74,7 +76,9 @@ func TestSlipperSemicolonShiftNeverForbidden(t *testing.T) {
 		}
 	}
 	t.Logf("semicolon shifts forbidden: %d of %d", forbidden, canShift)
-	if canShift == 0 {
-		t.Error("no (state, item) pair can shift PERLY_SEMICOLON")
+	t.Logf("spine tops judged under: %d", len(tops))
+	// Pinned exactly, as TestPrectabItemMapping pins its populations: a narrowed population is seen, not passed.
+	if canShift != 61 || len(tops) != 46 {
+		t.Errorf("%d (state, item) pairs can shift PERLY_SEMICOLON under %d spine tops; want perly.y's 61 under 46", canShift, len(tops))
 	}
 }

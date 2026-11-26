@@ -1,5 +1,5 @@
 // ABOUTME: Tests the precedence tables package: the mapping from the recognizer's core items to the automaton's items.
-// ABOUTME: The tables themselves are held by the forest's precedence and feasibility tests, which judge with them.
+// ABOUTME: The tables are held mostly by the forest's precedence and feasibility tests; semicolon_test.go pins the ; verdicts.
 
 package prectab
 
