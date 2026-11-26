@@ -1,4 +1,4 @@
-// ABOUTME: Interned Earley sets: a set is its (state, distance) items, interned by one hash of its states and one map lookup.
+// ABOUTME: Interned Earley sets: a set is its (state, distance, context) items, interned by one hash of its states and one map lookup.
 // ABOUTME: Equal content at two positions is one *Set; sets of one core share its postdot index.
 
 package recognize
@@ -133,7 +133,7 @@ func slot(dh uint64, size int) int { return int((dh ^ dh>>32) & uint64(size-1)) 
 func (in *interner) intern(items []Item) (*Set, bool) {
 	ch, dh := uint64(hashSeed), uint64(hashSeed)
 	for _, it := range items {
-		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist))
+		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist)|uint64(it.Ctx)<<32)
 	}
 	ch, dh = ch&in.hashMask, dh&in.hashMask
 	in.interns++

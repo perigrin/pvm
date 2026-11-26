@@ -24,13 +24,13 @@ func TestInternOneLookup(t *testing.T) {
 }
 
 // TestInternHashCollisionKeepsSetsDistinct: with every set forced to one
-// hash, sets of different items, or of one core and different distances,
-// intern as different sets, and equal items still intern as one.
+// hash, sets of different items, or of one core and different distances or
+// contexts, intern as different sets, and equal items still intern as one.
 func TestInternHashCollisionKeepsSetsDistinct(t *testing.T) {
 	in := newInterner()
 	in.hashMask = 0
 	a := []Item{{1, 0, 0}, {2, 0, 0}}
-	sets := [][]Item{a, {{1, 0, 0}, {3, 0, 0}}, {{1, 0, 0}, {2, 1, 0}}, {{1, 0, 0}}, {{2, 0, 0}, {1, 0, 0}}}
+	sets := [][]Item{a, {{1, 0, 0}, {3, 0, 0}}, {{1, 0, 0}, {2, 1, 0}}, {{1, 0, 0}}, {{2, 0, 0}, {1, 0, 0}}, {{1, 0, 5}, {2, 0, 0}}}
 	var got []*Set
 	for i, items := range sets {
 		s, existed := in.intern(items)

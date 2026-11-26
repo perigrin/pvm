@@ -39,7 +39,7 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	if items != nil && !c.r.opts.NoLookahead {
 		b := builder{r: c.r, c: c, pos: pos, interned: memo}
 		for _, it := range items {
-			b.add(it.State, pos-it.Dist)
+			b.add(it.State, pos-it.Dist, it.Ctx)
 		}
 		b.complete(nil)
 		items = b.relative()

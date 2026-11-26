@@ -13,12 +13,12 @@ func (c *Chart) memoAt(at, sym int) *memo {
 	if !c.r.g.leoSym[sym] {
 		return nil // no state has a Leo item awaiting sym
 	}
-	n, state, origin, k := 0, 0, 0, 0
+	n, state, origin, k, ctx := 0, 0, 0, 0, 0
 	if set := c.Sets[at]; set != nil && set.core != nil {
 		en := c.r.awaiting(set, sym)
 		if n = len(en); n == 1 {
 			it := set.items[en[0].idx]
-			state, origin, k = it.State, at-it.Dist, int(en[0].target)
+			state, origin, k, ctx = it.State, at-it.Dist, int(en[0].target), it.Ctx
 		}
 	} else {
 		// shortcut: as in scan, a branch set searches every item, on every
@@ -27,7 +27,7 @@ func (c *Chart) memoAt(at, sym int) *memo {
 		for _, it := range set.Items() {
 			if to, ok := c.r.goTo(it.State, sym); ok {
 				n++
-				state, origin, k = it.State, at-it.Dist, to
+				state, origin, k, ctx = it.State, at-it.Dist, to, it.Ctx
 			}
 		}
 	}
@@ -39,7 +39,7 @@ func (c *Chart) memoAt(at, sym int) *memo {
 	if m := c.leo[key]; m != nil {
 		return m
 	}
-	m := &memo{at: at, origin: origin, top: [2]int{k, origin}, item: state, adv: k, lhs: lhs}
+	m := &memo{at: at, origin: origin, top: [3]int{k, origin, ctx}, item: state, adv: k, lhs: lhs}
 	// A predicted item's origin is this node; its chain stops here. So
 	// does one at a start-rule item from node 0, which acceptance reads.
 	// The origin != 0 test is the one position-dependent step here: it is

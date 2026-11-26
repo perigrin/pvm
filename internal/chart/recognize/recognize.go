@@ -1,17 +1,19 @@
 // ABOUTME: A YAEP-style Earley recognizer over the generated LR(0) tables and chart/lex's token lattice.
-// ABOUTME: Prediction, scanning and completion over (state, distance) items, with one-token lookahead on completion.
+// ABOUTME: Prediction, scanning and completion over (state, distance, context) items, with one-token lookahead on completion.
 
 // Package recognize is the chart's recognizer (spec §5, "chart/recognize").
 // An Earley item is an LR(0) state of the split automaton and its origin,
 // held as the distance in lattice nodes back to that origin, so a set's
 // content is position-free and equal sets intern to one (sets.go). A new set
 // is the old one advanced over a token and closed under completion; the
-// transition cache (cache.go) serves a repeat of that step. Items hold no
-// context facts (rule 2). Leo memos (leo.go) live beside the sets, not in
-// them. Error recovery is not built here.
+// transition cache (cache.go) serves a repeat of that step. An item's one
+// context fact is its canonical spine top, which only the judged recognizer
+// sets (judge.go). Leo memos (leo.go) live beside the sets, not in them.
+// Error recovery is not built here.
 package recognize
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"sync"
@@ -61,7 +63,7 @@ type Recognizer struct {
 	memoScans int
 	// itemsBuf, depsBuf and relBuf are Recognize's builder's buffers,
 	// reused from node to node: what keeps their contents copies them.
-	itemsBuf [][2]int
+	itemsBuf [][3]int
 	depsBuf  []dep
 	relBuf   []Item
 	// judge is the reduce side (judge.go), nil for a recognizer that judges
@@ -277,7 +279,7 @@ func Recognize[S lex.State[S]](r *Recognizer, l *lex.Lattice[S]) (*Chart, error)
 			branch[k] = true
 		}
 	}
-	c.Sets[0], c.Interned[0] = r.intern([]Item{{State: 0}})
+	c.Sets[0], c.Interned[0] = r.intern([]Item{{State: 0, Ctx: r.startContext()}})
 	for pos := 1; pos < n; pos++ {
 		la, laBits := r.lookahead(out[pos])
 		var key cacheKey
@@ -367,7 +369,7 @@ func (c *Chart) Reuse() (hits, positions int) {
 	return hits, positions
 }
 
-// builder makes one node's set: items as (state, absolute origin) while it
+// builder makes one node's set: items as (state, absolute origin, context) while it
 // is built, and the origin sets completion read, for the cache. Each finds
 // its duplicates by scanning while small and keeps a map (seen, depSeen)
 // only once it holds more than smallSet (YAEP's sit_dist_insert, adapted).
@@ -375,8 +377,8 @@ type builder struct {
 	r        *Recognizer
 	c        *Chart
 	pos      int
-	items    [][2]int
-	seen     map[[2]int]bool
+	items    [][3]int
+	seen     map[[3]int]bool
 	deps     []dep
 	depSeen  map[dep]bool
 	interned bool   // the node is cacheable and every set read is interned
@@ -413,15 +415,16 @@ func isNew[T comparable](list []T, seen *map[T]bool, x T) bool {
 	return true
 }
 
-// add adds an item, and a kernel state's predicted state at this node.
-func (b *builder) add(state, origin int) {
-	k := [2]int{state, origin}
+// add adds an item, and a kernel state's predicted state at this node,
+// under the context that kernel state predicts (judge.go).
+func (b *builder) add(state, origin, ctx int) {
+	k := [3]int{state, origin, ctx}
 	if !isNew(b.items, &b.seen, k) {
 		return
 	}
 	b.items = append(b.items, k)
 	if eps := b.r.tab.States[state].Epsilon; eps >= 0 {
-		b.add(eps, b.pos)
+		b.add(eps, b.pos, b.r.predictedContext(state))
 	}
 }
 
@@ -436,7 +439,8 @@ func (b *builder) scan(e lex.Edge) {
 	if src.core != nil {
 		for _, t := range cls.terms[id] {
 			for _, en := range b.r.awaiting(src, t) {
-				b.add(int(en.target), e.From-src.items[en.idx].Dist)
+				it := src.items[en.idx]
+				b.add(int(en.target), e.From-it.Dist, it.Ctx)
 			}
 		}
 		return
@@ -446,7 +450,7 @@ func (b *builder) scan(e lex.Edge) {
 	for _, it := range src.items {
 		for _, t := range cls.terms[id] {
 			if k, ok := b.r.goTo(it.State, t); ok {
-				b.add(k, e.From-it.Dist)
+				b.add(k, e.From-it.Dist, it.Ctx)
 			}
 		}
 	}
@@ -493,7 +497,7 @@ func (b *builder) complete(la bitset) {
 			b.read(origin, src)
 			if !dep {
 				if top, ok := b.leo(origin, lhs, la); ok {
-					b.add(top[0], top[1])
+					b.add(top[0], top[1], top[2])
 					continue
 				}
 			}
@@ -503,7 +507,8 @@ func (b *builder) complete(la bitset) {
 						b.refuse(lhs, origin, src.items[en.idx].State)
 						continue
 					}
-					b.add(int(en.target), origin-src.items[en.idx].Dist)
+					it := src.items[en.idx]
+					b.add(int(en.target), origin-it.Dist, it.Ctx)
 				}
 				continue
 			}
@@ -514,7 +519,7 @@ func (b *builder) complete(la bitset) {
 						b.refuse(lhs, origin, it.State)
 						continue
 					}
-					b.add(k, origin-it.Dist)
+					b.add(k, origin-it.Dist, it.Ctx)
 				}
 			}
 		}
@@ -533,19 +538,16 @@ func (b *builder) read(origin int, s *Set) {
 	}
 }
 
-// relative is the items as (state, distance), sorted, the set's content, in
+// relative is the items as (state, distance, context), sorted, the set's content, in
 // the recognizer's buffer: a caller that keeps it copies it.
 func (b *builder) relative() []Item {
 	items := b.r.relBuf[:0]
 	for _, it := range b.items {
-		items = append(items, Item{State: it[0], Dist: b.pos - it[1]})
+		items = append(items, Item{State: it[0], Dist: b.pos - it[1], Ctx: it[2]})
 	}
 	b.r.relBuf = items
 	slices.SortFunc(items, func(x, y Item) int {
-		if x.State != y.State {
-			return x.State - y.State
-		}
-		return x.Dist - y.Dist
+		return cmp.Or(x.State-y.State, x.Dist-y.Dist, x.Ctx-y.Ctx)
 	})
 	return items
 }

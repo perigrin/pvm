@@ -293,13 +293,13 @@ func TestAddDedupAcrossMapThreshold(t *testing.T) {
 	for _, n := range []int{23, 24, 25} {
 		b := builder{r: r, pos: n}
 		for i := range n {
-			b.add(state, i)
-			b.add(state, i/2) // already there, whatever the set's size
+			b.add(state, i, 0)
+			b.add(state, i/2, 0) // already there, whatever the set's size
 			b.read(i, &Set{id: i})
 			b.read(i/2, &Set{id: i / 2})
 		}
 		for i := range n {
-			b.add(state, i)
+			b.add(state, i, 0)
 			b.read(i, &Set{id: i})
 		}
 		var origins []int
