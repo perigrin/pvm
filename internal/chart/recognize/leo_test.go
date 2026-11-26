@@ -272,22 +272,53 @@ func checkLeoMemoEntries(t *testing.T, r *Recognizer, files []sampleFile) {
 	}
 }
 
-// TestJudgedLeoWalkLinear: on powToy's right recursion NUM POW ... NUM, n
-// and 2n deep, the memo links the judged recognizer's leoCrosses walks at
-// most double, give or take: a walk that restarted at the chain's head on
-// every link would grow fourfold.
+// leoLinksPerTokenBound is the most memo links the judged recognizer's
+// leoCrosses may walk per lexer token over corpusSample: the count measured
+// once each memo kept its verdict per lookahead (58 over 34924 tokens,
+// 0.0017), rounded up as the other bounds are.
+const leoLinksPerTokenBound = 0.0017
+
+// TestLeoLinksPerTokenBoundedJudged: the memo links leoCrosses walks per token
+// over corpusSample are some, so the count is live, and stay within
+// leoLinksPerTokenBound. Neither the probe bound nor the memo bound sees the
+// walk.
+func TestLeoLinksPerTokenBoundedJudged(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := mustJudged(t, tab, nil, Options{})
+	tokens := 0
+	for _, f := range files {
+		mustRecognize(t, r, f.l)
+		tokens += len(f.l.Edges)
+	}
+	per := float64(r.leoLinks) / float64(tokens)
+	t.Logf("%d Leo memo links walked over %d tokens: %.4f per token", r.leoLinks, tokens, per)
+	if r.leoLinks == 0 || per > leoLinksPerTokenBound {
+		t.Errorf("%.4f Leo memo links walked per token; want some, and at most the bound %v", per, leoLinksPerTokenBound)
+	}
+}
+
+// TestJudgedLeoWalkLinear: on S ::= L T, L ::= a L | a, T ::= a T | b, whose
+// right-recursive L can be followed by the a that continues it, the judged
+// recognizer takes a Leo chain at nearly every node of aⁿ b. The memo links
+// leoCrosses walks over 2n at most double those over n, give or take, while
+// the Leo steps grow with n: a chain is not re-walked at every step.
 func TestJudgedLeoWalkLinear(t *testing.T) {
-	tab, p := powToy(t)
-	walk := func(n int) int {
+	tab, p := precToy(t, nil, nil, nil, "S ::= L T", "L ::= a L | a", "T ::= a T | b")
+	walk := func(n int) (steps, links int) {
 		r := mustJudged(t, tab, p, Options{})
-		if c := mustRecognize(t, r, tokens(tab, append(slices.Repeat([]string{"NUM", "POW"}, n), "NUM")...)); !c.Accepted() {
-			t.Fatalf("input %d deep refused", n)
+		if c := mustRecognize(t, r, tokens(tab, append(slices.Repeat([]string{"a"}, n), "b")...)); !c.Accepted() {
+			t.Fatalf("aⁿ b at n %d refused", n)
 		}
-		return r.leoLinks
+		return r.leoSteps, r.leoLinks
 	}
 	const n = 200
-	w1, w2 := walk(n), walk(2*n)
+	s1, w1 := walk(n)
+	s2, w2 := walk(2 * n)
+	t.Logf("leo steps: %d at %d, %d at %d", s1, n, s2, 2*n)
 	t.Logf("leo walk: %d at %d, %d at %d", w1, n, w2, 2*n)
+	if s1 <= 0 || s2 <= s1 {
+		t.Errorf("leo steps: %d at %d, %d at %d; want them non-zero and growing with n", s1, n, s2, 2*n)
+	}
 	if w1 == 0 || float64(w2) > 2.5*float64(w1) {
 		t.Errorf("leo walk: %d at %d, %d at %d; want the first non-zero and the second at most 2.5 times it", w1, n, w2, 2*n)
 	}

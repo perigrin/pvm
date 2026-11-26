@@ -234,15 +234,18 @@ func (c *Chart) Refused(to, sym, origin, parent int) bool {
 
 // leoCrosses reports whether the Leo chain from m, which completing sym into m's item begins, crosses a completion
 // the judgement refuses before la: one of a link's rule into the next link's item. The first completion, sym's, is
-// judged by the caller.
+// judged by the caller. Each memo keeps its verdict for the last la, so a walk stops at a link already judged before
+// the same la, and a chain taken at every node of a right recursion is walked once rather than once per node.
 func (b *builder) leoCrosses(m *memo) bool {
-	j := b.r.judge
-	for l := m; l.next != nil; l = l.next {
-		b.r.leoLinks++
-		li := slices.Index(b.r.g.lhs[l.adv], l.lhs)
-		if !j.completes(l.adv, li, b.r.g.follow[l.lhs], b.la, l.lhs, l.next.item) {
-			return true
-		}
+	if m.next == nil {
+		return false
 	}
-	return false
+	if m.crossLA != nil && slices.Equal(m.crossLA, b.la) {
+		return m.crosses
+	}
+	b.r.leoLinks++
+	li := slices.Index(b.r.g.lhs[m.adv], m.lhs)
+	crosses := !b.r.judge.completes(m.adv, li, b.r.g.follow[m.lhs], b.la, m.lhs, m.next.item) || b.leoCrosses(m.next)
+	m.crossLA, m.crosses = b.la, crosses // b.la is never written once a node's lookahead is made
+	return crosses
 }

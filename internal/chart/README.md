@@ -1941,9 +1941,9 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   constants (`TestCompletionProbesBoundedJudged`,
   `TestLeoMemoEntriesBoundedJudged`). To find a crossing, its Leo step walks
   the memo chain, and each memo keeps its verdict for the last lookahead, so
-  a walk stops at a link already judged before the same one. A right
+  a walk stops at a link already judged before the same one. So a right
   recursion whose LHS can be followed by the token that continues it, which
-  takes a chain at every node, so walks each link once rather than once per
+  takes a chain at every node, walks each link once rather than once per
   node: linear in its depth, where re-walking would be quadratic
   (`TestJudgedLeoWalkLinear`). Over the corpus sample the walk is held to
   `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The slipper's closure and `Expected`
