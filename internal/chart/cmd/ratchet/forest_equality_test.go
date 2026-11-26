@@ -79,6 +79,26 @@ func TestForestEqualityCorpus(t *testing.T) {
 	}
 }
 
+// TestForestEqualityCorpusReduceSide: the reduce side's forest, the judged recognizer then Build then Constrain
+// (forest.ReduceSideForest), equals V1's on every file of the ratchet's in-tree corpora under the file's own scope,
+// through compareForests, the loop TestForestEqualityCorpus runs.
+func TestForestEqualityCorpusReduceSide(t *testing.T) {
+	t.Chdir("../../../..")
+	files, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab := committedTables(t)
+	cand0 := forest.CandidateForest
+	t.Cleanup(func() { forest.CandidateForest = cand0 })
+	forest.CandidateForest = forest.ReduceSideForest
+	compared, diffs := compareForests(tab, files, srcs, fileScope(t, tab, srcs))
+	reportForests(t, "in-tree corpus, reduce side", len(files), compared, diffs)
+	if compared < minCorpusFiles {
+		t.Errorf("compared %d files, want more than %d", compared, minCorpusFiles)
+	}
+}
+
 // TestForestEqualityCorpusUsesFileScope: a file whose plugin operator only its own scope declares has a V1 forest
 // under that scope and a refusal under an empty one. The file goes through compareForests, the loop the corpus
 // differentials share, with a scope func keyed by its path, and is compared equal; with the candidate swapped for
