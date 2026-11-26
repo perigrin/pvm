@@ -135,11 +135,12 @@ func TestForestEqualityDetectsPerturbation(t *testing.T) {
 
 	t.Run("reorder-alternatives", func(t *testing.T) {
 		g := base.Copy()
-		n := slices.IndexFunc(reachableNodes(g), func(n int32) bool { return len(keptAlts(g, int(n))) >= 2 })
+		reach := reachableNodes(g)
+		n := slices.IndexFunc(reach, func(n int32) bool { return len(keptAlts(g, int(n))) >= 2 })
 		if n < 0 {
 			t.Fatal("no reachable node with two alternatives")
 		}
-		m := reachableNodes(g)[n]
+		m := reach[n]
 		alts := keptAlts(g, int(m))
 		g.Nodes[m].Alt = 0
 		for _, a := range alts { // add puts each first, so the list ends reversed
@@ -173,11 +174,12 @@ func TestForestEqualityDetectsPerturbation(t *testing.T) {
 	})
 
 	t.Run("rule-position", func(t *testing.T) {
-		at := slices.IndexFunc(reachableNodes(base), func(n int32) bool { return base.Nodes[n].Sym < 0 })
+		reach := reachableNodes(base)
+		at := slices.IndexFunc(reach, func(n int32) bool { return base.Nodes[n].Sym < 0 })
 		if at < 0 {
 			t.Fatal("no reachable rule-position node")
 		}
-		n := reachableNodes(base)[at]
+		n := reach[at]
 		other := base.Nodes[n].Rule + 1 // any other rule
 		for name, change := range map[string]func(*Node){
 			"rule": func(nd *Node) { nd.Rule = other },
@@ -255,7 +257,8 @@ func TestForestEqualityV1SideRecognizesPrecedenceRefusals(t *testing.T) {
 	tab := committedTables(t)
 	for _, in := range precedenceRefusals {
 		t.Run(in.name, func(t *testing.T) {
-			c, err := recognize.Recognize(V1Recognizer(tab), lex.Linear(lexOnly(tab, in.src)))
+			s, _ := lex.Lex([]byte(in.src), tab.Tokens)
+			c, err := recognize.Recognize(V1Recognizer(tab), lex.Linear(s))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -267,12 +270,6 @@ func TestForestEqualityV1SideRecognizesPrecedenceRefusals(t *testing.T) {
 			}
 		})
 	}
-}
-
-// lexOnly is src's token stream over tab.
-func lexOnly(tab *grammar.Tables, src string) *lex.Stream {
-	s, _ := lex.Lex([]byte(src), tab.Tokens)
-	return s
 }
 
 // TestForestEqualityV1SideRunsOldPipeline: V1Forest enters its own LibraryOperators and Constrain once per input the

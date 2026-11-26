@@ -2766,7 +2766,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   chart accepts `print $fh [];`, `$a <=> $b <=> $c;` and `1 .. 2 .. 3;` and
   its `Constrain` refuses each; and `TestForestEqualityV1SideRunsOldPipeline`
   that the V1 side enters its own `Constrain` and `LibraryOperators` once per
-  input. It runs over the toys (`TestForestEqualityToys`), the seed-4 and
+  input; `TestForestEqualityHarnessesUseCandidate` swaps in a candidate that
+  refuses everything and requires the loops to report it, so none compares V1
+  with itself. It runs over the toys (`TestForestEqualityToys`), the seed-4 and
   seed-44 generated sentences (`TestForestEqualityGeneratedSentences`) and a
   constructed input on which V1 keeps one node's alternatives under two
   contexts with two different non-empty sets, the union `Constrain`'s
