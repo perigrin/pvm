@@ -60,8 +60,8 @@ func TestFeasibilityRuleReduceConflicts(t *testing.T) {
 	}
 	sn, _ := ruleReduceConflicts(tab, p, synth)
 	t.Logf("synthetic: %d of %d", sn, len(synth))
-	if sn != len(synth) || len(synth) == 0 {
-		t.Errorf("synthetic same-LHS pairs counted: %d of %d", sn, len(synth))
+	if sn != len(synth) || len(synth) != 649 {
+		t.Errorf("synthetic same-LHS pairs counted: %d of %d, want 649 of 649", sn, len(synth))
 	}
 }
 
@@ -73,6 +73,20 @@ func TestFeasibilityParentConflicts(t *testing.T) {
 	t.Logf("perly.y: %d of %d states", n, len(tab.States))
 	if n != 0 || len(tab.States) == 0 {
 		t.Errorf("parent conflicts in %d of %d states", n, len(tab.States))
+	}
+	// The states where two core items wait on one parent-dependent symbol: those the counter actually judged.
+	var meet []int
+	for s, st := range tab.States {
+		for _, is := range awaiting(tab, p, st.Items) {
+			if len(is) >= 2 {
+				meet = append(meet, s)
+				break
+			}
+		}
+	}
+	t.Logf("meeting states: %s", strings.Trim(fmt.Sprint(meet), "[]"))
+	if !slices.Equal(meet, []int{105, 248}) {
+		t.Errorf("states with two items waiting on one parent-dependent symbol: %v, want [105 248]", meet)
 	}
 
 	// Every pair of perly.y's items waiting on one parent-dependent symbol with differing verdicts, each in a state of its own.
@@ -92,8 +106,8 @@ func TestFeasibilityParentConflicts(t *testing.T) {
 	}
 	sn := parentConflicts(tab, p, synth)
 	t.Logf("synthetic: %d of %d", sn, len(synth))
-	if sn != len(synth) || len(synth) == 0 {
-		t.Errorf("synthetic parent-item pairs counted: %d of %d", sn, len(synth))
+	if sn != len(synth) || len(synth) != 18 {
+		t.Errorf("synthetic parent-item pairs counted: %d of %d, want 18 of 18", sn, len(synth))
 	}
 }
 
@@ -217,7 +231,7 @@ find:
 
 	// (c) No rule begun under one predictor carries two tops whose verdicts disagree.
 	t.Run("c", func(t *testing.T) {
-		n, multi := 0, 0
+		n, multi, real := 0, 0, 0
 		for j, k := range preds {
 			var shifts [][2]int
 			for _, s := range descendants(tab, k.epsilon) {
@@ -227,6 +241,7 @@ find:
 					}
 				}
 			}
+			real += len(shifts)
 			hit, two := ruleTopsDisagree(tab, p, rts[j], shifts)
 			if two {
 				multi++
@@ -236,7 +251,11 @@ find:
 			}
 		}
 		t.Logf("predictors beginning a rule under two tops: %d", multi)
+		t.Logf("real shifts: %d", real)
 		t.Logf("perly.y: %d of %d predictors", n, len(preds))
+		if real == 0 {
+			t.Error("no real (item, terminal) shift judged: the check examined nothing")
+		}
 		if n != 0 || multi == 0 {
 			t.Errorf("predictors with a rule whose tops disagree: %d of %d (with a rule under two tops: %d)", n, len(preds), multi)
 		}
@@ -304,6 +323,19 @@ func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
 		t.Logf("empty: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
 		if len(bad) == 0 {
 			t.Errorf("toy empty: no all-nullable rule with a non-allow verdict counted (of %d)", empty+nonEmpty)
+		}
+	})
+
+	// a ::= (empty) %prec LOW before T is forbidden after ONE, where s: ONE T shifts T, and reduced after TWO, so its
+	// only non-allow verdict is 2, the parent item decides: a counter that reads only verdict 1 misses it.
+	t.Run("verdict2", func(t *testing.T) {
+		tab, p := pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"LOW"}}, {N: 2, Assoc: "left", Tokens: []string{"T"}}},
+			[]string{"", "", "", "", "", "LOW"}, "s ::= ONE e", "s ::= ONE T", "s ::= TWO f", "e ::= a T", "f ::= a T", "a ::= ")
+		empty, nonEmpty, bad := nullableNonAllow(tab, p)
+		t.Logf("verdict-2 toy: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
+		row := p.reduceAt[5*p.nt : 6*p.nt]
+		if !slices.Equal(bad, []int{5}) || !slices.Contains(row, 2) || slices.Contains(row, 1) {
+			t.Errorf("toy verdict2: counted rules %v, a's verdicts %v; want rule 5, a ::= (empty), with a 2 and no 1", bad, row)
 		}
 	})
 }
