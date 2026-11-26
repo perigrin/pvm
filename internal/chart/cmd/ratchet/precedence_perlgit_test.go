@@ -1,6 +1,6 @@
 //go:build precedencereference
 
-// ABOUTME: The perl.git precedence differential (decision §3.4): production Constrain against ConstrainReference on every recognized t/ file.
+// ABOUTME: The perl.git precedence differential (decision §3.4) and set-1626 observer over every t/ file the ratchet loads.
 // ABOUTME: make chart-precedence-reference runs it, out of go test ./... because CI's other jobs have no perl.git.
 
 package main
@@ -59,5 +59,30 @@ func TestPrecedencePerlGitMatchesReference(t *testing.T) {
 	t.Logf("perlgit files=%d compared=%d prelib-refused=%d precedence-refused=%d pruned=%d", len(files), compared, prelib, precedence, pruned)
 	if compared == 0 {
 		t.Error("perl.git contributed no compared file")
+	}
+}
+
+// TestSet1626NeverReachedPerlGit: TestSet1626NeverReachedCorpus's observation over every perl.git t/ file, loaded as
+// the ratchet loads it. A missing perl.git fails, and so does one that observes no completion of the rule.
+func TestSet1626NeverReachedPerlGit(t *testing.T) {
+	t.Chdir("../../../..")
+	srcs := map[string][]byte{}
+	files, err := perlGit(perl5Root(), srcs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := newPairObserver(t, committedTables(t), "indirob ::= scalar", "HASHBRACK", "PERLY_BRACE_OPEN")
+	for _, f := range files {
+		if _, _, err := o.observe(srcs[f.Path]); err != nil {
+			t.Fatalf("%s: %v", f.Path, err)
+		}
+	}
+	t.Logf("perlgit files: %d tokens carrying set 1626: %d indirob ::= scalar completions: %d reaching set 1626: %d",
+		o.inputs, o.carrying, o.completions, o.reaching)
+	if o.inputs == 0 || o.completions == 0 {
+		t.Errorf("observed nothing: %d files, %d completions", o.inputs, o.completions)
+	}
+	if o.reaching != 0 {
+		t.Errorf("set 1626 reached %d times after indirob ::= scalar: a design §7 stop", o.reaching)
 	}
 }
