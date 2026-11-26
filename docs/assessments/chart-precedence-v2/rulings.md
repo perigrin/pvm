@@ -92,3 +92,14 @@ There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends bec
 
 - all ten participants recommended accept;
 - no blocking finding was held or raised.
+
+## 2026-11-26, chain-review bound for chart-perly-w4
+
+- **Closing chain-review:** "Apply fixes, accept (Recommended)".
+  - Chain-review on milestone `chart-perly-w4` reached its bound of eight rounds without a fixed point. Five of nine participants recommended accept.
+  - Three blocking items remained, each with a one-line fix its raisers had proposed:
+    - r7-fresh7 FR7-1: item 8 of the docs issue would have written a false README sentence.
+    - FR6-6: d166's cache test fixture could not fail.
+    - r6-fresh6 FR6-3: the corpus differentials in d218 and 3282 ran on un-narrowed input.
+  - The three fixes were applied exactly as proposed. Chain-review passed by this ruling.
+  - The reports are in `docs/assessments/chart-perly-w4/chain-review/`.
