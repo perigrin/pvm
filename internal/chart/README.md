@@ -2707,6 +2707,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
     `TestPipelineStagePrecedenceTimesConstrain` holds that the precedence
     stage key times `Constrain`, not the reference, on the known-divergence
     toy.
+- **The feasibility counters** (`forest/feasibility_test.go`). The V2
+  design's §5 pins its §3 counters as tests over the committed tables, so a
+  grammar change that breaks a V2 assumption fails a test. Each reads 0 on
+  `perly.y`, logs its count over its denominator, and counts every synthetic
+  case built to trigger it: rule-reduce conflicts
+  (`TestFeasibilityRuleReduceConflicts`), parent conflicts
+  (`TestFeasibilityParentConflicts`) and context conflicts
+  (`TestFeasibilityContextConflicts`, three checks as subtests `a`, `b` and
+  `c`).
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is
