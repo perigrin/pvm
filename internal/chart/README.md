@@ -1925,13 +1925,15 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   lookahead set that can follow its LHS, and a set none of whose terminals
   can follow it refuses too, whatever `NoLookahead` says
   (`TestReduceSideNoFollowingTerminal`); the six parent-dependent pairs are
-  judged per parent state (`TestReduceSideRefusesForbiddenCompletion`,
+  judged per parent state, though only indirob's two can be followed by
+  their terminal, so myterm's four are refused vacuously
+  (`TestReduceSideRefusesForbiddenCompletion`,
   `TestReduceSideMixedVerdictSetKept`,
   `TestReduceSideIgnoresTerminalsOutsideFollow`). Each refusal of a completion
   for a parent state is recorded beside the node's set, never in it, so sets
   differing only in their records share one `*Set`
   (`TestRefusalRecordsOutsideSetIdentity`), and a cache hit serves the
-  records it stored. A Leo chain crossing a refused completion is not taken,
+  records it stored (`TestRefusalRecordsServedByCache`). A Leo chain crossing a refused completion is not taken,
   so completion goes link by link and refuses there, as without Leo
   (`TestLeoCrossesRefusedCompletion`). The slipper's closure and `Expected`
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's

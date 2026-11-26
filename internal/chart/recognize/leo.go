@@ -16,6 +16,9 @@ type memo struct {
 	at, origin int
 	top        [2]int
 	next       *memo
+	// item is the state of the item awaiting B, adv its target, which
+	// completes lhs, A: what the judged recognizer reads (leoCrosses).
+	item, adv, lhs int
 }
 
 // leoItems is, per (state, symbol), the LHS of the state's Leo item for that
@@ -59,6 +62,15 @@ func (b *builder) leo(origin, sym int, la bitset) ([2]int, bool) {
 				b.read(l.origin, b.c.Sets[l.origin])
 			}
 		}
+	}
+	// A chain never skips a refused completion: one that crosses one is not
+	// taken, and completion goes link by link, refusing it there.
+	if b.la != nil && b.r.judge != nil {
+		if b.leoCrosses(m) {
+			b.r.leoRefused++
+			return [2]int{}, false
+		}
+		b.r.leoSteps++
 	}
 	return m.top, true
 }
