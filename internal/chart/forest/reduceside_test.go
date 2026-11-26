@@ -69,21 +69,33 @@ func sampleLattices(t *testing.T, tab *grammar.Tables) []*lex.Lattice[lex.None] 
 
 // TestForestEqualityReduceSide: the reduce side's forest, the judged recognizer then Build then Constrain, equals
 // V1's on every sentence of every toy Feasible accepts, under the toy's own precedence, and on every seed-4 and
-// seed-44 sentence. Each logs how many it compared of how many it loaded. The candidates take their recognizer
-// from reduceSideRecognizer, which judges, so neither is V1 under another name.
+// seed-44 sentence. Each logs how many it compared of how many it loaded. Each candidate recognizes with the
+// recognizer it takes from reduceSideRecognizer (a marker recognizer's error surfaces from both), and that one
+// judges, so neither is V1 under another name.
 func TestForestEqualityReduceSide(t *testing.T) {
 	t.Run("candidate-is-judged", func(t *testing.T) {
+		// A marker recognizer: judged over emptyred, which Feasible refuses, so every Recognize with it returns
+		// Feasible's error. Each candidate surfaces that error only if it recognizes with the recognizer it took.
+		er := loadToy(t, "emptyred")
+		marker, feasErr := recognize.NewJudged(er.tab, er.prec, recognize.Options{})
+		if feasErr == nil {
+			t.Fatal("emptyred's judged recognizer has no error to mark it")
+		}
 		calls := 0
 		rec0 := reduceSideRecognizer
 		t.Cleanup(func() { reduceSideRecognizer = rec0 })
-		reduceSideRecognizer = func(tab *grammar.Tables, p *prectab.Precedence) (*recognize.Recognizer, error) {
+		reduceSideRecognizer = func(*grammar.Tables, *prectab.Precedence) (*recognize.Recognizer, error) {
 			calls++
-			return rec0(tab, p)
+			return marker, nil
 		}
 		tab := committedTables(t)
-		ReduceSideForest(tab, []byte("1 + 2 * 3;"), Scope{})
+		if f, ref := ReduceSideForest(tab, []byte("1 + 2 * 3;"), Scope{}); f != nil || ref.Reason != feasErr.Error() {
+			t.Errorf("ReduceSideForest with the marker: forest %v, refusal %q; want none, the marker's %q: it recognizes with another recognizer", f != nil, ref.Reason, feasErr)
+		}
 		ty := loadToy(t, "indirob")
-		ReduceSideToyForest(ty.tab, toyLattice(ty.tab, strings.Fields("VAR")), ty.prec)
+		if f, err := ReduceSideToyForest(ty.tab, toyLattice(ty.tab, strings.Fields("VAR")), ty.prec); f != nil || err != feasErr {
+			t.Errorf("ReduceSideToyForest with the marker: forest %v, error %v; want none, the marker's: it recognizes with another recognizer", f != nil, err)
+		}
 		if calls != 2 {
 			t.Errorf("the reduce-side candidates took %d recognizers from reduceSideRecognizer; want one each, 2", calls)
 		}
