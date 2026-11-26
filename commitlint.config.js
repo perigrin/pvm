@@ -5,7 +5,7 @@ const types = [
   // conventional
   'build', 'chore', 'ci', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test',
   // pvm's packages and documents, as pu's history uses them
-  'assess', 'conformance', 'infer', 'lexer', 'lower', 'oracle', 'parse', 'perltest', 'plan', 'psc', 'spec',
+  'assess', 'chart', 'conformance', 'infer', 'lexer', 'lower', 'oracle', 'parse', 'perltest', 'plan', 'psc', 'spec',
 ];
 
 module.exports = {
