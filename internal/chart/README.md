@@ -1906,6 +1906,37 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
 - **Not safe for concurrent use.** A `Recognizer`'s intern table and
   transition cache change with every recognition, across inputs, and stay
   its own (`TestRecognizerStateNotShared`).
+- **The judged recognizer** (the V2 design's §4.1 reduce side, built beside
+  the default). `recognize.New` judges no precedence, and is exactly
+  `recognize.NewNoPrecedence`, the explicit no-precedence constructor, until
+  the switch-over. `recognize.NewJudged` takes a `*prectab.Precedence`
+  (explicit) or nil (derived): derived, tables whose rules are perly.y's
+  committed grammar rule for rule (count, each LHS and RHS by name) are judged
+  with perly.y's precedence through `prectab.ParsePrecedence`, once per
+  tables value, a copy or regeneration included
+  (`TestJudgedJudgesCopyOfCommittedTables`), and any other tables declare no
+  levels, so nothing is judged and the recognizer is the no-precedence one
+  (`TestJudgedOverLevellessTablesRecognizesAsBefore`). A precedence
+  `prectab.Feasible` refuses, or a failed derivation, is the constructor's
+  error, which `Recognize` returns for every input
+  (`TestJudgedRecognizerRefusesInfeasibleGrammar`,
+  `TestJudgedRefusesFailedDerivationOnPerlyTables`). A completion is refused
+  where V1's reduce verdict forbids its rule before every terminal of the
+  lookahead set that can follow its LHS, and a set none of whose terminals
+  can follow it refuses too, whatever `NoLookahead` says
+  (`TestReduceSideNoFollowingTerminal`); the six parent-dependent pairs are
+  judged per parent state (`TestReduceSideRefusesForbiddenCompletion`,
+  `TestReduceSideMixedVerdictSetKept`,
+  `TestReduceSideIgnoresTerminalsOutsideFollow`). Each refusal of a completion
+  for a parent state is recorded beside the node's set, never in it, so sets
+  differing only in their records share one `*Set`
+  (`TestRefusalRecordsOutsideSetIdentity`), and a cache hit serves the
+  records it stored. A Leo chain crossing a refused completion is not taken,
+  so completion goes link by link and refuses there, as without Leo
+  (`TestLeoCrossesRefusedCompletion`). The slipper's closure and `Expected`
+  judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
+  over the toys, seeds 4 and 44 and the in-tree corpus
+  (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
 - **Items** are an LR(0) state and the distance in lattice nodes back to the
   item's origin. A set is its items, sorted, so two positions with equal
   content share one `*Set`. It is interned by one hash of its states and one
@@ -2124,7 +2155,10 @@ the reason by the rule above at its own byte, and one that accepts makes it
 - **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
   (state, distance), recognition stays Boolean, and nothing recognition
   stores beside the sets is shaped for the forest except the slipper's
-  closures (below). It reads the chart through two read-only accessors in
+  closures (below) and the judged recognizer's refusal records, which
+  perigrin's ruling "Lift rule 12 for refusals" admits: `Build` never pairs a
+  completion with a parent the recognizer refused it for
+  (`TestBuildNeverPairsRefusedParent`). It reads the chart through two read-only accessors in
   `recognize/finished.go`. A rule the chart completed
   is a reduce of a state in some set, or one a Leo memo skipped
   (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
@@ -2791,7 +2825,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   distinct reachable nodes sharing a key are a difference
   (`TestForestDiffDuplicateKey`), never one overwriting the other. The
   V1 side (`V1Forest`, `V1ToyForest`) is the old pipeline: the recognizer
-  `V1Recognizer` builds, which is only ever the unjudged one, then `Build`,
+  `V1Recognizer` builds, through the explicit no-precedence constructor
+  `recognize.NewNoPrecedence`, never `recognize.New`
+  (`TestJudgedRecognizerIsExplicit`), then `Build`,
   `LibraryOperators` (for a source) and `Constrain`. The candidate
   (`CandidateForest`, `CandidateToyForest`) is production's forest before
   resolve, and later issues may swap it. The candidate narrows the lattice
