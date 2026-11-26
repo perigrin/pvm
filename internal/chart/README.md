@@ -1940,9 +1940,19 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
   over the toys, seeds 4 and 44 and the in-tree corpus
   (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
-- **Items** are an LR(0) state and the distance in lattice nodes back to the
-  item's origin. A set is its items, sorted, so two positions with equal
-  content share one `*Set`. It is interned by one hash of its states and one
+- **Items** are an LR(0) state, the distance in lattice nodes back to the
+  item's origin, and a context: the canonical spine top, or `none` (the V2
+  design's §4.2), which only the judged recognizer sets
+  (`TestItemIsStateDistanceContext`). A predicted item takes its predicting
+  kernel state's context from `prectab.Contexts`, `none` where that top
+  forbids no shift in any state its rules reach at that origin (§4.3,
+  `TestContextCollapseTable`); every other item inherits the context of the
+  item it advances. A set is its items, sorted, so two positions with equal
+  content share one `*Set`, and sets differing only in a context do not;
+  the transition cache keys on the source set, so on its contexts, and a
+  Leo memo's top carries its item's context (`TestContextCollapseInternsEqualSets`,
+  `TestTransitionCacheKeysOnContext`, `TestLeoMemoCarriesContext`). No
+  context refuses anything yet. It is interned by one hash of its states and one
   map lookup (`TestInternOneLookup`; YAEP's `set_core.hash` and `dists_hash`):
   the table's value is the core, which holds its sets in an
   open-addressed table keyed by a hash of their distances (a core's list was
@@ -2155,8 +2165,10 @@ the reason by the rule above at its own byte, and one that accepts makes it
 `TestRefusalRerunScopeThenUnmappedIsLexUnmapped`, `TestRefusalLexUnmappedNotRerun`,
 `TestRefusalEverySetAliveAtEnd`).
 
-- **No fact is added to an Earley item** (spec §3 rule 12, §10). Items stay
-  (state, distance), recognition stays Boolean, and nothing recognition
+- **No fact but the context is added to an Earley item** (spec §3 rule 12,
+  §10, superseded for the context by the V2 design's §4.2). Items are
+  (state, distance, context), the context `none` in every item of the
+  no-precedence recognizer, recognition stays Boolean, and nothing recognition
   stores beside the sets is shaped for the forest except the slipper's
   closures (below) and the judged recognizer's refusal records, which
   perigrin's ruling "Lift rule 12 for refusals" admits: `Build` never pairs a
