@@ -1939,9 +1939,14 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   needs its parent state (`TestLeoTakesNoParentDependentCompletion`). The
   cost bounds hold for the derived judged recognizer at the default's
   constants (`TestCompletionProbesBoundedJudged`,
-  `TestLeoMemoEntriesBoundedJudged`), and the memo links its Leo step walks
-  to find a crossing grow linearly with a right recursion's depth
-  (`TestJudgedLeoWalkLinear`). The slipper's closure and `Expected`
+  `TestLeoMemoEntriesBoundedJudged`). To find a crossing, its Leo step walks
+  the memo chain, and each memo keeps its verdict for the last lookahead, so
+  a walk stops at a link already judged before the same one. A right
+  recursion whose LHS can be followed by the token that continues it, which
+  takes a chain at every node, so walks each link once rather than once per
+  node: linear in its depth, where re-walking would be quadratic
+  (`TestJudgedLeoWalkLinear`). Over the corpus sample the walk is held to
+  `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The slipper's closure and `Expected`
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
   over the toys, seeds 4 and 44 and the in-tree corpus
   (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
