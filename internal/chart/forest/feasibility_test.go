@@ -254,6 +254,113 @@ find:
 	})
 }
 
+// Counter 4 (design §5): every forbidden (top, at, f) shift has f equal to at's own next terminal, so the item
+// that scans f holds at.
+func TestFeasibilityShiftsOwnNextTerminal(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	forbidden, off := offAtShifts(tab, p)
+	t.Logf("perly.y: %d of %d", off, forbidden)
+	if off != 0 || forbidden != 674 {
+		t.Errorf("forbidden shifts whose terminal is not at's own next terminal: %d of %d, want 0 of 674", off, forbidden)
+	}
+
+	// The toys whose forbidden shifts are scanned by an item that does not hold at (design §4.1).
+	for _, c := range []struct {
+		name string
+		load func(*testing.T) (*grammar.Tables, *Precedence)
+	}{
+		{"emptyred", func(t *testing.T) (*grammar.Tables, *Precedence) {
+			ty := loadToy(t, "emptyred")
+			return ty.tab, ty.prec
+		}},
+		{"nullableShift", nullableShiftToy},
+		{"MarkFirstFilter", markFirstFilterToy},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			forbidden, off := offAtShifts(c.load(t))
+			t.Logf("%s: %d of %d", c.name, off, forbidden)
+			if off == 0 {
+				t.Errorf("%s: no forbidden shift counted off at's next terminal (of %d)", c.name, forbidden)
+			}
+		})
+	}
+}
+
+// Counter 5 (design §5): no rule whose right-hand side is all nullable, empty or not, has a non-allow reduce verdict
+// before any terminal. The recognizer completes such a rule over an empty span inside the nullable closure, with no
+// completion event to judge (design §4.1).
+func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	empty, nonEmpty, bad := nullableNonAllow(tab, p)
+	t.Logf("perly.y: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
+	if len(bad) != 0 || empty != 13 || nonEmpty != 16 {
+		t.Errorf("all-nullable rules with a non-allow verdict: rules %v of %d empty and %d non-empty, want none of 13 and 16", bad, empty, nonEmpty)
+	}
+
+	// Toy empty's opt ::= (empty) %prec LOW is forbidden before LB.
+	t.Run("empty", func(t *testing.T) {
+		ty := loadToy(t, "empty")
+		empty, nonEmpty, bad := nullableNonAllow(ty.tab, ty.prec)
+		t.Logf("empty: %d of %d (%d empty, %d non-empty)", len(bad), empty+nonEmpty, empty, nonEmpty)
+		if len(bad) == 0 {
+			t.Errorf("toy empty: no all-nullable rule with a non-allow verdict counted (of %d)", empty+nonEmpty)
+		}
+	})
+}
+
+// Counter 6 (design §5): the core items of one state, under one context, that scan one terminal get one shift
+// verdict, since one transition carries them all. A dot-0 item, which V1 never checks, counts as allowed (F6-R3).
+func TestFeasibilityCoreItemsShiftAgree(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	groups, conflicts, dot0 := scanDisagreements(tab, p)
+	t.Logf("perly.y: %d of %d groups (%d with a dot-0 item)", len(conflicts), groups, dot0)
+	if len(conflicts) != 0 || groups == 0 {
+		t.Errorf("(state, context, terminal) groups whose core items disagree: %d of %d", len(conflicts), groups)
+	}
+
+	// Its one collision is under the spine top s: P . a, where a: n . X R is forbidden X and the dot-0 c: . X Q is
+	// allowed. Under none, a dot-0 item judged forbidden would collide instead, so the context pins F6-R3.
+	t.Run("scancollide", func(t *testing.T) {
+		tab, p := scancollideToy(t)
+		groups, conflicts, dot0 := scanDisagreements(tab, p)
+		top := p.base[1] + 1 // s: P . a
+		t.Logf("scancollide: %d of %d groups, %d with a dot-0 item, under contexts %v (spine top s: P . a is %d)", len(conflicts), groups, dot0, conflicts, top)
+		if !slices.Equal(conflicts, []int32{top}) || dot0 != 1 {
+			t.Errorf("toy scancollide: conflicts under contexts %v, %d with a dot-0 item; want one dot-0 collision under the spine top %d, none under none (-1)", conflicts, dot0, top)
+		}
+	})
+}
+
+// The closing terminals carry no precedence level (F7-C3). The recognizer adds ; to a set where } or the end of input
+// can come next, and V1 judges such a derivation through the slipper before ;; the two agree because none of the three
+// has a level, so no resolution names any of them.
+func TestFeasibilityClosingTerminalsHaveNoLevel(t *testing.T) {
+	_, p := feasibilityTables(t)
+	for _, name := range []string{"PERLY_SEMICOLON", "PERLY_BRACE_CLOSE", "EOF"} {
+		level, err := terminalLevel(p, name)
+		t.Logf("%s: level %d", name, level)
+		if err != nil || level != 0 {
+			t.Errorf("%s: level %d, %v; want no level", name, level, err)
+		}
+	}
+}
+
+// TestFeasibilityTerminalLevelLookupControl: terminalLevel cannot read no level for a terminal it failed to find. A
+// name that is no terminal is an error, and ADDOP, which perly.y declares, reads its level.
+func TestFeasibilityTerminalLevelLookupControl(t *testing.T) {
+	_, p := feasibilityTables(t)
+	for _, name := range []string{"NO_SUCH_TERMINAL", "term"} {
+		if level, err := terminalLevel(p, name); err == nil {
+			t.Errorf("%s: level %d, no error; want an error", name, level)
+		}
+	}
+	level, err := terminalLevel(p, "ADDOP")
+	t.Logf("ADDOP: level %d", level)
+	if err != nil || level == 0 {
+		t.Errorf("ADDOP: level %d, %v; want its declared level", level, err)
+	}
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -555,4 +662,110 @@ func ruleTopsDisagree(tab *grammar.Tables, p *Precedence, rt map[int]map[int32]b
 		}
 	}
 	return hit, two
+}
+
+// offAtShifts counts p's forbidden (top, at, f) shifts over every automaton item at, and of them those whose f is
+// not at's own next terminal: at is complete, a nonterminal or another terminal follows its dot, or at is a
+// refused rule's item, which no item of the tables holds.
+func offAtShifts(tab *grammar.Tables, p *Precedence) (forbidden, off int) {
+	for top, row := range p.topAt {
+		if row < 0 {
+			continue
+		}
+		for at := range p.topAt {
+			for f := range p.nt {
+				if !p.shiftForbidden(int32(top), int32(at), int32(f)) {
+					continue
+				}
+				forbidden++
+				if at >= len(tab.Items) {
+					off++
+					continue
+				}
+				it := tab.Items[at]
+				if rhs := tab.Rules[it.Rule].RHS; it.Dot >= len(rhs) || rhs[it.Dot] != f {
+					off++
+				}
+			}
+		}
+	}
+	return forbidden, off
+}
+
+// nullableNonAllow counts tab's rules whose right-hand side is all nullable, empty and non-empty, and lists those
+// with a non-allow reduce verdict (forbidden, or decided by the parent item) before some terminal, EOF included.
+func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, bad []int) {
+	for r, rule := range tab.Rules {
+		if !slices.ContainsFunc(rule.RHS, func(s int) bool { return !tab.Symbols[s].Nullable }) {
+			if len(rule.RHS) == 0 {
+				empty++
+			} else {
+				nonEmpty++
+			}
+			if slices.ContainsFunc(p.reduceAt[r*p.nt:(r+1)*p.nt], func(v uint8) bool { return v != 0 }) {
+				bad = append(bad, r)
+			}
+		}
+	}
+	return empty, nonEmpty, bad
+}
+
+// scanDisagreements groups the core items of each state by the terminal after their dot, and judges each group of
+// two or more under every context an item can carry: none and each canonical spine top. A group conflicts where its
+// items' shift verdicts differ; a dot-0 item is allowed, never skipped. conflicts is each conflicting group's
+// context, -1 for none; dot0 counts the conflicts with a dot-0 item.
+func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups int, conflicts []int32, dot0 int) {
+	contexts := []int32{-1}
+	for i, row := range p.topAt {
+		if row >= 0 {
+			contexts = append(contexts, int32(i))
+		}
+	}
+	for _, st := range tab.States {
+		by := map[int][]int{}
+		for _, i := range st.Items {
+			it := tab.Items[i]
+			if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) && tab.Symbols[rhs[it.Dot]].Terminal {
+				by[rhs[it.Dot]] = append(by[rhs[it.Dot]], i)
+			}
+		}
+		for f, is := range by {
+			if len(is) < 2 {
+				continue
+			}
+			for _, c := range contexts {
+				groups++
+				verdicts, zero := map[bool]bool{}, false
+				for _, i := range is {
+					dot := tab.Items[i].Dot
+					verdicts[dot > 0 && p.shiftForbidden(c, int32(i), int32(f))] = true
+					zero = zero || dot == 0
+				}
+				if len(verdicts) > 1 {
+					conflicts = append(conflicts, c)
+					if zero {
+						dot0++
+					}
+				}
+			}
+		}
+	}
+	return groups, conflicts, dot0
+}
+
+// terminalLevel is the precedence level of the terminal named name, EOF the end of input, read as resolve reads it:
+// 0 is no level, and EOF, past the symbols, has none. A name that is no terminal is an error, never level 0.
+func terminalLevel(p *Precedence, name string) (int, error) {
+	tab := p.tab
+	id := tab.EOF
+	if name != "EOF" {
+		id = symbol(tab, name)
+		if id < 0 || !tab.Symbols[id].Terminal {
+			return 0, fmt.Errorf("no terminal %s", name)
+		}
+	}
+	if id < len(p.term) {
+		return p.term[id], nil
+	}
+	return 0, nil
 }
