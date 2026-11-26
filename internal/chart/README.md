@@ -2774,9 +2774,16 @@ grammar's tables and its precedence: no Earley item gains a fact.
   seed-44 generated sentences (`TestForestEqualityGeneratedSentences`) and a
   constructed input on which V1 keeps one node's alternatives under two
   contexts with two different non-empty sets, the union `Constrain`'s
-  `shortcut:` takes (`TestForestEqualityUnionShortcut`). The toy and
-  generated-sentence differentials each log how many inputs they compared of
-  how many they loaded.
+  `shortcut:` takes (`TestForestEqualityUnionShortcut`). It also runs over
+  every waypoint2 row (`TestForestEqualityWaypoint2`, V1's §5 pipeline, in
+  package `chart`) and every referee sentence
+  (`TestForestEqualityRefereeSentences`), where V1's path is the referee's
+  own: V1's recognizer, `Build`, `narrow`, `Constrain`, with no
+  `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`).
+  The referee comparison drops zero-width slipper `;` leaves from both sides
+  and nothing else (`TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves`).
+  The toy, generated-sentence, waypoint2 and referee differentials each log
+  how many inputs they compared of how many they loaded.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is
