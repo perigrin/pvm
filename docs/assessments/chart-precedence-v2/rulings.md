@@ -103,3 +103,7 @@ There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends bec
     - r6-fresh6 FR6-3: the corpus differentials in d218 and 3282 ran on un-narrowed input.
   - The three fixes were applied exactly as proposed. Chain-review passed by this ruling.
   - The reports are in `docs/assessments/chart-perly-w4/chain-review/`.
+
+## 2026-11-26, execute on chart-perly-w4
+
+- **The git-zhi version:** "Upgrade to v0.7.2 (Recommended)". The container had git-zhi 0.5.2, below crochet's minimum of 0.7.2. 0.5.2 ignores `ZHI_ACTOR` on writes, so every execute worker failed the ownership check. v0.7.2 was installed with git-zhi's own `install.sh` into `~/.local/bin`, ahead of 0.5.2 on PATH.
