@@ -475,7 +475,9 @@ To take a baseline after an intended change, run
   `precedencereference` because `go test ./...` runs on machines without
   perl.git. A missing or empty perl.git fails it, never skips it. The target
   also runs `TestSet1626NeverReachedPerlGit`, the set-1626 observer below
-  over every perl.git `t/` file, behind the same tag and failing the same way. CI's
+  over every perl.git `t/` file, and `TestForestEqualityPerlGit`, the
+  forest-equality differential below over the same files, behind the same tag
+  and failing the same way. CI's
   corpus-backed Ratchets job runs it with `PERL5_CORPUS` set. No in-tree
   precedence test sits behind `precedencecorpus`, so `make test` wires no
   second tag for it.
@@ -2774,7 +2776,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
   contexts with two different non-empty sets, the union `Constrain`'s
   `shortcut:` takes (`TestForestEqualityUnionShortcut`). The toy and
   generated-sentence differentials each log how many inputs they compared of
-  how many they loaded.
+  how many they loaded. The ratchet's in-tree corpora get the same
+  comparison, `TestForestEqualityCorpus` in `cmd/ratchet`: each file's
+  candidate forest against V1's under the file's own scope
+  (`TestForestEqualityCorpusUsesFileScope`), logging `compared N of N files`
+  and failing below 1,800 files or on any file left uncompared; a candidate
+  that differs is reported (`TestForestEqualityCorpusReportsDifference`).
+  `TestForestEqualityPerlGit` runs it over perl.git `t/` under
+  `make chart-precedence-reference`. A difference from V1 on either is a design
+  §7 stop.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is
