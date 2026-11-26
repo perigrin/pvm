@@ -80,6 +80,15 @@ func markFirstFilterToy(t *testing.T) (*grammar.Tables, *Precedence) {
 		"G ::= Y X", "Y ::= C", "X ::= W", "X ::= E A K", "W ::= P Q", "P ::= A", "P ::= B", "E ::= ", "Q ::= Q1", "K ::= K1")
 }
 
+// scancollideToy is minute row F6-C2's toy: the predicted state after P, under the spine top s: P . a, scans X for
+// c: . X Q, a dot-0 item V1 never checks, and for a: n . X R, where d: n %prec HIGH wins over X and the shift is
+// forbidden. One scan would have to be both refused and allowed.
+func scancollideToy(t *testing.T) (*grammar.Tables, *Precedence) {
+	return pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"X"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+		[]string{"", "", "", "", "", "HIGH", "", ""},
+		"s ::= P c", "s ::= P a", "s ::= P d X W", "c ::= X Q", "a ::= n X R", "d ::= n", "n ::= ", "n ::= M")
+}
+
 // TestPrecedenceLeftParentItemDotZero: a: X %prec LOW before T is reduced after TWO and forbidden after ONE, where
 // s: ONE X T shifts T, so the pair needs its parent item, and e: . a T, at dot 0 of a two-symbol rule, is the one
 // that forbids it. Of ONE X T's two derivations only s: ONE X T survives, as in bison.

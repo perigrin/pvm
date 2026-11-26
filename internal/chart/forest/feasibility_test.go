@@ -308,6 +308,25 @@ func TestFeasibilityAllNullableRulesAllow(t *testing.T) {
 	})
 }
 
+// Counter 6 (design §5): the core items of one state, under one context, that scan one terminal get one shift
+// verdict, since one transition carries them all. A dot-0 item, which V1 never checks, counts as allowed (F6-R3).
+func TestFeasibilityCoreItemsShiftAgree(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	groups, conflicts, dot0 := scanDisagreements(tab, p)
+	t.Logf("perly.y: %d of %d groups (%d with a dot-0 item)", conflicts, groups, dot0)
+	if conflicts != 0 || groups == 0 {
+		t.Errorf("(state, context, terminal) groups whose core items disagree: %d of %d", conflicts, groups)
+	}
+
+	t.Run("scancollide", func(t *testing.T) {
+		groups, conflicts, dot0 := scanDisagreements(scancollideToy(t))
+		t.Logf("scancollide: %d of %d groups, %d with a dot-0 item", conflicts, groups, dot0)
+		if conflicts == 0 || dot0 == 0 {
+			t.Errorf("toy scancollide: %d of %d groups counted, %d with a dot-0 item; want its dot-0 collision counted", conflicts, groups, dot0)
+		}
+	})
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -655,4 +674,46 @@ func nullableNonAllow(tab *grammar.Tables, p *Precedence) (empty, nonEmpty int, 
 		}
 	}
 	return empty, nonEmpty, bad
+}
+
+// scanDisagreements groups the core items of each state by the terminal after their dot, and judges each group of
+// two or more under every context an item can carry: none and each canonical spine top. A group conflicts where its
+// items' shift verdicts differ; a dot-0 item is allowed, never skipped. dot0 counts the conflicts with a dot-0 item.
+func scanDisagreements(tab *grammar.Tables, p *Precedence) (groups, conflicts, dot0 int) {
+	contexts := []int32{-1}
+	for i, row := range p.topAt {
+		if row >= 0 {
+			contexts = append(contexts, int32(i))
+		}
+	}
+	for _, st := range tab.States {
+		by := map[int][]int{}
+		for _, i := range st.Items {
+			it := tab.Items[i]
+			if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) && tab.Symbols[rhs[it.Dot]].Terminal {
+				by[rhs[it.Dot]] = append(by[rhs[it.Dot]], i)
+			}
+		}
+		for f, is := range by {
+			if len(is) < 2 {
+				continue
+			}
+			for _, c := range contexts {
+				groups++
+				verdicts, zero := map[bool]bool{}, false
+				for _, i := range is {
+					dot := tab.Items[i].Dot
+					verdicts[dot > 0 && p.shiftForbidden(c, int32(i), int32(f))] = true
+					zero = zero || dot == 0
+				}
+				if len(verdicts) > 1 {
+					conflicts++
+					if zero {
+						dot0++
+					}
+				}
+			}
+		}
+	}
+	return groups, conflicts, dot0
 }
