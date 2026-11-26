@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -16,7 +17,7 @@ import (
 // as the first. Some file's stages must change its copy, so a test that pruned nothing cannot pass.
 func TestForestCopySharesNothing(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

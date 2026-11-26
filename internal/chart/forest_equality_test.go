@@ -11,6 +11,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -64,7 +65,7 @@ func TestForestEqualityWaypoint2(t *testing.T) {
 // refereeV1Forest is V1's forest on the referee's path: V1Recognizer's chart, Build, keep narrows the forest,
 // then Constrain under p, nil where any refuses. It has no LibraryOperators: the referee judges bison's token
 // sequence, which scope does not decide (F4-2). Its recognizer is V1's, never recognize.New or the referee's own.
-func refereeV1Forest(tab *grammar.Tables, p *forest.Precedence, src string, keep func(*forest.Forest) bool) *forest.Forest {
+func refereeV1Forest(tab *grammar.Tables, p *prectab.Precedence, src string, keep func(*forest.Forest) bool) *forest.Forest {
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
 	l := lex.Linear(s)
 	c, err := recognize.Recognize(forest.V1Recognizer(tab), l)
@@ -194,7 +195,7 @@ func TestForestEqualityRefereePathOmitsLibraryOperators(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := forest.ParsePrecedence(tab)
+	p, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,6 +16,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -144,7 +145,7 @@ func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte,
 	if at := libraryOperators(tab, f, s, src, scope); at >= 0 {
 		return nil, s, Refusal{Byte: at, Reason: "scope"}
 	}
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		return nil, s, Refusal{Reason: err.Error()}
 	}

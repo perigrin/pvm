@@ -11,6 +11,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -139,7 +140,7 @@ func V1Forest(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	if v1LibraryOperators(tab, f, s, src, scope) >= 0 {
 		return nil, Refusal{Reason: "scope"}
 	}
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		return nil, Refusal{Reason: err.Error()}
 	}
@@ -151,7 +152,7 @@ func V1Forest(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 
 // V1ToyForest is V1's forest of a toy grammar's lattice l under the toy's precedence p: V1Recognizer's chart,
 // Build, then Constrain; nil where it refuses. A toy has no source, so it has no library operators.
-func V1ToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *Precedence) (*Forest, error) {
+func V1ToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *prectab.Precedence) (*Forest, error) {
 	c, err := recognize.Recognize(V1Recognizer(tab), l)
 	if err != nil || !c.Accepted() {
 		return nil, err
@@ -172,7 +173,7 @@ var CandidateForest = func(tab *grammar.Tables, src []byte, scope Scope) (*Fores
 
 // CandidateToyForest is the toy forest the differential compares with V1ToyForest's: production's recognizer,
 // Build, then Constrain under p; nil where it refuses. A later issue may point it at another recognizer.
-var CandidateToyForest = func(tab *grammar.Tables, l *lex.Lattice[lex.None], p *Precedence) (*Forest, error) {
+var CandidateToyForest = func(tab *grammar.Tables, l *lex.Lattice[lex.None], p *prectab.Precedence) (*Forest, error) {
 	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
 	if err != nil || !c.Accepted() {
 		return nil, err

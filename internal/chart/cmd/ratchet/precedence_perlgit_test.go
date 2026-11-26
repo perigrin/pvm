@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"tamarou.com/pvm/internal/chart/forest"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -24,7 +24,7 @@ func TestPrecedencePerlGitMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

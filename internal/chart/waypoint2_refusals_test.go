@@ -8,6 +8,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -97,7 +98,7 @@ func TestWaypoint2RefusalsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := forest.ParsePrecedence(tab)
+	p, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}

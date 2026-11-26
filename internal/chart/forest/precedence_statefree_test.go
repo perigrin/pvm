@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -28,10 +29,10 @@ func toyForestOf(t *testing.T, ty toy, words string) *Forest {
 }
 
 // perlyForest is src's forest as ParseWith passes it to the constraint, with perly.y's precedence.
-func perlyForest(t *testing.T, src string) (*Forest, *Precedence) {
+func perlyForest(t *testing.T, src string) (*Forest, *prectab.Precedence) {
 	t.Helper()
 	tab := committedTables(t)
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 		ty := loadToy(t, "ladder")
 		f := toyForestOf(t, ty, "NUM PLUS NUM STAR NUM")
 		var idle []int32 // items that forbid no shift as spine tops
-		for i, row := range ty.prec.topAt {
+		for i, row := range ty.prec.TopAt {
 			if row < 0 {
 				idle = append(idle, int32(i))
 			}
@@ -106,7 +107,7 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 			is   func(Node) bool
 		}{
 			{"rule-position node", func(nd Node) bool { return nd.Sym < 0 && nd.Alt != 0 }},
-			{"symbol node needing no parent item", func(nd Node) bool { return nd.Sym >= 0 && nd.Alt != 0 && !ty.prec.needParent[nd.Sym] }},
+			{"symbol node needing no parent item", func(nd Node) bool { return nd.Sym >= 0 && nd.Alt != 0 && !ty.prec.NeedParent[nd.Sym] }},
 		} {
 			n := int32(slices.IndexFunc(f.Nodes, c.is))
 			if n <= 0 {
@@ -114,10 +115,10 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 			}
 			j := newJudgement(f, ty.prec)
 			eof := ty.tab.EOF
-			a := j.eval(n, eof, idle[0], ty.prec.base[1])
-			b := j.eval(n, eof, idle[1], ty.prec.base[2])
-			j.mark(n, eof, idle[0], ty.prec.base[1], -1)
-			j.mark(n, eof, idle[1], ty.prec.base[2], -1)
+			a := j.eval(n, eof, idle[0], ty.prec.Base[1])
+			b := j.eval(n, eof, idle[1], ty.prec.Base[2])
+			j.mark(n, eof, idle[0], ty.prec.Base[1], -1)
+			j.mark(n, eof, idle[1], ty.prec.Base[2], -1)
 			if ev, mk := j.entries(n); ev != 1 || mk != 1 || !slices.Equal(a, b) {
 				t.Errorf("%s %d, two encodings of one context: %d eval and %d mark entries, results %v and %v; want one each, equal", c.name, n, ev, mk, a, b)
 			}
@@ -130,11 +131,11 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 	t.Run("parent_item_key", func(t *testing.T) {
 		ty := loadToy(t, "indirob")
 		p := ty.prec
-		k := slices.Index(p.reduceAt, 2)
+		k := slices.Index(p.ReduceAt, 2)
 		if k < 0 {
 			t.Fatal("no pair of the indirob toy needs its parent item")
 		}
-		r, x := k/p.nt, k%p.nt
+		r, x := k/p.NT, k%p.NT
 		lhs := ty.tab.Rules[r].LHS
 		forbid, allow := int32(-1), int32(-1) // parent items, dot before lhs, the table decides each way
 		for pr, rule := range ty.tab.Rules {
@@ -142,7 +143,7 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 				if s != lhs {
 					continue
 				}
-				if pi := p.base[pr] + int32(d); p.parentForbid[int(p.mixAt[k])*len(p.topAt)+int(pi)] {
+				if pi := p.Base[pr] + int32(d); p.ParentForbid[int(p.MixAt[k])*len(p.TopAt)+int(pi)] {
 					forbid = pi
 				} else {
 					allow = pi
@@ -180,9 +181,9 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 	t.Run("pi_minus_1", func(t *testing.T) {
 		ty := loadToy(t, "indirob")
 		var r, x int = -1, -1
-		for k, v := range ty.prec.reduceAt {
+		for k, v := range ty.prec.ReduceAt {
 			if v == 2 {
-				r, x = k/ty.prec.nt, k%ty.prec.nt
+				r, x = k/ty.prec.NT, k%ty.prec.NT
 				break
 			}
 		}
@@ -264,7 +265,7 @@ func TestPrecedenceStateFreeTraps(t *testing.T) {
 func TestPrecedenceMemoManyEntriesOneNode(t *testing.T) {
 	t.Run("more_than_24", func(t *testing.T) {
 		f, p := perlyForest(t, "$x = $y + 1 * $z;\n")
-		n := int32(slices.IndexFunc(f.Nodes, func(nd Node) bool { return nd.Sym >= 0 && nd.Alt != 0 && !p.needParent[nd.Sym] }))
+		n := int32(slices.IndexFunc(f.Nodes, func(nd Node) bool { return nd.Sym >= 0 && nd.Alt != 0 && !p.NeedParent[nd.Sym] }))
 		if n <= 0 {
 			t.Fatal("no symbol node to load")
 		}
@@ -287,12 +288,12 @@ func TestPrecedenceMemoManyEntriesOneNode(t *testing.T) {
 func TestPrecedenceConcurrentCallsShareNothing(t *testing.T) {
 	type job struct {
 		f    *Forest
-		p    *Precedence
+		p    *prectab.Precedence
 		ok   bool
 		kept *Forest
 	}
 	var jobs []*job
-	add := func(f *Forest, p *Precedence) {
+	add := func(f *Forest, p *prectab.Precedence) {
 		k := f.Copy()
 		jobs = append(jobs, &job{f: f, p: p, ok: k.Constrain(p), kept: k})
 	}
@@ -305,7 +306,7 @@ func TestPrecedenceConcurrentCallsShareNothing(t *testing.T) {
 		}
 	}
 	tab := committedTables(t)
-	prec, err := ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +391,7 @@ func TestPrecedenceStateFreeEdgeForests(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		f    *Forest
-		p    *Precedence
+		p    *prectab.Precedence
 		ok   bool
 	}{
 		{"refused", toyForestOf(t, nonassoc, "NUM DOTDOT NUM DOTDOT NUM"), nonassoc.prec, false},

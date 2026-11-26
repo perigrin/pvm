@@ -13,6 +13,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
 func TestPrecedenceIgnoredByRecognition(t *testing.T) {
@@ -39,7 +40,7 @@ func TestPrecedenceIgnoredByRecognition(t *testing.T) {
 }
 
 // perlyPrecedence is the committed grammar's precedence over its tables.
-var perlyPrecedence = sync.OnceValues(func() (*forest.Precedence, error) {
+var perlyPrecedence = sync.OnceValues(func() (*prectab.Precedence, error) {
 	g, _, err := grammar.Committed()
 	if err != nil {
 		return nil, err
@@ -263,7 +264,7 @@ func keptAlts(f *forest.Forest) []int32 {
 
 // constrainAgrees runs Constrain on one copy of f and ConstrainReference on another, and reports whether both give
 // the verdict and the kept alternatives on every node, the verdict, and whether the constraint pruned anything.
-func constrainAgrees(f *forest.Forest, p *forest.Precedence) (agree, verdict, pruned bool) {
+func constrainAgrees(f *forest.Forest, p *prectab.Precedence) (agree, verdict, pruned bool) {
 	before := keptAlts(f)
 	prod, ref := f.Copy(), f.Copy()
 	v, vr := prod.Constrain(p), ref.ConstrainReference(p)

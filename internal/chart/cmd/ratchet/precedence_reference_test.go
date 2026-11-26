@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -28,7 +29,7 @@ type precedenceOutcome struct {
 // comparePrecedence judges src's forest after LibraryOperators under scope twice, with production
 // Constrain on a copy and with ConstrainReference on the original, and compares their verdicts and every node's kept alternatives. Only this
 // file's forests are held, and they are dropped on return.
-func comparePrecedence(tab *grammar.Tables, r *recognize.Recognizer, prec *forest.Precedence, src []byte, scope forest.Scope) (precedenceOutcome, error) {
+func comparePrecedence(tab *grammar.Tables, r *recognize.Recognizer, prec *prectab.Precedence, src []byte, scope forest.Scope) (precedenceOutcome, error) {
 	var o precedenceOutcome
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
@@ -112,7 +113,7 @@ func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +169,7 @@ func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 // the constraint under an empty one.
 func TestComparePrecedenceUsesScope(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,13 +192,13 @@ func TestComparePrecedenceUsesScope(t *testing.T) {
 // more than Constrain, which it could not if production judged the forest the reference judges.
 func TestPrecedenceHarnessesDoNotAlias(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
 	old := productionConstrain
 	t.Cleanup(func() { productionConstrain = old })
-	productionConstrain = func(f *forest.Forest, p *forest.Precedence) bool {
+	productionConstrain = func(f *forest.Forest, p *prectab.Precedence) bool {
 		ok := f.Constrain(p)
 		f.Nodes[f.Root].Alt = f.Alts[f.Nodes[f.Root].Alt].Next
 		return ok

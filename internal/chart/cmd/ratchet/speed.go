@@ -18,6 +18,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -326,18 +327,18 @@ type stageInput struct {
 // the file.
 type pipelineStage struct {
 	key string
-	run func(*grammar.Tables, *forest.Precedence, stageInput) bool
+	run func(*grammar.Tables, *prectab.Precedence, stageInput) bool
 }
 
 // pipelineStages are ParseWith's stages after LibraryOperators, in its order; tests wrap them to see their inputs.
 var pipelineStages = []pipelineStage{
-	{"speed-stage-precedence-aggregate-longlived", func(_ *grammar.Tables, p *forest.Precedence, in stageInput) bool {
+	{"speed-stage-precedence-aggregate-longlived", func(_ *grammar.Tables, p *prectab.Precedence, in stageInput) bool {
 		return in.f.Constrain(p)
 	}},
-	{"speed-stage-resolve-aggregate-longlived", func(tab *grammar.Tables, _ *forest.Precedence, in stageInput) bool {
+	{"speed-stage-resolve-aggregate-longlived", func(tab *grammar.Tables, _ *prectab.Precedence, in stageInput) bool {
 		return forest.Resolve(tab, in.f, in.s, in.src, in.scope) < 0
 	}},
-	{"speed-stage-readings-aggregate-longlived", func(tab *grammar.Tables, _ *forest.Precedence, in stageInput) bool {
+	{"speed-stage-readings-aggregate-longlived", func(tab *grammar.Tables, _ *prectab.Precedence, in stageInput) bool {
 		in.f.CountReadings(tab)
 		return true
 	}},
@@ -351,7 +352,7 @@ var pipelineStages = []pipelineStage{
 // stage prints how many such files it had. Library operators have no key, so the stage keys do not sum to the pipeline.
 func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, scope func(string) forest.Scope,
 	measured map[string]string) error {
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		return err
 	}
@@ -398,7 +399,7 @@ func stageInputs(tab *grammar.Tables, files []string, srcs map[string][]byte, sc
 // stageSide is st over ins as a Protocol's chart side: prepare, its per-pass hook, copies every input forest, and the
 // runner runs st on its file's copy and drops it, so one pass's copies are held at a time and the next GC collects
 // them. A file with no input costs a map lookup.
-func stageSide(tab *grammar.Tables, prec *forest.Precedence, st pipelineStage, ins map[string]stageInput) (prepare func(), side Side) {
+func stageSide(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, ins map[string]stageInput) (prepare func(), side Side) {
 	copies := make(map[string]*forest.Forest, len(ins))
 	prepare = func() {
 		for path, in := range ins {
@@ -422,7 +423,7 @@ func stageSide(tab *grammar.Tables, prec *forest.Precedence, st pipelineStage, i
 
 // advance runs st once on each input in place, outside every span, leaving the next stage's input: nil where st
 // refuses the file.
-func advance(tab *grammar.Tables, prec *forest.Precedence, st pipelineStage, ins map[string]stageInput) {
+func advance(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, ins map[string]stageInput) {
 	for path, in := range ins {
 		if in.f != nil && !st.run(tab, prec, in) {
 			in.f = nil

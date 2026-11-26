@@ -20,6 +20,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -48,7 +49,7 @@ func forestDigest(f *forest.Forest) string {
 
 // libopForest is src's forest after LibraryOperators under scope, nil where the chart or LibraryOperators refuses it;
 // with prec, also after the constraint, nil where it refuses.
-func libopForest(t *testing.T, tab *grammar.Tables, src []byte, scope forest.Scope, prec *forest.Precedence) *forest.Forest {
+func libopForest(t *testing.T, tab *grammar.Tables, src []byte, scope forest.Scope, prec *prectab.Precedence) *forest.Forest {
 	t.Helper()
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
@@ -71,7 +72,7 @@ func wrapStages(t *testing.T, see func(i int, in stageInput)) {
 	pipelineStages = slices.Clone(old)
 	for i := range pipelineStages {
 		run := old[i].run
-		pipelineStages[i].run = func(tab *grammar.Tables, p *forest.Precedence, in stageInput) bool {
+		pipelineStages[i].run = func(tab *grammar.Tables, p *prectab.Precedence, in stageInput) bool {
 			see(i, in)
 			return run(tab, p, in)
 		}
@@ -143,7 +144,7 @@ func TestPipelineStageKeys(t *testing.T) {
 // constraint (M7).
 func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +225,7 @@ func TestPipelineStagesSeeFreshInputEachPass(t *testing.T) {
 // forest.ParseWith refuses, for the same reason, and count the same readings where it accepts.
 func TestPipelineStagesReproduceParseWith(t *testing.T) {
 	tab := committedTables(t)
-	prec, err := forest.ParsePrecedence(tab)
+	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +341,7 @@ func TestPipelineStagePrecedenceTimesConstrain(t *testing.T) {
 		tab.TerminalSets = append(tab.TerminalSets, []int{slices.IndexFunc(tab.Symbols, func(s grammar.TableSymbol) bool { return s.Name == w })})
 		l.Edges = append(l.Edges, lex.Edge{From: i, To: i + 1, Token: lex.Token{TerminalSet: len(tab.TerminalSets) - 1}})
 	}
-	prec, err := forest.NewPrecedence(tab, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"PLUS"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
+	prec, err := prectab.NewPrecedence(tab, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"PLUS"}}, {N: 2, Assoc: "left", Tokens: []string{"HIGH"}}},
 		[]string{"", "", "HIGH"}, nil)
 	if err != nil {
 		t.Fatal(err)
