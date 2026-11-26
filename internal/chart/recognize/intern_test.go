@@ -29,8 +29,8 @@ func TestInternOneLookup(t *testing.T) {
 func TestInternHashCollisionKeepsSetsDistinct(t *testing.T) {
 	in := newInterner()
 	in.hashMask = 0
-	a := []Item{{1, 0}, {2, 0}}
-	sets := [][]Item{a, {{1, 0}, {3, 0}}, {{1, 0}, {2, 1}}, {{1, 0}}, {{2, 0}, {1, 0}}}
+	a := []Item{{1, 0, 0}, {2, 0, 0}}
+	sets := [][]Item{a, {{1, 0, 0}, {3, 0, 0}}, {{1, 0, 0}, {2, 1, 0}}, {{1, 0, 0}}, {{2, 0, 0}, {1, 0, 0}}}
 	var got []*Set
 	for i, items := range sets {
 		s, existed := in.intern(items)
@@ -45,7 +45,7 @@ func TestInternHashCollisionKeepsSetsDistinct(t *testing.T) {
 		}
 	}
 	for d := 2; d < 40; d++ { // one core past several table growths
-		sets = append(sets, []Item{{1, 0}, {2, d}})
+		sets = append(sets, []Item{{1, 0, 0}, {2, d, 0}})
 	}
 	got = nil
 	for _, items := range sets {

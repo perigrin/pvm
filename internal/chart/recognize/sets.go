@@ -4,14 +4,26 @@
 package recognize
 
 import (
+	"fmt"
 	"math/bits"
 	"slices"
 )
 
-// Item is an Earley item: an LR(0) state and the distance in lattice nodes
-// back to its origin. Distance 0 is a prediction at this node.
+// Item is an Earley item: an LR(0) state, the distance in lattice nodes
+// back to its origin, and its context (the V2 design's §4.2): 0 for none,
+// else 1 plus the automaton item of its canonical spine top. Distance 0 is
+// a prediction at this node. Only the judged recognizer sets a context.
 type Item struct {
-	State, Dist int
+	State, Dist, Ctx int
+}
+
+// String is the item as {State Dist}, as it printed before it had a
+// context, with the context third where it is not none.
+func (it Item) String() string {
+	if it.Ctx == 0 {
+		return fmt.Sprintf("{%d %d}", it.State, it.Dist)
+	}
+	return fmt.Sprintf("{%d %d %d}", it.State, it.Dist, it.Ctx)
 }
 
 // Set is an Earley set's content, sorted by state then distance. An
