@@ -417,20 +417,60 @@ func TestForestEqualityGeneratedSentences(t *testing.T) {
 	}
 }
 
-// TestForestEqualityHarnessesUseCandidate: with the candidate swapped for one that refuses everything, the toy and
-// sentence loops report every input V1 accepts, so neither compares V1 with itself.
+// TestForestEqualityHarnessesUseCandidate: the candidates never enter the V1 side's stages, so neither is the V1
+// side under another name; and with the candidate swapped for one that refuses everything, the toy and sentence
+// loops report every input V1 accepts, so neither compares V1 with itself.
 func TestForestEqualityHarnessesUseCandidate(t *testing.T) {
-	src0, toy0 := CandidateForest, CandidateToyForest
-	t.Cleanup(func() { CandidateForest, CandidateToyForest = src0, toy0 })
-	CandidateForest = func(*grammar.Tables, []byte, Scope) (*Forest, Refusal) { return nil, Refusal{Reason: "test"} }
-	CandidateToyForest = func(*grammar.Tables, *lex.Lattice[lex.None], *Precedence) (*Forest, error) { return nil, nil }
+	t.Run("candidates-are-not-v1", func(t *testing.T) {
+		entries := 0
+		lib0, con0 := v1LibraryOperators, v1Constrain
+		t.Cleanup(func() { v1LibraryOperators, v1Constrain = lib0, con0 })
+		v1LibraryOperators = func(tab *grammar.Tables, f *Forest, s *lex.Stream, src []byte, scope Scope) int {
+			entries++
+			return lib0(tab, f, s, src, scope)
+		}
+		v1Constrain = func(f *Forest, p *Precedence) bool {
+			entries++
+			return con0(f, p)
+		}
+		tab := committedTables(t)
+		accepted := 0
+		for _, src := range []string{"1;", "$x = 1 + 2 * 3;", "print $fh [];"} {
+			if f, _ := CandidateForest(tab, []byte(src), Scope{}); f != nil {
+				accepted++
+			}
+		}
+		ty := loadToy(t, "ladder")
+		for _, s := range ty.sentences[:20] {
+			f, err := CandidateToyForest(ty.tab, toyLattice(ty.tab, s.words), ty.prec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f != nil {
+				accepted++
+			}
+		}
+		if accepted == 0 {
+			t.Fatal("the candidates accepted nothing, so a V1 stage had nothing to enter")
+		}
+		if entries != 0 {
+			t.Errorf("the candidates entered the V1 side's LibraryOperators or Constrain %d times; want none", entries)
+		}
+	})
 
-	if _, accepted, diffs := sentenceDiffs(committedTables(t), []string{"1;", "$x = 1 + 2;", "1 +;"}); accepted != 2 || len(diffs) != accepted {
-		t.Errorf("sentences: V1 accepts %d, %d reported; want 2 accepted and each reported", accepted, len(diffs))
-	}
-	if _, accepted, diffs := toyDiffs(t, loadToy(t, "ladder")); accepted == 0 || len(diffs) != accepted {
-		t.Errorf("toys: V1 accepts %d, %d reported; want each accepted sentence reported", accepted, len(diffs))
-	}
+	t.Run("loops-report-a-refusing-candidate", func(t *testing.T) {
+		src0, toy0 := CandidateForest, CandidateToyForest
+		t.Cleanup(func() { CandidateForest, CandidateToyForest = src0, toy0 })
+		CandidateForest = func(*grammar.Tables, []byte, Scope) (*Forest, Refusal) { return nil, Refusal{Reason: "test"} }
+		CandidateToyForest = func(*grammar.Tables, *lex.Lattice[lex.None], *Precedence) (*Forest, error) { return nil, nil }
+
+		if _, accepted, diffs := sentenceDiffs(committedTables(t), []string{"1;", "$x = 1 + 2;", "1 +;"}); accepted != 2 || len(diffs) != accepted {
+			t.Errorf("sentences: V1 accepts %d, %d reported; want 2 accepted and each reported", accepted, len(diffs))
+		}
+		if _, accepted, diffs := toyDiffs(t, loadToy(t, "ladder")); accepted == 0 || len(diffs) != accepted {
+			t.Errorf("toys: V1 accepts %d, %d reported; want each accepted sentence reported", accepted, len(diffs))
+		}
+	})
 }
 
 // contextAltSets is, for each node of f, the alternatives each of its contexts keeps on its own under V1's
