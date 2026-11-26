@@ -148,3 +148,12 @@ The gate on `01a21447-d199`, the reduce side, reopened it for two test gaps. It 
 - **O1, d218's count of feasible toys:** "Amend d218 now (Recommended)". On pu, `prectab.Feasible` refuses 5 of the 13 toys: `empty`, `emptyred`, `ladder`, `nonassoc` and `prefix`. d218 said 11 were feasible, and its `TestInfeasibleToysJudgedByConstrain` criterion did not name `ladder`, `nonassoc` or `prefix`. d218 was pending. Its count is corrected to 8, and the three toys are added as named subtests.
 - **O2, the slipper's zero-width `;`:** "New issue blocking d218 (Recommended)". Nothing judges the slipper's closure, and no open issue carried it. Issue `01a21945-d1e6` adds counters showing that no reduce before, and no shift of, the inserted `;` is forbidden on perly.y. A non-zero count is a stop. The issue blocks d218.
 - **O4, Leo's judged walk:** "Measure before switch (Recommended)". The judged recognizer's Leo step walks the whole memo chain, and both cost bounds measure only the default recognizer. Issue `01a21945-d35d` runs both bounds, at unchanged constants, on the judged recognizer, and checks that Leo's walk is linear. A red bound is a stop. The issue blocks 3262.
+
+## 2026-11-26, execute: the judged Leo walk (issue `01a21945-d35d`)
+
+The gate on `01a21945-d35d` raised a design §7 STOP. Its linearity test could not fail on what it claims, because its toys take Leo only once per input.
+
+On the shape the issue exists for, the unchanged judged code walks n(n−1)/2 memo links. That shape is a right-recursive nonterminal whose FOLLOW holds the token that continues it: `S ::= L T ; L ::= a L | a ; T ::= a T | b`, on aⁿ b. The walk is 4851, 19701 and 79401 links at n = 100, 200 and 400, which is quadratic where the default recognizer is linear. A search of the corpus sample and 26 synthetic Perl families found no perly.y input with this shape.
+
+- **The walk:** "Fix it in d35d (Recommended)". The started issue's scope widens from tests only to a production fix that makes `leoCrosses` linear. The linearity test moves onto the quadratic toy, and it must be red before the fix and green after.
+- **A bound on the walk:** "Add it with the fix (Recommended)". Neither existing cost bound can see the walk. d35d adds `TestLeoLinksPerTokenBoundedJudged`, a corpus bound on Leo links per token with a new constant set from the measured value after the fix.
