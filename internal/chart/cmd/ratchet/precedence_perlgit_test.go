@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
