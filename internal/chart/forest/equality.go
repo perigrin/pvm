@@ -39,7 +39,14 @@ func ForestDiff(cand, v1 *Forest) string {
 	case v1 == nil:
 		return "the candidate accepts, V1 refuses"
 	}
-	c, v := reachableAlts(cand), reachableAlts(v1)
+	c, cdup := reachableAlts(cand)
+	v, vdup := reachableAlts(v1)
+	if cdup != nil {
+		return fmt.Sprintf("node %+v is reachable twice in the candidate", *cdup)
+	}
+	if vdup != nil {
+		return fmt.Sprintf("node %+v is reachable twice in V1", *vdup)
+	}
 	keys := slices.SortedFunc(maps.Keys(c), cmpNodeKey)
 	for _, k := range slices.SortedFunc(maps.Keys(v), cmpNodeKey) {
 		if _, ok := c[k]; !ok {
@@ -59,8 +66,9 @@ func ForestDiff(cand, v1 *Forest) string {
 	return ""
 }
 
-// reachableAlts is each node reachable from f's root, by key, with its kept alternatives in order.
-func reachableAlts(f *Forest) map[NodeKey][]altKey {
+// reachableAlts is each node reachable from f's root, by key, with its kept alternatives in order, and the first
+// key, in cmpNodeKey order, that two distinct reachable nodes share (nil if none): a map by key would keep only one.
+func reachableAlts(f *Forest) (map[NodeKey][]altKey, *NodeKey) {
 	key := func(n int32) NodeKey {
 		if n == 0 {
 			return noNode
@@ -69,6 +77,7 @@ func reachableAlts(f *Forest) map[NodeKey][]altKey {
 		return NodeKey{nd.Sym, nd.Rule, nd.Dot, nd.From, nd.To}
 	}
 	out := map[NodeKey][]altKey{}
+	var dup *NodeKey
 	seen := make([]bool, len(f.Nodes))
 	work := []int32{f.Root}
 	for len(work) > 0 {
@@ -88,9 +97,13 @@ func reachableAlts(f *Forest) map[NodeKey][]altKey {
 				}
 			}
 		}
-		out[key(n)] = alts
+		k := key(n)
+		if _, ok := out[k]; ok && (dup == nil || cmpNodeKey(k, *dup) < 0) {
+			dup = &k
+		}
+		out[k] = alts
 	}
-	return out
+	return out, dup
 }
 
 func cmpNodeKey(x, y NodeKey) int {

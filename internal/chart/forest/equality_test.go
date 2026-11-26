@@ -659,3 +659,25 @@ func TestForestEqualityUnionShortcut(t *testing.T) {
 		t.Errorf("%q: %s", src, d)
 	}
 }
+
+// TestForestDiffDuplicateKey: two distinct reachable nodes sharing a NodeKey are reported as a difference naming the
+// key, whichever side holds them, rather than the second silently overwriting the first in the comparison.
+func TestForestDiffDuplicateKey(t *testing.T) {
+	// The root's one alternative has two children, nodes 2 and 3, both symbol 7 over 0..1.
+	dup := &Forest{
+		Root:  1,
+		Nodes: []Node{{}, {Sym: 5, From: 0, To: 2, Alt: 1}, {Sym: 7, From: 0, To: 1}, {Sym: 7, From: 0, To: 1}},
+		Alts:  []Alt{{}, {Rule: 1, Left: 2, Right: 3}},
+	}
+	clean := dup.Copy()
+	clean.Alts[1].Right = 2
+	want := fmt.Sprintf("%+v", NodeKey{Sym: 7, Rule: 0, Dot: 0, From: 0, To: 1})
+	for name, pair := range map[string][2]*Forest{"candidate": {dup, clean}, "v1": {clean, dup}} {
+		if d := ForestDiff(pair[0], pair[1]); !strings.Contains(d, "twice") || !strings.Contains(d, want) {
+			t.Errorf("%s holds the duplicate: ForestDiff = %q, want a report naming %s", name, d, want)
+		}
+	}
+	if d := ForestDiff(clean, clean.Copy()); d != "" {
+		t.Errorf("no duplicate: ForestDiff = %q, want none", d)
+	}
+}
