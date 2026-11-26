@@ -62,6 +62,38 @@ func TestFeasibilityRuleReduceConflicts(t *testing.T) {
 	}
 }
 
+// Counter 2 (feasibility.md §2): no state holds two parent items waiting on one parent-dependent symbol whose
+// parentForbid verdicts disagree, so a parent-dependent verdict is a function of the parent state.
+func TestFeasibilityParentConflicts(t *testing.T) {
+	tab, p := feasibilityTables(t)
+	n := parentConflicts(tab, p, tab.States)
+	t.Logf("perly.y: %d of %d states", n, len(tab.States))
+	if n != 0 || len(tab.States) == 0 {
+		t.Errorf("parent conflicts in %d of %d states", n, len(tab.States))
+	}
+
+	// Every pair of perly.y's items waiting on one parent-dependent symbol with differing verdicts, each in a state of its own.
+	all := make([]int, len(tab.Items))
+	for i := range all {
+		all[i] = i
+	}
+	var synth []grammar.State
+	for b, is := range awaiting(tab, p, all) {
+		for x := range is {
+			for y := x + 1; y < len(is); y++ {
+				if parentDiffers(tab, p, b, is[x], is[y]) {
+					synth = append(synth, grammar.State{Items: []int{is[x], is[y]}})
+				}
+			}
+		}
+	}
+	sn := parentConflicts(tab, p, synth)
+	t.Logf("synthetic: %d of %d", sn, len(synth))
+	if sn != len(synth) || len(synth) == 0 {
+		t.Errorf("synthetic parent-item pairs counted: %d of %d", sn, len(synth))
+	}
+}
+
 // reduceDiffers reports whether V1's reduce verdicts for rules r1 and r2 before t differ; where both depend on the
 // parent item (2), their whole parentForbid rows are compared.
 func reduceDiffers(p *Precedence, r1, r2, t int) bool {
@@ -106,4 +138,56 @@ func ruleReduceConflicts(tab *grammar.Tables, p *Precedence, states []grammar.St
 		}
 	}
 	return conflicts, agree
+}
+
+// parentDiffers reports whether some parent-dependent pair (r, t) with LHS(r) = b is forbidden under one of the
+// parent items p1 and p2 and not the other.
+func parentDiffers(tab *grammar.Tables, p *Precedence, b, p1, p2 int) bool {
+	ni := len(p.topAt)
+	for r, rule := range tab.Rules {
+		if rule.LHS != b {
+			continue
+		}
+		for t := range p.nt {
+			k := r*p.nt + t
+			if p.reduceAt[k] != 2 {
+				continue
+			}
+			if row := int(p.mixAt[k]) * ni; p.parentForbid[row+p1] != p.parentForbid[row+p2] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// awaiting groups items by the parent-dependent symbol after their dot.
+func awaiting(tab *grammar.Tables, p *Precedence, items []int) map[int][]int {
+	by := map[int][]int{}
+	for _, i := range items {
+		it := tab.Items[i]
+		if rhs := tab.Rules[it.Rule].RHS; it.Dot < len(rhs) && p.needParent[rhs[it.Dot]] {
+			by[rhs[it.Dot]] = append(by[rhs[it.Dot]], i)
+		}
+	}
+	return by
+}
+
+// parentConflicts counts the states holding two core items with the dot before one parent-dependent symbol whose
+// parentForbid verdicts differ.
+func parentConflicts(tab *grammar.Tables, p *Precedence, states []grammar.State) (conflicts int) {
+	for _, st := range states {
+	state:
+		for b, is := range awaiting(tab, p, st.Items) {
+			for x := range is {
+				for y := x + 1; y < len(is); y++ {
+					if parentDiffers(tab, p, b, is[x], is[y]) {
+						conflicts++
+						break state
+					}
+				}
+			}
+		}
+	}
+	return conflicts
 }
