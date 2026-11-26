@@ -38,16 +38,18 @@ func toyFeasibility(_ *grammar.Tables, p *prectab.Precedence) prectab.Feasibilit
 	return v
 }
 
+// toyOf is a loader of the committed toy name.
+func toyOf(name string) func(*testing.T) (*grammar.Tables, *prectab.Precedence) {
+	return func(t *testing.T) (*grammar.Tables, *prectab.Precedence) {
+		ty := loadToy(t, name)
+		return ty.tab, ty.prec
+	}
+}
+
 // TestFeasibleRefusesFailingToys holds prectab.Feasible, the six counters as one refusal: perly.y passes, and each
 // toy built to trip a counter is refused, naming that counter, though NewPrecedence still loaded it, so Constrain
 // still judges it (design §4.1, F2-10).
 func TestFeasibleRefusesFailingToys(t *testing.T) {
-	toyOf := func(name string) func(*testing.T) (*grammar.Tables, *prectab.Precedence) {
-		return func(t *testing.T) (*grammar.Tables, *prectab.Precedence) {
-			ty := loadToy(t, name)
-			return ty.tab, ty.prec
-		}
-	}
 	const offAt, nullable, scan = "forbidden shifts off at's next terminal", "all-nullable rules with a non-allow reduce verdict", "core items disagreeing on one scan"
 	for _, c := range []struct {
 		name, counter string // counter "" for a grammar Feasible accepts
@@ -282,10 +284,7 @@ func TestFeasibilityShiftsOwnNextTerminal(t *testing.T) {
 		name string
 		load func(*testing.T) (*grammar.Tables, *prectab.Precedence)
 	}{
-		{"emptyred", func(t *testing.T) (*grammar.Tables, *prectab.Precedence) {
-			ty := loadToy(t, "emptyred")
-			return ty.tab, ty.prec
-		}},
+		{"emptyred", toyOf("emptyred")},
 		{"nullableShift", nullableShiftToy},
 		{"MarkFirstFilter", markFirstFilterToy},
 	} {
