@@ -1940,12 +1940,16 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   cost bounds hold for the derived judged recognizer at the default's
   constants (`TestCompletionProbesBoundedJudged`,
   `TestLeoMemoEntriesBoundedJudged`). To find a crossing, its Leo step walks
-  the memo chain, and each memo keeps its verdict for the last lookahead, so
-  a walk stops at a link already judged before the same one. So a right
+  the memo chain, and each memo keeps its verdict per lookahead, keyed by
+  its class or, for a union, which has none, by its terminals, so a walk
+  stops at a link already judged before the same lookahead. So a right
   recursion whose LHS can be followed by the token that continues it, which
-  takes a chain at every node, walks each link once rather than once per
-  node: linear in its depth, where re-walking would be quadratic
-  (`TestJudgedLeoWalkLinear`). Over the corpus sample the walk is held to
+  takes a chain at every node, walks each link once per distinct lookahead
+  rather than once per node: linear in its depth, where re-walking would be
+  quadratic, whether the lookahead stays the same, alternates or cycles,
+  by class or by union (`TestJudgedLeoWalkLinear`), and a verdict kept for
+  one lookahead is never served for another
+  (`TestLeoCrossingVerdictPerLookahead`). Over the corpus sample the walk is held to
   `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The slipper's closure and `Expected`
   judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
   over the toys, seeds 4 and 44 and the in-tree corpus
