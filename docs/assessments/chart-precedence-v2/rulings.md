@@ -107,3 +107,13 @@ There was no new ruling. The hold set by "Revise to rev 8, run round 7" ends bec
 ## 2026-11-26, execute on chart-perly-w4
 
 - **The git-zhi version:** "Upgrade to v0.7.2 (Recommended)". The container had git-zhi 0.5.2, below crochet's minimum of 0.7.2. 0.5.2 ignores `ZHI_ACTOR` on writes, so every execute worker failed the ownership check. v0.7.2 was installed with git-zhi's own `install.sh` into `~/.local/bin`, ahead of 0.5.2 on PATH.
+
+## 2026-11-26, execute: follow-up issue `01a215b8-9e3a`
+
+- **The follow-up issue's two defects:** "Fix name, drop EOF (Recommended)". The orchestrator wrote two defects into this issue, and the worker stopped on both:
+  - Criterion 3 named a test that does not exist, `TestFeasibilityNullableRulesAllow`. The real test is `TestFeasibilityAllNullableRulesAllow`.
+  - A step asked for a toy whose non-allow verdict is decided only at EOF. No such toy can exist: EOF is a pseudo-terminal that no rule names, so the generator always writes verdict 0 there. The worker measured this over perly.y and every toy.
+
+  The ruling:
+  - criterion 3's test name is corrected;
+  - the EOF step is removed from the issue.
