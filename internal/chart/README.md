@@ -2779,7 +2779,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
   how many they loaded. The ratchet's in-tree corpora get the same
   comparison, `TestForestEqualityCorpus` in `cmd/ratchet`: each file's
   candidate forest against V1's under the file's own scope
-  (`TestForestEqualityCorpusUsesFileScope`), logging `compared N of N files`
+  (`TestForestEqualityCorpusUsesFileScope` for the loop's handing of it to both
+  sides, `TestForestEqualityFileScopeIsThePipelines` for its derivation), logging `compared N of N files`
   and failing below 1,800 files or on any file left uncompared; a candidate
   that differs is reported (`TestForestEqualityCorpusReportsDifference`).
   `TestForestEqualityPerlGit` runs it over perl.git `t/` under
