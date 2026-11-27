@@ -22,28 +22,41 @@ func (b *builder) byContext() {
 	type reach struct{ n, ctx int32 }
 	kept := make([]bool, len(b.Alts))
 	reached := make([]bool, len(b.Nodes))
-	seen := map[reach]bool{}
+	first := make([]int32, len(b.Nodes)) // the context each reached node was first reached under
+	var more map[reach]bool              // the other (node, context) pairs, which are few
 	work := []reach{{b.Root, int32(b.c.Sets[0].Items()[0].Ctx)}}
-	for len(work) > 0 {
-		x := work[len(work)-1]
-		work = work[:len(work)-1]
-		if seen[x] {
-			continue
+	var x reach
+	var a int32
+	keep := func(right int) {
+		if !kept[a] {
+			kept[a] = true
+			if l := b.Alts[a].Left; l != 0 {
+				work = append(work, reach{l, x.ctx})
+			}
 		}
-		seen[x] = true
-		reached[x.n] = true
-		for a := b.Nodes[x.n].Alt; a != 0; a = b.Alts[a].Next {
-			b.under(x.n, a, int(x.ctx), func(right int) {
-				if !kept[a] {
-					kept[a] = true
-					if l := b.Alts[a].Left; l != 0 {
-						work = append(work, reach{l, x.ctx})
-					}
-				}
-				if r := b.Alts[a].Right; r != 0 {
-					work = append(work, reach{r, int32(right)})
-				}
-			})
+		if r := b.Alts[a].Right; r != 0 {
+			work = append(work, reach{r, int32(right)})
+		}
+	}
+	for len(work) > 0 {
+		x = work[len(work)-1]
+		work = work[:len(work)-1]
+		switch {
+		case !reached[x.n]:
+			reached[x.n], first[x.n] = true, x.ctx
+		case first[x.n] == x.ctx:
+			continue
+		default:
+			if more == nil {
+				more = map[reach]bool{}
+			}
+			if more[x] {
+				continue
+			}
+			more[x] = true
+		}
+		for a = b.Nodes[x.n].Alt; a != 0; a = b.Alts[a].Next {
+			b.under(x.n, a, int(x.ctx), keep)
 		}
 	}
 	for n := range b.Nodes {

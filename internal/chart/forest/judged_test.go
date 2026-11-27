@@ -5,6 +5,8 @@ package forest
 
 import (
 	"maps"
+	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -329,5 +331,52 @@ func TestForestEqualityJudgedCandidateNeverConstrains(t *testing.T) {
 	}
 	if charts == 0 || v1 != int64(charts) {
 		t.Errorf("V1's side entered Constrain %d times over %d inputs its charts accept; want one each", v1, charts)
+	}
+}
+
+// buildAllocsPerTokenBound is the most heap allocations Build may make per lexer token over the judged charts of
+// samplePaths: the count measured once the walk by context kept no hash map entry per node (14095 over 32829
+// tokens, 0.4293), rounded up as the other bounds are. Before that it was 0.5268.
+const buildAllocsPerTokenBound = 0.43
+
+// TestBuildAllocsPerTokenBoundedJudged: Build's allocations per token over the sample's judged charts, recognition
+// outside the count, are some, so the count is live, and stay within buildAllocsPerTokenBound. The walk by context
+// runs on nearly every judged chart, and a per-node hash map in it showed in no other bound.
+func TestBuildAllocsPerTokenBoundedJudged(t *testing.T) {
+	tab := committedTables(t)
+	r := recognize.New(tab, recognize.Options{})
+	type built struct {
+		c *recognize.Chart
+		l *lex.Lattice[lex.None]
+	}
+	var charts []built
+	tokens := 0
+	for _, p := range samplePaths(t) {
+		src, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, _ := lex.Lex(src, tab.Tokens)
+		l := lex.Linear(s)
+		c, err := recognize.Recognize(r, l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Accepted() {
+			charts = append(charts, built{c, l})
+			tokens += len(l.Edges)
+		}
+	}
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	for _, b := range charts {
+		Build(tab, b.c, b.l)
+	}
+	runtime.ReadMemStats(&after)
+	mallocs := after.Mallocs - before.Mallocs
+	per := float64(mallocs) / float64(tokens)
+	t.Logf("%d Build allocations over %d tokens of %d charts: %.4f per token", mallocs, tokens, len(charts), per)
+	if mallocs == 0 || per > buildAllocsPerTokenBound {
+		t.Errorf("%.4f Build allocations per token; want some, and at most the bound %v", per, buildAllocsPerTokenBound)
 	}
 }
