@@ -88,8 +88,9 @@ func (b *builder) allowed(set *Set, ids []int) []int {
 		}
 	}
 	kept := ids[:0]
+	la := newBitset(r.g.eof + 1) // one candidate at a time; lookaheadKey copies it
 	for _, t := range ids {
-		la := newBitset(r.g.eof + 1)
+		clear(la)
 		la.set(t)
 		b.items, b.seen, b.refused = b.items[:0], nil, nil
 		b.la, b.laKey = la, lookaheadKey(-1, la)
