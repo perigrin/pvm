@@ -180,12 +180,11 @@ milestone, not here, since a timing is true only of the run that took it.
 Waypoint 1's speed figure is a lower bound: it can stop the spike, not pass it
 (spec §2).
 
-**Not built.** Recognition reads no precedence and, but for the `isa`
-feature, no scope, so a form perl refuses only by precedence
-(`$a <=> $b <=> $c;`) or for want of a declaration is accepted by
-recognition; the forest's precedence constraint refuses the first kind
-(`forest/precedence.go`, below), and the sections below name the scope ones
-known. Error
+**Not built.** Recognition judges precedence (`recognize.New`) and, but for
+the `isa` feature, reads no scope, so a form perl refuses for want of a
+declaration is accepted by recognition; the judged chart refuses one perl
+refuses only by precedence (`$a <=> $b <=> $c;`), and the sections below name
+the scope ones known. Error
 recovery and interleaved lexing (spec §13) are not built either.
 
 Some forms perl refuses as grammar fit neither category: nothing in the
@@ -550,7 +549,7 @@ To take a baseline after an intended change, run
 | `speed-stage-precedence-aggregate-longlived` | the precedence constraint alone (`(*forest.Forest).Constrain`), on a fresh copy per pass of each file's forest of its lattice narrowed (`forest.Narrow`) under the file's own scope, the same way | timing |
 | `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest after the constraint, the same way | timing |
 | `speed-stage-readings-aggregate-longlived` | the readings count alone (`(*forest.Forest).CountReadings`), on a fresh copy per pass of each file's forest after resolve, the same way | timing |
-| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition, the forest, the precedence constraint, resolve and the readings count) | timing |
+| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition judging precedence, the forest, resolve and the readings count) | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
 | `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
@@ -648,8 +647,8 @@ clock and a collector, so it is tested on fake timings
   pins the production path and limit.
 - **What the speed ratios run.** The chart side is the whole pipeline,
   checkpoint 3's definition: `forest.ParseWith`, which is `forest.Parse` on a
-  recognizer the caller keeps (chart/lex, recognition, the forest, the
-  precedence constraint, resolve and the readings count), each file under
+  recognizer the caller keeps (chart/lex, recognition judging precedence,
+  the forest, resolve and the readings count; it never enters `Constrain`), each file under
   scope facts obtained before any timed span (`TestSpeedChartSideIsPipeline`).
   Long-lived reuses the recognizer across a pass's files (its intern table and
   cache persist), per-file makes a fresh one per file. Recursive descent is `parse.Parse`, which holds no state
@@ -2177,10 +2176,11 @@ P2 is a stop reported to perigrin.
 ## The forest: `forest`
 
 `forest.Parse(tab, src, scope)` lexes `src`, narrows its lattice to the library
-operators in scope ("Library operators") and recognizes it, then builds its shared
-packed forest after recognition (spec §9.4), applies the precedence
-constraint, refusing with reason `precedence` a file whose root it leaves no
-derivation ("The precedence constraint"), resolves its scope-decided
+operators in scope ("Library operators") and recognizes it, judging precedence in the chart (`recognize.New`; a file the judged chart
+refuses gets reason `precedence` where no other stage refuses it), then builds
+its shared packed forest after recognition (spec §9.4), which needs no
+precedence constraint after it (`TestParseWithNeverConstrains`,
+`TestConstrainNeverEnteredByParse`), resolves its scope-decided
 words ("Scope-decided words"), refusing with reason `scope` a file resolve
 leaves no derivation, and counts the readings left (Readings, below). `tab`
 is the committed `perly.y`'s tables, whose precedence it builds once per
@@ -2504,7 +2504,7 @@ wrapper (perigrin, 2026-11-15: ORACLEGRADE grades in-process).
   and others do not is `Unresolved`, which grades WIDER, never a guess
   (`Foo::bar { a => 1 }`, whose `{` is an anonymous hash in some readings and
   a block in others). The facts come from whatever `forest.Parse` runs: the
-  precedence constraint, resolve and the readings count. A statement with
+  judged chart, resolve and the readings count. A statement with
   more than 2^10 readings is answered the same way: its readings are not
   enumerated, but the packed forest holds them all, so a site every reading
   holds is decided and only one they disagree on is `Unresolved`
@@ -2642,9 +2642,11 @@ the four refused rules' (`TestPrectabItemMapping`).
 `TestWaypoint2Refusals`, the referee and the other precedence tests apply it
 to `forest.Build`'s forest, before resolve (`builtForest`), since a
 sentence's token choice, as bison read it, stands in for scope there;
-`forest.Parse` applies it to the forest it builds, before resolve, and refuses a file it leaves no derivation
-with reason `precedence`. shortcut: `Constrain` reports only the root's verdict, so that refusal's `Byte` is 0;
-locate it at the first span left with no derivation when a gate compares refusal bytes. It reads only the forest, the
+`forest.Parse` never applies it: the judged chart refuses what it would, at the byte where the chart died, and
+`Build` of that chart already lacks every alternative it drops (`TestParseWithNeverConstrains`); it stays as the
+referee the tests judge the no-precedence forest with (design §4.5). Nothing judges the slipper's zero-width `;`
+after recognition, and nothing needs to: no reduction before `;` and no shift of it has a forbidding verdict
+(`TestSlipperSemicolonReduceNeverForbidden`, `TestSlipperSemicolonShiftNeverForbidden`). It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
 
 - **The parser states are bison's**, built from the grammar's tables alone
@@ -2810,7 +2812,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
   forest's on any node. `TestPrecedenceHarnessesDoNotAlias`
   shows the `forest` and `cmd/ratchet` comparisons report an over-pruning
   judgement through the harness itself, so neither can compare a copy with
-  itself. The inputs, by package:
+  itself. The production-versus-reference differentials below compare
+  production's forest, the judged recognizer's over the narrowed lattice
+  (`recognize.New`, or the explicit form over a toy's own precedence) then
+  `Build`, with no `Constrain`, against `ConstrainReference` over the
+  no-precedence forest. Where the judged chart refuses an input they compare
+  verdicts only, the reference refusing too, and log
+  `<test name> verdict only: N`. A toy `prectab.Feasible` refuses has no
+  judged recognizer and stays judged by `Constrain` over the no-precedence
+  forest (`TestInfeasibleToysJudgedByConstrain`). The inputs, by package:
   - In `forest`, `TestPrecedenceToyForestsMatchReference` on every toy
     fixture sentence's forest, and the seeded generators of decision §2,
     rewritten from the assessment's harnesses, on each sentence's forest
@@ -2819,8 +2829,8 @@ grammar's tables and its precedence: no Earley item gains a fact.
     sentences and 20,000 random operator sentences) and
     `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain
     and nullable-wrapped sentences). Each skips a sentence or toy sentence
-    the chart refuses, and a generated one `LibraryOperators` refuses,
-    rather than failing on it. Each generator logs
+    the no-precedence chart refuses, and a generated one `LibraryOperators`
+    refuses, rather than failing on it. Each generator logs
     `sentences=N compared=C refused=R pruned=P` and requires a sentence
     refused and one pruned; `TestPrecedenceDiffDetectsDifference` shows
     their shared comparison report a dropped alternative and a flipped
@@ -2831,9 +2841,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
     `TestWaypoint2RefusalsMatchReference` on every row of
     `waypoint2Refusals` and `waypoint2ScopeRefusals`, on the forest after
     `LibraryOperators` under `forest.Scope{}`, as `pipelineSource` passes it
-    to the constraint. Each logs its counts and fails on a sentence or row
-    it could not compare: one with no forest or, for the second, one
-    `LibraryOperators` refuses.
+    to the constraint. The first logs its counts and fails on a sentence
+    with no forest; the second compares a row the judged chart refuses by
+    verdict only.
   - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
     of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
     `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
@@ -2905,7 +2915,10 @@ grammar's tables and its precedence: no Earley item gains a fact.
   (`TestJudgedRecognizerIsExplicit`), then `Build`,
   `LibraryOperators` (for a source) and `Constrain`. The candidate
   (`CandidateForest`, `CandidateToyForest`) is production's forest before
-  resolve, and later issues may swap it. The candidate narrows the lattice
+  resolve, and later issues may swap it: the judged chart then `Build`, which
+  never enters `Constrain` (`TestForestEqualityCandidateNeverConstrains`), but
+  for a toy `prectab.Feasible` refuses, judged by `Constrain` over the
+  no-precedence forest. The candidate narrows the lattice
   before recognition where V1 prunes the built forest, and the two agree on
   every input the differentials load. `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
   reordered alternatives, an added and a removed reachable node, a flipped
