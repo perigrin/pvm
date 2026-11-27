@@ -18,7 +18,6 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
-	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -132,7 +131,7 @@ func (p Protocol) Aggregate(rd Side, population []File, timed []string) []string
 var pipelineParse = forest.ParseWith
 
 // pipelineSide is the chart as the speed ratios time it, checkpoint 3's
-// definition: chart/lex, recognition, the forest, the precedence constraint,
+// definition: chart/lex, recognition judging precedence, the forest,
 // resolve and the readings count (forest.ParseWith) over srcs. Side makes a
 // recognizer per pass (long-lived) or per file (per-file), so the lifetimes
 // live in the protocol. Every file's scope facts are obtained here, from in,
@@ -270,6 +269,36 @@ func measureStages[L, C any](p Protocol, agg []string, tokens int, lexOf func(pa
 	fmt.Fprintf(p.Stderr, "chart-ratchet: speed-stage sum lex+recognize+forest %.4f\n", sum)
 }
 
+// narrowedLattice is src's token stream and the lattice forest.Narrow narrows it to under scope, which is what
+// forest.ParseWith recognizes; recognition's timed lattices and the stages' forests are both made here.
+func narrowedLattice(tab *grammar.Tables, src []byte, scope forest.Scope) (*lex.Stream, *lex.Lattice[lex.None]) {
+	s, _ := lex.Lex(src, tab.Tokens)
+	return s, forest.Narrow(tab, s, src, scope)
+}
+
+// stageFuncs are the three stages measureStages times: lexOf narrows as forest.ParseWith narrows (so recognizer is
+// handed narrowed lattices), recognizer recognizes a lattice, forestOf builds its forest. A recognizer error panics.
+func stageFuncs(tab *grammar.Tables, scopes map[string]forest.Scope, srcs map[string][]byte) (
+	lexOf func(string) *lex.Lattice[lex.None], recognizer func() func(*lex.Lattice[lex.None]) *recognize.Chart,
+	forestOf func(*recognize.Chart, *lex.Lattice[lex.None])) {
+	lexOf = func(path string) *lex.Lattice[lex.None] { // narrowed as forest.ParseWith narrows it
+		_, l := narrowedLattice(tab, srcs[path], scopes[path])
+		return l
+	}
+	recognizer = func() func(*lex.Lattice[lex.None]) *recognize.Chart {
+		r := recognize.New(tab, recognize.Options{})
+		return func(l *lex.Lattice[lex.None]) *recognize.Chart {
+			c, err := recognize.Recognize(r, l)
+			if err != nil {
+				panic("chart-ratchet: speed: " + err.Error())
+			}
+			return c
+		}
+	}
+	forestOf = func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }
+	return lexOf, recognizer, forestOf
+}
+
 // chartStages times the chart's stages (measureStages, then
 // measurePipelineStages under scope) over tab, and adds
 // gc-cpu-share-chart (lex, recognize and forest) and gc-cpu-share-rd (p's
@@ -283,21 +312,7 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs
 	for _, path := range agg {
 		scopes[path] = scope(path)
 	}
-	lexOf := func(path string) *lex.Lattice[lex.None] { // narrowed as forest.Parse narrows it
-		s, _ := lex.Lex(srcs[path], tab.Tokens)
-		return forest.Narrow(tab, s, srcs[path], scopes[path])
-	}
-	recognizer := func() func(*lex.Lattice[lex.None]) *recognize.Chart {
-		r := recognize.New(tab, recognize.Options{})
-		return func(l *lex.Lattice[lex.None]) *recognize.Chart {
-			c, err := recognize.Recognize(r, l)
-			if err != nil {
-				panic("chart-ratchet: speed: " + err.Error())
-			}
-			return c
-		}
-	}
-	forestOf := func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }
+	lexOf, recognizer, forestOf := stageFuncs(tab, scopes, srcs)
 	chart := func() Runner {
 		rec := recognizer()
 		return func(f string) { l := lexOf(f); forestOf(rec(l), l) }
@@ -331,35 +346,28 @@ type stageInput struct {
 // file.
 type pipelineStage struct {
 	key string
-	run func(*grammar.Tables, *prectab.Precedence, stageInput) bool
+	run func(*grammar.Tables, stageInput) bool
 }
 
 // pipelineStages are ParseWith's stages after the forest, in its order; tests wrap them to see their inputs.
 var pipelineStages = []pipelineStage{
-	{"speed-stage-precedence-aggregate-longlived", func(_ *grammar.Tables, p *prectab.Precedence, in stageInput) bool {
-		return in.f.Constrain(p)
-	}},
-	{"speed-stage-resolve-aggregate-longlived", func(tab *grammar.Tables, _ *prectab.Precedence, in stageInput) bool {
+	{"speed-stage-resolve-aggregate-longlived", func(tab *grammar.Tables, in stageInput) bool {
 		return forest.Resolve(tab, in.f, in.s, in.src, in.scope) < 0
 	}},
-	{"speed-stage-readings-aggregate-longlived", func(tab *grammar.Tables, _ *prectab.Precedence, in stageInput) bool {
+	{"speed-stage-readings-aggregate-longlived", func(tab *grammar.Tables, in stageInput) bool {
 		in.f.CountReadings(tab)
 		return true
 	}},
 }
 
-// measurePipelineStages adds the three stage keys after the forest: the precedence constraint, resolve and the
+// measurePipelineStages adds the two stage keys after the forest: resolve and the
 // readings count each timed alone against p's Ref (recursive descent) on agg, long-lived. Each stage's input is
 // prepared outside every span: the forest of the lattice narrowed under scope(path), the scope the speed ratios'
-// pipeline runs under, then after each stage in turn; each pass times a fresh copy (stageSide). A file the chart
+// pipeline runs under, then after resolve; each pass times a fresh copy (stageSide). A file the chart
 // or an earlier stage refused stays in the timed population and the stage does nothing for it; each
 // stage prints how many such files it had. Library operators have no key, so the stage keys do not sum to the pipeline.
 func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs map[string][]byte, scope func(string) forest.Scope,
 	measured map[string]string) error {
-	prec, err := prectab.ParsePrecedence(tab)
-	if err != nil {
-		return err
-	}
 	ins, err := stageInputs(tab, agg, srcs, scope)
 	if err != nil {
 		return err
@@ -372,22 +380,22 @@ func measurePipelineStages(p Protocol, tab *grammar.Tables, agg []string, srcs m
 			}
 		}
 		fmt.Fprintf(p.Stderr, "%s%s: %d of %d files refused before the stage\n", linePrefix, st.key, refused, len(agg))
-		p.Prepare, p.Chart = stageSide(tab, prec, st, ins)
+		p.Prepare, p.Chart = stageSide(tab, st, ins)
 		measured[st.key] = fmt.Sprintf("%.4f", p.Ratio(st.key, agg, false))
-		advance(tab, prec, st, ins)
+		advance(tab, st, ins)
 	}
 	return nil
 }
 
-// stageInputs is each file's input to the precedence stage: forest.Build's forest of the lattice forest.Narrow
-// narrows under scope(path), as ParseWith recognizes it, nil where the chart refuses the file.
+// stageInputs is each file's input to the first stage after the forest: forest.Build's forest of the lattice
+// narrowedLattice makes under scope(path), as ParseWith recognizes it, nil where the chart refuses the file.
 func stageInputs(tab *grammar.Tables, files []string, srcs map[string][]byte, scope func(string) forest.Scope) (map[string]stageInput, error) {
 	r := recognize.New(tab, recognize.Options{})
 	ins := make(map[string]stageInput, len(files))
 	for _, path := range files {
-		s, _ := lex.Lex(srcs[path], tab.Tokens)
-		in := stageInput{path: path, s: s, src: srcs[path], scope: scope(path)}
-		l := forest.Narrow(tab, s, in.src, in.scope)
+		in := stageInput{path: path, src: srcs[path], scope: scope(path)}
+		s, l := narrowedLattice(tab, in.src, in.scope)
+		in.s = s
 		c, err := recognize.Recognize(r, l)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
@@ -401,7 +409,7 @@ func stageInputs(tab *grammar.Tables, files []string, srcs map[string][]byte, sc
 // stageSide is st over ins as a Protocol's chart side: prepare, its per-pass hook, copies every input forest, and the
 // runner runs st on its file's copy and drops it, so one pass's copies are held at a time and the next GC collects
 // them. A file with no input costs a map lookup.
-func stageSide(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, ins map[string]stageInput) (prepare func(), side Side) {
+func stageSide(tab *grammar.Tables, st pipelineStage, ins map[string]stageInput) (prepare func(), side Side) {
 	copies := make(map[string]*forest.Forest, len(ins))
 	prepare = func() {
 		for path, in := range ins {
@@ -416,7 +424,7 @@ func stageSide(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, 
 				delete(copies, path)
 				in := ins[path]
 				in.f = f
-				st.run(tab, prec, in)
+				st.run(tab, in)
 			}
 		}
 	}
@@ -425,9 +433,9 @@ func stageSide(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, 
 
 // advance runs st once on each input in place, outside every span, leaving the next stage's input: nil where st
 // refuses the file.
-func advance(tab *grammar.Tables, prec *prectab.Precedence, st pipelineStage, ins map[string]stageInput) {
+func advance(tab *grammar.Tables, st pipelineStage, ins map[string]stageInput) {
 	for path, in := range ins {
-		if in.f != nil && !st.run(tab, prec, in) {
+		if in.f != nil && !st.run(tab, in) {
 			in.f = nil
 			ins[path] = in
 		}

@@ -290,7 +290,8 @@ chart-perly-w3) adds `speed-stage-precedence-aggregate-longlived`,
 `speed-stage-readings-aggregate-longlived` (STAGEKEYS, 01a20950-3f3c), under
 perigrin's ruling of 2026-11-23: "Rule them in". They depart from §9.5's rule
 by that ruling, as D5's keys did, and like every `speed-` key they are
-printed, listed in the baseline and never gated.
+printed, listed in the baseline and never gated. The precedence key is since
+retired, with its baseline line, as `forest.ParseWith` no longer runs `Constrain`.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
@@ -331,7 +332,7 @@ printed, listed in the baseline and never gated.
   `recognize` for `leo-disagree`, the verdict keys' recognition counts and
   the speed ratios' recognizer, `forest` for the chart's verdict and the
   speed ratios' chart side (`forest.Parse`, `forest.ParseWith`), the forest,
-  precedence, resolve and readings stage keys and `BenchForest`,
+  resolve and readings stage keys and `BenchForest`,
   `chart` for the perl labels, `internal/lexer` for `lex-overhead`'s
   reference side and the tdt keys, and `internal/parse` for recursive
   descent's verdicts and times.
@@ -547,14 +548,13 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, then `forest.Narrow` under the file's own scope, as `forest.Parse` narrows) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `speed-stage-precedence-aggregate-longlived` | the precedence constraint alone (`(*forest.Forest).Constrain`), on a fresh copy per pass of each file's forest of its lattice narrowed (`forest.Narrow`) under the file's own scope, the same way | timing |
-| `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest after the constraint, the same way | timing |
+| `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest of its lattice narrowed (`forest.Narrow`) under the file's own scope, recognized by the judged recognizer as `forest.ParseWith` does, the same way | timing |
 | `speed-stage-readings-aggregate-longlived` | the readings count alone (`(*forest.Forest).CountReadings`), on a fresh copy per pass of each file's forest after resolve, the same way | timing |
 | `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition judging precedence, the forest, resolve and the readings count) | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
 | `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
-| `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of lex, recognition and `forest.Build` (not the precedence constraint, resolve or the readings count, so not the speed ratios' chart side), over the aggregate; 0 to 1 | timing |
+| `gc-cpu-share-chart` | `/cpu/classes/gc/total:cpu-seconds` over `/cpu/classes/total:cpu-seconds` (`runtime/metrics`) around one long-lived pass of lex, recognition and `forest.Build` (not resolve or the readings count, so not the speed ratios' chart side), over the aggregate; 0 to 1 | timing |
 | `gc-cpu-share-rd` | the same around one pass of recursive descent | timing |
 | `items-per-token` | Earley items per token, over files recognition accepts (§7's cost on recognized input), whatever the pipeline does after | reported |
 | `set-reuse` | share of positions whose Earley set was already interned, over files recognition accepts, each recognized by a fresh recognizer (cold), so only reuse within a file counts | reported |
@@ -680,18 +680,20 @@ clock and a collector, so it is tested on fake timings
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
   one ratio.
-- **The stages after the forest.** `speed-stage-precedence-aggregate-longlived`,
-  `speed-stage-resolve-aggregate-longlived` and
+- **The stages after the forest.** `speed-stage-resolve-aggregate-longlived` and
   `speed-stage-readings-aggregate-longlived` time `forest.ParseWith`'s later
-  stages each alone, the same way. Each stage's input is prepared once,
+  stages each alone, the same way. `speed-stage-precedence-aggregate-longlived`
+  is retired (perigrin): `ParseWith` no longer runs `Constrain`, so there is no
+  precedence stage to time, and its line left `baseline.txt` with it. Each stage's input is prepared once,
   outside every span: the forest `forest.Build` makes of the lattice
   `forest.Narrow` narrows under the file's own scope (`rd(path).scope`,
   the scope the speed ratios' pipeline runs under; it carries imports only,
   so here narrowing drops every `PLUGIN_*` reading, as under an empty `Scope`, and
   `TestPipelineStageKeys` holds that a scope with library operators is
-  honoured) for the precedence constraint; that
-  forest after the constraint for resolve; and after resolve for the
-  readings count. The constraint and resolve change the forest they are
+  honoured) for resolve; and that forest after resolve for the
+  readings count. Recognition's lattices are narrowed the same way
+  (`TestStageRecognizeTimesNarrowedLattice`), and no precedence stage exists
+  (`TestPipelineStagesHaveNoPrecedenceStage`). Resolve changes the forest it is
   handed, so the protocol has a **per-pass preparation hook**
   (`Protocol.Prepare`): run before each chart pass, after its GC and before
   its clock starts, it makes a fresh copy (`(*forest.Forest).Copy`) of every
@@ -700,8 +702,8 @@ clock and a collector, so it is tested on fake timings
   them. A side with no hook times exactly as before
   (`TestProtocolPrepareOutsideSpan`). **A refused file** stays in the one
   timed population every stage uses: a file the chart refuses has no forest,
-  and one the constraint or resolve refuses has
-  no input for the stages after, which then do nothing for it; each stage
+  and one resolve refuses has
+  no input for the stage after, which then do nothing for it; each stage
   prints how many such files it had on stderr,
   `chart-ratchet: <key>: <n> of <m> files refused before the stage`
   (`TestPipelineStageKeysRefusedFiles`). Library operators have no key, so

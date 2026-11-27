@@ -34,15 +34,16 @@ var (
 // speed-stage-*, alloc-per-token-{recognize,forest} and gc-cpu-share-* keys
 // (the Chart Parser Recovery Plan, perigrin's D2 and D5), waypoint 2's
 // ten from oracle-wrong on (perigrin, 2026-11-10, "Yes, in one issue"), and the
-// precedence, resolve and readings stage keys (perigrin, 2026-11-23, "Rule them
-// in"); std5k's cold speed ratio is retired (perigrin, 2026-11-14).
+// resolve and readings stage keys (perigrin, 2026-11-23, "Rule them in"; the
+// precedence stage key it also ruled in is retired, as ParseWith no longer runs
+// Constrain); std5k's cold speed ratio is retired (perigrin, 2026-11-14).
 var keys = []string{
 	"tables-drift", "leo-disagree", "ledger-gaps", "rd-accepted-chart-refused", "chart-accepted-both-refused",
 	"lex-unmapped", "tdt-aligned", "tdt-mismatch", "tdt-unseen", "terminals-per-token",
 	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate",
 	"speed-ratio-std5k-longlived", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile",
 	"speed-stage-lex-aggregate-longlived", "speed-stage-recognize-aggregate-longlived", "speed-stage-forest-aggregate-longlived",
-	"speed-stage-precedence-aggregate-longlived", "speed-stage-resolve-aggregate-longlived", "speed-stage-readings-aggregate-longlived",
+	"speed-stage-resolve-aggregate-longlived", "speed-stage-readings-aggregate-longlived",
 	"alloc-per-token-chart", "alloc-per-token-rd", "alloc-per-token-recognize", "alloc-per-token-forest",
 	"gc-cpu-share-chart", "gc-cpu-share-rd", "items-per-token", "set-reuse", "ledger-excluded",
 	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",

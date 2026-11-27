@@ -19,7 +19,6 @@ chart-ratchet: speed-ratio-aggregate-perfile 3.3911
 chart-ratchet: speed-stage-lex-aggregate-longlived 0.6241
 chart-ratchet: speed-stage-recognize-aggregate-longlived 0.7689
 chart-ratchet: speed-stage-forest-aggregate-longlived 0.6496
-chart-ratchet: speed-stage-precedence-aggregate-longlived 0.6833
 chart-ratchet: speed-stage-resolve-aggregate-longlived 0.1779
 chart-ratchet: speed-stage-readings-aggregate-longlived 0.1258
 chart-ratchet: alloc-per-token-chart 8.738
