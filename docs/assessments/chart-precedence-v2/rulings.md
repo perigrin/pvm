@@ -171,3 +171,17 @@ The gate on the item-context issue passed. It raised two findings for perigrin.
   - The context flows through both, but no test observes it there.
   - 3282 had not started. It was amended to add `TestShiftRefusalThroughSlipper`, on a toy, since perly.y forbids no shift of the slipper's `;`, and `TestShiftRefusalThroughExpected`.
   - The two stale comments the gate found (F3) were also folded into 3282.
+
+## 2026-11-27, execute: the switch-over's Step 1 probe (issue `01a21463-3262`)
+
+The 3262 worker applied the switch-over alone, with no test edits: `recognize.New` judges. It then ran `make test`. Two red tests were not covered by the issue's "Tests this change moves" list, so the worker stopped before editing anything. No forest or acceptance test went red other than those the list names, and every cost bound held.
+
+- **`TestRecognizersShareGrammarTables` times out:** "Share one copy (Recommended)".
+  - The test's "alone" baseline builds a fresh tables copy for each of its 794 sample files.
+  - Once `New` judges, each copy derives perly.y's precedence again. That runs past the 10-minute test timeout. Production derives once per tables value.
+  - The per-file baseline recognizers now share one `ownTables` copy, so the test still checks sharing against a separate tables value.
+  - 3262 is amended to list the test as rewritten.
+- **`TestReadingsCollapse` goes red:** "Pin it, amend 3262 (Recommended)".
+  - `builtReadings` builds the forest before precedence with `recognize.New`. That forest is V1's built forest.
+  - It is pinned to `NewNoPrecedence`, following the list's "reproduce V1" rule.
+  - 3262 is amended to list the test as pinned.

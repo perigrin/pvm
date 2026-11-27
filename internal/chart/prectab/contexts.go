@@ -1,4 +1,4 @@
-// ABOUTME: The context a predicted item carries (V2 design §4.2) after §4.3's collapse, computed statically per predictor.
+// ABOUTME: The context a predicted item carries (V2 design §4.2) computed statically per predictor.
 // ABOUTME: Contexts reads ruleTops and descendants from the feasibility checks, so it rests on Feasible's counters being 0.
 
 package prectab
@@ -15,18 +15,14 @@ type Contexts struct {
 
 // PredictionContexts is p's Contexts. A predictor's rules all take its one non-none canonical top (§4.2: `do`,
 // UNIOP and `my \` begin some rules under none, and taking the real top is exact); Feasible's context counter b is 0
-// on a grammar the recognizer judges, so there is at most one, and where there are more the least is taken. That top
-// collapses to none (§4.3) where it forbids no shift any core item makes in a state reachable at its origin, the
-// predicted state's descendants: every item carrying it lies there, so it changes no verdict any of them reaches, and
-// the derivations under it are exactly those under none, so it selects no parent a none could not.
+// on a grammar the recognizer judges, so there is at most one, and where there are more the least is taken. §4.3's
+// collapse of a top that forbids no reachable shift adds nothing at this granularity: a canonical top forbids shifts
+// only in rules predicted from it, which lie in its own predictor's region, so it never fires.
 func PredictionContexts(p *Precedence) Contexts {
 	tab := p.Tab
 	c := Contexts{Kernel: slices.Repeat([]int32{-1}, len(tab.States))}
 	for _, k := range predictors(tab) {
 		ctx := rawTop(p, k)
-		if ctx >= 0 && !forbidsAt(p, ctx, k.epsilon) {
-			ctx = -1
-		}
 		if k.kernel < 0 {
 			c.Start = ctx
 		} else {
@@ -36,7 +32,7 @@ func PredictionContexts(p *Precedence) Contexts {
 	return c
 }
 
-// rawTop is k's context before §4.3's collapse: its rules' one non-none canonical top (§4.2), the least where there
+// rawTop is k's context: its rules' one non-none canonical top (§4.2), the least where there
 // are more, or -1.
 func rawTop(p *Precedence, k predictor) int32 {
 	raw := int32(-1)
@@ -48,19 +44,4 @@ func rawTop(p *Precedence, k predictor) int32 {
 		}
 	}
 	return raw
-}
-
-// forbidsAt reports whether top forbids a shift some core item makes in a state reachable from predicted state e at
-// its origin.
-func forbidsAt(p *Precedence, top int32, e int) bool {
-	for _, s := range descendants(p.Tab, e) {
-		for _, i := range p.Tab.States[s].Items {
-			for _, f := range itemShifts(p.Tab, i) {
-				if p.ShiftForbidden(top, p.Item(i), int32(f)) {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
