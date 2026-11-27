@@ -90,9 +90,12 @@ func pipelineSource(t *testing.T, src string) bool {
 	return f != nil
 }
 
-// TestWaypoint2RefusalsMatchReference requires production Constrain and ConstrainReference to agree on verdict and
-// kept alternatives on every row of both tables, on the forest pipelineSource passes the constraint: Build's, after
-// LibraryOperators under Scope{}. A row with no such forest fails the test, so none drops out of the count.
+// TestWaypoint2RefusalsMatchReference requires production's forest of every row of both tables under Scope{}, before
+// resolve (forest.CandidateForest: the judged chart of the narrowed lattice, then Build, with no Constrain), to equal
+// ConstrainReference's judgement of the no-precedence forest after LibraryOperators under Scope{}. A row the judged
+// chart refuses is compared by verdict alone (d247's rule): the reference must refuse it too, by its own verdict or
+// because the no-precedence chart or LibraryOperators does. A row production accepts and the reference has no forest
+// for fails, so none drops out of the count.
 func TestWaypoint2RefusalsMatchReference(t *testing.T) {
 	tab, err := committed()
 	if err != nil {
@@ -102,29 +105,30 @@ func TestWaypoint2RefusalsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, compared, prelib := 0, 0, 0
+	entries, compared, verdictOnly := 0, 0, 0
 	compare := func(src string) {
 		entries++
+		var ref *forest.Forest
 		s, _ := lex.Lex([]byte(src), tab.Tokens)
 		l := lex.Linear(s)
-		c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
-		if err != nil || !c.Accepted() {
-			t.Errorf("%q: recognition leaves no forest", src)
-			return
+		if c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l); err == nil && c.Accepted() {
+			if ref = forest.Build(tab, c, l); forest.LibraryOperators(tab, ref, s, []byte(src), forest.Scope{}) >= 0 || !ref.ConstrainReference(p) {
+				ref = nil
+			}
 		}
-		f := forest.Build(tab, c, l)
-		if f == nil {
-			t.Errorf("%q: Build leaves no forest", src)
-			return
-		}
-		if forest.LibraryOperators(tab, f, s, []byte(src), forest.Scope{}) >= 0 {
-			prelib++
-			t.Errorf("%q: LibraryOperators refuses it before the constraint", src)
+		cand, _ := forest.CandidateForest(tab, []byte(src), forest.Scope{})
+		if cand == nil {
+			verdictOnly++
+			if ref != nil {
+				t.Errorf("%q: the judged chart refuses it, ConstrainReference accepts it", src)
+			}
 			return
 		}
 		compared++
-		if agree, _, _ := constrainAgrees(f, p); !agree {
-			t.Errorf("%q: Constrain and ConstrainReference differ", src)
+		if ref == nil {
+			t.Errorf("%q: production accepts it, the reference refuses it", src)
+		} else if d := forest.ForestDiff(cand, ref); d != "" {
+			t.Errorf("%q: %s", src, d)
 		}
 	}
 	for _, c := range waypoint2Refusals {
@@ -133,5 +137,29 @@ func TestWaypoint2RefusalsMatchReference(t *testing.T) {
 	for _, c := range waypoint2ScopeRefusals {
 		compare(c.pre + c.src)
 	}
-	t.Logf("entries=%d compared=%d prelib-refused=%d", entries, compared, prelib)
+	t.Logf("entries=%d compared=%d", entries, compared)
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
+	if compared == 0 || compared+verdictOnly != entries {
+		t.Errorf("compared %d and %d by verdict only of %d rows; want every row, and some compared", compared, verdictOnly, entries)
+	}
+}
+
+// TestForestEqualityCandidateNeverConstrains: counted by Constrain's own hook, the waypoint2 differential's
+// candidate (forest.CandidateForest) enters Constrain no time over every row, and accepts some.
+func TestForestEqualityCandidateNeverConstrains(t *testing.T) {
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, n0 := 0, forest.ConstrainEntries()
+	for _, src := range waypoint2Sources() {
+		if f, _ := forest.CandidateForest(tab, []byte(src), forest.Scope{}); f != nil {
+			accepted++
+		}
+	}
+	entries := forest.ConstrainEntries() - n0
+	t.Logf("waypoint2: %d rows, %d accepted, Constrain entered %d times", len(waypoint2Sources()), accepted, entries)
+	if accepted == 0 || entries != 0 {
+		t.Errorf("the candidate accepted %d rows and entered Constrain %d times; want some accepted, and no entry", accepted, entries)
+	}
 }

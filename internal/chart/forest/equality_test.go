@@ -682,3 +682,102 @@ func TestForestDiffDuplicateKey(t *testing.T) {
 		t.Errorf("no duplicate: ForestDiff = %q, want none", d)
 	}
 }
+
+// TestForestEqualityCandidateNeverConstrains: counted by Constrain's own hook, the production differentials'
+// candidates enter Constrain no time: the toy candidate over every sentence of every toy prectab.Feasible passes,
+// judged through the explicit form over the toy's own precedence, and the source candidate over seeds 4 and 44 and
+// the union shortcut's input. Some of each accept, so the count is over forests built. Waypoint2's rows and the
+// corpus are counted the same way in packages chart and cmd/ratchet.
+func TestForestEqualityCandidateNeverConstrains(t *testing.T) {
+	toys, _ := feasibleToys(t)
+	toyAccepted, n0 := 0, constrainEntries.Load()
+	for _, name := range slices.Sorted(maps.Keys(toys)) {
+		ty := toys[name]
+		for _, s := range ty.sentences {
+			f, err := CandidateToyForest(ty.tab, toyLattice(ty.tab, s.words), ty.prec)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if f != nil {
+				toyAccepted++
+			}
+		}
+	}
+	toyEntries := constrainEntries.Load() - n0
+	tab := committedTables(t)
+	srcAccepted, n1 := 0, constrainEntries.Load()
+	for _, srcs := range [][]string{operatorSentences(), chainSentences(), {unionShortcutInput}} {
+		for _, src := range srcs {
+			if f, _ := CandidateForest(tab, []byte(src), Scope{}); f != nil {
+				srcAccepted++
+			}
+		}
+	}
+	srcEntries := constrainEntries.Load() - n1
+	t.Logf("feasible toys: %d accepted, Constrain entered %d times; seeds 4, 44 and the union shortcut: %d accepted, Constrain entered %d times",
+		toyAccepted, toyEntries, srcAccepted, srcEntries)
+	if toyAccepted == 0 || srcAccepted == 0 || toyEntries != 0 || srcEntries != 0 {
+		t.Errorf("the candidates accepted %d toy sentences and %d sources and entered Constrain %d and %d times; want some accepted, and no entry",
+			toyAccepted, srcAccepted, toyEntries, srcEntries)
+	}
+}
+
+// TestInfeasibleToysJudgedByConstrain: every toy prectab.Feasible refuses, the fixtures and the pinned toys, has no
+// judged recognizer, so the toy candidate judges it by Constrain over the no-precedence recognizer's forest: it
+// enters Constrain once per input that chart accepts, and its forest equals V1's on every input. A fixture is judged
+// on its sentences, a pinned toy on every string of up to five of its terminals.
+func TestInfeasibleToysJudgedByConstrain(t *testing.T) {
+	toys := slices.Clone(infeasibleToys)
+	for _, name := range []string{"ladder", "nonassoc", "prefix"} {
+		toys = append(toys, struct {
+			name string
+			load func(*testing.T) (*grammar.Tables, *prectab.Precedence)
+		}{name, toyOf(name)})
+	}
+	for _, ty := range toys {
+		t.Run(ty.name, func(t *testing.T) {
+			tab, p := ty.load(t)
+			if _, err := prectab.Feasible(p); err == nil {
+				t.Fatalf("%s: Feasible accepts it", ty.name)
+			}
+			var inputs []*lex.Lattice[lex.None]
+			if slices.Contains(toyNames, ty.name) {
+				for _, s := range loadToy(t, ty.name).sentences {
+					inputs = append(inputs, toyLattice(tab, s.words))
+				}
+			} else {
+				inputs = toyInputs(tab)
+			}
+			charts, entries, accepted, bad := 0, int64(0), 0, 0
+			for _, l := range inputs {
+				if c, err := recognize.Recognize(V1Recognizer(tab), l); err == nil && c.Accepted() {
+					charts++
+				}
+				n0 := constrainEntries.Load()
+				cand, err := CandidateToyForest(tab, l, p)
+				entries += constrainEntries.Load() - n0
+				if err != nil {
+					t.Fatal(err)
+				}
+				v1, err := V1ToyForest(tab, l, p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if v1 != nil {
+					accepted++
+				}
+				if d := ForestDiff(cand, v1); d != "" {
+					if bad++; bad <= 10 {
+						t.Errorf("%s: an input of %d terminals: %s", ty.name, len(l.Edges), d)
+					}
+				}
+			}
+			t.Logf("%s: %d inputs, the no-precedence chart accepts %d, Constrain entered %d times, V1 accepts %d", ty.name, len(inputs), charts, entries, accepted)
+			// V1 accepting none is not required: on nullableShift, the known limit, Constrain refuses what bison accepts.
+			if charts == 0 || entries != int64(charts) || bad != 0 {
+				t.Errorf("%s: Constrain entered %d times over %d accepted charts, %d differ; want some charts, one entry each, none differing",
+					ty.name, entries, charts, bad)
+			}
+		})
+	}
+}

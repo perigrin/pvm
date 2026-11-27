@@ -25,9 +25,13 @@ func (f *Forest) Constrain(p *prectab.Precedence) bool {
 	return newJudgement(f, p).constrain()
 }
 
-// constrainEntries counts Constrain's calls, for the test that the judged-recognizer differential's candidate makes
-// none and its V1 side does.
+// constrainEntries counts Constrain's calls, for the tests that production and the differentials' candidates make
+// none and V1's side does.
 var constrainEntries atomic.Int64
+
+// ConstrainEntries is how many times Constrain has been entered in this process, for the tests outside this package
+// that production's forest never enters it.
+func ConstrainEntries() int64 { return constrainEntries.Load() }
 
 // constrain is Constrain on the judgement's forest, its memo as it stands.
 func (c *judgement) constrain() bool {

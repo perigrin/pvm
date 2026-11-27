@@ -79,6 +79,30 @@ func TestForestEqualityCorpus(t *testing.T) {
 	}
 }
 
+// TestForestEqualityCandidateNeverConstrains: counted by Constrain's own hook, the corpus differential's candidate
+// (forest.CandidateForest, under each file's own scope) enters Constrain no time over every file of the ratchet's
+// in-tree corpora, and accepts some.
+func TestForestEqualityCandidateNeverConstrains(t *testing.T) {
+	t.Chdir("../../../..")
+	files, srcs, err := corpus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab := committedTables(t)
+	scope := fileScope(t, tab, srcs)
+	accepted, n0 := 0, forest.ConstrainEntries()
+	for _, f := range files {
+		if cand, _ := forest.CandidateForest(tab, srcs[f.Path], scope(f.Path)); cand != nil {
+			accepted++
+		}
+	}
+	entries := forest.ConstrainEntries() - n0
+	t.Logf("in-tree corpus: %d files, %d accepted, Constrain entered %d times", len(files), accepted, entries)
+	if accepted == 0 || entries != 0 {
+		t.Errorf("the candidate accepted %d files and entered Constrain %d times; want some accepted, and no entry", accepted, entries)
+	}
+}
+
 // TestForestEqualityCorpusReduceSide: the reduce side's forest, the judged recognizer then Build then Constrain
 // (forest.ReduceSideForest), equals V1's on every file of the ratchet's in-tree corpora under the file's own scope,
 // through compareForests, the loop TestForestEqualityCorpus runs.
