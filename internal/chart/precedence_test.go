@@ -376,3 +376,49 @@ func TestRefereeSingletonSetIdsOutsideCommittedTables(t *testing.T) {
 		t.Errorf("the committed tables hold %d sets after narrowing, or one changed; want the 1880 as they were", len(r.tab.TerminalSets))
 	}
 }
+
+// TestPrecedenceRefereeKeepsSlipperLeaves (F8-P1): lattice narrowing keeps the slipper's zero-width ; leaves, which the
+// forest-side narrow dropped. Over every kept sentence it counts the charts the slipper inserted a ; into and the
+// forests that keep such a leaf, and requires the verdict and grouping with the leaves dropped to be the referee's,
+// and no sentence ambiguous or cut.
+func TestPrecedenceRefereeKeepsSlipperLeaves(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	semi := r.terminal["PERLY_SEMICOLON"]
+	kept, inserted, leaves, moved, ambiguous, cut := 0, 0, 0, 0, 0, 0
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		kept++
+		f, c, skip := r.judged(s)
+		if len(c.Inserted()) > 0 {
+			inserted++
+		}
+		if f != nil && slices.ContainsFunc(f.Nodes[1:], func(n forest.Node) bool { return n.Alt == 0 && n.Sym == semi && n.From == n.To }) {
+			leaves++
+		}
+		v, g := r.verdict(f, skip)
+		if dv, dg := r.verdict(dropSlipperLeaves(f, semi), skip); dv != v || dg != g {
+			if moved++; moved <= 10 {
+				t.Errorf("%s %q: %s %s with the slipper's leaves, %s %s without", s.id, s.rendering, v, g, dv, dg)
+			}
+		}
+		ambiguous += btoi(strings.HasPrefix(g, "ambiguous"))
+		cut += btoi(strings.HasPrefix(g, "more than"))
+	}
+	t.Logf("slipper ; insertions: %d of %d; forests keeping a zero-width ; leaf: %d; moved: %d; ambiguous: %d; cut: %d", inserted, kept, leaves, moved, ambiguous, cut)
+	if inserted == 0 || leaves == 0 || moved > 0 || ambiguous > 0 || cut > 0 {
+		t.Errorf("want some insertions and kept leaves, and nothing moved, ambiguous or cut")
+	}
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

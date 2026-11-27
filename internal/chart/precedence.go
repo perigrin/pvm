@@ -368,6 +368,11 @@ func (r *referee) judged(s precedenceSentence) (*forest.Forest, *recognize.Chart
 // (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
 func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
 	f, _, skip := r.judged(s)
+	return r.verdict(f, skip)
+}
+
+// verdict is judge's verdict and grouping of f, a forest whose first skip tokens are the preamble; nil refuses.
+func (r *referee) verdict(f *forest.Forest, skip int) (verdict, grouping string) {
 	if f == nil {
 		return "refuse", "-"
 	}
