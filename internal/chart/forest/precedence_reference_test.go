@@ -1,4 +1,4 @@
-// ABOUTME: Compares production Constrain against ConstrainReference, verdict and kept set, on two copies of one forest.
+// ABOUTME: Compares production's forest (the judged chart's Build) against ConstrainReference on the no-precedence forest.
 // ABOUTME: Covers the toy fixture forests and decision §2's seeded generators (seed 4 operators, seed 44 chains).
 
 package forest
@@ -61,6 +61,30 @@ func judgeBoth(f *Forest, p *prectab.Precedence) (diff string, ok, pruned bool) 
 	prodOK := productionConstrain(prod, p)
 	refOK := ref.ConstrainReference(p)
 	return precedenceDiff(prodOK, prod, refOK, ref), refOK, refOK && prunedReachable(f, ref)
+}
+
+// productionAgainstReference compares cand, production's forest of an input (nil where the judged chart refuses it),
+// with ConstrainReference's judgement of a copy of built, the no-precedence forest as the reference is handed it (nil
+// where that pipeline refuses before the constraint). It is where they differ ("" none), the reference's verdict,
+// whether it accepted with a reachable alternative dropped, and whether the input was compared by verdict alone,
+// the judged chart refusing it (d247's rule): then the reference must refuse it too.
+func productionAgainstReference(cand, built *Forest, p *prectab.Precedence) (diff string, ok, pruned, verdictOnly bool) {
+	var ref *Forest
+	if built != nil {
+		ref = built.Copy()
+		if ok = ref.ConstrainReference(p); ok {
+			pruned = prunedReachable(built, ref)
+		} else {
+			ref = nil
+		}
+	}
+	if cand == nil {
+		if ok {
+			return "the judged chart refuses it, the reference accepts", ok, pruned, true
+		}
+		return "", ok, pruned, true
+	}
+	return ForestDiff(cand, ref), ok, pruned, false
 }
 
 // productionConstrain is the judgement judgeBoth compares with the reference; TestPrecedenceHarnessesDoNotAlias
@@ -131,29 +155,50 @@ func TestPrecedenceDiffDetectsDifference(t *testing.T) {
 	}
 }
 
-// TestPrecedenceToyForestsMatchReference requires production and the reference to keep the same alternatives, and
-// reach the same verdict, on every toy fixture sentence's forest.
+// TestPrecedenceToyForestsMatchReference requires production's forest, the judged recognizer's over the toy's own
+// precedence then Build, to keep the alternatives the reference keeps over the no-precedence forest, and reach its
+// verdict, on every toy fixture sentence; a sentence the judged chart refuses is compared by verdict alone. A toy
+// prectab.Feasible refuses has no judged recognizer, so Constrain and the reference judge copies of its
+// no-precedence forest, as before the switch.
 func TestPrecedenceToyForestsMatchReference(t *testing.T) {
+	verdictOnly := 0
 	for _, name := range toyNames {
 		ty := loadToy(t, name)
+		_, infeasible := prectab.Feasible(ty.prec)
 		bad := 0
 		for _, s := range ty.sentences {
-			f, _, _ := toyForest(t, ty.tab, s.words, recognize.Options{})
-			if f == nil {
+			f, _, l := toyForest(t, ty.tab, s.words, recognize.Options{})
+			var diff string
+			switch {
+			case infeasible != nil && f == nil:
 				continue
+			case infeasible != nil:
+				diff, _, _ = judgeBoth(f, ty.prec)
+			default:
+				cand, err := JudgedToyForest(ty.tab, l, ty.prec)
+				if err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
+				var only bool
+				if diff, _, _, only = productionAgainstReference(cand, f, ty.prec); only {
+					verdictOnly++
+				}
 			}
-			if diff, _, _ := judgeBoth(f, ty.prec); diff != "" {
+			if diff != "" {
 				if bad++; bad <= 10 {
 					t.Errorf("%s %s: %s", name, strings.Join(s.words, " "), diff)
 				}
 			}
 		}
 	}
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
 }
 
-// sentencesMatchReference runs each source as ParseWith does up to the constraint (lex, recognition, Build,
-// LibraryOperators under the empty scope) and compares production and the reference on that forest. It logs the
-// counts and requires a sentence compared, one refused and one pruned, so a generator cannot agree vacuously.
+// sentencesMatchReference compares, on each source under the empty scope, production's forest before resolve
+// (CandidateForest: the judged chart of the narrowed lattice, then Build) with the reference's judgement of the
+// no-precedence forest after LibraryOperators; a source the judged chart refuses is compared by verdict alone, the
+// reference refusing too. It logs the counts and requires a sentence compared, one refused and one pruned, so a
+// generator cannot agree vacuously.
 func sentencesMatchReference(t *testing.T, srcs []string) {
 	tab := committedTables(t)
 	prec, err := prectab.ParsePrecedence(tab)
@@ -161,7 +206,7 @@ func sentencesMatchReference(t *testing.T, srcs []string) {
 		t.Fatal(err)
 	}
 	r := recognize.NewNoPrecedence(tab, recognize.Options{})
-	compared, refused, pruned, bad := 0, 0, 0, 0
+	compared, refused, pruned, bad, verdictOnly := 0, 0, 0, 0, 0
 	for _, src := range srcs {
 		s, _ := lex.Lex([]byte(src), tab.Tokens)
 		l := lex.Linear(s)
@@ -169,15 +214,21 @@ func sentencesMatchReference(t *testing.T, srcs []string) {
 		if err != nil {
 			t.Fatalf("%q: %v", src, err)
 		}
-		if !c.Accepted() {
-			continue
+		var f *Forest
+		if c.Accepted() {
+			if f = Build(tab, c, l); LibraryOperators(tab, f, s, []byte(src), Scope{}) >= 0 {
+				f = nil
+			}
 		}
-		f := Build(tab, c, l)
-		if LibraryOperators(tab, f, s, []byte(src), Scope{}) >= 0 {
+		cand, _ := CandidateForest(tab, []byte(src), Scope{})
+		diff, ok, p, only := productionAgainstReference(cand, f, prec)
+		if only {
+			verdictOnly++
+		}
+		if f == nil && diff == "" {
 			continue
 		}
 		compared++
-		diff, ok, p := judgeBoth(f, prec)
 		if diff != "" {
 			if bad++; bad <= 10 {
 				t.Errorf("%q: %s", src, diff)
@@ -191,6 +242,7 @@ func sentencesMatchReference(t *testing.T, srcs []string) {
 		}
 	}
 	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", len(srcs), compared, refused, pruned)
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
 	if bad > 0 {
 		t.Errorf("%d of %d compared sentences differ from the reference", bad, compared)
 	}

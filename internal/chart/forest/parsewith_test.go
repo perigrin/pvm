@@ -1,5 +1,5 @@
 // ABOUTME: Tests that no caller of Parse or ParseWith can turn precedence off (F3-7): no parameter or option is a
-// ABOUTME: switch, and ParseWith panics on a recognizer that judges with anything but the precedence New derives.
+// ABOUTME: switch, ParseWith panics on a recognizer judging other than New derives, and Parse never enters Constrain.
 
 package forest
 

@@ -1,4 +1,4 @@
-// ABOUTME: The in-tree corpus differential (decision §3.4): production Constrain against ConstrainReference on every recognized file.
+// ABOUTME: The in-tree corpus differential (decision §3.4): production's forest against ConstrainReference on every file.
 // ABOUTME: Each file's forest after LibraryOperators under the pipeline's own scope, verdict and every node's kept alternatives.
 
 package main
@@ -21,9 +21,10 @@ import (
 
 // precedenceOutcome is one file's comparison: whether the chart recognized it, whether LibraryOperators refused it,
 // the reference's verdict, whether the reference dropped an alternative, and where production disagreed ("" for nowhere).
+// verdictOnly marks a file compareProduction compared by verdict alone, the judged chart refusing it.
 type precedenceOutcome struct {
-	recognized, prelibRefused, accepted, pruned bool
-	diff                                        string
+	recognized, prelibRefused, accepted, pruned, verdictOnly bool
+	diff                                                     string
 }
 
 // comparePrecedence judges src's forest after LibraryOperators under scope twice, with production
@@ -59,6 +60,45 @@ func comparePrecedence(tab *grammar.Tables, r *recognize.Recognizer, prec *prect
 			return o, nil
 		}
 		o.pruned = o.pruned || live[n] && len(want[n]) < len(before[n])
+	}
+	return o, nil
+}
+
+// compareProduction compares production's forest of src under scope before resolve (forest.CandidateForest: the
+// judged chart of the lattice narrowed under scope, then Build, with no Constrain) with ConstrainReference's judgement
+// of the no-precedence forest r recognizes, after LibraryOperators under scope: the same alternatives kept on every
+// node reachable from the root. Where the judged chart refuses src it compares verdicts alone (d247's rule): the
+// reference must refuse too, by its own verdict or because r's chart or LibraryOperators does.
+func compareProduction(tab *grammar.Tables, r *recognize.Recognizer, prec *prectab.Precedence, src []byte, scope forest.Scope) (precedenceOutcome, error) {
+	var o precedenceOutcome
+	s, _ := lex.Lex(src, tab.Tokens)
+	l := lex.Linear(s)
+	c, err := recognize.Recognize(r, l)
+	if err != nil {
+		return o, err
+	}
+	ref := forest.Build(tab, c, l)
+	if o.recognized = ref != nil; o.recognized {
+		if o.prelibRefused = forest.LibraryOperators(tab, ref, s, src, scope) >= 0; !o.prelibRefused {
+			before, live := keptAlts(ref), reachable(ref)
+			if o.accepted = ref.ConstrainReference(prec); o.accepted {
+				for n, want := range keptAlts(ref) {
+					o.pruned = o.pruned || live[n] && len(want) < len(before[n])
+				}
+			}
+		}
+	}
+	cand, _ := forest.CandidateForest(tab, src, scope)
+	switch {
+	case cand == nil:
+		o.verdictOnly = true
+		if o.accepted {
+			o.diff = "the judged chart refuses it, ConstrainReference accepts it"
+		}
+	case !o.accepted:
+		o.diff = "production accepts it, the reference refuses it"
+	default:
+		o.diff = forest.ForestDiff(cand, ref)
 	}
 	return o, nil
 }
@@ -101,11 +141,12 @@ func keptAlts(f *forest.Forest) [][]int32 {
 	return out
 }
 
-// TestPrecedenceCorpusMatchesReference: on every file of the ratchet's in-tree corpora the chart recognizes, perl-refused
-// ones included, production Constrain and ConstrainReference reach the same verdict and keep the same alternatives on
-// every node of the forest after LibraryOperators under the pipeline's own scope (chartInputs's, C39). A file
-// LibraryOperators refuses has no constraint input and is counted, not compared. Every corpus must contribute a compared
-// file, so a missing or empty one fails rather than passing on nothing.
+// TestPrecedenceCorpusMatchesReference: on every file of the ratchet's in-tree corpora, perl-refused ones included,
+// production's forest (compareProduction: the judged chart then Build, with no Constrain) and ConstrainReference's
+// judgement of the no-precedence forest after LibraryOperators under the pipeline's own scope (chartInputs's, C39)
+// reach the same verdict and keep the same alternatives on every reachable node. A file the judged chart refuses is
+// compared by verdict alone and counted in a logged verdict-only line; one LibraryOperators refuses is counted.
+// Every corpus must contribute a compared file, so a missing or empty one fails rather than passing on nothing.
 func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 	t.Chdir("../../../..")
 	files, srcs, err := corpus()
@@ -125,23 +166,29 @@ func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 	r := recognize.NewNoPrecedence(tab, recognize.Options{})
 	type counts struct{ compared, prelib, precedence, pruned, perlRefused int }
 	stats := map[string]*counts{}
+	verdictOnly := 0
 	for _, file := range files {
 		st := stats[file.Corpus]
 		if st == nil {
 			st = &counts{}
 			stats[file.Corpus] = st
 		}
-		o, err := comparePrecedence(tab, r, prec, srcs[file.Path], scope(file.Path))
-		switch {
-		case err != nil:
+		o, err := compareProduction(tab, r, prec, srcs[file.Path], scope(file.Path))
+		if err != nil {
 			t.Fatalf("%s: %v", file.Path, err)
+		}
+		if o.diff != "" {
+			t.Errorf("%s: %s", file.Path, o.diff)
+		}
+		if o.verdictOnly {
+			verdictOnly++
+		}
+		switch {
 		case !o.recognized:
 			continue
 		case o.prelibRefused:
 			st.prelib++
 			continue
-		case o.diff != "":
-			t.Errorf("%s: %s", file.Path, o.diff)
 		}
 		st.compared++
 		if !o.accepted {
@@ -162,6 +209,7 @@ func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 			t.Errorf("corpus %s contributed no compared file", name)
 		}
 	}
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
 }
 
 // TestComparePrecedenceUsesScope: comparePrecedence judges the forest LibraryOperators leaves under the scope it is
