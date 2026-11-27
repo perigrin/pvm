@@ -76,14 +76,17 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 }
 
 // allowed is the candidates ids that precedence allows after set, the set at b's node (V2 design §4.4): each is
-// judged as the lookahead, by closing the set's items no completion made again with it, the reduce side judging every
+// judged as the lookahead, by closing the set's scanned items again with it, the reduce side judging every
 // completion before it, and is kept where an item of that closure scans it unrefused. The sets the closures read are
 // b's dependencies.
 func (b *builder) allowed(set *Set, ids []int) []int {
 	r := b.r
+	// The seeds are the kernel items a scan made, and node 0's start item: add predicts again from each, so a
+	// prediction stands only where its predicting kernel does under the candidate.
 	var seeds []Item
 	for _, it := range set.Items() {
-		if !r.judge.completed[it.State] {
+		start := b.pos == 0 && it.State == 0
+		if start || !r.judge.completed[it.State] && !r.tab.States[it.State].Predicted {
 			seeds = append(seeds, it)
 		}
 	}

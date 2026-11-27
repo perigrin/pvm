@@ -71,7 +71,7 @@ func TestExpectedKeepsAllowedContinuations(t *testing.T) {
 // TestExpectedEmptyWhenPrecedenceForbidsAll: with T nonassoc, after A T A the only candidate is T: completing
 // E T E before it is refused, and the inner E . T E's shift of it is refused under the right operand's top. So the
 // chart dies at the second T, and Expected at the node before it is empty, without error, where the no-precedence
-// recognizer offers T.
+// recognizer offers T. The refusal byte is asserted where diedAt produces it (forest's TestRefusalByteWhereExpectedEmpty).
 func TestExpectedEmptyWhenPrecedenceForbidsAll(t *testing.T) {
 	tab, p := precToy(t, []grammar.Level{{N: 1, Assoc: "nonassoc", Tokens: []string{"T"}}}, nil, nil,
 		"S ::= E", "E ::= E T E | A")
@@ -88,6 +88,108 @@ func TestExpectedEmptyWhenPrecedenceForbidsAll(t *testing.T) {
 		if err != nil || len(got) != 0 {
 			t.Errorf("%+v: Expected at node 3 is %v, %v; want empty and no error", opts, got, err)
 		}
+	}
+}
+
+// TestExpectedSeedsNoPredictionOfARefusedCompletion: with T nonassoc, S ::= E | E Z and Z ::= T A, after A T A the
+// stored set holds S ::= E . Z, completed before the end of input, and its prediction Z ::= . T A. Before T that
+// completion of E T E from node 0 is refused, so neither stands, and Recognize refuses A T A T: Expected must not
+// offer T from the prediction a refused completion made, wrapped in W ::= E Z or not.
+func TestExpectedSeedsNoPredictionOfARefusedCompletion(t *testing.T) {
+	levels := []grammar.Level{{N: 1, Assoc: "nonassoc", Tokens: []string{"T"}}}
+	for _, rules := range [][]string{
+		{"S ::= E | E Z", "E ::= E T E | A", "Z ::= T A"},
+		{"S ::= E | W", "W ::= E Z", "E ::= E T E | A", "Z ::= T A"},
+	} {
+		tab, p := precToy(t, levels, nil, nil, rules...)
+		for _, opts := range judgedOptions {
+			if c := mustRecognize(t, mustJudged(t, tab, p, opts), tokens(tab, "A", "T", "A", "T")); c.Sets[4] != nil {
+				t.Fatalf("%v %+v: Recognize scans the second T; the fixture forbids nothing", rules, opts)
+			}
+			c := mustRecognize(t, mustJudged(t, tab, p, opts), tokens(tab, "A", "T", "A"))
+			if got := expectedOf(t, c, 3); slices.Contains(got, "T") {
+				t.Errorf("%v %+v: Expected after A T A is %v; want no T, which Recognize refuses there", rules, opts, got)
+			}
+		}
+	}
+}
+
+// recognizeAllows is the terminals of cands that Recognize scans at node pos of l, each given as the only next token:
+// l's edges up to pos and one edge from pos carrying it alone, whose set at pos+1 exists only where it is scanned.
+func recognizeAllows(t *testing.T, tab *grammar.Tables, l *lex.Lattice[lex.None], pos int, cands []string) []string {
+	t.Helper()
+	var out []string
+	for _, name := range cands {
+		id := symbolID(tab, name)
+		p := &lex.Lattice[lex.None]{Nodes: make([]lex.Node[lex.None], pos+2)}
+		for _, e := range l.Edges {
+			if e.To <= pos {
+				p.Edges = append(p.Edges, e)
+			}
+		}
+		p.Edges = append(p.Edges, lex.Edge{From: pos, To: pos + 1, Token: lex.Token{TerminalSet: SetID(tab, []int{id})}})
+		if mustRecognize(t, New(tab, Options{}), p).Sets[pos+1] != nil {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// TestExpectedMatchesRecognizeGivenEachCandidate: at every node of the probes, judged Expected is the terminals of
+// the no-precedence Expected that Recognize scans there given each as the next token. A } is left out on both sides:
+// the slipper's inserted ; lets Recognize scan it where no item does.
+func TestExpectedMatchesRecognizeGivenEachCandidate(t *testing.T) {
+	tab := committedTables(t)
+	noBrace := func(s []string) []string {
+		return slices.DeleteFunc(slices.Clone(s), func(n string) bool { return n == "PERLY_BRACE_CLOSE" })
+	}
+	positions := 0
+	for _, src := range expectedProbes {
+		s, _ := lex.Lex([]byte(src), tab.Tokens)
+		l := lex.Linear(s)
+		judged, plain := mustRecognize(t, New(tab, Options{}), l), mustRecognize(t, NewNoPrecedence(tab, Options{}), l)
+		for pos := range judged.Sets {
+			if judged.Sets[pos] == nil {
+				break
+			}
+			want := recognizeAllows(t, tab, l, pos, noBrace(expectedOf(t, plain, pos)))
+			if got := noBrace(expectedOf(t, judged, pos)); !slices.Equal(got, want) {
+				t.Errorf("%q node %d: Expected %v; Recognize scans %v", src, pos, got, want)
+			}
+			positions++
+		}
+	}
+	t.Logf("positions: %d", positions)
+	if positions == 0 {
+		t.Error("no position compared")
+	}
+}
+
+// TestCompletedStatesHaveOneAccessingKind: Expected's seeds rest on the automaton's construction (completed): no
+// state of the committed tables is the target of both a terminal's and a nonterminal's transition, and no predicted
+// state is a target at all, so a state a nonterminal reaches holds only items a completion made.
+func TestCompletedStatesHaveOneAccessingKind(t *testing.T) {
+	tab := committedTables(t)
+	kinds := make([]int, len(tab.States)) // bit 1: a terminal reaches it; bit 2: a nonterminal does
+	for _, st := range tab.States {
+		for _, tr := range st.Transitions {
+			kinds[tr.Target] |= map[bool]int{true: 1, false: 2}[tab.Symbols[tr.Symbol].Terminal]
+		}
+	}
+	targets := 0
+	for s, k := range kinds {
+		if k == 3 {
+			t.Errorf("state %d is reached by a terminal and by a nonterminal", s)
+		}
+		if k != 0 && tab.States[s].Predicted {
+			t.Errorf("predicted state %d is a transition target", s)
+		}
+		if k != 0 {
+			targets++
+		}
+	}
+	if targets == 0 {
+		t.Error("no state is a transition target")
 	}
 }
 

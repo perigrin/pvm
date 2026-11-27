@@ -1965,11 +1965,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   (`TestShiftRefusalThroughExpected`), and each candidate terminal is
   judged as the lookahead: the completions it would trigger are judged
   before it, so after `1 .. 2` `DOTDOT` is not offered
-  (`TestExpectedJudgesPrecedence`, `TestExpectedLeoAgreesUnderPrecedence`). The pairing rule (§4.3): a completion
-  advances only the parents that predicted it under its context, a Leo
-  chain included (`TestCompletionPairsUnderContext`). Its forest, through
-  `Build` and `Constrain`, equals V1's over the toys, seeds 4 and 44 and the
-  in-tree corpus (`TestForestEqualityReduceSide`,
+  (`TestExpectedJudgesPrecedence`, `TestExpectedLeoAgreesUnderPrecedence`,
+  `TestExpectedMatchesRecognizeGivenEachCandidate`). The pairing rule
+  (§4.3): a completion advances only the parents that predicted it under
+  its context, a Leo chain included (`TestCompletionPairsUnderContext`).
+  Its forest, through `Build` and `Constrain`, equals V1's over the toys,
+  seeds 4 and 44 and the in-tree corpus (`TestForestEqualityReduceSide`,
   `TestForestEqualityCorpusReduceSide`), and so does its forest through
   `Build` alone, with no `Constrain`, over the toys `prectab.Feasible`
   passes, seeds 4 and 44, and the corpus narrowed as production narrows it
