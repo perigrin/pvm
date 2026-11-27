@@ -157,3 +157,17 @@ On the shape the issue exists for, the unchanged judged code walks n(n−1)/2 me
 
 - **The walk:** "Fix it in d35d (Recommended)". The started issue's scope widens from tests only to a production fix that makes `leoCrosses` linear. The linearity test moves onto the quadratic toy, and it must be red before the fix and green after.
 - **A bound on the walk:** "Add it with the fix (Recommended)". Neither existing cost bound can see the walk. d35d adds `TestLeoLinksPerTokenBoundedJudged`, a corpus bound on Leo links per token with a new constant set from the measured value after the fix.
+
+## 2026-11-27, execute: the d1c2 gate's findings (issue `01a21447-d1c2`)
+
+The gate on the item-context issue passed. It raised two findings for perigrin.
+
+- **F1, §4.3 at predictor granularity:** "Delete it, keep as oracle (Recommended)".
+  - `PredictionContexts` gives each predictor one context. At that granularity §4.3's collapse is identical to §4.2's for every grammar, because a canonical top forbids shifts only in its own predictor's region.
+  - So the `forbidsAt` clause in production is dead code.
+  - A finer per-state collapse is not built. The worker and the gate judged it unsound under 3282's pairing, or else needing a §7 item fact.
+  - Issue `01a21a56-1251` removes the clause, keeps `forbidsAt` as the test's oracle, and has the README state the granularity.
+- **F2, the context through the slipper and `Expected`:** "Add to 3282 (Recommended)".
+  - The context flows through both, but no test observes it there.
+  - 3282 had not started. It was amended to add `TestShiftRefusalThroughSlipper`, on a toy, since perly.y forbids no shift of the slipper's `;`, and `TestShiftRefusalThroughExpected`.
+  - The two stale comments the gate found (F3) were also folded into 3282.
