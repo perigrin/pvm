@@ -5,6 +5,7 @@ package recognize
 
 import (
 	"cmp"
+	"encoding/binary"
 	"math/bits"
 	"slices"
 
@@ -260,16 +261,43 @@ func (c *Chart) Refused(to, sym, origin, parent int) bool {
 	return ok
 }
 
+// crossKey is a lookahead as Leo's crossing verdicts are keyed: its class (Recognizer.lookahead), or, for a union,
+// which has none, its terminals.
+type crossKey struct {
+	cls   int
+	union string
+}
+
+// lookaheadKey is the crossKey of the lookahead la of class cls, -1 for a union.
+func lookaheadKey(cls int, la bitset) crossKey {
+	if cls != -1 {
+		return crossKey{cls: cls}
+	}
+	buf := make([]byte, 0, 8*len(la))
+	for _, w := range la {
+		buf = binary.LittleEndian.AppendUint64(buf, w)
+	}
+	return crossKey{cls: -1, union: string(buf)}
+}
+
 // leoCrosses reports whether the Leo chain from m, which completing sym into m's item begins, crosses a completion
 // the judgement refuses before la: one of a link's rule into the next link's item. The first completion, sym's, is
-// judged by the caller.
+// judged by the caller. Each memo keeps its verdict per lookahead, so a walk stops at a link already judged before
+// the same one, and a chain taken at every node of a right recursion is walked once per distinct lookahead rather
+// than once per node.
 func (b *builder) leoCrosses(m *memo) bool {
-	j := b.r.judge
-	for l := m; l.next != nil; l = l.next {
-		li := slices.Index(b.r.g.lhs[l.adv], l.lhs)
-		if !j.completes(l.adv, li, b.r.g.follow[l.lhs], b.la, l.lhs, l.next.item) {
-			return true
-		}
+	if m.next == nil {
+		return false
 	}
-	return false
+	if crosses, ok := m.crosses[b.laKey]; ok {
+		return crosses
+	}
+	b.r.leoLinks++
+	li := slices.Index(b.r.g.lhs[m.adv], m.lhs)
+	crosses := !b.r.judge.completes(m.adv, li, b.r.g.follow[m.lhs], b.la, m.lhs, m.next.item) || b.leoCrosses(m.next)
+	if m.crosses == nil {
+		m.crosses = map[crossKey]bool{}
+	}
+	m.crosses[b.laKey] = crosses
+	return crosses
 }

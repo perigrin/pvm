@@ -27,7 +27,20 @@ const completionProbesBound = 0.64
 // item of every parent set it reads.
 func TestCompletionProbesBounded(t *testing.T) {
 	tab, files := corpusSample(t)
-	r := New(tab, Options{})
+	checkCompletionProbes(t, New(tab, Options{}), files)
+}
+
+// TestCompletionProbesBoundedJudged: the derived judged recognizer, whose Leo
+// step walks the memo chain (leoCrosses), holds the same bound.
+func TestCompletionProbesBoundedJudged(t *testing.T) {
+	tab, files := corpusSample(t)
+	checkCompletionProbes(t, mustJudged(t, tab, nil, Options{}), files)
+}
+
+// checkCompletionProbes holds r's goTo binary searches per token over
+// files within completionProbesBound.
+func checkCompletionProbes(t *testing.T, r *Recognizer, files []sampleFile) {
+	t.Helper()
 	tokens := 0
 	for _, f := range files {
 		mustRecognize(t, r, f.l)

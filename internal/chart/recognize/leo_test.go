@@ -245,7 +245,20 @@ func storedMemo(c *Chart, at, sym int) (*memo, bool) {
 // computation.
 func TestLeoMemoEntriesBounded(t *testing.T) {
 	tab, files := corpusSample(t)
-	r := New(tab, Options{})
+	checkLeoMemoEntries(t, New(tab, Options{}), files)
+}
+
+// TestLeoMemoEntriesBoundedJudged: the derived judged recognizer holds the
+// same bound.
+func TestLeoMemoEntriesBoundedJudged(t *testing.T) {
+	tab, files := corpusSample(t)
+	checkLeoMemoEntries(t, mustJudged(t, tab, nil, Options{}), files)
+}
+
+// checkLeoMemoEntries holds r's stored memo entries per node over
+// files within leoMemoEntriesBound.
+func checkLeoMemoEntries(t *testing.T, r *Recognizer, files []sampleFile) {
+	t.Helper()
 	nodes, entries := 0, 0
 	for _, f := range files {
 		c := mustRecognize(t, r, f.l)
@@ -256,6 +269,125 @@ func TestLeoMemoEntriesBounded(t *testing.T) {
 	t.Logf("%d stored Leo memo entries over %d nodes: %.4f per node", entries, nodes, per)
 	if per > leoMemoEntriesBound {
 		t.Errorf("%.4f stored Leo memo entries per node, above the bound %v", per, leoMemoEntriesBound)
+	}
+}
+
+// leoLinksPerTokenBound is the most memo links the judged recognizer's
+// leoCrosses may walk per lexer token over corpusSample: the count measured
+// once each memo kept its verdict per lookahead (58 over 34924 tokens,
+// 0.0017), rounded up as the other bounds are.
+const leoLinksPerTokenBound = 0.0017
+
+// TestLeoLinksPerTokenBoundedJudged: the memo links leoCrosses walks per token
+// over corpusSample are some, so the count is live, and stay within
+// leoLinksPerTokenBound. Neither the probe bound nor the memo bound sees the
+// walk.
+func TestLeoLinksPerTokenBoundedJudged(t *testing.T) {
+	tab, files := corpusSample(t)
+	r := mustJudged(t, tab, nil, Options{})
+	tokens := 0
+	for _, f := range files {
+		mustRecognize(t, r, f.l)
+		tokens += len(f.l.Edges)
+	}
+	per := float64(r.leoLinks) / float64(tokens)
+	t.Logf("%d Leo memo links walked over %d tokens: %.4f per token", r.leoLinks, tokens, per)
+	if r.leoLinks == 0 || per > leoLinksPerTokenBound {
+		t.Errorf("%.4f Leo memo links walked per token; want some, and at most the bound %v", per, leoLinksPerTokenBound)
+	}
+}
+
+// unitsLattice is unit n times, then end, one token per node; with dead, each
+// node also has an edge reading dead to the next, which nothing awaits there,
+// so the node's lookahead is a union (Recognizer.lookahead).
+func unitsLattice(tab *grammar.Tables, unit []string, n int, end, dead string) *lex.Lattice[lex.None] {
+	in := append(slices.Repeat(unit, n), end)
+	l := tokens(tab, in...)
+	if dead != "" {
+		for k := range in {
+			l.Edges = append(l.Edges, toyEdge(tab, k, k+1, dead))
+		}
+		slices.SortStableFunc(l.Edges, func(a, b lex.Edge) int { return a.From - b.From })
+	}
+	return l
+}
+
+// TestJudgedLeoWalkLinear: on S ::= L T, whose right-recursive L can be
+// followed by the token that continues it, the judged recognizer takes a Leo
+// chain at nearly every node of uⁿ c, for a unit u of one, two or three
+// tokens, so the lookahead is the same class at every node, alternates, or
+// cycles through three; and through a dead q edge at every node, so it
+// alternates between two unions. In each case the memo links leoCrosses walks
+// over 2n at most double those over n, give or take, while the Leo steps grow
+// with n: a chain is walked once per distinct lookahead, not once per node.
+func TestJudgedLeoWalkLinear(t *testing.T) {
+	two := []string{"S ::= L T | q", "L ::= a L | b L | a | b", "T ::= a T | b T | c"}
+	for _, tc := range []struct {
+		name      string
+		rules     []string
+		unit      []string
+		end, dead string
+	}{
+		{"one token", []string{"S ::= L T", "L ::= a L | a", "T ::= a T | b"}, []string{"a"}, "b", ""},
+		{"two alternating", two, []string{"a", "b"}, "c", ""},
+		{"three cycling", []string{"S ::= L T", "L ::= a L | b L | d L | a | b | d", "T ::= a T | b T | d T | c"}, []string{"a", "b", "d"}, "c", ""},
+		{"two alternating unions", two, []string{"a", "b"}, "c", "q"},
+	} {
+		tab, p := precToy(t, nil, nil, nil, tc.rules...)
+		walk := func(n int) (steps, links int) {
+			r := mustJudged(t, tab, p, Options{})
+			if c := mustRecognize(t, r, unitsLattice(tab, tc.unit, n, tc.end, tc.dead)); !c.Accepted() {
+				t.Fatalf("%s: n %d refused", tc.name, n)
+			}
+			return r.leoSteps, r.leoLinks
+		}
+		const n = 200
+		s1, w1 := walk(n)
+		s2, w2 := walk(2 * n)
+		t.Logf("%s: leo steps: %d at %d, %d at %d", tc.name, s1, n, s2, 2*n)
+		t.Logf("%s: leo walk: %d at %d, %d at %d", tc.name, w1, n, w2, 2*n)
+		if s1 <= 0 || s2 <= s1 {
+			t.Errorf("%s: leo steps: %d at %d, %d at %d; want them non-zero and growing with n", tc.name, s1, n, s2, 2*n)
+		}
+		if w1 == 0 || float64(w2) > 2.5*float64(w1) {
+			t.Errorf("%s: leo walk: %d at %d, %d at %d; want the first non-zero and the second at most 2.5 times it", tc.name, w1, n, w2, 2*n)
+		}
+	}
+}
+
+// TestLeoCrossingVerdictPerLookahead: on S ::= L T, L ::= a L | b L | a | b,
+// where L ::= a L carries %prec X below b and bison's states hold L ::= a L b,
+// the chain from a memo crosses a refused completion before b and not before
+// a. Over (a b)ⁿ c, whose lookahead alternates by class, and with a dead q
+// edge at every node, by union, the judged recognizer with Leo and without
+// agree on acceptance, Expected and the refusal records at every node, with
+// Leo chains both taken and declined: a verdict kept for one lookahead is
+// never served for another.
+func TestLeoCrossingVerdictPerLookahead(t *testing.T) {
+	name := func(s string) grammar.Symbol { return grammar.Symbol{Kind: grammar.Name, Text: s} }
+	tab, p := precToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"X"}}, {N: 2, Assoc: "right", Tokens: []string{"b"}}},
+		[]string{"", "", "X"}, []grammar.Rule{{LHS: "L", RHS: []grammar.Symbol{name("a"), name("L"), name("b")}}},
+		"S ::= L T | q", "L ::= a L | b L | a | b", "T ::= a T | b T | c")
+	for _, dead := range []string{"", "q"} {
+		l := unitsLattice(tab, []string{"a", "b"}, 6, "c", dead)
+		for _, noLA := range []bool{false, true} {
+			on := mustJudged(t, tab, p, Options{NoLookahead: noLA})
+			off := mustJudged(t, tab, p, Options{NoLookahead: noLA, NoLeo: true})
+			a, b := mustRecognize(t, on, l), mustRecognize(t, off, l)
+			if on.leoSteps == 0 || on.leoRefused == 0 {
+				t.Errorf("dead %q, lookahead off %v: leo steps %d, chains declined %d; want both", dead, noLA, on.leoSteps, on.leoRefused)
+			}
+			if a.Accepted() != b.Accepted() || !a.Accepted() {
+				t.Errorf("dead %q, lookahead off %v: accepted %v with Leo, %v without", dead, noLA, a.Accepted(), b.Accepted())
+			}
+			for pos := range a.Sets {
+				x, _ := a.Expected(pos)
+				y, _ := b.Expected(pos)
+				if !slices.Equal(x, y) || !slices.Equal(recordsAt(a, pos), recordsAt(b, pos)) {
+					t.Errorf("dead %q, lookahead off %v, node %d: Expected %v and records %v with Leo, %v and %v without", dead, noLA, pos, x, recordsAt(a, pos), y, recordsAt(b, pos))
+				}
+			}
+		}
 	}
 }
 
