@@ -11,6 +11,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -41,8 +42,9 @@ func TestForestBlocksSizedForTinySources(t *testing.T) {
 
 // TestForestGrammarDataOncePerTables: however many forests are built over
 // one tables value, its grammar-only forest data is built once; a copy of
-// the tables builds its own; and the recognizer's grammar-only tables, kept
-// beside the same value, are the same value before and after.
+// the tables builds its own; and the judged recognizer's derived values, its
+// grammar-only tables, its judgement and prectab's precedence, kept beside
+// the same value, are the same values before and after.
 func TestForestGrammarDataOncePerTables(t *testing.T) {
 	tab := new(grammar.Tables)
 	*tab = *committedTables(t) // a value of its own, so nothing built beside the shared one counts
@@ -68,8 +70,9 @@ func TestForestGrammarDataOncePerTables(t *testing.T) {
 	}
 	after := derivedValues(tab)
 	forestType := reflect.ValueOf(reflect.TypeFor[*forestGrammar]()).Pointer()
-	if len(recognizer) != 1 || len(after) != 2 || after[forestType] == 0 {
-		t.Fatalf("derived values before the forests %v, after %v; want the recognizer's, then it and the forest's", recognizer, after)
+	precType := reflect.ValueOf(reflect.TypeFor[prectab.Parsed]()).Pointer()
+	if len(recognizer) != 3 || recognizer[precType] == 0 || len(after) != 4 || after[forestType] == 0 {
+		t.Fatalf("derived values before the forests %v, after %v; want the recognizer's two and prectab's, then those and the forest's", recognizer, after)
 	}
 	for typ, v := range recognizer {
 		if after[typ] != v {
@@ -86,12 +89,17 @@ func TestForestGrammarDataOncePerTables(t *testing.T) {
 }
 
 // derivedValues is what grammar.Derived keeps beside tab, as each value's
-// address by its type's: read by reflection, since the slots are grammar's.
+// address by its type's, a struct value's by its first field's: read by
+// reflection, since the slots are grammar's.
 func derivedValues(tab *grammar.Tables) map[uintptr]uintptr {
 	out := map[uintptr]uintptr{}
 	m := reflect.ValueOf(tab).Elem().FieldByName("derived")
 	for _, k := range m.MapKeys() {
-		out[k.Elem().Pointer()] = m.MapIndex(k).Elem().FieldByName("value").Elem().Pointer()
+		v := m.MapIndex(k).Elem().FieldByName("value").Elem()
+		if v.Kind() == reflect.Struct {
+			v = v.Field(0)
+		}
+		out[k.Elem().Pointer()] = v.Pointer()
 	}
 	return out
 }

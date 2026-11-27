@@ -55,7 +55,7 @@ func withSet(l *lex.Lattice[lex.None], from, to int) *lex.Lattice[lex.None] {
 
 // TestRecognizersShareGrammarTables: two recognizers over one tables value
 // share its grammar-only tables, recognize the corpus sample in parallel
-// goroutines exactly as one each alone does, and both see a set added to
+// goroutines exactly as one each alone, over a separate tables value, does, and both see a set added to
 // the tables after both were built. Run under -race.
 func TestRecognizersShareGrammarTables(t *testing.T) {
 	tab := ownTables(committedTables(t))
@@ -64,9 +64,10 @@ func TestRecognizersShareGrammarTables(t *testing.T) {
 		s, _ := lex.Lex(readFile(t, p), tab.Tokens)
 		files = append(files, lex.Linear(s))
 	}
-	want := make([]string, len(files))
+	// One tables value of its own for every baseline, so judged perly.y's precedence is derived once, not per file.
+	alone, want := ownTables(tab), make([]string, len(files))
 	for i, l := range files {
-		want[i] = outcome(t, New(ownTables(tab), Options{}), l)
+		want[i] = outcome(t, New(alone, Options{}), l)
 	}
 	rs := []*Recognizer{New(tab, Options{}), New(tab, Options{})}
 	if rs[0].g != rs[1].g {

@@ -124,9 +124,10 @@ func TestVerdictKeysNeedEveryLabel(t *testing.T) {
 }
 
 // TestRatchetVerdictIsPipeline: the chart's verdict is the whole pipeline's
-// (forest.Parse), so a comparison chain (precedence) and a method outside a
-// class under the class feature (scope), which recognition accepts and perl
-// -c refuses, are refused, while the same method word with the feature off,
+// (forest.Parse), so a method outside a class under the class feature
+// (scope), which recognition accepts and perl -c refuses, is refused, and a
+// comparison chain (precedence), which the judged chart itself refuses, is
+// neither recognized nor accepted, while the same method word with the feature off,
 // which perl reads as a call, is accepted; a call to a sub a module beside the
 // file exports is accepted only under the file's scope facts (parse.Imports
 // over the verdict RD's tree). And chart-accepted-both-refused counts a file
@@ -151,9 +152,9 @@ func TestRatchetVerdictIsPipeline(t *testing.T) {
 	dirs := func(string) []string { return []string{dir} }
 	tab := committedTables(t)
 	in := chartInputs(tab, srcs, nil, nil, dirs)
-	for p, accepted := range map[string]bool{"prec.pl": false, "scope.pl": false, "word.pl": true, "imports.pl": true} {
-		if r, err := in.Chart(p); err != nil || !r.Recognized || r.Accepted != accepted {
-			t.Errorf("%s: %+v, %v; want recognized, and accepted=%v by the pipeline", p, r, err, accepted)
+	for p, want := range map[string][2]bool{"prec.pl": {false, false}, "scope.pl": {true, false}, "word.pl": {true, true}, "imports.pl": {true, true}} {
+		if r, err := in.Chart(p); err != nil || r.Recognized != want[0] || r.Accepted != want[1] {
+			t.Errorf("%s: %+v, %v; want recognized=%v, and accepted=%v by the pipeline", p, r, err, want[0], want[1])
 		}
 	}
 	if _, ok := in.Scope("imports.pl").Imports["mine"]; !ok {
@@ -188,16 +189,21 @@ func TestRatchetCountsPipelineOverRefusal(t *testing.T) {
 
 // TestRecognitionKeysUnchangedByPipeline: leo-disagree, items-per-token,
 // set-reuse and lex-unmapped stay recognition's. On a file recognition
-// accepts and the pipeline refuses, each reads the same as under a verdict
-// that takes recognition's acceptance.
+// accepts and the pipeline refuses for scope (a method outside a class under
+// the class feature), each reads the same as under a verdict that takes
+// recognition's acceptance.
 func TestRecognitionKeysUnchangedByPipeline(t *testing.T) {
 	tab := committedTables(t)
-	srcs := map[string][]byte{"prec.pl": []byte("$a <=> $b <=> $c;")}
-	files := []File{{"prec.pl", "x"}}
-	piped := chartInputs(tab, srcs, nil, func(string) *perlVerdict { return refuse("precedence") }, ownDir)
-	if r, err := piped.Chart("prec.pl"); err != nil || r.Accepted || !r.Recognized {
+	srcs := map[string][]byte{"scope.pl": []byte("use feature 'class'; no warnings; method foo {}")}
+	files := []File{{"scope.pl", "x"}}
+	piped := chartInputs(tab, srcs, nil, func(string) *perlVerdict { return refuse("scope") }, ownDir)
+	if r, err := piped.Chart("scope.pl"); err != nil || r.Accepted || !r.Recognized {
 		t.Fatalf("the fixture: %+v, %v; want recognized and refused by the pipeline, or it proves nothing", r, err)
 	}
+	if _, ref := forest.Parse(tab, srcs["scope.pl"], piped.Scope("scope.pl")); ref.Reason != "scope" {
+		t.Fatalf("the fixture is refused by the pipeline %+v, want for scope", ref)
+	}
+	t.Log("fixture refused by the pipeline: scope")
 	recognized := piped
 	recognized.Chart = func(p string) (chartResult, error) {
 		r, err := piped.Chart(p)
