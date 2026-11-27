@@ -393,18 +393,15 @@ func TestPrecedenceRefereeKeepsSlipperLeaves(t *testing.T) {
 				t.Errorf("%s %q: %s %s with the slipper's leaves, %s %s without", s.id, s.rendering, v, g, dv, dg)
 			}
 		}
-		ambiguous += btoi(strings.HasPrefix(g, "ambiguous"))
-		cut += btoi(strings.HasPrefix(g, "more than"))
+		switch {
+		case strings.HasPrefix(g, "ambiguous"):
+			ambiguous++
+		case strings.HasPrefix(g, "more than"):
+			cut++
+		}
 	}
 	t.Logf("slipper ; insertions: %d of %d; forests keeping a zero-width ; leaf: %d; moved: %d; ambiguous: %d; cut: %d", inserted, kept, leaves, moved, ambiguous, cut)
 	if inserted == 0 || leaves == 0 || moved > 0 || ambiguous > 0 || cut > 0 {
 		t.Errorf("want some insertions and kept leaves, and nothing moved, ambiguous or cut")
 	}
-}
-
-func btoi(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
