@@ -174,8 +174,8 @@ var CandidateForest = func(tab *grammar.Tables, src []byte, scope Scope) (*Fores
 	return f, ref
 }
 
-// reduceSideRecognizer is the reduce side's recognizer over tab, judged with p (nil: derived), a variable so a test
-// can see the reduce-side candidates take theirs from it and that it judges.
+// reduceSideRecognizer is the judged recognizer over tab, judged with p (nil: derived), a variable so a test can see
+// the reduce-side and judged-recognizer candidates take theirs from it and that it judges.
 var reduceSideRecognizer = func(tab *grammar.Tables, p *prectab.Precedence) (*recognize.Recognizer, error) {
 	return recognize.NewJudged(tab, p, recognize.Options{})
 }
@@ -221,4 +221,30 @@ var CandidateToyForest = func(tab *grammar.Tables, l *lex.Lattice[lex.None], p *
 		return nil, nil
 	}
 	return f, nil
+}
+
+// JudgedForest is the judged recognizer's forest of src with no Constrain: production's stages before Constrain
+// (builtStream), the lattice narrowed under scope, with the judged recognizer, perly.y's precedence derived, then
+// Build. Where the chart refuses, the forest is nil.
+func JudgedForest(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
+	r, err := reduceSideRecognizer(tab, nil)
+	if err != nil {
+		return nil, Refusal{Reason: err.Error()}
+	}
+	f, _, ref := builtStream(tab, r, src, scope)
+	return f, ref
+}
+
+// JudgedToyForest is the judged recognizer's toy forest with no Constrain: the judged recognizer under the toy's own
+// precedence p, then Build; nil where the chart refuses.
+func JudgedToyForest(tab *grammar.Tables, l *lex.Lattice[lex.None], p *prectab.Precedence) (*Forest, error) {
+	r, err := reduceSideRecognizer(tab, p)
+	if err != nil {
+		return nil, err
+	}
+	c, err := recognize.Recognize(r, l)
+	if err != nil || !c.Accepted() {
+		return nil, err
+	}
+	return Build(tab, c, l), nil
 }

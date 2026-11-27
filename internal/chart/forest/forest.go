@@ -125,19 +125,12 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 	return f, s, Refusal{}
 }
 
-// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is. The
-// lattice is narrowed before recognition (Narrow), so a library operator's dead reading never reaches the chart.
+// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is.
 func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
-	s, unmapped := lex.Lex(src, tab.Tokens)
-	l, narrowed := narrow(tab, s, src, scope)
-	c, err := recognize.Recognize(r, l)
-	if err != nil {
-		return nil, s, Refusal{Reason: err.Error()}
+	f, s, ref := builtStream(tab, r, src, scope)
+	if f == nil {
+		return nil, s, ref
 	}
-	if !c.Accepted() {
-		return nil, s, refusal(tab, c, s, len(src), unmapped, narrowed)
-	}
-	f := Build(tab, c, l)
 	prec, err := prectab.ParsePrecedence(tab)
 	if err != nil {
 		return nil, s, Refusal{Reason: err.Error()}
@@ -148,6 +141,21 @@ func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte,
 		return nil, s, Refusal{Reason: "precedence"}
 	}
 	return f, s, Refusal{}
+}
+
+// builtStream is constrainedStream before Constrain: Build's forest of r's chart. The lattice is narrowed before
+// recognition (Narrow), so a library operator's dead reading never reaches the chart.
+func builtStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
+	s, unmapped := lex.Lex(src, tab.Tokens)
+	l, narrowed := narrow(tab, s, src, scope)
+	c, err := recognize.Recognize(r, l)
+	if err != nil {
+		return nil, s, Refusal{Reason: err.Error()}
+	}
+	if !c.Accepted() {
+		return nil, s, refusal(tab, c, s, len(src), unmapped, narrowed)
+	}
+	return Build(tab, c, l), s, Refusal{}
 }
 
 // refusal is why c, the refused chart of s's lattice, refuses a file of size bytes whose first unmapped token is at
@@ -216,10 +224,10 @@ type builder struct {
 	memo  []int32
 	links []link
 	work  []int // facts whose node waits for its Alts
-	// leoAt is each completion a Leo memo skipped, by node and link; contexts is whether any item or link carries a
-	// context, without which every alternative stands under none (bycontext.go).
-	leoAt    []leoFact
-	contexts bool
+	// leoAt is each completion a Leo memo skipped, by node and link; walk is whether any item or link carries a
+	// context or any node has refusal records, without which every alternative Build made stands (bycontext.go).
+	leoAt []leoFact
+	walk  bool
 }
 
 // fact is a rule the chart completed for sym from from, small to keep the
@@ -295,8 +303,8 @@ func buildForestGrammar(tab *grammar.Tables) *forestGrammar {
 const nodesPerToken, altsPerToken = 6, 5
 
 // Build is the forest of c, a chart of l; nil where c does not accept or l is not linear.
-// It reads no completion the judged recognizer refused into every parent
-// (recognize.Chart.RuleRefused), and walks by context (bycontext.go).
+// It walks by context, and keeps no completion the judged recognizer refused
+// into every parent (recognize.Chart.RuleRefused; bycontext.go).
 // It only reads c, so builds of one recognizer's charts may run at once, from
 // any goroutines, while that recognizer is not recognizing (recognize.Chart).
 // shortcut: l must be linear, as up-front lexing makes it, so the token
@@ -354,16 +362,15 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], to
 			for _, it := range items {
 				o := j - it.Dist
 				b.items[fill[o]] = placed{int32(j), int32(it.State), int32(it.Ctx)}
-				b.contexts = b.contexts || it.Ctx != 0
+				b.walk = b.walk || it.Ctx != 0
 				fill[o]++
 				for _, r := range tab.States[it.State].Reduces {
-					if lhs := tab.Rules[r].LHS; !c.RuleRefused(j, r, lhs, o) {
-						b.facts = append(b.facts, mk(lhs, o, r))
-					}
+					b.facts = append(b.facts, mk(tab.Rules[r].LHS, o, r))
 				}
 			}
 		}
 		b.leoFacts(j)
+		b.walk = b.walk || c.RefusedAt(j)
 	}
 	b.at[n] = len(b.facts)
 	b.steps += len(b.facts)
@@ -412,7 +419,7 @@ func (b *builder) leoFacts(j int) {
 			b.links[l].walked = j
 			b.facts = append(b.facts, mk(b.tab.Rules[b.links[l].rule].LHS, b.links[l].origin, b.links[l].rule))
 			b.leoAt = append(b.leoAt, leoFact{j, l})
-			b.contexts = b.contexts || b.links[l].ctx != 0
+			b.walk = b.walk || b.links[l].ctx != 0
 		}
 	}
 	if len(b.facts) > b.at[j]+len(seg) {

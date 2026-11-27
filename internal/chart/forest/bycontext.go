@@ -1,5 +1,5 @@
 // ABOUTME: Build's walk by context (C6): a node keeps only the alternatives the chart completed under a context it is
-// ABOUTME: reached under, so one completed under a context whose parent chain died is never attached to it.
+// ABOUTME: reached under, so neither one of a dead context nor one of a rule refused into every parent is attached.
 
 package forest
 
@@ -12,10 +12,11 @@ type leoFact struct{ at, link int }
 // item's context, and each kept alternative's children under the contexts that predicted them, its left one under
 // its own and its right one under the one the item before it predicts (recognize.Chart.Predicts). A node reached
 // keeps the alternatives the chart derived under one of the contexts it is reached under, in Build's order, and drops
-// the rest: one completed only under a context whose parent chain died. A chart none of whose items carries a
-// context derives every alternative under none, so it keeps them all.
+// the rest: one completed only under a context whose parent chain died, and one of a rule the recognizer refused into
+// every parent. A chart with no context and no refusal derives every alternative Build made under none, so it keeps
+// them all.
 func (b *builder) byContext() {
-	if !b.contexts || b.Root == 0 {
+	if !b.walk || b.Root == 0 {
 		return
 	}
 	type reach struct{ n, ctx int32 }

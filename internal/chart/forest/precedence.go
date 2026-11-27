@@ -5,6 +5,7 @@ package forest
 
 import (
 	"slices"
+	"sync/atomic"
 
 	"tamarou.com/pvm/internal/chart/prectab"
 )
@@ -20,8 +21,13 @@ import (
 // different alternatives keeps both; the verdict is exact, and only the derivations a later reader enumerates
 // can include one bison builds in neither. Revisit if READINGS counts one.
 func (f *Forest) Constrain(p *prectab.Precedence) bool {
+	constrainEntries.Add(1)
 	return newJudgement(f, p).constrain()
 }
+
+// constrainEntries counts Constrain's calls, for the test that the judged-recognizer differential's candidate makes
+// none and its V1 side does.
+var constrainEntries atomic.Int64
 
 // constrain is Constrain on the judgement's forest, its memo as it stands.
 func (c *judgement) constrain() bool {
