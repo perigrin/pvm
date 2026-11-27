@@ -2982,7 +2982,7 @@ zero-width `;` after recognition, and nothing needs to: no reduction before
   swapped grouping and a flipped verdict reported, and
   `TestPrecedenceKeepsCorpusAccepted` that `Constrain`, on the no-precedence
   forest, refuses no in-tree file perl and the no-precedence chart accept (the
-  Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824).
+  Guacamole snippets, `std5k.pl`, `edit5k.pl`), logging how many it kept.
 - **The differential checks** compare against `ConstrainReference`, the
   fixed point (decision §3.4), and come in two kinds.
   - **The production differentials** compare production's forest, the
