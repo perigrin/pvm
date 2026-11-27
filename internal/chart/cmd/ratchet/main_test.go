@@ -5,6 +5,8 @@ package main
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -19,7 +21,7 @@ var resetKeys = []string{
 	"tdt-unseen-unlisted", "tdt-unaligned-unlisted", "lex-overhead", "lex-overhead-std5k", "lex-overhead-aggregate",
 	"speed-ratio-std5k-longlived", "speed-ratio-aggregate-longlived", "speed-ratio-aggregate-perfile",
 	"speed-stage-lex-aggregate-longlived", "speed-stage-recognize-aggregate-longlived", "speed-stage-forest-aggregate-longlived",
-	"speed-stage-precedence-aggregate-longlived", "speed-stage-resolve-aggregate-longlived", "speed-stage-readings-aggregate-longlived",
+	"speed-stage-resolve-aggregate-longlived", "speed-stage-readings-aggregate-longlived",
 	"alloc-per-token-chart", "alloc-per-token-rd", "alloc-per-token-recognize", "alloc-per-token-forest",
 	"gc-cpu-share-chart", "gc-cpu-share-rd", "items-per-token", "set-reuse", "ledger-excluded",
 	"superset-population", "superset-recognized", "rd-accepted-perl-refused", "chart-accepted-perl-refused",
@@ -99,5 +101,22 @@ func TestGeneratorRefusalIsAnError(t *testing.T) {
 	}
 	if m != nil {
 		t.Errorf("a refused grammar still measured %v", m)
+	}
+}
+
+// TestCommittedBaselineMatchesKeys: the committed baseline.txt holds exactly the keys the ratchet prints, so a key
+// retired from keys and not from the baseline, or the reverse, fails here and not only in make chart-ratchet, which
+// needs perl.git.
+func TestCommittedBaselineMatchesKeys(t *testing.T) {
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", baselineFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := Parse(string(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkBaseline(ms); err != nil {
+		t.Fatal(err)
 	}
 }
