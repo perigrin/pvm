@@ -276,6 +276,29 @@ func narrowedLattice(tab *grammar.Tables, src []byte, scope forest.Scope) (*lex.
 	return s, forest.Narrow(tab, s, src, scope)
 }
 
+// stageFuncs are the three stages measureStages times: lexOf narrows as forest.ParseWith narrows (so recognizer is
+// handed narrowed lattices), recognizer recognizes a lattice, forestOf builds its forest. A recognizer error panics.
+func stageFuncs(tab *grammar.Tables, scopes map[string]forest.Scope, srcs map[string][]byte) (
+	lexOf func(string) *lex.Lattice[lex.None], recognizer func() func(*lex.Lattice[lex.None]) *recognize.Chart,
+	forestOf func(*recognize.Chart, *lex.Lattice[lex.None])) {
+	lexOf = func(path string) *lex.Lattice[lex.None] { // narrowed as forest.ParseWith narrows it
+		_, l := narrowedLattice(tab, srcs[path], scopes[path])
+		return l
+	}
+	recognizer = func() func(*lex.Lattice[lex.None]) *recognize.Chart {
+		r := recognize.New(tab, recognize.Options{})
+		return func(l *lex.Lattice[lex.None]) *recognize.Chart {
+			c, err := recognize.Recognize(r, l)
+			if err != nil {
+				panic("chart-ratchet: speed: " + err.Error())
+			}
+			return c
+		}
+	}
+	forestOf = func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }
+	return lexOf, recognizer, forestOf
+}
+
 // chartStages times the chart's stages (measureStages, then
 // measurePipelineStages under scope) over tab, and adds
 // gc-cpu-share-chart (lex, recognize and forest) and gc-cpu-share-rd (p's
@@ -289,21 +312,7 @@ func chartStages(p Protocol, tab *grammar.Tables, agg []string, tokens int, srcs
 	for _, path := range agg {
 		scopes[path] = scope(path)
 	}
-	lexOf := func(path string) *lex.Lattice[lex.None] { // narrowed as forest.ParseWith narrows it
-		_, l := narrowedLattice(tab, srcs[path], scopes[path])
-		return l
-	}
-	recognizer := func() func(*lex.Lattice[lex.None]) *recognize.Chart {
-		r := recognize.New(tab, recognize.Options{})
-		return func(l *lex.Lattice[lex.None]) *recognize.Chart {
-			c, err := recognize.Recognize(r, l)
-			if err != nil {
-				panic("chart-ratchet: speed: " + err.Error())
-			}
-			return c
-		}
-	}
-	forestOf := func(c *recognize.Chart, l *lex.Lattice[lex.None]) { forest.Build(tab, c, l) }
+	lexOf, recognizer, forestOf := stageFuncs(tab, scopes, srcs)
 	chart := func() Runner {
 		rec := recognizer()
 		return func(f string) { l := lexOf(f); forestOf(rec(l), l) }

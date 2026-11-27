@@ -331,8 +331,9 @@ func TestPipelineStagesHaveNoPrecedenceStage(t *testing.T) {
 	}
 }
 
-// TestStageRecognizeTimesNarrowedLattice: the lattices the recognize stage is timed on, and the stages' forests are
-// built from, are forest.Narrow's under the file's own scope, which here differs from an empty Scope's.
+// TestStageRecognizeTimesNarrowedLattice: the lattices measureStages hands the recognize stage, from the stage
+// functions chartStages times, are forest.Narrow's under the file's own scope, which here differs from an empty
+// Scope's; the stage's recognizer is wrapped to capture what it receives.
 func TestStageRecognizeTimesNarrowedLattice(t *testing.T) {
 	tab := committedTables(t)
 	t.Cleanup(parse.OverlayDeclarations(os.DirFS(filepath.Join("..", "..", "testdata", "libops"))))
@@ -340,10 +341,24 @@ func TestStageRecognizeTimesNarrowedLattice(t *testing.T) {
 	root := parse.ParseWithLoader(src, func(string) ([]byte, bool) { return nil, false })
 	own := forest.Scope{Imports: parse.Imports(root), LibraryOperators: parse.LibraryOperators(root)}
 	s, _ := lex.Lex(src, tab.Tokens)
-	if _, got := narrowedLattice(tab, src, own); !reflect.DeepEqual(got, forest.Narrow(tab, s, src, own)) {
-		t.Error("the stage's lattice is not forest.Narrow's under the file's scope")
+	want, empty := forest.Narrow(tab, s, src, own), forest.Narrow(tab, s, src, forest.Scope{})
+	if reflect.DeepEqual(want, empty) {
+		t.Fatal("an empty Scope narrows the file as its own scope does, so the test cannot tell them apart")
 	}
-	if _, empty := narrowedLattice(tab, src, forest.Scope{}); reflect.DeepEqual(empty, forest.Narrow(tab, s, src, own)) {
-		t.Fatal("an empty Scope narrows ops.pl as its own does, so the test cannot tell them apart")
+	lexOf, recognizer, forestOf := stageFuncs(tab, map[string]forest.Scope{"ops.pl": own}, map[string][]byte{"ops.pl": src})
+	var got []*lex.Lattice[lex.None]
+	spy := func() func(*lex.Lattice[lex.None]) *recognize.Chart {
+		rec := recognizer()
+		return func(l *lex.Lattice[lex.None]) *recognize.Chart { got = append(got, l); return rec(l) }
+	}
+	var now time.Duration
+	measureStages(fakeStageProtocol(&now, io.Discard), []string{"ops.pl"}, 1, lexOf, spy, forestOf, map[string]string{})
+	if len(got) == 0 {
+		t.Fatal("the recognize stage received no lattice")
+	}
+	for _, l := range got {
+		if !reflect.DeepEqual(l, want) {
+			t.Fatal("the recognize stage received a lattice other than forest.Narrow's under the file's scope")
+		}
 	}
 }
