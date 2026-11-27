@@ -466,14 +466,15 @@ func (b *builder) scan(e lex.Edge) {
 // completes only if something la holds can follow its LHS; a nil la completes every rule. Where a Leo
 // memo applies, the top of the recursion is added in one step. With b.la, the
 // reduce side refuses a completion its precedence forbids, and records each
-// parent state it refused (judge.go).
+// parent state it refused (judge.go). A completion advances only the parents
+// that predicted it under its context (predicts, §4.3).
 func (b *builder) complete(la bitset) {
 	j := b.r.judge
 	if b.la == nil {
 		j = nil
 	}
 	for i := 0; i < len(b.items); i++ {
-		state, origin := b.items[i][0], b.items[i][1]
+		state, origin, ctx := b.items[i][0], b.items[i][1], b.items[i][2]
 		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
@@ -499,25 +500,28 @@ func (b *builder) complete(la bitset) {
 			}
 			b.read(origin, src)
 			if !dep {
-				if top, ok := b.leo(origin, lhs, la); ok {
+				if top, ok := b.leo(origin, lhs, ctx, la); ok {
 					b.add(top[0], top[1], top[2])
 					continue
 				}
 			}
 			if src.core != nil {
 				for _, en := range b.r.awaiting(src, lhs) {
-					if dep && !j.completes(state, li, follow, b.la, lhs, src.items[en.idx].State) {
-						b.refuse(lhs, origin, src.items[en.idx].State)
+					it := src.items[en.idx]
+					if b.r.predicts(it.State, it.Ctx) != ctx {
 						continue
 					}
-					it := src.items[en.idx]
+					if dep && !j.completes(state, li, follow, b.la, lhs, it.State) {
+						b.refuse(lhs, origin, it.State)
+						continue
+					}
 					b.add(int(en.target), origin-it.Dist, it.Ctx)
 				}
 				continue
 			}
 			// shortcut: as in scan, a branch set searches every item.
 			for _, it := range src.items {
-				if k, ok := b.r.goTo(it.State, lhs); ok {
+				if k, ok := b.r.goTo(it.State, lhs); ok && b.r.predicts(it.State, it.Ctx) == ctx {
 					if dep && !j.completes(state, li, follow, b.la, lhs, it.State) {
 						b.refuse(lhs, origin, it.State)
 						continue

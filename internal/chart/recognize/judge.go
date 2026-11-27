@@ -116,6 +116,16 @@ func (r *Recognizer) predictedContext(state int) int {
 	return r.judge.ctx[state]
 }
 
+// predicts is the context an item of state under context ctx predicts its children under: its own where state is a
+// predicted state, whose items predict by left corner, and the context its kernel state predicts under otherwise.
+// A completion advances only the parents that predicted it under its context (§4.3, the pairing rule).
+func (r *Recognizer) predicts(state, ctx int) int {
+	if r.tab.States[state].Predicted {
+		return ctx
+	}
+	return r.predictedContext(state)
+}
+
 // startContext is the context of the start item at node 0.
 func (r *Recognizer) startContext() int {
 	if r.judge == nil {

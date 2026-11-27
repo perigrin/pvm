@@ -17,33 +17,47 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	if c.r.opts.NoLeo || at < 0 || at >= len(c.Sets) {
 		return 0, 0, false, false
 	}
-	n, state := 0, 0
-	if set := c.Sets[at]; set != nil && set.core != nil {
-		if !c.r.g.leoSym[sym] {
-			return 0, 0, false, false
+	if set := c.Sets[at]; set != nil && set.core != nil && !c.r.g.leoSym[sym] {
+		return 0, 0, false, false
+	}
+	it, ok := c.awaitingOne(at, sym)
+	if !ok {
+		return 0, 0, false, false
+	}
+	lhs, ok := c.r.g.leo[[2]int{it.State, sym}]
+	if !ok {
+		return 0, 0, false, false
+	}
+	for _, i := range c.r.tab.States[it.State].Leo {
+		if x := c.r.tab.Items[i]; c.r.tab.Rules[x.Rule].RHS[x.Dot] == sym {
+			rule = x.Rule
 		}
+	}
+	origin = at - it.Dist
+	more = origin < at && (lhs != c.r.tab.Start || origin != 0)
+	if p, ok := c.awaitingOne(origin, lhs); more && ok && c.r.predicts(p.State, p.Ctx) != it.Ctx {
+		more = false // the next link does not pair with this one's completion, as memoAt stops (§4.3)
+	}
+	return rule, origin, more, true
+}
+
+// awaitingOne is the one item of the set at node at awaiting sym, and false where it holds none or more.
+func (c *Chart) awaitingOne(at, sym int) (Item, bool) {
+	var one Item
+	n := 0
+	if set := c.Sets[at]; set != nil && set.core != nil {
 		en := c.r.awaiting(set, sym)
 		if n = len(en); n == 1 {
-			it := set.items[en[0].idx]
-			state, origin = it.State, at-it.Dist
+			one = set.items[en[0].idx]
 		}
 	} else {
 		for _, it := range c.Sets[at].Items() {
 			if _, ok := transition(c.r.tab, it.State, sym); ok {
-				n, state, origin = n+1, it.State, at-it.Dist
+				n, one = n+1, it
 			}
 		}
 	}
-	lhs, ok := c.r.g.leo[[2]int{state, sym}]
-	if n != 1 || !ok {
-		return 0, 0, false, false
-	}
-	for _, i := range c.r.tab.States[state].Leo {
-		if it := c.r.tab.Items[i]; c.r.tab.Rules[it.Rule].RHS[it.Dot] == sym {
-			rule = it.Rule
-		}
-	}
-	return rule, origin, origin < at && (lhs != c.r.tab.Start || origin != 0), true
+	return one, n == 1
 }
 
 // Slipped is the items the ; inserted at node pos advances, closed under
