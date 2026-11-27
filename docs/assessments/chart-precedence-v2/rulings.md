@@ -195,3 +195,26 @@ The cost is `forest.Build` of the judged chart, not Constrain. `speed-stage-fore
 The exit in design §7 needs the after-median below the before-minimum, so it looks likely to be unmet. The remaining issues are d247, d278, d2a2 and bb9b.
 
 - **Order of the verdict reading:** "Take a quiet reading now (Recommended)". Once d218 and d1eb merge, the formal interleaved B A B A B A reading runs before the remaining issues. If the exit is unmet, execution stops and the `forest.Build` cost is reported, without spending effort on d247, d278 or d2a2 first.
+
+## 2026-11-27, execute: the early reading misses the speed exit
+
+The early reading followed the ruling "Take a quiet reading now". It is kept in `docs/assessments/chart-perly-w4/early-reading/`.
+
+| | |
+|---|---|
+| before-minimum of `speed-ratio-aggregate-longlived` | 3.2143 |
+| after-median | 3.3991 |
+
+All 27 answer keys held, and every differential is green.
+
+The cost is `forest.Build` of the judged chart:
+- the forest stage went from 0.66 to 1.47;
+- forest allocations per token went from 0.063 to 0.113.
+
+The likeliest cause is 3282's walk by context and its `RuleRefused` filtering. That is inferred from the timings, not profiled. This is design §7's stop, "the checks pass but the exit is unmet".
+
+- **How to proceed:** "Profile, then new issue (Recommended)".
+  - Profile `forest.Build` on the judged chart, and report the cause before changing anything.
+  - A fix becomes a new issue blocking d2d1, and it must hold every forest byte-identical.
+  - The remaining chain stays paused until perigrin rules on the fix.
+- **The raw runs:** "Commit as a docs PR (Recommended)". They are kept beside a short README holding the medians, the minimum and the exit line.
