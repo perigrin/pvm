@@ -165,14 +165,35 @@ func NewNoPrecedence(tab *grammar.Tables, opts Options) *Recognizer {
 // the recognizer returns it from Recognize for every input: it never recognizes unjudged.
 func NewJudged(tab *grammar.Tables, p *prectab.Precedence, opts Options) (*Recognizer, error) {
 	r := NewNoPrecedence(tab, opts)
+	r.judged, r.prec = true, p
 	if p == nil {
 		d := grammar.Derived(tab, deriveJudgement)
-		r.judge, r.err = d.j, d.err
+		r.judge, r.err, r.prec = d.j, d.err, d.precedence()
 	} else {
 		r.judge, r.err = newJudgement(tab, p)
 	}
 	return r, r.err
 }
+
+// precedence is the precedence d judges with, nil for none.
+func (d derived) precedence() *prectab.Precedence {
+	if d.j == nil {
+		return nil
+	}
+	return d.j.p
+}
+
+// JudgesAsNew reports whether r judges as New(tab) does: NewJudged built it, and, where tab's rules are perly.y's,
+// it judges with the precedence the derived form gives for tab. Over tables whose rules are not perly.y's, which
+// have no derived levels to bypass, an explicit precedence is allowed.
+func (r *Recognizer) JudgesAsNew(tab *grammar.Tables) bool {
+	d := grammar.Derived(tab, deriveJudgement)
+	return r.judged && (d.j == nil && d.err == nil || r.prec == d.precedence())
+}
+
+// Err is the judged constructor's error, Feasible's refusal or a failed derivation, which Recognize returns for every
+// input; nil for a recognizer that recognizes.
+func (r *Recognizer) Err() error { return r.err }
 
 // Judges reports whether r judges any precedence: false for NewNoPrecedence's, and for the derived form over tables
 // that declare no levels.

@@ -21,6 +21,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
 // Options switch parts of the recognizer off. Neither changes acceptance;
@@ -70,6 +71,10 @@ type Recognizer struct {
 	// no precedence; err is NewJudged's error, which Recognize returns.
 	judge *judgement
 	err   error
+	// judged is whether NewJudged built the recognizer, and prec the precedence it judges with: the explicit one,
+	// or the derived one, nil where the tables declare no levels or the derivation failed (ParseWith's guard).
+	judged bool
+	prec   *prectab.Precedence
 	// leoSteps counts the Leo chains the judged recognizer took, and
 	// leoRefused those it did not because they cross a refused completion,
 	// for the test that Leo crosses one (leo_test.go); leoLinks counts the

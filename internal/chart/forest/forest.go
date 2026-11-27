@@ -105,7 +105,12 @@ func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 
 // ParseWith is Parse recognizing with r, a recognizer over tab that the
 // caller may keep across files, as the ratchet's long-lived speed side does.
+// It panics unless r judges as recognize.New(tab) does, so no recognizer a
+// caller passes turns precedence off or substitutes one for perly.y's (F3-7).
 func ParseWith(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, Refusal) {
+	if !r.JudgesAsNew(tab) {
+		panic("forest: ParseWith needs a recognizer that judges as recognize.New does, never recognize.NewNoPrecedence's or another precedence over perly.y's tables")
+	}
 	f, _, ref := parseStream(tab, r, src, scope)
 	return f, ref
 }
@@ -142,8 +147,12 @@ func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte,
 }
 
 // builtStream is constrainedStream before Constrain: Build's forest of r's chart. The lattice is narrowed before
-// recognition (Narrow), so a library operator's dead reading never reaches the chart.
+// recognition (Narrow), so a library operator's dead reading never reaches the chart. A recognizer whose judged
+// constructor failed refuses every file with that error, before lexing, so a toy's tables need no token table.
 func builtStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
+	if err := r.Err(); err != nil {
+		return nil, nil, Refusal{Reason: err.Error()}
+	}
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l, narrowed := narrow(tab, s, src, scope)
 	c, err := recognize.Recognize(r, l)
