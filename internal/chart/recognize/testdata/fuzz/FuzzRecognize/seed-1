@@ -1,3 +1,4 @@
 go test fuzz v1
 string("\x05\x03\x04\x04")
 string("")
+bool(false)
