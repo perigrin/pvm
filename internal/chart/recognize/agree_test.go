@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
 // agreeToys are the grammars of TestReferenceRecognizer: left and right
@@ -212,4 +214,50 @@ func TestReferenceRecognizerCatchesDroppedTransition(t *testing.T) {
 		return
 	}
 	t.Fatal("the grammar takes the first token of no file of the sample")
+}
+
+// TestReferenceRecognizerPrecedence: the judged recognizer, recognize.New, under
+// every Options combination, accepts what the judged reference accepts with
+// perly.y's precedence, inserts a ; at the nodes it does, and expects what it
+// expects at every node, over the corpus sample. The judgement is not vacuous:
+// it logs the completions and scans the reference refused, requires both
+// non-zero, and requires some set to differ from the unjudged reference's.
+func TestReferenceRecognizerPrecedence(t *testing.T) {
+	tab, files := corpusSample(t)
+	p, err := prectab.ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	build := func(o Options) *Recognizer { return New(tab, o) }
+	completions, scans, differ := 0, 0, 0
+	for _, f := range files {
+		l := f.lattice(len(f.l.Edges))
+		ref := refJudged(tab, p, tokenIDs(l))
+		completions, scans = completions+ref.refusedCompletions, scans+ref.refusedScans
+		if plain, _, _ := refRun(tab, tokenIDs(l)); !sameRefSets(ref.sets, plain) {
+			differ++
+		}
+		if d := judgedDisagreement(tab, ref, build, l); d != "" {
+			t.Errorf("%s: %s", f.name, d)
+		}
+	}
+	t.Logf("refused completions: %d", completions)
+	t.Logf("refused scans: %d", scans)
+	t.Logf("files whose judged sets differ from the unjudged: %d of %d", differ, len(files))
+	if completions == 0 || scans == 0 || differ == 0 {
+		t.Errorf("the judged reference refused %d completions and %d scans, and %d files' sets differ from the unjudged; want all non-zero", completions, scans, differ)
+	}
+}
+
+// sameRefSets reports whether a and b hold, node by node, the same dotted
+// rules, whatever their origins and contexts.
+func sameRefSets(a, b [][]refItem) bool {
+	dotted := func(items []refItem) (out [][2]int) {
+		for _, it := range items {
+			out = append(out, [2]int{it.rule, it.dot})
+		}
+		slices.SortFunc(out, func(x, y [2]int) int { return cmp.Or(cmp.Compare(x[0], y[0]), cmp.Compare(x[1], y[1])) })
+		return slices.Compact(out)
+	}
+	return slices.EqualFunc(a, b, func(x, y []refItem) bool { return slices.Equal(dotted(x), dotted(y)) })
 }

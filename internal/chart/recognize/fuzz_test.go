@@ -315,21 +315,29 @@ func tokenIDs(l *lex.Lattice[lex.None]) []int {
 // does over rules; otherwise it says what differs. l is a linear lattice, one
 // edge per node but the first, so edge i is token i.
 func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
-	sets, inserted, want := refRun(rules, tokenIDs(l))
+	return judgedDisagreement(rules, refJudged(rules, nil, tokenIDs(l)), build, l)
+}
+
+// judgedDisagreement is oracleDisagreement against ref, the reference's chart of l, judged or not.
+func judgedDisagreement(rules *grammar.Tables, ref refChart, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
 	for _, opts := range optionCombos {
 		c, err := Recognize(build(opts), l)
 		if err != nil {
 			return fmt.Sprintf("%+v: %v", opts, err)
 		}
-		if got := c.Accepted(); got != want {
-			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, want)
+		if got := c.Accepted(); got != ref.accepted {
+			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, ref.accepted)
 		}
-		if got := c.Inserted(); !slices.Equal(got, inserted) {
-			return fmt.Sprintf("%+v: Inserted %v, the reference %v", opts, got, inserted)
+		if got := c.Inserted(); !slices.Equal(got, ref.inserted) {
+			return fmt.Sprintf("%+v: Inserted %v, the reference %v", opts, got, ref.inserted)
 		}
-		for pos, items := range sets {
-			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(rules, items)) {
-				return fmt.Sprintf("%+v node %d: Expected %v (err %v), the reference %v", opts, pos, got, err, refExpected(rules, items))
+		for pos := range ref.sets {
+			want := refExpected(rules, ref.sets[pos])
+			if ref.expected != nil {
+				want = ref.expected[pos]
+			}
+			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, want) {
+				return fmt.Sprintf("%+v node %d: Expected %v (err %v), the reference %v", opts, pos, got, err, want)
 			}
 		}
 	}
