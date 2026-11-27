@@ -1,0 +1,50 @@
+chart-ratchet: aggregate excludes internal/chart/testdata/std5k.pl (2.4% of RD's population time)
+chart-ratchet: aggregate excludes internal/psc/testdata/latency/edit5k.pl (1.9% of RD's population time)
+chart-ratchet: aggregate excludes T1/code_too_large.t (13.9% of RD's population time)
+chart-ratchet: aggregate share T1 27.8%
+chart-ratchet: aggregate share guacamole 5.1%
+chart-ratchet: aggregate share perlgit 67.1%
+chart-ratchet: lex-overhead-std5k measurement 1: median 1.179 min 0.945 max 1.366
+chart-ratchet: lex-overhead-std5k measurement 2: median 1.162 min 0.9627 max 1.511
+chart-ratchet: lex-overhead-std5k measurement 3: median 1.182 min 1.135 max 1.403
+chart-ratchet: lex-overhead-edit5k measurement 1: median 1.176 min 0.8538 max 1.345
+chart-ratchet: lex-overhead-edit5k measurement 2: median 1.111 min 0.8421 max 1.289
+chart-ratchet: lex-overhead-edit5k measurement 3: median 1.175 min 0.8133 max 1.401
+chart-ratchet: lex-overhead-aggregate measurement 1: median 1.308 min 1.124 max 1.489
+chart-ratchet: lex-overhead-aggregate measurement 2: median 1.186 min 1.098 max 1.369
+chart-ratchet: lex-overhead-aggregate measurement 3: median 1.248 min 1.127 max 1.378
+chart-ratchet: speed-ratio-std5k-longlived measurement 1: median 3.148 min 2.83 max 3.615
+chart-ratchet: speed-ratio-std5k-longlived measurement 2: median 2.931 min 2.663 max 3.551
+chart-ratchet: speed-ratio-std5k-longlived measurement 3: median 2.805 min 1.959 max 3.241
+chart-ratchet: speed-ratio-aggregate-longlived measurement 1: median 3.08 min 2.781 max 3.382
+chart-ratchet: speed-ratio-aggregate-longlived measurement 2: median 3 min 2.662 max 3.413
+chart-ratchet: speed-ratio-aggregate-longlived measurement 3: median 3.075 min 2.839 max 3.292
+chart-ratchet: speed-ratio-aggregate-perfile measurement 1: median 3.14 min 3.008 max 3.65
+chart-ratchet: speed-ratio-aggregate-perfile measurement 2: median 3.151 min 2.85 max 3.609
+chart-ratchet: speed-ratio-aggregate-perfile measurement 3: median 3.413 min 2.937 max 3.602
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 1: median 0.66 min 0.6082 max 0.8043
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 2: median 0.681 min 0.6531 max 0.7048
+chart-ratchet: speed-stage-lex-aggregate-longlived measurement 3: median 0.6194 min 0.5498 max 0.667
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 1: median 0.8369 min 0.7712 max 0.8939
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 2: median 0.8454 min 0.7724 max 0.9247
+chart-ratchet: speed-stage-recognize-aggregate-longlived measurement 3: median 0.8292 min 0.677 max 0.917
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 1: median 1.136 min 1.034 max 1.26
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 2: median 1.052 min 0.9718 max 1.107
+chart-ratchet: speed-stage-forest-aggregate-longlived measurement 3: median 1.131 min 1.045 max 1.248
+chart-ratchet: speed-stage sum lex+recognize+forest 2.6279
+chart-ratchet: speed-stage-resolve-aggregate-longlived: 0 of 2211 files refused before the stage
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 1: median 0.178 min 0.167 max 0.2132
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 2: median 0.1755 min 0.1588 max 0.1976
+chart-ratchet: speed-stage-resolve-aggregate-longlived measurement 3: median 0.1798 min 0.1761 max 0.2038
+chart-ratchet: speed-stage-readings-aggregate-longlived: 0 of 2211 files refused before the stage
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 1: median 0.1304 min 0.1193 max 0.1504
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 2: median 0.129 min 0.1099 max 0.1327
+chart-ratchet: speed-stage-readings-aggregate-longlived measurement 3: median 0.1275 min 0.1111 max 0.1351
+oracle-grade: rd WRONG /opt/corpora/PerlOnJava/src/test/resources/unit/storable.t:334 rv2hv
+oracle-grade: rd WRONG /opt/corpora/PerlOnJava/src/test/resources/unit/storable.t:335 rv2hv
+oracle-grade: rd WRONG /opt/corpora/PerlOnJava/src/test/resources/unit/storable.t:335 rv2hv
+oracle-grade: rd WRONG /opt/corpora/perl5/t/op/hash-clear-placeholders.t:16 srefgen
+chart-ratchet: BenchLex 15296295 ns/op 18260 allocs/op
+chart-ratchet: BenchRecognize 6875971 ns/op 12136 allocs/op
+chart-ratchet: BenchExpected 66626834 ns/op 269852 allocs/op
+chart-ratchet: BenchForest 31852923 ns/op 104 allocs/op
