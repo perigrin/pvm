@@ -1,0 +1,11 @@
+run: 2
+state: after
+commit: 6a555065d399c61f08291c080e0ee842c0e5fb1a
+loadavg-before: 0.83 1.26 1.61 1/110 21371
+load1: 0.83
+cores: 4
+kernel: 6.18.44-fc-v880
+waited-for-quiet-s: 30
+start: 2026-11-27T17:21:37Z
+end: 2026-11-27T17:33:19Z
+exit: 0
