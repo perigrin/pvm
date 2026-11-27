@@ -243,7 +243,7 @@ func renderTerms(lexemes map[string]lexeme, terms []string) (preamble string, wo
 func builtForest(tab *grammar.Tables, src []byte) *forest.Forest {
 	s, _ := lex.Lex(src, tab.Tokens)
 	l := lex.Linear(s)
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
 	if err != nil {
 		return nil
 	}

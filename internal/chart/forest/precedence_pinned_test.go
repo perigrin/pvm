@@ -54,7 +54,7 @@ func TestPrecedenceMarkFirstFilter(t *testing.T) {
 	l := toyLattice(tab, []string{"C", "A", "Q1"})
 	tab.TerminalSets = append(tab.TerminalSets, []int{symbol(tab, "A"), symbol(tab, "B")})
 	l.Edges[1].Token.TerminalSet = len(tab.TerminalSets) - 1
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
 	if err != nil || !c.Accepted() {
 		t.Fatalf("the chart refuses C {A B} Q1: %v", err)
 	}

@@ -33,7 +33,7 @@ func TestPrecedencePerlGitMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope := chartInputs(tab, srcs, nil, perl, realDirs).Scope
-	r := recognize.New(tab, recognize.Options{})
+	r := recognize.NewNoPrecedence(tab, recognize.Options{})
 	var compared, prelib, precedence, pruned int
 	for _, file := range files {
 		o, err := comparePrecedence(tab, r, prec, srcs[file.Path], scope(file.Path))

@@ -166,7 +166,7 @@ func refusal(tab *grammar.Tables, c *recognize.Chart, s *lex.Stream, size, unmap
 	at := diedAt(c, s, size)
 	if narrowed && at != unmapped { // at the first unmapped token the un-narrowed run dies too
 		reruns.Add(1)
-		rc, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
+		rc, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), lex.Linear(s))
 		if err != nil {
 			return Refusal{Reason: err.Error()}
 		}

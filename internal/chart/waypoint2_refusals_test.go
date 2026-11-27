@@ -107,7 +107,7 @@ func TestWaypoint2RefusalsMatchReference(t *testing.T) {
 		entries++
 		s, _ := lex.Lex([]byte(src), tab.Tokens)
 		l := lex.Linear(s)
-		c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+		c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
 		if err != nil || !c.Accepted() {
 			t.Errorf("%q: recognition leaves no forest", src)
 			return

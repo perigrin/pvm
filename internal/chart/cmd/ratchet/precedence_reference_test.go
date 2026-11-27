@@ -122,7 +122,7 @@ func TestPrecedenceCorpusMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope := chartInputs(tab, srcs, nil, perl, realDirs).Scope
-	r := recognize.New(tab, recognize.Options{})
+	r := recognize.NewNoPrecedence(tab, recognize.Options{})
 	type counts struct{ compared, prelib, precedence, pruned, perlRefused int }
 	stats := map[string]*counts{}
 	for _, file := range files {
@@ -176,7 +176,7 @@ func TestComparePrecedenceUsesScope(t *testing.T) {
 	t.Cleanup(parse.OverlayDeclarations(os.DirFS(filepath.Join("..", "..", "testdata", "libops"))))
 	src := []byte("use My::Ops; 1 plus 2 + 3;\n")
 	root := parse.ParseWithLoader(src, func(string) ([]byte, bool) { return nil, false })
-	r := recognize.New(tab, recognize.Options{})
+	r := recognize.NewNoPrecedence(tab, recognize.Options{})
 	for _, c := range []struct {
 		scope  forest.Scope
 		prelib bool
@@ -203,7 +203,7 @@ func TestPrecedenceHarnessesDoNotAlias(t *testing.T) {
 		f.Nodes[f.Root].Alt = f.Alts[f.Nodes[f.Root].Alt].Next
 		return ok
 	}
-	o, err := comparePrecedence(tab, recognize.New(tab, recognize.Options{}), prec, []byte("my $x = 1 + 2 * 3;\n"), forest.Scope{})
+	o, err := comparePrecedence(tab, recognize.NewNoPrecedence(tab, recognize.Options{}), prec, []byte("my $x = 1 + 2 * 3;\n"), forest.Scope{})
 	if err != nil || !o.recognized || o.prelibRefused {
 		t.Fatalf("%+v, %v; want a compared file", o, err)
 	}

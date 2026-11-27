@@ -303,10 +303,16 @@ func TestResolveKeepsKeyDecidedWords(t *testing.T) {
 // built is src's forest as Build makes it from the chart, before resolve.
 func built(t *testing.T, src string) *Forest {
 	t.Helper()
+	return builtBy(t, recognize.New, src)
+}
+
+// builtBy is built with the recognizer mk makes.
+func builtBy(t *testing.T, mk func(*grammar.Tables, recognize.Options) *recognize.Recognizer, src string) *Forest {
+	t.Helper()
 	tab := committedTables(t)
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
 	l := lex.Linear(s)
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	c, err := recognize.Recognize(mk(tab, recognize.Options{}), l)
 	if err != nil {
 		t.Fatal(err)
 	}
