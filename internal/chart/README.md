@@ -2365,7 +2365,8 @@ recognizer over a grammar `prectab.Feasible` refuses refuses every file with
   that admits a zero-width `;` exactly before `}` and at end of input, Leo on
   and off (`TestForestSlipperBruteForce`). Those toys declare no levels, so
   they judge nothing. Precedence is brute-forced over the fuzz oracle's toy with
-  levels, `testdata/precedence/toys/mixed.txt`: over every short input, the
+  levels, `testdata/precedence/toys/mixed.txt`: over every input of up to three
+  of its terminals and bison's sentences of it, the
   derivations `ConstrainReference` keeps of the no-precedence forest equal the
   derivations of the judged recognizer's (explicit form) `Build` forest, and
   some derivations are refused (`TestBruteForceJudgedOverLeveledToy`). Over the corpus sample (`std5k.pl`, the port
