@@ -2150,7 +2150,21 @@ independently of the recognizer it checks. With no grammar argument each input
 byte is the singleton set id of one terminal of the toy statement grammar, so
 every input is a valid terminal string; with one, its bytes decode to a small
 grammar (the first rule's left-hand side is the start, and may sit on a right-hand side) and the input's bytes
-pick among that grammar's terminals.
+pick among that grammar's terminals. The recognizer it fuzzes is `recognize.New`, but the statement grammar and the
+fuzzed grammars declare no levels, so it judges nothing there. Precedence is fuzzed over a §3-feasible toy with levels,
+the committed `testdata/precedence/toys/mixed.txt`: with its third argument true the input's bytes pick among its terminals,
+and the judged recognizer in the explicit form must agree with the judged reference. Its committed seeds are bison's
+sentences of the toy, and at least one of them has a completion or scan the reference refuses
+(`TestFuzzPrecedenceToySeeds`, `TestFuzzPrecedenceToyIsFeasibleWithLevels`).
+
+The reference judges precedence as a second implementation, still sharing no code with `recognize`. Given a
+precedence, each item also carries its context, the canonical spine top: a start item is its own, a child predicted
+at its rule's first position inherits its parent's, and one predicted at a later position takes the predicting item.
+A scan is refused where V1's shift verdict for (context, item, terminal) forbids it. A completion is refused where
+V1's reduce verdict forbids its rule before every terminal of the lookahead that can follow its left-hand side, by
+the reference's own FOLLOW, the parent item deciding the parent-dependent pairs, and it advances only the parents
+that predicted it under its context. `Expected` judges each candidate as the lookahead. Without a precedence the
+reference is the textbook one above.
 
 `TestReferenceRecognizer` (`recognize/agree_test.go`) holds the recognizer to
 the same reference, under every `Options` combination, on acceptance, on
@@ -2163,10 +2177,15 @@ through `chart/lex`, at most 300 tokens). Agreement does not need acceptance:
 its first `=`, else its first token but `;`) and requires both to refuse at the same node with the same `Expected`.
 `TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
 transition the sample uses and requires the disagreement to be reported.
+`TestReferenceRecognizerPrecedence` holds `recognize.New` to the judged
+reference, with perly.y's precedence, under every `Options` combination over
+the same corpus sample; it logs the completions and scans the reference
+refused, requires both non-zero, and requires the judged reference's sets to
+differ from the unjudged reference's.
 
 `TestSetDigestGolden` (`recognize/setdigest_test.go`) holds set identity to
 its golden, `recognize/testdata/set-digest.golden`. Over the same corpus
-sample, each file recognized whole, with one no-precedence recognizer per option set
+sample, each file recognized whole, with one judged recognizer (`recognize.New`) per option set
 (`Options{}`, `NoCache`, `NoLeo`, `NoCache` with `NoLeo`, `NoLookahead`), it
 hashes every set at every node (`Set.Items()`), `Inserted()` and `Expected` at
 every 37th node, and writes one line per option set: its name, the accepted
@@ -2179,6 +2198,9 @@ one changed item, `Inserted` entry or sampled `Expected` each moves the digest.
 A change that moves the golden has changed set identity: it is never
 regenerated to make a change pass, and in chart-recovery a regeneration after
 P2 is a stop reported to perigrin.
+The no-precedence mode's sets are pinned apart, by
+`TestSetDigestNoPrecedenceGolden` against `recognize/testdata/set-digest-noprecedence.golden`,
+which no flag rewrites.
 
 ## The forest: `forest`
 
@@ -2341,7 +2363,12 @@ recognizer over a grammar `prectab.Feasible` refuses refuses every file with
   test from the rules alone. Toy grammars naming `PERLY_SEMICOLON` and
   `PERLY_BRACE_CLOSE` put the slipper in that comparison, with an enumerator
   that admits a zero-width `;` exactly before `}` and at end of input, Leo on
-  and off (`TestForestSlipperBruteForce`). Over the corpus sample (`std5k.pl`, the port
+  and off (`TestForestSlipperBruteForce`). Those toys declare no levels, so
+  they judge nothing. Precedence is brute-forced over the fuzz oracle's toy with
+  levels, `testdata/precedence/toys/mixed.txt`: over every short input, the
+  derivations `ConstrainReference` keeps of the no-precedence forest equal the
+  derivations of the judged recognizer's (explicit form) `Build` forest, and
+  some derivations are refused (`TestBruteForceJudgedOverLeveledToy`). Over the corpus sample (`std5k.pl`, the port
   snippets, every 24th Guacamole case) a file has a forest exactly where the
   chart accepts it, and a derivation whose leaves are its tokens in order. An
   empty file, one of comments only, and files of `;` do too
@@ -2388,7 +2415,7 @@ recognizer over a grammar `prectab.Feasible` refuses refuses every file with
   as `BAREWORD` or `PRIVATEREF`. Neither changes what the chart accepts.
 - **Forest identity.** `TestForestDigestGolden`
   (`forest/forestdigest_test.go`) holds the forests `Build` makes of the
-  corpus sample's no-precedence charts (V1's), before resolve, to
+  corpus sample's judged charts (`recognize.New`), before resolve, to
   `forest/testdata/forest-digest.golden`: the accepted count, then one line
   per accepted file, its path and the hash of a text dump of its forest. The
   dump visits every node reachable from the root and writes them in a fixed
