@@ -218,3 +218,18 @@ The likeliest cause is 3282's walk by context and its `RuleRefused` filtering. T
   - A fix becomes a new issue blocking d2d1, and it must hold every forest byte-identical.
   - The remaining chain stays paused until perigrin rules on the fix.
 - **The raw runs:** "Commit as a docs PR (Recommended)". They are kept beside a short README holding the medians, the minimum and the exit line.
+
+## 2026-11-27, execute: the profile of `forest.Build`
+
+The profile found the cause of the missed speed exit.
+
+**The walk.** 3282 added the walk by context, `(*builder).byContext`. On judged charts it runs in almost every file: 1597 of 2211 files, holding 99.4% of the tokens. It doubles `forest.Build`, from 463 to 1030 ms per aggregate pass, and its `seen` hash map alone is 27% of Build.
+
+**Direction A.** The walk without the hash map was prototyped. Its forests are byte-identical over all 2211 files, and it uses only the context and the refusal records already kept. It cuts Build to about 800 ms. On a rough, unmeasured estimate, that puts the headline ratio near 3.03 against the before-minimum of 3.21.
+
+- **The fix's scope:** "A, then re-read (Recommended)". A single issue, `01a21db4-4792`, labelled `model:sonnet` and blocking d2d1, carries direction A:
+  - the walk without a per-node hash map;
+  - the `keep` closure created once per walk;
+  - a pre-sized `leoAt`.
+
+  Forests must stay byte-identical. A quiet, interleaved reading follows. If the exit is still unmet, it is reported before direction B is taken up.
