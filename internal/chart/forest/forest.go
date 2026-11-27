@@ -16,7 +16,6 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
-	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
 
@@ -91,14 +90,14 @@ type Refusal struct {
 
 // Parse recognizes src over tab's grammar, the committed perly.y's, on its
 // lattice narrowed to the library operators in scope (Narrow), and, where
-// the chart accepts it, builds its forest, applies the precedence constraint
-// (precedence.go), resolves it under scope (resolve.go) and counts its
-// statements' readings (readings.go). The chart judges precedence (recognize.New). A refused file has a refusal
+// the chart accepts it, builds its forest, resolves it under scope (resolve.go)
+// and counts its statements' readings (readings.go). The chart judges precedence (recognize.New), so no
+// precedence constraint runs after it (precedence.go stays the tests' referee). A refused file has a refusal
 // and no forest, classified by rerunning without precedence in V1's order (ChartRefusal): at the token whose set
 // died, or the end of the file, lex-unmapped where that is the first token no terminal admits, else grammar
 // (recognition's rule, testdata/port/refused-where.txt), read from the un-narrowed rerun; scope, at the narrowed
 // rerun's byte, where only narrowing refused it, or where resolve leaves the forest no derivation; or precedence,
-// at the byte where the judged chart died, or where the constraint leaves the root none.
+// at the byte where the judged chart died.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	return ParseWith(tab, recognize.New(tab, recognize.Options{}), src, scope)
 }
@@ -117,7 +116,7 @@ func ParseWith(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope S
 
 // parseStream is ParseWith, with the token stream the forest is over.
 func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
-	f, s, ref := constrainedStream(tab, r, src, scope)
+	f, s, ref := builtStream(tab, r, src, scope)
 	if f == nil {
 		return nil, s, ref
 	}
@@ -128,25 +127,8 @@ func parseStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 	return f, s, Refusal{}
 }
 
-// constrainedStream is parseStream before resolve: the forest the forest-equality differential's candidate is.
-func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
-	f, s, ref := builtStream(tab, r, src, scope)
-	if f == nil {
-		return nil, s, ref
-	}
-	prec, err := prectab.ParsePrecedence(tab)
-	if err != nil {
-		return nil, s, Refusal{Reason: err.Error()}
-	}
-	if !f.Constrain(prec) {
-		// shortcut: Constrain reports only the root's verdict, so a precedence refusal names no byte (Byte 0);
-		// locate it at the first span left with no derivation when a gate compares refusal bytes.
-		return nil, s, Refusal{Reason: "precedence"}
-	}
-	return f, s, Refusal{}
-}
-
-// builtStream is constrainedStream before Constrain: Build's forest of r's chart. The lattice is narrowed before
+// builtStream is parseStream before resolve: Build's forest of r's chart, the forest-equality differential's
+// candidate. The judged chart leaves it nothing Constrain would drop, so none runs. The lattice is narrowed before
 // recognition (Narrow), so a library operator's dead reading never reaches the chart. A recognizer whose judged
 // constructor failed refuses every file with that error, before lexing, so a toy's tables need no token table.
 func builtStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {

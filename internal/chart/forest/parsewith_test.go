@@ -5,10 +5,12 @@ package forest
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 )
@@ -84,4 +86,86 @@ func TestParseHasNoPrecedenceSwitch(t *testing.T) {
 			t.Error("ParseWith panics on recognize.New's recognizer over the copy")
 		}
 	})
+}
+
+// constrainFixtures are sources on which V1's Constrain drops alternatives: forbidden reductions (`1 + 2 * 3;`, and
+// `_ - $h{1} - $fh;`'s UNIOPSUB term before ADDOP) and forbidden shifts (`1 - 2 - 3;`, `$x = $y = $z;`, `!$x == 1;`).
+var constrainFixtures = []string{"1 + 2 * 3;", "_ - $h{1} - $fh;", "1 - 2 - 3;", "$x = $y = $z;", "!$x == 1;", "foo -$x * $y;"}
+
+// droppedByV1 is each alternative, by node key, that the no-precedence forest of src after LibraryOperators reaches
+// and V1's Constrain drops.
+func droppedByV1(t *testing.T, tab *grammar.Tables, src string) map[NodeKey][]altKey {
+	t.Helper()
+	built := builtBy(t, recognize.NewNoPrecedence, src)
+	s, _ := lex.Lex([]byte(src), tab.Tokens)
+	if built == nil || LibraryOperators(tab, built, s, []byte(src), Scope{}) >= 0 {
+		t.Fatalf("%q: the no-precedence pipeline refuses it before the constraint", src)
+	}
+	v1, ref := V1Forest(tab, []byte(src), Scope{})
+	if v1 == nil {
+		t.Fatalf("%q: V1 refuses it: %+v", src, ref)
+	}
+	all, _ := reachableAlts(built)
+	kept, _ := reachableAlts(v1)
+	out := map[NodeKey][]altKey{}
+	for k, alts := range all {
+		for _, a := range alts {
+			if !slices.Contains(kept[k], a) {
+				out[k] = append(out[k], a)
+			}
+		}
+	}
+	return out
+}
+
+// TestParseWithNeverConstrains: on every fixture, Parse's forest reaches none of the alternatives V1's Constrain drops
+// from the no-precedence forest, and Parse never enters Constrain: the judged chart's Build already lacks them.
+func TestParseWithNeverConstrains(t *testing.T) {
+	tab := committedTables(t)
+	for _, src := range constrainFixtures {
+		dropped := droppedByV1(t, tab, src)
+		n0 := constrainEntries.Load()
+		f, ref := Parse(tab, []byte(src), Scope{})
+		entered := constrainEntries.Load() - n0
+		if f == nil {
+			t.Fatalf("%q: Parse refuses it: %+v", src, ref)
+		}
+		got, _ := reachableAlts(f)
+		kept := 0
+		for k, alts := range dropped {
+			for _, a := range alts {
+				if slices.Contains(got[k], a) {
+					kept++
+				}
+			}
+		}
+		t.Logf("%q: V1 drops alternatives on %d nodes; Parse keeps %d of them and entered Constrain %d times", src, len(dropped), kept, entered)
+		if len(dropped) == 0 || kept != 0 || entered != 0 {
+			t.Errorf("%q: V1 drops alternatives on %d nodes, Parse keeps %d, Constrain entered %d times; want some dropped, none kept, no entry", src, len(dropped), kept, entered)
+		}
+	}
+}
+
+// TestConstrainNeverEnteredByParse: Constrain's entry counter reads 0 across Parse on the fixtures, which hold
+// forbidden shifts and reductions, and at least 1 when the test calls Constrain itself, so the counter counts.
+func TestConstrainNeverEnteredByParse(t *testing.T) {
+	tab := committedTables(t)
+	prec, err := prectab.ParsePrecedence(tab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n0 := constrainEntries.Load()
+	for _, src := range constrainFixtures {
+		if f, ref := Parse(tab, []byte(src), Scope{}); f == nil {
+			t.Fatalf("%q: Parse refuses it: %+v", src, ref)
+		}
+	}
+	byParse := constrainEntries.Load() - n0
+	n1 := constrainEntries.Load()
+	builtBy(t, recognize.NewNoPrecedence, constrainFixtures[0]).Constrain(prec)
+	direct := constrainEntries.Load() - n1
+	t.Logf("Constrain entered %d times by Parse over %d fixtures, %d by a direct call", byParse, len(constrainFixtures), direct)
+	if byParse != 0 || direct < 1 {
+		t.Errorf("Constrain entered %d times by Parse and %d by a direct call; want 0 and at least 1", byParse, direct)
+	}
 }
