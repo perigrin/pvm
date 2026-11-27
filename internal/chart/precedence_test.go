@@ -228,59 +228,45 @@ func TestPrecedenceKeepsCorpusAccepted(t *testing.T) {
 	t.Logf("the constraint keeps all %d files perl and recognition accept", n)
 }
 
-// keptAlts is every node's alternative chain, in order, each node's chain closed by -1.
-func keptAlts(f *forest.Forest) []int32 {
-	var out []int32
-	for n := range f.Nodes {
-		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
-			out = append(out, a)
-		}
-		out = append(out, -1)
-	}
-	return out
-}
-
-// constrainAgrees runs Constrain on one copy of f and ConstrainReference on another, and reports whether both give
-// the verdict and the kept alternatives on every node, the verdict, and whether the constraint pruned anything.
-func constrainAgrees(f *forest.Forest, p *prectab.Precedence) (agree, verdict, pruned bool) {
-	before := keptAlts(f)
-	prod, ref := f.Copy(), f.Copy()
-	v, vr := prod.Constrain(p), ref.ConstrainReference(p)
-	return v == vr && slices.Equal(keptAlts(prod), keptAlts(ref)), v, !slices.Equal(keptAlts(prod), before)
-}
-
-// TestPrecedenceRefereeMatchesReference requires production Constrain and ConstrainReference to agree on verdict and
-// kept alternatives on every referee sentence, refused ones included, over the forest the referee judges.
+// TestPrecedenceRefereeMatchesReference requires the referee's judged forest to give ConstrainReference's verdict and
+// kept alternatives over the no-precedence narrowed forest (referee.narrowed) on every kept sentence, zero-width
+// slipper ; leaves dropped from both. Where the reference refuses, the judged chart dies and has no forest, so only
+// the verdicts are compared (design §5).
 func TestPrecedenceRefereeMatchesReference(t *testing.T) {
 	r := committedReferee(t)
 	sentences, err := readSentences(precedenceDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, compared, refused, pruned := 0, 0, 0, 0
+	semi := r.terminal["PERLY_SEMICOLON"]
+	compared, verdictOnly := 0, 0
 	for _, s := range sentences {
 		if s.rendering == "-" {
 			continue
 		}
-		n++
-		f, _ := r.narrowed(s)
-		if f == nil {
-			t.Errorf("%s %q: no forest to compare", s.id, s.rendering)
+		ref, _ := r.narrowed(s)
+		if ref == nil {
+			t.Errorf("%s %q: the no-precedence narrowed chart refuses, so the reference has no forest", s.id, s.rendering)
 			continue
 		}
 		compared++
-		agree, verdict, prunedHere := constrainAgrees(f, r.p)
-		if !agree {
-			t.Errorf("%s %q: Constrain and ConstrainReference differ", s.id, s.rendering)
+		judged, _, _ := r.judged(s)
+		if !ref.ConstrainReference(r.p) {
+			verdictOnly++
+			if judged != nil {
+				t.Errorf("%s %q: ConstrainReference refuses, the judged chart accepts", s.id, s.rendering)
+			}
+			continue
 		}
-		if !verdict {
-			refused++
-		}
-		if prunedHere {
-			pruned++
+		if d := refereeDiff(judged, ref, semi); d != "" {
+			t.Errorf("%s %q: the judged forest differs from ConstrainReference's: %s", s.id, s.rendering, d)
 		}
 	}
-	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", n, compared, refused, pruned)
+	t.Logf("referee: compared %d of %d", compared, keptSentences(sentences))
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
+	if compared == 0 || verdictOnly == 0 {
+		t.Errorf("compared %d, %d by verdict only; want some of each", compared, verdictOnly)
+	}
 }
 
 // TestPrecedenceRefereeJudgesRecognizer: on every kept sentence the referee's verdict and grouping match bison's, and
