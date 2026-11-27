@@ -54,6 +54,21 @@ func witness(p *Precedence, top int32, e int) string {
 	return ""
 }
 
+// forbidsAt reports whether top forbids a shift some core item makes in a state reachable from predicted state e at
+// its origin: §4.3's predicate, kept as the oracle PredictionContexts no longer needs.
+func forbidsAt(p *Precedence, top int32, e int) bool {
+	for _, s := range descendants(p.Tab, e) {
+		for _, i := range p.Tab.States[s].Items {
+			for _, f := range itemShifts(p.Tab, i) {
+				if p.ShiftForbidden(top, p.Item(i), int32(f)) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // TestContextCollapseTable: on perly.y every predictor's context is none or a canonical spine top, the predictor's
 // own (§4.2); it is that top exactly where the top forbids a shift some item reachable at its origin makes, and none
 // otherwise (§4.3), each judged by a brute-force search over every terminal; the three predictors that begin rules
