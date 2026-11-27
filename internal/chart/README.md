@@ -290,7 +290,8 @@ chart-perly-w3) adds `speed-stage-precedence-aggregate-longlived`,
 `speed-stage-readings-aggregate-longlived` (STAGEKEYS, 01a20950-3f3c), under
 perigrin's ruling of 2026-11-23: "Rule them in". They depart from §9.5's rule
 by that ruling, as D5's keys did, and like every `speed-` key they are
-printed, listed in the baseline and never gated.
+printed, listed in the baseline and never gated. The precedence key is since
+retired, with its baseline line, as `forest.ParseWith` no longer runs `Constrain`.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
