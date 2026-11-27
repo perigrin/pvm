@@ -16,6 +16,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/parse"
 )
@@ -330,7 +331,9 @@ func inputs(words []string, n int) [][]string {
 }
 
 // forestToys are left and right recursion, nullable chains, ambiguity, a
-// cycle, and right recursion Leo memoizes beside ambiguity.
+// cycle, and right recursion Leo memoizes beside ambiguity. Like slipperToys,
+// they declare no levels, so precedence judges nothing over them:
+// TestBruteForceJudgedOverLeveledToy brute-forces a toy that has levels.
 var forestToys = []struct {
 	name  string
 	rules []string
@@ -912,4 +915,90 @@ func TestBuildRefusedChartIsNil(t *testing.T) {
 			t.Errorf("%q: Build of a refused chart = %+v, want nil", src, f)
 		}
 	}
+}
+
+// leveledToyName is the fuzz oracle's toy with levels (recognize's
+// FuzzRecognize), a committed bison toy that passes prectab.Feasible.
+const leveledToyName = "mixed"
+
+// TestBruteForceJudgedOverLeveledToy: the brute-force outside reference, judged.
+// Over the toy with levels, on every input of up to three of its terminals and
+// on each of bison's sentences of it, the no-precedence chart's forest holds
+// every derivation brute force counts; the derivations ConstrainReference keeps
+// of it, an outside judge, are those of the forest Build makes of the judged
+// recognizer's chart in the explicit form, and the two charts' acceptance
+// follows. It logs the derivations precedence refused, and requires some.
+func TestBruteForceJudgedOverLeveledToy(t *testing.T) {
+	ty := loadToy(t, leveledToyName)
+	tab, p := ty.tab, ty.prec
+	if _, err := prectab.Feasible(p); err != nil {
+		t.Fatalf("the %s toy is not feasible: %v", leveledToyName, err)
+	}
+	judged, err := recognize.NewJudged(tab, p, recognize.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var terms []string
+	for _, s := range tab.Symbols {
+		if s.Terminal {
+			terms = append(terms, s.Name)
+		}
+	}
+	all := inputs(terms, 3)
+	for _, s := range ty.sentences {
+		all = append(all, s.words)
+	}
+	kept, refused := 0, 0
+	for _, words := range all {
+		want := brute(tab, words, tab.Start, 0, len(words), map[[3]int]bool{})
+		plain, _, l := toyForest(t, tab, words, recognize.Options{})
+		if (plain != nil) != (want > 0) {
+			t.Fatalf("%q: the no-precedence forest %v, %d derivations by brute force", words, plain != nil, want)
+		}
+		var outside []string
+		if plain != nil && plain.ConstrainReference(p) {
+			outside = derivationTexts(t, plain, want)
+		}
+		c, err := recognize.Recognize(judged, l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var inside []string
+		if c.Accepted() {
+			f := Build(tab, c, l)
+			inside = derivationTexts(t, f, want)
+			trees, _ := f.Derivations(f.Root, want+1)
+			for _, tr := range trees {
+				if err := checkTree(tab, l, c.Inserted(), tr, map[[3]int]bool{}); err != nil {
+					t.Fatalf("%q: %v", words, err)
+				}
+			}
+		}
+		if !slices.Equal(inside, outside) {
+			t.Errorf("%q: the judged chart's forest has %d derivations, ConstrainReference keeps %d of brute force's %d", words, len(inside), len(outside), want)
+		}
+		kept, refused = kept+len(outside), refused+want-len(outside)
+	}
+	t.Logf("inputs: %d", len(all))
+	t.Logf("kept derivations: %d", kept)
+	t.Logf("refused derivations: %d", refused)
+	if kept == 0 || refused == 0 {
+		t.Errorf("kept %d and refused %d derivations; want both non-zero", kept, refused)
+	}
+}
+
+// derivationTexts is f's derivations from its root, as sorted text, at most
+// limit; more than limit, or a cut enumeration, fails t.
+func derivationTexts(t *testing.T, f *Forest, limit int) []string {
+	t.Helper()
+	trees, cut := f.Derivations(f.Root, limit+1)
+	if cut || len(trees) > limit {
+		t.Fatalf("%d derivations (cut %v), more than brute force's %d", len(trees), cut, limit)
+	}
+	var out []string
+	for _, tr := range trees {
+		out = append(out, treeText(tr))
+	}
+	slices.Sort(out)
+	return out
 }

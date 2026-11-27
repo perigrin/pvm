@@ -74,9 +74,9 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 }
 
 // forestDigest is the golden's text: the accepted count, then each accepted
-// file's path and the hash of its forest's text, the forest Build makes of the no-precedence chart, V1's.
+// file's path and the hash of its forest's text, the forest Build makes of the judged chart (recognize.New).
 func forestDigest(t *testing.T) (string, int) {
-	return sampleDigest(t, func(_ string, src []byte) *Forest { return builtBy(t, recognize.NewNoPrecedence, string(src)) })
+	return sampleDigest(t, func(_ string, src []byte) *Forest { return builtBy(t, recognize.New, string(src)) })
 }
 
 // sampleDigest is forestDigest over the forests forestOf gives the sample's files.

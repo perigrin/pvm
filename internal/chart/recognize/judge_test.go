@@ -170,7 +170,7 @@ func TestReduceSideRefusesForbiddenCompletion(t *testing.T) {
 }
 
 // fixtureToy loads the committed toy fixture name (testdata/precedence/toys) as tables and their Precedence.
-func fixtureToy(t *testing.T, name string) (*grammar.Tables, *prectab.Precedence) {
+func fixtureToy(t testing.TB, name string) (*grammar.Tables, *prectab.Precedence) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "testdata", "precedence", "toys", name+".txt"))
 	if err != nil {

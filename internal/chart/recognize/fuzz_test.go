@@ -1,11 +1,13 @@
 // ABOUTME: FuzzRecognize, the recognizer's fuzz target, and the oracle that holds it to the reference recognizer.
-// ABOUTME: Acceptance and Expected agree with reference_test.go's under every Options combination, on stmtGrammar and fuzzed small grammars. Run by `make fuzz-chart-recognize`.
+// ABOUTME: Acceptance and Expected agree with reference_test.go's under every Options combination, on stmtGrammar, fuzzed small grammars and a toy with levels. Run by `make fuzz-chart-recognize`.
 
 package recognize
 
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
 // withDeadEnd is l with a path that goes nowhere: edge i's token again, from
@@ -166,23 +169,119 @@ func warmDisagreement(tab *grammar.Tables, warm *Recognizer, l *lex.Lattice[lex.
 	return ""
 }
 
-// FuzzRecognize takes an input and a grammar; with no grammar, the input is
-// bytes of stmtGrammar's terminals, and otherwise gram is a small grammar.
+// precToyName is the fuzz oracle's toy with levels, a committed bison toy
+// (testdata/precedence/toys) that passes prectab.Feasible: listops, indirob's
+// parent-dependent pairs, assignment, ranges, addition, unary minus and
+// increments, subscripts and slices.
+const precToyName = "mixed"
+
+// levelToy is the fuzz oracle's toy with levels, loaded once.
+var levelToy = struct {
+	sync.Once
+	tab   *grammar.Tables
+	p     *prectab.Precedence
+	terms []string // its terminals in symbol order; a fuzz input byte b is terms[b % len]
+}{}
+
+func leveledToy(tb testing.TB) (*grammar.Tables, *prectab.Precedence, []string) {
+	levelToy.Do(func() {
+		levelToy.tab, levelToy.p = fixtureToy(tb, precToyName)
+		for _, s := range levelToy.tab.Symbols {
+			if s.Terminal {
+				levelToy.terms = append(levelToy.terms, s.Name)
+			}
+		}
+	})
+	if levelToy.tab == nil {
+		tb.Fatalf("the %s toy did not load", precToyName)
+	}
+	return levelToy.tab, levelToy.p, levelToy.terms
+}
+
+// precSeeds is the precedence seeds FuzzRecognize adds: bison's sentences of
+// the toy, accepted and refused, as the toy's fixture records them, each a
+// byte per terminal.
+func precSeeds(tb testing.TB) []string {
+	_, _, terms := leveledToy(tb)
+	data, err := os.ReadFile(filepath.Join("..", "testdata", "precedence", "toys", precToyName+".txt"))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Split(line, "\t")
+		if len(f) != 3 || f[0] != "accept" && f[0] != "refuse" {
+			continue
+		}
+		var b []byte
+		for _, w := range strings.Fields(f[2]) {
+			i := slices.Index(terms, w)
+			if i < 0 {
+				tb.Fatalf("%s: no terminal %s", precToyName, w)
+			}
+			b = append(b, byte(i))
+		}
+		out = append(out, string(b))
+	}
+	return out
+}
+
+// precWords is the toy's terminals src's bytes pick, one each.
+func precWords(tb testing.TB, src string) []string {
+	_, _, terms := leveledToy(tb)
+	words := make([]string, len(src))
+	for i := range len(src) {
+		words[i] = terms[int(src[i])%len(terms)]
+	}
+	return words
+}
+
+// precDisagreement holds the judged recognizer, in the explicit form over the
+// toy's precedence, to the judged reference on the toy's input src: its first
+// 24 bytes, each picking a terminal. It returns the reference's chart too.
+func precDisagreement(tb testing.TB, src string) (string, refChart) {
+	tab, p, _ := leveledToy(tb)
+	words := precWords(tb, src[:min(len(src), 24)]) // the reference is cubic
+	l := tokens(tab, words...)
+	ref := refJudged(tab, p, tokenIDs(l))
+	d := judgedDisagreement(tab, ref, func(o Options) *Recognizer { return mustJudged(tb, tab, p, o) }, l)
+	if d != "" {
+		d = fmt.Sprintf("%s %q: %s", precToyName, words, d)
+	}
+	return d, ref
+}
+
+// FuzzRecognize takes an input, a grammar and whether to judge precedence.
+// With leveled, the input's bytes are terminals of the toy with levels
+// (precToyName), judged in the explicit form against the judged reference.
+// Otherwise, with no grammar, the input is bytes of stmtGrammar's terminals,
+// and with one, gram is a small grammar. The statement grammar and the fuzzed
+// grammars declare no levels, so recognize.New judges nothing there: only the
+// toy with levels fuzzes precedence.
 func FuzzRecognize(f *testing.F) {
 	for _, s := range fuzzSeeds {
-		f.Add(s, "")
+		f.Add(s, "", false)
 	}
 	// The start symbol on a right-hand side, where a Leo chain once ran up
 	// through a start item from node 0: S ::= V B T, T ::= A | V, V ::= A | S
 	// on A B A (N0 is S, N1 is V, N2 is T, T0 is A, T1 is B).
-	f.Add("\x00\x01\x00", "\x00\x03\x01\x04\x02\x02\x01\x03\x02\x01\x01\x01\x01\x03\x01\x01\x00")
+	f.Add("\x00\x01\x00", "\x00\x03\x01\x04\x02\x02\x01\x03\x02\x01\x01\x01\x01\x03\x01\x01\x00", false)
+	for _, s := range precSeeds(f) {
+		f.Add(s, "", true)
+	}
 	tab := toyStmt(f)
 	// warm is shared across inputs, so its cache serves earlier inputs'
 	// transitions to later ones.
 	var mu sync.Mutex
 	warm := New(tab, Options{})
 	warmGrammars := map[string]*Recognizer{} // per fuzzed grammar, likewise
-	f.Fuzz(func(t *testing.T, src, gram string) {
+	f.Fuzz(func(t *testing.T, src, gram string, leveled bool) {
+		if leveled {
+			if d, _ := precDisagreement(t, src); d != "" {
+				t.Fatal(d)
+			}
+			return
+		}
 		if gram != "" {
 			mu.Lock()
 			defer mu.Unlock()
@@ -315,21 +414,29 @@ func tokenIDs(l *lex.Lattice[lex.None]) []int {
 // does over rules; otherwise it says what differs. l is a linear lattice, one
 // edge per node but the first, so edge i is token i.
 func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
-	sets, inserted, want := refRun(rules, tokenIDs(l))
+	return judgedDisagreement(rules, refJudged(rules, nil, tokenIDs(l)), build, l)
+}
+
+// judgedDisagreement is oracleDisagreement against ref, the reference's chart of l, judged or not.
+func judgedDisagreement(rules *grammar.Tables, ref refChart, build func(Options) *Recognizer, l *lex.Lattice[lex.None]) string {
 	for _, opts := range optionCombos {
 		c, err := Recognize(build(opts), l)
 		if err != nil {
 			return fmt.Sprintf("%+v: %v", opts, err)
 		}
-		if got := c.Accepted(); got != want {
-			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, want)
+		if got := c.Accepted(); got != ref.accepted {
+			return fmt.Sprintf("%+v: accepted %v, the reference %v", opts, got, ref.accepted)
 		}
-		if got := c.Inserted(); !slices.Equal(got, inserted) {
-			return fmt.Sprintf("%+v: Inserted %v, the reference %v", opts, got, inserted)
+		if got := c.Inserted(); !slices.Equal(got, ref.inserted) {
+			return fmt.Sprintf("%+v: Inserted %v, the reference %v", opts, got, ref.inserted)
 		}
-		for pos, items := range sets {
-			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, refExpected(rules, items)) {
-				return fmt.Sprintf("%+v node %d: Expected %v (err %v), the reference %v", opts, pos, got, err, refExpected(rules, items))
+		for pos := range ref.sets {
+			want := refExpected(rules, ref.sets[pos])
+			if ref.expected != nil {
+				want = ref.expected[pos]
+			}
+			if got, err := c.Expected(pos); err != nil || !slices.Equal(got, want) {
+				return fmt.Sprintf("%+v node %d: Expected %v (err %v), the reference %v", opts, pos, got, err, want)
 			}
 		}
 	}
@@ -521,4 +628,46 @@ func firstEntry(r *Recognizer, n *cacheNode) *cacheNode {
 		}
 	}
 	return first
+}
+
+// TestFuzzPrecedenceToySeeds: FuzzRecognize's precedence seeds, bison's
+// sentences of the toy with levels, are each recognized by the judged
+// recognizer, under every Options combination, as the judged reference does.
+func TestFuzzPrecedenceToySeeds(t *testing.T) {
+	seeds := precSeeds(t)
+	if len(seeds) == 0 {
+		t.Fatal("no precedence seeds")
+	}
+	for _, s := range seeds {
+		if d, _ := precDisagreement(t, s); d != "" {
+			t.Error(d)
+		}
+	}
+}
+
+// TestFuzzPrecedenceToyIsFeasibleWithLevels: the fuzz oracle's toy passes
+// Feasible and declares a level, and some precedence seed has a completion or
+// scan the judged reference refuses, so the seeds judge something; the
+// statement grammar declares none, so New judges nothing there.
+func TestFuzzPrecedenceToyIsFeasibleWithLevels(t *testing.T) {
+	tab, p, _ := leveledToy(t)
+	if _, err := prectab.Feasible(p); err != nil {
+		t.Fatalf("the %s toy is not feasible: %v", precToyName, err)
+	}
+	if !slices.ContainsFunc(p.TermLevel, func(l int) bool { return l > 0 }) {
+		t.Fatalf("the %s toy declares no level", precToyName)
+	}
+	completions, scans := 0, 0
+	for _, s := range precSeeds(t) {
+		ref := refJudged(tab, p, tokenIDs(tokens(tab, precWords(t, s)...)))
+		completions, scans = completions+ref.refusedCompletions, scans+ref.refusedScans
+	}
+	t.Logf("refused completions: %d", completions)
+	t.Logf("refused scans: %d", scans)
+	if completions+scans == 0 {
+		t.Error("no precedence seed has a completion or scan the judged reference refuses")
+	}
+	if New(toyStmt(t), Options{}).Judges() {
+		t.Error("the statement grammar declares levels: New judges it")
+	}
 }

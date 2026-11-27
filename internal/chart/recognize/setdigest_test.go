@@ -80,10 +80,10 @@ func (d digestLine) String() string {
 	return fmt.Sprintf("%s accepted %d cached %d digest %x", d.name, d.accepted, d.cached, d.sum)
 }
 
-// setDigests recognizes every sample file, whole, with one recognizer per option set, made by New.
+// setDigests recognizes every sample file, whole, with one judged recognizer per option set, made by New.
 func setDigests(t *testing.T) []digestLine {
 	t.Helper()
-	return setDigestsOf(t, NewNoPrecedence)
+	return setDigestsOf(t, New)
 }
 
 // setDigestsOf is setDigests with recognizers made by mk.
@@ -116,7 +116,7 @@ func setDigestsOf(t *testing.T, mk func(*grammar.Tables, Options) *Recognizer) [
 	return out
 }
 
-// TestSetDigestGolden: set identity over corpusSample under the five option
+// TestSetDigestGolden: the judged recognizer's set identity over corpusSample under the five option
 // sets equals testdata/set-digest.golden. Never regenerate it to make a change
 // pass: a change that moves it has changed which sets the recognizer builds.
 func TestSetDigestGolden(t *testing.T) {
@@ -170,7 +170,7 @@ func TestSetDigestDetectsChange(t *testing.T) {
 	}
 
 	tab, files := corpusSample(t)
-	r := NewNoPrecedence(tab, Options{})
+	r := New(tab, Options{})
 	var base chartFacts
 	for _, f := range files {
 		c, err := Recognize(r, f.l)
