@@ -469,7 +469,8 @@ To take a baseline after an intended change, run
   `make chart-precedence-reference`, not in `make test`** (PERLGITREF): every
   recognized perl.git `t/` file, loaded as the ratchet loads it, is compared
   as `TestPrecedenceCorpusMatchesReference` compares the in-tree corpora,
-  production `Constrain` against `ConstrainReference`. The test,
+  production's forest (the judged chart's `Build`) against `ConstrainReference`,
+  by verdict alone where the judged chart refuses the file. The test,
   `TestPrecedencePerlGitMatchesReference`, sits behind the build tag
   `precedencereference` because `go test ./...` runs on machines without
   perl.git. A missing or empty perl.git fails it, never skips it. The target
@@ -2720,8 +2721,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
 - **The reference.** `(*Forest).ConstrainReference` is the judgement
   `Constrain` made before the state-free evaluator, kept for tests only
   (decision §3.4): it is the fixed point the differential checks compare
-  production `Constrain` against, verdict and kept set, so production can
-  move without moving what it is judged by. It judges each derivation in its
+  against, verdict and kept set, so production can move without moving what
+  it is judged by. The instruments compare `Constrain` against it; the
+  production differentials compare the judged chart's forest against it. It judges each derivation in its
   edge context: the parser state the derivation holding it has reached at its
   span's start (the start state at the root), a child's state being its
   parent's advanced over the symbols before it, and the terminal after it,
@@ -2847,13 +2849,18 @@ grammar's tables and its precedence: no Earley item gains a fact.
   - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
     of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
     `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
-    for the ratchet) that the chart recognizes, perl-refused files included,
-    on the forest after `LibraryOperators` under the pipeline's own scope
-    (`chartInputs`'s, which carries imports only, so `LibraryOperators`
+    for the ratchet), perl-refused files included, through `compareProduction`:
+    production's forest of the file (the judged chart of the lattice narrowed
+    under the pipeline's own scope, then `Build`) against `ConstrainReference`
+    on the no-precedence chart's forest after `LibraryOperators` under that
+    scope (`chartInputs`'s, which carries imports only, so `LibraryOperators`
     prunes there as under an empty `Scope`; `TestComparePrecedenceUsesScope`
-    holds that a scope with library operators is honoured), one file at a
-    time; a file the chart does not recognize is skipped, and one
-    `LibraryOperators` refuses is counted, not compared. It
+    holds that `comparePrecedence`, the instrument, honours a scope with
+    library operators), one file at a time. A file the judged chart refuses
+    is compared by verdict alone, the reference refusing too, and counted in
+    the logged verdict-only line; one the no-precedence chart does not
+    recognize is not counted as compared, and one `LibraryOperators` refuses
+    is counted, not compared. It
     logs per corpus `corpus=NAME compared=C prelib-refused=L
     precedence-refused=R pruned=P perl-refused-compared=Q`, fails on a
     corpus that contributes no compared file, and runs in `go test ./...`.
