@@ -185,3 +185,13 @@ The 3262 worker applied the switch-over alone, with no test edits: `recognize.Ne
   - `builtReadings` builds the forest before precedence with `recognize.New`. That forest is V1's built forest.
   - It is pinned to `NewNoPrecedence`, following the list's "reproduce V1" rule.
   - 3262 is amended to list the test as pinned.
+
+## 2026-11-27, execute: the speed exit at risk (issues `01a21447-d218` and `01a21463-3262`)
+
+The d218 gate took rough timings, neither interleaved nor on a quiet machine. With Constrain gone from production, `speed-ratio-aggregate-longlived` gave after-medians of 3.35–3.46, against V1 before-minimums of 2.84–3.02.
+
+The cost is `forest.Build` of the judged chart, not Constrain. `speed-stage-forest` went from about 0.65 to about 1.45 at the switch-over (3262).
+
+The exit in design §7 needs the after-median below the before-minimum, so it looks likely to be unmet. The remaining issues are d247, d278, d2a2 and bb9b.
+
+- **Order of the verdict reading:** "Take a quiet reading now (Recommended)". Once d218 and d1eb merge, the formal interleaved B A B A B A reading runs before the remaining issues. If the exit is unmet, execution stops and the `forest.Build` cost is reported, without spending effort on d247, d278 or d2a2 first.
