@@ -333,14 +333,47 @@ func (r *referee) narrowed(s precedenceSentence) (*forest.Forest, int) {
 	return f, skip
 }
 
-// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: Build's forest before resolve,
-// since bison's token choice stands in for scope, its derivations
-// narrowed to s's own terminals (a token admits a set of terminals, and bison read one of them), then the constraint.
+// lattice is s's rendering's lattice narrowed to s's own terminals before recognition (a token admits a set of
+// terminals, and bison read one of them): each token past the preamble's skip takes the singleton set of its terminal,
+// by recognize.SetID's id where the tables lack it, or the empty set where the token does not admit it or s has no
+// terminal for it.
+func (r *referee) lattice(s precedenceSentence) (*lex.Lattice[lex.None], int) {
+	want, skip := r.target(s)
+	st, _ := lex.Lex([]byte(s.rendering), r.tab.Tokens)
+	l := lex.Linear(st)
+	for k := skip; k < len(l.Edges); k++ {
+		set := []int{}
+		if i := k - skip; i < len(want) && slices.Contains(r.tab.TerminalSets[l.Edges[k].Token.TerminalSet], int(want[i])) {
+			set = []int{int(want[i])}
+		}
+		l.Edges[k].Token.TerminalSet = recognize.SetID(r.tab, set)
+	}
+	return l, skip
+}
+
+// judged is the judged recognizer's forest of s's narrowed lattice, Build's with no Constrain, nil where its chart
+// refuses; the chart is returned too, for its slipper insertions. skip is the token count of s's preamble.
+func (r *referee) judged(s precedenceSentence) (*forest.Forest, *recognize.Chart, int) {
+	l, skip := r.lattice(s)
+	c, err := recognize.Recognize(recognize.New(r.tab, recognize.Options{}), l)
+	if err != nil || !c.Accepted() {
+		return nil, c, skip
+	}
+	return forest.Build(r.tab, c, l), c, skip
+}
+
+// judge is the chart's verdict ("accept" or "refuse") and grouping on s's rendering: the judged recognizer's forest of
+// its lattice narrowed to s's own terminals (lattice), since bison's token choice stands in for scope.
 // The grouping is the referee's: each reduction of a rule carrying a precedence, line:from-to over terminal indexes
 // (GRAMPROG is 0), children first, comma-separated, - for none; "ambiguous" where the derivations left disagree on it.
 func (r *referee) judge(s precedenceSentence) (verdict, grouping string) {
-	f, skip := r.narrowed(s)
-	if f == nil || !f.Constrain(r.p) {
+	f, _, skip := r.judged(s)
+	return r.verdict(f, skip)
+}
+
+// verdict is judge's verdict and grouping of f, a forest whose first skip tokens are the preamble; nil refuses.
+func (r *referee) verdict(f *forest.Forest, skip int) (verdict, grouping string) {
+	if f == nil {
 		return "refuse", "-"
 	}
 	trees, cut := f.Derivations(f.Root, 16)
@@ -423,10 +456,11 @@ func (r *referee) disagreement(s precedenceSentence) string {
 	return ""
 }
 
-// PrecedenceCounts are the referee's counts over a precedence fixture directory: the kept sentences whose chart
-// verdict or grouping differs from bison's, and each disagreement; the bison resolutions a kept sentence covers; and
+// PrecedenceCounts are the referee's counts over a precedence fixture directory: the kept sentences it judged; those
+// whose chart verdict or grouping differs from bison's, and each disagreement; the bison resolutions a kept sentence covers; and
 // those covered by no kept sentence and on no reviewed list.
 type PrecedenceCounts struct {
+	Compared          int
 	Disagree          []string
 	Covered           int
 	UncoveredUnlisted []string
@@ -452,6 +486,7 @@ func CountPrecedence(g *grammar.Grammar, tab *grammar.Tables, dir string) (Prece
 		if s.rendering == "-" {
 			continue
 		}
+		c.Compared++
 		if d := r.disagreement(s); d != "" {
 			c.Disagree = append(c.Disagree, d)
 		}

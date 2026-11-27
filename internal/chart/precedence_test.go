@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/prectab"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
 
 // perlyPrecedence is the committed grammar's precedence over its tables.
@@ -227,57 +228,181 @@ func TestPrecedenceKeepsCorpusAccepted(t *testing.T) {
 	t.Logf("the constraint keeps all %d files perl and recognition accept", n)
 }
 
-// keptAlts is every node's alternative chain, in order, each node's chain closed by -1.
-func keptAlts(f *forest.Forest) []int32 {
-	var out []int32
-	for n := range f.Nodes {
-		for a := f.Nodes[n].Alt; a != 0; a = f.Alts[a].Next {
-			out = append(out, a)
-		}
-		out = append(out, -1)
-	}
-	return out
-}
-
-// constrainAgrees runs Constrain on one copy of f and ConstrainReference on another, and reports whether both give
-// the verdict and the kept alternatives on every node, the verdict, and whether the constraint pruned anything.
-func constrainAgrees(f *forest.Forest, p *prectab.Precedence) (agree, verdict, pruned bool) {
-	before := keptAlts(f)
-	prod, ref := f.Copy(), f.Copy()
-	v, vr := prod.Constrain(p), ref.ConstrainReference(p)
-	return v == vr && slices.Equal(keptAlts(prod), keptAlts(ref)), v, !slices.Equal(keptAlts(prod), before)
-}
-
-// TestPrecedenceRefereeMatchesReference requires production Constrain and ConstrainReference to agree on verdict and
-// kept alternatives on every referee sentence, refused ones included, over the forest the referee judges.
+// TestPrecedenceRefereeMatchesReference requires the referee's judged forest to give ConstrainReference's verdict and
+// kept alternatives over the no-precedence narrowed forest (referee.narrowed) on every kept sentence, zero-width
+// slipper ; leaves dropped from both. Where the reference refuses, the judged chart dies and has no forest, so only
+// the verdicts are compared (design §5).
 func TestPrecedenceRefereeMatchesReference(t *testing.T) {
 	r := committedReferee(t)
 	sentences, err := readSentences(precedenceDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, compared, refused, pruned := 0, 0, 0, 0
+	semi := r.terminal["PERLY_SEMICOLON"]
+	compared, verdictOnly := 0, 0
 	for _, s := range sentences {
 		if s.rendering == "-" {
 			continue
 		}
-		n++
-		f, _ := r.narrowed(s)
-		if f == nil {
-			t.Errorf("%s %q: no forest to compare", s.id, s.rendering)
+		ref, _ := r.narrowed(s)
+		if ref == nil {
+			t.Errorf("%s %q: the no-precedence narrowed chart refuses, so the reference has no forest", s.id, s.rendering)
 			continue
 		}
 		compared++
-		agree, verdict, prunedHere := constrainAgrees(f, r.p)
-		if !agree {
-			t.Errorf("%s %q: Constrain and ConstrainReference differ", s.id, s.rendering)
+		judged, _, _ := r.judged(s)
+		if !ref.ConstrainReference(r.p) {
+			verdictOnly++
+			if judged != nil {
+				t.Errorf("%s %q: ConstrainReference refuses, the judged chart accepts", s.id, s.rendering)
+			}
+			continue
 		}
-		if !verdict {
-			refused++
-		}
-		if prunedHere {
-			pruned++
+		if d := refereeDiff(judged, ref, semi); d != "" {
+			t.Errorf("%s %q: the judged forest differs from ConstrainReference's: %s", s.id, s.rendering, d)
 		}
 	}
-	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", n, compared, refused, pruned)
+	t.Logf("referee: compared %d of %d", compared, keptSentences(sentences))
+	t.Logf("%s verdict only: %d", t.Name(), verdictOnly)
+	if compared == 0 || verdictOnly == 0 {
+		t.Errorf("compared %d, %d by verdict only; want some of each", compared, verdictOnly)
+	}
+}
+
+// TestPrecedenceRefereeJudgesRecognizer: on every kept sentence the referee's verdict and grouping match bison's, and
+// judging them all enters Constrain no time, counted by Constrain's own hook, so the verdicts are the judged
+// recognizer's over the narrowed lattice and not the constraint's over a built forest.
+func TestPrecedenceRefereeJudgesRecognizer(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compared, refused, bad, n0 := 0, 0, 0, forest.ConstrainEntries()
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		compared++
+		if s.verdict != "accept" {
+			refused++
+		}
+		if d := r.disagreement(s); d != "" {
+			if bad++; bad <= 10 {
+				t.Error(d)
+			}
+		}
+	}
+	entries := forest.ConstrainEntries() - n0
+	t.Logf("referee: compared %d of %d, bison refuses %d, disagree: %d, constrain entries: %d", compared, keptSentences(sentences), refused, bad, entries)
+	if compared == 0 || refused == 0 || bad > 0 || entries != 0 {
+		t.Errorf("compared %d, bison refused %d, %d disagree, Constrain entered %d times; want some of each compared, none disagreeing, no entry", compared, refused, bad, entries)
+	}
+}
+
+// TestPrecedenceRefereeAllSentencesAgree: precedence-disagree, as the ratchet reads it from CountPrecedence, is 0 over
+// every kept sentence, and it logs how many it compared of how many were loaded.
+func TestPrecedenceRefereeAllSentencesAgree(t *testing.T) {
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := CountPrecedence(g, tab, precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := keptSentences(sentences)
+	for _, d := range c.Disagree[:min(10, len(c.Disagree))] {
+		t.Error(d)
+	}
+	t.Logf("referee: compared %d of %d", c.Compared, kept)
+	t.Logf("disagree: %d", len(c.Disagree))
+	if kept == 0 || c.Compared != kept || len(c.Disagree) != 0 {
+		t.Errorf("compared %d of %d kept sentences, %d disagree; want every one compared, none disagreeing", c.Compared, kept, len(c.Disagree))
+	}
+}
+
+// TestRefereeSingletonSetIdsOutsideCommittedTables: narrowing every kept sentence's lattice to its own terminals
+// gives the 19 singleton sets the committed tables lack ids past recognize.NarrowedBase, and the tables still hold
+// their 1880 sets, each as it was.
+func TestRefereeSingletonSetIdsOutsideCommittedTables(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := make([][]int, len(r.tab.TerminalSets))
+	for i, set := range r.tab.TerminalSets {
+		before[i] = slices.Clone(set)
+	}
+	outside := map[int]bool{}
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		l, skip := r.lattice(s)
+		for _, e := range l.Edges[skip:] {
+			if e.Token.TerminalSet >= recognize.NarrowedBase {
+				outside[e.Token.TerminalSet] = true
+			}
+		}
+	}
+	t.Logf("singleton sets outside the committed tables: %d", len(outside))
+	if len(outside) != 19 {
+		t.Errorf("%d singleton sets outside the committed tables, want 19", len(outside))
+	}
+	if len(r.tab.TerminalSets) != 1880 || !slices.EqualFunc(r.tab.TerminalSets, before, slices.Equal) {
+		t.Errorf("the committed tables hold %d sets after narrowing, or one changed; want the 1880 as they were", len(r.tab.TerminalSets))
+	}
+}
+
+// TestPrecedenceRefereeKeepsSlipperLeaves (F8-P1): lattice narrowing keeps the slipper's zero-width ; leaves, which the
+// forest-side narrow dropped. Over every kept sentence it counts the charts the slipper inserted a ; into and the
+// forests that keep such a leaf, and requires the verdict and grouping with the leaves dropped to be the referee's,
+// and no sentence ambiguous or cut.
+func TestPrecedenceRefereeKeepsSlipperLeaves(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	semi := r.terminal["PERLY_SEMICOLON"]
+	kept, inserted, leaves, moved, ambiguous, cut := 0, 0, 0, 0, 0, 0
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		kept++
+		f, c, skip := r.judged(s)
+		if len(c.Inserted()) > 0 {
+			inserted++
+		}
+		if f != nil && slices.ContainsFunc(f.Nodes[1:], func(n forest.Node) bool { return n.Alt == 0 && n.Sym == semi && n.From == n.To }) {
+			leaves++
+		}
+		v, g := r.verdict(f, skip)
+		if dv, dg := r.verdict(dropSlipperLeaves(f, semi), skip); dv != v || dg != g {
+			if moved++; moved <= 10 {
+				t.Errorf("%s %q: %s %s with the slipper's leaves, %s %s without", s.id, s.rendering, v, g, dv, dg)
+			}
+		}
+		switch {
+		case strings.HasPrefix(g, "ambiguous"):
+			ambiguous++
+		case strings.HasPrefix(g, "more than"):
+			cut++
+		}
+	}
+	t.Logf("slipper ; insertions: %d of %d; forests keeping a zero-width ; leaf: %d; moved: %d; ambiguous: %d; cut: %d", inserted, kept, leaves, moved, ambiguous, cut)
+	if inserted == 0 || leaves == 0 || moved > 0 || ambiguous > 0 || cut > 0 {
+		t.Errorf("want some insertions and kept leaves, and nothing moved, ambiguous or cut")
+	}
 }

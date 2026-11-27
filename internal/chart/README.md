@@ -2648,12 +2648,13 @@ only `grammar`, so `recognize` can import them. `Constrain`,
 through `prectab`. `Precedence.Item` maps each of the recognizer's 1,212 core
 items to its automaton item by rule and dot; the automaton's other 12 items are
 the four refused rules' (`TestPrectabItemMapping`).
-`TestWaypoint2Refusals`, the referee and the other precedence tests apply it
+`TestWaypoint2Refusals` and the other precedence tests apply it
 to `forest.Build`'s forest, before resolve (`builtForest`), since a
-sentence's token choice, as bison read it, stands in for scope there;
+sentence's token choice, as bison read it, stands in for scope there; the
+perly.y referee does not: it judges the judged recognizer's forest (below);
 `forest.Parse` never applies it: the judged chart refuses what it would, at the byte where the chart died, and
 `Build` of that chart already lacks every alternative it drops (`TestParseWithNeverConstrains`); it stays as the
-referee the tests judge the no-precedence forest with (design §4.5). Nothing judges the slipper's zero-width `;`
+referee the tests judge the no-precedence forest with. Nothing judges the slipper's zero-width `;`
 after recognition, and nothing needs to: no reduction before `;` and no shift of it has a forbidding verdict
 (`TestSlipperSemicolonReduceNeverForbidden`, `TestSlipperSemicolonShiftNeverForbidden`). It reads only the forest, the
 grammar's tables and its precedence: no Earley item gains a fact.
@@ -2793,16 +2794,22 @@ grammar's tables and its precedence: no Earley item gains a fact.
   every one of the 4,395 sentences; `TestPrecedenceConstraintOrderInvariant`
   the same results with Leo off, the cache off and every node's alternatives
   reversed.
-- **The perly.y referee.** `TestPrecedenceReferee` builds each forest with
-  `forest.Build`, before resolve, since bison's token choice stands in for
-  scope, and runs the constraint on each of the 1,296 kept generated sentences'
-  renderings (`testdata/precedence/`, above) and requires bison's verdict and grouping
-  on every one; they cover 1,304 of bison's 1,347 resolutions, the `PLUGIN_*`
+- **The perly.y referee.** `TestPrecedenceReferee` judges each of the 1,296
+  kept generated sentences' renderings (`testdata/precedence/`, above) with
+  the judged recognizer (`recognize.New`) then `forest.Build`, before resolve
+  and with no `Constrain`, since bison's token choice stands in for scope
+  (design §4.5), and requires bison's verdict and grouping on every one; they cover 1,304 of bison's 1,347 resolutions, the `PLUGIN_*`
   ones among them, each rendered as a word of `testdata/libops`'s `My::Ops`
   under the preamble `use My::Ops;` (a sentence's distinct preambles are
   written once each, told apart by their whole text). A token admits a
-  set of terminals and bison read one, so the forest is first narrowed to
-  the sentence's own terminals (`foo` is `UNIOPSUB` there, not a bareword),
+  set of terminals and bison read one, so the lattice is first narrowed,
+  before recognition, to the sentence's own terminals (`foo` is `UNIOPSUB`
+  there, not a bareword): each token past the preamble takes its terminal's
+  singleton set, by `recognize.SetID`'s id where the committed tables lack it
+  (`TestRefereeSingletonSetIdsOutsideCommittedTables`), so a sentence bison
+  refuses dies in the chart (`TestPrecedenceRefereeJudgesRecognizer`).
+  Lattice narrowing keeps the slipper's zero-width `;` leaves, which no
+  verdict or grouping reads (`TestPrecedenceRefereeKeepsSlipperLeaves`),
   and a preamble's reductions are left out of the grouping, which counts
   terminals from `GRAMPROG` at 0. `TestPrecedenceRefereeDetectsMismatch`
   shows a swapped grouping and a flipped verdict reported, and
@@ -2846,14 +2853,15 @@ grammar's tables and its precedence: no Earley item gains a fact.
     their shared comparison report a dropped alternative and a flipped
     verdict.
   - In `chart`, `TestPrecedenceRefereeMatchesReference` on every referee
-    sentence, the ones bison refuses included, on `Build`'s forest narrowed
-    to the sentence's terminals as the referee narrows it, and
+    sentence, the ones bison refuses included: the referee's judged forest
+    against `ConstrainReference` on `Build`'s no-precedence forest narrowed
+    to the sentence's terminals (`referee.narrowed`), with zero-width slipper
+    `;` leaves dropped from both sides, and
     `TestWaypoint2RefusalsMatchReference` on every row of
     `waypoint2Refusals` and `waypoint2ScopeRefusals`, on the forest after
     `LibraryOperators` under `forest.Scope{}`, as `pipelineSource` passes it
-    to the constraint. The first logs its counts and fails on a sentence
-    with no forest; the second compares a row the judged chart refuses by
-    verdict only.
+    to the constraint. Each compares a sentence or row the judged chart
+    refuses by verdict only.
   - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
     of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
     `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
@@ -2954,7 +2962,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
   package `chart`) and every referee sentence
   (`TestForestEqualityRefereeSentences`), where V1's path is the referee's
   own: V1's recognizer, `Build`, `narrow`, `Constrain`, with no
-  `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`).
+  `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`),
+  and the candidate is the referee's judged forest, which never enters
+  `Constrain` (`TestForestEqualityRefereeCandidateNeverConstrains`).
   The referee comparison drops zero-width slipper `;` leaves from both sides
   and nothing else (`TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves`).
   The toy, generated-sentence, waypoint2 and referee differentials each log
