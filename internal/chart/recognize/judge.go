@@ -174,6 +174,10 @@ func NewJudged(tab *grammar.Tables, p *prectab.Precedence, opts Options) (*Recog
 	return r, r.err
 }
 
+// Judges reports whether r judges any precedence: false for NewNoPrecedence's, and for the derived form over tables
+// that declare no levels.
+func (r *Recognizer) Judges() bool { return r.judge != nil }
+
 // verdict judges reducing rule r before the terminals of la that can follow its LHS (follow): refused where its
 // reduce verdict forbids it before every one, or where there are none (vacuously), and kept where some allows it.
 // Under the parent item pi, a parent-dependent terminal is judged by pi; with pi -1 it is left to the parent, and
