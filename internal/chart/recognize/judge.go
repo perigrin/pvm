@@ -29,6 +29,9 @@ type judgement struct {
 	// (prectab.PredictionContexts).
 	ctx   []int
 	start int
+	// completed is, by state, whether a nonterminal's transition reaches it: its items are made by completion, which
+	// Expected judges again before each candidate, and every other item is made by a scan or a prediction.
+	completed []bool
 }
 
 // newJudgement is the reduce side of p over tab, or Feasible's refusal of p, unwrapped.
@@ -57,6 +60,14 @@ func newJudgement(tab *grammar.Tables, p *prectab.Precedence) (*judgement, error
 		j.ctx[s] = itemContext(x)
 	}
 	j.parent = slices.Repeat([]int32{-1}, len(tab.States)*j.nneed)
+	j.completed = make([]bool, len(tab.States))
+	for _, st := range tab.States {
+		for _, tr := range st.Transitions {
+			if !tab.Symbols[tr.Symbol].Terminal {
+				j.completed[tr.Target] = true
+			}
+		}
+	}
 	for s, st := range tab.States {
 		for _, i := range st.Items {
 			it := tab.Items[i]

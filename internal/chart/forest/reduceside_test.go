@@ -266,6 +266,49 @@ func TestJudgedRecognizerRefusesInfeasibleGrammar(t *testing.T) {
 	}
 }
 
+// TestExpectedOnInfeasibleGrammarIsNoPrecedence: a grammar Feasible refuses has no judged chart to read Expected
+// from, since the judged constructor refuses it with the generation error. Expected on the no-precedence
+// constructor's chart is V1's at every node of every input of up to five terminals: the union of the expected
+// terminals of every state the no-lookahead set holds.
+func TestExpectedOnInfeasibleGrammarIsNoPrecedence(t *testing.T) {
+	for _, ty := range infeasibleToys {
+		t.Run(ty.name, func(t *testing.T) {
+			tab, p := ty.load(t)
+			_, want := prectab.Feasible(p)
+			if _, err := recognize.NewJudged(tab, p, recognize.Options{}); want == nil || err == nil || err.Error() != want.Error() {
+				t.Fatalf("%s: NewJudged's error %v; want Feasible's, %v", ty.name, err, want)
+			}
+			nodes := 0
+			for _, l := range toyInputs(tab) {
+				c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ref, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{NoLookahead: true}), l)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for pos, s := range ref.Sets {
+					var v1 []string
+					for _, it := range s.Items() {
+						for _, id := range tab.States[it.State].Expected {
+							v1 = append(v1, tab.Symbols[id].Name)
+						}
+					}
+					slices.Sort(v1)
+					v1 = slices.Compact(v1)
+					got, err := c.Expected(pos)
+					if err != nil || !slices.Equal(got, v1) {
+						t.Fatalf("%s node %d: Expected %v, %v; want V1's %v", ty.name, pos, got, err, v1)
+					}
+					nodes++
+				}
+			}
+			t.Logf("%s: %d nodes", ty.name, nodes)
+		})
+	}
+}
+
 // TestParseRefusesInfeasibleGrammar: parseStream, with the judged recognizer over each toy Feasible refuses, judged
 // with the toy's own precedence, refuses every file with Feasible's refusal, as text, and never the
 // not-the-committed-grammar error, as TestPrecedenceGenerationErrorRefusesEveryFile does for a failed derivation.
