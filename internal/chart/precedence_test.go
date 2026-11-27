@@ -323,7 +323,8 @@ func TestPrecedenceRefereeAllSentencesAgree(t *testing.T) {
 	for _, d := range c.Disagree[:min(10, len(c.Disagree))] {
 		t.Error(d)
 	}
-	t.Logf("referee: compared %d of %d, disagree: %d", kept, kept, len(c.Disagree)) // CountPrecedence judges every kept one
+	t.Logf("referee: compared %d of %d", kept, kept) // CountPrecedence judges every kept one
+	t.Logf("disagree: %d", len(c.Disagree))
 	if kept == 0 || len(c.Disagree) != 0 {
 		t.Errorf("%d kept sentences, %d disagree; want some, none disagreeing", kept, len(c.Disagree))
 	}
