@@ -39,17 +39,17 @@ func (c *Chart) memoAt(at, sym int) *memo {
 	if m := c.leo[key]; m != nil {
 		return m
 	}
-	m := &memo{at: at, origin: origin, top: [3]int{k, origin, ctx}, item: state, ctx: ctx, adv: k, lhs: lhs}
+	m := &memo{at: at, origin: origin, top: [3]int{k, origin, ctx}, item: state, adv: k, lhs: lhs}
 	// A predicted item's origin is this node; its chain stops here. So
 	// does one at a start-rule item from node 0, which acceptance reads.
 	// The origin != 0 test is the one position-dependent step here: it is
-	// cache-safe only because node 0's set is {(0, 0)} and every other
-	// node's set has a kernel item with origin < pos, so no other node
-	// shares node 0's set id. A mode seeding node 0 differently, or
-	// starting mid-file, must revisit it.
-	// The chain also stops at a link its completion does not pair with (§4.3): there completion advances nothing.
+	// cache-safe only because node 0's set is {(0, 0, start)}, the start
+	// item under the start context (startContext), and every other node's
+	// set has a kernel item with origin < pos, so no other node shares node
+	// 0's set id. A mode seeding node 0 differently, or starting mid-file,
+	// must revisit it.
 	if origin < at && (lhs != c.r.tab.Start || origin != 0) {
-		if next := c.memoAt(origin, lhs); next != nil && c.r.predicts(next.item, next.ctx) == ctx {
+		if next := c.memoAt(origin, lhs); next != nil {
 			m.top, m.next = next.top, next
 		}
 	}

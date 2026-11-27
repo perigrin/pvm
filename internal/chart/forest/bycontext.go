@@ -88,10 +88,8 @@ func (b *builder) under(n int32, a int32, ctx int, keep func(right int)) {
 		}
 		return
 	}
-	run := b.items[b.from[from]:b.from[from+1]]
 	core := b.g.core[r] + m - 1
-	for i, _ := slices.BinarySearchFunc(run, k, func(p placed, k int) int { return int(p.at) - k }); i < len(run) && int(run[i].at) == k; i++ {
-		p := run[i]
+	for _, p := range b.placedAt(from, k) {
 		if int(p.ctx) != ctx {
 			continue
 		}
@@ -111,12 +109,11 @@ func (b *builder) under(n int32, a int32, ctx int, keep func(right int)) {
 // completedUnder reports whether the chart completed sym from node from at node to under context ctx, by rule, or by
 // any rule where rule is -1: an item of its set or the slipper's closure there, or a completion a Leo memo skipped.
 func (b *builder) completedUnder(sym, rule, from, to, ctx int) bool {
-	run := b.items[b.from[from]:b.from[from+1]]
-	for i, _ := slices.BinarySearchFunc(run, to, func(p placed, k int) int { return int(p.at) - k }); i < len(run) && int(run[i].at) == to; i++ {
-		if int(run[i].ctx) != ctx {
+	for _, p := range b.placedAt(from, to) {
+		if int(p.ctx) != ctx {
 			continue
 		}
-		for _, x := range b.tab.States[run[i].state].Reduces {
+		for _, x := range b.tab.States[p.state].Reduces {
 			if (x == rule || rule < 0 && b.tab.Rules[x].LHS == sym) && !b.c.RuleRefused(to, x, sym, from) {
 				return true
 			}
@@ -130,4 +127,12 @@ func (b *builder) completedUnder(sym, rule, from, to, ctx int) bool {
 		}
 	}
 	return false
+}
+
+// placedAt is the items at node at from node from.
+func (b *builder) placedAt(from, at int) []placed {
+	run := b.items[b.from[from]:b.from[from+1]]
+	lo, _ := slices.BinarySearchFunc(run, at, func(p placed, k int) int { return int(p.at) - k })
+	hi, _ := slices.BinarySearchFunc(run, at+1, func(p placed, k int) int { return int(p.at) - k })
+	return run[lo:hi]
 }

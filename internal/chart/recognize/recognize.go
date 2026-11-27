@@ -503,7 +503,7 @@ func (b *builder) complete(la bitset) {
 			}
 			b.read(origin, src)
 			if !dep {
-				if top, ok := b.leo(origin, lhs, ctx, la); ok {
+				if top, ok := b.leo(origin, lhs, la); ok {
 					b.add(top[0], top[1], top[2])
 					continue
 				}

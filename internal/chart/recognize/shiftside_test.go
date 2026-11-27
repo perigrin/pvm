@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/lex"
 )
 
 // coreItem is the tables' core item of the rule lhs ::= rhs (symbol names) with its dot at dot; it fails tb where
@@ -226,5 +227,158 @@ func TestPredictorTakesNonNoneTop(t *testing.T) {
 				t.Errorf("no-precedence node %d %v: the operand did not scan %s under none", tc.op+1, plain.Sets[tc.op+1].Items(), tc.opName)
 			}
 		})
+	}
+}
+
+// slipShiftToy is S ::= X, X ::= X ; | X } X | X T X | P X | A, with ; postfix, } and T infix, P prefix at level 2,
+// T below it, and the levels given to ; and }: the slipper's inserted ; before }, and the } scanned after it, are
+// both shifts V1 judges under P's top, which T keeps a real top. With } below P, a } after X . } X under P's top is
+// forbidden; with ; below P, a ; after X . ; is.
+func slipShiftToy(t *testing.T, semi, brace int) (*grammar.Tables, *Recognizer) {
+	t.Helper()
+	levels := []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"T"}}, {N: 2, Assoc: "right", Tokens: []string{"P"}}}
+	for _, l := range []grammar.Level{{N: semi, Assoc: "left", Tokens: []string{"PERLY_SEMICOLON"}}, {N: brace, Assoc: "left", Tokens: []string{"PERLY_BRACE_CLOSE"}}} {
+		if k := slices.IndexFunc(levels, func(x grammar.Level) bool { return x.N == l.N }); k >= 0 {
+			levels[k].Tokens = append(levels[k].Tokens, l.Tokens...)
+		} else {
+			levels = append(levels, l)
+		}
+	}
+	slices.SortFunc(levels, func(a, b grammar.Level) int { return a.N - b.N })
+	tab, p := precToy(t, levels, nil, nil, "S ::= X", "X ::= X PERLY_SEMICOLON | X PERLY_BRACE_CLOSE X | X T X | P X | A")
+	return tab, mustJudged(t, tab, p, Options{})
+}
+
+// TestShiftRefusalThroughSlipper: on P A } A the slipper inserts a ; before the }, where X . ; awaits it from node 1,
+// under P's top, and from node 0, under none. Where ; is below P, V1 forbids its shift under P's top: the slipper's
+// closure at node 2 holds no item that scanned it from node 1, while the no-precedence closure does. Where } is below
+// P and ; above, the ; is kept and completes X from node 1, so X . } X awaits the } under P's top from node 1 only
+// through the inserted ;, the direct scan having refused it: V1 forbids that shift, and the chart holds no item
+// that scanned the } from node 1, while the no-precedence chart does. Where both are above P, the } is kept through
+// the inserted ;, and the item it advances carries P's top.
+func TestShiftRefusalThroughSlipper(t *testing.T) {
+	t.Run("semicolon", func(t *testing.T) {
+		tab, r := slipShiftToy(t, 1, 3)
+		l := tokens(tab, "P", "A", "PERLY_BRACE_CLOSE", "A")
+		next := l.Edges[2].Token.TerminalSet
+		c := mustRecognize(t, r, l)
+		plain := mustRecognize(t, NewNoPrecedence(tab, Options{}), l)
+		if !slices.Contains(c.Inserted(), 2) || !slices.Contains(plain.Inserted(), 2) {
+			t.Fatalf("no ; inserted at node 2: judged %v, no-precedence %v", c.Inserted(), plain.Inserted())
+		}
+		after := coreItem(t, tab, 2, "X", "X", "PERLY_SEMICOLON")
+		from1 := func(items []Item) []Item {
+			var out []Item
+			for _, it := range holding(tab, items, after) {
+				if it.Dist == 1 {
+					out = append(out, it)
+				}
+			}
+			return out
+		}
+		if got := from1(c.Slipped(2, next)); len(got) != 0 {
+			t.Errorf("the slipper's closure at node 2 %v holds X ; from node 1, %v, under P's top", c.Slipped(2, next), got)
+		}
+		if got := from1(plain.Slipped(2, next)); len(got) == 0 {
+			t.Errorf("the no-precedence closure at node 2 %v lacks X ; from node 1: the fixture never inserts it there", plain.Slipped(2, next))
+		}
+	})
+	t.Run("brace", func(t *testing.T) {
+		tab, r := slipShiftToy(t, 3, 1)
+		l := tokens(tab, "P", "A", "PERLY_BRACE_CLOSE", "A")
+		next := l.Edges[2].Token.TerminalSet
+		c := mustRecognize(t, r, l)
+		plain := mustRecognize(t, NewNoPrecedence(tab, Options{}), l)
+		before := coreItem(t, tab, 1, "X", "X", "PERLY_BRACE_CLOSE", "X")
+		after := coreItem(t, tab, 2, "X", "X", "PERLY_BRACE_CLOSE", "X")
+		ctx := itemCtx(r, coreItem(t, tab, 1, "X", "P", "X"))
+		// Through the inserted ;, X ; from node 1 awaits the } under P's top; in the set itself it never does.
+		if got := holding(tab, c.Slipped(2, next), before); !slices.ContainsFunc(got, func(it Item) bool { return it.Dist == 1 && it.Ctx == ctx }) {
+			t.Fatalf("the slipper's closure at node 2 %v: X . } X awaits under %v; want from node 1 under P's top %d", c.Slipped(2, next), got, ctx)
+		}
+		from1 := func(c *Chart) bool {
+			return slices.ContainsFunc(holding(tab, c.Sets[3].Items(), after), func(it Item) bool { return it.Dist == 2 })
+		}
+		if from1(c) {
+			t.Errorf("node 3 %v: X } scanned from node 1 under P's top", c.Sets[3].Items())
+		}
+		if !from1(plain) {
+			t.Errorf("no-precedence node 3 %v: X } never scanned from node 1", plain.Sets[3].Items())
+		}
+	})
+	t.Run("carried", func(t *testing.T) {
+		// With ; and } both above P, the } after the inserted ; is kept from node 1, and the item it advances keeps
+		// P's top, as the direct scan's does: node 3 holds X } from node 1 under P's top and under no other context.
+		tab, r := slipShiftToy(t, 3, 3)
+		l := tokens(tab, "P", "A", "PERLY_BRACE_CLOSE", "A")
+		c := mustRecognize(t, r, l)
+		ctx := itemCtx(r, coreItem(t, tab, 1, "X", "P", "X"))
+		var got []int
+		for _, it := range holding(tab, c.Sets[3].Items(), coreItem(t, tab, 2, "X", "X", "PERLY_BRACE_CLOSE", "X")) {
+			if it.Dist == 2 {
+				got = append(got, it.Ctx)
+			}
+		}
+		if ctx == 0 || !slices.Equal(got, []int{ctx}) || !slices.Contains(c.Inserted(), 2) {
+			t.Errorf("node 3 %v: X } from node 1 under contexts %v, a ; inserted at node 2 %v; want P's top %d alone, and a ;",
+				c.Sets[3].Items(), got, slices.Contains(c.Inserted(), 2), ctx)
+		}
+	})
+}
+
+// TestShiftRefusalThroughExpected: on S ::= Y END | Q Y T, Y ::= P X, X ::= X T X | A, with T below P, and P A END,
+// X . T X awaits T at node 2 from node 1 under P's top. Q Y T puts T in the lookahead of Y ::= P X, which bison
+// reduces before T, so V1 forbids that shift, and nothing else at node 2 can take a T, since this Y is followed by
+// END. Expected omits T, which the no-precedence chart's Expected offers, and still offers END; the same holds with
+// lookahead off and with no cache.
+func TestShiftRefusalThroughExpected(t *testing.T) {
+	tab, p := precToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"T"}}, {N: 2, Assoc: "right", Tokens: []string{"P"}}}, nil, nil,
+		"S ::= Y END | Q Y T", "Y ::= P X", "X ::= X T X | A")
+	l := tokens(tab, "P", "A", "END")
+	for _, opts := range []Options{{}, {NoLookahead: true}, {NoCache: true}} {
+		r := mustJudged(t, tab, p, opts)
+		c := mustRecognize(t, r, l)
+		ctx := itemCtx(r, coreItem(t, tab, 1, "Y", "P", "X"))
+		if !slices.ContainsFunc(holding(tab, c.Sets[2].Items(), coreItem(t, tab, 1, "X", "X", "T", "X")), func(it Item) bool {
+			return it.Dist == 1 && it.Ctx == ctx && ctx != 0
+		}) {
+			t.Fatalf("%+v: node 2 %v: X . T X does not await T from node 1 under P's top %d", opts, c.Sets[2].Items(), ctx)
+		}
+		got, err := c.Expected(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plain, err := mustRecognize(t, NewNoPrecedence(tab, opts), l).Expected(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(got, "T") || !slices.Contains(got, "END") {
+			t.Errorf("%+v: Expected at node 2 is %v; want END and never T, whose shift P's top forbids", opts, got)
+		}
+		if !slices.Contains(plain, "T") {
+			t.Errorf("%+v: the no-precedence Expected at node 2 is %v; want T, or the fixture forbids nothing", opts, plain)
+		}
+	}
+}
+
+// TestJudgedBranchSetsAgree: with an edge over the whole of `foo -$x * $y;` added, every node between is inside a
+// branch, so its set is built by searching every item rather than through the postdot index; the shift side and
+// the pairing rule judge there too, so each of those sets equals the linear lattice's, where * is refused under
+// unary minus and $x * $y never completes into it.
+func TestJudgedBranchSetsAgree(t *testing.T) {
+	tab := committedTables(t)
+	s, _ := lex.Lex([]byte("foo -$x * $y;"), tab.Tokens)
+	l := lex.Linear(s)
+	linear := mustRecognize(t, mustJudged(t, tab, nil, Options{}), l)
+	n := len(l.Nodes)
+	l.Edges = append(l.Edges, lex.Edge{From: 0, To: n - 1, Token: l.Edges[len(l.Edges)-1].Token})
+	branched := mustRecognize(t, mustJudged(t, tab, nil, Options{}), l)
+	for i := 1; i < n-1; i++ {
+		if branched.Sets[i] == nil || branched.Sets[i].id != -1 {
+			t.Fatalf("node %d is not a branch set", i)
+		}
+		if !slices.Equal(branched.Sets[i].Items(), linear.Sets[i].Items()) {
+			t.Errorf("node %d: inside the branch %v, linear %v", i, branched.Sets[i].Items(), linear.Sets[i].Items())
+		}
 	}
 }

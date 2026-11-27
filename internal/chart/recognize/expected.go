@@ -9,7 +9,8 @@ import (
 )
 
 // Expected is the terminals some item in the Earley set at node pos expects,
-// by name, sorted: the union over every state in the set (§5). Lookahead
+// by name, sorted: the union over every state in the set (§5), less each
+// terminal the shift side refuses an item to scan under its context. Lookahead
 // prunes completions the next token cannot follow, so with it on the set is
 // first closed again under every completion. The closure is not stored and
 // changes neither the interned set nor the cache. A pruned completion is
@@ -48,7 +49,11 @@ func (c *Chart) Expected(pos int) ([]string, error) {
 	}
 	var ids []int
 	for _, it := range items {
-		ids = append(ids, c.r.tab.States[it.State].Expected...)
+		for _, t := range c.r.tab.States[it.State].Expected {
+			if !c.r.scanRefused(it.State, it.Ctx, t) {
+				ids = append(ids, t)
+			}
+		}
 	}
 	slices.Sort(ids)
 	ids = slices.Compact(ids)

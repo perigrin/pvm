@@ -17,7 +17,7 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	if c.r.opts.NoLeo || at < 0 || at >= len(c.Sets) {
 		return 0, 0, false, false
 	}
-	if set := c.Sets[at]; set != nil && set.core != nil && !c.r.g.leoSym[sym] {
+	if !c.r.g.leoSym[sym] {
 		return 0, 0, false, false
 	}
 	it, ok := c.awaitingOne(at, sym)
@@ -34,11 +34,7 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 		}
 	}
 	origin = at - it.Dist
-	more = origin < at && (lhs != c.r.tab.Start || origin != 0)
-	if p, ok := c.awaitingOne(origin, lhs); more && ok && c.r.predicts(p.State, p.Ctx) != it.Ctx {
-		more = false // the next link does not pair with this one's completion, as memoAt stops (§4.3)
-	}
-	return rule, origin, more, true
+	return rule, origin, origin < at && (lhs != c.r.tab.Start || origin != 0), true
 }
 
 // LeoLinkContext is the context of the completion LeoLink(at, sym) reports: the context of the one item at at

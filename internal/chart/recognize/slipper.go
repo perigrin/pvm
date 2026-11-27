@@ -11,12 +11,13 @@ import (
 
 // semiAt is the items a zero-width ; advances at node pos, closed under
 // completion with lookahead la, as a builder at pos; nil where nothing at pos
-// awaits a ; (spec §5.2). toke.c inserts that ; before the } that closes a
-// scope (yyl_rightcurly) and at the end of the file (yyl_fake_eof).
+// awaits a ; (spec §5.2), or the shift side refuses every such scan. toke.c
+// inserts that ; before the } that closes a scope (yyl_rightcurly) and at the
+// end of the file (yyl_fake_eof).
 func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
 	v := &builder{r: r, c: c, pos: pos, interned: true}
 	for _, it := range c.Sets[pos].Items() {
-		if k, ok := r.goTo(it.State, r.g.semi); ok {
+		if k, ok := r.semiShift(it); ok {
 			v.add(k, pos-it.Dist, it.Ctx)
 		}
 	}
@@ -31,7 +32,8 @@ func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
 }
 
 // slip scans e's }, beside its scan from e.From's set, from the items an
-// inserted ; advances there; their origin sets are this node's dependencies.
+// inserted ; advances there, but for a scan the shift side refuses under the
+// item's context; their origin sets are this node's dependencies.
 func (b *builder) slip(e lex.Edge) {
 	cls, id := b.r.class(e.Token.TerminalSet)
 	v := b.r.semiAt(b.c, e.From, cls.bits[id])
@@ -52,15 +54,22 @@ func (b *builder) slip(e lex.Edge) {
 			continue
 		}
 		for _, t := range cls.terms[id] {
-			if k, ok := b.r.goTo(it[0], t); ok {
+			if k, ok := b.r.goTo(it[0], t); ok && !b.r.scanRefused(it[0], it[2], t) {
 				b.add(k, it[1], it[2])
 			}
 		}
 	}
 }
 
+// semiShift is the state it advances to over an inserted ;, and false where it
+// awaits none or the shift side refuses the scan under its context.
+func (r *Recognizer) semiShift(it Item) (int, bool) {
+	k, ok := r.goTo(it.State, r.g.semi)
+	return k, ok && !r.scanRefused(it.State, it.Ctx, r.g.semi)
+}
+
 // slipped records the nodes where a ; was inserted, those before a } or at
-// the end of input whose set awaits one, and whether the one at the end of
+// the end of input whose set awaits one it may scan (semiShift), and whether the one at the end of
 // input completes the start. out is the set ids leaving each node.
 func (c *Chart) slipped(out [][]int) {
 	r, last := c.r, len(c.Sets)-1
@@ -71,7 +80,7 @@ func (c *Chart) slipped(out [][]int) {
 		if pos != last && !slices.ContainsFunc(out[pos], func(id int) bool { cls, i := r.class(id); return cls.closes[i] }) {
 			continue
 		}
-		if slices.ContainsFunc(s.Items(), func(it Item) bool { _, ok := r.goTo(it.State, r.g.semi); return ok }) {
+		if slices.ContainsFunc(s.Items(), func(it Item) bool { _, ok := r.semiShift(it); return ok }) {
 			c.inserted = append(c.inserted, pos)
 		}
 	}
