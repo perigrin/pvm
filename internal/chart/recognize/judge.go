@@ -24,6 +24,10 @@ type judgement struct {
 	need   []int32
 	parent []int32
 	nneed  int
+	// ctx is, by state, the context (Item.Ctx) of the item a kernel state predicts, and start the start item's
+	// (prectab.PredictionContexts).
+	ctx   []int
+	start int
 }
 
 // newJudgement is the reduce side of p over tab, or Feasible's refusal of p, unwrapped.
@@ -45,6 +49,11 @@ func newJudgement(tab *grammar.Tables, p *prectab.Precedence) (*judgement, error
 			j.need[sym] = int32(j.nneed)
 			j.nneed++
 		}
+	}
+	c := prectab.PredictionContexts(p)
+	j.ctx, j.start = make([]int, len(tab.States)), itemContext(c.Start)
+	for s, x := range c.Kernel {
+		j.ctx[s] = itemContext(x)
 	}
 	j.parent = slices.Repeat([]int32{-1}, len(tab.States)*j.nneed)
 	for s, st := range tab.States {
@@ -93,6 +102,25 @@ func deriveJudgement(tab *grammar.Tables) derived {
 	}
 	j, err := newJudgement(tab, p)
 	return derived{j, err}
+}
+
+// itemContext is prectab's context x, -1 for none, as Item.Ctx holds it.
+func itemContext(x int32) int { return int(x) + 1 }
+
+// predictedContext is the context of the item kernel state predicts: none in a recognizer that judges nothing.
+func (r *Recognizer) predictedContext(state int) int {
+	if r.judge == nil {
+		return 0
+	}
+	return r.judge.ctx[state]
+}
+
+// startContext is the context of the start item at node 0.
+func (r *Recognizer) startContext() int {
+	if r.judge == nil {
+		return 0
+	}
+	return r.judge.start
 }
 
 // NewNoPrecedence is a recognizer over tab that judges no precedence: the referees' unpruned recognizer and the
@@ -192,7 +220,7 @@ func (b *builder) settled() []refusal {
 	out := b.refused[:0]
 	for _, x := range b.refused {
 		origin := b.pos - int(x.dist)
-		if !slices.ContainsFunc(b.items, func(it [2]int) bool {
+		if !slices.ContainsFunc(b.items, func(it [3]int) bool {
 			if it[1] != origin || origin == b.pos && b.r.tab.States[it[0]].Predicted {
 				return false
 			}

@@ -4,6 +4,7 @@
 package recognize
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -256,33 +257,25 @@ func TestAcceptedNeedsOriginZero(t *testing.T) {
 	}
 }
 
-// TestItemIsStateDistanceR2: a merged item is (state, distance) and nothing
-// else (rule 2): Item's fields are exactly State and Dist, both int, as on pu
-// before the builder's buffers were reused.
-func TestItemIsStateDistanceR2(t *testing.T) {
+// TestItemIsStateDistanceContext: an item is (state, distance, context) and nothing else (the V2 design's §4.2, which
+// supersedes rule 2 for the context alone): Item's fields are exactly State, Dist and Ctx, each int. An item whose
+// context is none prints as {State Dist}, as an item printed before it had one, so the no-precedence mode's set
+// digests do not move; one with a context prints it third.
+func TestItemIsStateDistanceContext(t *testing.T) {
 	typ := reflect.TypeFor[Item]()
 	var got []string
 	for i := range typ.NumField() {
 		f := typ.Field(i)
 		got = append(got, f.Name+" "+f.Type.String())
 	}
-	if want := []string{"State int", "Dist int"}; !slices.Equal(got, want) {
+	if want := []string{"State int", "Dist int", "Ctx int"}; !slices.Equal(got, want) {
 		t.Errorf("Item's fields are %q, want %q", got, want)
 	}
-}
-
-// TestItemIsStateDistanceF2: keeping the slipper's closure for a built node
-// beside the chart adds nothing to an item (rule 2): Item's fields are
-// exactly State and Dist, both int, as on pu.
-func TestItemIsStateDistanceF2(t *testing.T) {
-	typ := reflect.TypeFor[Item]()
-	var got []string
-	for i := range typ.NumField() {
-		f := typ.Field(i)
-		got = append(got, f.Name+" "+f.Type.String())
+	if got := fmt.Sprint([]Item{{State: 3, Dist: 1}, {State: 7}}); got != "[{3 1} {7 0}]" {
+		t.Errorf("none-context items print as %q, want %q", got, "[{3 1} {7 0}]")
 	}
-	if want := []string{"State int", "Dist int"}; !slices.Equal(got, want) {
-		t.Errorf("Item's fields are %q, want %q", got, want)
+	if got := fmt.Sprint([]Item{{State: 3, Dist: 1, Ctx: 5}}); got != "[{3 1 5}]" {
+		t.Errorf("an item with context 5 prints as %q, want %q", got, "[{3 1 5}]")
 	}
 }
 
@@ -300,13 +293,13 @@ func TestAddDedupAcrossMapThreshold(t *testing.T) {
 	for _, n := range []int{23, 24, 25} {
 		b := builder{r: r, pos: n}
 		for i := range n {
-			b.add(state, i)
-			b.add(state, i/2) // already there, whatever the set's size
+			b.add(state, i, 0)
+			b.add(state, i/2, 0) // already there, whatever the set's size
 			b.read(i, &Set{id: i})
 			b.read(i/2, &Set{id: i / 2})
 		}
 		for i := range n {
-			b.add(state, i)
+			b.add(state, i, 0)
 			b.read(i, &Set{id: i})
 		}
 		var origins []int

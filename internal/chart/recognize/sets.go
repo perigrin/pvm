@@ -1,17 +1,29 @@
-// ABOUTME: Interned Earley sets: a set is its (state, distance) items, interned by one hash of its states and one map lookup.
+// ABOUTME: Interned Earley sets: a set is its (state, distance, context) items, interned by one hash of its states and one map lookup.
 // ABOUTME: Equal content at two positions is one *Set; sets of one core share its postdot index.
 
 package recognize
 
 import (
+	"fmt"
 	"math/bits"
 	"slices"
 )
 
-// Item is an Earley item: an LR(0) state and the distance in lattice nodes
-// back to its origin. Distance 0 is a prediction at this node.
+// Item is an Earley item: an LR(0) state, the distance in lattice nodes
+// back to its origin, and its context (the V2 design's §4.2): 0 for none,
+// else 1 plus the automaton item of its canonical spine top. Distance 0 is
+// a prediction at this node. Only the judged recognizer sets a context.
 type Item struct {
-	State, Dist int
+	State, Dist, Ctx int
+}
+
+// String is the item as {State Dist}, as it printed before it had a
+// context, with the context third where it is not none.
+func (it Item) String() string {
+	if it.Ctx == 0 {
+		return fmt.Sprintf("{%d %d}", it.State, it.Dist)
+	}
+	return fmt.Sprintf("{%d %d %d}", it.State, it.Dist, it.Ctx)
 }
 
 // Set is an Earley set's content, sorted by state then distance. An
@@ -121,7 +133,7 @@ func slot(dh uint64, size int) int { return int((dh ^ dh>>32) & uint64(size-1)) 
 func (in *interner) intern(items []Item) (*Set, bool) {
 	ch, dh := uint64(hashSeed), uint64(hashSeed)
 	for _, it := range items {
-		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist))
+		ch, dh = mix(ch, uint64(it.State)), mix(dh, uint64(it.Dist)|uint64(it.Ctx)<<32)
 	}
 	ch, dh = ch&in.hashMask, dh&in.hashMask
 	in.interns++

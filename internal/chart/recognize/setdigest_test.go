@@ -13,12 +13,18 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/chart/grammar"
 )
 
 var updateSetDigest = flag.Bool("recognize.update-set-digest", false,
 	"rewrite testdata/set-digest.golden from this tree's recognizer")
 
 var setDigestPath = filepath.Join("testdata", "set-digest.golden")
+
+// setDigestNoPrecedencePath is e3432c0f's set-digest.golden, byte for byte: the no-precedence mode's sets, which the
+// referees and the refusal reruns rely on (F3-4). No flag rewrites it.
+var setDigestNoPrecedencePath = filepath.Join("testdata", "set-digest-noprecedence.golden")
 
 // digestOptions is the five option sets the golden holds, by the name its lines carry.
 var digestOptions = []struct {
@@ -74,15 +80,21 @@ func (d digestLine) String() string {
 	return fmt.Sprintf("%s accepted %d cached %d digest %x", d.name, d.accepted, d.cached, d.sum)
 }
 
-// setDigests recognizes every sample file, whole, with one recognizer per option set.
+// setDigests recognizes every sample file, whole, with one recognizer per option set, made by New.
 func setDigests(t *testing.T) []digestLine {
+	t.Helper()
+	return setDigestsOf(t, New)
+}
+
+// setDigestsOf is setDigests with recognizers made by mk.
+func setDigestsOf(t *testing.T, mk func(*grammar.Tables, Options) *Recognizer) []digestLine {
 	t.Helper()
 	tab, files := corpusSample(t)
 	var out []digestLine
 	for _, do := range digestOptions {
 		d := digestLine{name: do.name}
 		h := sha256.New()
-		r := New(tab, do.o)
+		r := mk(tab, do.o)
 		for _, f := range files {
 			c, err := Recognize(r, f.l)
 			if err != nil {
@@ -123,6 +135,24 @@ func TestSetDigestGolden(t *testing.T) {
 	}
 	if got.String() != string(want) {
 		t.Errorf("set identity moved from %s:\ngot:\n%swant:\n%s", setDigestPath, got.String(), want)
+	}
+}
+
+// TestSetDigestNoPrecedenceGolden: the no-precedence mode's sets over corpusSample under the five option sets equal
+// testdata/set-digest-noprecedence.golden, e3432c0f's set-digest.golden byte for byte. Nothing regenerates it: the
+// referees and the refusal reruns rely on these sets, and once referee and production share code nothing else pins
+// them (F3-4).
+func TestSetDigestNoPrecedenceGolden(t *testing.T) {
+	var got strings.Builder
+	for _, d := range setDigestsOf(t, NewNoPrecedence) {
+		fmt.Fprintln(&got, d)
+	}
+	want, err := os.ReadFile(setDigestNoPrecedencePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != string(want) {
+		t.Errorf("the no-precedence mode's sets moved from %s:\ngot:\n%swant:\n%s", setDigestNoPrecedencePath, got.String(), want)
 	}
 }
 

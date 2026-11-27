@@ -17,7 +17,7 @@ func (r *Recognizer) semiAt(c *Chart, pos int, la bitset) *builder {
 	v := &builder{r: r, c: c, pos: pos, interned: true}
 	for _, it := range c.Sets[pos].Items() {
 		if k, ok := r.goTo(it.State, r.g.semi); ok {
-			v.add(k, pos-it.Dist)
+			v.add(k, pos-it.Dist, it.Ctx)
 		}
 	}
 	if len(v.items) == 0 {
@@ -53,7 +53,7 @@ func (b *builder) slip(e lex.Edge) {
 		}
 		for _, t := range cls.terms[id] {
 			if k, ok := b.r.goTo(it[0], t); ok {
-				b.add(k, it[1])
+				b.add(k, it[1], it[2])
 			}
 		}
 	}
@@ -77,7 +77,7 @@ func (c *Chart) slipped(out [][]int) {
 	}
 	if v := r.semiAt(c, last, r.g.eofBits); v != nil {
 		c.keep(last, -1, v)
-		c.slipAccepted = slices.ContainsFunc(v.items, func(it [2]int) bool {
+		c.slipAccepted = slices.ContainsFunc(v.items, func(it [3]int) bool {
 			return it[1] == 0 && slices.Contains(r.g.lhs[it[0]], r.tab.Start)
 		})
 	}
