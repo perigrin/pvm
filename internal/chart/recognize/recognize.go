@@ -431,7 +431,8 @@ func (b *builder) add(state, origin, ctx int) {
 	}
 }
 
-// scan advances every item of e's source set over e's token.
+// scan advances every item of e's source set over e's token, but for a scan
+// the shift side refuses under the item's context (scanRefused).
 func (b *builder) scan(e lex.Edge) {
 	src := b.c.Sets[e.From]
 	if src == nil {
@@ -442,8 +443,9 @@ func (b *builder) scan(e lex.Edge) {
 	if src.core != nil {
 		for _, t := range cls.terms[id] {
 			for _, en := range b.r.awaiting(src, t) {
-				it := src.items[en.idx]
-				b.add(int(en.target), e.From-it.Dist, it.Ctx)
+				if it := src.items[en.idx]; !b.r.scanRefused(it.State, it.Ctx, t) {
+					b.add(int(en.target), e.From-it.Dist, it.Ctx)
+				}
 			}
 		}
 		return
@@ -452,7 +454,7 @@ func (b *builder) scan(e lex.Edge) {
 	// branch sets a postdot index when interleaved mode makes them common.
 	for _, it := range src.items {
 		for _, t := range cls.terms[id] {
-			if k, ok := b.r.goTo(it.State, t); ok {
+			if k, ok := b.r.goTo(it.State, t); ok && !b.r.scanRefused(it.State, it.Ctx, t) {
 				b.add(k, e.From-it.Dist, it.Ctx)
 			}
 		}
@@ -466,14 +468,15 @@ func (b *builder) scan(e lex.Edge) {
 // completes only if something la holds can follow its LHS; a nil la completes every rule. Where a Leo
 // memo applies, the top of the recursion is added in one step. With b.la, the
 // reduce side refuses a completion its precedence forbids, and records each
-// parent state it refused (judge.go).
+// parent state it refused (judge.go). A completion advances only the parents
+// that predicted it under its context (predicts, §4.3).
 func (b *builder) complete(la bitset) {
 	j := b.r.judge
 	if b.la == nil {
 		j = nil
 	}
 	for i := 0; i < len(b.items); i++ {
-		state, origin := b.items[i][0], b.items[i][1]
+		state, origin, ctx := b.items[i][0], b.items[i][1], b.items[i][2]
 		if origin == b.pos && b.r.tab.States[state].Predicted {
 			continue
 		}
@@ -493,6 +496,7 @@ func (b *builder) complete(la bitset) {
 					if follow.intersects(b.la) {
 						b.read(origin, src)
 						b.refuseAll(lhs, origin, src)
+						b.refuseRules(state, lhs, origin)
 					}
 					continue
 				}
@@ -506,18 +510,21 @@ func (b *builder) complete(la bitset) {
 			}
 			if src.core != nil {
 				for _, en := range b.r.awaiting(src, lhs) {
-					if dep && !j.completes(state, li, follow, b.la, lhs, src.items[en.idx].State) {
-						b.refuse(lhs, origin, src.items[en.idx].State)
+					it := src.items[en.idx]
+					if b.r.predicts(it.State, it.Ctx) != ctx {
 						continue
 					}
-					it := src.items[en.idx]
+					if dep && !j.completes(state, li, follow, b.la, lhs, it.State) {
+						b.refuse(lhs, origin, it.State)
+						continue
+					}
 					b.add(int(en.target), origin-it.Dist, it.Ctx)
 				}
 				continue
 			}
 			// shortcut: as in scan, a branch set searches every item.
 			for _, it := range src.items {
-				if k, ok := b.r.goTo(it.State, lhs); ok {
+				if k, ok := b.r.goTo(it.State, lhs); ok && b.r.predicts(it.State, it.Ctx) == ctx {
 					if dep && !j.completes(state, li, follow, b.la, lhs, it.State) {
 						b.refuse(lhs, origin, it.State)
 						continue

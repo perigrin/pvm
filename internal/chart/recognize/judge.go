@@ -116,6 +116,34 @@ func (r *Recognizer) predictedContext(state int) int {
 	return r.judge.ctx[state]
 }
 
+// predicts is the context an item of state under context ctx predicts its children under: its own where state is a
+// predicted state, whose items predict by left corner, and the context its kernel state predicts under otherwise.
+// A completion advances only the parents that predicted it under its context (§4.3, the pairing rule).
+func (r *Recognizer) predicts(state, ctx int) int {
+	if r.tab.States[state].Predicted {
+		return ctx
+	}
+	return r.predictedContext(state)
+}
+
+// scanRefused reports whether the shift side (§4.1) refuses scanning terminal t from an item of state under context
+// ctx: V1's shift verdict for ctx's spine top, the item of state holding at, and t. Feasible's counters 4 and 6 are
+// 0, so a forbidden shift is one of t by an item whose next symbol is t, and every item of a state scanning t gives
+// one verdict under one context, a dot-0 item allowing: the first item after its first symbol stands for all.
+func (r *Recognizer) scanRefused(state, ctx, t int) bool {
+	if r.judge == nil || ctx == 0 {
+		return false
+	}
+	tab := r.tab
+	for _, i := range tab.States[state].Items {
+		it := tab.Items[i]
+		if rhs := tab.Rules[it.Rule].RHS; it.Dot > 0 && it.Dot < len(rhs) && rhs[it.Dot] == t {
+			return r.judge.p.ShiftForbidden(int32(ctx-1), r.judge.p.Item(i), int32(t))
+		}
+	}
+	return false
+}
+
 // startContext is the context of the start item at node 0.
 func (r *Recognizer) startContext() int {
 	if r.judge == nil {
@@ -185,17 +213,27 @@ func (j *judgement) completes(state, li int, follow, la bitset, lhs, parent int)
 }
 
 // refusal is a completion the judged recognizer refused: sym, completed from dist nodes back, into the items of the
-// parent state there.
-type refusal struct{ sym, dist, parent int32 }
+// parent state there, rule -1; or, parent -1, sym completed by rule, refused into every parent.
+type refusal struct{ sym, dist, parent, rule int32 }
 
-// cmpRefusal orders refusals by symbol, distance and parent state.
+// cmpRefusal orders refusals by symbol, distance, parent state and rule.
 func cmpRefusal(a, b refusal) int {
-	return cmp.Or(cmp.Compare(a.sym, b.sym), cmp.Compare(a.dist, b.dist), cmp.Compare(a.parent, b.parent))
+	return cmp.Or(cmp.Compare(a.sym, b.sym), cmp.Compare(a.dist, b.dist), cmp.Compare(a.parent, b.parent), cmp.Compare(a.rule, b.rule))
 }
 
 // refuse records that completing lhs from origin into the state parent there was refused.
 func (b *builder) refuse(lhs, origin, parent int) {
-	b.refused = append(b.refused, refusal{int32(lhs), int32(b.pos - origin), int32(parent)})
+	b.refused = append(b.refused, refusal{int32(lhs), int32(b.pos - origin), int32(parent), -1})
+}
+
+// refuseRules records that every rule state reduces for lhs, completing it from origin, was refused into every
+// parent: Build reads no completion of them (Chart.RuleRefused), though their items stand in the set.
+func (b *builder) refuseRules(state, lhs, origin int) {
+	for _, r := range b.r.tab.States[state].Reduces {
+		if b.r.tab.Rules[r].LHS == lhs {
+			b.refused = append(b.refused, refusal{int32(lhs), int32(b.pos - origin), -1, int32(r)})
+		}
+	}
 }
 
 // refuseAll records the refusal of completing lhs from origin into every state of src, the set there, awaiting it.
@@ -213,15 +251,15 @@ func (b *builder) refuseAll(lhs, origin int, src *Set) {
 	}
 }
 
-// settled is the node's refusals as records: relative, sorted, each once, less any another item of the set allowed,
-// completing the same LHS from the same origin into the same parent state with another rule. Build pairs a child
-// node with a parent, not a rule, so such a pair stands.
+// settled is the node's refusals as records: relative, sorted, each once, less any parent record another item of the
+// set allowed, completing the same LHS from the same origin into the same parent state with another rule. Build
+// pairs a child node with a parent, not a rule, so such a pair stands; a rule record stands whatever another rule did.
 func (b *builder) settled() []refusal {
 	j := b.r.judge
 	out := b.refused[:0]
 	for _, x := range b.refused {
 		origin := b.pos - int(x.dist)
-		if !slices.ContainsFunc(b.items, func(it [3]int) bool {
+		if x.parent < 0 || !slices.ContainsFunc(b.items, func(it [3]int) bool {
 			if it[1] != origin || origin == b.pos && b.r.tab.States[it[0]].Predicted {
 				return false
 			}
@@ -257,7 +295,17 @@ func (c *Chart) Refused(to, sym, origin, parent int) bool {
 	if c.refused == nil || to < 0 || to >= len(c.refused) {
 		return false
 	}
-	_, ok := slices.BinarySearchFunc(c.refused[to], refusal{int32(sym), int32(to - origin), int32(parent)}, cmpRefusal)
+	_, ok := slices.BinarySearchFunc(c.refused[to], refusal{int32(sym), int32(to - origin), int32(parent), -1}, cmpRefusal)
+	return ok
+}
+
+// RuleRefused reports whether the judged recognizer refused completing sym from node origin by rule, at node to,
+// into every parent: its item stands in the set, but no parent advanced over it. Build reads no such completion.
+func (c *Chart) RuleRefused(to, rule, sym, origin int) bool {
+	if c.refused == nil || to < 0 || to >= len(c.refused) {
+		return false
+	}
+	_, ok := slices.BinarySearchFunc(c.refused[to], refusal{int32(sym), int32(to - origin), -1, int32(rule)}, cmpRefusal)
 	return ok
 }
 

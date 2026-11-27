@@ -39,7 +39,10 @@ func leoItems(tab *grammar.Tables) map[[2]int]int {
 }
 
 // leo is the top item completing sym back to origin resolves to, or false
-// where no memo applies. With lookahead la, a chain whose top cannot be
+// where no memo applies. A memo's item is the one there awaiting its symbol,
+// so it predicted every completion of it from there and §4.3's pairing holds
+// at every link: an item of another context predicting the symbol would
+// await it too. With lookahead la, a chain whose top cannot be
 // followed by la is not taken: FOLLOW only shrinks up a chain, so the plain
 // completion stops at the same link it would without Leo.
 func (b *builder) leo(origin, sym int, la bitset) ([3]int, bool) {

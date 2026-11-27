@@ -17,33 +17,54 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	if c.r.opts.NoLeo || at < 0 || at >= len(c.Sets) {
 		return 0, 0, false, false
 	}
-	n, state := 0, 0
-	if set := c.Sets[at]; set != nil && set.core != nil {
-		if !c.r.g.leoSym[sym] {
-			return 0, 0, false, false
+	if !c.r.g.leoSym[sym] {
+		return 0, 0, false, false
+	}
+	it, ok := c.awaitingOne(at, sym)
+	if !ok {
+		return 0, 0, false, false
+	}
+	lhs, ok := c.r.g.leo[[2]int{it.State, sym}]
+	if !ok {
+		return 0, 0, false, false
+	}
+	for _, i := range c.r.tab.States[it.State].Leo {
+		if x := c.r.tab.Items[i]; c.r.tab.Rules[x.Rule].RHS[x.Dot] == sym {
+			rule = x.Rule
 		}
+	}
+	origin = at - it.Dist
+	return rule, origin, origin < at && (lhs != c.r.tab.Start || origin != 0), true
+}
+
+// LeoLinkContext is the context of the completion LeoLink(at, sym) reports: the context of the one item at at
+// awaiting sym, which its rule's item from origin would carry. It is 0 where no item or several await sym.
+func (c *Chart) LeoLinkContext(at, sym int) int {
+	it, _ := c.awaitingOne(at, sym)
+	return it.Ctx
+}
+
+// Predicts is the context an item of state under context ctx predicts its children under (§4.3's pairing): Build
+// walks by it (forest.Build).
+func (c *Chart) Predicts(state, ctx int) int { return c.r.predicts(state, ctx) }
+
+// awaitingOne is the one item of the set at node at awaiting sym, and false where it holds none or more.
+func (c *Chart) awaitingOne(at, sym int) (Item, bool) {
+	var one Item
+	n := 0
+	if set := c.Sets[at]; set != nil && set.core != nil {
 		en := c.r.awaiting(set, sym)
 		if n = len(en); n == 1 {
-			it := set.items[en[0].idx]
-			state, origin = it.State, at-it.Dist
+			one = set.items[en[0].idx]
 		}
 	} else {
 		for _, it := range c.Sets[at].Items() {
 			if _, ok := transition(c.r.tab, it.State, sym); ok {
-				n, state, origin = n+1, it.State, at-it.Dist
+				n, one = n+1, it
 			}
 		}
 	}
-	lhs, ok := c.r.g.leo[[2]int{state, sym}]
-	if n != 1 || !ok {
-		return 0, 0, false, false
-	}
-	for _, i := range c.r.tab.States[state].Leo {
-		if it := c.r.tab.Items[i]; c.r.tab.Rules[it.Rule].RHS[it.Dot] == sym {
-			rule = it.Rule
-		}
-	}
-	return rule, origin, origin < at && (lhs != c.r.tab.Start || origin != 0), true
+	return one, n == 1
 }
 
 // Slipped is the items the ; inserted at node pos advances, closed under

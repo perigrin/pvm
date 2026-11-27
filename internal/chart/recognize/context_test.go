@@ -103,13 +103,13 @@ func TestTransitionCacheKeysOnContext(t *testing.T) {
 	}
 }
 
-// TestLeoMemoCarriesContext: in `- 1 + 2;` the item unary minus predicts at node 1, under its real top, is the one
-// item there awaiting termbinop, so a Leo memo is made at node 1 for termbinop, and its top carries that context. Where
+// TestLeoMemoCarriesContext: in `- 1 ** 2;` the item unary minus predicts at node 1, under its real top, is the one
+// item there awaiting termbinop (** binds tighter than unary minus, so the shift side keeps its scan), so a Leo memo is made at node 1 for termbinop, and its top carries that context. Where
 // the chain is taken the top item is added with it, so every item of every set is one completing link by link
 // (NoLeo) adds too.
 func TestLeoMemoCarriesContext(t *testing.T) {
 	tab := committedTables(t)
-	const src = "- 1 + 2;"
+	const src = "- 1 ** 2;"
 	r := mustJudged(t, tab, nil, Options{})
 	c := perlyChart(t, r, src)
 	m := c.leo[[2]int{1, symbolID(tab, "termbinop")}]

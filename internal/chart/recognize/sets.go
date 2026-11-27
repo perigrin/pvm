@@ -26,7 +26,7 @@ func (it Item) String() string {
 	return fmt.Sprintf("{%d %d %d}", it.State, it.Dist, it.Ctx)
 }
 
-// Set is an Earley set's content, sorted by state then distance. An
+// Set is an Earley set's content, sorted by state, distance and context. An
 // interned set has an id; one built inside a branch has id -1.
 type Set struct {
 	id    int
