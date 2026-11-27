@@ -1975,9 +1975,12 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   item's origin, and a context: the canonical spine top, or `none` (the V2
   design's §4.2), which only the judged recognizer sets
   (`TestItemIsStateDistanceContext`). A predicted item takes its predicting
-  kernel state's context from `prectab.PredictionContexts`, `none` where that top
-  forbids no shift in any state its rules reach at that origin (§4.3,
-  `TestContextCollapseTable`); every other item inherits the context of the
+  kernel state's context from `prectab.PredictionContexts`, `none` where its rules
+  have no canonical top (§4.2). At predictor granularity §4.3's collapse adds
+  nothing to §4.2's: a canonical top forbids shifts only in rules predicted
+  from it, and those lie in its own predictor's region, so the table holds
+  `forbidsAt` only as the oracle `TestContextCollapseTable` checks against
+  its brute-force witness search; every other item inherits the context of the
   item it advances. A set is its items, sorted, so two positions with equal
   content share one `*Set`, and sets differing only in a context do not;
   the transition cache keys on the source set, so on its contexts, and a
