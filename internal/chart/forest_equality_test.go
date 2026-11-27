@@ -79,13 +79,10 @@ func refereeV1Forest(tab *grammar.Tables, p *prectab.Precedence, src string, kee
 	return f
 }
 
-// refereeCandidateForest is the forest the referee judges: narrowed to the sentence's terminals, then constrained.
-// A later issue may point it at the recognizer that judges precedence itself.
+// refereeCandidateForest is the forest the referee judges: the judged recognizer's of the lattice narrowed to the
+// sentence's terminals, with no Constrain.
 var refereeCandidateForest = func(r *referee, s precedenceSentence) *forest.Forest {
-	f, _ := r.narrowed(s)
-	if f == nil || !f.Constrain(r.p) {
-		return nil
-	}
+	f, _, _ := r.judged(s)
 	return f
 }
 
@@ -258,5 +255,34 @@ func TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves(t *testing.T) {
 				t.Errorf("the plain ForestDiff finds the pair equal, so the pair does not differ before the filter")
 			}
 		})
+	}
+}
+
+// TestForestEqualityRefereeCandidateNeverConstrains: counted by Constrain's own hook, the referee-sentence
+// differential's candidate (refereeCandidateForest) enters Constrain no time over every kept sentence, and accepts
+// some; V1's side of the same sentences enters it, so the hook is shown to count.
+func TestForestEqualityRefereeCandidateNeverConstrains(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, cand, v1 := 0, int64(0), int64(0)
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		n0 := forest.ConstrainEntries()
+		if refereeCandidateForest(r, s) != nil {
+			accepted++
+		}
+		n1 := forest.ConstrainEntries()
+		want, skip := r.target(s)
+		refereeV1Forest(r.tab, r.p, s.rendering, func(f *forest.Forest) bool { return narrow(f, want, skip) })
+		cand, v1 = cand+n1-n0, v1+forest.ConstrainEntries()-n1
+	}
+	t.Logf("referee: %d sentences, %d accepted; candidate constrain entries: %d v1 constrain entries: %d", keptSentences(sentences), accepted, cand, v1)
+	if accepted == 0 || cand != 0 || v1 == 0 {
+		t.Errorf("the candidate accepted %d and entered Constrain %d times, V1 %d; want some accepted, no candidate entry, some V1 entries", accepted, cand, v1)
 	}
 }
