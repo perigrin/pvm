@@ -21,6 +21,7 @@ import (
 
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 )
 
 // Options switch parts of the recognizer off. Neither changes acceptance;
@@ -70,6 +71,10 @@ type Recognizer struct {
 	// no precedence; err is NewJudged's error, which Recognize returns.
 	judge *judgement
 	err   error
+	// judged is whether NewJudged built the recognizer, and prec the precedence it judges with: the explicit one,
+	// or the derived one, nil where the tables declare no levels or the derivation failed (ParseWith's guard).
+	judged bool
+	prec   *prectab.Precedence
 	// leoSteps counts the Leo chains the judged recognizer took, and
 	// leoRefused those it did not because they cross a refused completion,
 	// for the test that Leo crosses one (leo_test.go); leoLinks counts the
@@ -187,12 +192,13 @@ func (g *grammarTables) add(c *classes, ids []int) {
 	c.closes = append(c.closes, closes)
 }
 
-// New is a recognizer over tab, today NewNoPrecedence's. The grammar-only
-// tables are tab's shared ones; the intern table, cache and counters are the
-// recognizer's own. The first `New` over a tables value writes beside it, so
-// do not copy `*tab` while that `New` runs.
+// New is the judged recognizer over tab in its derived form, NewJudged(tab, nil, opts): perly.y's precedence where
+// tab's rules are perly.y's, nothing otherwise; a failed derivation is returned by Recognize for every input. The
+// grammar-only tables are tab's shared ones; the intern table, cache and counters are the recognizer's own. The
+// first `New` over a tables value writes beside it, so do not copy `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	return NewNoPrecedence(tab, opts)
+	r, _ := NewJudged(tab, nil, opts)
+	return r
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where

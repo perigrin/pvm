@@ -42,7 +42,7 @@ func TestReferenceRecognizer(t *testing.T) {
 		warm := map[Options]*Recognizer{}
 		build := func(o Options) *Recognizer {
 			if warm[o] == nil {
-				warm[o] = New(tab, o)
+				warm[o] = NewNoPrecedence(tab, o)
 			}
 			return warm[o]
 		}
@@ -164,7 +164,7 @@ func TestReferenceAgreesOnTruncatedFiles(t *testing.T) {
 		}
 		cut++
 		l := f.lattice(f.cut)
-		c := mustRecognize(t, New(tab, Options{}), l)
+		c := mustRecognize(t, NewNoPrecedence(tab, Options{}), l)
 		sets, _, accepted := refRun(tab, tokenIDs(l))
 		wantDead := slices.IndexFunc(sets, func(s []refItem) bool { return len(s) == 0 })
 		if c.Accepted() || accepted {
@@ -192,7 +192,7 @@ func TestReferenceRecognizerCatchesDroppedTransition(t *testing.T) {
 	tab, files := corpusSample(t)
 	for _, f := range files {
 		l := f.lattice(maxTokens)
-		if len(l.Edges) == 0 || mustRecognize(t, New(tab, Options{}), l).Sets[1] == nil {
+		if len(l.Edges) == 0 || mustRecognize(t, NewNoPrecedence(tab, Options{}), l).Sets[1] == nil {
 			continue
 		}
 		if d := oracleDisagreement(tab, builds(tab), l); d != "" {

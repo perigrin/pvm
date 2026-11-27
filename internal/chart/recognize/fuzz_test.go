@@ -338,7 +338,7 @@ func oracleDisagreement(rules *grammar.Tables, build func(Options) *Recognizer, 
 
 // builds is the recognizers over tab, one fresh per call.
 func builds(tab *grammar.Tables) func(Options) *Recognizer {
-	return func(o Options) *Recognizer { return New(tab, o) }
+	return func(o Options) *Recognizer { return NewNoPrecedence(tab, o) }
 }
 
 // copyTables is tab with its states copied one level down, so a test can

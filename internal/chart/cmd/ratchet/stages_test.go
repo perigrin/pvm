@@ -30,8 +30,8 @@ var stageKeys = []string{
 	"speed-stage-readings-aggregate-longlived",
 }
 
-// One file each that the chart, narrowing (under an empty Scope), the constraint and resolve refuse, and one none
-// does.
+// One file each that the chart, narrowing (under an empty Scope), the judged chart's precedence and resolve refuse,
+// and one none does.
 var stageSrcs = map[string][]byte{
 	"chart.pl": []byte("my $x = ;\n"), "libop.pl": []byte("1 plus 2;\n"), "prec.pl": []byte("1 <=> 2 <=> 3;\n"),
 	"resolve.pl": []byte("print FH x 3;\n"), "ok.pl": []byte("my $x = 1 + 2 * 3;\n"),
@@ -140,8 +140,8 @@ func TestPipelineStageKeys(t *testing.T) {
 }
 
 // TestPipelineStageKeysRefusedFiles: every file stays in the timed population, and a stage whose input the chart or
-// an earlier stage refused does nothing for it, counting it on stderr; resolve's input is the forest after the
-// constraint (M7).
+// an earlier stage refused does nothing for it, counting it on stderr; prec.pl, which the judged chart refuses,
+// reaches no stage; resolve's input is the forest after the constraint (M7).
 func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 	tab := committedTables(t)
 	prec, err := prectab.ParsePrecedence(tab)
@@ -149,6 +149,9 @@ func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := slices.Sorted(maps.Keys(stageSrcs))
+	if f := narrowedForest(t, tab, stageSrcs["prec.pl"], forest.Scope{}, nil); f != nil {
+		t.Fatal("the chart accepts prec.pl, which recognition must refuse for precedence")
+	}
 	afterConstraint := map[string]string{}
 	for _, p := range []string{"resolve.pl", "ok.pl"} {
 		afterConstraint[p] = forestDigest(narrowedForest(t, tab, stageSrcs[p], forest.Scope{}, prec))
@@ -172,7 +175,7 @@ func TestPipelineStageKeysRefusedFiles(t *testing.T) {
 	if err := measurePipelineStages(p, tab, files, stageSrcs, noScope, m); err != nil {
 		t.Fatal(err)
 	}
-	for i, want := range [][]string{{"ok.pl", "prec.pl", "resolve.pl"}, {"ok.pl", "resolve.pl"}, {"ok.pl"}} {
+	for i, want := range [][]string{{"ok.pl", "resolve.pl"}, {"ok.pl", "resolve.pl"}, {"ok.pl"}} {
 		if got := slices.Sorted(maps.Keys(seen[i])); !slices.Equal(got, want) {
 			t.Errorf("%s ran on %q, want %q", stageKeys[i], got, want)
 		}

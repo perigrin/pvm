@@ -266,6 +266,27 @@ func TestJudgedRecognizerRefusesInfeasibleGrammar(t *testing.T) {
 	}
 }
 
+// TestParseRefusesInfeasibleGrammar: parseStream, with the judged recognizer over each toy Feasible refuses, judged
+// with the toy's own precedence, refuses every file with Feasible's refusal, as text, and never the
+// not-the-committed-grammar error, as TestPrecedenceGenerationErrorRefusesEveryFile does for a failed derivation.
+func TestParseRefusesInfeasibleGrammar(t *testing.T) {
+	for _, ty := range infeasibleToys {
+		t.Run(ty.name, func(t *testing.T) {
+			tab, p := ty.load(t)
+			_, want := prectab.Feasible(p)
+			if want == nil {
+				t.Fatalf("%s: Feasible accepts it", ty.name)
+			}
+			r, _ := recognize.NewJudged(tab, p, recognize.Options{})
+			for _, src := range []string{"", "my $x = 1;\n", "print $x + 2 * 3;\n", "{ 1 }"} {
+				if f, _, ref := parseStream(tab, r, []byte(src), Scope{}); f != nil || ref != (Refusal{Reason: want.Error()}) {
+					t.Errorf("%s %q: forest %v, refusal %+v; want none and Feasible's refusal %q", ty.name, src, f != nil, ref, want)
+				}
+			}
+		})
+	}
+}
+
 // pairToy is a toy where X: b, completed before t, is allowed for one parent and refused for another in one set:
 // after a, P: a . X t (whose state after b shifts nothing) and F: Y . X t, through Y: a (whose state after b also
 // holds Z: b . t, which wins). F: Y X . t stands at that node all the same, through Y empty and X: a b, so Build

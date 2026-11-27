@@ -146,3 +146,79 @@ func TestRefusalRerunLeavesCallerRecognizerUntouched(t *testing.T) {
 		t.Error("the un-narrowed lattice adds no entry to the recognizer, so the check above proves nothing")
 	}
 }
+
+// judgedDeath is where the judged chart of src's narrowed lattice dies, under an empty scope; -1 where it accepts.
+func judgedDeath(t *testing.T, src string) int {
+	t.Helper()
+	tab := committedTables(t)
+	s, _ := lex.Lex([]byte(src), tab.Tokens)
+	l, _ := narrow(tab, s, []byte(src), Scope{})
+	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Accepted() {
+		return -1
+	}
+	return diedAt(c, s, len(src))
+}
+
+// TestPrecedenceRefusalByteWhereChartDied: each constructed precedence fixture, which only precedence refuses, is
+// refused for precedence at the byte where the judged chart died, never byte 0.
+func TestPrecedenceRefusalByteWhereChartDied(t *testing.T) {
+	tab := committedTables(t)
+	for src, at := range map[string]int{"print $fh [];": 11, "$a <=> $b <=> $c;": 10, "1 .. 2 .. 3;": 7} {
+		if died := judgedDeath(t, src); died != at {
+			t.Errorf("%q: the judged chart dies at %d, the fixture wants %d", src, died, at)
+		}
+		if f, got := Parse(tab, []byte(src), Scope{}); f != nil || got != (Refusal{Byte: at, Reason: "precedence"}) {
+			t.Errorf("%q: Parse refuses %+v, want precedence at %d", src, got, at)
+		}
+	}
+}
+
+// TestRefusalRerunOrder: on files built to have two faults the reason follows V1's order, grammar before scope before
+// precedence, wherever in the file each fault is, and a precedence refusal is never at byte 0.
+func TestRefusalRerunOrder(t *testing.T) {
+	tab := committedTables(t)
+	for name, rows := range map[string][]refusalRow{
+		"grammar-before-precedence": {
+			{"1 .. 2 .. 3; 1 + ;", Refusal{Byte: 17, Reason: "grammar"}, 7},
+			{"1 + ; 1 .. 2 .. 3;", Refusal{Byte: 4, Reason: "grammar"}, 4},
+		},
+		"scope-before-precedence": {
+			{"1 .. 2 .. 3; 1 plus 2;", Refusal{Byte: 15, Reason: "scope"}, 7},
+			{"1 plus 2; 1 .. 2 .. 3;", Refusal{Byte: 2, Reason: "scope"}, 2},
+		},
+		"precedence-byte-not-zero": {
+			{"$x = 1;\n1 .. 2 .. 3;", Refusal{Byte: 15, Reason: "precedence"}, 15},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, row := range rows {
+				if died := judgedDeath(t, row.src); died != row.died {
+					t.Errorf("%q: the judged chart dies at %d, the fixture wants %d", row.src, died, row.died)
+				}
+				if f, got := Parse(tab, []byte(row.src), Scope{}); f != nil || got != row.want || got.Byte == 0 {
+					t.Errorf("%q: Parse refuses %+v, want %+v", row.src, got, row.want)
+				}
+			}
+		})
+	}
+}
+
+// TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped: a precedence fault at byte 7, then an unterminated heredoc,
+// the first unmapped token, at 19: the un-narrowed rerun dies at 19, so the reason is lex-unmapped there, as V1's recognizer gives it.
+func TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped(t *testing.T) {
+	const src = "1 .. 2 .. 3;\nprint <<EOT;\nno terminator\n"
+	tab := committedTables(t)
+	if _, unmapped := lex.Lex([]byte(src), tab.Tokens); unmapped != 19 {
+		t.Fatalf("%q: first unmapped byte %d, want 19", src, unmapped)
+	}
+	if died := judgedDeath(t, src); died != 7 {
+		t.Fatalf("%q: the judged chart dies at %d, want 7, the precedence fault", src, died)
+	}
+	if f, got := Parse(tab, []byte(src), Scope{}); f != nil || got != (Refusal{Byte: 19, Reason: "lex-unmapped"}) {
+		t.Errorf("%q: Parse refuses %+v, want lex-unmapped at 19", src, got)
+	}
+}

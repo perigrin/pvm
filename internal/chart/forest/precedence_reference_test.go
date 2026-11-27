@@ -160,7 +160,7 @@ func sentencesMatchReference(t *testing.T, srcs []string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := recognize.New(tab, recognize.Options{})
+	r := recognize.NewNoPrecedence(tab, recognize.Options{})
 	compared, refused, pruned, bad := 0, 0, 0, 0
 	for _, src := range srcs {
 		s, _ := lex.Lex([]byte(src), tab.Tokens)

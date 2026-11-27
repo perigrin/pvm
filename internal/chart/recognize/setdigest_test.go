@@ -83,7 +83,7 @@ func (d digestLine) String() string {
 // setDigests recognizes every sample file, whole, with one recognizer per option set, made by New.
 func setDigests(t *testing.T) []digestLine {
 	t.Helper()
-	return setDigestsOf(t, New)
+	return setDigestsOf(t, NewNoPrecedence)
 }
 
 // setDigestsOf is setDigests with recognizers made by mk.
@@ -170,7 +170,7 @@ func TestSetDigestDetectsChange(t *testing.T) {
 	}
 
 	tab, files := corpusSample(t)
-	r := New(tab, Options{})
+	r := NewNoPrecedence(tab, Options{})
 	var base chartFacts
 	for _, f := range files {
 		c, err := Recognize(r, f.l)

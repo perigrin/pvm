@@ -227,3 +227,34 @@ func TestRefusedWhereDetectsMovedSnippet(t *testing.T) {
 		}
 	}
 }
+
+// TestRefusedWhereReadersAgree: refused-where.txt's two readers, recognizeSource and forest.Parse (parseStream),
+// apply the one rule (forest.ChartRefusal): each gives every row the reason and byte it lists, chart/lex's
+// lex-unmapped read as table, and each refuses the constructed precedence fixtures for precedence at one byte.
+func TestRefusedWhereReadersAgree(t *testing.T) {
+	list, errs := readRefusedWhere(t)
+	if len(errs) > 0 || len(list) == 0 {
+		t.Fatalf("refused-where.txt: %d rows, complaints %q", len(list), errs)
+	}
+	for name, want := range list {
+		src, err := os.ReadFile(filepath.Join("testdata", "port", filepath.FromSlash(name)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rv, pv := recognizeSource(t, src), parseSource(t, src)
+		if pv.by == "lex-unmapped" {
+			pv.by = "table"
+		}
+		for reader, v := range map[string]verdict{"recognizeSource": rv, "forest.Parse": pv} {
+			if got := fmt.Sprintf("%s %d", v.by, v.at); v.accepted || got != want {
+				t.Errorf("%s: %s gives %s (accepted %v), the list %s", name, reader, got, v.accepted, want)
+			}
+		}
+	}
+	for _, src := range []string{"print $fh [];", "$a <=> $b <=> $c;", "1 .. 2 .. 3;"} {
+		rv, pv := recognizeSource(t, []byte(src)), parseSource(t, []byte(src))
+		if rv.accepted || pv.accepted || rv.by != "precedence" || pv.by != "precedence" || rv.at != pv.at || rv.at == 0 {
+			t.Errorf("%q: recognizeSource gives %s at %d, forest.Parse %s at %d; want precedence at one byte past 0", src, rv.by, rv.at, pv.by, pv.at)
+		}
+	}
+}

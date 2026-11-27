@@ -37,7 +37,8 @@ type verdict struct {
 	by       string // a refusal's cause: "table", chart/lex's lex-unmapped, or "grammar", the recognizer
 }
 
-// recognizeSource runs src through chart/lex and the recognizer over the committed tables.
+// recognizeSource runs src through chart/lex and the recognizer over the committed tables, un-narrowed. A refusal's
+// cause and byte are forest.ChartRefusal's, Parse's rule; Expected is the judged chart's where it died.
 func recognizeSource(t *testing.T, src []byte) verdict {
 	t.Helper()
 	tab, err := committed()
@@ -45,31 +46,31 @@ func recognizeSource(t *testing.T, src []byte) verdict {
 		t.Fatalf("the committed grammar generates no tables: %v", err)
 	}
 	s, unmapped := lex.Lex(src, tab.Tokens)
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
+	l := lex.Linear(s)
+	r := recognize.New(tab, recognize.Options{})
+	c, err := recognize.Recognize(r, l)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.Accepted() {
 		return verdict{accepted: true}
 	}
-	// The refusal is at the first node with no set, past the token that leads to it, or at end of input.
-	pos, at := len(c.Sets)-1, len(src)
-	for i := 1; i < len(c.Sets); i++ {
-		if c.Sets[i] == nil {
-			pos, at = i-1, s.Raw[s.Tokens[i-1].Index].Start
-			break
-		}
+	// The chart died at the first node with no set, past the token that leads to it, or at end of input.
+	pos := len(c.Sets) - 1
+	if d := slices.Index(c.Sets, nil); d > 0 {
+		pos = d - 1
 	}
 	exp, err := c.Expected(pos)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ref := forest.ChartRefusal(tab, r, c, s, l, len(src), unmapped, false)
 	// A token no class admits has the empty set, so the recognizer refuses at it.
-	by := "grammar"
-	if at == unmapped {
+	by := ref.Reason
+	if by == "lex-unmapped" {
 		by = "table"
 	}
-	return verdict{at: at, expected: exp, by: by}
+	return verdict{at: ref.Byte, expected: exp, by: by}
 }
 
 // parseSource is src's verdict through forest.Parse, nothing imported: recognition, then precedence and resolve, which

@@ -93,21 +93,24 @@ type Refusal struct {
 // lattice narrowed to the library operators in scope (Narrow), and, where
 // the chart accepts it, builds its forest, applies the precedence constraint
 // (precedence.go), resolves it under scope (resolve.go) and counts its
-// statements' readings (readings.go). A refused file
-// has a refusal and no forest: at the token whose set died, or the end of
-// the file, lex-unmapped where that is the first token no terminal admits,
-// else grammar (recognition's rule, testdata/port/refused-where.txt), each
-// read from the un-narrowed rerun where narrowing changed the lattice; scope,
-// at the narrowed chart's byte, where only narrowing refused it, or where
-// resolve leaves the forest no derivation; or precedence, where the
-// constraint leaves the root none.
+// statements' readings (readings.go). The chart judges precedence (recognize.New). A refused file has a refusal
+// and no forest, classified by rerunning without precedence in V1's order (ChartRefusal): at the token whose set
+// died, or the end of the file, lex-unmapped where that is the first token no terminal admits, else grammar
+// (recognition's rule, testdata/port/refused-where.txt), read from the un-narrowed rerun; scope, at the narrowed
+// rerun's byte, where only narrowing refused it, or where resolve leaves the forest no derivation; or precedence,
+// at the byte where the judged chart died, or where the constraint leaves the root none.
 func Parse(tab *grammar.Tables, src []byte, scope Scope) (*Forest, Refusal) {
 	return ParseWith(tab, recognize.New(tab, recognize.Options{}), src, scope)
 }
 
 // ParseWith is Parse recognizing with r, a recognizer over tab that the
 // caller may keep across files, as the ratchet's long-lived speed side does.
+// It panics unless r judges as recognize.New(tab) does, so no recognizer a
+// caller passes turns precedence off or substitutes one for perly.y's (F3-7).
 func ParseWith(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, Refusal) {
+	if !r.JudgesAsNew(tab) {
+		panic("forest: ParseWith needs a recognizer that judges as recognize.New does, never recognize.NewNoPrecedence's or another precedence over perly.y's tables")
+	}
 	f, _, ref := parseStream(tab, r, src, scope)
 	return f, ref
 }
@@ -144,8 +147,12 @@ func constrainedStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte,
 }
 
 // builtStream is constrainedStream before Constrain: Build's forest of r's chart. The lattice is narrowed before
-// recognition (Narrow), so a library operator's dead reading never reaches the chart.
+// recognition (Narrow), so a library operator's dead reading never reaches the chart. A recognizer whose judged
+// constructor failed refuses every file with that error, before lexing, so a toy's tables need no token table.
 func builtStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope Scope) (*Forest, *lex.Stream, Refusal) {
+	if err := r.Err(); err != nil {
+		return nil, nil, Refusal{Reason: err.Error()}
+	}
 	s, unmapped := lex.Lex(src, tab.Tokens)
 	l, narrowed := narrow(tab, s, src, scope)
 	c, err := recognize.Recognize(r, l)
@@ -153,35 +160,59 @@ func builtStream(tab *grammar.Tables, r *recognize.Recognizer, src []byte, scope
 		return nil, s, Refusal{Reason: err.Error()}
 	}
 	if !c.Accepted() {
-		return nil, s, refusal(tab, c, s, len(src), unmapped, narrowed)
+		return nil, s, ChartRefusal(tab, r, c, s, l, len(src), unmapped, narrowed)
 	}
 	return Build(tab, c, l), s, Refusal{}
 }
 
-// refusal is why c, the refused chart of s's lattice, refuses a file of size bytes whose first unmapped token is at
-// byte unmapped. Where the lattice was narrowed and c died elsewhere, recognition is rerun on the un-narrowed lattice
-// with a recognizer of its own, so the caller's serves one mode only: if the rerun dies, wherever it dies, its byte
-// and V1's rule decide the reason; if it accepts, narrowing refused the file, scope at c's byte.
-func refusal(tab *grammar.Tables, c *recognize.Chart, s *lex.Stream, size, unmapped int, narrowed bool) Refusal {
+// ChartRefusal is why c, r's refused chart of l, s's lattice (narrowed where narrowed), refuses a file of size bytes
+// whose first unmapped token is at byte unmapped: V1's order, decided by rerunning without precedence, each rerun
+// with a recognizer of its own so the caller's serves one mode only. Where the un-narrowed rerun dies, its byte and
+// V1's rule decide the reason, lex-unmapped at the first unmapped token and grammar elsewhere; else, where l was
+// narrowed and the narrowed rerun dies, scope at its byte; else precedence, at the byte where c died. A chart that
+// judges nothing is its own no-precedence run, and an un-narrowed one its own un-narrowed run.
+func ChartRefusal(tab *grammar.Tables, r *recognize.Recognizer, c *recognize.Chart, s *lex.Stream, l *lex.Lattice[lex.None], size, unmapped int, narrowed bool) Refusal {
 	at := diedAt(c, s, size)
-	if narrowed && at != unmapped { // at the first unmapped token the un-narrowed run dies too
-		reruns.Add(1)
-		rc, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), lex.Linear(s))
-		if err != nil {
-			return Refusal{Reason: err.Error()}
-		}
-		if rc.Accepted() {
-			return Refusal{Byte: at, Reason: "scope"}
-		}
-		at = diedAt(rc, s, size)
-	}
-	if at == unmapped { // its empty set is where recognition died
+	if at == unmapped { // every run dies at the first unmapped token, and none before c does
 		return Refusal{Byte: at, Reason: "lex-unmapped"}
 	}
-	return Refusal{Byte: at, Reason: "grammar"}
+	judged := r.Judges()
+	if !narrowed && !judged {
+		return Refusal{Byte: at, Reason: "grammar"}
+	}
+	rerun := func(l *lex.Lattice[lex.None]) (int, error) {
+		reruns.Add(1)
+		rc, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
+		if err != nil || rc.Accepted() {
+			return -1, err
+		}
+		return diedAt(rc, s, size), nil
+	}
+	b, err := rerun(lex.Linear(s))
+	if err != nil {
+		return Refusal{Reason: err.Error()}
+	}
+	if b >= 0 {
+		if b == unmapped {
+			return Refusal{Byte: b, Reason: "lex-unmapped"}
+		}
+		return Refusal{Byte: b, Reason: "grammar"}
+	}
+	if narrowed {
+		b = at // an unjudged c is the narrowed no-precedence run
+		if judged {
+			if b, err = rerun(l); err != nil {
+				return Refusal{Reason: err.Error()}
+			}
+		}
+		if b >= 0 {
+			return Refusal{Byte: b, Reason: "scope"}
+		}
+	}
+	return Refusal{Byte: at, Reason: "precedence"}
 }
 
-// reruns counts refusal's reruns, for the test that a lex-unmapped refusal makes none.
+// reruns counts ChartRefusal's reruns, for the test that a lex-unmapped refusal makes none.
 var reruns atomic.Int64
 
 // diedAt is the byte where c, a refused chart of s, died: the token whose set is empty, or size, the end of the file,

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/chart/grammar"
+	"tamarou.com/pvm/internal/chart/recognize"
 	"tamarou.com/pvm/internal/parse"
 )
 
@@ -73,9 +74,9 @@ func forestText(tab *grammar.Tables, f *Forest) string {
 }
 
 // forestDigest is the golden's text: the accepted count, then each accepted
-// file's path and the hash of its forest's text, the forest Build makes.
+// file's path and the hash of its forest's text, the forest Build makes of the no-precedence chart, V1's.
 func forestDigest(t *testing.T) (string, int) {
-	return sampleDigest(t, func(_ string, src []byte) *Forest { return built(t, string(src)) })
+	return sampleDigest(t, func(_ string, src []byte) *Forest { return builtBy(t, recognize.NewNoPrecedence, string(src)) })
 }
 
 // sampleDigest is forestDigest over the forests forestOf gives the sample's files.

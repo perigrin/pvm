@@ -26,7 +26,7 @@ func builtReadings(t *testing.T, src string) Readings {
 	tab := committedTables(t)
 	s, _ := lex.Lex([]byte(src), tab.Tokens)
 	l := lex.Linear(s)
-	c, err := recognize.Recognize(recognize.New(tab, recognize.Options{}), l)
+	c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, recognize.Options{}), l)
 	if err != nil || !c.Accepted() {
 		t.Fatalf("%q: recognition refuses it (%v)", src, err)
 	}
@@ -185,11 +185,11 @@ func TestReadingsNestedStatementsCountedOnce(t *testing.T) {
 	}
 }
 
-// TestParseAppliesPrecedence: Parse refuses a file the precedence constraint leaves no derivation, with reason
-// precedence and, by its shortcut, Byte 0.
+// TestParseAppliesPrecedence: Parse refuses a file precedence alone refuses, with reason precedence at the byte where
+// the judged chart died, the second <=>, not Byte 0.
 func TestParseAppliesPrecedence(t *testing.T) {
-	if f, ref := Parse(committedTables(t), []byte("$a <=> $b <=> $c;"), Scope{}); f != nil || ref != (Refusal{Reason: "precedence"}) {
-		t.Errorf("$a <=> $b <=> $c;: forest %v, refusal %+v; want refused by precedence at Byte 0", f != nil, ref)
+	if f, ref := Parse(committedTables(t), []byte("$a <=> $b <=> $c;"), Scope{}); f != nil || ref != (Refusal{Byte: 10, Reason: "precedence"}) {
+		t.Errorf("$a <=> $b <=> $c;: forest %v, refusal %+v; want refused by precedence at byte 10", f != nil, ref)
 	}
 }
 

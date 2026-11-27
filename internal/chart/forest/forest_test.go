@@ -304,7 +304,7 @@ var optionSets = []recognize.Options{{}, {NoLeo: true}, {NoLookahead: true}, {No
 func toyForest(t *testing.T, tab *grammar.Tables, words []string, opts recognize.Options) (*Forest, *recognize.Chart, *lex.Lattice[lex.None]) {
 	t.Helper()
 	l := toyLattice(tab, words)
-	c, err := recognize.Recognize(recognize.New(tab, opts), l)
+	c, err := recognize.Recognize(recognize.NewNoPrecedence(tab, opts), l)
 	if err != nil {
 		t.Fatal(err)
 	}
