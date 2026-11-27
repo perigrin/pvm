@@ -342,7 +342,8 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], to
 	// The placeholders at 0, with room for the file's nodes and alternatives before either slice grows.
 	b := &builder{Forest: Forest{Nodes: make([]Node, 1, 1+nodesPerToken*tokens), Alts: make([]Alt, 1, 1+altsPerToken*tokens)},
 		tab: tab, g: grammar.Derived(tab, buildForestGrammar), c: c, l: l, inserted: make([]bool, n), at: make([]int, n+1), from: make([]int, n+1),
-		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]int32{}, prefixes: map[int]int32{}}
+		leafAt: make([]int, len(l.Edges)+1), semiLeaf: map[int]int32{}, prefixes: map[int]int32{},
+		leoAt: make([]leoFact, 0, n/4)} // a Leo memo skips a completion at about one node in five of the corpus sample
 	b.memo = make([]int32, n*b.g.nleo)
 	for _, p := range c.Inserted() {
 		b.inserted[p] = true
