@@ -33,13 +33,16 @@ test:
 chart-absence-reference:
 	go test -tags absencereference ./internal/chart/cmd/ratchet/ -run '^(TestTDTAbsentReasonsMatchPerClaimScan|TestAbsenceCandidatesMatchFullMap)$$' -count=1 -v
 
-# The precedence reference over perl.git (internal/chart/README.md): every
-# recognized perl.git t/ file judged by production Constrain and by
-# ConstrainReference, which must agree, the forest-equality differential
-# (candidate against V1) over the same files, and the set-1626 observer over
-# the same files, which must count 0. Not in `test`, because a developer
-# without perl.git runs `make test`; the tests sit behind the build tag
-# precedencereference and fails, never skips, without PERL5_CORPUS's perl.git.
+# The precedence checks over perl.git (internal/chart/README.md), three tests
+# over every perl.git t/ file the ratchet loads:
+# TestPrecedencePerlGitMatchesReference holds production's forest (the judged
+# chart's Build, which never runs Constrain) to ConstrainReference's judgement
+# of the no-precedence forest, by verdict alone where the judged chart refuses
+# the file; TestForestEqualityPerlGit holds the same forest to V1's; and
+# TestSet1626NeverReachedPerlGit counts the tokens carrying set 1626 after a
+# completed indirob ::= scalar, which must be 0. Not in `test`, because a
+# developer without perl.git runs `make test`; the tests sit behind the build
+# tag precedencereference and fail, never skip, without PERL5_CORPUS's perl.git.
 # CI runs it in the corpus-backed Ratchets job.
 chart-precedence-reference:
 	go test -tags precedencereference ./internal/chart/cmd/ratchet/ -run '^(TestPrecedencePerlGitMatchesReference|TestSet1626NeverReachedPerlGit|TestForestEqualityPerlGit)$$' -count=1 -v

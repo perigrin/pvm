@@ -1,17 +1,31 @@
-<!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse. -->
-<!-- ABOUTME: Covers its status, the perly.y grammar and its fits, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the oracle subject facts, the precedence constraint and the tables. -->
+<!-- ABOUTME: Orientation for internal/chart, the chart-parser research spike beside internal/parse, under the V2 precedence decision. -->
+<!-- ABOUTME: Covers its status, the perly.y grammar, the corpora, the ratchet contract, chart/lex, the recognizer, the forest, the oracle facts, the precedence constraint, prectab and the tables. -->
 
 # internal/chart
 
 An Earley chart recognizer for Perl, built as a research spike beside the
-recursive-descent parser in `internal/parse` and measured against it. The
-design is `docs/plans/2026-10-30-chart-parser-v2-design.md` (on the branch
-`docs/chart-parser-v2-design`). For the recovery after the waypoint-2 speed stop, the
-Chart Parser Recovery Plan, `docs/plans/2026-11-13-chart-parser-recovery-plan.md`
-(on the branch `docs/chart-recovery-plan`), is the successor decision: it
-supersedes the design's §2 question, its §10 speed line and its §9.5 key rule,
-and the design binds everything else. Nothing outside the spike consumes this
-tree.
+recursive-descent parser in `internal/parse` and measured against it. Nothing
+outside the spike consumes this tree.
+
+The governing design is `docs/plans/2026-10-30-chart-parser-v2-design.md`, on
+the branch `origin/docs/chart-parser-v2-design`. Two later decisions supersede
+parts of it, and it binds everything they leave alone. The Chart Parser
+Recovery Plan, `docs/plans/2026-11-13-chart-parser-recovery-plan.md` (on the
+branch `docs/chart-recovery-plan`), governed the recovery after the waypoint-2
+speed stop: it supersedes the design's §2 question, its §10 speed line and its
+§9.5 key rule. The V2 decision,
+`docs/plans/2026-11-25-chart-precedence-v2-design.md`, moves precedence into
+the recognizer (perigrin: "Supersede, bounded"). It reverses every clause of
+the governing design that puts precedence after the chart: §2's "conflicts are
+kept as ambiguity and resolved in the forest", §6's data flow, which runs
+precedence over the forest, §8, rule 6's "after the chart", and rule 12's
+"items stay (state, distance)". It also reverses rule 12's scope clause, "Scope
+… collapses what remains, after the chart", for library operators: their
+readings are narrowed before recognition ("Library operators"), while resolve
+still decides the other scope-decided words after the chart. The design's
+rule 2 still binds: context enters only before the chart and after it, never
+inside Earley items. That rule is about dynamic context, and the context an
+item now carries, the canonical spine top, is a fact of the grammar.
 
 ## Status: waypoint 2
 
@@ -21,13 +35,20 @@ kill, resumed on 2026-11-15 after chart-recovery (below), and finished under
 perigrin's ruling that day that no speed ceiling stops it: every speed key is
 reported and none is gated but `lex-overhead`'s 1.3.
 
-Waypoint 2 builds:
+Waypoint 2 builds, with precedence judged in recognition as the V2 decision
+moved it:
 
-- **the forest** over a recognized chart, adding no facts to its items
-  (`forest`, below);
-- **the precedence constraint** over the forest, applying bison's resolutions
-  of `perly.y` and agreeing with bison on every kept generated sentence
-  (`forest/precedence.go`; "The precedence constraint");
+- **precedence in the recognizer**: `recognize.New` refuses each completion
+  and scan bison's resolutions of `perly.y` forbid, so the chart holds no
+  derivation bison would not build, and agrees with bison on every kept
+  generated sentence ("The judged recognizer" under `recognize`, and
+  `prectab` for the tables it reads);
+- **the forest** over a recognized chart, read from the chart's sets, its Leo
+  memos, the slipper's closures and the judged recognizer's refusal records,
+  so it arrives judged and no precedence pass runs after it (`forest`,
+  below). The forest's precedence constraint, `Constrain`, stays as the
+  tests' referee, and so does `ConstrainReference` ("The precedence
+  constraint");
 - **resolve**, keeping a word's readings by the subs the file declares and
   imports and by the features in force ("Scope-decided words");
 - **the readings count**, each statement's readings after precedence and
@@ -40,8 +61,15 @@ Waypoint 2 builds:
   (`testdata/labels/perlgit.txt`) and in the superset population, the
   refusal gates and the grading;
 - **library operators**, a library's infix operators read as perl's
-  `PLUGIN_*` terminals where a `use` brings them into scope ("Library
-  operators").
+  `PLUGIN_*` terminals where a `use` brings them into scope, the lattice
+  narrowed to them before recognition ("Library operators").
+
+The V2 decision's verdict reading is
+`docs/assessments/chart-perly-w4/verdict/` (issue 01a21447-d2d1), six ratchet
+runs interleaved before and after V2, with every run's raw output kept beside
+it. It ends `exit: met`: `speed-ratio-aggregate-longlived`'s after-median,
+3.0753, is below its before-minimum, 3.3255, and each of the 27 answer keys
+reads the same in all six runs.
 
 Whether the exit holds is what the ratchet and the milestone's criteria say,
 read from a run. Speed checkpoint 3's two readings, the whole pipeline timed
@@ -80,6 +108,10 @@ reading below, taken on the same host, not with CI's advisory job.
 
 **Not built** (spec §13): interleaved lexing beyond the `;` toke.c inserts
 where a scope ends, incremental reparse and convergence, and error recovery.
+V2 leaves interleaved mode one question for the next decision: the
+recognizer's reduce side judges a completion against the lookahead, the
+terminals of the next token that can follow the rule's left-hand side, and
+interleaved mode, running at lookahead 0, will not have that token yet.
 
 ### chart-recovery's verdict reading
 
@@ -285,13 +317,18 @@ KEYS also retires std5k's cold speed ratio, under perigrin's ruling of 2026-11-1
 "Retire speed-ratio-std5k-cold".
 The state-free precedence decision
 (`docs/plans/2026-11-23-chart-stateless-precedence.md` §4, milestone
-chart-perly-w3) adds `speed-stage-precedence-aggregate-longlived`,
-`speed-stage-resolve-aggregate-longlived` and
-`speed-stage-readings-aggregate-longlived` (STAGEKEYS, 01a20950-3f3c), under
-perigrin's ruling of 2026-11-23: "Rule them in". They depart from §9.5's rule
-by that ruling, as D5's keys did, and like every `speed-` key they are
-printed, listed in the baseline and never gated. The precedence key is since
-retired, with its baseline line, as `forest.ParseWith` no longer runs `Constrain`.
+chart-perly-w3) added three stage keys, for the precedence constraint,
+resolve and the readings count (STAGEKEYS, 01a20950-3f3c), under perigrin's
+ruling of 2026-11-23: "Rule them in". They depart from §9.5's rule by that
+ruling, as D5's keys did, and like every `speed-` key they are printed,
+listed in the baseline and never gated. The V2 decision retires the
+precedence stage key, by perigrin's ruling, with its baseline line, because
+`forest.ParseWith` no longer runs `Constrain` and there is no such stage to
+time; `speed-stage-resolve-aggregate-longlived` and
+`speed-stage-readings-aggregate-longlived` remain.
+`TestCommittedBaselineMatchesKeys` holds the committed baseline to exactly the
+keys the ratchet prints, so a key retired from one and not the other fails in
+`make test`, not only in `make chart-ratchet`.
 
 - **Line form.** `make -s chart-ratchet` prints one line per key on stdout,
   `chart-ratchet: <key> <value>`, every key once, in the fixed order of the
@@ -466,32 +503,37 @@ To take a baseline after an intended change, run
   claim over every corpus file, and `TestAbsenceCandidatesMatchFullMap` holds
   the candidate judgement to `lex.Map` for every key over every T1 file.
   It runs under `make test` and in CI's corpus-backed Ratchets job.
-- **The perl.git precedence reference runs in
-  `make chart-precedence-reference`, not in `make test`** (PERLGITREF): every
-  recognized perl.git `t/` file, loaded as the ratchet loads it, is compared
-  as `TestPrecedenceCorpusMatchesReference` compares the in-tree corpora,
-  production's forest (the judged chart's `Build`) against `ConstrainReference`,
-  by verdict alone where the judged chart refuses the file. The test,
-  `TestPrecedencePerlGitMatchesReference`, sits behind the build tag
-  `precedencereference` because `go test ./...` runs on machines without
-  perl.git. A missing or empty perl.git fails it, never skips it. The target
-  also runs `TestSet1626NeverReachedPerlGit`, the set-1626 observer below
-  over every perl.git `t/` file, and `TestForestEqualityPerlGit`, the
-  forest-equality differential below over the same files, behind the same tag
-  and failing the same way. CI's
-  corpus-backed Ratchets job runs it with `PERL5_CORPUS` set. No in-tree
-  precedence test sits behind `precedencecorpus`, so `make test` wires no
-  second tag for it.
+- **The perl.git precedence checks run in
+  `make chart-precedence-reference`, not in `make test`** (PERLGITREF, and
+  two the V2 decision added). The target runs three tests over every
+  perl.git `t/` file, loaded as the ratchet loads it:
+  `TestPrecedencePerlGitMatchesReference` compares production's forest (the
+  judged chart's `Build`) with `ConstrainReference`'s judgement of the
+  no-precedence forest, as `TestPrecedenceCorpusMatchesReference` compares
+  the in-tree corpora, by verdict alone where the judged chart refuses the
+  file; `TestSet1626NeverReachedPerlGit` is the set-1626 observer ("The
+  feasibility counters", below); and `TestForestEqualityPerlGit` is the
+  forest-equality differential against V1 (below). Each sits behind the
+  build tag `precedencereference`, because `go test ./...` runs on machines
+  without perl.git. A missing perl.git fails each, never skips it, and so
+  does one that compares no file or, for the observer, sees no completion of
+  `indirob ::= scalar`. CI's corpus-backed Ratchets job runs the target with
+  `PERL5_CORPUS` set. No in-tree precedence test sits behind
+  `precedencecorpus`, so `make test` wires no second tag for it.
 - **The chart's verdict is the whole pipeline** (VERDICT, 01a1c324-1f72): a
   file is accepted when `forest.Parse` accepts it, under its scope facts, so a
   precedence or scope refusal is the chart's refusal
   (`TestRatchetVerdictIsPipeline`, `TestRatchetCountsPipelineOverRefusal`).
-  `leo-disagree`, `items-per-token`, `set-reuse`, `terminals-per-token` and
-  `lex-unmapped` stay recognition's (`TestRecognitionKeysUnchangedByPipeline`).
-  `items-per-token` and `set-reuse` are read from recognizing the lattice
-  `forest.Narrow` narrows under the file's scope, the run production makes;
-  `terminals-per-token` stays the un-narrowed tokens' committed sets
-  (`TestTerminalsPerTokenCountsUnnarrowedTokens`).
+  The recognition keys stay recognition's, not the pipeline's, and
+  recognition is the judged recognizer, `recognize.New`, so a file it
+  refuses for precedence is one recognition refuses. `items-per-token` and
+  `set-reuse` read it over the lattice `forest.Narrow` narrows under the
+  file's scope, the run production makes; `leo-disagree` compares its charts
+  with Leo on and off over the un-narrowed lattice; `lex-unmapped` reads
+  chart/lex (`TestRecognitionKeysUnchangedByPipeline` holds those four to a
+  file recognition accepts and the pipeline refuses for scope).
+  `terminals-per-token` reads the un-narrowed tokens' committed sets, never
+  the narrowed lattice's (`TestTerminalsPerTokenCountsUnnarrowedTokens`).
 - **The oracle keys** sum `gradeOracle`'s sites (below, "Per-site
   grading") over `in-tree.txt`, `t1.txt` and `perlgit.txt`: `oracle-wrong`
   is the chart's WRONG sites, `oracle-exact-chart` its EXACT ones and
@@ -548,9 +590,9 @@ To take a baseline after an intended change, run
 | `speed-stage-lex-aggregate-longlived` | chart/lex alone (`lex.Lex`, then `forest.Narrow` under the file's own scope, as `forest.Parse` narrows) over recursive descent, over the aggregate, long-lived | timing |
 | `speed-stage-recognize-aggregate-longlived` | recognition alone, on lattices lexed outside the timed span, the same way | timing |
 | `speed-stage-forest-aggregate-longlived` | building the forest alone (`forest.Build`), from charts recognized outside the timed span, the same way | timing |
-| `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest of its lattice narrowed (`forest.Narrow`) under the file's own scope, recognized by the judged recognizer as `forest.ParseWith` does, the same way | timing |
+| `speed-stage-resolve-aggregate-longlived` | resolve alone (`forest.Resolve`), on a fresh copy per pass of each file's forest as `forest.ParseWith` builds it (the judged chart of the lattice narrowed under the file's own scope, then `forest.Build`), the same way | timing |
 | `speed-stage-readings-aggregate-longlived` | the readings count alone (`(*forest.Forest).CountReadings`), on a fresh copy per pass of each file's forest after resolve, the same way | timing |
-| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: lex, recognition judging precedence, the forest, resolve and the readings count) | timing |
+| `alloc-per-token-chart` | the chart side's heap allocations (`runtime.MemStats.Mallocs`) per lexer token, cold, over the aggregate; it counts the side the speed ratios time, the whole pipeline (`forest.ParseWith`: chart/lex, narrowing, recognition judging precedence, the forest, resolve and the readings count) | timing |
 | `alloc-per-token-rd` | recursive descent's, the same way and over the same tokens | timing |
 | `alloc-per-token-recognize` | `Mallocs` per lexer token over the aggregate for recognition alone: one long-lived pass, its lattices and its recognizer made outside the count | timing |
 | `alloc-per-token-forest` | the same for building the forest alone (`forest.Build`), from charts recognized outside the count | timing |
@@ -648,12 +690,14 @@ clock and a collector, so it is tested on fake timings
   pins the production path and limit.
 - **What the speed ratios run.** The chart side is the whole pipeline,
   checkpoint 3's definition: `forest.ParseWith`, which is `forest.Parse` on a
-  recognizer the caller keeps (chart/lex, recognition judging precedence,
-  the forest, resolve and the readings count; it never enters `Constrain`), each file under
+  judged recognizer the caller keeps: chart/lex, narrowing the lattice to the
+  library operators in scope, recognition judging precedence, the forest,
+  resolve and the readings count, with no precedence pass, each file under
   scope facts obtained before any timed span (`TestSpeedChartSideIsPipeline`).
-  Long-lived reuses the recognizer across a pass's files (its intern table and
-  cache persist), per-file makes a fresh one per file. Recursive descent is `parse.Parse`, which holds no state
-  between files, so its two lifetimes coincide. On a file the chart refuses,
+  Long-lived reuses the recognizer across a pass's files (its intern table
+  and cache persist), per-file makes a fresh one per file. Recursive descent
+  is `parse.Parse`, which holds no state between files, so its two lifetimes
+  coincide. On a file the chart refuses,
   every position after the refusal holds no items and costs little, so
   until the chart recognizes the population (`superset-recognized`) a ratio
   is a lower bound on the finished recognizer's, reported for warning (§9.3
@@ -668,33 +712,36 @@ clock and a collector, so it is tested on fake timings
   them), so each chart pass starts with the pool empty. Allocations are one
   cold pass after a GC, counted in `Mallocs`, over the lexer's tokens on the
   aggregate (`lexer.Tokenize`'s count, the same denominator for both sides).
-  `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`). Each of
-  `speed-stage-lex-*`, `speed-stage-recognize-*` and `speed-stage-forest-*`
-  times only its own stage against recursive descent, long-lived, its inputs
-  prepared once outside the span (narrowed lattices for recognize, charts for the
-  forest; a file the chart refuses has no forest, so `forest.Build` returns
-  nil at once), so the forest key times the build after
-  recognition as `forest.Bench` does, not `forest.Parse`, which runs all
-  three and resolve (`TestSpeedStagesTimed`). The three are in RD units and their sum,
-  lex + recognize + forest, is printed on stderr
+  `lex-overhead` stays chart/lex alone (`TestLexOverheadExcludesPipeline`).
+  Each of `speed-stage-lex-*`, `speed-stage-recognize-*` and
+  `speed-stage-forest-*` times only its own stage against recursive descent,
+  long-lived. The lex stage is chart/lex then `forest.Narrow` under the
+  file's own scope, as `forest.ParseWith` narrows; the other two take inputs
+  prepared once outside the span: those narrowed lattices for recognition
+  (`TestStageRecognizeTimesNarrowedLattice`), and the judged recognizer's
+  charts of them for the forest (a file the chart refuses has no forest, so
+  `forest.Build` returns nil at once). So the forest key times the build
+  after recognition as `forest.Bench` does, not `forest.Parse`, which runs
+  every stage (`TestSpeedStagesTimed`). The three are in RD units, and their
+  sum, lex + recognize + forest, is printed on stderr
   (`speed-stage sum lex+recognize+forest`), not a key. It is the sum of the
   three keys' medians, each against its own recursive-descent passes, not
   one ratio.
-- **The stages after the forest.** `speed-stage-resolve-aggregate-longlived` and
-  `speed-stage-readings-aggregate-longlived` time `forest.ParseWith`'s later
-  stages each alone, the same way. `speed-stage-precedence-aggregate-longlived`
-  is retired (perigrin): `ParseWith` no longer runs `Constrain`, so there is no
-  precedence stage to time, and its line left `baseline.txt` with it. Each stage's input is prepared once,
-  outside every span: the forest `forest.Build` makes of the lattice
-  `forest.Narrow` narrows under the file's own scope (`rd(path).scope`,
-  the scope the speed ratios' pipeline runs under; it carries imports only,
-  so here narrowing drops every `PLUGIN_*` reading, as under an empty `Scope`, and
-  `TestPipelineStageKeys` holds that a scope with library operators is
-  honoured) for resolve; and that forest after resolve for the
-  readings count. Recognition's lattices are narrowed the same way
-  (`TestStageRecognizeTimesNarrowedLattice`), and no precedence stage exists
-  (`TestPipelineStagesHaveNoPrecedenceStage`). Resolve changes the forest it is
-  handed, so the protocol has a **per-pass preparation hook**
+- **The stages after the forest.** `speed-stage-resolve-aggregate-longlived`
+  and `speed-stage-readings-aggregate-longlived` time `forest.ParseWith`'s
+  later stages each alone, the same way. There is no precedence stage
+  between the forest and resolve, since recognition judges precedence and
+  `ParseWith` runs no `Constrain`, and the precedence stage key is retired
+  with it (`TestPipelineStagesHaveNoPrecedenceStage`). Each stage's input is
+  prepared once, outside every span: for resolve, the forest `forest.Build`
+  makes of the judged chart of the lattice `forest.Narrow` narrows under the
+  file's own scope (`rd(path).scope`, the scope the speed ratios' pipeline
+  runs under; it carries imports only, so here narrowing drops every
+  `PLUGIN_*` reading, as under an empty `Scope`, and `TestPipelineStageKeys`
+  holds that a scope with library operators is honoured); for the readings
+  count, that forest after resolve. Library operators narrow the lattice,
+  not the forest, so their work is timed in the lex stage. Resolve changes
+  the forest it is handed, so the protocol has a **per-pass preparation hook**
   (`Protocol.Prepare`): run before each chart pass, after its GC and before
   its clock starts, it makes a fresh copy (`(*forest.Forest).Copy`) of every
   file's prepared forest, and the pass drops each copy once timed, so one
@@ -702,12 +749,11 @@ clock and a collector, so it is tested on fake timings
   them. A side with no hook times exactly as before
   (`TestProtocolPrepareOutsideSpan`). **A refused file** stays in the one
   timed population every stage uses: a file the chart refuses has no forest,
-  and one resolve refuses has
-  no input for the stage after, which then do nothing for it; each stage
-  prints how many such files it had on stderr,
-  `chart-ratchet: <key>: <n> of <m> files refused before the stage`
-  (`TestPipelineStageKeysRefusedFiles`). Library operators have no key, so
-  the stage keys do not sum to the pipeline, and the stderr sum stays lex +
+  and one resolve refuses has no input for the readings count, which then
+  does nothing for it; each stage prints how many such files it had on
+  stderr, `chart-ratchet: <key>: <n> of <m> files refused before the stage`
+  (`TestPipelineStageKeysRefusedFiles`). The stage keys are separate ratios,
+  so they do not sum to the pipeline's, and the stderr sum stays lex +
   recognize + forest.
 - **Checkpoint 3** (spec §9.3, at waypoint 2's exit) is two ratchet runs on
   as quiet a machine as could be had, each appended as the ratchet printed it
@@ -1682,7 +1728,7 @@ never reassigned and never written into `TerminalSets`
 `TestNarrowLeavesCommittedTerminalSetsUnmutated`). A file the narrowed chart
 refuses is refused for scope at the narrowed no-precedence chart's byte where the un-narrowed
 rerun accepts it, a byte that may differ from where V1's pruning located it
-(`foo plus 2 plus 3;`: 11, V1 4). The precedence constraint then reads the terminal as `perly.y` does,
+(`foo plus 2 plus 3;`: 11, V1 4). The judged recognizer then reads the terminal as `perly.y` does,
 and the referee covers its resolutions ("The precedence constraint").
 `TestLibraryOperatorsAsPerl` holds an operator of each bucket in
 `testdata/libops/declarations/My/Ops.tpm` to perl's grouping against the core
@@ -1755,15 +1801,25 @@ The correspondence is a hypothesis, amended once: `FUNC0OP` is niladic (`FUN0OP`
 `grammar/perly.go` states perly.y's 32 precedence declarations (`perlyPrecedence`, `%left|%right|%nonassoc
 TOKEN... # perly.y:N`, loosest first, each citing one line of `perly.y:150-182`), and every rule whose alternative
 carries a `%prec` carries it too, as `lhs: rhs %prec TOKEN # perly.y:N` (`TestPrecedenceCitations` holds them to
-perly.y's 39 uses). **The default recognizer judges both** (the V2 design, superseding spec §8):
-`recognize.New` refuses `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` in the chart, the no-precedence
-constructor accepts all three (`TestDefaultRecognizerJudgesPrecedence`), and the forest's constraint refuses all
-three on that constructor's forest (`TestWaypoint2Refusals`). The generated tables (`make chart-tables`) carry no
-precedence: `grammar.Committed` carries it on the grammar, as `Grammar.Levels` (the declarations), each
-`Rule.Prec` (rule *r* of the grammar is rule *r* of its tables, since perly.y's port has no sequence rule) and
-`Grammar.Refused` (the four comparison chains the ledger marks refused-by-precedence, which the tables leave out),
-and `prectab.NewPrecedence` reads them with the tables. The generator's unused-precedence refusal reads them too. The declaration of perly.y:177 is fitted: `POSTJOIN` is left out,
-since its one rule (1512) is excluded interpolation-only and the refusal would refuse it.
+perly.y's 39 uses).
+
+**Recognition judges both** (the V2 decision, superseding spec §8):
+`recognize.New` refuses `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and
+`print $fh [];` in the chart, where the no-precedence constructor,
+`recognize.NewNoPrecedence`, accepts all three
+(`TestDefaultRecognizerJudgesPrecedence`); `forest.Parse` refuses them as perl
+does (`TestWaypoint2Refusals`); and the forest's constraint refuses each on the
+no-precedence forest, as V1 did
+(`TestForestEqualityV1SideRecognizesPrecedenceRefusals`).
+The generated tables (`make chart-tables`) carry no precedence.
+`grammar.Committed` carries it on the grammar, as `Grammar.Levels` (the
+declarations), each `Rule.Prec` (rule *r* of the grammar is rule *r* of its
+tables, since perly.y's port has no sequence rule) and `Grammar.Refused` (the
+four comparison chains the ledger marks refused-by-precedence, which the tables
+leave out). `prectab.NewPrecedence` reads them with the tables ("The precedence
+tables: `prectab`"), and so does the generator's unused-precedence refusal. The
+declaration of perly.y:177 is fitted: `POSTJOIN` is left out, since its one
+rule (1512) is excluded interpolation-only and the refusal would refuse it.
 
 `TestLevelDifferences` (`grammar/levels.go`) compares each level, by number, with chapter 4's level table
 (associativity and tokens) and with `parse.LevelsAccountedFor()` (presence only: its account is prose), and holds
@@ -1909,92 +1965,80 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
 - **Not safe for concurrent use.** A `Recognizer`'s intern table and
   transition cache change with every recognition, across inputs, and stay
   its own (`TestRecognizerStateNotShared`).
-- **The judged recognizer** (the V2 design's §4.1 reduce side, built beside
-  the default). `recognize.New` is the derived judged recognizer,
-  `recognize.NewJudged(tab, nil, opts)` (`TestDefaultRecognizerJudgesPrecedence`);
-  `recognize.NewNoPrecedence`, the explicit no-precedence constructor, is
-  reached only by the refusal rerun, the referees, the pinned guards and
-  tests. `recognize.NewJudged` takes a `*prectab.Precedence`
-  (explicit) or nil (derived): derived, tables whose rules are perly.y's
-  committed grammar rule for rule (count, each LHS and RHS by name) are judged
-  with perly.y's precedence through `prectab.ParsePrecedence`, once per
-  tables value, a copy or regeneration included
-  (`TestJudgedJudgesCopyOfCommittedTables`), and any other tables declare no
-  levels, so nothing is judged and the recognizer is the no-precedence one
-  (`TestJudgedOverLevellessTablesRecognizesAsBefore`). A precedence
-  `prectab.Feasible` refuses, or a failed derivation, is the constructor's
-  error, which `Recognize` returns for every input
+- **The judged recognizer** (the V2 decision's §4). `recognize.New` is
+  `recognize.NewJudged(tab, nil, opts)`, the derived form: over tables whose
+  rules are perly.y's committed grammar rule for rule (their count, and each
+  LHS and RHS by name) it judges perly.y's precedence, read through
+  `prectab.ParsePrecedence` once per tables value, a copy or regeneration
+  included (`TestDefaultRecognizerJudgesPrecedence`,
+  `TestJudgedJudgesCopyOfCommittedTables`); over any other tables it declares
+  no levels and judges nothing, so it recognizes as the no-precedence
+  recognizer does (`TestJudgedOverLevellessTablesRecognizesAsBefore`). The
+  explicit form, `NewJudged(tab, p, opts)`, judges a toy's own precedence. A
+  precedence `prectab.Feasible` refuses, or a failed derivation, is the
+  constructor's error, which `Recognize` returns for every input, so a judged
+  recognizer never recognizes unjudged
   (`TestJudgedRecognizerRefusesInfeasibleGrammar`,
-  `TestJudgedRefusesFailedDerivationOnPerlyTables`). A completion is refused
-  where V1's reduce verdict forbids its rule before every terminal of the
-  lookahead set that can follow its LHS, and a set none of whose terminals
-  can follow it refuses too, whatever `NoLookahead` says
-  (`TestReduceSideNoFollowingTerminal`); the six parent-dependent pairs are
-  judged per parent state, though only indirob's two can be followed by
-  their terminal, so myterm's four are refused vacuously
-  (`TestReduceSideRefusesForbiddenCompletion`,
-  `TestReduceSideMixedVerdictSetKept`,
-  `TestReduceSideIgnoresTerminalsOutsideFollow`). Each refusal of a completion
-  for a parent state is recorded beside the node's set, never in it, so sets
-  differing only in their records share one `*Set`
-  (`TestRefusalRecordsOutsideSetIdentity`), and a cache hit serves the
-  records it stored (`TestRefusalRecordsServedByCache`). A Leo chain crossing a refused completion is not taken,
-  so completion goes link by link and refuses there, as without Leo
-  (`TestLeoCrossesRefusedCompletion`), and nor is one whose first completion
-  needs its parent state (`TestLeoTakesNoParentDependentCompletion`). The
-  cost bounds hold for the derived judged recognizer at the default's
-  constants (`TestCompletionProbesBoundedJudged`,
-  `TestLeoMemoEntriesBoundedJudged`). To find a crossing, its Leo step walks
-  the memo chain, and each memo keeps its verdict per lookahead, keyed by
-  its class or, for a union, which has none, by its terminals, so a walk
-  stops at a link already judged before the same lookahead. So a right
-  recursion whose LHS can be followed by the token that continues it, which
-  takes a chain at every node, walks each link once per distinct lookahead
-  rather than once per node: linear in its depth, where re-walking would be
-  quadratic, whether the lookahead stays the same, alternates or cycles,
-  by class or by union (`TestJudgedLeoWalkLinear`), and a verdict kept for
-  one lookahead is never served for another
-  (`TestLeoCrossingVerdictPerLookahead`). Over the corpus sample the walk is held to
-  `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The shift
-  side (§4.1): a scan is refused where V1's shift verdict for the item's
-  context, the item of its state holding `at` and the terminal forbids it,
-  and the same scan under `none` is kept (`TestShiftSideRefusesForbiddenScan`);
-  the predictors `do`, `UNIOP` and `my \` give their rules the real top, so a
-  shift V1 forbids after each is refused (`TestPredictorTakesNonNoneTop`).
-  The slipper's inserted `;`, and the `}` scanned after it, are judged the
-  same way (`TestShiftRefusalThroughSlipper`), and `Expected` omits a
-  terminal whose shift an item's context forbids
-  (`TestShiftRefusalThroughExpected`), and each candidate terminal is
-  judged as the lookahead: the completions it would trigger are judged
-  before it, so after `1 .. 2` `DOTDOT` is not offered
-  (`TestExpectedJudgesPrecedence`, `TestExpectedLeoAgreesUnderPrecedence`,
-  `TestExpectedMatchesRecognizeGivenEachCandidate`). The pairing rule
-  (§4.3): a completion advances only the parents that predicted it under
-  its context, a Leo chain included (`TestCompletionPairsUnderContext`).
-  Its forest, through `Build` and `Constrain`, equals V1's over the toys,
-  seeds 4 and 44 and the in-tree corpus (`TestForestEqualityReduceSide`,
-  `TestForestEqualityCorpusReduceSide`), and so does its forest through
-  `Build` alone, with no `Constrain`, over the toys `prectab.Feasible`
-  passes, seeds 4 and 44, and the corpus narrowed as production narrows it
-  (`TestForestEqualityJudgedRecognizer`,
-  `TestForestEqualityCorpusJudgedRecognizer`); that candidate never enters
-  `Constrain` (`TestForestEqualityJudgedCandidateNeverConstrains`).
+  `TestJudgedRefusesFailedDerivationOnPerlyTables`).
+  `recognize.NewNoPrecedence`, which judges nothing, is reached only by the
+  refusal rerun, the referees, the V1 side of the differentials, the pinned
+  guards and tests.
+  - **The reduce side.** A completion is refused where V1's reduce verdict
+    forbids its rule before every terminal of the lookahead set that can
+    follow its LHS, and kept where any of them allows it
+    (`TestReduceSideRefusesForbiddenCompletion`,
+    `TestReduceSideMixedVerdictSetKept`,
+    `TestReduceSideIgnoresTerminalsOutsideFollow`). A set none of whose
+    terminals can follow the LHS refuses it vacuously, with lookahead or
+    under `NoLookahead` (`TestReduceSideNoFollowingTerminal`), and
+    `NoLookahead` changes no acceptance
+    (`TestReduceSideNoLookaheadSameAcceptance`). The six parent-dependent
+    pairs are judged per parent state; only indirob's two can be followed by
+    their terminal, so myterm's four are refused vacuously.
+  - **Refusal records.** Each completion refused for a parent state is
+    recorded beside the node's set, never in it, so sets differing only in
+    their records share one `*Set` (`TestRefusalRecordsOutsideSetIdentity`),
+    and a cache hit serves the records its storing node kept
+    (`TestRefusalRecordsServedByCache`). The forest reads them ("The forest").
+  - **The shift side.** A scan is refused where V1's shift verdict for the
+    item's context, its core item and the terminal forbids it, and the same
+    scan under `none` is kept (`TestShiftSideRefusesForbiddenScan`). `do`,
+    `UNIOP` and `my \` predict under their real top, so a shift V1 forbids
+    inside each one's operand is refused (`TestPredictorTakesNonNoneTop`).
+    The slipper's inserted `;`, and the `}` scanned after it, are judged the
+    same way (`TestShiftRefusalThroughSlipper`).
+  - **The pairing rule** (§4.3). A completion advances only the parents that
+    predicted it under its context, a Leo chain included
+    (`TestCompletionPairsUnderContext`). A set inside a branch, built by
+    searching every item rather than through the postdot index, is judged and
+    paired the same way (`TestJudgedBranchSetsAgree`).
+  - **Its forest** equals V1's. Through `Build` alone, with no `Constrain`,
+    it does so over the toys `prectab.Feasible` passes, seeds 4 and 44, and
+    the corpus narrowed as production narrows it
+    (`TestForestEqualityJudgedRecognizer`,
+    `TestForestEqualityCorpusJudgedRecognizer`), and that candidate never
+    enters `Constrain` (`TestForestEqualityJudgedCandidateNeverConstrains`).
+    So does the reduce side's forest with `Constrain` run after it, over the
+    toys, seeds 4 and 44 and the in-tree corpus
+    (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
+    The cost bounds hold for the derived judged recognizer at the default's
+    constants (`TestCompletionProbesBoundedJudged`,
+    `TestLeoMemoEntriesBoundedJudged`).
 - **Items** are an LR(0) state, the distance in lattice nodes back to the
-  item's origin, and a context: the canonical spine top, or `none` (the V2
-  design's §4.2), which only the judged recognizer sets
-  (`TestItemIsStateDistanceContext`). A predicted item takes its predicting
-  kernel state's context from `prectab.PredictionContexts`, `none` where its rules
-  have no canonical top (§4.2). At predictor granularity §4.3's collapse adds
-  nothing to §4.2's: a canonical top forbids shifts only in rules predicted
-  from it, and those lie in its own predictor's region, so the table holds
-  `forbidsAt` only as the oracle `TestContextCollapseTable` checks against
-  its brute-force witness search; every other item inherits the context of the
-  item it advances. A set is its items, sorted, so two positions with equal
-  content share one `*Set`, and sets differing only in a context do not;
-  the transition cache keys on the source set, so on its contexts, and a
-  Leo memo's top carries its item's context (`TestContextCollapseInternsEqualSets`,
-  `TestTransitionCacheKeysOnContext`, `TestLeoMemoCarriesContext`). It is
-  interned by one hash of its states and one
+  item's origin, and a context (`TestItemIsStateDistanceContext`). The
+  context is the canonical spine top, an item of `prectab`'s automaton, or
+  `none` (the V2 decision's §4.2). Only a judged recognizer sets anything but
+  `none`, and an item under `none` prints as (state, distance) did, so the
+  no-precedence recognizer's set digests did not move. A predicted item takes
+  the context its predicting kernel state gives it, from
+  `prectab.PredictionContexts` ("The precedence tables: `prectab`"); every
+  other item inherits the context of the item it advances. A set is its
+  items, sorted, so two positions with equal content share one `*Set`, and
+  sets differing only in a context do not. A predictor whose top forbids no
+  shift predicts under `none`, so its sets intern as one
+  (`TestContextCollapseInternsEqualSets`), and the transition cache keys on
+  the source set, so on its contexts (`TestTransitionCacheKeysOnContext`).
+  A set is interned by one hash of its states and one
   map lookup (`TestInternOneLookup`; YAEP's `set_core.hash` and `dists_hash`):
   the table's value is the core, which holds its sets in an
   open-addressed table keyed by a hash of their distances (a core's list was
@@ -2040,10 +2084,28 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   `Expected(pos)` is the union of the expected terminals of every state in
   the set at `pos` as recognition without lookahead builds it: it closes
   the set again under every completion, outside the interned content, so a
-  refusal point still names what was expected there. A judged recognizer
-  keeps only the terminals precedence allows there: it rebuilds the closure
-  from the set's scanned items once per candidate, with that terminal as
-  the lookahead, so it can be empty at a refusal point.
+  refusal point still names what was expected there. On a judged chart it
+  is the terminals precedence allows there (the V2 decision's §4.4): each
+  candidate is judged as the lookahead, by closing the set's seeds again with
+  it, the kernel items a scan made and node 0's start item, the reduce side
+  judging every completion before it, and is kept where an item of that
+  closure scans it unrefused. So after `1 .. 2` no `DOTDOT` is offered, and
+  `;` and a tighter operator still are (`TestExpectedJudgesPrecedence`,
+  `TestExpectedKeepsAllowedContinuations`); a terminal whose shift an item's
+  context forbids is omitted (`TestShiftRefusalThroughExpected`); and a
+  prediction made by a completion refused before the candidate offers
+  nothing (`TestExpectedSeedsNoPredictionOfARefusedCompletion`). The seeds
+  are enough because no state of the committed tables is reached by both a
+  terminal and a nonterminal, and no predicted state is reached at all
+  (`TestCompletedStatesHaveOneAccessingKind`). Judged `Expected` is exactly
+  the no-precedence `Expected`'s terminals that `Recognize` scans there
+  given each as the next token, `}` aside, which the slipper's `;` lets it
+  scan where no item does (`TestExpectedMatchesRecognizeGivenEachCandidate`).
+  Where precedence forbids every candidate it is empty, without error
+  (`TestExpectedEmptyWhenPrecedenceForbidsAll`). It is the same with Leo on
+  and off (`TestExpectedLeoAgreesUnderPrecedence`), and so `leo-disagree`,
+  which compares `Expected` on judged charts, reads 0 over T1
+  (`TestLeoDisagreeZeroUnderPrecedence`).
 - **The transition cache** is keyed by (set, token, lookahead) and the
   edge's span. A key alone does not fix the result: completion reads the
   sets where complete items began, which are not part of the source set. So
@@ -2078,37 +2140,60 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   made at a node for a symbol B only where the node's whole set holds one
   item awaiting B, and that item is a Leo item of the tables (`leo.txt`). It
   resolves the chain of completions to its top item, by reference to the
-  memo at the item's origin. The test reads the set's postdot index, so it
-  is constant time; a branch set, which has no index, searches every item
+  memo at the item's origin, and the top carries its item's context, so a
+  completion through the chain pairs under that context
+  (`TestLeoMemoCarriesContext`). The test reads the set's postdot index, so
+  it is constant time; a branch set, which has no index, searches every item
   on each call. Only real memos are stored, in one map per chart keyed by
   (node, symbol), never a "none": 1,278 entries over corpusSample's 35,645
   nodes, where a per-node table storing every computation held 20,511
   (`TestLeoMemoEntriesBounded`, `TestLeoMemoOnlyWhenUnique`). Leo is on by
-  default (`TestLeoOnByDefault`). Memos live beside the sets, never in
-  a set, so two nodes whose sets differ only in their tops share one set
+  default (`TestLeoOnByDefault`). Memos live beside the sets, never in a
+  set, so two nodes whose sets differ only in their tops share one set
   (`TestLeoTopOutsideSetIdentity`). With lookahead, a chain whose top cannot
   be followed by the next token is completed link by link, as without Leo.
   Every set a chain read is a transition-cache dependency. Leo never changes
-  acceptance. At lookahead 0, where interleaved mode will run, it makes
-  `S ::= A S | A` and a toy right-recursive, nullable statement sequence
-  linear, where without it they are quadratic
-  (`TestLeoLinearAtLookaheadZero` and `TestLeoStatementSeqAtLookaheadZero`).
-  perly has one production of that shape, `else: KW_ELSIF … mblock else |
-  empty`. No test reproduces the counts that follow; they were observed at
-  aa5aed2f. `if (1) { 1 }` followed by 50, 100 and 200 ` elsif (1) { 1 }` arms
-  has 1,375, 2,725 and 5,425 items at lookahead 0 with Leo and 2,551, 7,576
-  and 25,126 without. With lookahead on, the default, it is linear either way
-  (1,028, 2,028, 4,028 with Leo; 1,076, 2,126, 4,226 without). At waypoint 1
-  operator chains get no Leo benefit, because precedence is not applied yet:
-  `$a` followed by 50, 100 and 200 ` = $a` and a `;` has 5,463, 20,913 and
-  81,813 items at lookahead 0, with Leo or without, quadratic. Linear here
-  means the item count, not time: with the cache on, each use of a chain walks it to record its
-  sets, so time stays quadratic until memos are interned. Leo chains were
-  not the only such term: at c6de5c76 the transition cache's lookup was
-  quadratic in the number of top-level statements in default mode (see the
-  transition cache above). A chain stops at
-  a start-rule item from node 0, which acceptance must see. `Options.NoLeo`
-  turns it off; it is the only Leo switch.
+  acceptance.
+
+  **A chain never skips a refused completion.** In a judged recognizer, a
+  chain crossing a completion the reduce side refuses is not taken, so
+  completion goes link by link and refuses there, as without Leo
+  (`TestLeoCrossesRefusedCompletion`), and nor is one whose first completion
+  needs its parent state to be judged
+  (`TestLeoTakesNoParentDependentCompletion`). To find a crossing, the Leo
+  step walks the memo chain, and each memo keeps its verdict per lookahead,
+  keyed by its class or, for a union, which has none, by its terminals, so a
+  walk stops at a link already judged before the same lookahead. A right
+  recursion whose LHS can be followed by the token that continues it takes a
+  chain at every node, and its walk visits each link once per distinct
+  lookahead rather than once per node: linear in its depth, where re-walking
+  would be quadratic, whether the lookahead stays the same, alternates or
+  cycles, by class or by union (`TestJudgedLeoWalkLinear`). A verdict kept
+  for one lookahead is never served for another
+  (`TestLeoCrossingVerdictPerLookahead`), and over the corpus sample the
+  walk is held to `leoLinksPerTokenBound`
+  (`TestLeoLinksPerTokenBoundedJudged`).
+
+  At lookahead 0, where interleaved mode will run, Leo makes `S ::= A S | A`
+  and a toy right-recursive, nullable statement sequence linear, where
+  without it they are quadratic (`TestLeoLinearAtLookaheadZero` and
+  `TestLeoStatementSeqAtLookaheadZero`). perly has one production of that
+  shape, `else: KW_ELSIF … mblock else | empty`. No test reproduces the
+  counts that follow, observed at aa5aed2f, before recognition judged
+  precedence. `if (1) { 1 }` followed by 50, 100 and 200 ` elsif (1) { 1 }`
+  arms has 1,375, 2,725 and 5,425 items at lookahead 0 with Leo and 2,551,
+  7,576 and 25,126 without. With lookahead on, the default, it is linear
+  either way (1,028, 2,028, 4,028 with Leo; 1,076, 2,126, 4,226 without).
+  Operator chains then got no Leo benefit, since precedence was not applied
+  in recognition: `$a` followed by 50, 100 and 200 ` = $a` and a `;` has
+  5,463, 20,913 and 81,813 items at lookahead 0, with Leo or without,
+  quadratic. Linear here means the item count, not time: with the cache on,
+  each use of a chain walks it to record its sets, so time stays quadratic
+  until memos are interned. Leo chains were not the only such term: at
+  c6de5c76 the transition cache's lookup was quadratic in the number of
+  top-level statements in default mode (see the transition cache above). A
+  chain stops at a start-rule item from node 0, which acceptance must see.
+  `Options.NoLeo` turns it off; it is the only Leo switch.
 - **The `;` toke.c inserts, by a narrow ruby slipper** (spec §5.2). toke.c
   inserts a `;` where a scope ends: before the `}` that closes it
   (`yyl_rightcurly`, which forces the `}` and returns `PERLY_SEMICOLON`
@@ -2151,21 +2236,32 @@ sharing no code with `recognize` (`TestReferenceSharesNoCode`), so it fails
 independently of the recognizer it checks. With no grammar argument each input
 byte is the singleton set id of one terminal of the toy statement grammar, so
 every input is a valid terminal string; with one, its bytes decode to a small
-grammar (the first rule's left-hand side is the start, and may sit on a right-hand side) and the input's bytes
-pick among that grammar's terminals. The recognizer it fuzzes is `recognize.New`, but the statement grammar and the
-fuzzed grammars declare no levels, so it judges nothing there. Precedence is fuzzed over a §3-feasible toy with levels,
-the committed `testdata/precedence/toys/mixed.txt`: with its third argument true the input's bytes pick among its terminals,
-and the judged recognizer in the explicit form must agree with the judged reference. Its committed seeds are bison's
-sentences of the toy, and at least one of them has a completion or scan the reference refuses
+grammar (the first rule's left-hand side is the start, and may sit on a
+right-hand side) and the input's bytes pick among that grammar's terminals.
+There it fuzzes `recognize.New` and `recognize.NewNoPrecedence`, which
+recognize alike, since the statement grammar and the fuzzed grammars declare
+no levels: over a level-less grammar the judged recognizer judges nothing.
+Precedence is fuzzed over a toy with levels that `prectab.Feasible` passes, the
+committed
+`testdata/precedence/toys/mixed.txt`: with the third argument true, the
+input's first 24 bytes pick among its terminals, and the judged recognizer in
+the explicit form must agree with the judged reference. The committed seeds
+for it are bison's sentences of the toy, each recognized as the judged
+reference recognizes it under every `Options` combination, and at least one
+has a completion or scan the reference refuses
 (`TestFuzzPrecedenceToySeeds`, `TestFuzzPrecedenceToyIsFeasibleWithLevels`).
 
-The reference judges precedence as a second implementation, still sharing no code with `recognize`. Given a
-precedence, each item also carries its context, the canonical spine top: a start item is its own, a child predicted
-at its rule's first position inherits its parent's, and one predicted at a later position takes the predicting item.
-A scan is refused where V1's shift verdict for (context, item, terminal) forbids it. A completion is refused where
-V1's reduce verdict forbids its rule before every terminal of the lookahead that can follow its left-hand side, by
-the reference's own FOLLOW, the parent item deciding the parent-dependent pairs, and it advances only the parents
-that predicted it under its context. `Expected` judges each candidate as the lookahead. Without a precedence the
+The judged reference is a second implementation of the judgement, still
+sharing no code with `recognize`. Given a precedence, each item also carries
+its context, the canonical spine top: a start item is its own, a child
+predicted at its rule's first position inherits its parent's, and one
+predicted at a later position takes the predicting item. A scan is refused
+where V1's shift verdict for (context, item, terminal) forbids it. A
+completion is refused where V1's reduce verdict forbids its rule before every
+terminal of the lookahead that can follow its left-hand side, by the
+reference's own FOLLOW, the parent item deciding the parent-dependent pairs,
+and it advances only the parents that predicted it under its context.
+`Expected` judges each candidate as the lookahead. Without a precedence the
 reference is the textbook one above.
 
 `TestReferenceRecognizer` (`recognize/agree_test.go`) holds the recognizer to
@@ -2179,11 +2275,14 @@ through `chart/lex`, at most 300 tokens). Agreement does not need acceptance:
 its first `=`, else its first token but `;`) and requires both to refuse at the same node with the same `Expected`.
 `TestReferenceRecognizerCatchesDroppedTransition` removes a start-state
 transition the sample uses and requires the disagreement to be reported.
-`TestReferenceRecognizerPrecedence` holds `recognize.New` to the judged
-reference, with perly.y's precedence, under every `Options` combination over
-the same corpus sample; it logs the completions and scans the reference
-refused, requires both non-zero, and requires the judged reference's sets to
-differ from the unjudged reference's.
+Those three hold the no-precedence recognizer,
+`recognize.NewNoPrecedence`, to the textbook reference.
+`TestReferenceRecognizerPrecedence` holds `recognize.New` to the
+judged reference with perly.y's precedence, under every `Options` combination,
+over the same corpus sample, on acceptance, `Inserted` and `Expected` at every
+node. The judgement is not vacuous: it logs the completions and scans the
+reference refused, requires both non-zero, and requires some set to differ
+from the unjudged reference's.
 
 `TestSetDigestGolden` (`recognize/setdigest_test.go`) holds set identity to
 its golden, `recognize/testdata/set-digest.golden`. Over the same corpus
@@ -2206,70 +2305,101 @@ which no flag rewrites.
 
 ## The forest: `forest`
 
-`forest.Parse(tab, src, scope)` lexes `src`, narrows its lattice to the library
-operators in scope ("Library operators") and recognizes it, judging precedence in the chart (`recognize.New`; a file the judged chart
-refuses gets reason `precedence` where no other stage refuses it), then builds
-its shared packed forest after recognition (spec §9.4), which needs no
-precedence constraint after it (`TestParseWithNeverConstrains`,
-`TestConstrainNeverEnteredByParse`), resolves its scope-decided
-words ("Scope-decided words"), refusing with reason `scope` a file resolve
-leaves no derivation, and counts the readings left (Readings, below). `tab`
-is the committed `perly.y`'s tables, whose precedence it builds once per
-tables value; other tables are refused, never constrained by perly.y's
-levels. A file the
-chart refuses gets a `Refusal` and no forest, never a partial one
-(`TestForestRefusedChartHasNoForest`). `Parse` recognizes first, as the
-port's refusal list does: the refusal is at the token whose set died, or at
-the end of the file, and is `lex-unmapped` only when that byte is the first
-token no terminal admits, else `grammar` (`TestParseRefusalMatchesRecognition`
-over `testdata/port/refused-where.txt`; an unmapped token past the dead set
-does not move it, `TestParseRefusalUnmappedAfterDeadSet`). Where narrowing
-changed the lattice and the chart died anywhere but the first unmapped token,
-recognition is rerun on the un-narrowed lattice with a recognizer of its own
-(`TestRefusalRerunLeavesCallerRecognizerUntouched`): a rerun that dies gives
-the reason by the rule above at its own byte, and one that accepts makes it
-`scope` at the narrowed chart's byte (`TestRefusalRerunScopeVersusGrammar`,
-`TestRefusalRerunTieIsGrammar`, `TestRefusalRerunLaterGrammarFaultIsGrammar`,
-`TestRefusalRerunScopeThenUnmappedIsLexUnmapped`, `TestRefusalLexUnmappedNotRerun`,
-`TestRefusalEverySetAliveAtEnd`). The chart judges precedence, so a refusal is
-classified by rerunning without it (`recognize.NewNoPrecedence`), in V1's
-order: where the un-narrowed rerun dies, the reason is `lex-unmapped` or
-`grammar` at its byte, by the rule above; else, where the lattice was
-narrowed and the narrowed rerun dies, `scope` at its byte; else `precedence`
-at the byte where the judged chart died, never byte 0
-(`TestPrecedenceRefusalByteWhereChartDied`, `TestRefusalRerunOrder`,
-`TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped`). The port's
-`recognizeSource` reads `testdata/port/refused-where.txt` by the same rule,
-`forest.ChartRefusal`, and agrees with `Parse` on every row
-(`TestRefusedWhereReadersAgree`). Nothing a caller passes turns precedence off
-(`TestParseHasNoPrecedenceSwitch`): `ParseWith` panics on a recognizer built
-by `recognize.NewNoPrecedence`, and, over tables whose rules are perly.y's,
-on one judged with any precedence but the one `recognize.New` derives for
-them; over other tables an explicit precedence stays allowed. A judged
-recognizer over a grammar `prectab.Feasible` refuses refuses every file with
-`Feasible`'s refusal (`TestParseRefusesInfeasibleGrammar`).
+`forest.Parse(tab, src, scope)` runs the pipeline in this order: it lexes
+`src`; narrows its lattice to the library operators in scope (`forest.Narrow`,
+"Library operators"; a file no token of which admits a `PLUGIN_*` reading
+narrows to its own lattice, `TestNarrowWithoutLibraryOperatorsIsIdentity`);
+recognizes it with the judged recognizer, `recognize.New`, so precedence is
+judged in the chart; builds its shared packed forest after recognition (spec
+§9.4), which no precedence pass follows (`TestParseWithNeverConstrains`,
+`TestConstrainNeverEnteredByParse`); resolves its scope-decided words
+("Scope-decided words"), refusing with reason `scope` a file resolve leaves no
+derivation; and counts the readings left (Readings, below). `ParseWith` is
+`Parse` on a recognizer the caller keeps. Nothing a caller passes turns
+precedence off (`TestParseHasNoPrecedenceSwitch`): `ParseWith` panics on a
+recognizer built by `recognize.NewNoPrecedence`, and, over tables whose rules
+are perly.y's, on one judged with any precedence but the one `recognize.New`
+derives for them. Over other tables `recognize.New` judges nothing and an
+explicit precedence stays allowed. A judged recognizer whose constructor
+failed, over a grammar `prectab.Feasible` refuses or a derivation that
+failed, refuses every file with that error
+(`TestParseRefusesInfeasibleGrammar`,
+`TestPrecedenceGenerationErrorRefusesEveryFile`).
 
-- **No fact but the context is added to an Earley item** (spec §3 rule 12,
-  §10, superseded for the context by the V2 design's §4.2). Items are
-  (state, distance, context), the context `none` in every item of the
-  no-precedence recognizer, recognition stays Boolean, and nothing recognition
-  stores beside the sets is shaped for the forest except the slipper's
-  closures (below) and the judged recognizer's refusal records, which
-  perigrin's ruling "Lift rule 12 for refusals" admits: `Build` never pairs a
-  completion with a parent the recognizer refused it for
-  (`TestBuildNeverPairsRefusedParent`), and walks by context, so an
-  alternative completed under a context whose parent chain dies is never
-  attached to a node reached under another
-  (`TestBuildDropsAlternativeOfDeadContext`); a rule whose completion the
-  recognizer refused into every parent is recorded too, its item standing
-  in the set beside another rule completing the same symbol, and `Build`
-  keeps no alternative of it (`TestBuildReadsNoRefusedRule`). It reads the chart through four read-only
-  accessors in `recognize/finished.go`: `LeoLink` and `Slipped` below, and
-  `LeoLinkContext` and `Predicts`, the contexts it walks by. A rule the chart completed
-  is a reduce of a state in some set, or one a Leo memo skipped
-  (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
-  Each is a derivation the chart proved, so every node has one. Every node on
-  a derivation of the file is completed in the chart, so none is missing.
+A file the chart refuses gets a `Refusal` and no forest, never a partial one
+(`TestForestRefusedChartHasNoForest`). The judged chart dies at the token
+whose set is empty, or at the end of the file where every set survived
+(`TestRefusalEverySetAliveAtEnd`), and its reason is decided as V1 decided it,
+by rerunning recognition without precedence (`forest.ChartRefusal`), each
+rerun with a no-precedence recognizer of its own, so the caller's serves one
+mode only (`TestRefusalRerunLeavesCallerRecognizerUntouched`). The reasons are
+tried in V1's order, `lex-unmapped` and `grammar` before `scope` before
+`precedence`, wherever in the file each fault lies (`TestRefusalRerunOrder`):
+
+- **`lex-unmapped`**, with no rerun, where the judged chart died at the first
+  token no terminal admits, since every run dies there
+  (`TestRefusalLexUnmappedNotRerun`).
+- **`grammar` or `lex-unmapped`** where the rerun on the un-narrowed lattice
+  dies, at its byte: `lex-unmapped` where that byte is the first unmapped
+  token, else `grammar`. That is recognition's rule, the one the port's
+  refusal list records (`TestParseRefusalMatchesRecognition` over
+  `testdata/port/refused-where.txt`; an unmapped token past the dead set does
+  not move it, `TestParseRefusalUnmappedAfterDeadSet`). The rerun dying
+  anywhere decides it, at the narrowed chart's own byte or past a scope or
+  precedence fault (`TestRefusalRerunTieIsGrammar`,
+  `TestRefusalRerunLaterGrammarFaultIsGrammar`,
+  `TestRefusalRerunScopeThenUnmappedIsLexUnmapped`,
+  `TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped`).
+- **`scope`** where the un-narrowed rerun accepts, narrowing changed the
+  lattice and the rerun on the narrowed lattice dies, at that rerun's byte.
+  It may differ from where V1's pruning of the built forest located it:
+  `foo plus 2 plus 3;` is refused at 11, where V1 gave 4
+  (`TestRefusalRerunScopeVersusGrammar`).
+- **`precedence`** where the un-narrowed rerun accepts and, if the lattice
+  was narrowed, so does the narrowed one, at the byte where the judged
+  chart died, never byte 0 (`TestPrecedenceRefusalByteWhereChartDied`), even
+  where precedence forbids every candidate and `Expected` there is empty
+  (`TestRefusalByteWhereExpectedEmpty`).
+
+The port's `recognizeSource` reads `testdata/port/refused-where.txt` by the
+same rule, `forest.ChartRefusal`, and agrees with `Parse` on every row
+(`TestRefusedWhereReadersAgree`).
+
+- **The item carries one fact, its context, and nothing beside the sets is
+  shaped for the forest but the slipper's closures and the refusal records.**
+  Spec §3 rule 12 kept items (state, distance); the V2 decision's §4.2 adds
+  the canonical spine top, `none` in every item of the no-precedence
+  recognizer, and recognition stays Boolean. perigrin's ruling "Lift rule 12
+  for refusals" admits the judged recognizer's refusal records beside the
+  sets ("The judged recognizer", under `recognize`). `Build` reads both:
+  - it never pairs a completion with a parent the recognizer refused it for
+    (`TestBuildNeverPairsRefusedParent`), and keeps no alternative of a rule
+    whose completion the recognizer refused into every parent, though its
+    item stands in the set beside another rule completing the same symbol
+    (`TestBuildReadsNoRefusedRule`);
+  - it walks the forest from the root by context (`forest/bycontext.go`, the
+    V2 decision's §4.3): the root under the start item's context, a kept
+    alternative's children under the contexts that predicted them. A node
+    keeps the alternatives the chart completed under some context it is
+    reached under, so an alternative completed only under a context whose
+    parent chain dies is never attached
+    (`TestBuildDropsAlternativeOfDeadContext`), and a node reached under a
+    second context is walked again there
+    (`TestBuildWalksNodeUnderSecondContext`). A chart with no context and no
+    refusal record keeps every alternative `Build` made, so the walk runs
+    only where some item or Leo link carries a context or some node has
+    refusal records, and `Build`'s allocations per token over the corpus
+    sample's judged charts stay within a bound
+    (`TestBuildAllocsPerTokenBoundedJudged`).
+
+  It reads the chart through read-only accessors: in `recognize/finished.go`,
+  `LeoLink` and `Slipped` (below), and `LeoLinkContext` and `Predicts`, the
+  contexts it walks by; in `recognize/judge.go`, `RefusedAt`, `Refused` and
+  `RuleRefused`, the refusal records. A rule the chart completed is a reduce
+  of a state in some set, or one a Leo memo skipped (`LeoLink`), or one the
+  inserted `;` completed beside a set (`Slipped`). Each is a derivation the
+  chart proved, so every node has one. Every node on a derivation of the file
+  is completed in the chart, so none is missing.
 - **Grammar-only data** (the `;` symbol, each rule's first core item id,
   the symbols a Leo item awaits) is built once per tables value through
   `grammar.Derived`, keyed by its own type beside the recognizer's and `prectab`'s, and only
@@ -2666,26 +2796,30 @@ them.
 
 ## The precedence constraint: `forest/precedence.go`
 
-Spec §8, built and refereed on toy grammars (PRECTOY) and applied to `perly.y`
-(PRECPERLY). The constraint runs on a built forest,
-`f.Constrain(prectab.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`.
-The tables are package `prectab`'s (`prectab/prectab.go`): `Precedence`,
-`NewPrecedence`, `ParsePrecedence`, `Feasible` and the item mapping, importing
-only `grammar`, so `recognize` can import them. `Constrain`,
-`ConstrainReference` and the judgement stay in `forest` and read the tables
-through `prectab`. `Precedence.Item` maps each of the recognizer's 1,212 core
-items to its automaton item by rule and dot; the automaton's other 12 items are
-the four refused rules' (`TestPrectabItemMapping`).
-`TestWaypoint2Refusals` and the other precedence tests apply it
-to `forest.Build`'s forest, before resolve (`builtForest`), since a
-sentence's token choice, as bison read it, stands in for scope there; the
-perly.y referee does not: it judges the judged recognizer's forest (below);
-`forest.Parse` never applies it: the judged chart refuses what it would, at the byte where the chart died, and
-`Build` of that chart already lacks every alternative it drops (`TestParseWithNeverConstrains`); it stays as the
-referee the tests judge the no-precedence forest with. Nothing judges the slipper's zero-width `;`
-after recognition, and nothing needs to: no reduction before `;` and no shift of it has a forbidding verdict
-(`TestSlipperSemicolonReduceNeverForbidden`, `TestSlipperSemicolonShiftNeverForbidden`). It reads only the forest, the
-grammar's tables and its precedence: no Earley item gains a fact.
+Spec §8, built and refereed on toy grammars (PRECTOY), applied to `perly.y`
+(PRECPERLY) and made state-free by V1 (milestone chart-perly-w3). It was
+production's precedence judgement until the V2 decision moved that judgement
+into the recognizer ("The judged recognizer", under `recognize`). Production
+no longer runs it: `forest.Parse` builds the judged chart's forest, which
+already lacks every alternative the constraint would drop, and refuses a file
+precedence forbids at the byte where the chart died
+(`TestParseWithNeverConstrains`). The constraint is now a test-only referee,
+fed the no-precedence mode's forest: the V1 side of the forest-equality
+differential, the judge of a toy `prectab.Feasible` refuses, and the subject
+of the instruments that hold it to `ConstrainReference`.
+
+It runs on a built forest,
+`f.Constrain(prectab.NewPrecedence(tab, g.Levels, rulePrec, g.Refused))`,
+reading only the forest, the grammar's tables and its precedence. The tables
+are `prectab`'s ("The precedence tables: `prectab`"); `Constrain`,
+`ConstrainReference` and their tests stay in `forest`. The tests that apply
+the constraint apply it to `Build`'s forest of the no-precedence chart, before
+resolve (`builtForest` in package `chart`), since a sentence's token choice, as
+bison read it, stands in for scope there. Nothing judges the slipper's
+zero-width `;` after recognition, and nothing needs to: no reduction before
+`;` and no shift of it has a forbidding verdict
+(`TestSlipperSemicolonReduceNeverForbidden`,
+`TestSlipperSemicolonShiftNeverForbidden`).
 
 - **The parser states are bison's**, built from the grammar's tables alone
   (`NewPrecedence`): the canonical LR(0) automaton, whose states bison's
@@ -2721,8 +2855,9 @@ grammar's tables and its precedence: no Earley item gains a fact.
 - **The generation guard.** A key whose decision is state-dependent even with
   its whole key, a parent item or spine-top item that bison's states still
   disagree on, makes `NewPrecedence` return an error naming the key, so the
-  tables never hold a guess. `forest.Parse` turns that error into a refusal of
-  every file, as it does any error deriving the precedence.
+  tables never hold a guess. The judged recognizer's constructor returns that
+  error, as it does any error deriving the precedence, and `forest.Parse`
+  refuses every file with it.
   `TestPrecedenceGenerationGuard` holds three toy grammars that fail
   generation, one per side and one (`nullable_prefix`) whose shift key one
   state forbids while another holds it without shifting the terminal, and
@@ -2826,205 +2961,191 @@ grammar's tables and its precedence: no Earley item gains a fact.
   kept generated sentences' renderings (`testdata/precedence/`, above) with
   the judged recognizer (`recognize.New`) then `forest.Build`, before resolve
   and with no `Constrain`, since bison's token choice stands in for scope
-  (design §4.5), and requires bison's verdict and grouping on every one; they cover 1,304 of bison's 1,347 resolutions, the `PLUGIN_*`
-  ones among them, each rendered as a word of `testdata/libops`'s `My::Ops`
-  under the preamble `use My::Ops;` (a sentence's distinct preambles are
-  written once each, told apart by their whole text). A token admits a
-  set of terminals and bison read one, so the lattice is first narrowed,
-  before recognition, to the sentence's own terminals (`foo` is `UNIOPSUB`
-  there, not a bareword): each token past the preamble takes its terminal's
-  singleton set, by `recognize.SetID`'s id where the committed tables lack it
+  (design §4.5), and requires bison's verdict and grouping on every one.
+  They cover 1,304 of bison's 1,347 resolutions, the `PLUGIN_*` ones among
+  them, each rendered as a word of `testdata/libops`'s `My::Ops` under the
+  preamble `use My::Ops;` (a sentence's distinct preambles are written once
+  each, told apart by their whole text). A token admits a set of terminals
+  and bison read one, so the lattice is first narrowed, before recognition,
+  to the sentence's own terminals (`foo` is `UNIOPSUB` there, not a
+  bareword): each token past the preamble takes its terminal's singleton
+  set, by `recognize.SetID`'s id where the committed tables lack it
   (`TestRefereeSingletonSetIdsOutsideCommittedTables`), so a sentence bison
   refuses dies in the chart (`TestPrecedenceRefereeJudgesRecognizer`).
   Lattice narrowing keeps the slipper's zero-width `;` leaves, which no
-  verdict or grouping reads (`TestPrecedenceRefereeKeepsSlipperLeaves`),
-  and a preamble's reductions are left out of the grouping, which counts
-  terminals from `GRAMPROG` at 0. `TestPrecedenceRefereeDetectsMismatch`
-  shows a swapped grouping and a flipped verdict reported, and
-  `TestPrecedenceKeepsCorpusAccepted` that no in-tree file perl and
-  recognition accept (the Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824)
-  is refused.
-- **The differential checks.** Each compares `Constrain` with
-  `ConstrainReference` on independent forests made from one before either
-  judges: `forest`'s `judgeBoth` and `chart`'s `constrainAgrees` judge two
-  copies, and `cmd/ratchet`'s `comparePrecedence` judges one copy with
-  `Constrain` and the original with the reference. Each requires the same verdict and the same kept alternatives on
-  every node. `forest`'s `judgeBoth` and `cmd/ratchet`'s `comparePrecedence`
-  count an input pruned only where the reference dropped an alternative of
-  a node reachable from the root before the constraint (both judgements drop
-  every alternative of an unreachable node); `chart`'s `constrainAgrees`
-  counts one pruned where production's kept alternatives differ from the
-  forest's on any node. `TestPrecedenceHarnessesDoNotAlias`
-  shows the `forest` and `cmd/ratchet` comparisons report an over-pruning
-  judgement through the harness itself, so neither can compare a copy with
-  itself. The production-versus-reference differentials below compare
-  production's forest, the judged recognizer's over the narrowed lattice
-  (`recognize.New`, or the explicit form over a toy's own precedence) then
-  `Build`, with no `Constrain`, against `ConstrainReference` over the
-  no-precedence forest. Where the judged chart refuses an input they compare
-  verdicts only, the reference refusing too, and log
-  `<test name> verdict only: N`. A toy `prectab.Feasible` refuses has no
-  judged recognizer and stays judged by `Constrain` over the no-precedence
-  forest (`TestInfeasibleToysJudgedByConstrain`). The inputs, by package:
-  - In `forest`, `TestPrecedenceToyForestsMatchReference` on every toy
-    fixture sentence's forest, and the seeded generators of decision §2,
-    rewritten from the assessment's harnesses, on each sentence's forest
-    after `LibraryOperators`, as `ParseWith` passes it:
-    `TestPrecedenceOperatorSentencesMatchReference` (seed 4: 83 handcrafted
-    sentences and 20,000 random operator sentences) and
-    `TestPrecedenceChainSentencesMatchReference` (seed 44: 15,000 Leo-chain
-    and nullable-wrapped sentences). Each skips a sentence or toy sentence
-    the no-precedence chart refuses, and a generated one `LibraryOperators`
-    refuses, rather than failing on it. Each generator logs
-    `sentences=N compared=C refused=R pruned=P` and requires a sentence
-    refused and one pruned; `TestPrecedenceDiffDetectsDifference` shows
-    their shared comparison report a dropped alternative and a flipped
-    verdict.
-  - In `chart`, `TestPrecedenceRefereeMatchesReference` on every referee
-    sentence, the ones bison refuses included: the referee's judged forest
-    against `ConstrainReference` on `Build`'s no-precedence forest narrowed
-    to the sentence's terminals (`referee.narrowed`), with zero-width slipper
-    `;` leaves dropped from both sides, and
-    `TestWaypoint2RefusalsMatchReference` on every row of
-    `waypoint2Refusals` and `waypoint2ScopeRefusals`, on the forest after
-    `LibraryOperators` under `forest.Scope{}`, as `pipelineSource` passes it
-    to the constraint. Each compares a sentence or row the judged chart
-    refuses by verdict only.
-  - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
-    of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
-    `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it does
-    for the ratchet), perl-refused files included, through `compareProduction`:
-    production's forest of the file (the judged chart of the lattice narrowed
-    under the pipeline's own scope, then `Build`) against `ConstrainReference`
-    on the no-precedence chart's forest after `LibraryOperators` under that
-    scope (`chartInputs`'s, which carries imports only, so `LibraryOperators`
-    prunes there as under an empty `Scope`; `TestComparePrecedenceUsesScope`
-    holds that `comparePrecedence`, the instrument, honours a scope with
-    library operators), one file at a time. A file the judged chart refuses
-    is compared by verdict alone, the reference refusing too, and counted in
-    the logged verdict-only line; one the no-precedence chart does not
-    recognize is not counted as compared, and one `LibraryOperators` refuses
-    is counted, not compared. It
-    logs per corpus `corpus=NAME compared=C prelib-refused=L
-    precedence-refused=R pruned=P perl-refused-compared=Q`, fails on a
-    corpus that contributes no compared file, and runs in `go test ./...`.
-    `TestPipelineStagePrecedenceTimesConstrain` holds that the precedence
-    stage key times `Constrain`, not the reference, on the known-divergence
-    toy.
-- **The feasibility counters** (`forest/feasibility_test.go`, counting
-  through `prectab.Feasible`). The V2
-  design's §5 pins its §3 counters as tests over the committed tables, so a
-  grammar change that breaks a V2 assumption fails a test. Each reads 0 on
-  `perly.y`, logs its count over its denominator, and counts every synthetic
-  case built to trigger it: rule-reduce conflicts
-  (`TestFeasibilityRuleReduceConflicts`), parent conflicts
-  (`TestFeasibilityParentConflicts`) and context conflicts
-  (`TestFeasibilityContextConflicts`, three checks as subtests `a`, `b` and
-  `c`), forbidden shifts whose terminal is not the rule-position item's own
-  next terminal (`TestFeasibilityShiftsOwnNextTerminal`, 674 forbidden
-  triples; the toys `emptyred`, `nullableShift` and
-  `TestPrecedenceMarkFirstFilter`'s each count), all-nullable rules with a
-  non-allow reduce verdict (`TestFeasibilityAllNullableRulesAllow`, 13 empty
-  and 16 non-empty rules; toy `empty` counts) and core items of one state,
-  under one context, scanning one terminal with different shift verdicts,
-  where a dot-0 item V1 never checks counts as allowed
-  (`TestFeasibilityCoreItemsShiftAgree`; toy `scancollide` counts).
-  `TestFeasibilityClosingTerminalsHaveNoLevel` pins that `;`, `}` and EOF
-  carry no precedence level, which is why the recognizer's closing sets,
-  which add `;`, agree with V1's slipper judgement.
-  `prectab.Feasible` is the six counters as one refusal over a grammar's
-  tables; `NewPrecedence` does not call it, so the toys that fail it still
-  load and `Constrain` still judges them (`TestFeasibleRefusesFailingToys`).
-  `TestFeasibilityNarrowedMixedSets` lists the terminal sets, `;` added
-  beside `}`, holding two terminals of some rule's FOLLOW(LHS) with different
-  reduce verdicts: 63 of the 1,880 un-narrowed, and narrowed to at most one
-  `PLUGIN_*` reading, exactly set 1626, `{HASHBRACK, PERLY_BRACE_OPEN}`, for
-  `indirob ::= scalar`. A table cannot say whether an input reaches it, so
-  `TestSet1626NeverReachedCorpus` (`cmd/ratchet`, in `make test`) counts the
-  tokens carrying set 1626 where the chart holds `indirob ::= scalar`
-  completed, over every in-tree corpus file and the constructed inputs in
-  `cmd/ratchet/testdata/set1626-inputs.txt`, and requires 0;
-  `TestSet1626ObserverCountsAnOccurringPair` shows the same count non-zero
-  for a pair the corpus does reach. Reaching set 1626 is a design §7 stop.
-  The lexer cannot reach it: a scalar ends in a Variable or a cast block's
-  `}` (`internal/lexer` emits a DerefSigil only before `{` or `$`), and
-  HASHBRACK's class excludes both as the token before its `{`, so the `{`
-  after a scalar is `{PERLY_BRACE_OPEN}` alone. Each constructed input
-  therefore carries set 1626 one or two tokens after a completion (a word, or
-  a glob's `*` and name, between), which the test requires and logs per input.
-- **The forest-equality differential** (`forest/equality.go`, the V2 design's
-  §5). `ForestDiff` compares a candidate's forest with V1's: accept or
-  refuse, the set of nodes reachable from the root, and each reachable
-  node's kept alternatives in order. Nodes are matched by what they derive
-  (symbol, rule position and span), never by index, so a renumbered forest
-  compares equal and a node unreachable from the root is not compared. Two
-  distinct reachable nodes sharing a key are a difference
-  (`TestForestDiffDuplicateKey`), never one overwriting the other. The
-  V1 side (`V1Forest`, `V1ToyForest`) is the old pipeline: the recognizer
-  `V1Recognizer` builds, through the explicit no-precedence constructor
-  `recognize.NewNoPrecedence`, never `recognize.New`
-  (`TestJudgedRecognizerIsExplicit`), then `Build`,
-  `LibraryOperators` (for a source) and `Constrain`. The candidate
-  (`CandidateForest`, `CandidateToyForest`) is production's forest before
-  resolve, and later issues may swap it: the judged chart then `Build`, which
-  never enters `Constrain` (`TestForestEqualityCandidateNeverConstrains`), but
-  for a toy `prectab.Feasible` refuses, judged by `Constrain` over the
-  no-precedence forest. The candidate narrows the lattice
-  before recognition where V1 prunes the built forest, and the two agree on
-  every input the differentials load. `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
-  reordered alternatives, an added and a removed reachable node, a flipped
-  verdict and a changed rule position each reported, and a renumbered forest,
-  a change to an unreachable node and two refusals not reported;
-  `TestForestEqualityV1SideRecognizesPrecedenceRefusals` that the V1 side's
-  chart accepts `print $fh [];`, `$a <=> $b <=> $c;` and `1 .. 2 .. 3;` and
-  its `Constrain` refuses each; and `TestForestEqualityV1SideRunsOldPipeline`
-  that the V1 side enters its own `Constrain` and `LibraryOperators` once per
-  input; `TestForestEqualityHarnessesUseCandidate` that the candidates never
-  enter the V1 side's stages, and that the loops report a swapped-in candidate
-  that refuses everything, so none compares V1 with itself. It runs over the toys (`TestForestEqualityToys`), the seed-4 and
-  seed-44 generated sentences (`TestForestEqualityGeneratedSentences`) and a
-  constructed input on which V1 keeps one node's alternatives under two
-  contexts with two different non-empty sets, the union `Constrain`'s
-  `shortcut:` takes (`TestForestEqualityUnionShortcut`). It also runs over
-  every waypoint2 row (`TestForestEqualityWaypoint2`, V1's §5 pipeline, in
-  package `chart`) and every referee sentence
-  (`TestForestEqualityRefereeSentences`), where V1's path is the referee's
-  own: V1's recognizer, `Build`, `narrow`, `Constrain`, with no
-  `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`),
-  and the candidate is the referee's judged forest, which never enters
-  `Constrain` (`TestForestEqualityRefereeCandidateNeverConstrains`).
-  The referee comparison drops zero-width slipper `;` leaves from both sides
-  and nothing else (`TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves`).
-  The toy, generated-sentence, waypoint2 and referee differentials each log
-  how many inputs they compared of how many they loaded.
-  The ratchet's in-tree corpora get the same
-  comparison, `TestForestEqualityCorpus` in `cmd/ratchet`: each file's
-  candidate forest against V1's under the file's own scope
-  (`TestForestEqualityCorpusUsesFileScope` for the loop's handing of it to both
-  sides, `TestForestEqualityFileScopeIsThePipelines` for its derivation), logging `compared N of N files`
-  and failing below 1,800 files or on any file left uncompared; a candidate
-  that differs is reported (`TestForestEqualityCorpusReportsDifference`).
-  `TestForestEqualityPerlGit` runs it over perl.git `t/` under
-  `make chart-precedence-reference`. A difference from V1 on either is a design
-  §7 stop.
+  verdict or grouping reads (`TestPrecedenceRefereeKeepsSlipperLeaves`), and
+  a preamble's reductions are left out of the grouping, which counts
+  terminals from `GRAMPROG` at 0. `precedence-disagree`, as the ratchet
+  reads it from `chart.CountPrecedence`, is 0 over every kept sentence
+  (`TestPrecedenceRefereeAllSentencesAgree`, which logs how many it compared
+  of how many it loaded). `TestPrecedenceRefereeDetectsMismatch` shows a
+  swapped grouping and a flipped verdict reported, and
+  `TestPrecedenceKeepsCorpusAccepted` that `Constrain`, on the no-precedence
+  forest, refuses no in-tree file perl and the no-precedence chart accept (the
+  Guacamole snippets, `std5k.pl`, `edit5k.pl`; 824).
+- **The differential checks** compare against `ConstrainReference`, the
+  fixed point (decision §3.4), and come in two kinds.
+  - **The production differentials** compare production's forest, the
+    judged recognizer's over the narrowed lattice (`recognize.New`, or the
+    explicit form over a toy's own precedence) then `Build`, with no
+    `Constrain`, with `ConstrainReference`'s judgement of the no-precedence
+    forest: the same verdict, and the same kept alternatives on every node
+    reachable from the root. Where the judged chart refuses an input they
+    compare verdicts alone, the reference refusing too, and log
+    `<test name> verdict only: N`. Where production accepts an input that the
+    no-precedence chart or `LibraryOperators` refuses, so the reference has
+    no forest to judge, the input fails as a difference; it never drops out
+    of the count. A toy `prectab.Feasible` refuses has no judged recognizer,
+    so `Constrain` and the reference judge copies of its no-precedence forest
+    (`TestInfeasibleToysJudgedByConstrain`). The inputs, by package:
+    - In `forest`, `TestPrecedenceToyForestsMatchReference` on every toy
+      fixture sentence, and the seeded generators of decision §2, rewritten
+      from the assessment's harnesses, on each sentence under the empty
+      scope, the reference judging the no-precedence forest after
+      `LibraryOperators`: `TestPrecedenceOperatorSentencesMatchReference`
+      (seed 4: 83 handcrafted sentences and 20,000 random operator
+      sentences) and `TestPrecedenceChainSentencesMatchReference` (seed 44:
+      15,000 Leo-chain and nullable-wrapped sentences). A generated sentence
+      both sides refuse is not counted as compared. Each generator logs
+      `sentences=N compared=C refused=R pruned=P` and requires a sentence
+      compared, one refused and one pruned;
+      `TestPrecedenceDiffDetectsDifference` shows their shared comparison
+      report a dropped alternative and a flipped verdict.
+    - In `chart`, `TestPrecedenceRefereeMatchesReference` on every kept
+      referee sentence, those bison refuses included: the referee's judged
+      forest against `ConstrainReference` on `Build`'s no-precedence forest
+      narrowed to the sentence's terminals (`referee.narrowed`), with
+      zero-width slipper `;` leaves dropped from both sides; and
+      `TestWaypoint2RefusalsMatchReference` on every row of
+      `waypoint2Refusals` and `waypoint2ScopeRefusals`, production's forest
+      under `forest.Scope{}` against the reference's judgement of the
+      no-precedence forest after `LibraryOperators` under the same scope.
+    - In `cmd/ratchet`, `TestPrecedenceCorpusMatchesReference` on every file
+      of the ratchet's in-tree corpora (T1, Guacamole's `parses` and
+      `parsent`, `std5k.pl`, `edit5k.pl`; `T1_CORPUS` overrides T1 as it
+      does for the ratchet), perl-refused files included, one file at a
+      time, through `compareProduction`: production's forest of the file
+      (the judged chart of the lattice narrowed under the pipeline's own
+      scope, then `Build`) against `ConstrainReference` on the no-precedence
+      chart's forest after `LibraryOperators` under that scope
+      (`chartInputs`'s, which carries imports only, so `LibraryOperators`
+      prunes there as under an empty `Scope`). A file the judged chart
+      refuses is compared by verdict alone and counted in the logged
+      verdict-only line. A file the no-precedence chart does not recognize
+      is not counted as compared, and one `LibraryOperators` refuses is
+      counted as `prelib-refused`, not compared; either still fails the test
+      where production accepts it. It logs per corpus `corpus=NAME
+      compared=C prelib-refused=L precedence-refused=R pruned=P
+      perl-refused-compared=Q`, fails on a corpus that contributes no
+      compared file, and runs in `go test ./...`;
+      `TestPrecedencePerlGitMatchesReference` runs the same comparison over
+      perl.git `t/` ("The perl.git precedence checks", above).
+  - **The instruments** compare `Constrain` itself with `ConstrainReference`
+    on independent forests made from one before either judges: `forest`'s
+    `judgeBoth` judges two copies, and `cmd/ratchet`'s `comparePrecedence`
+    judges one copy with `Constrain` and the original with the reference.
+    Each requires the same verdict and the same kept alternatives on every
+    node, and counts an input pruned only where the reference dropped an
+    alternative of a node reachable from the root (both judgements drop
+    every alternative of an unreachable node). `judgeBoth` judges the toys
+    `prectab.Feasible` refuses and the toy forests that pin the evaluator's
+    branches (`TestPrecedenceStateFreeTraps`, `TestPrecedenceMarkFirstFilter`
+    and the others below); `comparePrecedence` honours a scope with library
+    operators (`TestComparePrecedenceUsesScope`).
+    `TestPrecedenceHarnessesDoNotAlias`, in each package, shows the
+    instrument report an over-pruning judgement through the harness itself,
+    so neither compares a copy with itself.
+- **The forest-equality differential** (`forest/equality.go`, the V2
+  decision's §5). `ForestDiff` compares a candidate's forest with V1's:
+  accept or refuse, the set of nodes reachable from the root, and each
+  reachable node's kept alternatives in order. Nodes are matched by what
+  they derive (symbol, rule position and span), never by index, so a
+  renumbered forest compares equal and a node unreachable from the root is
+  not compared. Two distinct reachable nodes sharing a key are a difference
+  (`TestForestDiffDuplicateKey`), never one overwriting the other.
+  - **The V1 side** (`V1Forest`, `V1ToyForest`) is the old pipeline: the
+    recognizer `V1Recognizer` builds, through the explicit no-precedence
+    constructor `recognize.NewNoPrecedence`, never `recognize.New`
+    (`TestJudgedRecognizerIsExplicit`), then `Build`, `LibraryOperators` (for
+    a source) and `Constrain`.
+  - **The candidate** (`CandidateForest`, `CandidateToyForest`) is
+    production's forest before resolve: the judged chart of the narrowed
+    lattice, then `Build`, which never enters `Constrain`
+    (`TestForestEqualityCandidateNeverConstrains`), except for a toy
+    `prectab.Feasible` refuses, judged by `Constrain` over the no-precedence
+    forest. Each is a variable, so a test can swap in another. The candidate
+    narrows the lattice before recognition where V1 prunes the built
+    forest, and the two agree on every input the differentials load.
+  - **Its own checks.** `TestForestEqualityDetectsPerturbation` shows a
+    dropped alternative, reordered alternatives, an added and a removed
+    reachable node, a flipped verdict and a changed rule position each
+    reported, and a renumbered forest, a change to an unreachable node and
+    two refusals not reported.
+    `TestForestEqualityV1SideRecognizesPrecedenceRefusals` shows the V1
+    side's chart accept `print $fh [];`, `$a <=> $b <=> $c;` and
+    `1 .. 2 .. 3;` and its `Constrain` refuse each, and
+    `TestForestEqualityV1SideRunsOldPipeline` that the V1 side enters its
+    own `Constrain` and `LibraryOperators` once per input.
+    `TestForestEqualityHarnessesUseCandidate` shows the candidates never
+    enter the V1 side's stages, and that the loops report a swapped-in
+    candidate that refuses everything, as
+    `TestForestEqualityRefereeReportsADifferingCandidate` does for the
+    referee loop, so none compares V1 with itself.
+  - **Its inputs.** The toys (`TestForestEqualityToys`), the seed-4 and
+    seed-44 generated sentences (`TestForestEqualityGeneratedSentences`),
+    and a constructed input on which V1 keeps one node's alternatives under
+    two contexts with two different non-empty sets, the union `Constrain`'s
+    `shortcut:` takes (`TestForestEqualityUnionShortcut`). Every waypoint2
+    row (`TestForestEqualityWaypoint2`, V1's §5 pipeline, in package
+    `chart`), and every referee sentence
+    (`TestForestEqualityRefereeSentences`), where V1's path is the
+    referee's own: V1's recognizer, `Build`, `narrow`, `Constrain`, with no
+    `LibraryOperators` (`TestForestEqualityRefereePathOmitsLibraryOperators`),
+    and the candidate is the referee's judged forest, which never enters
+    `Constrain` (`TestForestEqualityRefereeCandidateNeverConstrains`). The
+    referee comparison drops zero-width slipper `;` leaves from both sides
+    and nothing else
+    (`TestForestEqualityRefereeIgnoresOnlyZeroWidthSlipperLeaves`). The toy,
+    generated-sentence, waypoint2 and referee differentials each log how
+    many inputs they compared of how many they loaded. The ratchet's
+    in-tree corpora get the same comparison, `TestForestEqualityCorpus` in
+    `cmd/ratchet`: each file's candidate forest against V1's under the
+    file's own scope (`TestForestEqualityCorpusUsesFileScope` for the
+    loop's handing of it to both sides,
+    `TestForestEqualityFileScopeIsThePipelines` for its derivation), logging
+    `compared N of N files` and failing below 1,800 files or on any file left
+    uncompared; a candidate that differs is reported
+    (`TestForestEqualityCorpusReportsDifference`).
+    `TestForestEqualityPerlGit` runs it over perl.git `t/` under
+    `make chart-precedence-reference`. A difference from V1 on any input is
+    a design §7 stop.
 
 Known limits, measured on `perly.y`: none in the parser states or their
 lookaheads, which are bison's (each reduction's LALR(1) lookahead is
 propagated over the LR(0) automaton to a fixed point, and on every toy equals
 bison's report state for state; the follow set, used before gate pass 2,
-refused `Y W T Z` in the `follow` toy, where bison has no conflict). An
-alternative kept in one context is kept in all (the `shortcut:` on
-`Constrain`, unchanged by the state-free evaluator, whose contexts are its
-keys as the reference's are parser states), which leaves the verdict exact and can only add a derivation to
-what a later reader enumerates; on the 1,296 sentences it adds none (each keeps
-one grouping). The refused rules leave the tables' FIRST sets and
-nullability as they are (the `shortcut:` in `NewPrecedence`), exact because
-each of the four begins with its own left-hand side, which derives no
-empty string (`TestPrecedenceRefusedRulesLeftRecursive`; a nullable `A` in
-`A: A X` would add FIRST(X) to FIRST(A)). `optlistexpr: empty %prec
-PREC_LOW` (perly.y:1787), the one nullable rule with a precedence, is in the
-automaton as written: no bison resolution names it (ruled 2026-11-14, no
-guard added).
+refused `Y W T Z` in the `follow` toy, where bison has no conflict).
+
+An alternative kept in one context is kept in all. This is a property of the
+shared-node forest, not of one judgement: a node is one node whatever context
+reaches it, so it holds the union of the alternatives its contexts keep. It is
+the `shortcut:` on `Constrain`, unchanged by the state-free evaluator, whose
+contexts are its keys as the reference's are parser states, and it holds for
+V2's production forest as it does for `Constrain`, since the forest-equality
+differential requires the two equal on the input built to take that union
+(`TestForestEqualityUnionShortcut`). It leaves the verdict exact and can only
+add a derivation to what a later reader enumerates; on the 1,296 sentences it
+adds none (each keeps one grouping). `Build`'s walk by context keeps out only
+the alternatives of a context whose parent chain dies
+(`TestBuildDropsAlternativeOfDeadContext`), which V1 never reaches either.
+
+The refused rules leave the tables' FIRST sets and nullability as they are
+(the `shortcut:` in `NewPrecedence`), exact because each of the four begins
+with its own left-hand side, which derives no empty string
+(`TestPrecedenceRefusedRulesLeftRecursive`; a nullable `A` in `A: A X` would
+add FIRST(X) to FIRST(A)). `optlistexpr: empty %prec PREC_LOW`
+(perly.y:1787), the one nullable rule with a precedence, is in the automaton
+as written: no bison resolution names it (ruled 2026-11-14, no guard added).
 
 A shift key is judged in the state before the rule-position item's symbol,
 so a terminal reached there only after a nullable symbol derives the empty
@@ -3042,6 +3163,129 @@ nullable chains of any length included: 0 on `perly.y`, and at least one on
 the toy. Fixing it changes what precedence decides, which decision §6 puts
 outside V1, so it is a follow-up (the `shortcut:` at the shift-side loop in
 `stateFree`; ruled 2026-11-24).
+The toy trips a feasibility counter (below), so it has no judged recognizer
+and stays judged by `Constrain`.
+
+### Feasibility
+
+The judged recognizer rests on assumptions about the grammar that the V2
+decision's §3 states as counters, each 0 where the recognizer can judge a
+grammar's precedence. Design §5 pins them as tests over the committed tables
+(`forest/feasibility_test.go`, counting through `prectab.Feasible`), so a
+grammar change that breaks an assumption fails a test, and production applies
+them as a refusal.
+
+- **The counters.** Each reads 0 on `perly.y`, logs its count over its
+  denominator, and counts every synthetic case built to trigger it:
+  1. rule-reduce conflicts (`TestFeasibilityRuleReduceConflicts`);
+  2. parent conflicts (`TestFeasibilityParentConflicts`);
+  3. context conflicts (`TestFeasibilityContextConflicts`, three checks as
+     subtests `a`, `b` and `c`);
+  4. forbidden shifts whose terminal is not the rule-position item's own
+     next terminal (`TestFeasibilityShiftsOwnNextTerminal`, 674 forbidden
+     triples; the toys `emptyred`, `nullableShift` and
+     `TestPrecedenceMarkFirstFilter`'s each count);
+  5. all-nullable rules with a non-allow reduce verdict
+     (`TestFeasibilityAllNullableRulesAllow`, 13 empty and 16 non-empty
+     rules; toy `empty` counts);
+  6. core items of one state, under one context, scanning one terminal with
+     different shift verdicts, where a dot-0 item V1 never checks counts as
+     allowed (`TestFeasibilityCoreItemsShiftAgree`; toy `scancollide`
+     counts).
+- **The closing terminals.** `;`, `}` and EOF carry no precedence level
+  (`TestFeasibilityClosingTerminalsHaveNoLevel`), which is why the
+  recognizer's closing sets, which add `;`, agree with V1's slipper
+  judgement. The level lookup it reads cannot report no level for a
+  terminal it failed to find: a name that is no terminal is an error, and
+  `ADDOP` reads its level (`TestFeasibilityTerminalLevelLookupControl`).
+- **The refusal.** `prectab.Feasible` is the six counters as one refusal
+  over a grammar's tables, naming each counter that is not 0, and
+  `recognize.NewJudged` applies it before judging: a grammar it refuses has
+  no judged recognizer, and `forest.Parse` refuses every file with its error
+  (`TestJudgedRecognizerRefusesInfeasibleGrammar`,
+  `TestParseRefusesInfeasibleGrammar`). `NewPrecedence` does not call it, so
+  the toys that fail it still load and `Constrain` still judges them
+  (`TestFeasibleRefusesFailingToys`). Such a grammar has no judged chart to
+  read `Expected` from, and on its no-precedence chart `Expected` is V1's at
+  every node (`TestExpectedOnInfeasibleGrammarIsNoPrecedence`).
+- **The narrowed mixed-set lister.** `TestFeasibilityNarrowedMixedSets`
+  lists the terminal sets, `;` added beside `}`, holding two terminals of
+  some rule's FOLLOW(LHS) with different reduce verdicts. There are 63 of
+  the 1,880 un-narrowed sets, and narrowed to at most one `PLUGIN_*`
+  reading, as production narrows, exactly one: set 1626,
+  `{HASHBRACK, PERLY_BRACE_OPEN}`, for `indirob ::= scalar`. On such a set
+  the reduce side would keep a completion one of its terminals forbids.
+- **The set-1626 observers.** A table cannot say whether an input reaches a
+  set, so `TestSet1626NeverReachedCorpus` (`cmd/ratchet`, in `make test`)
+  counts the tokens carrying set 1626 where the chart holds
+  `indirob ::= scalar` completed, over every in-tree corpus file and the
+  constructed inputs in `cmd/ratchet/testdata/set1626-inputs.txt`, and
+  requires 0; `TestSet1626ObserverCountsAnOccurringPair` shows the same
+  count non-zero for a pair the corpus does reach, and
+  `TestSet1626NeverReachedPerlGit` makes the observation over perl.git `t/`
+  (`make chart-precedence-reference`). Reaching set 1626 is a design §7
+  stop. The lexer cannot reach it: a scalar ends in a Variable or a cast
+  block's `}` (`internal/lexer` emits a DerefSigil only before `{` or `$`),
+  and HASHBRACK's class excludes both as the token before its `{`, so the
+  `{` after a scalar is `{PERLY_BRACE_OPEN}` alone. Each constructed input
+  therefore carries set 1626 one or two tokens after a completion (a word,
+  or a glob's `*` and name, between), which the test requires and logs per
+  input. The claim that set 1626 is never reached holds on linear lattices,
+  the only kind production builds: up-front lexing makes them
+  (`lex.Linear`), and `Build` refuses any other
+  (`TestForestLinearLatticesOnly`); a branching lattice, which interleaved
+  lexing would make, is outside it.
+
+## The precedence tables: `prectab`
+
+Package `prectab` holds a grammar's precedence tables, which the recognizer
+judges by and the forest's referees read. They moved out of `forest` for the
+V2 decision, so that `recognize` can import them; `prectab` imports only
+`grammar`.
+
+- **The tables.** `Precedence` is a grammar's precedence declarations read
+  bison's way, each terminal's and each rule's level and each level's
+  associativity, with bison's LR(0) parser states and LALR(1) lookaheads and
+  the state-free tables generated from them. `NewPrecedence(tab, levels,
+  rulePrec, refused)` builds it from the grammar alone, and "The precedence
+  constraint" above describes the states, the state-free tables and the
+  generation guard. `ParsePrecedence(tab)` is the committed grammar's
+  `Precedence` over a tables value, built once per value through
+  `grammar.Derived`, and an error where the tables are not the committed
+  grammar's. `recognize.New` derives its precedence through it, and the
+  forest's referees judge with it.
+- **The item mapping.** The recognizer's items are the tables' core items,
+  and the state-free tables are keyed by the automaton's items.
+  `Precedence.Item` maps each of the tables' 1,212 core items to the
+  automaton item of its rule with its dot; the automaton's other 12 items
+  are the four refused rules', which the tables leave out
+  (`TestPrectabItemMapping`, which matches rules by their symbols, not their
+  ids).
+- **`Feasible`** is the V2 decision's six §3 counters over a `Precedence`'s
+  tables, with an error naming each that is not 0: the refusal
+  `recognize.NewJudged` applies before judging ("Feasibility", under the
+  precedence constraint). The counters' building blocks are exported beside
+  it for the tests that count them one by one.
+- **The context table.** `PredictionContexts` is the context each predictor
+  gives the item it predicts, computed once per grammar: the start state's
+  item at node 0, and for each kernel state with a predicted state, the
+  canonical spine top its predicted rules begin under, or `none`. A
+  predictor's rules all take its one canonical top that is not `none`; `do`,
+  `UNIOP` and `my \` begin some rules under `none` beside it, and taking the
+  real top is exact. Feasible's context counter b is 0 on any grammar the
+  recognizer judges, so there is at most one such top. At this granularity
+  the V2 decision's §4.3 collapse, of a top that forbids no reachable shift
+  to `none`, adds nothing to §4.2's choice: a canonical top forbids shifts
+  only in rules predicted from it, which lie in its own predictor's region.
+  `TestContextCollapseTable` checks the table against a brute-force search
+  over every terminal: on `perly.y` each predictor's context is its top
+  exactly where that top forbids a shift some item reachable at its origin
+  makes, and `none` otherwise. Every item reached from a predicted item
+  inherits its context, so this table is every context an item can carry.
+- **The slipper's `;`.** `TestSlipperSemicolonReduceNeverForbidden` and
+  `TestSlipperSemicolonShiftNeverForbidden` hold that no reduction before
+  `;` and no shift of it has a forbidding verdict in the tables, which is
+  why nothing judges the zero-width `;` the slipper inserts.
 
 ## The generated tables: `make chart-tables`
 
