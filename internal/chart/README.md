@@ -2210,8 +2210,9 @@ the reason by the rule above at its own byte, and one that accepts makes it
   (`TestBuildDropsAlternativeOfDeadContext`); a rule whose completion the
   recognizer refused into every parent is recorded too, its item standing
   in the set beside another rule completing the same symbol, and `Build`
-  keeps no alternative of it (`TestBuildReadsNoRefusedRule`). It reads the chart through two read-only accessors in
-  `recognize/finished.go`. A rule the chart completed
+  keeps no alternative of it (`TestBuildReadsNoRefusedRule`). It reads the chart through four read-only
+  accessors in `recognize/finished.go`: `LeoLink` and `Slipped` below, and
+  `LeoLinkContext` and `Predicts`, the contexts it walks by. A rule the chart completed
   is a reduce of a state in some set, or one a Leo memo skipped
   (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
   Each is a derivation the chart proved, so every node has one. Every node on
