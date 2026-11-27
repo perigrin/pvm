@@ -187,12 +187,13 @@ func (g *grammarTables) add(c *classes, ids []int) {
 	c.closes = append(c.closes, closes)
 }
 
-// New is a recognizer over tab, today NewNoPrecedence's. The grammar-only
-// tables are tab's shared ones; the intern table, cache and counters are the
-// recognizer's own. The first `New` over a tables value writes beside it, so
-// do not copy `*tab` while that `New` runs.
+// New is the judged recognizer over tab in its derived form, NewJudged(tab, nil, opts): perly.y's precedence where
+// tab's rules are perly.y's, nothing otherwise; a failed derivation is returned by Recognize for every input. The
+// grammar-only tables are tab's shared ones; the intern table, cache and counters are the recognizer's own. The
+// first `New` over a tables value writes beside it, so do not copy `*tab` while that `New` runs.
 func New(tab *grammar.Tables, opts Options) *Recognizer {
-	return NewNoPrecedence(tab, opts)
+	r, _ := NewJudged(tab, nil, opts)
+	return r
 }
 
 // Chart is one recognition: the Earley set at each lattice node, nil where

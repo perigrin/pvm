@@ -152,8 +152,8 @@ func (r *Recognizer) startContext() int {
 	return r.judge.start
 }
 
-// NewNoPrecedence is a recognizer over tab that judges no precedence: the referees' unpruned recognizer and the
-// refusal rerun's. recognize.New is this recognizer until the switch-over makes it the judged one.
+// NewNoPrecedence is a recognizer over tab that judges no precedence: V1's, the referees' unpruned recognizer and the
+// refusal rerun's.
 func NewNoPrecedence(tab *grammar.Tables, opts Options) *Recognizer {
 	g := grammar.Derived(tab, buildGrammar)
 	return &Recognizer{tab: tab, opts: opts, g: g, cls: g.cls.Load(), ncls: g.narrowed.cls.Load(), sets: newInterner(), cache: map[cacheKey]*cacheNode{}, trie: map[cacheEdge]*cacheNode{}}
