@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/chart/forest"
 	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/prectab"
+	"tamarou.com/pvm/internal/chart/recognize"
 )
 
 // perlyPrecedence is the committed grammar's precedence over its tables.
@@ -280,4 +281,98 @@ func TestPrecedenceRefereeMatchesReference(t *testing.T) {
 		}
 	}
 	t.Logf("sentences=%d compared=%d refused=%d pruned=%d", n, compared, refused, pruned)
+}
+
+// TestPrecedenceRefereeJudgesRecognizer: on every kept sentence the referee's verdict and grouping match bison's, and
+// judging them all enters Constrain no time, counted by Constrain's own hook, so the verdicts are the judged
+// recognizer's over the narrowed lattice and not the constraint's over a built forest.
+func TestPrecedenceRefereeJudgesRecognizer(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compared, refused, bad, n0 := 0, 0, 0, forest.ConstrainEntries()
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		compared++
+		if s.verdict != "accept" {
+			refused++
+		}
+		if d := r.disagreement(s); d != "" {
+			if bad++; bad <= 10 {
+				t.Error(d)
+			}
+		}
+	}
+	entries := forest.ConstrainEntries() - n0
+	t.Logf("referee: compared %d of %d, bison refuses %d, disagree: %d, constrain entries: %d", compared, keptSentences(sentences), refused, bad, entries)
+	if compared == 0 || refused == 0 || bad > 0 || entries != 0 {
+		t.Errorf("compared %d, bison refused %d, %d disagree, Constrain entered %d times; want some of each compared, none disagreeing, no entry", compared, refused, bad, entries)
+	}
+}
+
+// TestPrecedenceRefereeAllSentencesAgree: precedence-disagree, as the ratchet reads it from CountPrecedence, is 0 over
+// every kept sentence, and it logs how many it compared of how many were loaded.
+func TestPrecedenceRefereeAllSentencesAgree(t *testing.T) {
+	g, _, err := grammar.Committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := committed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := CountPrecedence(g, tab, precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := keptSentences(sentences)
+	for _, d := range c.Disagree[:min(10, len(c.Disagree))] {
+		t.Error(d)
+	}
+	t.Logf("referee: compared %d of %d, disagree: %d", kept, kept, len(c.Disagree)) // CountPrecedence judges every kept one
+	if kept == 0 || len(c.Disagree) != 0 {
+		t.Errorf("%d kept sentences, %d disagree; want some, none disagreeing", kept, len(c.Disagree))
+	}
+}
+
+// TestRefereeSingletonSetIdsOutsideCommittedTables: narrowing every kept sentence's lattice to its own terminals
+// gives the 19 singleton sets the committed tables lack ids past recognize.NarrowedBase, and the tables still hold
+// their 1880 sets, each as it was.
+func TestRefereeSingletonSetIdsOutsideCommittedTables(t *testing.T) {
+	r := committedReferee(t)
+	sentences, err := readSentences(precedenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := make([][]int, len(r.tab.TerminalSets))
+	for i, set := range r.tab.TerminalSets {
+		before[i] = slices.Clone(set)
+	}
+	outside := map[int]bool{}
+	for _, s := range sentences {
+		if s.rendering == "-" {
+			continue
+		}
+		l, skip := r.lattice(s)
+		for _, e := range l.Edges[skip:] {
+			if e.Token.TerminalSet >= recognize.NarrowedBase {
+				outside[e.Token.TerminalSet] = true
+			}
+		}
+	}
+	t.Logf("singleton sets outside the committed tables: %d", len(outside))
+	if len(outside) != 19 {
+		t.Errorf("%d singleton sets outside the committed tables, want 19", len(outside))
+	}
+	if len(r.tab.TerminalSets) != 1880 || !slices.EqualFunc(r.tab.TerminalSets, before, slices.Equal) {
+		t.Errorf("the committed tables hold %d sets after narrowing, or one changed; want the 1880 as they were", len(r.tab.TerminalSets))
+	}
 }
