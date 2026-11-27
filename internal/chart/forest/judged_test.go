@@ -113,6 +113,49 @@ func TestBuildDropsAlternativeOfDeadContext(t *testing.T) {
 	}
 }
 
+// TestBuildWalksNodeUnderSecondContext: on deadContextToy with S ::= X END1 | Q X END1, or its two alternatives
+// the other way round, {P Q} {A C} T A END1 has both parents live, so X over 1 to 4 is reached under P's real top
+// and under none, in an order the alternatives' order sets. It completes as C T A under both and as X T X under none
+// alone, so whichever context the walk reaches X under second, the walk must revisit X there for one of the two
+// orders to keep X T X, as V1 does; a walk that never revisits a node under a second context drops it.
+func TestBuildWalksNodeUnderSecondContext(t *testing.T) {
+	for _, s := range []string{"S ::= X END1 | Q X END1", "S ::= Q X END1 | X END1"} {
+		t.Run(s, func(t *testing.T) {
+			tab, p := pinnedToy(t, []grammar.Level{{N: 1, Assoc: "left", Tokens: []string{"T", "U"}}, {N: 2, Assoc: "right", Tokens: []string{"P"}}},
+				make([]string, 8), s, "X ::= X T X | C T A | X U | C U | P X | A")
+			l := deadContextLattice(tab, "P A T A END1")
+			r, err := recognize.NewJudged(tab, p, recognize.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			c, err := recognize.Recognize(r, l)
+			if err != nil || !c.Accepted() {
+				t.Fatalf("the judged chart refuses the sentence (%v)", err)
+			}
+			v1, err := V1ToyForest(tab, l, p)
+			if err != nil || v1 == nil {
+				t.Fatalf("V1 refuses the sentence (%v)", err)
+			}
+			f := Build(tab, c, l)
+			x := NodeKey{Sym: int32(symbol(tab, "X")), Rule: -1, Dot: 0, From: 1, To: 4}
+			rules := func(f *Forest) (out []int32) {
+				alts, _ := reachableAlts(f)
+				for _, a := range alts[x] {
+					out = append(out, a.Rule)
+				}
+				slices.Sort(out)
+				return out
+			}
+			if got, want := rules(f), rules(v1); len(want) != 2 || !slices.Equal(got, want) {
+				t.Errorf("Build attaches rules %v to X over 1 to 4; V1 attaches %v, the two of X T X and C T A", got, want)
+			}
+			if d := ForestDiff(f, v1); d != "" {
+				t.Errorf("the judged forest differs from V1's: %s", d)
+			}
+		})
+	}
+}
+
 // TestBuildReadsNoRefusedRule: in `_ - $h{1} - $fh;` the term over `_ - $h{1}` before the second - completes as
 // termbinop and as UNIOPSUB term, `_(- $h{1})`, whose reduction V1 forbids before ADDOP, the one terminal of that
 // token that can follow a term. The judged recognizer refuses that completion into every parent and records it, its
@@ -336,7 +379,7 @@ func TestForestEqualityJudgedCandidateNeverConstrains(t *testing.T) {
 
 // buildAllocsPerTokenBound is the most heap allocations Build may make per lexer token over the judged charts of
 // samplePaths: the count measured once the walk by context kept no hash map entry per node (14095 over 32829
-// tokens, 0.4293), rounded up as the other bounds are. Before that it was 0.5268.
+// tokens, 0.4293), rounded up as the other bounds are. Before that it was 0.5264.
 const buildAllocsPerTokenBound = 0.43
 
 // TestBuildAllocsPerTokenBoundedJudged: Build's allocations per token over the sample's judged charts, recognition
