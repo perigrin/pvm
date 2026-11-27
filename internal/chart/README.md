@@ -3273,7 +3273,7 @@ V2 decision, so that `recognize` can import them; `prectab` imports only
   predictor's rules all take its one canonical top that is not `none`; `do`,
   `UNIOP` and `my \` begin some rules under `none` beside it, and taking the
   real top is exact. Feasible's context counter b is 0 on any grammar the
-  recognizer judges, so there is at most one such top. At this granularity
+  recognizer judges, so there is at most one such top. At predictor granularity
   the V2 decision's §4.3 collapse, of a top that forbids no reachable shift
   to `none`, adds nothing to §4.2's choice: a canonical top forbids shifts
   only in rules predicted from it, which lie in its own predictor's region.
