@@ -456,10 +456,11 @@ func (r *referee) disagreement(s precedenceSentence) string {
 	return ""
 }
 
-// PrecedenceCounts are the referee's counts over a precedence fixture directory: the kept sentences whose chart
-// verdict or grouping differs from bison's, and each disagreement; the bison resolutions a kept sentence covers; and
+// PrecedenceCounts are the referee's counts over a precedence fixture directory: the kept sentences it judged; those
+// whose chart verdict or grouping differs from bison's, and each disagreement; the bison resolutions a kept sentence covers; and
 // those covered by no kept sentence and on no reviewed list.
 type PrecedenceCounts struct {
+	Compared          int
 	Disagree          []string
 	Covered           int
 	UncoveredUnlisted []string
@@ -485,6 +486,7 @@ func CountPrecedence(g *grammar.Grammar, tab *grammar.Tables, dir string) (Prece
 		if s.rendering == "-" {
 			continue
 		}
+		c.Compared++
 		if d := r.disagreement(s); d != "" {
 			c.Disagree = append(c.Disagree, d)
 		}
