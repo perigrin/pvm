@@ -41,6 +41,17 @@ func (c *Chart) LeoLink(at, sym int) (rule, origin int, more, ok bool) {
 	return rule, origin, more, true
 }
 
+// LeoLinkContext is the context of the completion LeoLink(at, sym) reports: the context of the one item at at
+// awaiting sym, which its rule's item from origin would carry. It is 0 where no item or several await sym.
+func (c *Chart) LeoLinkContext(at, sym int) int {
+	it, _ := c.awaitingOne(at, sym)
+	return it.Ctx
+}
+
+// Predicts is the context an item of state under context ctx predicts its children under (§4.3's pairing): Build
+// walks by it (forest.Build).
+func (c *Chart) Predicts(state, ctx int) int { return c.r.predicts(state, ctx) }
+
 // awaitingOne is the one item of the set at node at awaiting sym, and false where it holds none or more.
 func (c *Chart) awaitingOne(at, sym int) (Item, bool) {
 	var one Item

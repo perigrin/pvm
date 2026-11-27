@@ -496,6 +496,7 @@ func (b *builder) complete(la bitset) {
 					if follow.intersects(b.la) {
 						b.read(origin, src)
 						b.refuseAll(lhs, origin, src)
+						b.refuseRules(state, lhs, origin)
 					}
 					continue
 				}

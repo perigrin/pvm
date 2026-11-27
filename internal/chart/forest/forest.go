@@ -216,6 +216,10 @@ type builder struct {
 	memo  []int32
 	links []link
 	work  []int // facts whose node waits for its Alts
+	// leoAt is each completion a Leo memo skipped, by node and link; contexts is whether any item or link carries a
+	// context, without which every alternative stands under none (bycontext.go).
+	leoAt    []leoFact
+	contexts bool
 }
 
 // fact is a rule the chart completed for sym from from, small to keep the
@@ -225,16 +229,16 @@ type fact struct{ sym, from, rule int32 }
 // mk is the fact of rule completing sym from from.
 func mk(sym, from, rule int) fact { return fact{int32(sym), int32(from), int32(rule)} }
 
-// placed is an item at node at, by its state.
-type placed struct{ at, state int32 }
+// placed is an item at node at, by its state, and its context (recognize.Item).
+type placed struct{ at, state, ctx int32 }
 
-// link is a Leo memo's first link (recognize.Chart.LeoLink), the next
-// link's and the chain's last's (the top's) indexes in links, next -1 where
-// there is none, and the last node whose facts walked it.
+// link is a Leo memo's first link (recognize.Chart.LeoLink) and its
+// context, the next link's and the chain's last's (the top's) indexes in
+// links, next -1 where there is none, and the last node whose facts walked it.
 type link struct {
-	rule, origin int
-	next, top    int
-	walked       int
+	rule, origin, ctx int
+	next, top         int
+	walked            int
 }
 
 // cmpFact orders facts by symbol, origin and rule.
@@ -291,6 +295,8 @@ func buildForestGrammar(tab *grammar.Tables) *forestGrammar {
 const nodesPerToken, altsPerToken = 6, 5
 
 // Build is the forest of c, a chart of l; nil where c does not accept or l is not linear.
+// It reads no completion the judged recognizer refused into every parent
+// (recognize.Chart.RuleRefused), and walks by context (bycontext.go).
 // It only reads c, so builds of one recognizer's charts may run at once, from
 // any goroutines, while that recognizer is not recognizing (recognize.Chart).
 // shortcut: l must be linear, as up-front lexing makes it, so the token
@@ -347,10 +353,13 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], to
 		for _, items := range [2][]recognize.Item{s.Items(), slipped[j]} {
 			for _, it := range items {
 				o := j - it.Dist
-				b.items[fill[o]] = placed{int32(j), int32(it.State)}
+				b.items[fill[o]] = placed{int32(j), int32(it.State), int32(it.Ctx)}
+				b.contexts = b.contexts || it.Ctx != 0
 				fill[o]++
 				for _, r := range tab.States[it.State].Reduces {
-					b.facts = append(b.facts, mk(tab.Rules[r].LHS, o, r))
+					if lhs := tab.Rules[r].LHS; !c.RuleRefused(j, r, lhs, o) {
+						b.facts = append(b.facts, mk(lhs, o, r))
+					}
 				}
 			}
 		}
@@ -373,6 +382,7 @@ func build(tab *grammar.Tables, c *recognize.Chart, l *lex.Lattice[lex.None], to
 			b.split(nd, r, len(tab.Rules[r].RHS))
 		}
 	}
+	b.byContext()
 	f := b.Forest // a copy, so the forest keeps none of the builder's tables alive
 	return &f
 }
@@ -401,6 +411,8 @@ func (b *builder) leoFacts(j int) {
 		for ; l >= 0 && b.links[l].walked != j; l = b.links[l].next {
 			b.links[l].walked = j
 			b.facts = append(b.facts, mk(b.tab.Rules[b.links[l].rule].LHS, b.links[l].origin, b.links[l].rule))
+			b.leoAt = append(b.leoAt, leoFact{j, l})
+			b.contexts = b.contexts || b.links[l].ctx != 0
 		}
 	}
 	if len(b.facts) > b.at[j]+len(seg) {
@@ -426,7 +438,7 @@ func (b *builder) link(at, sym int) int {
 		return -1
 	}
 	l := len(b.links)
-	b.links = append(b.links, link{rule: rule, origin: origin, next: -1, top: l, walked: -1})
+	b.links = append(b.links, link{rule: rule, origin: origin, ctx: b.c.LeoLinkContext(at, sym), next: -1, top: l, walked: -1})
 	b.memo[k] = int32(l + 1)
 	if more {
 		if next := b.link(origin, b.tab.Rules[rule].LHS); next >= 0 {
