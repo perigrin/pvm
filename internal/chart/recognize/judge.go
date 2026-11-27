@@ -126,6 +126,24 @@ func (r *Recognizer) predicts(state, ctx int) int {
 	return r.predictedContext(state)
 }
 
+// scanRefused reports whether the shift side (§4.1) refuses scanning terminal t from an item of state under context
+// ctx: V1's shift verdict for ctx's spine top, the item of state holding at, and t. Feasible's counters 4 and 6 are
+// 0, so a forbidden shift is one of t by an item whose next symbol is t, and every item of a state scanning t gives
+// one verdict under one context, a dot-0 item allowing: the first item after its first symbol stands for all.
+func (r *Recognizer) scanRefused(state, ctx, t int) bool {
+	if r.judge == nil || ctx == 0 {
+		return false
+	}
+	tab := r.tab
+	for _, i := range tab.States[state].Items {
+		it := tab.Items[i]
+		if rhs := tab.Rules[it.Rule].RHS; it.Dot > 0 && it.Dot < len(rhs) && rhs[it.Dot] == t {
+			return r.judge.p.ShiftForbidden(int32(ctx-1), r.judge.p.Item(i), int32(t))
+		}
+	}
+	return false
+}
+
 // startContext is the context of the start item at node 0.
 func (r *Recognizer) startContext() int {
 	if r.judge == nil {

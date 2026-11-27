@@ -431,7 +431,8 @@ func (b *builder) add(state, origin, ctx int) {
 	}
 }
 
-// scan advances every item of e's source set over e's token.
+// scan advances every item of e's source set over e's token, but for a scan
+// the shift side refuses under the item's context (scanRefused).
 func (b *builder) scan(e lex.Edge) {
 	src := b.c.Sets[e.From]
 	if src == nil {
@@ -442,8 +443,9 @@ func (b *builder) scan(e lex.Edge) {
 	if src.core != nil {
 		for _, t := range cls.terms[id] {
 			for _, en := range b.r.awaiting(src, t) {
-				it := src.items[en.idx]
-				b.add(int(en.target), e.From-it.Dist, it.Ctx)
+				if it := src.items[en.idx]; !b.r.scanRefused(it.State, it.Ctx, t) {
+					b.add(int(en.target), e.From-it.Dist, it.Ctx)
+				}
 			}
 		}
 		return
@@ -452,7 +454,7 @@ func (b *builder) scan(e lex.Edge) {
 	// branch sets a postdot index when interleaved mode makes them common.
 	for _, it := range src.items {
 		for _, t := range cls.terms[id] {
-			if k, ok := b.r.goTo(it.State, t); ok {
+			if k, ok := b.r.goTo(it.State, t); ok && !b.r.scanRefused(it.State, it.Ctx, t) {
 				b.add(k, e.From-it.Dist, it.Ctx)
 			}
 		}
