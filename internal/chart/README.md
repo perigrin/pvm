@@ -1962,12 +1962,15 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   The slipper's inserted `;`, and the `}` scanned after it, are judged the
   same way (`TestShiftRefusalThroughSlipper`), and `Expected` omits a
   terminal whose shift an item's context forbids
-  (`TestShiftRefusalThroughExpected`); judging the completions a terminal
-  would trigger is not done yet. The pairing rule (§4.3): a completion
-  advances only the parents that predicted it under its context, a Leo
-  chain included (`TestCompletionPairsUnderContext`). Its forest, through
-  `Build` and `Constrain`, equals V1's over the toys, seeds 4 and 44 and the
-  in-tree corpus (`TestForestEqualityReduceSide`,
+  (`TestShiftRefusalThroughExpected`), and each candidate terminal is
+  judged as the lookahead: the completions it would trigger are judged
+  before it, so after `1 .. 2` `DOTDOT` is not offered
+  (`TestExpectedJudgesPrecedence`, `TestExpectedLeoAgreesUnderPrecedence`,
+  `TestExpectedMatchesRecognizeGivenEachCandidate`). The pairing rule
+  (§4.3): a completion advances only the parents that predicted it under
+  its context, a Leo chain included (`TestCompletionPairsUnderContext`).
+  Its forest, through `Build` and `Constrain`, equals V1's over the toys,
+  seeds 4 and 44 and the in-tree corpus (`TestForestEqualityReduceSide`,
   `TestForestEqualityCorpusReduceSide`), and so does its forest through
   `Build` alone, with no `Constrain`, over the toys `prectab.Feasible`
   passes, seeds 4 and 44, and the corpus narrowed as production narrows it
@@ -2035,7 +2038,10 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   `Expected(pos)` is the union of the expected terminals of every state in
   the set at `pos` as recognition without lookahead builds it: it closes
   the set again under every completion, outside the interned content, so a
-  refusal point still names what was expected there.
+  refusal point still names what was expected there. A judged recognizer
+  keeps only the terminals precedence allows there: it rebuilds the closure
+  from the set's scanned items once per candidate, with that terminal as
+  the lookahead, so it can be empty at a refusal point.
 - **The transition cache** is keyed by (set, token, lookahead) and the
   edge's span. A key alone does not fix the result: completion reads the
   sets where complete items began, which are not part of the source set. So

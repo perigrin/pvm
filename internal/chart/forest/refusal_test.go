@@ -7,8 +7,11 @@ import (
 	"slices"
 	"testing"
 
+	"tamarou.com/pvm/internal/chart/grammar"
 	"tamarou.com/pvm/internal/chart/lex"
+	"tamarou.com/pvm/internal/chart/prectab"
 	"tamarou.com/pvm/internal/chart/recognize"
+	"tamarou.com/pvm/internal/lexer"
 )
 
 // narrowedDeath is the byte where src's narrowed chart dies under an empty scope, -1 where it accepts, and whether
@@ -220,5 +223,36 @@ func TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped(t *testing.T) {
 	}
 	if f, got := Parse(tab, []byte(src), Scope{}); f != nil || got != (Refusal{Byte: 19, Reason: "lex-unmapped"}) {
 		t.Errorf("%q: Parse refuses %+v, want lex-unmapped at 19", src, got)
+	}
+}
+
+// TestRefusalByteWhereExpectedEmpty: recognize's TestExpectedEmptyWhenPrecedenceForbidsAll toy, T nonassoc, on the
+// source "A T A T A", one byte a token two apart: precedence forbids every candidate after A T A, so the judged chart
+// dies at the second T with Expected empty there, and the refusal byte diedAt produces is that T's, byte 6.
+func TestRefusalByteWhereExpectedEmpty(t *testing.T) {
+	tab := toyTables(t, "S ::= E", "E ::= E T E | A")
+	p, err := prectab.NewPrecedence(tab, []grammar.Level{{N: 1, Assoc: "nonassoc", Tokens: []string{"T"}}}, make([]string, len(tab.Rules)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := recognize.NewJudged(tab, p, recognize.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := []string{"A", "T", "A", "T", "A"}
+	c, err := recognize.Recognize(r, toyLattice(tab, words))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := c.Expected(3); err != nil || len(got) != 0 || c.Sets[3] == nil {
+		t.Fatalf("Expected after A T A is %v, %v (set %v); want empty and no error at a node with a set", got, err, c.Sets[3])
+	}
+	s := &lex.Stream{}
+	for i := range words {
+		s.Raw = append(s.Raw, lexer.Token{Start: 2 * i, End: 2*i + 1})
+		s.Tokens = append(s.Tokens, lex.Token{Index: i})
+	}
+	if at := diedAt(c, s, 2*len(words)-1); at != 6 {
+		t.Errorf("the refusal byte is %d; want 6, the second T's", at)
 	}
 }
