@@ -199,7 +199,8 @@ func ChartRefusal(tab *grammar.Tables, r *recognize.Recognizer, c *recognize.Cha
 		return Refusal{Byte: b, Reason: "grammar"}
 	}
 	if narrowed {
-		if b = at; judged {
+		b = at // an unjudged c is the narrowed no-precedence run
+		if judged {
 			if b, err = rerun(l); err != nil {
 				return Refusal{Reason: err.Error()}
 			}
