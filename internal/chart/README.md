@@ -1950,10 +1950,27 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   by class or by union (`TestJudgedLeoWalkLinear`), and a verdict kept for
   one lookahead is never served for another
   (`TestLeoCrossingVerdictPerLookahead`). Over the corpus sample the walk is held to
-  `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The slipper's closure and `Expected`
-  judge nothing yet. Its forest, through `Build` and `Constrain`, equals V1's
-  over the toys, seeds 4 and 44 and the in-tree corpus
-  (`TestForestEqualityReduceSide`, `TestForestEqualityCorpusReduceSide`).
+  `leoLinksPerTokenBound` (`TestLeoLinksPerTokenBoundedJudged`). The shift
+  side (§4.1): a scan is refused where V1's shift verdict for the item's
+  context, the item of its state holding `at` and the terminal forbids it,
+  and the same scan under `none` is kept (`TestShiftSideRefusesForbiddenScan`);
+  the predictors `do`, `UNIOP` and `my \` give their rules the real top, so a
+  shift V1 forbids after each is refused (`TestPredictorTakesNonNoneTop`).
+  The slipper's inserted `;`, and the `}` scanned after it, are judged the
+  same way (`TestShiftRefusalThroughSlipper`), and `Expected` omits a
+  terminal whose shift an item's context forbids
+  (`TestShiftRefusalThroughExpected`); judging the completions a terminal
+  would trigger is not done yet. The pairing rule (§4.3): a completion
+  advances only the parents that predicted it under its context, a Leo
+  chain included (`TestCompletionPairsUnderContext`). Its forest, through
+  `Build` and `Constrain`, equals V1's over the toys, seeds 4 and 44 and the
+  in-tree corpus (`TestForestEqualityReduceSide`,
+  `TestForestEqualityCorpusReduceSide`), and so does its forest through
+  `Build` alone, with no `Constrain`, over the toys `prectab.Feasible`
+  passes, seeds 4 and 44, and the corpus narrowed as production narrows it
+  (`TestForestEqualityJudgedRecognizer`,
+  `TestForestEqualityCorpusJudgedRecognizer`); that candidate never enters
+  `Constrain` (`TestForestEqualityJudgedCandidateNeverConstrains`).
 - **Items** are an LR(0) state, the distance in lattice nodes back to the
   item's origin, and a context: the canonical spine top, or `none` (the V2
   design's §4.2), which only the judged recognizer sets
@@ -1965,8 +1982,8 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   content share one `*Set`, and sets differing only in a context do not;
   the transition cache keys on the source set, so on its contexts, and a
   Leo memo's top carries its item's context (`TestContextCollapseInternsEqualSets`,
-  `TestTransitionCacheKeysOnContext`, `TestLeoMemoCarriesContext`). No
-  context refuses anything yet. It is interned by one hash of its states and one
+  `TestTransitionCacheKeysOnContext`, `TestLeoMemoCarriesContext`). It is
+  interned by one hash of its states and one
   map lookup (`TestInternOneLookup`; YAEP's `set_core.hash` and `dists_hash`):
   the table's value is the core, which holds its sets in an
   open-addressed table keyed by a hash of their distances (a core's list was
@@ -2187,7 +2204,10 @@ the reason by the rule above at its own byte, and one that accepts makes it
   closures (below) and the judged recognizer's refusal records, which
   perigrin's ruling "Lift rule 12 for refusals" admits: `Build` never pairs a
   completion with a parent the recognizer refused it for
-  (`TestBuildNeverPairsRefusedParent`). It reads the chart through two read-only accessors in
+  (`TestBuildNeverPairsRefusedParent`), and walks by context, so an
+  alternative completed under a context whose parent chain dies is never
+  attached to a node reached under another
+  (`TestBuildDropsAlternativeOfDeadContext`). It reads the chart through two read-only accessors in
   `recognize/finished.go`. A rule the chart completed
   is a reduce of a state in some set, or one a Leo memo skipped
   (`LeoLink`), or one the inserted `;` completed beside a set (`Slipped`).
