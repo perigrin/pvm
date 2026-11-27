@@ -1678,7 +1678,7 @@ is one the committed tables lack, so it takes an id from
 never reassigned and never written into `TerminalSets`
 (`TestNarrowKeptLibraryOperator`, `TestNarrowedSetIdsStableAcrossFiles`,
 `TestNarrowLeavesCommittedTerminalSetsUnmutated`). A file the narrowed chart
-refuses is refused for scope at that chart's byte where the un-narrowed
+refuses is refused for scope at the narrowed no-precedence chart's byte where the un-narrowed
 rerun accepts it, a byte that may differ from where V1's pruning located it
 (`foo plus 2 plus 3;`: 11, V1 4). The precedence constraint then reads the terminal as `perly.y` does,
 and the referee covers its resolutions ("The precedence constraint").
@@ -1753,9 +1753,10 @@ The correspondence is a hypothesis, amended once: `FUNC0OP` is niladic (`FUN0OP`
 `grammar/perly.go` states perly.y's 32 precedence declarations (`perlyPrecedence`, `%left|%right|%nonassoc
 TOKEN... # perly.y:N`, loosest first, each citing one line of `perly.y:150-182`), and every rule whose alternative
 carries a `%prec` carries it too, as `lhs: rhs %prec TOKEN # perly.y:N` (`TestPrecedenceCitations` holds them to
-perly.y's 39 uses). **Recognition ignores both** (spec §8): `TestPrecedenceIgnoredByRecognition`
-shows `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` still accepted by recognition, and the forest's
-constraint refuses all three (`TestWaypoint2Refusals`). The generated tables (`make chart-tables`) carry no
+perly.y's 39 uses). **The default recognizer judges both** (the V2 design, superseding spec §8):
+`recognize.New` refuses `$a <=> $b <=> $c;`, `1 .. 2 .. 3;` and `print $fh [];` in the chart, the no-precedence
+constructor accepts all three (`TestDefaultRecognizerJudgesPrecedence`), and the forest's constraint refuses all
+three on that constructor's forest (`TestWaypoint2Refusals`). The generated tables (`make chart-tables`) carry no
 precedence: `grammar.Committed` carries it on the grammar, as `Grammar.Levels` (the declarations), each
 `Rule.Prec` (rule *r* of the grammar is rule *r* of its tables, since perly.y's port has no sequence rule) and
 `Grammar.Refused` (the four comparison chains the ledger marks refused-by-precedence, which the tables leave out),
@@ -1907,9 +1908,11 @@ tables and a `chart/lex` lattice. Error recovery is not built yet.
   transition cache change with every recognition, across inputs, and stay
   its own (`TestRecognizerStateNotShared`).
 - **The judged recognizer** (the V2 design's §4.1 reduce side, built beside
-  the default). `recognize.New` judges no precedence, and is exactly
-  `recognize.NewNoPrecedence`, the explicit no-precedence constructor, until
-  the switch-over. `recognize.NewJudged` takes a `*prectab.Precedence`
+  the default). `recognize.New` is the derived judged recognizer,
+  `recognize.NewJudged(tab, nil, opts)` (`TestDefaultRecognizerJudgesPrecedence`);
+  `recognize.NewNoPrecedence`, the explicit no-precedence constructor, is
+  reached only by the refusal rerun, the referees, the pinned guards and
+  tests. `recognize.NewJudged` takes a `*prectab.Precedence`
   (explicit) or nil (derived): derived, tables whose rules are perly.y's
   committed grammar rule for rule (count, each LHS and RHS by name) are judged
   with perly.y's precedence through `prectab.ParsePrecedence`, once per
@@ -2154,7 +2157,7 @@ transition the sample uses and requires the disagreement to be reported.
 
 `TestSetDigestGolden` (`recognize/setdigest_test.go`) holds set identity to
 its golden, `recognize/testdata/set-digest.golden`. Over the same corpus
-sample, each file recognized whole, with one recognizer per option set
+sample, each file recognized whole, with one no-precedence recognizer per option set
 (`Options{}`, `NoCache`, `NoLeo`, `NoCache` with `NoLeo`, `NoLookahead`), it
 hashes every set at every node (`Set.Items()`), `Inserted()` and `Expected` at
 every 37th node, and writes one line per option set: its name, the accepted
@@ -2194,7 +2197,23 @@ the reason by the rule above at its own byte, and one that accepts makes it
 `scope` at the narrowed chart's byte (`TestRefusalRerunScopeVersusGrammar`,
 `TestRefusalRerunTieIsGrammar`, `TestRefusalRerunLaterGrammarFaultIsGrammar`,
 `TestRefusalRerunScopeThenUnmappedIsLexUnmapped`, `TestRefusalLexUnmappedNotRerun`,
-`TestRefusalEverySetAliveAtEnd`).
+`TestRefusalEverySetAliveAtEnd`). The chart judges precedence, so a refusal is
+classified by rerunning without it (`recognize.NewNoPrecedence`), in V1's
+order: where the un-narrowed rerun dies, the reason is `lex-unmapped` or
+`grammar` at its byte, by the rule above; else, where the lattice was
+narrowed and the narrowed rerun dies, `scope` at its byte; else `precedence`
+at the byte where the judged chart died, never byte 0
+(`TestPrecedenceRefusalByteWhereChartDied`, `TestRefusalRerunOrder`,
+`TestRefusalRerunPrecedenceThenUnmappedIsLexUnmapped`). The port's
+`recognizeSource` reads `testdata/port/refused-where.txt` by the same rule,
+`forest.ChartRefusal`, and agrees with `Parse` on every row
+(`TestRefusedWhereReadersAgree`). Nothing a caller passes turns precedence off
+(`TestParseHasNoPrecedenceSwitch`): `ParseWith` panics on a recognizer built
+by `recognize.NewNoPrecedence`, and, over tables whose rules are perly.y's,
+on one judged with any precedence but the one `recognize.New` derives for
+them; over other tables an explicit precedence stays allowed. A judged
+recognizer over a grammar `prectab.Feasible` refuses refuses every file with
+`Feasible`'s refusal (`TestParseRefusesInfeasibleGrammar`).
 
 - **No fact but the context is added to an Earley item** (spec §3 rule 12,
   §10, superseded for the context by the V2 design's §4.2). Items are
@@ -2219,7 +2238,7 @@ the reason by the rule above at its own byte, and one that accepts makes it
   a derivation of the file is completed in the chart, so none is missing.
 - **Grammar-only data** (the `;` symbol, each rule's first core item id,
   the symbols a Leo item awaits) is built once per tables value through
-  `grammar.Derived`, keyed by its own type beside the recognizer's, and only
+  `grammar.Derived`, keyed by its own type beside the recognizer's and `prectab`'s, and only
   read after; a copy of the tables builds its own, and the recognizer's
   value is untouched (`TestForestGrammarDataOncePerTables`).
 - **First blocks.** `Nodes` and `Alts` start sized from the file: 6 and 5
@@ -2359,7 +2378,7 @@ the reason by the rule above at its own byte, and one that accepts makes it
   as `BAREWORD` or `PRIVATEREF`. Neither changes what the chart accepts.
 - **Forest identity.** `TestForestDigestGolden`
   (`forest/forestdigest_test.go`) holds the forests `Build` makes of the
-  corpus sample, before resolve, to
+  corpus sample's no-precedence charts (V1's), before resolve, to
   `forest/testdata/forest-digest.golden`: the accepted count, then one line
   per accepted file, its path and the hash of a text dump of its forest. The
   dump visits every node reachable from the root and writes them in a fixed
@@ -2885,9 +2904,7 @@ grammar's tables and its precedence: no Earley item gains a fact.
   (`CandidateForest`, `CandidateToyForest`) is production's forest before
   resolve, and later issues may swap it. The candidate narrows the lattice
   before recognition where V1 prunes the built forest, and the two agree on
-  every input the differentials load; until the recognizer judges
-  precedence they agree by construction otherwise, so
-  `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
+  every input the differentials load. `TestForestEqualityDetectsPerturbation` shows a dropped alternative,
   reordered alternatives, an added and a removed reachable node, a flipped
   verdict and a changed rule position each reported, and a renumbered forest,
   a change to an unreachable node and two refusals not reported;
