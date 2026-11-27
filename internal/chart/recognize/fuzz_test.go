@@ -226,15 +226,22 @@ func precSeeds(tb testing.TB) []string {
 	return out
 }
 
+// precWords is the toy's terminals src's bytes pick, one each.
+func precWords(tb testing.TB, src string) []string {
+	_, _, terms := leveledToy(tb)
+	words := make([]string, len(src))
+	for i := range len(src) {
+		words[i] = terms[int(src[i])%len(terms)]
+	}
+	return words
+}
+
 // precDisagreement holds the judged recognizer, in the explicit form over the
 // toy's precedence, to the judged reference on the toy's input src: its first
 // 24 bytes, each picking a terminal. It returns the reference's chart too.
 func precDisagreement(tb testing.TB, src string) (string, refChart) {
-	tab, p, terms := leveledToy(tb)
-	var words []string
-	for i := 0; i < min(len(src), 24); i++ { // the reference is cubic
-		words = append(words, terms[int(src[i])%len(terms)])
-	}
+	tab, p, _ := leveledToy(tb)
+	words := precWords(tb, src[:min(len(src), 24)]) // the reference is cubic
 	l := tokens(tab, words...)
 	ref := refJudged(tab, p, tokenIDs(l))
 	d := judgedDisagreement(tab, ref, func(o Options) *Recognizer { return mustJudged(tb, tab, p, o) }, l)
@@ -643,7 +650,7 @@ func TestFuzzPrecedenceToySeeds(t *testing.T) {
 // scan the judged reference refuses, so the seeds judge something; the
 // statement grammar declares none, so New judges nothing there.
 func TestFuzzPrecedenceToyIsFeasibleWithLevels(t *testing.T) {
-	tab, p, terms := leveledToy(t)
+	tab, p, _ := leveledToy(t)
 	if _, err := prectab.Feasible(p); err != nil {
 		t.Fatalf("the %s toy is not feasible: %v", precToyName, err)
 	}
@@ -652,11 +659,7 @@ func TestFuzzPrecedenceToyIsFeasibleWithLevels(t *testing.T) {
 	}
 	completions, scans := 0, 0
 	for _, s := range precSeeds(t) {
-		var words []string
-		for i := range len(s) {
-			words = append(words, terms[s[i]])
-		}
-		ref := refJudged(tab, p, tokenIDs(tokens(tab, words...)))
+		ref := refJudged(tab, p, tokenIDs(tokens(tab, precWords(t, s)...)))
 		completions, scans = completions+ref.refusedCompletions, scans+ref.refusedScans
 	}
 	t.Logf("refused completions: %d", completions)

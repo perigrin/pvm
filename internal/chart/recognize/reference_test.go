@@ -181,9 +181,10 @@ func refJudged(tab *grammar.Tables, p *prectab.Precedence, ids []int) (rc refCha
 		la := make([]bool, nsym)
 		if i == len(ids) {
 			la[tab.EOF] = true
-		}
-		for _, t := range terminalsAt(tab, ids, i) {
-			la[t] = true
+		} else {
+			for _, t := range tab.TerminalSets[ids[i]] {
+				la[t] = true
+			}
 		}
 		if semi >= 0 && (i == len(ids) || brace >= 0 && la[brace]) {
 			la[semi] = true
@@ -258,14 +259,6 @@ func refJudged(tab *grammar.Tables, p *prectab.Precedence, ids []int) (rc refCha
 		rc.expected = append(rc.expected, names)
 	}
 	return rc
-}
-
-// terminalsAt is the terminals of token i of ids, none past the last.
-func terminalsAt(tab *grammar.Tables, ids []int, i int) []int {
-	if i == len(ids) {
-		return nil
-	}
-	return tab.TerminalSets[ids[i]]
 }
 
 // refFollow is, by symbol, the terminals that can follow it, EOF after the
