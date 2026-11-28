@@ -261,7 +261,7 @@ This is recorded in `internal/chart/README.md`'s precedence section, under "What
 - The arbiter is perl's own parse.
 - Differences from RD or V1 are investigated, and accepted when they agree with perl at least as well, where the oracle compares.
 - A claim of greater accuracy where the oracle does not compare adds an oracle case.
-- A parse perl would not make is a defect.
+- A reading perl would not make is not a defect. perigrin: "Perl makes an unambiguous parse, no SPPF so making parses Perl wouldn't is allowed as long as it's fewer than the alternative parsers". Asked what the comparison is, perigrin chose "Perl's parse present, no bound": the rule is that perl's own parse is among the chart's readings, and the number of readings is a cost tracked by keys such as `readings-collapsed`, not a correctness rule.
 - A decision that makes forest equality its stop, as V2's §7 does, still binds within its milestone.
 
 On the string-token classes, perigrin ruled: "Honestly we should do B because it's more accurate regardless of the RD CST". This is filed as `01a2200c-112e` in `chart-string-token-class`.

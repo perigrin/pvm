@@ -3063,7 +3063,10 @@ zero-width `;` after recognition, and nothing needs to: no reduction before
   (`oracle-exact-chart`, `oracle-wrong`, and the accept or refuse keys
   against perl). A change that claims to be more accurate where the oracle
   does not compare adds an oracle case or a test against perl that shows
-  it. A difference that adds a parse perl would not make is a defect.
+  it. Perl commits to one parse and the chart keeps a forest, so a reading
+  perl would not make is not a defect: the rule is that perl's own parse is
+  among the chart's readings. How many readings there are is a cost, not a
+  correctness rule, tracked by keys such as `readings-collapsed`.
   Within a milestone whose decision makes forest equality its stop, as the
   V2 decision's §7 does, the stop still binds there.
 - **The forest-equality differential** (`forest/equality.go`, the V2
