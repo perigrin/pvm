@@ -249,3 +249,19 @@ These are perigrin's answers to the four questions left open during chart-perly-
   - A test change and the golden it regenerates are committed together, and the commit message names the golden.
   - Refinement no longer writes golden-alone criteria.
   - d278's two red commits stay in history.
+
+## 2026-11-28, after close: what a difference from RD or V1 means
+
+These rulings came from discussing the prune-at-recognition prototype, whose pre-resolve forest differs from V1's on six inputs. perigrin's words:
+
+- "The forest differing isn't a problem if the CST is the same"
+- "Even the CST differing isn't bad as long as our CST is more accurate to the actual source"
+
+This is recorded in `internal/chart/README.md`'s precedence section, under "What a difference means":
+- The arbiter is perl's own parse.
+- Differences from RD or V1 are investigated, and accepted when they agree with perl at least as well, where the oracle compares.
+- A claim of greater accuracy where the oracle does not compare adds an oracle case.
+- A parse perl would not make is a defect.
+- A decision that makes forest equality its stop, as V2's §7 does, still binds within its milestone.
+
+On the string-token classes, perigrin ruled: "Honestly we should do B because it's more accurate regardless of the RD CST". This is filed as `01a2200c-112e` in `chart-string-token-class`.
