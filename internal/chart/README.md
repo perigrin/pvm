@@ -3055,6 +3055,20 @@ zero-width `;` after recognition, and nothing needs to: no reduction before
     `TestPrecedenceHarnessesDoNotAlias`, in each package, shows the
     instrument report an over-pruning judgement through the harness itself,
     so neither compares a copy with itself.
+- **What a difference means** (perigrin, 2026-11-28). The arbiter of a
+  parse is perl's own parse of the source, not recursive descent's CST and
+  not V1's forest. A forest or CST that differs from either is not by that
+  fact a defect: it is investigated, and accepted when it agrees with perl
+  at least as well, measured where the oracle compares
+  (`oracle-exact-chart`, `oracle-wrong`, and the accept or refuse keys
+  against perl). A change that claims to be more accurate where the oracle
+  does not compare adds an oracle case or a test against perl that shows
+  it. Perl commits to one parse and the chart keeps a forest, so a reading
+  perl would not make is not a defect: the rule is that perl's own parse is
+  among the chart's readings. How many readings there are is a cost, not a
+  correctness rule, tracked by keys such as `readings-collapsed`.
+  Within a milestone whose decision makes forest equality its stop, as the
+  V2 decision's §7 does, the stop still binds there.
 - **The forest-equality differential** (`forest/equality.go`, the V2
   decision's §5). `ForestDiff` compares a candidate's forest with V1's:
   accept or refuse, the set of nodes reachable from the root, and each
