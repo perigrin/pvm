@@ -233,3 +233,19 @@ The profile found the cause of the missed speed exit.
   - a pre-sized `leoAt`.
 
   Forests must stay byte-identical. A quiet, interleaved reading follows. If the exit is still unmet, it is reported before direction B is taken up.
+
+## 2026-11-28, after close: the four open questions
+
+These are perigrin's answers to the four questions left open during chart-perly-w4.
+
+- **O1, the judged Leo walk under union lookaheads:** "File a follow-up (Recommended)". The crossing-verdict cache is keyed per lookahead, so a never-repeating run of unions keeps the walk quadratic. The corpus has none.
+  - Filed as `01a21f98-a8bf`, in `chart-perly-w4-followups`: fold each link's refusing terminals into the memo when it is built.
+- **The `internal/cli/docs` live-GitHub tests:** "File an issue to stub (Recommended)". They timed out in CI on #667 and #673.
+  - Filed as `01a21f99-e2ce`, in its own milestone `cli-docs-offline-tests`: serve the calls from a local test server, and keep one opt-in live test.
+- **The `Co-Authored-By` trailer against "no model identifiers in commits or PRs":** "Drop the trailer".
+  - From now on, commits carry no `Co-Authored-By` line; the `Claude-Session` trailer alone attributes the work.
+  - Commits already merged are not rewritten.
+- **Golden-alone commits against CLAUDE.md's "`make test` passes before every commit":** "Test + golden together (Recommended)".
+  - A test change and the golden it regenerates are committed together, and the commit message names the golden.
+  - Refinement no longer writes golden-alone criteria.
+  - d278's two red commits stay in history.
